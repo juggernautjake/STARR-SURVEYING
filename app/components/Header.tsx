@@ -24,7 +24,7 @@ const Header = (): React.ReactElement => {
         <div className="flex justify-between items-center h-20">
           <Link href="/" className="flex items-center gap-2">
             <img 
-              src="/logos/logo-v3.png" 
+              src="/logos/Fancy_Logo_red_darkblue_white.png" 
               alt="Starr Surveying Logo" 
               className="h-16 w-auto"
             />
