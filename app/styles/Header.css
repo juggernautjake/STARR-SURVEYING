@@ -1,0 +1,831 @@
+/*==============================================================================
+  HEADER STYLES - Red Box at Top, Logo Floats in Front
+  
+  BREAKPOINTS (15 total for smooth scaling):
+  ------------------------------------------
+  1.  0-399px      Extra Small Mobile
+  2.  400-499px    Small Mobile
+  3.  500-599px    Medium Mobile
+  4.  600-767px    Large Mobile
+  5.  768-899px    Small Tablet
+  6.  900-1023px   Large Tablet
+  7.  1024-1149px  Small Desktop
+  8.  1150-1279px  Desktop
+  9.  1280-1439px  Large Desktop
+  10. 1440-1599px  XL Desktop
+  11. 1600-1799px  XXL Desktop
+  12. 1800-1919px  Full HD
+  13. 1920-2199px  Full HD+ (BASE)
+  14. 2200-2559px  QHD
+  15. 2560px+      4K+
+  
+==============================================================================*/
+
+/* =============================================================================
+   1. CSS VARIABLES - BASE VALUES (1920px - 2199px / Full HD+)
+   ============================================================================= */
+:root {
+  /* Brand Colors */
+  --color-red: #BD1218;
+  --color-blue: #1D3095;
+  --color-white: #FFFFFF;
+  
+  /* Header Box */
+  --header-box-height: 275px;
+  --border-width: 14px;
+  
+  /* Logo */
+  --logo-max-height: 480px;
+  --logo-top: 10px;
+  --logo-left: 25px;
+  
+  /* Navbar - CONSISTENT POSITIONING */
+  --navbar-top-percent: 0.952;
+  --navbar-padding-y: 1.5rem;
+  --navbar-padding-x: 1.7rem;
+  --navbar-left-extend: 90px;
+  --navbar-radius: 16px;
+  --navbar-inner-left-pad: 2.8rem;
+  
+  /* Mobile Menu Gap */
+  --mobile-menu-gap: 8px;
+  
+  /* Buttons */
+  --btn-bg: var(--color-blue);
+  --btn-text: var(--color-white);
+  --btn-border: var(--color-white);
+  --btn-hover-bg: var(--color-white);
+  --btn-hover-text: var(--color-blue);
+  --btn-padding-y: 0.7rem;
+  --btn-padding-x: 1.2rem;
+  --btn-font-size: 0.92rem;
+  --btn-gap: 0.42rem;
+  
+  /* Transitions */
+  --transition: 200ms ease;
+}
+
+/* =============================================================================
+   2. HEADER WRAPPER
+   ============================================================================= */
+.header-wrapper {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+  z-index: 100;
+}
+
+/* =============================================================================
+   3. HEADER BOX - SOLID RED background with blue border
+   ============================================================================= */
+.header-box {
+  position: relative;
+  width: 100%;
+  height: var(--header-box-height);
+  background-color: var(--color-red);
+  border: var(--border-width) solid var(--color-blue);
+  box-sizing: border-box;
+}
+
+/* =============================================================================
+   4. LOGO - Floats IN FRONT of header box
+   ============================================================================= */
+.logo-container {
+  position: absolute;
+  top: var(--logo-top);
+  left: var(--logo-left);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.logo {
+  max-height: var(--logo-max-height);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  pointer-events: auto;
+}
+
+/* =============================================================================
+   5. NAVBAR
+   ============================================================================= */
+.navbar {
+  position: absolute;
+  top: calc(var(--header-box-height) * var(--navbar-top-percent));
+  right: 0;
+  z-index: 100;
+  width: auto;
+  max-width: 90%;
+}
+
+/* Blue border layer */
+.navbar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: calc(-1 * var(--navbar-left-extend));
+  background-color: var(--color-blue);
+  border-radius: 0 0 var(--navbar-radius) 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 10% 100%);
+  z-index: -2;
+}
+
+/* Red background layer */
+.navbar::after {
+  content: '';
+  position: absolute;
+  top: var(--border-width);
+  right: var(--border-width);
+  bottom: var(--border-width);
+  left: calc(-1 * var(--navbar-left-extend) + var(--border-width) + 2px);
+  background-color: var(--color-red);
+  border-radius: 0 0 calc(var(--navbar-radius) - var(--border-width)) 0;
+  clip-path: polygon(2.7% 0, 100% 0, 100% 100%, 10% 100%);
+  z-index: -1;
+}
+
+.navbar__inner {
+  position: relative;
+  z-index: 1;
+  padding: var(--navbar-padding-y) var(--navbar-padding-x);
+  padding-left: var(--navbar-inner-left-pad);
+}
+
+/* =============================================================================
+   6. NAVIGATION LINKS (Desktop)
+   ============================================================================= */
+.navbar__desktop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--btn-gap);
+  flex-wrap: nowrap;
+}
+
+.navbar__link {
+  display: inline-block;
+  padding: var(--btn-padding-y) var(--btn-padding-x);
+  font-weight: bold;
+  font-size: var(--btn-font-size);
+  color: var(--btn-text);
+  background-color: var(--btn-bg);
+  border: 2px solid var(--btn-border);
+  border-radius: 4px;
+  text-decoration: none;
+  text-align: center;
+  white-space: nowrap;
+  transition: all var(--transition);
+}
+
+.navbar__link:hover {
+  background-color: var(--btn-hover-bg);
+  color: var(--btn-hover-text);
+  transform: scale(0.95);
+}
+
+/* =============================================================================
+   7. MOBILE MENU
+   ============================================================================= */
+.navbar__mobile {
+  display: none;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.navbar__hamburger {
+  background-color: var(--color-red);
+  border: 3px solid var(--color-blue);
+  color: var(--color-white);
+  font-size: 1.5rem;
+  font-weight: bold;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.navbar__hamburger:hover {
+  background-color: var(--color-blue);
+  border-color: var(--color-white);
+  color: var(--color-white);
+}
+
+.navbar__quote-btn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: var(--color-white);
+  background-color: var(--color-red);
+  border: 3px solid var(--color-blue);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all var(--transition);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.navbar__quote-btn:hover {
+  background-color: var(--color-blue);
+  border-color: var(--color-white);
+  color: var(--color-white);
+}
+
+.navbar__dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background-color: var(--color-red);
+  border: 3px solid var(--color-blue);
+  border-radius: 8px;
+  padding: 0.5rem;
+  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: slideDown 0.3s ease-out;
+  z-index: 200;
+}
+
+.navbar__dropdown-link {
+  display: block;
+  padding: 0.6rem 1rem;
+  margin: 0.25rem 0;
+  font-weight: bold;
+  font-size: 0.9rem;
+  color: var(--color-white);
+  background-color: transparent;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  text-decoration: none;
+  text-align: center;
+  transition: all var(--transition);
+}
+
+.navbar__dropdown-link:hover {
+  background-color: var(--color-blue);
+  color: var(--color-white);
+  border-color: var(--color-blue);
+}
+
+/* =============================================================================
+   8. BACK TO TOP BUTTON
+   ============================================================================= */
+.back-to-top {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background-color: var(--color-red);
+  border: 4px solid var(--color-blue);
+  border-radius: 50%;
+  color: var(--color-white);
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all var(--transition);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.back-to-top:hover {
+  background-color: var(--color-blue);
+  transform: scale(1.1);
+}
+
+.back-to-top__arrow {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.back-to-top__text {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* =============================================================================
+   9. ANIMATIONS
+   ============================================================================= */
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* =============================================================================
+   10. RESPONSIVE BREAKPOINTS
+   ============================================================================= */
+
+/* --- 1. Extra Small Mobile (0 - 399px) --- */
+@media screen and (max-width: 399px) {
+  :root {
+    --header-box-height: 72px;
+    --border-width: 4px;
+    --logo-max-height: 118px;
+    --logo-top: 3px;
+    --logo-left: 3px;
+    --mobile-menu-gap: 6px;
+  }
+  
+  .navbar {
+    top: calc(var(--header-box-height) + var(--mobile-menu-gap));
+    right: 6px;
+    transform: none;
+    max-width: none;
+  }
+  
+  .navbar::before,
+  .navbar::after {
+    display: none;
+  }
+  
+  .navbar__inner {
+    padding: 0;
+  }
+  
+  .navbar__desktop { display: none; }
+  .navbar__mobile { display: flex; gap: 0.4rem; }
+  
+  .navbar__hamburger {
+    font-size: 1.1rem;
+    padding: 0.32rem 0.48rem;
+    border-width: 2px;
+  }
+  
+  .navbar__quote-btn {
+    font-size: 0.62rem;
+    padding: 0.32rem 0.55rem;
+    border-width: 2px;
+  }
+  
+  .navbar__dropdown {
+    min-width: 145px;
+    padding: 0.35rem;
+    border-width: 2px;
+  }
+  
+  .navbar__dropdown-link {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.72rem;
+  }
+  
+  .back-to-top {
+    width: 40px;
+    height: 40px;
+    border-width: 3px;
+    top: 0.5rem;
+    right: 0.5rem;
+  }
+  
+  .back-to-top__arrow { font-size: 0.85rem; }
+  .back-to-top__text { font-size: 0.45rem; }
+}
+
+/* --- 2. Small Mobile (400 - 499px) --- */
+@media screen and (min-width: 400px) and (max-width: 499px) {
+  :root {
+    --header-box-height: 82px;
+    --border-width: 4px;
+    --logo-max-height: 135px;
+    --logo-top: 4px;
+    --logo-left: 4px;
+    --mobile-menu-gap: 7px;
+  }
+  
+  .navbar {
+    top: calc(var(--header-box-height) + var(--mobile-menu-gap));
+    right: 8px;
+    transform: none;
+    max-width: none;
+  }
+  
+  .navbar::before,
+  .navbar::after {
+    display: none;
+  }
+  
+  .navbar__inner {
+    padding: 0;
+  }
+  
+  .navbar__desktop { display: none; }
+  .navbar__mobile { display: flex; gap: 0.5rem; }
+  
+  .navbar__hamburger {
+    font-size: 1.2rem;
+    padding: 0.36rem 0.52rem;
+    border-width: 2px;
+  }
+  
+  .navbar__quote-btn {
+    font-size: 0.68rem;
+    padding: 0.36rem 0.62rem;
+    border-width: 2px;
+  }
+  
+  .navbar__dropdown {
+    min-width: 155px;
+    padding: 0.4rem;
+    border-width: 2px;
+  }
+  
+  .navbar__dropdown-link {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.76rem;
+  }
+  
+  .back-to-top {
+    width: 44px;
+    height: 44px;
+    border-width: 3px;
+  }
+  
+  .back-to-top__arrow { font-size: 0.95rem; }
+  .back-to-top__text { font-size: 0.48rem; }
+}
+
+/* --- 3. Medium Mobile (500 - 599px) --- */
+@media screen and (min-width: 500px) and (max-width: 599px) {
+  :root {
+    --header-box-height: 92px;
+    --border-width: 5px;
+    --logo-max-height: 150px;
+    --logo-top: 4px;
+    --logo-left: 5px;
+    --mobile-menu-gap: 8px;
+  }
+  
+  .navbar {
+    top: calc(var(--header-box-height) + var(--mobile-menu-gap));
+    right: 10px;
+    transform: none;
+    max-width: none;
+  }
+  
+  .navbar::before,
+  .navbar::after {
+    display: none;
+  }
+  
+  .navbar__inner {
+    padding: 0;
+  }
+  
+  .navbar__desktop { display: none; }
+  .navbar__mobile { display: flex; gap: 0.55rem; }
+  
+  .navbar__hamburger {
+    font-size: 1.3rem;
+    padding: 0.4rem 0.58rem;
+    border-width: 3px;
+  }
+  
+  .navbar__quote-btn {
+    font-size: 0.74rem;
+    padding: 0.4rem 0.72rem;
+    border-width: 3px;
+  }
+  
+  .navbar__dropdown {
+    min-width: 168px;
+    border-width: 3px;
+  }
+  
+  .navbar__dropdown-link {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.8rem;
+  }
+  
+  .back-to-top {
+    width: 47px;
+    height: 47px;
+  }
+  
+  .back-to-top__arrow { font-size: 1.02rem; }
+  .back-to-top__text { font-size: 0.5rem; }
+}
+
+/* --- 4. Large Mobile (600 - 767px) --- */
+@media screen and (min-width: 600px) and (max-width: 767px) {
+  :root {
+    --header-box-height: 105px;
+    --border-width: 5px;
+    --logo-max-height: 170px;
+    --logo-top: 5px;
+    --logo-left: 6px;
+    --mobile-menu-gap: 10px;
+  }
+  
+  .navbar {
+    top: calc(var(--header-box-height) + var(--mobile-menu-gap));
+    right: 12px;
+    transform: none;
+    max-width: none;
+  }
+  
+  .navbar::before,
+  .navbar::after {
+    display: none;
+  }
+  
+  .navbar__inner {
+    padding: 0;
+  }
+  
+  .navbar__desktop { display: none; }
+  .navbar__mobile { display: flex; gap: 0.65rem; }
+  
+  .navbar__hamburger {
+    font-size: 1.4rem;
+    padding: 0.45rem 0.65rem;
+    border-width: 3px;
+  }
+  
+  .navbar__quote-btn {
+    font-size: 0.8rem;
+    padding: 0.45rem 0.85rem;
+    border-width: 3px;
+  }
+  
+  .navbar__dropdown {
+    min-width: 180px;
+    border-width: 3px;
+  }
+  
+  .navbar__dropdown-link {
+    padding: 0.55rem 0.8rem;
+    font-size: 0.85rem;
+  }
+  
+  .back-to-top {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .back-to-top__arrow { font-size: 1.1rem; }
+  .back-to-top__text { font-size: 0.52rem; }
+}
+
+/* --- 5. Small Tablet (768 - 899px) --- */
+@media screen and (min-width: 768px) and (max-width: 899px) {
+  :root {
+    --header-box-height: 125px;
+    --border-width: 6px;
+    --logo-max-height: 200px;
+    --logo-top: 6px;
+    --logo-left: 8px;
+    --navbar-left-extend: 55px;
+    --navbar-radius: 8px;
+    --navbar-padding-y: 0.55rem;
+    --navbar-padding-x: 0.6rem;
+    --navbar-inner-left-pad: 2.2rem;
+    --btn-padding-y: 0.3rem;
+    --btn-padding-x: 0.45rem;
+    --btn-font-size: 0.58rem;
+    --btn-gap: 0.18rem;
+  }
+}
+
+/* --- 6. Large Tablet (900 - 1023px) --- */
+@media screen and (min-width: 900px) and (max-width: 1023px) {
+  :root {
+    --header-box-height: 145px;
+    --border-width: 7px;
+    --logo-max-height: 235px;
+    --logo-top: 7px;
+    --logo-left: 9px;
+    --navbar-left-extend: 58px;
+    --navbar-radius: 9px;
+    --navbar-padding-y: 0.65rem;
+    --navbar-padding-x: 0.7rem;
+    --navbar-inner-left-pad: 2.3rem;
+    --btn-padding-y: 0.35rem;
+    --btn-padding-x: 0.55rem;
+    --btn-font-size: 0.64rem;
+    --btn-gap: 0.22rem;
+  }
+}
+
+/* --- 7. Small Desktop (1024 - 1149px) --- */
+@media screen and (min-width: 1024px) and (max-width: 1149px) {
+  :root {
+    --header-box-height: 165px;
+    --border-width: 8px;
+    --logo-max-height: 275px;
+    --logo-top: 8px;
+    --logo-left: 10px;
+    --navbar-left-extend: 62px;
+    --navbar-radius: 10px;
+    --navbar-padding-y: 0.75rem;
+    --navbar-padding-x: 0.85rem;
+    --navbar-inner-left-pad: 2.4rem;
+    --btn-padding-y: 0.4rem;
+    --btn-padding-x: 0.65rem;
+    --btn-font-size: 0.7rem;
+    --btn-gap: 0.26rem;
+  }
+}
+
+/* --- 8. Desktop (1150 - 1279px) --- */
+@media screen and (min-width: 1150px) and (max-width: 1279px) {
+  :root {
+    --header-box-height: 185px;
+    --border-width: 9px;
+    --logo-max-height: 310px;
+    --logo-top: 9px;
+    --logo-left: 12px;
+    --navbar-left-extend: 68px;
+    --navbar-radius: 11px;
+    --navbar-padding-y: 0.88rem;
+    --navbar-padding-x: 0.95rem;
+    --navbar-inner-left-pad: 2.5rem;
+    --btn-padding-y: 0.45rem;
+    --btn-padding-x: 0.78rem;
+    --btn-font-size: 0.76rem;
+    --btn-gap: 0.3rem;
+  }
+}
+
+/* --- 9. Large Desktop (1280 - 1439px) --- */
+@media screen and (min-width: 1280px) and (max-width: 1439px) {
+  :root {
+    --header-box-height: 208px;
+    --border-width: 10px;
+    --logo-max-height: 355px;
+    --logo-top: 10px;
+    --logo-left: 15px;
+    --navbar-left-extend: 72px;
+    --navbar-radius: 12px;
+    --navbar-padding-y: 1rem;
+    --navbar-padding-x: 1.1rem;
+    --navbar-inner-left-pad: 2.6rem;
+    --btn-padding-y: 0.5rem;
+    --btn-padding-x: 0.9rem;
+    --btn-font-size: 0.8rem;
+    --btn-gap: 0.34rem;
+  }
+  
+  .back-to-top {
+    width: 54px;
+    height: 54px;
+  }
+  
+  .back-to-top__arrow { font-size: 1.18rem; }
+  .back-to-top__text { font-size: 0.56rem; }
+}
+
+/* --- 10. XL Desktop (1440 - 1599px) --- */
+@media screen and (min-width: 1440px) and (max-width: 1599px) {
+  :root {
+    --header-box-height: 232px;
+    --border-width: 11px;
+    --logo-max-height: 400px;
+    --logo-top: 10px;
+    --logo-left: 18px;
+    --navbar-left-extend: 78px;
+    --navbar-radius: 13px;
+    --navbar-padding-y: 1.15rem;
+    --navbar-padding-x: 1.3rem;
+    --navbar-inner-left-pad: 2.7rem;
+    --btn-padding-y: 0.55rem;
+    --btn-padding-x: 1rem;
+    --btn-font-size: 0.84rem;
+    --btn-gap: 0.36rem;
+  }
+  
+  .back-to-top {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .back-to-top__arrow { font-size: 1.22rem; }
+  .back-to-top__text { font-size: 0.58rem; }
+}
+
+/* --- 11. XXL Desktop (1600 - 1799px) --- */
+@media screen and (min-width: 1600px) and (max-width: 1799px) {
+  :root {
+    --header-box-height: 252px;
+    --border-width: 12px;
+    --logo-max-height: 435px;
+    --logo-top: 10px;
+    --logo-left: 21px;
+    --navbar-left-extend: 82px;
+    --navbar-radius: 14px;
+    --navbar-padding-y: 1.28rem;
+    --navbar-padding-x: 1.45rem;
+    --navbar-inner-left-pad: 2.75rem;
+    --btn-padding-y: 0.6rem;
+    --btn-padding-x: 1.08rem;
+    --btn-font-size: 0.87rem;
+    --btn-gap: 0.38rem;
+  }
+  
+  .back-to-top {
+    width: 58px;
+    height: 58px;
+  }
+  
+  .back-to-top__arrow { font-size: 1.28rem; }
+  .back-to-top__text { font-size: 0.6rem; }
+}
+
+/* --- 12. Full HD (1800 - 1919px) --- */
+@media screen and (min-width: 1800px) and (max-width: 1919px) {
+  :root {
+    --header-box-height: 265px;
+    --border-width: 13px;
+    --logo-max-height: 460px;
+    --logo-top: 10px;
+    --logo-left: 23px;
+    --navbar-left-extend: 86px;
+    --navbar-radius: 15px;
+    --navbar-padding-y: 1.4rem;
+    --navbar-padding-x: 1.58rem;
+    --navbar-inner-left-pad: 2.8rem;
+    --btn-padding-y: 0.65rem;
+    --btn-padding-x: 1.15rem;
+    --btn-font-size: 0.9rem;
+    --btn-gap: 0.4rem;
+  }
+  
+  .back-to-top {
+    width: 59px;
+    height: 59px;
+  }
+  
+  .back-to-top__arrow { font-size: 1.32rem; }
+  .back-to-top__text { font-size: 0.61rem; }
+}
+
+/* --- 13. Full HD+ (1920 - 2199px) - BASE VALUES IN :root --- */
+
+/* --- 14. QHD (2200 - 2559px) --- */
+@media screen and (min-width: 2200px) and (max-width: 2559px) {
+  :root {
+    --header-box-height: 310px;
+    --border-width: 15px;
+    --logo-max-height: 540px;
+    --logo-top: 12px;
+    --logo-left: 28px;
+    --navbar-left-extend: 105px;
+    --navbar-radius: 18px;
+    --navbar-padding-y: 1.65rem;
+    --navbar-padding-x: 1.9rem;
+    --navbar-inner-left-pad: 3.2rem;
+    --btn-padding-y: 0.78rem;
+    --btn-padding-x: 1.35rem;
+    --btn-font-size: 0.98rem;
+    --btn-gap: 0.48rem;
+  }
+  
+  .back-to-top {
+    width: 68px;
+    height: 68px;
+    right: 1.25rem;
+  }
+  
+  .back-to-top__arrow { font-size: 1.52rem; }
+  .back-to-top__text { font-size: 0.7rem; }
+}
+
+/* --- 15. 4K+ (2560px+) --- */
+@media screen and (min-width: 2560px) {
+  :root {
+    --header-box-height: 360px;
+    --border-width: 17px;
+    --logo-max-height: 620px;
+    --logo-top: 14px;
+    --logo-left: 32px;
+    --navbar-left-extend: 125px;
+    --navbar-radius: 20px;
+    --navbar-padding-y: 1.85rem;
+    --navbar-padding-x: 2.1rem;
+    --navbar-inner-left-pad: 3.8rem;
+    --btn-padding-y: 0.88rem;
+    --btn-padding-x: 1.55rem;
+    --btn-font-size: 1.08rem;
+    --btn-gap: 0.55rem;
+  }
+  
+  .back-to-top {
+    width: 78px;
+    height: 78px;
+    right: 1.75rem;
+    border-width: 5px;
+  }
+  
+  .back-to-top__arrow { font-size: 1.75rem; }
+  .back-to-top__text { font-size: 0.8rem; }
+}

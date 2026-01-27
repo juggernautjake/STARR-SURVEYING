@@ -1,0 +1,1234 @@
+/*==============================================================================
+  HOME PAGE STYLES - Matches Header & Footer Design
+  
+  COLOR SCHEME:
+  - Red: #BD1218
+  - Blue: #1D3095
+  - Dark Blue: #152050
+  - White: #FFFFFF
+  - Light Gray: #F8F9FA
+  
+  NOTE: All text uses SOLID colors, no gradients
+  
+  HERO SECTION: Has gradient background. Large padding-top ensures the hero
+  card appears BELOW the header elements (logo + navbar that extend down).
+==============================================================================*/
+
+/* =============================================================================
+   1. HERO SECTION - Gradient background with generous top padding
+   
+   The logo and navbar extend below the header box. We need enough
+   padding-top to push the hero card below these elements.
+   
+   Calculation for each breakpoint:
+   padding-top = logo-max-height + logo-top - header-box-height + margin
+   ============================================================================= */
+.home-hero {
+  position: relative;
+  background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+  /* BASE (1920-2199px): logo 480px + 10px top - 275px header + 80px margin = 295px */
+  padding-top: 150px;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-bottom: 4rem;
+  min-height: 500px;
+}
+
+.home-hero__container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* COMBINED Card - Content + Stats in ONE widget */
+.home-hero__card {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 2.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border: 3px solid #1D3095;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2rem;
+  align-items: center;
+}
+
+/* Left side - Main content */
+.home-hero__content {
+  flex: 1;
+}
+
+.home-hero__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #0F1419;
+  line-height: 1.15;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.home-hero__title-accent {
+  color: #BD1218;
+}
+
+.home-hero__subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  color: #4B5563;
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+
+.home-hero__buttons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.home-hero__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.home-hero__btn--primary {
+  background: #BD1218;
+  color: #FFFFFF;
+  border: 2px solid #BD1218;
+}
+
+.home-hero__btn--primary:hover {
+  background: #9A0F14;
+  border-color: #9A0F14;
+}
+
+.home-hero__btn--secondary {
+  background: #1D3095;
+  color: #FFFFFF;
+  border: 2px solid #1D3095;
+}
+
+.home-hero__btn--secondary:hover {
+  background: #152050;
+  border-color: #152050;
+}
+
+/* Right side - Stats (inside same card) */
+.home-hero__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-left: 2rem;
+  border-left: 3px solid #BD1218;
+}
+
+.home-hero__stat {
+  text-align: center;
+  padding: 0.75rem 1rem;
+}
+
+.home-hero__stat-value {
+  font-family: 'Sora', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #BD1218;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+.home-hero__stat-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  color: #4B5563;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+/* =============================================================================
+   2. SERVICES SECTION
+   ============================================================================= */
+.home-services {
+  padding: 3.5rem 2rem;
+  background: #FFFFFF;
+  border-top: 4px solid #1D3095;
+}
+
+.home-services__container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.home-services__header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.home-services__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #0F1419;
+  margin-bottom: 0.75rem;
+}
+
+.home-services__subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  color: #4B5563;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.home-services__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+
+.home-services__card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: #F8F9FA;
+  border-radius: 8px;
+  border-left: 4px solid #1D3095;
+  transition: border-color 0.2s ease;
+}
+
+.home-services__card:hover {
+  border-left-color: #BD1218;
+}
+
+.home-services__card-icon {
+  font-size: 1.75rem;
+  flex-shrink: 0;
+}
+
+.home-services__card-content {
+  flex: 1;
+}
+
+.home-services__card-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0F1419;
+  margin-bottom: 0.25rem;
+}
+
+.home-services__card-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  color: #6B7280;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.home-services__cta {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.home-services__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1D3095;
+  text-decoration: none;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #1D3095;
+  border-radius: 6px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.home-services__link:hover {
+  background: #1D3095;
+  color: #FFFFFF;
+}
+
+/* =============================================================================
+   3. WHY CHOOSE US SECTION
+   ============================================================================= */
+.home-why {
+  padding: 3.5rem 2rem;
+  background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
+}
+
+.home-why__container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.home-why__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.home-why__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+.home-why__item {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  border-left: 3px solid #BD1218;
+  padding: 1.25rem;
+}
+
+.home-why__item-icon {
+  font-size: 1.5rem;
+  color: #BD1218;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+.home-why__item-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #FFFFFF;
+  margin-bottom: 0.35rem;
+}
+
+.home-why__item-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* =============================================================================
+   4. SERVICE AREA SECTION - Smaller satellite maps side by side
+   ============================================================================= */
+.home-area {
+  padding: 3rem 2rem;
+  background: #F8F9FA;
+  border-top: 4px solid #BD1218;
+}
+
+.home-area__container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.home-area__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #0F1419;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.home-area__subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: #4B5563;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+/* Two smaller maps side by side */
+.home-area__map-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.home-area__map-card {
+  background: #FFFFFF;
+  border-radius: 10px;
+  border: 2px solid #1D3095;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.home-area__map-card--red {
+  border-color: #BD1218;
+}
+
+.home-area__map-header {
+  background: #1D3095;
+  color: #FFFFFF;
+  padding: 0.5rem 1rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.home-area__map-header--red {
+  background: #BD1218;
+}
+
+.home-area__map {
+  width: 100%;
+  height: 200px;
+  border: none;
+  display: block;
+}
+
+.home-area__map-info {
+  padding: 0.6rem 1rem;
+  background: #F8F9FA;
+  border-top: 1px solid #E5E7EB;
+}
+
+.home-area__map-radius {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  color: #4B5563;
+  margin: 0;
+}
+
+.home-area__map-radius strong {
+  color: #0F1419;
+}
+
+/* Not Sure CTA */
+.home-area__cta {
+  background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
+  border-radius: 10px;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.home-area__cta-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin-bottom: 0.5rem;
+}
+
+.home-area__cta-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 1rem;
+}
+
+.home-area__cta-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.home-area__cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.6rem 1.25rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.home-area__cta-btn--primary {
+  background: #BD1218;
+  color: #FFFFFF;
+  border: 2px solid #BD1218;
+}
+
+.home-area__cta-btn--primary:hover {
+  background: #9A0F14;
+  border-color: #9A0F14;
+  color: #FFFFFF;
+}
+
+.home-area__cta-btn--secondary {
+  background: transparent;
+  color: #FFFFFF;
+  border: 2px solid #FFFFFF;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.home-area__cta-btn--secondary:hover {
+  background: #FFFFFF;
+  color: #1D3095;
+  text-decoration: none;
+}
+
+/* =============================================================================
+   5. CONTACT FORM SECTION
+   ============================================================================= */
+.home-contact {
+  padding: 3rem 2rem;
+  background: #FFFFFF;
+  border-top: 4px solid #1D3095;
+}
+
+.home-contact__container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.home-contact__header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.home-contact__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #0F1419;
+  margin-bottom: 0.5rem;
+}
+
+.home-contact__subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: #4B5563;
+}
+
+/* Contact Form */
+.home-contact__form {
+  background: #F8F9FA;
+  border-radius: 10px;
+  padding: 1.75rem;
+  border: 2px solid #E5E7EB;
+}
+
+.home-contact__form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.home-contact__form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-contact__form-group--full {
+  grid-column: 1 / -1;
+}
+
+.home-contact__label {
+  font-family: 'Sora', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0F1419;
+  margin-bottom: 0.4rem;
+}
+
+.home-contact__label--required::after {
+  content: ' *';
+  color: #BD1218;
+}
+
+.home-contact__input,
+.home-contact__select,
+.home-contact__textarea {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  padding: 0.65rem 0.9rem;
+  border: 2px solid #E5E7EB;
+  border-radius: 6px;
+  background: #FFFFFF;
+  color: #0F1419;
+  transition: border-color 0.2s ease;
+}
+
+.home-contact__input:focus,
+.home-contact__select:focus,
+.home-contact__textarea:focus {
+  outline: none;
+  border-color: #1D3095;
+}
+
+.home-contact__textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.home-contact__form-actions {
+  margin-top: 1.25rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.home-contact__submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.75rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: #BD1218;
+  color: #FFFFFF;
+  border: 2px solid #BD1218;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.home-contact__submit:hover {
+  background: #9A0F14;
+  border-color: #9A0F14;
+}
+
+.home-contact__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.home-contact__reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.25rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: transparent;
+  color: #6B7280;
+  border: 2px solid #E5E7EB;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.home-contact__reset:hover {
+  border-color: #BD1218;
+  color: #BD1218;
+}
+
+.home-contact__note {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  color: #6B7280;
+  text-align: center;
+  margin-top: 0.75rem;
+}
+
+/* Success/Error Messages */
+.home-contact__success {
+  background: #ECFDF5;
+  border: 2px solid #10B981;
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.home-contact__success-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #065F46;
+  margin-bottom: 0.5rem;
+}
+
+.home-contact__success-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  color: #047857;
+}
+
+.home-contact__error {
+  background: #FEF2F2;
+  border: 2px solid #BD1218;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  color: #BD1218;
+}
+
+/* =============================================================================
+   6. CTA SECTION
+   ============================================================================= */
+.home-cta {
+  padding: 2.5rem 2rem;
+  background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+}
+
+.home-cta__container {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.home-cta__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin-bottom: 0.5rem;
+}
+
+.home-cta__subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 1.5rem;
+  max-width: 550px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.home-cta__buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.home-cta__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.home-cta__btn--primary {
+  background: #FFFFFF;
+  color: #BD1218;
+  border: 2px solid #FFFFFF;
+}
+
+.home-cta__btn--primary:hover {
+  background: #F8F9FA;
+}
+
+.home-cta__btn--secondary {
+  background: transparent;
+  color: #FFFFFF;
+  border: 2px solid #FFFFFF;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.home-cta__btn--secondary:hover {
+  background: rgba(255, 255, 255, 1);
+}
+
+/* =============================================================================
+   7. RESPONSIVE STYLES - Match header breakpoints for proper clearance
+   
+   Each breakpoint calculates:
+   padding-top = logo-max-height + logo-top - header-box-height + margin(80px)
+   ============================================================================= */
+
+/* --- 15. 4K+ (2560px+) --- */
+/* logo: 620px, top: 14px, header: 360px → overflow: 274px → padding: 354px */
+@media screen and (min-width: 2560px) {
+  .home-hero {
+    padding-top: 145px;
+  }
+}
+
+/* --- 14. QHD (2200 - 2559px) --- */
+/* logo: 540px, top: 12px, header: 310px → overflow: 242px → padding: 322px */
+@media screen and (min-width: 2200px) and (max-width: 2559px) {
+  .home-hero {
+    padding-top: 140px;
+  }
+}
+
+/* --- 13. Full HD+ (1920 - 2199px) - BASE --- */
+/* logo: 480px, top: 10px, header: 275px → overflow: 215px → padding: 295px */
+/* Uses default: padding-top: 300px */
+
+/* --- 12. Full HD (1800 - 1919px) --- */
+/* logo: 460px, top: 10px, header: 265px → overflow: 205px → padding: 285px */
+@media screen and (min-width: 1800px) and (max-width: 1919px) {
+  .home-hero {
+    padding-top: 135px;
+  }
+}
+
+/* --- 11. XXL Desktop (1600 - 1799px) --- */
+/* logo: 435px, top: 10px, header: 252px → overflow: 193px → padding: 273px */
+@media screen and (min-width: 1600px) and (max-width: 1799px) {
+  .home-hero {
+    padding-top: 130px;
+  }
+}
+
+/* --- 10. XL Desktop (1440 - 1599px) --- */
+/* logo: 400px, top: 10px, header: 232px → overflow: 178px → padding: 258px */
+@media screen and (min-width: 1440px) and (max-width: 1599px) {
+  .home-hero {
+    padding-top: 125px;
+  }
+}
+
+/* --- 9. Large Desktop (1280 - 1439px) --- */
+/* logo: 355px, top: 10px, header: 208px → overflow: 157px → padding: 237px */
+@media screen and (min-width: 1280px) and (max-width: 1439px) {
+  .home-hero {
+    padding-top: 120px;
+  }
+}
+
+/* --- 8. Desktop (1150 - 1279px) --- */
+/* logo: 310px, top: 9px, header: 185px → overflow: 134px → padding: 214px */
+@media screen and (min-width: 1150px) and (max-width: 1279px) {
+  .home-hero {
+    padding-top: 115px;
+  }
+}
+
+/* --- 7. Small Desktop (1024 - 1149px) --- */
+/* logo: 275px, top: 8px, header: 165px → overflow: 118px → padding: 198px */
+@media screen and (min-width: 1024px) and (max-width: 1149px) {
+  .home-hero {
+    padding-top: 110px;
+  }
+  
+  .home-hero__title {
+    font-size: 2rem;
+  }
+}
+
+/* --- 6. Large Tablet (900 - 1023px) --- */
+/* logo: 235px, top: 7px, header: 145px → overflow: 97px → padding: 177px */
+@media screen and (min-width: 900px) and (max-width: 1023px) {
+  .home-hero {
+    padding-top: 105px;
+  }
+  
+  .home-hero__card {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .home-hero__stats {
+    flex-direction: row;
+    justify-content: center;
+    gap: 2rem;
+    padding-left: 0;
+    padding-top: 1.5rem;
+    border-left: none;
+    border-top: 3px solid #BD1218;
+  }
+  
+  .home-services__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .home-why__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .home-area__map-wrapper {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- 5. Small Tablet (768 - 899px) --- */
+/* logo: 200px, top: 6px, header: 125px → overflow: 81px → padding: 161px */
+@media screen and (min-width: 768px) and (max-width: 899px) {
+  .home-hero {
+    padding-top: 100px;
+  }
+  
+  .home-hero__card {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .home-hero__stats {
+    flex-direction: row;
+    justify-content: center;
+    gap: 2rem;
+    padding-left: 0;
+    padding-top: 1.5rem;
+    border-left: none;
+    border-top: 3px solid #BD1218;
+  }
+  
+  .home-services__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .home-why__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .home-area__map-wrapper {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- 4. Large Mobile (600 - 767px) --- */
+/* logo: 170px, top: 5px, header: 105px → overflow: 70px + navbar ~45px → padding: 175px */
+@media screen and (min-width: 600px) and (max-width: 767px) {
+  .home-hero {
+    padding-top: 80px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    padding-bottom: 3rem;
+  }
+  
+  .home-hero__card {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    padding: 1.5rem;
+  }
+  
+  .home-hero__title {
+    font-size: 1.65rem;
+  }
+  
+  .home-hero__subtitle {
+    font-size: 0.9rem;
+  }
+  
+  .home-hero__stats {
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-left: 0;
+    padding-top: 1rem;
+    border-left: none;
+    border-top: 3px solid #BD1218;
+  }
+  
+  .home-hero__stat-value {
+    font-size: 1.75rem;
+  }
+  
+  .home-services {
+    padding: 2.5rem 1.5rem;
+  }
+  
+  .home-services__title {
+    font-size: 1.5rem;
+  }
+  
+  .home-services__grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .home-why {
+    padding: 2.5rem 1.5rem;
+  }
+  
+  .home-why__title {
+    font-size: 1.5rem;
+  }
+  
+  .home-why__grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .home-area {
+    padding: 2rem 1.5rem;
+  }
+  
+  .home-area__title {
+    font-size: 1.4rem;
+  }
+  
+  .home-area__map-wrapper {
+    grid-template-columns: 1fr;
+  }
+  
+  .home-area__map {
+    height: 180px;
+  }
+  
+  .home-contact {
+    padding: 2rem 1.5rem;
+  }
+  
+  .home-contact__title {
+    font-size: 1.4rem;
+  }
+  
+  .home-contact__form {
+    padding: 1.25rem;
+  }
+  
+  .home-contact__form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .home-contact__form-actions {
+    flex-direction: column;
+  }
+  
+  .home-cta {
+    padding: 2rem 1.5rem;
+  }
+  
+  .home-cta__title {
+    font-size: 1.4rem;
+  }
+  
+  .home-cta__buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .home-cta__btn {
+    width: 100%;
+    max-width: 260px;
+  }
+  
+  .home-area__cta-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .home-area__cta-btn {
+    width: 100%;
+    max-width: 260px;
+  }
+}
+
+/* --- 3. Medium Mobile (500 - 599px) --- */
+/* logo: 150px, top: 4px, header: 92px → overflow: 62px + navbar ~40px → padding: 162px */
+@media screen and (min-width: 500px) and (max-width: 599px) {
+  .home-hero {
+    padding-top: 75px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+  
+  .home-hero__card {
+    grid-template-columns: 1fr;
+    padding: 1.25rem;
+  }
+  
+  .home-hero__title {
+    font-size: 1.5rem;
+  }
+  
+  .home-hero__stats {
+    flex-direction: column;
+    padding-left: 0;
+    padding-top: 1rem;
+    border-left: none;
+    border-top: 3px solid #BD1218;
+  }
+  
+  .home-services__grid,
+  .home-why__grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .home-area__map-wrapper {
+    grid-template-columns: 1fr;
+  }
+  
+  .home-contact__form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- 2. Small Mobile (400 - 499px) --- */
+/* logo: 135px, top: 4px, header: 82px → overflow: 57px + navbar ~35px → padding: 152px */
+@media screen and (min-width: 400px) and (max-width: 499px) {
+  .home-hero {
+    padding-top: 65px;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .home-hero__card {
+    grid-template-columns: 1fr;
+    padding: 1.25rem;
+  }
+  
+  .home-hero__title {
+    font-size: 1.4rem;
+  }
+  
+  .home-hero__buttons {
+    flex-direction: column;
+  }
+  
+  .home-hero__btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .home-hero__stats {
+    flex-direction: column;
+    padding-left: 0;
+    padding-top: 1rem;
+    border-left: none;
+    border-top: 3px solid #BD1218;
+  }
+  
+  .home-services {
+    padding: 2rem 1rem;
+  }
+  
+  .home-services__card {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.75rem;
+  }
+  
+  .home-why {
+    padding: 2rem 1rem;
+  }
+  
+  .home-area {
+    padding: 2rem 1rem;
+  }
+  
+  .home-area__map-wrapper {
+    grid-template-columns: 1fr;
+  }
+  
+  .home-contact {
+    padding: 2rem 1rem;
+  }
+  
+  .home-cta {
+    padding: 2rem 1rem;
+  }
+}
+
+/* --- 1. Extra Small Mobile (0 - 399px) --- */
+/* logo: 118px, top: 3px, header: 72px → overflow: 49px + navbar ~30px → padding: 139px */
+@media screen and (max-width: 399px) {
+  .home-hero {
+    padding-top: 60px;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-bottom: 2rem;
+  }
+  
+  .home-hero__card {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+  }
+  
+  .home-hero__title {
+    font-size: 1.25rem;
+  }
+  
+  .home-hero__subtitle {
+    font-size: 0.85rem;
+  }
+  
+  .home-hero__buttons {
+    flex-direction: column;
+  }
+  
+  .home-hero__btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.65rem 1rem;
+    font-size: 0.85rem;
+  }
+  
+  .home-hero__stats {
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-left: 0;
+    padding-top: 0.75rem;
+    border-left: none;
+    border-top: 3px solid #BD1218;
+  }
+  
+  .home-hero__stat-value {
+    font-size: 1.5rem;
+  }
+  
+  .home-hero__stat-label {
+    font-size: 0.7rem;
+  }
+  
+  .home-services {
+    padding: 1.5rem 0.75rem;
+  }
+  
+  .home-services__title {
+    font-size: 1.25rem;
+  }
+  
+  .home-services__card {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+    padding: 1rem;
+  }
+  
+  .home-why {
+    padding: 1.5rem 0.75rem;
+  }
+  
+  .home-why__title {
+    font-size: 1.25rem;
+  }
+  
+  .home-area {
+    padding: 1.5rem 0.75rem;
+  }
+  
+  .home-area__title {
+    font-size: 1.25rem;
+  }
+  
+  .home-area__map-wrapper {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .home-area__map {
+    height: 160px;
+  }
+  
+  .home-contact {
+    padding: 1.5rem 0.75rem;
+  }
+  
+  .home-contact__title {
+    font-size: 1.25rem;
+  }
+  
+  .home-contact__form {
+    padding: 1rem;
+  }
+  
+  .home-cta {
+    padding: 1.5rem 0.75rem;
+  }
+  
+  .home-cta__title {
+    font-size: 1.25rem;
+  }
+}

@@ -1,223 +1,584 @@
-import Link from 'next/link';
-import type { Metadata } from 'next';
-import ServiceCard from './components/ServiceCard';
-import type { Service } from '../types';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'Starr Surveying - Professional Land Surveying in Belton, TX',
-  description: 'Expert surveying services with 15+ years experience. GPS, GIS, and comprehensive solutions for Central Texas.',
-};
+import Link from 'next/link';
+import { useState, FormEvent, ChangeEvent } from 'react';
+
+// Import Home page styles
+import './styles/Home.css';
+
+interface Service {
+  icon: string;
+  title: string;
+  description: string;
+}
+
+interface WhyItem {
+  icon: string;
+  title: string;
+  description: string;
+}
+
+interface ContactFormData {
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  propertyAddress: string;
+  serviceType: string;
+  projectDetails: string;
+  preferredContact: string;
+  howHeard: string;
+}
 
 export default function HomePage(): React.ReactElement {
+  const [formData, setFormData] = useState<ContactFormData>({
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    propertyAddress: '',
+    serviceType: '',
+    projectDetails: '',
+    preferredContact: 'email',
+    howHeard: '',
+  });
+
+  const [formState, setFormState] = useState({
+    loading: false,
+    submitted: false,
+    error: '',
+  });
+
   const services: Service[] = [
     {
       icon: '📍',
-      title: 'GPS/GNSS Surveying',
-      description: 'High-precision positioning for large areas, pipelines, and development projects.',
-    },
-    {
-      icon: '🗺️',
-      title: 'GIS Services',
-      description: 'Digital mapping and spatial analysis for planning, development, and analysis.',
-    },
-    {
-      icon: '🔧',
-      title: 'Total Station Surveying',
-      description: 'Advanced instruments for precise measurements and construction staking.',
-    },
-    {
-      icon: '📋',
-      title: 'Plats & Legal Docs',
-      description: 'Professional plat creation and legal descriptions for all property types.',
-    },
-    {
-      icon: '📐',
       title: 'Boundary Surveys',
-      description: 'Establish and verify property lines with precision and documentation.',
+      description: 'Establish and verify property lines with legal documentation for real estate transactions, fencing, and disputes.',
     },
     {
       icon: '🏗️',
       title: 'Construction Staking',
-      description: 'Precise staking and control points for construction projects.',
+      description: 'Precise layout and control points for building foundations, roads, utilities, and site improvements.',
+    },
+    {
+      icon: '📐',
+      title: 'ALTA/NSPS Surveys',
+      description: 'Comprehensive land title surveys meeting American Land Title Association standards for commercial transactions.',
+    },
+    {
+      icon: '📋',
+      title: 'Subdivision Platting',
+      description: 'Create legal plats for dividing property into lots, including easements, setbacks, and dedications.',
+    },
+    {
+      icon: '🗺️',
+      title: 'Topographic Surveys',
+      description: 'Detailed elevation mapping showing terrain, drainage, and existing features for design and planning.',
+    },
+    {
+      icon: '📄',
+      title: 'Legal Descriptions',
+      description: 'Metes and bounds descriptions for deeds, easements, and legal documents with precision measurements.',
     },
   ];
 
+  const whyItems: WhyItem[] = [
+    {
+      icon: '✓',
+      title: 'RPLS Licensed',
+      description: 'Registered Professional Land Surveyor meeting all Texas Board requirements.',
+    },
+    {
+      icon: '✓',
+      title: 'Modern Equipment',
+      description: 'GPS/GNSS receivers, robotic total stations, and CAD software for accuracy.',
+    },
+    {
+      icon: '✓',
+      title: 'Local Knowledge',
+      description: 'Familiar with Central Texas counties, records, and regulations.',
+    },
+    {
+      icon: '✓',
+      title: 'Integrity First',
+      description: 'Honest pricing, clear communication, and quality workmanship.',
+    },
+  ];
+
+  const serviceTypes = [
+    'Boundary Survey',
+    'Construction Staking',
+    'ALTA/NSPS Survey',
+    'Subdivision Plat',
+    'Topographic Survey',
+    'Legal Description',
+    'Elevation Certificate',
+    'As-Built Survey',
+    'Other',
+  ];
+
+  const howHeardOptions = [
+    'Google Search',
+    'Referral',
+    'Word of Mouth',
+    'Social Media',
+    'Title Company',
+    'Real Estate Agent',
+    'Other',
+  ];
+
+  const handleInputChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ): void => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault();
+    setFormState((prev) => ({ ...prev, loading: true, error: '' }));
+
+    if (!formData.name || !formData.email || !formData.phone || !formData.propertyAddress) {
+      setFormState((prev) => ({
+        ...prev,
+        loading: false,
+        error: 'Please fill in all required fields.',
+      }));
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        setFormState((prev) => ({ ...prev, submitted: true, loading: false }));
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          company: '',
+          propertyAddress: '',
+          serviceType: '',
+          projectDetails: '',
+          preferredContact: 'email',
+          howHeard: '',
+        });
+      } else {
+        setFormState((prev) => ({
+          ...prev,
+          loading: false,
+          error: 'Failed to submit. Please try again or call us directly.',
+        }));
+      }
+    } catch {
+      setFormState((prev) => ({
+        ...prev,
+        loading: false,
+        error: 'An error occurred. Please try again or call us directly.',
+      }));
+    }
+  };
+
+  const handleReset = (): void => {
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      company: '',
+      propertyAddress: '',
+      serviceType: '',
+      projectDetails: '',
+      preferredContact: 'email',
+      howHeard: '',
+    });
+    setFormState({ loading: false, submitted: false, error: '' });
+  };
+
   return (
     <>
-      {/* Hero Section */}
-      <section className="hero">
-        <div className="container max-w-7xl mx-auto">
-          <div className="max-w-3xl">
-            <h1 className="animate-fade-in">
-              Professional Land Surveying for Central Texas
-            </h1>
-            <p className="text-lg text-brand-gray mb-8 leading-relaxed">
-              Precision surveying services backed by 15+ years of experience. Serving Bell County, Williamson County, Coryell County, and surrounding areas with integrity and expertise.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/contact" className="btn btn-primary">
-                Get Free Consultation
-              </Link>
-              <Link href="/services" className="btn btn-outline">
-                View Services
-              </Link>
+      {/* Hero Section - Gradient Background with COMBINED Card */}
+      <section className="home-hero">
+        <div className="home-hero__container">
+          {/* Single Combined Card - Content + Stats */}
+          <div className="home-hero__card">
+            {/* Left: Main Content */}
+            <div className="home-hero__content">
+              <h1 className="home-hero__title">
+                Professional Land Surveying for{' '}
+                <span className="home-hero__title-accent">Central Texas</span>
+              </h1>
+              <p className="home-hero__subtitle">
+                Precision surveying services backed by 15+ years of experience. 
+                Serving Bell County, Williamson County, and surrounding areas with integrity and expertise.
+              </p>
+              <div className="home-hero__buttons">
+                <Link href="/contact" className="home-hero__btn home-hero__btn--primary">
+                  Get Free Consultation
+                </Link>
+                <Link href="/services" className="home-hero__btn home-hero__btn--secondary">
+                  View Services
+                </Link>
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="section bg-brand-dark text-white">
-        <div className="container max-w-7xl mx-auto">
-          <div className="grid-3 text-center">
-            <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
-              <div className="text-5xl font-bold text-brand-red mb-2">15+</div>
-              <p className="text-gray-300 font-medium">Years Experience</p>
-            </div>
-            <div className="animate-slide-up" style={{ animationDelay: '0.2s' }}>
-              <div className="text-5xl font-bold text-brand-red mb-2">100+</div>
-              <p className="text-gray-300 font-medium">Projects Delivered</p>
-            </div>
-            <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
-              <div className="text-5xl font-bold text-brand-red mb-2">RPLS</div>
-              <p className="text-gray-300 font-medium">Licensed & Certified</p>
+            
+            {/* Right: Stats */}
+            <div className="home-hero__stats">
+              <div className="home-hero__stat">
+                <div className="home-hero__stat-value">15+</div>
+                <div className="home-hero__stat-label">Years Experience</div>
+              </div>
+              <div className="home-hero__stat">
+                <div className="home-hero__stat-value">RPLS</div>
+                <div className="home-hero__stat-label">Licensed & Certified</div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Services Section */}
-      <section className="section bg-white">
-        <div className="container max-w-7xl mx-auto">
-          <div className="mb-16">
-            <h2 className="mb-6">What We Offer</h2>
-            <p className="text-lg text-brand-gray max-w-2xl">
-              Comprehensive surveying solutions tailored to your project needs, from boundary verification to complex development mapping.
+      <section className="home-services">
+        <div className="home-services__container">
+          <div className="home-services__header">
+            <h2 className="home-services__title">Our Services</h2>
+            <p className="home-services__subtitle">
+              Professional surveying solutions for residential, commercial, and land development projects throughout Central Texas.
             </p>
           </div>
-          <div className="grid-3">
-            {services.map((service: Service, idx: number) => (
-              <ServiceCard 
-                key={service.title} 
-                {...service}
-                delay={idx * 0.1}
-              />
+          
+          <div className="home-services__grid">
+            {services.map((service: Service) => (
+              <div key={service.title} className="home-services__card">
+                <span className="home-services__card-icon">{service.icon}</span>
+                <div className="home-services__card-content">
+                  <h3 className="home-services__card-title">{service.title}</h3>
+                  <p className="home-services__card-desc">{service.description}</p>
+                </div>
+              </div>
             ))}
+          </div>
+          
+          <div className="home-services__cta">
+            <Link href="/services" className="home-services__link">
+              View All Services →
+            </Link>
           </div>
         </div>
       </section>
 
       {/* Why Choose Us Section */}
-      <section className="section bg-brand-light">
-        <div className="container max-w-7xl mx-auto">
-          <div className="grid-2 gap-12 items-center">
-            <div>
-              <h2 className="mb-8">Why Starr Surveying?</h2>
-              <ul className="space-y-6">
-                <li className="card card-accent">
-                  <h4 className="text-brand-red mb-2">Licensed Professionals</h4>
-                  <p className="text-sm text-brand-gray">RPLS-certified surveyors meeting all Texas standards and regulations.</p>
-                </li>
-                <li className="card card-accent">
-                  <h4 className="text-brand-red mb-2">Advanced Technology</h4>
-                  <p className="text-sm text-brand-gray">GPS, GIS, and total station equipment for maximum accuracy.</p>
-                </li>
-                <li className="card card-accent">
-                  <h4 className="text-brand-red mb-2">Local Expertise</h4>
-                  <p className="text-sm text-brand-gray">Deep knowledge of Central Texas properties and requirements.</p>
-                </li>
-                <li className="card card-accent">
-                  <h4 className="text-brand-red mb-2">Built on Integrity</h4>
-                  <p className="text-sm text-brand-gray">Christian values guide our work and client relationships.</p>
-                </li>
-              </ul>
-            </div>
-            <div className="relative">
-              <div className="bg-gradient-to-br from-brand-red to-brand-blue text-white rounded-16 p-12 shadow-lg">
-                <h3 className="text-3xl font-bold mb-6">15+ Years of Excellence</h3>
-                <p className="mb-8 text-lg leading-relaxed">
-                  We've built our reputation on precision, professionalism, and reliability. Every project receives our complete attention and expertise.
+      <section className="home-why">
+        <div className="home-why__container">
+          <h2 className="home-why__title">Why Starr Surveying?</h2>
+          <div className="home-why__grid">
+            {whyItems.map((item: WhyItem) => (
+              <div key={item.title} className="home-why__item">
+                <span className="home-why__item-icon">{item.icon}</span>
+                <h4 className="home-why__item-title">{item.title}</h4>
+                <p className="home-why__item-desc">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Service Area Section - Two Satellite Maps */}
+      <section className="home-area">
+        <div className="home-area__container">
+          <h2 className="home-area__title">Service Area</h2>
+          <p className="home-area__subtitle">
+            We serve two primary regions in Texas with a 100-mile radius from each location.
+          </p>
+          
+          {/* Two Maps Side by Side */}
+          <div className="home-area__map-wrapper">
+            {/* Belton Map */}
+            <div className="home-area__map-card home-area__map-card--red">
+              <div className="home-area__map-header home-area__map-header--red">
+                📍 Belton Office (HQ)
+              </div>
+              <iframe
+                className="home-area__map"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d435519.9774129498!2d-97.74312!3d31.0574!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8644d6de1dbdbe6b%3A0x4e8c1fe6e4c02088!2sBelton%2C%20TX!5e1!3m2!1sen!2sus!4v1706300000000!5m2!1sen!2sus"
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="Belton Service Area"
+              ></iframe>
+              <div className="home-area__map-info">
+                <p className="home-area__map-radius">
+                  <strong>100-mile radius</strong> — Waco, Austin, Temple, Killeen, Georgetown, Copperas Cove
                 </p>
-                <Link href="/about" className="inline-block px-8 py-3 bg-white text-brand-red font-semibold rounded-lg hover:shadow-lg transition-all">
-                  Learn Our Story
-                </Link>
+              </div>
+            </div>
+            
+            {/* Madisonville Map */}
+            <div className="home-area__map-card">
+              <div className="home-area__map-header">
+                📍 Madisonville Area
+              </div>
+              <iframe
+                className="home-area__map"
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d435519.9774129498!2d-95.9116!3d30.9496!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x86470e8f5db3e1ed%3A0x3a1a7f1c04a1c5a0!2sMadisonville%2C%20TX!5e1!3m2!1sen!2sus!4v1706300000001!5m2!1sen!2sus"
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="Madisonville Service Area"
+              ></iframe>
+              <div className="home-area__map-info">
+                <p className="home-area__map-radius">
+                  <strong>100-mile radius</strong> — Huntsville, Centerville, Bryan/College Station, Montgomery
+                </p>
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Service Area Section */}
-      <section className="section bg-white">
-        <div className="container max-w-7xl mx-auto">
-          <div className="grid-2 gap-12 items-center">
-            <div className="relative bg-brand-light rounded-16 p-12 flex items-center justify-center h-96">
-              <div className="text-center">
-                <div className="text-6xl mb-4">🗺️</div>
-                <p className="text-2xl font-bold text-brand-dark mb-2">Central Texas</p>
-                <p className="text-brand-gray">5 Primary Counties</p>
-              </div>
-            </div>
-            <div>
-              <h2 className="mb-6">Serving Central Texas</h2>
-              <p className="text-lg text-brand-gray mb-8">
-                Based in Belton, we serve Bell County, Williamson County, Coryell County, Falls County, and surrounding areas.
-              </p>
-              <ul className="space-y-3 mb-8">
-                <li className="flex items-center gap-3">
-                  <span className="text-brand-red font-bold">→</span>
-                  <span>Bell County (Belton, Temple, Waco, Killeen)</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <span className="text-brand-red font-bold">→</span>
-                  <span>Williamson County (Georgetown, Round Rock)</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <span className="text-brand-red font-bold">→</span>
-                  <span>Coryell County (Copperas Cove, Gatesville)</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <span className="text-brand-red font-bold">→</span>
-                  <span>Falls County & Surrounding Areas</span>
-                </li>
-              </ul>
-              <p className="text-brand-gray italic mb-8">
-                For larger projects, we're willing to travel throughout Texas and beyond.
-              </p>
-              <Link href="/service-area" className="btn btn-secondary">
-                View Full Service Map
+          
+          {/* Not Sure CTA */}
+          <div className="home-area__cta">
+            <h3 className="home-area__cta-title">Not sure if we service your location?</h3>
+            <p className="home-area__cta-text">
+              Contact us today! We regularly work throughout Bell, Williamson, Coryell, Falls, McLennan, Travis, Madison, Walker, and Montgomery counties.
+            </p>
+            <div className="home-area__cta-buttons">
+              <Link href="/contact" className="home-area__cta-btn home-area__cta-btn--primary">
+                Contact Us
               </Link>
+              <a href="tel:9366620077" className="home-area__cta-btn home-area__cta-btn--secondary">
+                Call (936) 662-0077
+              </a>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="section" style={{
-        background: 'linear-gradient(135deg, #BD1218 0%, #1D3095 100%)',
-        color: 'white'
-      }}>
-        <div className="container max-w-7xl mx-auto text-center">
-          <h2 style={{ 
-            background: 'none',
-            WebkitBackgroundClip: 'unset',
-            WebkitTextFillColor: 'unset',
-            backgroundClip: 'unset',
-            color: 'white'
-          }} className="mb-4 text-4xl md:text-5xl">
-            Ready to Get Started?
-          </h2>
-          <p className="text-lg mb-10 max-w-2xl mx-auto text-gray-100">
+      {/* Contact Form Section */}
+      <section className="home-contact">
+        <div className="home-contact__container">
+          <div className="home-contact__header">
+            <h2 className="home-contact__title">Request a Quote</h2>
+            <p className="home-contact__subtitle">
+              Fill out the form below and we will get back to you within 24 business hours.
+            </p>
+          </div>
+
+          {formState.submitted ? (
+            <div className="home-contact__success">
+              <h3 className="home-contact__success-title">Thank You!</h3>
+              <p className="home-contact__success-text">
+                Your request has been received. We will contact you within 24 business hours.
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="home-contact__form">
+              {formState.error && (
+                <div className="home-contact__error">{formState.error}</div>
+              )}
+
+              <div className="home-contact__form-grid">
+                {/* Name - Required */}
+                <div className="home-contact__form-group">
+                  <label htmlFor="name" className="home-contact__label home-contact__label--required">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="home-contact__input"
+                    placeholder="Your full name"
+                    required
+                  />
+                </div>
+
+                {/* Email - Required */}
+                <div className="home-contact__form-group">
+                  <label htmlFor="email" className="home-contact__label home-contact__label--required">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className="home-contact__input"
+                    placeholder="your.email@example.com"
+                    required
+                  />
+                </div>
+
+                {/* Phone - Required */}
+                <div className="home-contact__form-group">
+                  <label htmlFor="phone" className="home-contact__label home-contact__label--required">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    className="home-contact__input"
+                    placeholder="(123) 456-7890"
+                    required
+                  />
+                </div>
+
+                {/* Company - Optional */}
+                <div className="home-contact__form-group">
+                  <label htmlFor="company" className="home-contact__label">
+                    Company Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="company"
+                    name="company"
+                    value={formData.company}
+                    onChange={handleInputChange}
+                    className="home-contact__input"
+                    placeholder="Your company or organization"
+                  />
+                </div>
+
+                {/* Property Address - Required */}
+                <div className="home-contact__form-group home-contact__form-group--full">
+                  <label htmlFor="propertyAddress" className="home-contact__label home-contact__label--required">
+                    Property Address / Location
+                  </label>
+                  <input
+                    type="text"
+                    id="propertyAddress"
+                    name="propertyAddress"
+                    value={formData.propertyAddress}
+                    onChange={handleInputChange}
+                    className="home-contact__input"
+                    placeholder="Street address, city, or general area of property"
+                    required
+                  />
+                </div>
+
+                {/* Service Type - Optional */}
+                <div className="home-contact__form-group">
+                  <label htmlFor="serviceType" className="home-contact__label">
+                    Service Needed (Optional)
+                  </label>
+                  <select
+                    id="serviceType"
+                    name="serviceType"
+                    value={formData.serviceType}
+                    onChange={handleInputChange}
+                    className="home-contact__select"
+                  >
+                    <option value="">-- Select a service --</option>
+                    {serviceTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Preferred Contact - Optional */}
+                <div className="home-contact__form-group">
+                  <label htmlFor="preferredContact" className="home-contact__label">
+                    Preferred Contact Method
+                  </label>
+                  <select
+                    id="preferredContact"
+                    name="preferredContact"
+                    value={formData.preferredContact}
+                    onChange={handleInputChange}
+                    className="home-contact__select"
+                  >
+                    <option value="email">Email</option>
+                    <option value="phone">Phone</option>
+                    <option value="both">Either</option>
+                  </select>
+                </div>
+
+                {/* How Heard - Optional */}
+                <div className="home-contact__form-group">
+                  <label htmlFor="howHeard" className="home-contact__label">
+                    How Did You Hear About Us?
+                  </label>
+                  <select
+                    id="howHeard"
+                    name="howHeard"
+                    value={formData.howHeard}
+                    onChange={handleInputChange}
+                    className="home-contact__select"
+                  >
+                    <option value="">-- Select an option --</option>
+                    {howHeardOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Project Details - Optional */}
+                <div className="home-contact__form-group home-contact__form-group--full">
+                  <label htmlFor="projectDetails" className="home-contact__label">
+                    Project Details (Optional)
+                  </label>
+                  <textarea
+                    id="projectDetails"
+                    name="projectDetails"
+                    value={formData.projectDetails}
+                    onChange={handleInputChange}
+                    className="home-contact__textarea"
+                    placeholder="Tell us about your project, timeline, or any specific requirements..."
+                  ></textarea>
+                </div>
+              </div>
+
+              <div className="home-contact__form-actions">
+                <button
+                  type="submit"
+                  className="home-contact__submit"
+                  disabled={formState.loading}
+                >
+                  {formState.loading ? 'Submitting...' : 'Submit Request'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="home-contact__reset"
+                >
+                  Clear Form
+                </button>
+              </div>
+
+              <p className="home-contact__note">
+                * Required fields. We respect your privacy and will never share your information.
+              </p>
+            </form>
+          )}
+        </div>
+      </section>
+
+      {/* Bottom CTA Section */}
+      <section className="home-cta">
+        <div className="home-cta__container">
+          <h2 className="home-cta__title">Ready to Get Started?</h2>
+          <p className="home-cta__subtitle">
             Contact us today for a free consultation and detailed quote on your surveying project.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/contact" className="btn" style={{
-              background: 'white',
-              color: '#BD1218'
-            }}>
+          <div className="home-cta__buttons">
+            <Link href="/contact" className="home-cta__btn home-cta__btn--primary">
               Request Quote
             </Link>
-            <a href="tel:9366620077" className="btn border-2 border-white text-white hover:bg-white hover:text-brand-red">
+            <a href="tel:9366620077" className="home-cta__btn home-cta__btn--secondary">
               Call (936) 662-0077
             </a>
           </div>
