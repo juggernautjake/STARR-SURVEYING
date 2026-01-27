@@ -1,17 +1,39 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import ServiceCard from '../components/ServiceCard';
-import type { Service } from '../../types';
+
+// Import Services page styles
+import '../styles/Services.css';
 
 export const metadata: Metadata = {
   title: 'Services | Starr Surveying',
+  description: 'Professional land surveying services including GPS/GNSS surveying, boundary surveys, construction staking, plats, and legal descriptions in Central Texas.',
 };
+
+interface Service {
+  icon: string;
+  title: string;
+  description: string;
+}
+
+interface ServiceDetail {
+  title: string;
+  description: string;
+  features: string[];
+  meta: string;
+  variant: 'blue' | 'red';
+}
+
+interface ProcessStep {
+  number: string;
+  title: string;
+  description: string;
+}
 
 export default function ServicesPage(): React.ReactElement {
   const services: Service[] = [
     { icon: '📍', title: 'GPS/GNSS Surveying', description: 'High-precision positioning for large areas and complex projects.' },
     { icon: '🗺️', title: 'GIS Services', description: 'Digital mapping and spatial analysis for planning and development.' },
-    { icon: '🔧', title: 'Total Station Surveying', description: 'Advanced instruments for precise measurements and control points.' },
+    { icon: '🔧', title: 'Total Station', description: 'Advanced instruments for precise measurements and control points.' },
     { icon: '📋', title: 'Plats & Maps', description: 'Professional plat creation for property divisions and documentation.' },
     { icon: '📄', title: 'Legal Descriptions', description: 'Accurate descriptions for deeds and property records.' },
     { icon: '🏗️', title: 'Construction Staking', description: 'Precise staking and control for construction projects.' },
@@ -20,121 +42,178 @@ export default function ServicesPage(): React.ReactElement {
     { icon: '🔍', title: 'Deed Research', description: 'Property research and analysis for title work.' },
   ];
 
+  const serviceDetails: ServiceDetail[] = [
+    {
+      title: 'GPS/GNSS Surveying',
+      description: 'State-of-the-art positioning technology for large areas, pipelines, utilities, and development projects.',
+      features: [
+        'Large property surveys',
+        'Utility mapping',
+        'Subdivision mapping',
+        'Site analysis',
+        'Development planning',
+        'High-accuracy positioning',
+      ],
+      meta: 'Turnaround: 3-5 days | Accuracy: ±0.1-0.3 ft',
+      variant: 'red',
+    },
+    {
+      title: 'Total Station Surveying',
+      description: 'Advanced instruments for precise measurements, detailed documentation, and construction control.',
+      features: [
+        'Construction staking',
+        'Building surveys',
+        'Boundary verification',
+        'Site control',
+        'Detailed measurements',
+        'Documentation',
+      ],
+      meta: 'Turnaround: 2-4 days | Accuracy: ±0.05 ft',
+      variant: 'blue',
+    },
+    {
+      title: 'Plats, Deeds & Legal Documents',
+      description: 'Professional plats and legal descriptions meeting Texas requirements.',
+      features: [
+        'Subdivision plats',
+        'Legal descriptions',
+        'Deed preparation',
+        'Property splits',
+        'As-built surveys',
+        'Mortgage surveys',
+      ],
+      meta: 'Turnaround: 3-7 days',
+      variant: 'red',
+    },
+  ];
+
+  const processSteps: ProcessStep[] = [
+    {
+      number: '01',
+      title: 'Consultation',
+      description: 'Discuss your project needs and requirements',
+    },
+    {
+      number: '02',
+      title: 'Research',
+      description: 'Review records, deeds, and existing documentation',
+    },
+    {
+      number: '03',
+      title: 'Fieldwork',
+      description: 'On-site measurements and data collection',
+    },
+    {
+      number: '04',
+      title: 'Delivery',
+      description: 'Final documents, plats, and survey results',
+    },
+  ];
+
   return (
     <>
-      <section className="hero">
-        <div className="container max-w-7xl mx-auto">
-          <h1 className="animate-fade-in">Our Services</h1>
-          <p className="text-lg text-brand-gray max-w-2xl">
-            Comprehensive surveying solutions for residential, commercial, and development projects.
-          </p>
+      {/* Hero Section */}
+      <section className="services-hero">
+        <div className="services-hero__container">
+          <div className="services-hero__card">
+            <h1 className="services-hero__title">
+              Our <span className="services-hero__title-accent">Services</span>
+            </h1>
+            <p className="services-hero__subtitle">
+              Comprehensive surveying solutions for residential, commercial, and development projects throughout Central Texas.
+            </p>
+          </div>
         </div>
       </section>
 
-      <section className="section bg-white">
-        <div className="container max-w-7xl mx-auto">
-          <div className="mb-16">
-            <h2 className="mb-6">What We Offer</h2>
-            <p className="text-lg text-brand-gray">Professional surveying services for every project type and size.</p>
+      {/* Services Grid Section */}
+      <section className="services-grid">
+        <div className="services-grid__container">
+          <div className="services-grid__header">
+            <h2 className="services-grid__title">What We Offer</h2>
+            <p className="services-grid__subtitle">
+              Professional surveying services for every project type and size.
+            </p>
           </div>
-          <div className="grid-3 mb-16">
-            {services.map((service: Service, idx: number) => (
-              <ServiceCard key={service.title} {...service} delay={idx * 0.05} />
+
+          <div className="services-grid__items">
+            {services.map((service: Service) => (
+              <div key={service.title} className="services-grid__card">
+                <span className="services-grid__card-icon">{service.icon}</span>
+                <div className="services-grid__card-content">
+                  <h3 className="services-grid__card-title">{service.title}</h3>
+                  <p className="services-grid__card-desc">{service.description}</p>
+                </div>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="section bg-brand-light">
-        <div className="container max-w-7xl mx-auto">
-          <h2 className="mb-16">Service Details</h2>
-          <div className="space-y-12">
-            <div className="card card-accent">
-              <h3 className="text-2xl text-brand-red mb-4">GPS/GNSS Surveying</h3>
-              <p className="text-brand-gray mb-6">
-                State-of-the-art positioning technology for large areas, pipelines, utilities, and development projects.
-              </p>
-              <div className="grid-2 gap-8 mb-6">
-                <ul className="space-y-2 text-sm text-brand-gray">
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> Large property surveys</li>
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> Utility mapping</li>
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> Subdivision mapping</li>
-                </ul>
-                <ul className="space-y-2 text-sm text-brand-gray">
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> Site analysis</li>
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> Development planning</li>
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> High-accuracy positioning</li>
-                </ul>
+      {/* Service Details Section */}
+      <section className="services-details">
+        <div className="services-details__container">
+          <h2 className="services-details__title">Service Details</h2>
+          
+          <div className="services-details__list">
+            {serviceDetails.map((detail: ServiceDetail) => (
+              <div 
+                key={detail.title} 
+                className={`services-detail ${detail.variant === 'red' ? 'services-detail--red' : ''}`}
+              >
+                <div className="services-detail__header">
+                  <h3 className="services-detail__title">{detail.title}</h3>
+                </div>
+                <p className="services-detail__desc">{detail.description}</p>
+                <div className="services-detail__features">
+                  {detail.features.map((feature: string) => (
+                    <div key={feature} className="services-detail__feature">
+                      <span className="services-detail__feature-icon">✓</span>
+                      <span>{feature}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="services-detail__meta">{detail.meta}</p>
               </div>
-              <p className="text-xs text-brand-gray font-semibold">Turnaround: 3-5 days | Accuracy: ±0.1-0.3 ft</p>
-            </div>
-
-            <div className="card card-accent-blue">
-              <h3 className="text-2xl text-brand-blue mb-4">Total Station Surveying</h3>
-              <p className="text-brand-gray mb-6">
-                Advanced instruments for precise measurements, detailed documentation, and construction control.
-              </p>
-              <div className="grid-2 gap-8 mb-6">
-                <ul className="space-y-2 text-sm text-brand-gray">
-                  <li className="flex gap-2"><span className="text-brand-blue">✓</span> Construction staking</li>
-                  <li className="flex gap-2"><span className="text-brand-blue">✓</span> Building surveys</li>
-                  <li className="flex gap-2"><span className="text-brand-blue">✓</span> Boundary verification</li>
-                </ul>
-                <ul className="space-y-2 text-sm text-brand-gray">
-                  <li className="flex gap-2"><span className="text-brand-blue">✓</span> Site control</li>
-                  <li className="flex gap-2"><span className="text-brand-blue">✓</span> Detailed measurements</li>
-                  <li className="flex gap-2"><span className="text-brand-blue">✓</span> Documentation</li>
-                </ul>
-              </div>
-              <p className="text-xs text-brand-gray font-semibold">Turnaround: 2-4 days | Accuracy: ±0.05 ft</p>
-            </div>
-
-            <div className="card card-accent">
-              <h3 className="text-2xl text-brand-red mb-4">Plats, Deeds & Legal Documents</h3>
-              <p className="text-brand-gray mb-6">
-                Professional plats and legal descriptions meeting Texas requirements.
-              </p>
-              <div className="grid-2 gap-8 mb-6">
-                <ul className="space-y-2 text-sm text-brand-gray">
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> Subdivision plats</li>
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> Legal descriptions</li>
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> Deed preparation</li>
-                </ul>
-                <ul className="space-y-2 text-sm text-brand-gray">
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> Property splits</li>
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> As-built surveys</li>
-                  <li className="flex gap-2"><span className="text-brand-red">✓</span> Mortgage surveys</li>
-                </ul>
-              </div>
-              <p className="text-xs text-brand-gray font-semibold">Turnaround: 3-7 days</p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="section" style={{
-        background: 'linear-gradient(135deg, #BD1218 0%, #1D3095 100%)',
-        color: 'white'
-      }}>
-        <div className="container max-w-7xl mx-auto text-center">
-          <h2 style={{ 
-            background: 'none',
-            WebkitBackgroundClip: 'unset',
-            WebkitTextFillColor: 'unset',
-            backgroundClip: 'unset',
-            color: 'white'
-          }} className="text-4xl mb-6">
-            Need a Service?
-          </h2>
-          <p className="text-gray-100 text-lg mb-10 max-w-2xl mx-auto">
+      {/* Process Section */}
+      <section className="services-process">
+        <div className="services-process__container">
+          <h2 className="services-process__title">Our Process</h2>
+          
+          <div className="services-process__grid">
+            {processSteps.map((step: ProcessStep) => (
+              <div key={step.number} className="services-process__step">
+                <span className="services-process__step-number">{step.number}</span>
+                <div className="services-process__step-content">
+                  <h4 className="services-process__step-title">{step.title}</h4>
+                  <p className="services-process__step-desc">{step.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="services-cta">
+        <div className="services-cta__container">
+          <h2 className="services-cta__title">Need a Service?</h2>
+          <p className="services-cta__subtitle">
             Contact us for a free consultation and detailed quote on any service.
           </p>
-          <Link href="/contact" className="btn" style={{
-            background: 'white',
-            color: '#BD1218'
-          }}>
-            Get Your Quote
-          </Link>
+          <div className="services-cta__buttons">
+            <Link href="/contact" className="services-cta__btn services-cta__btn--primary">
+              Get Your Quote
+            </Link>
+            <a href="tel:9366620077" className="services-cta__btn services-cta__btn--secondary">
+              Call (936) 662-0077
+            </a>
+          </div>
         </div>
       </section>
     </>
