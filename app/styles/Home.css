@@ -10,28 +10,22 @@
   
   NOTE: All text uses SOLID colors, no gradients
   
-  HERO SECTION: Has gradient background. Large padding-top ensures the hero
-  card appears BELOW the header elements (logo + navbar that extend down).
+  MOBILE FIX: Services and Why sections now properly stack on mobile
+  with appropriate padding and no horizontal overflow.
 ==============================================================================*/
 
 /* =============================================================================
-   1. HERO SECTION - Gradient background with generous top padding
-   
-   The logo and navbar extend below the header box. We need enough
-   padding-top to push the hero card below these elements.
-   
-   Calculation for each breakpoint:
-   padding-top = logo-max-height + logo-top - header-box-height + margin
+   1. HERO SECTION
    ============================================================================= */
 .home-hero {
   position: relative;
   background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
-  /* BASE (1920-2199px): logo 480px + 10px top - 275px header + 80px margin = 295px */
   padding-top: 150px;
   padding-left: 2rem;
   padding-right: 2rem;
   padding-bottom: 4rem;
   min-height: 500px;
+  overflow-x: hidden;
 }
 
 .home-hero__container {
@@ -39,7 +33,6 @@
   margin: 0 auto;
 }
 
-/* COMBINED Card - Content + Stats in ONE widget */
 .home-hero__card {
   background: #FFFFFF;
   border-radius: 12px;
@@ -52,7 +45,6 @@
   align-items: center;
 }
 
-/* Left side - Main content */
 .home-hero__content {
   flex: 1;
 }
@@ -120,7 +112,6 @@
   border-color: #152050;
 }
 
-/* Right side - Stats (inside same card) */
 .home-hero__stats {
   display: flex;
   flex-direction: column;
@@ -153,12 +144,13 @@
 }
 
 /* =============================================================================
-   2. SERVICES SECTION
+   2. SERVICES SECTION - MOBILE OPTIMIZED
    ============================================================================= */
 .home-services {
   padding: 3.5rem 2rem;
   background: #FFFFFF;
   border-top: 4px solid #1D3095;
+  overflow-x: hidden;
 }
 
 .home-services__container {
@@ -196,12 +188,13 @@
 .home-services__card {
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
-  padding: 1.25rem;
+  gap: 0.75rem;
+  padding: 1rem;
   background: #F8F9FA;
   border-radius: 8px;
   border-left: 4px solid #1D3095;
   transition: border-color 0.2s ease;
+  min-width: 0; /* Prevent overflow */
 }
 
 .home-services__card:hover {
@@ -209,28 +202,31 @@
 }
 
 .home-services__card-icon {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   flex-shrink: 0;
 }
 
 .home-services__card-content {
   flex: 1;
+  min-width: 0; /* Prevent overflow */
 }
 
 .home-services__card-title {
   font-family: 'Sora', sans-serif;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: #0F1419;
   margin-bottom: 0.25rem;
+  word-wrap: break-word;
 }
 
 .home-services__card-desc {
   font-family: 'Inter', sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #6B7280;
-  line-height: 1.5;
+  line-height: 1.4;
   margin: 0;
+  word-wrap: break-word;
 }
 
 .home-services__cta {
@@ -259,11 +255,12 @@
 }
 
 /* =============================================================================
-   3. WHY CHOOSE US SECTION
+   3. WHY CHOOSE US SECTION - MOBILE OPTIMIZED
    ============================================================================= */
 .home-why {
   padding: 3.5rem 2rem;
   background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
+  overflow-x: hidden;
 }
 
 .home-why__container {
@@ -283,46 +280,50 @@
 .home-why__grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .home-why__item {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   border-left: 3px solid #BD1218;
-  padding: 1.25rem;
+  padding: 1rem;
+  min-width: 0; /* Prevent overflow */
 }
 
 .home-why__item-icon {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   color: #BD1218;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   display: block;
 }
 
 .home-why__item-title {
   font-family: 'Sora', sans-serif;
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #FFFFFF;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.25rem;
+  word-wrap: break-word;
 }
 
 .home-why__item-desc {
   font-family: 'Inter', sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.8);
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.4;
+  word-wrap: break-word;
 }
 
 /* =============================================================================
-   4. SERVICE AREA SECTION - Smaller satellite maps side by side
+   4. SERVICE AREA SECTION
    ============================================================================= */
 .home-area {
   padding: 3rem 2rem;
   background: #F8F9FA;
   border-top: 4px solid #BD1218;
+  overflow-x: hidden;
 }
 
 .home-area__container {
@@ -347,7 +348,6 @@
   text-align: center;
 }
 
-/* Two smaller maps side by side */
 .home-area__map-wrapper {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -407,7 +407,6 @@
   color: #0F1419;
 }
 
-/* Not Sure CTA */
 .home-area__cta {
   background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
   border-radius: 10px;
@@ -466,14 +465,11 @@
   background: transparent;
   color: #FFFFFF;
   border: 2px solid #FFFFFF;
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 .home-area__cta-btn--secondary:hover {
   background: #FFFFFF;
   color: #1D3095;
-  text-decoration: none;
 }
 
 /* =============================================================================
@@ -483,6 +479,7 @@
   padding: 3rem 2rem;
   background: #FFFFFF;
   border-top: 4px solid #1D3095;
+  overflow-x: hidden;
 }
 
 .home-contact__container {
@@ -509,7 +506,6 @@
   color: #4B5563;
 }
 
-/* Contact Form */
 .home-contact__form {
   background: #F8F9FA;
   border-radius: 10px;
@@ -556,6 +552,8 @@
   background: #FFFFFF;
   color: #0F1419;
   transition: border-color 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .home-contact__input:focus,
@@ -575,6 +573,7 @@
   display: flex;
   gap: 1rem;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .home-contact__submit {
@@ -632,7 +631,6 @@
   margin-top: 0.75rem;
 }
 
-/* Success/Error Messages */
 .home-contact__success {
   background: #ECFDF5;
   border: 2px solid #10B981;
@@ -672,6 +670,7 @@
 .home-cta {
   padding: 2.5rem 2rem;
   background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+  overflow-x: hidden;
 }
 
 .home-cta__container {
@@ -732,84 +731,26 @@
   background: transparent;
   color: #FFFFFF;
   border: 2px solid #FFFFFF;
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 .home-cta__btn--secondary:hover {
   background: rgba(255, 255, 255, 1);
+  color: #1D3095;
 }
 
 /* =============================================================================
-   7. RESPONSIVE STYLES - Match header breakpoints for proper clearance
-   
-   Each breakpoint calculates:
-   padding-top = logo-max-height + logo-top - header-box-height + margin(80px)
+   7. RESPONSIVE STYLES - MOBILE OPTIMIZED
    ============================================================================= */
 
-/* --- 15. 4K+ (2560px+) --- */
-/* logo: 620px, top: 14px, header: 360px → overflow: 274px → padding: 354px */
-@media screen and (min-width: 2560px) {
-  .home-hero {
-    padding-top: 145px;
-  }
-}
-
-/* --- 14. QHD (2200 - 2559px) --- */
-/* logo: 540px, top: 12px, header: 310px → overflow: 242px → padding: 322px */
-@media screen and (min-width: 2200px) and (max-width: 2559px) {
-  .home-hero {
-    padding-top: 140px;
-  }
-}
-
-/* --- 13. Full HD+ (1920 - 2199px) - BASE --- */
-/* logo: 480px, top: 10px, header: 275px → overflow: 215px → padding: 295px */
-/* Uses default: padding-top: 300px */
-
-/* --- 12. Full HD (1800 - 1919px) --- */
-/* logo: 460px, top: 10px, header: 265px → overflow: 205px → padding: 285px */
-@media screen and (min-width: 1800px) and (max-width: 1919px) {
-  .home-hero {
-    padding-top: 135px;
-  }
-}
-
-/* --- 11. XXL Desktop (1600 - 1799px) --- */
-/* logo: 435px, top: 10px, header: 252px → overflow: 193px → padding: 273px */
-@media screen and (min-width: 1600px) and (max-width: 1799px) {
-  .home-hero {
-    padding-top: 130px;
-  }
-}
-
-/* --- 10. XL Desktop (1440 - 1599px) --- */
-/* logo: 400px, top: 10px, header: 232px → overflow: 178px → padding: 258px */
-@media screen and (min-width: 1440px) and (max-width: 1599px) {
-  .home-hero {
-    padding-top: 125px;
-  }
-}
-
-/* --- 9. Large Desktop (1280 - 1439px) --- */
-/* logo: 355px, top: 10px, header: 208px → overflow: 157px → padding: 237px */
-@media screen and (min-width: 1280px) and (max-width: 1439px) {
+/* --- Large Desktop (1280px+) --- */
+@media screen and (min-width: 1280px) {
   .home-hero {
     padding-top: 120px;
   }
 }
 
-/* --- 8. Desktop (1150 - 1279px) --- */
-/* logo: 310px, top: 9px, header: 185px → overflow: 134px → padding: 214px */
-@media screen and (min-width: 1150px) and (max-width: 1279px) {
-  .home-hero {
-    padding-top: 115px;
-  }
-}
-
-/* --- 7. Small Desktop (1024 - 1149px) --- */
-/* logo: 275px, top: 8px, header: 165px → overflow: 118px → padding: 198px */
-@media screen and (min-width: 1024px) and (max-width: 1149px) {
+/* --- Desktop (1024 - 1279px) --- */
+@media screen and (min-width: 1024px) and (max-width: 1279px) {
   .home-hero {
     padding-top: 110px;
   }
@@ -819,44 +760,8 @@
   }
 }
 
-/* --- 6. Large Tablet (900 - 1023px) --- */
-/* logo: 235px, top: 7px, header: 145px → overflow: 97px → padding: 177px */
-@media screen and (min-width: 900px) and (max-width: 1023px) {
-  .home-hero {
-    padding-top: 105px;
-  }
-  
-  .home-hero__card {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-  
-  .home-hero__stats {
-    flex-direction: row;
-    justify-content: center;
-    gap: 2rem;
-    padding-left: 0;
-    padding-top: 1.5rem;
-    border-left: none;
-    border-top: 3px solid #BD1218;
-  }
-  
-  .home-services__grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .home-why__grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .home-area__map-wrapper {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* --- 5. Small Tablet (768 - 899px) --- */
-/* logo: 200px, top: 6px, header: 125px → overflow: 81px → padding: 161px */
-@media screen and (min-width: 768px) and (max-width: 899px) {
+/* --- Tablet (768 - 1023px) --- */
+@media screen and (min-width: 768px) and (max-width: 1023px) {
   .home-hero {
     padding-top: 100px;
   }
@@ -876,12 +781,16 @@
     border-top: 3px solid #BD1218;
   }
   
+  /* Services: 2 columns on tablet */
   .home-services__grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
   }
   
+  /* Why: 2 columns on tablet */
   .home-why__grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
   }
   
   .home-area__map-wrapper {
@@ -889,13 +798,12 @@
   }
 }
 
-/* --- 4. Large Mobile (600 - 767px) --- */
-/* logo: 170px, top: 5px, header: 105px → overflow: 70px + navbar ~45px → padding: 175px */
+/* --- Large Mobile (600 - 767px) --- */
 @media screen and (min-width: 600px) and (max-width: 767px) {
   .home-hero {
     padding-top: 80px;
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
     padding-bottom: 3rem;
   }
   
@@ -914,8 +822,9 @@
   }
   
   .home-hero__stats {
-    flex-direction: column;
-    gap: 0.75rem;
+    flex-direction: row;
+    justify-content: center;
+    gap: 1.5rem;
     padding-left: 0;
     padding-top: 1rem;
     border-left: none;
@@ -926,8 +835,9 @@
     font-size: 1.75rem;
   }
   
+  /* Services: 2 columns, smaller cards */
   .home-services {
-    padding: 2.5rem 1.5rem;
+    padding: 2.5rem 1.25rem;
   }
   
   .home-services__title {
@@ -935,11 +845,31 @@
   }
   
   .home-services__grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
   }
   
+  .home-services__card {
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
+  
+  .home-services__card-icon {
+    font-size: 1.25rem;
+  }
+  
+  .home-services__card-title {
+    font-size: 0.85rem;
+  }
+  
+  .home-services__card-desc {
+    font-size: 0.75rem;
+    line-height: 1.3;
+  }
+  
+  /* Why: 2 columns on large mobile */
   .home-why {
-    padding: 2.5rem 1.5rem;
+    padding: 2.5rem 1.25rem;
   }
   
   .home-why__title {
@@ -947,11 +877,30 @@
   }
   
   .home-why__grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  
+  .home-why__item {
+    padding: 0.75rem;
+  }
+  
+  .home-why__item-icon {
+    font-size: 1rem;
+    margin-bottom: 0.35rem;
+  }
+  
+  .home-why__item-title {
+    font-size: 0.8rem;
+  }
+  
+  .home-why__item-desc {
+    font-size: 0.7rem;
+    line-height: 1.3;
   }
   
   .home-area {
-    padding: 2rem 1.5rem;
+    padding: 2rem 1.25rem;
   }
   
   .home-area__title {
@@ -967,7 +916,7 @@
   }
   
   .home-contact {
-    padding: 2rem 1.5rem;
+    padding: 2rem 1.25rem;
   }
   
   .home-contact__title {
@@ -982,12 +931,8 @@
     grid-template-columns: 1fr;
   }
   
-  .home-contact__form-actions {
-    flex-direction: column;
-  }
-  
   .home-cta {
-    padding: 2rem 1.5rem;
+    padding: 2rem 1.25rem;
   }
   
   .home-cta__title {
@@ -1015,13 +960,12 @@
   }
 }
 
-/* --- 3. Medium Mobile (500 - 599px) --- */
-/* logo: 150px, top: 4px, header: 92px → overflow: 62px + navbar ~40px → padding: 162px */
-@media screen and (min-width: 500px) and (max-width: 599px) {
+/* --- Medium Mobile (480 - 599px) --- */
+@media screen and (min-width: 480px) and (max-width: 599px) {
   .home-hero {
-    padding-top: 75px;
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
+    padding-top: 70px;
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
   
   .home-hero__card {
@@ -1034,74 +978,86 @@
   }
   
   .home-hero__stats {
-    flex-direction: column;
-    padding-left: 0;
-    padding-top: 1rem;
-    border-left: none;
-    border-top: 3px solid #BD1218;
-  }
-  
-  .home-services__grid,
-  .home-why__grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .home-area__map-wrapper {
-    grid-template-columns: 1fr;
-  }
-  
-  .home-contact__form-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* --- 2. Small Mobile (400 - 499px) --- */
-/* logo: 135px, top: 4px, header: 82px → overflow: 57px + navbar ~35px → padding: 152px */
-@media screen and (min-width: 400px) and (max-width: 499px) {
-  .home-hero {
-    padding-top: 65px;
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-  
-  .home-hero__card {
-    grid-template-columns: 1fr;
-    padding: 1.25rem;
-  }
-  
-  .home-hero__title {
-    font-size: 1.4rem;
-  }
-  
-  .home-hero__buttons {
-    flex-direction: column;
-  }
-  
-  .home-hero__btn {
-    width: 100%;
+    flex-direction: row;
     justify-content: center;
-  }
-  
-  .home-hero__stats {
-    flex-direction: column;
+    gap: 1.5rem;
     padding-left: 0;
     padding-top: 1rem;
     border-left: none;
     border-top: 3px solid #BD1218;
   }
   
+  /* Services: 2 columns, compact */
   .home-services {
     padding: 2rem 1rem;
+  }
+  
+  .home-services__title {
+    font-size: 1.35rem;
+  }
+  
+  .home-services__subtitle {
+    font-size: 0.85rem;
+  }
+  
+  .home-services__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
   }
   
   .home-services__card {
     flex-direction: column;
     text-align: center;
-    gap: 0.75rem;
+    padding: 0.75rem 0.5rem;
+    gap: 0.35rem;
   }
   
+  .home-services__card-icon {
+    font-size: 1.5rem;
+  }
+  
+  .home-services__card-title {
+    font-size: 0.8rem;
+  }
+  
+  .home-services__card-desc {
+    font-size: 0.7rem;
+    line-height: 1.25;
+  }
+  
+  /* Why: 2 columns, compact */
   .home-why {
     padding: 2rem 1rem;
+  }
+  
+  .home-why__title {
+    font-size: 1.35rem;
+  }
+  
+  .home-why__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+  
+  .home-why__item {
+    padding: 0.65rem;
+    text-align: center;
+    border-left: none;
+    border-top: 3px solid #BD1218;
+  }
+  
+  .home-why__item-icon {
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+  }
+  
+  .home-why__item-title {
+    font-size: 0.75rem;
+  }
+  
+  .home-why__item-desc {
+    font-size: 0.65rem;
+    line-height: 1.25;
   }
   
   .home-area {
@@ -1116,14 +1072,17 @@
     padding: 2rem 1rem;
   }
   
+  .home-contact__form-grid {
+    grid-template-columns: 1fr;
+  }
+  
   .home-cta {
     padding: 2rem 1rem;
   }
 }
 
-/* --- 1. Extra Small Mobile (0 - 399px) --- */
-/* logo: 118px, top: 3px, header: 72px → overflow: 49px + navbar ~30px → padding: 139px */
-@media screen and (max-width: 399px) {
+/* --- Small Mobile (0 - 479px) - iPhone size --- */
+@media screen and (max-width: 479px) {
   .home-hero {
     padding-top: 60px;
     padding-left: 0.75rem;
@@ -1156,8 +1115,9 @@
   }
   
   .home-hero__stats {
-    flex-direction: column;
-    gap: 0.5rem;
+    flex-direction: row;
+    justify-content: center;
+    gap: 1rem;
     padding-left: 0;
     padding-top: 0.75rem;
     border-left: none;
@@ -1169,9 +1129,10 @@
   }
   
   .home-hero__stat-label {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
   }
   
+  /* Services: 1 column on small mobile, show only 4 services */
   .home-services {
     padding: 1.5rem 0.75rem;
   }
@@ -1180,13 +1141,41 @@
     font-size: 1.25rem;
   }
   
-  .home-services__card {
-    flex-direction: column;
-    text-align: center;
-    gap: 0.5rem;
-    padding: 1rem;
+  .home-services__subtitle {
+    font-size: 0.8rem;
   }
   
+  .home-services__grid {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  /* Hide last 2 service cards on very small screens */
+  .home-services__card:nth-child(n+5) {
+    display: none;
+  }
+  
+  .home-services__card {
+    flex-direction: row;
+    text-align: left;
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+  
+  .home-services__card-icon {
+    font-size: 1.25rem;
+  }
+  
+  .home-services__card-title {
+    font-size: 0.85rem;
+  }
+  
+  .home-services__card-desc {
+    font-size: 0.75rem;
+    line-height: 1.3;
+  }
+  
+  /* Why: 1 column on small mobile */
   .home-why {
     padding: 1.5rem 0.75rem;
   }
@@ -1195,12 +1184,51 @@
     font-size: 1.25rem;
   }
   
+  .home-why__grid {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  .home-why__item {
+    padding: 0.75rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    border-left: 3px solid #BD1218;
+    border-top: none;
+    text-align: left;
+  }
+  
+  .home-why__item-icon {
+    font-size: 1rem;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+  
+  .home-why__item-content {
+    flex: 1;
+  }
+  
+  .home-why__item-title {
+    font-size: 0.85rem;
+    margin-bottom: 0.15rem;
+  }
+  
+  .home-why__item-desc {
+    font-size: 0.75rem;
+    line-height: 1.3;
+  }
+  
   .home-area {
     padding: 1.5rem 0.75rem;
   }
   
   .home-area__title {
     font-size: 1.25rem;
+  }
+  
+  .home-area__subtitle {
+    font-size: 0.8rem;
   }
   
   .home-area__map-wrapper {
@@ -1212,6 +1240,27 @@
     height: 160px;
   }
   
+  .home-area__map-header {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.75rem;
+  }
+  
+  .home-area__map-radius {
+    font-size: 0.7rem;
+  }
+  
+  .home-area__cta {
+    padding: 1rem;
+  }
+  
+  .home-area__cta-title {
+    font-size: 1rem;
+  }
+  
+  .home-area__cta-text {
+    font-size: 0.8rem;
+  }
+  
   .home-contact {
     padding: 1.5rem 0.75rem;
   }
@@ -1220,8 +1269,37 @@
     font-size: 1.25rem;
   }
   
+  .home-contact__subtitle {
+    font-size: 0.85rem;
+  }
+  
   .home-contact__form {
     padding: 1rem;
+  }
+  
+  .home-contact__form-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .home-contact__label {
+    font-size: 0.8rem;
+  }
+  
+  .home-contact__input,
+  .home-contact__select,
+  .home-contact__textarea {
+    font-size: 0.85rem;
+    padding: 0.6rem 0.75rem;
+  }
+  
+  .home-contact__form-actions {
+    flex-direction: column;
+  }
+  
+  .home-contact__submit,
+  .home-contact__reset {
+    width: 100%;
   }
   
   .home-cta {
@@ -1231,4 +1309,42 @@
   .home-cta__title {
     font-size: 1.25rem;
   }
+  
+  .home-cta__subtitle {
+    font-size: 0.85rem;
+  }
+  
+  .home-cta__buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .home-cta__btn {
+    width: 100%;
+    max-width: none;
+    padding: 0.65rem 1rem;
+    font-size: 0.85rem;
+  }
+  
+  .home-area__cta-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .home-area__cta-btn {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+/* =============================================================================
+   8. GLOBAL OVERFLOW PREVENTION
+   ============================================================================= */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+* {
+  box-sizing: border-box;
 }
