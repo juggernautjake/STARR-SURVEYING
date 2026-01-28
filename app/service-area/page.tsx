@@ -1,83 +1,185 @@
-import type { Metadata } from 'next';
-import Link from 'next/link';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'Service Area | Starr Surveying',
-};
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import CountiesDropdown from '../components/CountiesDropdown';
+
+// Import Service Area page styles
+import '../styles/ServiceArea.css';
+
+// Dynamically import the map component (client-side only)
+const ServiceAreaMap = dynamic(() => import('../components/ServiceAreaMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="placeholder-map placeholder-map--loading">
+      <div className="placeholder-map__spinner"></div>
+      <p>Loading map...</p>
+    </div>
+  ),
+});
+
+interface CoverageCard {
+  icon: string;
+  title: string;
+  description: string;
+}
 
 export default function ServiceAreaPage(): React.ReactElement {
+  // Counties within ~350 mile radius of Belton (ALPHABETICALLY SORTED)
+  const counties: string[] = [
+    'Austin County',
+    'Bastrop County',
+    'Bell County',
+    'Bexar County',
+    'Bosque County',
+    'Brazoria County',
+    'Brazos County',
+    'Brown County',
+    'Burnet County',
+    'Caldwell County',
+    'Chambers County',
+    'Collin County',
+    'Comanche County',
+    'Comal County',
+    'Coryell County',
+    'Dallas County',
+    'Denton County',
+    'Ellis County',
+    'Erath County',
+    'Falls County',
+    'Fayette County',
+    'Fort Bend County',
+    'Freestone County',
+    'Galveston County',
+    'Grimes County',
+    'Guadalupe County',
+    'Hamilton County',
+    'Harris County',
+    'Hays County',
+    'Hill County',
+    'Johnson County',
+    'Lampasas County',
+    'Lee County',
+    'Leon County',
+    'Liberty County',
+    'Limestone County',
+    'Madison County',
+    'McLennan County',
+    'Milam County',
+    'Mills County',
+    'Montgomery County',
+    'Navarro County',
+    'Polk County',
+    'Robertson County',
+    'San Jacinto County',
+    'San Saba County',
+    'Tarrant County',
+    'Travis County',
+    'Trinity County',
+    'Walker County',
+    'Waller County',
+    'Williamson County',
+  ];
+
+  const coverageCards: CoverageCard[] = [
+    { icon: '🏠', title: 'Residential', description: 'Home buyers, property owners, fence lines' },
+    { icon: '🏢', title: 'Commercial', description: 'Business properties, developments, retail' },
+    { icon: '🌾', title: 'Agricultural', description: 'Farms, ranches, rural land' },
+    { icon: '🏗️', title: 'Construction', description: 'New builds, subdivisions, site prep' },
+    { icon: '⚖️', title: 'Legal', description: 'Boundary disputes, easements, title issues' },
+    { icon: '🗺️', title: 'Municipal', description: 'Government projects, infrastructure' },
+  ];
+
   return (
     <>
-      <section className="hero">
-        <div className="container max-w-7xl mx-auto">
-          <h1 className="animate-fade-in">Service Area</h1>
-          <p className="text-lg text-brand-gray max-w-2xl">
-            Professional surveying throughout Central Texas and beyond.
-          </p>
+      {/* Hero Section */}
+      <section className="service-area-hero">
+        <div className="service-area-hero__container">
+          <div className="service-area-hero__card">
+            <h1 className="service-area-hero__title">
+              <span className="service-area-hero__title-accent">Service Area</span>
+            </h1>
+            <p className="service-area-hero__subtitle">
+              Professional land surveying throughout Central Texas and beyond. We proudly serve clients within a 350-mile radius of our headquarters.
+            </p>
+          </div>
         </div>
       </section>
 
-      <section className="section bg-white">
-        <div className="container max-w-7xl mx-auto">
-          <div className="grid-2 gap-12 items-center">
-            <div className="bg-brand-light rounded-16 p-12 flex items-center justify-center h-96">
-              <div className="text-center">
-                <div className="text-6xl mb-4">🗺️</div>
-                <p className="text-2xl font-bold text-brand-dark mb-2">Central Texas</p>
-                <p className="text-brand-gray font-medium">5 Primary Counties</p>
-              </div>
+      {/* Map Section with HQ Info Above */}
+      <section className="service-area-map">
+        <div className="service-area-map__container">
+          {/* HQ Info - Centered Above Map */}
+          <div className="service-area-map__hq">
+            <h2 className="service-area-map__hq-title">Starr Surveying Headquarters</h2>
+            <p className="service-area-map__hq-location">Belton, Texas</p>
+            <address className="service-area-map__hq-address">3779 W FM 436, Belton, TX 76513</address>
+            <div className="service-area-map__hq-radius">
+              <span className="service-area-map__hq-radius-number">350</span>
+              <span className="service-area-map__hq-radius-unit">mile service radius</span>
             </div>
-            <div>
-              <h2 className="mb-8">Where We Serve</h2>
-              <p className="text-brand-gray mb-8 leading-relaxed">
-                Based in Belton, we serve Bell County and surrounding Central Texas regions. Our primary service area covers five counties, with flexibility for larger projects throughout Texas.
-              </p>
-              <h3 className="text-xl font-semibold text-brand-dark mb-6">Primary Service Counties</h3>
-              <ul className="space-y-4 mb-10">
-                <li className="card card-accent p-4">
-                  <p className="font-semibold text-brand-dark">Bell County</p>
-                  <p className="text-sm text-brand-gray">Belton, Waco, Temple, Killeen</p>
-                </li>
-                <li className="card card-accent p-4">
-                  <p className="font-semibold text-brand-dark">Williamson County</p>
-                  <p className="text-sm text-brand-gray">Georgetown, Round Rock, Cedar Park</p>
-                </li>
-                <li className="card card-accent p-4">
-                  <p className="font-semibold text-brand-dark">Coryell County</p>
-                  <p className="text-sm text-brand-gray">Copperas Cove, Gatesville</p>
-                </li>
-                <li className="card card-accent p-4">
-                  <p className="font-semibold text-brand-dark">Falls County</p>
-                  <p className="text-sm text-brand-gray">Marlin, Waco area</p>
-                </li>
-                <li className="card card-accent p-4">
-                  <p className="font-semibold text-brand-dark">Surrounding Areas</p>
-                  <p className="text-sm text-brand-gray">Burnet, Lampasas, McLennan counties</p>
-                </li>
-              </ul>
-              <div className="bg-blue-50 border-l-4 border-brand-blue p-6 rounded-lg">
-                <p className="text-brand-dark font-semibold mb-2">Willing to Travel</p>
-                <p className="text-sm text-brand-gray">For larger projects and special circumstances, we're happy to discuss serving areas outside our primary coverage.</p>
-              </div>
+          </div>
+          
+          {/* Map */}
+          <div className="service-area-map__wrapper">
+            <ServiceAreaMap />
+          </div>
+        </div>
+      </section>
+
+      {/* Counties Section */}
+      <section className="service-area-counties">
+        <div className="service-area-counties__container">
+          {/* Counties Dropdown Component */}
+          <CountiesDropdown counties={counties} />
+
+          {/* Travel Notice */}
+          <div className="service-area-counties__travel">
+            <span className="service-area-counties__travel-icon">🚗</span>
+            <div className="service-area-counties__travel-content">
+              <strong>Willing to Travel</strong>
+              <p>For larger projects, we&apos;re happy to discuss serving areas outside our primary coverage. Travel fees may apply for distant locations.</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="section" style={{
-        background: 'linear-gradient(135deg, #BD1218 0%, #1D3095 100%)',
-        color: 'white'
-      }}>
-        <div className="container max-w-7xl mx-auto text-center">
-          <h2 style={{ background: 'none', WebkitBackgroundClip: 'unset', WebkitTextFillColor: 'unset', color: 'white' }} className="text-4xl mb-6">
-            In Our Service Area?
-          </h2>
-          <p className="text-gray-100 text-lg mb-10 max-w-2xl mx-auto">
-            Contact us for a free consultation.
+      {/* Coverage Types Section */}
+      <section className="service-area-coverage">
+        <div className="service-area-coverage__container">
+          <h2 className="service-area-coverage__title">What We Survey</h2>
+          <div className="service-area-coverage__grid">
+            {coverageCards.map((card: CoverageCard, index: number) => (
+              <div 
+                key={card.title} 
+                className={`service-area-coverage__card ${index % 2 === 0 ? 'service-area-coverage__card--red' : 'service-area-coverage__card--blue'}`}
+              >
+                <span className="service-area-coverage__card-icon">{card.icon}</span>
+                <div className="service-area-coverage__card-content">
+                  <h4 className="service-area-coverage__card-title">{card.title}</h4>
+                  <p className="service-area-coverage__card-desc">{card.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="service-area-cta">
+        <div className="service-area-cta__container">
+          <h2 className="service-area-cta__title">In Our Service Area?</h2>
+          <p className="service-area-cta__subtitle">
+            Contact us today for a free consultation and quote on your surveying project.
           </p>
-          <Link href="/contact" className="btn" style={{ background: 'white', color: '#BD1218' }}>
-            Get in Touch
-          </Link>
+          <div className="service-area-cta__buttons">
+            <Link href="/contact" className="service-area-cta__btn service-area-cta__btn--primary">
+              Get in Touch
+            </Link>
+            <a href="tel:9366620077" className="service-area-cta__btn service-area-cta__btn--secondary">
+              Call (936) 662-0077
+            </a>
+          </div>
         </div>
       </section>
     </>

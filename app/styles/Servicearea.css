@@ -1,0 +1,1449 @@
+/*==============================================================================
+  SERVICE AREA PAGE STYLES
+  Matches Home/About/Pricing Page Design System
+  
+  COLOR SCHEME:
+  - Red: #BD1218
+  - Blue: #1D3095
+  - Dark Blue: #152050
+  - White: #FFFFFF
+  - Light Gray: #F8F9FA
+==============================================================================*/
+
+/* =============================================================================
+   1. HERO SECTION
+   ============================================================================= */
+.service-area-hero {
+  position: relative;
+  background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+  padding-top: 150px;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-bottom: 3rem;
+  overflow-x: hidden;
+}
+
+.service-area-hero__container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.service-area-hero__card {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 2.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  border: 3px solid #1D3095;
+  text-align: center;
+}
+
+.service-area-hero__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #0F1419;
+  line-height: 1.15;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.service-area-hero__title-accent {
+  color: #BD1218;
+}
+
+.service-area-hero__subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.05rem;
+  color: #4B5563;
+  line-height: 1.7;
+  margin: 0;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* =============================================================================
+   2. MAP SECTION
+   ============================================================================= */
+.service-area-map {
+  padding: 4rem 2rem;
+  background: #FFFFFF;
+  border-top: 4px solid #1D3095;
+  overflow-x: hidden;
+}
+
+.service-area-map__container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+/* HQ Info - Centered Above Map */
+.service-area-map__hq {
+  text-align: center;
+  margin-bottom: 2rem;
+  padding: 2rem;
+  background: linear-gradient(135deg, #BD1218 0%, #9A0F14 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(189, 18, 24, 0.25);
+}
+
+.service-area-map__hq-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin: 0 0 0.5rem 0;
+}
+
+.service-area-map__hq-location {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #FFFFFF;
+  margin: 0 0 0.25rem 0;
+}
+
+.service-area-map__hq-address {
+  font-family: 'Inter', sans-serif;
+  font-style: normal;
+  font-size: 0.95rem;
+  color: #FFFFFF;
+  margin: 0 0 1.25rem 0;
+}
+
+.service-area-map__hq-radius {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #FFFFFF;
+  padding: 0.75rem 1.5rem;
+  border-radius: 50px;
+}
+
+.service-area-map__hq-radius-number {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1D3095;
+  line-height: 1;
+}
+
+.service-area-map__hq-radius-unit {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6B7280;
+}
+
+/* Map Container */
+.service-area-map__wrapper {
+  width: 100%;
+  height: 450px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 3px solid #1D3095;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  background: #F8F9FA;
+}
+
+/* =============================================================================
+   3. PLACEHOLDER MAP STYLES
+   ============================================================================= */
+.placeholder-map {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: linear-gradient(160deg, #e1eef5 0%, #c9dde9 40%, #b8d0df 100%);
+  overflow: hidden;
+}
+
+.placeholder-map--loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #F8F9FA 0%, #E5E7EB 100%);
+  color: #6B7280;
+  font-family: 'Inter', sans-serif;
+}
+
+.placeholder-map__spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #E5E7EB;
+  border-top-color: #1D3095;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Texas Background */
+.placeholder-map__texas-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+}
+
+.placeholder-map__texas-svg {
+  width: 90%;
+  height: 90%;
+  max-width: 350px;
+}
+
+/* Circle Container */
+.placeholder-map__circle-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Outer glow */
+.placeholder-map__glow {
+  position: absolute;
+  width: 90%;
+  height: 90%;
+  max-width: 380px;
+  max-height: 380px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(189, 18, 24, 0.08) 0%, transparent 70%);
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 0.5; }
+}
+
+/* Main Circle */
+.placeholder-map__circle {
+  position: absolute;
+  width: 80%;
+  height: 80%;
+  max-width: 340px;
+  max-height: 340px;
+}
+
+.placeholder-map__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 4px solid #BD1218;
+  background: rgba(189, 18, 24, 0.04);
+  box-shadow: 
+    0 0 0 1px rgba(189, 18, 24, 0.1),
+    inset 0 0 30px rgba(189, 18, 24, 0.03);
+}
+
+/* Center Pin */
+.placeholder-map__center {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+}
+
+.placeholder-map__pin-marker {
+  width: 48px;
+  height: 48px;
+  background: #FFFFFF;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  border: 3px solid #BD1218;
+  margin-bottom: 0.5rem;
+}
+
+.placeholder-map__center-label {
+  background: #FFFFFF;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  text-align: center;
+  border: 2px solid #E5E7EB;
+}
+
+.placeholder-map__center-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #BD1218;
+  display: block;
+}
+
+.placeholder-map__center-radius {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  color: #6B7280;
+}
+
+/* City Labels */
+.placeholder-map__cities {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.placeholder-map__city {
+  position: absolute;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Corner Badge */
+.placeholder-map__badge {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  background: #152050;
+  color: #FFFFFF;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.4rem 0.875rem;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* =============================================================================
+   4. COUNTIES SECTION
+   ============================================================================= */
+.service-area-counties {
+  padding: 4rem 2rem;
+  background: #F8F9FA;
+  border-top: 4px solid #BD1218;
+  overflow-x: hidden;
+}
+
+.service-area-counties__container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* =============================================================================
+   4a. COUNTIES ACCORDION - WITH LETTER GROUPINGS
+   ============================================================================= */
+.counties-accordion {
+  margin-bottom: 2rem;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(29, 48, 149, 0.15);
+}
+
+/* Accordion Header (Collapsed State) */
+.counties-accordion__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 2rem;
+  background: linear-gradient(135deg, #BD1218 0%, #8B0D12 50%, #6D0A0E 100%);
+  border: 3px solid #1D3095;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.counties-accordion__header:hover {
+  background: linear-gradient(135deg, #D01419 0%, #9A0F14 50%, #7D0B10 100%);
+  box-shadow: 0 6px 25px rgba(189, 18, 24, 0.3);
+  transform: translateY(-2px);
+}
+
+.counties-accordion__header--expanded {
+  border-radius: 12px 12px 0 0;
+  border-bottom-color: rgba(29, 48, 149, 0.3);
+}
+
+.counties-accordion__header--expanded:hover {
+  transform: none;
+}
+
+.counties-accordion__header-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.counties-accordion__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.counties-accordion__count {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+}
+
+.counties-accordion__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  color: #FFFFFF;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.counties-accordion__icon--expanded {
+  transform: rotate(180deg);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Accordion Panel (Expanded Content) */
+.counties-accordion__panel {
+  background: linear-gradient(180deg, #7D0B10 0%, #9A0F14 30%, #BD1218 100%);
+  border: 3px solid #1D3095;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  padding: 1.5rem 2rem 2rem 2rem;
+}
+
+/* Letter Group Container */
+.counties-accordion__letter-group {
+  margin-bottom: 1.5rem;
+}
+
+.counties-accordion__letter-group:last-child {
+  margin-bottom: 0;
+}
+
+/* Big Letter Header */
+.counties-accordion__letter-header {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.counties-accordion__big-letter {
+  font-family: 'Sora', sans-serif;
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #FFFFFF;
+  text-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+  line-height: 1;
+  display: inline-block;
+}
+
+/* Counties List - Two Columns with Diamond Bullets */
+.counties-accordion__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem 2rem;
+}
+
+.counties-accordion__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+}
+
+.counties-accordion__diamond {
+  color: #FFFFFF;
+  font-size: 0.55rem;
+  flex-shrink: 0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  opacity: 0.9;
+}
+
+.counties-accordion__county-name {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #FFFFFF;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* Travel Notice - WHITE TEXT */
+.service-area-counties__travel {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 3px solid #BD1218;
+}
+
+.service-area-counties__travel-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.service-area-counties__travel-content {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.service-area-counties__travel-content strong {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #FFFFFF;
+}
+
+.service-area-counties__travel-content p {
+  margin: 0;
+  color: #FFFFFF;
+}
+
+/* =============================================================================
+   5. COVERAGE TYPES SECTION
+   ============================================================================= */
+.service-area-coverage {
+  padding: 4rem 2rem;
+  background: #FFFFFF;
+  border-top: 4px solid #1D3095;
+  overflow-x: hidden;
+}
+
+.service-area-coverage__container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.service-area-coverage__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #0F1419;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.service-area-coverage__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+
+.service-area-coverage__card {
+  background: #F8F9FA;
+  border-radius: 10px;
+  padding: 1.5rem;
+  border: 2px solid #E5E7EB;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.service-area-coverage__card--red {
+  border-top: 5px solid #BD1218;
+}
+
+.service-area-coverage__card--red:hover {
+  border-color: #BD1218;
+  box-shadow: 0 4px 12px rgba(189, 18, 24, 0.12);
+  transform: translateY(-2px);
+}
+
+.service-area-coverage__card--blue {
+  border-top: 5px solid #1D3095;
+}
+
+.service-area-coverage__card--blue:hover {
+  border-color: #1D3095;
+  box-shadow: 0 4px 12px rgba(29, 48, 149, 0.12);
+  transform: translateY(-2px);
+}
+
+.service-area-coverage__card-icon {
+  font-size: 2.25rem;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+.service-area-coverage__card-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0F1419;
+  margin-bottom: 0.35rem;
+}
+
+.service-area-coverage__card-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  color: #6B7280;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* =============================================================================
+   6. CTA SECTION
+   ============================================================================= */
+.service-area-cta {
+  padding: 3.5rem 2rem;
+  background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+  overflow-x: hidden;
+}
+
+.service-area-cta__container {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.service-area-cta__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin-bottom: 0.75rem;
+}
+
+.service-area-cta__subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  color: #FFFFFF;
+  margin-bottom: 2rem;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+}
+
+.service-area-cta__buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.service-area-cta__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.875rem 2rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.service-area-cta__btn--primary {
+  background: #FFFFFF;
+  color: #BD1218;
+  border: 2px solid #FFFFFF;
+}
+
+.service-area-cta__btn--primary:hover {
+  background: #F8F9FA;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.service-area-cta__btn--secondary {
+  background: transparent;
+  color: #FFFFFF;
+  border: 2px solid #FFFFFF;
+}
+
+.service-area-cta__btn--secondary:hover {
+  background: #FFFFFF;
+  color: #1D3095;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* =============================================================================
+   7. RESPONSIVE STYLES
+   ============================================================================= */
+
+/* Large Desktop (1280px+) */
+@media screen and (min-width: 1280px) {
+  .service-area-hero {
+    padding-top: 140px;
+  }
+  
+  .service-area-map__wrapper {
+    height: 480px;
+  }
+  
+  .service-area-map__hq {
+    padding: 2.5rem;
+  }
+  
+  .service-area-map__hq-title {
+    font-size: 1.75rem;
+  }
+  
+  .counties-accordion__title {
+    font-size: 1.5rem;
+  }
+  
+  .counties-accordion__big-letter {
+    font-size: 3rem;
+  }
+  
+  .counties-accordion__list {
+    gap: 0.5rem 3rem;
+  }
+}
+
+/* Desktop (1024 - 1279px) */
+@media screen and (min-width: 1024px) and (max-width: 1279px) {
+  .service-area-hero {
+    padding-top: 120px;
+  }
+}
+
+/* Tablet (768 - 1023px) */
+@media screen and (min-width: 768px) and (max-width: 1023px) {
+  .service-area-hero {
+    padding-top: 110px;
+  }
+  
+  .service-area-hero__card {
+    padding: 2rem;
+  }
+  
+  .service-area-hero__title {
+    font-size: 1.85rem;
+  }
+  
+  .service-area-map {
+    padding: 3rem 1.5rem;
+  }
+  
+  .service-area-map__hq {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .service-area-map__hq-title {
+    font-size: 1.35rem;
+  }
+  
+  .service-area-map__wrapper {
+    height: 380px;
+  }
+  
+  .placeholder-map__circle {
+    max-width: 300px;
+    max-height: 300px;
+  }
+  
+  .placeholder-map__glow {
+    max-width: 340px;
+    max-height: 340px;
+  }
+  
+  .service-area-counties {
+    padding: 3rem 1.5rem;
+  }
+  
+  .counties-accordion__header {
+    padding: 1.25rem 1.5rem;
+  }
+  
+  .counties-accordion__title {
+    font-size: 1.2rem;
+  }
+  
+  .counties-accordion__panel {
+    padding: 1.25rem 1.5rem 1.5rem 1.5rem;
+  }
+  
+  .counties-accordion__big-letter {
+    font-size: 2.25rem;
+  }
+  
+  .counties-accordion__list {
+    gap: 0.35rem 1.5rem;
+  }
+  
+  .counties-accordion__county-name {
+    font-size: 0.9rem;
+  }
+  
+  .service-area-coverage {
+    padding: 3rem 1.5rem;
+  }
+  
+  .service-area-cta {
+    padding: 3rem 1.5rem;
+  }
+}
+
+/* Large Mobile (600 - 767px) */
+@media screen and (min-width: 600px) and (max-width: 767px) {
+  .service-area-hero {
+    padding-top: 90px;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    padding-bottom: 2.5rem;
+  }
+  
+  .service-area-hero__card {
+    padding: 1.75rem;
+  }
+  
+  .service-area-hero__title {
+    font-size: 1.65rem;
+  }
+  
+  .service-area-hero__subtitle {
+    font-size: 0.95rem;
+  }
+  
+  .service-area-map {
+    padding: 2.5rem 1.25rem;
+  }
+  
+  .service-area-map__hq {
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  
+  .service-area-map__hq-title {
+    font-size: 1.25rem;
+  }
+  
+  .service-area-map__hq-location {
+    font-size: 1rem;
+  }
+  
+  .service-area-map__hq-address {
+    font-size: 0.9rem;
+  }
+  
+  .service-area-map__hq-radius {
+    padding: 0.6rem 1.25rem;
+  }
+  
+  .service-area-map__hq-radius-number {
+    font-size: 1.5rem;
+  }
+  
+  .service-area-map__wrapper {
+    height: 320px;
+  }
+  
+  .placeholder-map__circle {
+    max-width: 260px;
+    max-height: 260px;
+  }
+  
+  .placeholder-map__glow {
+    max-width: 300px;
+    max-height: 300px;
+  }
+  
+  .placeholder-map__city {
+    font-size: 0.6rem;
+    padding: 0.2rem 0.5rem;
+  }
+  
+  .service-area-counties {
+    padding: 2.5rem 1.25rem;
+  }
+  
+  .counties-accordion__header {
+    padding: 1.25rem;
+  }
+  
+  .counties-accordion__title {
+    font-size: 1.1rem;
+  }
+  
+  .counties-accordion__count {
+    font-size: 0.8rem;
+  }
+  
+  .counties-accordion__icon {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .counties-accordion__panel {
+    padding: 1.25rem;
+  }
+  
+  .counties-accordion__letter-group {
+    margin-bottom: 1.25rem;
+  }
+  
+  .counties-accordion__big-letter {
+    font-size: 2rem;
+  }
+  
+  .counties-accordion__list {
+    gap: 0.3rem 1.25rem;
+  }
+  
+  .counties-accordion__county-name {
+    font-size: 0.85rem;
+  }
+  
+  .service-area-coverage {
+    padding: 2.5rem 1.25rem;
+  }
+  
+  .service-area-coverage__title {
+    font-size: 1.4rem;
+  }
+  
+  .service-area-coverage__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  
+  .service-area-cta {
+    padding: 2.5rem 1.25rem;
+  }
+  
+  .service-area-cta__title {
+    font-size: 1.5rem;
+  }
+  
+  .service-area-cta__buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .service-area-cta__btn {
+    width: 100%;
+    max-width: 280px;
+  }
+}
+
+/* Medium Mobile (480 - 599px) */
+@media screen and (min-width: 480px) and (max-width: 599px) {
+  .service-area-hero {
+    padding-top: 80px;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-bottom: 2rem;
+  }
+  
+  .service-area-hero__card {
+    padding: 1.5rem;
+  }
+  
+  .service-area-hero__title {
+    font-size: 1.5rem;
+  }
+  
+  .service-area-hero__subtitle {
+    font-size: 0.9rem;
+  }
+  
+  .service-area-map {
+    padding: 2rem 1rem;
+  }
+  
+  .service-area-map__hq {
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  
+  .service-area-map__hq-title {
+    font-size: 1.1rem;
+  }
+  
+  .service-area-map__hq-location {
+    font-size: 0.95rem;
+  }
+  
+  .service-area-map__hq-address {
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+  }
+  
+  .service-area-map__hq-radius {
+    padding: 0.5rem 1rem;
+  }
+  
+  .service-area-map__hq-radius-number {
+    font-size: 1.35rem;
+  }
+  
+  .service-area-map__hq-radius-unit {
+    font-size: 0.75rem;
+  }
+  
+  .service-area-map__wrapper {
+    height: 280px;
+    border-radius: 10px;
+  }
+  
+  .placeholder-map__circle {
+    max-width: 220px;
+    max-height: 220px;
+  }
+  
+  .placeholder-map__glow {
+    max-width: 260px;
+    max-height: 260px;
+  }
+  
+  .placeholder-map__pin-marker {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .placeholder-map__pin-marker svg {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .placeholder-map__center-label {
+    padding: 0.4rem 0.75rem;
+  }
+  
+  .placeholder-map__center-title {
+    font-size: 0.85rem;
+  }
+  
+  .placeholder-map__center-radius {
+    font-size: 0.65rem;
+  }
+  
+  .placeholder-map__city {
+    display: none;
+  }
+  
+  .placeholder-map__badge {
+    font-size: 0.7rem;
+    padding: 0.35rem 0.75rem;
+  }
+  
+  .service-area-counties {
+    padding: 2rem 1rem;
+  }
+  
+  .counties-accordion__header {
+    padding: 1rem;
+    border-width: 2px;
+  }
+  
+  .counties-accordion__title {
+    font-size: 1rem;
+  }
+  
+  .counties-accordion__count {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.6rem;
+  }
+  
+  .counties-accordion__icon {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .counties-accordion__icon svg {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .counties-accordion__panel {
+    padding: 1rem;
+    border-width: 2px;
+  }
+  
+  .counties-accordion__letter-group {
+    margin-bottom: 1rem;
+  }
+  
+  .counties-accordion__letter-header {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.35rem;
+  }
+  
+  .counties-accordion__big-letter {
+    font-size: 1.75rem;
+  }
+  
+  .counties-accordion__list {
+    gap: 0.25rem 1rem;
+  }
+  
+  .counties-accordion__item {
+    padding: 0.3rem 0;
+    gap: 0.5rem;
+  }
+  
+  .counties-accordion__diamond {
+    font-size: 0.45rem;
+  }
+  
+  .counties-accordion__county-name {
+    font-size: 0.8rem;
+  }
+  
+  .service-area-counties__travel {
+    padding: 1.25rem;
+    border-width: 2px;
+  }
+  
+  .service-area-coverage {
+    padding: 2rem 1rem;
+  }
+  
+  .service-area-coverage__title {
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .service-area-coverage__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  
+  .service-area-coverage__card {
+    padding: 1.25rem;
+  }
+  
+  .service-area-cta {
+    padding: 2rem 1rem;
+  }
+  
+  .service-area-cta__title {
+    font-size: 1.35rem;
+  }
+  
+  .service-area-cta__subtitle {
+    font-size: 0.95rem;
+  }
+}
+
+/* Small Mobile (0 - 479px) */
+@media screen and (max-width: 479px) {
+  .service-area-hero {
+    padding-top: 70px;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .service-area-hero__card {
+    padding: 1.25rem;
+    border-radius: 10px;
+    border-width: 2px;
+  }
+  
+  .service-area-hero__title {
+    font-size: 1.35rem;
+  }
+  
+  .service-area-hero__subtitle {
+    font-size: 0.85rem;
+  }
+  
+  .service-area-map {
+    padding: 1.5rem 0.75rem;
+  }
+  
+  .service-area-map__hq {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 10px;
+  }
+  
+  .service-area-map__hq-title {
+    font-size: 1rem;
+  }
+  
+  .service-area-map__hq-location {
+    font-size: 0.9rem;
+  }
+  
+  .service-area-map__hq-address {
+    font-size: 0.8rem;
+    margin-bottom: 0.875rem;
+  }
+  
+  .service-area-map__hq-radius {
+    padding: 0.4rem 0.875rem;
+    border-radius: 25px;
+  }
+  
+  .service-area-map__hq-radius-number {
+    font-size: 1.25rem;
+  }
+  
+  .service-area-map__hq-radius-unit {
+    font-size: 0.7rem;
+  }
+  
+  .service-area-map__wrapper {
+    height: 250px;
+    border-radius: 10px;
+    border-width: 2px;
+  }
+  
+  .placeholder-map__circle {
+    max-width: 190px;
+    max-height: 190px;
+  }
+  
+  .placeholder-map__glow {
+    max-width: 230px;
+    max-height: 230px;
+  }
+  
+  .placeholder-map__ring {
+    border-width: 3px;
+  }
+  
+  .placeholder-map__pin-marker {
+    width: 36px;
+    height: 36px;
+    border-width: 2px;
+  }
+  
+  .placeholder-map__pin-marker svg {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .placeholder-map__center-label {
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+  }
+  
+  .placeholder-map__center-title {
+    font-size: 0.75rem;
+  }
+  
+  .placeholder-map__center-radius {
+    font-size: 0.6rem;
+  }
+  
+  .placeholder-map__city {
+    display: none;
+  }
+  
+  .placeholder-map__badge {
+    font-size: 0.65rem;
+    padding: 0.3rem 0.65rem;
+    bottom: 0.75rem;
+    left: 0.75rem;
+  }
+  
+  .service-area-counties {
+    padding: 1.5rem 0.75rem;
+  }
+  
+  .counties-accordion {
+    border-radius: 10px;
+  }
+  
+  .counties-accordion__header {
+    padding: 0.875rem;
+    border-radius: 10px;
+    border-width: 2px;
+  }
+  
+  .counties-accordion__header--expanded {
+    border-radius: 10px 10px 0 0;
+  }
+  
+  .counties-accordion__header-content {
+    gap: 0.25rem;
+  }
+  
+  .counties-accordion__title {
+    font-size: 0.9rem;
+  }
+  
+  .counties-accordion__count {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+  }
+  
+  .counties-accordion__icon {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .counties-accordion__icon svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .counties-accordion__panel {
+    padding: 0.875rem;
+    border-radius: 0 0 10px 10px;
+    border-width: 2px;
+  }
+  
+  .counties-accordion__letter-group {
+    margin-bottom: 1rem;
+  }
+  
+  .counties-accordion__letter-header {
+    margin-bottom: 0.4rem;
+    padding-bottom: 0.25rem;
+  }
+  
+  .counties-accordion__big-letter {
+    font-size: 1.5rem;
+  }
+  
+  /* Single column on small mobile */
+  .counties-accordion__list {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+  
+  .counties-accordion__item {
+    padding: 0.25rem 0;
+    gap: 0.5rem;
+  }
+  
+  .counties-accordion__diamond {
+    font-size: 0.4rem;
+  }
+  
+  .counties-accordion__county-name {
+    font-size: 0.8rem;
+  }
+  
+  .service-area-counties__travel {
+    padding: 1rem;
+    gap: 0.75rem;
+    border-radius: 10px;
+    border-width: 2px;
+  }
+  
+  .service-area-counties__travel-icon {
+    font-size: 1.5rem;
+  }
+  
+  .service-area-counties__travel-content {
+    font-size: 0.85rem;
+  }
+  
+  .service-area-counties__travel-content strong {
+    font-size: 1rem;
+  }
+  
+  .service-area-coverage {
+    padding: 1.5rem 0.75rem;
+  }
+  
+  .service-area-coverage__title {
+    font-size: 1.15rem;
+    margin-bottom: 1.25rem;
+  }
+  
+  .service-area-coverage__grid {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  .service-area-coverage__card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    text-align: left;
+    padding: 1rem;
+    border-top: none;
+  }
+  
+  .service-area-coverage__card--red {
+    border-top: none;
+    border-left: 4px solid #BD1218;
+  }
+  
+  .service-area-coverage__card--blue {
+    border-top: none;
+    border-left: 4px solid #1D3095;
+  }
+  
+  .service-area-coverage__card-icon {
+    font-size: 1.75rem;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+  
+  .service-area-coverage__card-content {
+    flex: 1;
+  }
+  
+  .service-area-coverage__card-title {
+    font-size: 0.9rem;
+    margin-bottom: 0.2rem;
+  }
+  
+  .service-area-coverage__card-desc {
+    font-size: 0.8rem;
+  }
+  
+  .service-area-cta {
+    padding: 1.75rem 0.75rem;
+  }
+  
+  .service-area-cta__title {
+    font-size: 1.25rem;
+  }
+  
+  .service-area-cta__subtitle {
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .service-area-cta__buttons {
+    flex-direction: column;
+  }
+  
+  .service-area-cta__btn {
+    width: 100%;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+  }
+}
+
+/* =============================================================================
+   8. GLOBAL OVERFLOW PREVENTION
+   ============================================================================= */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+* {
+  box-sizing: border-box;
+}

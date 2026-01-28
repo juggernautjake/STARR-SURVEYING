@@ -22,6 +22,12 @@ interface WhyCard {
   description: string;
 }
 
+interface MissionItem {
+  icon: string;
+  label: string;
+  description: string;
+}
+
 export default function AboutPage(): React.ReactElement {
   const teamMembers: TeamMember[] = [
     {
@@ -81,6 +87,24 @@ export default function AboutPage(): React.ReactElement {
     },
   ];
 
+  const missionItems: MissionItem[] = [
+    {
+      icon: '✓',
+      label: 'Precision',
+      description: 'Accurate measurements and professional results',
+    },
+    {
+      icon: '✓',
+      label: 'Integrity',
+      description: 'Guided by Christian values and honesty',
+    },
+    {
+      icon: '✓',
+      label: 'Expertise',
+      description: 'Licensed professionals with deep knowledge',
+    },
+  ];
+
   return (
     <>
       {/* Hero Section */}
@@ -106,11 +130,11 @@ export default function AboutPage(): React.ReactElement {
             <p className="about-story__text">
               Founded on principles of professionalism, accuracy, and integrity, Starr Surveying has built a reputation for excellence across Central Texas. We believe property boundaries matter—they form the foundation for developments, transfers, and legal clarity.
             </p>
-            <p className="about-story__text">
+            <p className="about-story__text about-story__text--desktop">
               Every project receives our complete attention and expertise. We combine advanced technology with professional knowledge to deliver results you can depend on.
             </p>
             <blockquote className="about-story__quote">
-              "Remove not the ancient landmark, which thy fathers have set."
+              &ldquo;Remove not the ancient landmark, which thy fathers have set.&rdquo;
             </blockquote>
             <p className="about-story__quote-source">— Proverbs 22:28</p>
           </div>
@@ -119,27 +143,15 @@ export default function AboutPage(): React.ReactElement {
           <div className="about-story__mission">
             <h3 className="about-story__mission-title">Our Mission</h3>
             <ul className="about-story__mission-list">
-              <li className="about-story__mission-item">
-                <span className="about-story__mission-icon">✓</span>
-                <div className="about-story__mission-content">
-                  <p className="about-story__mission-label">Precision</p>
-                  <p className="about-story__mission-desc">Accurate measurements and professional results</p>
-                </div>
-              </li>
-              <li className="about-story__mission-item">
-                <span className="about-story__mission-icon">✓</span>
-                <div className="about-story__mission-content">
-                  <p className="about-story__mission-label">Integrity</p>
-                  <p className="about-story__mission-desc">Guided by Christian values and honesty</p>
-                </div>
-              </li>
-              <li className="about-story__mission-item">
-                <span className="about-story__mission-icon">✓</span>
-                <div className="about-story__mission-content">
-                  <p className="about-story__mission-label">Expertise</p>
-                  <p className="about-story__mission-desc">Licensed professionals with deep knowledge</p>
-                </div>
-              </li>
+              {missionItems.map((item: MissionItem) => (
+                <li key={item.label} className="about-story__mission-item">
+                  <span className="about-story__mission-icon">{item.icon}</span>
+                  <div className="about-story__mission-content">
+                    <p className="about-story__mission-label">{item.label}</p>
+                    <p className="about-story__mission-desc">{item.description}</p>
+                  </div>
+                </li>
+              ))}
             </ul>
           </div>
         </div>

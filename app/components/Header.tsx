@@ -23,7 +23,7 @@ const Header = (): React.ReactElement => {
     { href: '/services', label: 'Services' },
     { href: '/pricing', label: 'Pricing' },
     { href: '/service-area', label: 'Service Area' },
-    { href: '/regulations', label: 'Resources' },
+    { href: '/resources', label: 'Resources' },
     { href: '/credentials', label: 'Credentials' },
     { href: '/contact', label: 'Contact' },
   ];
