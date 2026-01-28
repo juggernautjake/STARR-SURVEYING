@@ -255,6 +255,24 @@ export default function HomePage(): React.ReactElement {
         </div>
       </section>
 
+      {/* FREE ESTIMATE BANNER - NEW SECTION */}
+      <section className="home-estimate-banner">
+        <div className="home-estimate-banner__container">
+          <div className="home-estimate-banner__content">
+            <div className="home-estimate-banner__icon">🧮</div>
+            <div className="home-estimate-banner__text">
+              <h3 className="home-estimate-banner__title">Get a Free Estimate Today!</h3>
+              <p className="home-estimate-banner__subtitle">
+                Use our online calculator to get an instant rough estimate for your surveying project — no obligation!
+              </p>
+            </div>
+          </div>
+          <Link href="/pricing" className="home-estimate-banner__btn">
+            Try Our Free Calculator →
+          </Link>
+        </div>
+      </section>
+
       {/* Services Section */}
       <section className="home-services">
         <div className="home-services__container">
@@ -561,8 +579,8 @@ export default function HomePage(): React.ReactElement {
             Contact us today for a free consultation and detailed quote on your surveying project.
           </p>
           <div className="home-cta__buttons">
-            <Link href="/contact" className="home-cta__btn home-cta__btn--primary">
-              Request Quote
+            <Link href="/pricing" className="home-cta__btn home-cta__btn--primary">
+              Get Free Estimate
             </Link>
             <a href="tel:9366620077" className="home-cta__btn home-cta__btn--secondary">
               Call (936) 662-0077

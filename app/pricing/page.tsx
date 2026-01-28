@@ -89,6 +89,22 @@ export default function PricingPage() {
         </div>
       </section>
 
+      {/* Calculator Highlight Banner - NEW */}
+      <section className="pricing-calculator-highlight">
+        <div className="pricing-calculator-highlight__container">
+          <div className="pricing-calculator-highlight__badge">FREE TOOL</div>
+          <div className="pricing-calculator-highlight__content">
+            <h2 className="pricing-calculator-highlight__title">
+              🧮 Get Your Instant Estimate Below!
+            </h2>
+            <p className="pricing-calculator-highlight__text">
+              Use our interactive calculator to get a rough estimate for your project in seconds — completely free, no signup required!
+            </p>
+          </div>
+          <div className="pricing-calculator-highlight__arrow">↓</div>
+        </div>
+      </section>
+
       {/* Pricing Calculator */}
       <SurveyCalculator />
 

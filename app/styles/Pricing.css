@@ -17,6 +17,8 @@
   - Large Mobile: 600-767px
   - Medium Mobile: 480-599px
   - Small Mobile: 0-479px
+  
+  UPDATED: Added Calculator Highlight Banner section
 ==============================================================================*/
 
 /* =============================================================================
@@ -119,6 +121,87 @@
 
 .pricing-disclaimer__text strong {
   color: #92400E;
+}
+
+/* =============================================================================
+   2.5. CALCULATOR HIGHLIGHT BANNER - NEW
+   ============================================================================= */
+.pricing-calculator-highlight {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  padding: 1.5rem 2rem;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.pricing-calculator-highlight::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  opacity: 0.5;
+}
+
+.pricing-calculator-highlight__container {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  flex-wrap: wrap;
+}
+
+.pricing-calculator-highlight__badge {
+  background: #FFFFFF;
+  color: #059669;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 100px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.pricing-calculator-highlight__content {
+  flex: 1;
+  min-width: 280px;
+}
+
+.pricing-calculator-highlight__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin: 0 0 0.35rem 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.pricing-calculator-highlight__text {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.95);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.pricing-calculator-highlight__arrow {
+  font-size: 2rem;
+  color: #FFFFFF;
+  animation: bounce-arrow 1.5s ease-in-out infinite;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes bounce-arrow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(8px); }
 }
 
 /* =============================================================================
@@ -981,6 +1064,10 @@
   .pricing-hero__title {
     font-size: 2.5rem;
   }
+  
+  .pricing-calculator-highlight__title {
+    font-size: 1.65rem;
+  }
 }
 
 /* --- Desktop (1024 - 1279px) --- */
@@ -1010,6 +1097,18 @@
   
   .pricing-disclaimer {
     padding: 1rem 1.5rem;
+  }
+  
+  .pricing-calculator-highlight {
+    padding: 1.25rem 1.5rem;
+  }
+  
+  .pricing-calculator-highlight__title {
+    font-size: 1.35rem;
+  }
+  
+  .pricing-calculator-highlight__text {
+    font-size: 0.9rem;
   }
   
   .pricing-calculator {
@@ -1101,6 +1200,31 @@
   
   .pricing-disclaimer__text {
     font-size: 0.85rem;
+  }
+  
+  .pricing-calculator-highlight {
+    padding: 1rem 1.25rem;
+  }
+  
+  .pricing-calculator-highlight__container {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .pricing-calculator-highlight__badge {
+    font-size: 0.65rem;
+  }
+  
+  .pricing-calculator-highlight__title {
+    font-size: 1.15rem;
+  }
+  
+  .pricing-calculator-highlight__text {
+    font-size: 0.85rem;
+  }
+  
+  .pricing-calculator-highlight__arrow {
+    font-size: 1.5rem;
   }
   
   .pricing-calculator {
@@ -1288,6 +1412,32 @@
   
   .pricing-disclaimer__text {
     font-size: 0.8rem;
+  }
+  
+  .pricing-calculator-highlight {
+    padding: 1rem;
+  }
+  
+  .pricing-calculator-highlight__container {
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+  
+  .pricing-calculator-highlight__badge {
+    font-size: 0.6rem;
+    padding: 0.3rem 0.6rem;
+  }
+  
+  .pricing-calculator-highlight__title {
+    font-size: 1.05rem;
+  }
+  
+  .pricing-calculator-highlight__text {
+    font-size: 0.8rem;
+  }
+  
+  .pricing-calculator-highlight__arrow {
+    font-size: 1.35rem;
   }
   
   .pricing-calculator {
@@ -1583,6 +1733,33 @@
   .pricing-disclaimer__text {
     font-size: 0.75rem;
     line-height: 1.5;
+  }
+  
+  .pricing-calculator-highlight {
+    padding: 0.875rem 0.75rem;
+  }
+  
+  .pricing-calculator-highlight__container {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .pricing-calculator-highlight__badge {
+    font-size: 0.55rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .pricing-calculator-highlight__title {
+    font-size: 0.95rem;
+  }
+  
+  .pricing-calculator-highlight__text {
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+  
+  .pricing-calculator-highlight__arrow {
+    font-size: 1.25rem;
   }
   
   .pricing-calculator {
@@ -1989,4 +2166,53 @@ html, body {
 .pricing-calculator__form > *,
 .pricing-calculator__checkboxes > * {
   min-width: 0;
+}
+
+/* =============================================================================
+   12. CALCULATOR OVERFLOW FIX (from Pricingcalculatorfix.css)
+   ============================================================================= */
+
+/* Ensure expanded content has no height restrictions */
+.pricing-calculator__content--expanded {
+  max-height: none !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.pricing-calculator__content-inner {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* Ensure results section is fully visible */
+.pricing-calculator__result {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+/* Fix any transition issues that might clip content */
+.pricing-calculator__content {
+  transition: max-height 0.4s ease-in-out, opacity 0.3s ease-in-out;
+}
+
+.pricing-calculator__content--expanded {
+  transition: none; /* Remove transition when expanded to prevent clipping */
+}
+
+/* Ensure buttons in results are visible */
+.pricing-calculator__result-actions {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+/* Mobile fix for contact form grid */
+@media (max-width: 600px) {
+  .pricing-calculator__result div[style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
 }
