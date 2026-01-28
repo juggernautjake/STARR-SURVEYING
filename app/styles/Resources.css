@@ -1,6 +1,6 @@
 /*==============================================================================
   RESOURCES PAGE STYLES
-  Matches Home/About/Pricing/Service Area Page Design System
+  Matches Home/About/Pricing/Service Area Page Design System EXACTLY
   
   COLOR SCHEME:
   - Red: #BD1218
@@ -8,6 +8,14 @@
   - Dark Blue: #152050
   - White: #FFFFFF
   - Light Gray: #F8F9FA
+  
+  BREAKPOINTS (matching Home.css):
+  - Large Desktop: 1280px+
+  - Desktop: 1024-1279px
+  - Tablet: 768-1023px
+  - Large Mobile: 600-767px
+  - Medium Mobile: 480-599px
+  - Small Mobile: 0-479px
 ==============================================================================*/
 
 /* =============================================================================
@@ -110,6 +118,7 @@
   transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .resources-official__card--red {
@@ -147,6 +156,7 @@
 
 .resources-official__card-titles {
   flex: 1;
+  min-width: 0;
 }
 
 .resources-official__card-abbr {
@@ -171,6 +181,7 @@
   color: #6B7280;
   margin: 0;
   line-height: 1.4;
+  word-wrap: break-word;
 }
 
 .resources-official__card-desc {
@@ -196,6 +207,7 @@
 .resources-official__card-contact p {
   margin: 0 0 0.35rem 0;
   line-height: 1.4;
+  word-wrap: break-word;
 }
 
 .resources-official__card-contact p:last-child {
@@ -275,6 +287,7 @@
   padding: 1.75rem;
   border: 2px solid #E5E7EB;
   transition: all 0.2s ease;
+  min-width: 0;
 }
 
 .resources-types__card--blue {
@@ -332,6 +345,8 @@
   border-radius: 20px;
   background: #E5E7EB;
   color: #4B5563;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .resources-types__card-desc {
@@ -364,6 +379,7 @@
 
 .resources-types__card-uses li {
   line-height: 1.4;
+  min-width: 0;
 }
 
 .resources-types__note {
@@ -467,6 +483,7 @@
 
 .resources-research__step-content {
   flex: 1;
+  min-width: 0;
 }
 
 .resources-research__step-icon {
@@ -646,6 +663,7 @@
   border-radius: 10px;
   padding: 1.25rem;
   border-top: 3px solid #BD1218;
+  min-width: 0;
 }
 
 .resources-glossary__term h4 {
@@ -828,31 +846,49 @@
 }
 
 /* =============================================================================
-   9. RESPONSIVE STYLES
+   9. RESPONSIVE STYLES - MATCHING HOME.CSS EXACTLY
    ============================================================================= */
 
-/* Large Desktop (1280px+) */
+/* --- Large Desktop (1280px+) --- */
 @media screen and (min-width: 1280px) {
   .resources-hero {
     padding-top: 140px;
   }
   
+  .resources-hero__card {
+    padding: 3rem;
+  }
+  
+  .resources-hero__title {
+    font-size: 2.5rem;
+  }
+  
   .resources-glossary__grid {
     gap: 1.25rem;
   }
+  
+  .resources-official__card {
+    padding: 2rem;
+  }
 }
 
-/* Desktop (1024 - 1279px) */
+/* --- Desktop (1024 - 1279px) --- */
 @media screen and (min-width: 1024px) and (max-width: 1279px) {
   .resources-hero {
     padding-top: 120px;
   }
+  
+  .resources-hero__title {
+    font-size: 2rem;
+  }
 }
 
-/* Tablet (768 - 1023px) */
+/* --- Tablet (768 - 1023px) --- */
 @media screen and (min-width: 768px) and (max-width: 1023px) {
   .resources-hero {
     padding-top: 110px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
   }
   
   .resources-hero__card {
@@ -863,8 +899,16 @@
     font-size: 1.85rem;
   }
   
+  .resources-hero__subtitle {
+    font-size: 1rem;
+  }
+  
   .resources-official {
     padding: 3rem 1.5rem;
+  }
+  
+  .resources-official__title {
+    font-size: 1.5rem;
   }
   
   .resources-official__grid {
@@ -887,20 +931,37 @@
     padding: 3rem 1.5rem;
   }
   
+  .resources-types__title {
+    font-size: 1.5rem;
+  }
+  
   .resources-types__grid {
     grid-template-columns: 1fr;
+    gap: 1.25rem;
   }
   
   .resources-research {
     padding: 3rem 1.5rem;
   }
   
+  .resources-research__title {
+    font-size: 1.5rem;
+  }
+  
   .resources-faq {
     padding: 3rem 1.5rem;
   }
   
+  .resources-faq__title {
+    font-size: 1.5rem;
+  }
+  
   .resources-glossary {
     padding: 3rem 1.5rem;
+  }
+  
+  .resources-glossary__title {
+    font-size: 1.5rem;
   }
   
   .resources-glossary__grid {
@@ -911,12 +972,20 @@
     padding: 3rem 1.5rem;
   }
   
+  .resources-verify__title {
+    font-size: 1.35rem;
+  }
+  
   .resources-cta {
     padding: 3rem 1.5rem;
   }
+  
+  .resources-cta__title {
+    font-size: 1.75rem;
+  }
 }
 
-/* Large Mobile (600 - 767px) */
+/* --- Large Mobile (600 - 767px) --- */
 @media screen and (min-width: 600px) and (max-width: 767px) {
   .resources-hero {
     padding-top: 90px;
@@ -942,7 +1011,12 @@
   }
   
   .resources-official__title {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
+  }
+  
+  .resources-official__intro {
+    font-size: 0.95rem;
+    margin-bottom: 2rem;
   }
   
   .resources-official__grid {
@@ -962,12 +1036,21 @@
     font-size: 1.25rem;
   }
   
+  .resources-official__card-name {
+    font-size: 0.8rem;
+  }
+  
   .resources-types {
     padding: 2.5rem 1.25rem;
   }
   
   .resources-types__title {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
+  }
+  
+  .resources-types__intro {
+    font-size: 0.95rem;
+    margin-bottom: 2rem;
   }
   
   .resources-types__grid {
@@ -979,8 +1062,17 @@
     padding: 1.5rem;
   }
   
+  .resources-types__card-title {
+    font-size: 1.1rem;
+  }
+  
   .resources-types__card-uses ul {
     grid-template-columns: 1fr;
+  }
+  
+  .resources-types__note {
+    margin-top: 1.5rem;
+    padding: 1rem 1.25rem;
   }
   
   .resources-research {
@@ -988,11 +1080,22 @@
   }
   
   .resources-research__title {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
+  }
+  
+  .resources-research__intro {
+    font-size: 0.95rem;
+    margin-bottom: 2rem;
   }
   
   .resources-research__step {
     padding: 1.25rem;
+  }
+  
+  .resources-research__step-number {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
   }
   
   .resources-faq {
@@ -1000,7 +1103,7 @@
   }
   
   .resources-faq__title {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
   }
   
   .resources-faq__question {
@@ -1012,12 +1115,16 @@
     padding: 0 1.25rem 1.25rem 1.25rem;
   }
   
+  .resources-faq__answer p {
+    font-size: 0.9rem;
+  }
+  
   .resources-glossary {
     padding: 2.5rem 1.25rem;
   }
   
   .resources-glossary__title {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
   }
   
   .resources-glossary__grid {
@@ -1029,8 +1136,20 @@
     padding: 1rem;
   }
   
+  .resources-glossary__term h4 {
+    font-size: 0.95rem;
+  }
+  
+  .resources-glossary__term p {
+    font-size: 0.8rem;
+  }
+  
   .resources-verify {
     padding: 2.5rem 1.25rem;
+  }
+  
+  .resources-verify__card {
+    padding: 1.75rem;
   }
   
   .resources-verify__title {
@@ -1059,6 +1178,10 @@
     font-size: 1.5rem;
   }
   
+  .resources-cta__subtitle {
+    font-size: 1rem;
+  }
+  
   .resources-cta__buttons {
     flex-direction: column;
     align-items: center;
@@ -1070,7 +1193,7 @@
   }
 }
 
-/* Medium Mobile (480 - 599px) */
+/* --- Medium Mobile (480 - 599px) --- */
 @media screen and (min-width: 480px) and (max-width: 599px) {
   .resources-hero {
     padding-top: 80px;
@@ -1096,11 +1219,12 @@
   }
   
   .resources-official__title {
-    font-size: 1.35rem;
+    font-size: 1.3rem;
   }
   
   .resources-official__intro {
     font-size: 0.9rem;
+    margin-bottom: 1.5rem;
   }
   
   .resources-official__grid {
@@ -1110,6 +1234,7 @@
   
   .resources-official__card {
     padding: 1.25rem;
+    border-radius: 10px;
   }
   
   .resources-official__card-header {
@@ -1134,16 +1259,22 @@
     font-size: 0.85rem;
   }
   
+  .resources-official__card-contact {
+    padding: 0.6rem;
+    font-size: 0.75rem;
+  }
+  
   .resources-types {
     padding: 2rem 1rem;
   }
   
   .resources-types__title {
-    font-size: 1.35rem;
+    font-size: 1.3rem;
   }
   
   .resources-types__intro {
     font-size: 0.9rem;
+    margin-bottom: 1.5rem;
   }
   
   .resources-types__grid {
@@ -1153,6 +1284,7 @@
   
   .resources-types__card {
     padding: 1.25rem;
+    border-radius: 10px;
   }
   
   .resources-types__card-header {
@@ -1163,6 +1295,11 @@
   
   .resources-types__card-title {
     font-size: 1.05rem;
+  }
+  
+  .resources-types__card-badge {
+    font-size: 0.65rem;
+    padding: 0.25rem 0.6rem;
   }
   
   .resources-types__card-desc {
@@ -1190,16 +1327,22 @@
   }
   
   .resources-research__title {
-    font-size: 1.35rem;
+    font-size: 1.3rem;
   }
   
   .resources-research__intro {
     font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .resources-research__grid {
+    gap: 1rem;
   }
   
   .resources-research__step {
     padding: 1rem;
     gap: 1rem;
+    border-radius: 8px;
   }
   
   .resources-research__step-number {
@@ -1220,16 +1363,29 @@
     font-size: 0.85rem;
   }
   
+  .resources-research__step-link {
+    font-size: 0.8rem;
+  }
+  
   .resources-faq {
     padding: 2rem 1rem;
   }
   
   .resources-faq__title {
-    font-size: 1.35rem;
+    font-size: 1.3rem;
+  }
+  
+  .resources-faq__intro {
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
   }
   
   .resources-faq__accordion {
     gap: 0.5rem;
+  }
+  
+  .resources-faq__item {
+    border-radius: 8px;
   }
   
   .resources-faq__question {
@@ -1250,7 +1406,8 @@
   }
   
   .resources-glossary__title {
-    font-size: 1.35rem;
+    font-size: 1.3rem;
+    margin-bottom: 1.5rem;
   }
   
   .resources-glossary__grid {
@@ -1260,6 +1417,7 @@
   
   .resources-glossary__term {
     padding: 0.875rem;
+    border-radius: 8px;
   }
   
   .resources-glossary__term h4 {
@@ -1276,6 +1434,8 @@
   
   .resources-verify__card {
     padding: 1.5rem;
+    border-radius: 10px;
+    border-width: 2px;
   }
   
   .resources-verify__title {
@@ -1284,6 +1444,7 @@
   
   .resources-verify__desc {
     font-size: 0.85rem;
+    margin-bottom: 1.25rem;
   }
   
   .resources-verify__buttons {
@@ -1306,6 +1467,7 @@
   
   .resources-cta__subtitle {
     font-size: 0.95rem;
+    margin-bottom: 1.5rem;
   }
   
   .resources-cta__buttons {
@@ -1314,10 +1476,12 @@
   
   .resources-cta__btn {
     width: 100%;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
   }
 }
 
-/* Small Mobile (0 - 479px) */
+/* --- Small Mobile (0 - 479px) - iPhone size --- */
 @media screen and (max-width: 479px) {
   .resources-hero {
     padding-top: 70px;
@@ -1345,12 +1509,12 @@
   }
   
   .resources-official__title {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
   }
   
   .resources-official__intro {
     font-size: 0.85rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
   }
   
   .resources-official__grid {
@@ -1358,15 +1522,28 @@
     gap: 0.75rem;
   }
   
+  /* Official cards - left border on small mobile */
   .resources-official__card {
     padding: 1rem;
-    border-radius: 10px;
+    border-radius: 8px;
+    border-top: none;
+  }
+  
+  .resources-official__card--red {
+    border-top: none;
+    border-left: 4px solid #BD1218;
+  }
+  
+  .resources-official__card--blue {
+    border-top: none;
+    border-left: 4px solid #1D3095;
   }
   
   .resources-official__card-header {
     flex-direction: row;
     align-items: center;
     gap: 0.75rem;
+    margin-bottom: 0.75rem;
   }
   
   .resources-official__card-icon {
@@ -1374,26 +1551,29 @@
   }
   
   .resources-official__card-abbr {
-    font-size: 1.1rem;
+    font-size: 1rem;
   }
   
   .resources-official__card-name {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
+    line-height: 1.3;
   }
   
   .resources-official__card-desc {
     font-size: 0.8rem;
     margin-bottom: 0.75rem;
+    line-height: 1.5;
   }
   
   .resources-official__card-contact {
     padding: 0.5rem;
     font-size: 0.7rem;
     margin-bottom: 0.75rem;
+    border-radius: 4px;
   }
   
   .resources-official__card-link {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
   }
   
   .resources-types {
@@ -1401,12 +1581,12 @@
   }
   
   .resources-types__title {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
   }
   
   .resources-types__intro {
     font-size: 0.85rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
   }
   
   .resources-types__grid {
@@ -1414,21 +1594,22 @@
     gap: 0.75rem;
   }
   
+  /* Survey type cards - left border on small mobile */
   .resources-types__card {
     padding: 1rem;
-    border-radius: 10px;
+    border-radius: 8px;
     border-left-width: 4px;
   }
   
   .resources-types__card-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.5rem;
+    gap: 0.4rem;
     margin-bottom: 0.5rem;
   }
   
   .resources-types__card-title {
-    font-size: 1rem;
+    font-size: 0.95rem;
   }
   
   .resources-types__card-badge {
@@ -1439,19 +1620,25 @@
   .resources-types__card-desc {
     font-size: 0.8rem;
     margin-bottom: 0.75rem;
+    line-height: 1.5;
   }
   
   .resources-types__card-uses {
     font-size: 0.75rem;
   }
   
+  .resources-types__card-uses strong {
+    margin-bottom: 0.35rem;
+  }
+  
   .resources-types__card-uses ul {
     grid-template-columns: 1fr;
     padding-left: 1rem;
+    gap: 0.15rem;
   }
   
   .resources-types__note {
-    margin-top: 1.5rem;
+    margin-top: 1.25rem;
     padding: 0.875rem;
     border-radius: 8px;
   }
@@ -1465,12 +1652,12 @@
   }
   
   .resources-research__title {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
   }
   
   .resources-research__intro {
     font-size: 0.85rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
   }
   
   .resources-research__grid {
@@ -1479,18 +1666,18 @@
   
   .resources-research__step {
     padding: 0.875rem;
-    gap: 0.875rem;
+    gap: 0.75rem;
     border-radius: 8px;
   }
   
   .resources-research__step-number {
-    width: 32px;
-    height: 32px;
-    font-size: 0.9rem;
+    width: 30px;
+    height: 30px;
+    font-size: 0.85rem;
   }
   
   .resources-research__step-icon {
-    font-size: 1.15rem;
+    font-size: 1.1rem;
     margin-bottom: 0.35rem;
   }
   
@@ -1501,10 +1688,11 @@
   
   .resources-research__step-desc {
     font-size: 0.8rem;
+    line-height: 1.5;
   }
   
   .resources-research__step-link {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     margin-top: 0.35rem;
   }
   
@@ -1513,12 +1701,12 @@
   }
   
   .resources-faq__title {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
   }
   
   .resources-faq__intro {
     font-size: 0.85rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
   }
   
   .resources-faq__accordion {
@@ -1536,7 +1724,7 @@
   }
   
   .resources-faq__arrow {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
   }
   
   .resources-faq__answer {
@@ -1553,10 +1741,11 @@
   }
   
   .resources-glossary__title {
-    font-size: 1.25rem;
-    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+    margin-bottom: 1.25rem;
   }
   
+  /* Glossary - horizontal layout on small mobile */
   .resources-glossary__grid {
     grid-template-columns: 1fr;
     gap: 0.5rem;
@@ -1564,7 +1753,7 @@
   
   .resources-glossary__term {
     padding: 0.75rem;
-    border-radius: 8px;
+    border-radius: 6px;
     display: flex;
     align-items: flex-start;
     gap: 0.75rem;
@@ -1573,14 +1762,16 @@
   }
   
   .resources-glossary__term h4 {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     margin-bottom: 0;
-    min-width: 80px;
+    min-width: 75px;
+    flex-shrink: 0;
   }
   
   .resources-glossary__term p {
     font-size: 0.75rem;
     margin: 0;
+    line-height: 1.4;
   }
   
   .resources-verify {
@@ -1594,12 +1785,13 @@
   }
   
   .resources-verify__title {
-    font-size: 1.05rem;
+    font-size: 1rem;
   }
   
   .resources-verify__desc {
     font-size: 0.8rem;
-    margin-bottom: 1.25rem;
+    margin-bottom: 1rem;
+    line-height: 1.6;
   }
   
   .resources-verify__buttons {
@@ -1613,7 +1805,7 @@
   }
   
   .resources-cta {
-    padding: 1.75rem 0.75rem;
+    padding: 1.5rem 0.75rem;
   }
   
   .resources-cta__title {
@@ -1621,8 +1813,8 @@
   }
   
   .resources-cta__subtitle {
-    font-size: 0.9rem;
-    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+    margin-bottom: 1.25rem;
   }
   
   .resources-cta__buttons {
@@ -1631,8 +1823,8 @@
   
   .resources-cta__btn {
     width: 100%;
-    padding: 0.75rem 1.5rem;
-    font-size: 0.9rem;
+    padding: 0.65rem 1rem;
+    font-size: 0.85rem;
   }
 }
 
@@ -1646,4 +1838,12 @@ html, body {
 
 * {
   box-sizing: border-box;
+}
+
+/* Ensure all grid children don't overflow */
+.resources-official__grid > *,
+.resources-types__grid > *,
+.resources-glossary__grid > *,
+.resources-types__card-uses ul > * {
+  min-width: 0;
 }
