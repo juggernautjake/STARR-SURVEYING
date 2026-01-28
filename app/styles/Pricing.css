@@ -1,5 +1,5 @@
 /*==============================================================================
-  PRICING PAGE STYLES - Matches Home Page Design
+  PRICING PAGE STYLES - Matches Home/About/Services Page Design EXACTLY
   
   COLOR SCHEME:
   - Red: #BD1218
@@ -9,7 +9,14 @@
   - Light Gray: #F8F9FA
   
   NOTE: All text uses SOLID colors, no gradients
-  Content is pulled down to avoid header overlap (logo + navbar extend below header)
+  
+  BREAKPOINTS (matching Home.css):
+  - Large Desktop: 1280px+
+  - Desktop: 1024-1279px
+  - Tablet: 768-1023px
+  - Large Mobile: 600-767px
+  - Medium Mobile: 480-599px
+  - Small Mobile: 0-479px
 ==============================================================================*/
 
 /* =============================================================================
@@ -33,7 +40,7 @@
 .pricing-hero__card {
   background: #FFFFFF;
   border-radius: 12px;
-  padding: 2rem;
+  padding: 2.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   border: 3px solid #1D3095;
   text-align: center;
@@ -41,11 +48,11 @@
 
 .pricing-hero__title {
   font-family: 'Sora', sans-serif;
-  font-size: 2rem;
+  font-size: 2.25rem;
   font-weight: 700;
   color: #0F1419;
   line-height: 1.15;
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
   letter-spacing: -0.02em;
 }
 
@@ -55,9 +62,9 @@
 
 .pricing-hero__subtitle {
   font-family: 'Inter', sans-serif;
-  font-size: 1rem;
+  font-size: 1.05rem;
   color: #4B5563;
-  line-height: 1.6;
+  line-height: 1.7;
   margin: 0;
   max-width: 550px;
   margin-left: auto;
@@ -91,6 +98,7 @@
 
 .pricing-disclaimer__content {
   flex: 1;
+  min-width: 0;
 }
 
 .pricing-disclaimer__title {
@@ -140,6 +148,7 @@
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
+  font-family: inherit;
 }
 
 .pricing-calculator__toggle:hover {
@@ -193,6 +202,7 @@
   font-size: 1.25rem;
   color: #FFFFFF;
   transition: transform 0.3s ease;
+  flex-shrink: 0;
 }
 
 .pricing-calculator__toggle-arrow--expanded {
@@ -244,6 +254,7 @@
 .pricing-calculator__field {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .pricing-calculator__field--full {
@@ -269,6 +280,7 @@
   background: #FFFFFF;
   color: #0F1419;
   transition: border-color 0.2s ease;
+  box-sizing: border-box;
 }
 
 .pricing-calculator__input:focus,
@@ -309,6 +321,7 @@
   height: 18px;
   accent-color: #BD1218;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .pricing-calculator__checkbox-label--rush {
@@ -488,7 +501,7 @@
    4. PRICING GRID
    ============================================================================= */
 .pricing-grid {
-  padding: 3rem 2rem;
+  padding: 3.5rem 2rem;
   background: #F8F9FA;
   border-top: 4px solid #BD1218;
   overflow-x: hidden;
@@ -506,7 +519,7 @@
 
 .pricing-grid__title {
   font-family: 'Sora', sans-serif;
-  font-size: 1.75rem;
+  font-size: 2rem;
   font-weight: 700;
   color: #0F1419;
   margin-bottom: 0.5rem;
@@ -514,7 +527,7 @@
 
 .pricing-grid__subtitle {
   font-family: 'Inter', sans-serif;
-  font-size: 0.95rem;
+  font-size: 1rem;
   color: #4B5563;
   max-width: 600px;
   margin: 0 auto;
@@ -548,8 +561,9 @@
   border-radius: 10px;
   padding: 1.5rem;
   border: 2px solid #E5E7EB;
-  border-left: 4px solid #1D3095;
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  border-left: 5px solid #1D3095;
+  transition: all 0.2s ease;
+  min-width: 0;
 }
 
 .pricing-card:nth-child(even) {
@@ -558,8 +572,8 @@
 
 .pricing-card:hover {
   border-color: #BD1218;
-  border-left-color: #BD1218;
   transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .pricing-card__header {
@@ -568,10 +582,11 @@
 
 .pricing-card__title {
   font-family: 'Sora', sans-serif;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: #1D3095;
   margin-bottom: 0;
+  word-wrap: break-word;
 }
 
 .pricing-card:nth-child(even) .pricing-card__title {
@@ -610,15 +625,16 @@
 
 .pricing-card__desc {
   font-family: 'Inter', sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: #4B5563;
   line-height: 1.5;
   margin-bottom: 0.5rem;
+  word-wrap: break-word;
 }
 
 .pricing-card__turnaround {
   font-family: 'Inter', sans-serif;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: #6B7280;
   font-weight: 600;
 }
@@ -627,7 +643,7 @@
    5. FACTORS SECTION
    ============================================================================= */
 .pricing-factors {
-  padding: 3rem 2rem;
+  padding: 3.5rem 2rem;
   background: #FFFFFF;
   border-top: 4px solid #1D3095;
   overflow-x: hidden;
@@ -640,10 +656,10 @@
 
 .pricing-factors__title {
   font-family: 'Sora', sans-serif;
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: #0F1419;
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
   text-align: center;
 }
 
@@ -656,13 +672,14 @@
 .pricing-factors__item {
   background: #F8F9FA;
   border-radius: 8px;
-  padding: 1rem;
+  padding: 1.25rem;
   border: 2px solid #E5E7EB;
-  border-left: 3px solid #1D3095;
+  border-left: 4px solid #1D3095;
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  transition: border-color 0.2s ease;
+  transition: all 0.2s ease;
+  min-width: 0;
 }
 
 .pricing-factors__item:nth-child(even) {
@@ -671,31 +688,35 @@
 
 .pricing-factors__item:hover {
   border-color: #BD1218;
+  transform: translateY(-2px);
 }
 
 .pricing-factors__item-icon {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   flex-shrink: 0;
 }
 
 .pricing-factors__item-content {
   flex: 1;
+  min-width: 0;
 }
 
 .pricing-factors__item-title {
   font-family: 'Sora', sans-serif;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: #0F1419;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.25rem;
+  word-wrap: break-word;
 }
 
 .pricing-factors__item-desc {
   font-family: 'Inter', sans-serif;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #6B7280;
   line-height: 1.4;
   margin: 0;
+  word-wrap: break-word;
 }
 
 /* =============================================================================
@@ -719,7 +740,7 @@
   padding: 2rem;
   text-align: center;
   border: 2px solid #E5E7EB;
-  border-left: 4px solid #BD1218;
+  border-left: 5px solid #BD1218;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
@@ -755,19 +776,20 @@
   background: #BD1218;
   color: #FFFFFF;
   border: 2px solid #BD1218;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .pricing-volume__btn:hover {
   background: #9A0F14;
   border-color: #9A0F14;
+  transform: translateY(-2px);
 }
 
 /* =============================================================================
    7. INCLUDED SECTION
    ============================================================================= */
 .pricing-included {
-  padding: 3rem 2rem;
+  padding: 3.5rem 2rem;
   background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
   overflow-x: hidden;
 }
@@ -779,7 +801,7 @@
 
 .pricing-included__title {
   font-family: 'Sora', sans-serif;
-  font-size: 1.75rem;
+  font-size: 2rem;
   font-weight: 700;
   color: #FFFFFF;
   margin-bottom: 2rem;
@@ -797,29 +819,43 @@
   border-radius: 8px;
   padding: 1.25rem;
   text-align: center;
-  border-top: 3px solid #BD1218;
+  border-top: 4px solid #BD1218;
+  transition: all 0.2s ease;
+  min-width: 0;
+}
+
+.pricing-included__item:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
 }
 
 .pricing-included__item-icon {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   margin-bottom: 0.5rem;
   display: block;
 }
 
+.pricing-included__item-content {
+  flex: 1;
+  min-width: 0;
+}
+
 .pricing-included__item-title {
   font-family: 'Sora', sans-serif;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 600;
   color: #FFFFFF;
   margin-bottom: 0.25rem;
+  word-wrap: break-word;
 }
 
 .pricing-included__item-desc {
   font-family: 'Inter', sans-serif;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.8);
   line-height: 1.4;
   margin: 0;
+  word-wrap: break-word;
 }
 
 /* =============================================================================
@@ -872,7 +908,7 @@
   font-weight: 600;
   text-decoration: none;
   border-radius: 6px;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .pricing-cta__btn--primary {
@@ -883,6 +919,8 @@
 
 .pricing-cta__btn--primary:hover {
   background: #F8F9FA;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .pricing-cta__btn--secondary {
@@ -894,6 +932,8 @@
 .pricing-cta__btn--secondary:hover {
   background: #FFFFFF;
   color: #1D3095;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 /* =============================================================================
@@ -925,27 +965,55 @@
 }
 
 /* =============================================================================
-   10. RESPONSIVE STYLES
+   10. RESPONSIVE STYLES - MATCHING HOME.CSS EXACTLY
    ============================================================================= */
 
-/* Large Desktop (1280px+) */
+/* --- Large Desktop (1280px+) --- */
 @media screen and (min-width: 1280px) {
+  .pricing-hero {
+    padding-top: 140px;
+  }
+  
+  .pricing-hero__card {
+    padding: 3rem;
+  }
+  
+  .pricing-hero__title {
+    font-size: 2.5rem;
+  }
+}
+
+/* --- Desktop (1024 - 1279px) --- */
+@media screen and (min-width: 1024px) and (max-width: 1279px) {
   .pricing-hero {
     padding-top: 120px;
   }
-}
-
-/* Desktop (1024 - 1279px) */
-@media screen and (min-width: 1024px) and (max-width: 1279px) {
-  .pricing-hero {
-    padding-top: 110px;
+  
+  .pricing-hero__title {
+    font-size: 2rem;
   }
 }
 
-/* Tablet (768 - 1023px) */
+/* --- Tablet (768 - 1023px) --- */
 @media screen and (min-width: 768px) and (max-width: 1023px) {
   .pricing-hero {
-    padding-top: 100px;
+    padding-top: 110px;
+  }
+  
+  .pricing-hero__card {
+    padding: 2rem;
+  }
+  
+  .pricing-hero__title {
+    font-size: 1.85rem;
+  }
+  
+  .pricing-disclaimer {
+    padding: 1rem 1.5rem;
+  }
+  
+  .pricing-calculator {
+    padding: 1.25rem 1.5rem;
   }
   
   .pricing-calculator__form {
@@ -956,37 +1024,83 @@
     grid-template-columns: 1fr 1fr;
   }
   
+  .pricing-grid {
+    padding: 3rem 1.5rem;
+  }
+  
+  .pricing-grid__title {
+    font-size: 1.75rem;
+  }
+  
   .pricing-grid__items {
     grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  
+  .pricing-factors {
+    padding: 3rem 1.5rem;
+  }
+  
+  .pricing-factors__title {
+    font-size: 1.5rem;
   }
   
   .pricing-factors__grid {
     grid-template-columns: repeat(2, 1fr);
   }
   
+  .pricing-volume {
+    padding: 2.5rem 1.5rem;
+  }
+  
+  .pricing-included {
+    padding: 3rem 1.5rem;
+  }
+  
+  .pricing-included__title {
+    font-size: 1.75rem;
+  }
+  
   .pricing-included__grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  
+  .pricing-cta {
+    padding: 2.5rem 1.5rem;
+  }
 }
 
-/* Large Mobile (600 - 767px) */
+/* --- Large Mobile (600 - 767px) --- */
 @media screen and (min-width: 600px) and (max-width: 767px) {
   .pricing-hero {
-    padding-top: 80px;
+    padding-top: 90px;
     padding-left: 1.25rem;
     padding-right: 1.25rem;
+    padding-bottom: 2.5rem;
   }
   
   .pricing-hero__card {
-    padding: 1.5rem;
+    padding: 1.75rem;
   }
   
   .pricing-hero__title {
-    font-size: 1.5rem;
+    font-size: 1.65rem;
+  }
+  
+  .pricing-hero__subtitle {
+    font-size: 0.95rem;
   }
   
   .pricing-disclaimer {
     padding: 1rem 1.25rem;
+  }
+  
+  .pricing-disclaimer__title {
+    font-size: 0.95rem;
+  }
+  
+  .pricing-disclaimer__text {
+    font-size: 0.85rem;
   }
   
   .pricing-calculator {
@@ -994,7 +1108,11 @@
   }
   
   .pricing-calculator__toggle {
-    padding: 1rem;
+    padding: 1rem 1.25rem;
+  }
+  
+  .pricing-calculator__toggle-icon {
+    font-size: 1.5rem;
   }
   
   .pricing-calculator__toggle-title {
@@ -1044,32 +1162,75 @@
     padding: 2.5rem 1.25rem;
   }
   
+  .pricing-grid__title {
+    font-size: 1.5rem;
+  }
+  
   .pricing-grid__items {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .pricing-card {
+    padding: 1.25rem;
   }
   
   .pricing-factors {
     padding: 2.5rem 1.25rem;
   }
   
+  .pricing-factors__title {
+    font-size: 1.35rem;
+  }
+  
   .pricing-factors__grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  
+  .pricing-factors__item {
+    padding: 1rem;
   }
   
   .pricing-volume {
     padding: 2.5rem 1.25rem;
   }
   
+  .pricing-volume__card {
+    padding: 1.5rem;
+  }
+  
+  .pricing-volume__title {
+    font-size: 1.25rem;
+  }
+  
+  .pricing-volume__desc {
+    font-size: 0.9rem;
+  }
+  
   .pricing-included {
     padding: 2.5rem 1.25rem;
   }
   
+  .pricing-included__title {
+    font-size: 1.5rem;
+  }
+  
   .pricing-included__grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  
+  .pricing-included__item {
+    padding: 1rem;
   }
   
   .pricing-cta {
     padding: 2rem 1.25rem;
+  }
+  
+  .pricing-cta__title {
+    font-size: 1.4rem;
   }
   
   .pricing-cta__buttons {
@@ -1079,24 +1240,33 @@
   
   .pricing-cta__btn {
     width: 100%;
-    max-width: 280px;
+    max-width: 260px;
+  }
+  
+  .pricing-bottom-disclaimer {
+    padding: 1.25rem;
   }
 }
 
-/* Medium Mobile (480 - 599px) */
+/* --- Medium Mobile (480 - 599px) --- */
 @media screen and (min-width: 480px) and (max-width: 599px) {
   .pricing-hero {
-    padding-top: 70px;
+    padding-top: 80px;
     padding-left: 1rem;
     padding-right: 1rem;
+    padding-bottom: 2rem;
   }
   
   .pricing-hero__card {
-    padding: 1.25rem;
+    padding: 1.5rem;
   }
   
   .pricing-hero__title {
-    font-size: 1.35rem;
+    font-size: 1.5rem;
+  }
+  
+  .pricing-hero__subtitle {
+    font-size: 0.9rem;
   }
   
   .pricing-disclaimer {
@@ -1105,7 +1275,19 @@
   
   .pricing-disclaimer__container {
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.75rem;
+  }
+  
+  .pricing-disclaimer__icon {
+    font-size: 1.25rem;
+  }
+  
+  .pricing-disclaimer__title {
+    font-size: 0.9rem;
+  }
+  
+  .pricing-disclaimer__text {
+    font-size: 0.8rem;
   }
   
   .pricing-calculator {
@@ -1126,166 +1308,32 @@
   
   .pricing-calculator__toggle-text {
     text-align: center;
-  }
-  
-  .pricing-calculator__toggle-title {
-    font-size: 1rem;
-  }
-  
-  .pricing-calculator__toggle-subtitle {
-    font-size: 0.75rem;
-  }
-  
-  .pricing-calculator__content-inner {
-    padding: 1rem;
-  }
-  
-  .pricing-calculator__form {
-    grid-template-columns: 1fr;
-    padding: 1rem;
-  }
-  
-  .pricing-calculator__checkboxes {
-    grid-template-columns: 1fr;
-  }
-  
-  .pricing-calculator__result {
-    padding: 1.25rem;
-  }
-  
-  .pricing-calculator__result-low,
-  .pricing-calculator__result-high {
-    font-size: 1.5rem;
-  }
-  
-  .pricing-grid {
-    padding: 2rem 1rem;
-  }
-  
-  .pricing-grid__items {
-    grid-template-columns: 1fr;
-  }
-  
-  .pricing-factors {
-    padding: 2rem 1rem;
-  }
-  
-  .pricing-factors__grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 0.75rem;
-  }
-  
-  .pricing-factors__item {
-    flex-direction: column;
-    text-align: center;
-    gap: 0.5rem;
-    padding: 0.75rem;
-  }
-  
-  .pricing-volume {
-    padding: 2rem 1rem;
-  }
-  
-  .pricing-included {
-    padding: 2rem 1rem;
-  }
-  
-  .pricing-included__grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-  }
-  
-  .pricing-cta {
-    padding: 2rem 1rem;
-  }
-}
-
-/* Small Mobile (0 - 479px) */
-@media screen and (max-width: 479px) {
-  .pricing-hero {
-    padding-top: 60px;
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-    padding-bottom: 2rem;
-  }
-  
-  .pricing-hero__card {
-    padding: 1rem;
-  }
-  
-  .pricing-hero__title {
-    font-size: 1.25rem;
-  }
-  
-  .pricing-hero__subtitle {
-    font-size: 0.8rem;
-  }
-  
-  .pricing-disclaimer {
-    padding: 0.75rem;
-  }
-  
-  .pricing-disclaimer__container {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  
-  .pricing-disclaimer__title {
-    font-size: 0.85rem;
-  }
-  
-  .pricing-disclaimer__text {
-    font-size: 0.7rem;
-  }
-  
-  .pricing-calculator {
-    padding: 0.75rem;
-  }
-  
-  .pricing-calculator__toggle {
-    padding: 0.875rem;
-    flex-direction: column;
-    gap: 0.5rem;
-    text-align: center;
-  }
-  
-  .pricing-calculator__toggle-content {
-    flex-direction: column;
-    gap: 0.35rem;
   }
   
   .pricing-calculator__toggle-icon {
     font-size: 1.5rem;
   }
   
-  .pricing-calculator__toggle-text {
-    text-align: center;
-  }
-  
   .pricing-calculator__toggle-title {
-    font-size: 0.95rem;
-  }
-  
-  .pricing-calculator__toggle-subtitle {
-    font-size: 0.7rem;
-  }
-  
-  .pricing-calculator__toggle-arrow {
     font-size: 1rem;
   }
   
+  .pricing-calculator__toggle-subtitle {
+    font-size: 0.75rem;
+  }
+  
   .pricing-calculator__content-inner {
-    padding: 0.875rem;
+    padding: 1rem;
   }
   
   .pricing-calculator__disclaimer-top {
-    font-size: 0.75rem;
-    padding: 0.65rem 0.75rem;
+    font-size: 0.8rem;
+    padding: 0.65rem 0.875rem;
   }
   
   .pricing-calculator__form {
     grid-template-columns: 1fr;
-    padding: 0.875rem;
+    padding: 1rem;
     gap: 1rem;
   }
   
@@ -1296,22 +1344,17 @@
   .pricing-calculator__input,
   .pricing-calculator__select {
     font-size: 0.85rem;
-    padding: 0.65rem 0.75rem;
+    padding: 0.65rem 0.875rem;
   }
   
   .pricing-calculator__checkboxes {
     grid-template-columns: 1fr;
-    gap: 0.35rem;
+    gap: 0.4rem;
   }
   
   .pricing-calculator__checkbox-label {
     font-size: 0.8rem;
-    padding: 0.4rem;
-  }
-  
-  .pricing-calculator__checkbox-label input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
+    padding: 0.45rem;
   }
   
   .pricing-calculator__buttons {
@@ -1324,12 +1367,337 @@
   }
   
   .pricing-calculator__result {
-    padding: 1rem;
-    margin-top: 1.25rem;
+    padding: 1.25rem;
   }
   
   .pricing-calculator__result-title {
     font-size: 1.1rem;
+  }
+  
+  .pricing-calculator__result-low,
+  .pricing-calculator__result-high {
+    font-size: 1.5rem;
+  }
+  
+  .pricing-calculator__result-actions {
+    flex-direction: column;
+  }
+  
+  .pricing-calculator__result-btn {
+    width: 100%;
+  }
+  
+  .pricing-grid {
+    padding: 2rem 1rem;
+  }
+  
+  .pricing-grid__title {
+    font-size: 1.35rem;
+  }
+  
+  .pricing-grid__subtitle {
+    font-size: 0.85rem;
+  }
+  
+  .pricing-grid__items {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+  
+  .pricing-card {
+    padding: 1rem;
+  }
+  
+  .pricing-card__title {
+    font-size: 1rem;
+  }
+  
+  .pricing-card__price-box {
+    padding: 0.75rem;
+  }
+  
+  .pricing-card__price {
+    font-size: 1.5rem;
+  }
+  
+  .pricing-card__desc {
+    font-size: 0.8rem;
+  }
+  
+  .pricing-card__turnaround {
+    font-size: 0.7rem;
+  }
+  
+  .pricing-factors {
+    padding: 2rem 1rem;
+  }
+  
+  .pricing-factors__title {
+    font-size: 1.25rem;
+  }
+  
+  .pricing-factors__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+  
+  .pricing-factors__item {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+    padding: 0.875rem;
+  }
+  
+  .pricing-factors__item-icon {
+    font-size: 1.25rem;
+  }
+  
+  .pricing-factors__item-title {
+    font-size: 0.8rem;
+  }
+  
+  .pricing-factors__item-desc {
+    font-size: 0.7rem;
+  }
+  
+  .pricing-volume {
+    padding: 2rem 1rem;
+  }
+  
+  .pricing-volume__card {
+    padding: 1.25rem;
+  }
+  
+  .pricing-volume__title {
+    font-size: 1.15rem;
+  }
+  
+  .pricing-volume__desc {
+    font-size: 0.85rem;
+  }
+  
+  .pricing-volume__btn {
+    width: 100%;
+  }
+  
+  .pricing-included {
+    padding: 2rem 1rem;
+  }
+  
+  .pricing-included__title {
+    font-size: 1.35rem;
+  }
+  
+  .pricing-included__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+  
+  .pricing-included__item {
+    padding: 0.875rem;
+  }
+  
+  .pricing-included__item-icon {
+    font-size: 1.25rem;
+  }
+  
+  .pricing-included__item-title {
+    font-size: 0.85rem;
+  }
+  
+  .pricing-included__item-desc {
+    font-size: 0.75rem;
+  }
+  
+  .pricing-cta {
+    padding: 2rem 1rem;
+  }
+  
+  .pricing-cta__title {
+    font-size: 1.35rem;
+  }
+  
+  .pricing-cta__subtitle {
+    font-size: 0.9rem;
+  }
+  
+  .pricing-cta__buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .pricing-cta__btn {
+    width: 100%;
+    max-width: none;
+  }
+  
+  .pricing-bottom-disclaimer {
+    padding: 1rem;
+  }
+  
+  .pricing-bottom-disclaimer__text {
+    font-size: 0.65rem;
+  }
+}
+
+/* --- Small Mobile (0 - 479px) - iPhone size --- */
+@media screen and (max-width: 479px) {
+  .pricing-hero {
+    padding-top: 70px;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .pricing-hero__card {
+    padding: 1.25rem;
+    border-radius: 10px;
+    border-width: 2px;
+  }
+  
+  .pricing-hero__title {
+    font-size: 1.35rem;
+  }
+  
+  .pricing-hero__subtitle {
+    font-size: 0.85rem;
+  }
+  
+  .pricing-disclaimer {
+    padding: 0.75rem;
+  }
+  
+  .pricing-disclaimer__container {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .pricing-disclaimer__icon {
+    font-size: 1.15rem;
+  }
+  
+  .pricing-disclaimer__title {
+    font-size: 0.85rem;
+  }
+  
+  .pricing-disclaimer__text {
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  
+  .pricing-calculator {
+    padding: 0.75rem;
+  }
+  
+  .pricing-calculator__toggle {
+    padding: 0.875rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+    border-radius: 10px;
+    border-width: 2px;
+  }
+  
+  .pricing-calculator__toggle--expanded {
+    border-radius: 10px 10px 0 0;
+  }
+  
+  .pricing-calculator__toggle-content {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  
+  .pricing-calculator__toggle-icon {
+    font-size: 1.35rem;
+  }
+  
+  .pricing-calculator__toggle-text {
+    text-align: center;
+  }
+  
+  .pricing-calculator__toggle-title {
+    font-size: 0.9rem;
+  }
+  
+  .pricing-calculator__toggle-subtitle {
+    font-size: 0.7rem;
+  }
+  
+  .pricing-calculator__toggle-arrow {
+    font-size: 1rem;
+  }
+  
+  .pricing-calculator__content {
+    border-width: 2px;
+    border-radius: 0 0 10px 10px;
+  }
+  
+  .pricing-calculator__content-inner {
+    padding: 0.875rem;
+  }
+  
+  .pricing-calculator__disclaimer-top {
+    font-size: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .pricing-calculator__form {
+    grid-template-columns: 1fr;
+    padding: 0.875rem;
+    gap: 0.875rem;
+    border-radius: 8px;
+  }
+  
+  .pricing-calculator__label {
+    font-size: 0.8rem;
+    margin-bottom: 0.35rem;
+  }
+  
+  .pricing-calculator__input,
+  .pricing-calculator__select {
+    font-size: 0.85rem;
+    padding: 0.6rem 0.75rem;
+  }
+  
+  .pricing-calculator__checkboxes {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+  
+  .pricing-calculator__checkbox-label {
+    font-size: 0.75rem;
+    padding: 0.4rem;
+  }
+  
+  .pricing-calculator__checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .pricing-calculator__checkbox-label--rush {
+    padding: 0.6rem;
+  }
+  
+  .pricing-calculator__buttons {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .pricing-calculator__btn {
+    padding: 0.65rem 1rem;
+    font-size: 0.85rem;
+  }
+  
+  .pricing-calculator__result {
+    padding: 1rem;
+    margin-top: 1rem;
+    border-radius: 8px;
+  }
+  
+  .pricing-calculator__result-title {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
   }
   
   .pricing-calculator__result-amount {
@@ -1343,7 +1711,7 @@
   }
   
   .pricing-calculator__result-separator {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
   }
   
   .pricing-calculator__result-hours {
@@ -1352,6 +1720,7 @@
   
   .pricing-calculator__result-breakdown {
     padding: 0.75rem;
+    margin-bottom: 0.75rem;
   }
   
   .pricing-calculator__result-breakdown h4 {
@@ -1359,30 +1728,40 @@
   }
   
   .pricing-calculator__result-breakdown ul {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
   }
   
   .pricing-calculator__result-disclaimer {
     font-size: 0.7rem;
     padding: 0.75rem;
+    margin-bottom: 1rem;
   }
   
   .pricing-calculator__result-actions {
     flex-direction: column;
+    gap: 0.5rem;
   }
   
   .pricing-calculator__result-btn {
     width: 100%;
-    padding: 0.65rem 1rem;
-    font-size: 0.85rem;
+    padding: 0.6rem 1rem;
+    font-size: 0.8rem;
   }
   
   .pricing-grid {
     padding: 1.5rem 0.75rem;
   }
   
+  .pricing-grid__header {
+    margin-bottom: 1.25rem;
+  }
+  
   .pricing-grid__title {
     font-size: 1.25rem;
+  }
+  
+  .pricing-grid__subtitle {
+    font-size: 0.8rem;
   }
   
   .pricing-grid__items {
@@ -1390,20 +1769,33 @@
     gap: 0.5rem;
   }
   
+  /* Pricing cards - horizontal layout on small mobile */
   .pricing-card {
-    padding: 1rem;
+    padding: 0.875rem;
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 0.75rem;
     align-items: start;
+    border-radius: 8px;
+    border-left-width: 4px;
+  }
+  
+  .pricing-card__main {
+    min-width: 0;
+  }
+  
+  .pricing-card__header {
+    margin-bottom: 0.35rem;
   }
   
   .pricing-card__title {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
   }
   
   .pricing-card__desc {
     font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+    line-height: 1.4;
   }
   
   .pricing-card__turnaround {
@@ -1411,18 +1803,31 @@
   }
   
   .pricing-card__price-box {
-    padding: 0.5rem;
+    padding: 0.5rem 0.65rem;
     margin-bottom: 0;
-    min-width: 90px;
+    min-width: 85px;
     text-align: center;
+    border-radius: 6px;
+    border-left-width: 3px;
   }
   
   .pricing-card__price {
-    font-size: 1.1rem;
+    font-size: 1rem;
+    line-height: 1.1;
   }
   
   .pricing-card__price-label {
-    font-size: 0.6rem;
+    font-size: 0.55rem;
+  }
+  
+  .pricing-grid__note {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-left-width: 3px;
+  }
+  
+  .pricing-grid__note p {
+    font-size: 0.7rem;
   }
   
   .pricing-factors {
@@ -1431,6 +1836,7 @@
   
   .pricing-factors__title {
     font-size: 1.15rem;
+    margin-bottom: 1.25rem;
   }
   
   .pricing-factors__grid {
@@ -1438,23 +1844,28 @@
     gap: 0.5rem;
   }
   
+  /* Factors - horizontal layout on small mobile */
   .pricing-factors__item {
     flex-direction: row;
     text-align: left;
     padding: 0.75rem;
     gap: 0.75rem;
+    border-radius: 6px;
+    border-left-width: 3px;
   }
   
   .pricing-factors__item-icon {
-    font-size: 1rem;
+    font-size: 1.15rem;
   }
   
   .pricing-factors__item-title {
     font-size: 0.85rem;
+    margin-bottom: 0.15rem;
   }
   
   .pricing-factors__item-desc {
     font-size: 0.7rem;
+    line-height: 1.3;
   }
   
   .pricing-volume {
@@ -1463,20 +1874,23 @@
   
   .pricing-volume__card {
     padding: 1rem;
+    border-radius: 10px;
+    border-left-width: 4px;
   }
   
   .pricing-volume__title {
-    font-size: 1.15rem;
+    font-size: 1.1rem;
   }
   
   .pricing-volume__desc {
     font-size: 0.8rem;
+    margin-bottom: 1rem;
   }
   
   .pricing-volume__btn {
     width: 100%;
-    padding: 0.65rem 1rem;
-    font-size: 0.85rem;
+    padding: 0.6rem 1rem;
+    font-size: 0.8rem;
   }
   
   .pricing-included {
@@ -1485,6 +1899,7 @@
   
   .pricing-included__title {
     font-size: 1.25rem;
+    margin-bottom: 1.25rem;
   }
   
   .pricing-included__grid {
@@ -1492,8 +1907,10 @@
     gap: 0.5rem;
   }
   
+  /* Included items - horizontal layout on small mobile */
   .pricing-included__item {
     display: flex;
+    flex-direction: row;
     align-items: center;
     gap: 0.75rem;
     text-align: left;
@@ -1503,16 +1920,19 @@
   }
   
   .pricing-included__item-icon {
-    font-size: 1.25rem;
+    font-size: 1.35rem;
     margin-bottom: 0;
+    flex-shrink: 0;
   }
   
   .pricing-included__item-title {
     font-size: 0.85rem;
+    margin-bottom: 0.1rem;
   }
   
   .pricing-included__item-desc {
     font-size: 0.75rem;
+    line-height: 1.3;
   }
   
   .pricing-cta {
@@ -1525,6 +1945,7 @@
   
   .pricing-cta__subtitle {
     font-size: 0.85rem;
+    margin-bottom: 1.25rem;
   }
   
   .pricing-cta__buttons {
@@ -1533,6 +1954,7 @@
   
   .pricing-cta__btn {
     width: 100%;
+    max-width: none;
     padding: 0.65rem 1rem;
     font-size: 0.85rem;
   }
@@ -1544,6 +1966,7 @@
   .pricing-bottom-disclaimer__text {
     font-size: 0.6rem;
     text-align: left;
+    line-height: 1.6;
   }
 }
 
@@ -1557,4 +1980,13 @@ html, body {
 
 * {
   box-sizing: border-box;
+}
+
+/* Ensure all grid children don't overflow */
+.pricing-grid__items > *,
+.pricing-factors__grid > *,
+.pricing-included__grid > *,
+.pricing-calculator__form > *,
+.pricing-calculator__checkboxes > * {
+  min-width: 0;
 }

@@ -1,6 +1,6 @@
 /*==============================================================================
   SERVICE AREA PAGE STYLES
-  Matches Home/About/Pricing Page Design System
+  Matches Home/About/Pricing Page Design System EXACTLY
   
   COLOR SCHEME:
   - Red: #BD1218
@@ -8,6 +8,14 @@
   - Dark Blue: #152050
   - White: #FFFFFF
   - Light Gray: #F8F9FA
+  
+  BREAKPOINTS (matching Home.css):
+  - Large Desktop: 1280px+
+  - Desktop: 1024-1279px
+  - Tablet: 768-1023px
+  - Large Mobile: 600-767px
+  - Medium Mobile: 480-599px
+  - Small Mobile: 0-479px
 ==============================================================================*/
 
 /* =============================================================================
@@ -383,6 +391,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0.35rem;
+  min-width: 0;
 }
 
 .counties-accordion__title {
@@ -472,6 +481,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.4rem 0;
+  min-width: 0;
 }
 
 .counties-accordion__diamond {
@@ -488,6 +498,7 @@
   font-weight: 500;
   color: #FFFFFF;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  word-wrap: break-word;
 }
 
 /* Travel Notice - WHITE TEXT */
@@ -510,6 +521,7 @@
   font-family: 'Inter', sans-serif;
   font-size: 0.95rem;
   line-height: 1.6;
+  min-width: 0;
 }
 
 .service-area-counties__travel-content strong {
@@ -563,6 +575,7 @@
   border: 2px solid #E5E7EB;
   text-align: center;
   transition: all 0.2s ease;
+  min-width: 0;
 }
 
 .service-area-coverage__card--red {
@@ -591,12 +604,17 @@
   display: block;
 }
 
+.service-area-coverage__card-content {
+  min-width: 0;
+}
+
 .service-area-coverage__card-title {
   font-family: 'Sora', sans-serif;
   font-size: 1rem;
   font-weight: 600;
   color: #0F1419;
   margin-bottom: 0.35rem;
+  word-wrap: break-word;
 }
 
 .service-area-coverage__card-desc {
@@ -605,6 +623,7 @@
   color: #6B7280;
   line-height: 1.5;
   margin: 0;
+  word-wrap: break-word;
 }
 
 /* =============================================================================
@@ -687,17 +706,25 @@
 }
 
 /* =============================================================================
-   7. RESPONSIVE STYLES
+   7. RESPONSIVE STYLES - MATCHING HOME.CSS EXACTLY
    ============================================================================= */
 
-/* Large Desktop (1280px+) */
+/* --- Large Desktop (1280px+) --- */
 @media screen and (min-width: 1280px) {
   .service-area-hero {
     padding-top: 140px;
   }
   
+  .service-area-hero__card {
+    padding: 3rem;
+  }
+  
+  .service-area-hero__title {
+    font-size: 2.5rem;
+  }
+  
   .service-area-map__wrapper {
-    height: 480px;
+    height: 500px;
   }
   
   .service-area-map__hq {
@@ -721,17 +748,27 @@
   }
 }
 
-/* Desktop (1024 - 1279px) */
+/* --- Desktop (1024 - 1279px) --- */
 @media screen and (min-width: 1024px) and (max-width: 1279px) {
   .service-area-hero {
     padding-top: 120px;
   }
+  
+  .service-area-hero__title {
+    font-size: 2rem;
+  }
+  
+  .service-area-map__wrapper {
+    height: 450px;
+  }
 }
 
-/* Tablet (768 - 1023px) */
+/* --- Tablet (768 - 1023px) --- */
 @media screen and (min-width: 768px) and (max-width: 1023px) {
   .service-area-hero {
     padding-top: 110px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
   }
   
   .service-area-hero__card {
@@ -740,6 +777,10 @@
   
   .service-area-hero__title {
     font-size: 1.85rem;
+  }
+  
+  .service-area-hero__subtitle {
+    font-size: 1rem;
   }
   
   .service-area-map {
@@ -801,12 +842,25 @@
     padding: 3rem 1.5rem;
   }
   
+  .service-area-coverage__title {
+    font-size: 1.5rem;
+  }
+  
+  .service-area-coverage__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  
   .service-area-cta {
     padding: 3rem 1.5rem;
   }
+  
+  .service-area-cta__title {
+    font-size: 1.75rem;
+  }
 }
 
-/* Large Mobile (600 - 767px) */
+/* --- Large Mobile (600 - 767px) --- */
 @media screen and (min-width: 600px) and (max-width: 767px) {
   .service-area-hero {
     padding-top: 90px;
@@ -916,6 +970,14 @@
     font-size: 0.85rem;
   }
   
+  .service-area-counties__travel {
+    padding: 1.25rem;
+  }
+  
+  .service-area-counties__travel-icon {
+    font-size: 1.75rem;
+  }
+  
   .service-area-coverage {
     padding: 2.5rem 1.25rem;
   }
@@ -929,12 +991,20 @@
     gap: 1rem;
   }
   
+  .service-area-coverage__card {
+    padding: 1.25rem;
+  }
+  
   .service-area-cta {
     padding: 2.5rem 1.25rem;
   }
   
   .service-area-cta__title {
     font-size: 1.5rem;
+  }
+  
+  .service-area-cta__subtitle {
+    font-size: 1rem;
   }
   
   .service-area-cta__buttons {
@@ -948,7 +1018,7 @@
   }
 }
 
-/* Medium Mobile (480 - 599px) */
+/* --- Medium Mobile (480 - 599px) --- */
 @media screen and (min-width: 480px) and (max-width: 599px) {
   .service-area-hero {
     padding-top: 80px;
@@ -976,6 +1046,7 @@
   .service-area-map__hq {
     padding: 1.25rem;
     margin-bottom: 1rem;
+    border-radius: 10px;
   }
   
   .service-area-map__hq-title {
@@ -1053,9 +1124,18 @@
     padding: 2rem 1rem;
   }
   
+  .counties-accordion {
+    border-radius: 10px;
+  }
+  
   .counties-accordion__header {
     padding: 1rem;
     border-width: 2px;
+    border-radius: 10px;
+  }
+  
+  .counties-accordion__header--expanded {
+    border-radius: 10px 10px 0 0;
   }
   
   .counties-accordion__title {
@@ -1080,6 +1160,7 @@
   .counties-accordion__panel {
     padding: 1rem;
     border-width: 2px;
+    border-radius: 0 0 10px 10px;
   }
   
   .counties-accordion__letter-group {
@@ -1115,6 +1196,20 @@
   .service-area-counties__travel {
     padding: 1.25rem;
     border-width: 2px;
+    border-radius: 10px;
+    gap: 0.875rem;
+  }
+  
+  .service-area-counties__travel-icon {
+    font-size: 1.5rem;
+  }
+  
+  .service-area-counties__travel-content {
+    font-size: 0.9rem;
+  }
+  
+  .service-area-counties__travel-content strong {
+    font-size: 1rem;
   }
   
   .service-area-coverage {
@@ -1135,6 +1230,18 @@
     padding: 1.25rem;
   }
   
+  .service-area-coverage__card-icon {
+    font-size: 1.75rem;
+  }
+  
+  .service-area-coverage__card-title {
+    font-size: 0.9rem;
+  }
+  
+  .service-area-coverage__card-desc {
+    font-size: 0.8rem;
+  }
+  
   .service-area-cta {
     padding: 2rem 1rem;
   }
@@ -1145,10 +1252,23 @@
   
   .service-area-cta__subtitle {
     font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .service-area-cta__buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .service-area-cta__btn {
+    width: 100%;
+    max-width: none;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
   }
 }
 
-/* Small Mobile (0 - 479px) */
+/* --- Small Mobile (0 - 479px) - iPhone size --- */
 @media screen and (max-width: 479px) {
   .service-area-hero {
     padding-top: 70px;
@@ -1208,19 +1328,19 @@
   }
   
   .service-area-map__wrapper {
-    height: 250px;
+    height: 220px;
     border-radius: 10px;
     border-width: 2px;
   }
   
   .placeholder-map__circle {
-    max-width: 190px;
-    max-height: 190px;
+    max-width: 160px;
+    max-height: 160px;
   }
   
   .placeholder-map__glow {
-    max-width: 230px;
-    max-height: 230px;
+    max-width: 200px;
+    max-height: 200px;
   }
   
   .placeholder-map__ring {
@@ -1228,27 +1348,27 @@
   }
   
   .placeholder-map__pin-marker {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border-width: 2px;
   }
   
   .placeholder-map__pin-marker svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
   }
   
   .placeholder-map__center-label {
-    padding: 0.35rem 0.6rem;
+    padding: 0.3rem 0.5rem;
     border-radius: 6px;
   }
   
   .placeholder-map__center-title {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
   }
   
   .placeholder-map__center-radius {
-    font-size: 0.6rem;
+    font-size: 0.55rem;
   }
   
   .placeholder-map__city {
@@ -1256,10 +1376,11 @@
   }
   
   .placeholder-map__badge {
-    font-size: 0.65rem;
-    padding: 0.3rem 0.65rem;
-    bottom: 0.75rem;
-    left: 0.75rem;
+    font-size: 0.6rem;
+    padding: 0.25rem 0.5rem;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    border-radius: 4px;
   }
   
   .service-area-counties {
@@ -1349,7 +1470,7 @@
   }
   
   .service-area-counties__travel-icon {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
   }
   
   .service-area-counties__travel-content {
@@ -1357,7 +1478,7 @@
   }
   
   .service-area-counties__travel-content strong {
-    font-size: 1rem;
+    font-size: 0.95rem;
   }
   
   .service-area-coverage {
@@ -1374,6 +1495,7 @@
     gap: 0.5rem;
   }
   
+  /* Coverage cards - horizontal layout on small mobile */
   .service-area-coverage__card {
     display: flex;
     align-items: center;
@@ -1381,6 +1503,7 @@
     text-align: left;
     padding: 1rem;
     border-top: none;
+    border-radius: 8px;
   }
   
   .service-area-coverage__card--red {
@@ -1394,13 +1517,14 @@
   }
   
   .service-area-coverage__card-icon {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     margin-bottom: 0;
     flex-shrink: 0;
   }
   
   .service-area-coverage__card-content {
     flex: 1;
+    min-width: 0;
   }
   
   .service-area-coverage__card-title {
@@ -1410,10 +1534,11 @@
   
   .service-area-coverage__card-desc {
     font-size: 0.8rem;
+    line-height: 1.4;
   }
   
   .service-area-cta {
-    padding: 1.75rem 0.75rem;
+    padding: 1.5rem 0.75rem;
   }
   
   .service-area-cta__title {
@@ -1421,8 +1546,8 @@
   }
   
   .service-area-cta__subtitle {
-    font-size: 0.9rem;
-    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+    margin-bottom: 1.25rem;
   }
   
   .service-area-cta__buttons {
@@ -1431,8 +1556,8 @@
   
   .service-area-cta__btn {
     width: 100%;
-    padding: 0.75rem 1.5rem;
-    font-size: 0.9rem;
+    padding: 0.65rem 1rem;
+    font-size: 0.85rem;
   }
 }
 
@@ -1446,4 +1571,10 @@ html, body {
 
 * {
   box-sizing: border-box;
+}
+
+/* Ensure all grid children don't overflow */
+.service-area-coverage__grid > *,
+.counties-accordion__list > * {
+  min-width: 0;
 }
