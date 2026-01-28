@@ -1,10 +1,22 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useState, FormEvent, ChangeEvent } from 'react';
 
 // Import Home page styles
 import './styles/Home.css';
+
+// Dynamically import the map component (client-side only)
+const ServiceAreaMap = dynamic(() => import('./components/ServiceAreaMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="home-area__map-loading">
+      <div className="home-area__map-spinner"></div>
+      <p>Loading map...</p>
+    </div>
+  ),
+});
 
 interface Service {
   icon: string;
@@ -289,54 +301,28 @@ export default function HomePage(): React.ReactElement {
         </div>
       </section>
 
-      {/* Service Area Section - Two Satellite Maps */}
+      {/* Service Area Section - Single Map with 350-Mile Radius */}
       <section className="home-area">
         <div className="home-area__container">
           <h2 className="home-area__title">Service Area</h2>
           <p className="home-area__subtitle">
-            We serve two primary regions in Texas with a 100-mile radius from each location.
+            We proudly serve clients within a 350-mile radius of our Belton headquarters.
           </p>
           
-          {/* Two Maps Side by Side */}
-          <div className="home-area__map-wrapper">
-            {/* Belton Map */}
-            <div className="home-area__map-card home-area__map-card--red">
-              <div className="home-area__map-header home-area__map-header--red">
-                📍 Belton Office (HQ)
-              </div>
-              <iframe
-                className="home-area__map"
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d435519.9774129498!2d-97.74312!3d31.0574!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8644d6de1dbdbe6b%3A0x4e8c1fe6e4c02088!2sBelton%2C%20TX!5e1!3m2!1sen!2sus!4v1706300000000!5m2!1sen!2sus"
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                title="Belton Service Area"
-              ></iframe>
-              <div className="home-area__map-info">
-                <p className="home-area__map-radius">
-                  <strong>100-mile radius</strong> — Waco, Austin, Temple, Killeen, Georgetown, Copperas Cove
-                </p>
+          {/* Single Map Container */}
+          <div className="home-area__map-container">
+            {/* HQ Info Badge */}
+            <div className="home-area__hq-badge">
+              <span className="home-area__hq-icon">📍</span>
+              <div className="home-area__hq-info">
+                <span className="home-area__hq-title">Belton, TX (HQ)</span>
+                <span className="home-area__hq-radius">350-mile service radius</span>
               </div>
             </div>
             
-            {/* Madisonville Map */}
-            <div className="home-area__map-card">
-              <div className="home-area__map-header">
-                📍 Madisonville Area
-              </div>
-              <iframe
-                className="home-area__map"
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d435519.9774129498!2d-95.9116!3d30.9496!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x86470e8f5db3e1ed%3A0x3a1a7f1c04a1c5a0!2sMadisonville%2C%20TX!5e1!3m2!1sen!2sus!4v1706300000001!5m2!1sen!2sus"
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                title="Madisonville Service Area"
-              ></iframe>
-              <div className="home-area__map-info">
-                <p className="home-area__map-radius">
-                  <strong>100-mile radius</strong> — Huntsville, Centerville, Bryan/College Station, Montgomery
-                </p>
-              </div>
+            {/* Map */}
+            <div className="home-area__map-wrapper">
+              <ServiceAreaMap />
             </div>
           </div>
           
@@ -344,11 +330,11 @@ export default function HomePage(): React.ReactElement {
           <div className="home-area__cta">
             <h3 className="home-area__cta-title">Not sure if we service your location?</h3>
             <p className="home-area__cta-text">
-              Contact us today! We regularly work throughout Bell, Williamson, Coryell, Falls, McLennan, Travis, Madison, Walker, and Montgomery counties.
+              Contact us today! We serve Bell, Williamson, Coryell, Falls, McLennan, Travis, Madison, Walker, Montgomery counties and beyond.
             </p>
             <div className="home-area__cta-buttons">
-              <Link href="/contact" className="home-area__cta-btn home-area__cta-btn--primary">
-                Contact Us
+              <Link href="/service-area" className="home-area__cta-btn home-area__cta-btn--primary">
+                View Full Coverage
               </Link>
               <a href="tel:9366620077" className="home-area__cta-btn home-area__cta-btn--secondary">
                 Call (936) 662-0077

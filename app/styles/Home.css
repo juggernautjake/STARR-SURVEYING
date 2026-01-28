@@ -10,8 +10,7 @@
   
   NOTE: All text uses SOLID colors, no gradients
   
-  MOBILE FIX: Services and Why sections now properly stack on mobile
-  with appropriate padding and no horizontal overflow.
+  UPDATED: Single map layout for Service Area section
 ==============================================================================*/
 
 /* =============================================================================
@@ -194,7 +193,7 @@
   border-radius: 8px;
   border-left: 4px solid #1D3095;
   transition: border-color 0.2s ease;
-  min-width: 0; /* Prevent overflow */
+  min-width: 0;
 }
 
 .home-services__card:hover {
@@ -208,7 +207,7 @@
 
 .home-services__card-content {
   flex: 1;
-  min-width: 0; /* Prevent overflow */
+  min-width: 0;
 }
 
 .home-services__card-title {
@@ -288,7 +287,7 @@
   border-radius: 8px;
   border-left: 3px solid #BD1218;
   padding: 1rem;
-  min-width: 0; /* Prevent overflow */
+  min-width: 0;
 }
 
 .home-why__item-icon {
@@ -317,7 +316,7 @@
 }
 
 /* =============================================================================
-   4. SERVICE AREA SECTION
+   4. SERVICE AREA SECTION - SINGLE MAP LAYOUT
    ============================================================================= */
 .home-area {
   padding: 3rem 2rem;
@@ -327,7 +326,7 @@
 }
 
 .home-area__container {
-  max-width: 1000px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
@@ -348,65 +347,87 @@
   text-align: center;
 }
 
-.home-area__map-wrapper {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+/* Single Map Container */
+.home-area__map-container {
+  position: relative;
   margin-bottom: 1.5rem;
 }
 
-.home-area__map-card {
-  background: #FFFFFF;
-  border-radius: 10px;
-  border: 2px solid #1D3095;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.home-area__map-card--red {
-  border-color: #BD1218;
-}
-
-.home-area__map-header {
-  background: #1D3095;
-  color: #FFFFFF;
-  padding: 0.5rem 1rem;
-  font-family: 'Sora', sans-serif;
-  font-size: 0.85rem;
-  font-weight: 600;
+/* HQ Badge - Positioned above the map */
+.home-area__hq-badge {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, #BD1218 0%, #9A0F14 100%);
+  padding: 0.875rem 1.5rem;
+  border-radius: 10px 10px 0 0;
+  box-shadow: 0 2px 8px rgba(189, 18, 24, 0.2);
 }
 
-.home-area__map-header--red {
-  background: #BD1218;
+.home-area__hq-icon {
+  font-size: 1.5rem;
 }
 
-.home-area__map {
-  width: 100%;
-  height: 200px;
-  border: none;
-  display: block;
+.home-area__hq-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
 }
 
-.home-area__map-info {
-  padding: 0.6rem 1rem;
-  background: #F8F9FA;
-  border-top: 1px solid #E5E7EB;
+.home-area__hq-title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #FFFFFF;
 }
 
-.home-area__map-radius {
+.home-area__hq-radius {
   font-family: 'Inter', sans-serif;
   font-size: 0.8rem;
-  color: #4B5563;
-  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.home-area__map-radius strong {
-  color: #0F1419;
+/* Map Wrapper */
+.home-area__map-wrapper {
+  width: 100%;
+  height: 320px;
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+  border: 3px solid #1D3095;
+  border-top: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  background: #F8F9FA;
 }
 
+/* Map Loading State */
+.home-area__map-loading {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #F8F9FA 0%, #E5E7EB 100%);
+  color: #6B7280;
+  font-family: 'Inter', sans-serif;
+}
+
+.home-area__map-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #E5E7EB;
+  border-top-color: #1D3095;
+  border-radius: 50%;
+  animation: home-spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes home-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* CTA Section */
 .home-area__cta {
   background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
   border-radius: 10px;
@@ -745,25 +766,33 @@
 /* --- Large Desktop (1280px+) --- */
 @media screen and (min-width: 1280px) {
   .home-hero {
-    padding-top: 120px;
+    padding-top: 140px;
+  }
+  
+  .home-area__map-wrapper {
+    height: 380px;
   }
 }
 
 /* --- Desktop (1024 - 1279px) --- */
 @media screen and (min-width: 1024px) and (max-width: 1279px) {
   .home-hero {
-    padding-top: 110px;
+    padding-top: 120px;
   }
   
   .home-hero__title {
     font-size: 2rem;
+  }
+  
+  .home-area__map-wrapper {
+    height: 350px;
   }
 }
 
 /* --- Tablet (768 - 1023px) --- */
 @media screen and (min-width: 768px) and (max-width: 1023px) {
   .home-hero {
-    padding-top: 100px;
+    padding-top: 110px;
   }
   
   .home-hero__card {
@@ -781,27 +810,25 @@
     border-top: 3px solid #BD1218;
   }
   
-  /* Services: 2 columns on tablet */
   .home-services__grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
   }
   
-  /* Why: 2 columns on tablet */
   .home-why__grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
   }
   
   .home-area__map-wrapper {
-    grid-template-columns: 1fr;
+    height: 300px;
   }
 }
 
 /* --- Large Mobile (600 - 767px) --- */
 @media screen and (min-width: 600px) and (max-width: 767px) {
   .home-hero {
-    padding-top: 80px;
+    padding-top: 90px;
     padding-left: 1.25rem;
     padding-right: 1.25rem;
     padding-bottom: 3rem;
@@ -835,7 +862,6 @@
     font-size: 1.75rem;
   }
   
-  /* Services: 2 columns, smaller cards */
   .home-services {
     padding: 2.5rem 1.25rem;
   }
@@ -867,7 +893,6 @@
     line-height: 1.3;
   }
   
-  /* Why: 2 columns on large mobile */
   .home-why {
     padding: 2.5rem 1.25rem;
   }
@@ -908,11 +933,24 @@
   }
   
   .home-area__map-wrapper {
-    grid-template-columns: 1fr;
+    height: 260px;
   }
   
-  .home-area__map {
-    height: 180px;
+  .home-area__hq-badge {
+    padding: 0.75rem 1.25rem;
+    gap: 0.6rem;
+  }
+  
+  .home-area__hq-icon {
+    font-size: 1.25rem;
+  }
+  
+  .home-area__hq-title {
+    font-size: 0.9rem;
+  }
+  
+  .home-area__hq-radius {
+    font-size: 0.75rem;
   }
   
   .home-contact {
@@ -963,7 +1001,7 @@
 /* --- Medium Mobile (480 - 599px) --- */
 @media screen and (min-width: 480px) and (max-width: 599px) {
   .home-hero {
-    padding-top: 70px;
+    padding-top: 80px;
     padding-left: 1rem;
     padding-right: 1rem;
   }
@@ -987,7 +1025,6 @@
     border-top: 3px solid #BD1218;
   }
   
-  /* Services: 2 columns, compact */
   .home-services {
     padding: 2rem 1rem;
   }
@@ -1025,7 +1062,6 @@
     line-height: 1.25;
   }
   
-  /* Why: 2 columns, compact */
   .home-why {
     padding: 2rem 1rem;
   }
@@ -1064,8 +1100,46 @@
     padding: 2rem 1rem;
   }
   
+  .home-area__title {
+    font-size: 1.35rem;
+  }
+  
+  .home-area__subtitle {
+    font-size: 0.85rem;
+  }
+  
   .home-area__map-wrapper {
-    grid-template-columns: 1fr;
+    height: 240px;
+  }
+  
+  .home-area__hq-badge {
+    padding: 0.65rem 1rem;
+    gap: 0.5rem;
+    border-radius: 8px 8px 0 0;
+  }
+  
+  .home-area__hq-icon {
+    font-size: 1.15rem;
+  }
+  
+  .home-area__hq-title {
+    font-size: 0.85rem;
+  }
+  
+  .home-area__hq-radius {
+    font-size: 0.7rem;
+  }
+  
+  .home-area__cta {
+    padding: 1.25rem;
+  }
+  
+  .home-area__cta-title {
+    font-size: 1rem;
+  }
+  
+  .home-area__cta-text {
+    font-size: 0.8rem;
   }
   
   .home-contact {
@@ -1084,7 +1158,7 @@
 /* --- Small Mobile (0 - 479px) - iPhone size --- */
 @media screen and (max-width: 479px) {
   .home-hero {
-    padding-top: 60px;
+    padding-top: 70px;
     padding-left: 0.75rem;
     padding-right: 0.75rem;
     padding-bottom: 2rem;
@@ -1132,7 +1206,6 @@
     font-size: 0.65rem;
   }
   
-  /* Services: 1 column on small mobile, show only 4 services */
   .home-services {
     padding: 1.5rem 0.75rem;
   }
@@ -1175,7 +1248,6 @@
     line-height: 1.3;
   }
   
-  /* Why: 1 column on small mobile */
   .home-why {
     padding: 1.5rem 0.75rem;
   }
@@ -1231,33 +1303,57 @@
     font-size: 0.8rem;
   }
   
+  .home-area__map-container {
+    margin-bottom: 1rem;
+  }
+  
+  .home-area__hq-badge {
+    padding: 0.6rem 0.875rem;
+    gap: 0.5rem;
+    border-radius: 8px 8px 0 0;
+  }
+  
+  .home-area__hq-icon {
+    font-size: 1rem;
+  }
+  
+  .home-area__hq-title {
+    font-size: 0.8rem;
+  }
+  
+  .home-area__hq-radius {
+    font-size: 0.65rem;
+  }
+  
   .home-area__map-wrapper {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-  
-  .home-area__map {
-    height: 160px;
-  }
-  
-  .home-area__map-header {
-    font-size: 0.75rem;
-    padding: 0.4rem 0.75rem;
-  }
-  
-  .home-area__map-radius {
-    font-size: 0.7rem;
+    height: 200px;
+    border-radius: 0 0 8px 8px;
+    border-width: 2px;
   }
   
   .home-area__cta {
     padding: 1rem;
+    border-radius: 8px;
   }
   
   .home-area__cta-title {
-    font-size: 1rem;
+    font-size: 0.95rem;
   }
   
   .home-area__cta-text {
+    font-size: 0.75rem;
+    margin-bottom: 0.875rem;
+  }
+  
+  .home-area__cta-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .home-area__cta-btn {
+    width: 100%;
+    max-width: none;
+    padding: 0.55rem 1rem;
     font-size: 0.8rem;
   }
   
@@ -1324,16 +1420,6 @@
     max-width: none;
     padding: 0.65rem 1rem;
     font-size: 0.85rem;
-  }
-  
-  .home-area__cta-buttons {
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .home-area__cta-btn {
-    width: 100%;
-    max-width: none;
   }
 }
 
