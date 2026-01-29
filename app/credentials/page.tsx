@@ -252,7 +252,7 @@ export default function CredentialsPage(): React.ReactElement {
                 We encourage all clients to verify surveyor credentials before hiring.
               </p>
               <a 
-                href="https://pels.texas.gov/roster/surveyorsearch.html" 
+                href="https://pels.texas.gov/roster/rplssearch.html" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="credentials-verify__btn"

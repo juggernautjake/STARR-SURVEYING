@@ -444,7 +444,7 @@ export default function ResourcesPage(): React.ReactElement {
               </p>
               <div className="resources-verify__buttons">
                 <a 
-                  href="https://pels.texas.gov/roster/surveyorsearch.html" 
+                  href="https://pels.texas.gov/roster/rplssearch.html" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="resources-verify__btn resources-verify__btn--primary"
