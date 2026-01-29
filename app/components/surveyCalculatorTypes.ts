@@ -92,11 +92,11 @@ export const PROPERTY_COUNTY_FIELD: FormField = {
 // This is the main cost that gets multiplied by vegetation/terrain
 // =============================================================================
 export const PROPERTY_SIZE: FieldOption[] = [
-  { value: '0.1', label: 'Less than 0.25 acres', baseCost: 520 },
-  { value: '0.375', label: '0.25 - 0.5 acres', baseCost: 550 },
-  { value: '0.75', label: '0.5 - 1 acre', baseCost: 600 },
-  { value: '1.5', label: '1 - 2 acres', baseCost: 700 },
-  { value: '3', label: '2 - 4 acres', baseCost: 900 },
+  { value: '0.1', label: 'Less than 0.25 acres', baseCost: 475 },
+  { value: '0.375', label: '0.25 - 0.5 acres', baseCost: 515 },
+  { value: '0.75', label: '0.5 - 1 acre', baseCost: 575 },
+  { value: '1.5', label: '1 - 2 acres', baseCost: 675 },
+  { value: '3', label: '2 - 4 acres', baseCost: 875 },
   { value: '5', label: '4 - 6 acres', baseCost: 1150 },
   { value: '8', label: '6 - 10 acres', baseCost: 1400 },
   { value: '12.5', label: '10 - 15 acres', baseCost: 1650 },
