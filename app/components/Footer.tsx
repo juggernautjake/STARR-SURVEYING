@@ -76,6 +76,10 @@ const Footer = (): React.ReactElement => {
             <p className="footer__tagline">
               Professional land surveying services serving Central Texas with precision and integrity.
             </p>
+            <div className="footer__license">
+              <span className="footer__license-label">Licensed Surveyor</span>
+              <span className="footer__license-name">Henry S. Maddux, RPLS# 6706</span>
+            </div>
             <p className="footer__quote">
               "Remove not the ancient landmark, which thy fathers have set."
             </p>
@@ -148,7 +152,7 @@ const Footer = (): React.ReactElement => {
             © {currentYear} Starr Surveying. All rights reserved.
           </p>
           <p className="footer__location">
-            Professional Land Surveying • Belton, Texas
+            Professional Land Surveying • Belton, Texas • RPLS# 6706
           </p>
         </div>
       </div>

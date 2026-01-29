@@ -32,9 +32,9 @@ export default function AboutPage(): React.ReactElement {
   const teamMembers: TeamMember[] = [
     {
       name: 'Hank Maddux',
-      title: 'Owner & RPLS',
+      title: 'Owner & RPLS# 6706',
       experience: '15+ Years Professional Experience',
-      description: 'Licensed Professional Surveyor with extensive expertise. Leads with integrity and precision.',
+      description: 'Licensed Professional Land Surveyor with extensive expertise. Leads with integrity and precision.',
     },
     {
       name: 'Jacob Maddux',
