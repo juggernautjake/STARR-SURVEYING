@@ -148,8 +148,10 @@ export default function SurveyCalculator() {
     if (rushJob) baseCost *= 1.25;
 
     const finalCost = Math.max(baseCost, currentSurveyType.minPrice);
-    const lowEstimate = Math.round(finalCost * 0.9);
-    const highEstimate = Math.round(finalCost * 1.1);
+    
+    // ±9% spread for tighter estimates
+    const lowEstimate = Math.round(finalCost * 0.91);
+    const highEstimate = Math.round(finalCost * 1.09);
 
     setResult({
       lowEstimate,
@@ -259,7 +261,7 @@ export default function SurveyCalculator() {
           </span>
         </button>
 
-        {/* Expandable Content - KEY FIX: Added inline styles to ensure full height */}
+        {/* Expandable Content */}
         <div 
           className={`pricing-calculator__content ${isExpanded ? 'pricing-calculator__content--expanded' : ''}`}
           style={isExpanded ? { 
@@ -403,7 +405,7 @@ export default function SurveyCalculator() {
               </div>
             </div>
 
-            {/* Results - KEY FIX: Added ref for scrolling and explicit visibility */}
+            {/* Results */}
             {showResult && result && !submitSuccess && (
               <div 
                 ref={resultRef}
@@ -480,7 +482,7 @@ export default function SurveyCalculator() {
                       We&apos;ll review your project details and send you an official quote.
                     </p>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="pricing-calculator__contact-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                       <div>
                         <label className="pricing-calculator__label">Your Name *</label>
                         <input

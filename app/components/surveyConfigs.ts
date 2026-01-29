@@ -19,8 +19,12 @@ const getMultiplier = (opts: { value: string; hoursMultiplier?: number }[] | und
 
 // =============================================================================
 // BOUNDARY SURVEY
-// Base: 3 hours (find corners, shoot points, basic office work)
-// Typical range: $400 - $1,500 for most residential
+// Base: 3 hours
+// FINAL CALIBRATION v2 - Reduced $75-100 from previous:
+// - Small (0.1-3 acres): $700-950
+// - Medium (3-10 acres): $950-1,750
+// - Larger (10-50 acres): $1,750-2,400
+// - Very large (50-200+ acres): $2,400-5,000+
 // =============================================================================
 const boundarySurvey: SurveyTypeConfig = {
   id: 'boundary',
@@ -33,9 +37,9 @@ const boundarySurvey: SurveyTypeConfig = {
     PROPERTY_COUNTY_FIELD,
     { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: [
       { value: 'residential_urban', label: 'Residential - City/Subdivision', additionalHours: 0 },
-      { value: 'residential_rural', label: 'Residential - Rural/Country', additionalHours: 0.5 },
-      { value: 'commercial', label: 'Commercial', additionalHours: 1 },
-      { value: 'agricultural', label: 'Agricultural/Farm/Ranch', additionalHours: 0.5 },
+      { value: 'residential_rural', label: 'Residential - Rural/Country', additionalHours: 0.1 },
+      { value: 'commercial', label: 'Commercial', additionalHours: 0.3 },
+      { value: 'agricultural', label: 'Agricultural/Farm/Ranch', additionalHours: 0.1 },
       { value: 'vacant', label: 'Vacant/Undeveloped', additionalHours: 0 },
     ]},
     { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: PROPERTY_SIZE },
@@ -50,48 +54,37 @@ const boundarySurvey: SurveyTypeConfig = {
     { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
     { id: 'fenceIssues', label: 'Fence Issues', type: 'select', required: false, options: [
       { value: 'none', label: 'No fence or no issues', additionalHours: 0 },
-      { value: 'minor', label: 'Minor discrepancy', additionalHours: 0.5 },
-      { value: 'major', label: 'Significant dispute', additionalHours: 1.5 },
+      { value: 'minor', label: 'Minor discrepancy', additionalHours: 0.2 },
+      { value: 'major', label: 'Significant dispute', additionalHours: 0.6 },
     ]},
     { id: 'monumentsNeeded', label: 'New Markers Needed', type: 'select', required: false, options: [
       { value: 'none', label: 'Just locate existing', additionalHours: 0 },
-      { value: 'replace', label: 'Replace missing (1-2)', additionalHours: 0.5 },
-      { value: 'all', label: 'Set all new pins', additionalHours: 1 },
+      { value: 'replace', label: 'Replace missing (1-2)', additionalHours: 0.2 },
+      { value: 'all', label: 'Set all new pins', additionalHours: 0.4 },
     ]},
     { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: [
       { value: 'fence', label: 'Fence Installation', additionalHours: 0 },
-      { value: 'building', label: 'Building Permit', additionalHours: 0.5 },
+      { value: 'building', label: 'Building Permit', additionalHours: 0.15 },
       { value: 'sale', label: 'Property Sale', additionalHours: 0 },
-      { value: 'dispute', label: 'Boundary Dispute', additionalHours: 1 },
+      { value: 'dispute', label: 'Boundary Dispute', additionalHours: 0.4 },
       { value: 'personal', label: 'Personal Records', additionalHours: 0 },
     ]},
   ],
   calculateHours: (v) => {
-    // Start with base hours
     let h = 3;
     
-    // Add hours for property type
     const propTypeOpts = boundarySurvey.fields[2].options;
     h += getAdditionalHours(propTypeOpts, v.propertyType);
-    
-    // Add hours for size
     h += getAdditionalHours(PROPERTY_SIZE, v.acreage);
-    
-    // Add hours for corners
     h += getAdditionalHours(PROPERTY_CORNERS, v.corners);
-    
-    // Add hours for complications
     h += getAdditionalHours(WATER_FEATURES, v.waterFeatures);
     h += getAdditionalHours(EXISTING_SURVEY, v.existingSurvey);
     h += getAdditionalHours(EXISTING_MONUMENTS, v.existingMonuments);
     h += getAdditionalHours(ADJOINING, v.adjoining);
-    
-    // Add hours for fence/monument/purpose
     h += getAdditionalHours(boundarySurvey.fields[13].options, v.fenceIssues);
     h += getAdditionalHours(boundarySurvey.fields[14].options, v.monumentsNeeded);
     h += getAdditionalHours(boundarySurvey.fields[15].options, v.purpose);
     
-    // Apply difficulty multipliers (vegetation, terrain, access)
     h *= getMultiplier(VEGETATION, v.vegetation);
     h *= getMultiplier(TERRAIN, v.terrain);
     h *= getMultiplier(ACCESS_CONDITIONS, v.access);
@@ -102,7 +95,7 @@ const boundarySurvey: SurveyTypeConfig = {
 
 // =============================================================================
 // ALTA/NSPS SURVEY
-// Base: 10 hours (comprehensive commercial survey)
+// Base: 10 hours
 // Typical range: $2,000 - $8,000+
 // =============================================================================
 const altaSurvey: SurveyTypeConfig = {
@@ -171,7 +164,7 @@ const altaSurvey: SurveyTypeConfig = {
     h += getAdditionalHours(f[6].options, v.utilities);
     h += getAdditionalHours(f[7].options, v.floodCert);
     h *= getMultiplier(ACCESS_CONDITIONS, v.access);
-    return Math.max(h, 10); // Minimum 10 hours for ALTA
+    return Math.max(h, 10);
   },
 };
 
@@ -242,7 +235,6 @@ const topoSurvey: SurveyTypeConfig = {
     h += getAdditionalHours(f[9].options, v.benchmark);
     h += getAdditionalHours(f[10].options, v.boundary);
     
-    // Apply multipliers
     h *= getMultiplier(f[4].options, v.contourInterval);
     h *= getMultiplier(VEGETATION, v.vegetation);
     h *= getMultiplier(TERRAIN, v.terrain);
@@ -312,7 +304,7 @@ const elevationCert: SurveyTypeConfig = {
     h += getAdditionalHours(f[5].options, v.basement);
     h += getAdditionalHours(f[6].options, v.additions);
     h *= getMultiplier(ACCESS_CONDITIONS, v.access);
-    return Math.max(h, 2); // Minimum 2 hours
+    return Math.max(h, 2);
   },
 };
 
@@ -665,7 +657,6 @@ const legalDescription: SurveyTypeConfig = {
     h += getAdditionalHours(f[2].options, v.type);
     h += getAdditionalHours(f[3].options, v.fieldWork);
     
-    // Only add size/corners if field work is needed
     if (v.fieldWork !== 'none') {
       h += getAdditionalHours(PROPERTY_SIZE, v.acreage) * 0.5;
       h += getAdditionalHours(PROPERTY_CORNERS, v.corners) * 0.5;
