@@ -158,6 +158,19 @@ export default function CredentialsPage(): React.ReactElement {
           </div>
 
           <div className="credentials-license__info">
+            {/* Our Licensed Surveyor Card - Front and Center */}
+            <div className="credentials-license__info-card credentials-license__info-card--surveyor">
+              <h3 className="credentials-license__info-title">Our Licensed Surveyor</h3>
+              <div className="credentials-license__surveyor-details">
+                <p className="credentials-license__surveyor-name">Henry S. Maddux</p>
+                <p className="credentials-license__surveyor-number">RPLS# 6706</p>
+                <p className="credentials-license__surveyor-status">Status: Registered ✓</p>
+                <p className="credentials-license__surveyor-granted">Licensed: December 15, 2017</p>
+                <p className="credentials-license__surveyor-expires">Expires: December 31, 2026</p>
+              </div>
+            </div>
+
+            {/* What is an RPLS Card */}
             <div className="credentials-license__info-card">
               <h3 className="credentials-license__info-title">What is an RPLS?</h3>
               <p className="credentials-license__info-text">
@@ -251,6 +264,10 @@ export default function CredentialsPage(): React.ReactElement {
                 You can verify any Texas RPLS license through the official TBPELS website. 
                 We encourage all clients to verify surveyor credentials before hiring.
               </p>
+              <div className="credentials-verify__surveyor-info">
+                <p className="credentials-verify__surveyor-label">Search for our license:</p>
+                <p className="credentials-verify__surveyor-name">Henry S. Maddux, RPLS# 6706</p>
+              </div>
               <a 
                 href="https://pels.texas.gov/roster/rplssearch.html" 
                 target="_blank" 
