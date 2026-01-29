@@ -7,10 +7,13 @@ import {
   SurveyTypeConfig, 
   FormField, 
   FieldOption, 
-  ContactInfo, 
-  HOURLY_RATE, 
-  MILEAGE_RATE, 
-  TRAVEL_SPEED_AVG 
+  ContactInfo,
+  IMPROVEMENT_TYPE,
+  ADDITIONAL_RESIDENCE_CORNERS,
+  ADDITIONAL_RESIDENCE_SIZE,
+  ESTIMATE_LOW_MULTIPLIER,
+  ESTIMATE_HIGH_MULTIPLIER,
+  isAdditionalResidence
 } from './surveyCalculatorTypes';
 
 // =============================================================================
@@ -30,14 +33,13 @@ function getFieldLabel(surveyType: SurveyTypeConfig, fieldId: string, value: str
 function formatFormDataForEmail(
   surveyType: SurveyTypeConfig,
   formValues: Record<string, unknown>,
-  result: { lowEstimate: number; highEstimate: number; estimatedHours: number },
+  result: { lowEstimate: number; highEstimate: number },
   rushJob: boolean
 ): string {
   let text = `SURVEY ESTIMATE REQUEST\n`;
   text += `========================\n\n`;
   text += `Survey Type: ${surveyType.name}\n`;
   text += `Estimated Range: $${result.lowEstimate.toLocaleString()} - $${result.highEstimate.toLocaleString()}\n`;
-  text += `Estimated Hours: ${result.estimatedHours.toFixed(1)}\n`;
   if (rushJob) text += `Rush Job: Yes (expedited requested)\n`;
   text += `\n------------------------\n`;
   text += `PROJECT DETAILS:\n`;
@@ -52,6 +54,29 @@ function formatFormDataForEmail(
       text += `${field.label}: ${label}\n`;
     }
   });
+  
+  // Add dynamic improvements to email
+  const numImprovements = parseInt(formValues.numImprovements as string) || 0;
+  if (numImprovements > 0) {
+    text += `\nOther Improvements:\n`;
+    for (let i = 1; i <= numImprovements; i++) {
+      const improvementType = formValues[`improvement${i}Type`] as string;
+      if (improvementType && improvementType !== 'none') {
+        const typeOption = IMPROVEMENT_TYPE.find(o => o.value === improvementType);
+        text += `  Improvement ${i}: ${typeOption?.label || improvementType}`;
+        
+        if (isAdditionalResidence(improvementType)) {
+          const corners = formValues[`improvement${i}Corners`] as string;
+          const size = formValues[`improvement${i}Size`] as string;
+          const cornersOption = ADDITIONAL_RESIDENCE_CORNERS.find(o => o.value === corners);
+          const sizeOption = ADDITIONAL_RESIDENCE_SIZE.find(o => o.value === size);
+          if (cornersOption) text += ` - ${cornersOption.label}`;
+          if (sizeOption) text += `, ${sizeOption.label}`;
+        }
+        text += `\n`;
+      }
+    }
+  }
   
   return text;
 }
@@ -78,8 +103,7 @@ export default function SurveyCalculator() {
   const [result, setResult] = useState<{
     lowEstimate: number;
     highEstimate: number;
-    estimatedHours: number;
-    travelCost: number;
+    basePrice: number;
   } | null>(null);
 
   const resultRef = useRef<HTMLDivElement>(null);
@@ -104,7 +128,61 @@ export default function SurveyCalculator() {
   }, [showResult]);
 
   const handleFieldChange = (fieldId: string, value: unknown): void => {
-    setFormValues((prev: Record<string, unknown>) => ({ ...prev, [fieldId]: value }));
+    setFormValues((prev: Record<string, unknown>) => {
+      const newValues = { ...prev, [fieldId]: value };
+      
+      // Clear dependent fields when parent changes
+      if (fieldId === 'propertyType') {
+        // If changing away from residential, clear residence-related fields
+        if (!['residential_urban', 'residential_rural'].includes(value as string)) {
+          delete newValues.hasResidence;
+          delete newValues.residenceCorners;
+          delete newValues.residenceSize;
+          delete newValues.garage;
+          delete newValues.numImprovements;
+          // Clear all improvement fields
+          for (let i = 1; i <= 8; i++) {
+            delete newValues[`improvement${i}Type`];
+            delete newValues[`improvement${i}Corners`];
+            delete newValues[`improvement${i}Size`];
+          }
+        }
+        // Clear improvements if not residential or agricultural
+        if (!['residential_urban', 'residential_rural', 'agricultural'].includes(value as string)) {
+          delete newValues.numImprovements;
+          for (let i = 1; i <= 8; i++) {
+            delete newValues[`improvement${i}Type`];
+            delete newValues[`improvement${i}Corners`];
+            delete newValues[`improvement${i}Size`];
+          }
+        }
+      }
+      
+      // If hasResidence changes to 'no', clear residence details
+      if (fieldId === 'hasResidence' && value === 'no') {
+        delete newValues.residenceCorners;
+        delete newValues.residenceSize;
+        delete newValues.garage;
+      }
+      
+      // If numImprovements changes, clear extra improvement fields
+      if (fieldId === 'numImprovements') {
+        const newNum = parseInt(value as string) || 0;
+        for (let i = newNum + 1; i <= 8; i++) {
+          delete newValues[`improvement${i}Type`];
+          delete newValues[`improvement${i}Corners`];
+          delete newValues[`improvement${i}Size`];
+        }
+      }
+      
+      // If fieldWork changes to 'none', clear dependent fields
+      if (fieldId === 'fieldWork' && value === 'none') {
+        delete newValues.acreage;
+        delete newValues.corners;
+      }
+      
+      return newValues;
+    });
     setShowResult(false);
     setShowSubmitForm(false);
   };
@@ -133,31 +211,23 @@ export default function SurveyCalculator() {
       return;
     }
 
-    const estimatedHours = currentSurveyType.calculateHours(formValues);
+    // Calculate price using the new base cost model
+    const calculatedPrice = currentSurveyType.calculatePrice(formValues);
 
-    // Travel calculation
-    const travelDistanceValue = parseFloat(formValues.travelDistance as string) || 0;
-    const travelTimeHours = (travelDistanceValue / TRAVEL_SPEED_AVG) * 2;
-    const travelMileageCost = travelDistanceValue * MILEAGE_RATE * 2;
-    const travelLaborCost = travelTimeHours * (HOURLY_RATE * 0.5);
-    const totalTravelCost = travelMileageCost + travelLaborCost;
+    // Apply rush multiplier (25% for rush jobs)
+    let finalPrice = rushJob ? calculatedPrice * 1.25 : calculatedPrice;
 
-    let baseCost = (estimatedHours * HOURLY_RATE) + totalTravelCost;
-
-    // Rush multiplier (25% for rush jobs)
-    if (rushJob) baseCost *= 1.25;
-
-    const finalCost = Math.max(baseCost, currentSurveyType.minPrice);
+    // Ensure minimum price
+    finalPrice = Math.max(finalPrice, currentSurveyType.minPrice);
     
-    // ±9% spread for tighter estimates
-    const lowEstimate = Math.round(finalCost * 0.91);
-    const highEstimate = Math.round(finalCost * 1.09);
+    // Adjusted estimate range: -9% to +6.5%
+    const lowEstimate = Math.round(finalPrice * ESTIMATE_LOW_MULTIPLIER);
+    const highEstimate = Math.round(finalPrice * ESTIMATE_HIGH_MULTIPLIER);
 
     setResult({
       lowEstimate,
       highEstimate,
-      estimatedHours: estimatedHours + travelTimeHours,
-      travelCost: Math.round(totalTravelCost),
+      basePrice: Math.round(calculatedPrice),
     });
     setShowResult(true);
   };
@@ -238,6 +308,150 @@ export default function SurveyCalculator() {
     setContactInfo({ name: '', email: '', phone: '', notes: '' });
   };
 
+  // Get number of improvements for dynamic fields
+  const numImprovements = parseInt(formValues.numImprovements as string) || 0;
+  
+  // Check if we should show improvements (only for boundary survey with appropriate property types)
+  const shouldShowImprovements = selectedSurveyType === 'boundary' && 
+    ['residential_urban', 'residential_rural', 'agricultural'].includes(formValues.propertyType as string);
+
+  // Helper to render a single field
+  const renderField = (field: FormField) => {
+    if (!shouldShowField(field)) return null;
+
+    const isFullWidth = field.type === 'textarea' || 
+      field.id === 'propertyAddress' || 
+      field.id === 'startLocation' || 
+      field.id === 'endLocation';
+
+    return (
+      <div
+        key={field.id}
+        className={`pricing-calculator__field ${isFullWidth ? 'pricing-calculator__field--full' : ''}`}
+      >
+        <label className="pricing-calculator__label">
+          {field.label} {field.required && '*'}
+        </label>
+
+        {field.type === 'select' && (
+          <select
+            className="pricing-calculator__select"
+            value={(formValues[field.id] as string) || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+          >
+            <option value="">-- Select --</option>
+            {field.options?.map((opt: FieldOption) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        )}
+
+        {field.type === 'text' && (
+          <input
+            type="text"
+            className="pricing-calculator__input"
+            value={(formValues[field.id] as string) || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            placeholder={field.placeholder}
+          />
+        )}
+
+        {field.type === 'number' && (
+          <input
+            type="number"
+            className="pricing-calculator__input"
+            value={(formValues[field.id] as number) || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            placeholder={field.placeholder}
+          />
+        )}
+
+        {field.type === 'textarea' && (
+          <textarea
+            className="pricing-calculator__input"
+            value={(formValues[field.id] as string) || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            placeholder={field.placeholder}
+            rows={3}
+            style={{ resize: 'vertical', minHeight: '80px' }}
+          />
+        )}
+
+        {field.helpText && (
+          <p style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '0.25rem' }}>
+            {field.helpText}
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  // Render a single improvement field with "Improvement X" label
+  const renderImprovementField = (index: number) => {
+    const improvementType = formValues[`improvement${index}Type`] as string || '';
+    const showResidenceFields = isAdditionalResidence(improvementType);
+
+    return (
+      <div key={`improvement-${index}`} className="pricing-calculator__field pricing-calculator__field--full">
+        <label className="pricing-calculator__label">
+          Improvement {index}
+        </label>
+        <select
+          className="pricing-calculator__select"
+          value={improvementType}
+          onChange={(e) => {
+            handleFieldChange(`improvement${index}Type`, e.target.value);
+            // Clear residence fields if type changes to non-residence
+            if (!isAdditionalResidence(e.target.value)) {
+              handleFieldChange(`improvement${index}Corners`, '');
+              handleFieldChange(`improvement${index}Size`, '');
+            }
+          }}
+        >
+          {IMPROVEMENT_TYPE.map((opt: FieldOption) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        
+        {/* Additional residence fields - shown inline below the type dropdown */}
+        {showResidenceFields && (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr', 
+            gap: '0.5rem', 
+            marginTop: '0.5rem' 
+          }}>
+            <select
+              className="pricing-calculator__select"
+              style={{ marginBottom: 0 }}
+              value={(formValues[`improvement${index}Corners`] as string) || ''}
+              onChange={(e) => handleFieldChange(`improvement${index}Corners`, e.target.value)}
+            >
+              <option value="">-- Corners --</option>
+              {ADDITIONAL_RESIDENCE_CORNERS.map((opt: FieldOption) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <select
+              className="pricing-calculator__select"
+              style={{ marginBottom: 0 }}
+              value={(formValues[`improvement${index}Size`] as string) || ''}
+              onChange={(e) => handleFieldChange(`improvement${index}Size`, e.target.value)}
+            >
+              <option value="">-- Size --</option>
+              {ADDITIONAL_RESIDENCE_SIZE.map((opt: FieldOption) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Find the index of numImprovements field to split the fields array
+  const numImprovementsIndex = currentSurveyType?.fields.findIndex(f => f.id === 'numImprovements') ?? -1;
+
   return (
     <section className="pricing-calculator">
       <div className="pricing-calculator__container">
@@ -299,76 +513,28 @@ export default function SurveyCalculator() {
                 )}
               </div>
 
-              {/* Dynamic Fields */}
-              {currentSurveyType?.fields.map((field: FormField) => {
-                if (!shouldShowField(field)) return null;
-
-                const isFullWidth = field.type === 'textarea' || 
-                  field.id === 'propertyAddress' || 
-                  field.id === 'startLocation' || 
-                  field.id === 'endLocation';
-
-                return (
-                  <div
-                    key={field.id}
-                    className={`pricing-calculator__field ${isFullWidth ? 'pricing-calculator__field--full' : ''}`}
-                  >
-                    <label className="pricing-calculator__label">
-                      {field.label} {field.required && '*'}
-                    </label>
-
-                    {field.type === 'select' && (
-                      <select
-                        className="pricing-calculator__select"
-                        value={(formValues[field.id] as string) || ''}
-                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                      >
-                        <option value="">-- Select --</option>
-                        {field.options?.map((opt: FieldOption) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    )}
-
-                    {field.type === 'text' && (
-                      <input
-                        type="text"
-                        className="pricing-calculator__input"
-                        value={(formValues[field.id] as string) || ''}
-                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                        placeholder={field.placeholder}
-                      />
-                    )}
-
-                    {field.type === 'number' && (
-                      <input
-                        type="number"
-                        className="pricing-calculator__input"
-                        value={(formValues[field.id] as number) || ''}
-                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                        placeholder={field.placeholder}
-                      />
-                    )}
-
-                    {field.type === 'textarea' && (
-                      <textarea
-                        className="pricing-calculator__input"
-                        value={(formValues[field.id] as string) || ''}
-                        onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                        placeholder={field.placeholder}
-                        rows={3}
-                        style={{ resize: 'vertical', minHeight: '80px' }}
-                      />
-                    )}
-
-                    {field.helpText && (
-                      <p style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '0.25rem' }}>
-                        {field.helpText}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+              {/* Render fields with improvements inserted after numImprovements */}
+              {currentSurveyType && numImprovementsIndex >= 0 ? (
+                <>
+                  {/* Fields BEFORE and INCLUDING numImprovements */}
+                  {currentSurveyType.fields.slice(0, numImprovementsIndex + 1).map(renderField)}
+                  
+                  {/* Dynamic Improvement Fields - directly after numImprovements */}
+                  {shouldShowImprovements && numImprovements > 0 && (
+                    <>
+                      {Array.from({ length: numImprovements }, (_, idx) => 
+                        renderImprovementField(idx + 1)
+                      )}
+                    </>
+                  )}
+                  
+                  {/* Fields AFTER numImprovements */}
+                  {currentSurveyType.fields.slice(numImprovementsIndex + 1).map(renderField)}
+                </>
+              ) : (
+                // Fallback: render all fields normally if no numImprovements field exists
+                currentSurveyType?.fields.map(renderField)
+              )}
 
               {/* Rush Job Option */}
               <div className="pricing-calculator__field pricing-calculator__field--full">
@@ -382,7 +548,7 @@ export default function SurveyCalculator() {
                       setShowSubmitForm(false);
                     }}
                   />
-                  <span>⚡ Rush Job - Need expedited timeline (rush fees vary based on schedule and availability - discuss when requesting quote)</span>
+                  <span>⚡ Rush Job - Need expedited timeline (+25% rush fee applies)</span>
                 </label>
               </div>
 
@@ -426,17 +592,14 @@ export default function SurveyCalculator() {
                     <span className="pricing-calculator__result-separator">to</span>
                     <span className="pricing-calculator__result-high">${result.highEstimate.toLocaleString()}</span>
                   </div>
-                  <p className="pricing-calculator__result-hours">
-                    Estimated time: {result.estimatedHours.toFixed(1)} hours (including travel)
-                  </p>
                 </div>
 
                 <div className="pricing-calculator__result-breakdown">
                   <h4>Estimate Summary:</h4>
                   <ul>
                     <li>Survey Type: {currentSurveyType?.name}</li>
-                    <li>Travel included: ${result.travelCost.toLocaleString()}</li>
-                    {rushJob && <li>⚡ Rush fee: To be discussed based on timeline</li>}
+                    <li>Base estimate: ${result.basePrice.toLocaleString()}</li>
+                    {rushJob && <li>⚡ Rush fee (+25%): ${Math.round(result.basePrice * 0.25).toLocaleString()}</li>}
                     <li>Includes standard deliverables</li>
                   </ul>
                 </div>
