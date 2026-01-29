@@ -187,18 +187,10 @@ export const ACCESS_CONDITIONS: FieldOption[] = [
   { value: 'unknown', label: 'Unknown', baseCost: 0 },
 ];
 
-// WATER FEATURES
-export const WATER_FEATURES: FieldOption[] = [
-  { value: 'none', label: 'None', baseCost: 0 },
-  { value: 'pond_small', label: 'Small Pond/Stock Tank', baseCost: 25 },
-  { value: 'pond_large', label: 'Large Pond/Lake', baseCost: 75 },
-  { value: 'creek_dry', label: 'Dry Creek/Drainage', baseCost: 15 },
-  { value: 'creek_seasonal', label: 'Seasonal Creek', baseCost: 50 },
-  { value: 'creek_permanent', label: 'Permanent Creek/Stream', baseCost: 100 },
-  { value: 'river', label: 'River/Major Waterway', baseCost: 175 },
-  { value: 'wetland', label: 'Wetland/Marsh', baseCost: 100 },
-  { value: 'multiple', label: 'Multiple Features', baseCost: 125 },
-  { value: 'unknown', label: 'Unknown', baseCost: 25 },
+// WATERWAY BOUNDARY - Simple yes/no (applies 20% multiplier if yes)
+export const WATERWAY_BOUNDARY: FieldOption[] = [
+  { value: 'no', label: 'No', baseCost: 0 },
+  { value: 'yes', label: 'Yes', baseCost: 0 },
 ];
 
 // ADJOINING PROPERTIES

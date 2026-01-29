@@ -2,7 +2,7 @@ import {
   SurveyTypeConfig,
   PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
   PROPERTY_SIZE, PROPERTY_TYPE, PROPERTY_CORNERS, VEGETATION, TERRAIN,
-  WATER_FEATURES, EXISTING_SURVEY, EXISTING_MONUMENTS,
+  WATERWAY_BOUNDARY, EXISTING_SURVEY, EXISTING_MONUMENTS,
   ACCESS_CONDITIONS, TRAVEL_DISTANCE, ADJOINING,
   FENCE_ISSUES, MONUMENTS_NEEDED, SURVEY_PURPOSE,
   HAS_RESIDENCE, RESIDENCE_CORNERS, RESIDENCE_SIZE, GARAGE,
@@ -41,15 +41,16 @@ function calculateImprovementsCost(values: Record<string, unknown>): number {
 // PRICING MODEL:
 // 1. Property Size base cost (scaled by vegetation × terrain)
 // 2. + Flat add-ons (NOT scaled):
-//    - Property corners, previous survey, corner markers, access, water features
+//    - Property corners, previous survey, corner markers, access
 //    - Adjoining properties, travel distance, fence issues, new markers, purpose
 //    - Residential structures (house, garage, dynamic improvements)
+// 3. If waterway boundary = yes, apply 20% multiplier to final total
 // =============================================================================
 const boundarySurvey: SurveyTypeConfig = {
   id: 'boundary',
   name: 'Boundary Survey',
   description: 'Establishes and marks property boundaries. For fences, disputes, permits, or property purchases.',
-  basePrice: 520,
+  basePrice: 475,
   minPrice: 400,
   fields: [
     PROPERTY_ADDRESS_FIELD,
@@ -83,8 +84,11 @@ const boundarySurvey: SurveyTypeConfig = {
     { id: 'vegetation', label: 'Vegetation', type: 'select', required: true, options: VEGETATION },
     { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
     
+    // Waterway boundary - 20% multiplier if yes
+    { id: 'waterwayBoundary', label: 'Does the property have a waterway boundary (river or creek)?', type: 'select', required: true, options: WATERWAY_BOUNDARY,
+      helpText: 'If any boundary line follows a river, creek, or stream' },
+    
     // Additional factors (FLAT ADD-ONS - not scaled)
-    { id: 'waterFeatures', label: 'Water Features', type: 'select', required: false, options: WATER_FEATURES },
     { id: 'existingSurvey', label: 'Previous Survey', type: 'select', required: true, options: EXISTING_SURVEY },
     { id: 'existingMonuments', label: 'Existing Corner Markers', type: 'select', required: true, options: EXISTING_MONUMENTS },
     { id: 'access', label: 'Property Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
@@ -121,7 +125,6 @@ const boundarySurvey: SurveyTypeConfig = {
     flatAddOns += calculateImprovementsCost(v);
     
     // Site factors
-    flatAddOns += getBaseCost(WATER_FEATURES, v.waterFeatures);
     flatAddOns += getBaseCost(EXISTING_SURVEY, v.existingSurvey);
     flatAddOns += getBaseCost(EXISTING_MONUMENTS, v.existingMonuments);
     flatAddOns += getBaseCost(ACCESS_CONDITIONS, v.access);
@@ -132,7 +135,14 @@ const boundarySurvey: SurveyTypeConfig = {
     flatAddOns += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
     
     // 4. Total = scaled size cost + flat add-ons
-    return scaledSizeCost + flatAddOns;
+    let total = scaledSizeCost + flatAddOns;
+    
+    // 5. Apply 20% multiplier if property has waterway boundary
+    if (v.waterwayBoundary === 'yes') {
+      total = total * 1.20;
+    }
+    
+    return total;
   },
 };
 
@@ -253,7 +263,6 @@ const topoSurvey: SurveyTypeConfig = {
     ]},
     { id: 'vegetation', label: 'Vegetation', type: 'select', required: true, options: VEGETATION },
     { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
-    { id: 'waterFeatures', label: 'Water Features', type: 'select', required: false, options: WATER_FEATURES },
     { id: 'benchmark', label: 'Vertical Datum', type: 'select', required: true, options: [
       { value: 'assumed', label: 'Assumed (relative)', baseCost: 0 },
       { value: 'local', label: 'Local benchmark', baseCost: 75 },
@@ -280,9 +289,8 @@ const topoSurvey: SurveyTypeConfig = {
     let addOns = 0;
     addOns += getBaseCost(f[2].options, v.purpose);
     addOns += getBaseCost(f[5].options, v.features);
-    addOns += getBaseCost(WATER_FEATURES, v.waterFeatures);
-    addOns += getBaseCost(f[9].options, v.benchmark);
-    addOns += getBaseCost(f[10].options, v.boundary);
+    addOns += getBaseCost(f[8].options, v.benchmark);
+    addOns += getBaseCost(f[9].options, v.boundary);
     addOns += getBaseCost(ACCESS_CONDITIONS, v.access);
     addOns += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
     

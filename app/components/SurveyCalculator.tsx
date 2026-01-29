@@ -600,7 +600,6 @@ export default function SurveyCalculator() {
                     <li>Survey Type: {currentSurveyType?.name}</li>
                     <li>Base estimate: ${result.basePrice.toLocaleString()}</li>
                     {rushJob && <li>⚡ Rush fee (+25%): ${Math.round(result.basePrice * 0.25).toLocaleString()}</li>}
-                    {formValues.waterwayBoundary === 'yes' && <li>🌊 Waterway boundary (+20%)</li>}
                     <li>Includes standard deliverables</li>
                   </ul>
                 </div>
