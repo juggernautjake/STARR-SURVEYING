@@ -59,17 +59,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Format the email content
-    let emailBody = '';
     let emailSubject = '';
+    let emailText = '';
+    let emailHtml = '';
 
     if (source === 'pricing-calculator') {
       // Calculator submission - use pre-formatted message
       emailSubject = subject || `Survey Estimate Request from ${name}`;
-      emailBody = message;
+      emailText = message;
+      emailHtml = `<pre style="font-family: monospace; white-space: pre-wrap;">${message}</pre>`;
     } else {
       // Regular contact form submission
       emailSubject = `New Contact Form Submission from ${name}`;
-      emailBody = `
+      emailText = `
 NEW CONTACT FORM SUBMISSION
 ============================
 
@@ -96,27 +98,81 @@ How They Heard About Us: ${howHeard || 'Not specified'}
 Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })}
 Source: Website Contact Form
       `.trim();
+
+      emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #1D3095; color: white; padding: 20px; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .section { background: #f9f9f9; padding: 15px; margin: 15px 0; border-radius: 5px; }
+    .section h2 { color: #1D3095; font-size: 16px; margin-top: 0; border-bottom: 2px solid #C41E3A; padding-bottom: 5px; }
+    .field { margin: 10px 0; }
+    .label { font-weight: bold; color: #555; }
+    .value { color: #333; }
+    .footer { text-align: center; font-size: 12px; color: #888; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📧 New Contact Form Submission</h1>
+    </div>
+    
+    <div class="section">
+      <h2>Contact Information</h2>
+      <div class="field"><span class="label">Name:</span> <span class="value">${name}</span></div>
+      <div class="field"><span class="label">Email:</span> <span class="value"><a href="mailto:${email}">${email}</a></span></div>
+      <div class="field"><span class="label">Phone:</span> <span class="value"><a href="tel:${phone}">${phone}</a></span></div>
+      <div class="field"><span class="label">Company:</span> <span class="value">${company || 'Not provided'}</span></div>
+      <div class="field"><span class="label">Preferred Contact:</span> <span class="value">${preferredContact}</span></div>
+    </div>
+    
+    <div class="section">
+      <h2>Property Information</h2>
+      <div class="field"><span class="label">Address:</span> <span class="value">${propertyAddress || 'Not provided'}</span></div>
+      <div class="field"><span class="label">Service Type:</span> <span class="value">${serviceType || 'Not specified'}</span></div>
+    </div>
+    
+    <div class="section">
+      <h2>Project Details</h2>
+      <p>${projectDetails || 'No details provided'}</p>
+    </div>
+    
+    <div class="section">
+      <h2>Additional Info</h2>
+      <div class="field"><span class="label">How They Heard About Us:</span> <span class="value">${howHeard || 'Not specified'}</span></div>
+    </div>
+    
+    <div class="footer">
+      <p>Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })}</p>
+      <p>Source: Website Contact Form</p>
+    </div>
+  </div>
+</body>
+</html>
+      `.trim();
     }
 
-    // Send via Mailgun
-    const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
-    const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN;
+    // Send via Resend
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
     const BUSINESS_EMAIL = process.env.BUSINESS_EMAIL || 'info@starr-surveying.com';
 
-    // Check if Mailgun is configured
-    if (!MAILGUN_API_KEY || !MAILGUN_DOMAIN || 
-        MAILGUN_API_KEY === 'your_actual_key' || 
-        MAILGUN_DOMAIN === 'your_actual_domain') {
-      // Mailgun not configured - log and return success for development
+    // Check if Resend is configured
+    if (!RESEND_API_KEY || RESEND_API_KEY === 'your_resend_api_key') {
+      // Resend not configured - log and return success for development
       console.log('='.repeat(60));
-      console.log('MAILGUN NOT CONFIGURED - Email would be sent:');
+      console.log('RESEND NOT CONFIGURED - Email would be sent:');
       console.log('='.repeat(60));
       console.log('To:', BUSINESS_EMAIL);
-      console.log('From:', `Starr Surveying Website <noreply@${MAILGUN_DOMAIN || 'mg.starr-surveying.com'}>`);
+      console.log('From: Starr Surveying Website <noreply@starr-surveying.com>');
       console.log('Reply-To:', email);
       console.log('Subject:', emailSubject);
       console.log('-'.repeat(60));
-      console.log(emailBody);
+      console.log(emailText);
       console.log('='.repeat(60));
 
       return NextResponse.json(
@@ -128,42 +184,40 @@ Source: Website Contact Form
       );
     }
 
-    // Send the email via Mailgun API
-    const mailgunResponse = await fetch(
-      `https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${Buffer.from(`api:${MAILGUN_API_KEY}`).toString('base64')}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          from: `Starr Surveying Website <noreply@${MAILGUN_DOMAIN}>`,
-          to: BUSINESS_EMAIL,
-          'h:Reply-To': email,
-          subject: emailSubject,
-          text: emailBody,
-        }),
-      }
-    );
+    // Send the email via Resend API
+    const resendResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Starr Surveying Website <noreply@starr-surveying.com>',
+        to: [BUSINESS_EMAIL],
+        reply_to: email,
+        subject: emailSubject,
+        text: emailText,
+        html: emailHtml,
+      }),
+    });
 
-    if (!mailgunResponse.ok) {
-      const errorText = await mailgunResponse.text();
-      console.error('Mailgun API error:', mailgunResponse.status, errorText);
+    if (!resendResponse.ok) {
+      const errorData = await resendResponse.json();
+      console.error('Resend API error:', resendResponse.status, errorData);
       
       return NextResponse.json(
         {
           success: false,
           message: 'Failed to send email. Please try again or call us directly.',
-          error: `Email service error: ${mailgunResponse.status}`,
+          error: `Email service error: ${resendResponse.status}`,
         },
         { status: 500 }
       );
     }
 
     // Success!
-    const mailgunResult = await mailgunResponse.json();
-    console.log('Email sent successfully:', mailgunResult);
+    const resendResult = await resendResponse.json();
+    console.log('Email sent successfully via Resend:', resendResult);
 
     return NextResponse.json(
       {
@@ -190,7 +244,7 @@ export async function GET(): Promise<NextResponse> {
   return NextResponse.json(
     { 
       status: 'ok',
-      message: 'Contact API is running',
+      message: 'Contact API is running (Resend)',
       timestamp: new Date().toISOString(),
     }, 
     { status: 200 }
