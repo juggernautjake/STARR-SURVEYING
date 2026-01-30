@@ -28,9 +28,39 @@ interface IncomingFormData {
   source?: string;
 }
 
+// =============================================================================
+// UNIQUE REFERENCE NUMBER GENERATOR
+// Format: SS-YYMMDD-HHMMSS-XXX (e.g., SS-260130-143527-A7K)
+// This ensures every email has a unique subject to prevent Gmail threading
+// =============================================================================
+function generateReferenceNumber(): string {
+  const now = new Date();
+  
+  // Get date components (in Central Time)
+  const centralTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+  const year = centralTime.getFullYear().toString().slice(-2); // Last 2 digits of year
+  const month = (centralTime.getMonth() + 1).toString().padStart(2, '0');
+  const day = centralTime.getDate().toString().padStart(2, '0');
+  const hours = centralTime.getHours().toString().padStart(2, '0');
+  const minutes = centralTime.getMinutes().toString().padStart(2, '0');
+  const seconds = centralTime.getSeconds().toString().padStart(2, '0');
+  
+  // Add random suffix for extra uniqueness (in case of simultaneous submissions)
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluded confusing chars: I, O, 0, 1
+  let randomSuffix = '';
+  for (let i = 0; i < 3; i++) {
+    randomSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  
+  return `SS-${year}${month}${day}-${hours}${minutes}${seconds}-${randomSuffix}`;
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body: IncomingFormData = await request.json();
+
+    // Generate unique reference number for this submission
+    const referenceNumber = generateReferenceNumber();
 
     // Normalize field names (handle both naming conventions)
     const name = body.name || body.full_name || '';
@@ -64,14 +94,60 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let emailHtml = '';
 
     if (source === 'pricing-calculator') {
-      // Calculator submission - use pre-formatted message
-      emailSubject = subject || `Survey Estimate Request from ${name}`;
-      emailText = message;
-      emailHtml = `<pre style="font-family: monospace; white-space: pre-wrap;">${message}</pre>`;
+      // Calculator submission - use pre-formatted message with unique reference
+      // Subject format: "Survey Estimate - Boundary Survey - John Smith [SS-260130-143527-A7K]"
+      const baseSubject = subject || `Survey Estimate Request from ${name}`;
+      emailSubject = `${baseSubject} [${referenceNumber}]`;
+      
+      // Add reference number to the message body
+      emailText = `Reference: ${referenceNumber}\n\n${message}`;
+      emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #1D3095; color: white; padding: 20px; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .reference { background: #f0f4ff; border: 2px solid #1D3095; padding: 10px 15px; margin: 15px 0; border-radius: 5px; text-align: center; }
+    .reference-label { font-size: 12px; color: #666; margin-bottom: 5px; }
+    .reference-number { font-size: 18px; font-weight: bold; color: #1D3095; font-family: monospace; }
+    .content { background: #f9f9f9; padding: 15px; margin: 15px 0; border-radius: 5px; }
+    pre { font-family: monospace; white-space: pre-wrap; margin: 0; }
+    .footer { text-align: center; font-size: 12px; color: #888; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🧮 Survey Estimate Request</h1>
+    </div>
+    
+    <div class="reference">
+      <div class="reference-label">REFERENCE NUMBER</div>
+      <div class="reference-number">${referenceNumber}</div>
+    </div>
+    
+    <div class="content">
+      <pre>${message}</pre>
+    </div>
+    
+    <div class="footer">
+      <p>Source: Website Pricing Calculator</p>
+    </div>
+  </div>
+</body>
+</html>
+      `.trim();
     } else {
-      // Regular contact form submission
-      emailSubject = `New Contact Form Submission from ${name}`;
+      // Regular contact form submission with unique reference
+      // Subject format: "New Inquiry - John Smith [SS-260130-143527-A7K]"
+      emailSubject = `New Inquiry - ${name} [${referenceNumber}]`;
+      
       emailText = `
+Reference: ${referenceNumber}
+
 NEW CONTACT FORM SUBMISSION
 ============================
 
@@ -108,6 +184,9 @@ Source: Website Contact Form
     .container { max-width: 600px; margin: 0 auto; padding: 20px; }
     .header { background: #1D3095; color: white; padding: 20px; text-align: center; }
     .header h1 { margin: 0; font-size: 24px; }
+    .reference { background: #f0f4ff; border: 2px solid #1D3095; padding: 10px 15px; margin: 15px 0; border-radius: 5px; text-align: center; }
+    .reference-label { font-size: 12px; color: #666; margin-bottom: 5px; }
+    .reference-number { font-size: 18px; font-weight: bold; color: #1D3095; font-family: monospace; }
     .section { background: #f9f9f9; padding: 15px; margin: 15px 0; border-radius: 5px; }
     .section h2 { color: #1D3095; font-size: 16px; margin-top: 0; border-bottom: 2px solid #C41E3A; padding-bottom: 5px; }
     .field { margin: 10px 0; }
@@ -120,6 +199,11 @@ Source: Website Contact Form
   <div class="container">
     <div class="header">
       <h1>📧 New Contact Form Submission</h1>
+    </div>
+    
+    <div class="reference">
+      <div class="reference-label">REFERENCE NUMBER</div>
+      <div class="reference-number">${referenceNumber}</div>
     </div>
     
     <div class="section">
@@ -167,6 +251,7 @@ Source: Website Contact Form
       console.log('='.repeat(60));
       console.log('RESEND NOT CONFIGURED - Email would be sent:');
       console.log('='.repeat(60));
+      console.log('Reference:', referenceNumber);
       console.log('To:', BUSINESS_EMAIL);
       console.log('From: Starr Surveying Website <noreply@starr-surveying.com>');
       console.log('Reply-To:', email);
@@ -179,6 +264,7 @@ Source: Website Contact Form
         {
           success: true,
           message: 'Form received (email service not configured - check server logs)',
+          reference: referenceNumber,
         },
         { status: 200 }
       );
@@ -217,12 +303,13 @@ Source: Website Contact Form
 
     // Success!
     const resendResult = await resendResponse.json();
-    console.log('Email sent successfully via Resend:', resendResult);
+    console.log('Email sent successfully via Resend:', resendResult, 'Reference:', referenceNumber);
 
     return NextResponse.json(
       {
         success: true,
         message: 'Thank you for your submission! We will contact you within 24 business hours.',
+        reference: referenceNumber,
       },
       { status: 200 }
     );
