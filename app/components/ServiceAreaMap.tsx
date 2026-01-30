@@ -14,18 +14,23 @@ const containerStyle = {
   height: '100%',
 };
 
-// Belton, TX HQ coordinates (approximate for 3779 W FM 436, Belton, TX 76513)
+// Belton, TX HQ coordinates (approximate for 3779 FM436, Belton, TX 76513)
 // Note: These coordinates center the 175-mile radius circle on the map
-// For the directions URL, we use the actual address string for accuracy
 const beltonCenter = { lat: 31.0720, lng: -97.5200 };
 
-// Office address for directions - Professional format
+// =============================================================================
+// OFFICE ADDRESS CONSTANTS
+// =============================================================================
+
+// Professional format for DISPLAY on website
 export const OFFICE_ADDRESS = '3779 W FM 436, Belton, TX 76513';
 export const OFFICE_ADDRESS_LINE1 = '3779 W FM 436';
 export const OFFICE_ADDRESS_LINE2 = 'Belton, TX 76513';
 
-// URL-encoded address for Google Maps
-const OFFICE_ADDRESS_ENCODED = encodeURIComponent('3779 W FM 436, Belton, TX 76513');
+// Google Maps recognized format for DIRECTIONS URL
+// Note: Google Maps has this address indexed as "3779 FM436" (no "W", no space)
+const GOOGLE_MAPS_ADDRESS = '3779 FM436, Belton, TX 76513';
+const GOOGLE_MAPS_ADDRESS_ENCODED = encodeURIComponent(GOOGLE_MAPS_ADDRESS);
 
 // ~175 miles in meters = 281,635 meters (175 * 1609.34)
 const radiusInMeters = 281635;
@@ -47,12 +52,10 @@ const mapOptions = {
 };
 
 // Generate Google Maps directions URL
-// Uses the address string (not coordinates) for accurate geocoding
-// This opens the Google Maps app (if installed) or web with directions pre-filled
+// Uses the Google Maps recognized address format for accurate routing
 // The user's current location is automatically used as the starting point
-// (Google Maps will request location permission if needed)
 export function getDirectionsUrl(): string {
-  return `https://www.google.com/maps/dir/?api=1&destination=${OFFICE_ADDRESS_ENCODED}&travelmode=driving`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${GOOGLE_MAPS_ADDRESS_ENCODED}&travelmode=driving`;
 }
 
 // Placeholder map component (fallback if no API key)
