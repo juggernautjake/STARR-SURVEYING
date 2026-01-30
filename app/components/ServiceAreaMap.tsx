@@ -5,7 +5,7 @@ import { GoogleMap, LoadScript, Circle, Marker, InfoWindow } from '@react-google
 
 // ============================================================================
 // GOOGLE MAPS SERVICE AREA MAP
-// Shows 200-mile radius around Belton, TX headquarters
+// Shows 175-mile radius around Belton, TX headquarters
 // Includes "Get Directions" functionality
 // ============================================================================
 
@@ -21,8 +21,8 @@ const beltonCenter = { lat: 31.0561, lng: -97.4642 };
 const OFFICE_ADDRESS = '3779 W FM 436, Belton, TX 76513';
 const OFFICE_COORDS = '31.0561,-97.4642';
 
-// ~200 miles in meters = 321,869 meters (200 * 1609.34)
-const radiusInMeters = 321869;
+// ~175 miles in meters = 281,635 meters (175 * 1609.34)
+const radiusInMeters = 281635;
 
 const circleOptions = {
   strokeColor: '#BD1218',
@@ -82,7 +82,7 @@ function PlaceholderMap() {
           </div>
           <div className="placeholder-map__center-label">
             <span className="placeholder-map__center-title">Belton HQ</span>
-            <span className="placeholder-map__center-radius">200-mile radius</span>
+            <span className="placeholder-map__center-radius">175-mile radius</span>
           </div>
         </div>
       </div>
@@ -94,7 +94,6 @@ function PlaceholderMap() {
         <span className="placeholder-map__city" style={{ top: '62%', left: '35%' }}>Austin</span>
         <span className="placeholder-map__city" style={{ top: '78%', left: '28%' }}>San Antonio</span>
         <span className="placeholder-map__city" style={{ top: '72%', left: '72%' }}>Houston</span>
-        <span className="placeholder-map__city" style={{ top: '52%', left: '65%' }}>Huntsville</span>
         <span className="placeholder-map__city" style={{ top: '35%', left: '50%' }}>Waco</span>
       </div>
 
@@ -162,10 +161,10 @@ export default function ServiceAreaMap() {
         <GoogleMap
           mapContainerStyle={containerStyle}
           center={beltonCenter}
-          zoom={6.5}
+          zoom={6.8}
           options={mapOptions}
         >
-          {/* 200-mile radius circle */}
+          {/* 175-mile radius circle */}
           <Circle 
             center={beltonCenter} 
             radius={radiusInMeters} 
