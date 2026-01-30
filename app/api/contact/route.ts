@@ -4,16 +4,18 @@ import { NextRequest, NextResponse } from 'next/server';
 // CONFIGURATION
 // =============================================================================
 
-// Email recipients
+// Email recipients - business notifications go to all of these
 const EMAIL_RECIPIENTS = [
   'info@starr-surveying.com',
   'starrsurveying@yahoo.com',
+  'jacobmaddux@starr-surveying.com',
+  'hankmaddux@starr-surveying.com',
 ];
 
-// SMS recipients (AT&T email-to-SMS gateway)
+// SMS recipients (actual phone numbers for Twilio)
 const SMS_RECIPIENTS = [
-  '2543151123@txt.att.net',  // Jacob
-  '9366620077@txt.att.net',  // Hank
+  '+12543151123',  // Jacob
+  '+19366620077',  // Hank
 ];
 
 // Company information
@@ -173,11 +175,10 @@ function parseCalculatorMessage(message: string): ParsedCalculatorData {
 }
 
 // =============================================================================
-// SMS MESSAGE BUILDER - Clean format for AT&T gateway
+// SMS MESSAGE BUILDER - Clean format for Twilio
 // =============================================================================
 
 function buildSmsMessage(data: NormalizedData, referenceNumber: string, isCalculator: boolean): string {
-  // Keep SMS simple and clean - no fancy unicode that might cause issues
   let sms = `NEW INQUIRY\n`;
   sms += `Ref: ${referenceNumber}\n`;
   sms += `---------------\n`;
@@ -1016,7 +1017,7 @@ function buildCustomerPlainText(data: NormalizedData, referenceNumber: string, i
 }
 
 // =============================================================================
-// EMAIL SENDING FUNCTIONS
+// EMAIL SENDING FUNCTION (Resend)
 // =============================================================================
 
 async function sendEmail(
@@ -1057,51 +1058,54 @@ async function sendEmail(
   }
 }
 
+// =============================================================================
+// SMS SENDING FUNCTION (Twilio)
+// =============================================================================
+
 async function sendSms(
-  apiKey: string,
-  to: string[],
+  accountSid: string,
+  authToken: string,
+  fromNumber: string,
+  toNumbers: string[],
   message: string
 ): Promise<boolean> {
-  // Send SMS via email-to-SMS gateway
-  // Each recipient gets their own email to ensure delivery
-  try {
-    const results = await Promise.all(
-      to.map(async (recipient) => {
-        try {
-          const response = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: 'Starr Surveying <noreply@starr-surveying.com>',
-              to: [recipient],
-              subject: 'New Inquiry', // Some gateways show subject
-              text: message,
-            }),
-          });
-          
-          if (!response.ok) {
-            const error = await response.json();
-            console.error(`SMS to ${recipient} failed:`, error);
-            return false;
-          }
-          
-          console.log(`SMS sent to ${recipient}`);
-          return true;
-        } catch (err) {
-          console.error(`SMS to ${recipient} error:`, err);
-          return false;
-        }
-      })
-    );
-    
-    return results.some(r => r); // Return true if at least one succeeded
-  } catch (error) {
-    console.error('SMS send error:', error);
-    return false;
+  const results: boolean[] = [];
+  
+  for (const toNumber of toNumbers) {
+    try {
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+      
+      // Twilio requires form-urlencoded data
+      const formData = new URLSearchParams();
+      formData.append('To', toNumber);
+      formData.append('From', fromNumber);
+      formData.append('Body', message);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString(),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`SMS sent to ${toNumber}, SID: ${data.sid}`);
+        results.push(true);
+      } else {
+        const error = await response.json();
+        console.error(`SMS to ${toNumber} failed:`, error);
+        results.push(false);
+      }
+    } catch (error) {
+      console.error(`SMS to ${toNumber} error:`, error);
+      results.push(false);
+    }
   }
+  
+  return results.some(r => r); // Return true if at least one succeeded
 }
 
 // =============================================================================
@@ -1159,14 +1163,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const customerText = buildCustomerPlainText(data, referenceNumber, isCalculator);
     const smsMessage = buildSmsMessage(data, referenceNumber, isCalculator);
 
-    // Get API key
+    // Get API keys
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+    const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+    const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 
     // Check if Resend is configured
     if (!RESEND_API_KEY || RESEND_API_KEY === 'your_resend_api_key') {
       // Development mode - log everything
       console.log('='.repeat(70));
-      console.log('RESEND NOT CONFIGURED - Emails would be sent:');
+      console.log('DEV MODE - Emails/SMS would be sent:');
       console.log('='.repeat(70));
       console.log('Reference:', referenceNumber);
       console.log('\n--- BUSINESS EMAIL ---');
@@ -1183,15 +1190,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           success: true,
-          message: 'Form received (email service not configured - check server logs)',
+          message: 'Form received (dev mode - check server logs)',
           reference: referenceNumber,
         },
         { status: 200 }
       );
     }
 
-    // Send all emails and SMS
-    const results = await Promise.allSettled([
+    // Send emails
+    const emailResults = await Promise.allSettled([
       // 1. Business notification email
       sendEmail(
         RESEND_API_KEY,
@@ -1211,18 +1218,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         customerText,
         customerHtml
       ),
-      
-      // 3. SMS notifications
-      sendSms(RESEND_API_KEY, SMS_RECIPIENTS, smsMessage),
     ]);
 
+    // Send SMS via Twilio (if configured)
+    let smsResult = { status: 'skipped', value: false };
+    if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_PHONE_NUMBER) {
+      try {
+        const smsSuccess = await sendSms(
+          TWILIO_ACCOUNT_SID,
+          TWILIO_AUTH_TOKEN,
+          TWILIO_PHONE_NUMBER,
+          SMS_RECIPIENTS,
+          smsMessage
+        );
+        smsResult = { status: 'fulfilled', value: smsSuccess };
+      } catch (error) {
+        console.error('SMS error:', error);
+        smsResult = { status: 'rejected', value: false };
+      }
+    } else {
+      console.log('Twilio not configured - SMS skipped');
+    }
+
     // Check results
-    const [businessEmail, customerEmail, smsResult] = results;
+    const [businessEmail, customerEmail] = emailResults;
     
     console.log(`[${referenceNumber}] Results:`, {
       business: businessEmail.status === 'fulfilled' ? businessEmail.value : 'failed',
       customer: customerEmail.status === 'fulfilled' ? customerEmail.value : 'failed',
-      sms: smsResult.status === 'fulfilled' ? smsResult.value : 'failed',
+      sms: smsResult.value ? 'sent' : smsResult.status,
     });
 
     // Return success if at least business email sent
@@ -1261,16 +1285,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function GET(): Promise<NextResponse> {
+  const hasTwilio = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
+  
   return NextResponse.json(
     { 
       status: 'ok',
       message: 'Contact API is running',
       features: [
-        'Multiple email recipients (info + Yahoo)',
-        'SMS notifications to both phones',
+        'Multiple email recipients',
         'Customer confirmation emails',
         'Styled HTML emails with branding',
         'Unique reference numbers',
+        hasTwilio ? 'SMS notifications (Twilio)' : 'SMS notifications (not configured)',
       ],
       timestamp: new Date().toISOString(),
     }, 
