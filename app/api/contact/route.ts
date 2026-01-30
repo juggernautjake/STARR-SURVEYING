@@ -8,14 +8,6 @@ import { NextRequest, NextResponse } from 'next/server';
 const EMAIL_RECIPIENTS = [
   'info@starr-surveying.com',
   'starrsurveying@yahoo.com',
-  'jacobmaddux@starr-surveying.com',
-  'hankmaddux@starr-surveying.com',
-];
-
-// SMS recipients (actual phone numbers for Twilio)
-const SMS_RECIPIENTS = [
-  '+12543151123',  // Jacob
-  '+19366620077',  // Hank
 ];
 
 // Company information
@@ -172,82 +164,6 @@ function parseCalculatorMessage(message: string): ParsedCalculatorData {
     projectDetails,
     userNotes,
   };
-}
-
-// =============================================================================
-// SMS MESSAGE BUILDER - Clean format for Twilio
-// =============================================================================
-
-function buildSmsMessage(data: NormalizedData, referenceNumber: string, isCalculator: boolean): string {
-  let sms = `NEW INQUIRY\n`;
-  sms += `Ref: ${referenceNumber}\n`;
-  sms += `---------------\n`;
-  sms += `Name: ${data.name}\n`;
-  sms += `Phone: ${data.phone}\n`;
-  sms += `Email: ${data.email}\n`;
-  
-  if (data.company) {
-    sms += `Company: ${data.company}\n`;
-  }
-  
-  if (data.propertyAddress) {
-    sms += `Property: ${data.propertyAddress}\n`;
-  }
-  
-  if (data.serviceType) {
-    sms += `Service: ${data.serviceType}\n`;
-  }
-  
-  if (data.preferredContact && data.preferredContact !== 'email') {
-    sms += `Prefers: ${data.preferredContact}\n`;
-  }
-  
-  if (data.howHeard) {
-    sms += `Found us: ${data.howHeard}\n`;
-  }
-  
-  // For calculator submissions, include the key details
-  if (isCalculator && data.message) {
-    const parsed = parseCalculatorMessage(data.message);
-    
-    sms += `---------------\n`;
-    sms += `ESTIMATE REQUEST\n`;
-    sms += `Type: ${parsed.surveyType}\n`;
-    sms += `Est: ${parsed.estimateRange}\n`;
-    
-    if (parsed.isRush) {
-      sms += `** RUSH JOB **\n`;
-    }
-    
-    // Add key project details
-    for (const detail of parsed.projectDetails.slice(0, 8)) {
-      sms += `${detail.label}: ${detail.value}\n`;
-    }
-    
-    // Add user notes if present
-    if (parsed.userNotes) {
-      sms += `---------------\n`;
-      sms += `Notes: `;
-      if (parsed.userNotes.length > 150) {
-        sms += `${parsed.userNotes.substring(0, 150)}... (see email)`;
-      } else {
-        sms += parsed.userNotes;
-      }
-      sms += `\n`;
-    }
-  } else if (data.projectDetails) {
-    // For regular contact form
-    sms += `---------------\n`;
-    sms += `Details: `;
-    if (data.projectDetails.length > 200) {
-      sms += `${data.projectDetails.substring(0, 200)}... (see email)`;
-    } else {
-      sms += data.projectDetails;
-    }
-    sms += `\n`;
-  }
-  
-  return sms;
 }
 
 // =============================================================================
@@ -1059,56 +975,6 @@ async function sendEmail(
 }
 
 // =============================================================================
-// SMS SENDING FUNCTION (Twilio)
-// =============================================================================
-
-async function sendSms(
-  accountSid: string,
-  authToken: string,
-  fromNumber: string,
-  toNumbers: string[],
-  message: string
-): Promise<boolean> {
-  const results: boolean[] = [];
-  
-  for (const toNumber of toNumbers) {
-    try {
-      const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-      
-      // Twilio requires form-urlencoded data
-      const formData = new URLSearchParams();
-      formData.append('To', toNumber);
-      formData.append('From', fromNumber);
-      formData.append('Body', message);
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData.toString(),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`SMS sent to ${toNumber}, SID: ${data.sid}`);
-        results.push(true);
-      } else {
-        const error = await response.json();
-        console.error(`SMS to ${toNumber} failed:`, error);
-        results.push(false);
-      }
-    } catch (error) {
-      console.error(`SMS to ${toNumber} error:`, error);
-      results.push(false);
-    }
-  }
-  
-  return results.some(r => r); // Return true if at least one succeeded
-}
-
-// =============================================================================
 // MAIN API HANDLER
 // =============================================================================
 
@@ -1161,19 +1027,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const businessText = buildPlainTextEmail(data, referenceNumber, isCalculator);
     const customerHtml = buildCustomerConfirmationHtml(data, referenceNumber, isCalculator);
     const customerText = buildCustomerPlainText(data, referenceNumber, isCalculator);
-    const smsMessage = buildSmsMessage(data, referenceNumber, isCalculator);
 
-    // Get API keys
+    // Get API key
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
-    const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
-    const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-    const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER;
 
     // Check if Resend is configured
     if (!RESEND_API_KEY || RESEND_API_KEY === 'your_resend_api_key') {
       // Development mode - log everything
       console.log('='.repeat(70));
-      console.log('DEV MODE - Emails/SMS would be sent:');
+      console.log('DEV MODE - Emails would be sent:');
       console.log('='.repeat(70));
       console.log('Reference:', referenceNumber);
       console.log('\n--- BUSINESS EMAIL ---');
@@ -1182,9 +1044,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('\n--- CUSTOMER CONFIRMATION ---');
       console.log('To:', data.email);
       console.log('Subject:', customerSubject);
-      console.log('\n--- SMS NOTIFICATIONS ---');
-      console.log('To:', SMS_RECIPIENTS.join(', '));
-      console.log('Message:\n', smsMessage);
       console.log('='.repeat(70));
 
       return NextResponse.json(
@@ -1220,33 +1079,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ),
     ]);
 
-    // Send SMS via Twilio (if configured)
-    let smsResult = { status: 'skipped', value: false };
-    if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_PHONE_NUMBER) {
-      try {
-        const smsSuccess = await sendSms(
-          TWILIO_ACCOUNT_SID,
-          TWILIO_AUTH_TOKEN,
-          TWILIO_PHONE_NUMBER,
-          SMS_RECIPIENTS,
-          smsMessage
-        );
-        smsResult = { status: 'fulfilled', value: smsSuccess };
-      } catch (error) {
-        console.error('SMS error:', error);
-        smsResult = { status: 'rejected', value: false };
-      }
-    } else {
-      console.log('Twilio not configured - SMS skipped');
-    }
-
     // Check results
     const [businessEmail, customerEmail] = emailResults;
     
     console.log(`[${referenceNumber}] Results:`, {
       business: businessEmail.status === 'fulfilled' ? businessEmail.value : 'failed',
       customer: customerEmail.status === 'fulfilled' ? customerEmail.value : 'failed',
-      sms: smsResult.value ? 'sent' : smsResult.status,
     });
 
     // Return success if at least business email sent
@@ -1285,8 +1123,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function GET(): Promise<NextResponse> {
-  const hasTwilio = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
-  
   return NextResponse.json(
     { 
       status: 'ok',
@@ -1296,7 +1132,6 @@ export async function GET(): Promise<NextResponse> {
         'Customer confirmation emails',
         'Styled HTML emails with branding',
         'Unique reference numbers',
-        hasTwilio ? 'SMS notifications (Twilio)' : 'SMS notifications (not configured)',
       ],
       timestamp: new Date().toISOString(),
     }, 
