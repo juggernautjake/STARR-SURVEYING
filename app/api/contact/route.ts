@@ -23,8 +23,8 @@ const COMPANY = {
   website: 'https://starr-surveying.com',
   logoUrl: 'https://starr-surveying.com/logos/starr_surveying_logo_aug_2024_alt.png',
   team: [
-    { name: 'Henry "Hank" Maddux', title: 'RPLS #6706', phone: '(936) 662-0077', email: 'hank@starr-surveying.com' },
-    { name: 'Jacob Maddux', title: 'Survey Technician', phone: '(254) 315-1123', email: 'jacob@starr-surveying.com' },
+    { name: 'Henry "Hank" Maddux', title: 'RPLS #6706', phone: '(936) 662-0077', email: 'hankmaddux@starr-surveying.com' },
+    { name: 'Jacob Maddux', title: 'Party Chief / Survey Technician', phone: '(254) 315-1123', email: 'jacobmaddux@starr-surveying.com' },
   ],
   proverb: '"Remove not the ancient landmark, which thy fathers have set." — Proverbs 22:28',
 };
@@ -86,6 +86,14 @@ interface NormalizedData {
   message: string;
 }
 
+interface ParsedCalculatorData {
+  surveyType: string;
+  estimateRange: string;
+  isRush: boolean;
+  projectDetails: Array<{ label: string; value: string }>;
+  userNotes: string;
+}
+
 // =============================================================================
 // UNIQUE REFERENCE NUMBER GENERATOR
 // =============================================================================
@@ -111,107 +119,138 @@ function generateReferenceNumber(): string {
 }
 
 // =============================================================================
-// SMS MESSAGE BUILDER
+// CALCULATOR MESSAGE PARSER
 // =============================================================================
 
-function buildSmsMessage(data: NormalizedData, referenceNumber: string, isCalculator: boolean): string {
-  const MAX_SMS_LENGTH = 1500; // AT&T concatenates, but let's be reasonable
+function parseCalculatorMessage(message: string): ParsedCalculatorData {
+  // Extract survey type
+  const surveyTypeMatch = message.match(/Survey Type: ([^\n]+)/);
+  const surveyType = surveyTypeMatch ? surveyTypeMatch[1].trim() : 'Survey';
   
-  let sms = `📧 NEW INQUIRY!\n`;
-  sms += `Ref: ${referenceNumber}\n`;
-  sms += `━━━━━━━━━━━━━━━\n`;
-  sms += `👤 ${data.name}\n`;
-  sms += `📞 ${data.phone}\n`;
-  sms += `✉️ ${data.email}\n`;
+  // Extract estimate range
+  const estimateMatch = message.match(/Estimated Range: (\$[\d,]+ - \$[\d,]+)/);
+  const estimateRange = estimateMatch ? estimateMatch[1] : 'See details';
   
-  if (data.company) {
-    sms += `🏢 ${data.company}\n`;
-  }
+  // Check for rush job
+  const isRush = message.includes('Rush Job: Yes');
   
-  if (data.propertyAddress) {
-    sms += `📍 ${data.propertyAddress}\n`;
-  }
-  
-  if (data.serviceType) {
-    sms += `🔧 ${data.serviceType}\n`;
-  }
-  
-  if (data.preferredContact && data.preferredContact !== 'email') {
-    sms += `📱 Prefers: ${data.preferredContact}\n`;
-  }
-  
-  if (data.howHeard) {
-    sms += `📣 Source: ${data.howHeard}\n`;
-  }
-  
-  // For calculator submissions, parse and include all the details
-  if (isCalculator && data.message) {
-    sms += `━━━━━━━━━━━━━━━\n`;
-    
-    // Extract estimate range from message
-    const estimateMatch = data.message.match(/Estimated Range: \$[\d,]+ - \$[\d,]+/);
-    if (estimateMatch) {
-      sms += `💰 ${estimateMatch[0]}\n`;
+  // Extract user notes - these come right after "ADDITIONAL NOTES:" and before "SURVEY ESTIMATE REQUEST"
+  let userNotes = '';
+  const notesMatch = message.match(/ADDITIONAL NOTES:\n([\s\S]*?)(?=\n\nSURVEY ESTIMATE REQUEST|\n\n[A-Z])/);
+  if (notesMatch && notesMatch[1]) {
+    userNotes = notesMatch[1].trim();
+    if (userNotes.toLowerCase() === 'none' || userNotes === '') {
+      userNotes = '';
     }
-    
-    // Extract survey type
-    const surveyTypeMatch = data.message.match(/Survey Type: ([^\n]+)/);
-    if (surveyTypeMatch) {
-      sms += `📋 ${surveyTypeMatch[1]}\n`;
-    }
-    
-    // Extract rush job
-    if (data.message.includes('Rush Job: Yes')) {
-      sms += `⚡ RUSH JOB REQUESTED\n`;
-    }
-    
-    // Extract key project details from the message
-    const detailsSection = data.message.match(/PROJECT DETAILS:[\s\S]*?(?=ADDITIONAL NOTES:|Submitted:|$)/);
-    if (detailsSection) {
-      const lines = detailsSection[0].split('\n').filter(line => 
-        line.includes(':') && 
-        !line.includes('PROJECT DETAILS') &&
-        !line.includes('---')
-      );
-      
-      for (const line of lines.slice(0, 10)) { // Limit to 10 detail lines
-        const trimmed = line.trim();
-        if (trimmed && trimmed.length > 2) {
-          sms += `• ${trimmed}\n`;
+  }
+  
+  // Extract project details from the PROJECT DETAILS section
+  const projectDetails: Array<{ label: string; value: string }> = [];
+  const detailsMatch = message.match(/PROJECT DETAILS:[\s-]*\n([\s\S]*?)(?=\n\nSubmitted:|$)/);
+  
+  if (detailsMatch && detailsMatch[1]) {
+    const lines = detailsMatch[1].split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed && trimmed.includes(':') && !trimmed.startsWith('-')) {
+        const colonIndex = trimmed.indexOf(':');
+        const label = trimmed.substring(0, colonIndex).trim();
+        const value = trimmed.substring(colonIndex + 1).trim();
+        if (label && value && !label.includes('---')) {
+          projectDetails.push({ label, value });
         }
       }
     }
+  }
+  
+  return {
+    surveyType,
+    estimateRange,
+    isRush,
+    projectDetails,
+    userNotes,
+  };
+}
+
+// =============================================================================
+// SMS MESSAGE BUILDER - Clean format for AT&T gateway
+// =============================================================================
+
+function buildSmsMessage(data: NormalizedData, referenceNumber: string, isCalculator: boolean): string {
+  // Keep SMS simple and clean - no fancy unicode that might cause issues
+  let sms = `NEW INQUIRY\n`;
+  sms += `Ref: ${referenceNumber}\n`;
+  sms += `---------------\n`;
+  sms += `Name: ${data.name}\n`;
+  sms += `Phone: ${data.phone}\n`;
+  sms += `Email: ${data.email}\n`;
+  
+  if (data.company) {
+    sms += `Company: ${data.company}\n`;
+  }
+  
+  if (data.propertyAddress) {
+    sms += `Property: ${data.propertyAddress}\n`;
+  }
+  
+  if (data.serviceType) {
+    sms += `Service: ${data.serviceType}\n`;
+  }
+  
+  if (data.preferredContact && data.preferredContact !== 'email') {
+    sms += `Prefers: ${data.preferredContact}\n`;
+  }
+  
+  if (data.howHeard) {
+    sms += `Found us: ${data.howHeard}\n`;
+  }
+  
+  // For calculator submissions, include the key details
+  if (isCalculator && data.message) {
+    const parsed = parseCalculatorMessage(data.message);
     
-    // Add notes if present (truncated)
-    const notesMatch = data.message.match(/ADDITIONAL NOTES:\n([^\n]+)/);
-    if (notesMatch && notesMatch[1] && notesMatch[1].trim() !== 'None') {
-      const notes = notesMatch[1].trim();
-      if (notes.length > 100) {
-        sms += `📝 ${notes.substring(0, 100)}... (see email)\n`;
+    sms += `---------------\n`;
+    sms += `ESTIMATE REQUEST\n`;
+    sms += `Type: ${parsed.surveyType}\n`;
+    sms += `Est: ${parsed.estimateRange}\n`;
+    
+    if (parsed.isRush) {
+      sms += `** RUSH JOB **\n`;
+    }
+    
+    // Add key project details
+    for (const detail of parsed.projectDetails.slice(0, 8)) {
+      sms += `${detail.label}: ${detail.value}\n`;
+    }
+    
+    // Add user notes if present
+    if (parsed.userNotes) {
+      sms += `---------------\n`;
+      sms += `Notes: `;
+      if (parsed.userNotes.length > 150) {
+        sms += `${parsed.userNotes.substring(0, 150)}... (see email)`;
       } else {
-        sms += `📝 ${notes}\n`;
+        sms += parsed.userNotes;
       }
+      sms += `\n`;
     }
   } else if (data.projectDetails) {
     // For regular contact form
-    sms += `━━━━━━━━━━━━━━━\n`;
+    sms += `---------------\n`;
+    sms += `Details: `;
     if (data.projectDetails.length > 200) {
-      sms += `📝 ${data.projectDetails.substring(0, 200)}... (see email for full details)\n`;
+      sms += `${data.projectDetails.substring(0, 200)}... (see email)`;
     } else {
-      sms += `📝 ${data.projectDetails}\n`;
+      sms += data.projectDetails;
     }
-  }
-  
-  // Truncate if too long
-  if (sms.length > MAX_SMS_LENGTH) {
-    sms = sms.substring(0, MAX_SMS_LENGTH - 30) + '\n... (see email for full details)';
+    sms += `\n`;
   }
   
   return sms;
 }
 
 // =============================================================================
-// HTML EMAIL TEMPLATES
+// HTML EMAIL STYLES
 // =============================================================================
 
 function getEmailStyles(): string {
@@ -392,7 +431,7 @@ function getEmailStyles(): string {
     .cta-button {
       display: inline-block;
       background: linear-gradient(135deg, ${COLORS.red} 0%, ${COLORS.blue} 100%);
-      color: ${COLORS.white};
+      color: #FFFFFF;
       font-size: 14px;
       font-weight: bold;
       padding: 12px 30px;
@@ -408,10 +447,6 @@ function getEmailStyles(): string {
       background-color: ${COLORS.darkBlue};
       padding: 30px;
       text-align: center;
-    }
-    .footer-logo {
-      max-height: 60px;
-      margin-bottom: 15px;
     }
     .footer-company {
       color: ${COLORS.white};
@@ -525,39 +560,7 @@ function getReferenceBar(referenceNumber: string): string {
 // =============================================================================
 
 function buildCalculatorEmailHtml(data: NormalizedData, referenceNumber: string): string {
-  // Parse estimate from message
-  const estimateMatch = data.message.match(/Estimated Range: \$[\d,]+ - \$[\d,]+/);
-  const estimateRange = estimateMatch ? estimateMatch[0].replace('Estimated Range: ', '') : 'See details below';
-  
-  // Parse survey type
-  const surveyTypeMatch = data.message.match(/Survey Type: ([^\n]+)/);
-  const surveyType = surveyTypeMatch ? surveyTypeMatch[1] : 'Survey';
-  
-  // Check for rush job
-  const isRush = data.message.includes('Rush Job: Yes');
-  
-  // Parse project details
-  const detailsSection = data.message.match(/PROJECT DETAILS:[\s\S]*?(?=ADDITIONAL NOTES:|Submitted:|$)/);
-  let detailsList = '';
-  if (detailsSection) {
-    const lines = detailsSection[0].split('\n').filter(line => 
-      line.includes(':') && 
-      !line.includes('PROJECT DETAILS') &&
-      !line.includes('---')
-    );
-    detailsList = lines.map(line => {
-      const [label, ...valueParts] = line.split(':');
-      const value = valueParts.join(':').trim();
-      if (value) {
-        return `<li><strong>${label.trim()}:</strong> ${value}</li>`;
-      }
-      return '';
-    }).filter(Boolean).join('');
-  }
-  
-  // Parse additional notes
-  const notesMatch = data.message.match(/ADDITIONAL NOTES:\n([\s\S]*?)(?=Submitted:|$)/);
-  const notes = notesMatch ? notesMatch[1].trim() : '';
+  const parsed = parseCalculatorMessage(data.message);
   
   const timestamp = new Date().toLocaleString('en-US', { 
     timeZone: 'America/Chicago',
@@ -570,6 +573,11 @@ function buildCalculatorEmailHtml(data: NormalizedData, referenceNumber: string)
     hour12: true
   });
 
+  // Build project details list HTML
+  const detailsListHtml = parsed.projectDetails
+    .map(d => `<li><strong>${d.label}:</strong> ${d.value}</li>`)
+    .join('');
+
   return `
 <!DOCTYPE html>
 <html>
@@ -580,15 +588,15 @@ function buildCalculatorEmailHtml(data: NormalizedData, referenceNumber: string)
 </head>
 <body>
   <div class="email-wrapper">
-    ${getEmailHeader('📧 New Estimate Request', `${surveyType} • Website Calculator`)}
+    ${getEmailHeader('New Estimate Request', `${parsed.surveyType} - Website Calculator`)}
     ${getReferenceBar(referenceNumber)}
     
     <div class="content">
       <!-- Estimate Box -->
       <div class="estimate-box">
         <p class="estimate-label">Estimated Price Range</p>
-        <p class="estimate-range">${estimateRange}</p>
-        ${isRush ? '<span class="rush-badge">⚡ RUSH JOB REQUESTED</span>' : ''}
+        <p class="estimate-range">${parsed.estimateRange}</p>
+        ${parsed.isRush ? '<span class="rush-badge">RUSH JOB REQUESTED</span>' : ''}
       </div>
       
       <!-- Contact Information -->
@@ -612,16 +620,16 @@ function buildCalculatorEmailHtml(data: NormalizedData, referenceNumber: string)
       <div class="section section--red">
         <h2 class="section-title section-title--red">Project Details</h2>
         <ul class="details-list">
-          <li><strong>Survey Type:</strong> ${surveyType}</li>
-          ${detailsList}
+          <li><strong>Survey Type:</strong> ${parsed.surveyType}</li>
+          ${detailsListHtml}
         </ul>
       </div>
       
-      ${notes && notes !== 'None' ? `
-      <!-- Additional Notes -->
+      ${parsed.userNotes ? `
+      <!-- Additional Notes from Customer -->
       <div class="section">
-        <h2 class="section-title">Additional Notes</h2>
-        <div class="notes-box">${notes}</div>
+        <h2 class="section-title">Additional Notes from Customer</h2>
+        <div class="notes-box">${parsed.userNotes}</div>
       </div>
       ` : ''}
       
@@ -663,7 +671,7 @@ function buildContactFormEmailHtml(data: NormalizedData, referenceNumber: string
 </head>
 <body>
   <div class="email-wrapper">
-    ${getEmailHeader('📬 New Contact Form Submission', 'Website Inquiry')}
+    ${getEmailHeader('New Contact Form Submission', 'Website Inquiry')}
     ${getReferenceBar(referenceNumber)}
     
     <div class="content">
@@ -753,21 +761,42 @@ function buildCustomerConfirmationHtml(data: NormalizedData, referenceNumber: st
     hour12: true
   });
 
-  // For calculator submissions, extract estimate
+  // For calculator submissions, include full estimate details
   let estimateSection = '';
+  let projectDetailsSection = '';
+  
   if (isCalculator && data.message) {
-    const estimateMatch = data.message.match(/Estimated Range: \$[\d,]+ - \$[\d,]+/);
-    const surveyTypeMatch = data.message.match(/Survey Type: ([^\n]+)/);
+    const parsed = parseCalculatorMessage(data.message);
     
-    if (estimateMatch) {
-      estimateSection = `
-        <div class="estimate-box">
-          <p class="estimate-label">Your Estimated Price Range</p>
-          <p class="estimate-range">${estimateMatch[0].replace('Estimated Range: ', '')}</p>
-          ${surveyTypeMatch ? `<p style="color: #065F46; font-size: 14px; margin-top: 10px;">${surveyTypeMatch[1]}</p>` : ''}
-        </div>
-      `;
-    }
+    estimateSection = `
+      <div class="estimate-box">
+        <p class="estimate-label">Your Estimated Price Range</p>
+        <p class="estimate-range">${parsed.estimateRange}</p>
+        <p style="color: #065F46; font-size: 14px; margin-top: 10px;">${parsed.surveyType}</p>
+        ${parsed.isRush ? '<span class="rush-badge">RUSH JOB REQUESTED</span>' : ''}
+      </div>
+    `;
+    
+    // Build project details for customer email
+    const detailsListHtml = parsed.projectDetails
+      .map(d => `<li><strong>${d.label}:</strong> ${d.value}</li>`)
+      .join('');
+    
+    projectDetailsSection = `
+      <div class="section section--red">
+        <h2 class="section-title section-title--red">Your Project Details</h2>
+        <ul class="details-list">
+          <li><strong>Survey Type:</strong> ${parsed.surveyType}</li>
+          ${detailsListHtml}
+        </ul>
+      </div>
+      ${parsed.userNotes ? `
+      <div class="section">
+        <h2 class="section-title">Your Additional Notes</h2>
+        <div class="notes-box">${parsed.userNotes}</div>
+      </div>
+      ` : ''}
+    `;
   }
 
   return `
@@ -780,7 +809,7 @@ function buildCustomerConfirmationHtml(data: NormalizedData, referenceNumber: st
 </head>
 <body>
   <div class="email-wrapper">
-    ${getEmailHeader('✅ Request Received!', 'Thank you for contacting Starr Surveying')}
+    ${getEmailHeader('Request Received!', 'Thank you for contacting Starr Surveying')}
     ${getReferenceBar(referenceNumber)}
     
     <div class="content">
@@ -793,32 +822,51 @@ function buildCustomerConfirmationHtml(data: NormalizedData, referenceNumber: st
       
       ${estimateSection}
       
-      <!-- Your Submission Summary -->
+      <!-- Your Contact Information -->
       <div class="section">
-        <h2 class="section-title">Your Submission Summary</h2>
+        <h2 class="section-title">Your Contact Information</h2>
         <div class="field">
           <div class="field-label">Reference Number</div>
           <div class="field-value" style="font-family: 'Courier New', monospace; font-weight: bold; color: ${COLORS.blue};">${referenceNumber}</div>
         </div>
-        ${data.propertyAddress ? `
+        <div class="field">
+          <div class="field-label">Name</div>
+          <div class="field-value">${data.name}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Email</div>
+          <div class="field-value">${data.email}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Phone</div>
+          <div class="field-value">${data.phone}</div>
+        </div>
+      </div>
+      
+      ${projectDetailsSection}
+      
+      ${!isCalculator && data.propertyAddress ? `
+      <div class="section">
+        <h2 class="section-title">Property Information</h2>
         <div class="field">
           <div class="field-label">Property Address</div>
           <div class="field-value">${data.propertyAddress}</div>
         </div>
-        ` : ''}
         ${data.serviceType ? `
         <div class="field">
           <div class="field-label">Service Requested</div>
           <div class="field-value">${data.serviceType}</div>
         </div>
         ` : ''}
-        ${data.projectDetails ? `
-        <div class="field">
-          <div class="field-label">Project Details</div>
-          <div class="field-value">${data.projectDetails}</div>
-        </div>
-        ` : ''}
       </div>
+      ` : ''}
+      
+      ${!isCalculator && data.projectDetails ? `
+      <div class="section">
+        <h2 class="section-title">Your Message</h2>
+        <div class="notes-box">${data.projectDetails}</div>
+      </div>
+      ` : ''}
       
       <!-- What's Next -->
       <div class="section section--red">
@@ -835,7 +883,7 @@ function buildCustomerConfirmationHtml(data: NormalizedData, referenceNumber: st
       
       <div class="cta-section">
         <p style="margin-bottom: 15px; color: ${COLORS.gray};">Questions? Give us a call!</p>
-        <a href="tel:9366620077" class="cta-button">📞 Call (936) 662-0077</a>
+        <a href="tel:9366620077" class="cta-button" style="color: #FFFFFF;">Call (936) 662-0077</a>
       </div>
       
       <p class="timestamp">Submitted on ${timestamp}</p>
@@ -865,17 +913,34 @@ function buildPlainTextEmail(data: NormalizedData, referenceNumber: string, isCa
   });
 
   if (isCalculator) {
-    return `
-STARR SURVEYING - NEW ESTIMATE REQUEST
-========================================
-Reference: ${referenceNumber}
-
-${data.message}
-
-----------------------------------------
-Submitted: ${timestamp}
-Source: Website Calculator
-    `.trim();
+    const parsed = parseCalculatorMessage(data.message);
+    
+    let text = `STARR SURVEYING - NEW ESTIMATE REQUEST\n`;
+    text += `========================================\n`;
+    text += `Reference: ${referenceNumber}\n\n`;
+    text += `ESTIMATE: ${parsed.estimateRange}\n`;
+    text += `Survey Type: ${parsed.surveyType}\n`;
+    if (parsed.isRush) text += `** RUSH JOB REQUESTED **\n`;
+    text += `\nCONTACT INFORMATION\n`;
+    text += `-------------------\n`;
+    text += `Name: ${data.name}\n`;
+    text += `Email: ${data.email}\n`;
+    text += `Phone: ${data.phone}\n`;
+    text += `\nPROJECT DETAILS\n`;
+    text += `---------------\n`;
+    for (const detail of parsed.projectDetails) {
+      text += `${detail.label}: ${detail.value}\n`;
+    }
+    if (parsed.userNotes) {
+      text += `\nADDITIONAL NOTES\n`;
+      text += `----------------\n`;
+      text += `${parsed.userNotes}\n`;
+    }
+    text += `\n----------------------------------------\n`;
+    text += `Submitted: ${timestamp}\n`;
+    text += `Source: Website Calculator`;
+    
+    return text;
   }
 
   return `
@@ -907,28 +972,47 @@ Source: Website Contact Form
   `.trim();
 }
 
-function buildCustomerPlainText(data: NormalizedData, referenceNumber: string): string {
-  return `
-Thank you for contacting Starr Surveying!
-
-Reference Number: ${referenceNumber}
-
-We have received your request and will respond within 24 business hours.
-
-Your Contact Information:
-- Name: ${data.name}
-- Email: ${data.email}
-- Phone: ${data.phone}
-${data.propertyAddress ? `- Property: ${data.propertyAddress}` : ''}
-${data.serviceType ? `- Service: ${data.serviceType}` : ''}
-
-If you have any urgent questions, please call us at (936) 662-0077.
-
----
-Starr Surveying
-${COMPANY.address}
-${COMPANY.proverb}
-  `.trim();
+function buildCustomerPlainText(data: NormalizedData, referenceNumber: string, isCalculator: boolean): string {
+  let text = `Thank you for contacting Starr Surveying!\n\n`;
+  text += `Reference Number: ${referenceNumber}\n\n`;
+  text += `We have received your request and will respond within 24 business hours.\n\n`;
+  
+  if (isCalculator && data.message) {
+    const parsed = parseCalculatorMessage(data.message);
+    text += `YOUR ESTIMATE REQUEST\n`;
+    text += `---------------------\n`;
+    text += `Estimated Range: ${parsed.estimateRange}\n`;
+    text += `Survey Type: ${parsed.surveyType}\n`;
+    if (parsed.isRush) text += `Rush Job: Yes\n`;
+    text += `\n`;
+    for (const detail of parsed.projectDetails) {
+      text += `${detail.label}: ${detail.value}\n`;
+    }
+    if (parsed.userNotes) {
+      text += `\nYour Notes: ${parsed.userNotes}\n`;
+    }
+    text += `\n`;
+  }
+  
+  text += `YOUR CONTACT INFORMATION\n`;
+  text += `------------------------\n`;
+  text += `Name: ${data.name}\n`;
+  text += `Email: ${data.email}\n`;
+  text += `Phone: ${data.phone}\n`;
+  
+  if (!isCalculator) {
+    if (data.propertyAddress) text += `Property: ${data.propertyAddress}\n`;
+    if (data.serviceType) text += `Service: ${data.serviceType}\n`;
+    if (data.projectDetails) text += `\nYour Message:\n${data.projectDetails}\n`;
+  }
+  
+  text += `\nIf you have any urgent questions, please call us at (936) 662-0077.\n\n`;
+  text += `---\n`;
+  text += `Starr Surveying\n`;
+  text += `${COMPANY.address}\n`;
+  text += `${COMPANY.proverb}`;
+  
+  return text;
 }
 
 // =============================================================================
@@ -979,24 +1063,41 @@ async function sendSms(
   message: string
 ): Promise<boolean> {
   // Send SMS via email-to-SMS gateway
-  // AT&T gateway accepts plain text emails
+  // Each recipient gets their own email to ensure delivery
   try {
-    for (const recipient of to) {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'Starr Surveying <noreply@starr-surveying.com>',
-          to: [recipient],
-          subject: '', // SMS doesn't use subject
-          text: message,
-        }),
-      });
-    }
-    return true;
+    const results = await Promise.all(
+      to.map(async (recipient) => {
+        try {
+          const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'Starr Surveying <noreply@starr-surveying.com>',
+              to: [recipient],
+              subject: 'New Inquiry', // Some gateways show subject
+              text: message,
+            }),
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            console.error(`SMS to ${recipient} failed:`, error);
+            return false;
+          }
+          
+          console.log(`SMS sent to ${recipient}`);
+          return true;
+        } catch (err) {
+          console.error(`SMS to ${recipient} error:`, err);
+          return false;
+        }
+      })
+    );
+    
+    return results.some(r => r); // Return true if at least one succeeded
   } catch (error) {
     console.error('SMS send error:', error);
     return false;
@@ -1055,7 +1156,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     
     const businessText = buildPlainTextEmail(data, referenceNumber, isCalculator);
     const customerHtml = buildCustomerConfirmationHtml(data, referenceNumber, isCalculator);
-    const customerText = buildCustomerPlainText(data, referenceNumber);
+    const customerText = buildCustomerPlainText(data, referenceNumber, isCalculator);
     const smsMessage = buildSmsMessage(data, referenceNumber, isCalculator);
 
     // Get API key
@@ -1065,7 +1166,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!RESEND_API_KEY || RESEND_API_KEY === 'your_resend_api_key') {
       // Development mode - log everything
       console.log('='.repeat(70));
-      console.log('📧 RESEND NOT CONFIGURED - Emails would be sent:');
+      console.log('RESEND NOT CONFIGURED - Emails would be sent:');
       console.log('='.repeat(70));
       console.log('Reference:', referenceNumber);
       console.log('\n--- BUSINESS EMAIL ---');
@@ -1076,7 +1177,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log('Subject:', customerSubject);
       console.log('\n--- SMS NOTIFICATIONS ---');
       console.log('To:', SMS_RECIPIENTS.join(', '));
-      console.log('Message:', smsMessage);
+      console.log('Message:\n', smsMessage);
       console.log('='.repeat(70));
 
       return NextResponse.json(
@@ -1118,7 +1219,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Check results
     const [businessEmail, customerEmail, smsResult] = results;
     
-    console.log(`[${referenceNumber}] Email Results:`, {
+    console.log(`[${referenceNumber}] Results:`, {
       business: businessEmail.status === 'fulfilled' ? businessEmail.value : 'failed',
       customer: customerEmail.status === 'fulfilled' ? customerEmail.value : 'failed',
       sms: smsResult.status === 'fulfilled' ? smsResult.value : 'failed',
@@ -1165,10 +1266,11 @@ export async function GET(): Promise<NextResponse> {
       status: 'ok',
       message: 'Contact API is running',
       features: [
-        'Multiple email recipients',
-        'SMS notifications',
-        'Customer confirmations',
-        'Styled HTML emails',
+        'Multiple email recipients (info + Yahoo)',
+        'SMS notifications to both phones',
+        'Customer confirmation emails',
+        'Styled HTML emails with branding',
+        'Unique reference numbers',
       ],
       timestamp: new Date().toISOString(),
     }, 
