@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useState, FormEvent, ChangeEvent } from 'react';
+import { getDirectionsUrl, OFFICE_ADDRESS } from './components/ServiceAreaMap';
 
 // Import Home page styles
 import './styles/Home.css';
@@ -213,6 +214,10 @@ export default function HomePage(): React.ReactElement {
     setFormState({ loading: false, submitted: false, error: '' });
   };
 
+  const handleGetDirections = (): void => {
+    window.open(getDirectionsUrl(), '_blank');
+  };
+
   return (
     <>
       {/* Hero Section - Gradient Background with COMBINED Card */}
@@ -319,12 +324,12 @@ export default function HomePage(): React.ReactElement {
         </div>
       </section>
 
-      {/* Service Area Section - Single Map with 350-Mile Radius */}
+      {/* Service Area Section - Single Map with 175-Mile Radius */}
       <section className="home-area">
         <div className="home-area__container">
           <h2 className="home-area__title">Service Area</h2>
           <p className="home-area__subtitle">
-            We proudly serve clients within a 350-mile radius of our Belton headquarters.
+            We proudly serve clients within a 175-mile radius of our Belton headquarters.
           </p>
           
           {/* Single Map Container */}
@@ -334,7 +339,7 @@ export default function HomePage(): React.ReactElement {
               <span className="home-area__hq-icon">📍</span>
               <div className="home-area__hq-info">
                 <span className="home-area__hq-title">Belton, TX (HQ)</span>
-                <span className="home-area__hq-radius">350-mile service radius</span>
+                <span className="home-area__hq-radius">175-mile service radius</span>
               </div>
             </div>
             
@@ -342,6 +347,20 @@ export default function HomePage(): React.ReactElement {
             <div className="home-area__map-wrapper">
               <ServiceAreaMap />
             </div>
+          </div>
+
+          {/* Get Directions Button - Below Map */}
+          <div className="home-area__directions">
+            <button 
+              onClick={handleGetDirections}
+              className="home-area__directions-btn"
+              aria-label="Get driving directions to Starr Surveying Home Office"
+            >
+              🚗 Get Directions to Our Home Office
+            </button>
+            <address className="home-area__directions-address">
+              {OFFICE_ADDRESS}
+            </address>
           </div>
           
           {/* Not Sure CTA */}

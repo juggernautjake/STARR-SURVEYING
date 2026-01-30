@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import CountiesDropdown from '../components/CountiesDropdown';
+import { getDirectionsUrl, OFFICE_ADDRESS } from '../components/ServiceAreaMap';
 
 // Import Service Area page styles
 import '../styles/ServiceArea.css';
@@ -25,7 +26,7 @@ interface CoverageCard {
 }
 
 export default function ServiceAreaPage(): React.ReactElement {
-  // Counties within ~350 mile radius of Belton (ALPHABETICALLY SORTED)
+  // Counties within ~175 mile radius of Belton (ALPHABETICALLY SORTED)
   const counties: string[] = [
     'Austin County',
     'Bastrop County',
@@ -90,6 +91,10 @@ export default function ServiceAreaPage(): React.ReactElement {
     { icon: '🗺️', title: 'Municipal', description: 'Government projects, infrastructure' },
   ];
 
+  const handleGetDirections = (): void => {
+    window.open(getDirectionsUrl(), '_blank');
+  };
+
   return (
     <>
       {/* Hero Section */}
@@ -100,7 +105,7 @@ export default function ServiceAreaPage(): React.ReactElement {
               <span className="service-area-hero__title-accent">Service Area</span>
             </h1>
             <p className="service-area-hero__subtitle">
-              Professional land surveying throughout Central Texas and beyond. We proudly serve clients within a 350-mile radius of our headquarters.
+              Professional land surveying throughout Central Texas and beyond. We proudly serve clients within a 175-mile radius of our headquarters.
             </p>
           </div>
         </div>
@@ -113,9 +118,9 @@ export default function ServiceAreaPage(): React.ReactElement {
           <div className="service-area-map__hq">
             <h2 className="service-area-map__hq-title">Starr Surveying Headquarters</h2>
             <p className="service-area-map__hq-location">Belton, Texas</p>
-            <address className="service-area-map__hq-address">3779 W FM 436, Belton, TX 76513</address>
+            <address className="service-area-map__hq-address">{OFFICE_ADDRESS}</address>
             <div className="service-area-map__hq-radius">
-              <span className="service-area-map__hq-radius-number">350</span>
+              <span className="service-area-map__hq-radius-number">175</span>
               <span className="service-area-map__hq-radius-unit">mile service radius</span>
             </div>
           </div>
@@ -123,6 +128,20 @@ export default function ServiceAreaPage(): React.ReactElement {
           {/* Map */}
           <div className="service-area-map__wrapper">
             <ServiceAreaMap />
+          </div>
+
+          {/* Get Directions Button - Below Map */}
+          <div className="service-area-map__directions">
+            <button 
+              onClick={handleGetDirections}
+              className="service-area-map__directions-btn"
+              aria-label="Get driving directions to Starr Surveying Home Office"
+            >
+              🚗 Get Directions to Our Home Office
+            </button>
+            <address className="service-area-map__directions-address">
+              {OFFICE_ADDRESS}
+            </address>
           </div>
         </div>
       </section>

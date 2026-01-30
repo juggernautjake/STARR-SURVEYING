@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, FormEvent, ChangeEvent } from 'react';
+import { OFFICE_ADDRESS, OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '../components/ServiceAreaMap';
 
 // Import Contact page styles
 import '../styles/Contact.css';
@@ -102,8 +103,8 @@ export default function ContactPage(): React.ReactElement {
     {
       icon: '📍',
       label: 'Address',
-      value: '3779 W FM 436',
-      subValue: 'Belton, TX 76513',
+      value: OFFICE_ADDRESS_LINE1,
+      subValue: OFFICE_ADDRESS_LINE2,
     },
   ];
 
@@ -470,7 +471,7 @@ export default function ContactPage(): React.ReactElement {
               <h3 className="contact-area__title">Our Service Area</h3>
               <p className="contact-area__text">
                 We serve Bell County, Williamson County, Coryell County, Falls County, McLennan County, 
-                Travis County, and surrounding Central Texas areas within a 350-mile radius of Belton.
+                Travis County, and surrounding Central Texas areas within a 175-mile radius of Belton.
               </p>
               <p className="contact-area__note">
                 Projects outside our primary service area? Contact us anyway — we&apos;re happy to discuss!

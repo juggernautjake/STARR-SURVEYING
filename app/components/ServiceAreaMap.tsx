@@ -14,12 +14,14 @@ const containerStyle = {
   height: '100%',
 };
 
-// Belton, TX HQ coordinates
+// Belton, TX HQ coordinates (3779 W FM 436, Belton, TX 76513)
 const beltonCenter = { lat: 31.0561, lng: -97.4642 };
 
-// Office address for directions
-const OFFICE_ADDRESS = '3779 W FM 436, Belton, TX 76513';
-const OFFICE_COORDS = '31.0561,-97.4642';
+// Office address for directions - Professional format
+export const OFFICE_ADDRESS = '3779 W FM 436, Belton, TX 76513';
+export const OFFICE_ADDRESS_LINE1 = '3779 W FM 436';
+export const OFFICE_ADDRESS_LINE2 = 'Belton, TX 76513';
+export const OFFICE_COORDS = '31.0561,-97.4642';
 
 // ~175 miles in meters = 281,635 meters (175 * 1609.34)
 const radiusInMeters = 281635;
@@ -42,17 +44,13 @@ const mapOptions = {
 
 // Generate Google Maps directions URL
 // This opens the Google Maps app (if installed) or web with directions pre-filled
-function getDirectionsUrl(): string {
+export function getDirectionsUrl(): string {
   // Using coordinates for more reliable routing
   return `https://www.google.com/maps/dir/?api=1&destination=${OFFICE_COORDS}&destination_place_id=&travelmode=driving`;
 }
 
 // Placeholder map component (fallback if no API key)
 function PlaceholderMap() {
-  const handleGetDirections = () => {
-    window.open(getDirectionsUrl(), '_blank');
-  };
-
   return (
     <div className="placeholder-map">
       {/* Stylized Texas Map Background */}
@@ -96,15 +94,6 @@ function PlaceholderMap() {
         <span className="placeholder-map__city" style={{ top: '72%', left: '72%' }}>Houston</span>
         <span className="placeholder-map__city" style={{ top: '35%', left: '50%' }}>Waco</span>
       </div>
-
-      {/* Get Directions Button */}
-      <button 
-        onClick={handleGetDirections}
-        className="placeholder-map__directions-btn"
-        aria-label="Get driving directions to Starr Surveying"
-      >
-        🚗 Get Directions
-      </button>
 
       {/* Corner badge */}
       <div className="placeholder-map__badge">
@@ -232,42 +221,6 @@ export default function ServiceAreaMap() {
           )}
         </GoogleMap>
       </LoadScript>
-
-      {/* Floating Get Directions Button */}
-      <button
-        onClick={handleGetDirections}
-        style={{
-          position: 'absolute',
-          bottom: '16px',
-          right: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '12px 20px',
-          backgroundColor: '#1D3095',
-          color: 'white',
-          border: '3px solid white',
-          borderRadius: '8px',
-          fontSize: '14px',
-          fontWeight: '700',
-          cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-          zIndex: 10,
-          fontFamily: 'Sora, sans-serif',
-          transition: 'all 0.2s ease'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = '#152050';
-          e.currentTarget.style.transform = 'translateY(-2px)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = '#1D3095';
-          e.currentTarget.style.transform = 'translateY(0)';
-        }}
-        aria-label="Get driving directions to Starr Surveying"
-      >
-        🚗 Get Directions
-      </button>
     </div>
   );
 }

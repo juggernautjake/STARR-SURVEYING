@@ -5,6 +5,9 @@ import Link from 'next/link';
 // Footer CSS
 import '../styles/Footer.css';
 
+// Office address - Professional format
+const OFFICE_ADDRESS = '3779 W FM 436, Belton, TX 76513';
+
 // TypeScript interfaces
 interface FooterLink {
   href: string;
@@ -39,7 +42,7 @@ const Footer = (): React.ReactElement => {
     {
       icon: '📍',
       label: 'Address',
-      value: '3779 W FM 436, Belton, TX 76513',
+      value: OFFICE_ADDRESS,
     },
     {
       icon: '📞',
@@ -50,8 +53,8 @@ const Footer = (): React.ReactElement => {
     {
       icon: '✉️',
       label: 'Email',
-      value: 'info@starrsurveying.com',
-      href: 'mailto:info@starrsurveying.com',
+      value: 'info@starr-surveying.com',
+      href: 'mailto:info@starr-surveying.com',
     },
   ];
 
