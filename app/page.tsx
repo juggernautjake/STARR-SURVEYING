@@ -331,6 +331,9 @@ export default function HomePage(): React.ReactElement {
           <p className="home-area__subtitle">
             We proudly serve clients within a 175-mile radius of our Belton headquarters.
           </p>
+          <p className="home-area__address">
+            📍 {OFFICE_ADDRESS}
+          </p>
           
           {/* Single Map Container */}
           <div className="home-area__map-container">
@@ -358,9 +361,6 @@ export default function HomePage(): React.ReactElement {
             >
               🚗 Get Directions to Our Home Office
             </button>
-            <address className="home-area__directions-address">
-              {OFFICE_ADDRESS}
-            </address>
           </div>
           
           {/* Not Sure CTA */}

@@ -12,6 +12,8 @@
   
   UPDATED: Single map layout for Service Area section
   UPDATED: Added Free Estimate Banner section
+  UPDATED: Address styling below "We proudly serve" - red and bold
+  UPDATED: Button hover states - primary stays white, secondary goes white/blue
 ==============================================================================*/
 
 /* =============================================================================
@@ -90,6 +92,7 @@
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
+/* Primary Button - Red, stays white text on hover */
 .home-hero__btn--primary {
   background: #BD1218;
   color: #FFFFFF;
@@ -99,8 +102,10 @@
 .home-hero__btn--primary:hover {
   background: #9A0F14;
   border-color: #9A0F14;
+  color: #FFFFFF;
 }
 
+/* Secondary Button - Blue, goes white bg with blue text on hover */
 .home-hero__btn--secondary {
   background: #1D3095;
   color: #FFFFFF;
@@ -108,8 +113,9 @@
 }
 
 .home-hero__btn--secondary:hover {
-  background: #152050;
-  border-color: #152050;
+  background: #FFFFFF;
+  border-color: #1D3095;
+  color: #1D3095;
 }
 
 .home-hero__stats {
@@ -440,8 +446,18 @@
   font-family: 'Inter', sans-serif;
   font-size: 0.95rem;
   color: #4B5563;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.5rem;
   text-align: center;
+}
+
+/* Home Office Address - Red and Bold */
+.home-area__address {
+  font-family: 'Sora', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #BD1218;
+  text-align: center;
+  margin-bottom: 1.5rem;
 }
 
 /* Single Map Container */
@@ -522,6 +538,40 @@
 
 @keyframes home-spin {
   to { transform: rotate(360deg); }
+}
+
+/* Directions Section - Below Map */
+.home-area__directions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.home-area__directions-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.75rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  background: #1D3095;
+  color: #FFFFFF;
+  border: 3px solid #FFFFFF;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(29, 48, 149, 0.3);
+  transition: all 0.2s ease;
+}
+
+.home-area__directions-btn:hover {
+  background: #152050;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(29, 48, 149, 0.4);
 }
 
 /* CTA Section */
@@ -1088,6 +1138,10 @@
     font-size: 1.4rem;
   }
   
+  .home-area__address {
+    font-size: 0.9rem;
+  }
+  
   .home-area__map-wrapper {
     height: 260px;
   }
@@ -1107,6 +1161,18 @@
   
   .home-area__hq-radius {
     font-size: 0.75rem;
+  }
+  
+  .home-area__directions {
+    margin-top: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  
+  .home-area__directions-btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+    width: 100%;
+    max-width: 320px;
   }
   
   .home-contact {
@@ -1297,6 +1363,11 @@
     font-size: 0.85rem;
   }
   
+  .home-area__address {
+    font-size: 0.85rem;
+    margin-bottom: 1.25rem;
+  }
+  
   .home-area__map-wrapper {
     height: 240px;
   }
@@ -1317,6 +1388,19 @@
   
   .home-area__hq-radius {
     font-size: 0.7rem;
+  }
+  
+  .home-area__directions {
+    margin-top: 0.875rem;
+    margin-bottom: 1rem;
+    gap: 0.6rem;
+  }
+  
+  .home-area__directions-btn {
+    padding: 0.7rem 1.25rem;
+    font-size: 0.85rem;
+    width: 100%;
+    border-width: 2px;
   }
   
   .home-area__cta {
@@ -1527,6 +1611,11 @@
     font-size: 0.8rem;
   }
   
+  .home-area__address {
+    font-size: 0.8rem;
+    margin-bottom: 1rem;
+  }
+  
   .home-area__map-container {
     margin-bottom: 1rem;
   }
@@ -1553,6 +1642,20 @@
     height: 200px;
     border-radius: 0 0 8px 8px;
     border-width: 2px;
+  }
+  
+  .home-area__directions {
+    margin-top: 0.75rem;
+    margin-bottom: 0.875rem;
+    gap: 0.5rem;
+  }
+  
+  .home-area__directions-btn {
+    padding: 0.65rem 1rem;
+    font-size: 0.8rem;
+    width: 100%;
+    border-width: 2px;
+    gap: 0.4rem;
   }
   
   .home-area__cta {
@@ -1657,117 +1760,4 @@ html, body {
 
 * {
   box-sizing: border-box;
-}
-
-/* =============================================================================
-   HOME.CSS ADDITIONS - Add these styles to your existing Home.css file
-   
-   Add this section after the .home-area__map-wrapper styles
-   ============================================================================= */
-
-/* Directions Section - Below Map */
-.home-area__directions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-  margin-bottom: 1.5rem;
-}
-
-.home-area__directions-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.875rem 1.75rem;
-  font-family: 'Sora', sans-serif;
-  font-size: 1rem;
-  font-weight: 700;
-  background: #1D3095;
-  color: #FFFFFF;
-  border: 3px solid #FFFFFF;
-  border-radius: 8px;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(29, 48, 149, 0.3);
-  transition: all 0.2s ease;
-}
-
-.home-area__directions-btn:hover {
-  background: #152050;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(29, 48, 149, 0.4);
-}
-
-.home-area__directions-address {
-  font-family: 'Inter', sans-serif;
-  font-size: 0.95rem;
-  font-style: normal;
-  color: #4B5563;
-  text-align: center;
-}
-
-/* =============================================================================
-   RESPONSIVE STYLES FOR DIRECTIONS SECTION
-   Add these to the corresponding breakpoints in your existing Home.css
-   ============================================================================= */
-
-/* --- Large Mobile (600 - 767px) --- */
-@media screen and (min-width: 600px) and (max-width: 767px) {
-  .home-area__directions {
-    margin-top: 1rem;
-    margin-bottom: 1.25rem;
-  }
-  
-  .home-area__directions-btn {
-    padding: 0.75rem 1.5rem;
-    font-size: 0.9rem;
-    width: 100%;
-    max-width: 320px;
-  }
-  
-  .home-area__directions-address {
-    font-size: 0.85rem;
-  }
-}
-
-/* --- Medium Mobile (480 - 599px) --- */
-@media screen and (min-width: 480px) and (max-width: 599px) {
-  .home-area__directions {
-    margin-top: 0.875rem;
-    margin-bottom: 1rem;
-    gap: 0.6rem;
-  }
-  
-  .home-area__directions-btn {
-    padding: 0.7rem 1.25rem;
-    font-size: 0.85rem;
-    width: 100%;
-    border-width: 2px;
-  }
-  
-  .home-area__directions-address {
-    font-size: 0.8rem;
-  }
-}
-
-/* --- Small Mobile (0 - 479px) --- */
-@media screen and (max-width: 479px) {
-  .home-area__directions {
-    margin-top: 0.75rem;
-    margin-bottom: 0.875rem;
-    gap: 0.5rem;
-  }
-  
-  .home-area__directions-btn {
-    padding: 0.65rem 1rem;
-    font-size: 0.8rem;
-    width: 100%;
-    border-width: 2px;
-    gap: 0.4rem;
-  }
-  
-  .home-area__directions-address {
-    font-size: 0.75rem;
-  }
 }

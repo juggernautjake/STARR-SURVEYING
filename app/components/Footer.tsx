@@ -33,7 +33,7 @@ const Footer = (): React.ReactElement => {
 
   const serviceLinks: FooterLink[] = [
     { href: '/service-area', label: 'Service Area' },
-    { href: '/regulations', label: 'Resources' },
+    { href: '/resources', label: 'Resources' },
     { href: '/credentials', label: 'Credentials' },
     { href: '/contact', label: 'Contact' },
   ];
@@ -79,10 +79,6 @@ const Footer = (): React.ReactElement => {
             <p className="footer__tagline">
               Professional land surveying services serving Central Texas with precision and integrity.
             </p>
-            <div className="footer__license">
-              <span className="footer__license-label">Licensed Surveyor</span>
-              <span className="footer__license-name">Henry S. Maddux, RPLS# 6706</span>
-            </div>
             <p className="footer__quote">
               "Remove not the ancient landmark, which thy fathers have set."
             </p>
@@ -144,6 +140,12 @@ const Footer = (): React.ReactElement => {
             <Link href="/contact" className="footer__cta">
               Get a Free Quote
             </Link>
+            
+            {/* Licensed Surveyor Info - Below CTA Button */}
+            <div className="footer__license">
+              <span className="footer__license-label">Licensed Surveyor</span>
+              <span className="footer__license-name">Henry S. Maddux, RPLS# 6706</span>
+            </div>
           </div>
         </div>
       </div>

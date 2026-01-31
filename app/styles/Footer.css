@@ -9,6 +9,8 @@
   - Same color scheme: Red (#BD1218), Blue (#1D3095), White (#FFFFFF)
   - Same 15 breakpoints as Header.css for consistent scaling
   
+  UPDATED: License info moved to contact column below CTA button - white and bold
+  
 ==============================================================================*/
 
 /* =============================================================================
@@ -247,6 +249,33 @@
 }
 
 /* =============================================================================
+   9.5. LICENSE INFO - Below CTA Button
+   ============================================================================= */
+.footer__license {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 1rem;
+  text-align: left;
+}
+
+.footer__license-label {
+  color: #FFFFFF;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.footer__license-name {
+  color: #FFFFFF;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* =============================================================================
    10. BOTTOM BAR - Dark blue, no red border line
    ============================================================================= */
 .footer__bottom {
@@ -347,6 +376,19 @@
     font-size: 0.85rem;
   }
   
+  .footer__license {
+    text-align: center;
+    margin-top: 0.875rem;
+  }
+  
+  .footer__license-label {
+    font-size: 0.7rem;
+  }
+  
+  .footer__license-name {
+    font-size: 0.85rem;
+  }
+  
   .footer__bottom {
     padding: 1rem;
   }
@@ -402,6 +444,11 @@
   
   .footer__cta {
     width: 100%;
+  }
+  
+  .footer__license {
+    text-align: center;
+    margin-top: 0.875rem;
   }
   
   .footer__bottom-container {
@@ -460,6 +507,10 @@
   
   .footer__cta {
     max-width: 280px;
+  }
+  
+  .footer__license {
+    margin-top: 0.875rem;
   }
   
   .footer__bottom-container {
@@ -524,6 +575,12 @@
   .footer__cta {
     align-self: center;
   }
+  
+  .footer__license {
+    grid-column: 1 / -1;
+    text-align: center;
+    margin-top: 0.875rem;
+  }
 }
 
 /* --- 5. Small Tablet (768 - 899px) --- */
@@ -581,6 +638,14 @@
     padding: 0.7rem 1rem;
     font-size: 0.8rem;
   }
+  
+  .footer__license-label {
+    font-size: 0.7rem;
+  }
+  
+  .footer__license-name {
+    font-size: 0.85rem;
+  }
 }
 
 /* --- 6. Large Tablet (900 - 1023px) --- */
@@ -621,6 +686,14 @@
   .footer__cta {
     padding: 0.75rem 1.1rem;
     font-size: 0.82rem;
+  }
+  
+  .footer__license-label {
+    font-size: 0.7rem;
+  }
+  
+  .footer__license-name {
+    font-size: 0.88rem;
   }
 }
 
@@ -810,6 +883,14 @@
     font-size: 1rem;
   }
   
+  .footer__license-label {
+    font-size: 0.8rem;
+  }
+  
+  .footer__license-name {
+    font-size: 1.05rem;
+  }
+  
   .footer__bottom {
     padding: 1.5rem 2.5rem;
   }
@@ -885,6 +966,14 @@
     padding: 1.1rem 2rem;
     font-size: 1.1rem;
     border-width: 4px;
+  }
+  
+  .footer__license-label {
+    font-size: 0.85rem;
+  }
+  
+  .footer__license-name {
+    font-size: 1.15rem;
   }
   
   .footer__bottom {
