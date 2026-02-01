@@ -15,6 +15,7 @@ import {
   ESTIMATE_HIGH_MULTIPLIER,
   isAdditionalResidence
 } from './surveyCalculatorTypes';
+import { trackConversion } from '../utils/gtag';
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -279,6 +280,9 @@ export default function SurveyCalculator() {
       });
 
       if (response.ok) {
+        // Track Google Ads conversion on successful calculator submission
+        trackConversion();
+
         setSubmitSuccess(true);
       } else {
         throw new Error('Failed');
@@ -292,6 +296,10 @@ export default function SurveyCalculator() {
         formatFormDataForEmail(currentSurveyType, formValues, result, rushJob)
       );
       window.location.href = `mailto:info@starrsurveying.com?subject=${mailtoSubject}&body=${mailtoBody}`;
+
+      // Track conversion even on mailto fallback since user still submitted
+      trackConversion();
+
       setSubmitSuccess(true);
     } finally {
       setIsSubmitting(false);

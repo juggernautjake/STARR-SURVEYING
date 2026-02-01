@@ -2,6 +2,7 @@
 
 import type { ContactFormData, ContactFormState } from '../../types';
 import { useState, FormEvent, ChangeEvent } from 'react';
+import { trackConversion } from '../utils/gtag';
 
 const ContactForm = (): React.ReactElement => {
   const [formData, setFormData] = useState<ContactFormData>({
@@ -71,6 +72,9 @@ const ContactForm = (): React.ReactElement => {
       });
 
       if (response.ok) {
+        // Track Google Ads conversion on successful form submission
+        trackConversion();
+
         setState(prev => ({ ...prev, submitted: true }));
         setFormData({
           full_name: '',

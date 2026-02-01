@@ -4,6 +4,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useState, FormEvent, ChangeEvent } from 'react';
 import { getDirectionsUrl, OFFICE_ADDRESS } from './components/ServiceAreaMap';
+import { trackConversion } from './utils/gtag';
 
 // Import Home page styles
 import './styles/Home.css';
@@ -171,6 +172,9 @@ export default function HomePage(): React.ReactElement {
       });
 
       if (response.ok) {
+        // Track Google Ads conversion on successful form submission
+        trackConversion();
+
         setFormState((prev) => ({ ...prev, submitted: true, loading: false }));
         setFormData({
           name: '',

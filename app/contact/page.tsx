@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, FormEvent, ChangeEvent } from 'react';
 import { OFFICE_ADDRESS, OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '../components/ServiceAreaMap';
+import { trackConversion } from '../utils/gtag';
 
 // Import Contact page styles
 import '../styles/Contact.css';
@@ -139,6 +140,9 @@ export default function ContactPage(): React.ReactElement {
       });
 
       if (response.ok) {
+        // Track Google Ads conversion on successful form submission
+        trackConversion();
+
         setFormState((prev) => ({ ...prev, submitted: true, loading: false }));
         setFormData({
           name: '',
