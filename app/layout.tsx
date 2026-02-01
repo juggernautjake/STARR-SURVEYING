@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   title: 'Starr Surveying - Professional Land Surveying in Belton, Texas',
   description: 'Expert land surveying services including GPS, GIS, total station surveying, plats, deeds, and legal descriptions. Serving Central Texas with precision and integrity.',
   verification: {
-    google: 'googlef9254fd6d6a03be7',
+    google: 'BzjvCsBBacqPdyOHtrz2OQtAYeNrktNiLPfsEf7H1no',
   },
 };
 
