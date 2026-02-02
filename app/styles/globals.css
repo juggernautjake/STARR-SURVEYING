@@ -7,6 +7,7 @@
 :root {
   --brand-red: #BD1218;
   --brand-blue: #1D3095;
+  --brand-green: #10B981;  /* Sea green */
   --brand-dark: #0F1419;
   --brand-light: #F8F9FA;
   --brand-gray: #6B7280;
@@ -316,6 +317,10 @@ label {
 
 .accent-blue {
   color: var(--brand-blue);
+}
+
+.accent-green {
+  color: var(--brand-green);
 }
 
 .text-white {

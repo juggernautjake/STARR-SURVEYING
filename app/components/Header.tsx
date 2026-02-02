@@ -14,6 +14,7 @@ interface NavLink {
 
 const Header = (): React.ReactElement => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const [showBackToTop, setShowBackToTop] = useState<boolean>(false);
   const headerRef = useRef<HTMLElement | null>(null);
 
@@ -30,6 +31,10 @@ const Header = (): React.ReactElement => {
 
   useEffect(() => {
     const handleScroll = (): void => {
+      const scrolled = window.scrollY > 50;
+      setIsScrolled(scrolled);
+      setShowBackToTop(scrolled);
+
       if (headerRef.current) {
         const headerBottom = headerRef.current.getBoundingClientRect().bottom;
         setShowBackToTop(headerBottom < 0);
@@ -69,7 +74,11 @@ const Header = (): React.ReactElement => {
             {/* Desktop Navigation */}
             <div className="navbar__desktop">
               {navLinks.map((link: NavLink) => (
-                <Link key={link.href} href={link.href} className="navbar__link">
+                <Link 
+                  key={link.href} 
+                  href={link.href} 
+                  className={`navbar__link ${link.label === 'Pricing' ? 'navbar__link--pricing' : ''}`}
+                >
                   {link.label}
                 </Link>
               ))}
@@ -77,6 +86,9 @@ const Header = (): React.ReactElement => {
 
             {/* Mobile Navigation */}
             <div className="navbar__mobile">
+              <Link href="/pricing" className="navbar__quote-btn-mobile">
+                Get Quote
+              </Link>
               <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="navbar__hamburger"
@@ -85,9 +97,6 @@ const Header = (): React.ReactElement => {
               >
                 {isOpen ? '✕' : '☰'}
               </button>
-              <Link href="/contact" className="navbar__quote-btn">
-                Get Quote
-              </Link>
             </div>
           </div>
 
@@ -98,7 +107,7 @@ const Header = (): React.ReactElement => {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="navbar__dropdown-link"
+                  className={`navbar__dropdown-link ${link.label === 'Pricing' ? 'navbar__dropdown-link--pricing' : ''}`}
                   onClick={() => setIsOpen(false)}
                 >
                   {link.label}
@@ -109,7 +118,38 @@ const Header = (): React.ReactElement => {
         </nav>
       </div>
 
-      {/* Back to Top Button */}
+      {/* Scrolled Header for Desktop */}
+      {isScrolled && (
+        <nav className="scrolled-header">
+          <Link href="/pricing" className="scrolled-quote-btn">
+            Get Free Quote
+          </Link>
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="scrolled-hamburger"
+            aria-label="Toggle menu"
+            aria-expanded={isOpen}
+          >
+            ☰
+          </button>
+          {isOpen && (
+            <div className="scrolled-dropdown">
+              {navLinks.map((link: NavLink) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`scrolled-dropdown-link ${link.label === 'Pricing' ? 'scrolled-dropdown-link--pricing' : ''}`}
+                  onClick={() => setIsOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </nav>
+      )}
+
+      {/* Back to Top Button - Only on desktop */}
       {showBackToTop && (
         <button onClick={scrollToTop} className="back-to-top" aria-label="Back to top">
           <span className="back-to-top__arrow">↑</span>

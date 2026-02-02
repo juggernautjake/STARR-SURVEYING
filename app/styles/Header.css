@@ -28,6 +28,7 @@
   /* Brand Colors */
   --color-red: #BD1218;
   --color-blue: #1D3095;
+  --color-green: #10B981;  /* Sea green for quote button and pricing menu */
   --color-white: #FFFFFF;
   
   /* Header Box */
@@ -60,6 +61,12 @@
   --btn-padding-x: 1.2rem;
   --btn-font-size: 0.92rem;
   --btn-gap: 0.42rem;
+  
+  /* Green Button (Quote/Pricing) */
+  --green-btn-bg: var(--color-green);
+  --green-btn-text: var(--color-white);
+  --green-btn-hover-bg: #059669;
+  --green-btn-hover-text: var(--color-white);
   
   /* Transitions */
   --transition: 200ms ease;
@@ -185,6 +192,17 @@
   transform: scale(0.95);
 }
 
+/* Pricing link - Sea green */
+.navbar__link--pricing {
+  background-color: var(--color-green);
+  border-color: var(--color-green);
+}
+
+.navbar__link--pricing:hover {
+  background-color: var(--green-btn-hover-bg);
+  color: var(--green-btn-hover-text);
+}
+
 /* =============================================================================
    7. MOBILE MENU
    ============================================================================= */
@@ -213,24 +231,23 @@
   color: var(--color-white);
 }
 
-.navbar__quote-btn {
+.navbar__quote-btn-mobile {
   display: inline-block;
   padding: 0.5rem 1rem;
   font-weight: bold;
   font-size: 0.85rem;
-  color: var(--color-white);
-  background-color: var(--color-red);
-  border: 3px solid var(--color-blue);
+  color: var(--green-btn-text);
+  background-color: var(--color-green);
+  border: 3px solid var(--color-green);
   border-radius: 6px;
   text-decoration: none;
   transition: all var(--transition);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.navbar__quote-btn:hover {
-  background-color: var(--color-blue);
-  border-color: var(--color-white);
-  color: var(--color-white);
+.navbar__quote-btn-mobile:hover {
+  background-color: var(--green-btn-hover-bg);
+  color: var(--green-btn-hover-text);
 }
 
 .navbar__dropdown {
@@ -269,13 +286,116 @@
   border-color: var(--color-blue);
 }
 
+/* Pricing dropdown link - Sea green */
+.navbar__dropdown-link--pricing {
+  background-color: var(--color-green);
+  border-color: var(--color-green);
+}
+
+.navbar__dropdown-link--pricing:hover {
+  background-color: var(--green-btn-hover-bg);
+  color: var(--green-btn-hover-text);
+  border-color: var(--green-btn-hover-bg);
+}
+
 /* =============================================================================
-   8. BACK TO TOP BUTTON
+   8. SCROLLED HEADER (Desktop only)
+   ============================================================================= */
+.scrolled-header {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 100%;
+  background-color: var(--color-red);
+  border-bottom: 3px solid var(--color-blue);
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  z-index: 999;
+  transition: all var(--transition);
+  animation: fadeInDown 0.3s ease-out;
+}
+
+.scrolled-quote-btn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: var(--green-btn-text);
+  background-color: var(--color-green);
+  border: 2px solid var(--color-green);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all var(--transition);
+}
+
+.scrolled-quote-btn:hover {
+  background-color: var(--green-btn-hover-bg);
+  color: var(--green-btn-hover-text);
+}
+
+.scrolled-hamburger {
+  background-color: var(--color-blue);
+  border: 2px solid var(--color-white);
+  color: var(--color-white);
+  font-size: 1.2rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.scrolled-hamburger:hover {
+  background-color: var(--color-white);
+  color: var(--color-blue);
+}
+
+.scrolled-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 1rem;
+  background-color: var(--color-red);
+  border: 3px solid var(--color-blue);
+  border-radius: 8px;
+  padding: 0.5rem;
+  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: slideDown 0.3s ease-out;
+  z-index: 200;
+}
+
+.scrolled-dropdown-link {
+  display: block;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: var(--color-white);
+  text-decoration: none;
+  transition: all var(--transition);
+}
+
+.scrolled-dropdown-link:hover {
+  background-color: var(--color-blue);
+  color: var(--color-white);
+}
+
+.scrolled-dropdown-link--pricing {
+  background-color: var(--color-green);
+}
+
+.scrolled-dropdown-link--pricing:hover {
+  background-color: var(--green-btn-hover-bg);
+}
+
+/* =============================================================================
+   9. BACK TO TOP BUTTON (Desktop only)
    ============================================================================= */
 .back-to-top {
   position: fixed;
-  top: 1rem;
-  right: 1rem;
+  bottom: 2rem;
+  right: 2rem;
   z-index: 999;
   display: flex;
   flex-direction: column;
@@ -311,7 +431,7 @@
 }
 
 /* =============================================================================
-   9. ANIMATIONS
+   10. ANIMATIONS
    ============================================================================= */
 @keyframes slideDown {
   from { opacity: 0; transform: translateY(-10px); }
@@ -323,8 +443,13 @@
   to { opacity: 1; transform: scale(1); }
 }
 
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* =============================================================================
-   10. RESPONSIVE BREAKPOINTS
+   11. RESPONSIVE BREAKPOINTS
    ============================================================================= */
 
 /* --- 1. Extra Small Mobile (0 - 399px) --- */
@@ -363,7 +488,7 @@
     border-width: 2px;
   }
   
-  .navbar__quote-btn {
+  .navbar__quote-btn-mobile {
     font-size: 0.62rem;
     padding: 0.32rem 0.55rem;
     border-width: 2px;
@@ -381,15 +506,8 @@
   }
   
   .back-to-top {
-    width: 40px;
-    height: 40px;
-    border-width: 3px;
-    top: 0.5rem;
-    right: 0.5rem;
+    display: none !important;  /* Hide on small mobile */
   }
-  
-  .back-to-top__arrow { font-size: 0.85rem; }
-  .back-to-top__text { font-size: 0.45rem; }
 }
 
 /* --- 2. Small Mobile (400 - 499px) --- */
@@ -428,7 +546,7 @@
     border-width: 2px;
   }
   
-  .navbar__quote-btn {
+  .navbar__quote-btn-mobile {
     font-size: 0.68rem;
     padding: 0.36rem 0.62rem;
     border-width: 2px;
@@ -446,13 +564,8 @@
   }
   
   .back-to-top {
-    width: 44px;
-    height: 44px;
-    border-width: 3px;
+    display: none !important;
   }
-  
-  .back-to-top__arrow { font-size: 0.95rem; }
-  .back-to-top__text { font-size: 0.48rem; }
 }
 
 /* --- 3. Medium Mobile (500 - 599px) --- */
@@ -491,7 +604,7 @@
     border-width: 3px;
   }
   
-  .navbar__quote-btn {
+  .navbar__quote-btn-mobile {
     font-size: 0.74rem;
     padding: 0.4rem 0.72rem;
     border-width: 3px;
@@ -508,12 +621,8 @@
   }
   
   .back-to-top {
-    width: 47px;
-    height: 47px;
+    display: none !important;
   }
-  
-  .back-to-top__arrow { font-size: 1.02rem; }
-  .back-to-top__text { font-size: 0.5rem; }
 }
 
 /* --- 4. Large Mobile (600 - 767px) --- */
@@ -552,7 +661,7 @@
     border-width: 3px;
   }
   
-  .navbar__quote-btn {
+  .navbar__quote-btn-mobile {
     font-size: 0.8rem;
     padding: 0.45rem 0.85rem;
     border-width: 3px;
@@ -569,12 +678,8 @@
   }
   
   .back-to-top {
-    width: 50px;
-    height: 50px;
+    display: none !important;
   }
-  
-  .back-to-top__arrow { font-size: 1.1rem; }
-  .back-to-top__text { font-size: 0.52rem; }
 }
 
 /* --- 5. Small Tablet (768 - 899px) --- */
@@ -595,6 +700,40 @@
     --btn-font-size: 0.58rem;
     --btn-gap: 0.18rem;
   }
+  
+  .scrolled-header {
+    padding: 0.5rem 1rem;
+    gap: 0.5rem;
+  }
+  
+  .scrolled-quote-btn {
+    font-size: 0.7rem;
+    padding: 0.4rem 0.8rem;
+  }
+  
+  .scrolled-hamburger {
+    font-size: 1rem;
+    padding: 0.3rem 0.5rem;
+  }
+  
+  .scrolled-dropdown {
+    min-width: 160px;
+  }
+  
+  .scrolled-dropdown-link {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
+  }
+  
+  .back-to-top {
+    width: 45px;
+    height: 45px;
+    bottom: 1rem;
+    right: 1rem;
+  }
+  
+  .back-to-top__arrow { font-size: 1rem; }
+  .back-to-top__text { font-size: 0.5rem; }
 }
 
 /* --- 6. Large Tablet (900 - 1023px) --- */
@@ -614,6 +753,35 @@
     --btn-padding-x: 0.55rem;
     --btn-font-size: 0.64rem;
     --btn-gap: 0.22rem;
+  }
+  
+  .scrolled-header {
+    padding: 0.6rem 1.2rem;
+    gap: 0.6rem;
+  }
+  
+  .scrolled-quote-btn {
+    font-size: 0.75rem;
+    padding: 0.45rem 0.9rem;
+  }
+  
+  .scrolled-hamburger {
+    font-size: 1.1rem;
+    padding: 0.35rem 0.55rem;
+  }
+  
+  .scrolled-dropdown {
+    min-width: 170px;
+  }
+  
+  .scrolled-dropdown-link {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.8rem;
+  }
+  
+  .back-to-top {
+    width: 48px;
+    height: 48px;
   }
 }
 
@@ -635,6 +803,35 @@
     --btn-font-size: 0.7rem;
     --btn-gap: 0.26rem;
   }
+  
+  .scrolled-header {
+    padding: 0.7rem 1.4rem;
+    gap: 0.7rem;
+  }
+  
+  .scrolled-quote-btn {
+    font-size: 0.8rem;
+    padding: 0.5rem 1rem;
+  }
+  
+  .scrolled-hamburger {
+    font-size: 1.2rem;
+    padding: 0.4rem 0.6rem;
+  }
+  
+  .scrolled-dropdown {
+    min-width: 180px;
+  }
+  
+  .scrolled-dropdown-link {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+  }
+  
+  .back-to-top {
+    width: 50px;
+    height: 50px;
+  }
 }
 
 /* --- 8. Desktop (1150 - 1279px) --- */
@@ -655,6 +852,35 @@
     --btn-font-size: 0.76rem;
     --btn-gap: 0.3rem;
   }
+  
+  .scrolled-header {
+    padding: 0.8rem 1.5rem;
+    gap: 0.8rem;
+  }
+  
+  .scrolled-quote-btn {
+    font-size: 0.85rem;
+    padding: 0.55rem 1.1rem;
+  }
+  
+  .scrolled-hamburger {
+    font-size: 1.3rem;
+    padding: 0.45rem 0.65rem;
+  }
+  
+  .scrolled-dropdown {
+    min-width: 190px;
+  }
+  
+  .scrolled-dropdown-link {
+    padding: 0.55rem 1.1rem;
+    font-size: 0.9rem;
+  }
+  
+  .back-to-top {
+    width: 52px;
+    height: 52px;
+  }
 }
 
 /* --- 9. Large Desktop (1280 - 1439px) --- */
@@ -674,6 +900,30 @@
     --btn-padding-x: 0.9rem;
     --btn-font-size: 0.8rem;
     --btn-gap: 0.34rem;
+  }
+  
+  .scrolled-header {
+    padding: 0.9rem 1.6rem;
+    gap: 0.9rem;
+  }
+  
+  .scrolled-quote-btn {
+    font-size: 0.9rem;
+    padding: 0.6rem 1.2rem;
+  }
+  
+  .scrolled-hamburger {
+    font-size: 1.35rem;
+    padding: 0.5rem 0.7rem;
+  }
+  
+  .scrolled-dropdown {
+    min-width: 200px;
+  }
+  
+  .scrolled-dropdown-link {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.95rem;
   }
   
   .back-to-top {
@@ -704,6 +954,30 @@
     --btn-gap: 0.36rem;
   }
   
+  .scrolled-header {
+    padding: 1rem 1.8rem;
+    gap: 1rem;
+  }
+  
+  .scrolled-quote-btn {
+    font-size: 0.95rem;
+    padding: 0.65rem 1.3rem;
+  }
+  
+  .scrolled-hamburger {
+    font-size: 1.4rem;
+    padding: 0.55rem 0.75rem;
+  }
+  
+  .scrolled-dropdown {
+    min-width: 210px;
+  }
+  
+  .scrolled-dropdown-link {
+    padding: 0.65rem 1.3rem;
+    font-size: 1rem;
+  }
+  
   .back-to-top {
     width: 56px;
     height: 56px;
@@ -732,6 +1006,30 @@
     --btn-gap: 0.38rem;
   }
   
+  .scrolled-header {
+    padding: 1.1rem 2rem;
+    gap: 1.1rem;
+  }
+  
+  .scrolled-quote-btn {
+    font-size: 1rem;
+    padding: 0.7rem 1.4rem;
+  }
+  
+  .scrolled-hamburger {
+    font-size: 1.45rem;
+    padding: 0.6rem 0.8rem;
+  }
+  
+  .scrolled-dropdown {
+    min-width: 220px;
+  }
+  
+  .scrolled-dropdown-link {
+    padding: 0.7rem 1.4rem;
+    font-size: 1.05rem;
+  }
+  
   .back-to-top {
     width: 58px;
     height: 58px;
@@ -758,6 +1056,30 @@
     --btn-padding-x: 1.15rem;
     --btn-font-size: 0.9rem;
     --btn-gap: 0.4rem;
+  }
+  
+  .scrolled-header {
+    padding: 1.2rem 2.2rem;
+    gap: 1.2rem;
+  }
+  
+  .scrolled-quote-btn {
+    font-size: 1.05rem;
+    padding: 0.75rem 1.5rem;
+  }
+  
+  .scrolled-hamburger {
+    font-size: 1.5rem;
+    padding: 0.65rem 0.85rem;
+  }
+  
+  .scrolled-dropdown {
+    min-width: 230px;
+  }
+  
+  .scrolled-dropdown-link {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
   }
   
   .back-to-top {
@@ -790,6 +1112,30 @@
     --btn-gap: 0.48rem;
   }
   
+  .scrolled-header {
+    padding: 1.4rem 2.5rem;
+    gap: 1.4rem;
+  }
+  
+  .scrolled-quote-btn {
+    font-size: 1.15rem;
+    padding: 0.85rem 1.7rem;
+  }
+  
+  .scrolled-hamburger {
+    font-size: 1.65rem;
+    padding: 0.75rem 0.95rem;
+  }
+  
+  .scrolled-dropdown {
+    min-width: 250px;
+  }
+  
+  .scrolled-dropdown-link {
+    padding: 0.85rem 1.7rem;
+    font-size: 1.2rem;
+  }
+  
   .back-to-top {
     width: 68px;
     height: 68px;
@@ -817,6 +1163,30 @@
     --btn-padding-x: 1.55rem;
     --btn-font-size: 1.08rem;
     --btn-gap: 0.55rem;
+  }
+  
+  .scrolled-header {
+    padding: 1.6rem 2.8rem;
+    gap: 1.6rem;
+  }
+  
+  .scrolled-quote-btn {
+    font-size: 1.25rem;
+    padding: 0.95rem 1.9rem;
+  }
+  
+  .scrolled-hamburger {
+    font-size: 1.8rem;
+    padding: 0.85rem 1.05rem;
+  }
+  
+  .scrolled-dropdown {
+    min-width: 280px;
+  }
+  
+  .scrolled-dropdown-link {
+    padding: 0.95rem 1.9rem;
+    font-size: 1.3rem;
   }
   
   .back-to-top {
