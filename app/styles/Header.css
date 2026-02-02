@@ -478,10 +478,12 @@
   }
   
   .navbar {
-    top: calc(var(--header-box-height) + var(--mobile-menu-gap));
+    position: fixed;
+    top: 0;
     right: 6px;
     transform: none;
     max-width: none;
+    z-index: 1000;
   }
   
   .navbar::before,
@@ -540,10 +542,12 @@
   }
   
   .navbar {
-    top: calc(var(--header-box-height) + var(--mobile-menu-gap));
+    position: fixed;
+    top: 0;
     right: 8px;
     transform: none;
     max-width: none;
+    z-index: 1000;
   }
   
   .navbar::before,
@@ -602,10 +606,12 @@
   }
   
   .navbar {
-    top: calc(var(--header-box-height) + var(--mobile-menu-gap));
+    position: fixed;
+    top: 0;
     right: 10px;
     transform: none;
     max-width: none;
+    z-index: 1000;
   }
   
   .navbar::before,
@@ -663,10 +669,12 @@
   }
   
   .navbar {
-    top: calc(var(--header-box-height) + var(--mobile-menu-gap));
+    position: fixed;
+    top: 0;
     right: 12px;
     transform: none;
     max-width: none;
+    z-index: 1000;
   }
   
   .navbar::before,
@@ -737,7 +745,7 @@
   }
   
   .scrolled-logo {
-    height: 30px;
+    height: 33px;  /* 10% taller than base 30px */
   }
   
   .scrolled-quote-btn {
@@ -795,7 +803,7 @@
   }
   
   .scrolled-logo {
-    height: 32px;
+    height: 35.2px;  /* 10% taller */
   }
   
   .scrolled-quote-btn {
@@ -848,7 +856,7 @@
   }
   
   .scrolled-logo {
-    height: 35px;
+    height: 38.5px;  /* 10% taller */
   }
   
   .scrolled-quote-btn {
@@ -901,7 +909,7 @@
   }
   
   .scrolled-logo {
-    height: 38px;
+    height: 41.8px;  /* 10% taller */
   }
   
   .scrolled-quote-btn {
@@ -954,7 +962,7 @@
   }
   
   .scrolled-logo {
-    height: 40px;
+    height: 44px;  /* 10% taller */
   }
   
   .scrolled-quote-btn {
@@ -1010,7 +1018,7 @@
   }
   
   .scrolled-logo {
-    height: 42px;
+    height: 46.2px;  /* 10% taller */
   }
   
   .scrolled-quote-btn {
@@ -1066,7 +1074,7 @@
   }
   
   .scrolled-logo {
-    height: 44px;
+    height: 48.4px;  /* 10% taller */
   }
   
   .scrolled-quote-btn {
@@ -1122,7 +1130,7 @@
   }
   
   .scrolled-logo {
-    height: 45px;
+    height: 49.5px;  /* 10% taller */
   }
   
   .scrolled-quote-btn {
@@ -1180,7 +1188,7 @@
   }
   
   .scrolled-logo {
-    height: 48px;
+    height: 52.8px;  /* 10% taller */
   }
   
   .scrolled-quote-btn {
@@ -1237,7 +1245,7 @@
   }
   
   .scrolled-logo {
-    height: 50px;
+    height: 55px;  /* 10% taller */
   }
   
   .scrolled-quote-btn {

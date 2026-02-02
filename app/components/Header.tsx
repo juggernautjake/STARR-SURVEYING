@@ -37,6 +37,9 @@ const Header = (): React.ReactElement => {
         const scrolled = navbarBottom < 0;
         setIsScrolled(scrolled);
         setShowBackToTop(scrolled);
+        if (!scrolled && isOpen) {
+          setIsOpen(false);
+        }
       }
       if (headerRef.current) {
         const headerBottom = headerRef.current.getBoundingClientRect().bottom;
@@ -46,7 +49,7 @@ const Header = (): React.ReactElement => {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isOpen]);
 
   const scrollToTop = (): void => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
