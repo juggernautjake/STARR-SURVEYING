@@ -1,823 +1,775 @@
-// app/components/surveyConfigs.ts
-import {
-  SurveyTypeConfig,
-  PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, CUSTOM_COUNTY_FIELD,
-  PROPERTY_SIZE, PROPERTY_TYPE, PROPERTY_CORNERS, VEGETATION, TERRAIN,
-  WATERWAY_BOUNDARY, EXISTING_SURVEY, EXISTING_MONUMENTS,
-  ACCESS_CONDITIONS, ADJOINING,
-  FENCE_ISSUES, SURVEY_PURPOSE, LOT_COUNT,
-  HAS_RESIDENCE, RESIDENCE_CORNERS, RESIDENCE_SIZE, GARAGE,
-  NUM_IMPROVEMENTS, IMPROVEMENT_TYPE,
-  ADDITIONAL_RESIDENCE_CORNERS, ADDITIONAL_RESIDENCE_SIZE,
-  getBaseCost, getMultiplier, getHoursAdded, getPremium, isAdditionalResidence,
-  HOURLY_RATE,
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { SURVEY_TYPES } from './surveyConfigs';
+import { 
+  SurveyTypeConfig, 
+  FormField, 
+  FieldOption, 
+  ContactInfo,
+  IMPROVEMENT_TYPE,
+  ADDITIONAL_RESIDENCE_CORNERS,
+  ADDITIONAL_RESIDENCE_SIZE,
+  ESTIMATE_LOW_MULTIPLIER,
+  ESTIMATE_HIGH_MULTIPLIER,
+  isAdditionalResidence
 } from './surveyCalculatorTypes';
+import { trackConversion } from '../utils/gtag';
 
 // =============================================================================
-// HELPER: Calculate improvements cost from dynamic improvement fields
+// HELPER FUNCTIONS
 // =============================================================================
-function calculateImprovementsCost(values: Record<string, unknown>): number {
-  let total = 0;
-  const numImprovements = parseInt(values.numImprovements as string) || 0;
+
+function getFieldLabel(surveyType: SurveyTypeConfig, fieldId: string, value: string): string {
+  const field = surveyType.fields.find((f: FormField) => f.id === fieldId);
+  if (!field) return value;
+  if (field.options) {
+    const option = field.options.find((o: FieldOption) => o.value === value);
+    return option?.label || value;
+  }
+  return value;
+}
+
+function formatFormDataForEmail(
+  surveyType: SurveyTypeConfig,
+  formValues: Record<string, unknown>,
+  result: { lowEstimate: number; highEstimate: number },
+  rushJob: boolean
+): string {
+  let text = `SURVEY ESTIMATE REQUEST\n`;
+  text += `========================\n\n`;
+  text += `Survey Type: ${surveyType.name}\n`;
+  text += `Estimated Range: $${result.lowEstimate.toLocaleString()} - $${result.highEstimate.toLocaleString()}\n`;
+  if (rushJob) text += `Rush Job: Yes (expedited requested)\n`;
+  text += `\n------------------------\n`;
+  text += `PROJECT DETAILS:\n`;
+  text += `------------------------\n\n`;
   
-  for (let i = 1; i <= numImprovements; i++) {
-    const improvementType = values[`improvement${i}Type`] as string;
-    if (improvementType && improvementType !== 'none') {
-      // Add base cost for the improvement type
-      total += getBaseCost(IMPROVEMENT_TYPE, improvementType);
-      
-      // If it's an additional residence, add corners and size costs
-      if (isAdditionalResidence(improvementType)) {
-        total += getBaseCost(ADDITIONAL_RESIDENCE_CORNERS, values[`improvement${i}Corners`]);
-        total += getBaseCost(ADDITIONAL_RESIDENCE_SIZE, values[`improvement${i}Size`]);
+  surveyType.fields.forEach((field: FormField) => {
+    const value = formValues[field.id];
+    if (value !== undefined && value !== '' && value !== null) {
+      const label = field.options 
+        ? getFieldLabel(surveyType, field.id, value as string)
+        : value;
+      text += `${field.label}: ${label}\n`;
+    }
+  });
+  
+  // Add dynamic improvements to email
+  const numImprovements = parseInt(formValues.numImprovements as string) || 0;
+  if (numImprovements > 0) {
+    text += `\nOther Improvements:\n`;
+    for (let i = 1; i <= numImprovements; i++) {
+      const improvementType = formValues[`improvement${i}Type`] as string;
+      if (improvementType && improvementType !== 'none') {
+        const typeOption = IMPROVEMENT_TYPE.find(o => o.value === improvementType);
+        text += `  Improvement ${i}: ${typeOption?.label || improvementType}`;
+        
+        if (isAdditionalResidence(improvementType)) {
+          const corners = formValues[`improvement${i}Corners`] as string;
+          const size = formValues[`improvement${i}Size`] as string;
+          const cornersOption = ADDITIONAL_RESIDENCE_CORNERS.find(o => o.value === corners);
+          const sizeOption = ADDITIONAL_RESIDENCE_SIZE.find(o => o.value === size);
+          if (cornersOption) text += ` - ${cornersOption.label}`;
+          if (sizeOption) text += `, ${sizeOption.label}`;
+        }
+        text += `\n`;
       }
     }
   }
   
-  return total;
+  return text;
 }
 
 // =============================================================================
-// TRAVEL MILES FIELD (NEW)
+// CALCULATOR COMPONENT
 // =============================================================================
-const TRAVEL_MILES_FIELD: FormField = {
-  id: 'travelDistance',
-  label: 'Approximate Miles from Belton',
-  type: 'number',
-  required: true,
-  min: 0,
-  placeholder: 'Enter miles',
-  helpText: 'Used for travel cost calculation ($1.50 per mile)',
-};
 
-// =============================================================================
-// BOUNDARY SURVEY (RESTRUCTURED TO HOURLY)
-// =============================================================================
-const boundarySurvey: SurveyTypeConfig = {
-  id: 'boundary',
-  name: 'Boundary Survey',
-  description: 'Establishes and marks property boundaries. For fences, disputes, permits, or property purchases.',
-  basePrice: 475,
-  minPrice: 400,
-  fields: [
-    PROPERTY_ADDRESS_FIELD,
-    PROPERTY_COUNTY_FIELD,
-    CUSTOM_COUNTY_FIELD,
-    
-    // Property characteristics
-    { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: PROPERTY_TYPE },
-    { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: PROPERTY_SIZE },
-    { id: 'corners', label: 'Number of Property Corners', type: 'select', required: true, options: PROPERTY_CORNERS,
-      helpText: 'Count all direction changes in the property boundary line' },
-    
-    // === RESIDENTIAL STRUCTURE SECTION (conditional) ===
-    { id: 'hasResidence', label: 'Does the property have a residence?', type: 'select', required: true, options: HAS_RESIDENCE,
-      showWhen: { field: 'propertyType', value: ['residential_urban', 'residential_rural'] } },
-    
-    // Residence details (shown only if hasResidence = 'yes')
-    { id: 'residenceCorners', label: 'House Outside Corners', type: 'select', required: true, options: RESIDENCE_CORNERS,
-      helpText: 'Count where exterior walls change direction (looking from above)',
-      showWhen: { field: 'hasResidence', value: 'yes' } },
-    { id: 'residenceSize', label: 'House Approximate Size', type: 'select', required: true, options: RESIDENCE_SIZE,
-      showWhen: { field: 'hasResidence', value: 'yes' } },
-    { id: 'garage', label: 'Garage', type: 'select', required: false, options: GARAGE,
-      showWhen: { field: 'hasResidence', value: 'yes' } },
-    
-    // Number of other improvements (dynamic)
-    { id: 'numImprovements', label: 'Number of Other Improvements', type: 'select', required: false, options: NUM_IMPROVEMENTS,
-      helpText: 'Sheds, barns, pools, guest houses, workshops, etc.',
-      showWhen: { field: 'propertyType', value: ['residential_urban', 'residential_rural', 'agricultural'] } },
-    
-    // Site conditions (SCALING FACTORS - affect property size cost)
-    { id: 'vegetation', label: 'Vegetation', type: 'select', required: true, options: VEGETATION },
-    { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
-    
-    // Waterway boundary - 20% multiplier if yes
-    { id: 'waterwayBoundary', label: 'Does the property have a waterway boundary (river or creek)?', type: 'select', required: true, options: WATERWAY_BOUNDARY,
-      helpText: 'If any boundary line follows a river, creek, or stream' },
-    
-    // Additional factors
-    { id: 'existingSurvey', label: 'Previous Survey', type: 'select', required: true, options: EXISTING_SURVEY },
-    { id: 'existingMonuments', label: 'Existing Corner Markers', type: 'select', required: true, options: EXISTING_MONUMENTS },
-    { id: 'access', label: 'Property Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'adjoining', label: 'Adjoining Properties', type: 'select', required: false, options: ADJOINING },
-    { id: 'fenceIssues', label: 'Fence Issues', type: 'select', required: false, options: FENCE_ISSUES },
-    // New markers scalable
-    { id: 'setAllNewPins', label: 'Set all new pins', type: 'select', required: false, options: [
-      { value: 'no', label: 'No' },
-      { value: 'yes', label: 'Yes (+2 hrs base)' },
-    ] },
-    { id: 'additionalMarkers', label: 'Number of additional markers to set', type: 'number', required: false, min: 0 },
-    { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: SURVEY_PURPOSE },
-    { id: 'lotCount', label: 'Lot Count', type: 'select', required: false, options: LOT_COUNT,
-      showWhen: { field: 'purpose', value: 'city_subdivision' } },
-    TRAVEL_MILES_FIELD,
-  ],
-  calculatePrice: (v) => {
-    // 1. Base hours from acreage
-    let baseHours = getHoursAdded(PROPERTY_SIZE, v.acreage);
-    
-    // 2. Add hours from corners, previous survey, fence, new markers
-    let additionalHours = getHoursAdded(PROPERTY_CORNERS, v.corners) +
-                          getHoursAdded(EXISTING_SURVEY, v.existingSurvey);
-    if (v.fenceIssues === 'minor') additionalHours += 1;
-    
-    // New markers
-    const setAll = v.setAllNewPins === 'yes' ? 2 : 0;
-    const extraMarkers = parseFloat(v.additionalMarkers as string) || 0;
-    additionalHours += setAll + extraMarkers * 0.5;
-    
-    // 3. Add hours from property type
-    additionalHours += getHoursAdded(PROPERTY_TYPE, v.propertyType);
-    
-    // 4. Multiply by hourly rate to get base dollar cost
-    let total = (baseHours + additionalHours) * HOURLY_RATE;
-    
-    // 5. Apply property type percentage premium
-    total *= 1 + getPremium(PROPERTY_TYPE, v.propertyType);
-    
-    // 6. Apply vegetation/terrain multipliers (on property-size portion only)
-    const vegMult = getMultiplier(VEGETATION, v.vegetation);
-    const terrainMult = getMultiplier(TERRAIN, v.terrain);
-    const scaledSizeCost = baseHours * HOURLY_RATE * vegMult * terrainMult;
-    total = scaledSizeCost + (total - baseHours * HOURLY_RATE);
-    
-    // 7. Add flat costs for travel, city subdivision lots, and other flat add-ons
-    let flatAddOns = 0;
-    
-    // Residential structures
-    if (v.hasResidence === 'yes') {
-      flatAddOns += getBaseCost(RESIDENCE_CORNERS, v.residenceCorners);
-      flatAddOns += getBaseCost(RESIDENCE_SIZE, v.residenceSize);
-      flatAddOns += getBaseCost(GARAGE, v.garage);
+export default function SurveyCalculator() {
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const [selectedSurveyType, setSelectedSurveyType] = useState<string>('boundary');
+  const [formValues, setFormValues] = useState<Record<string, unknown>>({});
+  const [rushJob, setRushJob] = useState<boolean>(false);
+  const [showResult, setShowResult] = useState<boolean>(false);
+  const [showSubmitForm, setShowSubmitForm] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitSuccess, setSubmitSuccess] = useState<boolean>(false);
+  const [contactInfo, setContactInfo] = useState<ContactInfo>({
+    name: '',
+    email: '',
+    phone: '',
+    notes: '',
+  });
+  const [result, setResult] = useState<{
+    lowEstimate: number;
+    highEstimate: number;
+    basePrice: number;
+  } | null>(null);
+
+  const resultRef = useRef<HTMLDivElement>(null);
+  const currentSurveyType = SURVEY_TYPES.find((s: SurveyTypeConfig) => s.id === selectedSurveyType);
+
+  // Reset form when survey type changes
+  useEffect(() => {
+    setFormValues({});
+    setShowResult(false);
+    setShowSubmitForm(false);
+    setSubmitSuccess(false);
+    setResult(null);
+  }, [selectedSurveyType]);
+
+  // Scroll to results when they appear
+  useEffect(() => {
+    if (showResult && resultRef.current) {
+      setTimeout(() => {
+        resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
     }
-    
-    // Dynamic improvements
-    flatAddOns += calculateImprovementsCost(v);
-    
-    // Other flats
-    flatAddOns += getBaseCost(EXISTING_MONUMENTS, v.existingMonuments);
-    flatAddOns += getBaseCost(ADJOINING, v.adjoining);
-    if (v.fenceIssues === 'significant') flatAddOns += getBaseCost(FENCE_ISSUES, v.fenceIssues);
-    flatAddOns += getBaseCost(SURVEY_PURPOSE, v.purpose);
-    if (v.lotCount !== '12+') flatAddOns += getBaseCost(LOT_COUNT, v.lotCount);
-    
-    // Travel
-    const miles = parseFloat(v.travelDistance as string) || 0;
-    flatAddOns += miles * 1.5;
-    
-    // Access flat if any
-    flatAddOns += getBaseCost(ACCESS_CONDITIONS, v.access);
-    
-    total += flatAddOns;
-    
-    // 8. Apply access multiplier
-    const accessMult = getMultiplier(ACCESS_CONDITIONS, v.access);
-    total *= accessMult;
-    
-    // 9. Apply waterway multiplier
-    if (v.waterwayBoundary === 'yes') total *= 1.20;
-    
-    // 10. Apply rush multiplier (assume component provides v.rush)
-    if (v.rush === 'yes') total *= 1.25;
-    
-    // 11. Range applied in UI
-    
-    return Math.max(total, boundarySurvey.minPrice);
-  },
-};
+  }, [showResult]);
 
-// =============================================================================
-// ALTA/NSPS SURVEY
-// =============================================================================
-const altaSurvey: SurveyTypeConfig = {
-  id: 'alta',
-  name: 'ALTA/NSPS Land Title Survey',
-  description: 'Comprehensive commercial survey meeting national standards. Required by lenders for commercial transactions.',
-  basePrice: 2000,
-  minPrice: 2000,
-  fields: [
-    PROPERTY_ADDRESS_FIELD,
-    PROPERTY_COUNTY_FIELD,
-    CUSTOM_COUNTY_FIELD,
-    { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: [
-      { value: 'office', label: 'Office Building', baseCost: 0 },
-      { value: 'retail', label: 'Retail/Shopping', baseCost: 200 },
-      { value: 'industrial', label: 'Industrial/Warehouse', baseCost: 100 },
-      { value: 'multifamily', label: 'Multi-Family', baseCost: 400 },
-      { value: 'mixed_use', label: 'Mixed-Use', baseCost: 600 },
-      { value: 'vacant', label: 'Vacant Commercial', baseCost: -400 },
-      { value: 'hospitality', label: 'Hotel/Hospitality', baseCost: 400 },
-      { value: 'healthcare', label: 'Healthcare', baseCost: 600 },
-    ]},
-    { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: [
-      { value: '0.5', label: 'Under 0.5 acres', baseCost: 0 },
-      { value: '1', label: '0.5 - 1 acre', baseCost: 300 },
-      { value: '2', label: '1 - 2 acres', baseCost: 600 },
-      { value: '5', label: '2 - 5 acres', baseCost: 1000 },
-      { value: '10', label: '5 - 10 acres', baseCost: 1600 },
-      { value: '25', label: '10 - 25 acres', baseCost: 2500 },
-      { value: '50', label: '25+ acres', baseCost: 4000 },
-    ]},
-    { id: 'buildings', label: 'Number of Buildings', type: 'select', required: true, options: [
-      { value: '0', label: 'No buildings', baseCost: 0 },
-      { value: '1', label: '1 building', baseCost: 300 },
-      { value: '2', label: '2 buildings', baseCost: 500 },
-      { value: '3', label: '3-4 buildings', baseCost: 750 },
-      { value: '5', label: '5+ buildings', baseCost: 1200 },
-    ]},
-    { id: 'tableA', label: 'Table A Items', type: 'select', required: true, helpText: 'Specified by lender/title company', options: [
-      { value: 'minimal', label: 'Minimal (1-4)', baseCost: 0 },
-      { value: 'standard', label: 'Standard (1-11)', baseCost: 500 },
-      { value: 'comprehensive', label: 'Comprehensive (1-16)', baseCost: 800 },
-      { value: 'full', label: 'Full (All 19)', baseCost: 1200 },
-      { value: 'unknown', label: 'Unknown', baseCost: 600 },
-    ]},
-    { id: 'utilities', label: 'Utility Location', type: 'select', required: true, options: [
-      { value: 'none', label: 'Surface only', baseCost: 0 },
-      { value: 'basic', label: '811 locate', baseCost: 150 },
-      { value: 'detailed', label: 'Detailed mapping', baseCost: 500 },
-      { value: 'sue', label: 'SUE required', baseCost: 1500 },
-    ]},
-    { id: 'floodCert', label: 'Flood Determination', type: 'select', required: true, options: [
-      { value: 'none', label: 'Not required', baseCost: 0 },
-      { value: 'determination', label: 'Zone determination', baseCost: 75 },
-      { value: 'certification', label: 'With elevation', baseCost: 300 },
-    ]},
-    { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    TRAVEL_MILES_FIELD,
-  ],
-  calculatePrice: (v) => {
-    let total = 2000; // Base ALTA price
-    const f = altaSurvey.fields;
-    total += getBaseCost(f[3].options, v.propertyType);
-    total += getBaseCost(f[4].options, v.acreage);
-    total += getBaseCost(f[5].options, v.buildings);
-    total += getBaseCost(f[6].options, v.tableA);
-    total += getBaseCost(f[7].options, v.utilities);
-    total += getBaseCost(f[8].options, v.floodCert);
-    total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    const miles = parseFloat(v.travelDistance as string) || 0;
-    total += miles * 1.5;
-    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
-    if (v.rush === 'yes') total *= 1.25;
-    return Math.max(total, 2000);
-  },
-};
+  const handleFieldChange = (fieldId: string, value: unknown): void => {
+    setFormValues((prev: Record<string, unknown>) => {
+      const newValues = { ...prev, [fieldId]: value };
+      
+      // Clear dependent fields when parent changes
+      if (fieldId === 'propertyType') {
+        // If changing away from residential, clear residence-related fields
+        if (!['residential_urban', 'residential_rural'].includes(value as string)) {
+          delete newValues.hasResidence;
+          delete newValues.residenceCorners;
+          delete newValues.residenceSize;
+          delete newValues.garage;
+          delete newValues.numImprovements;
+          // Clear all improvement fields
+          for (let i = 1; i <= 8; i++) {
+            delete newValues[`improvement${i}Type`];
+            delete newValues[`improvement${i}Corners`];
+            delete newValues[`improvement${i}Size`];
+          }
+        }
+        // Clear improvements if not residential or agricultural
+        if (!['residential_urban', 'residential_rural', 'agricultural'].includes(value as string)) {
+          delete newValues.numImprovements;
+          for (let i = 1; i <= 8; i++) {
+            delete newValues[`improvement${i}Type`];
+            delete newValues[`improvement${i}Corners`];
+            delete newValues[`improvement${i}Size`];
+          }
+        }
+      }
+      
+      // If hasResidence changes to 'no', clear residence details
+      if (fieldId === 'hasResidence' && value === 'no') {
+        delete newValues.residenceCorners;
+        delete newValues.residenceSize;
+        delete newValues.garage;
+      }
+      
+      // If numImprovements changes, clear extra improvement fields
+      if (fieldId === 'numImprovements') {
+        const newNum = parseInt(value as string) || 0;
+        for (let i = newNum + 1; i <= 8; i++) {
+          delete newValues[`improvement${i}Type`];
+          delete newValues[`improvement${i}Corners`];
+          delete newValues[`improvement${i}Size`];
+        }
+      }
+      
+      // If fieldWork changes to 'none', clear dependent fields
+      if (fieldId === 'fieldWork' && value === 'none') {
+        delete newValues.acreage;
+        delete newValues.corners;
+      }
+      
+      return newValues;
+    });
+    setShowResult(false);
+    setShowSubmitForm(false);
+  };
 
-// =============================================================================
-// TOPOGRAPHIC SURVEY
-// =============================================================================
-const topoSurvey: SurveyTypeConfig = {
-  id: 'topographic',
-  name: 'Topographic Survey',
-  description: 'Maps contours, elevations, and features. Essential for site planning, drainage, and construction.',
-  basePrice: 500,
-  minPrice: 500,
-  fields: [
-    PROPERTY_ADDRESS_FIELD,
-    PROPERTY_COUNTY_FIELD,
-    CUSTOM_COUNTY_FIELD,
-    { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: [
-      { value: 'site_plan', label: 'Site Planning', baseCost: 0 },
-      { value: 'drainage', label: 'Drainage Design', baseCost: 100 },
-      { value: 'grading', label: 'Grading Plan', baseCost: 100 },
-      { value: 'construction', label: 'Pre-Construction', baseCost: 100 },
-      { value: 'flood', label: 'Floodplain Study', baseCost: 200 },
-    ]},
-    { id: 'acreage', label: 'Area to Survey', type: 'select', required: true, options: [
-      { value: '0.25', label: 'Under 0.25 acres', baseCost: 0 },
-      { value: '0.5', label: '0.25 - 0.5 acres', baseCost: 150 },
-      { value: '1', label: '0.5 - 1 acre', baseCost: 350 },
-      { value: '2', label: '1 - 2 acres', baseCost: 650 },
-      { value: '5', label: '2 - 5 acres', baseCost: 1200 },
-      { value: '10', label: '5 - 10 acres', baseCost: 2000 },
-      { value: '20', label: '10+ acres', baseCost: 3500 },
-    ]},
-    { id: 'contourInterval', label: 'Contour Interval', type: 'select', required: true, helpText: 'Smaller = more detail', options: [
-      { value: '5', label: '5-foot (general)', hoursMultiplier: 1.0 },
-      { value: '2', label: '2-foot (standard)', hoursMultiplier: 1.15 },
-      { value: '1', label: '1-foot (high detail)', hoursMultiplier: 1.35 },
-      { value: '0.5', label: '6-inch (precision)', hoursMultiplier: 1.6 },
-    ]},
-    { id: 'features', label: 'Features to Map', type: 'select', required: true, options: [
-      { value: 'basic', label: 'Contours only', baseCost: 0 },
-      { value: 'standard', label: 'Contours + buildings + trees', baseCost: 250 },
-      { value: 'detailed', label: 'All improvements', baseCost: 500 },
-      { value: 'comprehensive', label: 'With utilities', baseCost: 800 },
-    ]},
-    { id: 'vegetation', label: 'Vegetation', type: 'select', required: true, options: VEGETATION },
-    { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
-    { id: 'benchmark', label: 'Vertical Datum', type: 'select', required: true, options: [
-      { value: 'assumed', label: 'Assumed (relative)', baseCost: 0 },
-      { value: 'local', label: 'Local benchmark', baseCost: 75 },
-      { value: 'navd88', label: 'NAVD88', baseCost: 150 },
-    ]},
-    { id: 'boundary', label: 'Include Boundary', type: 'select', required: false, options: [
-      { value: 'no', label: 'No - have current', baseCost: 0 },
-      { value: 'yes', label: 'Yes - include', baseCost: 400 },
-    ]},
-    { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    TRAVEL_MILES_FIELD,
-  ],
-  calculatePrice: (v) => {
-    const f = topoSurvey.fields;
-    
-    // Base from acreage (scaled by contour interval, vegetation, terrain)
-    let sizeBase = 500 + getBaseCost(f[3].options, v.acreage);
-    const contourMultiplier = getMultiplier(f[4].options, v.contourInterval);
-    const vegMultiplier = getMultiplier(VEGETATION, v.vegetation);
-    const terrainMultiplier = getMultiplier(TERRAIN, v.terrain);
-    sizeBase = sizeBase * contourMultiplier * vegMultiplier * terrainMultiplier;
-    
-    // Flat add-ons
-    let addOns = 0;
-    addOns += getBaseCost(f[2].options, v.purpose);
-    addOns += getBaseCost(f[5].options, v.features);
-    addOns += getBaseCost(f[8].options, v.benchmark);
-    addOns += getBaseCost(f[9].options, v.boundary);
-    addOns += getBaseCost(ACCESS_CONDITIONS, v.access);
-    const miles = parseFloat(v.travelDistance as string) || 0;
-    addOns += miles * 1.5;
-    
-    let total = sizeBase + addOns;
-    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
-    if (v.rush === 'yes') total *= 1.25;
-    
-    return Math.max(total, topoSurvey.minPrice);
-  },
-};
+  const handleContactChange = (field: keyof ContactInfo, value: string): void => {
+    setContactInfo((prev: ContactInfo) => ({ ...prev, [field]: value }));
+  };
 
-// =============================================================================
-// ELEVATION CERTIFICATE
-// =============================================================================
-const elevationCert: SurveyTypeConfig = {
-  id: 'elevation',
-  name: 'Elevation Certificate (FEMA)',
-  description: 'Official FEMA form for flood insurance, LOMA applications, or proving structure is above flood level.',
-  basePrice: 350,
-  minPrice: 350,
-  fields: [
-    PROPERTY_ADDRESS_FIELD,
-    PROPERTY_COUNTY_FIELD,
-    CUSTOM_COUNTY_FIELD,
-    { id: 'buildingType', label: 'Building Type', type: 'select', required: true, options: [
-      { value: 'single_family', label: 'Single-Family Home', baseCost: 0 },
-      { value: 'duplex', label: 'Duplex', baseCost: 75 },
-      { value: 'townhouse', label: 'Townhouse', baseCost: 50 },
-      { value: 'mobile', label: 'Mobile Home', baseCost: -50 },
-      { value: 'multi_family', label: 'Multi-Family', baseCost: 150 },
-      { value: 'commercial', label: 'Commercial', baseCost: 125 },
-    ]},
-    { id: 'floodZone', label: 'Flood Zone', type: 'select', required: true, helpText: 'Check policy or FEMA map', options: [
-      { value: 'x', label: 'Zone X (minimal risk)', baseCost: -50 },
-      { value: 'x500', label: 'Zone X shaded (500-year)', baseCost: 0 },
-      { value: 'a', label: 'Zone A (no BFE)', baseCost: 75 },
-      { value: 'ae', label: 'Zone AE (with BFE)', baseCost: 0 },
-      { value: 'ao', label: 'Zone AO (sheet flow)', baseCost: 75 },
-      { value: 'unknown', label: 'Unknown', baseCost: 50 },
-    ]},
-    { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: [
-      { value: 'insurance', label: 'Flood Insurance', baseCost: 0 },
-      { value: 'loma', label: 'LOMA Application', baseCost: 150 },
-      { value: 'lomr_f', label: 'LOMR-F Application', baseCost: 225 },
-      { value: 'construction', label: 'New Construction', baseCost: 50 },
-      { value: 'sale', label: 'Property Sale', baseCost: 0 },
-    ]},
-    { id: 'basement', label: 'Basement/Below Area', type: 'select', required: true, options: [
-      { value: 'none', label: 'None', baseCost: 0 },
-      { value: 'crawl', label: 'Crawl space', baseCost: 50 },
-      { value: 'basement', label: 'Full basement', baseCost: 75 },
-      { value: 'walkout', label: 'Walkout basement', baseCost: 100 },
-    ]},
-    { id: 'additions', label: 'Building Additions', type: 'select', required: false, options: [
-      { value: 'none', label: 'Original only', baseCost: 0 },
-      { value: 'one', label: 'One addition', baseCost: 50 },
-      { value: 'multiple', label: 'Multiple additions', baseCost: 100 },
-    ]},
-    { id: 'access', label: 'Property Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    TRAVEL_MILES_FIELD,
-  ],
-  calculatePrice: (v) => {
-    let total = 350;
-    const f = elevationCert.fields;
-    total += getBaseCost(f[3].options, v.buildingType);
-    total += getBaseCost(f[4].options, v.floodZone);
-    total += getBaseCost(f[5].options, v.purpose);
-    total += getBaseCost(f[6].options, v.basement);
-    total += getBaseCost(f[7].options, v.additions);
-    total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    const miles = parseFloat(v.travelDistance as string) || 0;
-    total += miles * 1.5;
-    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
-    if (v.rush === 'yes') total *= 1.25;
-    return Math.max(total, 350);
-  },
-};
-
-// =============================================================================
-// CONSTRUCTION STAKING
-// =============================================================================
-const constructionStaking: SurveyTypeConfig = {
-  id: 'construction',
-  name: 'Construction Staking / Layout',
-  description: 'Precise positioning of stakes for construction. Ensures correct building locations per approved plans.',
-  basePrice: 300,
-  minPrice: 300,
-  fields: [
-    PROPERTY_ADDRESS_FIELD,
-    PROPERTY_COUNTY_FIELD,
-    CUSTOM_COUNTY_FIELD,
-    { id: 'projectType', label: 'Project Type', type: 'select', required: true, options: [
-      { value: 'residential', label: 'New Home', baseCost: 0 },
-      { value: 'addition', label: 'Home Addition', baseCost: -75 },
-      { value: 'commercial', label: 'Commercial Building', baseCost: 300 },
-      { value: 'road', label: 'Road/Driveway', baseCost: 150 },
-      { value: 'fence', label: 'Fence Line', baseCost: -75 },
-      { value: 'septic', label: 'Septic System', baseCost: 0 },
-      { value: 'pool', label: 'Swimming Pool', baseCost: -50 },
-    ]},
-    { id: 'stakingType', label: 'Staking Type', type: 'select', required: true, options: [
-      { value: 'corners', label: 'Corners only', baseCost: 0 },
-      { value: 'offset', label: 'Offset stakes', baseCost: 75 },
-      { value: 'grades', label: 'Grade stakes', baseCost: 200 },
-      { value: 'full', label: 'Complete layout', baseCost: 350 },
-    ]},
-    { id: 'points', label: 'Number of Points', type: 'select', required: true, options: [
-      { value: '10', label: '4-10 points', baseCost: 0 },
-      { value: '25', label: '11-25 points', baseCost: 150 },
-      { value: '50', label: '26-50 points', baseCost: 350 },
-      { value: '100', label: '50+ points', baseCost: 700 },
-    ]},
-    { id: 'plans', label: 'Plans Available', type: 'select', required: true, options: [
-      { value: 'digital', label: 'Digital CAD', baseCost: 0 },
-      { value: 'pdf', label: 'PDF plans', baseCost: 50 },
-      { value: 'paper', label: 'Paper only', baseCost: 75 },
-      { value: 'none', label: 'No plans', baseCost: 200 },
-    ]},
-    { id: 'visits', label: 'Site Visits', type: 'select', required: true, options: [
-      { value: 'single', label: 'Single visit', hoursMultiplier: 1.0 },
-      { value: 'two', label: 'Two visits', hoursMultiplier: 1.75 },
-      { value: 'multiple', label: 'Multiple visits', hoursMultiplier: 2.5 },
-    ]},
-    { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
-    { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    TRAVEL_MILES_FIELD,
-  ],
-  calculatePrice: (v) => {
-    const f = constructionStaking.fields;
-    
-    // Base price + options (scaled by visits and terrain)
-    let base = 300;
-    base += getBaseCost(f[2].options, v.projectType);
-    base += getBaseCost(f[3].options, v.stakingType);
-    base += getBaseCost(f[4].options, v.points);
-    base += getBaseCost(f[5].options, v.plans);
-    
-    // Apply multipliers
-    const visitsMultiplier = getMultiplier(f[6].options, v.visits);
-    const terrainMultiplier = getMultiplier(TERRAIN, v.terrain);
-    base = base * visitsMultiplier * terrainMultiplier;
-    
-    // Flat add-ons
-    base += getBaseCost(ACCESS_CONDITIONS, v.access);
-    const miles = parseFloat(v.travelDistance as string) || 0;
-    base += miles * 1.5;
-    
-    let total = base;
-    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
-    if (v.rush === 'yes') total *= 1.25;
-    
-    return Math.max(total, 300);
-  },
-};
-
-// =============================================================================
-// SUBDIVISION PLATTING
-// =============================================================================
-const subdivisionPlat: SurveyTypeConfig = {
-  id: 'subdivision',
-  name: 'Subdivision Platting',
-  description: 'Divides land into multiple lots with streets and easements. Creates recorded plat for individual lot sales.',
-  basePrice: 2500,
-  minPrice: 2500,
-  fields: [
-    PROPERTY_ADDRESS_FIELD,
-    PROPERTY_COUNTY_FIELD,
-    CUSTOM_COUNTY_FIELD,
-    { id: 'acreage', label: 'Total Tract Size', type: 'select', required: true, options: [
-      { value: '5', label: 'Under 5 acres', baseCost: 0 },
-      { value: '10', label: '5 - 10 acres', baseCost: 500 },
-      { value: '25', label: '10 - 25 acres', baseCost: 1000 },
-      { value: '50', label: '25 - 50 acres', baseCost: 1750 },
-      { value: '100', label: '50 - 100 acres', baseCost: 2750 },
-      { value: '200', label: '100+ acres', baseCost: 4500 },
-    ]},
-    { id: 'lots', label: 'Number of Lots', type: 'select', required: true, options: [
-      { value: '2', label: '2 lots (simple split)', baseCost: -750 },
-      { value: '3', label: '3 lots', baseCost: -400 },
-      { value: '5', label: '4 - 6 lots', baseCost: 0 },
-      { value: '10', label: '7 - 12 lots', baseCost: 700 },
-      { value: '25', label: '13 - 25 lots', baseCost: 1750 },
-      { value: '50', label: '26+ lots', baseCost: 3500 },
-    ]},
-    { id: 'roads', label: 'Road Layout', type: 'select', required: true, options: [
-      { value: 'none', label: 'No new roads', baseCost: 0 },
-      { value: 'simple', label: 'One simple road', baseCost: 700 },
-      { value: 'moderate', label: '2-3 roads', baseCost: 1400 },
-      { value: 'complex', label: 'Complex with cul-de-sacs', baseCost: 2100 },
-    ]},
-    { id: 'drainage', label: 'Drainage', type: 'select', required: true, options: [
-      { value: 'simple', label: 'Natural drainage', baseCost: 0 },
-      { value: 'easements', label: 'Drainage easements', baseCost: 500 },
-      { value: 'detention', label: 'Detention required', baseCost: 1000 },
-    ]},
-    { id: 'jurisdiction', label: 'Jurisdiction', type: 'select', required: true, options: [
-      { value: 'county', label: 'County only', baseCost: 0 },
-      { value: 'etj', label: 'City ETJ', baseCost: 350 },
-      { value: 'city', label: 'City limits', baseCost: 850 },
-    ]},
-    { id: 'vegetation', label: 'Vegetation', type: 'select', required: true, options: VEGETATION },
-    { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
-    { id: 'floodplain', label: 'Floodplain', type: 'select', required: true, options: [
-      { value: 'none', label: 'No floodplain', baseCost: 0 },
-      { value: 'minor', label: 'Minor (edge)', baseCost: 500 },
-      { value: 'significant', label: 'Significant', baseCost: 1000 },
-      { value: 'major', label: 'Major impact', baseCost: 1750 },
-    ]},
-    { id: 'existingSurvey', label: 'Parent Tract Survey', type: 'select', required: true, options: EXISTING_SURVEY },
-    TRAVEL_MILES_FIELD,
-  ],
-  calculatePrice: (v) => {
-    const f = subdivisionPlat.fields;
-    
-    // Base affected by vegetation and terrain
-    let sizeBase = 2500 + getBaseCost(f[3].options, v.acreage);
-    const vegMultiplier = getMultiplier(VEGETATION, v.vegetation);
-    const terrainMultiplier = getMultiplier(TERRAIN, v.terrain);
-    sizeBase = sizeBase * vegMultiplier * terrainMultiplier;
-    
-    // Flat add-ons
-    let addOns = 0;
-    addOns += getBaseCost(f[4].options, v.lots);
-    addOns += getBaseCost(f[5].options, v.roads);
-    addOns += getBaseCost(f[6].options, v.drainage);
-    addOns += getBaseCost(f[7].options, v.jurisdiction);
-    addOns += getBaseCost(f[11].options, v.floodplain);
-    addOns += getBaseCost(EXISTING_SURVEY, v.existingSurvey);
-    const miles = parseFloat(v.travelDistance as string) || 0;
-    addOns += miles * 1.5;
-    
-    let total = sizeBase + addOns;
-    if (v.rush === 'yes') total *= 1.25;
-    
-    return Math.max(total, 2500);
-  },
-};
-
-// =============================================================================
-// AS-BUILT SURVEY
-// =============================================================================
-const asBuiltSurvey: SurveyTypeConfig = {
-  id: 'asbuilt',
-  name: 'As-Built Survey',
-  description: 'Documents completed construction location. Verifies structures meet approved plans and setbacks.',
-  basePrice: 400,
-  minPrice: 400,
-  fields: [
-    PROPERTY_ADDRESS_FIELD,
-    PROPERTY_COUNTY_FIELD,
-    CUSTOM_COUNTY_FIELD,
-    { id: 'structureType', label: 'Structure Type', type: 'select', required: true, options: [
-      { value: 'residential', label: 'New Home', baseCost: 0 },
-      { value: 'addition', label: 'Addition', baseCost: -75 },
-      { value: 'commercial', label: 'Commercial', baseCost: 300 },
-      { value: 'accessory', label: 'Garage/Barn/Shop', baseCost: -100 },
-      { value: 'pool', label: 'Pool', baseCost: -125 },
-      { value: 'foundation', label: 'Foundation Only', baseCost: -75 },
-    ]},
-    { id: 'complexity', label: 'Complexity', type: 'select', required: true, options: [
-      { value: 'simple', label: 'Simple rectangular', baseCost: 0 },
-      { value: 'moderate', label: 'L-shape or offsets', baseCost: 75 },
-      { value: 'complex', label: 'Complex footprint', baseCost: 150 },
-      { value: 'very_complex', label: 'Multiple buildings', baseCost: 300 },
-    ]},
-    { id: 'features', label: 'Features to Document', type: 'select', required: true, options: [
-      { value: 'building', label: 'Building + setbacks only', baseCost: 0 },
-      { value: 'improvements', label: '+ drives + walks', baseCost: 100 },
-      { value: 'full', label: 'All improvements', baseCost: 225 },
-      { value: 'comprehensive', label: 'With elevations', baseCost: 375 },
-    ]},
-    { id: 'permit', label: 'For Permit/CO', type: 'select', required: true, options: [
-      { value: 'yes', label: 'Yes - permit required', baseCost: 50 },
-      { value: 'no', label: 'No - personal records', baseCost: 0 },
-    ]},
-    { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    TRAVEL_MILES_FIELD,
-  ],
-  calculatePrice: (v) => {
-    let total = 400;
-    const f = asBuiltSurvey.fields;
-    total += getBaseCost(f[3].options, v.structureType);
-    total += getBaseCost(f[4].options, v.complexity);
-    total += getBaseCost(f[5].options, v.features);
-    total += getBaseCost(f[6].options, v.permit);
-    total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    const miles = parseFloat(v.travelDistance as string) || 0;
-    total += miles * 1.5;
-    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
-    if (v.rush === 'yes') total *= 1.25;
-    return Math.max(total, 400);
-  },
-};
-
-// =============================================================================
-// MORTGAGE SURVEY
-// =============================================================================
-const mortgageSurvey: SurveyTypeConfig = {
-  id: 'mortgage',
-  name: 'Mortgage / Loan Survey',
-  description: 'Required by lenders for property purchase or refinance. Shows boundaries, improvements, and easements.',
-  basePrice: 350,
-  minPrice: 350,
-  fields: [
-    PROPERTY_ADDRESS_FIELD,
-    PROPERTY_COUNTY_FIELD,
-    CUSTOM_COUNTY_FIELD,
-    { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: PROPERTY_TYPE },
-    { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: PROPERTY_SIZE },
-    { id: 'corners', label: 'Property Corners', type: 'select', required: true, options: PROPERTY_CORNERS },
-    { id: 'existingMonuments', label: 'Corner Markers', type: 'select', required: true, options: EXISTING_MONUMENTS },
-    { id: 'existingSurvey', label: 'Previous Survey', type: 'select', required: true, options: EXISTING_SURVEY },
-    { id: 'closingDate', label: 'Closing Timeline', type: 'select', required: true, options: [
-      { value: 'flexible', label: '2+ weeks', baseCost: 0 },
-      { value: 'standard', label: '7-14 days', baseCost: 0 },
-      { value: 'soon', label: 'Within 7 days', baseCost: 0 },
-      { value: 'urgent', label: 'Under 5 days', baseCost: 0 },
-    ]},
-    { id: 'access', label: 'Property Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    TRAVEL_MILES_FIELD,
-  ],
-  calculatePrice: (v) => {
-    let total = 350;
-    total += getBaseCost(PROPERTY_TYPE, v.propertyType);
-    total += getBaseCost(PROPERTY_SIZE, v.acreage);
-    total += getBaseCost(PROPERTY_CORNERS, v.corners);
-    total += getBaseCost(EXISTING_MONUMENTS, v.existingMonuments);
-    total += getBaseCost(EXISTING_SURVEY, v.existingSurvey);
-    total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    const miles = parseFloat(v.travelDistance as string) || 0;
-    total += miles * 1.5;
-    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
-    if (v.rush === 'yes') total *= 1.25;
-    return Math.max(total, 350);
-  },
-};
-
-// =============================================================================
-// EASEMENT SURVEY
-// =============================================================================
-const easementSurvey: SurveyTypeConfig = {
-  id: 'easement',
-  name: 'Route / Easement Survey',
-  description: 'Surveys linear corridors for utilities, pipelines, or access. Creates legal descriptions across properties.',
-  basePrice: 500,
-  minPrice: 500,
-  fields: [
-    { id: 'startLocation', label: 'Starting Point', type: 'text', required: true, placeholder: 'Address or description' },
-    { id: 'endLocation', label: 'Ending Point', type: 'text', required: true, placeholder: 'Address or description' },
-    PROPERTY_COUNTY_FIELD,
-    CUSTOM_COUNTY_FIELD,
-    { id: 'easementType', label: 'Easement Type', type: 'select', required: true, options: [
-      { value: 'access', label: 'Access/Driveway', baseCost: 0 },
-      { value: 'utility_overhead', label: 'Overhead Utility', baseCost: -75 },
-      { value: 'utility_underground', label: 'Underground Utility', baseCost: 75 },
-      { value: 'pipeline', label: 'Pipeline', baseCost: 150 },
-      { value: 'drainage', label: 'Drainage', baseCost: 75 },
-      { value: 'road', label: 'Road ROW', baseCost: 150 },
-    ]},
-    { id: 'length', label: 'Route Length', type: 'select', required: true, options: [
-      { value: '250', label: 'Under 250 feet', baseCost: 0 },
-      { value: '500', label: '250 - 500 feet', baseCost: 150 },
-      { value: '1000', label: '500 - 1,000 feet', baseCost: 300 },
-      { value: '2500', label: '1,000 - 2,500 feet', baseCost: 600 },
-      { value: '5000', label: '2,500 - 5,000 feet', baseCost: 1100 },
-      { value: '10000', label: '1 - 2 miles', baseCost: 1900 },
-    ]},
-    { id: 'parcels', label: 'Properties Crossed', type: 'select', required: true, options: [
-      { value: '1', label: '1 property', baseCost: 0 },
-      { value: '2', label: '2 properties', baseCost: 225 },
-      { value: '3', label: '3 properties', baseCost: 400 },
-      { value: '5', label: '4-5 properties', baseCost: 625 },
-      { value: '10', label: '6+ properties', baseCost: 1100 },
-    ]},
-    { id: 'vegetation', label: 'Vegetation', type: 'select', required: true, options: VEGETATION },
-    { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
-    { id: 'waterCrossings', label: 'Water Crossings', type: 'select', required: false, options: [
-      { value: 'none', label: 'None', baseCost: 0 },
-      { value: 'one', label: '1 crossing', baseCost: 150 },
-      { value: 'multiple', label: 'Multiple', baseCost: 375 },
-    ]},
-    { id: 'legalDesc', label: 'Legal Description', type: 'select', required: true, options: [
-      { value: 'no', label: 'Not needed', baseCost: 0 },
-      { value: 'simple', label: 'Single description', baseCost: 125 },
-      { value: 'multiple', label: 'Per parcel', baseCost: 300 },
-    ]},
-    { id: 'access', label: 'Route Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    TRAVEL_MILES_FIELD,
-  ],
-  calculatePrice: (v) => {
-    const f = easementSurvey.fields;
-    
-    // Base from length (scaled by vegetation, terrain)
-    let lengthBase = 500 + getBaseCost(f[4].options, v.length);
-    const vegMultiplier = getMultiplier(VEGETATION, v.vegetation);
-    const terrainMultiplier = getMultiplier(TERRAIN, v.terrain);
-    lengthBase = lengthBase * vegMultiplier * terrainMultiplier;
-    
-    // Flat add-ons
-    let addOns = 0;
-    addOns += getBaseCost(f[4].options, v.easementType);
-    addOns += getBaseCost(f[6].options, v.parcels);
-    addOns += getBaseCost(f[9].options, v.waterCrossings);
-    addOns += getBaseCost(f[10].options, v.legalDesc);
-    addOns += getBaseCost(ACCESS_CONDITIONS, v.access);
-    const miles = parseFloat(v.travelDistance as string) || 0;
-    addOns += miles * 1.5;
-    
-    let total = lengthBase + addOns;
-    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
-    if (v.rush === 'yes') total *= 1.25;
-    
-    return total;
-  },
-};
-
-// =============================================================================
-// LEGAL DESCRIPTION
-// =============================================================================
-const legalDescription: SurveyTypeConfig = {
-  id: 'legal_description',
-  name: 'Legal Description',
-  description: 'Creates or verifies written legal descriptions for deeds, title documents, or easements.',
-  basePrice: 250,
-  minPrice: 250,
-  fields: [
-    PROPERTY_ADDRESS_FIELD,
-    PROPERTY_COUNTY_FIELD,
-    CUSTOM_COUNTY_FIELD,
-    { id: 'type', label: 'Description Type', type: 'select', required: true, options: [
-      { value: 'lot_block', label: 'Lot and Block', baseCost: -100 },
-      { value: 'metes_bounds', label: 'Metes and Bounds', baseCost: 0 },
-      { value: 'easement', label: 'Easement Description', baseCost: 75 },
-      { value: 'partial', label: 'Part of Larger Tract', baseCost: 150 },
-      { value: 'correction', label: 'Correction', baseCost: -50 },
-    ]},
-    { id: 'fieldWork', label: 'Field Work Needed', type: 'select', required: true, options: [
-      { value: 'none', label: 'From existing survey', baseCost: 0 },
-      { value: 'verification', label: 'Field verification', baseCost: 225 },
-      { value: 'full', label: 'Full field survey', baseCost: 600 },
-    ]},
-    { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: PROPERTY_SIZE,
-      showWhen: { field: 'fieldWork', value: ['verification', 'full'] } },
-    { id: 'corners', label: 'Number of Corners', type: 'select', required: true, options: PROPERTY_CORNERS,
-      showWhen: { field: 'fieldWork', value: ['verification', 'full'] } },
-    { id: 'existingSurvey', label: 'Existing Survey', type: 'select', required: true, options: EXISTING_SURVEY },
-    TRAVEL_MILES_FIELD,
-  ],
-  calculatePrice: (v) => {
-    let total = 250;
-    const f = legalDescription.fields;
-    total += getBaseCost(f[3].options, v.type);
-    total += getBaseCost(f[4].options, v.fieldWork);
-    
-    // Only add size/corners if field work is needed
-    if (v.fieldWork === 'verification' || v.fieldWork === 'full') {
-      total += getBaseCost(PROPERTY_SIZE, v.acreage) * 0.5;
-      total += getBaseCost(PROPERTY_CORNERS, v.corners) * 0.5;
+  const shouldShowField = (field: FormField): boolean => {
+    if (!field.showWhen) return true;
+    const currentValue = formValues[field.showWhen.field];
+    if (Array.isArray(field.showWhen.value)) {
+      return field.showWhen.value.includes(currentValue as string);
     }
-    
-    total += getBaseCost(EXISTING_SURVEY, v.existingSurvey) * 0.5;
-    const miles = parseFloat(v.travelDistance as string) || 0;
-    total += miles * 1.5;
-    if (v.rush === 'yes') total *= 1.25;
-    
-    return Math.max(total, 250);
-  },
-};
+    return currentValue === field.showWhen.value;
+  };
 
-// =============================================================================
-// EXPORT ALL SURVEY TYPES
-// =============================================================================
-export const SURVEY_TYPES: SurveyTypeConfig[] = [
-  boundarySurvey,
-  altaSurvey,
-  topoSurvey,
-  elevationCert,
-  constructionStaking,
-  subdivisionPlat,
-  asBuiltSurvey,
-  mortgageSurvey,
-  easementSurvey,
-  legalDescription,
-];
+  const calculateEstimate = (): void => {
+    if (!currentSurveyType) return;
+
+    const missingRequired = currentSurveyType.fields.filter(
+      (f: FormField) => f.required && shouldShowField(f) && !formValues[f.id]
+    );
+    if (missingRequired.length > 0) {
+      alert(`Please fill in required fields:\n\n• ${missingRequired.map((f: FormField) => f.label).join('\n• ')}`);
+      return;
+    }
+
+    // Calculate price using the new base cost model
+    const calculatedPrice = currentSurveyType.calculatePrice(formValues);
+
+    // Apply rush multiplier (25% for rush jobs)
+    let finalPrice = rushJob ? calculatedPrice * 1.25 : calculatedPrice;
+
+    // Ensure minimum price
+    finalPrice = Math.max(finalPrice, currentSurveyType.minPrice);
+    
+    // Adjusted estimate range: -9% to +6.5%
+    const lowEstimate = Math.round(finalPrice * ESTIMATE_LOW_MULTIPLIER);
+    const highEstimate = Math.round(finalPrice * ESTIMATE_HIGH_MULTIPLIER);
+
+    setResult({
+      lowEstimate,
+      highEstimate,
+      basePrice: Math.round(calculatedPrice),
+    });
+    setShowResult(true);
+  };
+
+  const handleSubmit = async (): Promise<void> => {
+    if (!contactInfo.name.trim()) {
+      alert('Please enter your name.');
+      return;
+    }
+    if (!contactInfo.email.trim() || !contactInfo.email.includes('@')) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+    if (!contactInfo.phone.trim() || contactInfo.phone.replace(/\D/g, '').length < 10) {
+      alert('Please enter a valid phone number.');
+      return;
+    }
+    if (!currentSurveyType || !result) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const formData = formatFormDataForEmail(currentSurveyType, formValues, result, rushJob);
+      
+      let emailBody = `NEW SURVEY ESTIMATE REQUEST\n\n`;
+      emailBody += `CONTACT INFORMATION:\n`;
+      emailBody += `Name: ${contactInfo.name}\n`;
+      emailBody += `Email: ${contactInfo.email}\n`;
+      emailBody += `Phone: ${contactInfo.phone}\n\n`;
+      
+      if (contactInfo.notes.trim()) {
+        emailBody += `ADDITIONAL NOTES:\n${contactInfo.notes}\n\n`;
+      }
+      
+      emailBody += formData;
+      emailBody += `\n\nSubmitted: ${new Date().toLocaleString()}`;
+
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: contactInfo.name,
+          email: contactInfo.email,
+          phone: contactInfo.phone,
+          subject: `Survey Estimate Request - ${currentSurveyType.name}`,
+          message: emailBody,
+          source: 'pricing-calculator',
+        }),
+      });
+
+      if (response.ok) {
+        // Track Google Ads conversion on successful calculator submission
+        trackConversion();
+
+        setSubmitSuccess(true);
+      } else {
+        throw new Error('Failed');
+      }
+    } catch {
+      // Fallback to mailto
+      const mailtoSubject = encodeURIComponent(`Survey Estimate Request - ${currentSurveyType.name}`);
+      const mailtoBody = encodeURIComponent(
+        `Contact: ${contactInfo.name}\nEmail: ${contactInfo.email}\nPhone: ${contactInfo.phone}\n\n` +
+        (contactInfo.notes ? `Notes: ${contactInfo.notes}\n\n` : '') +
+        formatFormDataForEmail(currentSurveyType, formValues, result, rushJob)
+      );
+      window.location.href = `mailto:info@starrsurveying.com?subject=${mailtoSubject}&body=${mailtoBody}`;
+
+      // Track conversion even on mailto fallback since user still submitted
+      trackConversion();
+
+      setSubmitSuccess(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resetCalculator = (): void => {
+    setFormValues({});
+    setRushJob(false);
+    setShowResult(false);
+    setShowSubmitForm(false);
+    setSubmitSuccess(false);
+    setResult(null);
+    setContactInfo({ name: '', email: '', phone: '', notes: '' });
+  };
+
+  // Get number of improvements for dynamic fields
+  const numImprovements = parseInt(formValues.numImprovements as string) || 0;
+  
+  // Check if we should show improvements (only for boundary survey with appropriate property types)
+  const shouldShowImprovements = selectedSurveyType === 'boundary' && 
+    ['residential_urban', 'residential_rural', 'agricultural'].includes(formValues.propertyType as string);
+
+  // Helper to render a single field
+  const renderField = (field: FormField) => {
+    if (!shouldShowField(field)) return null;
+
+    const isFullWidth = field.type === 'textarea' || 
+      field.id === 'propertyAddress' || 
+      field.id === 'startLocation' || 
+      field.id === 'endLocation';
+
+    return (
+      <div
+        key={field.id}
+        className={`pricing-calculator__field ${isFullWidth ? 'pricing-calculator__field--full' : ''}`}
+      >
+        <label className="pricing-calculator__label">
+          {field.label} {field.required && '*'}
+        </label>
+
+        {field.type === 'select' && (
+          <select
+            className="pricing-calculator__select"
+            value={(formValues[field.id] as string) || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+          >
+            <option value="">-- Select --</option>
+            {field.options?.map((opt: FieldOption) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        )}
+
+        {field.type === 'text' && (
+          <input
+            type="text"
+            className="pricing-calculator__input"
+            value={(formValues[field.id] as string) || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            placeholder={field.placeholder}
+          />
+        )}
+
+        {field.type === 'number' && (
+          <input
+            type="number"
+            className="pricing-calculator__input"
+            value={(formValues[field.id] as number) || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            placeholder={field.placeholder}
+          />
+        )}
+
+        {field.type === 'textarea' && (
+          <textarea
+            className="pricing-calculator__input"
+            value={(formValues[field.id] as string) || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            placeholder={field.placeholder}
+            rows={3}
+            style={{ resize: 'vertical', minHeight: '80px' }}
+          />
+        )}
+
+        {field.helpText && (
+          <p style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '0.25rem' }}>
+            {field.helpText}
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  // Render a single improvement field with "Improvement X" label
+  const renderImprovementField = (index: number) => {
+    const improvementType = formValues[`improvement${index}Type`] as string || '';
+    const showResidenceFields = isAdditionalResidence(improvementType);
+
+    return (
+      <div key={`improvement-${index}`} className="pricing-calculator__field pricing-calculator__field--full">
+        <label className="pricing-calculator__label">
+          Improvement {index}
+        </label>
+        <select
+          className="pricing-calculator__select"
+          value={improvementType}
+          onChange={(e) => {
+            handleFieldChange(`improvement${index}Type`, e.target.value);
+            // Clear residence fields if type changes to non-residence
+            if (!isAdditionalResidence(e.target.value)) {
+              handleFieldChange(`improvement${index}Corners`, '');
+              handleFieldChange(`improvement${index}Size`, '');
+            }
+          }}
+        >
+          {IMPROVEMENT_TYPE.map((opt: FieldOption) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        
+        {/* Additional residence fields - shown inline below the type dropdown */}
+        {showResidenceFields && (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr', 
+            gap: '0.5rem', 
+            marginTop: '0.5rem' 
+          }}>
+            <select
+              className="pricing-calculator__select"
+              style={{ marginBottom: 0 }}
+              value={(formValues[`improvement${index}Corners`] as string) || ''}
+              onChange={(e) => handleFieldChange(`improvement${index}Corners`, e.target.value)}
+            >
+              <option value="">-- Corners --</option>
+              {ADDITIONAL_RESIDENCE_CORNERS.map((opt: FieldOption) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <select
+              className="pricing-calculator__select"
+              style={{ marginBottom: 0 }}
+              value={(formValues[`improvement${index}Size`] as string) || ''}
+              onChange={(e) => handleFieldChange(`improvement${index}Size`, e.target.value)}
+            >
+              <option value="">-- Size --</option>
+              {ADDITIONAL_RESIDENCE_SIZE.map((opt: FieldOption) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Find the index of numImprovements field to split the fields array
+  const numImprovementsIndex = currentSurveyType?.fields.findIndex(f => f.id === 'numImprovements') ?? -1;
+
+  return (
+    <section className="pricing-calculator">
+      <div className="pricing-calculator__container">
+        {/* Toggle Button */}
+        <button
+          className={`pricing-calculator__toggle ${isExpanded ? 'pricing-calculator__toggle--expanded' : ''}`}
+          onClick={() => setIsExpanded(!isExpanded)}
+          aria-expanded={isExpanded}
+        >
+          <div className="pricing-calculator__toggle-content">
+            <span className="pricing-calculator__toggle-icon">🧮</span>
+            <div className="pricing-calculator__toggle-text">
+              <h2 className="pricing-calculator__toggle-title">Online Estimate Calculator</h2>
+              <p className="pricing-calculator__toggle-subtitle">
+                {isExpanded ? 'Click to close calculator' : 'Click here to get a rough estimate for your project'}
+              </p>
+            </div>
+          </div>
+          <span className={`pricing-calculator__toggle-arrow ${isExpanded ? 'pricing-calculator__toggle-arrow--expanded' : ''}`}>
+            ▼
+          </span>
+        </button>
+
+        {/* Expandable Content */}
+        <div 
+          className={`pricing-calculator__content ${isExpanded ? 'pricing-calculator__content--expanded' : ''}`}
+          style={isExpanded ? { 
+            maxHeight: 'none', 
+            height: 'auto', 
+            overflow: 'visible',
+            display: 'block'
+          } : undefined}
+        >
+          <div 
+            className="pricing-calculator__content-inner"
+            style={{ overflow: 'visible', maxHeight: 'none' }}
+          >
+            <p className="pricing-calculator__disclaimer-top">
+              ⚠️ This calculator provides rough estimates only. Actual pricing depends on site-specific conditions. Contact us for an official quote.
+            </p>
+
+            <div className="pricing-calculator__form">
+              {/* Survey Type Selection */}
+              <div className="pricing-calculator__field pricing-calculator__field--full">
+                <label className="pricing-calculator__label">Type of Survey *</label>
+                <select
+                  className="pricing-calculator__select"
+                  value={selectedSurveyType}
+                  onChange={(e) => setSelectedSurveyType(e.target.value)}
+                >
+                  {SURVEY_TYPES.map((survey: SurveyTypeConfig) => (
+                    <option key={survey.id} value={survey.id}>{survey.name}</option>
+                  ))}
+                </select>
+                {currentSurveyType && (
+                  <p style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: '0.5rem', fontStyle: 'italic' }}>
+                    {currentSurveyType.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Render fields with improvements inserted after numImprovements */}
+              {currentSurveyType && numImprovementsIndex >= 0 ? (
+                <>
+                  {/* Fields BEFORE and INCLUDING numImprovements */}
+                  {currentSurveyType.fields.slice(0, numImprovementsIndex + 1).map(renderField)}
+                  
+                  {/* Dynamic Improvement Fields - directly after numImprovements */}
+                  {shouldShowImprovements && numImprovements > 0 && (
+                    <>
+                      {Array.from({ length: numImprovements }, (_, idx) => 
+                        renderImprovementField(idx + 1)
+                      )}
+                    </>
+                  )}
+                  
+                  {/* Fields AFTER numImprovements */}
+                  {currentSurveyType.fields.slice(numImprovementsIndex + 1).map(renderField)}
+                </>
+              ) : (
+                // Fallback: render all fields normally if no numImprovements field exists
+                currentSurveyType?.fields.map(renderField)
+              )}
+
+              {/* Rush Job Option */}
+              <div className="pricing-calculator__field pricing-calculator__field--full">
+                <label className="pricing-calculator__checkbox-label pricing-calculator__checkbox-label--rush">
+                  <input
+                    type="checkbox"
+                    checked={rushJob}
+                    onChange={(e) => {
+                      setRushJob(e.target.checked);
+                      setShowResult(false);
+                      setShowSubmitForm(false);
+                    }}
+                  />
+                  <span>⚡ Rush Job - Need expedited timeline (+25% rush fee applies)</span>
+                </label>
+              </div>
+
+              {/* Buttons */}
+              <div className="pricing-calculator__buttons">
+                <button
+                  type="button"
+                  className="pricing-calculator__btn pricing-calculator__btn--primary"
+                  onClick={calculateEstimate}
+                >
+                  Calculate Estimate
+                </button>
+                <button
+                  type="button"
+                  className="pricing-calculator__btn pricing-calculator__btn--secondary"
+                  onClick={resetCalculator}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Results */}
+            {showResult && result && !submitSuccess && (
+              <div 
+                ref={resultRef}
+                className="pricing-calculator__result"
+                style={{ 
+                  display: 'block', 
+                  visibility: 'visible', 
+                  opacity: 1,
+                  overflow: 'visible',
+                  marginTop: '2rem'
+                }}
+              >
+                <h3 className="pricing-calculator__result-title">💰 Your Estimate</h3>
+
+                <div className="pricing-calculator__result-range">
+                  <div className="pricing-calculator__result-amount">
+                    <span className="pricing-calculator__result-low">${result.lowEstimate.toLocaleString()}</span>
+                    <span className="pricing-calculator__result-separator">to</span>
+                    <span className="pricing-calculator__result-high">${result.highEstimate.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div className="pricing-calculator__result-breakdown">
+                  <h4>Estimate Summary:</h4>
+                  <ul>
+                    <li>Survey Type: {currentSurveyType?.name}</li>
+                    <li>Base estimate: ${result.basePrice.toLocaleString()}</li>
+                    {rushJob && <li>⚡ Rush fee (+25%): ${Math.round(result.basePrice * 0.25).toLocaleString()}</li>}
+                    <li>Includes standard deliverables</li>
+                  </ul>
+                </div>
+
+                <div className="pricing-calculator__result-disclaimer">
+                  <strong>⚠️ Important:</strong> This is a preliminary estimate only and does not constitute a quote.
+                  Actual pricing may vary based on site conditions and project requirements.
+                </div>
+
+                {/* Submit Form Toggle */}
+                {!showSubmitForm ? (
+                  <div className="pricing-calculator__result-actions" style={{ marginTop: '1.5rem' }}>
+                    <button
+                      type="button"
+                      className="pricing-calculator__result-btn"
+                      onClick={() => setShowSubmitForm(true)}
+                    >
+                      📧 Send This Estimate & Request Quote
+                    </button>
+                    <a href="tel:9366620077" className="pricing-calculator__result-btn pricing-calculator__result-btn--secondary">
+                      📞 Call (936) 662-0077
+                    </a>
+                  </div>
+                ) : (
+                  /* Contact Info Form */
+                  <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1.5rem',
+                    background: '#F8F9FA',
+                    borderRadius: '10px',
+                    border: '2px solid #1D3095'
+                  }}>
+                    <h4 style={{ 
+                      fontFamily: 'Sora, sans-serif', 
+                      fontSize: '1.1rem', 
+                      fontWeight: 600, 
+                      color: '#1D3095',
+                      marginBottom: '1rem'
+                    }}>
+                      📧 Send Estimate Request
+                    </h4>
+                    <p style={{ fontSize: '0.85rem', color: '#4B5563', marginBottom: '1rem' }}>
+                      We&apos;ll review your project details and send you an official quote.
+                    </p>
+
+                    <div className="pricing-calculator__contact-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div>
+                        <label className="pricing-calculator__label">Your Name *</label>
+                        <input
+                          type="text"
+                          className="pricing-calculator__input"
+                          value={contactInfo.name}
+                          onChange={(e) => handleContactChange('name', e.target.value)}
+                          placeholder="John Smith"
+                          style={{ marginBottom: 0 }}
+                        />
+                      </div>
+                      <div>
+                        <label className="pricing-calculator__label">Phone Number *</label>
+                        <input
+                          type="tel"
+                          className="pricing-calculator__input"
+                          value={contactInfo.phone}
+                          onChange={(e) => handleContactChange('phone', e.target.value)}
+                          placeholder="(555) 123-4567"
+                          style={{ marginBottom: 0 }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '1rem' }}>
+                      <label className="pricing-calculator__label">Email Address *</label>
+                      <input
+                        type="email"
+                        className="pricing-calculator__input"
+                        value={contactInfo.email}
+                        onChange={(e) => handleContactChange('email', e.target.value)}
+                        placeholder="john@example.com"
+                        style={{ marginBottom: 0 }}
+                      />
+                    </div>
+
+                    <div style={{ marginTop: '1rem' }}>
+                      <label className="pricing-calculator__label">Additional Notes (Optional)</label>
+                      <textarea
+                        className="pricing-calculator__input"
+                        value={contactInfo.notes}
+                        onChange={(e) => handleContactChange('notes', e.target.value)}
+                        placeholder="Any additional details, questions, or scheduling preferences..."
+                        rows={4}
+                        style={{ marginBottom: 0, resize: 'vertical', minHeight: '100px' }}
+                      />
+                    </div>
+
+                    <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="pricing-calculator__btn pricing-calculator__btn--primary"
+                        onClick={handleSubmit}
+                        disabled={isSubmitting}
+                        style={{ flex: 1, minWidth: '200px' }}
+                      >
+                        {isSubmitting ? 'Sending...' : '✉️ Submit Request'}
+                      </button>
+                      <button
+                        type="button"
+                        className="pricing-calculator__btn pricing-calculator__btn--secondary"
+                        onClick={() => setShowSubmitForm(false)}
+                        style={{ flex: 1, minWidth: '150px' }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Success Message */}
+            {submitSuccess && (
+              <div 
+                ref={resultRef}
+                className="pricing-calculator__result" 
+                style={{ 
+                  background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+                  border: '2px solid #10B981',
+                  marginTop: '2rem'
+                }}
+              >
+                <div style={{ textAlign: 'center', padding: '1rem' }}>
+                  <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>✅</span>
+                  <h3 style={{ 
+                    fontFamily: 'Sora, sans-serif', 
+                    fontSize: '1.5rem', 
+                    fontWeight: 700, 
+                    color: '#065F46',
+                    marginBottom: '0.75rem'
+                  }}>
+                    Request Sent Successfully!
+                  </h3>
+                  <p style={{ color: '#047857', marginBottom: '1.5rem' }}>
+                    Thank you! We&apos;ll review your project and get back to you within 1-2 business days.
+                  </p>
+                  <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="pricing-calculator__result-btn"
+                      onClick={resetCalculator}
+                      style={{ background: '#10B981' }}
+                    >
+                      Start New Estimate
+                    </button>
+                    <Link href="/contact" className="pricing-calculator__result-btn pricing-calculator__result-btn--secondary">
+                      Contact Page
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
