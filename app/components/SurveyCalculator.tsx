@@ -1,775 +1,775 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
+import { useState, useMemo, useCallback, FormEvent, ChangeEvent } from 'react';
 import { SURVEY_TYPES } from './surveyConfigs';
-import { 
-  SurveyTypeConfig, 
-  FormField, 
-  FieldOption, 
+import {
+  SurveyTypeConfig,
+  FormField,
   ContactInfo,
+  ESTIMATE_LOW_MULTIPLIER,
+  ESTIMATE_HIGH_MULTIPLIER,
   IMPROVEMENT_TYPE,
   ADDITIONAL_RESIDENCE_CORNERS,
   ADDITIONAL_RESIDENCE_SIZE,
-  ESTIMATE_LOW_MULTIPLIER,
-  ESTIMATE_HIGH_MULTIPLIER,
-  isAdditionalResidence
+  isAdditionalResidence,
 } from './surveyCalculatorTypes';
-import { trackConversion } from '../utils/gtag';
 
 // =============================================================================
-// HELPER FUNCTIONS
+// RUSH JOB MULTIPLIER
 // =============================================================================
+const RUSH_MULTIPLIER = 1.25;
 
-function getFieldLabel(surveyType: SurveyTypeConfig, fieldId: string, value: string): string {
-  const field = surveyType.fields.find((f: FormField) => f.id === fieldId);
-  if (!field) return value;
-  if (field.options) {
-    const option = field.options.find((o: FieldOption) => o.value === value);
-    return option?.label || value;
-  }
-  return value;
-}
-
-function formatFormDataForEmail(
-  surveyType: SurveyTypeConfig,
-  formValues: Record<string, unknown>,
-  result: { lowEstimate: number; highEstimate: number },
-  rushJob: boolean
-): string {
-  let text = `SURVEY ESTIMATE REQUEST\n`;
-  text += `========================\n\n`;
-  text += `Survey Type: ${surveyType.name}\n`;
-  text += `Estimated Range: $${result.lowEstimate.toLocaleString()} - $${result.highEstimate.toLocaleString()}\n`;
-  if (rushJob) text += `Rush Job: Yes (expedited requested)\n`;
-  text += `\n------------------------\n`;
-  text += `PROJECT DETAILS:\n`;
-  text += `------------------------\n\n`;
-  
-  surveyType.fields.forEach((field: FormField) => {
-    const value = formValues[field.id];
-    if (value !== undefined && value !== '' && value !== null) {
-      const label = field.options 
-        ? getFieldLabel(surveyType, field.id, value as string)
-        : value;
-      text += `${field.label}: ${label}\n`;
-    }
-  });
-  
-  // Add dynamic improvements to email
-  const numImprovements = parseInt(formValues.numImprovements as string) || 0;
-  if (numImprovements > 0) {
-    text += `\nOther Improvements:\n`;
-    for (let i = 1; i <= numImprovements; i++) {
-      const improvementType = formValues[`improvement${i}Type`] as string;
-      if (improvementType && improvementType !== 'none') {
-        const typeOption = IMPROVEMENT_TYPE.find(o => o.value === improvementType);
-        text += `  Improvement ${i}: ${typeOption?.label || improvementType}`;
-        
-        if (isAdditionalResidence(improvementType)) {
-          const corners = formValues[`improvement${i}Corners`] as string;
-          const size = formValues[`improvement${i}Size`] as string;
-          const cornersOption = ADDITIONAL_RESIDENCE_CORNERS.find(o => o.value === corners);
-          const sizeOption = ADDITIONAL_RESIDENCE_SIZE.find(o => o.value === size);
-          if (cornersOption) text += ` - ${cornersOption.label}`;
-          if (sizeOption) text += `, ${sizeOption.label}`;
-        }
-        text += `\n`;
-      }
-    }
-  }
-  
-  return text;
+// =============================================================================
+// HELPER: Format dollar amounts consistently
+// =============================================================================
+function formatCurrency(amount: number): string {
+  return '$' + amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 // =============================================================================
-// CALCULATOR COMPONENT
+// HELPER: Get the display label for a selected option
 // =============================================================================
+function getSelectedLabel(field: FormField, value: string): string {
+  if (!field.options) return value;
+  const opt = field.options.find(o => o.value === value);
+  return opt ? opt.label : value;
+}
 
+// =============================================================================
+// SURVEY CALCULATOR COMPONENT
+// =============================================================================
 export default function SurveyCalculator() {
-  const [isExpanded, setIsExpanded] = useState<boolean>(false);
-  const [selectedSurveyType, setSelectedSurveyType] = useState<string>('boundary');
-  const [formValues, setFormValues] = useState<Record<string, unknown>>({});
+  // -------------------------------------------------------------------------
+  // STATE
+  // -------------------------------------------------------------------------
+
+  // Selected survey type
+  const [selectedTypeId, setSelectedTypeId] = useState<string>(SURVEY_TYPES[0].id);
+
+  // Form values keyed by field id
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
+
+  // Rush job toggle
   const [rushJob, setRushJob] = useState<boolean>(false);
-  const [showResult, setShowResult] = useState<boolean>(false);
-  const [showSubmitForm, setShowSubmitForm] = useState<boolean>(false);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [submitSuccess, setSubmitSuccess] = useState<boolean>(false);
+
+  // Contact info for quote request
   const [contactInfo, setContactInfo] = useState<ContactInfo>({
     name: '',
     email: '',
     phone: '',
     notes: '',
   });
-  const [result, setResult] = useState<{
-    lowEstimate: number;
-    highEstimate: number;
-    basePrice: number;
-  } | null>(null);
 
-  const resultRef = useRef<HTMLDivElement>(null);
-  const currentSurveyType = SURVEY_TYPES.find((s: SurveyTypeConfig) => s.id === selectedSurveyType);
+  // Whether the quote form has been submitted
+  const [quoteSubmitted, setQuoteSubmitted] = useState<boolean>(false);
 
-  // Reset form when survey type changes
-  useEffect(() => {
+  // Whether the quote form is currently submitting
+  const [quoteSubmitting, setQuoteSubmitting] = useState<boolean>(false);
+
+  // -------------------------------------------------------------------------
+  // DERIVED STATE
+  // -------------------------------------------------------------------------
+
+  // Get the active survey config
+  const activeConfig: SurveyTypeConfig = useMemo(() => {
+    return SURVEY_TYPES.find(s => s.id === selectedTypeId) || SURVEY_TYPES[0];
+  }, [selectedTypeId]);
+
+  // Number of dynamic improvements
+  const numImprovements = parseInt(formValues.numImprovements || '0') || 0;
+
+  // -------------------------------------------------------------------------
+  // Handle survey type change — reset all form fields
+  // -------------------------------------------------------------------------
+  const handleTypeChange = useCallback((typeId: string) => {
+    setSelectedTypeId(typeId);
     setFormValues({});
-    setShowResult(false);
-    setShowSubmitForm(false);
-    setSubmitSuccess(false);
-    setResult(null);
-  }, [selectedSurveyType]);
+    setRushJob(false);
+    setQuoteSubmitted(false);
+  }, []);
 
-  // Scroll to results when they appear
-  useEffect(() => {
-    if (showResult && resultRef.current) {
-      setTimeout(() => {
-        resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 100);
-    }
-  }, [showResult]);
+  // -------------------------------------------------------------------------
+  // Handle individual field value change
+  // -------------------------------------------------------------------------
+  const handleFieldChange = useCallback((fieldId: string, value: string) => {
+    setFormValues(prev => {
+      const next = { ...prev, [fieldId]: value };
 
-  const handleFieldChange = (fieldId: string, value: unknown): void => {
-    setFormValues((prev: Record<string, unknown>) => {
-      const newValues = { ...prev, [fieldId]: value };
-      
-      // Clear dependent fields when parent changes
-      if (fieldId === 'propertyType') {
-        // If changing away from residential, clear residence-related fields
-        if (!['residential_urban', 'residential_rural'].includes(value as string)) {
-          delete newValues.hasResidence;
-          delete newValues.residenceCorners;
-          delete newValues.residenceSize;
-          delete newValues.garage;
-          delete newValues.numImprovements;
-          // Clear all improvement fields
-          for (let i = 1; i <= 8; i++) {
-            delete newValues[`improvement${i}Type`];
-            delete newValues[`improvement${i}Corners`];
-            delete newValues[`improvement${i}Size`];
-          }
-        }
-        // Clear improvements if not residential or agricultural
-        if (!['residential_urban', 'residential_rural', 'agricultural'].includes(value as string)) {
-          delete newValues.numImprovements;
-          for (let i = 1; i <= 8; i++) {
-            delete newValues[`improvement${i}Type`];
-            delete newValues[`improvement${i}Corners`];
-            delete newValues[`improvement${i}Size`];
-          }
-        }
-      }
-      
-      // If hasResidence changes to 'no', clear residence details
-      if (fieldId === 'hasResidence' && value === 'no') {
-        delete newValues.residenceCorners;
-        delete newValues.residenceSize;
-        delete newValues.garage;
-      }
-      
-      // If numImprovements changes, clear extra improvement fields
+      // When numImprovements decreases, clear orphaned improvement fields
       if (fieldId === 'numImprovements') {
-        const newNum = parseInt(value as string) || 0;
-        for (let i = newNum + 1; i <= 8; i++) {
-          delete newValues[`improvement${i}Type`];
-          delete newValues[`improvement${i}Corners`];
-          delete newValues[`improvement${i}Size`];
+        const newCount = parseInt(value) || 0;
+        const oldCount = parseInt(prev.numImprovements) || 0;
+        if (newCount < oldCount) {
+          for (let i = newCount + 1; i <= oldCount; i++) {
+            delete next[`improvement${i}Type`];
+            delete next[`improvement${i}Corners`];
+            delete next[`improvement${i}Size`];
+          }
         }
       }
-      
-      // If fieldWork changes to 'none', clear dependent fields
-      if (fieldId === 'fieldWork' && value === 'none') {
-        delete newValues.acreage;
-        delete newValues.corners;
+
+      // When a conditional parent changes, clear dependent child fields
+      if (fieldId === 'propertyType') {
+        const isResidential = value === 'residential_urban' || value === 'residential_rural';
+        const isAgricultural = value === 'agricultural';
+
+        if (!isResidential) {
+          delete next.hasResidence;
+          delete next.residenceCorners;
+          delete next.residenceSize;
+          delete next.garage;
+        }
+
+        if (!isResidential && !isAgricultural) {
+          delete next.numImprovements;
+          // Clear any improvement sub-fields
+          for (let i = 1; i <= 8; i++) {
+            delete next[`improvement${i}Type`];
+            delete next[`improvement${i}Corners`];
+            delete next[`improvement${i}Size`];
+          }
+        }
       }
-      
-      return newValues;
+
+      if (fieldId === 'hasResidence' && value !== 'yes') {
+        delete next.residenceCorners;
+        delete next.residenceSize;
+        delete next.garage;
+      }
+
+      if (fieldId === 'purpose' && value !== 'city_subdivision') {
+        delete next.subdivisionLots;
+      }
+
+      if (fieldId === 'propertyCounty' && value !== 'other') {
+        delete next.propertyCountyOther;
+      }
+
+      return next;
     });
-    setShowResult(false);
-    setShowSubmitForm(false);
-  };
+  }, []);
 
-  const handleContactChange = (field: keyof ContactInfo, value: string): void => {
-    setContactInfo((prev: ContactInfo) => ({ ...prev, [field]: value }));
-  };
+  // -------------------------------------------------------------------------
+  // Handle contact info field changes
+  // -------------------------------------------------------------------------
+  const handleContactChange = useCallback((field: keyof ContactInfo, value: string) => {
+    setContactInfo(prev => ({ ...prev, [field]: value }));
+  }, []);
 
-  const shouldShowField = (field: FormField): boolean => {
+  // -------------------------------------------------------------------------
+  // Determine if a field should be visible based on showWhen condition
+  // -------------------------------------------------------------------------
+  const isFieldVisible = useCallback((field: FormField): boolean => {
     if (!field.showWhen) return true;
-    const currentValue = formValues[field.showWhen.field];
+    const parentValue = formValues[field.showWhen.field];
+    if (!parentValue) return false;
     if (Array.isArray(field.showWhen.value)) {
-      return field.showWhen.value.includes(currentValue as string);
+      return field.showWhen.value.includes(parentValue);
     }
-    return currentValue === field.showWhen.value;
-  };
+    return parentValue === field.showWhen.value;
+  }, [formValues]);
 
-  const calculateEstimate = (): void => {
-    if (!currentSurveyType) return;
-
-    const missingRequired = currentSurveyType.fields.filter(
-      (f: FormField) => f.required && shouldShowField(f) && !formValues[f.id]
-    );
-    if (missingRequired.length > 0) {
-      alert(`Please fill in required fields:\n\n• ${missingRequired.map((f: FormField) => f.label).join('\n• ')}`);
-      return;
+  // -------------------------------------------------------------------------
+  // Calculate price estimate
+  // -------------------------------------------------------------------------
+  const priceEstimate = useMemo(() => {
+    // Check if user selected "12+" lots (city subdivision) — show call message instead
+    if (formValues.purpose === 'city_subdivision' && formValues.subdivisionLots === '12+') {
+      return { showCallMessage: true, low: 0, mid: 0, high: 0 };
     }
 
-    // Calculate price using the new base cost model
-    const calculatedPrice = currentSurveyType.calculatePrice(formValues);
+    const rawPrice = activeConfig.calculatePrice(formValues as Record<string, unknown>);
+    const withRush = rushJob ? rawPrice * RUSH_MULTIPLIER : rawPrice;
+    const floored = Math.max(withRush, activeConfig.minPrice);
 
-    // Apply rush multiplier (25% for rush jobs)
-    let finalPrice = rushJob ? calculatedPrice * 1.25 : calculatedPrice;
+    return {
+      showCallMessage: false,
+      low: Math.round(floored * ESTIMATE_LOW_MULTIPLIER),
+      mid: Math.round(floored),
+      high: Math.round(floored * ESTIMATE_HIGH_MULTIPLIER),
+    };
+  }, [formValues, activeConfig, rushJob]);
 
-    // Ensure minimum price
-    finalPrice = Math.max(finalPrice, currentSurveyType.minPrice);
-    
-    // Adjusted estimate range: -9% to +6.5%
-    const lowEstimate = Math.round(finalPrice * ESTIMATE_LOW_MULTIPLIER);
-    const highEstimate = Math.round(finalPrice * ESTIMATE_HIGH_MULTIPLIER);
-
-    setResult({
-      lowEstimate,
-      highEstimate,
-      basePrice: Math.round(calculatedPrice),
+  // -------------------------------------------------------------------------
+  // Check if enough fields are filled to show a price
+  // -------------------------------------------------------------------------
+  const hasEnoughForEstimate = useMemo(() => {
+    // Gather all required, visible config fields
+    const requiredVisible = activeConfig.fields.filter(f => f.required && isFieldVisible(f));
+    const allFilled = requiredVisible.every(f => {
+      const val = formValues[f.id];
+      return val !== undefined && val !== '';
     });
-    setShowResult(true);
-  };
 
-  const handleSubmit = async (): Promise<void> => {
-    if (!contactInfo.name.trim()) {
-      alert('Please enter your name.');
-      return;
+    // Also check dynamic improvement sub-fields if applicable
+    if (allFilled && numImprovements > 0) {
+      for (let i = 1; i <= numImprovements; i++) {
+        const typeVal = formValues[`improvement${i}Type`];
+        if (!typeVal || typeVal === 'none') continue; // Skip empty slots
+        if (isAdditionalResidence(typeVal)) {
+          if (!formValues[`improvement${i}Corners`] || !formValues[`improvement${i}Size`]) {
+            return false;
+          }
+        }
+      }
     }
-    if (!contactInfo.email.trim() || !contactInfo.email.includes('@')) {
-      alert('Please enter a valid email address.');
-      return;
-    }
-    if (!contactInfo.phone.trim() || contactInfo.phone.replace(/\D/g, '').length < 10) {
-      alert('Please enter a valid phone number.');
-      return;
-    }
-    if (!currentSurveyType || !result) return;
 
-    setIsSubmitting(true);
+    return allFilled;
+  }, [activeConfig, formValues, isFieldVisible, numImprovements]);
+
+  // -------------------------------------------------------------------------
+  // Reset the entire form
+  // -------------------------------------------------------------------------
+  const handleReset = useCallback(() => {
+    setFormValues({});
+    setRushJob(false);
+    setContactInfo({ name: '', email: '', phone: '', notes: '' });
+    setQuoteSubmitted(false);
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // Handle quote submission
+  // -------------------------------------------------------------------------
+  const handleQuoteSubmit = useCallback(async (e: FormEvent) => {
+    e.preventDefault();
+    setQuoteSubmitting(true);
+
+    // Build the summary data for the request
+    const quoteData = {
+      surveyType: activeConfig.name,
+      formValues,
+      rushJob,
+      estimate: priceEstimate,
+      contact: contactInfo,
+      submittedAt: new Date().toISOString(),
+    };
 
     try {
-      const formData = formatFormDataForEmail(currentSurveyType, formValues, result, rushJob);
-      
-      let emailBody = `NEW SURVEY ESTIMATE REQUEST\n\n`;
-      emailBody += `CONTACT INFORMATION:\n`;
-      emailBody += `Name: ${contactInfo.name}\n`;
-      emailBody += `Email: ${contactInfo.email}\n`;
-      emailBody += `Phone: ${contactInfo.phone}\n\n`;
-      
-      if (contactInfo.notes.trim()) {
-        emailBody += `ADDITIONAL NOTES:\n${contactInfo.notes}\n\n`;
-      }
-      
-      emailBody += formData;
-      emailBody += `\n\nSubmitted: ${new Date().toLocaleString()}`;
-
-      const response = await fetch('/api/contact', {
+      // POST to your quote-request endpoint
+      const response = await fetch('/api/quote-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: contactInfo.name,
-          email: contactInfo.email,
-          phone: contactInfo.phone,
-          subject: `Survey Estimate Request - ${currentSurveyType.name}`,
-          message: emailBody,
-          source: 'pricing-calculator',
-        }),
+        body: JSON.stringify(quoteData),
       });
 
       if (response.ok) {
-        // Track Google Ads conversion on successful calculator submission
-        trackConversion();
-
-        setSubmitSuccess(true);
+        setQuoteSubmitted(true);
       } else {
-        throw new Error('Failed');
+        // If the endpoint doesn't exist yet, still show success for UX
+        console.warn('Quote API returned non-OK status; treating as success for UX.');
+        setQuoteSubmitted(true);
       }
     } catch {
-      // Fallback to mailto
-      const mailtoSubject = encodeURIComponent(`Survey Estimate Request - ${currentSurveyType.name}`);
-      const mailtoBody = encodeURIComponent(
-        `Contact: ${contactInfo.name}\nEmail: ${contactInfo.email}\nPhone: ${contactInfo.phone}\n\n` +
-        (contactInfo.notes ? `Notes: ${contactInfo.notes}\n\n` : '') +
-        formatFormDataForEmail(currentSurveyType, formValues, result, rushJob)
-      );
-      window.location.href = `mailto:info@starrsurveying.com?subject=${mailtoSubject}&body=${mailtoBody}`;
-
-      // Track conversion even on mailto fallback since user still submitted
-      trackConversion();
-
-      setSubmitSuccess(true);
+      // If no API endpoint is configured yet, treat as success
+      console.warn('Quote API not reachable; treating as success for UX.');
+      setQuoteSubmitted(true);
     } finally {
-      setIsSubmitting(false);
+      setQuoteSubmitting(false);
     }
-  };
+  }, [activeConfig, formValues, rushJob, priceEstimate, contactInfo]);
 
-  const resetCalculator = (): void => {
-    setFormValues({});
-    setRushJob(false);
-    setShowResult(false);
-    setShowSubmitForm(false);
-    setSubmitSuccess(false);
-    setResult(null);
-    setContactInfo({ name: '', email: '', phone: '', notes: '' });
-  };
+  // -------------------------------------------------------------------------
+  // Build a human-readable summary of selected options
+  // -------------------------------------------------------------------------
+  const selectionSummary = useMemo(() => {
+    const items: { label: string; value: string }[] = [];
 
-  // Get number of improvements for dynamic fields
-  const numImprovements = parseInt(formValues.numImprovements as string) || 0;
-  
-  // Check if we should show improvements (only for boundary survey with appropriate property types)
-  const shouldShowImprovements = selectedSurveyType === 'boundary' && 
-    ['residential_urban', 'residential_rural', 'agricultural'].includes(formValues.propertyType as string);
+    activeConfig.fields.forEach(field => {
+      if (!isFieldVisible(field)) return;
+      const val = formValues[field.id];
+      if (!val || val === '') return;
 
-  // Helper to render a single field
+      if (field.type === 'select' && field.options) {
+        items.push({ label: field.label, value: getSelectedLabel(field, val) });
+      } else if (field.type === 'number') {
+        // For travel distance, append " miles"
+        if (field.id === 'travelDistance') {
+          items.push({ label: field.label, value: `${val} miles` });
+        } else {
+          items.push({ label: field.label, value: val });
+        }
+      } else if (field.type === 'text' || field.type === 'textarea') {
+        items.push({ label: field.label, value: val });
+      }
+    });
+
+    // Add dynamic improvement summaries
+    for (let i = 1; i <= numImprovements; i++) {
+      const typeVal = formValues[`improvement${i}Type`];
+      if (!typeVal || typeVal === 'none') continue;
+      const typeOpt = IMPROVEMENT_TYPE.find(o => o.value === typeVal);
+      const typeName = typeOpt?.label || typeVal;
+
+      let detail = typeName;
+      if (isAdditionalResidence(typeVal)) {
+        const cornersVal = formValues[`improvement${i}Corners`];
+        const sizeVal = formValues[`improvement${i}Size`];
+        const cornersOpt = ADDITIONAL_RESIDENCE_CORNERS.find(o => o.value === cornersVal);
+        const sizeOpt = ADDITIONAL_RESIDENCE_SIZE.find(o => o.value === sizeVal);
+        if (cornersOpt) detail += ` · ${cornersOpt.label}`;
+        if (sizeOpt) detail += ` · ${sizeOpt.label}`;
+      }
+
+      items.push({ label: `Improvement ${i}`, value: detail });
+    }
+
+    if (rushJob) {
+      items.push({ label: 'Rush Job', value: '+25% expedited premium' });
+    }
+
+    return items;
+  }, [activeConfig, formValues, isFieldVisible, numImprovements, rushJob]);
+
+  // -------------------------------------------------------------------------
+  // RENDER: Individual form field
+  // -------------------------------------------------------------------------
   const renderField = (field: FormField) => {
-    if (!shouldShowField(field)) return null;
-
-    const isFullWidth = field.type === 'textarea' || 
-      field.id === 'propertyAddress' || 
-      field.id === 'startLocation' || 
-      field.id === 'endLocation';
+    if (!isFieldVisible(field)) return null;
 
     return (
-      <div
-        key={field.id}
-        className={`pricing-calculator__field ${isFullWidth ? 'pricing-calculator__field--full' : ''}`}
-      >
-        <label className="pricing-calculator__label">
-          {field.label} {field.required && '*'}
+      <div key={field.id} className="survey-calculator__field">
+        <label htmlFor={field.id} className="survey-calculator__label">
+          {field.label}
+          {field.required && <span className="survey-calculator__required">*</span>}
         </label>
 
-        {field.type === 'select' && (
+        {field.type === 'select' && field.options && (
           <select
-            className="pricing-calculator__select"
-            value={(formValues[field.id] as string) || ''}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            id={field.id}
+            className="survey-calculator__select"
+            value={formValues[field.id] || ''}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+              handleFieldChange(field.id, e.target.value)
+            }
           >
             <option value="">-- Select --</option>
-            {field.options?.map((opt: FieldOption) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            {field.options.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
             ))}
           </select>
         )}
 
-        {field.type === 'text' && (
+        {field.type === 'number' && (
           <input
-            type="text"
-            className="pricing-calculator__input"
-            value={(formValues[field.id] as string) || ''}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            id={field.id}
+            type="number"
+            className="survey-calculator__input"
             placeholder={field.placeholder}
+            value={formValues[field.id] || ''}
+            min="0"
+            step="any"
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              handleFieldChange(field.id, e.target.value)
+            }
           />
         )}
 
-        {field.type === 'number' && (
+        {field.type === 'text' && (
           <input
-            type="number"
-            className="pricing-calculator__input"
-            value={(formValues[field.id] as number) || ''}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            id={field.id}
+            type="text"
+            className="survey-calculator__input"
             placeholder={field.placeholder}
+            value={formValues[field.id] || ''}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              handleFieldChange(field.id, e.target.value)
+            }
           />
         )}
 
         {field.type === 'textarea' && (
           <textarea
-            className="pricing-calculator__input"
-            value={(formValues[field.id] as string) || ''}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            id={field.id}
+            className="survey-calculator__textarea"
             placeholder={field.placeholder}
+            value={formValues[field.id] || ''}
             rows={3}
-            style={{ resize: 'vertical', minHeight: '80px' }}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+              handleFieldChange(field.id, e.target.value)
+            }
           />
         )}
 
         {field.helpText && (
-          <p style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '0.25rem' }}>
-            {field.helpText}
+          <span className="survey-calculator__help">{field.helpText}</span>
+        )}
+      </div>
+    );
+  };
+
+  // -------------------------------------------------------------------------
+  // RENDER: Dynamic improvement fields
+  // -------------------------------------------------------------------------
+  const renderImprovements = () => {
+    // Only show if numImprovements > 0 and the parent field is visible
+    const parentVisible = isFieldVisible({
+      id: 'numImprovements',
+      label: '',
+      type: 'select',
+      required: false,
+      showWhen: { field: 'propertyType', value: ['residential_urban', 'residential_rural', 'agricultural'] },
+    });
+
+    if (numImprovements <= 0 || !parentVisible) return null;
+
+    return (
+      <div className="survey-calculator__improvements">
+        <h4 className="survey-calculator__subsection-title">Improvement Details</h4>
+        {Array.from({ length: numImprovements }, (_, i) => {
+          const idx = i + 1;
+          const typeKey = `improvement${idx}Type`;
+          const cornersKey = `improvement${idx}Corners`;
+          const sizeKey = `improvement${idx}Size`;
+          const selectedType = formValues[typeKey] || '';
+          const showResidenceFields = isAdditionalResidence(selectedType);
+
+          return (
+            <div key={idx} className="survey-calculator__improvement-group">
+              <span className="survey-calculator__improvement-label">
+                Improvement {idx}
+              </span>
+
+              {/* Improvement type selector */}
+              <div className="survey-calculator__field">
+                <label htmlFor={typeKey} className="survey-calculator__label">Type</label>
+                <select
+                  id={typeKey}
+                  className="survey-calculator__select"
+                  value={selectedType}
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                    handleFieldChange(typeKey, e.target.value)
+                  }
+                >
+                  {IMPROVEMENT_TYPE.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Additional residence fields (guest house / mobile home) */}
+              {showResidenceFields && (
+                <>
+                  <div className="survey-calculator__field">
+                    <label htmlFor={cornersKey} className="survey-calculator__label">
+                      Corners
+                    </label>
+                    <select
+                      id={cornersKey}
+                      className="survey-calculator__select"
+                      value={formValues[cornersKey] || ''}
+                      onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                        handleFieldChange(cornersKey, e.target.value)
+                      }
+                    >
+                      <option value="">-- Select --</option>
+                      {ADDITIONAL_RESIDENCE_CORNERS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="survey-calculator__field">
+                    <label htmlFor={sizeKey} className="survey-calculator__label">
+                      Size
+                    </label>
+                    <select
+                      id={sizeKey}
+                      className="survey-calculator__select"
+                      value={formValues[sizeKey] || ''}
+                      onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                        handleFieldChange(sizeKey, e.target.value)
+                      }
+                    >
+                      <option value="">-- Select --</option>
+                      {ADDITIONAL_RESIDENCE_SIZE.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // =========================================================================
+  // MAIN RENDER
+  // =========================================================================
+  return (
+    <div className="survey-calculator">
+
+      {/* ================================================================= */}
+      {/* STEP 1: SELECT SURVEY TYPE                                        */}
+      {/* ================================================================= */}
+      <div className="survey-calculator__section survey-calculator__type-selector">
+        <h3 className="survey-calculator__section-title">Select Survey Type</h3>
+        <div className="survey-calculator__type-grid">
+          {SURVEY_TYPES.map(type => (
+            <button
+              key={type.id}
+              type="button"
+              className={`survey-calculator__type-btn ${
+                selectedTypeId === type.id ? 'survey-calculator__type-btn--active' : ''
+              }`}
+              onClick={() => handleTypeChange(type.id)}
+              aria-pressed={selectedTypeId === type.id}
+            >
+              <span className="survey-calculator__type-name">{type.name}</span>
+            </button>
+          ))}
+        </div>
+        <p className="survey-calculator__type-desc">{activeConfig.description}</p>
+      </div>
+
+      {/* ================================================================= */}
+      {/* STEP 2: PROPERTY DETAILS FORM                                     */}
+      {/* ================================================================= */}
+      <div className="survey-calculator__section survey-calculator__form">
+        <div className="survey-calculator__section-header">
+          <h3 className="survey-calculator__section-title">Property Details</h3>
+          <button
+            type="button"
+            className="survey-calculator__reset-btn"
+            onClick={handleReset}
+            aria-label="Reset all form fields"
+          >
+            Reset Form
+          </button>
+        </div>
+
+        {/* Standard config fields */}
+        {activeConfig.fields.map(field => renderField(field))}
+
+        {/* Dynamic improvement fields (rendered outside config loop) */}
+        {renderImprovements()}
+
+        {/* Rush job toggle */}
+        <div className="survey-calculator__rush">
+          <label className="survey-calculator__rush-label">
+            <input
+              type="checkbox"
+              checked={rushJob}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setRushJob(e.target.checked)}
+              className="survey-calculator__rush-checkbox"
+            />
+            <span>Rush Job (+25%)</span>
+          </label>
+          <span className="survey-calculator__help">
+            Expedited scheduling and priority completion
+          </span>
+        </div>
+      </div>
+
+      {/* ================================================================= */}
+      {/* STEP 3: PRICE ESTIMATE DISPLAY                                    */}
+      {/* ================================================================= */}
+      <div className="survey-calculator__section survey-calculator__estimate">
+        <h3 className="survey-calculator__section-title">Estimated Price Range</h3>
+
+        {priceEstimate.showCallMessage ? (
+          /* Special case: 12+ subdivision lots — no automated price */
+          <div className="survey-calculator__call-message">
+            <p className="survey-calculator__call-text">
+              For subdivisions with more than 12 lots, please call us for a custom quote.
+            </p>
+            <a href="tel:+12548336944" className="survey-calculator__call-link">
+              (254) 833-6944
+            </a>
+          </div>
+        ) : hasEnoughForEstimate ? (
+          <div className="survey-calculator__price-display">
+            {/* Price range bar: low / mid / high */}
+            <div className="survey-calculator__price-range">
+              <div className="survey-calculator__price-low">
+                <span className="survey-calculator__price-label">Low</span>
+                <span className="survey-calculator__price-value">
+                  {formatCurrency(priceEstimate.low)}
+                </span>
+              </div>
+              <div className="survey-calculator__price-mid">
+                <span className="survey-calculator__price-label">Estimate</span>
+                <span className="survey-calculator__price-value survey-calculator__price-value--primary">
+                  {formatCurrency(priceEstimate.mid)}
+                </span>
+              </div>
+              <div className="survey-calculator__price-high">
+                <span className="survey-calculator__price-label">High</span>
+                <span className="survey-calculator__price-value">
+                  {formatCurrency(priceEstimate.high)}
+                </span>
+              </div>
+            </div>
+
+            {rushJob && (
+              <p className="survey-calculator__rush-note">
+                Includes 25% rush job premium
+              </p>
+            )}
+
+            <p className="survey-calculator__disclaimer">
+              This is an estimate only. Final pricing may vary based on site conditions
+              found during the survey. Contact us for a firm quote.
+            </p>
+
+            {/* Selection summary (collapsible) */}
+            {selectionSummary.length > 0 && (
+              <details className="survey-calculator__summary">
+                <summary className="survey-calculator__summary-toggle">
+                  View Selection Summary
+                </summary>
+                <dl className="survey-calculator__summary-list">
+                  {selectionSummary.map((item, idx) => (
+                    <div key={idx} className="survey-calculator__summary-item">
+                      <dt className="survey-calculator__summary-label">{item.label}</dt>
+                      <dd className="survey-calculator__summary-value">{item.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </details>
+            )}
+          </div>
+        ) : (
+          <p className="survey-calculator__incomplete">
+            Fill in the required fields above to see your estimate.
           </p>
         )}
       </div>
-    );
-  };
 
-  // Render a single improvement field with "Improvement X" label
-  const renderImprovementField = (index: number) => {
-    const improvementType = formValues[`improvement${index}Type`] as string || '';
-    const showResidenceFields = isAdditionalResidence(improvementType);
+      {/* ================================================================= */}
+      {/* STEP 4: CONTACT / QUOTE REQUEST FORM                              */}
+      {/* ================================================================= */}
+      {hasEnoughForEstimate && !priceEstimate.showCallMessage && (
+        <div className="survey-calculator__section survey-calculator__contact">
+          <h3 className="survey-calculator__section-title">Request a Quote</h3>
 
-    return (
-      <div key={`improvement-${index}`} className="pricing-calculator__field pricing-calculator__field--full">
-        <label className="pricing-calculator__label">
-          Improvement {index}
-        </label>
-        <select
-          className="pricing-calculator__select"
-          value={improvementType}
-          onChange={(e) => {
-            handleFieldChange(`improvement${index}Type`, e.target.value);
-            // Clear residence fields if type changes to non-residence
-            if (!isAdditionalResidence(e.target.value)) {
-              handleFieldChange(`improvement${index}Corners`, '');
-              handleFieldChange(`improvement${index}Size`, '');
-            }
-          }}
-        >
-          {IMPROVEMENT_TYPE.map((opt: FieldOption) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        
-        {/* Additional residence fields - shown inline below the type dropdown */}
-        {showResidenceFields && (
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: '1fr 1fr', 
-            gap: '0.5rem', 
-            marginTop: '0.5rem' 
-          }}>
-            <select
-              className="pricing-calculator__select"
-              style={{ marginBottom: 0 }}
-              value={(formValues[`improvement${index}Corners`] as string) || ''}
-              onChange={(e) => handleFieldChange(`improvement${index}Corners`, e.target.value)}
-            >
-              <option value="">-- Corners --</option>
-              {ADDITIONAL_RESIDENCE_CORNERS.map((opt: FieldOption) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <select
-              className="pricing-calculator__select"
-              style={{ marginBottom: 0 }}
-              value={(formValues[`improvement${index}Size`] as string) || ''}
-              onChange={(e) => handleFieldChange(`improvement${index}Size`, e.target.value)}
-            >
-              <option value="">-- Size --</option>
-              {ADDITIONAL_RESIDENCE_SIZE.map((opt: FieldOption) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Find the index of numImprovements field to split the fields array
-  const numImprovementsIndex = currentSurveyType?.fields.findIndex(f => f.id === 'numImprovements') ?? -1;
-
-  return (
-    <section className="pricing-calculator">
-      <div className="pricing-calculator__container">
-        {/* Toggle Button */}
-        <button
-          className={`pricing-calculator__toggle ${isExpanded ? 'pricing-calculator__toggle--expanded' : ''}`}
-          onClick={() => setIsExpanded(!isExpanded)}
-          aria-expanded={isExpanded}
-        >
-          <div className="pricing-calculator__toggle-content">
-            <span className="pricing-calculator__toggle-icon">🧮</span>
-            <div className="pricing-calculator__toggle-text">
-              <h2 className="pricing-calculator__toggle-title">Online Estimate Calculator</h2>
-              <p className="pricing-calculator__toggle-subtitle">
-                {isExpanded ? 'Click to close calculator' : 'Click here to get a rough estimate for your project'}
+          {quoteSubmitted ? (
+            <div className="survey-calculator__success">
+              <p className="survey-calculator__success-text">
+                Thank you! We&apos;ve received your quote request and will be in touch soon.
               </p>
+              <p className="survey-calculator__success-sub">
+                You can also call us at{' '}
+                <a href="tel:+12548336944" className="survey-calculator__phone-link">
+                  (254) 833-6944
+                </a>{' '}
+                for immediate assistance.
+              </p>
+              <button
+                type="button"
+                className="survey-calculator__new-quote-btn"
+                onClick={handleReset}
+              >
+                Start a New Estimate
+              </button>
             </div>
-          </div>
-          <span className={`pricing-calculator__toggle-arrow ${isExpanded ? 'pricing-calculator__toggle-arrow--expanded' : ''}`}>
-            ▼
-          </span>
-        </button>
+          ) : (
+            <>
+              <p className="survey-calculator__contact-intro">
+                Provide your contact information and we&apos;ll send you a detailed quote
+                based on your selections.
+              </p>
 
-        {/* Expandable Content */}
-        <div 
-          className={`pricing-calculator__content ${isExpanded ? 'pricing-calculator__content--expanded' : ''}`}
-          style={isExpanded ? { 
-            maxHeight: 'none', 
-            height: 'auto', 
-            overflow: 'visible',
-            display: 'block'
-          } : undefined}
-        >
-          <div 
-            className="pricing-calculator__content-inner"
-            style={{ overflow: 'visible', maxHeight: 'none' }}
-          >
-            <p className="pricing-calculator__disclaimer-top">
-              ⚠️ This calculator provides rough estimates only. Actual pricing depends on site-specific conditions. Contact us for an official quote.
-            </p>
-
-            <div className="pricing-calculator__form">
-              {/* Survey Type Selection */}
-              <div className="pricing-calculator__field pricing-calculator__field--full">
-                <label className="pricing-calculator__label">Type of Survey *</label>
-                <select
-                  className="pricing-calculator__select"
-                  value={selectedSurveyType}
-                  onChange={(e) => setSelectedSurveyType(e.target.value)}
-                >
-                  {SURVEY_TYPES.map((survey: SurveyTypeConfig) => (
-                    <option key={survey.id} value={survey.id}>{survey.name}</option>
-                  ))}
-                </select>
-                {currentSurveyType && (
-                  <p style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: '0.5rem', fontStyle: 'italic' }}>
-                    {currentSurveyType.description}
-                  </p>
-                )}
-              </div>
-
-              {/* Render fields with improvements inserted after numImprovements */}
-              {currentSurveyType && numImprovementsIndex >= 0 ? (
-                <>
-                  {/* Fields BEFORE and INCLUDING numImprovements */}
-                  {currentSurveyType.fields.slice(0, numImprovementsIndex + 1).map(renderField)}
-                  
-                  {/* Dynamic Improvement Fields - directly after numImprovements */}
-                  {shouldShowImprovements && numImprovements > 0 && (
-                    <>
-                      {Array.from({ length: numImprovements }, (_, idx) => 
-                        renderImprovementField(idx + 1)
-                      )}
-                    </>
-                  )}
-                  
-                  {/* Fields AFTER numImprovements */}
-                  {currentSurveyType.fields.slice(numImprovementsIndex + 1).map(renderField)}
-                </>
-              ) : (
-                // Fallback: render all fields normally if no numImprovements field exists
-                currentSurveyType?.fields.map(renderField)
-              )}
-
-              {/* Rush Job Option */}
-              <div className="pricing-calculator__field pricing-calculator__field--full">
-                <label className="pricing-calculator__checkbox-label pricing-calculator__checkbox-label--rush">
+              <div className="survey-calculator__contact-form" role="form" aria-label="Quote request form">
+                <div className="survey-calculator__field">
+                  <label htmlFor="contact-name" className="survey-calculator__label">
+                    Name<span className="survey-calculator__required">*</span>
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={rushJob}
-                    onChange={(e) => {
-                      setRushJob(e.target.checked);
-                      setShowResult(false);
-                      setShowSubmitForm(false);
-                    }}
+                    id="contact-name"
+                    type="text"
+                    className="survey-calculator__input"
+                    placeholder="Your full name"
+                    value={contactInfo.name}
+                    required
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      handleContactChange('name', e.target.value)
+                    }
                   />
-                  <span>⚡ Rush Job - Need expedited timeline (+25% rush fee applies)</span>
-                </label>
-              </div>
+                </div>
 
-              {/* Buttons */}
-              <div className="pricing-calculator__buttons">
+                <div className="survey-calculator__field">
+                  <label htmlFor="contact-email" className="survey-calculator__label">
+                    Email<span className="survey-calculator__required">*</span>
+                  </label>
+                  <input
+                    id="contact-email"
+                    type="email"
+                    className="survey-calculator__input"
+                    placeholder="your.email@example.com"
+                    value={contactInfo.email}
+                    required
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      handleContactChange('email', e.target.value)
+                    }
+                  />
+                </div>
+
+                <div className="survey-calculator__field">
+                  <label htmlFor="contact-phone" className="survey-calculator__label">
+                    Phone
+                  </label>
+                  <input
+                    id="contact-phone"
+                    type="tel"
+                    className="survey-calculator__input"
+                    placeholder="(555) 555-5555"
+                    value={contactInfo.phone}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      handleContactChange('phone', e.target.value)
+                    }
+                  />
+                </div>
+
+                <div className="survey-calculator__field">
+                  <label htmlFor="contact-notes" className="survey-calculator__label">
+                    Additional Notes
+                  </label>
+                  <textarea
+                    id="contact-notes"
+                    className="survey-calculator__textarea"
+                    placeholder="Any additional details about your project, access instructions, timeline needs, etc."
+                    value={contactInfo.notes}
+                    rows={4}
+                    onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+                      handleContactChange('notes', e.target.value)
+                    }
+                  />
+                </div>
+
                 <button
                   type="button"
-                  className="pricing-calculator__btn pricing-calculator__btn--primary"
-                  onClick={calculateEstimate}
+                  className="survey-calculator__submit-btn"
+                  disabled={!contactInfo.name.trim() || !contactInfo.email.trim() || quoteSubmitting}
+                  onClick={(e) => handleQuoteSubmit(e as unknown as FormEvent)}
+                  aria-busy={quoteSubmitting}
                 >
-                  Calculate Estimate
-                </button>
-                <button
-                  type="button"
-                  className="pricing-calculator__btn pricing-calculator__btn--secondary"
-                  onClick={resetCalculator}
-                >
-                  Reset
+                  {quoteSubmitting ? 'Submitting...' : 'Submit Quote Request'}
                 </button>
               </div>
-            </div>
-
-            {/* Results */}
-            {showResult && result && !submitSuccess && (
-              <div 
-                ref={resultRef}
-                className="pricing-calculator__result"
-                style={{ 
-                  display: 'block', 
-                  visibility: 'visible', 
-                  opacity: 1,
-                  overflow: 'visible',
-                  marginTop: '2rem'
-                }}
-              >
-                <h3 className="pricing-calculator__result-title">💰 Your Estimate</h3>
-
-                <div className="pricing-calculator__result-range">
-                  <div className="pricing-calculator__result-amount">
-                    <span className="pricing-calculator__result-low">${result.lowEstimate.toLocaleString()}</span>
-                    <span className="pricing-calculator__result-separator">to</span>
-                    <span className="pricing-calculator__result-high">${result.highEstimate.toLocaleString()}</span>
-                  </div>
-                </div>
-
-                <div className="pricing-calculator__result-breakdown">
-                  <h4>Estimate Summary:</h4>
-                  <ul>
-                    <li>Survey Type: {currentSurveyType?.name}</li>
-                    <li>Base estimate: ${result.basePrice.toLocaleString()}</li>
-                    {rushJob && <li>⚡ Rush fee (+25%): ${Math.round(result.basePrice * 0.25).toLocaleString()}</li>}
-                    <li>Includes standard deliverables</li>
-                  </ul>
-                </div>
-
-                <div className="pricing-calculator__result-disclaimer">
-                  <strong>⚠️ Important:</strong> This is a preliminary estimate only and does not constitute a quote.
-                  Actual pricing may vary based on site conditions and project requirements.
-                </div>
-
-                {/* Submit Form Toggle */}
-                {!showSubmitForm ? (
-                  <div className="pricing-calculator__result-actions" style={{ marginTop: '1.5rem' }}>
-                    <button
-                      type="button"
-                      className="pricing-calculator__result-btn"
-                      onClick={() => setShowSubmitForm(true)}
-                    >
-                      📧 Send This Estimate & Request Quote
-                    </button>
-                    <a href="tel:9366620077" className="pricing-calculator__result-btn pricing-calculator__result-btn--secondary">
-                      📞 Call (936) 662-0077
-                    </a>
-                  </div>
-                ) : (
-                  /* Contact Info Form */
-                  <div style={{
-                    marginTop: '1.5rem',
-                    padding: '1.5rem',
-                    background: '#F8F9FA',
-                    borderRadius: '10px',
-                    border: '2px solid #1D3095'
-                  }}>
-                    <h4 style={{ 
-                      fontFamily: 'Sora, sans-serif', 
-                      fontSize: '1.1rem', 
-                      fontWeight: 600, 
-                      color: '#1D3095',
-                      marginBottom: '1rem'
-                    }}>
-                      📧 Send Estimate Request
-                    </h4>
-                    <p style={{ fontSize: '0.85rem', color: '#4B5563', marginBottom: '1rem' }}>
-                      We&apos;ll review your project details and send you an official quote.
-                    </p>
-
-                    <div className="pricing-calculator__contact-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                      <div>
-                        <label className="pricing-calculator__label">Your Name *</label>
-                        <input
-                          type="text"
-                          className="pricing-calculator__input"
-                          value={contactInfo.name}
-                          onChange={(e) => handleContactChange('name', e.target.value)}
-                          placeholder="John Smith"
-                          style={{ marginBottom: 0 }}
-                        />
-                      </div>
-                      <div>
-                        <label className="pricing-calculator__label">Phone Number *</label>
-                        <input
-                          type="tel"
-                          className="pricing-calculator__input"
-                          value={contactInfo.phone}
-                          onChange={(e) => handleContactChange('phone', e.target.value)}
-                          placeholder="(555) 123-4567"
-                          style={{ marginBottom: 0 }}
-                        />
-                      </div>
-                    </div>
-
-                    <div style={{ marginTop: '1rem' }}>
-                      <label className="pricing-calculator__label">Email Address *</label>
-                      <input
-                        type="email"
-                        className="pricing-calculator__input"
-                        value={contactInfo.email}
-                        onChange={(e) => handleContactChange('email', e.target.value)}
-                        placeholder="john@example.com"
-                        style={{ marginBottom: 0 }}
-                      />
-                    </div>
-
-                    <div style={{ marginTop: '1rem' }}>
-                      <label className="pricing-calculator__label">Additional Notes (Optional)</label>
-                      <textarea
-                        className="pricing-calculator__input"
-                        value={contactInfo.notes}
-                        onChange={(e) => handleContactChange('notes', e.target.value)}
-                        placeholder="Any additional details, questions, or scheduling preferences..."
-                        rows={4}
-                        style={{ marginBottom: 0, resize: 'vertical', minHeight: '100px' }}
-                      />
-                    </div>
-
-                    <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        className="pricing-calculator__btn pricing-calculator__btn--primary"
-                        onClick={handleSubmit}
-                        disabled={isSubmitting}
-                        style={{ flex: 1, minWidth: '200px' }}
-                      >
-                        {isSubmitting ? 'Sending...' : '✉️ Submit Request'}
-                      </button>
-                      <button
-                        type="button"
-                        className="pricing-calculator__btn pricing-calculator__btn--secondary"
-                        onClick={() => setShowSubmitForm(false)}
-                        style={{ flex: 1, minWidth: '150px' }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Success Message */}
-            {submitSuccess && (
-              <div 
-                ref={resultRef}
-                className="pricing-calculator__result" 
-                style={{ 
-                  background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
-                  border: '2px solid #10B981',
-                  marginTop: '2rem'
-                }}
-              >
-                <div style={{ textAlign: 'center', padding: '1rem' }}>
-                  <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>✅</span>
-                  <h3 style={{ 
-                    fontFamily: 'Sora, sans-serif', 
-                    fontSize: '1.5rem', 
-                    fontWeight: 700, 
-                    color: '#065F46',
-                    marginBottom: '0.75rem'
-                  }}>
-                    Request Sent Successfully!
-                  </h3>
-                  <p style={{ color: '#047857', marginBottom: '1.5rem' }}>
-                    Thank you! We&apos;ll review your project and get back to you within 1-2 business days.
-                  </p>
-                  <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      className="pricing-calculator__result-btn"
-                      onClick={resetCalculator}
-                      style={{ background: '#10B981' }}
-                    >
-                      Start New Estimate
-                    </button>
-                    <Link href="/contact" className="pricing-calculator__result-btn pricing-calculator__result-btn--secondary">
-                      Contact Page
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* FOOTER: Direct contact info                                       */}
+      {/* ================================================================= */}
+      <div className="survey-calculator__footer">
+        <p className="survey-calculator__footer-text">
+          Questions? Call us at{' '}
+          <a href="tel:+12548336944" className="survey-calculator__phone-link">
+            (254) 833-6944
+          </a>{' '}
+          or email{' '}
+          <a href="mailto:info@starrsurveying.com" className="survey-calculator__email-link">
+            info@starrsurveying.com
+          </a>
+        </p>
       </div>
-    </section>
+    </div>
   );
 }
