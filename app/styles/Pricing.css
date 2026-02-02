@@ -1,4 +1,3 @@
-// app/styles/Pricing.css
 /*==============================================================================
   PRICING PAGE STYLES - Matches Home/About/Services Page Design EXACTLY
   
@@ -1221,7 +1220,7 @@
   }
   
   .pricing-calculator-highlight__text {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
   
   .pricing-calculator-highlight__arrow {
@@ -1333,10 +1332,6 @@
     font-size: 0.9rem;
   }
   
-  .pricing-volume__btn {
-    width: 100%;
-  }
-  
   .pricing-included {
     padding: 2.5rem 1.25rem;
   }
@@ -1348,6 +1343,10 @@
   .pricing-included__grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 0.75rem;
+  }
+  
+  .pricing-included__item {
+    padding: 1rem;
   }
   
   .pricing-cta {
@@ -1421,12 +1420,12 @@
   
   .pricing-calculator-highlight__container {
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.65rem;
   }
   
   .pricing-calculator-highlight__badge {
     font-size: 0.6rem;
-    padding: 0.25rem 0.5rem;
+    padding: 0.3rem 0.6rem;
   }
   
   .pricing-calculator-highlight__title {
@@ -1435,11 +1434,332 @@
   
   .pricing-calculator-highlight__text {
     font-size: 0.8rem;
-    line-height: 1.4;
   }
   
   .pricing-calculator-highlight__arrow {
     font-size: 1.35rem;
+  }
+  
+  .pricing-calculator {
+    padding: 1rem;
+  }
+  
+  .pricing-calculator__toggle {
+    padding: 1rem;
+    flex-direction: column;
+    gap: 0.75rem;
+    text-align: center;
+  }
+  
+  .pricing-calculator__toggle-content {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .pricing-calculator__toggle-text {
+    text-align: center;
+  }
+  
+  .pricing-calculator__toggle-icon {
+    font-size: 1.5rem;
+  }
+  
+  .pricing-calculator__toggle-title {
+    font-size: 1rem;
+  }
+  
+  .pricing-calculator__toggle-subtitle {
+    font-size: 0.75rem;
+  }
+  
+  .pricing-calculator__content-inner {
+    padding: 1rem;
+  }
+  
+  .pricing-calculator__disclaimer-top {
+    font-size: 0.8rem;
+    padding: 0.65rem 0.875rem;
+  }
+  
+  .pricing-calculator__form {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+    gap: 1rem;
+  }
+  
+  .pricing-calculator__label {
+    font-size: 0.8rem;
+  }
+  
+  .pricing-calculator__input,
+  .pricing-calculator__select {
+    font-size: 0.85rem;
+    padding: 0.65rem 0.875rem;
+  }
+  
+  .pricing-calculator__checkboxes {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+  
+  .pricing-calculator__checkbox-label {
+    font-size: 0.8rem;
+    padding: 0.45rem;
+  }
+  
+  .pricing-calculator__buttons {
+    flex-direction: column;
+  }
+  
+  .pricing-calculator__btn {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .pricing-calculator__result {
+    padding: 1.25rem;
+  }
+  
+  .pricing-calculator__result-title {
+    font-size: 1.1rem;
+  }
+  
+  .pricing-calculator__result-low,
+  .pricing-calculator__result-high {
+    font-size: 1.5rem;
+  }
+  
+  .pricing-calculator__result-actions {
+    flex-direction: column;
+  }
+  
+  .pricing-calculator__result-btn {
+    width: 100%;
+  }
+  
+  .pricing-grid {
+    padding: 2rem 1rem;
+  }
+  
+  .pricing-grid__title {
+    font-size: 1.35rem;
+  }
+  
+  .pricing-grid__subtitle {
+    font-size: 0.85rem;
+  }
+  
+  .pricing-grid__items {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+  
+  .pricing-card {
+    padding: 1rem;
+  }
+  
+  .pricing-card__title {
+    font-size: 1rem;
+  }
+  
+  .pricing-card__price-box {
+    padding: 0.75rem;
+  }
+  
+  .pricing-card__price {
+    font-size: 1.5rem;
+  }
+  
+  .pricing-card__desc {
+    font-size: 0.8rem;
+  }
+  
+  .pricing-card__turnaround {
+    font-size: 0.7rem;
+  }
+  
+  .pricing-factors {
+    padding: 2rem 1rem;
+  }
+  
+  .pricing-factors__title {
+    font-size: 1.25rem;
+  }
+  
+  .pricing-factors__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+  
+  .pricing-factors__item {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+    padding: 0.875rem;
+  }
+  
+  .pricing-factors__item-icon {
+    font-size: 1.25rem;
+  }
+  
+  .pricing-factors__item-title {
+    font-size: 0.8rem;
+  }
+  
+  .pricing-factors__item-desc {
+    font-size: 0.7rem;
+  }
+  
+  .pricing-volume {
+    padding: 2rem 1rem;
+  }
+  
+  .pricing-volume__card {
+    padding: 1.25rem;
+  }
+  
+  .pricing-volume__title {
+    font-size: 1.15rem;
+  }
+  
+  .pricing-volume__desc {
+    font-size: 0.85rem;
+  }
+  
+  .pricing-volume__btn {
+    width: 100%;
+  }
+  
+  .pricing-included {
+    padding: 2rem 1rem;
+  }
+  
+  .pricing-included__title {
+    font-size: 1.35rem;
+  }
+  
+  .pricing-included__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+  
+  .pricing-included__item {
+    padding: 0.875rem;
+  }
+  
+  .pricing-included__item-icon {
+    font-size: 1.25rem;
+  }
+  
+  .pricing-included__item-title {
+    font-size: 0.85rem;
+  }
+  
+  .pricing-included__item-desc {
+    font-size: 0.75rem;
+  }
+  
+  .pricing-cta {
+    padding: 2rem 1rem;
+  }
+  
+  .pricing-cta__title {
+    font-size: 1.35rem;
+  }
+  
+  .pricing-cta__subtitle {
+    font-size: 0.9rem;
+  }
+  
+  .pricing-cta__buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .pricing-cta__btn {
+    width: 100%;
+    max-width: none;
+  }
+  
+  .pricing-bottom-disclaimer {
+    padding: 1rem;
+  }
+  
+  .pricing-bottom-disclaimer__text {
+    font-size: 0.65rem;
+  }
+}
+
+/* --- Small Mobile (0 - 479px) - iPhone size --- */
+@media screen and (max-width: 479px) {
+  .pricing-hero {
+    padding-top: 70px;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .pricing-hero__card {
+    padding: 1.25rem;
+    border-radius: 10px;
+    border-width: 2px;
+  }
+  
+  .pricing-hero__title {
+    font-size: 1.35rem;
+  }
+  
+  .pricing-hero__subtitle {
+    font-size: 0.85rem;
+  }
+  
+  .pricing-disclaimer {
+    padding: 0.75rem;
+  }
+  
+  .pricing-disclaimer__container {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .pricing-disclaimer__icon {
+    font-size: 1.15rem;
+  }
+  
+  .pricing-disclaimer__title {
+    font-size: 0.85rem;
+  }
+  
+  .pricing-disclaimer__text {
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  
+  .pricing-calculator-highlight {
+    padding: 0.875rem 0.75rem;
+  }
+  
+  .pricing-calculator-highlight__container {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .pricing-calculator-highlight__badge {
+    font-size: 0.55rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .pricing-calculator-highlight__title {
+    font-size: 0.95rem;
+  }
+  
+  .pricing-calculator-highlight__text {
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+  
+  .pricing-calculator-highlight__arrow {
+    font-size: 1.25rem;
   }
   
   .pricing-calculator {
@@ -1503,6 +1823,7 @@
     grid-template-columns: 1fr;
     padding: 0.875rem;
     gap: 0.875rem;
+    border-radius: 8px;
   }
   
   .pricing-calculator__label {
