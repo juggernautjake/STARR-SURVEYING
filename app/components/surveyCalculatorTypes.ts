@@ -1,3 +1,4 @@
+// app/components/surveyCalculatorTypes.ts
 // =============================================================================
 // SURVEY CALCULATOR TYPES AND COMMON OPTIONS
 // =============================================================================
@@ -6,7 +7,10 @@ export interface FieldOption {
   value: string;
   label: string;
   hoursMultiplier?: number;  // For scaling factors (vegetation, terrain)
+  costMultiplier?: number;   // For cost multipliers (e.g., access)
   baseCost?: number;         // For flat dollar add-ons
+  hoursAdded?: number;       // For hourly additions
+  premium?: number;          // For percentage premiums
 }
 
 export interface FormField {
@@ -18,6 +22,8 @@ export interface FormField {
   placeholder?: string;
   helpText?: string;
   showWhen?: { field: string; value: string | string[] };
+  min?: number;
+  step?: string;
 }
 
 export interface SurveyTypeConfig {
@@ -27,7 +33,7 @@ export interface SurveyTypeConfig {
   basePrice: number;  // Minimum base price for simplest case
   minPrice: number;   // Absolute minimum (floor)
   fields: FormField[];
-  calculatePrice: (values: Record<string, unknown>) => number;
+  calculatePrice: (values: Record<string, unknown>) => { price: number; hours?: number };
 }
 
 export interface ContactInfo {
@@ -40,6 +46,9 @@ export interface ContactInfo {
 // =============================================================================
 // CONSTANTS
 // =============================================================================
+
+export const HOURLY_RATE = 150; // Field hourly rate
+export const TRAVEL_RATE = 1.50; // Travel cost per mile
 
 export const MILEAGE_RATE = 0.67;
 export const TRAVEL_SPEED_AVG = 50;
@@ -70,45 +79,97 @@ export const PROPERTY_COUNTY_FIELD: FormField = {
   options: [
     { value: 'bell', label: 'Bell County' },
     { value: 'coryell', label: 'Coryell County' },
-    { value: 'lampasas', label: 'Lampasas County' },
     { value: 'milam', label: 'Milam County' },
     { value: 'falls', label: 'Falls County' },
     { value: 'mclennan', label: 'McLennan County' },
     { value: 'williamson', label: 'Williamson County' },
     { value: 'travis', label: 'Travis County' },
-    { value: 'burnet', label: 'Burnet County' },
-    { value: 'hamilton', label: 'Hamilton County' },
-    { value: 'bosque', label: 'Bosque County' },
-    { value: 'hill', label: 'Hill County' },
-    { value: 'limestone', label: 'Limestone County' },
     { value: 'robertson', label: 'Robertson County' },
     { value: 'brazos', label: 'Brazos County' },
-    { value: 'other', label: 'Other (specify in notes)' },
+    { value: 'leon', label: 'Leon County' },
+    { value: 'madison', label: 'Madison County' },
+    { value: 'other', label: 'Other' },
   ],
 };
 
+export const CUSTOM_COUNTY_FIELD: FormField = {
+  id: 'customCounty',
+  label: 'County Name',
+  type: 'text',
+  required: true,
+  placeholder: 'Enter county name',
+  showWhen: { field: 'propertyCounty', value: 'other' },
+};
+
+export const TRAVEL_DISTANCE_FIELD: FormField = {
+  id: 'travelDistance',
+  label: 'Distance from Belton',
+  type: 'number',
+  required: true,
+  min: 0,
+  placeholder: 'Enter miles',
+  helpText: 'Approximate miles from Belton (used for travel cost)',
+};
+
 // =============================================================================
-// PROPERTY SIZE - Primary cost driver (BASE COST)
-// This is the main cost that gets multiplied by vegetation/terrain
+// PROPERTY TYPE - Restructured
 // =============================================================================
-export const PROPERTY_SIZE: FieldOption[] = [
-  { value: '0.1', label: 'Less than 0.25 acres', baseCost: 475 },
-  { value: '0.375', label: '0.25 - 0.5 acres', baseCost: 515 },
-  { value: '0.75', label: '0.5 - 1 acre', baseCost: 575 },
-  { value: '1.5', label: '1 - 2 acres', baseCost: 675 },
-  { value: '3', label: '2 - 4 acres', baseCost: 840 },
-  { value: '5', label: '4 - 6 acres', baseCost: 1075 },
-  { value: '8', label: '6 - 10 acres', baseCost: 1250 },
-  { value: '12.5', label: '10 - 15 acres', baseCost: 1475 },
-  { value: '22', label: '15 - 30 acres', baseCost: 1700 },
-  { value: '40', label: '30 - 50 acres', baseCost: 1950 },
-  { value: '75', label: '50 - 100 acres', baseCost: 2375 },
-  { value: '150', label: '100 - 200 acres', baseCost: 3100 },
-  { value: '250', label: '200+ acres', baseCost: 4750 },
+export const PROPERTY_TYPE: FieldOption[] = [
+  { value: 'residential_urban', label: 'Residential - City/Subdivision', premium: 0, hoursAdded: 0, baseCost: 0 },
+  { value: 'residential_rural', label: 'Residential - Rural/Country', premium: 0, hoursAdded: 0, baseCost: 25 },
+  { value: 'commercial_subdivision', label: 'Commercial — Subdivision', premium: 0.10, hoursAdded: 0, baseCost: 0 },
+  { value: 'commercial_non_sub', label: 'Commercial — Non-Subdivision/Rural', premium: 0.10, hoursAdded: 1.5, baseCost: 0 },
+  { value: 'agricultural', label: 'Agricultural', premium: 0, hoursAdded: 0, baseCost: 25 },
+  { value: 'vacant', label: 'Vacant/Undeveloped', premium: 0, hoursAdded: 0, baseCost: 0 },
 ];
 
 // =============================================================================
-// SCALING FACTORS - Multiply the property size base cost ONLY
+// PROPERTY SIZE - Primary cost driver (BASE COST for non-boundary, hours for boundary)
+// =============================================================================
+export const PROPERTY_SIZE: FieldOption[] = [
+  { value: '0.1', label: 'Less than 0.25 acres', baseCost: 475, hoursAdded: 0 },
+  { value: '0.375', label: '0.25 - 0.5 acres', baseCost: 515, hoursAdded: 0.5 },
+  { value: '0.75', label: '0.5 - 1 acre', baseCost: 575, hoursAdded: 1.5 },
+  { value: '1.5', label: '1 - 2 acres', baseCost: 675, hoursAdded: 1.5 },
+  { value: '3', label: '2 - 4 acres', baseCost: 840, hoursAdded: 2 },
+  { value: '5', label: '4 - 6 acres', baseCost: 1075, hoursAdded: 3 },
+  { value: '8', label: '6 - 10 acres', baseCost: 1250, hoursAdded: 3 },
+  { value: '12.5', label: '10 - 15 acres', baseCost: 1475, hoursAdded: 4 },
+  { value: '22', label: '15 - 30 acres', baseCost: 1700, hoursAdded: 5 },
+  { value: '40', label: '30 - 50 acres', baseCost: 1950, hoursAdded: 5 },
+  { value: '75', label: '50 - 100 acres', baseCost: 2375, hoursAdded: 6 },
+  { value: '150', label: '100 - 200 acres', baseCost: 3100, hoursAdded: 10 },
+  { value: '250', label: '200+ acres', baseCost: 4750, hoursAdded: 12 },
+];
+
+// =============================================================================
+// PROPERTY CORNERS - Convert to hours for boundary
+// =============================================================================
+export const PROPERTY_CORNERS: FieldOption[] = [
+  { value: '4', label: '4 corners (rectangular or semi-rectangular)', baseCost: 0, hoursAdded: 0 },
+  { value: '5', label: '5 corners', baseCost: 25, hoursAdded: 0.3 },
+  { value: '6', label: '6 corners', baseCost: 50, hoursAdded: 0.6 },
+  { value: '7', label: '7-8 corners', baseCost: 75, hoursAdded: 1.5 },
+  { value: '10', label: '9-12 corners', baseCost: 125, hoursAdded: 2.5 },
+  { value: '15', label: '13+ corners', baseCost: 200, hoursAdded: 4 },
+  { value: 'unknown', label: 'Unknown', baseCost: 25, hoursAdded: 1 },
+];
+
+// =============================================================================
+// PREVIOUS SURVEY - Convert to hours for boundary
+// =============================================================================
+export const EXISTING_SURVEY: FieldOption[] = [
+  { value: 'recent', label: 'Recent (within 5 years) - Have copy', baseCost: 0, hoursAdded: -0.5 },
+  { value: 'recent_no_copy', label: 'Recent (within 5 years) - No copy', baseCost: 25, hoursAdded: 0 },
+  { value: 'older', label: 'Older (5-15 years)', baseCost: 50, hoursAdded: 0.5 },
+  { value: 'very_old', label: 'Old (15-30 years)', baseCost: 75, hoursAdded: 0.75 },
+  { value: 'ancient', label: 'Very Old (30+ years)', baseCost: 100, hoursAdded: 1 },
+  { value: 'none', label: 'No Previous Survey', baseCost: 150, hoursAdded: 1.5 },
+  { value: 'unknown', label: 'Unknown', baseCost: 50, hoursAdded: 1 },
+];
+
+// =============================================================================
+// SCALING FACTORS - Multiply the property size cost ONLY
 // =============================================================================
 
 // VEGETATION - How hard is it to see/traverse?
@@ -135,37 +196,6 @@ export const TERRAIN: FieldOption[] = [
 // FLAT ADD-ONS - Added directly to total (not scaled)
 // =============================================================================
 
-// PROPERTY TYPE
-export const PROPERTY_TYPE: FieldOption[] = [
-  { value: 'residential_urban', label: 'Residential - City/Subdivision', baseCost: 0 },
-  { value: 'residential_rural', label: 'Residential - Rural/Country', baseCost: 25 },
-  { value: 'commercial', label: 'Commercial', baseCost: 75 },
-  { value: 'agricultural', label: 'Agricultural/Farm/Ranch', baseCost: 25 },
-  { value: 'vacant', label: 'Vacant/Undeveloped', baseCost: 0 },
-];
-
-// PROPERTY CORNERS
-export const PROPERTY_CORNERS: FieldOption[] = [
-  { value: '4', label: '4 corners (rectangular)', baseCost: 0 },
-  { value: '5', label: '5 corners', baseCost: 25 },
-  { value: '6', label: '6 corners', baseCost: 50 },
-  { value: '7', label: '7-8 corners', baseCost: 75 },
-  { value: '10', label: '9-12 corners', baseCost: 125 },
-  { value: '15', label: '13+ corners', baseCost: 200 },
-  { value: 'unknown', label: 'Unknown', baseCost: 25 },
-];
-
-// PREVIOUS SURVEY
-export const EXISTING_SURVEY: FieldOption[] = [
-  { value: 'recent', label: 'Recent (within 5 years) - Have copy', baseCost: 0 },
-  { value: 'recent_no_copy', label: 'Recent (within 5 years) - No copy', baseCost: 25 },
-  { value: 'older', label: 'Older (5-15 years)', baseCost: 50 },
-  { value: 'very_old', label: 'Old (15-30 years)', baseCost: 75 },
-  { value: 'ancient', label: 'Very Old (30+ years)', baseCost: 100 },
-  { value: 'none', label: 'No Previous Survey', baseCost: 150 },
-  { value: 'unknown', label: 'Unknown', baseCost: 50 },
-];
-
 // CORNER MARKERS - Updated wording
 export const EXISTING_MONUMENTS: FieldOption[] = [
   { value: 'all_found', label: 'All corner markers present', baseCost: 0 },
@@ -175,16 +205,16 @@ export const EXISTING_MONUMENTS: FieldOption[] = [
   { value: 'unknown', label: 'Unknown', baseCost: 50 },
 ];
 
-// PROPERTY ACCESS
+// PROPERTY ACCESS - Change to multipliers for specific
 export const ACCESS_CONDITIONS: FieldOption[] = [
-  { value: 'paved', label: 'Paved Road - Direct access', baseCost: 0 },
-  { value: 'gravel', label: 'Gravel/Caliche Road', baseCost: 0 },
-  { value: 'dirt', label: 'Dirt Road - Passable by car', baseCost: 0 },
-  { value: 'rough', label: 'Rough Road - High clearance needed', baseCost: 25 },
-  { value: '4wd', label: '4WD/ATV Required', baseCost: 50 },
-  { value: 'gated', label: 'Gated - Coordinate access', baseCost: 0 },
-  { value: 'walk_in', label: 'Walk-In Only', baseCost: 75 },
-  { value: 'unknown', label: 'Unknown', baseCost: 0 },
+  { value: 'paved', label: 'Paved Road - Direct access', baseCost: 0, costMultiplier: 1.0 },
+  { value: 'gravel', label: 'Gravel/Caliche Road', baseCost: 0, costMultiplier: 1.0 },
+  { value: 'dirt', label: 'Dirt Road - Passable by car', baseCost: 0, costMultiplier: 1.0 },
+  { value: 'rough', label: 'Rough Road - High clearance needed', baseCost: 25, costMultiplier: 1.0 },
+  { value: '4wd', label: '4WD/ATV Required', baseCost: 0, costMultiplier: 1.2 },
+  { value: 'gated', label: 'Gated - Coordinate access', baseCost: 0, costMultiplier: 1.0 },
+  { value: 'walk_in', label: 'Walk-In Only', baseCost: 75, costMultiplier: 1.0 },
+  { value: 'unknown', label: 'Unknown', baseCost: 0, costMultiplier: 1.2 },
 ];
 
 // WATERWAY BOUNDARY - Simple yes/no (applies 20% multiplier if yes)
@@ -203,41 +233,37 @@ export const ADJOINING: FieldOption[] = [
   { value: 'unknown', label: 'Unknown', baseCost: 15 },
 ];
 
-// TRAVEL DISTANCE
-export const TRAVEL_DISTANCE: FieldOption[] = [
-  { value: '0', label: 'Belton/Temple/Killeen (0-15 mi)', baseCost: 0 },
-  { value: '25', label: '15-30 miles', baseCost: 50 },
-  { value: '40', label: '30-50 miles', baseCost: 100 },
-  { value: '60', label: '50-75 miles', baseCost: 150 },
-  { value: '85', label: '75-100 miles', baseCost: 200 },
-  { value: '125', label: '100-150 miles', baseCost: 300 },
-  { value: '175', label: '150-200 miles', baseCost: 425 },
-  { value: '250', label: '200-300 miles', baseCost: 600 },
-  { value: '350', label: '300+ miles', baseCost: 850 },
-];
-
-// FENCE ISSUES
+// FENCE ISSUES - Partial conversion
 export const FENCE_ISSUES: FieldOption[] = [
-  { value: 'none', label: 'No fence or no issues', baseCost: 0 },
-  { value: 'minor', label: 'Minor discrepancy', baseCost: 50 },
-  { value: 'major', label: 'Significant dispute', baseCost: 150 },
+  { value: 'none', label: 'No fence or no issues', baseCost: 0, hoursAdded: 0 },
+  { value: 'minor', label: 'Minor discrepancy', baseCost: 0, hoursAdded: 1 },
+  { value: 'major', label: 'Significant dispute', baseCost: 150, hoursAdded: 0 },
 ];
 
-// NEW MARKERS NEEDED - Updated wording
+// NEW MARKERS NEEDED - Scalable system
 export const MONUMENTS_NEEDED: FieldOption[] = [
-  { value: 'none', label: 'Just locate existing', baseCost: 0 },
-  { value: 'replace', label: 'Replace all missing', baseCost: 40 },
-  { value: 'several', label: 'Replace several', baseCost: 75 },
-  { value: 'all', label: 'Set all new pins', baseCost: 100 },
+  { value: 'none', label: 'Just locate existing', baseCost: 0, hoursAdded: 0 },
+  { value: 'replace', label: 'Replace all missing', baseCost: 40, hoursAdded: 0 },
+  { value: 'several', label: 'Replace several', baseCost: 75, hoursAdded: 0 },
+  { value: 'all', label: 'Set all new pins', baseCost: 100, hoursAdded: 0 },
 ];
 
-// PURPOSE
+// PURPOSE - Updated
 export const SURVEY_PURPOSE: FieldOption[] = [
   { value: 'fence', label: 'Fence Installation', baseCost: 0 },
-  { value: 'building', label: 'Building Permit', baseCost: 25 },
   { value: 'sale', label: 'Property Sale', baseCost: 0 },
   { value: 'dispute', label: 'Boundary Dispute', baseCost: 75 },
   { value: 'personal', label: 'Personal Records', baseCost: 0 },
+  { value: 'city_subdivision', label: 'City Subdivision', baseCost: 0 },
+];
+
+// LOT COUNT for city subdivision
+export const LOT_COUNT: FieldOption[] = [
+  { value: '2-3', label: '2–3 lots', baseCost: 1500 },
+  { value: '4-5', label: '4–5 lots', baseCost: 1700 },
+  { value: '6-8', label: '6–8 lots', baseCost: 2200 },
+  { value: '8-12', label: '8–12 lots', baseCost: 3200 },
+  { value: '12+', label: 'More than 12 lots', baseCost: 0 },
 ];
 
 // =============================================================================
@@ -339,14 +365,32 @@ export const ADDITIONAL_RESIDENCE_SIZE: FieldOption[] = [
 
 export const getBaseCost = (opts: FieldOption[] | undefined, val: unknown): number => {
   if (!opts || val === undefined || val === '') return 0;
-  const opt = opts.find(o => o.value === val);
+  const opt = opts.find(o => o.value === o.value === val);
   return opt?.baseCost || 0;
+};
+
+export const getHoursAdded = (opts: FieldOption[] | undefined, val: unknown): number => {
+  if (!opts || val === undefined || val === '') return 0;
+  const opt = opts.find(o => o.value === val);
+  return opt?.hoursAdded || 0;
+};
+
+export const getPremium = (opts: FieldOption[] | undefined, val: unknown): number => {
+  if (!opts || val === undefined || val === '') return 0;
+  const opt = opts.find(o => o.value === val);
+  return opt?.premium || 0;
 };
 
 export const getMultiplier = (opts: FieldOption[] | undefined, val: unknown): number => {
   if (!opts || val === undefined || val === '') return 1;
   const opt = opts.find(o => o.value === val);
   return opt?.hoursMultiplier || 1;
+};
+
+export const getCostMultiplier = (opts: FieldOption[] | undefined, val: unknown): number => {
+  if (!opts || val === undefined || val === '') return 1;
+  const opt = opts.find(o => o.value === val);
+  return opt?.costMultiplier || 1;
 };
 
 // Check if an improvement type is an additional residence

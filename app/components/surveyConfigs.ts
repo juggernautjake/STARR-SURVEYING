@@ -1,14 +1,17 @@
+// app/components/surveyConfigs.ts
 import {
   SurveyTypeConfig,
-  PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
+  FieldOption,
+  PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, CUSTOM_COUNTY_FIELD,
   PROPERTY_SIZE, PROPERTY_TYPE, PROPERTY_CORNERS, VEGETATION, TERRAIN,
   WATERWAY_BOUNDARY, EXISTING_SURVEY, EXISTING_MONUMENTS,
-  ACCESS_CONDITIONS, TRAVEL_DISTANCE, ADJOINING,
-  FENCE_ISSUES, MONUMENTS_NEEDED, SURVEY_PURPOSE,
+  ACCESS_CONDITIONS, ADJOINING,
+  FENCE_ISSUES, SURVEY_PURPOSE, LOT_COUNT,
   HAS_RESIDENCE, RESIDENCE_CORNERS, RESIDENCE_SIZE, GARAGE,
   NUM_IMPROVEMENTS, IMPROVEMENT_TYPE,
   ADDITIONAL_RESIDENCE_CORNERS, ADDITIONAL_RESIDENCE_SIZE,
-  getBaseCost, getMultiplier, isAdditionalResidence
+  getBaseCost, getMultiplier, getHoursAdded, getPremium, getCostMultiplier, isAdditionalResidence,
+  HOURLY_RATE, TRAVEL_RATE, TRAVEL_DISTANCE_FIELD
 } from './surveyCalculatorTypes';
 
 // =============================================================================
@@ -36,15 +39,65 @@ function calculateImprovementsCost(values: Record<string, unknown>): number {
 }
 
 // =============================================================================
+// ALTA PROPERTY TYPE (specific to ALTA)
+// =============================================================================
+const ALTA_PROPERTY_TYPE: FieldOption[] = [
+  { value: 'office', label: 'Office Building', baseCost: 0 },
+  { value: 'retail', label: 'Retail/Shopping', baseCost: 200 },
+  { value: 'industrial', label: 'Industrial/Warehouse', baseCost: 100 },
+  { value: 'multifamily', label: 'Multi-Family', baseCost: 400 },
+  { value: 'mixed_use', label: 'Mixed-Use', baseCost: 600 },
+  { value: 'vacant', label: 'Vacant Commercial', baseCost: -400 },
+  { value: 'hospitality', label: 'Hotel/Hospitality', baseCost: 400 },
+  { value: 'healthcare', label: 'Healthcare', baseCost: 600 },
+];
+
+// ALTA ACREAGE
+const ALTA_ACREAGE: FieldOption[] = [
+  { value: '0.5', label: 'Under 0.5 acres', baseCost: 0 },
+  { value: '1', label: '0.5 - 1 acre', baseCost: 300 },
+  { value: '2', label: '1 - 2 acres', baseCost: 600 },
+  { value: '5', label: '2 - 5 acres', baseCost: 1000 },
+  { value: '10', label: '5 - 10 acres', baseCost: 1600 },
+  { value: '25', label: '10 - 25 acres', baseCost: 2500 },
+  { value: '50', label: '25+ acres', baseCost: 4000 },
+];
+
+// ALTA BUILDINGS
+const ALTA_BUILDINGS: FieldOption[] = [
+  { value: '0', label: 'No buildings', baseCost: 0 },
+  { value: '1', label: '1 building', baseCost: 300 },
+  { value: '2', label: '2 buildings', baseCost: 500 },
+  { value: '3', label: '3-4 buildings', baseCost: 750 },
+  { value: '5', label: '5+ buildings', baseCost: 1200 },
+];
+
+// ALTA TABLE A
+const ALTA_TABLE_A: FieldOption[] = [
+  { value: 'minimal', label: 'Minimal (1-4)', baseCost: 0 },
+  { value: 'standard', label: 'Standard (1-11)', baseCost: 500 },
+  { value: 'comprehensive', label: 'Comprehensive (1-16)', baseCost: 800 },
+  { value: 'full', label: 'Full (All 19)', baseCost: 1200 },
+  { value: 'unknown', label: 'Unknown', baseCost: 600 },
+];
+
+// ALTA UTILITIES
+const ALTA_UTILITIES: FieldOption[] = [
+  { value: 'none', label: 'Surface only', baseCost: 0 },
+  { value: 'basic', label: '811 locate', baseCost: 150 },
+  { value: 'detailed', label: 'Detailed mapping', baseCost: 500 },
+  { value: 'sue', label: 'SUE required', baseCost: 1500 },
+];
+
+// ALTA FLOOD CERT
+const ALTA_FLOOD_CERT: FieldOption[] = [
+  { value: 'none', label: 'Not required', baseCost: 0 },
+  { value: 'determination', label: 'Zone determination', baseCost: 75 },
+  { value: 'certification', label: 'With elevation', baseCost: 300 },
+];
+
+// =============================================================================
 // BOUNDARY SURVEY
-// 
-// PRICING MODEL:
-// 1. Property Size base cost (scaled by vegetation × terrain)
-// 2. + Flat add-ons (NOT scaled):
-//    - Property corners, previous survey, corner markers, access
-//    - Adjoining properties, travel distance, fence issues, new markers, purpose
-//    - Residential structures (house, garage, dynamic improvements)
-// 3. If waterway boundary = yes, apply 20% multiplier to final total
 // =============================================================================
 const boundarySurvey: SurveyTypeConfig = {
   id: 'boundary',
@@ -55,18 +108,13 @@ const boundarySurvey: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
-    
-    // Property characteristics
+    CUSTOM_COUNTY_FIELD,
     { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: PROPERTY_TYPE },
     { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: PROPERTY_SIZE },
     { id: 'corners', label: 'Number of Property Corners', type: 'select', required: true, options: PROPERTY_CORNERS,
       helpText: 'Count all direction changes in the property boundary line' },
-    
-    // === RESIDENTIAL STRUCTURE SECTION (conditional) ===
     { id: 'hasResidence', label: 'Does the property have a residence?', type: 'select', required: true, options: HAS_RESIDENCE,
       showWhen: { field: 'propertyType', value: ['residential_urban', 'residential_rural'] } },
-    
-    // Residence details (shown only if hasResidence = 'yes')
     { id: 'residenceCorners', label: 'House Outside Corners', type: 'select', required: true, options: RESIDENCE_CORNERS,
       helpText: 'Count where exterior walls change direction (looking from above)',
       showWhen: { field: 'hasResidence', value: 'yes' } },
@@ -74,75 +122,122 @@ const boundarySurvey: SurveyTypeConfig = {
       showWhen: { field: 'hasResidence', value: 'yes' } },
     { id: 'garage', label: 'Garage', type: 'select', required: false, options: GARAGE,
       showWhen: { field: 'hasResidence', value: 'yes' } },
-    
-    // Number of other improvements (dynamic)
     { id: 'numImprovements', label: 'Number of Other Improvements', type: 'select', required: false, options: NUM_IMPROVEMENTS,
       helpText: 'Sheds, barns, pools, guest houses, workshops, etc.',
       showWhen: { field: 'propertyType', value: ['residential_urban', 'residential_rural', 'agricultural'] } },
-    
-    // Site conditions (SCALING FACTORS - affect property size cost)
     { id: 'vegetation', label: 'Vegetation', type: 'select', required: true, options: VEGETATION },
     { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
-    
-    // Waterway boundary - 20% multiplier if yes
     { id: 'waterwayBoundary', label: 'Does the property have a waterway boundary (river or creek)?', type: 'select', required: true, options: WATERWAY_BOUNDARY,
       helpText: 'If any boundary line follows a river, creek, or stream' },
-    
-    // Additional factors (FLAT ADD-ONS - not scaled)
     { id: 'existingSurvey', label: 'Previous Survey', type: 'select', required: true, options: EXISTING_SURVEY },
     { id: 'existingMonuments', label: 'Existing Corner Markers', type: 'select', required: true, options: EXISTING_MONUMENTS },
     { id: 'access', label: 'Property Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
     { id: 'adjoining', label: 'Adjoining Properties', type: 'select', required: false, options: ADJOINING },
     { id: 'fenceIssues', label: 'Fence Issues', type: 'select', required: false, options: FENCE_ISSUES },
-    { id: 'monumentsNeeded', label: 'New Markers Needed', type: 'select', required: false, options: MONUMENTS_NEEDED },
+    { id: 'setAllNewPins', label: 'Set all new pins', type: 'select', required: false, options: [
+      { value: 'no', label: 'No', hoursAdded: 0 },
+      { value: 'yes', label: 'Yes (base for 4 corners)', hoursAdded: 2 },
+    ] },
+    { id: 'additionalMarkers', label: 'Additional markers to set (beyond base)', type: 'number', required: false, min: 0, helpText: 'Each additional marker adds 0.5 hrs' },
     { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: SURVEY_PURPOSE },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    { id: 'lotCount', label: 'Lot Count', type: 'select', required: false, options: LOT_COUNT,
+      showWhen: { field: 'purpose', value: 'city_subdivision' } },
+    TRAVEL_DISTANCE_FIELD,
   ],
   calculatePrice: (v) => {
-    // 1. Get property size base cost
-    const sizeBase = getBaseCost(PROPERTY_SIZE, v.acreage);
-    
-    // 2. Apply SCALING FACTORS to size base cost ONLY (vegetation & terrain)
-    const vegMultiplier = getMultiplier(VEGETATION, v.vegetation);
-    const terrainMultiplier = getMultiplier(TERRAIN, v.terrain);
-    const scaledSizeCost = sizeBase * vegMultiplier * terrainMultiplier;
-    
-    // 3. Sum all FLAT ADD-ONS (NOT affected by multipliers)
+    // Check for 12+ lots
+    if (v.purpose === 'city_subdivision' && v.lotCount === '12+') {
+      return { price: 0, hours: 0 };
+    }
+
+    // 1. Base hours from acreage
+    const acreageHours = getHoursAdded(PROPERTY_SIZE, v.acreage);
+
+    // 2. Add hours from corners, previous survey, fence, new markers
+    const cornersHours = getHoursAdded(PROPERTY_CORNERS, v.corners);
+    const surveyHours = getHoursAdded(EXISTING_SURVEY, v.existingSurvey);
+    const fenceHours = getHoursAdded(FENCE_ISSUES, v.fenceIssues);
+    const setAllPinsHours = v.setAllNewPins === 'yes' ? 2 : 0;
+    const additionalMarkers = parseInt(v.additionalMarkers as string) || 0;
+    const markersHours = setAllPinsHours + additionalMarkers * 0.5;
+
+    let additionalHours = cornersHours + surveyHours + fenceHours + markersHours;
+
+    // 3. Add hours from property type
+    additionalHours += getHoursAdded(PROPERTY_TYPE, v.propertyType);
+
+    // 4. Multiply by hourly rate to get base dollar cost
+    const baseHoursCost = acreageHours * HOURLY_RATE;
+    const additionalHoursCost = additionalHours * HOURLY_RATE;
+
+    let baseDollarCost = baseHoursCost + additionalHoursCost;
+
+    // 5. Apply property type percentage premium
+    baseDollarCost *= 1 + getPremium(PROPERTY_TYPE, v.propertyType);
+
+    // 6. Apply vegetation/terrain multipliers (on property-size portion only)
+    const vegMult = getMultiplier(VEGETATION, v.vegetation);
+    const terrainMult = getMultiplier(TERRAIN, v.terrain);
+    const scaledAcreageCost = baseHoursCost * vegMult * terrainMult;
+    baseDollarCost = scaledAcreageCost + (baseDollarCost - baseHoursCost);
+
+    // Base price
+    let total = boundarySurvey.basePrice + baseDollarCost;
+
+    // 7. Add flat costs for travel, city subdivision lots, and other flat add-ons
     let flatAddOns = 0;
-    
-    // Property characteristics
+
+    // Property type base cost
     flatAddOns += getBaseCost(PROPERTY_TYPE, v.propertyType);
-    flatAddOns += getBaseCost(PROPERTY_CORNERS, v.corners);
-    
+
     // Residential structures (if applicable)
     if (v.hasResidence === 'yes') {
       flatAddOns += getBaseCost(RESIDENCE_CORNERS, v.residenceCorners);
       flatAddOns += getBaseCost(RESIDENCE_SIZE, v.residenceSize);
       flatAddOns += getBaseCost(GARAGE, v.garage);
     }
-    
+
     // Dynamic improvements
     flatAddOns += calculateImprovementsCost(v);
-    
+
     // Site factors
-    flatAddOns += getBaseCost(EXISTING_SURVEY, v.existingSurvey);
     flatAddOns += getBaseCost(EXISTING_MONUMENTS, v.existingMonuments);
-    flatAddOns += getBaseCost(ACCESS_CONDITIONS, v.access);
     flatAddOns += getBaseCost(ADJOINING, v.adjoining);
     flatAddOns += getBaseCost(FENCE_ISSUES, v.fenceIssues);
-    flatAddOns += getBaseCost(MONUMENTS_NEEDED, v.monumentsNeeded);
     flatAddOns += getBaseCost(SURVEY_PURPOSE, v.purpose);
-    flatAddOns += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
-    
-    // 4. Total = scaled size cost + flat add-ons
-    let total = scaledSizeCost + flatAddOns;
-    
-    // 5. Apply 20% multiplier if property has waterway boundary
-    if (v.waterwayBoundary === 'yes') {
-      total = total * 1.20;
+
+    // City subdivision lots
+    if (v.purpose === 'city_subdivision') {
+      flatAddOns += getBaseCost(LOT_COUNT, v.lotCount);
     }
-    
-    return total;
+
+    // Travel
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    const travelCost = miles * TRAVEL_RATE;
+    flatAddOns += travelCost;
+
+    total += flatAddOns;
+
+    // 8. Apply access multiplier
+    const accessMult = getCostMultiplier(ACCESS_CONDITIONS, v.access);
+    total *= accessMult;
+
+    // 9. Apply waterway multiplier
+    if (v.waterwayBoundary === 'yes') {
+      total *= 1.20;
+    }
+
+    // 10. Apply rush multiplier
+    if (v.rush === 'yes') {
+      total *= 1.25;
+    }
+
+    // 11. Range applied in UI
+
+    // Calculate total hours
+    const totalHours = acreageHours + additionalHours;
+
+    return { price: Math.max(total, boundarySurvey.minPrice), hours: totalHours };
   },
 };
 
@@ -159,67 +254,88 @@ const altaSurvey: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
-    { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: [
-      { value: 'office', label: 'Office Building', baseCost: 0 },
-      { value: 'retail', label: 'Retail/Shopping', baseCost: 200 },
-      { value: 'industrial', label: 'Industrial/Warehouse', baseCost: 100 },
-      { value: 'multifamily', label: 'Multi-Family', baseCost: 400 },
-      { value: 'mixed_use', label: 'Mixed-Use', baseCost: 600 },
-      { value: 'vacant', label: 'Vacant Commercial', baseCost: -400 },
-      { value: 'hospitality', label: 'Hotel/Hospitality', baseCost: 400 },
-      { value: 'healthcare', label: 'Healthcare', baseCost: 600 },
-    ]},
-    { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: [
-      { value: '0.5', label: 'Under 0.5 acres', baseCost: 0 },
-      { value: '1', label: '0.5 - 1 acre', baseCost: 300 },
-      { value: '2', label: '1 - 2 acres', baseCost: 600 },
-      { value: '5', label: '2 - 5 acres', baseCost: 1000 },
-      { value: '10', label: '5 - 10 acres', baseCost: 1600 },
-      { value: '25', label: '10 - 25 acres', baseCost: 2500 },
-      { value: '50', label: '25+ acres', baseCost: 4000 },
-    ]},
-    { id: 'buildings', label: 'Number of Buildings', type: 'select', required: true, options: [
-      { value: '0', label: 'No buildings', baseCost: 0 },
-      { value: '1', label: '1 building', baseCost: 300 },
-      { value: '2', label: '2 buildings', baseCost: 500 },
-      { value: '3', label: '3-4 buildings', baseCost: 750 },
-      { value: '5', label: '5+ buildings', baseCost: 1200 },
-    ]},
-    { id: 'tableA', label: 'Table A Items', type: 'select', required: true, helpText: 'Specified by lender/title company', options: [
-      { value: 'minimal', label: 'Minimal (1-4)', baseCost: 0 },
-      { value: 'standard', label: 'Standard (1-11)', baseCost: 500 },
-      { value: 'comprehensive', label: 'Comprehensive (1-16)', baseCost: 800 },
-      { value: 'full', label: 'Full (All 19)', baseCost: 1200 },
-      { value: 'unknown', label: 'Unknown', baseCost: 600 },
-    ]},
-    { id: 'utilities', label: 'Utility Location', type: 'select', required: true, options: [
-      { value: 'none', label: 'Surface only', baseCost: 0 },
-      { value: 'basic', label: '811 locate', baseCost: 150 },
-      { value: 'detailed', label: 'Detailed mapping', baseCost: 500 },
-      { value: 'sue', label: 'SUE required', baseCost: 1500 },
-    ]},
-    { id: 'floodCert', label: 'Flood Determination', type: 'select', required: true, options: [
-      { value: 'none', label: 'Not required', baseCost: 0 },
-      { value: 'determination', label: 'Zone determination', baseCost: 75 },
-      { value: 'certification', label: 'With elevation', baseCost: 300 },
-    ]},
+    CUSTOM_COUNTY_FIELD,
+    { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: ALTA_PROPERTY_TYPE },
+    { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: ALTA_ACREAGE },
+    { id: 'buildings', label: 'Number of Buildings', type: 'select', required: true, options: ALTA_BUILDINGS },
+    { id: 'tableA', label: 'Table A Items', type: 'select', required: true, helpText: 'Specified by lender/title company', options: ALTA_TABLE_A },
+    { id: 'utilities', label: 'Utility Location', type: 'select', required: true, options: ALTA_UTILITIES },
+    { id: 'floodCert', label: 'Flood Determination', type: 'select', required: true, options: ALTA_FLOOD_CERT },
     { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_DISTANCE_FIELD,
   ],
   calculatePrice: (v) => {
-    let total = 2000; // Base ALTA price
-    const f = altaSurvey.fields;
-    total += getBaseCost(f[2].options, v.propertyType);
-    total += getBaseCost(f[3].options, v.acreage);
-    total += getBaseCost(f[4].options, v.buildings);
-    total += getBaseCost(f[5].options, v.tableA);
-    total += getBaseCost(f[6].options, v.utilities);
-    total += getBaseCost(f[7].options, v.floodCert);
+    let total = altaSurvey.basePrice;
+    total += getBaseCost(ALTA_PROPERTY_TYPE, v.propertyType);
+    total += getBaseCost(ALTA_ACREAGE, v.acreage);
+    total += getBaseCost(ALTA_BUILDINGS, v.buildings);
+    total += getBaseCost(ALTA_TABLE_A, v.tableA);
+    total += getBaseCost(ALTA_UTILITIES, v.utilities);
+    total += getBaseCost(ALTA_FLOOD_CERT, v.floodCert);
+
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    const travelCost = miles * TRAVEL_RATE;
+    total += travelCost;
+
     total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    total += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
-    return Math.max(total, 2000);
+    total *= getCostMultiplier(ACCESS_CONDITIONS, v.access);
+
+    if (v.rush === 'yes') total *= 1.25;
+
+    return { price: Math.max(total, altaSurvey.minPrice) };
   },
 };
+
+// =============================================================================
+// TOPO PURPOSE (specific to topo)
+// =============================================================================
+const TOPO_PURPOSE: FieldOption[] = [
+  { value: 'site_plan', label: 'Site Planning', baseCost: 0 },
+  { value: 'drainage', label: 'Drainage Design', baseCost: 100 },
+  { value: 'grading', label: 'Grading Plan', baseCost: 100 },
+  { value: 'construction', label: 'Pre-Construction', baseCost: 100 },
+  { value: 'flood', label: 'Floodplain Study', baseCost: 200 },
+];
+
+// TOPO ACREAGE
+const TOPO_ACREAGE: FieldOption[] = [
+  { value: '0.25', label: 'Under 0.25 acres', baseCost: 0 },
+  { value: '0.5', label: '0.25 - 0.5 acres', baseCost: 150 },
+  { value: '1', label: '0.5 - 1 acre', baseCost: 350 },
+  { value: '2', label: '1 - 2 acres', baseCost: 650 },
+  { value: '5', label: '2 - 5 acres', baseCost: 1200 },
+  { value: '10', label: '5 - 10 acres', baseCost: 2000 },
+  { value: '20', label: '10+ acres', baseCost: 3500 },
+];
+
+// TOPO CONTOUR INTERVAL
+const TOPO_CONTOUR_INTERVAL: FieldOption[] = [
+  { value: '5', label: '5-foot (general)', hoursMultiplier: 1.0 },
+  { value: '2', label: '2-foot (standard)', hoursMultiplier: 1.15 },
+  { value: '1', label: '1-foot (high detail)', hoursMultiplier: 1.35 },
+  { value: '0.5', label: '6-inch (precision)', hoursMultiplier: 1.6 },
+];
+
+// TOPO FEATURES
+const TOPO_FEATURES: FieldOption[] = [
+  { value: 'basic', label: 'Contours only', baseCost: 0 },
+  { value: 'standard', label: 'Contours + buildings + trees', baseCost: 250 },
+  { value: 'detailed', label: 'All improvements', baseCost: 500 },
+  { value: 'comprehensive', label: 'With utilities', baseCost: 800 },
+];
+
+// TOPO BENCHMARK
+const TOPO_BENCHMARK: FieldOption[] = [
+  { value: 'assumed', label: 'Assumed (relative)', baseCost: 0 },
+  { value: 'local', label: 'Local benchmark', baseCost: 75 },
+  { value: 'navd88', label: 'NAVD88', baseCost: 150 },
+];
+
+// TOPO BOUNDARY
+const TOPO_BOUNDARY: FieldOption[] = [
+  { value: 'no', label: 'No - have current', baseCost: 0 },
+  { value: 'yes', label: 'Yes - include', baseCost: 400 },
+];
 
 // =============================================================================
 // TOPOGRAPHIC SURVEY
@@ -233,70 +349,90 @@ const topoSurvey: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
-    { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: [
-      { value: 'site_plan', label: 'Site Planning', baseCost: 0 },
-      { value: 'drainage', label: 'Drainage Design', baseCost: 100 },
-      { value: 'grading', label: 'Grading Plan', baseCost: 100 },
-      { value: 'construction', label: 'Pre-Construction', baseCost: 100 },
-      { value: 'flood', label: 'Floodplain Study', baseCost: 200 },
-    ]},
-    { id: 'acreage', label: 'Area to Survey', type: 'select', required: true, options: [
-      { value: '0.25', label: 'Under 0.25 acres', baseCost: 0 },
-      { value: '0.5', label: '0.25 - 0.5 acres', baseCost: 150 },
-      { value: '1', label: '0.5 - 1 acre', baseCost: 350 },
-      { value: '2', label: '1 - 2 acres', baseCost: 650 },
-      { value: '5', label: '2 - 5 acres', baseCost: 1200 },
-      { value: '10', label: '5 - 10 acres', baseCost: 2000 },
-      { value: '20', label: '10+ acres', baseCost: 3500 },
-    ]},
-    { id: 'contourInterval', label: 'Contour Interval', type: 'select', required: true, helpText: 'Smaller = more detail', options: [
-      { value: '5', label: '5-foot (general)', hoursMultiplier: 1.0 },
-      { value: '2', label: '2-foot (standard)', hoursMultiplier: 1.15 },
-      { value: '1', label: '1-foot (high detail)', hoursMultiplier: 1.35 },
-      { value: '0.5', label: '6-inch (precision)', hoursMultiplier: 1.6 },
-    ]},
-    { id: 'features', label: 'Features to Map', type: 'select', required: true, options: [
-      { value: 'basic', label: 'Contours only', baseCost: 0 },
-      { value: 'standard', label: 'Contours + buildings + trees', baseCost: 250 },
-      { value: 'detailed', label: 'All improvements', baseCost: 500 },
-      { value: 'comprehensive', label: 'With utilities', baseCost: 800 },
-    ]},
+    CUSTOM_COUNTY_FIELD,
+    { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: TOPO_PURPOSE },
+    { id: 'acreage', label: 'Area to Survey', type: 'select', required: true, options: TOPO_ACREAGE },
+    { id: 'contourInterval', label: 'Contour Interval', type: 'select', required: true, helpText: 'Smaller = more detail', options: TOPO_CONTOUR_INTERVAL },
+    { id: 'features', label: 'Features to Map', type: 'select', required: true, options: TOPO_FEATURES },
     { id: 'vegetation', label: 'Vegetation', type: 'select', required: true, options: VEGETATION },
     { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
-    { id: 'benchmark', label: 'Vertical Datum', type: 'select', required: true, options: [
-      { value: 'assumed', label: 'Assumed (relative)', baseCost: 0 },
-      { value: 'local', label: 'Local benchmark', baseCost: 75 },
-      { value: 'navd88', label: 'NAVD88', baseCost: 150 },
-    ]},
-    { id: 'boundary', label: 'Include Boundary', type: 'select', required: false, options: [
-      { value: 'no', label: 'No - have current', baseCost: 0 },
-      { value: 'yes', label: 'Yes - include', baseCost: 400 },
-    ]},
+    { id: 'benchmark', label: 'Vertical Datum', type: 'select', required: true, options: TOPO_BENCHMARK },
+    { id: 'boundary', label: 'Include Boundary', type: 'select', required: false, options: TOPO_BOUNDARY },
     { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_DISTANCE_FIELD,
   ],
   calculatePrice: (v) => {
-    const f = topoSurvey.fields;
+    let sizeBase = topoSurvey.basePrice + getBaseCost(TOPO_ACREAGE, v.acreage);
+    const contourMult = getMultiplier(TOPO_CONTOUR_INTERVAL, v.contourInterval);
+    const vegMult = getMultiplier(VEGETATION, v.vegetation);
+    const terrainMult = getMultiplier(TERRAIN, v.terrain);
+    sizeBase = sizeBase * contourMult * vegMult * terrainMult;
     
-    // Base from acreage (scaled by contour interval, vegetation, terrain)
-    let sizeBase = 500 + getBaseCost(f[3].options, v.acreage);
-    const contourMultiplier = getMultiplier(f[4].options, v.contourInterval);
-    const vegMultiplier = getMultiplier(VEGETATION, v.vegetation);
-    const terrainMultiplier = getMultiplier(TERRAIN, v.terrain);
-    sizeBase = sizeBase * contourMultiplier * vegMultiplier * terrainMultiplier;
-    
-    // Flat add-ons
     let addOns = 0;
-    addOns += getBaseCost(f[2].options, v.purpose);
-    addOns += getBaseCost(f[5].options, v.features);
-    addOns += getBaseCost(f[8].options, v.benchmark);
-    addOns += getBaseCost(f[9].options, v.boundary);
+    addOns += getBaseCost(TOPO_PURPOSE, v.purpose);
+    addOns += getBaseCost(TOPO_FEATURES, v.features);
+    addOns += getBaseCost(TOPO_BENCHMARK, v.benchmark);
+    addOns += getBaseCost(TOPO_BOUNDARY, v.boundary);
     addOns += getBaseCost(ACCESS_CONDITIONS, v.access);
-    addOns += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
     
-    return sizeBase + addOns;
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    const travelCost = miles * TRAVEL_RATE;
+    addOns += travelCost;
+    
+    let total = sizeBase + addOns;
+    total *= getCostMultiplier(ACCESS_CONDITIONS, v.access);
+    
+    if (v.rush === 'yes') total *= 1.25;
+    
+    return { price: total };
   },
 };
+
+// =============================================================================
+// ELEVATION BUILDING TYPE (specific to elevation)
+// =============================================================================
+const ELEVATION_BUILDING_TYPE: FieldOption[] = [
+  { value: 'single_family', label: 'Single-Family Home', baseCost: 0 },
+  { value: 'duplex', label: 'Duplex', baseCost: 75 },
+  { value: 'townhouse', label: 'Townhouse', baseCost: 50 },
+  { value: 'mobile', label: 'Mobile Home', baseCost: -50 },
+  { value: 'multi_family', label: 'Multi-Family', baseCost: 150 },
+  { value: 'commercial', label: 'Commercial', baseCost: 125 },
+];
+
+// ELEVATION FLOOD ZONE
+const ELEVATION_FLOOD_ZONE: FieldOption[] = [
+  { value: 'x', label: 'Zone X (minimal risk)', baseCost: -50 },
+  { value: 'x500', label: 'Zone X shaded (500-year)', baseCost: 0 },
+  { value: 'a', label: 'Zone A (no BFE)', baseCost: 75 },
+  { value: 'ae', label: 'Zone AE (with BFE)', baseCost: 0 },
+  { value: 'ao', label: 'Zone AO (sheet flow)', baseCost: 75 },
+  { value: 'unknown', label: 'Unknown', baseCost: 50 },
+];
+
+// ELEVATION PURPOSE
+const ELEVATION_PURPOSE: FieldOption[] = [
+  { value: 'insurance', label: 'Flood Insurance', baseCost: 0 },
+  { value: 'loma', label: 'LOMA Application', baseCost: 150 },
+  { value: 'lomr_f', label: 'LOMR-F Application', baseCost: 225 },
+  { value: 'construction', label: 'New Construction', baseCost: 50 },
+  { value: 'sale', label: 'Property Sale', baseCost: 0 },
+];
+
+// ELEVATION BASEMENT
+const ELEVATION_BASEMENT: FieldOption[] = [
+  { value: 'none', label: 'None', baseCost: 0 },
+  { value: 'crawl', label: 'Crawl space', baseCost: 50 },
+  { value: 'basement', label: 'Full basement', baseCost: 75 },
+  { value: 'walkout', label: 'Walkout basement', baseCost: 100 },
+];
+
+// ELEVATION ADDITIONS
+const ELEVATION_ADDITIONS: FieldOption[] = [
+  { value: 'none', label: 'Original only', baseCost: 0 },
+  { value: 'one', label: 'One addition', baseCost: 50 },
+  { value: 'multiple', label: 'Multiple additions', baseCost: 100 },
+];
 
 // =============================================================================
 // ELEVATION CERTIFICATE
@@ -310,56 +446,79 @@ const elevationCert: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
-    { id: 'buildingType', label: 'Building Type', type: 'select', required: true, options: [
-      { value: 'single_family', label: 'Single-Family Home', baseCost: 0 },
-      { value: 'duplex', label: 'Duplex', baseCost: 75 },
-      { value: 'townhouse', label: 'Townhouse', baseCost: 50 },
-      { value: 'mobile', label: 'Mobile Home', baseCost: -50 },
-      { value: 'multi_family', label: 'Multi-Family', baseCost: 150 },
-      { value: 'commercial', label: 'Commercial', baseCost: 125 },
-    ]},
-    { id: 'floodZone', label: 'Flood Zone', type: 'select', required: true, helpText: 'Check policy or FEMA map', options: [
-      { value: 'x', label: 'Zone X (minimal risk)', baseCost: -50 },
-      { value: 'x500', label: 'Zone X shaded (500-year)', baseCost: 0 },
-      { value: 'a', label: 'Zone A (no BFE)', baseCost: 75 },
-      { value: 'ae', label: 'Zone AE (with BFE)', baseCost: 0 },
-      { value: 'ao', label: 'Zone AO (sheet flow)', baseCost: 75 },
-      { value: 'unknown', label: 'Unknown', baseCost: 50 },
-    ]},
-    { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: [
-      { value: 'insurance', label: 'Flood Insurance', baseCost: 0 },
-      { value: 'loma', label: 'LOMA Application', baseCost: 150 },
-      { value: 'lomr_f', label: 'LOMR-F Application', baseCost: 225 },
-      { value: 'construction', label: 'New Construction', baseCost: 50 },
-      { value: 'sale', label: 'Property Sale', baseCost: 0 },
-    ]},
-    { id: 'basement', label: 'Basement/Below Area', type: 'select', required: true, options: [
-      { value: 'none', label: 'None', baseCost: 0 },
-      { value: 'crawl', label: 'Crawl space', baseCost: 50 },
-      { value: 'basement', label: 'Full basement', baseCost: 75 },
-      { value: 'walkout', label: 'Walkout basement', baseCost: 100 },
-    ]},
-    { id: 'additions', label: 'Building Additions', type: 'select', required: false, options: [
-      { value: 'none', label: 'Original only', baseCost: 0 },
-      { value: 'one', label: 'One addition', baseCost: 50 },
-      { value: 'multiple', label: 'Multiple additions', baseCost: 100 },
-    ]},
+    CUSTOM_COUNTY_FIELD,
+    { id: 'buildingType', label: 'Building Type', type: 'select', required: true, options: ELEVATION_BUILDING_TYPE },
+    { id: 'floodZone', label: 'Flood Zone', type: 'select', required: true, helpText: 'Check policy or FEMA map', options: ELEVATION_FLOOD_ZONE },
+    { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: ELEVATION_PURPOSE },
+    { id: 'basement', label: 'Basement/Below Area', type: 'select', required: true, options: ELEVATION_BASEMENT },
+    { id: 'additions', label: 'Building Additions', type: 'select', required: false, options: ELEVATION_ADDITIONS },
     { id: 'access', label: 'Property Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_DISTANCE_FIELD,
   ],
   calculatePrice: (v) => {
-    let total = 350;
-    const f = elevationCert.fields;
-    total += getBaseCost(f[2].options, v.buildingType);
-    total += getBaseCost(f[3].options, v.floodZone);
-    total += getBaseCost(f[4].options, v.purpose);
-    total += getBaseCost(f[5].options, v.basement);
-    total += getBaseCost(f[6].options, v.additions);
+    let total = elevationCert.basePrice;
+    total += getBaseCost(ELEVATION_BUILDING_TYPE, v.buildingType);
+    total += getBaseCost(ELEVATION_FLOOD_ZONE, v.floodZone);
+    total += getBaseCost(ELEVATION_PURPOSE, v.purpose);
+    total += getBaseCost(ELEVATION_BASEMENT, v.basement);
+    total += getBaseCost(ELEVATION_ADDITIONS, v.additions);
     total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    total += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
-    return Math.max(total, 350);
+
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    const travelCost = miles * TRAVEL_RATE;
+    total += travelCost;
+
+    total *= getCostMultiplier(ACCESS_CONDITIONS, v.access);
+
+    if (v.rush === 'yes') total *= 1.25;
+
+    return { price: Math.max(total, elevationCert.minPrice) };
   },
 };
+
+// =============================================================================
+// CONSTRUCTION PROJECT TYPE (specific to construction)
+// =============================================================================
+const CONSTRUCTION_PROJECT_TYPE: FieldOption[] = [
+  { value: 'residential', label: 'New Home', baseCost: 0 },
+  { value: 'addition', label: 'Home Addition', baseCost: -75 },
+  { value: 'commercial', label: 'Commercial Building', baseCost: 300 },
+  { value: 'road', label: 'Road/Driveway', baseCost: 150 },
+  { value: 'fence', label: 'Fence Line', baseCost: -75 },
+  { value: 'septic', label: 'Septic System', baseCost: 0 },
+  { value: 'pool', label: 'Swimming Pool', baseCost: -50 },
+];
+
+// CONSTRUCTION STAKING TYPE
+const CONSTRUCTION_STAKING_TYPE: FieldOption[] = [
+  { value: 'corners', label: 'Corners only', baseCost: 0 },
+  { value: 'offset', label: 'Offset stakes', baseCost: 75 },
+  { value: 'grades', label: 'Grade stakes', baseCost: 200 },
+  { value: 'full', label: 'Complete layout', baseCost: 350 },
+];
+
+// CONSTRUCTION POINTS
+const CONSTRUCTION_POINTS: FieldOption[] = [
+  { value: '10', label: '4-10 points', baseCost: 0 },
+  { value: '25', label: '11-25 points', baseCost: 150 },
+  { value: '50', label: '26-50 points', baseCost: 350 },
+  { value: '100', label: '50+ points', baseCost: 700 },
+];
+
+// CONSTRUCTION PLANS
+const CONSTRUCTION_PLANS: FieldOption[] = [
+  { value: 'digital', label: 'Digital CAD', baseCost: 0 },
+  { value: 'pdf', label: 'PDF plans', baseCost: 50 },
+  { value: 'paper', label: 'Paper only', baseCost: 75 },
+  { value: 'none', label: 'No plans', baseCost: 200 },
+];
+
+// CONSTRUCTION VISITS
+const CONSTRUCTION_VISITS: FieldOption[] = [
+  { value: 'single', label: 'Single visit', hoursMultiplier: 1.0 },
+  { value: 'two', label: 'Two visits', hoursMultiplier: 1.75 },
+  { value: 'multiple', label: 'Multiple visits', hoursMultiplier: 2.5 },
+];
 
 // =============================================================================
 // CONSTRUCTION STAKING
@@ -373,64 +532,92 @@ const constructionStaking: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
-    { id: 'projectType', label: 'Project Type', type: 'select', required: true, options: [
-      { value: 'residential', label: 'New Home', baseCost: 0 },
-      { value: 'addition', label: 'Home Addition', baseCost: -75 },
-      { value: 'commercial', label: 'Commercial Building', baseCost: 300 },
-      { value: 'road', label: 'Road/Driveway', baseCost: 150 },
-      { value: 'fence', label: 'Fence Line', baseCost: -75 },
-      { value: 'septic', label: 'Septic System', baseCost: 0 },
-      { value: 'pool', label: 'Swimming Pool', baseCost: -50 },
-    ]},
-    { id: 'stakingType', label: 'Staking Type', type: 'select', required: true, options: [
-      { value: 'corners', label: 'Corners only', baseCost: 0 },
-      { value: 'offset', label: 'Offset stakes', baseCost: 75 },
-      { value: 'grades', label: 'Grade stakes', baseCost: 200 },
-      { value: 'full', label: 'Complete layout', baseCost: 350 },
-    ]},
-    { id: 'points', label: 'Number of Points', type: 'select', required: true, options: [
-      { value: '10', label: '4-10 points', baseCost: 0 },
-      { value: '25', label: '11-25 points', baseCost: 150 },
-      { value: '50', label: '26-50 points', baseCost: 350 },
-      { value: '100', label: '50+ points', baseCost: 700 },
-    ]},
-    { id: 'plans', label: 'Plans Available', type: 'select', required: true, options: [
-      { value: 'digital', label: 'Digital CAD', baseCost: 0 },
-      { value: 'pdf', label: 'PDF plans', baseCost: 50 },
-      { value: 'paper', label: 'Paper only', baseCost: 75 },
-      { value: 'none', label: 'No plans', baseCost: 200 },
-    ]},
-    { id: 'visits', label: 'Site Visits', type: 'select', required: true, options: [
-      { value: 'single', label: 'Single visit', hoursMultiplier: 1.0 },
-      { value: 'two', label: 'Two visits', hoursMultiplier: 1.75 },
-      { value: 'multiple', label: 'Multiple visits', hoursMultiplier: 2.5 },
-    ]},
+    CUSTOM_COUNTY_FIELD,
+    { id: 'projectType', label: 'Project Type', type: 'select', required: true, options: CONSTRUCTION_PROJECT_TYPE },
+    { id: 'stakingType', label: 'Staking Type', type: 'select', required: true, options: CONSTRUCTION_STAKING_TYPE },
+    { id: 'points', label: 'Number of Points', type: 'select', required: true, options: CONSTRUCTION_POINTS },
+    { id: 'plans', label: 'Plans Available', type: 'select', required: true, options: CONSTRUCTION_PLANS },
+    { id: 'visits', label: 'Site Visits', type: 'select', required: true, options: CONSTRUCTION_VISITS },
     { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
     { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_DISTANCE_FIELD,
   ],
   calculatePrice: (v) => {
-    const f = constructionStaking.fields;
-    
-    // Base price + options (scaled by visits and terrain)
-    let base = 300;
-    base += getBaseCost(f[2].options, v.projectType);
-    base += getBaseCost(f[3].options, v.stakingType);
-    base += getBaseCost(f[4].options, v.points);
-    base += getBaseCost(f[5].options, v.plans);
-    
-    // Apply multipliers
-    const visitsMultiplier = getMultiplier(f[6].options, v.visits);
-    const terrainMultiplier = getMultiplier(TERRAIN, v.terrain);
-    base = base * visitsMultiplier * terrainMultiplier;
-    
-    // Flat add-ons
-    base += getBaseCost(ACCESS_CONDITIONS, v.access);
-    base += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
-    
-    return Math.max(base, 300);
+    let total = constructionStaking.basePrice;
+    total += getBaseCost(CONSTRUCTION_PROJECT_TYPE, v.projectType);
+    total += getBaseCost(CONSTRUCTION_STAKING_TYPE, v.stakingType);
+    total += getBaseCost(CONSTRUCTION_POINTS, v.points);
+    total += getBaseCost(CONSTRUCTION_PLANS, v.plans);
+
+    const visitsMult = getMultiplier(CONSTRUCTION_VISITS, v.visits);
+    const terrainMult = getMultiplier(TERRAIN, v.terrain);
+    total *= visitsMult * terrainMult;
+
+    total += getBaseCost(ACCESS_CONDITIONS, v.access);
+
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    const travelCost = miles * TRAVEL_RATE;
+    total += travelCost;
+
+    total *= getCostMultiplier(ACCESS_CONDITIONS, v.access);
+
+    if (v.rush === 'yes') total *= 1.25;
+
+    return { price: Math.max(total, constructionStaking.minPrice) };
   },
 };
+
+// =============================================================================
+// SUBDIVISION ACREAGE (specific to subdivision)
+// =============================================================================
+const SUBDIVISION_ACREAGE: FieldOption[] = [
+  { value: '5', label: 'Under 5 acres', baseCost: 0 },
+  { value: '10', label: '5 - 10 acres', baseCost: 500 },
+  { value: '25', label: '10 - 25 acres', baseCost: 1000 },
+  { value: '50', label: '25 - 50 acres', baseCost: 1750 },
+  { value: '100', label: '50 - 100 acres', baseCost: 2750 },
+  { value: '200', label: '100+ acres', baseCost: 4500 },
+];
+
+// SUBDIVISION LOTS
+const SUBDIVISION_LOTS: FieldOption[] = [
+  { value: '2', label: '2 lots (simple split)', baseCost: -750 },
+  { value: '3', label: '3 lots', baseCost: -400 },
+  { value: '5', label: '4 - 6 lots', baseCost: 0 },
+  { value: '10', label: '7 - 12 lots', baseCost: 700 },
+  { value: '25', label: '13 - 25 lots', baseCost: 1750 },
+  { value: '50', label: '26+ lots', baseCost: 3500 },
+];
+
+// SUBDIVISION ROADS
+const SUBDIVISION_ROADS: FieldOption[] = [
+  { value: 'none', label: 'No new roads', baseCost: 0 },
+  { value: 'simple', label: 'One simple road', baseCost: 700 },
+  { value: 'moderate', label: '2-3 roads', baseCost: 1400 },
+  { value: 'complex', label: 'Complex with cul-de-sacs', baseCost: 2100 },
+];
+
+// SUBDIVISION DRAINAGE
+const SUBDIVISION_DRAINAGE: FieldOption[] = [
+  { value: 'simple', label: 'Natural drainage', baseCost: 0 },
+  { value: 'easements', label: 'Drainage easements', baseCost: 500 },
+  { value: 'detention', label: 'Detention required', baseCost: 1000 },
+];
+
+// SUBDIVISION JURISDICTION
+const SUBDIVISION_JURISDICTION: FieldOption[] = [
+  { value: 'county', label: 'County only', baseCost: 0 },
+  { value: 'etj', label: 'City ETJ', baseCost: 350 },
+  { value: 'city', label: 'City limits', baseCost: 850 },
+];
+
+// SUBDIVISION FLOODPLAIN
+const SUBDIVISION_FLOODPLAIN: FieldOption[] = [
+  { value: 'none', label: 'No floodplain', baseCost: 0 },
+  { value: 'minor', label: 'Minor (edge)', baseCost: 500 },
+  { value: 'significant', label: 'Significant', baseCost: 1000 },
+  { value: 'major', label: 'Major impact', baseCost: 1750 },
+];
 
 // =============================================================================
 // SUBDIVISION PLATTING
@@ -444,71 +631,76 @@ const subdivisionPlat: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
-    { id: 'acreage', label: 'Total Tract Size', type: 'select', required: true, options: [
-      { value: '5', label: 'Under 5 acres', baseCost: 0 },
-      { value: '10', label: '5 - 10 acres', baseCost: 500 },
-      { value: '25', label: '10 - 25 acres', baseCost: 1000 },
-      { value: '50', label: '25 - 50 acres', baseCost: 1750 },
-      { value: '100', label: '50 - 100 acres', baseCost: 2750 },
-      { value: '200', label: '100+ acres', baseCost: 4500 },
-    ]},
-    { id: 'lots', label: 'Number of Lots', type: 'select', required: true, options: [
-      { value: '2', label: '2 lots (simple split)', baseCost: -750 },
-      { value: '3', label: '3 lots', baseCost: -400 },
-      { value: '5', label: '4 - 6 lots', baseCost: 0 },
-      { value: '10', label: '7 - 12 lots', baseCost: 700 },
-      { value: '25', label: '13 - 25 lots', baseCost: 1750 },
-      { value: '50', label: '26+ lots', baseCost: 3500 },
-    ]},
-    { id: 'roads', label: 'Road Layout', type: 'select', required: true, options: [
-      { value: 'none', label: 'No new roads', baseCost: 0 },
-      { value: 'simple', label: 'One simple road', baseCost: 700 },
-      { value: 'moderate', label: '2-3 roads', baseCost: 1400 },
-      { value: 'complex', label: 'Complex with cul-de-sacs', baseCost: 2100 },
-    ]},
-    { id: 'drainage', label: 'Drainage', type: 'select', required: true, options: [
-      { value: 'simple', label: 'Natural drainage', baseCost: 0 },
-      { value: 'easements', label: 'Drainage easements', baseCost: 500 },
-      { value: 'detention', label: 'Detention required', baseCost: 1000 },
-    ]},
-    { id: 'jurisdiction', label: 'Jurisdiction', type: 'select', required: true, options: [
-      { value: 'county', label: 'County only', baseCost: 0 },
-      { value: 'etj', label: 'City ETJ', baseCost: 350 },
-      { value: 'city', label: 'City limits', baseCost: 850 },
-    ]},
+    CUSTOM_COUNTY_FIELD,
+    { id: 'acreage', label: 'Total Tract Size', type: 'select', required: true, options: SUBDIVISION_ACREAGE },
+    { id: 'lots', label: 'Number of Lots', type: 'select', required: true, options: SUBDIVISION_LOTS },
+    { id: 'roads', label: 'Road Layout', type: 'select', required: true, options: SUBDIVISION_ROADS },
+    { id: 'drainage', label: 'Drainage', type: 'select', required: true, options: SUBDIVISION_DRAINAGE },
+    { id: 'jurisdiction', label: 'Jurisdiction', type: 'select', required: true, options: SUBDIVISION_JURISDICTION },
     { id: 'vegetation', label: 'Vegetation', type: 'select', required: true, options: VEGETATION },
     { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
-    { id: 'floodplain', label: 'Floodplain', type: 'select', required: true, options: [
-      { value: 'none', label: 'No floodplain', baseCost: 0 },
-      { value: 'minor', label: 'Minor (edge)', baseCost: 500 },
-      { value: 'significant', label: 'Significant', baseCost: 1000 },
-      { value: 'major', label: 'Major impact', baseCost: 1750 },
-    ]},
+    { id: 'floodplain', label: 'Floodplain', type: 'select', required: true, options: SUBDIVISION_FLOODPLAIN },
     { id: 'existingSurvey', label: 'Parent Tract Survey', type: 'select', required: true, options: EXISTING_SURVEY },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_DISTANCE_FIELD,
   ],
   calculatePrice: (v) => {
-    const f = subdivisionPlat.fields;
-    
-    // Base affected by vegetation and terrain
-    let sizeBase = 2500 + getBaseCost(f[2].options, v.acreage);
-    const vegMultiplier = getMultiplier(VEGETATION, v.vegetation);
-    const terrainMultiplier = getMultiplier(TERRAIN, v.terrain);
-    sizeBase = sizeBase * vegMultiplier * terrainMultiplier;
-    
-    // Flat add-ons
+    let sizeBase = subdivisionPlat.basePrice + getBaseCost(SUBDIVISION_ACREAGE, v.acreage);
+    const vegMult = getMultiplier(VEGETATION, v.vegetation);
+    const terrainMult = getMultiplier(TERRAIN, v.terrain);
+    sizeBase *= vegMult * terrainMult;
+
     let addOns = 0;
-    addOns += getBaseCost(f[3].options, v.lots);
-    addOns += getBaseCost(f[4].options, v.roads);
-    addOns += getBaseCost(f[5].options, v.drainage);
-    addOns += getBaseCost(f[6].options, v.jurisdiction);
-    addOns += getBaseCost(f[10].options, v.floodplain);
+    addOns += getBaseCost(SUBDIVISION_LOTS, v.lots);
+    addOns += getBaseCost(SUBDIVISION_ROADS, v.roads);
+    addOns += getBaseCost(SUBDIVISION_DRAINAGE, v.drainage);
+    addOns += getBaseCost(SUBDIVISION_JURISDICTION, v.jurisdiction);
+    addOns += getBaseCost(SUBDIVISION_FLOODPLAIN, v.floodplain);
     addOns += getBaseCost(EXISTING_SURVEY, v.existingSurvey);
-    addOns += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
-    
-    return Math.max(sizeBase + addOns, 2500);
+
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    const travelCost = miles * TRAVEL_RATE;
+    addOns += travelCost;
+
+    let total = sizeBase + addOns;
+    if (v.rush === 'yes') total *= 1.25;
+
+    return { price: Math.max(total, subdivisionPlat.minPrice) };
   },
 };
+
+// =============================================================================
+// AS BUILT STRUCTURE TYPE (specific to as built)
+// =============================================================================
+const ASBUILT_STRUCTURE_TYPE: FieldOption[] = [
+  { value: 'residential', label: 'New Home', baseCost: 0 },
+  { value: 'addition', label: 'Addition', baseCost: -75 },
+  { value: 'commercial', label: 'Commercial', baseCost: 300 },
+  { value: 'accessory', label: 'Garage/Barn/Shop', baseCost: -100 },
+  { value: 'pool', label: 'Pool', baseCost: -125 },
+  { value: 'foundation', label: 'Foundation Only', baseCost: -75 },
+];
+
+// ASBUILT COMPLEXITY
+const ASBUILT_COMPLEXITY: FieldOption[] = [
+  { value: 'simple', label: 'Simple rectangular', baseCost: 0 },
+  { value: 'moderate', label: 'L-shape or offsets', baseCost: 75 },
+  { value: 'complex', label: 'Complex footprint', baseCost: 150 },
+  { value: 'very_complex', label: 'Multiple buildings', baseCost: 300 },
+];
+
+// ASBUILT FEATURES
+const ASBUILT_FEATURES: FieldOption[] = [
+  { value: 'building', label: 'Building + setbacks only', baseCost: 0 },
+  { value: 'improvements', label: '+ drives + walks', baseCost: 100 },
+  { value: 'full', label: 'All improvements', baseCost: 225 },
+  { value: 'comprehensive', label: 'With elevations', baseCost: 375 },
+];
+
+// ASBUILT PERMIT
+const ASBUILT_PERMIT: FieldOption[] = [
+  { value: 'yes', label: 'Yes - permit required', baseCost: 50 },
+  { value: 'no', label: 'No - personal records', baseCost: 0 },
+];
 
 // =============================================================================
 // AS-BUILT SURVEY
@@ -522,45 +714,53 @@ const asBuiltSurvey: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
-    { id: 'structureType', label: 'Structure Type', type: 'select', required: true, options: [
-      { value: 'residential', label: 'New Home', baseCost: 0 },
-      { value: 'addition', label: 'Addition', baseCost: -75 },
-      { value: 'commercial', label: 'Commercial', baseCost: 300 },
-      { value: 'accessory', label: 'Garage/Barn/Shop', baseCost: -100 },
-      { value: 'pool', label: 'Pool', baseCost: -125 },
-      { value: 'foundation', label: 'Foundation Only', baseCost: -75 },
-    ]},
-    { id: 'complexity', label: 'Complexity', type: 'select', required: true, options: [
-      { value: 'simple', label: 'Simple rectangular', baseCost: 0 },
-      { value: 'moderate', label: 'L-shape or offsets', baseCost: 75 },
-      { value: 'complex', label: 'Complex footprint', baseCost: 150 },
-      { value: 'very_complex', label: 'Multiple buildings', baseCost: 300 },
-    ]},
-    { id: 'features', label: 'Features to Document', type: 'select', required: true, options: [
-      { value: 'building', label: 'Building + setbacks only', baseCost: 0 },
-      { value: 'improvements', label: '+ drives + walks', baseCost: 100 },
-      { value: 'full', label: 'All improvements', baseCost: 225 },
-      { value: 'comprehensive', label: 'With elevations', baseCost: 375 },
-    ]},
-    { id: 'permit', label: 'For Permit/CO', type: 'select', required: true, options: [
-      { value: 'yes', label: 'Yes - permit required', baseCost: 50 },
-      { value: 'no', label: 'No - personal records', baseCost: 0 },
-    ]},
+    CUSTOM_COUNTY_FIELD,
+    { id: 'structureType', label: 'Structure Type', type: 'select', required: true, options: ASBUILT_STRUCTURE_TYPE },
+    { id: 'complexity', label: 'Complexity', type: 'select', required: true, options: ASBUILT_COMPLEXITY },
+    { id: 'features', label: 'Features to Document', type: 'select', required: true, options: ASBUILT_FEATURES },
+    { id: 'permit', label: 'For Permit/CO', type: 'select', required: true, options: ASBUILT_PERMIT },
     { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_DISTANCE_FIELD,
   ],
   calculatePrice: (v) => {
-    let total = 400;
-    const f = asBuiltSurvey.fields;
-    total += getBaseCost(f[2].options, v.structureType);
-    total += getBaseCost(f[3].options, v.complexity);
-    total += getBaseCost(f[4].options, v.features);
-    total += getBaseCost(f[5].options, v.permit);
+    let total = asBuiltSurvey.basePrice;
+    total += getBaseCost(ASBUILT_STRUCTURE_TYPE, v.structureType);
+    total += getBaseCost(ASBUILT_COMPLEXITY, v.complexity);
+    total += getBaseCost(ASBUILT_FEATURES, v.features);
+    total += getBaseCost(ASBUILT_PERMIT, v.permit);
     total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    total += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
-    return Math.max(total, 400);
+
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    const travelCost = miles * TRAVEL_RATE;
+    total += travelCost;
+
+    total *= getCostMultiplier(ACCESS_CONDITIONS, v.access);
+
+    if (v.rush === 'yes') total *= 1.25;
+
+    return { price: Math.max(total, asBuiltSurvey.minPrice) };
   },
 };
+
+// =============================================================================
+// MORTGAGE PROPERTY TYPE (specific to mortgage)
+// =============================================================================
+const MORTGAGE_PROPERTY_TYPE: FieldOption[] = [
+  { value: 'residential', label: 'Single-Family', baseCost: 0 },
+  { value: 'condo', label: 'Condo', baseCost: -100 },
+  { value: 'townhouse', label: 'Townhouse', baseCost: -75 },
+  { value: 'multi_family', label: 'Multi-Family', baseCost: 150 },
+  { value: 'vacant', label: 'Vacant Lot', baseCost: -75 },
+  { value: 'rural', label: 'Rural/Acreage', baseCost: 200 },
+];
+
+// MORTGAGE CLOSING DATE
+const MORTGAGE_CLOSING_DATE: FieldOption[] = [
+  { value: 'flexible', label: '2+ weeks', baseCost: 0 },
+  { value: 'standard', label: '7-14 days', baseCost: 0 },
+  { value: 'soon', label: 'Within 7 days', baseCost: 0 },
+  { value: 'urgent', label: 'Under 5 days', baseCost: 0 },
+];
 
 // =============================================================================
 // MORTGAGE SURVEY
@@ -574,40 +774,82 @@ const mortgageSurvey: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
-    { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: [
-      { value: 'residential', label: 'Single-Family', baseCost: 0 },
-      { value: 'condo', label: 'Condo', baseCost: -100 },
-      { value: 'townhouse', label: 'Townhouse', baseCost: -75 },
-      { value: 'multi_family', label: 'Multi-Family', baseCost: 150 },
-      { value: 'vacant', label: 'Vacant Lot', baseCost: -75 },
-      { value: 'rural', label: 'Rural/Acreage', baseCost: 200 },
-    ]},
+    CUSTOM_COUNTY_FIELD,
+    { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: MORTGAGE_PROPERTY_TYPE },
     { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: PROPERTY_SIZE },
     { id: 'corners', label: 'Property Corners', type: 'select', required: true, options: PROPERTY_CORNERS },
     { id: 'existingMonuments', label: 'Corner Markers', type: 'select', required: true, options: EXISTING_MONUMENTS },
     { id: 'existingSurvey', label: 'Previous Survey', type: 'select', required: true, options: EXISTING_SURVEY },
-    { id: 'closingDate', label: 'Closing Timeline', type: 'select', required: true, options: [
-      { value: 'flexible', label: '2+ weeks', baseCost: 0 },
-      { value: 'standard', label: '7-14 days', baseCost: 0 },
-      { value: 'soon', label: 'Within 7 days', baseCost: 0 },
-      { value: 'urgent', label: 'Under 5 days', baseCost: 0 },
-    ]},
+    { id: 'closingDate', label: 'Closing Timeline', type: 'select', required: true, options: MORTGAGE_CLOSING_DATE },
     { id: 'access', label: 'Property Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_DISTANCE_FIELD,
   ],
   calculatePrice: (v) => {
-    const f = mortgageSurvey.fields;
-    let total = 350;
-    total += getBaseCost(f[2].options, v.propertyType);
+    let total = mortgageSurvey.basePrice;
+    total += getBaseCost(MORTGAGE_PROPERTY_TYPE, v.propertyType);
     total += getBaseCost(PROPERTY_SIZE, v.acreage);
     total += getBaseCost(PROPERTY_CORNERS, v.corners);
     total += getBaseCost(EXISTING_MONUMENTS, v.existingMonuments);
     total += getBaseCost(EXISTING_SURVEY, v.existingSurvey);
+    total += getBaseCost(MORTGAGE_CLOSING_DATE, v.closingDate);
     total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    total += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
-    return Math.max(total, 350);
+
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    const travelCost = miles * TRAVEL_RATE;
+    total += travelCost;
+
+    total *= getCostMultiplier(ACCESS_CONDITIONS, v.access);
+
+    if (v.rush === 'yes') total *= 1.25;
+
+    return { price: Math.max(total, mortgageSurvey.minPrice) };
   },
 };
+
+// =============================================================================
+// EASEMENT TYPE (specific to easement)
+// =============================================================================
+const EASEMENT_TYPE: FieldOption[] = [
+  { value: 'access', label: 'Access/Driveway', baseCost: 0 },
+  { value: 'utility_overhead', label: 'Overhead Utility', baseCost: -75 },
+  { value: 'utility_underground', label: 'Underground Utility', baseCost: 75 },
+  { value: 'pipeline', label: 'Pipeline', baseCost: 150 },
+  { value: 'drainage', label: 'Drainage', baseCost: 75 },
+  { value: 'road', label: 'Road ROW', baseCost: 150 },
+];
+
+// EASEMENT LENGTH
+const EASEMENT_LENGTH: FieldOption[] = [
+  { value: '250', label: 'Under 250 feet', baseCost: 0 },
+  { value: '500', label: '250 - 500 feet', baseCost: 150 },
+  { value: '1000', label: '500 - 1,000 feet', baseCost: 300 },
+  { value: '2500', label: '1,000 - 2,500 feet', baseCost: 600 },
+  { value: '5000', label: '2,500 - 5,000 feet', baseCost: 1100 },
+  { value: '10000', label: '1 - 2 miles', baseCost: 1900 },
+];
+
+// EASEMENT PARCELS
+const EASEMENT_PARCELS: FieldOption[] = [
+  { value: '1', label: '1 property', baseCost: 0 },
+  { value: '2', label: '2 properties', baseCost: 225 },
+  { value: '3', label: '3 properties', baseCost: 400 },
+  { value: '5', label: '4-5 properties', baseCost: 625 },
+  { value: '10', label: '6+ properties', baseCost: 1100 },
+];
+
+// EASEMENT WATER CROSSINGS
+const EASEMENT_WATER_CROSSINGS: FieldOption[] = [
+  { value: 'none', label: 'None', baseCost: 0 },
+  { value: 'one', label: '1 crossing', baseCost: 150 },
+  { value: 'multiple', label: 'Multiple', baseCost: 375 },
+];
+
+// EASEMENT LEGAL DESC
+const EASEMENT_LEGAL_DESC: FieldOption[] = [
+  { value: 'no', label: 'Not needed', baseCost: 0 },
+  { value: 'simple', label: 'Single description', baseCost: 125 },
+  { value: 'multiple', label: 'Per parcel', baseCost: 300 },
+];
 
 // =============================================================================
 // EASEMENT SURVEY
@@ -622,65 +864,60 @@ const easementSurvey: SurveyTypeConfig = {
     { id: 'startLocation', label: 'Starting Point', type: 'text', required: true, placeholder: 'Address or description' },
     { id: 'endLocation', label: 'Ending Point', type: 'text', required: true, placeholder: 'Address or description' },
     PROPERTY_COUNTY_FIELD,
-    { id: 'easementType', label: 'Easement Type', type: 'select', required: true, options: [
-      { value: 'access', label: 'Access/Driveway', baseCost: 0 },
-      { value: 'utility_overhead', label: 'Overhead Utility', baseCost: -75 },
-      { value: 'utility_underground', label: 'Underground Utility', baseCost: 75 },
-      { value: 'pipeline', label: 'Pipeline', baseCost: 150 },
-      { value: 'drainage', label: 'Drainage', baseCost: 75 },
-      { value: 'road', label: 'Road ROW', baseCost: 150 },
-    ]},
-    { id: 'length', label: 'Route Length', type: 'select', required: true, options: [
-      { value: '250', label: 'Under 250 feet', baseCost: 0 },
-      { value: '500', label: '250 - 500 feet', baseCost: 150 },
-      { value: '1000', label: '500 - 1,000 feet', baseCost: 300 },
-      { value: '2500', label: '1,000 - 2,500 feet', baseCost: 600 },
-      { value: '5000', label: '2,500 - 5,000 feet', baseCost: 1100 },
-      { value: '10000', label: '1 - 2 miles', baseCost: 1900 },
-    ]},
-    { id: 'parcels', label: 'Properties Crossed', type: 'select', required: true, options: [
-      { value: '1', label: '1 property', baseCost: 0 },
-      { value: '2', label: '2 properties', baseCost: 225 },
-      { value: '3', label: '3 properties', baseCost: 400 },
-      { value: '5', label: '4-5 properties', baseCost: 625 },
-      { value: '10', label: '6+ properties', baseCost: 1100 },
-    ]},
+    CUSTOM_COUNTY_FIELD,
+    { id: 'easementType', label: 'Easement Type', type: 'select', required: true, options: EASEMENT_TYPE },
+    { id: 'length', label: 'Route Length', type: 'select', required: true, options: EASEMENT_LENGTH },
+    { id: 'parcels', label: 'Properties Crossed', type: 'select', required: true, options: EASEMENT_PARCELS },
     { id: 'vegetation', label: 'Vegetation', type: 'select', required: true, options: VEGETATION },
     { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
-    { id: 'waterCrossings', label: 'Water Crossings', type: 'select', required: false, options: [
-      { value: 'none', label: 'None', baseCost: 0 },
-      { value: 'one', label: '1 crossing', baseCost: 150 },
-      { value: 'multiple', label: 'Multiple', baseCost: 375 },
-    ]},
-    { id: 'legalDesc', label: 'Legal Description', type: 'select', required: true, options: [
-      { value: 'no', label: 'Not needed', baseCost: 0 },
-      { value: 'simple', label: 'Single description', baseCost: 125 },
-      { value: 'multiple', label: 'Per parcel', baseCost: 300 },
-    ]},
+    { id: 'waterCrossings', label: 'Water Crossings', type: 'select', required: false, options: EASEMENT_WATER_CROSSINGS },
+    { id: 'legalDesc', label: 'Legal Description', type: 'select', required: true, options: EASEMENT_LEGAL_DESC },
     { id: 'access', label: 'Route Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_DISTANCE_FIELD,
   ],
   calculatePrice: (v) => {
-    const f = easementSurvey.fields;
-    
-    // Base from length (scaled by vegetation, terrain)
-    let lengthBase = 500 + getBaseCost(f[4].options, v.length);
-    const vegMultiplier = getMultiplier(VEGETATION, v.vegetation);
-    const terrainMultiplier = getMultiplier(TERRAIN, v.terrain);
-    lengthBase = lengthBase * vegMultiplier * terrainMultiplier;
-    
-    // Flat add-ons
+    let lengthBase = easementSurvey.basePrice + getBaseCost(EASEMENT_LENGTH, v.length);
+    const vegMult = getMultiplier(VEGETATION, v.vegetation);
+    const terrainMult = getMultiplier(TERRAIN, v.terrain);
+    lengthBase *= vegMult * terrainMult;
+
     let addOns = 0;
-    addOns += getBaseCost(f[3].options, v.easementType);
-    addOns += getBaseCost(f[5].options, v.parcels);
-    addOns += getBaseCost(f[8].options, v.waterCrossings);
-    addOns += getBaseCost(f[9].options, v.legalDesc);
+    addOns += getBaseCost(EASEMENT_TYPE, v.easementType);
+    addOns += getBaseCost(EASEMENT_PARCELS, v.parcels);
+    addOns += getBaseCost(EASEMENT_WATER_CROSSINGS, v.waterCrossings);
+    addOns += getBaseCost(EASEMENT_LEGAL_DESC, v.legalDesc);
     addOns += getBaseCost(ACCESS_CONDITIONS, v.access);
-    addOns += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
-    
-    return lengthBase + addOns;
+
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    const travelCost = miles * TRAVEL_RATE;
+    addOns += travelCost;
+
+    let total = lengthBase + addOns;
+    total *= getCostMultiplier(ACCESS_CONDITIONS, v.access);
+
+    if (v.rush === 'yes') total *= 1.25;
+
+    return { price: total };
   },
 };
+
+// =============================================================================
+// LEGAL DESCRIPTION TYPE (specific to legal)
+// =============================================================================
+const LEGAL_DESCRIPTION_TYPE: FieldOption[] = [
+  { value: 'lot_block', label: 'Lot and Block', baseCost: -100 },
+  { value: 'metes_bounds', label: 'Metes and Bounds', baseCost: 0 },
+  { value: 'easement', label: 'Easement Description', baseCost: 75 },
+  { value: 'partial', label: 'Part of Larger Tract', baseCost: 150 },
+  { value: 'correction', label: 'Correction', baseCost: -50 },
+];
+
+// LEGAL FIELD WORK
+const LEGAL_FIELD_WORK: FieldOption[] = [
+  { value: 'none', label: 'From existing survey', baseCost: 0 },
+  { value: 'verification', label: 'Field verification', baseCost: 225 },
+  { value: 'full', label: 'Full field survey', baseCost: 600 },
+];
 
 // =============================================================================
 // LEGAL DESCRIPTION
@@ -694,30 +931,20 @@ const legalDescription: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
-    { id: 'type', label: 'Description Type', type: 'select', required: true, options: [
-      { value: 'lot_block', label: 'Lot and Block', baseCost: -100 },
-      { value: 'metes_bounds', label: 'Metes and Bounds', baseCost: 0 },
-      { value: 'easement', label: 'Easement Description', baseCost: 75 },
-      { value: 'partial', label: 'Part of Larger Tract', baseCost: 150 },
-      { value: 'correction', label: 'Correction', baseCost: -50 },
-    ]},
-    { id: 'fieldWork', label: 'Field Work Needed', type: 'select', required: true, options: [
-      { value: 'none', label: 'From existing survey', baseCost: 0 },
-      { value: 'verification', label: 'Field verification', baseCost: 225 },
-      { value: 'full', label: 'Full field survey', baseCost: 600 },
-    ]},
+    CUSTOM_COUNTY_FIELD,
+    { id: 'type', label: 'Description Type', type: 'select', required: true, options: LEGAL_DESCRIPTION_TYPE },
+    { id: 'fieldWork', label: 'Field Work Needed', type: 'select', required: true, options: LEGAL_FIELD_WORK },
     { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: PROPERTY_SIZE,
       showWhen: { field: 'fieldWork', value: ['verification', 'full'] } },
     { id: 'corners', label: 'Number of Corners', type: 'select', required: true, options: PROPERTY_CORNERS,
       showWhen: { field: 'fieldWork', value: ['verification', 'full'] } },
     { id: 'existingSurvey', label: 'Existing Survey', type: 'select', required: true, options: EXISTING_SURVEY },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_DISTANCE_FIELD,
   ],
   calculatePrice: (v) => {
-    const f = legalDescription.fields;
-    let total = 250;
-    total += getBaseCost(f[2].options, v.type);
-    total += getBaseCost(f[3].options, v.fieldWork);
+    let total = legalDescription.basePrice;
+    total += getBaseCost(LEGAL_DESCRIPTION_TYPE, v.type);
+    total += getBaseCost(LEGAL_FIELD_WORK, v.fieldWork);
     
     // Only add size/corners if field work is needed
     if (v.fieldWork === 'verification' || v.fieldWork === 'full') {
@@ -726,9 +953,14 @@ const legalDescription: SurveyTypeConfig = {
     }
     
     total += getBaseCost(EXISTING_SURVEY, v.existingSurvey) * 0.5;
-    total += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
+
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    const travelCost = miles * TRAVEL_RATE;
+    total += travelCost;
+
+    if (v.rush === 'yes') total *= 1.25;
     
-    return Math.max(total, 250);
+    return { price: Math.max(total, legalDescription.minPrice) };
   },
 };
 
