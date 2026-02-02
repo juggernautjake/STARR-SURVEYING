@@ -209,7 +209,7 @@
    ============================================================================= */
 .navbar__mobile {
   display: none;
-  align-items: stretch;  /* EQUAL HEIGHT for both buttons */
+  align-items: stretch;
   gap: 0.75rem;
 }
 
@@ -329,7 +329,7 @@
 
 .scrolled-right {
   display: flex;
-  align-items: stretch;  /* EQUAL HEIGHT for quote btn + menu btn */
+  align-items: stretch;
   gap: 1rem;
 }
 
@@ -487,10 +487,6 @@
 
 /* ─────────────────────────────────────────────────────────────────────────────
    1. Extra Small Mobile (0 - 399px)
-   
-   Reference height: Get Quote btn at top of page.
-   font-size 0.7rem  +  padding 0.5rem top/bottom  +  border 2px × 2
-   ≈ ~30px rendered height.  All buttons + scrolled versions match this.
    ───────────────────────────────────────────────────────────────────────────── */
 @media screen and (max-width: 399px) {
   :root {
@@ -522,26 +518,27 @@
   
   .navbar__desktop { display: none; }
   
-  /* EQUAL HEIGHT via stretch */
   .navbar__mobile {
     display: flex;
     align-items: stretch;
     gap: 0.4rem;
   }
   
-  /* ── Get Quote button (TOP OF PAGE) — this is the reference height ── */
+  /* ── Get Quote (TOP) — white border ── */
   .navbar__quote-btn-mobile {
     font-size: 0.7rem;
     padding: 0.5rem 0.65rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 5px;
   }
   
-  /* ── MENU button (TOP OF PAGE) — matches quote height via stretch ── */
+  /* ── MENU button (TOP) — white border ── */
   .navbar__hamburger {
     font-size: 0.7rem;
     padding: 0.5rem 0.65rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 5px;
     letter-spacing: 0.08em;
   }
@@ -564,7 +561,6 @@
     border-bottom-width: 2px;
   }
   
-  /* Logo — taller than before */
   .scrolled-logo {
     height: 28px;
     margin-left: 0.3rem;
@@ -574,19 +570,21 @@
     gap: 0.4rem;
   }
   
-  /* ── Get Free Quote (SCROLLED) — same height as top-of-page buttons ── */
+  /* ── Get Free Quote (SCROLLED) — white border ── */
   .scrolled-quote-btn {
     font-size: 0.7rem;
     padding: 0.5rem 0.6rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 5px;
   }
   
-  /* ── MENU button (SCROLLED) — same height via stretch ── */
+  /* ── MENU button (SCROLLED) — white border ── */
   .scrolled-hamburger {
     font-size: 0.7rem;
     padding: 0.5rem 0.6rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 5px;
     margin-right: 0.3rem;
     letter-spacing: 0.08em;
@@ -647,17 +645,21 @@
     gap: 0.5rem;
   }
   
+  /* ── Get Quote (TOP) — white border ── */
   .navbar__quote-btn-mobile {
     font-size: 0.76rem;
     padding: 0.55rem 0.72rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 5px;
   }
   
+  /* ── MENU button (TOP) — white border ── */
   .navbar__hamburger {
     font-size: 0.76rem;
     padding: 0.55rem 0.72rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 5px;
     letter-spacing: 0.08em;
   }
@@ -689,17 +691,21 @@
     gap: 0.5rem;
   }
   
+  /* ── Get Free Quote (SCROLLED) — white border ── */
   .scrolled-quote-btn {
     font-size: 0.76rem;
     padding: 0.55rem 0.65rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 5px;
   }
   
+  /* ── MENU button (SCROLLED) — white border ── */
   .scrolled-hamburger {
     font-size: 0.76rem;
     padding: 0.55rem 0.65rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 5px;
     margin-right: 0.4rem;
     letter-spacing: 0.08em;
@@ -760,17 +766,21 @@
     gap: 0.55rem;
   }
   
+  /* ── Get Quote (TOP) — white border ── */
   .navbar__quote-btn-mobile {
     font-size: 0.82rem;
     padding: 0.58rem 0.82rem;
     border-width: 3px;
+    border-color: var(--color-white);
     border-radius: 5px;
   }
   
+  /* ── MENU button (TOP) — white border ── */
   .navbar__hamburger {
     font-size: 0.82rem;
     padding: 0.58rem 0.82rem;
     border-width: 3px;
+    border-color: var(--color-white);
     border-radius: 5px;
     letter-spacing: 0.08em;
   }
@@ -801,17 +811,21 @@
     gap: 0.55rem;
   }
   
+  /* ── Get Free Quote (SCROLLED) — white border ── */
   .scrolled-quote-btn {
     font-size: 0.82rem;
     padding: 0.58rem 0.75rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 5px;
   }
   
+  /* ── MENU button (SCROLLED) — white border ── */
   .scrolled-hamburger {
     font-size: 0.82rem;
     padding: 0.58rem 0.75rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 5px;
     margin-right: 0.5rem;
     letter-spacing: 0.08em;
@@ -871,17 +885,21 @@
     gap: 0.65rem;
   }
   
+  /* ── Get Quote (TOP) — white border ── */
   .navbar__quote-btn-mobile {
     font-size: 0.88rem;
     padding: 0.62rem 0.95rem;
     border-width: 3px;
+    border-color: var(--color-white);
     border-radius: 6px;
   }
   
+  /* ── MENU button (TOP) — white border ── */
   .navbar__hamburger {
     font-size: 0.88rem;
     padding: 0.62rem 0.95rem;
     border-width: 3px;
+    border-color: var(--color-white);
     border-radius: 6px;
     letter-spacing: 0.08em;
   }
@@ -912,17 +930,21 @@
     gap: 0.65rem;
   }
   
+  /* ── Get Free Quote (SCROLLED) — white border ── */
   .scrolled-quote-btn {
     font-size: 0.88rem;
     padding: 0.62rem 0.85rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 6px;
   }
   
+  /* ── MENU button (SCROLLED) — white border ── */
   .scrolled-hamburger {
     font-size: 0.88rem;
     padding: 0.62rem 0.85rem;
     border-width: 2px;
+    border-color: var(--color-white);
     border-radius: 6px;
     margin-right: 0.5rem;
     letter-spacing: 0.08em;
