@@ -8,7 +8,7 @@ export interface FieldOption {
   hoursMultiplier?: number;  // For scaling factors (vegetation, terrain, contour)
   baseCost?: number;         // For flat dollar add-ons
   hours?: number;            // For time-based pricing (boundary survey)
-  costMultiplier?: number;   // For percentage-based cost adjustments
+  costMultiplier?: number;   // For percentage-based cost adjustments (non-boundary surveys)
 }
 
 export interface FormField {
@@ -235,8 +235,9 @@ export const EXISTING_MONUMENTS: FieldOption[] = [
 ];
 
 // ACCESS CONDITIONS
-// costMultiplier is used by non-boundary surveys (×1.2 for 4WD/unknown)
-// Boundary survey ignores costMultiplier and uses tiered flat fees instead
+// baseCost: flat dollar add-on (used by boundary else-branch for non-4WD/unknown types)
+// costMultiplier: percentage-based surcharge used by non-boundary surveys;
+//                 boundary ignores it and uses tiered flat fees instead
 export const ACCESS_CONDITIONS: FieldOption[] = [
   { value: 'paved', label: 'Paved Road - Direct access', baseCost: 0, costMultiplier: 1.0 },
   { value: 'gravel', label: 'Gravel/Caliche Road', baseCost: 0, costMultiplier: 1.0 },
@@ -412,10 +413,11 @@ export const getHours = (opts: FieldOption[] | undefined, val: unknown): number 
   return opt?.hours ?? 0;
 };
 
+// costMultiplier: used by non-boundary surveys for percentage-based access surcharges
 export const getCostMultiplier = (opts: FieldOption[] | undefined, val: unknown): number => {
   if (!opts || val === undefined || val === '') return 1;
   const opt = opts.find(o => o.value === val);
-  return opt?.costMultiplier ?? 1;
+  return opt?.costMultiplier || 1;
 };
 
 export const isAdditionalResidence = (improvementType: string): boolean => {
