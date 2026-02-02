@@ -125,21 +125,23 @@ const Header = (): React.ReactElement => {
       {isScrolled && (
         <nav className="scrolled-header">
           <img 
-            src="/logos/Fancy_Logo_red_darkblue_white_2.png" 
+            src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png" 
             alt="Starr Surveying Small Logo" 
             className="scrolled-logo"
           />
-          <Link href="/pricing" className="scrolled-quote-btn">
-            Get Free Quote
-          </Link>
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="scrolled-hamburger"
-            aria-label="Toggle menu"
-            aria-expanded={isOpen}
-          >
-            ☰
-          </button>
+          <div className="scrolled-right">
+            <Link href="/pricing" className="scrolled-quote-btn">
+              Get Free Quote
+            </Link>
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="scrolled-hamburger"
+              aria-label="Toggle menu"
+              aria-expanded={isOpen}
+            >
+              ☰
+            </button>
+          </div>
           {isOpen && (
             <div className="scrolled-dropdown">
               {navLinks.map((link: NavLink) => (
