@@ -13,8 +13,6 @@ import {
   ADDITIONAL_RESIDENCE_SIZE,
   ESTIMATE_LOW_MULTIPLIER,
   ESTIMATE_HIGH_MULTIPLIER,
-  CITY_SUBDIVISION_LOTS,
-  BOUNDARY_MARKERS_NEEDED,
   isAdditionalResidence
 } from './surveyCalculatorTypes';
 import { trackConversion } from '../utils/gtag';
@@ -140,24 +138,16 @@ export default function SurveyCalculator() {
     setFormValues((prev: Record<string, unknown>) => {
       const newValues = { ...prev, [fieldId]: value };
       
-      // Clear otherCounty when county changes away from 'other'
       if (fieldId === 'propertyCounty' && value !== 'other') {
         delete newValues.otherCounty;
       }
       
-      // Clear dependent fields when property type changes
       if (fieldId === 'propertyType') {
         if (!['residential_urban', 'residential_rural'].includes(value as string)) {
           delete newValues.hasResidence;
           delete newValues.residenceCorners;
           delete newValues.residenceSize;
           delete newValues.garage;
-          delete newValues.numImprovements;
-          for (let i = 1; i <= 8; i++) {
-            delete newValues[`improvement${i}Type`];
-            delete newValues[`improvement${i}Corners`];
-            delete newValues[`improvement${i}Size`];
-          }
         }
         if (!['residential_urban', 'residential_rural', 'agricultural'].includes(value as string)) {
           delete newValues.numImprovements;
@@ -189,7 +179,6 @@ export default function SurveyCalculator() {
         delete newValues.corners;
       }
       
-      // Clear subdivisionLots when purpose changes away from city_subdivision
       if (fieldId === 'purpose' && value !== 'city_subdivision') {
         delete newValues.subdivisionLots;
       }
@@ -225,7 +214,6 @@ export default function SurveyCalculator() {
       return;
     }
 
-    // Check for 12+ lots - show call message instead
     if (formValues.purpose === 'city_subdivision' && formValues.subdivisionLots === '12+') {
       setShowCallMessage(true);
       setShowResult(false);
@@ -239,7 +227,6 @@ export default function SurveyCalculator() {
     const lowEstimate = Math.round(finalPrice * ESTIMATE_LOW_MULTIPLIER);
     const highEstimate = Math.round(finalPrice * ESTIMATE_HIGH_MULTIPLIER);
 
-    // Calculate hours if available (boundary survey)
     const totalHours = currentSurveyType.calculateHours 
       ? currentSurveyType.calculateHours(formValues) 
       : undefined;
@@ -475,7 +462,6 @@ export default function SurveyCalculator() {
   return (
     <section className="pricing-calculator">
       <div className="pricing-calculator__container">
-        {/* Toggle Button */}
         <button
           className={`pricing-calculator__toggle ${isExpanded ? 'pricing-calculator__toggle--expanded' : ''}`}
           onClick={() => setIsExpanded(!isExpanded)}
@@ -495,7 +481,6 @@ export default function SurveyCalculator() {
           </span>
         </button>
 
-        {/* Expandable Content */}
         <div 
           className={`pricing-calculator__content ${isExpanded ? 'pricing-calculator__content--expanded' : ''}`}
           style={isExpanded ? { 
@@ -514,7 +499,6 @@ export default function SurveyCalculator() {
             </p>
 
             <div className="pricing-calculator__form">
-              {/* Survey Type Selection */}
               <div className="pricing-calculator__field pricing-calculator__field--full">
                 <label className="pricing-calculator__label">Type of Survey *</label>
                 <select
@@ -533,7 +517,6 @@ export default function SurveyCalculator() {
                 )}
               </div>
 
-              {/* Render fields with improvements inserted after numImprovements */}
               {currentSurveyType && numImprovementsIndex >= 0 ? (
                 <>
                   {currentSurveyType.fields.slice(0, numImprovementsIndex + 1).map(renderField)}
@@ -552,7 +535,6 @@ export default function SurveyCalculator() {
                 currentSurveyType?.fields.map(renderField)
               )}
 
-              {/* Rush Job Option */}
               <div className="pricing-calculator__field pricing-calculator__field--full">
                 <label className="pricing-calculator__checkbox-label pricing-calculator__checkbox-label--rush">
                   <input
@@ -569,7 +551,6 @@ export default function SurveyCalculator() {
                 </label>
               </div>
 
-              {/* Buttons */}
               <div className="pricing-calculator__buttons">
                 <button
                   type="button"
@@ -588,7 +569,6 @@ export default function SurveyCalculator() {
               </div>
             </div>
 
-            {/* 12+ Lots Call Message */}
             {showCallMessage && (
               <div
                 ref={resultRef}
@@ -630,7 +610,6 @@ export default function SurveyCalculator() {
               </div>
             )}
 
-            {/* Results */}
             {showResult && result && !submitSuccess && (
               <div 
                 ref={resultRef}
@@ -671,7 +650,6 @@ export default function SurveyCalculator() {
                   Actual pricing may vary based on site conditions and project requirements.
                 </div>
 
-                {/* Submit Form Toggle */}
                 {!showSubmitForm ? (
                   <div className="pricing-calculator__result-actions" style={{ marginTop: '1.5rem' }}>
                     <button
@@ -686,7 +664,6 @@ export default function SurveyCalculator() {
                     </a>
                   </div>
                 ) : (
-                  /* Contact Info Form */
                   <div style={{
                     marginTop: '1.5rem',
                     padding: '1.5rem',
@@ -780,7 +757,6 @@ export default function SurveyCalculator() {
               </div>
             )}
 
-            {/* Success Message */}
             {submitSuccess && (
               <div 
                 ref={resultRef}

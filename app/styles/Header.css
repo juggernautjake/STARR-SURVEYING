@@ -67,6 +67,7 @@
   --green-btn-text: var(--color-white);
   --green-btn-hover-bg: #059669;
   --green-btn-hover-text: var(--color-white);
+  --green-btn-border: var(--color-white);
   
   /* Transitions */
   --transition: 200ms ease;
@@ -195,7 +196,7 @@
 /* Pricing link - Sea green */
 .navbar__link--pricing {
   background-color: var(--color-green);
-  border-color: var(--color-green);
+  border-color: var(--color-white);
 }
 
 .navbar__link--pricing:hover {
@@ -304,18 +305,24 @@
 .scrolled-header {
   position: fixed;
   top: 0;
-  right: 0;
+  left: 0;
   width: 100%;
   background-color: var(--color-red);
   border-bottom: 3px solid var(--color-blue);
   padding: 0.5rem 1rem;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 1rem;
   z-index: 999;
   transition: all var(--transition);
   animation: fadeInDown 0.3s ease-out;
+}
+
+.scrolled-logo {
+  height: 40px;
+  width: auto;
+  margin-left: 1rem;
 }
 
 .scrolled-quote-btn {
@@ -325,7 +332,7 @@
   font-size: 0.85rem;
   color: var(--green-btn-text);
   background-color: var(--color-green);
-  border: 2px solid var(--color-green);
+  border: 2px solid var(--color-white);
   border-radius: 6px;
   text-decoration: none;
   transition: all var(--transition);
@@ -345,6 +352,7 @@
   border-radius: 6px;
   cursor: pointer;
   transition: all var(--transition);
+  margin-right: 1rem;
 }
 
 .scrolled-hamburger:hover {
@@ -508,6 +516,10 @@
   .back-to-top {
     display: none !important;  /* Hide on small mobile */
   }
+  
+  .scrolled-header {
+    display: none !important;  /* No scrolled header on mobile */
+  }
 }
 
 /* --- 2. Small Mobile (400 - 499px) --- */
@@ -564,6 +576,10 @@
   }
   
   .back-to-top {
+    display: none !important;
+  }
+  
+  .scrolled-header {
     display: none !important;
   }
 }
@@ -623,6 +639,10 @@
   .back-to-top {
     display: none !important;
   }
+  
+  .scrolled-header {
+    display: none !important;
+  }
 }
 
 /* --- 4. Large Mobile (600 - 767px) --- */
@@ -680,6 +700,10 @@
   .back-to-top {
     display: none !important;
   }
+  
+  .scrolled-header {
+    display: none !important;
+  }
 }
 
 /* --- 5. Small Tablet (768 - 899px) --- */
@@ -704,6 +728,10 @@
   .scrolled-header {
     padding: 0.5rem 1rem;
     gap: 0.5rem;
+  }
+  
+  .scrolled-logo {
+    height: 30px;
   }
   
   .scrolled-quote-btn {
@@ -760,6 +788,10 @@
     gap: 0.6rem;
   }
   
+  .scrolled-logo {
+    height: 32px;
+  }
+  
   .scrolled-quote-btn {
     font-size: 0.75rem;
     padding: 0.45rem 0.9rem;
@@ -807,6 +839,10 @@
   .scrolled-header {
     padding: 0.7rem 1.4rem;
     gap: 0.7rem;
+  }
+  
+  .scrolled-logo {
+    height: 35px;
   }
   
   .scrolled-quote-btn {
@@ -858,6 +894,10 @@
     gap: 0.8rem;
   }
   
+  .scrolled-logo {
+    height: 38px;
+  }
+  
   .scrolled-quote-btn {
     font-size: 0.85rem;
     padding: 0.55rem 1.1rem;
@@ -905,6 +945,10 @@
   .scrolled-header {
     padding: 0.9rem 1.6rem;
     gap: 0.9rem;
+  }
+  
+  .scrolled-logo {
+    height: 40px;
   }
   
   .scrolled-quote-btn {
@@ -959,6 +1003,10 @@
     gap: 1rem;
   }
   
+  .scrolled-logo {
+    height: 42px;
+  }
+  
   .scrolled-quote-btn {
     font-size: 0.95rem;
     padding: 0.65rem 1.3rem;
@@ -1011,6 +1059,10 @@
     gap: 1.1rem;
   }
   
+  .scrolled-logo {
+    height: 44px;
+  }
+  
   .scrolled-quote-btn {
     font-size: 1rem;
     padding: 0.7rem 1.4rem;
@@ -1061,6 +1113,10 @@
   .scrolled-header {
     padding: 1.2rem 2.2rem;
     gap: 1.2rem;
+  }
+  
+  .scrolled-logo {
+    height: 45px;
   }
   
   .scrolled-quote-btn {
@@ -1117,6 +1173,10 @@
     gap: 1.4rem;
   }
   
+  .scrolled-logo {
+    height: 48px;
+  }
+  
   .scrolled-quote-btn {
     font-size: 1.15rem;
     padding: 0.85rem 1.7rem;
@@ -1168,6 +1228,10 @@
   .scrolled-header {
     padding: 1.6rem 2.8rem;
     gap: 1.6rem;
+  }
+  
+  .scrolled-logo {
+    height: 50px;
   }
   
   .scrolled-quote-btn {

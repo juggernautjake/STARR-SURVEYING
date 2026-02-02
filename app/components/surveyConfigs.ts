@@ -1,6 +1,7 @@
 import {
   SurveyTypeConfig, FieldOption,
-  FIELD_HOURLY_RATE, TRAVEL_COST_PER_MILE,
+  FIELD_HOURLY_RATE, TRAVEL_COST_PER_MILE, PREP_HOURLY_RATE,
+  MARKER_HOURS_PER_PIN, ATV_FEE_SMALL, ATV_FEE_LARGE, ATV_ACREAGE_THRESHOLD,
   PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, OTHER_COUNTY_FIELD,
   TRAVEL_DISTANCE_FIELD,
   PROPERTY_SIZE, PROPERTY_TYPE, PROPERTY_CORNERS,
@@ -39,6 +40,21 @@ function calculateImprovementsCost(values: Record<string, unknown>): number {
 // =============================================================================
 // BOUNDARY SURVEY - Hours-based pricing model
 // =============================================================================
+//
+// CALCULATION ORDER:
+//   1. Acreage hours × $175/hr × vegetation × terrain  (scaled)
+//   2. Corner hours × $175/hr                           (not scaled)
+//   3. Improvements flat costs (residence, garage, other improvements)
+//   4. Commercial 10% premium on (acreage + corners + improvements) ONLY
+//   5. Base overhead ($475)
+//   6. Previous survey hours × $130/hr (prep rate)
+//   7. Property type extra hours × $175/hr (commercial rural +1.5 hrs)
+//   8. Markers: count × 0.33 hrs × $175/hr
+//   9. Flat add-ons: property type baseCost, fence, monuments, adjoining, purpose, lots
+//  10. Travel: miles × $1.90
+//  11. Access: tiered flat fee for 4WD/unknown ($75 < 60ac, $150 >= 60ac), baseCost for others
+//  12. Waterway: ×1.20
+// =============================================================================
 const boundarySurvey: SurveyTypeConfig = {
   id: 'boundary',
   name: 'Boundary Survey',
@@ -75,44 +91,61 @@ const boundarySurvey: SurveyTypeConfig = {
     { id: 'adjoining', label: 'Adjoining Properties', type: 'select', required: false, options: ADJOINING },
     { id: 'fenceIssues', label: 'Fence Issues', type: 'select', required: false, options: BOUNDARY_FENCE_ISSUES },
     { id: 'markersNeeded', label: 'New Markers Needed', type: 'select', required: false, options: BOUNDARY_MARKERS_NEEDED,
-      helpText: '~0.5 hrs per marker set; "Set all" scales with corner count' },
+      helpText: '~0.33 hrs per marker; "Set all" scales with corner count' },
     { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: SURVEY_PURPOSE },
     { id: 'subdivisionLots', label: 'Number of Lots', type: 'select', required: true, options: CITY_SUBDIVISION_LOTS,
       showWhen: { field: 'purpose', value: 'city_subdivision' } },
     TRAVEL_DISTANCE_FIELD,
   ],
   calculatePrice: (v) => {
-    const RATE = FIELD_HOURLY_RATE;
-    // 1. Acreage hours scaled by vegetation x terrain
+    const RATE = FIELD_HOURLY_RATE;   // $175
+    const PREP = PREP_HOURLY_RATE;    // $130
+
+    // --- STEP 1: Acreage hours × field rate × veg × terrain ---
     const acreageHrs = getHours(BOUNDARY_ACREAGE, v.acreage);
     const vegMult = getMultiplier(VEGETATION, v.vegetation);
     const terrMult = getMultiplier(TERRAIN, v.terrain);
     const scaledAcreageCost = acreageHrs * RATE * vegMult * terrMult;
-    // 2. Other hours (NOT scaled by veg/terrain)
-    let otherHrs = 0;
-    otherHrs += getHours(BOUNDARY_CORNERS, v.corners);
-    otherHrs += getHours(BOUNDARY_PREVIOUS_SURVEY, v.existingSurvey);
-    otherHrs += getHours(BOUNDARY_FENCE_ISSUES, v.fenceIssues);
-    otherHrs += getHours(PROPERTY_TYPE, v.propertyType);
-    if (v.markersNeeded === 'all') {
-      otherHrs += getCornerCount(v.corners) * 0.5;
-    } else {
-      otherHrs += getHours(BOUNDARY_MARKERS_NEEDED, v.markersNeeded);
-    }
-    const otherHrsCost = otherHrs * RATE;
-    // 3. Base overhead + hourly costs
-    let total = 475 + scaledAcreageCost + otherHrsCost;
-    // 4. Commercial premium (10%)
-    const isCommercial = v.propertyType === 'commercial_subdivision' || v.propertyType === 'commercial_rural';
-    if (isCommercial) { total *= 1.10; }
-    // 5. Flat add-ons
-    total += getBaseCost(PROPERTY_TYPE, v.propertyType);
+
+    // --- STEP 2: Corner hours × field rate (NOT scaled by veg/terrain) ---
+    const cornerHrs = getHours(BOUNDARY_CORNERS, v.corners);
+    const cornerCost = cornerHrs * RATE;
+
+    // --- STEP 3: Improvements flat costs ---
+    let improvementsCost = 0;
     if (v.hasResidence === 'yes') {
-      total += getBaseCost(RESIDENCE_CORNERS, v.residenceCorners);
-      total += getBaseCost(RESIDENCE_SIZE, v.residenceSize);
-      total += getBaseCost(GARAGE, v.garage);
+      improvementsCost += getBaseCost(RESIDENCE_CORNERS, v.residenceCorners);
+      improvementsCost += getBaseCost(RESIDENCE_SIZE, v.residenceSize);
+      improvementsCost += getBaseCost(GARAGE, v.garage);
     }
-    total += calculateImprovementsCost(v);
+    improvementsCost += calculateImprovementsCost(v);
+
+    // --- STEP 4: Commercial 10% premium on acreage + corners + improvements ONLY ---
+    let premiumBase = scaledAcreageCost + cornerCost + improvementsCost;
+    const isCommercial = v.propertyType === 'commercial_subdivision' || v.propertyType === 'commercial_rural';
+    if (isCommercial) {
+      premiumBase *= 1.10;
+    }
+
+    // --- STEP 5: Base overhead + premium base ---
+    let total = 475 + premiumBase;
+
+    // --- STEP 6: Previous survey hours × prep rate ($130/hr) ---
+    const surveyHrs = getHours(BOUNDARY_PREVIOUS_SURVEY, v.existingSurvey);
+    total += surveyHrs * PREP;
+
+    // --- STEP 7: Property type extra hours × field rate ($175/hr) ---
+    total += getHours(PROPERTY_TYPE, v.propertyType) * RATE;
+
+    // --- STEP 8: Markers: 0.33 hrs per pin × field rate ---
+    if (v.markersNeeded === 'all') {
+      total += getCornerCount(v.corners) * MARKER_HOURS_PER_PIN * RATE;
+    } else {
+      total += getHours(BOUNDARY_MARKERS_NEEDED, v.markersNeeded) * RATE;
+    }
+
+    // --- STEP 9: Flat add-ons ---
+    total += getBaseCost(PROPERTY_TYPE, v.propertyType);
     total += getBaseCost(BOUNDARY_FENCE_ISSUES, v.fenceIssues);
     total += getBaseCost(EXISTING_MONUMENTS, v.existingMonuments);
     total += getBaseCost(ADJOINING, v.adjoining);
@@ -120,14 +153,25 @@ const boundarySurvey: SurveyTypeConfig = {
     if (v.purpose === 'city_subdivision') {
       total += getBaseCost(CITY_SUBDIVISION_LOTS, v.subdivisionLots);
     }
-    // 6. Travel
+
+    // --- STEP 10: Travel ---
     const miles = parseFloat(v.travelDistance as string) || 0;
     total += miles * TRAVEL_COST_PER_MILE;
-    // 7. Access baseCost + costMultiplier
-    total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    total *= getCostMultiplier(ACCESS_CONDITIONS, v.access);
-    // 8. Waterway (+20%)
-    if (v.waterwayBoundary === 'yes') { total *= 1.20; }
+
+    // --- STEP 11: Access - tiered flat fee for 4WD/unknown ---
+    const accessValue = v.access as string;
+    if (accessValue === '4wd' || accessValue === 'unknown') {
+      const acreageValue = parseFloat(v.acreage as string) || 0;
+      total += acreageValue >= ATV_ACREAGE_THRESHOLD ? ATV_FEE_LARGE : ATV_FEE_SMALL;
+    } else {
+      total += getBaseCost(ACCESS_CONDITIONS, v.access);
+    }
+
+    // --- STEP 12: Waterway (+20%) ---
+    if (v.waterwayBoundary === 'yes') {
+      total *= 1.20;
+    }
+
     return Math.max(total, 400);
   },
   calculateHours: (v) => {
@@ -135,10 +179,10 @@ const boundarySurvey: SurveyTypeConfig = {
     hours += getHours(BOUNDARY_ACREAGE, v.acreage);
     hours += getHours(BOUNDARY_CORNERS, v.corners);
     hours += getHours(BOUNDARY_PREVIOUS_SURVEY, v.existingSurvey);
-    hours += getHours(BOUNDARY_FENCE_ISSUES, v.fenceIssues);
     hours += getHours(PROPERTY_TYPE, v.propertyType);
+    // Markers at 0.33 hrs per pin
     if (v.markersNeeded === 'all') {
-      hours += getCornerCount(v.corners) * 0.5;
+      hours += getCornerCount(v.corners) * MARKER_HOURS_PER_PIN;
     } else {
       hours += getHours(BOUNDARY_MARKERS_NEEDED, v.markersNeeded);
     }

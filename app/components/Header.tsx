@@ -17,6 +17,7 @@ const Header = (): React.ReactElement => {
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const [showBackToTop, setShowBackToTop] = useState<boolean>(false);
   const headerRef = useRef<HTMLElement | null>(null);
+  const navbarRef = useRef<HTMLDivElement | null>(null);
 
   const navLinks: NavLink[] = [
     { href: '/', label: 'Home' },
@@ -31,10 +32,12 @@ const Header = (): React.ReactElement => {
 
   useEffect(() => {
     const handleScroll = (): void => {
-      const scrolled = window.scrollY > 50;
-      setIsScrolled(scrolled);
-      setShowBackToTop(scrolled);
-
+      if (navbarRef.current) {
+        const navbarBottom = navbarRef.current.getBoundingClientRect().bottom;
+        const scrolled = navbarBottom < 0;
+        setIsScrolled(scrolled);
+        setShowBackToTop(scrolled);
+      }
       if (headerRef.current) {
         const headerBottom = headerRef.current.getBoundingClientRect().bottom;
         setShowBackToTop(headerBottom < 0);
@@ -69,7 +72,7 @@ const Header = (): React.ReactElement => {
         </div>
 
         {/* Navbar - Connected to bottom-right of header box */}
-        <nav className="navbar">
+        <nav ref={navbarRef} className="navbar">
           <div className="navbar__inner">
             {/* Desktop Navigation */}
             <div className="navbar__desktop">
@@ -121,6 +124,11 @@ const Header = (): React.ReactElement => {
       {/* Scrolled Header for Desktop */}
       {isScrolled && (
         <nav className="scrolled-header">
+          <img 
+            src="/logos/Fancy_Logo_red_darkblue_white_2.png" 
+            alt="Starr Surveying Small Logo" 
+            className="scrolled-logo"
+          />
           <Link href="/pricing" className="scrolled-quote-btn">
             Get Free Quote
           </Link>

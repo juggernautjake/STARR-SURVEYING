@@ -8,7 +8,7 @@ export interface FieldOption {
   hoursMultiplier?: number;  // For scaling factors (vegetation, terrain, contour)
   baseCost?: number;         // For flat dollar add-ons
   hours?: number;            // For time-based pricing (boundary survey)
-  costMultiplier?: number;   // For percentage-based cost adjustments (access)
+  costMultiplier?: number;   // For percentage-based cost adjustments
 }
 
 export interface FormField {
@@ -46,11 +46,15 @@ export interface ContactInfo {
 // CONSTANTS
 // =============================================================================
 
-export const FIELD_HOURLY_RATE = 175;
-export const TRAVEL_COST_PER_MILE = 1.50;
-export const MILEAGE_RATE = 0.67;
-export const TRAVEL_SPEED_AVG = 50;
-export const TRAVEL_HOURLY_RATE = 65;
+export const FIELD_HOURLY_RATE = 175;         // Field crew rate (acreage, corners, markers, property type)
+export const PREP_HOURLY_RATE = 130;          // Prep/research rate (previous survey review)
+export const TRAVEL_COST_PER_MILE = 1.90;     // One-way mileage rate from Belton
+export const MARKER_HOURS_PER_PIN = 0.33;     // Hours per marker/rod to set
+
+// ATV/4WD access tiered flat fees (boundary survey)
+export const ATV_FEE_SMALL = 75;            // Acreage < 60 acres
+export const ATV_FEE_LARGE = 150;           // Acreage >= 60 acres
+export const ATV_ACREAGE_THRESHOLD = 60;    // Threshold value for tiered fee
 
 export const ESTIMATE_LOW_MULTIPLIER = 0.91;
 export const ESTIMATE_HIGH_MULTIPLIER = 1.065;
@@ -210,7 +214,7 @@ export const EXISTING_SURVEY: FieldOption[] = [
   { value: 'unknown', label: 'Unknown', baseCost: 50 },
 ];
 
-// BOUNDARY PREVIOUS SURVEY (hours-based)
+// BOUNDARY PREVIOUS SURVEY (hours-based at RESEARCH rate $130/hr)
 export const BOUNDARY_PREVIOUS_SURVEY: FieldOption[] = [
   { value: 'recent', label: 'Recent (within 5 years) - Have copy', hours: -0.5 },
   { value: 'recent_no_copy', label: 'Recent (within 5 years) - No copy', hours: 0 },
@@ -230,7 +234,9 @@ export const EXISTING_MONUMENTS: FieldOption[] = [
   { value: 'unknown', label: 'Unknown', baseCost: 50 },
 ];
 
-// ACCESS CONDITIONS (costMultiplier for 4WD and Unknown)
+// ACCESS CONDITIONS
+// costMultiplier is used by non-boundary surveys (×1.2 for 4WD/unknown)
+// Boundary survey ignores costMultiplier and uses tiered flat fees instead
 export const ACCESS_CONDITIONS: FieldOption[] = [
   { value: 'paved', label: 'Paved Road - Direct access', baseCost: 0, costMultiplier: 1.0 },
   { value: 'gravel', label: 'Gravel/Caliche Road', baseCost: 0, costMultiplier: 1.0 },
@@ -258,20 +264,20 @@ export const ADJOINING: FieldOption[] = [
   { value: 'unknown', label: 'Unknown', baseCost: 15 },
 ];
 
-// BOUNDARY FENCE ISSUES
+// BOUNDARY FENCE ISSUES — Minor is now flat $130; Major remains flat $150
 export const BOUNDARY_FENCE_ISSUES: FieldOption[] = [
-  { value: 'none', label: 'No fence or no issues', hours: 0, baseCost: 0 },
-  { value: 'minor', label: 'Minor discrepancy', hours: 1, baseCost: 0 },
-  { value: 'major', label: 'Significant dispute', hours: 0, baseCost: 150 },
+  { value: 'none', label: 'No fence or no issues', baseCost: 0 },
+  { value: 'minor', label: 'Minor discrepancy', baseCost: 130 },
+  { value: 'major', label: 'Significant dispute', baseCost: 150 },
 ];
 
-// BOUNDARY MARKERS NEEDED (+0.5 hrs per marker)
+// BOUNDARY MARKERS NEEDED (0.33 hrs per pin at $175/hr ≈ $58 each)
 export const BOUNDARY_MARKERS_NEEDED: FieldOption[] = [
   { value: 'none', label: 'Just locate existing', hours: 0 },
-  { value: 'few', label: 'Replace 1-2 markers', hours: 1.0 },
-  { value: 'several', label: 'Replace 3-4 markers', hours: 2.0 },
-  { value: 'many', label: 'Replace 5-6 markers', hours: 3.0 },
-  { value: 'all', label: 'Set all new pins', hours: 2.0 },
+  { value: 'few', label: 'Replace 1-2 markers', hours: 0.66 },
+  { value: 'several', label: 'Replace 3-4 markers', hours: 1.32 },
+  { value: 'many', label: 'Replace 5-6 markers', hours: 1.98 },
+  { value: 'all', label: 'Set all new pins', hours: 0 },
 ];
 
 export const getCornerCount = (cornerValue: unknown): number => {
@@ -281,7 +287,7 @@ export const getCornerCount = (cornerValue: unknown): number => {
   return map[cornerValue as string] || 4;
 };
 
-// SURVEY PURPOSE (Boundary) - Building Permit removed, City Subdivision added
+// SURVEY PURPOSE (Boundary) — Building Permit removed, City Subdivision added
 export const SURVEY_PURPOSE: FieldOption[] = [
   { value: 'fence', label: 'Fence Installation', baseCost: 0 },
   { value: 'sale', label: 'Property Sale', baseCost: 0 },
