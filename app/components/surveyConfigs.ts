@@ -1,14 +1,16 @@
+// app/components/surveyConfigs.ts
 import {
   SurveyTypeConfig,
-  PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD,
+  PROPERTY_ADDRESS_FIELD, PROPERTY_COUNTY_FIELD, CUSTOM_COUNTY_FIELD,
   PROPERTY_SIZE, PROPERTY_TYPE, PROPERTY_CORNERS, VEGETATION, TERRAIN,
   WATERWAY_BOUNDARY, EXISTING_SURVEY, EXISTING_MONUMENTS,
-  ACCESS_CONDITIONS, TRAVEL_DISTANCE, ADJOINING,
-  FENCE_ISSUES, MONUMENTS_NEEDED, SURVEY_PURPOSE,
+  ACCESS_CONDITIONS, ADJOINING,
+  FENCE_ISSUES, SURVEY_PURPOSE, LOT_COUNT,
   HAS_RESIDENCE, RESIDENCE_CORNERS, RESIDENCE_SIZE, GARAGE,
   NUM_IMPROVEMENTS, IMPROVEMENT_TYPE,
   ADDITIONAL_RESIDENCE_CORNERS, ADDITIONAL_RESIDENCE_SIZE,
-  getBaseCost, getMultiplier, isAdditionalResidence
+  getBaseCost, getMultiplier, getHoursAdded, getPremium, isAdditionalResidence,
+  HOURLY_RATE,
 } from './surveyCalculatorTypes';
 
 // =============================================================================
@@ -36,15 +38,20 @@ function calculateImprovementsCost(values: Record<string, unknown>): number {
 }
 
 // =============================================================================
-// BOUNDARY SURVEY
-// 
-// PRICING MODEL:
-// 1. Property Size base cost (scaled by vegetation × terrain)
-// 2. + Flat add-ons (NOT scaled):
-//    - Property corners, previous survey, corner markers, access
-//    - Adjoining properties, travel distance, fence issues, new markers, purpose
-//    - Residential structures (house, garage, dynamic improvements)
-// 3. If waterway boundary = yes, apply 20% multiplier to final total
+// TRAVEL MILES FIELD (NEW)
+// =============================================================================
+const TRAVEL_MILES_FIELD: FormField = {
+  id: 'travelDistance',
+  label: 'Approximate Miles from Belton',
+  type: 'number',
+  required: true,
+  min: 0,
+  placeholder: 'Enter miles',
+  helpText: 'Used for travel cost calculation ($1.50 per mile)',
+};
+
+// =============================================================================
+// BOUNDARY SURVEY (RESTRUCTURED TO HOURLY)
 // =============================================================================
 const boundarySurvey: SurveyTypeConfig = {
   id: 'boundary',
@@ -55,6 +62,7 @@ const boundarySurvey: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
+    CUSTOM_COUNTY_FIELD,
     
     // Property characteristics
     { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: PROPERTY_TYPE },
@@ -88,33 +96,56 @@ const boundarySurvey: SurveyTypeConfig = {
     { id: 'waterwayBoundary', label: 'Does the property have a waterway boundary (river or creek)?', type: 'select', required: true, options: WATERWAY_BOUNDARY,
       helpText: 'If any boundary line follows a river, creek, or stream' },
     
-    // Additional factors (FLAT ADD-ONS - not scaled)
+    // Additional factors
     { id: 'existingSurvey', label: 'Previous Survey', type: 'select', required: true, options: EXISTING_SURVEY },
     { id: 'existingMonuments', label: 'Existing Corner Markers', type: 'select', required: true, options: EXISTING_MONUMENTS },
     { id: 'access', label: 'Property Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
     { id: 'adjoining', label: 'Adjoining Properties', type: 'select', required: false, options: ADJOINING },
     { id: 'fenceIssues', label: 'Fence Issues', type: 'select', required: false, options: FENCE_ISSUES },
-    { id: 'monumentsNeeded', label: 'New Markers Needed', type: 'select', required: false, options: MONUMENTS_NEEDED },
+    // New markers scalable
+    { id: 'setAllNewPins', label: 'Set all new pins', type: 'select', required: false, options: [
+      { value: 'no', label: 'No' },
+      { value: 'yes', label: 'Yes (+2 hrs base)' },
+    ] },
+    { id: 'additionalMarkers', label: 'Number of additional markers to set', type: 'number', required: false, min: 0 },
     { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: SURVEY_PURPOSE },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    { id: 'lotCount', label: 'Lot Count', type: 'select', required: false, options: LOT_COUNT,
+      showWhen: { field: 'purpose', value: 'city_subdivision' } },
+    TRAVEL_MILES_FIELD,
   ],
   calculatePrice: (v) => {
-    // 1. Get property size base cost
-    const sizeBase = getBaseCost(PROPERTY_SIZE, v.acreage);
+    // 1. Base hours from acreage
+    let baseHours = getHoursAdded(PROPERTY_SIZE, v.acreage);
     
-    // 2. Apply SCALING FACTORS to size base cost ONLY (vegetation & terrain)
-    const vegMultiplier = getMultiplier(VEGETATION, v.vegetation);
-    const terrainMultiplier = getMultiplier(TERRAIN, v.terrain);
-    const scaledSizeCost = sizeBase * vegMultiplier * terrainMultiplier;
+    // 2. Add hours from corners, previous survey, fence, new markers
+    let additionalHours = getHoursAdded(PROPERTY_CORNERS, v.corners) +
+                          getHoursAdded(EXISTING_SURVEY, v.existingSurvey);
+    if (v.fenceIssues === 'minor') additionalHours += 1;
     
-    // 3. Sum all FLAT ADD-ONS (NOT affected by multipliers)
+    // New markers
+    const setAll = v.setAllNewPins === 'yes' ? 2 : 0;
+    const extraMarkers = parseFloat(v.additionalMarkers as string) || 0;
+    additionalHours += setAll + extraMarkers * 0.5;
+    
+    // 3. Add hours from property type
+    additionalHours += getHoursAdded(PROPERTY_TYPE, v.propertyType);
+    
+    // 4. Multiply by hourly rate to get base dollar cost
+    let total = (baseHours + additionalHours) * HOURLY_RATE;
+    
+    // 5. Apply property type percentage premium
+    total *= 1 + getPremium(PROPERTY_TYPE, v.propertyType);
+    
+    // 6. Apply vegetation/terrain multipliers (on property-size portion only)
+    const vegMult = getMultiplier(VEGETATION, v.vegetation);
+    const terrainMult = getMultiplier(TERRAIN, v.terrain);
+    const scaledSizeCost = baseHours * HOURLY_RATE * vegMult * terrainMult;
+    total = scaledSizeCost + (total - baseHours * HOURLY_RATE);
+    
+    // 7. Add flat costs for travel, city subdivision lots, and other flat add-ons
     let flatAddOns = 0;
     
-    // Property characteristics
-    flatAddOns += getBaseCost(PROPERTY_TYPE, v.propertyType);
-    flatAddOns += getBaseCost(PROPERTY_CORNERS, v.corners);
-    
-    // Residential structures (if applicable)
+    // Residential structures
     if (v.hasResidence === 'yes') {
       flatAddOns += getBaseCost(RESIDENCE_CORNERS, v.residenceCorners);
       flatAddOns += getBaseCost(RESIDENCE_SIZE, v.residenceSize);
@@ -124,31 +155,40 @@ const boundarySurvey: SurveyTypeConfig = {
     // Dynamic improvements
     flatAddOns += calculateImprovementsCost(v);
     
-    // Site factors
-    flatAddOns += getBaseCost(EXISTING_SURVEY, v.existingSurvey);
+    // Other flats
     flatAddOns += getBaseCost(EXISTING_MONUMENTS, v.existingMonuments);
-    flatAddOns += getBaseCost(ACCESS_CONDITIONS, v.access);
     flatAddOns += getBaseCost(ADJOINING, v.adjoining);
-    flatAddOns += getBaseCost(FENCE_ISSUES, v.fenceIssues);
-    flatAddOns += getBaseCost(MONUMENTS_NEEDED, v.monumentsNeeded);
+    if (v.fenceIssues === 'significant') flatAddOns += getBaseCost(FENCE_ISSUES, v.fenceIssues);
     flatAddOns += getBaseCost(SURVEY_PURPOSE, v.purpose);
-    flatAddOns += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
+    if (v.lotCount !== '12+') flatAddOns += getBaseCost(LOT_COUNT, v.lotCount);
     
-    // 4. Total = scaled size cost + flat add-ons
-    let total = scaledSizeCost + flatAddOns;
+    // Travel
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    flatAddOns += miles * 1.5;
     
-    // 5. Apply 20% multiplier if property has waterway boundary
-    if (v.waterwayBoundary === 'yes') {
-      total = total * 1.20;
-    }
+    // Access flat if any
+    flatAddOns += getBaseCost(ACCESS_CONDITIONS, v.access);
     
-    return total;
+    total += flatAddOns;
+    
+    // 8. Apply access multiplier
+    const accessMult = getMultiplier(ACCESS_CONDITIONS, v.access);
+    total *= accessMult;
+    
+    // 9. Apply waterway multiplier
+    if (v.waterwayBoundary === 'yes') total *= 1.20;
+    
+    // 10. Apply rush multiplier (assume component provides v.rush)
+    if (v.rush === 'yes') total *= 1.25;
+    
+    // 11. Range applied in UI
+    
+    return Math.max(total, boundarySurvey.minPrice);
   },
 };
 
 // =============================================================================
 // ALTA/NSPS SURVEY
-// Commercial survey - different pricing structure
 // =============================================================================
 const altaSurvey: SurveyTypeConfig = {
   id: 'alta',
@@ -159,6 +199,7 @@ const altaSurvey: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
+    CUSTOM_COUNTY_FIELD,
     { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: [
       { value: 'office', label: 'Office Building', baseCost: 0 },
       { value: 'retail', label: 'Retail/Shopping', baseCost: 200 },
@@ -204,19 +245,22 @@ const altaSurvey: SurveyTypeConfig = {
       { value: 'certification', label: 'With elevation', baseCost: 300 },
     ]},
     { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_MILES_FIELD,
   ],
   calculatePrice: (v) => {
     let total = 2000; // Base ALTA price
     const f = altaSurvey.fields;
-    total += getBaseCost(f[2].options, v.propertyType);
-    total += getBaseCost(f[3].options, v.acreage);
-    total += getBaseCost(f[4].options, v.buildings);
-    total += getBaseCost(f[5].options, v.tableA);
-    total += getBaseCost(f[6].options, v.utilities);
-    total += getBaseCost(f[7].options, v.floodCert);
+    total += getBaseCost(f[3].options, v.propertyType);
+    total += getBaseCost(f[4].options, v.acreage);
+    total += getBaseCost(f[5].options, v.buildings);
+    total += getBaseCost(f[6].options, v.tableA);
+    total += getBaseCost(f[7].options, v.utilities);
+    total += getBaseCost(f[8].options, v.floodCert);
     total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    total += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    total += miles * 1.5;
+    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
+    if (v.rush === 'yes') total *= 1.25;
     return Math.max(total, 2000);
   },
 };
@@ -233,6 +277,7 @@ const topoSurvey: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
+    CUSTOM_COUNTY_FIELD,
     { id: 'purpose', label: 'Purpose', type: 'select', required: true, options: [
       { value: 'site_plan', label: 'Site Planning', baseCost: 0 },
       { value: 'drainage', label: 'Drainage Design', baseCost: 100 },
@@ -273,7 +318,7 @@ const topoSurvey: SurveyTypeConfig = {
       { value: 'yes', label: 'Yes - include', baseCost: 400 },
     ]},
     { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_MILES_FIELD,
   ],
   calculatePrice: (v) => {
     const f = topoSurvey.fields;
@@ -292,9 +337,14 @@ const topoSurvey: SurveyTypeConfig = {
     addOns += getBaseCost(f[8].options, v.benchmark);
     addOns += getBaseCost(f[9].options, v.boundary);
     addOns += getBaseCost(ACCESS_CONDITIONS, v.access);
-    addOns += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    addOns += miles * 1.5;
     
-    return sizeBase + addOns;
+    let total = sizeBase + addOns;
+    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
+    if (v.rush === 'yes') total *= 1.25;
+    
+    return Math.max(total, topoSurvey.minPrice);
   },
 };
 
@@ -310,6 +360,7 @@ const elevationCert: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
+    CUSTOM_COUNTY_FIELD,
     { id: 'buildingType', label: 'Building Type', type: 'select', required: true, options: [
       { value: 'single_family', label: 'Single-Family Home', baseCost: 0 },
       { value: 'duplex', label: 'Duplex', baseCost: 75 },
@@ -345,18 +396,21 @@ const elevationCert: SurveyTypeConfig = {
       { value: 'multiple', label: 'Multiple additions', baseCost: 100 },
     ]},
     { id: 'access', label: 'Property Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_MILES_FIELD,
   ],
   calculatePrice: (v) => {
     let total = 350;
     const f = elevationCert.fields;
-    total += getBaseCost(f[2].options, v.buildingType);
-    total += getBaseCost(f[3].options, v.floodZone);
-    total += getBaseCost(f[4].options, v.purpose);
-    total += getBaseCost(f[5].options, v.basement);
-    total += getBaseCost(f[6].options, v.additions);
+    total += getBaseCost(f[3].options, v.buildingType);
+    total += getBaseCost(f[4].options, v.floodZone);
+    total += getBaseCost(f[5].options, v.purpose);
+    total += getBaseCost(f[6].options, v.basement);
+    total += getBaseCost(f[7].options, v.additions);
     total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    total += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    total += miles * 1.5;
+    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
+    if (v.rush === 'yes') total *= 1.25;
     return Math.max(total, 350);
   },
 };
@@ -373,6 +427,7 @@ const constructionStaking: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
+    CUSTOM_COUNTY_FIELD,
     { id: 'projectType', label: 'Project Type', type: 'select', required: true, options: [
       { value: 'residential', label: 'New Home', baseCost: 0 },
       { value: 'addition', label: 'Home Addition', baseCost: -75 },
@@ -407,7 +462,7 @@ const constructionStaking: SurveyTypeConfig = {
     ]},
     { id: 'terrain', label: 'Terrain', type: 'select', required: true, options: TERRAIN },
     { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_MILES_FIELD,
   ],
   calculatePrice: (v) => {
     const f = constructionStaking.fields;
@@ -426,9 +481,14 @@ const constructionStaking: SurveyTypeConfig = {
     
     // Flat add-ons
     base += getBaseCost(ACCESS_CONDITIONS, v.access);
-    base += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    base += miles * 1.5;
     
-    return Math.max(base, 300);
+    let total = base;
+    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
+    if (v.rush === 'yes') total *= 1.25;
+    
+    return Math.max(total, 300);
   },
 };
 
@@ -444,6 +504,7 @@ const subdivisionPlat: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
+    CUSTOM_COUNTY_FIELD,
     { id: 'acreage', label: 'Total Tract Size', type: 'select', required: true, options: [
       { value: '5', label: 'Under 5 acres', baseCost: 0 },
       { value: '10', label: '5 - 10 acres', baseCost: 500 },
@@ -485,28 +546,32 @@ const subdivisionPlat: SurveyTypeConfig = {
       { value: 'major', label: 'Major impact', baseCost: 1750 },
     ]},
     { id: 'existingSurvey', label: 'Parent Tract Survey', type: 'select', required: true, options: EXISTING_SURVEY },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_MILES_FIELD,
   ],
   calculatePrice: (v) => {
     const f = subdivisionPlat.fields;
     
     // Base affected by vegetation and terrain
-    let sizeBase = 2500 + getBaseCost(f[2].options, v.acreage);
+    let sizeBase = 2500 + getBaseCost(f[3].options, v.acreage);
     const vegMultiplier = getMultiplier(VEGETATION, v.vegetation);
     const terrainMultiplier = getMultiplier(TERRAIN, v.terrain);
     sizeBase = sizeBase * vegMultiplier * terrainMultiplier;
     
     // Flat add-ons
     let addOns = 0;
-    addOns += getBaseCost(f[3].options, v.lots);
-    addOns += getBaseCost(f[4].options, v.roads);
-    addOns += getBaseCost(f[5].options, v.drainage);
-    addOns += getBaseCost(f[6].options, v.jurisdiction);
-    addOns += getBaseCost(f[10].options, v.floodplain);
+    addOns += getBaseCost(f[4].options, v.lots);
+    addOns += getBaseCost(f[5].options, v.roads);
+    addOns += getBaseCost(f[6].options, v.drainage);
+    addOns += getBaseCost(f[7].options, v.jurisdiction);
+    addOns += getBaseCost(f[11].options, v.floodplain);
     addOns += getBaseCost(EXISTING_SURVEY, v.existingSurvey);
-    addOns += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    addOns += miles * 1.5;
     
-    return Math.max(sizeBase + addOns, 2500);
+    let total = sizeBase + addOns;
+    if (v.rush === 'yes') total *= 1.25;
+    
+    return Math.max(total, 2500);
   },
 };
 
@@ -522,6 +587,7 @@ const asBuiltSurvey: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
+    CUSTOM_COUNTY_FIELD,
     { id: 'structureType', label: 'Structure Type', type: 'select', required: true, options: [
       { value: 'residential', label: 'New Home', baseCost: 0 },
       { value: 'addition', label: 'Addition', baseCost: -75 },
@@ -547,17 +613,20 @@ const asBuiltSurvey: SurveyTypeConfig = {
       { value: 'no', label: 'No - personal records', baseCost: 0 },
     ]},
     { id: 'access', label: 'Site Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_MILES_FIELD,
   ],
   calculatePrice: (v) => {
     let total = 400;
     const f = asBuiltSurvey.fields;
-    total += getBaseCost(f[2].options, v.structureType);
-    total += getBaseCost(f[3].options, v.complexity);
-    total += getBaseCost(f[4].options, v.features);
-    total += getBaseCost(f[5].options, v.permit);
+    total += getBaseCost(f[3].options, v.structureType);
+    total += getBaseCost(f[4].options, v.complexity);
+    total += getBaseCost(f[5].options, v.features);
+    total += getBaseCost(f[6].options, v.permit);
     total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    total += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    total += miles * 1.5;
+    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
+    if (v.rush === 'yes') total *= 1.25;
     return Math.max(total, 400);
   },
 };
@@ -574,14 +643,8 @@ const mortgageSurvey: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
-    { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: [
-      { value: 'residential', label: 'Single-Family', baseCost: 0 },
-      { value: 'condo', label: 'Condo', baseCost: -100 },
-      { value: 'townhouse', label: 'Townhouse', baseCost: -75 },
-      { value: 'multi_family', label: 'Multi-Family', baseCost: 150 },
-      { value: 'vacant', label: 'Vacant Lot', baseCost: -75 },
-      { value: 'rural', label: 'Rural/Acreage', baseCost: 200 },
-    ]},
+    CUSTOM_COUNTY_FIELD,
+    { id: 'propertyType', label: 'Property Type', type: 'select', required: true, options: PROPERTY_TYPE },
     { id: 'acreage', label: 'Property Size', type: 'select', required: true, options: PROPERTY_SIZE },
     { id: 'corners', label: 'Property Corners', type: 'select', required: true, options: PROPERTY_CORNERS },
     { id: 'existingMonuments', label: 'Corner Markers', type: 'select', required: true, options: EXISTING_MONUMENTS },
@@ -593,18 +656,20 @@ const mortgageSurvey: SurveyTypeConfig = {
       { value: 'urgent', label: 'Under 5 days', baseCost: 0 },
     ]},
     { id: 'access', label: 'Property Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_MILES_FIELD,
   ],
   calculatePrice: (v) => {
-    const f = mortgageSurvey.fields;
     let total = 350;
-    total += getBaseCost(f[2].options, v.propertyType);
+    total += getBaseCost(PROPERTY_TYPE, v.propertyType);
     total += getBaseCost(PROPERTY_SIZE, v.acreage);
     total += getBaseCost(PROPERTY_CORNERS, v.corners);
     total += getBaseCost(EXISTING_MONUMENTS, v.existingMonuments);
     total += getBaseCost(EXISTING_SURVEY, v.existingSurvey);
     total += getBaseCost(ACCESS_CONDITIONS, v.access);
-    total += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    total += miles * 1.5;
+    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
+    if (v.rush === 'yes') total *= 1.25;
     return Math.max(total, 350);
   },
 };
@@ -622,6 +687,7 @@ const easementSurvey: SurveyTypeConfig = {
     { id: 'startLocation', label: 'Starting Point', type: 'text', required: true, placeholder: 'Address or description' },
     { id: 'endLocation', label: 'Ending Point', type: 'text', required: true, placeholder: 'Address or description' },
     PROPERTY_COUNTY_FIELD,
+    CUSTOM_COUNTY_FIELD,
     { id: 'easementType', label: 'Easement Type', type: 'select', required: true, options: [
       { value: 'access', label: 'Access/Driveway', baseCost: 0 },
       { value: 'utility_overhead', label: 'Overhead Utility', baseCost: -75 },
@@ -658,7 +724,7 @@ const easementSurvey: SurveyTypeConfig = {
       { value: 'multiple', label: 'Per parcel', baseCost: 300 },
     ]},
     { id: 'access', label: 'Route Access', type: 'select', required: true, options: ACCESS_CONDITIONS },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_MILES_FIELD,
   ],
   calculatePrice: (v) => {
     const f = easementSurvey.fields;
@@ -671,14 +737,19 @@ const easementSurvey: SurveyTypeConfig = {
     
     // Flat add-ons
     let addOns = 0;
-    addOns += getBaseCost(f[3].options, v.easementType);
-    addOns += getBaseCost(f[5].options, v.parcels);
-    addOns += getBaseCost(f[8].options, v.waterCrossings);
-    addOns += getBaseCost(f[9].options, v.legalDesc);
+    addOns += getBaseCost(f[4].options, v.easementType);
+    addOns += getBaseCost(f[6].options, v.parcels);
+    addOns += getBaseCost(f[9].options, v.waterCrossings);
+    addOns += getBaseCost(f[10].options, v.legalDesc);
     addOns += getBaseCost(ACCESS_CONDITIONS, v.access);
-    addOns += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    addOns += miles * 1.5;
     
-    return lengthBase + addOns;
+    let total = lengthBase + addOns;
+    total *= getMultiplier(ACCESS_CONDITIONS, v.access);
+    if (v.rush === 'yes') total *= 1.25;
+    
+    return total;
   },
 };
 
@@ -694,6 +765,7 @@ const legalDescription: SurveyTypeConfig = {
   fields: [
     PROPERTY_ADDRESS_FIELD,
     PROPERTY_COUNTY_FIELD,
+    CUSTOM_COUNTY_FIELD,
     { id: 'type', label: 'Description Type', type: 'select', required: true, options: [
       { value: 'lot_block', label: 'Lot and Block', baseCost: -100 },
       { value: 'metes_bounds', label: 'Metes and Bounds', baseCost: 0 },
@@ -711,13 +783,13 @@ const legalDescription: SurveyTypeConfig = {
     { id: 'corners', label: 'Number of Corners', type: 'select', required: true, options: PROPERTY_CORNERS,
       showWhen: { field: 'fieldWork', value: ['verification', 'full'] } },
     { id: 'existingSurvey', label: 'Existing Survey', type: 'select', required: true, options: EXISTING_SURVEY },
-    { id: 'travelDistance', label: 'Distance from Belton', type: 'select', required: true, options: TRAVEL_DISTANCE },
+    TRAVEL_MILES_FIELD,
   ],
   calculatePrice: (v) => {
-    const f = legalDescription.fields;
     let total = 250;
-    total += getBaseCost(f[2].options, v.type);
-    total += getBaseCost(f[3].options, v.fieldWork);
+    const f = legalDescription.fields;
+    total += getBaseCost(f[3].options, v.type);
+    total += getBaseCost(f[4].options, v.fieldWork);
     
     // Only add size/corners if field work is needed
     if (v.fieldWork === 'verification' || v.fieldWork === 'full') {
@@ -726,7 +798,9 @@ const legalDescription: SurveyTypeConfig = {
     }
     
     total += getBaseCost(EXISTING_SURVEY, v.existingSurvey) * 0.5;
-    total += getBaseCost(TRAVEL_DISTANCE, v.travelDistance);
+    const miles = parseFloat(v.travelDistance as string) || 0;
+    total += miles * 1.5;
+    if (v.rush === 'yes') total *= 1.25;
     
     return Math.max(total, 250);
   },
