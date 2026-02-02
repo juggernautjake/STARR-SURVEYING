@@ -1,4 +1,3 @@
-// app/components/SurveyCalculator.tsx
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -14,6 +13,8 @@ import {
   ADDITIONAL_RESIDENCE_SIZE,
   ESTIMATE_LOW_MULTIPLIER,
   ESTIMATE_HIGH_MULTIPLIER,
+  CITY_SUBDIVISION_LOTS,
+  BOUNDARY_MARKERS_NEEDED,
   isAdditionalResidence
 } from './surveyCalculatorTypes';
 import { trackConversion } from '../utils/gtag';
@@ -22,23 +23,29 @@ import { trackConversion } from '../utils/gtag';
 // HELPER FUNCTIONS
 // =============================================================================
 
-function getFieldLabel(field: FormField, value: string): string {
-  if (!field.options) return value;
-  const option = field.options.find((o: FieldOption) => o.value === value);
-  return option?.label || value;
+function getFieldLabel(surveyType: SurveyTypeConfig, fieldId: string, value: string): string {
+  const field = surveyType.fields.find((f: FormField) => f.id === fieldId);
+  if (!field) return value;
+  if (field.options) {
+    const option = field.options.find((o: FieldOption) => o.value === value);
+    return option?.label || value;
+  }
+  return value;
 }
 
 function formatFormDataForEmail(
   surveyType: SurveyTypeConfig,
   formValues: Record<string, unknown>,
-  result: { lowEstimate: number; highEstimate: number; basePrice: number; hours?: number },
+  result: { lowEstimate: number; highEstimate: number; totalHours?: number },
   rushJob: boolean
 ): string {
   let text = `SURVEY ESTIMATE REQUEST\n`;
   text += `========================\n\n`;
   text += `Survey Type: ${surveyType.name}\n`;
   text += `Estimated Range: $${result.lowEstimate.toLocaleString()} - $${result.highEstimate.toLocaleString()}\n`;
-  if (result.hours) text += `Estimated Field Hours: ${result.hours.toFixed(1)}\n`;
+  if (result.totalHours !== undefined) {
+    text += `Estimated Field Hours: ${result.totalHours.toFixed(1)} hrs\n`;
+  }
   if (rushJob) text += `Rush Job: Yes (expedited requested)\n`;
   text += `\n------------------------\n`;
   text += `PROJECT DETAILS:\n`;
@@ -47,28 +54,32 @@ function formatFormDataForEmail(
   surveyType.fields.forEach((field: FormField) => {
     const value = formValues[field.id];
     if (value !== undefined && value !== '' && value !== null) {
-      const label = getFieldLabel(field, value as string);
-      text += `${field.label}: ${label}\n`;
+      if (field.id === 'travelDistance') {
+        text += `${field.label}: ${value} miles\n`;
+      } else {
+        const label = field.options 
+          ? getFieldLabel(surveyType, field.id, value as string)
+          : value;
+        text += `${field.label}: ${label}\n`;
+      }
     }
   });
   
-  // Add dynamic improvements to email
   const numImprovements = parseInt(formValues.numImprovements as string) || 0;
   if (numImprovements > 0) {
     text += `\nOther Improvements:\n`;
     for (let i = 1; i <= numImprovements; i++) {
       const improvementType = formValues[`improvement${i}Type`] as string;
       if (improvementType && improvementType !== 'none') {
-        const typeLabel = getFieldLabel({ options: IMPROVEMENT_TYPE, id: '', label: '', type: 'select', required: false }, improvementType);
-        text += `  Improvement ${i}: ${typeLabel}`;
-        
+        const typeOption = IMPROVEMENT_TYPE.find(o => o.value === improvementType);
+        text += `  Improvement ${i}: ${typeOption?.label || improvementType}`;
         if (isAdditionalResidence(improvementType)) {
           const corners = formValues[`improvement${i}Corners`] as string;
           const size = formValues[`improvement${i}Size`] as string;
-          const cornersLabel = getFieldLabel({ options: ADDITIONAL_RESIDENCE_CORNERS, id: '', label: '', type: 'select', required: false }, corners);
-          const sizeLabel = getFieldLabel({ options: ADDITIONAL_RESIDENCE_SIZE, id: '', label: '', type: 'select', required: false }, size);
-          if (cornersLabel) text += ` - ${cornersLabel}`;
-          if (sizeLabel) text += `, ${sizeLabel}`;
+          const cornersOption = ADDITIONAL_RESIDENCE_CORNERS.find(o => o.value === corners);
+          const sizeOption = ADDITIONAL_RESIDENCE_SIZE.find(o => o.value === size);
+          if (cornersOption) text += ` - ${cornersOption.label}`;
+          if (sizeOption) text += `, ${sizeOption.label}`;
         }
         text += `\n`;
       }
@@ -88,10 +99,10 @@ export default function SurveyCalculator() {
   const [formValues, setFormValues] = useState<Record<string, unknown>>({});
   const [rushJob, setRushJob] = useState<boolean>(false);
   const [showResult, setShowResult] = useState<boolean>(false);
-  const [isLargeSubdivision, setIsLargeSubdivision] = useState<boolean>(false);
   const [showSubmitForm, setShowSubmitForm] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitSuccess, setSubmitSuccess] = useState<boolean>(false);
+  const [showCallMessage, setShowCallMessage] = useState<boolean>(false);
   const [contactInfo, setContactInfo] = useState<ContactInfo>({
     name: '',
     email: '',
@@ -102,48 +113,54 @@ export default function SurveyCalculator() {
     lowEstimate: number;
     highEstimate: number;
     basePrice: number;
-    hours?: number;
+    totalHours?: number;
   } | null>(null);
 
   const resultRef = useRef<HTMLDivElement>(null);
   const currentSurveyType = SURVEY_TYPES.find((s: SurveyTypeConfig) => s.id === selectedSurveyType);
 
-  // Reset form when survey type changes
   useEffect(() => {
     setFormValues({});
-    setRushJob(false);
     setShowResult(false);
-    setIsLargeSubdivision(false);
     setShowSubmitForm(false);
     setSubmitSuccess(false);
+    setShowCallMessage(false);
+    setResult(null);
   }, [selectedSurveyType]);
 
-  // Scroll to results when they appear
   useEffect(() => {
-    if (showResult && resultRef.current) {
+    if ((showResult || showCallMessage) && resultRef.current) {
       setTimeout(() => {
         resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }, 100);
     }
-  }, [showResult]);
+  }, [showResult, showCallMessage]);
 
   const handleFieldChange = (fieldId: string, value: unknown): void => {
     setFormValues((prev: Record<string, unknown>) => {
       const newValues = { ...prev, [fieldId]: value };
       
-      // Clear dependent fields when parent changes
+      // Clear otherCounty when county changes away from 'other'
+      if (fieldId === 'propertyCounty' && value !== 'other') {
+        delete newValues.otherCounty;
+      }
+      
+      // Clear dependent fields when property type changes
       if (fieldId === 'propertyType') {
-        // If changing away from residential, clear residence-related fields
         if (!['residential_urban', 'residential_rural'].includes(value as string)) {
           delete newValues.hasResidence;
           delete newValues.residenceCorners;
           delete newValues.residenceSize;
           delete newValues.garage;
+          delete newValues.numImprovements;
+          for (let i = 1; i <= 8; i++) {
+            delete newValues[`improvement${i}Type`];
+            delete newValues[`improvement${i}Corners`];
+            delete newValues[`improvement${i}Size`];
+          }
         }
-        // Clear improvements if not residential or agricultural
         if (!['residential_urban', 'residential_rural', 'agricultural'].includes(value as string)) {
           delete newValues.numImprovements;
-          // Clear all improvement fields
           for (let i = 1; i <= 8; i++) {
             delete newValues[`improvement${i}Type`];
             delete newValues[`improvement${i}Corners`];
@@ -172,19 +189,16 @@ export default function SurveyCalculator() {
         delete newValues.corners;
       }
       
-      if (fieldId === 'propertyCounty' && value !== 'other') {
-        delete newValues.customCounty;
-      }
-      
+      // Clear subdivisionLots when purpose changes away from city_subdivision
       if (fieldId === 'purpose' && value !== 'city_subdivision') {
-        delete newValues.lotCount;
+        delete newValues.subdivisionLots;
       }
       
       return newValues;
     });
     setShowResult(false);
-    setIsLargeSubdivision(false);
     setShowSubmitForm(false);
+    setShowCallMessage(false);
   };
 
   const handleContactChange = (field: keyof ContactInfo, value: string): void => {
@@ -200,16 +214,6 @@ export default function SurveyCalculator() {
     return currentValue === field.showWhen.value;
   };
 
-  const resetCalculator = (): void => {
-    setFormValues({});
-    setRushJob(false);
-    setShowResult(false);
-    setIsLargeSubdivision(false);
-    setShowSubmitForm(false);
-    setSubmitSuccess(false);
-    setContactInfo({ name: '', email: '', phone: '', notes: '' });
-  };
-
   const calculateEstimate = (): void => {
     if (!currentSurveyType) return;
 
@@ -221,25 +225,33 @@ export default function SurveyCalculator() {
       return;
     }
 
-    // Check for large subdivision
-    if (formValues.purpose === 'city_subdivision' && formValues.lotCount === '12+') {
-      setIsLargeSubdivision(true);
-      setShowResult(true);
+    // Check for 12+ lots - show call message instead
+    if (formValues.purpose === 'city_subdivision' && formValues.subdivisionLots === '12+') {
+      setShowCallMessage(true);
+      setShowResult(false);
       return;
     }
 
-    const { price, hours } = currentSurveyType.calculatePrice({ ...formValues, rush: rushJob ? 'yes' : 'no' });
+    const calculatedPrice = currentSurveyType.calculatePrice(formValues);
+    let finalPrice = rushJob ? calculatedPrice * 1.25 : calculatedPrice;
+    finalPrice = Math.max(finalPrice, currentSurveyType.minPrice);
+    
+    const lowEstimate = Math.round(finalPrice * ESTIMATE_LOW_MULTIPLIER);
+    const highEstimate = Math.round(finalPrice * ESTIMATE_HIGH_MULTIPLIER);
 
-    const lowEstimate = Math.round(price * ESTIMATE_LOW_MULTIPLIER);
-    const highEstimate = Math.round(price * ESTIMATE_HIGH_MULTIPLIER);
+    // Calculate hours if available (boundary survey)
+    const totalHours = currentSurveyType.calculateHours 
+      ? currentSurveyType.calculateHours(formValues) 
+      : undefined;
 
     setResult({
       lowEstimate,
       highEstimate,
-      basePrice: Math.round(price),
-      hours,
+      basePrice: Math.round(calculatedPrice),
+      totalHours,
     });
     setShowResult(true);
+    setShowCallMessage(false);
   };
 
   const handleSubmit = async (): Promise<void> => {
@@ -260,242 +272,376 @@ export default function SurveyCalculator() {
     setIsSubmitting(true);
 
     try {
-      const emailBody = formatFormDataForEmail(currentSurveyType, formValues, result, rushJob);
-      const fullBody = `Contact Info:\nName: ${contactInfo.name}\nEmail: ${contactInfo.email}\nPhone: ${contactInfo.phone}\nNotes: ${contactInfo.notes}\n\n${emailBody}`;
+      const formData = formatFormDataForEmail(currentSurveyType, formValues, result, rushJob);
+      
+      let emailBody = `NEW SURVEY ESTIMATE REQUEST\n\n`;
+      emailBody += `CONTACT INFORMATION:\n`;
+      emailBody += `Name: ${contactInfo.name}\n`;
+      emailBody += `Email: ${contactInfo.email}\n`;
+      emailBody += `Phone: ${contactInfo.phone}\n\n`;
+      
+      if (contactInfo.notes.trim()) {
+        emailBody += `ADDITIONAL NOTES:\n${contactInfo.notes}\n\n`;
+      }
+      
+      emailBody += formData;
+      emailBody += `\n\nSubmitted: ${new Date().toLocaleString()}`;
 
-      const response = await fetch('/api/send-email', {
+      const response = await fetch('/api/contact', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          subject: 'New Survey Estimate Request',
-          text: fullBody,
+          name: contactInfo.name,
+          email: contactInfo.email,
+          phone: contactInfo.phone,
+          subject: `Survey Estimate Request - ${currentSurveyType.name}`,
+          message: emailBody,
+          source: 'pricing-calculator',
         }),
       });
 
       if (response.ok) {
-        setSubmitSuccess(true);
         trackConversion();
+        setSubmitSuccess(true);
       } else {
-        alert('Failed to send email. Please try again.');
+        throw new Error('Failed');
       }
-    } catch (error) {
-      alert('Error sending email. Please try again.');
+    } catch {
+      const mailtoSubject = encodeURIComponent(`Survey Estimate Request - ${currentSurveyType.name}`);
+      const mailtoBody = encodeURIComponent(
+        `Contact: ${contactInfo.name}\nEmail: ${contactInfo.email}\nPhone: ${contactInfo.phone}\n\n` +
+        (contactInfo.notes ? `Notes: ${contactInfo.notes}\n\n` : '') +
+        formatFormDataForEmail(currentSurveyType, formValues, result, rushJob)
+      );
+      window.location.href = `mailto:info@starrsurveying.com?subject=${mailtoSubject}&body=${mailtoBody}`;
+      trackConversion();
+      setSubmitSuccess(true);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const renderField = (field: FormField, index: number): JSX.Element | null => {
+  const resetCalculator = (): void => {
+    setFormValues({});
+    setRushJob(false);
+    setShowResult(false);
+    setShowSubmitForm(false);
+    setSubmitSuccess(false);
+    setShowCallMessage(false);
+    setResult(null);
+    setContactInfo({ name: '', email: '', phone: '', notes: '' });
+  };
+
+  const numImprovements = parseInt(formValues.numImprovements as string) || 0;
+  
+  const shouldShowImprovements = selectedSurveyType === 'boundary' && 
+    ['residential_urban', 'residential_rural', 'agricultural'].includes(formValues.propertyType as string);
+
+  const renderField = (field: FormField) => {
     if (!shouldShowField(field)) return null;
 
-    if (field.type === 'select') {
-      return (
-        <div key={field.id} className={`pricing-calculator__field${field.showWhen ? ' pricing-calculator__field--conditional' : ''}`}>
-          <label className="pricing-calculator__label">{field.label}{field.required ? ' *' : ''}</label>
+    const isFullWidth = field.type === 'textarea' || 
+      field.id === 'propertyAddress' || 
+      field.id === 'startLocation' || 
+      field.id === 'endLocation' ||
+      field.id === 'otherCounty';
+
+    return (
+      <div
+        key={field.id}
+        className={`pricing-calculator__field ${isFullWidth ? 'pricing-calculator__field--full' : ''}`}
+      >
+        <label className="pricing-calculator__label">
+          {field.label} {field.required && '*'}
+        </label>
+
+        {field.type === 'select' && (
           <select
             className="pricing-calculator__select"
             value={(formValues[field.id] as string) || ''}
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
           >
-            <option value="">Select option</option>
-            {field.options?.map((option: FieldOption) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
+            <option value="">-- Select --</option>
+            {field.options?.map((opt: FieldOption) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          {field.helpText && <p className="pricing-calculator__help-text">{field.helpText}</p>}
-        </div>
-      );
-    } else if (field.type === 'number') {
-      return (
-        <div key={field.id} className="pricing-calculator__field">
-          <label className="pricing-calculator__label">{field.label}{field.required ? ' *' : ''}</label>
-          <input
-            type="number"
-            className="pricing-calculator__input"
-            value={formValues[field.id] as number || ''}
-            onChange={(e) => handleFieldChange(field.id, parseFloat(e.target.value) || 0)}
-            placeholder={field.placeholder}
-            min={field.min}
-            step={field.step || 'any'}
-          />
-          {field.helpText && <p className="pricing-calculator__help-text">{field.helpText}</p>}
-        </div>
-      );
-    } else if (field.type === 'text') {
-      return (
-        <div key={field.id} className="pricing-calculator__field">
-          <label className="pricing-calculator__label">{field.label}{field.required ? ' *' : ''}</label>
+        )}
+
+        {field.type === 'text' && (
           <input
             type="text"
             className="pricing-calculator__input"
-            value={formValues[field.id] as string || ''}
+            value={(formValues[field.id] as string) || ''}
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
             placeholder={field.placeholder}
           />
-          {field.helpText && <p className="pricing-calculator__help-text">{field.helpText}</p>}
-        </div>
-      );
-    } else if (field.type === 'textarea') {
-      return (
-        <div key={field.id} className="pricing-calculator__field pricing-calculator__field--full">
-          <label className="pricing-calculator__label">{field.label}{field.required ? ' *' : ''}</label>
+        )}
+
+        {field.type === 'number' && (
+          <input
+            type="number"
+            className="pricing-calculator__input"
+            value={(formValues[field.id] as number) ?? ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            placeholder={field.placeholder}
+            min={field.min ?? 0}
+            step={field.step || 'any'}
+          />
+        )}
+
+        {field.type === 'textarea' && (
           <textarea
             className="pricing-calculator__input"
-            value={formValues[field.id] as string || ''}
+            value={(formValues[field.id] as string) || ''}
             onChange={(e) => handleFieldChange(field.id, e.target.value)}
             placeholder={field.placeholder}
-            rows={4}
+            rows={3}
+            style={{ resize: 'vertical', minHeight: '80px' }}
           />
-          {field.helpText && <p className="pricing-calculator__help-text">{field.helpText}</p>}
-        </div>
-      );
-    }
-    return null;
+        )}
+
+        {field.helpText && (
+          <p style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '0.25rem' }}>
+            {field.helpText}
+          </p>
+        )}
+      </div>
+    );
   };
 
-  const renderDynamicImprovements = (): JSX.Element[] => {
-    const num = parseInt(formValues.numImprovements as string) || 0;
-    const improvements: JSX.Element[] = [];
+  const renderImprovementField = (index: number) => {
+    const improvementType = formValues[`improvement${index}Type`] as string || '';
+    const showResidenceFields = isAdditionalResidence(improvementType);
 
-    for (let i = 1; i <= num; i++) {
-      improvements.push(
-        <div key={`improvement${i}`} className="pricing-calculator__field pricing-calculator__field--full">
-          <h4 className="pricing-calculator__label">Improvement {i}</h4>
-          <select
-            className="pricing-calculator__select"
-            value={formValues[`improvement${i}Type`] as string || ''}
-            onChange={(e) => handleFieldChange(`improvement${i}Type`, e.target.value)}
-          >
-            <option value="">Select type</option>
-            {IMPROVEMENT_TYPE.map((option: FieldOption) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {isAdditionalResidence(formValues[`improvement${i}Type`] as string) && (
-            <>
-              <select
-                className="pricing-calculator__select"
-                value={formValues[`improvement${i}Corners`] as string || ''}
-                onChange={(e) => handleFieldChange(`improvement${i}Corners`, e.target.value)}
-              >
-                <option value="">House Corners</option>
-                {ADDITIONAL_RESIDENCE_CORNERS.map((option: FieldOption) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="pricing-calculator__select"
-                value={formValues[`improvement${i}Size`] as string || ''}
-                onChange={(e) => handleFieldChange(`improvement${i}Size`, e.target.value)}
-              >
-                <option value="">House Size</option>
-                {ADDITIONAL_RESIDENCE_SIZE.map((option: FieldOption) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-        </div>
-      );
-    }
-
-    return improvements;
+    return (
+      <div key={`improvement-${index}`} className="pricing-calculator__field pricing-calculator__field--full">
+        <label className="pricing-calculator__label">
+          Improvement {index}
+        </label>
+        <select
+          className="pricing-calculator__select"
+          value={improvementType}
+          onChange={(e) => {
+            handleFieldChange(`improvement${index}Type`, e.target.value);
+            if (!isAdditionalResidence(e.target.value)) {
+              handleFieldChange(`improvement${index}Corners`, '');
+              handleFieldChange(`improvement${index}Size`, '');
+            }
+          }}
+        >
+          {IMPROVEMENT_TYPE.map((opt: FieldOption) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        
+        {showResidenceFields && (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr', 
+            gap: '0.5rem', 
+            marginTop: '0.5rem' 
+          }}>
+            <select
+              className="pricing-calculator__select"
+              style={{ marginBottom: 0 }}
+              value={(formValues[`improvement${index}Corners`] as string) || ''}
+              onChange={(e) => handleFieldChange(`improvement${index}Corners`, e.target.value)}
+            >
+              <option value="">-- Corners --</option>
+              {ADDITIONAL_RESIDENCE_CORNERS.map((opt: FieldOption) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <select
+              className="pricing-calculator__select"
+              style={{ marginBottom: 0 }}
+              value={(formValues[`improvement${index}Size`] as string) || ''}
+              onChange={(e) => handleFieldChange(`improvement${index}Size`, e.target.value)}
+            >
+              <option value="">-- Size --</option>
+              {ADDITIONAL_RESIDENCE_SIZE.map((opt: FieldOption) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+    );
   };
+
+  const numImprovementsIndex = currentSurveyType?.fields.findIndex(f => f.id === 'numImprovements') ?? -1;
 
   return (
     <section className="pricing-calculator">
       <div className="pricing-calculator__container">
-        {/* Toggle Header */}
-        <button 
+        {/* Toggle Button */}
+        <button
           className={`pricing-calculator__toggle ${isExpanded ? 'pricing-calculator__toggle--expanded' : ''}`}
           onClick={() => setIsExpanded(!isExpanded)}
+          aria-expanded={isExpanded}
         >
           <div className="pricing-calculator__toggle-content">
             <span className="pricing-calculator__toggle-icon">🧮</span>
             <div className="pricing-calculator__toggle-text">
-              <h2 className="pricing-calculator__toggle-title">Survey Pricing Calculator</h2>
-              <p className="pricing-calculator__toggle-subtitle">Get a quick estimate based on your project details</p>
+              <h2 className="pricing-calculator__toggle-title">Online Estimate Calculator</h2>
+              <p className="pricing-calculator__toggle-subtitle">
+                {isExpanded ? 'Click to close calculator' : 'Click here to get a rough estimate for your project'}
+              </p>
             </div>
           </div>
-          <span className={`pricing-calculator__toggle-arrow ${isExpanded ? 'pricing-calculator__toggle-arrow--expanded' : ''}`}>▼</span>
+          <span className={`pricing-calculator__toggle-arrow ${isExpanded ? 'pricing-calculator__toggle-arrow--expanded' : ''}`}>
+            ▼
+          </span>
         </button>
 
         {/* Expandable Content */}
-        <div className={`pricing-calculator__content ${isExpanded ? 'pricing-calculator__content--expanded' : ''}`}>
-          <div className="pricing-calculator__content-inner">
+        <div 
+          className={`pricing-calculator__content ${isExpanded ? 'pricing-calculator__content--expanded' : ''}`}
+          style={isExpanded ? { 
+            maxHeight: 'none', 
+            height: 'auto', 
+            overflow: 'visible',
+            display: 'block'
+          } : undefined}
+        >
+          <div 
+            className="pricing-calculator__content-inner"
+            style={{ overflow: 'visible', maxHeight: 'none' }}
+          >
             <p className="pricing-calculator__disclaimer-top">
-              This tool provides an approximate estimate. Final quotes may vary based on site visit and exact requirements.
+              ⚠️ This calculator provides rough estimates only. Actual pricing depends on site-specific conditions. Contact us for an official quote.
             </p>
 
-            {/* Survey Type Selection */}
-            <div className="pricing-calculator__field pricing-calculator__field--full">
-              <label className="pricing-calculator__label">Survey Type *</label>
-              <select
-                className="pricing-calculator__select"
-                value={selectedSurveyType}
-                onChange={(e) => setSelectedSurveyType(e.target.value)}
-              >
-                {SURVEY_TYPES.map((type: SurveyTypeConfig) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Form Fields */}
             <div className="pricing-calculator__form">
-              {currentSurveyType?.fields.filter(shouldShowField).map((field: FormField, index: number) => renderField(field, index))}
-              {renderDynamicImprovements()}
-            </div>
+              {/* Survey Type Selection */}
+              <div className="pricing-calculator__field pricing-calculator__field--full">
+                <label className="pricing-calculator__label">Type of Survey *</label>
+                <select
+                  className="pricing-calculator__select"
+                  value={selectedSurveyType}
+                  onChange={(e) => setSelectedSurveyType(e.target.value)}
+                >
+                  {SURVEY_TYPES.map((survey: SurveyTypeConfig) => (
+                    <option key={survey.id} value={survey.id}>{survey.name}</option>
+                  ))}
+                </select>
+                {currentSurveyType && (
+                  <p style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: '0.5rem', fontStyle: 'italic' }}>
+                    {currentSurveyType.description}
+                  </p>
+                )}
+              </div>
 
-            {/* Rush Job Checkbox */}
-            <div className="pricing-calculator__field pricing-calculator__field--full">
-              <div className="pricing-calculator__checkboxes">
+              {/* Render fields with improvements inserted after numImprovements */}
+              {currentSurveyType && numImprovementsIndex >= 0 ? (
+                <>
+                  {currentSurveyType.fields.slice(0, numImprovementsIndex + 1).map(renderField)}
+                  
+                  {shouldShowImprovements && numImprovements > 0 && (
+                    <>
+                      {Array.from({ length: numImprovements }, (_, idx) => 
+                        renderImprovementField(idx + 1)
+                      )}
+                    </>
+                  )}
+                  
+                  {currentSurveyType.fields.slice(numImprovementsIndex + 1).map(renderField)}
+                </>
+              ) : (
+                currentSurveyType?.fields.map(renderField)
+              )}
+
+              {/* Rush Job Option */}
+              <div className="pricing-calculator__field pricing-calculator__field--full">
                 <label className="pricing-calculator__checkbox-label pricing-calculator__checkbox-label--rush">
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={rushJob}
-                    onChange={(e) => setRushJob(e.target.checked)}
+                    onChange={(e) => {
+                      setRushJob(e.target.checked);
+                      setShowResult(false);
+                      setShowSubmitForm(false);
+                      setShowCallMessage(false);
+                    }}
                   />
-                  <span>Rush Job? (+25% expedited fee)</span>
+                  <span>⚡ Rush Job - Need expedited timeline (+25% rush fee applies)</span>
                 </label>
+              </div>
+
+              {/* Buttons */}
+              <div className="pricing-calculator__buttons">
+                <button
+                  type="button"
+                  className="pricing-calculator__btn pricing-calculator__btn--primary"
+                  onClick={calculateEstimate}
+                >
+                  Calculate Estimate
+                </button>
+                <button
+                  type="button"
+                  className="pricing-calculator__btn pricing-calculator__btn--secondary"
+                  onClick={resetCalculator}
+                >
+                  Reset
+                </button>
               </div>
             </div>
 
-            {/* Buttons */}
-            <div className="pricing-calculator__buttons">
-              <button
-                type="button"
-                className="pricing-calculator__btn pricing-calculator__btn--primary"
-                onClick={calculateEstimate}
+            {/* 12+ Lots Call Message */}
+            {showCallMessage && (
+              <div
+                ref={resultRef}
+                className="pricing-calculator__result"
+                style={{ 
+                  display: 'block', 
+                  visibility: 'visible', 
+                  opacity: 1,
+                  overflow: 'visible',
+                  marginTop: '2rem',
+                  background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+                  border: '2px solid #1D3095',
+                }}
               >
-                Calculate Estimate
-              </button>
-              <button
-                type="button"
-                className="pricing-calculator__btn pricing-calculator__btn--secondary"
-                onClick={resetCalculator}
-              >
-                Reset
-              </button>
-            </div>
+                <div style={{ textAlign: 'center', padding: '1rem' }}>
+                  <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>📞</span>
+                  <h3 style={{ 
+                    fontFamily: 'Sora, sans-serif', 
+                    fontSize: '1.5rem', 
+                    fontWeight: 700, 
+                    color: '#1D3095',
+                    marginBottom: '0.75rem'
+                  }}>
+                    Please Call for a Custom Quote
+                  </h3>
+                  <p style={{ color: '#4B5563', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
+                    Projects with more than 12 subdivision lots require a custom quote. 
+                    Please contact us directly and we&apos;ll provide a detailed estimate for your project.
+                  </p>
+                  <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <a href="tel:9366620077" className="pricing-calculator__result-btn" style={{ background: '#1D3095' }}>
+                      📞 Call (936) 662-0077
+                    </a>
+                    <Link href="/contact" className="pricing-calculator__result-btn pricing-calculator__result-btn--secondary">
+                      Contact Page
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Results */}
-            {showResult && result && !isLargeSubdivision && !submitSuccess && (
+            {showResult && result && !submitSuccess && (
               <div 
                 ref={resultRef}
                 className="pricing-calculator__result"
+                style={{ 
+                  display: 'block', 
+                  visibility: 'visible', 
+                  opacity: 1,
+                  overflow: 'visible',
+                  marginTop: '2rem'
+                }}
               >
                 <h3 className="pricing-calculator__result-title">💰 Your Estimate</h3>
 
@@ -505,11 +651,6 @@ export default function SurveyCalculator() {
                     <span className="pricing-calculator__result-separator">to</span>
                     <span className="pricing-calculator__result-high">${result.highEstimate.toLocaleString()}</span>
                   </div>
-                  {result.hours !== undefined && (
-                    <p className="pricing-calculator__result-hours">
-                      Estimated Field Hours: {result.hours.toFixed(1)}
-                    </p>
-                  )}
                 </div>
 
                 <div className="pricing-calculator__result-breakdown">
@@ -517,6 +658,9 @@ export default function SurveyCalculator() {
                   <ul>
                     <li>Survey Type: {currentSurveyType?.name}</li>
                     <li>Base estimate: ${result.basePrice.toLocaleString()}</li>
+                    {result.totalHours !== undefined && (
+                      <li>Estimated field hours: {result.totalHours.toFixed(1)} hrs</li>
+                    )}
                     {rushJob && <li>⚡ Rush fee (+25%): ${Math.round(result.basePrice * 0.25).toLocaleString()}</li>}
                     <li>Includes standard deliverables</li>
                   </ul>
@@ -527,8 +671,9 @@ export default function SurveyCalculator() {
                   Actual pricing may vary based on site conditions and project requirements.
                 </div>
 
+                {/* Submit Form Toggle */}
                 {!showSubmitForm ? (
-                  <div className="pricing-calculator__result-actions">
+                  <div className="pricing-calculator__result-actions" style={{ marginTop: '1.5rem' }}>
                     <button
                       type="button"
                       className="pricing-calculator__result-btn"
@@ -541,58 +686,91 @@ export default function SurveyCalculator() {
                     </a>
                   </div>
                 ) : (
-                  <div className="pricing-calculator__contact-form">
-                    <h4>Send Estimate Request</h4>
-                    <p>We'll review your project and send an official quote.</p>
+                  /* Contact Info Form */
+                  <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1.5rem',
+                    background: '#F8F9FA',
+                    borderRadius: '10px',
+                    border: '2px solid #1D3095'
+                  }}>
+                    <h4 style={{ 
+                      fontFamily: 'Sora, sans-serif', 
+                      fontSize: '1.1rem', 
+                      fontWeight: 600, 
+                      color: '#1D3095',
+                      marginBottom: '1rem'
+                    }}>
+                      📧 Send Estimate Request
+                    </h4>
+                    <p style={{ fontSize: '0.85rem', color: '#4B5563', marginBottom: '1rem' }}>
+                      We&apos;ll review your project details and send you an official quote.
+                    </p>
 
-                    <div className="pricing-calculator__contact-grid">
+                    <div className="pricing-calculator__contact-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                       <div>
-                        <label>Name *</label>
+                        <label className="pricing-calculator__label">Your Name *</label>
                         <input
                           type="text"
+                          className="pricing-calculator__input"
                           value={contactInfo.name}
                           onChange={(e) => handleContactChange('name', e.target.value)}
                           placeholder="John Smith"
+                          style={{ marginBottom: 0 }}
                         />
                       </div>
                       <div>
-                        <label>Phone *</label>
+                        <label className="pricing-calculator__label">Phone Number *</label>
                         <input
                           type="tel"
+                          className="pricing-calculator__input"
                           value={contactInfo.phone}
                           onChange={(e) => handleContactChange('phone', e.target.value)}
                           placeholder="(555) 123-4567"
+                          style={{ marginBottom: 0 }}
                         />
                       </div>
                     </div>
 
-                    <label>Email *</label>
-                    <input
-                      type="email"
-                      value={contactInfo.email}
-                      onChange={(e) => handleContactChange('email', e.target.value)}
-                      placeholder="john@example.com"
-                    />
+                    <div style={{ marginTop: '1rem' }}>
+                      <label className="pricing-calculator__label">Email Address *</label>
+                      <input
+                        type="email"
+                        className="pricing-calculator__input"
+                        value={contactInfo.email}
+                        onChange={(e) => handleContactChange('email', e.target.value)}
+                        placeholder="john@example.com"
+                        style={{ marginBottom: 0 }}
+                      />
+                    </div>
 
-                    <label>Notes (Optional)</label>
-                    <textarea
-                      value={contactInfo.notes}
-                      onChange={(e) => handleContactChange('notes', e.target.value)}
-                      placeholder="Additional details..."
-                      rows={4}
-                    />
+                    <div style={{ marginTop: '1rem' }}>
+                      <label className="pricing-calculator__label">Additional Notes (Optional)</label>
+                      <textarea
+                        className="pricing-calculator__input"
+                        value={contactInfo.notes}
+                        onChange={(e) => handleContactChange('notes', e.target.value)}
+                        placeholder="Any additional details, questions, or scheduling preferences..."
+                        rows={4}
+                        style={{ marginBottom: 0, resize: 'vertical', minHeight: '100px' }}
+                      />
+                    </div>
 
-                    <div className="pricing-calculator__buttons">
+                    <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                       <button
+                        type="button"
+                        className="pricing-calculator__btn pricing-calculator__btn--primary"
                         onClick={handleSubmit}
                         disabled={isSubmitting}
-                        className="pricing-calculator__btn pricing-calculator__btn--primary"
+                        style={{ flex: 1, minWidth: '200px' }}
                       >
-                        {isSubmitting ? 'Sending...' : 'Submit Request'}
+                        {isSubmitting ? 'Sending...' : '✉️ Submit Request'}
                       </button>
                       <button
-                        onClick={() => setShowSubmitForm(false)}
+                        type="button"
                         className="pricing-calculator__btn pricing-calculator__btn--secondary"
+                        onClick={() => setShowSubmitForm(false)}
+                        style={{ flex: 1, minWidth: '150px' }}
                       >
                         Cancel
                       </button>
@@ -602,38 +780,44 @@ export default function SurveyCalculator() {
               </div>
             )}
 
-            {/* Large Subdivision Message */}
-            {showResult && isLargeSubdivision && !submitSuccess && (
-              <div ref={resultRef} className="pricing-calculator__result">
-                <h3 className="pricing-calculator__result-title">Large Subdivision Project</h3>
-                <p className="pricing-calculator__result-disclaimer">
-                  For subdivisions with more than 12 lots, please call us for more information and a custom quote.
-                </p>
-                <div className="pricing-calculator__result-actions">
-                  <a href="tel:9366620077" className="pricing-calculator__result-btn">
-                    📞 Call (936) 662-0077
-                  </a>
-                  <Link href="/contact" className="pricing-calculator__result-btn pricing-calculator__result-btn--secondary">
-                    Contact Page
-                  </Link>
-                </div>
-              </div>
-            )}
-
             {/* Success Message */}
             {submitSuccess && (
-              <div ref={resultRef} className="pricing-calculator__result">
-                <h3 className="pricing-calculator__result-title">Request Sent!</h3>
-                <p className="pricing-calculator__result-disclaimer">
-                  Thank you! We'll review your details and get back to you soon.
-                </p>
-                <div className="pricing-calculator__result-actions">
-                  <button onClick={resetCalculator} className="pricing-calculator__result-btn">
-                    New Estimate
-                  </button>
-                  <Link href="/" className="pricing-calculator__result-btn pricing-calculator__result-btn--secondary">
-                    Home Page
-                  </Link>
+              <div 
+                ref={resultRef}
+                className="pricing-calculator__result" 
+                style={{ 
+                  background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+                  border: '2px solid #10B981',
+                  marginTop: '2rem'
+                }}
+              >
+                <div style={{ textAlign: 'center', padding: '1rem' }}>
+                  <span style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>✅</span>
+                  <h3 style={{ 
+                    fontFamily: 'Sora, sans-serif', 
+                    fontSize: '1.5rem', 
+                    fontWeight: 700, 
+                    color: '#065F46',
+                    marginBottom: '0.75rem'
+                  }}>
+                    Request Sent Successfully!
+                  </h3>
+                  <p style={{ color: '#047857', marginBottom: '1.5rem' }}>
+                    Thank you! We&apos;ll review your project and get back to you within 1-2 business days.
+                  </p>
+                  <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="pricing-calculator__result-btn"
+                      onClick={resetCalculator}
+                      style={{ background: '#10B981' }}
+                    >
+                      Start New Estimate
+                    </button>
+                    <Link href="/contact" className="pricing-calculator__result-btn pricing-calculator__result-btn--secondary">
+                      Contact Page
+                    </Link>
+                  </div>
                 </div>
               </div>
             )}
