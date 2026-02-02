@@ -15,7 +15,6 @@ interface NavLink {
 const Header = (): React.ReactElement => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
-  const [showBackToTop, setShowBackToTop] = useState<boolean>(false);
   const headerRef = useRef<HTMLElement | null>(null);
   const navbarRef = useRef<HTMLDivElement | null>(null);
 
@@ -32,24 +31,23 @@ const Header = (): React.ReactElement => {
 
   useEffect(() => {
     const handleScroll = (): void => {
-      if (navbarRef.current) {
-        const navbarBottom = navbarRef.current.getBoundingClientRect().bottom;
-        const scrolled = navbarBottom < 0;
-        setIsScrolled(scrolled);
-        setShowBackToTop(scrolled);
-        if (!scrolled && isOpen) {
+      if (!navbarRef.current) return;
+
+      const navbarBottom = navbarRef.current.getBoundingClientRect().bottom;
+      const scrolled = navbarBottom < 0;
+
+      setIsScrolled((prev) => {
+        // Close the dropdown whenever scroll state changes direction
+        if (prev !== scrolled) {
           setIsOpen(false);
         }
-      }
-      if (headerRef.current) {
-        const headerBottom = headerRef.current.getBoundingClientRect().bottom;
-        setShowBackToTop(headerBottom < 0);
-      }
+        return scrolled;
+      });
     };
 
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [isOpen]);
+  }, []);
 
   const scrollToTop = (): void => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -74,7 +72,10 @@ const Header = (): React.ReactElement => {
           />
         </div>
 
-        {/* Navbar - Connected to bottom-right of header box */}
+        {/* Primary Navbar - Anchored to bottom-right of header box.
+            On desktop: shows full link buttons.
+            On mobile: shows hamburger + Get Quote, positioned below the header box.
+            This element scrolls with the page. */}
         <nav ref={navbarRef} className="navbar">
           <div className="navbar__inner">
             {/* Desktop Navigation */}
@@ -99,15 +100,15 @@ const Header = (): React.ReactElement => {
                 onClick={() => setIsOpen(!isOpen)}
                 className="navbar__hamburger"
                 aria-label="Toggle menu"
-                aria-expanded={isOpen}
+                aria-expanded={isOpen && !isScrolled}
               >
-                {isOpen ? '✕' : '☰'}
+                {isOpen && !isScrolled ? '✕' : '☰'}
               </button>
             </div>
           </div>
 
-          {/* Mobile Dropdown */}
-          {isOpen && (
+          {/* Mobile Dropdown - ONLY when the primary navbar is visible (not scrolled away) */}
+          {isOpen && !isScrolled && (
             <div className="navbar__dropdown">
               {navLinks.map((link: NavLink) => (
                 <Link
@@ -124,7 +125,9 @@ const Header = (): React.ReactElement => {
         </nav>
       </div>
 
-      {/* Scrolled Header for Desktop */}
+      {/* Scrolled Header - Fixed bar that appears when the primary navbar scrolls out of view.
+          Shows on ALL screen sizes (desktop + mobile).
+          Contains: small logo, Get Free Quote, hamburger menu. */}
       {isScrolled && (
         <nav className="scrolled-header">
           <img 
@@ -142,7 +145,7 @@ const Header = (): React.ReactElement => {
               aria-label="Toggle menu"
               aria-expanded={isOpen}
             >
-              ☰
+              {isOpen ? '✕' : '☰'}
             </button>
           </div>
           {isOpen && (
@@ -162,8 +165,8 @@ const Header = (): React.ReactElement => {
         </nav>
       )}
 
-      {/* Back to Top Button - Only on desktop */}
-      {showBackToTop && (
+      {/* Back to Top Button - Only on desktop (hidden via CSS on mobile) */}
+      {isScrolled && (
         <button onClick={scrollToTop} className="back-to-top" aria-label="Back to top">
           <span className="back-to-top__arrow">↑</span>
           <span className="back-to-top__text">Top</span>
