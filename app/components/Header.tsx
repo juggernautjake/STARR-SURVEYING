@@ -37,7 +37,6 @@ const Header = (): React.ReactElement => {
       const scrolled = navbarBottom < 0;
 
       setIsScrolled((prev) => {
-        // Close the dropdown whenever scroll state changes direction
         if (prev !== scrolled) {
           setIsOpen(false);
         }
@@ -55,13 +54,11 @@ const Header = (): React.ReactElement => {
 
   return (
     <>
-      {/* Header Container - Contains everything */}
+      {/* Header Container */}
       <div className="header-wrapper">
         
-        {/* Header Box - Red background with blue border (at top of page) */}
-        <header ref={headerRef} className="header-box">
-          {/* This is the red background area with blue border */}
-        </header>
+        {/* Header Box - Red background with blue border */}
+        <header ref={headerRef} className="header-box" />
 
         {/* Logo - Floats IN FRONT of the header box */}
         <div className="logo-container">
@@ -72,10 +69,7 @@ const Header = (): React.ReactElement => {
           />
         </div>
 
-        {/* Primary Navbar - Anchored to bottom-right of header box.
-            On desktop: shows full link buttons.
-            On mobile: shows hamburger + Get Quote, positioned below the header box.
-            This element scrolls with the page. */}
+        {/* Primary Navbar — anchored below header box on mobile, bottom-right on desktop */}
         <nav ref={navbarRef} className="navbar">
           <div className="navbar__inner">
             {/* Desktop Navigation */}
@@ -91,7 +85,7 @@ const Header = (): React.ReactElement => {
               ))}
             </div>
 
-            {/* Mobile Navigation */}
+            {/* Mobile Navigation — sits below header, scrolls with page */}
             <div className="navbar__mobile">
               <Link href="/pricing" className="navbar__quote-btn-mobile">
                 Get Quote
@@ -102,12 +96,12 @@ const Header = (): React.ReactElement => {
                 aria-label="Toggle menu"
                 aria-expanded={isOpen && !isScrolled}
               >
-                {isOpen && !isScrolled ? '✕' : '☰'}
+                {isOpen && !isScrolled ? 'CLOSE' : 'MENU'}
               </button>
             </div>
           </div>
 
-          {/* Mobile Dropdown - ONLY when the primary navbar is visible (not scrolled away) */}
+          {/* Mobile Dropdown — ONLY when primary navbar is visible */}
           {isOpen && !isScrolled && (
             <div className="navbar__dropdown">
               {navLinks.map((link: NavLink) => (
@@ -125,9 +119,7 @@ const Header = (): React.ReactElement => {
         </nav>
       </div>
 
-      {/* Scrolled Header - Fixed bar that appears when the primary navbar scrolls out of view.
-          Shows on ALL screen sizes (desktop + mobile).
-          Contains: small logo, Get Free Quote, hamburger menu. */}
+      {/* Scrolled Header — fixed bar, all screen sizes */}
       {isScrolled && (
         <nav className="scrolled-header">
           <img 
@@ -145,7 +137,7 @@ const Header = (): React.ReactElement => {
               aria-label="Toggle menu"
               aria-expanded={isOpen}
             >
-              {isOpen ? '✕' : '☰'}
+              {isOpen ? 'CLOSE' : 'MENU'}
             </button>
           </div>
           {isOpen && (
@@ -165,7 +157,7 @@ const Header = (): React.ReactElement => {
         </nav>
       )}
 
-      {/* Back to Top Button - Only on desktop (hidden via CSS on mobile) */}
+      {/* Back to Top — desktop only (hidden on mobile via CSS) */}
       {isScrolled && (
         <button onClick={scrollToTop} className="back-to-top" aria-label="Back to top">
           <span className="back-to-top__arrow">↑</span>

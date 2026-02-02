@@ -28,7 +28,7 @@
   /* Brand Colors */
   --color-red: #BD1218;
   --color-blue: #1D3095;
-  --color-green: #10B981;  /* Sea green for quote button and pricing menu */
+  --color-green: #10B981;
   --color-white: #FFFFFF;
   
   /* Header Box */
@@ -209,11 +209,14 @@
    ============================================================================= */
 .navbar__mobile {
   display: none;
-  align-items: center;
+  align-items: stretch;  /* EQUAL HEIGHT for both buttons */
   gap: 0.75rem;
 }
 
 .navbar__hamburger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background-color: var(--color-red);
   border: 3px solid var(--color-blue);
   color: var(--color-white);
@@ -224,6 +227,8 @@
   cursor: pointer;
   transition: all var(--transition);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  letter-spacing: 0.05em;
 }
 
 .navbar__hamburger:hover {
@@ -233,7 +238,9 @@
 }
 
 .navbar__quote-btn-mobile {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0.5rem 1rem;
   font-weight: bold;
   font-size: 0.85rem;
@@ -244,6 +251,7 @@
   text-decoration: none;
   transition: all var(--transition);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
 }
 
 .navbar__quote-btn-mobile:hover {
@@ -300,7 +308,7 @@
 }
 
 /* =============================================================================
-   8. SCROLLED HEADER (All screen sizes — appears when primary navbar scrolls away)
+   8. SCROLLED HEADER (All screen sizes)
    ============================================================================= */
 .scrolled-header {
   position: fixed;
@@ -319,21 +327,18 @@
   animation: fadeInDown 0.3s ease-out;
 }
 
-/* FIX: align-items: stretch makes quote btn and hamburger the same height */
 .scrolled-right {
   display: flex;
-  align-items: stretch;
+  align-items: stretch;  /* EQUAL HEIGHT for quote btn + menu btn */
   gap: 1rem;
 }
 
-/* FIX: 10% larger base logo (was 40px → now 44px) */
 .scrolled-logo {
   height: 44px;
   width: auto;
   margin-left: 1rem;
 }
 
-/* FIX: inline-flex centers content within the stretched height */
 .scrolled-quote-btn {
   display: inline-flex;
   align-items: center;
@@ -348,6 +353,7 @@
   border-radius: 6px;
   text-decoration: none;
   transition: all var(--transition);
+  white-space: nowrap;
 }
 
 .scrolled-quote-btn:hover {
@@ -355,7 +361,6 @@
   color: var(--green-btn-hover-text);
 }
 
-/* FIX: inline-flex centers content within the stretched height */
 .scrolled-hamburger {
   display: inline-flex;
   align-items: center;
@@ -364,12 +369,15 @@
   border: 2px solid var(--color-white);
   color: var(--color-white);
   font-size: 1.2rem;
+  font-weight: bold;
   line-height: 1;
   padding: 0.4rem 0.6rem;
   border-radius: 6px;
   cursor: pointer;
   transition: all var(--transition);
   margin-right: 1rem;
+  white-space: nowrap;
+  letter-spacing: 0.05em;
 }
 
 .scrolled-hamburger:hover {
@@ -415,7 +423,7 @@
 }
 
 /* =============================================================================
-   9. BACK TO TOP BUTTON (Desktop only — hidden on mobile via breakpoints)
+   9. BACK TO TOP BUTTON (Desktop only)
    ============================================================================= */
 .back-to-top {
   position: fixed;
@@ -479,6 +487,10 @@
 
 /* ─────────────────────────────────────────────────────────────────────────────
    1. Extra Small Mobile (0 - 399px)
+   
+   Reference height: Get Quote btn at top of page.
+   font-size 0.7rem  +  padding 0.5rem top/bottom  +  border 2px × 2
+   ≈ ~30px rendered height.  All buttons + scrolled versions match this.
    ───────────────────────────────────────────────────────────────────────────── */
 @media screen and (max-width: 399px) {
   :root {
@@ -490,9 +502,7 @@
     --mobile-menu-gap: 6px;
   }
   
-  /* FIX: Navbar is ABSOLUTE below the header, NOT fixed at viewport top.
-     It scrolls with the page. When it scrolls off-screen, the scrolled-header
-     (fixed) takes over. */
+  /* Navbar sits below header, scrolls with page */
   .navbar {
     position: absolute;
     top: calc(var(--header-box-height) + 6px);
@@ -511,18 +521,29 @@
   }
   
   .navbar__desktop { display: none; }
-  .navbar__mobile { display: flex; gap: 0.4rem; }
   
-  .navbar__hamburger {
-    font-size: 1.1rem;
-    padding: 0.32rem 0.48rem;
-    border-width: 2px;
+  /* EQUAL HEIGHT via stretch */
+  .navbar__mobile {
+    display: flex;
+    align-items: stretch;
+    gap: 0.4rem;
   }
   
+  /* ── Get Quote button (TOP OF PAGE) — this is the reference height ── */
   .navbar__quote-btn-mobile {
-    font-size: 0.62rem;
-    padding: 0.32rem 0.55rem;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.65rem;
     border-width: 2px;
+    border-radius: 5px;
+  }
+  
+  /* ── MENU button (TOP OF PAGE) — matches quote height via stretch ── */
+  .navbar__hamburger {
+    font-size: 0.7rem;
+    padding: 0.5rem 0.65rem;
+    border-width: 2px;
+    border-radius: 5px;
+    letter-spacing: 0.08em;
   }
   
   .navbar__dropdown {
@@ -536,29 +557,39 @@
     font-size: 0.72rem;
   }
   
-  /* FIX: Scrolled header IS shown on mobile (was display:none) */
+  /* ── Scrolled header ── */
   .scrolled-header {
-    padding: 0.3rem 0.5rem;
+    padding: 0.35rem 0.5rem;
     gap: 0.35rem;
     border-bottom-width: 2px;
   }
   
+  /* Logo — taller than before */
   .scrolled-logo {
-    height: 24px;
+    height: 28px;
     margin-left: 0.3rem;
   }
   
-  .scrolled-quote-btn {
-    font-size: 0.62rem;
-    padding: 0 0.5rem;
-    border-width: 2px;
+  .scrolled-right {
+    gap: 0.4rem;
   }
   
-  .scrolled-hamburger {
-    font-size: 1rem;
-    padding: 0 0.4rem;
+  /* ── Get Free Quote (SCROLLED) — same height as top-of-page buttons ── */
+  .scrolled-quote-btn {
+    font-size: 0.7rem;
+    padding: 0.5rem 0.6rem;
     border-width: 2px;
+    border-radius: 5px;
+  }
+  
+  /* ── MENU button (SCROLLED) — same height via stretch ── */
+  .scrolled-hamburger {
+    font-size: 0.7rem;
+    padding: 0.5rem 0.6rem;
+    border-width: 2px;
+    border-radius: 5px;
     margin-right: 0.3rem;
+    letter-spacing: 0.08em;
   }
   
   .scrolled-dropdown {
@@ -609,18 +640,26 @@
   }
   
   .navbar__desktop { display: none; }
-  .navbar__mobile { display: flex; gap: 0.5rem; }
   
-  .navbar__hamburger {
-    font-size: 1.2rem;
-    padding: 0.36rem 0.52rem;
-    border-width: 2px;
+  .navbar__mobile {
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
   }
   
   .navbar__quote-btn-mobile {
-    font-size: 0.68rem;
-    padding: 0.36rem 0.62rem;
+    font-size: 0.76rem;
+    padding: 0.55rem 0.72rem;
     border-width: 2px;
+    border-radius: 5px;
+  }
+  
+  .navbar__hamburger {
+    font-size: 0.76rem;
+    padding: 0.55rem 0.72rem;
+    border-width: 2px;
+    border-radius: 5px;
+    letter-spacing: 0.08em;
   }
   
   .navbar__dropdown {
@@ -634,28 +673,36 @@
     font-size: 0.76rem;
   }
   
+  /* ── Scrolled header ── */
   .scrolled-header {
-    padding: 0.35rem 0.6rem;
+    padding: 0.38rem 0.6rem;
     gap: 0.4rem;
     border-bottom-width: 2px;
   }
   
   .scrolled-logo {
-    height: 26px;
+    height: 30px;
     margin-left: 0.4rem;
   }
   
+  .scrolled-right {
+    gap: 0.5rem;
+  }
+  
   .scrolled-quote-btn {
-    font-size: 0.68rem;
-    padding: 0 0.55rem;
+    font-size: 0.76rem;
+    padding: 0.55rem 0.65rem;
     border-width: 2px;
+    border-radius: 5px;
   }
   
   .scrolled-hamburger {
-    font-size: 1.1rem;
-    padding: 0 0.45rem;
+    font-size: 0.76rem;
+    padding: 0.55rem 0.65rem;
     border-width: 2px;
+    border-radius: 5px;
     margin-right: 0.4rem;
+    letter-spacing: 0.08em;
   }
   
   .scrolled-dropdown {
@@ -706,18 +753,26 @@
   }
   
   .navbar__desktop { display: none; }
-  .navbar__mobile { display: flex; gap: 0.55rem; }
   
-  .navbar__hamburger {
-    font-size: 1.3rem;
-    padding: 0.4rem 0.58rem;
-    border-width: 3px;
+  .navbar__mobile {
+    display: flex;
+    align-items: stretch;
+    gap: 0.55rem;
   }
   
   .navbar__quote-btn-mobile {
-    font-size: 0.74rem;
-    padding: 0.4rem 0.72rem;
+    font-size: 0.82rem;
+    padding: 0.58rem 0.82rem;
     border-width: 3px;
+    border-radius: 5px;
+  }
+  
+  .navbar__hamburger {
+    font-size: 0.82rem;
+    padding: 0.58rem 0.82rem;
+    border-width: 3px;
+    border-radius: 5px;
+    letter-spacing: 0.08em;
   }
   
   .navbar__dropdown {
@@ -730,28 +785,36 @@
     font-size: 0.8rem;
   }
   
+  /* ── Scrolled header ── */
   .scrolled-header {
-    padding: 0.38rem 0.65rem;
+    padding: 0.4rem 0.65rem;
     gap: 0.45rem;
     border-bottom-width: 2px;
   }
   
   .scrolled-logo {
-    height: 28px;
+    height: 32px;
     margin-left: 0.5rem;
   }
   
+  .scrolled-right {
+    gap: 0.55rem;
+  }
+  
   .scrolled-quote-btn {
-    font-size: 0.74rem;
-    padding: 0 0.65rem;
+    font-size: 0.82rem;
+    padding: 0.58rem 0.75rem;
     border-width: 2px;
+    border-radius: 5px;
   }
   
   .scrolled-hamburger {
-    font-size: 1.15rem;
-    padding: 0 0.5rem;
+    font-size: 0.82rem;
+    padding: 0.58rem 0.75rem;
     border-width: 2px;
+    border-radius: 5px;
     margin-right: 0.5rem;
+    letter-spacing: 0.08em;
   }
   
   .scrolled-dropdown {
@@ -801,18 +864,26 @@
   }
   
   .navbar__desktop { display: none; }
-  .navbar__mobile { display: flex; gap: 0.65rem; }
   
-  .navbar__hamburger {
-    font-size: 1.4rem;
-    padding: 0.45rem 0.65rem;
-    border-width: 3px;
+  .navbar__mobile {
+    display: flex;
+    align-items: stretch;
+    gap: 0.65rem;
   }
   
   .navbar__quote-btn-mobile {
-    font-size: 0.8rem;
-    padding: 0.45rem 0.85rem;
+    font-size: 0.88rem;
+    padding: 0.62rem 0.95rem;
     border-width: 3px;
+    border-radius: 6px;
+  }
+  
+  .navbar__hamburger {
+    font-size: 0.88rem;
+    padding: 0.62rem 0.95rem;
+    border-width: 3px;
+    border-radius: 6px;
+    letter-spacing: 0.08em;
   }
   
   .navbar__dropdown {
@@ -825,28 +896,36 @@
     font-size: 0.85rem;
   }
   
+  /* ── Scrolled header ── */
   .scrolled-header {
-    padding: 0.4rem 0.75rem;
+    padding: 0.42rem 0.75rem;
     gap: 0.5rem;
     border-bottom-width: 3px;
   }
   
   .scrolled-logo {
-    height: 30px;
+    height: 34px;
     margin-left: 0.5rem;
   }
   
+  .scrolled-right {
+    gap: 0.65rem;
+  }
+  
   .scrolled-quote-btn {
-    font-size: 0.78rem;
-    padding: 0 0.75rem;
+    font-size: 0.88rem;
+    padding: 0.62rem 0.85rem;
     border-width: 2px;
+    border-radius: 6px;
   }
   
   .scrolled-hamburger {
-    font-size: 1.2rem;
-    padding: 0 0.55rem;
+    font-size: 0.88rem;
+    padding: 0.62rem 0.85rem;
     border-width: 2px;
+    border-radius: 6px;
     margin-right: 0.5rem;
+    letter-spacing: 0.08em;
   }
   
   .scrolled-dropdown {
@@ -891,7 +970,6 @@
     gap: 0.5rem;
   }
   
-  /* FIX: 10% larger (was 33px) */
   .scrolled-logo {
     height: 36.3px;
   }
@@ -902,8 +980,9 @@
   }
   
   .scrolled-hamburger {
-    font-size: 1rem;
-    padding: 0 0.5rem;
+    font-size: 0.7rem;
+    padding: 0 0.6rem;
+    letter-spacing: 0.06em;
   }
   
   .scrolled-dropdown {
@@ -952,7 +1031,6 @@
     gap: 0.6rem;
   }
   
-  /* FIX: 10% larger (was 35.2px) */
   .scrolled-logo {
     height: 38.7px;
   }
@@ -963,8 +1041,9 @@
   }
   
   .scrolled-hamburger {
-    font-size: 1.1rem;
-    padding: 0 0.55rem;
+    font-size: 0.75rem;
+    padding: 0 0.7rem;
+    letter-spacing: 0.06em;
   }
   
   .scrolled-dropdown {
@@ -1008,7 +1087,6 @@
     gap: 0.7rem;
   }
   
-  /* FIX: 10% larger (was 38.5px) */
   .scrolled-logo {
     height: 42.4px;
   }
@@ -1019,8 +1097,9 @@
   }
   
   .scrolled-hamburger {
-    font-size: 1.2rem;
-    padding: 0 0.6rem;
+    font-size: 0.8rem;
+    padding: 0 0.75rem;
+    letter-spacing: 0.06em;
   }
   
   .scrolled-dropdown {
@@ -1064,7 +1143,6 @@
     gap: 0.8rem;
   }
   
-  /* FIX: 10% larger (was 41.8px) */
   .scrolled-logo {
     height: 46px;
   }
@@ -1075,8 +1153,9 @@
   }
   
   .scrolled-hamburger {
-    font-size: 1.3rem;
-    padding: 0 0.65rem;
+    font-size: 0.85rem;
+    padding: 0 0.85rem;
+    letter-spacing: 0.06em;
   }
   
   .scrolled-dropdown {
@@ -1120,7 +1199,6 @@
     gap: 0.9rem;
   }
   
-  /* FIX: 10% larger (was 44px) */
   .scrolled-logo {
     height: 48.4px;
   }
@@ -1131,8 +1209,9 @@
   }
   
   .scrolled-hamburger {
-    font-size: 1.35rem;
-    padding: 0 0.7rem;
+    font-size: 0.9rem;
+    padding: 0 0.9rem;
+    letter-spacing: 0.06em;
   }
   
   .scrolled-dropdown {
@@ -1179,7 +1258,6 @@
     gap: 1rem;
   }
   
-  /* FIX: 10% larger (was 46.2px) */
   .scrolled-logo {
     height: 50.8px;
   }
@@ -1190,8 +1268,9 @@
   }
   
   .scrolled-hamburger {
-    font-size: 1.4rem;
-    padding: 0 0.75rem;
+    font-size: 0.95rem;
+    padding: 0 1rem;
+    letter-spacing: 0.06em;
   }
   
   .scrolled-dropdown {
@@ -1238,7 +1317,6 @@
     gap: 1.1rem;
   }
   
-  /* FIX: 10% larger (was 48.4px) */
   .scrolled-logo {
     height: 53.2px;
   }
@@ -1249,8 +1327,9 @@
   }
   
   .scrolled-hamburger {
-    font-size: 1.45rem;
-    padding: 0 0.8rem;
+    font-size: 1rem;
+    padding: 0 1.1rem;
+    letter-spacing: 0.06em;
   }
   
   .scrolled-dropdown {
@@ -1297,7 +1376,6 @@
     gap: 1.2rem;
   }
   
-  /* FIX: 10% larger (was 49.5px) */
   .scrolled-logo {
     height: 54.5px;
   }
@@ -1308,8 +1386,9 @@
   }
   
   .scrolled-hamburger {
-    font-size: 1.5rem;
-    padding: 0 0.85rem;
+    font-size: 1.05rem;
+    padding: 0 1.2rem;
+    letter-spacing: 0.06em;
   }
   
   .scrolled-dropdown {
@@ -1360,7 +1439,6 @@
     gap: 1.4rem;
   }
   
-  /* FIX: 10% larger (was 52.8px) */
   .scrolled-logo {
     height: 58.1px;
   }
@@ -1371,8 +1449,9 @@
   }
   
   .scrolled-hamburger {
-    font-size: 1.65rem;
-    padding: 0 0.95rem;
+    font-size: 1.15rem;
+    padding: 0 1.35rem;
+    letter-spacing: 0.06em;
   }
   
   .scrolled-dropdown {
@@ -1420,7 +1499,6 @@
     gap: 1.6rem;
   }
   
-  /* FIX: 10% larger (was 55px) */
   .scrolled-logo {
     height: 60.5px;
   }
@@ -1431,8 +1509,9 @@
   }
   
   .scrolled-hamburger {
-    font-size: 1.8rem;
-    padding: 0 1.05rem;
+    font-size: 1.25rem;
+    padding: 0 1.55rem;
+    letter-spacing: 0.06em;
   }
   
   .scrolled-dropdown {
