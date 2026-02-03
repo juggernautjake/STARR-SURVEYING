@@ -60,13 +60,15 @@ const Header = (): React.ReactElement => {
         {/* Header Box - Red background with blue border */}
         <header ref={headerRef} className="header-box" />
 
-        {/* Logo - Floats IN FRONT of the header box */}
+        {/* Logo - Floats IN FRONT of the header box, clickable to home */}
         <div className="logo-container">
-          <img 
-            src="/logos/Fancy_Logo_red_darkblue_white_2.png" 
-            alt="Starr Surveying Logo" 
-            className="logo"
-          />
+          <Link href="/" aria-label="Go to home page">
+            <img 
+              src="/logos/Fancy_Logo_red_darkblue_white_2.png" 
+              alt="Starr Surveying Logo" 
+              className="logo"
+            />
+          </Link>
         </div>
 
         {/* Primary Navbar — anchored below header box on mobile, bottom-right on desktop */}
@@ -122,11 +124,14 @@ const Header = (): React.ReactElement => {
       {/* Scrolled Header — fixed bar, all screen sizes */}
       {isScrolled && (
         <nav className="scrolled-header">
-          <img 
-            src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png" 
-            alt="Starr Surveying Small Logo" 
-            className="scrolled-logo"
-          />
+          {/* Mini logo - clickable to home */}
+          <Link href="/" aria-label="Go to home page">
+            <img 
+              src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png" 
+              alt="Starr Surveying Small Logo" 
+              className="scrolled-logo"
+            />
+          </Link>
           <div className="scrolled-right">
             <Link href="/pricing" className="scrolled-quote-btn">
               Get Free Quote
