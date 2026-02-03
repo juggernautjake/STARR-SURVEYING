@@ -60,15 +60,13 @@ const Header = (): React.ReactElement => {
         {/* Header Box - Red background with blue border */}
         <header ref={headerRef} className="header-box" />
 
-        {/* Logo - Floats IN FRONT of the header box, clickable to home */}
+        {/* Logo - Floats IN FRONT of the header box (NOT clickable) */}
         <div className="logo-container">
-          <Link href="/" aria-label="Go to home page">
-            <img 
-              src="/logos/Fancy_Logo_red_darkblue_white_2.png" 
-              alt="Starr Surveying Logo" 
-              className="logo"
-            />
-          </Link>
+          <img 
+            src="/logos/Fancy_Logo_red_darkblue_white_2.png" 
+            alt="Starr Surveying Logo" 
+            className="logo"
+          />
         </div>
 
         {/* Primary Navbar — anchored below header box on mobile, bottom-right on desktop */}
