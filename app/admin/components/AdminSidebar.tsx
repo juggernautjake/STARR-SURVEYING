@@ -28,6 +28,7 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
       { href: '/admin/learn/knowledge-base', label: 'Knowledge Base', icon: '🔍' },
       { href: '/admin/learn/flashcards', label: 'Flashcards', icon: '🃏' },
       { href: '/admin/learn/exam-prep', label: 'Exam Prep', icon: '📝' },
+      { href: '/admin/learn/quiz-history', label: 'Quiz History', icon: '📊' },
       { href: '/admin/learn/fieldbook', label: 'My Fieldbook', icon: '📓' },
       { href: '/admin/learn/search', label: 'Search', icon: '🔎' },
       { href: '/admin/learn/manage', label: 'Manage Content', icon: '✏️', adminOnly: true },
@@ -35,12 +36,18 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
     { label: 'Work', items: [
       { href: '/admin/jobs', label: 'All Jobs', icon: '📋', adminOnly: true },
       { href: '/admin/my-jobs', label: 'My Jobs', icon: '🗂️' },
+      { href: '/admin/jobs/new', label: 'New Job', icon: '➕', adminOnly: true },
+      { href: '/admin/jobs/import', label: 'Import Jobs', icon: '📥', adminOnly: true },
       { href: '/admin/leads', label: 'Leads', icon: '📨', adminOnly: true },
     ]},
     { label: 'People', items: [
       { href: '/admin/employees', label: 'Employees', icon: '👥', adminOnly: true },
       { href: '/admin/payroll', label: 'Payroll', icon: '💰', adminOnly: true },
       { href: '/admin/my-pay', label: 'My Pay', icon: '💵' },
+    ]},
+    { label: 'Communication', items: [
+      { href: '/admin/messages', label: 'Messages', icon: '💬' },
+      { href: '/admin/messages/contacts', label: 'Team Directory', icon: '📇' },
     ]},
     { label: 'Notes & Files', items: [
       { href: '/admin/notes', label: 'Company Notes', icon: '📝', adminOnly: true },
@@ -56,6 +63,8 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
   const isActive = (href: string): boolean => {
     if (href === '/admin/dashboard') return pathname === '/admin/dashboard';
     if (href === '/admin/learn') return pathname === '/admin/learn';
+    if (href === '/admin/jobs') return pathname === '/admin/jobs';
+    if (href === '/admin/messages') return pathname === '/admin/messages';
     return pathname.startsWith(href);
   };
 

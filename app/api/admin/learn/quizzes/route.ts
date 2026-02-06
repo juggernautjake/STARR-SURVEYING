@@ -1,15 +1,76 @@
 // app/api/admin/learn/quizzes/route.ts
-import { auth } from '@/lib/auth';
+import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
 
-// GET — Generate a quiz (random questions from bank)
+// GET — Generate a quiz OR fetch quiz history
 export async function GET(req: Request) {
   const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const type = searchParams.get('type'); // 'lesson_quiz', 'module_test', 'exam_prep'
+  const history = searchParams.get('history');
+  const attemptId = searchParams.get('attempt_id');
+
+  // Fetch detailed answers for a specific attempt
+  if (attemptId) {
+    const { data: answers, error } = await supabaseAdmin
+      .from('quiz_attempt_answers')
+      .select('question_id, user_answer, is_correct')
+      .eq('attempt_id', attemptId);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Enrich with question text, correct answer, and explanation
+    const questionIds = (answers || []).map((a: any) => a.question_id);
+    let questionsMap = new Map<string, any>();
+    if (questionIds.length > 0) {
+      const { data: questions } = await supabaseAdmin
+        .from('question_bank')
+        .select('id, question_text, correct_answer, explanation')
+        .in('id', questionIds);
+      (questions || []).forEach((q: any) => questionsMap.set(q.id, q));
+    }
+
+    const enriched = (answers || []).map((a: any) => {
+      const q = questionsMap.get(a.question_id);
+      return {
+        question_id: a.question_id,
+        question_text: q?.question_text || 'Question not found',
+        user_answer: a.user_answer,
+        correct_answer: q?.correct_answer || '',
+        is_correct: a.is_correct,
+        explanation: q?.explanation || '',
+      };
+    });
+
+    return NextResponse.json({ answers: enriched });
+  }
+
+  // Fetch quiz history
+  if (history) {
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const userEmail = searchParams.get('user_email');
+
+    let targetEmail = session.user.email;
+    // Admins can view other users' history
+    if (userEmail && isAdmin(session.user.email)) {
+      targetEmail = userEmail;
+    }
+
+    const { data: attempts, error } = await supabaseAdmin
+      .from('quiz_attempts')
+      .select('*')
+      .eq('user_email', targetEmail)
+      .order('completed_at', { ascending: false })
+      .limit(limit);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ attempts: attempts || [] });
+  }
+
+  // Generate a quiz (existing logic)
+  const type = searchParams.get('type');
   const lessonId = searchParams.get('lesson_id');
   const moduleId = searchParams.get('module_id');
   const examCategory = searchParams.get('exam_category');
@@ -20,7 +81,6 @@ export async function GET(req: Request) {
   if (type === 'lesson_quiz' && lessonId) {
     query = query.eq('lesson_id', lessonId);
   } else if (type === 'module_test' && moduleId) {
-    // Module test: questions for this module (with or without lesson_id)
     query = query.eq('module_id', moduleId);
   } else if (type === 'exam_prep' && examCategory) {
     query = query.eq('exam_category', examCategory);
@@ -31,21 +91,19 @@ export async function GET(req: Request) {
   const { data: allQuestions, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!allQuestions || allQuestions.length === 0) {
-    return NextResponse.json({ questions: [], message: 'No questions available for this section yet.' });
+    return NextResponse.json({ questions: [], message: 'No questions available.' });
   }
 
-  // Shuffle and pick random subset
   const shuffled = allQuestions.sort(() => Math.random() - 0.5);
   const selected = shuffled.slice(0, count);
 
-  // Don't send correct_answer to client
   const clientQuestions = selected.map((q: any) => ({
     id: q.id,
     question_text: q.question_text,
     question_type: q.question_type,
     options: q.question_type === 'short_answer' ? [] :
       (typeof q.options === 'string' ? JSON.parse(q.options) : q.options)
-        .sort(() => Math.random() - 0.5), // Shuffle options too
+        .sort(() => Math.random() - 0.5),
     difficulty: q.difficulty,
     tags: q.tags,
   }));
@@ -60,13 +118,11 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const { type, lesson_id, module_id, exam_category, answers, time_spent_seconds } = body;
-  // answers: [{ question_id, user_answer }]
 
   if (!answers || !Array.isArray(answers) || answers.length === 0) {
     return NextResponse.json({ error: 'No answers provided' }, { status: 400 });
   }
 
-  // Fetch correct answers for grading
   const questionIds = answers.map((a: any) => a.question_id);
   const { data: questions, error } = await supabaseAdmin
     .from('question_bank')
@@ -94,7 +150,6 @@ export async function POST(req: Request) {
 
   const scorePercent = answers.length > 0 ? Math.round((correct / answers.length) * 100) : 0;
 
-  // Save attempt
   const { data: attempt, error: attemptErr } = await supabaseAdmin
     .from('quiz_attempts')
     .insert({
@@ -115,7 +170,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: attemptErr.message }, { status: 500 });
   }
 
-  // Save individual answers
   if (attempt) {
     await supabaseAdmin.from('quiz_attempt_answers').insert(
       graded.map((g: any) => ({
@@ -125,6 +179,17 @@ export async function POST(req: Request) {
         is_correct: g.is_correct,
       }))
     );
+
+    // Log activity
+    try {
+      await supabaseAdmin.from('activity_log').insert({
+        user_email: session.user.email,
+        action_type: 'quiz_completed',
+        entity_type: type || 'quiz',
+        entity_id: attempt.id,
+        metadata: { score_percent: scorePercent, correct, total: answers.length },
+      });
+    } catch { /* ignore */ }
   }
 
   return NextResponse.json({

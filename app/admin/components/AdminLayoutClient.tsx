@@ -10,6 +10,9 @@ import Fieldbook from './Fieldbook';
 
 import '../styles/AdminLayout.css';
 import '../styles/AdminLearn.css';
+import '../styles/AdminMessaging.css';
+import '../styles/AdminJobs.css';
+import '../styles/AdminPayroll.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
@@ -22,9 +25,12 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/learn/exam-prep/sit': 'SIT Exam Prep',
   '/admin/learn/exam-prep/rpls': 'RPLS Exam Prep',
   '/admin/learn/search': 'Search',
+  '/admin/learn/quiz-history': 'Quiz History',
   '/admin/learn/manage': 'Manage Content',
   '/admin/profile': 'My Profile',
-  '/admin/jobs': 'Job Tracker',
+  '/admin/jobs': 'All Jobs',
+  '/admin/jobs/new': 'New Job',
+  '/admin/jobs/import': 'Import Jobs',
   '/admin/my-jobs': 'My Jobs',
   '/admin/employees': 'Employees',
   '/admin/payroll': 'Payroll',
@@ -34,15 +40,23 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/my-files': 'My Files',
   '/admin/leads': 'Leads',
   '/admin/settings': 'Settings',
+  '/admin/messages': 'Messages',
+  '/admin/messages/new': 'New Message',
+  '/admin/messages/contacts': 'Team Directory',
+  '/admin/messages/settings': 'Message Settings',
 };
 
 function getTitle(p: string): string {
   if (PAGE_TITLES[p]) return PAGE_TITLES[p];
+  if (p.includes('/lesson-builder/')) return 'Lesson Builder';
   if (p.includes('/quiz')) return 'Quiz';
   if (p.includes('/test')) return 'Module Test';
   if (p.includes('/learn/modules/')) return 'Module';
   if (p.includes('/learn/knowledge-base/')) return 'Article';
   if (p.includes('/learn/flashcards/')) return 'Study Deck';
+  if (p.startsWith('/admin/messages/') && !PAGE_TITLES[p]) return 'Conversation';
+  if (p.startsWith('/admin/jobs/') && !PAGE_TITLES[p]) return 'Job Detail';
+  if (p.startsWith('/admin/payroll/') && !PAGE_TITLES[p]) return 'Employee Pay Detail';
   return 'Admin';
 }
 
