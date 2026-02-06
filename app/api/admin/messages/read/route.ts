@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
     const ids = (messages || []).map((m: { id: string }) => m.id);
     if (ids.length > 0) {
-      const upserts = ids.map(id => ({
+      const upserts = ids.map((id: string) => ({
         message_id: id,
         user_email: session.user.email,
         read_at: new Date().toISOString(),

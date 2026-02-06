@@ -143,8 +143,8 @@ export async function POST(req: Request) {
   if (convError) return NextResponse.json({ error: convError.message }, { status: 500 });
 
   // Add participants (including the creator)
-  const allEmails = [...new Set([session.user.email, ...participant_emails])];
-  const participantInserts = allEmails.map(email => ({
+  const allEmails: string[] = [...new Set<string>([session.user.email as string, ...participant_emails as string[]])];
+  const participantInserts = allEmails.map((email: string) => ({
     conversation_id: conversation.id,
     user_email: email,
     role: email === session.user.email ? 'owner' : 'member',
