@@ -39,7 +39,7 @@ export async function GET(req: Request) {
   const selected = shuffled.slice(0, count);
 
   // Don't send correct_answer to client
-  const clientQuestions = selected.map(q => ({
+  const clientQuestions = selected.map((q: any) => ({
     id: q.id,
     question_text: q.question_text,
     question_type: q.question_type,
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to grade quiz' }, { status: 500 });
   }
 
-  const answerMap = new Map(questions.map(q => [q.id, q]));
+  const answerMap = new Map(questions.map((q: any) => [q.id, q]));
   let correct = 0;
   const graded = answers.map((a: any) => {
     const q = answerMap.get(a.question_id);

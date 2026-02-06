@@ -21,14 +21,14 @@ export async function GET(req: Request) {
     if (category) q = q.eq('category', category);
     if (moduleId) q = q.eq('module_id', moduleId);
     const { data } = await q.order('created_at', { ascending: true });
-    builtIn = (data || []).map(c => ({ ...c, source: 'builtin' }));
+    builtIn = (data || []).map((c: any) => ({ ...c, source: 'builtin' }));
   }
 
   if (!source || source === 'user') {
     let q = supabaseAdmin.from('user_flashcards').select('*').eq('user_email', session.user.email);
     if (moduleId) q = q.eq('module_id', moduleId);
     const { data } = await q.order('created_at', { ascending: false });
-    userCards = (data || []).map(c => ({ ...c, source: 'user' }));
+    userCards = (data || []).map((c: any) => ({ ...c, source: 'user' }));
   }
 
   return NextResponse.json({ cards: [...builtIn, ...userCards] });
