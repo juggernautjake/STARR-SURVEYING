@@ -24,8 +24,8 @@ export async function GET(req: Request) {
     'info@starr-surveying.com',
   ];
 
-  const allEmails = [...new Set([...uniqueEmails, ...ADMIN_EMAILS])].filter(
-    email => email !== session.user!.email
+  const allEmails: string[] = [...new Set<string>([...uniqueEmails, ...ADMIN_EMAILS])].filter(
+    (email: string) => email !== session.user!.email
   );
 
   // Build contact list with display names

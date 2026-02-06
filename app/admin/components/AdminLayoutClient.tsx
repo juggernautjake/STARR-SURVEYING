@@ -12,6 +12,7 @@ import '../styles/AdminLayout.css';
 import '../styles/AdminLearn.css';
 import '../styles/AdminMessaging.css';
 import '../styles/AdminJobs.css';
+import '../styles/AdminPayroll.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
@@ -55,6 +56,7 @@ function getTitle(p: string): string {
   if (p.includes('/learn/flashcards/')) return 'Study Deck';
   if (p.startsWith('/admin/messages/') && !PAGE_TITLES[p]) return 'Conversation';
   if (p.startsWith('/admin/jobs/') && !PAGE_TITLES[p]) return 'Job Detail';
+  if (p.startsWith('/admin/payroll/') && !PAGE_TITLES[p]) return 'Employee Pay Detail';
   return 'Admin';
 }
 
