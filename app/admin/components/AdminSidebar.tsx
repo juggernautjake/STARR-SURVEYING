@@ -36,6 +36,8 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
     { label: 'Work', items: [
       { href: '/admin/jobs', label: 'All Jobs', icon: '📋', adminOnly: true },
       { href: '/admin/my-jobs', label: 'My Jobs', icon: '🗂️' },
+      { href: '/admin/jobs/new', label: 'New Job', icon: '➕', adminOnly: true },
+      { href: '/admin/jobs/import', label: 'Import Jobs', icon: '📥', adminOnly: true },
       { href: '/admin/leads', label: 'Leads', icon: '📨', adminOnly: true },
     ]},
     { label: 'People', items: [
@@ -61,6 +63,8 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
   const isActive = (href: string): boolean => {
     if (href === '/admin/dashboard') return pathname === '/admin/dashboard';
     if (href === '/admin/learn') return pathname === '/admin/learn';
+    if (href === '/admin/jobs') return pathname === '/admin/jobs';
+    if (href === '/admin/messages') return pathname === '/admin/messages';
     return pathname.startsWith(href);
   };
 

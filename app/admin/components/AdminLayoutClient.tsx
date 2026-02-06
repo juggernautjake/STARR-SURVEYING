@@ -11,6 +11,7 @@ import Fieldbook from './Fieldbook';
 import '../styles/AdminLayout.css';
 import '../styles/AdminLearn.css';
 import '../styles/AdminMessaging.css';
+import '../styles/AdminJobs.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
@@ -26,7 +27,9 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/learn/quiz-history': 'Quiz History',
   '/admin/learn/manage': 'Manage Content',
   '/admin/profile': 'My Profile',
-  '/admin/jobs': 'Job Tracker',
+  '/admin/jobs': 'All Jobs',
+  '/admin/jobs/new': 'New Job',
+  '/admin/jobs/import': 'Import Jobs',
   '/admin/my-jobs': 'My Jobs',
   '/admin/employees': 'Employees',
   '/admin/payroll': 'Payroll',
@@ -51,6 +54,7 @@ function getTitle(p: string): string {
   if (p.includes('/learn/knowledge-base/')) return 'Article';
   if (p.includes('/learn/flashcards/')) return 'Study Deck';
   if (p.startsWith('/admin/messages/') && !PAGE_TITLES[p]) return 'Conversation';
+  if (p.startsWith('/admin/jobs/') && !PAGE_TITLES[p]) return 'Job Detail';
   return 'Admin';
 }
 
