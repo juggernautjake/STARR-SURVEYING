@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     .select('user_email')
     .order('user_email');
 
-  const uniqueEmails = [...new Set((knownUsers || []).map((u: { user_email: string }) => u.user_email))];
+  const uniqueEmails: string[] = [...new Set<string>((knownUsers || []).map((u: { user_email: string }) => u.user_email))];
 
   // Also check if we have admin emails that should always be available
   const ADMIN_EMAILS = [
