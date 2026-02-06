@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
 import './styles/globals.css';
-import Header from './components/Header';
-import Footer from './components/Footer';
+import LayoutShell from './components/LayoutShell';
 
 // ============================================================================
 // SITE METADATA - Controls social sharing previews and SEO
@@ -158,11 +157,9 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
           `}
         </Script>
 
-        <Header />
-        <main>
+        <LayoutShell>
           {children}
-        </main>
-        <Footer />
+        </LayoutShell>
       </body>
     </html>
   );

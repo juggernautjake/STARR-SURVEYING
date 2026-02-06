@@ -1,0 +1,73 @@
+// app/admin/learn/search/page.tsx
+'use client';
+import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+
+interface SearchResult { type: string; id: string; title: string; excerpt: string; href: string; breadcrumb: string; }
+
+function SearchContent() {
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get('q') || '';
+  const [query, setQuery] = useState(initialQuery);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+
+  useEffect(() => { if (initialQuery) doSearch(initialQuery); }, [initialQuery]);
+
+  async function doSearch(q: string) {
+    if (!q.trim()) return;
+    setLoading(true);
+    setSearched(true);
+    try {
+      const res = await fetch(`/api/admin/learn/search?q=${encodeURIComponent(q.trim())}`);
+      if (res.ok) { const data = await res.json(); setResults(data.results || []); }
+    } catch { /* */ }
+    finally { setLoading(false); }
+  }
+
+  const typeColors: Record<string, string> = { module: 'search-result__type--module', lesson: 'search-result__type--lesson', topic: 'search-result__type--topic', article: 'search-result__type--article', flashcard: 'search-result__type--flashcard' };
+
+  return (
+    <>
+      <div className="learn__header">
+        <Link href="/admin/learn" className="learn__back">← Back to Learning Hub</Link>
+        <h2 className="learn__title">🔎 Search Everything</h2>
+        <p className="learn__subtitle">Search across modules, lessons, topics, articles, and flashcards.</p>
+      </div>
+      <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '.5rem', maxWidth: '600px' }}>
+        <div className="admin-search" style={{ flex: 1, maxWidth: 'none' }}>
+          <span className="admin-search__icon">🔎</span>
+          <input type="text" className="admin-search__input" placeholder="Search for any keyword, topic, term..." value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && doSearch(query)} />
+        </div>
+        <button className="admin-btn admin-btn--primary" onClick={() => doSearch(query)} disabled={!query.trim()}>Search</button>
+      </div>
+
+      {loading && <div className="admin-empty"><div className="admin-empty__icon">⏳</div><div className="admin-empty__title">Searching...</div></div>}
+
+      {!loading && searched && results.length === 0 && (
+        <div className="admin-empty"><div className="admin-empty__icon">🔍</div><div className="admin-empty__title">No results found</div><div className="admin-empty__desc">Try different keywords or a broader search term.</div></div>
+      )}
+
+      {!loading && results.length > 0 && (
+        <div className="search-results">
+          <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: '#6B7280', marginBottom: '.5rem' }}>{results.length} result{results.length !== 1 ? 's' : ''} found</p>
+          {results.map((r, i) => (
+            <Link key={`${r.type}-${r.id}-${i}`} href={r.href} className="search-result">
+              <span className={`search-result__type ${typeColors[r.type] || ''}`}>{r.type}</span>
+              <div className="search-result__title">{r.title}</div>
+              <div className="search-result__excerpt">{r.excerpt}</div>
+              {r.breadcrumb && <div className="search-result__breadcrumb">{r.breadcrumb}</div>}
+            </Link>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+export default function SearchPage() {
+  return <Suspense fallback={<div className="admin-empty"><div className="admin-empty__icon">⏳</div></div>}><SearchContent /></Suspense>;
+}

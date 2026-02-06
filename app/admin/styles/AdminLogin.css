@@ -1,0 +1,16 @@
+.admin-login { min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#152050 0%,#1D3095 50%,#BD1218 100%); padding:2rem; }
+.admin-login__card { background:#FFF; border-radius:16px; padding:2.5rem; max-width:420px; width:100%; box-shadow:0 16px 48px rgba(0,0,0,.25); text-align:center; }
+.admin-login__logo { width:80px; height:80px; margin:0 auto 1.25rem; object-fit:contain; }
+.admin-login__title { font-family:'Sora',sans-serif; font-size:1.5rem; font-weight:700; color:#0F1419; margin-bottom:.35rem; }
+.admin-login__subtitle { font-family:'Inter',sans-serif; font-size:.9rem; color:#6B7280; margin-bottom:2rem; line-height:1.5; }
+.admin-login__google-btn { display:flex; align-items:center; justify-content:center; gap:.75rem; width:100%; padding:.85rem 1.5rem; font-family:'Inter',sans-serif; font-size:.95rem; font-weight:600; color:#0F1419; background:#FFF; border:2px solid #E5E7EB; border-radius:8px; cursor:pointer; transition:all .2s; }
+.admin-login__google-btn:hover { border-color:#1D3095; box-shadow:0 2px 12px rgba(29,48,149,.15); }
+.admin-login__google-icon { width:20px; height:20px; }
+.admin-login__divider { margin:1.5rem 0; display:flex; align-items:center; gap:.75rem; }
+.admin-login__divider::before,.admin-login__divider::after { content:''; flex:1; height:1px; background:#E5E7EB; }
+.admin-login__divider-text { font-family:'Inter',sans-serif; font-size:.75rem; color:#9CA3AF; text-transform:uppercase; letter-spacing:.5px; }
+.admin-login__notice { font-family:'Inter',sans-serif; font-size:.8rem; color:#9CA3AF; line-height:1.5; }
+.admin-login__notice strong { color:#BD1218; }
+.admin-login__error { margin-bottom:1.25rem; padding:.75rem 1rem; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; color:#BD1218; }
+.admin-login__back { display:inline-block; margin-top:1.5rem; font-family:'Inter',sans-serif; font-size:.8rem; color:#9CA3AF; text-decoration:none; }
+.admin-login__back:hover { color:#1D3095; }

@@ -985,3 +985,46 @@
     font-size: 1rem;
   }
 }
+
+/* =============================================================================
+   EMPLOYEE LOGIN LINK - Subtle link in bottom bar
+   Add this to the END of your existing Footer.css
+   ============================================================================= */
+
+.footer__bottom-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.footer__employee-link {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 200ms ease;
+  white-space: nowrap;
+}
+
+.footer__employee-link:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Responsive adjustments for bottom-right wrapper */
+@media screen and (max-width: 499px) {
+  .footer__bottom-right {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  
+  .footer__employee-link {
+    font-size: 0.7rem;
+  }
+}
+
+@media screen and (min-width: 500px) and (max-width: 767px) {
+  .footer__bottom-right {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+}

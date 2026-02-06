@@ -1,0 +1,46 @@
+// app/api/admin/learn/lessons/route.ts
+import { auth } from '@/lib/auth';
+import { isAdmin } from '@/lib/auth';
+import { supabaseAdmin } from '@/lib/supabase';
+import { NextResponse } from 'next/server';
+
+export async function GET(req: Request) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  const moduleId = searchParams.get('module_id');
+
+  if (id) {
+    const { data: lesson } = await supabaseAdmin.from('learning_lessons').select('*').eq('id', id).single();
+    const { data: topics } = await supabaseAdmin.from('learning_topics')
+      .select('*').eq('lesson_id', id).order('order_index');
+    const { data: questionCount } = await supabaseAdmin.from('question_bank')
+      .select('id', { count: 'exact' }).eq('lesson_id', id);
+    return NextResponse.json({
+      lesson,
+      topics: topics || [],
+      quiz_question_count: questionCount?.length || 0,
+    });
+  }
+
+  if (moduleId) {
+    const { data } = await supabaseAdmin.from('learning_lessons')
+      .select('*').eq('module_id', moduleId).order('order_index');
+    return NextResponse.json({ lessons: data || [] });
+  }
+
+  return NextResponse.json({ error: 'Provide id or module_id' }, { status: 400 });
+}
+
+export async function POST(req: Request) {
+  const session = await auth();
+  if (!session?.user?.email || !isAdmin(session.user.email)) {
+    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  }
+  const body = await req.json();
+  const { data, error } = await supabaseAdmin.from('learning_lessons').insert(body).select().single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ lesson: data });
+}

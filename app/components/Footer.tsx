@@ -156,9 +156,14 @@ const Footer = (): React.ReactElement => {
           <p className="footer__copyright">
             © {currentYear} Starr Surveying. All rights reserved.
           </p>
-          <p className="footer__location">
-            Professional Land Surveying • Belton, Texas • RPLS# 6706
-          </p>
+          <div className="footer__bottom-right">
+            <p className="footer__location">
+              Professional Land Surveying • Belton, Texas • RPLS# 6706
+            </p>
+            <Link href="/admin/login" className="footer__employee-link">
+              Employee Login
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
