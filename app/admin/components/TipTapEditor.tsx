@@ -5,10 +5,12 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
 import Highlight from '@tiptap/extension-highlight';
-import Link from '@tiptap/extension-link';
+import LinkExtension from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
-import { useEffect, useCallback } from 'react';
+import TextStyle from '@tiptap/extension-text-style';
+import Color from '@tiptap/extension-color';
+import { useEffect, useCallback, useState } from 'react';
 
 interface TipTapEditorProps {
   content: string;
@@ -16,7 +18,18 @@ interface TipTapEditorProps {
   placeholder?: string;
 }
 
+const FONT_SIZES = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px'];
+const COLORS = [
+  '#0F1419', '#374151', '#6B7280', '#9CA3AF',
+  '#1D3095', '#3B82F6', '#059669', '#10B981',
+  '#D97706', '#F59E0B', '#BD1218', '#EF4444',
+  '#7C3AED', '#A78BFA', '#EC4899', '#F472B6',
+];
+
 export default function TipTapEditor({ content, onChange, placeholder = 'Start writing...' }: TipTapEditorProps) {
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showFontSize, setShowFontSize] = useState(false);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -25,9 +38,11 @@ export default function TipTapEditor({ content, onChange, placeholder = 'Start w
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Highlight.configure({ multicolor: true }),
-      Link.configure({ openOnClick: false }),
+      LinkExtension.configure({ openOnClick: false }),
       Image.configure({ inline: false }),
       Placeholder.configure({ placeholder }),
+      TextStyle,
+      Color,
     ],
     content,
     onUpdate: ({ editor }) => {
@@ -73,6 +88,7 @@ export default function TipTapEditor({ content, onChange, placeholder = 'Start w
     <div className="tiptap-editor">
       {/* Toolbar */}
       <div className="tiptap-editor__toolbar">
+        {/* Text formatting */}
         <div className="tiptap-editor__toolbar-group">
           <button
             type="button"
@@ -116,6 +132,75 @@ export default function TipTapEditor({ content, onChange, placeholder = 'Start w
           </button>
         </div>
 
+        {/* Text color */}
+        <div className="tiptap-editor__toolbar-group" style={{ position: 'relative' }}>
+          <button
+            type="button"
+            className="tiptap-editor__btn"
+            onClick={() => { setShowColorPicker(!showColorPicker); setShowFontSize(false); }}
+            title="Text Color"
+            style={{ position: 'relative' }}
+          >
+            <span style={{ borderBottom: `3px solid ${editor.getAttributes('textStyle').color || '#0F1419'}` }}>A</span>
+          </button>
+          <button
+            type="button"
+            className="tiptap-editor__btn"
+            onClick={() => { setShowFontSize(!showFontSize); setShowColorPicker(false); }}
+            title="Font Size"
+          >
+            <span style={{ fontSize: '.65rem' }}>Aa</span>
+          </button>
+          {showColorPicker && (
+            <div className="tiptap-editor__dropdown" onClick={e => e.stopPropagation()}>
+              <div className="tiptap-editor__color-grid">
+                {COLORS.map(color => (
+                  <button
+                    key={color}
+                    type="button"
+                    className="tiptap-editor__color-swatch"
+                    style={{ background: color }}
+                    onClick={() => {
+                      editor.chain().focus().setColor(color).run();
+                      setShowColorPicker(false);
+                    }}
+                    title={color}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                className="tiptap-editor__dropdown-btn"
+                onClick={() => {
+                  editor.chain().focus().unsetColor().run();
+                  setShowColorPicker(false);
+                }}
+              >
+                Reset Color
+              </button>
+            </div>
+          )}
+          {showFontSize && (
+            <div className="tiptap-editor__dropdown" onClick={e => e.stopPropagation()}>
+              {FONT_SIZES.map(size => (
+                <button
+                  key={size}
+                  type="button"
+                  className="tiptap-editor__dropdown-btn"
+                  style={{ fontSize: size }}
+                  onClick={() => {
+                    editor.chain().focus().setMark('textStyle', { fontSize: size }).run();
+                    setShowFontSize(false);
+                  }}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Headings */}
         <div className="tiptap-editor__toolbar-group">
           <button
             type="button"
@@ -133,8 +218,17 @@ export default function TipTapEditor({ content, onChange, placeholder = 'Start w
           >
             H3
           </button>
+          <button
+            type="button"
+            className={`tiptap-editor__btn ${editor.isActive('heading', { level: 4 }) ? 'tiptap-editor__btn--active' : ''}`}
+            onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}
+            title="Heading 4"
+          >
+            H4
+          </button>
         </div>
 
+        {/* Lists & blocks */}
         <div className="tiptap-editor__toolbar-group">
           <button
             type="button"
@@ -170,6 +264,7 @@ export default function TipTapEditor({ content, onChange, placeholder = 'Start w
           </button>
         </div>
 
+        {/* Alignment */}
         <div className="tiptap-editor__toolbar-group">
           <button
             type="button"
@@ -197,6 +292,7 @@ export default function TipTapEditor({ content, onChange, placeholder = 'Start w
           </button>
         </div>
 
+        {/* Media & links */}
         <div className="tiptap-editor__toolbar-group">
           <button
             type="button"
@@ -216,6 +312,7 @@ export default function TipTapEditor({ content, onChange, placeholder = 'Start w
           </button>
         </div>
 
+        {/* Utilities */}
         <div className="tiptap-editor__toolbar-group">
           <button
             type="button"
