@@ -4,7 +4,7 @@
 import { useSession } from 'next-auth/react';
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import UnderConstruction from '../../components/UnderConstruction';
+import UnderConstruction from '../../components/messaging/UnderConstruction';
 import RaiseHistory from '../../components/payroll/RaiseHistory';
 import CertificationsPanel from '../../components/payroll/CertificationsPanel';
 import BalanceCard from '../../components/payroll/BalanceCard';

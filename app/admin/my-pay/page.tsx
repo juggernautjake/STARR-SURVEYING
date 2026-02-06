@@ -3,7 +3,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
-import UnderConstruction from '../components/UnderConstruction';
+import UnderConstruction from '../components/messaging/UnderConstruction';
 import BalanceCard from '../components/payroll/BalanceCard';
 import PayStubView from '../components/payroll/PayStubView';
 import CertificationsPanel from '../components/payroll/CertificationsPanel';
