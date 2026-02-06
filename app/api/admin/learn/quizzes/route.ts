@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to grade quiz' }, { status: 500 });
   }
 
-  const answerMap = new Map(questions.map((q: any) => [q.id, q]));
+  const answerMap = new Map<string, any>(questions.map((q: any) => [q.id, q]));
   let correct = 0;
   const graded = answers.map((a: any) => {
     const q = answerMap.get(a.question_id);
