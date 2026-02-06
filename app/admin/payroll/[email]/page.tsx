@@ -113,7 +113,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
 
   return (
     <div className="payroll-page">
-      <UnderConstruction feature="Employee Pay Detail" />
+      <UnderConstruction feature="Employee Pay Detail" description="View and manage employee pay rates, certifications, raises, and balance." />
 
       {/* Header */}
       <div className="payroll-emp-detail__header">

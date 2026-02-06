@@ -105,7 +105,7 @@ export default function PayrollPage() {
 
   return (
     <div className="payroll-page">
-      <UnderConstruction feature="Payroll & Finances" />
+      <UnderConstruction feature="Payroll & Finances" description="Manage employee pay, certifications, payroll runs, and balance transfers." />
 
       {/* Summary Cards */}
       <div className="payroll-summary-cards">

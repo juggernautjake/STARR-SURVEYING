@@ -90,7 +90,7 @@ export default function MyPayPage() {
   if (!profileExists || !profile) {
     return (
       <div className="payroll-page">
-        <UnderConstruction feature="My Pay" />
+        <UnderConstruction feature="My Pay" description="View your earnings, pay stubs, certifications, and manage bank transfers." />
         <div className="payroll-empty-state">
           <div className="payroll-empty-state__icon">💰</div>
           <h2>Your pay profile hasn&apos;t been set up yet</h2>
@@ -152,7 +152,7 @@ export default function MyPayPage() {
 
   return (
     <div className="payroll-page">
-      <UnderConstruction feature="My Pay" />
+      <UnderConstruction feature="My Pay" description="View your earnings, pay stubs, certifications, and manage bank transfers." />
 
       {/* Pay Summary Header */}
       <div className="payroll-my-header">
