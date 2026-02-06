@@ -1246,6 +1246,83 @@
 .job-time__entry-delete:hover { color: #EF4444; }
 
 /* --------------------------------------------------------------------------
+   File Viewer (Fullscreen Modal)
+   -------------------------------------------------------------------------- */
+.file-viewer__overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+.file-viewer { width: 95vw; height: 92vh; background: #1F2937; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
+.file-viewer__header { display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem; background: #111827; border-bottom: 1px solid #374151; }
+.file-viewer__header-info { display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1; }
+.file-viewer__title { margin: 0; font-size: 0.9rem; font-weight: 600; color: #F3F4F6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-viewer__type { font-size: 0.7rem; color: #9CA3AF; background: #374151; padding: 0.1rem 0.5rem; border-radius: 8px; white-space: nowrap; }
+.file-viewer__controls { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
+.file-viewer__ctrl-btn { background: #374151; color: #D1D5DB; border: 1px solid #4B5563; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.78rem; cursor: pointer; font-family: inherit; text-decoration: none; transition: all 0.15s; }
+.file-viewer__ctrl-btn:hover { background: #4B5563; color: #fff; }
+.file-viewer__zoom-level { font-size: 0.75rem; color: #9CA3AF; min-width: 40px; text-align: center; }
+.file-viewer__divider { width: 1px; height: 20px; background: #4B5563; margin: 0 0.25rem; }
+.file-viewer__close-btn { background: #EF4444; color: #fff; border: none; border-radius: 6px; padding: 0.3rem 0.65rem; font-size: 1.1rem; cursor: pointer; line-height: 1; font-weight: 600; }
+.file-viewer__close-btn:hover { background: #DC2626; }
+.file-viewer__content { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; user-select: none; }
+.file-viewer__image-wrapper { transition: transform 0.1s ease-out; }
+.file-viewer__image { max-width: 100%; max-height: 85vh; display: block; border-radius: 4px; }
+.file-viewer__iframe { width: 100%; height: 100%; border: none; background: #fff; }
+.file-viewer__no-preview { text-align: center; color: #9CA3AF; padding: 3rem; }
+.file-viewer__no-preview-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
+.file-viewer__no-preview p { margin: 0 0 0.5rem; font-size: 0.9rem; }
+.file-viewer__no-preview-sub { font-size: 0.8rem; color: #6B7280; }
+.file-viewer__download-link { display: inline-block; margin-top: 1rem; padding: 0.5rem 1rem; background: #1D3095; color: #fff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; }
+.file-viewer__download-link:hover { background: #162470; }
+.file-viewer__footer { padding: 0.4rem 1rem; text-align: center; font-size: 0.72rem; color: #6B7280; background: #111827; border-top: 1px solid #374151; }
+
+/* --------------------------------------------------------------------------
+   File Thumbnails & View Link
+   -------------------------------------------------------------------------- */
+.job-files__thumb { width: 40px; height: 40px; border-radius: 6px; overflow: hidden; border: 1px solid #E5E7EB; cursor: pointer; padding: 0; background: none; flex-shrink: 0; }
+.job-files__thumb-img { width: 100%; height: 100%; object-fit: cover; }
+.job-files__view-link { background: none; border: none; color: #1D3095; cursor: pointer; font-family: inherit; font-size: inherit; font-weight: inherit; padding: 0; text-decoration: underline; text-decoration-style: dotted; }
+.job-files__view-link:hover { color: #162470; }
+.job-files__drop-sub { font-size: 0.72rem; color: #9CA3AF; margin: 0.25rem 0 0; }
+
+/* --------------------------------------------------------------------------
+   CSV Preview Table
+   -------------------------------------------------------------------------- */
+.job-import__csv-actions { margin-bottom: 1rem; }
+.job-import__template-btn { background: #F3F4F6; border: 1px solid #E5E7EB; border-radius: 6px; padding: 0.4rem 0.85rem; font-size: 0.82rem; font-family: inherit; color: #374151; cursor: pointer; transition: all 0.15s; }
+.job-import__template-btn:hover { background: #E5E7EB; }
+.job-import__preview { background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; }
+.job-import__preview-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; flex-wrap: wrap; gap: 0.5rem; }
+.job-import__preview-header h4 { margin: 0; font-size: 0.9rem; }
+.job-import__preview-table-wrap { overflow-x: auto; max-height: 400px; overflow-y: auto; }
+.job-import__preview-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.job-import__preview-table th { position: sticky; top: 0; background: #F3F4F6; padding: 0.4rem 0.6rem; text-align: left; font-weight: 600; color: #374151; border-bottom: 2px solid #E5E7EB; white-space: nowrap; }
+.job-import__preview-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #F3F4F6; color: #4B5563; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.job-import__preview-table tr:hover td { background: #FAFBFF; }
+
+/* --------------------------------------------------------------------------
+   File Upload List (Import Page)
+   -------------------------------------------------------------------------- */
+.job-import__file-list { background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 1rem; }
+.job-import__file-list-header { display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 0.75rem; background: #F9FAFB; border-bottom: 1px solid #E5E7EB; border-radius: 8px 8px 0 0; font-size: 0.85rem; font-weight: 600; color: #374151; }
+.job-import__file-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid #F3F4F6; }
+.job-import__file-item:last-child { border-bottom: none; }
+.job-import__file-icon { font-size: 1.2rem; flex-shrink: 0; }
+.job-import__file-info { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.job-import__file-name { font-size: 0.82rem; font-weight: 500; color: #1F2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job-import__file-meta { font-size: 0.7rem; color: #9CA3AF; }
+.job-import__file-remove { background: none; border: none; cursor: pointer; font-size: 1.1rem; color: #9CA3AF; padding: 0.2rem 0.4rem; line-height: 1; }
+.job-import__file-remove:hover { color: #EF4444; }
+
+/* --------------------------------------------------------------------------
+   Supported File Types Grid
+   -------------------------------------------------------------------------- */
+.job-import__supported-types { margin-top: 1.5rem; }
+.job-import__supported-types h4 { font-size: 0.9rem; margin: 0 0 0.75rem; color: #374151; }
+.job-import__type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.65rem; }
+.job-import__type-card { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; padding: 0.75rem 0.5rem; background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; text-align: center; }
+.job-import__type-card span:first-child { font-size: 1.5rem; }
+.job-import__type-card strong { font-size: 0.82rem; color: #374151; }
+.job-import__type-card span:last-child { font-size: 0.7rem; color: #9CA3AF; }
+
+/* --------------------------------------------------------------------------
    Responsive
    -------------------------------------------------------------------------- */
 @media (max-width: 768px) {

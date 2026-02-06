@@ -1,6 +1,7 @@
-// app/admin/components/jobs/JobFileManager.tsx — File management with backups
+// app/admin/components/jobs/JobFileManager.tsx — File management with viewer + multi upload
 'use client';
 import { useState } from 'react';
+import FileViewer, { isImageFile } from './FileViewer';
 
 interface JobFile {
   id: string;
@@ -8,6 +9,7 @@ interface JobFile {
   file_type: string;
   file_url?: string;
   file_size?: number;
+  mime_type?: string;
   section: string;
   description?: string;
   uploaded_by: string;
@@ -16,19 +18,35 @@ interface JobFile {
 }
 
 const FILE_TYPES: Record<string, { label: string; icon: string }> = {
-  drawing: { label: 'Drawing', icon: '📐' },
-  field_data: { label: 'Field Data', icon: '📊' },
-  image: { label: 'Image', icon: '🖼️' },
-  satellite_image: { label: 'Satellite Image', icon: '🛰️' },
-  voice_memo: { label: 'Voice Memo', icon: '🎙️' },
-  document: { label: 'Document', icon: '📄' },
-  deed: { label: 'Deed', icon: '📜' },
-  plat: { label: 'Plat', icon: '🗺️' },
-  legal: { label: 'Legal', icon: '⚖️' },
-  cad: { label: 'CAD File', icon: '💻' },
-  trimble: { label: 'Trimble Data', icon: '📡' },
-  backup: { label: 'Backup', icon: '💾' },
-  other: { label: 'Other', icon: '📎' },
+  drawing: { label: 'Drawing', icon: '&#x1F4D0;' },
+  field_data: { label: 'Field Data', icon: '&#x1F4CA;' },
+  image: { label: 'Image', icon: '&#x1F5BC;' },
+  satellite_image: { label: 'Satellite Image', icon: '&#x1F6F0;' },
+  voice_memo: { label: 'Voice Memo', icon: '&#x1F399;' },
+  document: { label: 'Document', icon: '&#x1F4C4;' },
+  deed: { label: 'Deed', icon: '&#x1F4DC;' },
+  plat: { label: 'Plat', icon: '&#x1F5FA;' },
+  legal: { label: 'Legal', icon: '&#x2696;' },
+  cad: { label: 'CAD File', icon: '&#x1F4BB;' },
+  trimble: { label: 'Trimble Data', icon: '&#x1F4E1;' },
+  backup: { label: 'Backup', icon: '&#x1F4BE;' },
+  other: { label: 'Other', icon: '&#x1F4CE;' },
+};
+
+const FILE_TYPE_ICONS: Record<string, string> = {
+  drawing: '\u{1F4D0}',
+  field_data: '\u{1F4CA}',
+  image: '\u{1F5BC}',
+  satellite_image: '\u{1F6F0}',
+  voice_memo: '\u{1F399}',
+  document: '\u{1F4C4}',
+  deed: '\u{1F4DC}',
+  plat: '\u{1F5FA}',
+  legal: '\u2696\uFE0F',
+  cad: '\u{1F4BB}',
+  trimble: '\u{1F4E1}',
+  backup: '\u{1F4BE}',
+  other: '\u{1F4CE}',
 };
 
 const SECTIONS = [
@@ -40,9 +58,23 @@ const SECTIONS = [
   { key: 'delivery', label: 'Delivery' },
 ];
 
+// Auto-detect file type from extension
+function detectFileType(fileName: string): string {
+  const ext = fileName.toLowerCase().slice(fileName.lastIndexOf('.'));
+  if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.tiff'].includes(ext)) return 'image';
+  if (['.dwg', '.dxf', '.dgn'].includes(ext)) return 'cad';
+  if (['.jxl', '.dc', '.job', '.vce'].includes(ext)) return 'trimble';
+  if (['.pdf'].includes(ext)) return 'document';
+  if (['.doc', '.docx', '.rtf', '.odt'].includes(ext)) return 'document';
+  if (['.xls', '.xlsx', '.csv'].includes(ext)) return 'field_data';
+  if (['.mp3', '.wav', '.m4a', '.ogg'].includes(ext)) return 'voice_memo';
+  if (['.tif', '.tiff', '.sid', '.ecw', '.jp2'].includes(ext)) return 'satellite_image';
+  return 'other';
+}
+
 interface Props {
   files: JobFile[];
-  onUpload?: (file: { file_name: string; file_type: string; file_url: string; file_size: number; section: string; description: string }) => void;
+  onUpload?: (file: { file_name: string; file_type: string; file_url: string; file_size: number; mime_type?: string; section: string; description: string }) => void;
   onDelete?: (id: string) => void;
   activeSection?: string;
 }
@@ -53,6 +85,9 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
   const [uploadType, setUploadType] = useState('document');
   const [description, setDescription] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [viewingFile, setViewingFile] = useState<JobFile | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadCount, setUploadCount] = useState(0);
 
   const sectionFiles = files.filter(f => !activeSection || f.section === section);
 
@@ -63,47 +98,58 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
     return (bytes / 1048576).toFixed(1) + ' MB';
   }
 
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragActive(false);
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-
+  function processFile(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
+      const detectedType = detectFileType(file.name);
       onUpload?.({
         file_name: file.name,
-        file_type: uploadType,
+        file_type: uploadType === 'document' ? detectedType : uploadType,
         file_url: reader.result as string,
         file_size: file.size,
+        mime_type: file.type,
         section,
         description,
       });
-      setDescription('');
-      setShowUpload(false);
     };
     reader.readAsDataURL(file);
   }
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragActive(false);
+    const fileList = e.dataTransfer.files;
+    if (!fileList.length) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      onUpload?.({
-        file_name: file.name,
-        file_type: uploadType,
-        file_url: reader.result as string,
-        file_size: file.size,
-        section,
-        description,
-      });
-      setDescription('');
-      setShowUpload(false);
-    };
-    reader.readAsDataURL(file);
+    setUploading(true);
+    setUploadCount(fileList.length);
+    for (let i = 0; i < fileList.length; i++) {
+      processFile(fileList[i]);
+    }
+    setDescription('');
+    setTimeout(() => { setShowUpload(false); setUploading(false); setUploadCount(0); }, 500);
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const fileList = e.target.files;
+    if (!fileList?.length) return;
+
+    setUploading(true);
+    setUploadCount(fileList.length);
+    for (let i = 0; i < fileList.length; i++) {
+      processFile(fileList[i]);
+    }
+    setDescription('');
+    setTimeout(() => { setShowUpload(false); setUploading(false); setUploadCount(0); }, 500);
     e.target.value = '';
+  }
+
+  function canPreview(file: JobFile): boolean {
+    if (!file.file_url) return false;
+    return isImageFile(file.file_name, file.mime_type) ||
+      file.file_name.toLowerCase().endsWith('.pdf') ||
+      file.file_name.toLowerCase().endsWith('.txt') ||
+      file.file_name.toLowerCase().endsWith('.csv');
   }
 
   return (
@@ -143,8 +189,8 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
               value={uploadType}
               onChange={e => setUploadType(e.target.value)}
             >
-              {Object.entries(FILE_TYPES).filter(([k]) => k !== 'backup').map(([key, { label }]) => (
-                <option key={key} value={key}>{label}</option>
+              {Object.entries(FILE_TYPES).filter(([k]) => k !== 'backup').map(([key, val]) => (
+                <option key={key} value={key}>{val.label}</option>
               ))}
             </select>
             <input
@@ -160,9 +206,25 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
             onDragLeave={() => setDragActive(false)}
             onDrop={handleDrop}
           >
-            <span className="job-files__drop-icon">📂</span>
-            <p className="job-files__drop-text">Drag & drop file here or click to browse</p>
-            <input type="file" className="job-files__file-input" onChange={handleFileSelect} />
+            {uploading ? (
+              <>
+                <span className="job-files__drop-icon">&#x23F3;</span>
+                <p className="job-files__drop-text">Uploading {uploadCount} file{uploadCount !== 1 ? 's' : ''}...</p>
+              </>
+            ) : (
+              <>
+                <span className="job-files__drop-icon">&#x1F4C2;</span>
+                <p className="job-files__drop-text">Drag & drop files here or click to browse</p>
+                <p className="job-files__drop-sub">Supports images, PDFs, Word docs, CAD files, and more. Multiple files OK.</p>
+              </>
+            )}
+            <input
+              type="file"
+              className="job-files__file-input"
+              onChange={handleFileSelect}
+              multiple
+              accept="image/*,.pdf,.doc,.docx,.txt,.rtf,.csv,.xls,.xlsx,.dwg,.dxf,.dgn,.jxl,.dc,.job"
+            />
           </div>
         </div>
       )}
@@ -172,31 +234,72 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
       ) : (
         <div className="job-files__list">
           {sectionFiles.map(file => {
-            const typeInfo = FILE_TYPES[file.file_type] || FILE_TYPES.other;
+            const typeIcon = FILE_TYPE_ICONS[file.file_type] || FILE_TYPE_ICONS.other;
+            const typeLabel = FILE_TYPES[file.file_type]?.label || 'Other';
+            const previewing = canPreview(file);
+            const isImage = isImageFile(file.file_name, file.mime_type);
+
             return (
               <div key={file.id} className="job-files__item">
-                <span className="job-files__item-icon">{typeInfo.icon}</span>
+                {/* Thumbnail for images */}
+                {isImage && file.file_url ? (
+                  <button
+                    className="job-files__thumb"
+                    onClick={() => setViewingFile(file)}
+                    title="Click to view"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={file.file_url} alt={file.file_name} className="job-files__thumb-img" />
+                  </button>
+                ) : (
+                  <span className="job-files__item-icon">{typeIcon}</span>
+                )}
                 <div className="job-files__item-info">
-                  <span className="job-files__item-name">{file.file_name}</span>
+                  <span className="job-files__item-name">
+                    {previewing ? (
+                      <button
+                        className="job-files__view-link"
+                        onClick={() => setViewingFile(file)}
+                      >
+                        {file.file_name}
+                      </button>
+                    ) : (
+                      file.file_name
+                    )}
+                  </span>
                   <span className="job-files__item-meta">
-                    {typeInfo.label} · {formatFileSize(file.file_size)} · {new Date(file.uploaded_at).toLocaleDateString()}
+                    {typeLabel} {formatFileSize(file.file_size) && `\u00B7 ${formatFileSize(file.file_size)}`} &middot; {new Date(file.uploaded_at).toLocaleDateString()}
                   </span>
                   {file.description && (
                     <span className="job-files__item-desc">{file.description}</span>
                   )}
                 </div>
                 <div className="job-files__item-actions">
+                  {previewing && (
+                    <button className="job-files__item-btn" onClick={() => setViewingFile(file)} title="Preview">
+                      &#x1F441;
+                    </button>
+                  )}
                   {file.file_url && (
-                    <a href={file.file_url} download={file.file_name} className="job-files__item-btn" title="Download">⬇️</a>
+                    <a href={file.file_url} download={file.file_name} className="job-files__item-btn" title="Download">
+                      &#x2B07;&#xFE0F;
+                    </a>
                   )}
                   {onDelete && (
-                    <button className="job-files__item-btn job-files__item-btn--delete" onClick={() => onDelete(file.id)} title="Delete">🗑️</button>
+                    <button className="job-files__item-btn job-files__item-btn--delete" onClick={() => onDelete(file.id)} title="Delete">
+                      &#x1F5D1;&#xFE0F;
+                    </button>
                   )}
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* File Viewer Modal */}
+      {viewingFile && (
+        <FileViewer file={viewingFile} onClose={() => setViewingFile(null)} />
       )}
     </div>
   );
