@@ -10,6 +10,7 @@ import Fieldbook from './Fieldbook';
 
 import '../styles/AdminLayout.css';
 import '../styles/AdminLearn.css';
+import '../styles/AdminMessaging.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
@@ -35,6 +36,10 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/my-files': 'My Files',
   '/admin/leads': 'Leads',
   '/admin/settings': 'Settings',
+  '/admin/messages': 'Messages',
+  '/admin/messages/new': 'New Message',
+  '/admin/messages/contacts': 'Team Directory',
+  '/admin/messages/settings': 'Message Settings',
 };
 
 function getTitle(p: string): string {
@@ -45,6 +50,7 @@ function getTitle(p: string): string {
   if (p.includes('/learn/modules/')) return 'Module';
   if (p.includes('/learn/knowledge-base/')) return 'Article';
   if (p.includes('/learn/flashcards/')) return 'Study Deck';
+  if (p.startsWith('/admin/messages/') && !PAGE_TITLES[p]) return 'Conversation';
   return 'Admin';
 }
 

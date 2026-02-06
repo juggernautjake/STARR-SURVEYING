@@ -43,6 +43,10 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
       { href: '/admin/payroll', label: 'Payroll', icon: '💰', adminOnly: true },
       { href: '/admin/my-pay', label: 'My Pay', icon: '💵' },
     ]},
+    { label: 'Communication', items: [
+      { href: '/admin/messages', label: 'Messages', icon: '💬' },
+      { href: '/admin/messages/contacts', label: 'Team Directory', icon: '📇' },
+    ]},
     { label: 'Notes & Files', items: [
       { href: '/admin/notes', label: 'Company Notes', icon: '📝', adminOnly: true },
       { href: '/admin/my-notes', label: 'My Notes', icon: '📒' },
