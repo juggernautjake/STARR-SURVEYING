@@ -31,7 +31,34 @@ export async function GET(req: Request) {
     return NextResponse.json({ lessons: data || [] });
   }
 
-  return NextResponse.json({ error: 'Provide id or module_id' }, { status: 400 });
+  // Support fetching all lessons (for manage page)
+  const all = searchParams.get('all');
+  if (all) {
+    const { data } = await supabaseAdmin.from('learning_lessons')
+      .select('*').order('order_index');
+    return NextResponse.json({ lessons: data || [] });
+  }
+
+  return NextResponse.json({ error: 'Provide id, module_id, or all=true' }, { status: 400 });
+}
+
+export async function PUT(req: Request) {
+  const session = await auth();
+  if (!session?.user?.email || !isAdmin(session.user.email)) {
+    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  }
+  const body = await req.json();
+  const { id, ...updates } = body;
+  if (!id) return NextResponse.json({ error: 'Missing lesson id' }, { status: 400 });
+
+  const { data, error } = await supabaseAdmin
+    .from('learning_lessons')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ lesson: data });
 }
 
 export async function POST(req: Request) {

@@ -22,6 +22,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/learn/exam-prep/sit': 'SIT Exam Prep',
   '/admin/learn/exam-prep/rpls': 'RPLS Exam Prep',
   '/admin/learn/search': 'Search',
+  '/admin/learn/quiz-history': 'Quiz History',
   '/admin/learn/manage': 'Manage Content',
   '/admin/profile': 'My Profile',
   '/admin/jobs': 'Job Tracker',
@@ -38,6 +39,7 @@ const PAGE_TITLES: Record<string, string> = {
 
 function getTitle(p: string): string {
   if (PAGE_TITLES[p]) return PAGE_TITLES[p];
+  if (p.includes('/lesson-builder/')) return 'Lesson Builder';
   if (p.includes('/quiz')) return 'Quiz';
   if (p.includes('/test')) return 'Module Test';
   if (p.includes('/learn/modules/')) return 'Module';

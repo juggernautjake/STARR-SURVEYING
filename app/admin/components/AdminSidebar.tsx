@@ -28,6 +28,7 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
       { href: '/admin/learn/knowledge-base', label: 'Knowledge Base', icon: '🔍' },
       { href: '/admin/learn/flashcards', label: 'Flashcards', icon: '🃏' },
       { href: '/admin/learn/exam-prep', label: 'Exam Prep', icon: '📝' },
+      { href: '/admin/learn/quiz-history', label: 'Quiz History', icon: '📊' },
       { href: '/admin/learn/fieldbook', label: 'My Fieldbook', icon: '📓' },
       { href: '/admin/learn/search', label: 'Search', icon: '🔎' },
       { href: '/admin/learn/manage', label: 'Manage Content', icon: '✏️', adminOnly: true },
