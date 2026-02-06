@@ -13,16 +13,44 @@ export default function ModuleDetailPage() {
   const [mod, setMod] = useState<ModuleDetail | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState('');
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/admin/learn/modules?id=${moduleId}`).then(r => r.json()),
-      fetch(`/api/admin/learn/lessons?moduleId=${moduleId}`).then(r => r.json()),
+      fetch(`/api/admin/learn/lessons?module_id=${moduleId}`).then(r => r.json()),
     ]).then(([modData, lesData]) => {
       setMod(modData.module || null);
-      setLessons(lesData.lessons || []);
+      // Use lessons from the lessons API, fallback to modules API response
+      setLessons(lesData.lessons?.length ? lesData.lessons : (modData.lessons || []));
     }).catch(() => {}).finally(() => setLoading(false));
   }, [moduleId]);
+
+  async function seedContent() {
+    setSeeding(true);
+    setSeedMsg('');
+    try {
+      const res = await fetch('/api/admin/learn/seed', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setSeedMsg('Content seeded! Reloading...');
+        // Reload lessons
+        const [modData, lesData] = await Promise.all([
+          fetch(`/api/admin/learn/modules?id=${moduleId}`).then(r => r.json()),
+          fetch(`/api/admin/learn/lessons?module_id=${moduleId}`).then(r => r.json()),
+        ]);
+        setMod(modData.module || null);
+        setLessons(lesData.lessons?.length ? lesData.lessons : (modData.lessons || []));
+        setSeedMsg('');
+      } else {
+        setSeedMsg(data.error || 'Failed to seed content');
+      }
+    } catch {
+      setSeedMsg('Network error');
+    }
+    setSeeding(false);
+  }
 
   if (loading) return <div className="admin-empty"><div className="admin-empty__icon">⏳</div><div className="admin-empty__title">Loading...</div></div>;
   if (!mod) return <div className="admin-empty"><div className="admin-empty__icon">❌</div><div className="admin-empty__title">Module not found</div><Link href="/admin/learn/modules" className="admin-btn admin-btn--ghost admin-btn--sm">← Back</Link></div>;
@@ -41,7 +69,20 @@ export default function ModuleDetailPage() {
       </div>
 
       {lessons.length === 0 ? (
-        <div className="admin-empty"><div className="admin-empty__icon">📖</div><div className="admin-empty__title">No lessons yet</div></div>
+        <div className="admin-empty">
+          <div className="admin-empty__icon">📖</div>
+          <div className="admin-empty__title">No lessons yet</div>
+          <div className="admin-empty__desc">This module doesn&apos;t have any lessons. You can populate it with introductory content.</div>
+          <button
+            className="admin-btn admin-btn--primary"
+            onClick={seedContent}
+            disabled={seeding}
+            style={{ marginTop: '1rem' }}
+          >
+            {seeding ? 'Populating...' : 'Populate Introductory Content'}
+          </button>
+          {seedMsg && <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: seedMsg.includes('error') || seedMsg.includes('Failed') ? '#EF4444' : '#10B981' }}>{seedMsg}</p>}
+        </div>
       ) : (
         <div>
           {lessons.sort((a, b) => a.order_index - b.order_index).map((lesson) => (
