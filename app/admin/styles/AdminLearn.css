@@ -492,6 +492,21 @@
 .fc-study__rating-btn--easy:hover { background:#EFF6FF; border-color:#1D3095; }
 .fc-study__stats { font-family:'Inter',sans-serif; font-size:.78rem; color:#9CA3AF; text-align:center; margin-top:.5rem; }
 
+/* === FLASHCARD STUDY SETUP (choose study type) === */
+.fc-setup { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem; max-width:720px; }
+.fc-setup__option { display:flex; flex-direction:column; align-items:center; gap:.65rem; padding:1.75rem 1.25rem; background:#FFF; border:2px solid #E5E7EB; border-radius:12px; cursor:pointer; transition:all .2s; text-align:center; }
+.fc-setup__option:hover { border-color:#1D3095; background:#FAFBFF; box-shadow:0 4px 16px rgba(29,48,149,.1); transform:translateY(-2px); }
+.fc-setup__option-icon { font-size:2rem; width:56px; height:56px; display:flex; align-items:center; justify-content:center; background:#EFF6FF; border-radius:50%; color:#1D3095; font-family:'Sora',sans-serif; font-weight:700; }
+.fc-setup__option-title { font-family:'Sora',sans-serif; font-size:1rem; font-weight:600; color:#0F1419; }
+.fc-setup__option-desc { font-family:'Inter',sans-serif; font-size:.82rem; color:#6B7280; line-height:1.45; }
+
+/* === STUDY MODE BADGE === */
+.fc-study__mode-badge { display:inline-block; margin-left:.65rem; padding:.15rem .55rem; font-family:'Inter',sans-serif; font-size:.68rem; font-weight:700; color:#1D3095; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:12px; vertical-align:middle; text-transform:uppercase; letter-spacing:.3px; }
+
+/* === HINT BUTTON (study mode) === */
+.fc-study__hint-btn { display:inline-flex; align-items:center; gap:.3rem; padding:.4rem .85rem; background:#FEF3C7; border:1px solid #FCD34D; border-radius:6px; font-family:'Inter',sans-serif; font-size:.8rem; font-weight:600; color:#92400E; cursor:pointer; transition:all .15s; }
+.fc-study__hint-btn:hover { background:#FDE68A; transform:translateY(-1px); }
+
 /* === MANAGE STATUS BADGES === */
 .manage__status { font-family:'Inter',sans-serif; font-size:.68rem; font-weight:700; padding:.15rem .45rem; border-radius:4px; text-transform:uppercase; letter-spacing:.3px; }
 .manage__status--draft { background:#FEF3C7; color:#92400E; }
@@ -536,4 +551,11 @@
   .lesson-builder__block-picker { grid-template-columns:1fr; }
   .tiptap-editor__toolbar-group { border-right:none; margin-right:0; padding-right:0; }
   .fc-study__rating-buttons { flex-wrap:wrap; }
+  .fc-setup { grid-template-columns:1fr; }
 }
+
+/* === FLASHCARD CARD FOCUS (keyboard a11y) === */
+.fc-study__card:focus { outline:2px solid #1D3095; outline-offset:2px; border-radius:14px; }
+.fc-study__card:focus:not(:focus-visible) { outline:none; }
+.flashcard:focus { outline:2px solid #1D3095; outline-offset:2px; border-radius:12px; }
+.flashcard:focus:not(:focus-visible) { outline:none; }
