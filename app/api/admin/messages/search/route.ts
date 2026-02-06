@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     .eq('user_email', session.user.email)
     .is('left_at', null);
 
-  const convIds = (participantRows || []).map(r => r.conversation_id);
+  const convIds = (participantRows || []).map((r: { conversation_id: string }) => r.conversation_id);
   if (convIds.length === 0) return NextResponse.json({ results: [] });
 
   let searchQuery = supabaseAdmin

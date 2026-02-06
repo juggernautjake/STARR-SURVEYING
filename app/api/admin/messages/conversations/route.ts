@@ -50,7 +50,7 @@ export async function GET(req: Request) {
     .eq('user_email', session.user.email)
     .is('left_at', null);
 
-  const convIds = (participantRows || []).map(r => r.conversation_id);
+  const convIds = (participantRows || []).map((r: { conversation_id: string }) => r.conversation_id);
   if (convIds.length === 0) return NextResponse.json({ conversations: [] });
 
   let query = supabaseAdmin
@@ -71,13 +71,13 @@ export async function GET(req: Request) {
     .in('conversation_id', convIds)
     .is('left_at', null);
 
-  const participantMap: Record<string, any[]> = {};
-  (allParticipants || []).forEach(p => {
+  const participantMap: Record<string, unknown[]> = {};
+  (allParticipants || []).forEach((p: { conversation_id: string }) => {
     if (!participantMap[p.conversation_id]) participantMap[p.conversation_id] = [];
     participantMap[p.conversation_id].push(p);
   });
 
-  const conversations = (data || []).map(c => ({
+  const conversations = (data || []).map((c: { id: string; [key: string]: unknown }) => ({
     ...c,
     participants: participantMap[c.id] || [],
   }));
@@ -112,8 +112,8 @@ export async function POST(req: Request) {
       .eq('user_email', otherEmail)
       .is('left_at', null);
 
-    const myConvIds = new Set((existing || []).map(r => r.conversation_id));
-    const sharedConvId = (otherExisting || []).find(r => myConvIds.has(r.conversation_id));
+    const myConvIds = new Set((existing || []).map((r: { conversation_id: string }) => r.conversation_id));
+    const sharedConvId = (otherExisting || []).find((r: { conversation_id: string }) => myConvIds.has(r.conversation_id));
 
     if (sharedConvId) {
       // Verify it's a direct conversation

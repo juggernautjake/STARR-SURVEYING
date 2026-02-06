@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       .eq('conversation_id', conversation_id)
       .neq('sender_email', session.user.email);
 
-    const ids = (messages || []).map(m => m.id);
+    const ids = (messages || []).map((m: { id: string }) => m.id);
     if (ids.length > 0) {
       const upserts = ids.map(id => ({
         message_id: id,

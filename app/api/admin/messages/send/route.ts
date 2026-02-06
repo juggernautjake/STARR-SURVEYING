@@ -42,7 +42,7 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Get read receipts for these messages
-  const messageIds = (data || []).map(m => m.id);
+  const messageIds = (data || []).map((m: { id: string }) => m.id);
   const { data: receipts } = await supabaseAdmin
     .from('message_read_receipts')
     .select('*')
@@ -54,19 +54,19 @@ export async function GET(req: Request) {
     .select('*')
     .in('message_id', messageIds.length > 0 ? messageIds : ['__none__']);
 
-  const receiptMap: Record<string, any[]> = {};
-  (receipts || []).forEach(r => {
+  const receiptMap: Record<string, unknown[]> = {};
+  (receipts || []).forEach((r: { message_id: string }) => {
     if (!receiptMap[r.message_id]) receiptMap[r.message_id] = [];
     receiptMap[r.message_id].push(r);
   });
 
-  const reactionMap: Record<string, any[]> = {};
-  (reactions || []).forEach(r => {
+  const reactionMap: Record<string, unknown[]> = {};
+  (reactions || []).forEach((r: { message_id: string }) => {
     if (!reactionMap[r.message_id]) reactionMap[r.message_id] = [];
     reactionMap[r.message_id].push(r);
   });
 
-  const messages = (data || []).map(m => ({
+  const messages = (data || []).map((m: { id: string; [key: string]: unknown }) => ({
     ...m,
     read_receipts: receiptMap[m.id] || [],
     reactions: reactionMap[m.id] || [],

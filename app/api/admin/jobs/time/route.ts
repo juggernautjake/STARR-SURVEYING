@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const totalMinutes = (data || []).reduce((sum, e) => sum + (e.duration_minutes || 0), 0);
+  const totalMinutes = (data || []).reduce((sum: number, e: { duration_minutes: number | null }) => sum + (e.duration_minutes || 0), 0);
 
   return NextResponse.json({
     entries: data || [],
