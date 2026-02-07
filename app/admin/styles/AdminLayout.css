@@ -31,9 +31,10 @@
 .admin-sidebar__user-role { font-family:'Inter',sans-serif; font-size:.65rem; color:rgba(255,255,255,.5); text-transform:uppercase; }
 .admin-sidebar__header--clickable { cursor:pointer; transition:background .15s; }
 .admin-sidebar__header--clickable:hover { background:rgba(255,255,255,.08); }
-.admin-sidebar__section-label--collapsible { cursor:pointer; display:flex; align-items:center; gap:.35rem; transition:color .15s; user-select:none; }
-.admin-sidebar__section-label--collapsible:hover { color:rgba(255,255,255,.7); }
-.admin-sidebar__section-arrow { display:inline-block; font-size:.65rem; color:rgba(255,255,255,.4); transition:transform .2s; }
+.admin-sidebar__section-label--collapsible { cursor:pointer; display:flex; align-items:center; gap:.4rem; transition:all .15s; user-select:none; border-radius:4px; margin:0 .5rem; padding:.6rem .75rem .3rem; }
+.admin-sidebar__section-label--collapsible:hover { color:rgba(255,255,255,.7); background:rgba(255,255,255,.04); }
+.admin-sidebar__section-label--active { color:rgba(255,255,255,.7); background:rgba(255,255,255,.06); }
+.admin-sidebar__section-arrow { display:inline-flex; align-items:center; justify-content:center; font-size:1rem; color:rgba(255,255,255,.5); transition:transform .2s; width:1rem; }
 .admin-sidebar__section-arrow--expanded { transform:rotate(90deg); }
 
 /* === TOP BAR === */
@@ -75,9 +76,9 @@
 .admin-btn:disabled { opacity:.5; cursor:not-allowed; }
 
 /* === SEARCH === */
-.admin-search { position:relative; width:100%; max-width:500px; }
-.admin-search__icon { position:absolute; left:.85rem; top:50%; transform:translateY(-50%); color:#9CA3AF; font-size:1rem; pointer-events:none; }
-.admin-search__input { width:100%; padding:.6rem .85rem .6rem 2.5rem; font-family:'Inter',sans-serif; font-size:.9rem; border:2px solid #E5E7EB; border-radius:8px; background:#FFF; color:#0F1419; margin:0; }
+.admin-search { position:relative; width:100%; max-width:500px; background:#FFF; border-radius:8px; }
+.admin-search__icon { position:absolute; left:.75rem; top:50%; transform:translateY(-50%); color:#9CA3AF; font-size:1.05rem; pointer-events:none; z-index:2; line-height:1; }
+.admin-search__input { width:100%; padding:.6rem .85rem .6rem 2.5rem; font-family:'Inter',sans-serif; font-size:.9rem; border:2px solid #E5E7EB; border-radius:8px; background:transparent; color:#0F1419; margin:0; position:relative; z-index:1; }
 .admin-search__input:focus { outline:none; border-color:#1D3095; }
 .admin-search__input::placeholder { color:#9CA3AF; }
 

@@ -164,10 +164,12 @@
 .payroll-search {
   width: 100%;
   max-width: 400px;
-  padding: 0.6rem 1rem;
+  padding: 0.6rem 1rem 0.6rem 2.25rem;
   border: 1px solid #D1D5DB;
   border-radius: 8px;
   font-size: 0.9rem;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat .65rem center;
+  background-size: 16px 16px;
 }
 
 .payroll-search:focus {

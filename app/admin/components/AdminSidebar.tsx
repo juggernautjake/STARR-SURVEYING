@@ -14,7 +14,7 @@ interface AdminSidebarProps {
 }
 
 interface NavItem { href: string; label: string; icon: string; adminOnly?: boolean; }
-interface NavSection { label: string; items: NavItem[]; collapsible: boolean; }
+interface NavSection { label: string; items: NavItem[]; }
 
 const STORAGE_KEY = 'starr-sidebar-collapsed';
 
@@ -23,12 +23,12 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
   const router = useRouter();
 
   const sections: NavSection[] = [
-    { label: 'Main', collapsible: false, items: [
+    { label: 'Main', items: [
       { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
       { href: '/admin/assignments', label: 'Assignments', icon: '📋' },
       { href: '/admin/schedule', label: 'My Schedule', icon: '📅' },
     ]},
-    { label: 'Learning', collapsible: true, items: [
+    { label: 'Learning', items: [
       { href: '/admin/learn', label: 'Learning Hub', icon: '🎓' },
       { href: '/admin/learn/modules', label: 'Modules', icon: '📚' },
       { href: '/admin/learn/knowledge-base', label: 'Knowledge Base', icon: '🔍' },
@@ -39,7 +39,7 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
       { href: '/admin/learn/search', label: 'Search', icon: '🔎' },
       { href: '/admin/learn/manage', label: 'Manage Content', icon: '✏️', adminOnly: true },
     ]},
-    { label: 'Work', collapsible: true, items: [
+    { label: 'Work', items: [
       { href: '/admin/jobs', label: 'All Jobs', icon: '📋', adminOnly: true },
       { href: '/admin/my-jobs', label: 'My Jobs', icon: '🗂️' },
       { href: '/admin/my-hours', label: 'My Hours', icon: '⏱️' },
@@ -48,29 +48,28 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
       { href: '/admin/leads', label: 'Leads', icon: '📨', adminOnly: true },
       { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', adminOnly: true },
     ]},
-    { label: 'People', collapsible: true, items: [
+    { label: 'People', items: [
       { href: '/admin/employees', label: 'Employees', icon: '👥', adminOnly: true },
       { href: '/admin/payroll', label: 'Payroll', icon: '💰', adminOnly: true },
       { href: '/admin/my-pay', label: 'My Pay', icon: '💵' },
       { href: '/admin/payout-log', label: 'Payout History', icon: '📒' },
     ]},
-    { label: 'Communication', collapsible: true, items: [
+    { label: 'Communication', items: [
       { href: '/admin/messages', label: 'Messages', icon: '💬' },
       { href: '/admin/messages/contacts', label: 'Team Directory', icon: '📇' },
     ]},
-    { label: 'Notes & Files', collapsible: true, items: [
+    { label: 'Notes & Files', items: [
       { href: '/admin/notes', label: 'Company Notes', icon: '📝', adminOnly: true },
       { href: '/admin/my-notes', label: 'My Notes', icon: '📒' },
       { href: '/admin/my-files', label: 'My Files', icon: '📁' },
     ]},
-    { label: 'Account', collapsible: true, items: [
+    { label: 'Account', items: [
       { href: '/admin/profile', label: 'My Profile', icon: '👤' },
       { href: '/admin/settings', label: 'Settings', icon: '⚙️', adminOnly: true },
       { href: '/admin/error-log', label: 'Error Log', icon: '🐛', adminOnly: true },
     ]},
   ];
 
-  // Load collapsed state from localStorage
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -96,7 +95,6 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
     return pathname.startsWith(href);
   };
 
-  // Auto-expand section containing the active page
   const isSectionActive = (section: NavSection): boolean => {
     return section.items.some((i) => isActive(i.href));
   };
@@ -125,23 +123,21 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
             const items = section.items.filter((i) => !i.adminOnly || role === 'admin');
             if (!items.length) return null;
 
-            const isCollapsible = section.collapsible;
-            const isExpanded = !isCollapsible || !collapsed[section.label] || isSectionActive(section);
+            const sectionActive = isSectionActive(section);
+            const isExpanded = !collapsed[section.label];
 
             return (
               <div key={section.label} className="admin-sidebar__section">
                 <div
-                  className={`admin-sidebar__section-label ${isCollapsible ? 'admin-sidebar__section-label--collapsible' : ''}`}
-                  onClick={isCollapsible ? () => toggleSection(section.label) : undefined}
-                  role={isCollapsible ? 'button' : undefined}
-                  tabIndex={isCollapsible ? 0 : undefined}
-                  onKeyDown={isCollapsible ? (e) => { if (e.key === 'Enter') toggleSection(section.label); } : undefined}
+                  className={`admin-sidebar__section-label admin-sidebar__section-label--collapsible${sectionActive ? ' admin-sidebar__section-label--active' : ''}`}
+                  onClick={() => toggleSection(section.label)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter') toggleSection(section.label); }}
                 >
-                  {isCollapsible && (
-                    <span className={`admin-sidebar__section-arrow ${isExpanded ? 'admin-sidebar__section-arrow--expanded' : ''}`}>
-                      &#9656;
-                    </span>
-                  )}
+                  <span className={`admin-sidebar__section-arrow ${isExpanded ? 'admin-sidebar__section-arrow--expanded' : ''}`}>
+                    &#x276F;
+                  </span>
                   {section.label}
                 </div>
                 {isExpanded && items.map((item) => (
