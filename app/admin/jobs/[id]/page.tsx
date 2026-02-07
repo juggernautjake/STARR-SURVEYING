@@ -15,7 +15,7 @@ import JobChecklist from '../../components/jobs/JobChecklist';
 import JobQuoteBuilder from '../../components/jobs/JobQuoteBuilder';
 import JobTimeTracker from '../../components/jobs/JobTimeTracker';
 import FieldWorkView from '../../components/jobs/FieldWorkView';
-import type { FieldPoint } from '../../components/jobs/FieldWorkView';
+import type { FieldPoint, JobContext } from '../../components/jobs/FieldWorkView';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
 
 interface Job {
@@ -456,6 +456,22 @@ export default function JobDetailPage() {
             jobId={jobId}
             points={fieldData}
             onRefresh={loadFieldData}
+            job={{
+              jobNumber: job.job_number,
+              jobName: job.name,
+              stage: job.stage,
+              surveyType: job.survey_type,
+              clientName: job.client_name,
+              address: job.address,
+              city: job.city,
+              state: job.state,
+              county: job.county,
+              acreage: job.acreage,
+              deadline: job.deadline,
+              createdAt: job.created_at,
+              team: job.team,
+              totalHours: job.total_hours,
+            } as JobContext}
           />
         )}
 

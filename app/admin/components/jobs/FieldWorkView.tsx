@@ -1,306 +1,51 @@
-// app/admin/components/jobs/FieldWorkView.tsx — Live field work visualization
-// Point map + point log + timeline slider + session markers + detail popup
-// Export dialog + live equipment tracking + satellite toggle + demo data
+// app/admin/components/jobs/FieldWorkView.tsx — Comprehensive field work visualization
+// Point map + point log + data table + timeline + crew panel + import/export + job header
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
-/* ─── Types ─── */
-export interface FieldPoint {
-  id: string;
-  data_type: string;
-  point_name?: string;
-  northing?: number;
-  easting?: number;
-  elevation?: number;
-  description?: string;
-  raw_data?: {
-    accuracy?: number;
-    rtk_status?: string;
-    pdop?: number;
-    hdop?: number;
-    vdop?: number;
-    satellites?: number;
-    code?: string;
-    session_id?: string;
-    hz_angle?: number;
-    vt_angle?: number;
-    slope_dist?: number;
-    notes?: string;
-  };
-  collected_by: string;
-  collected_at: string;
-  instrument?: string;
-}
+import type { FieldPoint, SessionMarker, LabelToggles, JobContext, CrewActivity } from './fieldwork-types';
+import {
+  DATA_TYPE_COLORS,
+  DATA_TYPE_LABELS,
+  RTK_LABELS,
+  SESSION_GAP_MS,
+  LABEL_NAMES,
+  SURVEY_TYPE_LABELS,
+  STAGE_LABELS,
+  POINT_CODE_CATEGORIES,
+  formatTime,
+  formatDate,
+  formatDateTime,
+  formatFullDateTime,
+  formatDuration,
+  formatDurationLong,
+  deriveCrewActivity,
+} from './fieldwork-types';
+import { generateDemoSurvey } from './fieldwork-demo';
+import { buildPointFileContent, downloadFile, parsePointFile } from './fieldwork-export';
+import type { ExportFormat } from './fieldwork-export';
 
-interface SessionMarker {
-  type: 'end' | 'start';
-  time: number;
-  label: string;
-  dateLabel: string;
-}
+// Re-export FieldPoint so existing consumers (e.g. jobs/[id]/page.tsx) keep working
+export type { FieldPoint } from './fieldwork-types';
+export type { JobContext } from './fieldwork-types';
+
+type ViewTab = 'map' | 'table';
+type SortField = 'name' | 'code' | 'elevation' | 'accuracy' | 'time' | 'type' | 'instrument';
+type SortDir = 'asc' | 'desc';
 
 interface FieldWorkViewProps {
   jobId: string;
   points: FieldPoint[];
   onRefresh: () => void;
-}
-
-/* ─── Constants ─── */
-const DATA_TYPE_COLORS: Record<string, string> = {
-  point: '#1D3095',
-  observation: '#7C3AED',
-  measurement: '#0891B2',
-  gps_position: '#059669',
-  total_station: '#D97706',
-  photo: '#EC4899',
-  note: '#6B7280',
-};
-
-const DATA_TYPE_LABELS: Record<string, string> = {
-  point: 'Point',
-  observation: 'Observation',
-  measurement: 'Measurement',
-  gps_position: 'GPS',
-  total_station: 'TS',
-  photo: 'Photo',
-  note: 'Note',
-};
-
-const RTK_LABELS: Record<string, { label: string; color: string }> = {
-  fixed: { label: 'Fixed', color: '#059669' },
-  float: { label: 'Float', color: '#D97706' },
-  dgps: { label: 'DGPS', color: '#0891B2' },
-  autonomous: { label: 'Auto', color: '#EF4444' },
-  sbas: { label: 'SBAS', color: '#7C3AED' },
-};
-
-const SESSION_GAP_MS = 30 * 60 * 1000;
-
-interface LabelToggles {
-  name: boolean;
-  code: boolean;
-  elevation: boolean;
-  accuracy: boolean;
-  rtk: boolean;
-  datetime: boolean;
-  instrument: boolean;
-  notes: boolean;
-  coordinates: boolean;
-  satellites: boolean;
-}
-
-const LABEL_NAMES: Record<keyof LabelToggles, string> = {
-  name: 'Point Name',
-  code: 'Point Code',
-  elevation: 'Elevation',
-  accuracy: 'Accuracy',
-  rtk: 'RTK Status',
-  datetime: 'Date/Time',
-  instrument: 'Instrument',
-  notes: 'Notes',
-  coordinates: 'Coordinates',
-  satellites: 'Satellites',
-};
-
-/* ─── Helpers ─── */
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-}
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-function formatFullDateTime(iso: string) {
-  return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-/* ─── Demo Data Generator ─── */
-function generateDemoSurvey(): FieldPoint[] {
-  const pts: FieldPoint[] = [];
-  const baseN = 10234567.0;
-  const baseE = 3456789.0;
-  const baseElev = 485.0;
-  // Session 1: Morning — boundary traverse with GPS
-  const session1Start = new Date('2026-02-06T08:15:00');
-  const boundaryPts = [
-    { name: 'CP-1', code: 'CP', desc: 'Control point - brass cap in concrete', dn: 0, de: 0, dEl: 0 },
-    { name: 'CP-2', code: 'CP', desc: 'Control point - PK nail in curb', dn: 250.5, de: 180.3, dEl: 1.2 },
-    { name: 'BND-1', code: 'IP', desc: 'Iron pin found - 1/2" rebar w/ cap', dn: 45.2, de: 30.1, dEl: 0.3 },
-    { name: 'BND-2', code: 'IP', desc: 'Iron pin found - 5/8" rebar', dn: 120.8, de: 25.4, dEl: -0.8 },
-    { name: 'BND-3', code: 'FND', desc: 'Found monument - TxDOT disk', dn: 185.3, de: 95.7, dEl: 2.1 },
-    { name: 'BND-4', code: 'IP', desc: 'Iron pin set - 1/2" rebar w/ Starr cap', dn: 200.1, de: 210.5, dEl: 3.5 },
-    { name: 'BND-5', code: 'IP', desc: 'Iron pin found - bent, disturbed', dn: 150.6, de: 275.2, dEl: 2.8 },
-    { name: 'BND-6', code: 'FND', desc: 'Found fence corner post', dn: 80.4, de: 260.9, dEl: 1.9 },
-    { name: 'BND-7', code: 'IP', desc: 'Iron pin set - 1/2" rebar w/ Starr cap', dn: 15.3, de: 190.8, dEl: 0.5 },
-    { name: 'FNC-1', code: 'FNC', desc: 'Fence corner - T-post', dn: 82.1, de: 262.4, dEl: 1.95 },
-    { name: 'FNC-2', code: 'FNC', desc: 'Fence line point', dn: 140.5, de: 268.0, dEl: 2.5 },
-    { name: 'TREE-1', code: 'TREE', desc: 'Large oak tree - 24" DBH', dn: 100.2, de: 150.3, dEl: 1.1 },
-    { name: 'UTIL-1', code: 'UTIL', desc: 'Electric meter on pole', dn: 60.8, de: 40.2, dEl: 0.6 },
-    { name: 'UTIL-2', code: 'UTIL', desc: 'Water meter box', dn: 35.7, de: 55.1, dEl: 0.2 },
-  ];
-
-  boundaryPts.forEach((p, i) => {
-    const t = new Date(session1Start.getTime() + i * 120000 + Math.random() * 30000);
-    const rtks: Array<'fixed' | 'float'> = ['fixed', 'fixed', 'fixed', 'fixed', 'float'];
-    const rtkStatus = rtks[Math.floor(Math.random() * rtks.length)];
-    const accuracy = rtkStatus === 'fixed' ? 0.008 + Math.random() * 0.015 : 0.04 + Math.random() * 0.03;
-    pts.push({
-      id: `demo-s1-${i}`,
-      data_type: i < 2 ? 'gps_position' : 'point',
-      point_name: p.name,
-      northing: baseN + p.dn,
-      easting: baseE + p.de,
-      elevation: baseElev + p.dEl,
-      description: p.desc,
-      raw_data: {
-        code: p.code,
-        rtk_status: rtkStatus,
-        accuracy,
-        pdop: 1.2 + Math.random() * 0.8,
-        hdop: 0.7 + Math.random() * 0.5,
-        vdop: 0.9 + Math.random() * 0.6,
-        satellites: 14 + Math.floor(Math.random() * 8),
-        notes: i === 4 ? 'TxDOT marker in good condition' : i === 6 ? 'Pin disturbed - may need to reset' : undefined,
-      },
-      collected_by: 'jake@starr-surveying.com',
-      collected_at: t.toISOString(),
-      instrument: 'Trimble R12i',
-    });
-  });
-
-  // Session 2: Afternoon — total station detail shots (45 min gap = new session)
-  const session2Start = new Date(session1Start.getTime() + 14 * 120000 + 50 * 60 * 1000);
-  const detailPts = [
-    { name: 'BLDG-1', code: 'BLDG', desc: 'Building corner - NW', dn: 90.0, de: 80.0, dEl: 0.8 },
-    { name: 'BLDG-2', code: 'BLDG', desc: 'Building corner - NE', dn: 90.0, de: 130.0, dEl: 0.9 },
-    { name: 'BLDG-3', code: 'BLDG', desc: 'Building corner - SE', dn: 55.0, de: 130.0, dEl: 0.7 },
-    { name: 'BLDG-4', code: 'BLDG', desc: 'Building corner - SW', dn: 55.0, de: 80.0, dEl: 0.75 },
-    { name: 'DW-1', code: 'DW', desc: 'Driveway edge - left', dn: 20.0, de: 95.0, dEl: 0.15 },
-    { name: 'DW-2', code: 'DW', desc: 'Driveway edge - right', dn: 20.0, de: 115.0, dEl: 0.18 },
-    { name: 'DW-3', code: 'DW', desc: 'Driveway at sidewalk', dn: 5.0, de: 105.0, dEl: 0.0 },
-    { name: 'CL-1', code: 'CL', desc: 'Centerline road - begin', dn: -5.0, de: 50.0, dEl: -0.3 },
-    { name: 'CL-2', code: 'CL', desc: 'Centerline road - mid', dn: -5.0, de: 150.0, dEl: -0.1 },
-    { name: 'CL-3', code: 'CL', desc: 'Centerline road - end', dn: -5.0, de: 250.0, dEl: 0.2 },
-    { name: 'TOPO-1', code: 'GS', desc: 'Ground shot - yard high point', dn: 110.0, de: 140.0, dEl: 1.5 },
-    { name: 'TOPO-2', code: 'GS', desc: 'Ground shot - drainage swale', dn: 130.0, de: 180.0, dEl: -0.5 },
-    { name: 'TOPO-3', code: 'GS', desc: 'Ground shot - low area', dn: 160.0, de: 200.0, dEl: -1.2 },
-    { name: 'MH-1', code: 'MH', desc: 'Manhole - sanitary sewer', dn: 40.0, de: 160.0, dEl: 0.1 },
-    { name: 'FH-1', code: 'FH', desc: 'Fire hydrant', dn: 10.0, de: 180.0, dEl: 0.05 },
-  ];
-
-  detailPts.forEach((p, i) => {
-    const t = new Date(session2Start.getTime() + i * 90000 + Math.random() * 20000);
-    const hzAngle = (45 + i * 22.5 + Math.random() * 2) % 360;
-    pts.push({
-      id: `demo-s2-${i}`,
-      data_type: 'total_station',
-      point_name: p.name,
-      northing: baseN + p.dn,
-      easting: baseE + p.de,
-      elevation: baseElev + p.dEl,
-      description: p.desc,
-      raw_data: {
-        code: p.code,
-        accuracy: 0.003 + Math.random() * 0.005,
-        hz_angle: hzAngle,
-        vt_angle: 85 + Math.random() * 10,
-        slope_dist: 20 + Math.random() * 150,
-        notes: i === 13 ? 'Rim elev: 486.22, Inv IN: 481.50, Inv OUT: 481.30' : undefined,
-      },
-      collected_by: 'mike@starr-surveying.com',
-      collected_at: t.toISOString(),
-      instrument: 'Trimble S7',
-    });
-  });
-
-  // Session 3: Next day morning (large gap)
-  const session3Start = new Date('2026-02-07T07:45:00');
-  const day2Pts = [
-    { name: 'BND-8', code: 'IP', desc: 'Iron pin set - closing corner', dn: 5.0, de: 100.0, dEl: 0.1 },
-    { name: 'EAS-1', code: 'EAS', desc: 'Easement line - begin', dn: 170.0, de: 50.0, dEl: 1.8 },
-    { name: 'EAS-2', code: 'EAS', desc: 'Easement line - end', dn: 170.0, de: 200.0, dEl: 2.0 },
-    { name: 'SIGN-1', code: 'SIGN', desc: 'Street sign - Elm St', dn: -8.0, de: 40.0, dEl: -0.4 },
-    { name: 'PP-1', code: 'PP', desc: 'Power pole #47823', dn: 5.5, de: 230.0, dEl: 0.3 },
-    { name: 'NOTE-1', code: 'NOTE', desc: 'Neighbor claims fence is on their side', dn: 82.0, de: 263.0, dEl: 1.95 },
-  ];
-
-  day2Pts.forEach((p, i) => {
-    const t = new Date(session3Start.getTime() + i * 150000 + Math.random() * 30000);
-    pts.push({
-      id: `demo-s3-${i}`,
-      data_type: i === 5 ? 'note' : 'gps_position',
-      point_name: p.name,
-      northing: baseN + p.dn,
-      easting: baseE + p.de,
-      elevation: baseElev + p.dEl,
-      description: p.desc,
-      raw_data: {
-        code: p.code,
-        rtk_status: 'fixed',
-        accuracy: 0.006 + Math.random() * 0.012,
-        pdop: 1.0 + Math.random() * 0.5,
-        hdop: 0.6 + Math.random() * 0.3,
-        vdop: 0.8 + Math.random() * 0.4,
-        satellites: 18 + Math.floor(Math.random() * 6),
-        notes: i === 5 ? 'Neighbor John Smith at 123 Elm St claims fence was moved in 2019' : undefined,
-      },
-      collected_by: 'jake@starr-surveying.com',
-      collected_at: t.toISOString(),
-      instrument: 'Trimble R12i',
-    });
-  });
-
-  return pts;
-}
-
-/* ─── Export helpers ─── */
-function buildPointFileContent(pts: FieldPoint[], format: 'csv' | 'pnezd'): string {
-  if (format === 'pnezd') {
-    return pts
-      .filter(p => p.northing != null && p.easting != null)
-      .map(p => `${p.point_name || ''},${p.northing?.toFixed(4)},${p.easting?.toFixed(4)},${p.elevation?.toFixed(4) || ''},${p.description || ''}`)
-      .join('\n');
-  }
-  const header = 'Point Name,Northing,Easting,Elevation,Code,Description,Type,Accuracy (cm),RTK,Instrument,Collected By,Collected At';
-  const rows = pts.map(p =>
-    [
-      p.point_name || '',
-      p.northing?.toFixed(4) || '',
-      p.easting?.toFixed(4) || '',
-      p.elevation?.toFixed(4) || '',
-      p.raw_data?.code || '',
-      `"${(p.description || '').replace(/"/g, '""')}"`,
-      p.data_type,
-      p.raw_data?.accuracy != null ? (p.raw_data.accuracy * 100).toFixed(2) : '',
-      p.raw_data?.rtk_status || '',
-      p.instrument || '',
-      p.collected_by,
-      p.collected_at,
-    ].join(',')
-  );
-  return [header, ...rows].join('\n');
-}
-
-function downloadFile(content: string, filename: string) {
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  job?: JobContext;
 }
 
 
 /* ================================================================== */
 /*  MAIN COMPONENT                                                     */
 /* ================================================================== */
-export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: FieldWorkViewProps) {
+export default function FieldWorkView({ jobId, points: propPoints, onRefresh, job }: FieldWorkViewProps) {
   const [useDemoData, setUseDemoData] = useState(false);
   const demoPoints = useMemo(() => generateDemoSurvey(), []);
   const points = useDemoData ? demoPoints : propPoints;
@@ -309,6 +54,8 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
   const [detailPoint, setDetailPoint] = useState<FieldPoint | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [timelineValue, setTimelineValue] = useState(1);
+  const [viewTab, setViewTab] = useState<ViewTab>('map');
+  const [showCrewPanel, setShowCrewPanel] = useState(false);
 
   const [showLabels, setShowLabels] = useState<LabelToggles>({
     name: true, code: false, elevation: false, accuracy: false,
@@ -324,22 +71,36 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
   const [hoveredSession, setHoveredSession] = useState<SessionMarker | null>(null);
   const [pollEnabled, setPollEnabled] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [exportScope, setExportScope] = useState<'all' | 'timeline'>('all');
-  const [exportFormat, setExportFormat] = useState<'csv' | 'pnezd'>('csv');
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
   const [exportDest, setExportDest] = useState('local');
   const [equipmentPulse, setEquipmentPulse] = useState(0);
 
+  // Table view state
+  const [tableSortField, setTableSortField] = useState<SortField>('time');
+  const [tableSortDir, setTableSortDir] = useState<SortDir>('desc');
+  const [tableFilter, setTableFilter] = useState<string>('all');
+
+  // Import state
+  const [importData, setImportData] = useState<FieldPoint[]>([]);
+  const [importFileName, setImportFileName] = useState('');
+
   const logRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<SVGSVGElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const activeExtraLabels = useMemo(() => {
     const keys: Array<keyof LabelToggles> = ['code', 'elevation', 'accuracy', 'rtk', 'datetime', 'instrument', 'notes', 'coordinates', 'satellites'];
     return keys.filter(k => showLabels[k]).length;
   }, [showLabels]);
 
+  // Merge imported data with live data
+  const allPoints = useMemo(() => [...points, ...importData], [points, importData]);
+
   const sortedPoints = useMemo(() =>
-    [...points].sort((a, b) => new Date(a.collected_at).getTime() - new Date(b.collected_at).getTime()),
-    [points]
+    [...allPoints].sort((a, b) => new Date(a.collected_at).getTime() - new Date(b.collected_at).getTime()),
+    [allPoints]
   );
 
   const sessionMarkers = useMemo(() => {
@@ -381,9 +142,13 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
   );
 
   const filteredPoints = useMemo(() => {
-    if (!searchQuery.trim()) return visiblePoints;
+    let filtered = visiblePoints;
+    if (tableFilter !== 'all') {
+      filtered = filtered.filter(p => p.data_type === tableFilter);
+    }
+    if (!searchQuery.trim()) return filtered;
     const q = searchQuery.toLowerCase();
-    return visiblePoints.filter(p =>
+    return filtered.filter(p =>
       (p.point_name && p.point_name.toLowerCase().includes(q)) ||
       (p.raw_data?.code && p.raw_data.code.toLowerCase().includes(q)) ||
       (p.description && p.description.toLowerCase().includes(q)) ||
@@ -391,9 +156,28 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
       (p.collected_by && p.collected_by.toLowerCase().includes(q)) ||
       (p.instrument && p.instrument.toLowerCase().includes(q))
     );
-  }, [visiblePoints, searchQuery]);
+  }, [visiblePoints, searchQuery, tableFilter]);
 
   const logPoints = useMemo(() => [...filteredPoints].reverse(), [filteredPoints]);
+
+  // Sorted for table view
+  const tablePoints = useMemo(() => {
+    const arr = [...filteredPoints];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      switch (tableSortField) {
+        case 'name': cmp = (a.point_name || '').localeCompare(b.point_name || ''); break;
+        case 'code': cmp = (a.raw_data?.code || '').localeCompare(b.raw_data?.code || ''); break;
+        case 'elevation': cmp = (a.elevation ?? 0) - (b.elevation ?? 0); break;
+        case 'accuracy': cmp = (a.raw_data?.accuracy ?? 999) - (b.raw_data?.accuracy ?? 999); break;
+        case 'time': cmp = new Date(a.collected_at).getTime() - new Date(b.collected_at).getTime(); break;
+        case 'type': cmp = a.data_type.localeCompare(b.data_type); break;
+        case 'instrument': cmp = (a.instrument || '').localeCompare(b.instrument || ''); break;
+      }
+      return tableSortDir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [filteredPoints, tableSortField, tableSortDir]);
 
   const bounds = useMemo(() => {
     if (mappablePoints.length === 0) return { minN: 0, maxN: 100, minE: 0, maxE: 100 };
@@ -418,6 +202,31 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
     const range = bounds.maxN - bounds.minN || 1;
     return MAP_H - ((n - bounds.minN) / range) * MAP_H;
   }, [bounds]);
+
+  // Crew activity stats
+  const crewActivity: CrewActivity[] = useMemo(() =>
+    deriveCrewActivity(allPoints, job?.team || []),
+    [allPoints, job?.team]
+  );
+
+  // Job duration stats
+  const jobDuration = useMemo(() => {
+    if (sortedPoints.length === 0) return null;
+    const firstTime = new Date(sortedPoints[0].collected_at).getTime();
+    const lastTime = new Date(sortedPoints[sortedPoints.length - 1].collected_at).getTime();
+    const totalSpan = lastTime - firstTime;
+
+    // Compute actual field time (excluding gaps > 30min)
+    let fieldTime = 0;
+    for (let i = 1; i < sortedPoints.length; i++) {
+      const gap = new Date(sortedPoints[i].collected_at).getTime() - new Date(sortedPoints[i - 1].collected_at).getTime();
+      if (gap < SESSION_GAP_MS) fieldTime += gap;
+    }
+
+    const isOngoing = (Date.now() - lastTime) < 60 * 60 * 1000; // last point < 1hr ago
+
+    return { firstTime, lastTime, totalSpan, fieldTime, isOngoing };
+  }, [sortedPoints]);
 
   // Live equipment position
   const equipmentPos = useMemo(() => {
@@ -471,6 +280,14 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
   function toggleLabel(key: keyof LabelToggles) {
     setShowLabels(prev => ({ ...prev, [key]: !prev[key] }));
   }
+  function toggleTableSort(field: SortField) {
+    if (tableSortField === field) {
+      setTableSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setTableSortField(field);
+      setTableSortDir('asc');
+    }
+  }
 
   function getPointMapLabels(pt: FieldPoint): string[] {
     const lines: string[] = [];
@@ -493,10 +310,12 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
 
   function handleExport() {
     const exportPts = exportScope === 'timeline' ? visiblePoints : sortedPoints;
-    const content = buildPointFileContent(exportPts, exportFormat);
-    const ext = exportFormat === 'pnezd' ? 'txt' : 'csv';
+    const content = buildPointFileContent(exportPts, exportFormat, job?.jobName);
+    const extMap: Record<ExportFormat, string> = { csv: 'csv', pnezd: 'txt', dxf: 'dxf', kml: 'kml' };
+    const ext = extMap[exportFormat];
     const scopeLabel = exportScope === 'timeline' ? `_timeline_${visiblePoints.length}pts` : `_full_${sortedPoints.length}pts`;
-    const filename = `survey_${jobId}${scopeLabel}.${ext}`;
+    const jobLabel = job?.jobNumber ? `_${job.jobNumber}` : '';
+    const filename = `survey${jobLabel}${scopeLabel}.${ext}`;
 
     if (exportDest === 'local') {
       downloadFile(content, filename);
@@ -507,21 +326,171 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
     setShowExport(false);
   }
 
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const parsed = parsePointFile(text, 'auto');
+      setImportData(parsed);
+    };
+    reader.readAsText(file);
+    // Reset file input
+    if (importInputRef.current) importInputRef.current.value = '';
+  }
+
   const stats = useMemo(() => {
     const uniqueTypes = new Set<string>(visiblePoints.map(p => p.data_type));
     const fixedCount = visiblePoints.filter(p => p.raw_data?.rtk_status === 'fixed').length;
     const avgAcc = visiblePoints.filter(p => p.raw_data?.accuracy != null);
     const avgAccVal = avgAcc.length > 0 ? avgAcc.reduce((s, p) => s + p.raw_data!.accuracy!, 0) / avgAcc.length : 0;
     const instruments = new Set<string>(visiblePoints.filter(p => p.instrument).map(p => p.instrument!));
-    return { uniqueTypes: uniqueTypes.size, fixedCount, avgAccCm: avgAccVal * 100, instruments: [...instruments] };
+    const codes = new Set<string>(visiblePoints.filter(p => p.raw_data?.code).map(p => p.raw_data!.code!));
+    const collectors = new Set<string>(visiblePoints.map(p => p.collected_by));
+    const elevRange = visiblePoints.filter(p => p.elevation != null);
+    const minElev = elevRange.length > 0 ? Math.min(...elevRange.map(p => p.elevation!)) : null;
+    const maxElev = elevRange.length > 0 ? Math.max(...elevRange.map(p => p.elevation!)) : null;
+    return {
+      uniqueTypes: uniqueTypes.size, fixedCount, avgAccCm: avgAccVal * 100,
+      instruments: [...instruments], codeCount: codes.size, collectorCount: collectors.size,
+      minElev, maxElev,
+    };
   }, [visiblePoints]);
+
+  const stageInfo = job ? STAGE_LABELS[job.stage] || STAGE_LABELS.quote : null;
 
   return (
     <div className="fw">
+      {/* Job Context Header */}
+      {job && (
+        <div className="fw__job-header">
+          <div className="fw__job-header-main">
+            <div className="fw__job-header-left">
+              <span className="fw__job-number">{job.jobNumber}</span>
+              <h2 className="fw__job-name">{job.jobName}</h2>
+              <div className="fw__job-meta">
+                <span>{SURVEY_TYPE_LABELS[job.surveyType] || job.surveyType}</span>
+                {job.acreage && <span>{job.acreage} acres</span>}
+                {job.clientName && <span>{job.clientName}</span>}
+                {job.address && <span>{job.address}{job.city ? `, ${job.city}` : ''}{job.state ? ` ${job.state}` : ''}</span>}
+                {job.county && <span>{job.county} County</span>}
+              </div>
+            </div>
+            <div className="fw__job-header-right">
+              {stageInfo && (
+                <span className="fw__job-stage" style={{ background: stageInfo.color + '20', color: stageInfo.color }}>
+                  {stageInfo.label}
+                </span>
+              )}
+              {job.deadline && (
+                <span className="fw__job-deadline">
+                  Due: {formatDate(job.deadline)}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Duration & crew summary bar */}
+          <div className="fw__job-summary">
+            <div className="fw__job-summary-item">
+              <span className="fw__job-summary-icon">📏</span>
+              <div>
+                <span className="fw__job-summary-val">{allPoints.length}</span>
+                <span className="fw__job-summary-lbl">Total Points</span>
+              </div>
+            </div>
+            {jobDuration && (
+              <>
+                <div className="fw__job-summary-item">
+                  <span className="fw__job-summary-icon">⏱️</span>
+                  <div>
+                    <span className="fw__job-summary-val">{formatDuration(jobDuration.fieldTime)}</span>
+                    <span className="fw__job-summary-lbl">Field Time</span>
+                  </div>
+                </div>
+                <div className="fw__job-summary-item">
+                  <span className="fw__job-summary-icon">📅</span>
+                  <div>
+                    <span className="fw__job-summary-val">{formatDurationLong(jobDuration.totalSpan)}</span>
+                    <span className="fw__job-summary-lbl">{jobDuration.isOngoing ? 'Open (Ongoing)' : 'Total Span'}</span>
+                  </div>
+                </div>
+              </>
+            )}
+            <div className="fw__job-summary-item">
+              <span className="fw__job-summary-icon">👥</span>
+              <div>
+                <span className="fw__job-summary-val">{crewActivity.length}</span>
+                <span className="fw__job-summary-lbl">
+                  Crew{crewActivity.filter(c => c.isActive).length > 0 ? ` (${crewActivity.filter(c => c.isActive).length} active)` : ''}
+                </span>
+              </div>
+            </div>
+            <div className="fw__job-summary-item">
+              <span className="fw__job-summary-icon">🔧</span>
+              <div>
+                <span className="fw__job-summary-val">{stats.instruments.length}</span>
+                <span className="fw__job-summary-lbl">Instrument{stats.instruments.length !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+            {job.totalHours > 0 && (
+              <div className="fw__job-summary-item">
+                <span className="fw__job-summary-icon">🕐</span>
+                <div>
+                  <span className="fw__job-summary-val">{job.totalHours}h</span>
+                  <span className="fw__job-summary-lbl">Logged Hours</span>
+                </div>
+              </div>
+            )}
+            <button className="fw__crew-toggle" onClick={() => setShowCrewPanel(!showCrewPanel)}>
+              {showCrewPanel ? 'Hide Crew' : 'Show Crew Details'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Crew Activity Panel */}
+      {showCrewPanel && crewActivity.length > 0 && (
+        <div className="fw__crew-panel">
+          <h4 className="fw__crew-title">Field Crew Activity</h4>
+          <div className="fw__crew-grid">
+            {crewActivity.map(crew => (
+              <div key={crew.email} className={`fw__crew-card ${crew.isActive ? 'fw__crew-card--active' : ''}`}>
+                <div className="fw__crew-card-header">
+                  <span className={`fw__crew-status ${crew.isActive ? 'fw__crew-status--active' : crew.pointCount > 0 ? 'fw__crew-status--idle' : 'fw__crew-status--none'}`} />
+                  <span className="fw__crew-name">{crew.name}</span>
+                  {crew.isActive && <span className="fw__crew-active-badge">In Field</span>}
+                </div>
+                <div className="fw__crew-card-body">
+                  <div className="fw__crew-stat"><span className="fw__crew-stat-lbl">Points</span><span className="fw__crew-stat-val">{crew.pointCount}</span></div>
+                  {crew.instruments.length > 0 && (
+                    <div className="fw__crew-stat"><span className="fw__crew-stat-lbl">Instrument</span><span className="fw__crew-stat-val">{crew.instruments.join(', ')}</span></div>
+                  )}
+                  {crew.avgAccuracy != null && (
+                    <div className="fw__crew-stat"><span className="fw__crew-stat-lbl">Avg Accuracy</span><span className="fw__crew-stat-val">{(crew.avgAccuracy * 100).toFixed(1)}cm</span></div>
+                  )}
+                  {crew.fixedCount > 0 && (
+                    <div className="fw__crew-stat"><span className="fw__crew-stat-lbl">Fixed RTK</span><span className="fw__crew-stat-val">{crew.fixedCount}</span></div>
+                  )}
+                  {crew.firstPoint && (
+                    <div className="fw__crew-stat"><span className="fw__crew-stat-lbl">First Shot</span><span className="fw__crew-stat-val">{formatDateTime(crew.firstPoint)}</span></div>
+                  )}
+                  {crew.lastPoint && (
+                    <div className="fw__crew-stat"><span className="fw__crew-stat-lbl">Last Shot</span><span className="fw__crew-stat-val">{formatDateTime(crew.lastPoint)}</span></div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Controls bar */}
       <div className="fw__controls">
         <div className="fw__controls-left">
-          <h3 className="fw__title">Field Data ({points.length} points)</h3>
+          <h3 className="fw__title">Field Data ({allPoints.length} points{importData.length > 0 ? ` · ${importData.length} imported` : ''})</h3>
           <label className="fw__poll-toggle">
             <input type="checkbox" checked={pollEnabled} onChange={e => setPollEnabled(e.target.checked)} />
             Live Mode
@@ -529,269 +498,414 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
           {pollEnabled && <span className="fw__live-dot" title="Live — polling every 5s" />}
         </div>
         <div className="fw__controls-right">
-          {propPoints.length === 0 && (
+          {/* View toggle */}
+          <div className="fw__view-tabs">
+            <button className={`fw__view-tab ${viewTab === 'map' ? 'fw__view-tab--active' : ''}`} onClick={() => setViewTab('map')}>Map View</button>
+            <button className={`fw__view-tab ${viewTab === 'table' ? 'fw__view-tab--active' : ''}`} onClick={() => setViewTab('table')}>Data Table</button>
+          </div>
+          {propPoints.length === 0 && importData.length === 0 && (
             <button className={`fw__btn ${useDemoData ? 'fw__btn--active' : ''}`} onClick={() => setUseDemoData(!useDemoData)}>
               {useDemoData ? 'Hide Demo' : 'Load Demo'}
             </button>
           )}
+          <button className="fw__btn" onClick={() => setShowImport(true)}>Import</button>
           <button className="fw__btn" onClick={onRefresh}>Refresh</button>
-          <button className="fw__btn" onClick={resetMapView}>Reset View</button>
-          <button className="fw__btn fw__btn--primary" onClick={() => setShowExport(true)} disabled={points.length === 0}>
+          {viewTab === 'map' && <button className="fw__btn" onClick={resetMapView}>Reset View</button>}
+          <button className="fw__btn fw__btn--primary" onClick={() => setShowExport(true)} disabled={allPoints.length === 0}>
             Export
           </button>
         </div>
       </div>
 
       {/* Summary stats */}
-      {points.length > 0 && (
+      {allPoints.length > 0 && (
         <div className="fw__stats">
           <div className="fw__stat"><span className="fw__stat-val">{visiblePoints.length}</span><span className="fw__stat-lbl">Visible Pts</span></div>
           <div className="fw__stat"><span className="fw__stat-val">{stats.uniqueTypes}</span><span className="fw__stat-lbl">Types</span></div>
+          <div className="fw__stat"><span className="fw__stat-val">{stats.codeCount}</span><span className="fw__stat-lbl">Codes</span></div>
           <div className="fw__stat"><span className="fw__stat-val">{stats.fixedCount}</span><span className="fw__stat-lbl">Fixed RTK</span></div>
           {stats.avgAccCm > 0 && <div className="fw__stat"><span className="fw__stat-val">{stats.avgAccCm.toFixed(1)}cm</span><span className="fw__stat-lbl">Avg Accuracy</span></div>}
+          {stats.minElev != null && stats.maxElev != null && (
+            <div className="fw__stat"><span className="fw__stat-val">{stats.minElev.toFixed(1)} — {stats.maxElev.toFixed(1)}</span><span className="fw__stat-lbl">Elev Range</span></div>
+          )}
           <div className="fw__stat"><span className="fw__stat-val">{stats.instruments.join(', ') || '—'}</span><span className="fw__stat-lbl">Instruments</span></div>
           <div className="fw__stat"><span className="fw__stat-val">{sessionMarkers.length / 2 + 1}</span><span className="fw__stat-lbl">Sessions</span></div>
         </div>
       )}
 
       {/* Label toggles + satellite toggle */}
-      <div className="fw__label-toggles">
-        <span className="fw__label-toggles-title">Display:</span>
-        {(Object.keys(LABEL_NAMES) as Array<keyof LabelToggles>).map(key => (
-          <label key={key} className={`fw__label-toggle ${showLabels[key] ? 'fw__label-toggle--active' : ''}`}>
-            <input type="checkbox" checked={showLabels[key]} onChange={() => toggleLabel(key)} />
-            {LABEL_NAMES[key]}
+      {viewTab === 'map' && (
+        <div className="fw__label-toggles">
+          <span className="fw__label-toggles-title">Display:</span>
+          {(Object.keys(LABEL_NAMES) as Array<keyof LabelToggles>).map(key => (
+            <label key={key} className={`fw__label-toggle ${showLabels[key] ? 'fw__label-toggle--active' : ''}`}>
+              <input type="checkbox" checked={showLabels[key]} onChange={() => toggleLabel(key)} />
+              {LABEL_NAMES[key]}
+            </label>
+          ))}
+          <span className="fw__label-toggles-sep" />
+          <label className="fw__label-toggle fw__label-toggle--sat">
+            <span className="fw__toggle-switch">
+              <input type="checkbox" checked={showSatellite} onChange={e => setShowSatellite(e.target.checked)} />
+              <span className="fw__toggle-track"><span className="fw__toggle-thumb" /></span>
+            </span>
+            Satellite
           </label>
-        ))}
-        <span className="fw__label-toggles-sep" />
-        <label className="fw__label-toggle fw__label-toggle--sat">
-          <span className="fw__toggle-switch">
-            <input type="checkbox" checked={showSatellite} onChange={e => setShowSatellite(e.target.checked)} />
-            <span className="fw__toggle-track"><span className="fw__toggle-thumb" /></span>
-          </span>
-          Satellite
-        </label>
-      </div>
+        </div>
+      )}
 
-      {/* Main layout */}
-      <div className="fw__layout">
-        {/* Left: Map */}
-        <div className="fw__map-container">
-          {mappablePoints.length === 0 ? (
-            <div className="fw__map-empty">
-              <span className="fw__map-empty-icon">📡</span>
-              <p>No coordinate data yet</p>
-              <p className="fw__map-empty-sub">Points will appear on the map as field crew collects data</p>
-              {propPoints.length === 0 && !useDemoData && (
-                <button className="fw__btn" style={{ marginTop: '1rem' }} onClick={() => setUseDemoData(true)}>
-                  Load Demo Survey
-                </button>
-              )}
-            </div>
-          ) : (
-            <svg ref={mapRef} className="fw__map-svg"
-              viewBox={`0 0 ${MAP_W} ${MAP_H}`} preserveAspectRatio="xMidYMid meet"
-              onMouseDown={handleMapMouseDown} onMouseMove={handleMapMouseMove}
-              onMouseUp={handleMapMouseUp} onMouseLeave={handleMapMouseUp}
-              onWheel={handleMapWheel}
-              style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
-            >
-              <rect x="0" y="0" width={MAP_W} height={MAP_H} fill={showSatellite ? '#2D4A2D' : '#FAFBFC'} />
+      {/* Type filter for table view */}
+      {viewTab === 'table' && (
+        <div className="fw__table-filters">
+          <span className="fw__label-toggles-title">Filter:</span>
+          <button className={`fw__filter-btn ${tableFilter === 'all' ? 'fw__filter-btn--active' : ''}`} onClick={() => setTableFilter('all')}>All</button>
+          {Object.entries(DATA_TYPE_LABELS).map(([key, label]) => {
+            const count = visiblePoints.filter(p => p.data_type === key).length;
+            if (count === 0) return null;
+            return (
+              <button key={key} className={`fw__filter-btn ${tableFilter === key ? 'fw__filter-btn--active' : ''}`}
+                onClick={() => setTableFilter(tableFilter === key ? 'all' : key)}
+                style={{ borderColor: tableFilter === key ? DATA_TYPE_COLORS[key] : undefined, color: tableFilter === key ? DATA_TYPE_COLORS[key] : undefined }}>
+                {label} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-              {showSatellite && (
-                <g opacity="0.35">
-                  <rect x="0" y="0" width={MAP_W} height={MAP_H} fill="#3A5A3A" />
-                  {Array.from({ length: 8 }, (_, i) => (
-                    <ellipse key={`tree${i}`} cx={100 + i * 95 + (i % 2) * 40} cy={80 + (i % 3) * 180}
-                      rx={35 + (i % 3) * 15} ry={25 + (i % 2) * 10} fill="#2A4A2A" />
-                  ))}
-                  <rect x="0" y={MAP_H - 60} width={MAP_W} height="35" fill="#5A5A5A" opacity="0.6" />
-                </g>
-              )}
+      {/* ═══ MAP VIEW ═══ */}
+      {viewTab === 'map' && (
+        <>
+          <div className="fw__layout">
+            {/* Left: Map */}
+            <div className="fw__map-container">
+              {mappablePoints.length === 0 ? (
+                <div className="fw__map-empty">
+                  <span className="fw__map-empty-icon">📡</span>
+                  <p>No coordinate data yet</p>
+                  <p className="fw__map-empty-sub">Points will appear on the map as field crew collects data</p>
+                  {propPoints.length === 0 && !useDemoData && importData.length === 0 && (
+                    <button className="fw__btn" style={{ marginTop: '1rem' }} onClick={() => setUseDemoData(true)}>
+                      Load Demo Survey
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <svg ref={mapRef} className="fw__map-svg"
+                  viewBox={`0 0 ${MAP_W} ${MAP_H}`} preserveAspectRatio="xMidYMid meet"
+                  onMouseDown={handleMapMouseDown} onMouseMove={handleMapMouseMove}
+                  onMouseUp={handleMapMouseUp} onMouseLeave={handleMapMouseUp}
+                  onWheel={handleMapWheel}
+                  style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+                >
+                  <rect x="0" y="0" width={MAP_W} height={MAP_H} fill={showSatellite ? '#2D4A2D' : '#FAFBFC'} />
 
-              <g opacity={showSatellite ? 0.08 : 0.15} stroke={showSatellite ? '#fff' : '#94A3B8'} strokeWidth="0.5">
-                {Array.from({ length: 11 }, (_, i) => <line key={`h${i}`} x1="0" y1={(MAP_H / 10) * i} x2={MAP_W} y2={(MAP_H / 10) * i} />)}
-                {Array.from({ length: 11 }, (_, i) => <line key={`v${i}`} x1={(MAP_W / 10) * i} y1="0" x2={(MAP_W / 10) * i} y2={MAP_H} />)}
-              </g>
-
-              <text x="4" y="14" fill={showSatellite ? '#ccc' : '#94A3B8'} fontSize="9" fontFamily="monospace">N: {bounds.maxN.toFixed(1)}</text>
-              <text x="4" y={MAP_H - 4} fill={showSatellite ? '#ccc' : '#94A3B8'} fontSize="9" fontFamily="monospace">N: {bounds.minN.toFixed(1)}</text>
-              <text x={MAP_W - 4} y={MAP_H - 4} fill={showSatellite ? '#ccc' : '#94A3B8'} fontSize="9" fontFamily="monospace" textAnchor="end">E: {bounds.maxE.toFixed(1)}</text>
-
-              <g transform={`translate(${mapPan.x}, ${mapPan.y}) scale(${mapZoom})`}>
-                {mappablePoints.length > 1 && mappablePoints.map((pt, i) => {
-                  if (i === 0) return null;
-                  const prev = mappablePoints[i - 1];
-                  return <line key={`line-${pt.id}`}
-                    x1={scaleE(prev.easting!)} y1={scaleN(prev.northing!)}
-                    x2={scaleE(pt.easting!)} y2={scaleN(pt.northing!)}
-                    stroke={showSatellite ? '#ffffff40' : '#CBD5E1'}
-                    strokeWidth={0.5 / mapZoom} strokeDasharray={`${3 / mapZoom}`} />;
-                })}
-
-                {mappablePoints.map(pt => {
-                  const cx = scaleE(pt.easting!);
-                  const cy = scaleN(pt.northing!);
-                  const isSelected = selectedPointId === pt.id;
-                  const color = DATA_TYPE_COLORS[pt.data_type] || '#1D3095';
-                  const r = isSelected ? 7 / mapZoom : 5 / mapZoom;
-                  const labelLines = getPointMapLabels(pt);
-
-                  return (
-                    <g key={pt.id} style={{ cursor: 'pointer' }}>
-                      {isSelected && (
-                        <circle cx={cx} cy={cy} r={12 / mapZoom} fill="none" stroke={color} strokeWidth={2 / mapZoom} opacity="0.5">
-                          <animate attributeName="r" values={`${12 / mapZoom};${16 / mapZoom};${12 / mapZoom}`} dur="1.5s" repeatCount="indefinite" />
-                        </circle>
-                      )}
-                      <circle cx={cx} cy={cy} r={r} fill={color} stroke={showSatellite ? '#000' : '#fff'} strokeWidth={1.5 / mapZoom}
-                        onClick={(e) => { e.stopPropagation(); handlePointClick(pt); }}
-                        onDoubleClick={(e) => { e.stopPropagation(); handlePointDoubleClick(pt); }} />
-                      {labelLines.length > 0 && (
-                        <g>
-                          <rect x={cx + 7 / mapZoom} y={cy - (6 + (labelLines.length - 1) * 11) / mapZoom}
-                            width={Math.max(...labelLines.map(l => l.length)) * 5.5 / mapZoom + 6 / mapZoom}
-                            height={(labelLines.length * 11 + 2) / mapZoom} rx={2 / mapZoom}
-                            fill={showSatellite ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)'} pointerEvents="none" />
-                          {labelLines.map((line, li) => (
-                            <text key={li} x={cx + 10 / mapZoom}
-                              y={cy + (-3 + (li - labelLines.length + 1) * 11 + 8) / mapZoom}
-                              fontSize={9 / mapZoom} fill={showSatellite ? '#E5E7EB' : '#374151'}
-                              fontFamily="monospace" pointerEvents="none">
-                              {line}
-                            </text>
-                          ))}
-                        </g>
-                      )}
+                  {showSatellite && (
+                    <g opacity="0.35">
+                      <rect x="0" y="0" width={MAP_W} height={MAP_H} fill="#3A5A3A" />
+                      {Array.from({ length: 8 }, (_, i) => (
+                        <ellipse key={`tree${i}`} cx={100 + i * 95 + (i % 2) * 40} cy={80 + (i % 3) * 180}
+                          rx={35 + (i % 3) * 15} ry={25 + (i % 2) * 10} fill="#2A4A2A" />
+                      ))}
+                      <rect x="0" y={MAP_H - 60} width={MAP_W} height="35" fill="#5A5A5A" opacity="0.6" />
                     </g>
-                  );
-                })}
+                  )}
 
-                {/* Live equipment position */}
-                {equipmentPos && (
-                  <g>
-                    <circle cx={scaleE(equipmentPos.easting)} cy={scaleN(equipmentPos.northing)}
-                      r={14 / mapZoom} fill="none" stroke="#FF6B00" strokeWidth={2 / mapZoom} opacity="0.3">
-                      <animate attributeName="r" values={`${14 / mapZoom};${28 / mapZoom};${14 / mapZoom}`} dur="2s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" values="0.4;0.0;0.4" dur="2s" repeatCount="indefinite" />
-                    </circle>
-                    <circle cx={scaleE(equipmentPos.easting)} cy={scaleN(equipmentPos.northing)}
-                      r={8 / mapZoom} fill="none" stroke="#FF6B00" strokeWidth={1.5 / mapZoom} opacity="0.6">
-                      <animate attributeName="r" values={`${8 / mapZoom};${18 / mapZoom};${8 / mapZoom}`} dur="2s" repeatCount="indefinite" begin="0.3s" />
-                      <animate attributeName="opacity" values="0.6;0.0;0.6" dur="2s" repeatCount="indefinite" begin="0.3s" />
-                    </circle>
-                    <circle cx={scaleE(equipmentPos.easting)} cy={scaleN(equipmentPos.northing)}
-                      r={5 / mapZoom} fill="#FF6B00" stroke="#fff" strokeWidth={2 / mapZoom} />
-                    <text x={scaleE(equipmentPos.easting) + 10 / mapZoom} y={scaleN(equipmentPos.northing) - 10 / mapZoom}
-                      fontSize={9 / mapZoom} fill="#FF6B00" fontWeight="bold" fontFamily="monospace" pointerEvents="none">
-                      {equipmentPos.label}
+                  <g opacity={showSatellite ? 0.08 : 0.15} stroke={showSatellite ? '#fff' : '#94A3B8'} strokeWidth="0.5">
+                    {Array.from({ length: 11 }, (_, i) => <line key={`h${i}`} x1="0" y1={(MAP_H / 10) * i} x2={MAP_W} y2={(MAP_H / 10) * i} />)}
+                    {Array.from({ length: 11 }, (_, i) => <line key={`v${i}`} x1={(MAP_W / 10) * i} y1="0" x2={(MAP_W / 10) * i} y2={MAP_H} />)}
+                  </g>
+
+                  <text x="4" y="14" fill={showSatellite ? '#ccc' : '#94A3B8'} fontSize="9" fontFamily="monospace">N: {bounds.maxN.toFixed(1)}</text>
+                  <text x="4" y={MAP_H - 4} fill={showSatellite ? '#ccc' : '#94A3B8'} fontSize="9" fontFamily="monospace">N: {bounds.minN.toFixed(1)}</text>
+                  <text x={MAP_W - 4} y={MAP_H - 4} fill={showSatellite ? '#ccc' : '#94A3B8'} fontSize="9" fontFamily="monospace" textAnchor="end">E: {bounds.maxE.toFixed(1)}</text>
+
+                  <g transform={`translate(${mapPan.x}, ${mapPan.y}) scale(${mapZoom})`}>
+                    {mappablePoints.length > 1 && mappablePoints.map((pt, i) => {
+                      if (i === 0) return null;
+                      const prev = mappablePoints[i - 1];
+                      return <line key={`line-${pt.id}`}
+                        x1={scaleE(prev.easting!)} y1={scaleN(prev.northing!)}
+                        x2={scaleE(pt.easting!)} y2={scaleN(pt.northing!)}
+                        stroke={showSatellite ? '#ffffff40' : '#CBD5E1'}
+                        strokeWidth={0.5 / mapZoom} strokeDasharray={`${3 / mapZoom}`} />;
+                    })}
+
+                    {mappablePoints.map(pt => {
+                      const cx = scaleE(pt.easting!);
+                      const cy = scaleN(pt.northing!);
+                      const isSelected = selectedPointId === pt.id;
+                      const color = DATA_TYPE_COLORS[pt.data_type] || '#1D3095';
+                      const r = isSelected ? 7 / mapZoom : 5 / mapZoom;
+                      const labelLines = getPointMapLabels(pt);
+
+                      return (
+                        <g key={pt.id} style={{ cursor: 'pointer' }}>
+                          {isSelected && (
+                            <circle cx={cx} cy={cy} r={12 / mapZoom} fill="none" stroke={color} strokeWidth={2 / mapZoom} opacity="0.5">
+                              <animate attributeName="r" values={`${12 / mapZoom};${16 / mapZoom};${12 / mapZoom}`} dur="1.5s" repeatCount="indefinite" />
+                            </circle>
+                          )}
+                          <circle cx={cx} cy={cy} r={r} fill={color} stroke={showSatellite ? '#000' : '#fff'} strokeWidth={1.5 / mapZoom}
+                            onClick={(e) => { e.stopPropagation(); handlePointClick(pt); }}
+                            onDoubleClick={(e) => { e.stopPropagation(); handlePointDoubleClick(pt); }} />
+                          {labelLines.length > 0 && (
+                            <g>
+                              <rect x={cx + 7 / mapZoom} y={cy - (6 + (labelLines.length - 1) * 11) / mapZoom}
+                                width={Math.max(...labelLines.map(l => l.length)) * 5.5 / mapZoom + 6 / mapZoom}
+                                height={(labelLines.length * 11 + 2) / mapZoom} rx={2 / mapZoom}
+                                fill={showSatellite ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)'} pointerEvents="none" />
+                              {labelLines.map((line, li) => (
+                                <text key={li} x={cx + 10 / mapZoom}
+                                  y={cy + (-3 + (li - labelLines.length + 1) * 11 + 8) / mapZoom}
+                                  fontSize={9 / mapZoom} fill={showSatellite ? '#E5E7EB' : '#374151'}
+                                  fontFamily="monospace" pointerEvents="none">
+                                  {line}
+                                </text>
+                              ))}
+                            </g>
+                          )}
+                        </g>
+                      );
+                    })}
+
+                    {/* Live equipment position */}
+                    {equipmentPos && (
+                      <g>
+                        <circle cx={scaleE(equipmentPos.easting)} cy={scaleN(equipmentPos.northing)}
+                          r={14 / mapZoom} fill="none" stroke="#FF6B00" strokeWidth={2 / mapZoom} opacity="0.3">
+                          <animate attributeName="r" values={`${14 / mapZoom};${28 / mapZoom};${14 / mapZoom}`} dur="2s" repeatCount="indefinite" />
+                          <animate attributeName="opacity" values="0.4;0.0;0.4" dur="2s" repeatCount="indefinite" />
+                        </circle>
+                        <circle cx={scaleE(equipmentPos.easting)} cy={scaleN(equipmentPos.northing)}
+                          r={8 / mapZoom} fill="none" stroke="#FF6B00" strokeWidth={1.5 / mapZoom} opacity="0.6">
+                          <animate attributeName="r" values={`${8 / mapZoom};${18 / mapZoom};${8 / mapZoom}`} dur="2s" repeatCount="indefinite" begin="0.3s" />
+                          <animate attributeName="opacity" values="0.6;0.0;0.6" dur="2s" repeatCount="indefinite" begin="0.3s" />
+                        </circle>
+                        <circle cx={scaleE(equipmentPos.easting)} cy={scaleN(equipmentPos.northing)}
+                          r={5 / mapZoom} fill="#FF6B00" stroke="#fff" strokeWidth={2 / mapZoom} />
+                        <text x={scaleE(equipmentPos.easting) + 10 / mapZoom} y={scaleN(equipmentPos.northing) - 10 / mapZoom}
+                          fontSize={9 / mapZoom} fill="#FF6B00" fontWeight="bold" fontFamily="monospace" pointerEvents="none">
+                          {equipmentPos.label}
+                        </text>
+                      </g>
+                    )}
+                  </g>
+
+                  <g transform={`translate(${MAP_W - 120}, ${MAP_H - 30})`}>
+                    <line x1="0" y1="0" x2="80" y2="0" stroke={showSatellite ? '#fff' : '#374151'} strokeWidth="2" />
+                    <line x1="0" y1="-4" x2="0" y2="4" stroke={showSatellite ? '#fff' : '#374151'} strokeWidth="1.5" />
+                    <line x1="80" y1="-4" x2="80" y2="4" stroke={showSatellite ? '#fff' : '#374151'} strokeWidth="1.5" />
+                    <text x="40" y="14" textAnchor="middle" fontSize="9" fill={showSatellite ? '#ccc' : '#374151'} fontFamily="monospace">
+                      {((bounds.maxE - bounds.minE) * 80 / MAP_W).toFixed(1)} ft
                     </text>
                   </g>
-                )}
-              </g>
+                </svg>
+              )}
 
-              <g transform={`translate(${MAP_W - 120}, ${MAP_H - 30})`}>
-                <line x1="0" y1="0" x2="80" y2="0" stroke={showSatellite ? '#fff' : '#374151'} strokeWidth="2" />
-                <line x1="0" y1="-4" x2="0" y2="4" stroke={showSatellite ? '#fff' : '#374151'} strokeWidth="1.5" />
-                <line x1="80" y1="-4" x2="80" y2="4" stroke={showSatellite ? '#fff' : '#374151'} strokeWidth="1.5" />
-                <text x="40" y="14" textAnchor="middle" fontSize="9" fill={showSatellite ? '#ccc' : '#374151'} fontFamily="monospace">
-                  {((bounds.maxE - bounds.minE) * 80 / MAP_W).toFixed(1)} ft
-                </text>
-              </g>
-            </svg>
-          )}
+              <div className="fw__map-zoom">
+                <button className="fw__map-zoom-btn" onClick={() => setMapZoom(z => Math.min(20, z * 1.3))}>+</button>
+                <span className="fw__map-zoom-level">{Math.round(mapZoom * 100)}%</span>
+                <button className="fw__map-zoom-btn" onClick={() => setMapZoom(z => Math.max(0.1, z / 1.3))}>-</button>
+              </div>
 
-          <div className="fw__map-zoom">
-            <button className="fw__map-zoom-btn" onClick={() => setMapZoom(z => Math.min(20, z * 1.3))}>+</button>
-            <span className="fw__map-zoom-level">{Math.round(mapZoom * 100)}%</span>
-            <button className="fw__map-zoom-btn" onClick={() => setMapZoom(z => Math.max(0.1, z / 1.3))}>-</button>
+              <div className="fw__map-legend">
+                {Object.entries(DATA_TYPE_COLORS).map(([type, color]) => {
+                  if (!mappablePoints.some(p => p.data_type === type)) return null;
+                  return <span key={type} className="fw__map-legend-item"><span className="fw__map-legend-dot" style={{ background: color }} />{DATA_TYPE_LABELS[type] || type}</span>;
+                })}
+                {equipmentPos && <span className="fw__map-legend-item"><span className="fw__map-legend-dot" style={{ background: '#FF6B00' }} />Live Equipment</span>}
+              </div>
+            </div>
+
+            {/* Right: Point Log */}
+            <div className="fw__log">
+              <div className="fw__log-header">
+                <h4 className="fw__log-title">Shot Log</h4>
+                <span className="fw__log-count">{filteredPoints.length} pts</span>
+              </div>
+              <div className="fw__log-search">
+                <input type="text" placeholder="Search name, code, description, instrument..."
+                  value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="fw__log-search-input" />
+                {searchQuery && <button className="fw__log-search-clear" onClick={() => setSearchQuery('')}>x</button>}
+              </div>
+              <div className="fw__log-list" ref={logRef}>
+                {logPoints.length === 0 ? (
+                  <div className="fw__log-empty">{searchQuery ? 'No points match your search' : 'No points recorded yet'}</div>
+                ) : logPoints.map(pt => {
+                  const isSelected = selectedPointId === pt.id;
+                  const hasExtras = activeExtraLabels > 0;
+                  return (
+                    <div key={pt.id} data-point-id={pt.id}
+                      className={`fw__log-item ${isSelected ? 'fw__log-item--selected' : ''} ${hasExtras ? 'fw__log-item--expanded' : ''}`}
+                      onClick={() => handlePointClick(pt)} onDoubleClick={() => handlePointDoubleClick(pt)}>
+                      <div className="fw__log-item-top">
+                        <span className="fw__log-item-name">{pt.point_name || 'Unnamed'}</span>
+                        <span className="fw__log-item-type" style={{ color: DATA_TYPE_COLORS[pt.data_type] || '#6B7280' }}>
+                          {DATA_TYPE_LABELS[pt.data_type] || pt.data_type}
+                        </span>
+                      </div>
+                      <div className="fw__log-item-mid">
+                        {pt.description && <span className="fw__log-item-desc">{pt.description}</span>}
+                        {pt.raw_data?.code && <span className="fw__log-item-code">{pt.raw_data.code}</span>}
+                      </div>
+                      <div className="fw__log-item-bottom">
+                        <span className="fw__log-item-time">{formatDate(pt.collected_at)} {formatTime(pt.collected_at)}</span>
+                        <div className="fw__log-item-badges">
+                          {pt.raw_data?.accuracy != null && <span className={`fw-log__acc ${accClass(pt.raw_data.accuracy)}`}>{(pt.raw_data.accuracy * 100).toFixed(1)}cm</span>}
+                          {pt.raw_data?.rtk_status && (
+                            <span className="fw-log__rtk" style={{ background: (RTK_LABELS[pt.raw_data.rtk_status]?.color || '#6B7280') + '20', color: RTK_LABELS[pt.raw_data.rtk_status]?.color || '#6B7280' }}>
+                              {RTK_LABELS[pt.raw_data.rtk_status]?.label || pt.raw_data.rtk_status}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {hasExtras && (
+                        <div className="fw__log-item-extra">
+                          {showLabels.coordinates && pt.northing != null && (
+                            <div className="fw__log-extra-row"><span className="fw__log-extra-label">Coords</span>
+                              <span className="fw__log-extra-val">N: {pt.northing.toFixed(4)} &nbsp; E: {pt.easting?.toFixed(4)} &nbsp; El: {pt.elevation?.toFixed(4) ?? '—'}</span></div>
+                          )}
+                          {showLabels.elevation && pt.elevation != null && !showLabels.coordinates && (
+                            <div className="fw__log-extra-row"><span className="fw__log-extra-label">Elevation</span><span className="fw__log-extra-val">{pt.elevation.toFixed(4)}</span></div>
+                          )}
+                          {showLabels.instrument && pt.instrument && (
+                            <div className="fw__log-extra-row"><span className="fw__log-extra-label">Instrument</span><span className="fw__log-extra-val">{pt.instrument}</span></div>
+                          )}
+                          {showLabels.satellites && pt.raw_data?.satellites != null && (
+                            <div className="fw__log-extra-row"><span className="fw__log-extra-label">Satellites</span><span className="fw__log-extra-val">{pt.raw_data.satellites} tracked</span></div>
+                          )}
+                          {showLabels.accuracy && pt.raw_data?.pdop != null && (
+                            <div className="fw__log-extra-row"><span className="fw__log-extra-label">DOP</span>
+                              <span className="fw__log-extra-val">P:{pt.raw_data.pdop.toFixed(2)} H:{pt.raw_data.hdop?.toFixed(2) ?? '—'} V:{pt.raw_data.vdop?.toFixed(2) ?? '—'}</span></div>
+                          )}
+                          {showLabels.notes && pt.raw_data?.notes && (
+                            <div className="fw__log-extra-row fw__log-extra-row--note"><span className="fw__log-extra-label">Note</span><span className="fw__log-extra-val">{pt.raw_data.notes}</span></div>
+                          )}
+                          {pt.raw_data?.hz_angle != null && (showLabels.accuracy || showLabels.instrument) && (
+                            <div className="fw__log-extra-row"><span className="fw__log-extra-label">Obs</span>
+                              <span className="fw__log-extra-val">Hz: {pt.raw_data.hz_angle.toFixed(4)} Vt: {pt.raw_data.vt_angle?.toFixed(4) ?? '—'} SD: {pt.raw_data.slope_dist?.toFixed(3) ?? '—'}</span></div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
+        </>
+      )}
 
-          <div className="fw__map-legend">
-            {Object.entries(DATA_TYPE_COLORS).map(([type, color]) => {
-              if (!mappablePoints.some(p => p.data_type === type)) return null;
-              return <span key={type} className="fw__map-legend-item"><span className="fw__map-legend-dot" style={{ background: color }} />{DATA_TYPE_LABELS[type] || type}</span>;
-            })}
-            {equipmentPos && <span className="fw__map-legend-item"><span className="fw__map-legend-dot" style={{ background: '#FF6B00' }} />Live Equipment</span>}
-          </div>
-        </div>
-
-        {/* Right: Point Log */}
-        <div className="fw__log">
-          <div className="fw__log-header">
-            <h4 className="fw__log-title">Shot Log</h4>
-            <span className="fw__log-count">{filteredPoints.length} pts</span>
-          </div>
-          <div className="fw__log-search">
-            <input type="text" placeholder="Search name, code, description, instrument..."
+      {/* ═══ TABLE VIEW ═══ */}
+      {viewTab === 'table' && (
+        <div className="fw__table-container">
+          <div className="fw__table-search">
+            <input type="text" placeholder="Search all columns..."
               value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="fw__log-search-input" />
             {searchQuery && <button className="fw__log-search-clear" onClick={() => setSearchQuery('')}>x</button>}
           </div>
-          <div className="fw__log-list" ref={logRef}>
-            {logPoints.length === 0 ? (
-              <div className="fw__log-empty">{searchQuery ? 'No points match your search' : 'No points recorded yet'}</div>
-            ) : logPoints.map(pt => {
-              const isSelected = selectedPointId === pt.id;
-              const hasExtras = activeExtraLabels > 0;
-              return (
-                <div key={pt.id} data-point-id={pt.id}
-                  className={`fw__log-item ${isSelected ? 'fw__log-item--selected' : ''} ${hasExtras ? 'fw__log-item--expanded' : ''}`}
-                  onClick={() => handlePointClick(pt)} onDoubleClick={() => handlePointDoubleClick(pt)}>
-                  <div className="fw__log-item-top">
-                    <span className="fw__log-item-name">{pt.point_name || 'Unnamed'}</span>
-                    <span className="fw__log-item-type" style={{ color: DATA_TYPE_COLORS[pt.data_type] || '#6B7280' }}>
-                      {DATA_TYPE_LABELS[pt.data_type] || pt.data_type}
-                    </span>
-                  </div>
-                  <div className="fw__log-item-mid">
-                    {pt.description && <span className="fw__log-item-desc">{pt.description}</span>}
-                    {pt.raw_data?.code && <span className="fw__log-item-code">{pt.raw_data.code}</span>}
-                  </div>
-                  <div className="fw__log-item-bottom">
-                    <span className="fw__log-item-time">{formatDate(pt.collected_at)} {formatTime(pt.collected_at)}</span>
-                    <div className="fw__log-item-badges">
-                      {pt.raw_data?.accuracy != null && <span className={`fw-log__acc ${accClass(pt.raw_data.accuracy)}`}>{(pt.raw_data.accuracy * 100).toFixed(1)}cm</span>}
+          <div className="fw__table-scroll">
+            <table className="fw__table">
+              <thead>
+                <tr>
+                  <th className="fw__th fw__th--sortable" onClick={() => toggleTableSort('name')}>
+                    Point {tableSortField === 'name' ? (tableSortDir === 'asc' ? '↑' : '↓') : ''}
+                  </th>
+                  <th className="fw__th fw__th--sortable" onClick={() => toggleTableSort('code')}>
+                    Code {tableSortField === 'code' ? (tableSortDir === 'asc' ? '↑' : '↓') : ''}
+                  </th>
+                  <th className="fw__th">Northing</th>
+                  <th className="fw__th">Easting</th>
+                  <th className="fw__th fw__th--sortable" onClick={() => toggleTableSort('elevation')}>
+                    Elevation {tableSortField === 'elevation' ? (tableSortDir === 'asc' ? '↑' : '↓') : ''}
+                  </th>
+                  <th className="fw__th">Description</th>
+                  <th className="fw__th fw__th--sortable" onClick={() => toggleTableSort('type')}>
+                    Type {tableSortField === 'type' ? (tableSortDir === 'asc' ? '↑' : '↓') : ''}
+                  </th>
+                  <th className="fw__th fw__th--sortable" onClick={() => toggleTableSort('accuracy')}>
+                    Accuracy {tableSortField === 'accuracy' ? (tableSortDir === 'asc' ? '↑' : '↓') : ''}
+                  </th>
+                  <th className="fw__th">RTK</th>
+                  <th className="fw__th">DOP</th>
+                  <th className="fw__th">Sats</th>
+                  <th className="fw__th fw__th--sortable" onClick={() => toggleTableSort('instrument')}>
+                    Instrument {tableSortField === 'instrument' ? (tableSortDir === 'asc' ? '↑' : '↓') : ''}
+                  </th>
+                  <th className="fw__th">Collector</th>
+                  <th className="fw__th fw__th--sortable" onClick={() => toggleTableSort('time')}>
+                    Time {tableSortField === 'time' ? (tableSortDir === 'asc' ? '↑' : '↓') : ''}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {tablePoints.length === 0 ? (
+                  <tr><td colSpan={14} className="fw__table-empty">No points to display</td></tr>
+                ) : tablePoints.map(pt => (
+                  <tr key={pt.id}
+                    className={`fw__tr ${selectedPointId === pt.id ? 'fw__tr--selected' : ''}`}
+                    onClick={() => handlePointClick(pt)}
+                    onDoubleClick={() => handlePointDoubleClick(pt)}>
+                    <td className="fw__td fw__td--mono fw__td--name">{pt.point_name || '—'}</td>
+                    <td className="fw__td">
+                      {pt.raw_data?.code && (
+                        <span className="fw__td-code" style={{
+                          background: (POINT_CODE_CATEGORIES[pt.raw_data.code]?.color || '#6B7280') + '15',
+                          color: POINT_CODE_CATEGORIES[pt.raw_data.code]?.color || '#6B7280',
+                        }}>
+                          {pt.raw_data.code}
+                        </span>
+                      )}
+                    </td>
+                    <td className="fw__td fw__td--mono">{pt.northing?.toFixed(4) ?? '—'}</td>
+                    <td className="fw__td fw__td--mono">{pt.easting?.toFixed(4) ?? '—'}</td>
+                    <td className="fw__td fw__td--mono">{pt.elevation?.toFixed(4) ?? '—'}</td>
+                    <td className="fw__td fw__td--desc">{pt.description || '—'}</td>
+                    <td className="fw__td">
+                      <span className="fw__td-type" style={{ color: DATA_TYPE_COLORS[pt.data_type] }}>
+                        {DATA_TYPE_LABELS[pt.data_type] || pt.data_type}
+                      </span>
+                    </td>
+                    <td className="fw__td">
+                      {pt.raw_data?.accuracy != null && (
+                        <span className={`fw-log__acc ${accClass(pt.raw_data.accuracy)}`}>
+                          {(pt.raw_data.accuracy * 100).toFixed(1)}cm
+                        </span>
+                      )}
+                    </td>
+                    <td className="fw__td">
                       {pt.raw_data?.rtk_status && (
-                        <span className="fw-log__rtk" style={{ background: (RTK_LABELS[pt.raw_data.rtk_status]?.color || '#6B7280') + '20', color: RTK_LABELS[pt.raw_data.rtk_status]?.color || '#6B7280' }}>
+                        <span className="fw-log__rtk" style={{
+                          background: (RTK_LABELS[pt.raw_data.rtk_status]?.color || '#6B7280') + '20',
+                          color: RTK_LABELS[pt.raw_data.rtk_status]?.color || '#6B7280',
+                        }}>
                           {RTK_LABELS[pt.raw_data.rtk_status]?.label || pt.raw_data.rtk_status}
                         </span>
                       )}
-                    </div>
-                  </div>
-                  {hasExtras && (
-                    <div className="fw__log-item-extra">
-                      {showLabels.coordinates && pt.northing != null && (
-                        <div className="fw__log-extra-row"><span className="fw__log-extra-label">Coords</span>
-                          <span className="fw__log-extra-val">N: {pt.northing.toFixed(4)} &nbsp; E: {pt.easting?.toFixed(4)} &nbsp; El: {pt.elevation?.toFixed(4) ?? '—'}</span></div>
-                      )}
-                      {showLabels.elevation && pt.elevation != null && !showLabels.coordinates && (
-                        <div className="fw__log-extra-row"><span className="fw__log-extra-label">Elevation</span><span className="fw__log-extra-val">{pt.elevation.toFixed(4)}</span></div>
-                      )}
-                      {showLabels.instrument && pt.instrument && (
-                        <div className="fw__log-extra-row"><span className="fw__log-extra-label">Instrument</span><span className="fw__log-extra-val">{pt.instrument}</span></div>
-                      )}
-                      {showLabels.satellites && pt.raw_data?.satellites != null && (
-                        <div className="fw__log-extra-row"><span className="fw__log-extra-label">Satellites</span><span className="fw__log-extra-val">{pt.raw_data.satellites} tracked</span></div>
-                      )}
-                      {showLabels.accuracy && pt.raw_data?.pdop != null && (
-                        <div className="fw__log-extra-row"><span className="fw__log-extra-label">DOP</span>
-                          <span className="fw__log-extra-val">P:{pt.raw_data.pdop.toFixed(2)} H:{pt.raw_data.hdop?.toFixed(2) ?? '—'} V:{pt.raw_data.vdop?.toFixed(2) ?? '—'}</span></div>
-                      )}
-                      {showLabels.notes && pt.raw_data?.notes && (
-                        <div className="fw__log-extra-row fw__log-extra-row--note"><span className="fw__log-extra-label">Note</span><span className="fw__log-extra-val">{pt.raw_data.notes}</span></div>
-                      )}
-                      {pt.raw_data?.hz_angle != null && (showLabels.accuracy || showLabels.instrument) && (
-                        <div className="fw__log-extra-row"><span className="fw__log-extra-label">Obs</span>
-                          <span className="fw__log-extra-val">Hz: {pt.raw_data.hz_angle.toFixed(4)} Vt: {pt.raw_data.vt_angle?.toFixed(4) ?? '—'} SD: {pt.raw_data.slope_dist?.toFixed(3) ?? '—'}</span></div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                    </td>
+                    <td className="fw__td fw__td--mono fw__td--sm">
+                      {pt.raw_data?.pdop != null ? `${pt.raw_data.pdop.toFixed(1)}` : '—'}
+                    </td>
+                    <td className="fw__td fw__td--sm">{pt.raw_data?.satellites ?? '—'}</td>
+                    <td className="fw__td fw__td--sm">{pt.instrument || '—'}</td>
+                    <td className="fw__td fw__td--sm">{pt.collected_by.split('@')[0]}</td>
+                    <td className="fw__td fw__td--mono fw__td--sm">{formatDateTime(pt.collected_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="fw__table-footer">
+            <span>{tablePoints.length} of {visiblePoints.length} points shown</span>
+            {importData.length > 0 && (
+              <button className="fw__btn fw__btn--sm" onClick={() => { setImportData([]); setImportFileName(''); }}>
+                Clear Imported ({importData.length})
+              </button>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Timeline Slider */}
       <div className="fw__timeline">
@@ -845,6 +959,73 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
         </div>
       </div>
 
+      {/* Import Dialog */}
+      {showImport && (
+        <div className="fw__popup-overlay" onClick={() => setShowImport(false)}>
+          <div className="fw__popup" onClick={e => e.stopPropagation()}>
+            <div className="fw__popup-header"><h3>Import Point File</h3><button className="fw__popup-close" onClick={() => setShowImport(false)}>x</button></div>
+            <div className="fw__popup-body">
+              <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: '0 0 1rem' }}>
+                Import points from a CSV or PNEZD text file. Supports files exported from Trimble Business Center, Trimble Access, AutoCAD Civil 3D, or any standard point file format.
+              </p>
+              <div className="fw__import-formats">
+                <div className="fw__import-format">
+                  <strong>CSV</strong>
+                  <span>Headers: Point Name, Northing, Easting, Elevation, Code, Description, ...</span>
+                </div>
+                <div className="fw__import-format">
+                  <strong>PNEZD</strong>
+                  <span>No header. Columns: Point, Northing, Easting, Elevation, Description</span>
+                </div>
+              </div>
+              <div className="fw__import-drop">
+                <input ref={importInputRef} type="file" accept=".csv,.txt,.pnezd" onChange={handleImportFile} style={{ display: 'none' }} />
+                <button className="fw__btn fw__btn--primary" onClick={() => importInputRef.current?.click()}>
+                  Choose File
+                </button>
+                {importFileName && <span className="fw__import-file-name">{importFileName}</span>}
+              </div>
+              {importData.length > 0 && (
+                <div className="fw__import-preview">
+                  <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>{importData.length} points parsed successfully</p>
+                  <div className="fw__import-preview-table">
+                    <table className="fw__table">
+                      <thead>
+                        <tr>
+                          <th className="fw__th">Point</th>
+                          <th className="fw__th">N</th>
+                          <th className="fw__th">E</th>
+                          <th className="fw__th">Z</th>
+                          <th className="fw__th">Desc</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importData.slice(0, 10).map(p => (
+                          <tr key={p.id}>
+                            <td className="fw__td fw__td--mono">{p.point_name || '—'}</td>
+                            <td className="fw__td fw__td--mono">{p.northing?.toFixed(2)}</td>
+                            <td className="fw__td fw__td--mono">{p.easting?.toFixed(2)}</td>
+                            <td className="fw__td fw__td--mono">{p.elevation?.toFixed(2) ?? '—'}</td>
+                            <td className="fw__td">{p.description || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {importData.length > 10 && <p style={{ fontSize: '0.75rem', color: '#9CA3AF', textAlign: 'center', margin: '0.5rem 0 0' }}>...and {importData.length - 10} more</p>}
+                  </div>
+                </div>
+              )}
+              <div className="fw__export-actions">
+                <button className="fw__btn" onClick={() => { setShowImport(false); setImportData([]); setImportFileName(''); }}>Cancel</button>
+                <button className="fw__btn fw__btn--primary" onClick={() => setShowImport(false)} disabled={importData.length === 0}>
+                  Load {importData.length} Points
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Export Dialog */}
       {showExport && (
         <div className="fw__popup-overlay" onClick={() => setShowExport(false)}>
@@ -869,11 +1050,19 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
                 <div className="fw__export-options">
                   <label className={`fw__export-option ${exportFormat === 'csv' ? 'fw__export-option--active' : ''}`}>
                     <input type="radio" name="format" checked={exportFormat === 'csv'} onChange={() => setExportFormat('csv')} />
-                    <div><strong>CSV (Full Data)</strong><span>All fields including quality metrics, instrument, collector</span></div>
+                    <div><strong>CSV (Full Data)</strong><span>All fields including quality metrics and instruments</span></div>
                   </label>
                   <label className={`fw__export-option ${exportFormat === 'pnezd' ? 'fw__export-option--active' : ''}`}>
                     <input type="radio" name="format" checked={exportFormat === 'pnezd'} onChange={() => setExportFormat('pnezd')} />
-                    <div><strong>PNEZD (Point File)</strong><span>Point Name, Northing, Easting, Elevation, Description — for CAD import</span></div>
+                    <div><strong>PNEZD</strong><span>Standard point file for Trimble/CAD import</span></div>
+                  </label>
+                  <label className={`fw__export-option ${exportFormat === 'dxf' ? 'fw__export-option--active' : ''}`}>
+                    <input type="radio" name="format" checked={exportFormat === 'dxf'} onChange={() => setExportFormat('dxf')} />
+                    <div><strong>DXF (AutoCAD)</strong><span>Points and labels organized by code layers</span></div>
+                  </label>
+                  <label className={`fw__export-option ${exportFormat === 'kml' ? 'fw__export-option--active' : ''}`}>
+                    <input type="radio" name="format" checked={exportFormat === 'kml'} onChange={() => setExportFormat('kml')} />
+                    <div><strong>KML (Google Earth)</strong><span>Placemarks for map visualization</span></div>
                   </label>
                 </div>
               </div>
@@ -915,6 +1104,9 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
                 <span style={{ fontSize: '0.75rem', color: DATA_TYPE_COLORS[detailPoint.data_type], fontWeight: 600 }}>
                   {DATA_TYPE_LABELS[detailPoint.data_type] || detailPoint.data_type}
                   {detailPoint.raw_data?.code && ` — ${detailPoint.raw_data.code}`}
+                  {detailPoint.raw_data?.code && POINT_CODE_CATEGORIES[detailPoint.raw_data.code] && (
+                    <span style={{ fontWeight: 400, color: '#6B7280' }}> ({POINT_CODE_CATEGORIES[detailPoint.raw_data.code].label})</span>
+                  )}
                 </span>
               </div>
               <button className="fw__popup-close" onClick={() => setDetailPoint(null)}>x</button>
@@ -933,6 +1125,12 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
                   <div className="fw__popup-field"><label>Easting</label><span className="fw__popup-mono">{detailPoint.easting?.toFixed(4) ?? '—'}</span></div>
                   <div className="fw__popup-field"><label>Elevation</label><span className="fw__popup-mono">{detailPoint.elevation?.toFixed(4) ?? '—'}</span></div>
                 </div>
+                {(detailPoint.raw_data?.coordinate_system || detailPoint.raw_data?.geoid_model) && (
+                  <div className="fw__popup-grid" style={{ marginTop: '0.5rem' }}>
+                    {detailPoint.raw_data?.coordinate_system && <div className="fw__popup-field"><label>Coord System</label><span>{detailPoint.raw_data.coordinate_system}</span></div>}
+                    {detailPoint.raw_data?.geoid_model && <div className="fw__popup-field"><label>Geoid Model</label><span>{detailPoint.raw_data.geoid_model}</span></div>}
+                  </div>
+                )}
               </div>
               {detailPoint.raw_data && (detailPoint.raw_data.accuracy != null || detailPoint.raw_data.rtk_status) && (
                 <div className="fw__popup-section">
@@ -952,6 +1150,15 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh }: 
                     {detailPoint.raw_data.vdop != null && <div className="fw__popup-field"><label>VDOP</label><span>{detailPoint.raw_data.vdop.toFixed(2)}</span></div>}
                     {detailPoint.raw_data.satellites != null && <div className="fw__popup-field"><label>Satellites</label><span>{detailPoint.raw_data.satellites} tracked</span></div>}
                   </div>
+                  {(detailPoint.raw_data.antenna_height != null || detailPoint.raw_data.prism_height != null || detailPoint.raw_data.base_station || detailPoint.raw_data.epoch_count != null) && (
+                    <div className="fw__popup-grid" style={{ marginTop: '0.5rem' }}>
+                      {detailPoint.raw_data.antenna_height != null && <div className="fw__popup-field"><label>Antenna Height</label><span>{detailPoint.raw_data.antenna_height.toFixed(3)}m</span></div>}
+                      {detailPoint.raw_data.prism_height != null && <div className="fw__popup-field"><label>Prism Height</label><span>{detailPoint.raw_data.prism_height.toFixed(3)}m</span></div>}
+                      {detailPoint.raw_data.base_station && <div className="fw__popup-field"><label>Base Station</label><span>{detailPoint.raw_data.base_station}</span></div>}
+                      {detailPoint.raw_data.epoch_count != null && <div className="fw__popup-field"><label>Epochs</label><span>{detailPoint.raw_data.epoch_count}</span></div>}
+                      {detailPoint.raw_data.measurement_method && <div className="fw__popup-field"><label>Method</label><span>{detailPoint.raw_data.measurement_method}</span></div>}
+                    </div>
+                  )}
                 </div>
               )}
               {detailPoint.raw_data && detailPoint.raw_data.hz_angle != null && (
