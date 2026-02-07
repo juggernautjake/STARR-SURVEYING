@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { usePageError } from '../hooks/usePageError';
 import Link from 'next/link';
 import UnderConstruction from '../components/messaging/UnderConstruction';
 import ConversationList from '../components/messaging/ConversationList';
@@ -21,6 +22,7 @@ interface Conversation {
 export default function MessagesInboxPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const { safeFetch, safeAction, reportPageError } = usePageError('MessagesInboxPage');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [totalUnread, setTotalUnread] = useState(0);
@@ -36,9 +38,11 @@ export default function MessagesInboxPage() {
         const data = await res.json();
         setConversations(data.conversations || []);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load conversations' });
+    }
     setLoading(false);
-  }, [filter]);
+  }, [filter, reportPageError]);
 
   const loadUnread = useCallback(async () => {
     try {
@@ -48,8 +52,10 @@ export default function MessagesInboxPage() {
         setUnreadCounts(data.unread_by_conversation || {});
         setTotalUnread(data.unread_count || 0);
       }
-    } catch { /* ignore */ }
-  }, []);
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load unread counts' });
+    }
+  }, [reportPageError]);
 
   useEffect(() => {
     if (session?.user) {

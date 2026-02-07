@@ -4,6 +4,7 @@
 import { useSession } from 'next-auth/react';
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePageError } from '../../hooks/usePageError';
 import UnderConstruction from '../../components/messaging/UnderConstruction';
 import RaiseHistory from '../../components/payroll/RaiseHistory';
 import CertificationsPanel from '../../components/payroll/CertificationsPanel';
@@ -32,6 +33,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
   const email = decodeURIComponent(resolvedParams.email);
   const { data: session } = useSession();
   const router = useRouter();
+  const { safeFetch, safeAction, reportPageError } = usePageError('EmployeeDetailPage');
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'certifications' | 'raises' | 'balance' | 'stubs'>('overview');
@@ -69,7 +71,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
           is_active: data.profile.is_active,
         });
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load profile' });
+    }
     setLoading(false);
   }
 
@@ -92,7 +96,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
         setEditing(false);
         loadProfile();
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'save profile' });
+    }
   }
 
   if (loading) return <div className="payroll-page"><div className="payroll-loading">Loading employee details...</div></div>;

@@ -1,10 +1,11 @@
 // app/api/admin/messages/read/route.ts
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // POST: Mark messages as read
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -57,10 +58,10 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ error: 'Provide message_ids or conversation_id' }, { status: 400 });
-}
+}, { routeName: 'messages/read' });
 
 // GET: Get unread count for the current user
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -95,4 +96,4 @@ export async function GET(req: Request) {
   }
 
   return NextResponse.json({ unread_count: totalUnread, unread_by_conversation: unreadByConversation });
-}
+}, { routeName: 'messages/read' });

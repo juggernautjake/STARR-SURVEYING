@@ -2,9 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // GET: List payroll runs or get specific run with stubs
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -63,10 +64,10 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ runs: data || [] });
-}
+}, { routeName: 'payroll/runs' });
 
 // POST: Create a new payroll run (admin only)
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -243,10 +244,10 @@ export async function POST(req: NextRequest) {
   } catch { /* ignore */ }
 
   return NextResponse.json({ run: { ...run, total_gross: totalGross, total_net: totalNet }, stub_count: stubs.length }, { status: 201 });
-}
+}, { routeName: 'payroll/runs' });
 
 // PUT: Update payroll run status (process/complete/cancel)
-export async function PUT(req: NextRequest) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -325,4 +326,4 @@ export async function PUT(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ run: data });
-}
+}, { routeName: 'payroll/runs' });

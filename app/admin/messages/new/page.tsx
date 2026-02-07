@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import UnderConstruction from '../../components/messaging/UnderConstruction';
 import ContactPicker from '../../components/messaging/ContactPicker';
@@ -12,6 +13,7 @@ export default function NewMessagePage() {
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { safeFetch, safeAction, reportPageError } = usePageError('NewMessagePage');
   const defaultType = searchParams.get('type') === 'group' ? 'group' : 'direct';
 
   const [type, setType] = useState<'direct' | 'group'>(defaultType);
@@ -63,8 +65,9 @@ export default function NewMessagePage() {
       });
 
       router.push(`/admin/messages/${conversationId}`);
-    } catch {
+    } catch (err) {
       alert('Error creating message');
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'create message' });
     }
     setSending(false);
   }

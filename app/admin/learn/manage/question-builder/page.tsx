@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import FillBlankQuestion from '@/app/admin/components/FillBlankQuestion';
+import { usePageError } from '../../../hooks/usePageError';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
@@ -38,6 +39,7 @@ const TYPE_INFO: Record<QType, { label: string; icon: string; desc: string }> = 
 export default function QuestionBuilderPage() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
+  const { safeFetch, safeAction } = usePageError('QuestionBuilderPage');
 
   const [qType, setQType] = useState<QType>('multiple_choice');
   const [questionText, setQuestionText] = useState('');
@@ -84,14 +86,14 @@ export default function QuestionBuilderPage() {
       ]);
       if (modRes.ok) { const d = await modRes.json(); setModules(d.modules || []); }
       if (lesRes.ok) { const d = await lesRes.json(); setLessons(d.lessons || []); }
-    } catch {}
+    } catch (err) { console.error('QuestionBuilderPage: failed to load modules/lessons', err); }
   }
 
   async function loadQuestions() {
     try {
       const res = await fetch('/api/admin/learn/questions?limit=100');
       if (res.ok) { const d = await res.json(); setQuestions(d.questions || []); }
-    } catch {}
+    } catch (err) { console.error('QuestionBuilderPage: failed to load questions', err); }
   }
 
   function resetForm() {
@@ -260,7 +262,7 @@ export default function QuestionBuilderPage() {
         const err = await res.json();
         setMessage(err.error || 'Failed to save');
       }
-    } catch { setMessage('Network error'); }
+    } catch (err) { console.error('QuestionBuilderPage: failed to save question', err); setMessage('Network error'); }
     setSaving(false);
   }
 
@@ -269,7 +271,7 @@ export default function QuestionBuilderPage() {
     try {
       const res = await fetch(`/api/admin/learn/questions?id=${id}`, { method: 'DELETE' });
       if (res.ok) { loadQuestions(); if (editId === id) resetForm(); }
-    } catch {}
+    } catch (err) { console.error('QuestionBuilderPage: failed to delete question', err); }
   }
 
   if (!isAdmin) {

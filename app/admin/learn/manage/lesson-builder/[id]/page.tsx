@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, DragEvent, ChangeEvent } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { usePageError } from '../../../../hooks/usePageError';
 
 const TipTapEditor = dynamic(() => import('@/app/admin/components/TipTapEditor'), { ssr: false });
 
@@ -57,6 +58,7 @@ function formatFileSize(bytes: number): string {
 export default function LessonBuilderPage() {
   const params = useParams();
   const lessonId = params.id as string;
+  const { safeFetch, safeAction } = usePageError('LessonBuilderPage');
   const [lesson, setLesson] = useState<LessonMeta | null>(null);
   const [blocks, setBlocks] = useState<LessonBlock[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,7 +107,7 @@ export default function LessonBuilderPage() {
         const data = await blocksRes.json();
         setBlocks((data.blocks || []).sort((a: LessonBlock, b: LessonBlock) => a.order_index - b.order_index));
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error('LessonBuilderPage: failed to load lesson', err); }
     setLoading(false);
   }
 
@@ -123,7 +125,7 @@ export default function LessonBuilderPage() {
       if (res.ok) {
         setLastSaved(new Date().toLocaleTimeString());
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error('LessonBuilderPage: failed to save blocks', err); }
     setSaving(false);
   }
 
@@ -136,7 +138,7 @@ export default function LessonBuilderPage() {
         body: JSON.stringify({ id: lessonId, status: newStatus }),
       });
       if (res.ok) setIsDraft(!isDraft);
-    } catch { /* ignore */ }
+    } catch (err) { console.error('LessonBuilderPage: failed to toggle publish', err); }
   }
 
   function addBlock(type: BlockType) {

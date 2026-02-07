@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
+import { usePageError } from '../../hooks/usePageError';
 import UnderConstruction from '../../components/messaging/UnderConstruction';
 import MessageBubble from '../../components/messaging/MessageBubble';
 import ComposeBox from '../../components/messaging/ComposeBox';
@@ -51,6 +52,7 @@ export default function ConversationPage() {
   const params = useParams();
   const router = useRouter();
   const conversationId = params.conversationId as string;
+  const { safeFetch, safeAction, reportPageError } = usePageError('ConversationPage');
 
   const [conversation, setConversation] = useState<ConversationMeta | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -69,8 +71,10 @@ export default function ConversationPage() {
         setConversation(data.conversation);
         setParticipants(data.participants || []);
       }
-    } catch { /* ignore */ }
-  }, [conversationId]);
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load conversation' });
+    }
+  }, [conversationId, reportPageError]);
 
   const loadMessages = useCallback(async () => {
     try {
@@ -79,9 +83,11 @@ export default function ConversationPage() {
         const data = await res.json();
         setMessages(data.messages || []);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load messages' });
+    }
     setLoading(false);
-  }, [conversationId]);
+  }, [conversationId, reportPageError]);
 
   const markAsRead = useCallback(async () => {
     try {
@@ -90,8 +96,10 @@ export default function ConversationPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversation_id: conversationId }),
       });
-    } catch { /* ignore */ }
-  }, [conversationId]);
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'mark as read' });
+    }
+  }, [conversationId, reportPageError]);
 
   useEffect(() => {
     if (session?.user) {
@@ -130,7 +138,9 @@ export default function ConversationPage() {
       });
       setReplyTo(null);
       loadMessages();
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'send message' });
+    }
   }
 
   async function handleReact(messageId: string, emoji: string) {
@@ -141,7 +151,9 @@ export default function ConversationPage() {
         body: JSON.stringify({ message_id: messageId, emoji }),
       });
       loadMessages();
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'add reaction' });
+    }
   }
 
   async function handleDelete(messageId: string) {
@@ -149,7 +161,9 @@ export default function ConversationPage() {
     try {
       await fetch(`/api/admin/messages/send?id=${messageId}`, { method: 'DELETE' });
       loadMessages();
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'delete message' });
+    }
   }
 
   function handleReply(messageId: string) {
@@ -203,12 +217,16 @@ export default function ConversationPage() {
           onSearch={() => setShowSearch(!showSearch)}
           onInfo={() => setShowInfo(!showInfo)}
           onArchive={async () => {
-            await fetch('/api/admin/messages/conversations', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: conversationId, is_archived: true }),
-            });
-            router.push('/admin/messages');
+            try {
+              await fetch('/api/admin/messages/conversations', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: conversationId, is_archived: true }),
+              });
+              router.push('/admin/messages');
+            } catch (err) {
+              reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'archive conversation' });
+            }
           }}
         />
       )}

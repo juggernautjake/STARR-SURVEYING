@@ -3,16 +3,18 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { usePageError } from '../../../hooks/usePageError';
 
 interface ArticleDetail { id: string; title: string; slug: string; category: string; tags: string[]; content: string; updated_at: string; }
 
 export default function ArticleDetailPage() {
   const { slug } = useParams() as { slug: string };
+  const { safeFetch, safeAction } = usePageError('ArticleDetailPage');
   const [article, setArticle] = useState<ArticleDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/admin/learn/articles?slug=${slug}`).then(r => r.json()).then(d => setArticle(d.article || null)).catch(() => {}).finally(() => setLoading(false));
+    fetch(`/api/admin/learn/articles?slug=${slug}`).then(r => r.json()).then(d => setArticle(d.article || null)).catch((err) => { console.error('ArticleDetailPage: failed to load article', err); }).finally(() => setLoading(false));
   }, [slug]);
 
   if (loading) return <div className="admin-empty"><div className="admin-empty__icon">⏳</div><div className="admin-empty__title">Loading...</div></div>;

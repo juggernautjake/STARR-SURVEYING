@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { usePageError } from '../hooks/usePageError';
 import UnderConstruction from '../components/messaging/UnderConstruction';
 import JobCard, { STAGE_CONFIG } from '../components/jobs/JobCard';
 
@@ -26,6 +27,7 @@ interface Job {
 export default function MyJobsPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const { safeFetch, safeAction, reportPageError } = usePageError('MyJobsPage');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,7 +40,9 @@ export default function MyJobsPage() {
         const data = await res.json();
         setJobs(data.jobs || []);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load my jobs' });
+    }
     setLoading(false);
   }
 

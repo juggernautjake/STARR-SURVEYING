@@ -2,8 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -20,9 +21,9 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ team: data || [] });
-}
+}, { routeName: 'jobs/team' });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -48,9 +49,9 @@ export async function POST(req: NextRequest) {
   }).catch(() => {});
 
   return NextResponse.json({ member: data }, { status: 201 });
-}
+}, { routeName: 'jobs/team' });
 
-export async function PUT(req: NextRequest) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -66,9 +67,9 @@ export async function PUT(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ member: data });
-}
+}, { routeName: 'jobs/team' });
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -83,4 +84,4 @@ export async function DELETE(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
-}
+}, { routeName: 'jobs/team' });

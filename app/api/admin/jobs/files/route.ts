@@ -2,8 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -27,9 +28,9 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ files: data || [] });
-}
+}, { routeName: 'jobs/files' });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -68,9 +69,9 @@ export async function POST(req: NextRequest) {
   }).catch(() => {});
 
   return NextResponse.json({ file }, { status: 201 });
-}
+}, { routeName: 'jobs/files' });
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -83,4 +84,4 @@ export async function DELETE(req: NextRequest) {
   await supabaseAdmin.from('job_files').update({ is_deleted: true }).eq('backup_of', id);
 
   return NextResponse.json({ success: true });
-}
+}, { routeName: 'jobs/files' });

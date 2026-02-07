@@ -2,19 +2,21 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { usePageError } from '../../hooks/usePageError';
 
 interface Article { id: string; title: string; slug: string; category: string; tags: string[]; excerpt: string; status: string; updated_at: string; }
 
 const CATEGORIES = ['All', 'Units & Measurements', 'Mathematics & Formulas', 'Equipment & Technology', 'Legal & Regulatory', 'Texas Land History', 'Survey Types', 'CAD & Drafting', 'Field Procedures', 'Business & Professional', 'Calculator Tips'];
 
 export default function KnowledgeBasePage() {
+  const { safeFetch, safeAction } = usePageError('KnowledgeBasePage');
   const [articles, setArticles] = useState<Article[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin/learn/articles').then(r => r.json()).then(d => setArticles(d.articles || [])).catch(() => {}).finally(() => setLoading(false));
+    fetch('/api/admin/learn/articles').then(r => r.json()).then(d => setArticles(d.articles || [])).catch((err) => { console.error('KnowledgeBasePage: failed to load articles', err); }).finally(() => setLoading(false));
   }, []);
 
   const filtered = articles.filter(a => a.status === 'published')

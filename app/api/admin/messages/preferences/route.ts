@@ -1,10 +1,11 @@
 // app/api/admin/messages/preferences/route.ts
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // GET: Get user's messaging preferences
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -29,10 +30,10 @@ export async function GET(req: Request) {
   }
 
   return NextResponse.json({ preferences: data });
-}
+}, { routeName: 'messages/preferences' });
 
 // PUT: Update messaging preferences
-export async function PUT(req: Request) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -49,4 +50,4 @@ export async function PUT(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ preferences: data });
-}
+}, { routeName: 'messages/preferences' });

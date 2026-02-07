@@ -2,8 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -32,9 +33,9 @@ export async function GET(req: NextRequest) {
     total_refunded: totalRefunded,
     net_paid: totalPaid - totalRefunded,
   });
-}
+}, { routeName: 'jobs/payments' });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.email)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -79,4 +80,4 @@ export async function POST(req: NextRequest) {
   }).eq('id', job_id);
 
   return NextResponse.json({ payment: data }, { status: 201 });
-}
+}, { routeName: 'jobs/payments' });

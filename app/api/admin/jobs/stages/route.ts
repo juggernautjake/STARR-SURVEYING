@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 const STAGE_ORDER = ['quote', 'research', 'fieldwork', 'drawing', 'legal', 'delivery', 'completed'];
 const STAGE_DATE_MAP: Record<string, string> = {
@@ -13,7 +14,7 @@ const STAGE_DATE_MAP: Record<string, string> = {
   completed: 'date_delivered',
 };
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -29,9 +30,9 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ history: data || [], stages: STAGE_ORDER });
-}
+}, { routeName: 'jobs/stages' });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -77,4 +78,4 @@ export async function POST(req: NextRequest) {
   }).catch(() => {});
 
   return NextResponse.json({ success: true, from_stage: job.stage, to_stage });
-}
+}, { routeName: 'jobs/stages' });

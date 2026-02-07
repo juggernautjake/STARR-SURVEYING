@@ -3,6 +3,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
+import { usePageError } from '../hooks/usePageError';
 import UnderConstruction from '../components/messaging/UnderConstruction';
 import BalanceCard from '../components/payroll/BalanceCard';
 import PayStubView from '../components/payroll/PayStubView';
@@ -30,6 +31,7 @@ interface EmployeeProfile {
 
 export default function MyPayPage() {
   const { data: session } = useSession();
+  const { safeFetch, safeAction, reportPageError } = usePageError('MyPayPage');
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [profileExists, setProfileExists] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -62,7 +64,9 @@ export default function MyPayPage() {
           bank_account_type: data.profile.bank_account_type || 'checking',
         });
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load pay profile' });
+    }
     setLoading(false);
   }
 
@@ -82,7 +86,9 @@ export default function MyPayPage() {
         loadProfile();
         alert('Bank information saved!');
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'save bank info' });
+    }
   }
 
   if (loading) return <div className="payroll-page"><div className="payroll-loading">Loading your pay information...</div></div>;

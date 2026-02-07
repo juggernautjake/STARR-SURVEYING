@@ -2,6 +2,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePageError } from '../../hooks/usePageError';
 
 interface Note {
   id: string; title: string; content: string;
@@ -10,6 +11,7 @@ interface Note {
 }
 
 export default function FieldbookPage() {
+  const { safeFetch, safeAction } = usePageError('FieldbookPage');
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Note | null>(null);
@@ -23,14 +25,16 @@ export default function FieldbookPage() {
     try {
       const res = await fetch('/api/admin/learn/notes');
       if (res.ok) { const data = await res.json(); setNotes(data.notes || []); }
-    } catch {}
+    } catch (err) { console.error('FieldbookPage: failed to fetch notes', err); }
     setLoading(false);
   }
 
   async function deleteNote(id: string) {
     if (!confirm('Delete this note?')) return;
-    await fetch(`/api/admin/learn/notes?id=${id}`, { method: 'DELETE' });
-    setNotes(prev => prev.filter(n => n.id !== id));
+    try {
+      await fetch(`/api/admin/learn/notes?id=${id}`, { method: 'DELETE' });
+      setNotes(prev => prev.filter(n => n.id !== id));
+    } catch (err) { console.error('FieldbookPage: failed to delete note', err); }
   }
 
   async function updateNote() {
@@ -46,7 +50,7 @@ export default function FieldbookPage() {
         setNotes(prev => prev.map(n => n.id === editing.id ? data.note : n));
         setEditing(null);
       }
-    } catch {}
+    } catch (err) { console.error('FieldbookPage: failed to update note', err); }
     setSaving(false);
   }
 
@@ -64,7 +68,7 @@ export default function FieldbookPage() {
         setEditTitle(data.note.title);
         setEditContent(data.note.content);
       }
-    } catch {}
+    } catch (err) { console.error('FieldbookPage: failed to create note', err); }
     setSaving(false);
   }
 

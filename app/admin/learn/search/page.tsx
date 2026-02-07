@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import { usePageError } from '../../hooks/usePageError';
 
 interface SearchResult { type: string; id: string; title: string; excerpt: string; href: string; breadcrumb: string; }
 
 function SearchContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
+  const { safeFetch, safeAction } = usePageError('SearchContent');
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,7 @@ function SearchContent() {
     try {
       const res = await fetch(`/api/admin/learn/search?q=${encodeURIComponent(q.trim())}`);
       if (res.ok) { const data = await res.json(); setResults(data.results || []); }
-    } catch { /* */ }
+    } catch (err) { console.error('SearchContent: search failed', err); }
     finally { setLoading(false); }
   }
 

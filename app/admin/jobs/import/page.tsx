@@ -2,6 +2,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
+import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import { SURVEY_TYPES } from '../../components/jobs/JobCard';
 
@@ -29,6 +30,7 @@ type ImportMode = 'single' | 'bulk' | 'files';
 
 export default function ImportJobsPage() {
   const { data: session } = useSession();
+  const { safeFetch, safeAction, reportPageError } = usePageError('ImportJobsPage');
   const [mode, setMode] = useState<ImportMode>('single');
   const [importing, setImporting] = useState(false);
   const [results, setResults] = useState<{ success: number; failed: number; errors: string[] }>({ success: 0, failed: 0, errors: [] });
@@ -86,9 +88,10 @@ export default function ImportJobsPage() {
         setResults({ success: 0, failed: 1, errors: [data.error || 'Unknown error'] });
         setShowResults(true);
       }
-    } catch {
+    } catch (err) {
       setResults({ success: 0, failed: 1, errors: ['Network error'] });
       setShowResults(true);
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'single import' });
     }
     setImporting(false);
   }
@@ -176,9 +179,10 @@ export default function ImportJobsPage() {
         });
         if (res.ok) successCount++;
         else { failCount++; errors.push(`Row ${i + 1}: ${(await res.json()).error || 'Unknown error'}`); }
-      } catch {
+      } catch (err) {
         failCount++;
         errors.push(`Row ${i + 1}: Network error`);
+        reportPageError(err instanceof Error ? err : new Error(String(err)), { element: `CSV import row ${i + 1}` });
       }
     }
 
@@ -263,7 +267,9 @@ export default function ImportJobsPage() {
           }),
         });
         if (res.ok) successCount++;
-      } catch { /* ignore */ }
+      } catch (err) {
+        reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'file upload' });
+      }
     }
     setResults({ success: successCount, failed: uploadedFiles.length - successCount, errors: [] });
     setShowResults(true);

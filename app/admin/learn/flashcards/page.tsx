@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import FieldbookButton from '@/app/admin/components/FieldbookButton';
+import { usePageError } from '../../hooks/usePageError';
 
 interface Flashcard {
   id: string; term: string; definition: string;
@@ -18,6 +19,7 @@ type ViewMode = 'browse' | 'study' | 'study-setup' | 'create';
 type StudyType = 'term' | 'definition' | 'mixed';
 
 export default function FlashcardsPage() {
+  const { safeFetch, safeAction } = usePageError('FlashcardsPage');
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
@@ -61,7 +63,7 @@ export default function FlashcardsPage() {
         const data = await res.json();
         setCards(data.cards || []);
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error('FlashcardsPage: failed to fetch cards', err); }
     if (mountedRef.current) {
       setLoading(false);
       setReady(true);
@@ -86,14 +88,16 @@ export default function FlashcardsPage() {
         setNewTerm(''); setNewDef(''); setNewH1(''); setNewH2(''); setNewH3(''); setNewKeywords('');
         setMode('browse');
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error('FlashcardsPage: failed to create card', err); }
     setSaving(false);
   }
 
   async function deleteCard(id: string) {
     if (!confirm('Delete this flashcard?')) return;
-    await fetch(`/api/admin/learn/flashcards?id=${id}`, { method: 'DELETE' });
-    setCards(prev => prev.filter(c => c.id !== id));
+    try {
+      await fetch(`/api/admin/learn/flashcards?id=${id}`, { method: 'DELETE' });
+      setCards(prev => prev.filter(c => c.id !== id));
+    } catch (err) { console.error('FlashcardsPage: failed to delete card', err); }
   }
 
   async function submitRating(rating: 'again' | 'hard' | 'good' | 'easy') {
@@ -118,7 +122,7 @@ export default function FlashcardsPage() {
           times_correct: (c.times_correct || 0) + (rating === 'good' || rating === 'easy' ? 1 : 0),
         };
       }));
-    } catch { /* ignore */ }
+    } catch (err) { console.error('FlashcardsPage: failed to submit rating', err); }
     setTimeout(() => {
       nextCard();
       setRatingSubmitted(false);
@@ -140,7 +144,7 @@ export default function FlashcardsPage() {
         if (data.results?.topics) links.push(...data.results.topics.map((t: any) => ({ ...t, label: 'Topic' })));
         setRelatedLinks(links.slice(0, 8));
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error('FlashcardsPage: failed to find related content', err); }
     setSearchingRelated(false);
   }
 

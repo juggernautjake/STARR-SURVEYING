@@ -2,9 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // GET: Get certifications for a user
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -24,10 +25,10 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ certifications: data || [] });
-}
+}, { routeName: 'payroll/certifications' });
 
 // POST: Add a certification
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -62,10 +63,10 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ certification: data }, { status: 201 });
-}
+}, { routeName: 'payroll/certifications' });
 
 // PUT: Update certification (admin: verify & set pay bump; user: update details)
-export async function PUT(req: NextRequest) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -110,10 +111,10 @@ export async function PUT(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ certification: data });
-}
+}, { routeName: 'payroll/certifications' });
 
 // DELETE: Remove certification
-export async function DELETE(req: NextRequest) {
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -135,4 +136,4 @@ export async function DELETE(req: NextRequest) {
   const { error } = await supabaseAdmin.from('employee_certifications').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
-}
+}, { routeName: 'payroll/certifications' });

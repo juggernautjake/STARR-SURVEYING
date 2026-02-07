@@ -1,10 +1,11 @@
 // app/api/admin/messages/send/route.ts
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // GET: Fetch messages for a conversation
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -73,10 +74,10 @@ export async function GET(req: Request) {
   }));
 
   return NextResponse.json({ messages: messages.reverse() }); // Return in chronological order
-}
+}, { routeName: 'messages/send' });
 
 // POST: Send a message
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -148,10 +149,10 @@ export async function POST(req: Request) {
   } catch { /* ignore */ }
 
   return NextResponse.json({ message });
-}
+}, { routeName: 'messages/send' });
 
 // PUT: Edit a message
-export async function PUT(req: Request) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -179,10 +180,10 @@ export async function PUT(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ message: data });
-}
+}, { routeName: 'messages/send' });
 
 // DELETE: Soft-delete a message
-export async function DELETE(req: Request) {
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -206,7 +207,7 @@ export async function DELETE(req: Request) {
     .eq('id', id);
 
   return NextResponse.json({ success: true });
-}
+}, { routeName: 'messages/send' });
 
 function isAdmin(email: string): boolean {
   const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];

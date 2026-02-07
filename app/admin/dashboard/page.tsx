@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
+import { usePageError } from '../hooks/usePageError';
 
 interface QuizAttempt {
   id: string;
@@ -23,6 +24,7 @@ interface ActivityItem {
 
 export default function AdminDashboardPage() {
   const { data: session } = useSession();
+  const { safeFetch, safeAction, reportPageError } = usePageError('AdminDashboardPage');
   const [lessonsCompleted, setLessonsCompleted] = useState(0);
   const [totalLessons, setTotalLessons] = useState(0);
   const [recentQuizScore, setRecentQuizScore] = useState<number | null>(null);
@@ -68,7 +70,9 @@ export default function AdminDashboardPage() {
           const frData = await frRes.json();
           setFlashcardsDue(frData.due_count || 0);
         }
-      } catch { /* ignore */ }
+      } catch (err) {
+        reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'flashcard due count' });
+      }
 
       // Admin activity feed
       if (role === 'admin') {
@@ -78,9 +82,13 @@ export default function AdminDashboardPage() {
             const actData = await actRes.json();
             setActivityFeed(actData.activities || []);
           }
-        } catch { /* ignore */ }
+        } catch (err) {
+          reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'activity feed' });
+        }
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'dashboard data load' });
+    }
     setLoading(false);
   }, [role]);
 

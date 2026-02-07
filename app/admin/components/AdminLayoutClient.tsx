@@ -7,12 +7,15 @@ import { usePathname } from 'next/navigation';
 import AdminSidebar from './AdminSidebar';
 import AdminTopBar from './AdminTopBar';
 import Fieldbook from './Fieldbook';
+import ErrorProvider from './error/ErrorProvider';
+import ErrorBoundary from './error/ErrorBoundary';
 
 import '../styles/AdminLayout.css';
 import '../styles/AdminLearn.css';
 import '../styles/AdminMessaging.css';
 import '../styles/AdminJobs.css';
 import '../styles/AdminPayroll.css';
+import '../styles/AdminErrors.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
@@ -45,6 +48,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/messages/new': 'New Message',
   '/admin/messages/contacts': 'Team Directory',
   '/admin/messages/settings': 'Message Settings',
+  '/admin/error-log': 'Error Log',
 };
 
 function getTitle(p: string): string {
@@ -80,16 +84,28 @@ function Inner({ children }: { children: React.ReactNode }) {
   if (!session?.user) return <>{children}</>;
 
   const role = session.user.role || 'employee';
+  const pageTitle = getTitle(pathname);
 
   return (
-    <div className="admin-layout">
-      <AdminSidebar role={role} userName={session.user.name || 'User'} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="admin-layout__main">
-        <AdminTopBar title={getTitle(pathname)} role={role} onMenuToggle={() => setSidebarOpen((p) => !p)} />
-        <div className="admin-layout__content">{children}</div>
+    <ErrorProvider>
+      <div className="admin-layout">
+        <AdminSidebar role={role} userName={session.user.name || 'User'} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <div className="admin-layout__main">
+          <AdminTopBar title={pageTitle} role={role} onMenuToggle={() => setSidebarOpen((p) => !p)} />
+          <div className="admin-layout__content">
+            <ErrorBoundary
+              pageName={pageTitle}
+              userEmail={session.user.email || undefined}
+              userName={session.user.name || undefined}
+              userRole={role}
+            >
+              {children}
+            </ErrorBoundary>
+          </div>
+        </div>
+        <Fieldbook />
       </div>
-      <Fieldbook />
-    </div>
+    </ErrorProvider>
   );
 }
 

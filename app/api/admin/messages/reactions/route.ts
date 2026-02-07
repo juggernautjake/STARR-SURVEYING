@@ -1,10 +1,11 @@
 // app/api/admin/messages/reactions/route.ts
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // POST: Add a reaction to a message
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -24,10 +25,10 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ reaction: data });
-}
+}, { routeName: 'messages/reactions' });
 
 // DELETE: Remove a reaction
-export async function DELETE(req: Request) {
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -45,4 +46,4 @@ export async function DELETE(req: Request) {
     .eq('emoji', emoji);
 
   return NextResponse.json({ success: true });
-}
+}, { routeName: 'messages/reactions' });

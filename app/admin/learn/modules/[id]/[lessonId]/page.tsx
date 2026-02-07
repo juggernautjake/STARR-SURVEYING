@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import FieldbookButton from '@/app/admin/components/FieldbookButton';
+import { usePageError } from '../../../../hooks/usePageError';
 
 interface Topic {
   id: string;
@@ -30,6 +31,7 @@ export default function LessonViewerPage() {
   const params = useParams();
   const moduleId = params.id as string;
   const lessonId = params.lessonId as string;
+  const { safeFetch, safeAction } = usePageError('LessonViewerPage');
 
   const [lesson, setLesson] = useState<any>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -52,7 +54,7 @@ export default function LessonViewerPage() {
         setTopics(data.topics || []);
         setQuizCount(data.quiz_question_count || 0);
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error('LessonViewerPage: failed to fetch lesson', err); }
     setLoading(false);
   }
 
@@ -63,7 +65,7 @@ export default function LessonViewerPage() {
         const data = await res.json();
         setCompleted(data.completed);
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error('LessonViewerPage: failed to check progress', err); }
   }
 
   async function markComplete() {
@@ -75,7 +77,7 @@ export default function LessonViewerPage() {
         body: JSON.stringify({ module_id: moduleId, lesson_id: lessonId }),
       });
       if (res.ok) setCompleted(true);
-    } catch { /* ignore */ }
+    } catch (err) { console.error('LessonViewerPage: failed to mark complete', err); }
     setMarking(false);
   }
 

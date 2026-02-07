@@ -1,10 +1,11 @@
 // app/api/admin/learn/notes/route.ts
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // GET — List user's fieldbook notes
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -24,10 +25,10 @@ export async function GET(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ notes: data || [] });
-}
+}, { routeName: 'learn/notes' });
 
 // POST — Create a note
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -59,10 +60,10 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ note: data });
-}
+}, { routeName: 'learn/notes' });
 
 // PUT — Update a note
-export async function PUT(req: Request) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -75,10 +76,10 @@ export async function PUT(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ note: data });
-}
+}, { routeName: 'learn/notes' });
 
 // DELETE — Delete a note
-export async function DELETE(req: Request) {
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -91,4 +92,4 @@ export async function DELETE(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ deleted: true });
-}
+}, { routeName: 'learn/notes' });

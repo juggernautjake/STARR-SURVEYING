@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { usePageError } from '../../../hooks/usePageError';
 
 interface Lesson { id: string; title: string; description: string; order_index: number; estimated_minutes: number; }
 interface ModuleDetail { id: string; title: string; description: string; difficulty: string; estimated_hours: number; }
@@ -10,6 +11,7 @@ interface ModuleDetail { id: string; title: string; description: string; difficu
 export default function ModuleDetailPage() {
   const params = useParams();
   const moduleId = params.id as string;
+  const { safeFetch, safeAction } = usePageError('ModuleDetailPage');
   const [mod, setMod] = useState<ModuleDetail | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +26,7 @@ export default function ModuleDetailPage() {
       setMod(modData.module || null);
       // Use lessons from the lessons API, fallback to modules API response
       setLessons(lesData.lessons?.length ? lesData.lessons : (modData.lessons || []));
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch((err) => { console.error('ModuleDetailPage: failed to load module data', err); }).finally(() => setLoading(false));
   }, [moduleId]);
 
   async function seedContent() {
@@ -46,7 +48,8 @@ export default function ModuleDetailPage() {
       } else {
         setSeedMsg(data.error || 'Failed to seed content');
       }
-    } catch {
+    } catch (err) {
+      console.error('ModuleDetailPage: seed content failed', err);
       setSeedMsg('Network error');
     }
     setSeeding(false);

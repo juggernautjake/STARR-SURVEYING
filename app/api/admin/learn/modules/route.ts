@@ -2,9 +2,10 @@
 import { auth } from '@/lib/auth';
 import { isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -36,9 +37,9 @@ export async function GET(req: Request) {
   }));
 
   return NextResponse.json({ modules: modulesWithCounts });
-}
+}, { routeName: 'learn/modules' });
 
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.email)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -47,4 +48,4 @@ export async function POST(req: Request) {
   const { data, error } = await supabaseAdmin.from('learning_modules').insert(body).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ module: data });
-}
+}, { routeName: 'learn/modules' });

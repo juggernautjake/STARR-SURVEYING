@@ -2,8 +2,10 @@
 'use client';
 import Link from 'next/link';
 import { useState } from 'react';
+import { usePageError } from '../../../hooks/usePageError';
 
 export default function CreateFlashcardsPage() {
+  const { safeFetch, safeAction } = usePageError('CreateFlashcardsPage');
   const [deckName, setDeckName] = useState('My Cards');
   const [term, setTerm] = useState('');
   const [definition, setDefinition] = useState('');
@@ -29,7 +31,7 @@ export default function CreateFlashcardsPage() {
         setSaved(prev => [...prev, term.trim()]);
         setTerm(''); setDefinition(''); setHint1(''); setHint2(''); setHint3(''); setKeywords('');
       }
-    } catch { /* */ }
+    } catch (err) { console.error('CreateFlashcardsPage: failed to save card', err); }
     finally { setSaving(false); }
   }
 

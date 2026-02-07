@@ -1,10 +1,11 @@
 // app/api/admin/messages/contacts/route.ts
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // GET: Get list of contacts (all employees in the domain)
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -45,4 +46,4 @@ export async function GET(req: Request) {
   });
 
   return NextResponse.json({ contacts });
-}
+}, { routeName: 'messages/contacts' });

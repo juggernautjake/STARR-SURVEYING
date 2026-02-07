@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
+import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import UnderConstruction from '../../components/messaging/UnderConstruction';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
@@ -67,6 +68,7 @@ export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
   const jobId = params.id as string;
+  const { safeFetch, safeAction, reportPageError } = usePageError('JobDetailPage');
 
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,9 +88,11 @@ export default function JobDetailPage() {
         const data = await res.json();
         setJob(data.job);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load job' });
+    }
     setLoading(false);
-  }, [jobId]);
+  }, [jobId, reportPageError]);
 
   useEffect(() => { loadJob(); }, [loadJob]);
 
@@ -96,133 +100,185 @@ export default function JobDetailPage() {
   useEffect(() => {
     if (!jobId) return;
     if (activeTab === 'overview') {
-      fetch(`/api/admin/jobs/stages?job_id=${jobId}`).then(r => r.json()).then(d => setStageHistory(d.history || [])).catch(() => {});
-      fetch(`/api/admin/jobs/checklists?job_id=${jobId}`).then(r => r.json()).then(d => setChecklists(d.checklists || [])).catch(() => {});
+      fetch(`/api/admin/jobs/stages?job_id=${jobId}`).then(r => r.json()).then(d => setStageHistory(d.history || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load stage history' }); });
+      fetch(`/api/admin/jobs/checklists?job_id=${jobId}`).then(r => r.json()).then(d => setChecklists(d.checklists || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load checklists' }); });
     }
     if (activeTab === 'research') {
-      fetch(`/api/admin/jobs/research?job_id=${jobId}`).then(r => r.json()).then(d => setResearch(d.research || [])).catch(() => {});
+      fetch(`/api/admin/jobs/research?job_id=${jobId}`).then(r => r.json()).then(d => setResearch(d.research || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load research' }); });
     }
     if (activeTab === 'fieldwork') {
       loadFieldData();
     }
     if (activeTab === 'files') {
-      fetch(`/api/admin/jobs/files?job_id=${jobId}`).then(r => r.json()).then(d => setFiles(d.files || [])).catch(() => {});
+      fetch(`/api/admin/jobs/files?job_id=${jobId}`).then(r => r.json()).then(d => setFiles(d.files || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load files' }); });
     }
     if (activeTab === 'financial') {
-      fetch(`/api/admin/jobs/payments?job_id=${jobId}`).then(r => r.json()).then(d => setPayments(d.payments || [])).catch(() => {});
-      fetch(`/api/admin/jobs/time?job_id=${jobId}`).then(r => r.json()).then(d => setTimeEntries(d.entries || [])).catch(() => {});
+      fetch(`/api/admin/jobs/payments?job_id=${jobId}`).then(r => r.json()).then(d => setPayments(d.payments || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load payments' }); });
+      fetch(`/api/admin/jobs/time?job_id=${jobId}`).then(r => r.json()).then(d => setTimeEntries(d.entries || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load time entries' }); });
     }
   }, [activeTab, jobId]);
 
   async function advanceStage(toStage: string) {
-    await fetch('/api/admin/jobs/stages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: jobId, to_stage: toStage }),
-    });
-    loadJob();
-    fetch(`/api/admin/jobs/stages?job_id=${jobId}`).then(r => r.json()).then(d => setStageHistory(d.history || [])).catch(() => {});
+    try {
+      await fetch('/api/admin/jobs/stages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, to_stage: toStage }),
+      });
+      loadJob();
+      fetch(`/api/admin/jobs/stages?job_id=${jobId}`).then(r => r.json()).then(d => setStageHistory(d.history || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'reload stage history' }); });
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'advance stage' });
+    }
   }
 
   const loadFieldData = useCallback(() => {
-    fetch(`/api/admin/jobs/field-data?job_id=${jobId}`).then(r => r.json()).then(d => setFieldData(d.field_data || [])).catch(() => {});
-  }, [jobId]);
+    fetch(`/api/admin/jobs/field-data?job_id=${jobId}`).then(r => r.json()).then(d => setFieldData(d.field_data || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load field data' }); });
+  }, [jobId, reportPageError]);
 
   async function addTeamMember(email: string, name: string, role: string) {
-    await fetch('/api/admin/jobs/team', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: jobId, user_email: email, user_name: name, role }),
-    });
-    loadJob();
+    try {
+      await fetch('/api/admin/jobs/team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, user_email: email, user_name: name, role }),
+      });
+      loadJob();
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'add team member' });
+    }
   }
 
   async function removeTeamMember(id: string) {
-    await fetch(`/api/admin/jobs/team?id=${id}`, { method: 'DELETE' });
-    loadJob();
+    try {
+      await fetch(`/api/admin/jobs/team?id=${id}`, { method: 'DELETE' });
+      loadJob();
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'remove team member' });
+    }
   }
 
   async function changeTeamRole(id: string, role: string) {
-    await fetch('/api/admin/jobs/team', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, role }),
-    });
-    loadJob();
+    try {
+      await fetch('/api/admin/jobs/team', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, role }),
+      });
+      loadJob();
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'change team role' });
+    }
   }
 
   async function addEquipment(name: string, type: string, serial: string) {
-    await fetch('/api/admin/jobs/equipment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: jobId, equipment_name: name, equipment_type: type, serial_number: serial }),
-    });
-    loadJob();
+    try {
+      await fetch('/api/admin/jobs/equipment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, equipment_name: name, equipment_type: type, serial_number: serial }),
+      });
+      loadJob();
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'add equipment' });
+    }
   }
 
   async function returnEquipment(id: string) {
-    await fetch('/api/admin/jobs/equipment', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, returned: true }),
-    });
-    loadJob();
+    try {
+      await fetch('/api/admin/jobs/equipment', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, returned: true }),
+      });
+      loadJob();
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'return equipment' });
+    }
   }
 
   async function uploadFile(file: { file_name: string; file_type: string; file_url: string; file_size: number; section: string; description: string }) {
-    await fetch('/api/admin/jobs/files', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: jobId, ...file }),
-    });
-    fetch(`/api/admin/jobs/files?job_id=${jobId}`).then(r => r.json()).then(d => setFiles(d.files || [])).catch(() => {});
+    try {
+      await fetch('/api/admin/jobs/files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, ...file }),
+      });
+      fetch(`/api/admin/jobs/files?job_id=${jobId}`).then(r => r.json()).then(d => setFiles(d.files || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'reload files' }); });
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'upload file' });
+    }
   }
 
   async function deleteFile(id: string) {
-    await fetch(`/api/admin/jobs/files?id=${id}`, { method: 'DELETE' });
-    fetch(`/api/admin/jobs/files?job_id=${jobId}`).then(r => r.json()).then(d => setFiles(d.files || [])).catch(() => {});
+    try {
+      await fetch(`/api/admin/jobs/files?id=${id}`, { method: 'DELETE' });
+      fetch(`/api/admin/jobs/files?job_id=${jobId}`).then(r => r.json()).then(d => setFiles(d.files || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'reload files after delete' }); });
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'delete file' });
+    }
   }
 
   async function addResearch(item: { category: string; title: string; content: string; source: string; reference_number: string }) {
-    await fetch('/api/admin/jobs/research', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: jobId, ...item }),
-    });
-    fetch(`/api/admin/jobs/research?job_id=${jobId}`).then(r => r.json()).then(d => setResearch(d.research || [])).catch(() => {});
+    try {
+      await fetch('/api/admin/jobs/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, ...item }),
+      });
+      fetch(`/api/admin/jobs/research?job_id=${jobId}`).then(r => r.json()).then(d => setResearch(d.research || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'reload research' }); });
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'add research' });
+    }
   }
 
   async function deleteResearch(id: string) {
-    await fetch(`/api/admin/jobs/research?id=${id}`, { method: 'DELETE' });
-    fetch(`/api/admin/jobs/research?job_id=${jobId}`).then(r => r.json()).then(d => setResearch(d.research || [])).catch(() => {});
+    try {
+      await fetch(`/api/admin/jobs/research?id=${id}`, { method: 'DELETE' });
+      fetch(`/api/admin/jobs/research?job_id=${jobId}`).then(r => r.json()).then(d => setResearch(d.research || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'reload research after delete' }); });
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'delete research' });
+    }
   }
 
   async function toggleChecklist(id: string, completed: boolean) {
-    await fetch('/api/admin/jobs/checklists', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, is_completed: completed }),
-    });
-    fetch(`/api/admin/jobs/checklists?job_id=${jobId}`).then(r => r.json()).then(d => setChecklists(d.checklists || [])).catch(() => {});
+    try {
+      await fetch('/api/admin/jobs/checklists', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, is_completed: completed }),
+      });
+      fetch(`/api/admin/jobs/checklists?job_id=${jobId}`).then(r => r.json()).then(d => setChecklists(d.checklists || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'reload checklists' }); });
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'toggle checklist' });
+    }
   }
 
   async function loadChecklistTemplate(stage: string) {
-    await fetch('/api/admin/jobs/checklists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: jobId, stage, use_template: true }),
-    });
-    fetch(`/api/admin/jobs/checklists?job_id=${jobId}`).then(r => r.json()).then(d => setChecklists(d.checklists || [])).catch(() => {});
+    try {
+      await fetch('/api/admin/jobs/checklists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, stage, use_template: true }),
+      });
+      fetch(`/api/admin/jobs/checklists?job_id=${jobId}`).then(r => r.json()).then(d => setChecklists(d.checklists || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'reload checklists after template' }); });
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load checklist template' });
+    }
   }
 
   async function addTimeEntry(entry: { work_type: string; duration_minutes: number; description: string }) {
-    await fetch('/api/admin/jobs/time', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: jobId, start_time: new Date().toISOString(), ...entry }),
-    });
-    fetch(`/api/admin/jobs/time?job_id=${jobId}`).then(r => r.json()).then(d => setTimeEntries(d.entries || [])).catch(() => {});
-    loadJob();
+    try {
+      await fetch('/api/admin/jobs/time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, start_time: new Date().toISOString(), ...entry }),
+      });
+      fetch(`/api/admin/jobs/time?job_id=${jobId}`).then(r => r.json()).then(d => setTimeEntries(d.entries || [])).catch((err: unknown) => { reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'reload time entries' }); });
+      loadJob();
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'add time entry' });
+    }
   }
 
   if (!session?.user) return null;

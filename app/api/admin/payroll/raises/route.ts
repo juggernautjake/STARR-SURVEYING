@@ -2,9 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // GET: Get raise history for an employee
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -29,10 +30,10 @@ export async function GET(req: NextRequest) {
   const nextReview = data && data.length > 0 ? data[0].next_review_date : null;
 
   return NextResponse.json({ raises: data || [], next_review_date: nextReview });
-}
+}, { routeName: 'payroll/raises' });
 
 // POST: Record a pay raise (admin only)
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -93,4 +94,4 @@ export async function POST(req: NextRequest) {
   } catch { /* ignore */ }
 
   return NextResponse.json({ raise, updated_rate: new_rate }, { status: 201 });
-}
+}, { routeName: 'payroll/raises' });
