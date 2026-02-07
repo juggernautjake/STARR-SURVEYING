@@ -30,6 +30,7 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
     ]},
     { label: 'Learning', items: [
       { href: '/admin/learn', label: 'Learning Hub', icon: '🎓' },
+      { href: '/admin/learn/roadmap', label: 'My Roadmap', icon: '🗺️' },
       { href: '/admin/learn/modules', label: 'Modules', icon: '📚' },
       { href: '/admin/learn/knowledge-base', label: 'Knowledge Base', icon: '🔍' },
       { href: '/admin/learn/flashcards', label: 'Flashcards', icon: '🃏' },
