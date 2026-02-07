@@ -27,6 +27,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/learn/search': 'Search',
   '/admin/learn/quiz-history': 'Quiz History',
   '/admin/learn/manage': 'Manage Content',
+  '/admin/learn/manage/question-builder': 'Question Builder',
   '/admin/profile': 'My Profile',
   '/admin/jobs': 'All Jobs',
   '/admin/jobs/new': 'New Job',

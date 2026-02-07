@@ -58,8 +58,12 @@ export default function ManageContentPage() {
           break;
         }
         case 'questions': {
-          const res = await fetch('/api/admin/learn/quizzes?bank=true');
-          if (res.ok) { const d = await res.json(); setQuestions(d.questions || []); }
+          const [modRes2, qRes] = await Promise.all([
+            fetch('/api/admin/learn/modules'),
+            fetch('/api/admin/learn/questions?limit=100'),
+          ]);
+          if (modRes2.ok) { const d = await modRes2.json(); setModules(d.modules || []); }
+          if (qRes.ok) { const d = await qRes.json(); setQuestions(d.questions || []); }
           break;
         }
         case 'flashcards': {
@@ -191,9 +195,13 @@ export default function ManageContentPage() {
         <span style={{ fontSize: '.85rem', color: '#6B7280' }}>
           {loading ? 'Loading...' : `${tab === 'modules' ? modules.length : tab === 'lessons' ? lessons.length : tab === 'articles' ? articles.length : tab === 'questions' ? questions.length : flashcards.length} items`}
         </span>
-        {['modules', 'lessons', 'articles', 'questions'].includes(tab) && (
+        {tab === 'questions' ? (
+          <Link href="/admin/learn/manage/question-builder" className="admin-btn admin-btn--primary admin-btn--sm">
+            Open Question Builder
+          </Link>
+        ) : ['modules', 'lessons', 'articles'].includes(tab) && (
           <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(!showForm); setFormData({}); }}>
-            {showForm ? '✕ Cancel' : '+ Create New'}
+            {showForm ? '\u2715 Cancel' : '+ Create New'}
           </button>
         )}
       </div>
