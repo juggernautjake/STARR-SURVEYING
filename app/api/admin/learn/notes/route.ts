@@ -46,7 +46,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const { data, error } = await supabaseAdmin.from('fieldbook_notes').insert({
     user_email: session.user.email,
     title: title?.trim() || 'Untitled Note',
-    content: content.trim(),
+    content: content?.trim() || '',
     page_context: page_context || null,
     page_url: page_url || null,
     module_id: module_id || null,
