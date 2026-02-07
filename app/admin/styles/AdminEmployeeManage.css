@@ -1,0 +1,170 @@
+/* ==========================================================================
+   AdminEmployeeManage.css — Employee Management & Payout Log Styles
+   ========================================================================== */
+
+/* ── Page Layout ── */
+.emp-manage { padding: 0 0 3rem; }
+
+/* ── Header ── */
+.emp-manage__header { background: #fff; border: 1px solid #E5E7EB; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.emp-manage__header-info { flex: 1; min-width: 200px; }
+.emp-manage__name { margin: 0; font-size: 1.35rem; font-weight: 700; color: #1F2937; }
+.emp-manage__meta { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.35rem; flex-wrap: wrap; }
+.emp-manage__email { font-size: 0.85rem; color: #6B7280; font-family: monospace; }
+.emp-manage__badge { font-size: 0.75rem; font-weight: 600; background: #EBF0FF; color: #1D3095; padding: 0.15rem 0.5rem; border-radius: 12px; }
+.emp-manage__status { font-size: 0.72rem; font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 10px; }
+.emp-manage__status--active { background: #D1FAE5; color: #065F46; }
+.emp-manage__status--inactive { background: #FEE2E2; color: #991B1B; }
+
+.emp-manage__header-stats { display: flex; gap: 1rem; flex-shrink: 0; }
+.emp-manage__stat { text-align: center; min-width: 70px; }
+.emp-manage__stat-val { display: block; font-size: 1.1rem; font-weight: 700; color: #1D3095; font-family: monospace; }
+.emp-manage__stat-lbl { font-size: 0.65rem; color: #9CA3AF; text-transform: uppercase; letter-spacing: 0.03em; }
+
+/* ── Rate Card ── */
+.emp-manage__rate-card { background: #fff; border: 1px solid #E5E7EB; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+.emp-manage__rate-card h3 { margin: 0 0 0.75rem; font-size: 0.95rem; color: #374151; }
+.emp-manage__rate-rows { display: flex; flex-direction: column; gap: 0.35rem; }
+.emp-manage__rate-row { display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0; font-size: 0.85rem; color: #4B5563; }
+.emp-manage__rate-row span:last-child { font-family: monospace; font-weight: 500; color: #059669; }
+.emp-manage__rate-row--total { border-top: 2px solid #1D3095; margin-top: 0.25rem; padding-top: 0.5rem; font-weight: 700; color: #1F2937; }
+.emp-manage__rate-row--total span:last-child { color: #1D3095; font-size: 1rem; }
+
+/* ── Tabs ── */
+.emp-manage__tabs { display: flex; gap: 0.25rem; border-bottom: 2px solid #E5E7EB; margin-bottom: 1rem; overflow-x: auto; }
+.emp-manage__tab { display: flex; align-items: center; gap: 0.3rem; padding: 0.6rem 1rem; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer; font-family: inherit; font-size: 0.85rem; color: #6B7280; white-space: nowrap; transition: all 0.15s; }
+.emp-manage__tab:hover { color: #1D3095; }
+.emp-manage__tab--active { color: #1D3095; font-weight: 600; border-bottom-color: #1D3095; }
+
+/* ── Section ── */
+.emp-manage__section { margin-bottom: 1.5rem; }
+.emp-manage__section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+.emp-manage__section-header h3 { margin: 0; font-size: 1rem; font-weight: 600; color: #1F2937; }
+.emp-manage__section h3 { margin: 0 0 0.75rem; font-size: 1rem; font-weight: 600; color: #1F2937; }
+
+/* ── Grid ── */
+.emp-manage__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+/* ── Card ── */
+.emp-manage__card { background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; padding: 1rem; }
+.emp-manage__card h4 { margin: 0 0 0.75rem; font-size: 0.92rem; color: #374151; font-weight: 600; }
+.emp-manage__field { display: flex; justify-content: space-between; padding: 0.3rem 0; font-size: 0.85rem; border-bottom: 1px solid #F3F4F6; }
+.emp-manage__field:last-child { border-bottom: none; }
+.emp-manage__field label { color: #6B7280; font-weight: 500; }
+.emp-manage__field span { color: #1F2937; }
+
+/* ── Actions ── */
+.emp-manage__actions { display: flex; flex-direction: column; gap: 0.5rem; }
+.emp-manage__action-btn { padding: 0.5rem 1rem; background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.85rem; color: #374151; text-align: left; transition: all 0.15s; }
+.emp-manage__action-btn:hover { background: #EBF0FF; border-color: #1D3095; color: #1D3095; }
+
+/* ── Button ── */
+.emp-manage__btn { padding: 0.4rem 0.85rem; background: #1D3095; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 0.82rem; font-weight: 500; transition: background 0.15s; }
+.emp-manage__btn:hover { background: #162575; }
+.emp-manage__btn--sm { padding: 0.25rem 0.6rem; font-size: 0.78rem; }
+.emp-manage__btn--cancel { background: #F3F4F6; color: #374151; border: 1px solid #E5E7EB; }
+.emp-manage__btn--cancel:hover { background: #E5E7EB; }
+.emp-manage__btn--primary { background: #1D3095; color: #fff; }
+.emp-manage__btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Empty ── */
+.emp-manage__empty { text-align: center; padding: 2rem; color: #9CA3AF; font-size: 0.85rem; background: #F9FAFB; border-radius: 8px; }
+
+/* ── Credential List ── */
+.emp-manage__cred-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.emp-manage__cred-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; }
+.emp-manage__cred-item--available { border-style: dashed; background: #F9FAFB; }
+.emp-manage__cred-info { flex: 1; }
+.emp-manage__cred-name { font-weight: 600; font-size: 0.88rem; color: #1F2937; display: block; }
+.emp-manage__cred-type { font-size: 0.72rem; color: #9CA3AF; text-transform: uppercase; }
+.emp-manage__cred-details { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; color: #6B7280; flex-wrap: wrap; }
+.emp-manage__cred-bonus { color: #059669; font-weight: 600; font-family: monospace; }
+.emp-manage__cred-verified { color: #1D3095; font-weight: 600; font-size: 0.72rem; background: #EBF0FF; padding: 0.1rem 0.35rem; border-radius: 4px; }
+.emp-manage__cred-remove { background: none; border: 1px solid #FECACA; color: #EF4444; border-radius: 6px; padding: 0.25rem 0.5rem; font-size: 0.75rem; cursor: pointer; font-family: inherit; }
+.emp-manage__cred-remove:hover { background: #FEF2F2; }
+
+/* ── History Items ── */
+.emp-manage__history-item { padding: 0.75rem; border-bottom: 1px solid #F3F4F6; }
+.emp-manage__history-item:last-child { border-bottom: none; }
+.emp-manage__history-main { display: flex; justify-content: space-between; align-items: center; }
+.emp-manage__history-title { font-weight: 600; font-size: 0.88rem; color: #1F2937; }
+.emp-manage__history-impact { font-family: monospace; font-size: 0.82rem; font-weight: 600; }
+.emp-manage__history-impact--pos { color: #059669; }
+.emp-manage__history-impact--neg { color: #EF4444; }
+.emp-manage__history-meta { display: flex; justify-content: space-between; font-size: 0.78rem; color: #9CA3AF; margin-top: 0.2rem; }
+
+/* ── Credit List ── */
+.emp-manage__credit-list { display: flex; flex-direction: column; gap: 0.35rem; }
+.emp-manage__credit-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem; background: #fff; border: 1px solid #E5E7EB; border-radius: 6px; }
+.emp-manage__credit-points { font-size: 0.92rem; font-weight: 700; color: #1D3095; font-family: monospace; min-width: 50px; }
+.emp-manage__credit-info { flex: 1; }
+.emp-manage__credit-label { font-size: 0.85rem; color: #1F2937; font-weight: 500; display: block; }
+.emp-manage__credit-meta { font-size: 0.72rem; color: #9CA3AF; }
+
+/* ── Change Log ── */
+.emp-manage__changelog { display: flex; flex-direction: column; gap: 0.5rem; }
+.emp-manage__change-item { background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; padding: 0.75rem; }
+.emp-manage__change-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem; }
+.emp-manage__change-type { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; padding: 0.1rem 0.4rem; border-radius: 4px; background: #F3F4F6; color: #6B7280; }
+.emp-manage__change-type--pay_raise { background: #D1FAE5; color: #065F46; }
+.emp-manage__change-type--role_change { background: #EBF0FF; color: #1D3095; }
+.emp-manage__change-type--credential_added { background: #FEF3C7; color: #92400E; }
+.emp-manage__change-type--bonus_awarded { background: #DBEAFE; color: #1E40AF; }
+.emp-manage__change-date { font-size: 0.72rem; color: #9CA3AF; }
+.emp-manage__change-title { font-weight: 600; font-size: 0.88rem; color: #1F2937; }
+.emp-manage__change-desc { font-size: 0.82rem; color: #6B7280; margin-top: 0.15rem; }
+.emp-manage__change-values { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; margin-top: 0.25rem; }
+.emp-manage__change-old { color: #EF4444; text-decoration: line-through; }
+.emp-manage__change-new { color: #059669; font-weight: 600; }
+.emp-manage__change-by { font-size: 0.7rem; color: #9CA3AF; margin-top: 0.25rem; }
+
+/* ── Modal ── */
+.emp-manage__modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.emp-manage__modal { background: #fff; border-radius: 12px; max-width: 500px; width: 100%; padding: 1.5rem; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.emp-manage__modal h3 { margin: 0 0 1rem; font-size: 1.1rem; color: #1F2937; }
+.emp-manage__form-field { margin-bottom: 0.75rem; }
+.emp-manage__form-field label { display: block; font-size: 0.82rem; font-weight: 500; color: #374151; margin-bottom: 0.25rem; }
+.emp-manage__form-field input,
+.emp-manage__form-field select,
+.emp-manage__form-field textarea { width: 100%; padding: 0.5rem 0.65rem; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 0.85rem; font-family: inherit; outline: none; box-sizing: border-box; }
+.emp-manage__form-field input:focus,
+.emp-manage__form-field select:focus,
+.emp-manage__form-field textarea:focus { border-color: #1D3095; }
+.emp-manage__form-field textarea { resize: vertical; min-height: 60px; }
+.emp-manage__modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #E5E7EB; }
+
+/* ── Payout Log Page ── */
+.payout-log { padding: 0 0 3rem; }
+.payout-log__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem; }
+.payout-log__header h2 { margin: 0; font-size: 1.25rem; font-weight: 700; color: #1F2937; }
+.payout-log__filters { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
+.payout-log__filter { padding: 0.4rem 0.65rem; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 0.82rem; font-family: inherit; outline: none; }
+.payout-log__filter:focus { border-color: #1D3095; }
+.payout-log__summary { display: flex; gap: 1rem; margin-bottom: 1rem; }
+.payout-log__summary-card { flex: 1; background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; padding: 0.75rem 1rem; text-align: center; }
+.payout-log__summary-val { display: block; font-size: 1.25rem; font-weight: 700; color: #1D3095; font-family: monospace; }
+.payout-log__summary-lbl { font-size: 0.72rem; color: #9CA3AF; text-transform: uppercase; }
+.payout-log__list { display: flex; flex-direction: column; gap: 0.35rem; }
+.payout-log__item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; }
+.payout-log__item-icon { font-size: 1.2rem; flex-shrink: 0; }
+.payout-log__item-info { flex: 1; }
+.payout-log__item-type { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #9CA3AF; }
+.payout-log__item-reason { font-size: 0.88rem; color: #1F2937; font-weight: 500; }
+.payout-log__item-details { font-size: 0.78rem; color: #6B7280; margin-top: 0.1rem; }
+.payout-log__item-right { text-align: right; flex-shrink: 0; }
+.payout-log__item-amount { font-size: 1rem; font-weight: 700; font-family: monospace; }
+.payout-log__item-amount--pos { color: #059669; }
+.payout-log__item-amount--neg { color: #EF4444; }
+.payout-log__item-date { font-size: 0.72rem; color: #9CA3AF; }
+.payout-log__item-rate { font-size: 0.75rem; color: #6B7280; margin-top: 0.1rem; }
+.payout-log__empty { text-align: center; padding: 3rem; color: #9CA3AF; background: #F9FAFB; border-radius: 12px; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .emp-manage__header { flex-direction: column; }
+  .emp-manage__header-stats { flex-wrap: wrap; gap: 0.5rem; }
+  .emp-manage__grid { grid-template-columns: 1fr; }
+  .emp-manage__modal { max-width: 100%; }
+  .payout-log__summary { flex-direction: column; }
+  .payout-log__filters { flex-direction: column; }
+}
