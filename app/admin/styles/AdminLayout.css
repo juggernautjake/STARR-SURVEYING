@@ -29,6 +29,12 @@
 .admin-sidebar__user-info { flex:1; min-width:0; }
 .admin-sidebar__user-name { font-family:'Inter',sans-serif; font-size:.8rem; font-weight:600; color:#FFF; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .admin-sidebar__user-role { font-family:'Inter',sans-serif; font-size:.65rem; color:rgba(255,255,255,.5); text-transform:uppercase; }
+.admin-sidebar__header--clickable { cursor:pointer; transition:background .15s; }
+.admin-sidebar__header--clickable:hover { background:rgba(255,255,255,.08); }
+.admin-sidebar__section-label--collapsible { cursor:pointer; display:flex; align-items:center; gap:.35rem; transition:color .15s; user-select:none; }
+.admin-sidebar__section-label--collapsible:hover { color:rgba(255,255,255,.7); }
+.admin-sidebar__section-arrow { display:inline-block; font-size:.65rem; color:rgba(255,255,255,.4); transition:transform .2s; }
+.admin-sidebar__section-arrow--expanded { transform:rotate(90deg); }
 
 /* === TOP BAR === */
 .admin-topbar { position:fixed; top:0; left:260px; right:0; height:64px; background:#FFF; border-bottom:2px solid #E5E7EB; display:flex; align-items:center; justify-content:space-between; padding:0 2rem; z-index:40; transition:left .3s; }

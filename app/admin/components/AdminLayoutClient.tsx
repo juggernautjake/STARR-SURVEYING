@@ -14,9 +14,12 @@ import '../styles/AdminLayout.css';
 import '../styles/AdminLearn.css';
 import '../styles/AdminMessaging.css';
 import '../styles/AdminJobs.css';
+import '../styles/AdminFieldWork.css';
 import '../styles/AdminPayroll.css';
 import '../styles/AdminErrors.css';
 import '../styles/AdminAssignments.css';
+import '../styles/AdminTimeLogs.css';
+import '../styles/AdminEmployeeManage.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
@@ -38,8 +41,10 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/jobs/import': 'Import Jobs',
   '/admin/my-jobs': 'My Jobs',
   '/admin/employees': 'Employees',
+  '/admin/employees/manage': 'Manage Employee',
   '/admin/payroll': 'Payroll',
   '/admin/my-pay': 'My Pay',
+  '/admin/payout-log': 'Payout History',
   '/admin/notes': 'Company Notes',
   '/admin/my-notes': 'My Notes',
   '/admin/my-files': 'My Files',
@@ -52,6 +57,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/error-log': 'Error Log',
   '/admin/assignments': 'Assignments',
   '/admin/schedule': 'My Schedule',
+  '/admin/my-hours': 'My Hours',
+  '/admin/hours-approval': 'Hours Approval',
 };
 
 function getTitle(p: string): string {

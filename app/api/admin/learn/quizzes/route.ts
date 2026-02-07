@@ -396,6 +396,41 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         metadata: { score_percent: scorePercent, correct: correctCount, total: answers.length },
       });
     } catch { /* ignore */ }
+
+    // Auto-award learning credits if quiz passed
+    if (scorePercent >= 70) {
+      try {
+        const creditType = type === 'exam_prep' ? 'exam_prep_pass' : 'quiz_pass';
+        const entityId = lesson_id || module_id || null;
+
+        // Check for matching credit value (specific entity first, then global)
+        let creditValue = null;
+        if (entityId) {
+          const { data: specific } = await supabaseAdmin.from('learning_credit_values')
+            .select('*').eq('entity_type', creditType).eq('entity_id', entityId).eq('is_active', true).single();
+          creditValue = specific;
+        }
+        if (!creditValue) {
+          const { data: global } = await supabaseAdmin.from('learning_credit_values')
+            .select('*').eq('entity_type', creditType).is('entity_id', null).eq('is_active', true).single();
+          creditValue = global;
+        }
+
+        if (creditValue && creditValue.credit_points > 0) {
+          // Prevent duplicate award for same quiz attempt
+          await supabaseAdmin.from('employee_learning_credits').insert({
+            user_email: session.user.email,
+            credit_value_id: creditValue.id,
+            entity_type: creditType,
+            entity_id: entityId,
+            entity_label: creditValue.entity_label || `Quiz Pass (${scorePercent}%)`,
+            points_earned: creditValue.credit_points,
+            source_type: 'quiz_attempt',
+            source_id: attempt.id,
+          });
+        }
+      } catch { /* ignore - credits are optional */ }
+    }
   }
 
   return NextResponse.json({
