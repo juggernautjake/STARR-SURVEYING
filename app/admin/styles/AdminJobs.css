@@ -1470,6 +1470,54 @@
 .fw__popup-section h4 { font-size: 0.82rem; color: #6B7280; margin: 0 0 0.5rem; font-weight: 600; }
 .fw__popup-section p { font-size: 0.85rem; color: #374151; margin: 0; }
 
+/* ── Summary Stats ── */
+.fw__stats { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.fw__stat { display: flex; flex-direction: column; align-items: center; padding: 0.25rem 0.65rem; min-width: 60px; }
+.fw__stat-val { font-size: 0.88rem; font-weight: 700; color: #1D3095; font-family: monospace; white-space: nowrap; }
+.fw__stat-lbl { font-size: 0.65rem; color: #9CA3AF; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+
+/* ── Button variants ── */
+.fw__btn--primary { background: #1D3095; color: #fff; border-color: #1D3095; }
+.fw__btn--primary:hover { background: #162575; border-color: #162575; }
+.fw__btn--active { background: #EFF6FF; border-color: #1D3095; color: #1D3095; }
+
+/* ── Label toggle active state ── */
+.fw__label-toggle--active { color: #1D3095; font-weight: 600; }
+
+/* ── Satellite toggle ── */
+.fw__label-toggle--sat { margin-left: auto; gap: 0.5rem; }
+.fw__label-toggles-sep { width: 1px; height: 20px; background: #E5E7EB; flex-shrink: 0; }
+.fw__toggle-switch { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
+.fw__toggle-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.fw__toggle-track { position: relative; width: 34px; height: 18px; background: #D1D5DB; border-radius: 9px; transition: background 0.2s; }
+.fw__toggle-switch input:checked + .fw__toggle-track { background: #1D3095; }
+.fw__toggle-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+.fw__toggle-switch input:checked + .fw__toggle-track .fw__toggle-thumb { transform: translateX(16px); }
+
+/* ── Expanded log items ── */
+.fw__log-item--expanded { background: #FAFBFC; }
+.fw__log-item-extra { margin-top: 0.4rem; padding: 0.5rem; background: #F3F4F6; border-radius: 6px; display: flex; flex-direction: column; gap: 0.3rem; border: 1px solid #E5E7EB; }
+.fw__log-extra-row { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.74rem; }
+.fw__log-extra-row--note { align-items: flex-start; }
+.fw__log-extra-label { font-weight: 600; color: #6B7280; min-width: 70px; flex-shrink: 0; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.fw__log-extra-val { color: #1F2937; font-family: monospace; font-size: 0.74rem; word-break: break-word; }
+
+/* ── Export Dialog ── */
+.fw__export-options { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.fw__export-option { padding: 0.5rem 1rem; border: 1px solid #D1D5DB; border-radius: 6px; background: #fff; cursor: pointer; font-size: 0.82rem; color: #374151; transition: all 0.15s; text-align: center; flex: 1; min-width: 100px; }
+.fw__export-option:hover { border-color: #9CA3AF; background: #F9FAFB; }
+.fw__export-option--active { border-color: #1D3095; background: #EFF6FF; color: #1D3095; font-weight: 600; box-shadow: 0 0 0 1px #1D3095; }
+.fw__export-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #E5E7EB; }
+
+/* ── Detail popup variant ── */
+.fw__popup--detail { max-width: 600px; }
+.fw__popup-grid--3 { grid-template-columns: 1fr 1fr 1fr; }
+.fw__popup-note { font-style: italic; background: #FEF9C3; padding: 0.5rem 0.75rem; border-radius: 6px; border-left: 3px solid #D97706; font-size: 0.85rem !important; }
+
+/* ── Timeline density visualization ── */
+.fw__timeline-density { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; gap: 0; pointer-events: none; z-index: 1; padding: 4px 0; }
+.fw__timeline-density-bar { flex: 1; background: #1D3095; border-radius: 1px 1px 0 0; min-height: 0; transition: height 0.2s; }
+
 /* ── Responsive ── */
 @media (max-width: 899px) {
   .fw__layout { grid-template-columns: 1fr; }
@@ -1477,9 +1525,17 @@
   .fw__log-list { max-height: 300px; }
   .fw__controls { flex-direction: column; align-items: flex-start; }
   .fw__timeline-header { flex-direction: column; gap: 0.25rem; align-items: flex-start; }
+  .fw__stats { gap: 0.25rem; }
+  .fw__stat { padding: 0.2rem 0.4rem; min-width: 50px; }
+  .fw__export-option { min-width: 80px; flex: unset; }
 }
 @media (max-width: 599px) {
   .fw__label-toggles { gap: 0.5rem; }
   .fw__popup-grid { grid-template-columns: 1fr; }
+  .fw__popup-grid--3 { grid-template-columns: 1fr; }
   .fw__popup { max-width: 100%; border-radius: 8px; }
+  .fw__popup--detail { max-width: 100%; }
+  .fw__label-toggle--sat { margin-left: 0; }
+  .fw__export-options { flex-direction: column; }
+  .fw__export-option { flex: unset; }
 }
