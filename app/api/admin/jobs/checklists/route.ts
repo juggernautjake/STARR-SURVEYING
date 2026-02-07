@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // Default checklist templates per stage
 const STAGE_CHECKLISTS: Record<string, string[]> = {
@@ -60,7 +61,7 @@ const STAGE_CHECKLISTS: Record<string, string[]> = {
   ],
 };
 
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -84,9 +85,9 @@ export async function GET(req: NextRequest) {
     checklists: data || [],
     templates: STAGE_CHECKLISTS,
   });
-}
+}, { routeName: 'jobs/checklists' });
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -117,9 +118,9 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ checklist: data }, { status: 201 });
-}
+}, { routeName: 'jobs/checklists' });
 
-export async function PUT(req: NextRequest) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -139,4 +140,4 @@ export async function PUT(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ checklist: data });
-}
+}, { routeName: 'jobs/checklists' });

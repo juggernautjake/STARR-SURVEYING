@@ -1,10 +1,11 @@
 // app/api/admin/messages/conversations/route.ts
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // GET: List conversations for the current user (or all for admin)
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -83,10 +84,10 @@ export async function GET(req: Request) {
   }));
 
   return NextResponse.json({ conversations });
-}
+}, { routeName: 'messages/conversations' });
 
 // POST: Create a new conversation
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -168,10 +169,10 @@ export async function POST(req: Request) {
   } catch { /* ignore */ }
 
   return NextResponse.json({ conversation, existing: false });
-}
+}, { routeName: 'messages/conversations' });
 
 // PUT: Update conversation (title, archive, etc.)
-export async function PUT(req: Request) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -201,4 +202,4 @@ export async function PUT(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ conversation: data });
-}
+}, { routeName: 'messages/conversations' });

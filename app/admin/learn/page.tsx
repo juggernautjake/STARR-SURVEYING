@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useState, useCallback } from 'react';
+import { usePageError } from '../hooks/usePageError';
 
 interface SearchResult {
   id: string;
@@ -19,6 +20,7 @@ interface SearchResult {
 
 export default function LearnHubPage() {
   const { data: session } = useSession();
+  const { safeFetch, safeAction } = usePageError('LearnHubPage');
   const role = session?.user?.role || 'employee';
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<any>(null);
@@ -33,7 +35,7 @@ export default function LearnHubPage() {
         const data = await res.json();
         setResults(data.results);
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error('LearnHubPage: search failed', err); }
     setSearching(false);
   }, []);
 

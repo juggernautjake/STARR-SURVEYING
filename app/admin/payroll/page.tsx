@@ -4,6 +4,7 @@
 import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePageError } from '../hooks/usePageError';
 import UnderConstruction from '../components/messaging/UnderConstruction';
 import EmployeePayCard from '../components/payroll/EmployeePayCard';
 import PayRateTable from '../components/payroll/PayRateTable';
@@ -29,6 +30,7 @@ interface Employee {
 export default function PayrollPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const { safeFetch, safeAction, reportPageError } = usePageError('PayrollPage');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'employees' | 'rates' | 'payroll'>('overview');
@@ -58,7 +60,9 @@ export default function PayrollPage() {
       const res = await fetch('/api/admin/payroll/employees?include_inactive=true');
       const data = await res.json();
       setEmployees(data.employees || []);
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load employees' });
+    }
     setLoading(false);
   }
 
@@ -82,7 +86,9 @@ export default function PayrollPage() {
         setAddForm({ user_email: '', user_name: '', job_title: 'survey_technician', hourly_rate: '18.00', salary_type: 'hourly', hire_date: '' });
         loadEmployees();
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'add employee' });
+    }
   }
 
   const filteredEmployees = employees.filter(emp =>

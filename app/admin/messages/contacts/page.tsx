@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { usePageError } from '../../hooks/usePageError';
 import UnderConstruction from '../../components/messaging/UnderConstruction';
 
 interface Contact {
@@ -15,6 +16,7 @@ interface Contact {
 export default function ContactsPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const { safeFetch, safeAction, reportPageError } = usePageError('ContactsPage');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,9 @@ export default function ContactsPage() {
         const data = await res.json();
         setContacts(data.contacts || []);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load contacts' });
+    }
     setLoading(false);
   }
 

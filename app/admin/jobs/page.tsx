@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { usePageError } from '../hooks/usePageError';
 import Link from 'next/link';
 import UnderConstruction from '../components/messaging/UnderConstruction';
 import JobCard, { STAGE_CONFIG, SURVEY_TYPES } from '../components/jobs/JobCard';
@@ -27,6 +28,7 @@ interface Job {
 export default function AllJobsPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const { safeFetch, safeAction, reportPageError } = usePageError('AllJobsPage');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -48,7 +50,9 @@ export default function AllJobsPage() {
         setJobs(data.jobs || []);
         setTotal(data.total || 0);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load jobs' });
+    }
     setLoading(false);
   }
 

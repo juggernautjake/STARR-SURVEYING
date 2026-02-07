@@ -2,15 +2,17 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { usePageError } from '../../hooks/usePageError';
 
 interface Module { id: string; title: string; description: string; difficulty: string; estimated_hours: number; order_index: number; status: string; lesson_count?: number; }
 
 export default function ModulesListPage() {
+  const { safeFetch, safeAction } = usePageError('ModulesListPage');
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin/learn/modules').then(r => r.json()).then(d => setModules(d.modules || [])).catch(() => {}).finally(() => setLoading(false));
+    fetch('/api/admin/learn/modules').then(r => r.json()).then(d => setModules(d.modules || [])).catch((err) => { console.error('ModulesListPage: failed to load modules', err); }).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="admin-empty"><div className="admin-empty__icon">⏳</div><div className="admin-empty__title">Loading modules...</div></div>;

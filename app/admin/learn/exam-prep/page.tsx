@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import QuizRunner from '@/app/admin/components/QuizRunner';
 import FieldbookButton from '@/app/admin/components/FieldbookButton';
+import { usePageError } from '../../hooks/usePageError';
 
 export default function ExamPrepPage() {
+  const { safeFetch, safeAction } = usePageError('ExamPrepPage');
   const [categories, setCategories] = useState<any[]>([]);
   const [attempts, setAttempts] = useState<any[]>([]);
   const [counts, setCounts] = useState({ SIT: 0, RPLS: 0 });
@@ -23,7 +25,7 @@ export default function ExamPrepPage() {
         setCounts(data.question_counts || { SIT: 0, RPLS: 0 });
         setAttempts(data.recent_attempts || []);
       }
-    } catch {}
+    } catch (err) { console.error('ExamPrepPage: failed to fetch exam prep data', err); }
     setLoading(false);
   }
 

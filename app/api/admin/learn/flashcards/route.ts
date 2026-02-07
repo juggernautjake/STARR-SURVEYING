@@ -1,7 +1,8 @@
 // app/api/admin/learn/flashcards/route.ts
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // SM-2 algorithm helper
 function calculateSM2(
@@ -47,7 +48,7 @@ function calculateSM2(
 }
 
 // GET — List flashcards with spaced repetition data
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -125,10 +126,10 @@ export async function GET(req: Request) {
   }
 
   return NextResponse.json({ cards: allCards });
-}
+}, { routeName: 'learn/flashcards' });
 
 // POST — Create a user flashcard
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -154,10 +155,10 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ card: { ...data, source: 'user' } });
-}
+}, { routeName: 'learn/flashcards' });
 
 // PUT — Update a user flashcard OR submit a review rating
-export async function PUT(req: Request) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -220,10 +221,10 @@ export async function PUT(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ card: data });
-}
+}, { routeName: 'learn/flashcards' });
 
 // DELETE — Delete a user flashcard
-export async function DELETE(req: Request) {
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -240,4 +241,4 @@ export async function DELETE(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ deleted: true });
-}
+}, { routeName: 'learn/flashcards' });

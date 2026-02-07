@@ -57,6 +57,7 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
     { label: 'Account', items: [
       { href: '/admin/profile', label: 'My Profile', icon: '👤' },
       { href: '/admin/settings', label: 'Settings', icon: '⚙️', adminOnly: true },
+      { href: '/admin/error-log', label: 'Error Log', icon: '🐛', adminOnly: true },
     ]},
   ];
 

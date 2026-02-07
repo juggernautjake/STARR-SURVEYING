@@ -1,9 +1,10 @@
 // app/api/admin/learn/progress/route.ts
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -27,9 +28,9 @@ export async function GET(req: Request) {
   const { data } = await supabaseAdmin.from('user_progress')
     .select('*').eq('user_email', session.user.email);
   return NextResponse.json({ progress: data || [] });
-}
+}, { routeName: 'learn/progress' });
 
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -40,4 +41,4 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ progress: data });
-}
+}, { routeName: 'learn/progress' });

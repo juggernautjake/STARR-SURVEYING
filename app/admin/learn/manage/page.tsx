@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { usePageError } from '../../hooks/usePageError';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
@@ -17,6 +18,7 @@ interface Flashcard { id: string; term: string; definition: string; hint_1?: str
 export default function ManageContentPage() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
+  const { safeFetch, safeAction } = usePageError('ManageContentPage');
   const [tab, setTab] = useState<Tab>('modules');
   const [loading, setLoading] = useState(true);
 
@@ -72,7 +74,7 @@ export default function ManageContentPage() {
           break;
         }
       }
-    } catch {}
+    } catch (err) { console.error('ManageContentPage: failed to load data', err); }
     setLoading(false);
   }
 
@@ -150,7 +152,7 @@ export default function ManageContentPage() {
           alert(err.error || 'Failed to create');
         }
       }
-    } catch (e) { alert('Error creating item'); }
+    } catch (e) { console.error('ManageContentPage: failed to create item', e); alert('Error creating item'); }
     setSaving(false);
   }
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import UnderConstruction from '../../components/messaging/UnderConstruction';
 import { SURVEY_TYPES } from '../../components/jobs/JobCard';
@@ -10,6 +11,7 @@ import { SURVEY_TYPES } from '../../components/jobs/JobCard';
 export default function NewJobPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const { safeFetch, safeAction, reportPageError } = usePageError('NewJobPage');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -73,8 +75,9 @@ export default function NewJobPage() {
         const data = await res.json();
         setError(data.error || 'Failed to create job');
       }
-    } catch {
+    } catch (err) {
       setError('Network error');
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'create job' });
     }
     setSaving(false);
   }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { usePageError } from '../../hooks/usePageError';
 
 interface QuizAttempt {
   id: string;
@@ -28,6 +29,7 @@ interface AttemptDetail {
 
 export default function QuizHistoryPage() {
   const { data: session } = useSession();
+  const { safeFetch, safeAction } = usePageError('QuizHistoryPage');
   const role = session?.user?.role || 'employee';
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +53,7 @@ export default function QuizHistoryPage() {
         const data = await res.json();
         setAttempts(data.attempts || []);
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error('QuizHistoryPage: failed to fetch history', err); }
     setLoading(false);
   }
 
@@ -68,7 +70,7 @@ export default function QuizHistoryPage() {
         const data = await res.json();
         setDetails(prev => ({ ...prev, [attemptId]: data.answers || [] }));
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error('QuizHistoryPage: failed to load attempt details', err); }
     setLoadingDetails(null);
   }
 

@@ -1,9 +1,10 @@
 // app/api/admin/learn/questions/route.ts
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -22,9 +23,9 @@ export async function GET(req: Request) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ questions: data || [] });
-}
+}, { routeName: 'learn/questions' });
 
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.email)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -61,9 +62,9 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ question: data });
-}
+}, { routeName: 'learn/questions' });
 
-export async function PUT(req: Request) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.email)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -81,9 +82,9 @@ export async function PUT(req: Request) {
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ question: data });
-}
+}, { routeName: 'learn/questions' });
 
-export async function DELETE(req: Request) {
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.email)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -96,4 +97,4 @@ export async function DELETE(req: Request) {
   const { error } = await supabaseAdmin.from('question_bank').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
-}
+}, { routeName: 'learn/questions' });

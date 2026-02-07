@@ -1,7 +1,8 @@
 // app/api/admin/learn/quizzes/route.ts
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 /* ============= MATH TEMPLATE HELPERS ============= */
 
@@ -102,7 +103,7 @@ function gradeNumeric(userAnswer: string, correctAnswer: string, tolerance: numb
 
 /* ============= GET — Quiz / History ============= */
 
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -236,11 +237,11 @@ export async function GET(req: Request) {
   });
 
   return NextResponse.json({ questions: clientQuestions, total_available: allQuestions.length });
-}
+}, { routeName: 'learn/quizzes' });
 
 /* ============= POST — Grade Quiz ============= */
 
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -406,4 +407,4 @@ export async function POST(req: Request) {
     passed: scorePercent >= 70,
     partial_total: totalScore,
   });
-}
+}, { routeName: 'learn/quizzes' });

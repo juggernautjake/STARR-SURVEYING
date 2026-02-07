@@ -2,9 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // GET: Get pay rate standards and role adjustments
-export async function GET(req: NextRequest) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -36,10 +37,10 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json(result);
-}
+}, { routeName: 'payroll/rates' });
 
 // POST: Create/update pay rate standard (admin only)
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -88,10 +89,10 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
-}
+}, { routeName: 'payroll/rates' });
 
 // PUT: Update rate or adjustment (admin only)
-export async function PUT(req: NextRequest) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -111,10 +112,10 @@ export async function PUT(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ updated: data });
-}
+}, { routeName: 'payroll/rates' });
 
 // DELETE: Deactivate rate or adjustment (admin only)
-export async function DELETE(req: NextRequest) {
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -134,4 +135,4 @@ export async function DELETE(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
-}
+}, { routeName: 'payroll/rates' });

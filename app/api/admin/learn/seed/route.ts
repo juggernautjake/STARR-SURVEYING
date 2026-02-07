@@ -1,7 +1,8 @@
 // app/api/admin/learn/seed/route.ts — Seed introductory educational content
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 const INTRO_MODULE_ID = '11111111-1111-1111-1111-111111111111';
 
@@ -136,7 +137,7 @@ const TOPICS = [
   { lesson_id: '22222222-2222-2222-2222-222222222222', title: 'Equipment Care & Safety', content: 'Survey equipment is expensive and precision-calibrated. Always store instruments in their cases, never leave them in vehicles overnight, clean lenses with proper cloth only, check calibration regularly, and report any drops or damage immediately. Proper equipment care ensures accurate measurements.', order_index: 4, keywords: ['care', 'safety', 'calibration', 'maintenance', 'storage'] },
 ];
 
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.email)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -217,4 +218,4 @@ export async function POST(req: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message, results }, { status: 500 });
   }
-}
+}, { routeName: 'learn/seed' });

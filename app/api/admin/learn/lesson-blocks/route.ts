@@ -1,10 +1,11 @@
 // app/api/admin/learn/lesson-blocks/route.ts
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // GET - Fetch blocks for a lesson
-export async function GET(req: Request) {
+export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -20,10 +21,10 @@ export async function GET(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ blocks: data || [] });
-}
+}, { routeName: 'learn/lesson-blocks' });
 
 // POST - Create a new block
-export async function POST(req: Request) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.email)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -48,10 +49,10 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ block: data });
-}
+}, { routeName: 'learn/lesson-blocks' });
 
 // PUT - Bulk update blocks for a lesson (save all blocks at once)
-export async function PUT(req: Request) {
+export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.email)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -97,10 +98,10 @@ export async function PUT(req: Request) {
   });
 
   return NextResponse.json({ success: true, block_count: blocks.length });
-}
+}, { routeName: 'learn/lesson-blocks' });
 
 // DELETE - Delete a single block
-export async function DELETE(req: Request) {
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email || !isAdmin(session.user.email)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
@@ -117,4 +118,4 @@ export async function DELETE(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ deleted: true });
-}
+}, { routeName: 'learn/lesson-blocks' });

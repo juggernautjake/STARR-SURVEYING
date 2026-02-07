@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { usePageError } from '../../hooks/usePageError';
 import UnderConstruction from '../../components/messaging/UnderConstruction';
 
 interface Preferences {
@@ -33,6 +34,7 @@ const DEFAULT_PREFS: Preferences = {
 
 export default function MessagingSettingsPage() {
   const { data: session } = useSession();
+  const { safeFetch, safeAction, reportPageError } = usePageError('MessagingSettingsPage');
   const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,7 +53,9 @@ export default function MessagingSettingsPage() {
           setPrefs(prev => ({ ...prev, ...data.preferences }));
         }
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load preferences' });
+    }
     setLoading(false);
   }
 
@@ -68,7 +72,9 @@ export default function MessagingSettingsPage() {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'save preferences' });
+    }
     setSaving(false);
   }
 
