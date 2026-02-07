@@ -13,6 +13,8 @@ import JobResearchPanel from '../../components/jobs/JobResearchPanel';
 import JobChecklist from '../../components/jobs/JobChecklist';
 import JobQuoteBuilder from '../../components/jobs/JobQuoteBuilder';
 import JobTimeTracker from '../../components/jobs/JobTimeTracker';
+import FieldWorkView from '../../components/jobs/FieldWorkView';
+import type { FieldPoint } from '../../components/jobs/FieldWorkView';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
 
 interface Job {
@@ -75,7 +77,7 @@ export default function JobDetailPage() {
   const [timeEntries, setTimeEntries] = useState<{ id: string; user_email: string; user_name?: string; work_type: string; start_time: string; end_time?: string; duration_minutes?: number; description?: string; billable: boolean }[]>([]);
   const [payments, setPayments] = useState<{ id: string; amount: number; payment_type: string; payment_method?: string; reference_number?: string; notes?: string; paid_at: string; recorded_by: string }[]>([]);
   const [checklists, setChecklists] = useState<{ id: string; stage: string; item: string; is_completed: boolean; completed_by?: string; completed_at?: string }[]>([]);
-  const [fieldData, setFieldData] = useState<{ id: string; data_type: string; point_name?: string; northing?: number; easting?: number; elevation?: number; description?: string; collected_by: string; collected_at: string }[]>([]);
+  const [fieldData, setFieldData] = useState<FieldPoint[]>([]);
 
   const loadJob = useCallback(async () => {
     try {
@@ -101,7 +103,7 @@ export default function JobDetailPage() {
       fetch(`/api/admin/jobs/research?job_id=${jobId}`).then(r => r.json()).then(d => setResearch(d.research || [])).catch(() => {});
     }
     if (activeTab === 'fieldwork') {
-      fetch(`/api/admin/jobs/field-data?job_id=${jobId}`).then(r => r.json()).then(d => setFieldData(d.field_data || [])).catch(() => {});
+      loadFieldData();
     }
     if (activeTab === 'files') {
       fetch(`/api/admin/jobs/files?job_id=${jobId}`).then(r => r.json()).then(d => setFiles(d.files || [])).catch(() => {});
@@ -121,6 +123,10 @@ export default function JobDetailPage() {
     loadJob();
     fetch(`/api/admin/jobs/stages?job_id=${jobId}`).then(r => r.json()).then(d => setStageHistory(d.history || [])).catch(() => {});
   }
+
+  const loadFieldData = useCallback(() => {
+    fetch(`/api/admin/jobs/field-data?job_id=${jobId}`).then(r => r.json()).then(d => setFieldData(d.field_data || [])).catch(() => {});
+  }, [jobId]);
 
   async function addTeamMember(email: string, name: string, role: string) {
     await fetch('/api/admin/jobs/team', {
@@ -390,75 +396,11 @@ export default function JobDetailPage() {
         )}
 
         {activeTab === 'fieldwork' && (
-          <div className="job-detail__fieldwork">
-            <div className="job-detail__section">
-              <h3>Field Data Collection</h3>
-              <p className="job-detail__section-desc">
-                Live field data from Trimble instruments will appear here. Points, observations, and measurements
-                are streamed in real-time as the field crew collects data.
-              </p>
-            </div>
-
-            {/* Field data table */}
-            <div className="job-detail__field-data">
-              <div className="job-detail__field-data-header">
-                <h4>Collected Points ({fieldData.length})</h4>
-              </div>
-              {fieldData.length === 0 ? (
-                <div className="job-detail__field-data-empty">
-                  <span>📡</span>
-                  <p>No field data collected yet</p>
-                  <p className="job-detail__field-data-sub">Data will appear here when field crew begins collection</p>
-                </div>
-              ) : (
-                <div className="job-detail__field-data-table">
-                  <div className="job-detail__field-data-row job-detail__field-data-row--header">
-                    <span>Point</span>
-                    <span>Northing</span>
-                    <span>Easting</span>
-                    <span>Elev</span>
-                    <span>Description</span>
-                    <span>Time</span>
-                  </div>
-                  {fieldData.map(pt => (
-                    <div key={pt.id} className="job-detail__field-data-row">
-                      <span>{pt.point_name || '—'}</span>
-                      <span>{pt.northing?.toFixed(3) || '—'}</span>
-                      <span>{pt.easting?.toFixed(3) || '—'}</span>
-                      <span>{pt.elevation?.toFixed(3) || '—'}</span>
-                      <span>{pt.description || '—'}</span>
-                      <span>{new Date(pt.collected_at).toLocaleTimeString()}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Trimble Integration Info */}
-            <div className="job-detail__section" style={{ marginTop: '1rem' }}>
-              <h3>Trimble Integration</h3>
-              <div className="job-detail__integration-cards">
-                <div className="job-detail__integration-card">
-                  <span className="job-detail__integration-icon">📡</span>
-                  <h4>Trimble Access</h4>
-                  <p>Real-time data streaming from field instruments</p>
-                  <span className="job-detail__integration-status">Not Connected</span>
-                </div>
-                <div className="job-detail__integration-card">
-                  <span className="job-detail__integration-icon">💻</span>
-                  <h4>Trimble Business Center</h4>
-                  <p>Process and adjust field data</p>
-                  <span className="job-detail__integration-status">Not Connected</span>
-                </div>
-                <div className="job-detail__integration-card">
-                  <span className="job-detail__integration-icon">☁️</span>
-                  <h4>Trimble Connect</h4>
-                  <p>Cloud file sync and collaboration</p>
-                  <span className="job-detail__integration-status">Not Connected</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <FieldWorkView
+            jobId={jobId}
+            points={fieldData}
+            onRefresh={loadFieldData}
+          />
         )}
 
         {activeTab === 'files' && (
@@ -519,31 +461,54 @@ export default function JobDetailPage() {
             <li>6 tabs: Overview, Research, Field Work, Files, Financial, Messages</li>
             <li>Overview: property details, client info, notes, stage checklist (with templates), team panel, equipment list</li>
             <li>Research: categorized research documents (14 categories) with add/expand/delete</li>
-            <li>Field Work: collected points table, Trimble integration cards (placeholder)</li>
+            <li>Field Work: interactive point map (SVG) with zoom/pan, shot log with search, timeline slider with session markers, point detail popup on double-click, bi-directional selection highlighting, toggleable map labels, live polling support</li>
             <li>Files: upload/download/delete with sections and types, auto-backup</li>
             <li>Financial: quote/payment summary, payment history, time tracker with user breakdown</li>
             <li>Messages: placeholder for job-specific messaging thread</li>
           </ul>
         </div>
         <div className="msg-setup-guide__section">
+          <h3>Remaining Work</h3>
+          <ul className="msg-setup-guide__list">
+            <li><strong>Trimble Integration:</strong> Connect Trimble Access API for real-time point streaming via WebSocket or polling. Map instrument serial numbers to equipment inventory.</li>
+            <li><strong>Satellite Imagery:</strong> Integrate a tile map provider (Mapbox, Google Maps, or ESRI) for satellite background on point map. Requires API key and coordinate transformation (State Plane → WGS84).</li>
+            <li><strong>Messages Tab:</strong> Auto-create a conversation for the job, link via conversation_id column, embed messaging thread.</li>
+            <li><strong>Inline Editing:</strong> Click-to-edit for job name, description, client info, property details.</li>
+            <li><strong>DWG/CAD Preview:</strong> Autodesk Platform Services (APS) Viewer for .dwg file preview in Files tab.</li>
+            <li><strong>Photo Gallery:</strong> GPS-tagged field images with location overlay on point map.</li>
+            <li><strong>Activity Feed:</strong> Chronological log of all changes, stage transitions, file uploads, messages.</li>
+            <li><strong>PDF Export:</strong> Print/export job summary as PDF report.</li>
+            <li><strong>Weather Widget:</strong> Weather forecast for field work planning.</li>
+            <li><strong>Point Import:</strong> CSV/TXT import for bulk field data from Trimble data collectors (.dc, .job files).</li>
+          </ul>
+        </div>
+        <div className="msg-setup-guide__section">
           <h3>Continuation Prompt</h3>
-          <pre className="msg-setup-guide__prompt">{`Continue developing the Job Detail page at /admin/jobs/[id]/page.tsx. Current: tabbed view with overview, research, fieldwork, files, financial, messages tabs. All components are functional with API integration.
+          <pre className="msg-setup-guide__prompt">{`Continue developing the Job Detail page at /admin/jobs/[id]/page.tsx.
 
-NEXT STEPS:
-1. Connect job messages tab to the messaging system (auto-create conversation for job, link via conversation_id)
-2. Add inline editing for job fields (click to edit name, description, client info, etc.)
-3. Implement Trimble Access integration for real-time field data streaming
-4. Add map tab showing job location, collected points, and boundary
-5. Add AutoCAD/DWG file preview using Autodesk Platform Services (APS) Viewer
-6. Add photo gallery for field images with GPS location overlay
-7. Add job activity feed showing all changes, stage transitions, file uploads, messages
-8. Add print/export job summary as PDF
-9. Add weather widget for field work planning (integrate weather API)
-10. Add job duplication (clone job with similar parameters)
-11. Add job comparison tool (compare two jobs side-by-side)
-12. Add voice memo recording and playback in Research tab
-13. Add satellite imagery viewer with measurement tools
-14. Implement job-specific notifications (team members get alerts for updates)`}</pre>
+CURRENT STATE: Tabbed view with 6 tabs. Field Work tab has full interactive visualization:
+- SVG point map with zoom/pan, colored dots by data type, toggleable labels
+- Shot log panel with search, click/double-click selection, accuracy/RTK badges
+- Timeline slider with session break markers (30min gap detection)
+- Point detail popup showing all coordinates, quality metrics, observations
+- Live polling toggle for real-time data updates (5-second interval)
+- Bi-directional highlighting between map and log
+
+FIELD DATA STRUCTURE (job_field_data table):
+- id, job_id, data_type (point/observation/measurement/gps_position/total_station/photo/note)
+- point_name, northing, easting, elevation, description
+- raw_data JSONB: { accuracy, rtk_status, pdop, hdop, vdop, satellites, code, session_id, hz_angle, vt_angle, slope_dist }
+- collected_by, collected_at, instrument
+
+NEXT PRIORITY STEPS:
+1. Connect Trimble Access API for real-time field data streaming (WebSocket or SSE)
+2. Add satellite imagery overlay (Mapbox GL JS or Google Maps) with coordinate transformation
+3. Connect messages tab to internal messaging system (auto-create conversation)
+4. Add CSV/TXT point import for bulk data from Trimble data collectors
+5. Add field photo capture with GPS tagging and map overlay
+6. Build job activity feed (track all changes chronologically)
+7. Add PDF export for job summary report
+8. Inline editing for job metadata fields`}</pre>
         </div>
       </div>
     </>
