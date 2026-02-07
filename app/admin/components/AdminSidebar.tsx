@@ -21,6 +21,8 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
   const sections: NavSection[] = [
     { label: 'Main', items: [
       { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
+      { href: '/admin/assignments', label: 'Assignments', icon: '📋' },
+      { href: '/admin/schedule', label: 'My Schedule', icon: '📅' },
     ]},
     { label: 'Learning', items: [
       { href: '/admin/learn', label: 'Learning Hub', icon: '🎓' },

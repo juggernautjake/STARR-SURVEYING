@@ -16,6 +16,7 @@ import '../styles/AdminMessaging.css';
 import '../styles/AdminJobs.css';
 import '../styles/AdminPayroll.css';
 import '../styles/AdminErrors.css';
+import '../styles/AdminAssignments.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
@@ -49,6 +50,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/messages/contacts': 'Team Directory',
   '/admin/messages/settings': 'Message Settings',
   '/admin/error-log': 'Error Log',
+  '/admin/assignments': 'Assignments',
+  '/admin/schedule': 'My Schedule',
 };
 
 function getTitle(p: string): string {

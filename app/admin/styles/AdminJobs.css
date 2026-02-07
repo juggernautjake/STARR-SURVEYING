@@ -1518,6 +1518,90 @@
 .fw__timeline-density { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; gap: 0; pointer-events: none; z-index: 1; padding: 4px 0; }
 .fw__timeline-density-bar { flex: 1; background: #1D3095; border-radius: 1px 1px 0 0; min-height: 0; transition: height 0.2s; }
 
+/* ── Job Context Header ── */
+.fw__job-header { background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 0.75rem; }
+.fw__job-header-main { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.fw__job-header-left { flex: 1; min-width: 0; }
+.fw__job-header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; flex-shrink: 0; }
+.fw__job-number { font-size: 0.72rem; color: #9CA3AF; font-family: monospace; text-transform: uppercase; letter-spacing: 0.05em; }
+.fw__job-name { margin: 0.15rem 0 0.3rem; font-size: 1.2rem; color: #1F2937; font-weight: 700; }
+.fw__job-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.fw__job-meta span { font-size: 0.78rem; color: #6B7280; padding: 0.15rem 0.5rem; background: #F3F4F6; border-radius: 4px; white-space: nowrap; }
+.fw__job-stage { display: inline-block; font-size: 0.78rem; font-weight: 600; padding: 0.25rem 0.75rem; border-radius: 12px; white-space: nowrap; }
+.fw__job-deadline { font-size: 0.75rem; color: #6B7280; white-space: nowrap; }
+
+/* Job summary bar */
+.fw__job-summary { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #F3F4F6; flex-wrap: wrap; }
+.fw__job-summary-item { display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.5rem; }
+.fw__job-summary-icon { font-size: 1rem; }
+.fw__job-summary-val { font-size: 0.88rem; font-weight: 700; color: #1D3095; font-family: monospace; display: block; }
+.fw__job-summary-lbl { font-size: 0.65rem; color: #9CA3AF; text-transform: uppercase; letter-spacing: 0.03em; display: block; }
+.fw__crew-toggle { margin-left: auto; background: none; border: 1px solid #D1D5DB; border-radius: 6px; padding: 0.3rem 0.75rem; font-size: 0.78rem; color: #374151; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.fw__crew-toggle:hover { background: #F3F4F6; border-color: #9CA3AF; }
+
+/* ── Crew Activity Panel ── */
+.fw__crew-panel { background: #fff; border: 1px solid #E5E7EB; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 0.75rem; }
+.fw__crew-title { margin: 0 0 0.75rem; font-size: 0.92rem; color: #1F2937; font-weight: 600; }
+.fw__crew-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.75rem; }
+.fw__crew-card { border: 1px solid #E5E7EB; border-radius: 8px; padding: 0.75rem; transition: all 0.15s; }
+.fw__crew-card--active { border-color: #059669; background: #F0FDF4; }
+.fw__crew-card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.fw__crew-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.fw__crew-status--active { background: #059669; box-shadow: 0 0 0 2px rgba(5,150,105,0.2); animation: fw-pulse 2s ease-in-out infinite; }
+.fw__crew-status--idle { background: #D1D5DB; }
+.fw__crew-status--none { background: #F3F4F6; border: 1px solid #D1D5DB; }
+@keyframes fw-pulse { 0%, 100% { box-shadow: 0 0 0 2px rgba(5,150,105,0.2); } 50% { box-shadow: 0 0 0 5px rgba(5,150,105,0.1); } }
+.fw__crew-name { font-weight: 600; font-size: 0.85rem; color: #1F2937; }
+.fw__crew-active-badge { font-size: 0.68rem; font-weight: 600; color: #059669; background: #D1FAE5; padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: auto; }
+.fw__crew-card-body { display: flex; flex-direction: column; gap: 0.25rem; }
+.fw__crew-stat { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.fw__crew-stat-lbl { font-size: 0.72rem; color: #9CA3AF; }
+.fw__crew-stat-val { font-size: 0.78rem; color: #374151; font-family: monospace; text-align: right; }
+
+/* ── View Tabs ── */
+.fw__view-tabs { display: flex; border: 1px solid #D1D5DB; border-radius: 6px; overflow: hidden; }
+.fw__view-tab { padding: 0.3rem 0.75rem; font-size: 0.78rem; border: none; background: #fff; color: #6B7280; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.fw__view-tab:not(:last-child) { border-right: 1px solid #D1D5DB; }
+.fw__view-tab--active { background: #1D3095; color: #fff; }
+.fw__view-tab:hover:not(.fw__view-tab--active) { background: #F3F4F6; }
+
+/* ── Table Filters ── */
+.fw__table-filters { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; padding: 0.5rem 0.75rem; background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; }
+.fw__filter-btn { padding: 0.25rem 0.6rem; font-size: 0.75rem; border: 1px solid #D1D5DB; border-radius: 4px; background: #fff; color: #6B7280; cursor: pointer; transition: all 0.12s; white-space: nowrap; }
+.fw__filter-btn:hover { background: #F3F4F6; }
+.fw__filter-btn--active { background: #EFF6FF; border-color: #1D3095; color: #1D3095; font-weight: 600; }
+
+/* ── Data Table ── */
+.fw__table-container { background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; }
+.fw__table-search { padding: 0.5rem 0.75rem; border-bottom: 1px solid #E5E7EB; position: relative; }
+.fw__table-scroll { overflow-x: auto; max-height: 600px; overflow-y: auto; }
+.fw__table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.fw__th { position: sticky; top: 0; background: #F9FAFB; padding: 0.5rem 0.5rem; text-align: left; font-weight: 600; color: #6B7280; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 2px solid #E5E7EB; white-space: nowrap; z-index: 1; }
+.fw__th--sortable { cursor: pointer; user-select: none; }
+.fw__th--sortable:hover { color: #1D3095; background: #EFF6FF; }
+.fw__tr { transition: background 0.1s; cursor: pointer; }
+.fw__tr:hover { background: #F9FAFB; }
+.fw__tr--selected { background: #EFF6FF !important; }
+.fw__td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #F3F4F6; color: #374151; vertical-align: middle; }
+.fw__td--mono { font-family: monospace; font-size: 0.74rem; }
+.fw__td--name { font-weight: 600; color: #1F2937; }
+.fw__td--desc { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.74rem; color: #6B7280; }
+.fw__td--sm { font-size: 0.72rem; white-space: nowrap; }
+.fw__td-code { font-size: 0.7rem; padding: 0.1rem 0.35rem; border-radius: 3px; font-family: monospace; font-weight: 600; white-space: nowrap; }
+.fw__td-type { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; }
+.fw__table-empty { text-align: center; padding: 2rem; color: #9CA3AF; font-size: 0.85rem; }
+.fw__table-footer { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; background: #F9FAFB; border-top: 1px solid #E5E7EB; font-size: 0.75rem; color: #6B7280; }
+
+/* ── Import Dialog ── */
+.fw__import-formats { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.fw__import-format { flex: 1; padding: 0.6rem 0.75rem; border: 1px solid #E5E7EB; border-radius: 6px; background: #F9FAFB; }
+.fw__import-format strong { display: block; font-size: 0.82rem; color: #1F2937; margin-bottom: 0.15rem; }
+.fw__import-format span { font-size: 0.72rem; color: #6B7280; }
+.fw__import-drop { display: flex; align-items: center; gap: 0.75rem; padding: 1rem; border: 2px dashed #D1D5DB; border-radius: 8px; background: #F9FAFB; margin-bottom: 1rem; }
+.fw__import-file-name { font-size: 0.82rem; color: #374151; font-family: monospace; }
+.fw__import-preview { margin-bottom: 1rem; }
+.fw__import-preview-table { max-height: 300px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 6px; margin-top: 0.5rem; }
+
 /* ── Responsive ── */
 @media (max-width: 899px) {
   .fw__layout { grid-template-columns: 1fr; }
@@ -1528,6 +1612,11 @@
   .fw__stats { gap: 0.25rem; }
   .fw__stat { padding: 0.2rem 0.4rem; min-width: 50px; }
   .fw__export-option { min-width: 80px; flex: unset; }
+  .fw__job-header-main { flex-direction: column; }
+  .fw__job-header-right { align-items: flex-start; flex-direction: row; gap: 0.5rem; }
+  .fw__crew-grid { grid-template-columns: 1fr 1fr; }
+  .fw__table-scroll { max-height: 400px; }
+  .fw__import-formats { flex-direction: column; }
 }
 @media (max-width: 599px) {
   .fw__label-toggles { gap: 0.5rem; }
@@ -1538,4 +1627,9 @@
   .fw__label-toggle--sat { margin-left: 0; }
   .fw__export-options { flex-direction: column; }
   .fw__export-option { flex: unset; }
+  .fw__crew-grid { grid-template-columns: 1fr; }
+  .fw__view-tabs { width: 100%; }
+  .fw__view-tab { flex: 1; text-align: center; }
+  .fw__job-summary { gap: 0.4rem; }
+  .fw__job-summary-item { padding: 0.15rem 0.3rem; }
 }
