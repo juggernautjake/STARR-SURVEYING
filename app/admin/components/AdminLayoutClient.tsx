@@ -25,6 +25,7 @@ import '../styles/AdminSchedule.css';
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
   '/admin/learn': 'Learning Hub',
+  '/admin/learn/roadmap': 'My Roadmap',
   '/admin/learn/modules': 'Learning Modules',
   '/admin/learn/knowledge-base': 'Knowledge Base',
   '/admin/learn/flashcards': 'Flashcards',

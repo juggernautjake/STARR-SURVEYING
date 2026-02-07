@@ -667,6 +667,101 @@
   .qb__tf-options { flex-direction:column; }
 }
 
+/* ==============================================================================
+   ROADMAP — Curriculum Progress Tracker
+============================================================================== */
+
+/* === OVERALL PROGRESS === */
+.roadmap__overall { background:#FFF; border:1px solid #E5E7EB; border-radius:10px; padding:1.25rem 1.5rem; margin-bottom:1.5rem; }
+.roadmap__overall-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:.65rem; flex-wrap:wrap; gap:.5rem; }
+.roadmap__overall-label { font-family:'Sora',sans-serif; font-size:1rem; font-weight:600; color:#0F1419; }
+.roadmap__overall-stats { font-family:'Inter',sans-serif; font-size:.82rem; color:#6B7280; }
+.roadmap__progress-bar { width:100%; height:12px; background:#F3F4F6; border-radius:6px; overflow:hidden; }
+.roadmap__progress-fill { height:100%; background:linear-gradient(90deg,#1D3095,#3B82F6); border-radius:6px; transition:width .6s ease; }
+.roadmap__overall-pct { font-family:'Sora',sans-serif; font-size:1.5rem; font-weight:700; color:#1D3095; text-align:right; margin-top:.35rem; }
+
+/* === EXAM READINESS CARDS === */
+.roadmap__exam-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+.roadmap__exam-card { display:flex; align-items:center; gap:1rem; padding:1.15rem 1.25rem; background:#FFF; border:2px solid #E5E7EB; border-radius:10px; transition:all .15s; }
+.roadmap__exam-card--achieved { background:#ECFDF5; border-color:#10B981; }
+.roadmap__exam-icon { font-size:2rem; flex-shrink:0; }
+.roadmap__exam-info { flex:1; min-width:0; }
+.roadmap__exam-title { font-family:'Sora',sans-serif; font-size:1rem; font-weight:600; color:#0F1419; }
+.roadmap__exam-desc { font-family:'Inter',sans-serif; font-size:.82rem; color:#6B7280; line-height:1.4; margin-top:.15rem; }
+.roadmap__exam-achieved { font-family:'Inter',sans-serif; font-size:.75rem; color:#065F46; font-weight:600; margin-top:.25rem; }
+.roadmap__exam-status { font-size:1.5rem; flex-shrink:0; }
+.roadmap__exam-status--done { opacity:1; }
+
+/* === PARTS ACCORDION === */
+.roadmap__parts { display:flex; flex-direction:column; gap:.75rem; margin-bottom:2rem; }
+.roadmap__part { background:#FFF; border:1px solid #E5E7EB; border-radius:10px; overflow:hidden; transition:border-color .15s; }
+.roadmap__part:hover { border-color:#D1D5DB; }
+.roadmap__part--complete { border-color:#A7F3D0; }
+.roadmap__part-header { display:flex; justify-content:space-between; align-items:center; padding:1rem 1.25rem; cursor:pointer; transition:background .1s; user-select:none; }
+.roadmap__part-header:hover { background:#FAFBFF; }
+.roadmap__part-left { display:flex; align-items:center; gap:.75rem; flex:1; min-width:0; }
+.roadmap__part-chevron { display:inline-flex; font-size:.85rem; color:#9CA3AF; transition:transform .2s; width:1rem; justify-content:center; flex-shrink:0; }
+.roadmap__part-chevron--open { transform:rotate(90deg); }
+.roadmap__part-icon { font-size:1.5rem; flex-shrink:0; }
+.roadmap__part-title { font-family:'Sora',sans-serif; font-size:.95rem; font-weight:600; color:#0F1419; }
+.roadmap__part-meta { font-family:'Inter',sans-serif; font-size:.78rem; color:#9CA3AF; margin-top:.1rem; }
+.roadmap__part-right { display:flex; align-items:center; gap:.75rem; flex-shrink:0; }
+.roadmap__part-bar-wrap { display:flex; align-items:center; gap:.5rem; }
+.roadmap__part-bar { width:120px; height:8px; background:#F3F4F6; border-radius:4px; overflow:hidden; }
+.roadmap__part-bar-fill { height:100%; border-radius:4px; transition:width .4s ease; }
+.roadmap__part-pct { font-family:'Inter',sans-serif; font-size:.78rem; font-weight:600; color:#6B7280; min-width:30px; text-align:right; }
+.roadmap__part-check { font-size:1.1rem; }
+
+/* === MODULE ROWS WITHIN PARTS === */
+.roadmap__part-modules { border-top:1px solid #E5E7EB; }
+.roadmap__module { display:flex; align-items:center; justify-content:space-between; padding:.85rem 1.25rem .85rem 3rem; border-bottom:1px solid #F3F4F6; text-decoration:none; color:inherit; transition:background .1s; }
+.roadmap__module:last-child { border-bottom:none; }
+.roadmap__module:hover { background:#FAFBFF; }
+.roadmap__module--complete { background:#F0FDF4; }
+.roadmap__module-left { display:flex; align-items:center; gap:.75rem; flex:1; min-width:0; }
+.roadmap__module-num { width:28px; height:28px; border-radius:50%; background:#1D3095; color:#FFF; font-family:'Sora',sans-serif; font-size:.75rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.roadmap__module--complete .roadmap__module-num { background:#10B981; }
+.roadmap__module-title { font-family:'Inter',sans-serif; font-size:.88rem; font-weight:600; color:#0F1419; }
+.roadmap__module-meta { font-family:'Inter',sans-serif; font-size:.75rem; color:#9CA3AF; margin-top:.1rem; display:flex; align-items:center; gap:.5rem; }
+.roadmap__module-diff { font-size:.68rem; font-weight:700; padding:.1rem .4rem; border-radius:3px; text-transform:uppercase; letter-spacing:.3px; }
+.roadmap__module-diff--beginner { background:#ECFDF5; color:#065F46; }
+.roadmap__module-diff--intermediate { background:#FEF3C7; color:#92400E; }
+.roadmap__module-diff--advanced { background:#FEF2F2; color:#BD1218; }
+.roadmap__module-right { display:flex; align-items:center; gap:.5rem; flex-shrink:0; }
+.roadmap__module-bar { width:80px; height:6px; background:#F3F4F6; border-radius:3px; overflow:hidden; }
+.roadmap__module-bar-fill { height:100%; background:#1D3095; border-radius:3px; transition:width .4s ease; }
+.roadmap__module--complete .roadmap__module-bar-fill { background:#10B981; }
+.roadmap__module-pct { font-family:'Inter',sans-serif; font-size:.75rem; font-weight:600; color:#6B7280; min-width:28px; text-align:right; }
+
+/* === CERTIFICATION CARDS === */
+.roadmap__certs { margin-top:1rem; }
+.roadmap__certs-title { font-family:'Sora',sans-serif; font-size:1.1rem; font-weight:600; color:#0F1419; margin-bottom:1rem; }
+.roadmap__certs-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem; }
+.roadmap__cert { background:#FFF; border:1px solid #E5E7EB; border-radius:10px; padding:1.25rem; text-align:center; transition:all .15s; }
+.roadmap__cert--achieved { background:#FEF3C7; border-color:#FCD34D; }
+.roadmap__cert-icon { font-size:2.5rem; display:block; margin-bottom:.5rem; }
+.roadmap__cert-title { font-family:'Sora',sans-serif; font-size:.95rem; font-weight:600; color:#0F1419; margin-bottom:.25rem; }
+.roadmap__cert-desc { font-family:'Inter',sans-serif; font-size:.78rem; color:#6B7280; line-height:1.4; margin-bottom:.75rem; }
+.roadmap__cert-badge { display:inline-block; font-family:'Inter',sans-serif; font-size:.72rem; font-weight:700; padding:.2rem .65rem; border-radius:12px; background:#F3F4F6; color:#9CA3AF; text-transform:uppercase; letter-spacing:.3px; }
+.roadmap__cert-badge--done { background:#ECFDF5; color:#065F46; }
+
+/* === ROADMAP RESPONSIVE === */
+@media(max-width:768px) {
+  .roadmap__part-bar { width:80px; }
+  .roadmap__module { padding-left:2rem; }
+  .roadmap__module-bar { width:60px; }
+  .roadmap__exam-cards { grid-template-columns:1fr; }
+}
+@media(max-width:599px) {
+  .roadmap__part-header { flex-direction:column; align-items:flex-start; gap:.65rem; }
+  .roadmap__part-right { width:100%; }
+  .roadmap__part-bar { flex:1; }
+  .roadmap__module { flex-direction:column; align-items:flex-start; gap:.5rem; }
+  .roadmap__module-right { width:100%; }
+  .roadmap__module-bar { flex:1; }
+  .roadmap__certs-grid { grid-template-columns:1fr; }
+}
+
 /* === FLASHCARD CARD FOCUS (keyboard a11y) === */
 .fc-study__card:focus { outline:2px solid #1D3095; outline-offset:2px; border-radius:14px; }
 .fc-study__card:focus:not(:focus-visible) { outline:none; }

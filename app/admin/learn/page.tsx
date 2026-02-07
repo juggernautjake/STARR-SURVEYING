@@ -145,6 +145,15 @@ export default function LearnHubPage() {
 
       {/* Section Cards */}
       <div className="admin-learn__sections">
+        <Link href="/admin/learn/roadmap" className="admin-learn__section-card" style={{ borderColor: '#1D3095', borderWidth: '2px' }}>
+          <span className="admin-learn__section-icon">🗺️</span>
+          <h3 className="admin-learn__section-title">My Roadmap</h3>
+          <p className="admin-learn__section-desc">
+            Track your progress through the full Texas Land Surveying curriculum — 28 modules, 9 parts, from foundations to RPLS exam readiness.
+          </p>
+          <span className="admin-learn__section-arrow">View Roadmap →</span>
+        </Link>
+
         <Link href="/admin/learn/modules" className="admin-learn__section-card">
           <span className="admin-learn__section-icon">📚</span>
           <h3 className="admin-learn__section-title">Learning Modules</h3>
