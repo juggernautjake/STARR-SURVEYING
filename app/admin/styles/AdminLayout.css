@@ -108,8 +108,12 @@
 @keyframes modal-fade { from{opacity:0} to{opacity:1} }
 
 /* === FIELDBOOK FLOATING BUTTON === */
-.fieldbook-fab { position:fixed; bottom:2rem; right:2rem; z-index:90; width:56px; height:56px; border-radius:50%; background:#BD1218; color:#FFF; border:none; font-size:1.5rem; cursor:pointer; box-shadow:0 4px 16px rgba(189,18,24,.35); transition:all .2s; display:flex; align-items:center; justify-content:center; }
+.fieldbook-fab-wrap { position:fixed; bottom:2rem; right:2rem; z-index:90; display:flex; align-items:center; gap:0; }
+.fieldbook-fab { width:56px; height:56px; border-radius:50%; background:#BD1218; color:#FFF; border:none; font-size:1.5rem; cursor:pointer; box-shadow:0 4px 16px rgba(189,18,24,.35); transition:all .2s; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; }
 .fieldbook-fab:hover { background:#9A0F14; transform:scale(1.08); }
+.fieldbook-fab-tooltip { position:absolute; right:60px; white-space:nowrap; background:#FEF3C7; color:#92400E; font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; padding:.45rem .85rem; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.1); opacity:0; transform:translateX(8px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.fieldbook-fab-tooltip::after { content:''; position:absolute; right:-6px; top:50%; transform:translateY(-50%); border:6px solid transparent; border-left-color:#FEF3C7; border-right:none; }
+.fieldbook-fab-wrap:hover .fieldbook-fab-tooltip { opacity:1; transform:translateX(0); }
 
 /* === FIELDBOOK PANEL === */
 .fieldbook-panel { position:fixed; bottom:0; right:0; width:420px; max-width:100vw; height:75vh; background:#FFF; border-top-left-radius:16px; box-shadow:-4px -4px 24px rgba(0,0,0,.12); z-index:95; display:flex; flex-direction:column; animation:fieldbook-slide .25s ease-out; }
