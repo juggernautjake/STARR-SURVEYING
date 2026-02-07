@@ -20,6 +20,7 @@ import '../styles/AdminErrors.css';
 import '../styles/AdminAssignments.css';
 import '../styles/AdminTimeLogs.css';
 import '../styles/AdminEmployeeManage.css';
+import '../styles/AdminSchedule.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
