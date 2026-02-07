@@ -39,14 +39,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     context_type, context_label, tags
   } = body;
 
-  if (!content?.trim()) {
-    return NextResponse.json({ error: 'Note content is required' }, { status: 400 });
+  if (!title?.trim() && !content?.trim()) {
+    return NextResponse.json({ error: 'Note title or content is required' }, { status: 400 });
   }
 
   const { data, error } = await supabaseAdmin.from('fieldbook_notes').insert({
     user_email: session.user.email,
     title: title?.trim() || 'Untitled Note',
-    content: content.trim(),
+    content: content?.trim() || '',
     page_context: page_context || null,
     page_url: page_url || null,
     module_id: module_id || null,

@@ -103,9 +103,12 @@ export default function Fieldbook() {
     <>
       {/* Floating Action Button */}
       {!isOpen && (
-        <button className="fieldbook-fab" onClick={() => setIsOpen(true)} title="Write in Fieldbook">
-          📓
-        </button>
+        <div className="fieldbook-fab-wrap">
+          <span className="fieldbook-fab-tooltip">Write in Fieldbook</span>
+          <button className="fieldbook-fab" onClick={() => setIsOpen(true)} aria-label="Write in Fieldbook">
+            📓
+          </button>
+        </div>
       )}
 
       {/* Panel */}
