@@ -50,7 +50,10 @@
 .admin-topbar__signout { display:inline-flex; align-items:center; gap:.4rem; padding:.4rem .85rem; font-family:'Inter',sans-serif; font-size:.8rem; font-weight:600; color:#6B7280; background:#F8F9FA; border:1px solid #E5E7EB; border-radius:6px; cursor:pointer; text-decoration:none; }
 .admin-topbar__signout:hover { background:#FEF2F2; color:#BD1218; border-color:#BD1218; }
 .admin-topbar__username { font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; color:#374151; }
-.admin-topbar__xp { display:inline-flex; align-items:center; gap:.25rem; padding:.3rem .65rem; background:#F8F9FA; border:1px solid #E5E7EB; border-radius:20px; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:700; }
+.admin-topbar__xp { display:inline-flex; align-items:center; gap:.25rem; padding:.3rem .65rem; background:#F8F9FA; border:1px solid #E5E7EB; border-radius:20px; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:700; text-decoration:none; cursor:pointer; transition:all .15s; position:relative; }
+.admin-topbar__xp:hover { background:#EFF6FF; border-color:#1D3095; box-shadow:0 2px 8px rgba(29,48,149,.15); }
+.admin-topbar__xp:hover::after { content:'Click to spend reward points!'; position:absolute; top:calc(100% + 6px); left:50%; transform:translateX(-50%); background:#0F1419; color:#FFF; padding:.35rem .65rem; border-radius:6px; font-size:.68rem; font-weight:500; white-space:nowrap; z-index:50; pointer-events:none; box-shadow:0 2px 8px rgba(0,0,0,.15); }
+.admin-topbar__xp:hover::before { content:''; position:absolute; top:calc(100% + 2px); left:50%; transform:translateX(-50%); border:4px solid transparent; border-bottom-color:#0F1419; z-index:50; pointer-events:none; }
 .admin-topbar__xp-icon { font-size:.85rem; }
 .admin-topbar__xp-current { color:#10B981; }
 .admin-topbar__xp-sep { color:#D1D5DB; font-weight:400; }

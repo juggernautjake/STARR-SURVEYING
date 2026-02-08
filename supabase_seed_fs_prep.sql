@@ -1,74 +1,17 @@
 -- ============================================================================
--- FS Exam Prep System - Migration v1
--- Creates tables, seeds 8 study modules, 160 benchmark + 110 mock questions
+-- STARR Surveying — FS Exam Prep Seed Data
+-- ============================================================================
+-- Run AFTER supabase_schema.sql (tables) and supabase_seed_curriculum.sql
+-- Contains: 8 FS study modules + 160 benchmark questions + 110 mock questions
+-- This file is SAFE TO RE-RUN (uses delete-then-insert pattern).
+--
+-- Run order:
+--   1. supabase_schema.sql          (tables, indexes, RLS, system seed data)
+--   2. supabase_seed_curriculum.sql  (modules, lessons, flashcards, articles)
+--   3. supabase_seed_fs_prep.sql    (THIS FILE — FS prep modules + 270 questions)
 -- ============================================================================
 
 BEGIN;
-
--- ============================================================================
--- PART 1: CREATE TABLES
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS fs_study_modules (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  module_number INTEGER NOT NULL UNIQUE,
-  title TEXT NOT NULL,
-  description TEXT,
-  week_range TEXT,
-  exam_weight_percent INTEGER DEFAULT 0,
-  key_topics TEXT[] DEFAULT '{}',
-  key_formulas JSONB DEFAULT '[]',
-  content_sections JSONB DEFAULT '[]',
-  prerequisite_module INTEGER,
-  passing_score INTEGER DEFAULT 70,
-  question_count INTEGER DEFAULT 20,
-  icon TEXT DEFAULT '📚',
-  xp_reward INTEGER DEFAULT 500,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS fs_module_progress (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_email TEXT NOT NULL,
-  module_id UUID NOT NULL REFERENCES fs_study_modules(id) ON DELETE CASCADE,
-  status TEXT NOT NULL DEFAULT 'locked' CHECK (status IN ('locked', 'available', 'in_progress', 'completed')),
-  quiz_best_score INTEGER DEFAULT 0,
-  quiz_attempts_count INTEGER DEFAULT 0,
-  started_at TIMESTAMPTZ,
-  completed_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_email, module_id)
-);
-
-CREATE TABLE IF NOT EXISTS fs_mock_exam_attempts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_email TEXT NOT NULL,
-  total_questions INTEGER NOT NULL DEFAULT 110,
-  correct_answers INTEGER NOT NULL DEFAULT 0,
-  score_percent NUMERIC NOT NULL DEFAULT 0,
-  time_spent_seconds INTEGER DEFAULT 0,
-  time_limit_seconds INTEGER DEFAULT 19200,
-  category_scores JSONB DEFAULT '{}',
-  passed BOOLEAN DEFAULT false,
-  completed_at TIMESTAMPTZ DEFAULT now(),
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS fs_weak_areas (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_email TEXT NOT NULL,
-  module_number INTEGER NOT NULL,
-  topic TEXT NOT NULL,
-  weakness_score NUMERIC DEFAULT 0.5,
-  questions_attempted INTEGER DEFAULT 0,
-  questions_correct INTEGER DEFAULT 0,
-  last_assessed_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_email, module_number, topic)
-);
-
-CREATE INDEX IF NOT EXISTS idx_fs_module_progress_user ON fs_module_progress(user_email);
-CREATE INDEX IF NOT EXISTS idx_fs_mock_exam_user ON fs_mock_exam_attempts(user_email);
-CREATE INDEX IF NOT EXISTS idx_fs_weak_areas_user ON fs_weak_areas(user_email);
 
 -- ============================================================================
 -- PART 2: SEED STUDY MODULES

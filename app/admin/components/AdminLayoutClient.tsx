@@ -31,6 +31,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/learn/knowledge-base': 'Knowledge Base',
   '/admin/learn/flashcards': 'Flashcards',
   '/admin/learn/flashcards/create': 'Create Flashcards',
+  '/admin/learn/flashcard-bank': 'Flashcard Bank',
   '/admin/learn/exam-prep': 'Exam Prep',
   '/admin/learn/exam-prep/sit': 'FS Exam Prep',
   '/admin/learn/exam-prep/sit/mock-exam': 'FS Mock Exam',

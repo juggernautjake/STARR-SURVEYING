@@ -1,50 +1,31 @@
 -- ============================================================================
--- STARR Surveying — Texas Land Surveying Curriculum Seed Migration (v1)
+-- STARR Surveying — Consolidated Curriculum Seed Data
 -- ============================================================================
--- This migration seeds a complete 28-module Texas Land Surveying curriculum
--- into the existing learning_modules and learning_lessons tables, and creates
--- two new tables: curriculum_milestones and user_milestone_progress.
+-- Run AFTER supabase_schema.sql to populate all educational content.
+-- This file is SAFE TO RE-RUN (uses upserts and delete-then-insert patterns).
 --
--- SAFE TO RE-RUN:
---   • Modules use INSERT ... ON CONFLICT (id) DO UPDATE (upsert).
---   • Lessons are DELETE + INSERT per module.
---   • Milestones are DELETE + INSERT.
---   • New tables use CREATE TABLE IF NOT EXISTS.
+-- Contents:
+--   1. 28 Learning Modules (Texas Land Surveying curriculum)
+--   2. 160+ Learning Lessons (across all 28 modules)
+--   3. Curriculum Milestones
+--   4. Per-Module XP Configuration
+--   5. Flashcards (company/built-in cards linked to modules)
+--   6. Knowledge Base Articles (with module links)
+--   7. Welcome Lesson + Topics
 --
--- Module UUIDs are deterministic: c10000XX-0000-0000-0000-0000000000XX
--- where XX is the module number in hexadecimal (01–1c).
+-- Run order:
+--   1. supabase_schema.sql          (tables, indexes, RLS, system seed data)
+--   2. supabase_seed_curriculum.sql  (THIS FILE — modules, lessons, flashcards, articles)
+--   3. supabase_seed_fs_prep.sql    (FS exam prep modules + 270 questions)
 -- ============================================================================
 
 BEGIN;
 
--- ============================================================================
--- 1. CREATE NEW TABLES
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS curriculum_milestones (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  description TEXT,
-  milestone_type TEXT NOT NULL CHECK (milestone_type IN ('part_complete', 'exam_ready', 'certification')),
-  part_number INTEGER,
-  required_module_ids UUID[],
-  order_index INTEGER NOT NULL,
-  icon TEXT,
-  color TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS user_milestone_progress (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_email TEXT NOT NULL,
-  milestone_id UUID NOT NULL REFERENCES curriculum_milestones(id) ON DELETE CASCADE,
-  achieved_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (user_email, milestone_id)
-);
 
 -- ============================================================================
--- 2. UPSERT ALL 28 MODULES
+-- SECTION 1: LEARNING MODULES (28 modules)
 -- ============================================================================
+
 
 -- ---- Part I – Foundations of Land Surveying --------------------------------
 
@@ -273,8 +254,9 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at      = now();
 
 -- ============================================================================
--- 3. LESSONS — DELETE existing, then INSERT fresh per module
+-- SECTION 2: LEARNING LESSONS (160+ lessons across 28 modules)
 -- ============================================================================
+
 
 -- --------------------------------------------------------------------------
 -- Module 1: Introduction to Land Surveying (6 lessons)
@@ -680,7 +662,7 @@ VALUES
   (gen_random_uuid(), 'c100001c-0000-0000-0000-00000000001c', 'RPLS Full-Length Practice Exam Tips', '', ARRAY[]::text[], 10, 30, '[]'::jsonb, '[]'::jsonb, ARRAY['exam-prep','RPLS','practical','review'], 'published');
 
 -- ============================================================================
--- 4. CURRICULUM MILESTONES — DELETE existing, then INSERT fresh
+-- SECTION 3: CURRICULUM MILESTONES
 -- ============================================================================
 
 DELETE FROM user_milestone_progress;
@@ -901,5 +883,348 @@ VALUES
      'c100001c-0000-0000-0000-00000000001c'
    ]::uuid[],
    13, '🌟', '#BD1218', now());
+
+
+-- ============================================================================
+-- SECTION 4: PER-MODULE XP CONFIGURATION
+-- ============================================================================
+
+-- ============================================
+-- SEED DATA: Module XP Config defaults
+-- ============================================
+
+-- Default XP values for learning modules by difficulty
+INSERT INTO module_xp_config (module_type, module_id, xp_value, expiry_months, difficulty_rating) VALUES
+('learning_module', NULL, 500, 18, 3), -- default for any learning module
+('fs_module', NULL, 500, 24, 4) -- default for FS prep modules
+ON CONFLICT DO NOTHING;
+
+-- ============================================
+-- SEED DATA: Per-Module XP Config (all 28 curriculum modules)
+-- Beginner = 400 XP, 20-month expiry, rating 2
+-- Intermediate = 500 XP, 18-month expiry, rating 3
+-- Advanced = 600 XP, 15-month expiry, rating 4
+-- Exam Prep = 550 XP, 12-month expiry, rating 4
+-- ============================================
+
+-- Part I – Foundations (beginner)
+INSERT INTO module_xp_config (module_type, module_id, xp_value, expiry_months, difficulty_rating) VALUES
+('learning_module', 'c1000001-0000-0000-0000-000000000001', 400, 20, 2), -- Introduction to Land Surveying
+('learning_module', 'c1000002-0000-0000-0000-000000000002', 450, 20, 2), -- Mathematics for Surveyors (higher due to math)
+('learning_module', 'c1000003-0000-0000-0000-000000000003', 400, 20, 2), -- Measurements & Error Theory
+('learning_module', 'c1000004-0000-0000-0000-000000000004', 400, 20, 2), -- Distance Measurement
+
+-- Part II – Field Techniques (intermediate)
+('learning_module', 'c1000005-0000-0000-0000-000000000005', 500, 18, 3), -- Angle and Direction Measurement
+('learning_module', 'c1000006-0000-0000-0000-000000000006', 500, 18, 3), -- Leveling and Vertical Control
+
+-- Part III – Coordinate Systems (intermediate)
+('learning_module', 'c1000007-0000-0000-0000-000000000007', 550, 18, 3), -- Coordinate Systems and Datums
+('learning_module', 'c1000008-0000-0000-0000-000000000008', 550, 18, 3), -- Traverse Computations
+('learning_module', 'c1000009-0000-0000-0000-000000000009', 500, 18, 3), -- Area and Volume Computations
+
+-- Part IV – Modern Technology (intermediate/advanced)
+('learning_module', 'c100000a-0000-0000-0000-00000000000a', 500, 18, 3), -- Total Stations
+('learning_module', 'c100000b-0000-0000-0000-00000000000b', 600, 15, 4), -- GPS/GNSS Surveying
+('learning_module', 'c100000c-0000-0000-0000-00000000000c', 600, 15, 4), -- Robotic, Scanning, and UAS
+
+-- Part V – Boundary & Legal (intermediate/advanced)
+('learning_module', 'c100000d-0000-0000-0000-00000000000d', 550, 18, 3), -- Boundary Law Principles
+('learning_module', 'c100000e-0000-0000-0000-00000000000e', 500, 18, 3), -- Metes and Bounds Descriptions
+('learning_module', 'c100000f-0000-0000-0000-00000000000f', 550, 18, 3), -- Texas Land Titles and Records
+('learning_module', 'c1000010-0000-0000-0000-000000000010', 600, 15, 4), -- Boundary Retracement and Resolution
+
+-- Part VI – Subdivision, Planning & Construction (intermediate)
+('learning_module', 'c1000011-0000-0000-0000-000000000011', 500, 18, 3), -- Subdivision Design and Platting
+('learning_module', 'c1000012-0000-0000-0000-000000000012', 500, 18, 3), -- Construction Surveying
+('learning_module', 'c1000013-0000-0000-0000-000000000013', 500, 18, 3), -- Topographic and Mapping Surveys
+
+-- Part VII – Specialized (advanced)
+('learning_module', 'c1000014-0000-0000-0000-000000000014', 600, 15, 4), -- Geodetic and Control Surveying
+('learning_module', 'c1000015-0000-0000-0000-000000000015', 600, 15, 4), -- Hydrographic and Coastal
+('learning_module', 'c1000016-0000-0000-0000-000000000016', 550, 15, 4), -- Mining and Industrial
+
+-- Part VIII – Professional Practice (advanced)
+('learning_module', 'c1000017-0000-0000-0000-000000000017', 550, 15, 4), -- Survey Business
+('learning_module', 'c1000018-0000-0000-0000-000000000018', 600, 15, 4), -- Texas Surveying Law
+
+-- Part IX – Exam Preparation
+('learning_module', 'c1000019-0000-0000-0000-000000000019', 550, 12, 4), -- SIT Exam Review — Fundamentals
+('learning_module', 'c100001a-0000-0000-0000-00000000001a', 550, 12, 4), -- SIT Exam Review — Advanced
+('learning_module', 'c100001b-0000-0000-0000-00000000001b', 600, 12, 5), -- RPLS Review — Jurisprudence
+('learning_module', 'c100001c-0000-0000-0000-00000000001c', 600, 12, 5)  -- RPLS Review — Practical
+ON CONFLICT DO NOTHING;
+
+-- ============================================
+-- SEED DATA: FS Prep Module XP Config (8 modules)
+-- All FS prep modules = 500 XP each, 24-month expiry
+-- ============================================
+
+INSERT INTO module_xp_config (module_type, module_id, xp_value, expiry_months, difficulty_rating) VALUES
+('fs_module', 'f5000001-0000-0000-0000-000000000001', 450, 24, 3), -- FS Module 1
+('fs_module', 'f5000002-0000-0000-0000-000000000002', 500, 24, 4), -- FS Module 2
+('fs_module', 'f5000003-0000-0000-0000-000000000003', 500, 24, 4), -- FS Module 3
+('fs_module', 'f5000004-0000-0000-0000-000000000004', 500, 24, 4), -- FS Module 4
+('fs_module', 'f5000005-0000-0000-0000-000000000005', 500, 24, 4), -- FS Module 5
+('fs_module', 'f5000006-0000-0000-0000-000000000006', 550, 24, 4), -- FS Module 6
+('fs_module', 'f5000007-0000-0000-0000-000000000007', 500, 24, 4), -- FS Module 7
+('fs_module', 'f5000008-0000-0000-0000-000000000008', 500, 24, 4)  -- FS Module 8
+ON CONFLICT DO NOTHING;
+
+-- ============================================================================
+-- SECTION 5: WELCOME LESSON
+-- ============================================================================
+
+INSERT INTO learning_lessons (id, module_id, title, content, key_takeaways, order_index, estimated_minutes, status, tags, resources, videos) VALUES
+('22222222-2222-2222-2222-222222222200',
+ 'c1000001-0000-0000-0000-000000000001',
+ 'Welcome to Starr Surveying',
+ '<h2>Welcome to the Starr Surveying Learning Hub</h2>
+<p>Welcome to the team! Whether you''re a brand-new surveying intern (SIT) or a seasoned field veteran joining our company, this learning platform is designed to help you grow your skills, prepare for licensing exams, and stay up-to-date with best practices.</p>
+
+<h3>What You''ll Learn Here</h3>
+<p>This platform covers everything you need to succeed as a surveyor at Starr Surveying:</p>
+<ul>
+  <li><strong>Fundamentals of Land Surveying</strong> — History, terminology, types of surveys, and core concepts</li>
+  <li><strong>Equipment & Technology</strong> — Total stations, GNSS/GPS, data collectors, and modern tools</li>
+  <li><strong>Texas-Specific Knowledge</strong> — Texas property law, the vara, GLO records, and state regulations</li>
+  <li><strong>Field Procedures</strong> — How we conduct boundary surveys, topographic surveys, and construction layout</li>
+  <li><strong>Exam Preparation</strong> — Practice questions for the SIT and RPLS licensing exams</li>
+</ul>
+
+<h3>How This Works</h3>
+<p>Each module contains <strong>lessons</strong> you can read through at your own pace. After each lesson, you can:</p>
+<ul>
+  <li><strong>Take a Quiz</strong> — Test your understanding of the material</li>
+  <li><strong>Study Flashcards</strong> — Review key terms with our spaced repetition system that adapts to how well you know each term</li>
+  <li><strong>Read Knowledge Base Articles</strong> — Dive deeper into specific topics</li>
+  <li><strong>Take Notes</strong> — Use your Field Notebook to jot down observations and reminders</li>
+</ul>
+
+<h3>Getting Started</h3>
+<p>Start with the next lesson, <strong>"What is Land Surveying?"</strong>, to learn the basics. If you already have surveying experience, feel free to jump ahead to the topics that interest you or go straight to the flashcards and quiz sections.</p>
+
+<h3>About Starr Surveying</h3>
+<p>Starr Surveying is committed to providing accurate, professional land surveying services. Our team uses the latest technology — including Trimble instruments, GNSS receivers, and CAD software — to deliver high-quality results. We believe in continuous learning and professional development, which is why we built this platform for our team.</p>
+
+<p><strong>Let''s get started!</strong></p>',
+ ARRAY[
+   'The Learning Hub covers fundamentals, equipment, Texas law, field procedures, and exam prep',
+   'Use flashcards with spaced repetition to master surveying terminology',
+   'Quiz yourself after each lesson to test your understanding',
+   'Take notes in your Field Notebook as you learn'
+ ],
+ 0, 10, 'published',
+ ARRAY['welcome','introduction','getting started'],
+ '[]', '[]'
+);
+
+-- Topics for Welcome lesson
+INSERT INTO learning_topics (lesson_id, title, content, order_index, keywords) VALUES
+('22222222-2222-2222-2222-222222222200', 'Learning Hub Overview', 'The Starr Surveying Learning Hub contains modules, lessons, flashcards, quizzes, and a knowledge base. Each module focuses on a topic area and contains multiple lessons.', 1, ARRAY['learning hub','overview','modules']),
+('22222222-2222-2222-2222-222222222200', 'Study Tools Available', 'Flashcards use SM-2 spaced repetition to optimize your review schedule. Quizzes test your knowledge. The Field Notebook lets you record observations. The Knowledge Base provides in-depth articles.', 2, ARRAY['flashcards','quizzes','notebook','knowledge base']),
+('22222222-2222-2222-2222-222222222200', 'Career Paths in Surveying', 'In Texas, the licensing path goes: Surveyor Intern (SIT) then Registered Professional Land Surveyor (RPLS). The SIT exam tests fundamental knowledge, while the RPLS exam covers Texas law and advanced practice.', 3, ARRAY['SIT','RPLS','licensing','career']);
+
+-- ============================================================================
+-- SECTION 6: FLASHCARDS (Company-wide built-in cards)
+-- ============================================================================
+
+INSERT INTO flashcards (term, definition, hint_1, hint_2, hint_3, module_id, keywords, tags, category) VALUES
+
+-- Legal & Property Terms
+('Deed', 'A legal document that transfers ownership of real property from one party to another. In Texas, deeds are recorded at the county clerk''s office.', 'This document proves who owns a piece of land', 'Rhymes with "need" and "speed"', 'D _ _ _ (4 letters, transfers property)', 'c1000001-0000-0000-0000-000000000001', ARRAY['deed','property','legal'], ARRAY['legal','property law'], 'legal'),
+
+('Easement', 'A legal right to use another person''s land for a specific purpose, such as utility lines, drainage, or access.', 'Utility companies often need these to run power lines', 'Think of it as permission to "ease" through someone''s property', 'E _ _ _ _ _ _ _ (8 letters, a right to use land)', 'c1000001-0000-0000-0000-000000000001', ARRAY['easement','legal','access'], ARRAY['legal','easements'], 'legal'),
+
+('Monument', 'A physical marker placed at a survey point, such as an iron rod, concrete marker, or natural feature like a tree or rock.', 'Something permanent placed in the ground at a corner', 'Could be an iron rod, a stone, or even a large tree', 'M _ _ _ _ _ _ _ (8 letters, a physical marker)', 'c1000001-0000-0000-0000-000000000001', ARRAY['monument','marker','corner'], ARRAY['fieldwork','boundary'], 'fieldwork'),
+
+('Chain of Title', 'The sequence of historical transfers of title (ownership) to a property, from the original grant to the current owner.', 'Like a family tree, but for land ownership', 'Traces who owned a property and when it changed hands', 'C _ _ _ _ of T _ _ _ _ (ownership history)', 'c1000001-0000-0000-0000-000000000001', ARRAY['chain of title','ownership','deed'], ARRAY['legal','property law'], 'legal'),
+
+('Encroachment', 'When a structure, fence, or improvement extends onto an adjacent property without permission.', 'When something crosses over a property line that shouldn''t', 'A fence built 2 feet into your neighbor''s yard is this', 'E _ _ _ _ _ _ _ _ _ _ _ (12 letters, crossing boundary)', 'c1000001-0000-0000-0000-000000000001', ARRAY['encroachment','boundary','dispute'], ARRAY['legal','boundary'], 'legal'),
+
+-- Measurement & Math Terms
+('Bearing', 'A direction expressed as an angle from North or South, like N 45° E. Always starts with N or S and ends with E or W.', 'A way to describe compass direction with an angle', 'Always measured from North or South toward East or West', 'B _ _ _ _ _ _ (7 letters, N 45° E is an example)', 'c1000001-0000-0000-0000-000000000001', ARRAY['bearing','direction','angle'], ARRAY['measurement','navigation'], 'measurement'),
+
+('Traverse', 'A series of connected survey lines whose lengths and directions are measured. Used to establish control networks.', 'A path of connected survey points forming a network', 'Think of it as connecting the dots from point to point', 'T _ _ _ _ _ _ _ (8 letters, connected survey lines)', 'c1000001-0000-0000-0000-000000000001', ARRAY['traverse','control','measurement'], ARRAY['measurement','fieldwork'], 'measurement'),
+
+('Closure', 'The degree to which a traverse returns to its starting point. Good closure means the survey is accurate.', 'How close a survey loop comes back to where it started', 'If you walk in a loop and end up exactly where you began', 'C _ _ _ _ _ _ (7 letters, traverse accuracy check)', 'c1000001-0000-0000-0000-000000000001', ARRAY['closure','traverse','accuracy'], ARRAY['measurement','quality'], 'measurement'),
+
+('Elevation', 'The vertical height of a point above a reference datum, typically mean sea level (NAVD88 in the US).', 'How high something is above sea level', 'Mountains have high ones, valleys have low ones', 'E _ _ _ _ _ _ _ _ (9 letters, height above datum)', 'c1000001-0000-0000-0000-000000000001', ARRAY['elevation','height','datum'], ARRAY['measurement','vertical'], 'measurement'),
+
+('Datum', 'A reference system used for measuring positions on the earth. Common datums include NAD83 (horizontal) and NAVD88 (vertical).', 'The baseline reference that all measurements are compared to', 'NAD83 and NAVD88 are common examples in the US', 'D _ _ _ _ (5 letters, a reference system)', 'c1000001-0000-0000-0000-000000000001', ARRAY['datum','reference','NAD83','NAVD88'], ARRAY['measurement','geodesy'], 'measurement'),
+
+-- Equipment Terms
+('Prism', 'A glass reflector used with total stations. It reflects the EDM signal back to the instrument for distance measurement.', 'A glass device that bounces a signal back to the total station', 'Usually mounted on a pole held by the rod person', 'P _ _ _ _ (5 letters, reflects EDM signal)', 'c1000001-0000-0000-0000-000000000001', ARRAY['prism','EDM','total station','reflector'], ARRAY['equipment'], 'equipment'),
+
+('RTK', 'Real-Time Kinematic — a GPS/GNSS technique that provides centimeter-level accuracy using corrections from a base station.', 'A technique that makes GPS super accurate in real-time', 'Uses a base station to correct the rover''s position', 'R _ _ (3 letters, centimeter GPS accuracy)', 'c1000001-0000-0000-0000-000000000001', ARRAY['RTK','GPS','GNSS','accuracy'], ARRAY['technology','equipment'], 'technology'),
+
+('EDM', 'Electronic Distance Measurement — technology that measures distance using electromagnetic waves (infrared or laser).', 'Measures distance by sending a signal and timing the return', 'Built into every total station', 'E _ _ (3 letters, electronic distance tool)', 'c1000001-0000-0000-0000-000000000001', ARRAY['EDM','distance','electronic'], ARRAY['equipment','technology'], 'equipment'),
+
+('Level', 'A surveying instrument used to establish a horizontal line of sight, primarily for determining elevation differences between points.', 'Creates a perfectly horizontal line for measuring height differences', 'Used with a level rod to measure elevations', 'L _ _ _ _ (5 letters, measures elevation differences)', 'c1000001-0000-0000-0000-000000000001', ARRAY['level','elevation','horizontal'], ARRAY['equipment'], 'equipment'),
+
+('Theodolite', 'A precision instrument for measuring horizontal and vertical angles. Modern electronic versions are part of total stations.', 'Measures angles both horizontally and vertically', 'The angle-measuring part of a total station', 'T _ _ _ _ _ _ _ _ _ (10 letters, measures angles)', 'c1000001-0000-0000-0000-000000000001', ARRAY['theodolite','angles','instrument'], ARRAY['equipment'], 'equipment'),
+
+-- Texas-Specific Terms
+('GLO', 'The Texas General Land Office — the oldest state agency in Texas (est. 1836). Manages public lands and maintains historical survey records.', 'The oldest state agency in Texas, manages land records', 'Their archives have original Spanish and Mexican land grants', 'G _ _ (3 letters, Texas land office)', 'c1000001-0000-0000-0000-000000000001', ARRAY['GLO','Texas','land office','records'], ARRAY['texas','legal'], 'texas'),
+
+('Abstract', 'In Texas, a numbered land grant parcel originating from the original surveys. Each county has its own abstract numbering.', 'A numbered parcel from the original Texas land grants', 'Each county has its own numbering system for these', 'A _ _ _ _ _ _ _ (8 letters, Texas land grant parcel)', 'c1000001-0000-0000-0000-000000000001', ARRAY['abstract','Texas','land grant','parcel'], ARRAY['texas','legal'], 'texas'),
+
+('RPLS', 'Registered Professional Land Surveyor — the Texas license required to practice land surveying and certify surveys.', 'The license you need to sign and seal survey documents in Texas', 'Requires passing an exam and getting experience hours', 'R _ _ _ (4 letters, Texas surveyor license)', 'c1000001-0000-0000-0000-000000000001', ARRAY['RPLS','license','Texas','professional'], ARRAY['licensing','texas'], 'licensing'),
+
+('SIT', 'Surveyor Intern in Texas — the first step toward becoming a Registered Professional Land Surveyor (RPLS).', 'The first surveying license step in Texas, before RPLS', 'You need to pass an exam to get this designation', 'S _ _ (3 letters, surveyor intern title)', 'c1000001-0000-0000-0000-000000000001', ARRAY['SIT','intern','Texas','licensing'], ARRAY['licensing','texas'], 'licensing'),
+
+-- Fieldwork Terms
+('Backsight', 'A survey observation made to a previously established point. Used to orient the instrument before taking new measurements.', 'Looking back at a known point to set up your instrument', 'You do this first to orient the total station', 'B _ _ _ _ _ _ _ _ (9 letters, sighting a known point)', 'c1000001-0000-0000-0000-000000000001', ARRAY['backsight','orientation','total station'], ARRAY['fieldwork','procedure'], 'fieldwork'),
+
+('Foresight', 'A survey observation made to an unknown point you want to measure. Taken after orienting with a backsight.', 'Looking forward to a new point you want to measure', 'The opposite of a backsight', 'F _ _ _ _ _ _ _ _ (9 letters, measuring a new point)', 'c1000001-0000-0000-0000-000000000001', ARRAY['foresight','measurement','total station'], ARRAY['fieldwork','procedure'], 'fieldwork'),
+
+('Stakeout', 'The process of marking planned positions in the field, such as building corners, road centerlines, or lot corners.', 'Putting marks in the ground where things should be built', 'Construction crews need this to know where to build', 'S _ _ _ _ _ _ _ (8 letters, marking planned points)', 'c1000001-0000-0000-0000-000000000001', ARRAY['stakeout','construction','layout'], ARRAY['fieldwork','construction'], 'fieldwork'),
+
+('Control Point', 'A survey point with precisely known coordinates used as a reference for other measurements.', 'A precisely known location that other measurements are based on', 'Often a brass disk set in concrete', 'C _ _ _ _ _ _ P _ _ _ _ (reference location)', 'c1000001-0000-0000-0000-000000000001', ARRAY['control point','reference','coordinates'], ARRAY['fieldwork','measurement'], 'fieldwork');
+
+-- ============================================================================
+-- SECTION 7: KNOWLEDGE BASE ARTICLES (with module links)
+-- ============================================================================
+
+-- Articles now include module_id and xp_reward for linking to curriculum
+INSERT INTO kb_articles (title, slug, category, tags, content, excerpt, status, module_id, xp_reward) VALUES
+
+('Understanding Bearings and Azimuths', 'bearings-and-azimuths', 'Measurement & Calculations', ARRAY['bearing','azimuth','direction','angles'],
+'<h2>Bearings vs. Azimuths</h2>
+<p>Both bearings and azimuths describe horizontal directions, but they use different reference systems.</p>
+<h3>Azimuths</h3>
+<p>An <strong>azimuth</strong> is measured clockwise from north, ranging from 0° to 360°. For example, due East is 90°, due South is 180°, due West is 270°.</p>
+<h3>Bearings</h3>
+<p>A <strong>bearing</strong> is expressed as an angle from either North or South, toward East or West. The format is: N/S [angle] E/W. For example:</p>
+<ul>
+<li>N 45° E = Azimuth 45°</li>
+<li>S 30° E = Azimuth 150°</li>
+<li>S 60° W = Azimuth 240°</li>
+<li>N 80° W = Azimuth 280°</li>
+</ul>
+<h3>Converting Between Them</h3>
+<p><strong>NE quadrant:</strong> Azimuth = Bearing angle<br/>
+<strong>SE quadrant:</strong> Azimuth = 180° - Bearing angle<br/>
+<strong>SW quadrant:</strong> Azimuth = 180° + Bearing angle<br/>
+<strong>NW quadrant:</strong> Azimuth = 360° - Bearing angle</p>',
+'Learn the difference between bearings and azimuths, two systems for describing horizontal direction.', 'published',
+'c1000005-0000-0000-0000-000000000005', 25),
+
+('What is a Boundary Survey?', 'what-is-a-boundary-survey', 'Survey Types', ARRAY['boundary','survey','property lines','corners'],
+'<h2>Boundary Surveys</h2>
+<p>A <strong>boundary survey</strong> determines the legal boundary lines and corners of a parcel of land. It is the most common type of survey performed.</p>
+<h3>When You Need One</h3>
+<ul>
+<li>Buying or selling property</li>
+<li>Building a fence along property lines</li>
+<li>Resolving a boundary dispute with a neighbor</li>
+<li>Subdividing a parcel</li>
+<li>Building near the property line (setback verification)</li>
+</ul>
+<h3>What''s Involved</h3>
+<p>The surveyor will:</p>
+<ol>
+<li><strong>Research</strong> — Examine deeds, plats, and prior surveys at the county courthouse</li>
+<li><strong>Fieldwork</strong> — Locate existing monuments, measure distances and angles</li>
+<li><strong>Analysis</strong> — Compare field evidence with legal descriptions</li>
+<li><strong>Set Corners</strong> — Place new iron rods or caps where needed</li>
+<li><strong>Prepare Plat</strong> — Draw the survey map showing all findings</li>
+</ol>',
+'A boundary survey determines legal property lines and corners. Learn when you need one and what''s involved.', 'published',
+'c100000d-0000-0000-0000-00000000000d', 25),
+
+('Introduction to GNSS/GPS for Surveyors', 'gnss-gps-for-surveyors', 'Technology', ARRAY['GNSS','GPS','RTK','satellite','technology'],
+'<h2>GNSS for Land Surveyors</h2>
+<p><strong>GNSS</strong> (Global Navigation Satellite System) encompasses multiple satellite constellations:</p>
+<ul>
+<li><strong>GPS</strong> (USA) — 31 satellites</li>
+<li><strong>GLONASS</strong> (Russia) — 24 satellites</li>
+<li><strong>Galileo</strong> (European Union) — 30 satellites</li>
+<li><strong>BeiDou</strong> (China) — 35+ satellites</li>
+</ul>
+<h3>How RTK Works</h3>
+<p><strong>RTK</strong> (Real-Time Kinematic) is the primary GNSS technique for surveying because it provides centimeter-level accuracy:</p>
+<ol>
+<li>A <strong>base station</strong> sits on a known point and calculates correction data</li>
+<li>Corrections are sent to the <strong>rover</strong> via radio or cellular network</li>
+<li>The rover applies corrections to achieve 1-2 cm accuracy</li>
+</ol>
+<h3>When to Use GNSS vs Total Station</h3>
+<p>Use GNSS when you have open sky and need to cover large areas. Use a total station when working under trees, near buildings, or when you need sub-centimeter accuracy.</p>',
+'Learn how GNSS satellite systems work for surveying and when to use RTK vs total stations.', 'published',
+'c100000b-0000-0000-0000-00000000000b', 25);
+
+-- ============================================================================
+-- SECTION 8: ARTICLE QUIZ QUESTIONS
+-- (Questions linked to KB articles via article_id for earning article XP)
+-- ============================================================================
+
+-- Link quiz questions to articles so students earn XP by reading + passing quiz
+-- These reference the KB articles created above by slug lookup
+
+-- Questions for "Understanding Bearings and Azimuths"
+INSERT INTO question_bank (question_text, question_type, options, correct_answer, explanation, difficulty, exam_category, tags,
+  article_id)
+SELECT
+  q.question_text, q.question_type, q.options::jsonb, q.correct_answer, q.explanation, q.difficulty, 'article-quiz', q.tags,
+  a.id
+FROM (VALUES
+  ('What is the azimuth equivalent of the bearing S 60° W?', 'multiple_choice',
+   '["120°","240°","300°","60°"]', '240°',
+   'For SW quadrant: Azimuth = 180° + Bearing angle = 180° + 60° = 240°.',
+   'easy', ARRAY['bearing','azimuth','conversion']),
+  ('An azimuth of 315° corresponds to which bearing?', 'multiple_choice',
+   '["N 45° W","S 45° W","N 45° E","S 45° E"]', 'N 45° W',
+   'Azimuth 315° is in the NW quadrant (270-360). Bearing = 360° - 315° = 45° from North toward West = N 45° W.',
+   'easy', ARRAY['bearing','azimuth','conversion']),
+  ('Bearings are always measured from which reference line?', 'multiple_choice',
+   '["The East-West line","The North or South line","Any convenient line","The magnetic declination line"]', 'The North or South line',
+   'Bearings are always measured from the North or South line toward East or West. The maximum bearing angle is 90°.',
+   'easy', ARRAY['bearing','direction'])
+) AS q(question_text, question_type, options, correct_answer, explanation, difficulty, tags)
+CROSS JOIN kb_articles a WHERE a.slug = 'bearings-and-azimuths';
+
+-- Questions for "What is a Boundary Survey?"
+INSERT INTO question_bank (question_text, question_type, options, correct_answer, explanation, difficulty, exam_category, tags,
+  article_id)
+SELECT
+  q.question_text, q.question_type, q.options::jsonb, q.correct_answer, q.explanation, q.difficulty, 'article-quiz', q.tags,
+  a.id
+FROM (VALUES
+  ('Which of these is NOT a typical reason for needing a boundary survey?', 'multiple_choice',
+   '["Buying property","Building a fence on the property line","Checking soil composition","Resolving a boundary dispute"]',
+   'Checking soil composition',
+   'Soil composition testing is done by geotechnical engineers, not boundary surveyors. Boundary surveys establish legal property lines.',
+   'easy', ARRAY['boundary','survey-types']),
+  ('What is the correct order of steps in a boundary survey?', 'multiple_choice',
+   '["Fieldwork, Research, Analysis, Set Corners","Research, Fieldwork, Analysis, Set Corners","Set Corners, Fieldwork, Research, Analysis","Analysis, Research, Fieldwork, Set Corners"]',
+   'Research, Fieldwork, Analysis, Set Corners',
+   'A boundary survey begins with research (deeds, plats), then fieldwork (measurements), analysis (comparing evidence), and finally setting corners.',
+   'medium', ARRAY['boundary','procedure'])
+) AS q(question_text, question_type, options, correct_answer, explanation, difficulty, tags)
+CROSS JOIN kb_articles a WHERE a.slug = 'what-is-a-boundary-survey';
+
+-- Questions for "Introduction to GNSS/GPS for Surveyors"
+INSERT INTO question_bank (question_text, question_type, options, correct_answer, explanation, difficulty, exam_category, tags,
+  article_id)
+SELECT
+  q.question_text, q.question_type, q.options::jsonb, q.correct_answer, q.explanation, q.difficulty, 'article-quiz', q.tags,
+  a.id
+FROM (VALUES
+  ('Which GNSS constellation is operated by the European Union?', 'multiple_choice',
+   '["GPS","GLONASS","Galileo","BeiDou"]', 'Galileo',
+   'Galileo is the EU GNSS. GPS is US, GLONASS is Russia, BeiDou is China.',
+   'easy', ARRAY['GNSS','constellation']),
+  ('RTK surveying achieves approximately what level of accuracy?', 'multiple_choice',
+   '["1-2 meters","1-2 centimeters","1-2 millimeters","10-20 centimeters"]', '1-2 centimeters',
+   'RTK (Real-Time Kinematic) provides centimeter-level accuracy (1-2 cm) using real-time corrections from a base station.',
+   'easy', ARRAY['RTK','accuracy']),
+  ('When should you use a total station instead of GNSS?', 'multiple_choice',
+   '["In open fields","When covering large areas","Under tree canopy or near buildings","When working alone"]',
+   'Under tree canopy or near buildings',
+   'GNSS requires clear sky view to satellites. Under trees, near buildings, or in urban canyons, a total station is preferred.',
+   'medium', ARRAY['GNSS','total-station','equipment'])
+) AS q(question_text, question_type, options, correct_answer, explanation, difficulty, tags)
+CROSS JOIN kb_articles a WHERE a.slug = 'gnss-gps-for-surveyors';
 
 COMMIT;

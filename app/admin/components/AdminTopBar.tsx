@@ -3,6 +3,7 @@
 
 import { signOut, useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import NotificationBell from './NotificationBell';
 
 interface AdminTopBarProps { title: string; role: 'admin' | 'employee'; onMenuToggle: () => void; }
@@ -22,7 +23,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
       .catch(() => {});
   }, []);
 
-  const userName = session?.user?.name?.split(' ')[0] || 'User';
+  const userName = session?.user?.name || 'User';
 
   return (
     <header className="admin-topbar">
@@ -31,15 +32,15 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
         <h1 className="admin-topbar__title">{title}</h1>
       </div>
       <div className="admin-topbar__right">
-        {/* XP Counter */}
+        {/* XP Counter — clickable, links to store */}
         {xp !== null && (
-          <div className="admin-topbar__xp" title={`Current XP: ${xp.current} | All-Time XP: ${xp.total}`}>
+          <Link href="/admin/rewards/store" className="admin-topbar__xp" title="Click to spend reward points!">
             <span className="admin-topbar__xp-icon">&#x2B50;</span>
             <span className="admin-topbar__xp-current">{xp.current.toLocaleString()}</span>
             <span className="admin-topbar__xp-sep">/</span>
             <span className="admin-topbar__xp-total">{xp.total.toLocaleString()}</span>
             <span className="admin-topbar__xp-label">XP</span>
-          </div>
+          </Link>
         )}
         {/* Username */}
         <span className="admin-topbar__username">{userName}</span>
