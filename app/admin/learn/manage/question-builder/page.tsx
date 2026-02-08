@@ -8,7 +8,7 @@ import { usePageError } from '../../../hooks/usePageError';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
-type QType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'numeric_input' | 'math_template';
+type QType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'numeric_input' | 'math_template' | 'essay';
 
 interface Module { id: string; title: string; }
 interface Lesson { id: string; title: string; module_id: string; }
@@ -34,6 +34,7 @@ const TYPE_INFO: Record<QType, { label: string; icon: string; desc: string }> = 
   multi_select:     { label: 'Multi-Select',     icon: '+', desc: 'Student selects all correct answers' },
   numeric_input:    { label: 'Numeric Answer',   icon: '#', desc: 'Student types a number' },
   math_template:    { label: 'Math Template',    icon: 'f', desc: 'Auto-generated numbers with formula grading' },
+  essay:            { label: 'Essay / Paragraph', icon: 'E', desc: 'AI-graded paragraph response' },
 };
 
 export default function QuestionBuilderPage() {
@@ -226,6 +227,11 @@ export default function QuestionBuilderPage() {
         body.question_type = 'math_template';
         body.options = [];
         body.correct_answer = `formula:${formula}`;
+      } else if (qType === 'essay') {
+        body.question_text = questionText;
+        body.question_type = 'essay';
+        body.options = [];
+        body.correct_answer = correctAnswer; // reference answer for AI grading
       } else if (qType === 'numeric_input') {
         body.question_text = questionText;
         body.question_type = 'numeric_input';
@@ -473,6 +479,16 @@ export default function QuestionBuilderPage() {
             <textarea className="qb__textarea" placeholder="Question text (e.g., What is the sum of 15 and 27?) *" rows={3} value={questionText} onChange={e => setQuestionText(e.target.value)} />
             <input className="qb__input" type="number" step="any" placeholder="Correct numeric answer *" value={correctAnswer} onChange={e => setCorrectAnswer(e.target.value)} />
             <p className="qb__hint">Answers are compared with a tolerance of 0.01.</p>
+          </>
+        )}
+
+        {/* ESSAY / PARAGRAPH */}
+        {qType === 'essay' && (
+          <>
+            <textarea className="qb__textarea" placeholder="Question text (e.g., Explain the general steps involved in...) *" rows={4} value={questionText} onChange={e => setQuestionText(e.target.value)} />
+            <label className="qb__label">Reference Answer (what a good answer should cover — used by AI to grade)</label>
+            <textarea className="qb__textarea" placeholder="A strong answer should mention: project planning, field reconnaissance, establishing control, data collection, computations/adjustments, map preparation, and final deliverables..." rows={5} value={correctAnswer} onChange={e => setCorrectAnswer(e.target.value)} />
+            <p className="qb__hint">The AI will use this reference to evaluate the student&apos;s paragraph response. Be thorough — list the key points, concepts, and terminology a good answer should include.</p>
           </>
         )}
 

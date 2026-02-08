@@ -11,6 +11,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
     "@react-google-maps/api": "^2.20.8",
     "@supabase/supabase-js": "2.38.5",
     "@tiptap/extension-color": "^2.11.0",

@@ -19,6 +19,7 @@ interface CatalogItem {
   tier: string;
   stock_quantity: number;
   is_active: boolean;
+  image_url?: string;
 }
 
 interface Badge {
@@ -211,9 +212,13 @@ export default function RewardsPage() {
                   <div className="rewards__item-tier" style={{ background: TIER_COLORS[item.tier] || '#888' }}>
                     {item.tier.toUpperCase()}
                   </div>
-                  <div className="rewards__item-icon">
-                    {CATEGORY_ICONS[item.category] || '\uD83D\uDCE6'}
-                  </div>
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.name} className="rewards__item-image" />
+                  ) : (
+                    <div className="rewards__item-icon">
+                      {CATEGORY_ICONS[item.category] || '\uD83D\uDCE6'}
+                    </div>
+                  )}
                   <h4 className="rewards__item-name">{item.name}</h4>
                   <p className="rewards__item-desc">{item.description}</p>
                   <div className="rewards__item-cost">
