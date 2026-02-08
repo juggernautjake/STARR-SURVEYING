@@ -1,13 +1,8 @@
-// app/admin/messages/page.tsx — Main Messages Inbox
+// app/admin/messages/page.tsx — Full Messages Inbox with inline conversation view
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
-import Link from 'next/link';
-import UnderConstruction from '../components/messaging/UnderConstruction';
-import ConversationList from '../components/messaging/ConversationList';
-import MessageSearch from '../components/messaging/MessageSearch';
 
 interface Conversation {
   id: string;
@@ -19,16 +14,76 @@ interface Conversation {
   participants: { user_email: string; role: string }[];
 }
 
+interface Message {
+  id: string;
+  sender_email: string;
+  content: string;
+  message_type: string;
+  created_at: string;
+  is_edited: boolean;
+  attachments: unknown[];
+}
+
+interface Contact {
+  email: string;
+  name: string;
+  is_admin: boolean;
+}
+
+function displayName(email: string): string {
+  return email.split('@')[0]
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\./g, ' ')
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+  if (isToday) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (isYesterday) return 'Yesterday ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+const QUICK_EMOJIS = ['😀', '😂', '😍', '🤔', '👍', '👎', '🎉', '🔥', '❤️', '💯', '✅', '❌'];
+
 export default function MessagesInboxPage() {
   const { data: session } = useSession();
-  const router = useRouter();
-  const { safeFetch, safeAction, reportPageError } = usePageError('MessagesInboxPage');
+  const { reportPageError } = usePageError('MessagesInboxPage');
+  const userEmail = session?.user?.email || '';
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [totalUnread, setTotalUnread] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread' | 'archived'>('all');
-  const [showSearch, setShowSearch] = useState(false);
+
+  // Active conversation
+  const [activeConv, setActiveConv] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
+
+  // New conversation & search
+  const [showNewConv, setShowNewConv] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contactSearch, setContactSearch] = useState('');
+  const [selectedContacts, setSelectedContacts] = useState<Contact[]>([]);
+  const [groupTitle, setGroupTitle] = useState('');
+  const [convSearch, setConvSearch] = useState('');
+  const [msgSearch, setMsgSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<{ content: string; sender_email: string; created_at: string; conversation_id: string }[]>([]);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -57,236 +112,374 @@ export default function MessagesInboxPage() {
     }
   }, [reportPageError]);
 
-  useEffect(() => {
-    if (session?.user) {
-      loadConversations();
-      loadUnread();
-    }
-  }, [session, loadConversations, loadUnread]);
+  const fetchMessages = useCallback(async (convId: string) => {
+    setLoadingMessages(true);
+    try {
+      const res = await fetch(`/api/admin/messages/send?conversation_id=${convId}&limit=100`);
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(data.messages || []);
+        fetch('/api/admin/messages/read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversation_id: convId }),
+        });
+      }
+    } catch { /* silent */ }
+    setLoadingMessages(false);
+  }, []);
 
-  // Poll for new messages every 15 seconds
+  const fetchContacts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/messages/contacts');
+      if (res.ok) {
+        const data = await res.json();
+        setContacts(data.contacts || []);
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    if (session?.user) { loadConversations(); loadUnread(); fetchContacts(); }
+  }, [session, loadConversations, loadUnread, fetchContacts]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       loadUnread();
       loadConversations();
+      if (activeConv) fetchMessages(activeConv.id);
     }, 15000);
     return () => clearInterval(interval);
-  }, [loadUnread, loadConversations]);
+  }, [loadUnread, loadConversations, activeConv, fetchMessages]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  function openConversation(conv: Conversation) {
+    setActiveConv(conv);
+    setShowNewConv(false);
+    fetchMessages(conv.id);
+  }
+
+  async function handleSend() {
+    if (!newMessage.trim() || !activeConv) return;
+    setSending(true);
+    try {
+      const res = await fetch('/api/admin/messages/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation_id: activeConv.id, content: newMessage.trim(), message_type: 'text' }),
+      });
+      if (res.ok) {
+        setNewMessage('');
+        setShowEmoji(false);
+        fetchMessages(activeConv.id);
+        loadConversations();
+      }
+    } catch { /* silent */ }
+    setSending(false);
+  }
+
+  async function startConversation() {
+    if (selectedContacts.length === 0) return;
+    const type = selectedContacts.length === 1 ? 'direct' : 'group';
+    const title = type === 'group' ? (groupTitle.trim() || selectedContacts.map(c => c.name).join(', ')) : null;
+    try {
+      const res = await fetch('/api/admin/messages/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, title, participant_emails: selectedContacts.map(c => c.email) }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const conv = data.conversation;
+        conv.participants = selectedContacts.map(c => ({ user_email: c.email, role: 'member' }));
+        conv.participants.push({ user_email: userEmail, role: 'owner' });
+        setActiveConv(conv);
+        setShowNewConv(false);
+        setSelectedContacts([]);
+        setGroupTitle('');
+        setContactSearch('');
+        fetchMessages(conv.id);
+        loadConversations();
+      }
+    } catch { /* silent */ }
+  }
+
+  function toggleContact(c: Contact) {
+    setSelectedContacts(prev =>
+      prev.find(s => s.email === c.email)
+        ? prev.filter(s => s.email !== c.email)
+        : [...prev, c]
+    );
+  }
+
+  function getConvName(c: Conversation): string {
+    if (c.title) return c.title;
+    if (c.type === 'direct') {
+      const other = c.participants?.find(p => p.user_email !== userEmail);
+      return other ? displayName(other.user_email) : 'Direct Message';
+    }
+    const others = c.participants?.filter(p => p.user_email !== userEmail) || [];
+    return others.map(p => displayName(p.user_email)).join(', ') || 'Group';
+  }
+
+  async function searchMessages(q: string) {
+    if (!q.trim()) { setSearchResults([]); return; }
+    try {
+      const res = await fetch(`/api/admin/messages/search?q=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSearchResults(data.results || []);
+      }
+    } catch { /* silent */ }
+  }
 
   if (!session?.user) return null;
 
-  const filteredConversations = filter === 'unread'
-    ? conversations.filter(c => (unreadCounts[c.id] || 0) > 0)
-    : conversations;
+  const filteredConversations = (() => {
+    let list = filter === 'unread'
+      ? conversations.filter(c => (unreadCounts[c.id] || 0) > 0)
+      : conversations;
+    if (convSearch) {
+      list = list.filter(c => getConvName(c).toLowerCase().includes(convSearch.toLowerCase()));
+    }
+    return list;
+  })();
+
+  const filteredContacts = contactSearch
+    ? contacts.filter(c => c.name.toLowerCase().includes(contactSearch.toLowerCase()) || c.email.toLowerCase().includes(contactSearch.toLowerCase()))
+    : contacts;
 
   return (
-    <>
-      {/* Under Construction Banner */}
-      <UnderConstruction
-        feature="Internal Messaging System"
-        description="Real-time messaging between Starr Surveying employees. Send direct messages, create group chats, share files, and stay connected with your team."
-      />
+    <div className="msg-page">
+      {/* Sidebar — conversation list */}
+      <div className="msg-page__sidebar">
+        <div className="msg-page__sidebar-header">
+          <h2 className="msg-page__sidebar-title">Messages {totalUnread > 0 && <span className="msg-page__unread-badge">{totalUnread}</span>}</h2>
+          <button className="msg-page__new-btn" onClick={() => { setShowNewConv(true); setActiveConv(null); }} title="New conversation">
+            ✏️
+          </button>
+        </div>
 
-      {/* Page Header */}
-      <div className="msg-inbox__header">
-        <div className="msg-inbox__header-left">
-          <h2 className="msg-inbox__title">Messages</h2>
-          {totalUnread > 0 && (
-            <span className="msg-inbox__unread-total">{totalUnread} unread</span>
+        {/* Filters */}
+        <div className="msg-page__filters">
+          {(['all', 'unread', 'archived'] as const).map(f => (
+            <button key={f} className={`msg-page__filter ${filter === f ? 'msg-page__filter--active' : ''}`} onClick={() => setFilter(f)}>
+              {f.charAt(0).toUpperCase() + f.slice(1)} {f === 'unread' && totalUnread > 0 && `(${totalUnread})`}
+            </button>
+          ))}
+        </div>
+
+        {/* Search conversations */}
+        <div className="msg-page__search-bar">
+          <input
+            className="msg-page__search-input"
+            placeholder="Search conversations..."
+            value={convSearch}
+            onChange={e => setConvSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Conversation list */}
+        <div className="msg-page__conv-list">
+          {loading ? (
+            <p className="msg-page__empty-text">Loading...</p>
+          ) : filteredConversations.length === 0 ? (
+            <div className="msg-page__empty">
+              <span>💬</span>
+              <p>{convSearch ? 'No matching conversations' : 'No conversations yet'}</p>
+              <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => setShowNewConv(true)}>
+                Start a Chat
+              </button>
+            </div>
+          ) : (
+            filteredConversations.map(c => {
+              const unread = unreadCounts[c.id] || 0;
+              const isActive = activeConv?.id === c.id;
+              return (
+                <button
+                  key={c.id}
+                  className={`msg-page__conv-item ${unread > 0 ? 'msg-page__conv-item--unread' : ''} ${isActive ? 'msg-page__conv-item--active' : ''}`}
+                  onClick={() => openConversation(c)}
+                >
+                  <div className="msg-page__conv-avatar">
+                    {c.type === 'group' ? '👥' : displayName(getConvName(c)).charAt(0)}
+                  </div>
+                  <div className="msg-page__conv-body">
+                    <div className="msg-page__conv-name">{getConvName(c)}</div>
+                    <div className="msg-page__conv-preview">
+                      {c.last_message_preview?.slice(0, 60) || 'No messages yet'}
+                    </div>
+                  </div>
+                  <div className="msg-page__conv-meta">
+                    {c.last_message_at && <span className="msg-page__conv-time">{formatTime(c.last_message_at)}</span>}
+                    {unread > 0 && <span className="msg-page__conv-badge">{unread}</span>}
+                  </div>
+                </button>
+              );
+            })
           )}
         </div>
-        <div className="msg-inbox__header-right">
-          <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setShowSearch(!showSearch)}>
-            🔍 Search
-          </button>
-          <Link href="/admin/messages/new" className="admin-btn admin-btn--primary admin-btn--sm">
-            + New Message
-          </Link>
-        </div>
       </div>
 
-      {/* Search panel */}
-      {showSearch && (
-        <MessageSearch
-          onClose={() => setShowSearch(false)}
-          onSelectResult={(result) => {
-            router.push(`/admin/messages/${result.conversation_id}`);
-            setShowSearch(false);
-          }}
-        />
-      )}
+      {/* Main content area */}
+      <div className="msg-page__main">
+        {/* New conversation panel */}
+        {showNewConv && (
+          <div className="msg-page__new-conv">
+            <div className="msg-page__new-header">
+              <h3>New Conversation</h3>
+              <button className="msg-page__new-close" onClick={() => { setShowNewConv(false); setSelectedContacts([]); setContactSearch(''); }}>&#10005;</button>
+            </div>
 
-      {/* Filter tabs */}
-      <div className="msg-inbox__filters">
-        <button className={`msg-inbox__filter ${filter === 'all' ? 'msg-inbox__filter--active' : ''}`} onClick={() => setFilter('all')}>
-          All
-        </button>
-        <button className={`msg-inbox__filter ${filter === 'unread' ? 'msg-inbox__filter--active' : ''}`} onClick={() => setFilter('unread')}>
-          Unread {totalUnread > 0 && `(${totalUnread})`}
-        </button>
-        <button className={`msg-inbox__filter ${filter === 'archived' ? 'msg-inbox__filter--active' : ''}`} onClick={() => setFilter('archived')}>
-          Archived
-        </button>
+            {selectedContacts.length > 0 && (
+              <div className="msg-page__selected-chips">
+                {selectedContacts.map(c => (
+                  <span key={c.email} className="msg-page__chip">
+                    {c.name} <button onClick={() => toggleContact(c)}>&#10005;</button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {selectedContacts.length > 1 && (
+              <input className="msg-page__group-input" placeholder="Group name (optional)" value={groupTitle} onChange={e => setGroupTitle(e.target.value)} />
+            )}
+
+            <input className="msg-page__contact-search" placeholder="Search people by name or email..." value={contactSearch} onChange={e => setContactSearch(e.target.value)} autoFocus />
+
+            <div className="msg-page__contact-grid">
+              {filteredContacts.map(c => {
+                const isSelected = selectedContacts.some(s => s.email === c.email);
+                return (
+                  <button key={c.email} className={`msg-page__contact-card ${isSelected ? 'msg-page__contact-card--selected' : ''}`} onClick={() => toggleContact(c)}>
+                    <div className="msg-page__contact-avatar">{c.name.charAt(0).toUpperCase()}</div>
+                    <div className="msg-page__contact-name">{c.name}</div>
+                    <div className="msg-page__contact-email">{c.email}</div>
+                    {c.is_admin && <span className="msg-page__admin-tag">Admin</span>}
+                    {isSelected && <span className="msg-page__check">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedContacts.length > 0 && (
+              <button className="msg-page__start-btn" onClick={startConversation}>
+                Start Chat with {selectedContacts.length} {selectedContacts.length === 1 ? 'person' : 'people'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Active conversation */}
+        {activeConv && !showNewConv && (
+          <div className="msg-page__thread">
+            {/* Thread header */}
+            <div className="msg-page__thread-header">
+              <div className="msg-page__thread-info">
+                <h3 className="msg-page__thread-name">{getConvName(activeConv)}</h3>
+                <span className="msg-page__thread-members">
+                  {activeConv.participants?.length || 0} member{(activeConv.participants?.length || 0) !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="msg-page__thread-actions">
+                <input
+                  className="msg-page__msg-search"
+                  placeholder="Search in conversation..."
+                  value={msgSearch}
+                  onChange={e => { setMsgSearch(e.target.value); if (e.target.value.length >= 2) searchMessages(e.target.value); else setSearchResults([]); }}
+                />
+              </div>
+            </div>
+
+            {/* Search results overlay */}
+            {msgSearch && searchResults.length > 0 && (
+              <div className="msg-page__search-overlay">
+                {searchResults.filter(r => r.conversation_id === activeConv.id).map((r, i) => (
+                  <div key={i} className="msg-page__search-hit">
+                    <strong>{displayName(r.sender_email)}</strong>: {r.content.slice(0, 100)}
+                    <span className="msg-page__search-hit-time">{formatTime(r.created_at)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Messages */}
+            <div className="msg-page__messages">
+              {loadingMessages ? (
+                <p className="msg-page__empty-text">Loading messages...</p>
+              ) : messages.length === 0 ? (
+                <p className="msg-page__empty-text">No messages yet. Say hello!</p>
+              ) : (
+                messages.map((m, i) => {
+                  const isOwn = m.sender_email === userEmail;
+                  const prevMsg = i > 0 ? messages[i - 1] : null;
+                  const showSender = !isOwn && (!prevMsg || prevMsg.sender_email !== m.sender_email);
+                  const showDate = !prevMsg || new Date(m.created_at).toDateString() !== new Date(prevMsg.created_at).toDateString();
+
+                  return (
+                    <div key={m.id}>
+                      {showDate && (
+                        <div className="msg-page__date-divider">
+                          <span>{new Date(m.created_at).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</span>
+                        </div>
+                      )}
+                      <div className={`msg-page__msg ${isOwn ? 'msg-page__msg--own' : ''}`}>
+                        {showSender && <span className="msg-page__msg-sender">{displayName(m.sender_email)}</span>}
+                        <div className={`msg-page__msg-bubble ${isOwn ? 'msg-page__msg-bubble--own' : ''}`}>
+                          {m.content}
+                          {m.is_edited && <span className="msg-page__msg-edited">(edited)</span>}
+                        </div>
+                        <span className="msg-page__msg-time">{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Compose */}
+            <div className="msg-page__compose">
+              <div style={{ position: 'relative' }}>
+                <button className="msg-page__tool-btn" onClick={() => setShowEmoji(!showEmoji)}>😊</button>
+                {showEmoji && (
+                  <div className="msg-page__emoji-grid">
+                    {QUICK_EMOJIS.map(e => (
+                      <button key={e} onClick={() => { setNewMessage(p => p + e); setShowEmoji(false); inputRef.current?.focus(); }}>{e}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <input
+                ref={inputRef}
+                className="msg-page__compose-input"
+                value={newMessage}
+                onChange={e => setNewMessage(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder="Type a message..."
+              />
+              <button className="msg-page__send-btn" onClick={handleSend} disabled={sending || !newMessage.trim()}>
+                Send
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state when no conversation selected */}
+        {!activeConv && !showNewConv && (
+          <div className="msg-page__empty-state">
+            <span className="msg-page__empty-icon">💬</span>
+            <h3>Select a conversation</h3>
+            <p>Choose a conversation from the sidebar or start a new one.</p>
+            <button className="admin-btn admin-btn--primary" onClick={() => setShowNewConv(true)}>
+              Start New Conversation
+            </button>
+          </div>
+        )}
       </div>
-
-      {/* Conversation List Component */}
-      <ConversationList
-        conversations={filteredConversations}
-        currentUserEmail={session.user.email || ''}
-        unreadCounts={unreadCounts}
-        onSelect={(id) => router.push(`/admin/messages/${id}`)}
-        loading={loading}
-      />
-
-      {/* Quick action cards */}
-      <div className="msg-inbox__actions">
-        <Link href="/admin/messages/new" className="msg-inbox__action-card">
-          <span className="msg-inbox__action-icon">✉️</span>
-          <span className="msg-inbox__action-label">New Direct Message</span>
-        </Link>
-        <Link href="/admin/messages/new?type=group" className="msg-inbox__action-card">
-          <span className="msg-inbox__action-icon">👥</span>
-          <span className="msg-inbox__action-label">New Group Chat</span>
-        </Link>
-        <Link href="/admin/messages/contacts" className="msg-inbox__action-card">
-          <span className="msg-inbox__action-icon">📇</span>
-          <span className="msg-inbox__action-label">View Contacts</span>
-        </Link>
-        <Link href="/admin/messages/settings" className="msg-inbox__action-card">
-          <span className="msg-inbox__action-icon">⚙️</span>
-          <span className="msg-inbox__action-label">Message Settings</span>
-        </Link>
-      </div>
-
-      {/* ============================================================ */}
-      {/* SETUP INSTRUCTIONS & CONTINUATION PROMPT                      */}
-      {/* ============================================================ */}
-      <div className="msg-setup-guide">
-        <h2 className="msg-setup-guide__title">Setup Instructions & Development Guide</h2>
-        <p className="msg-setup-guide__subtitle">Reference for configuring and continuing development on the Internal Messaging System.</p>
-
-        <div className="msg-setup-guide__section">
-          <h3>1. Database Setup</h3>
-          <p>Run the messaging schema SQL file against your Supabase database:</p>
-          <pre className="msg-setup-guide__code">{`-- In Supabase SQL Editor, run:
--- File: supabase_schema_messaging.sql
-
--- This creates the following tables:
--- • conversations — Thread containers (direct, group, announcement)
--- • conversation_participants — Who belongs to each conversation
--- • messages — Individual messages with content, type, attachments
--- • message_read_receipts — Per-user read tracking
--- • message_reactions — Emoji reactions on messages
--- • messaging_preferences — Per-user notification/UI preferences
--- • pinned_messages — Pinned messages per conversation
-
--- All tables have RLS enabled with service-role bypass policies.
--- Indexes are created for conversation_id, user_email, and timestamps.`}</pre>
-        </div>
-
-        <div className="msg-setup-guide__section">
-          <h3>2. API Routes Created</h3>
-          <pre className="msg-setup-guide__code">{`/api/admin/messages/conversations  — GET (list), POST (create), PUT (update)
-/api/admin/messages/send           — GET (fetch msgs), POST (send), PUT (edit), DELETE (soft-delete)
-/api/admin/messages/read           — GET (unread count), POST (mark read)
-/api/admin/messages/search         — GET (search messages by keyword)
-/api/admin/messages/contacts       — GET (list all contacts/employees)
-/api/admin/messages/reactions      — POST (add reaction), DELETE (remove reaction)
-/api/admin/messages/preferences    — GET (get prefs), PUT (update prefs)`}</pre>
-        </div>
-
-        <div className="msg-setup-guide__section">
-          <h3>3. Pages Created</h3>
-          <pre className="msg-setup-guide__code">{`/admin/messages                    — Inbox (conversation list, filters, search)
-/admin/messages/[conversationId]   — Conversation thread view
-/admin/messages/new                — Create new direct or group message
-/admin/messages/contacts           — Contact directory
-/admin/messages/settings           — Messaging notification preferences`}</pre>
-        </div>
-
-        <div className="msg-setup-guide__section">
-          <h3>4. Components Created</h3>
-          <pre className="msg-setup-guide__code">{`app/admin/components/messaging/
-├── UnderConstruction.tsx   — Banner for under-construction pages
-├── MessageBubble.tsx       — Individual message display (own/other/system)
-├── ComposeBox.tsx          — Message input with file attach & emoji picker
-├── ConversationList.tsx    — Scrollable list of conversations with unread badges
-├── ConversationHeader.tsx  — Conversation title bar with actions
-├── ContactPicker.tsx       — Multi-select contact picker with search
-└── MessageSearch.tsx       — Search messages across conversations`}</pre>
-        </div>
-
-        <div className="msg-setup-guide__section">
-          <h3>5. What Needs to Be Done Next</h3>
-          <ul className="msg-setup-guide__list">
-            <li><strong>Real-time Updates:</strong> Replace the 15-second polling with Supabase Realtime subscriptions for instant message delivery. Use <code>supabase.channel(&apos;messages&apos;).on(&apos;postgres_changes&apos;, ...)</code> to listen for INSERT events on the messages table.</li>
-            <li><strong>File Upload to Supabase Storage:</strong> Currently files are converted to base64 data URLs. Set up a Supabase Storage bucket called <code>message-attachments</code> and update the send API to upload files there instead. This allows for larger files and better performance.</li>
-            <li><strong>Push Notifications:</strong> Implement browser Push Notifications using the Web Push API. Store push subscriptions in the messaging_preferences table and send notifications via a server-side function when new messages arrive.</li>
-            <li><strong>Typing Indicators:</strong> Use Supabase Realtime Presence to show when other users are typing in a conversation. Track typing state client-side and broadcast it via the presence channel.</li>
-            <li><strong>Online Status:</strong> Use Supabase Realtime Presence to track who is currently online. Show green/gray dots next to contact names.</li>
-            <li><strong>Message Formatting:</strong> Add markdown or rich text support to messages. Consider using a lightweight markdown renderer for message content display.</li>
-            <li><strong>Thread/Reply UI:</strong> The reply_to_id field exists in the messages table. Build a threaded reply UI that shows replies in context, similar to Slack threads.</li>
-            <li><strong>Admin Announcements:</strong> Build the announcement conversation type where admins can broadcast to all employees. Only admins can post, employees can react but not reply.</li>
-            <li><strong>Unread Badge in Sidebar:</strong> Add a real-time unread count badge to the Messages link in AdminSidebar.tsx. Poll or subscribe for count changes.</li>
-            <li><strong>Mobile Optimization:</strong> The messaging layout needs a mobile-first approach where the conversation list slides out and the thread view takes full screen.</li>
-            <li><strong>Link Previews:</strong> When a message contains a URL, fetch its Open Graph metadata and display a link preview card below the message.</li>
-            <li><strong>Message Pinning:</strong> The pinned_messages table exists. Build a UI for pinning important messages and viewing pinned messages per conversation.</li>
-          </ul>
-        </div>
-
-        <div className="msg-setup-guide__section">
-          <h3>6. Continuation Prompt</h3>
-          <p>Copy and paste this prompt to continue development:</p>
-          <pre className="msg-setup-guide__prompt">{`Continue developing the Internal Messaging System for the STARR Surveying admin panel. The groundwork has already been laid:
-
-DATABASE: supabase_schema_messaging.sql has been created with tables for conversations, conversation_participants, messages, message_read_receipts, message_reactions, messaging_preferences, and pinned_messages. Run this SQL against Supabase if not already done.
-
-API ROUTES (all under /api/admin/messages/):
-- conversations/route.ts — GET list, POST create, PUT update conversations
-- send/route.ts — GET fetch messages, POST send, PUT edit, DELETE soft-delete
-- read/route.ts — GET unread count, POST mark as read
-- search/route.ts — GET search messages by keyword
-- contacts/route.ts — GET list of all employees/contacts
-- reactions/route.ts — POST add, DELETE remove emoji reactions
-- preferences/route.ts — GET/PUT user notification preferences
-
-COMPONENTS (under app/admin/components/messaging/):
-- MessageBubble.tsx — Renders individual messages with reactions, replies, edit/delete
-- ComposeBox.tsx — Message input with emoji picker, file attach, keyboard shortcuts
-- ConversationList.tsx — Scrollable conversation list with unread badges, avatars
-- ConversationHeader.tsx — Conversation title bar with search, info, archive actions
-- ContactPicker.tsx — Multi-select contact picker with search filtering
-- MessageSearch.tsx — Search across all messages with results
-- UnderConstruction.tsx — Construction banner component
-
-PAGES (under app/admin/messages/):
-- page.tsx — Inbox with conversation list, filters (all/unread/archived), polling
-- [conversationId]/page.tsx — Thread view with messages, compose box, scroll-to-bottom
-- new/page.tsx — New message form with contact picker and type selection
-- contacts/page.tsx — Full contact directory
-- settings/page.tsx — Notification preference toggles
-
-CSS: app/admin/styles/AdminMessaging.css with full BEM-style classes for all components.
-
-SIDEBAR: "Messages" link added to AdminSidebar.tsx under a new "Communication" section.
-
-WHAT TO DO NEXT (pick any):
-1. Replace 15-second polling with Supabase Realtime subscriptions for instant message delivery
-2. Set up Supabase Storage bucket "message-attachments" and update file upload to use actual storage instead of base64
-3. Add typing indicators using Supabase Realtime Presence
-4. Add online/offline status indicators on contacts
-5. Add unread badge counter to the sidebar Messages link
-6. Build threaded reply UI using the existing reply_to_id field
-7. Build admin announcement channel (broadcast-only conversation type)
-8. Add push notifications via Web Push API
-9. Add link preview cards when messages contain URLs
-10. Build message pinning UI using the pinned_messages table
-11. Optimize mobile layout (slide-out conversation list, full-screen thread view)
-12. Add markdown rendering for message content
-
-Tech stack: Next.js 14 App Router, React 18, TypeScript, Supabase (PostgreSQL + RLS), NextAuth v5 beta (Google OAuth), Custom CSS (BEM-like, NOT Tailwind). Admin panel is at /admin/* routes. All admin emails are @starr-surveying.com domain.`}</pre>
-        </div>
-      </div>
-    </>
+    </div>
   );
 }

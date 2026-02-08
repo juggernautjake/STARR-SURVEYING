@@ -4,10 +4,23 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
-interface WorkTypeRate { work_type: string; label: string; base_rate: number; icon: string }
-interface RoleTier { role_key: string; label: string; base_bonus: number }
+interface WorkTypeRate { work_type: string; label: string; base_rate: number; icon: string; max_bonus_cap: number | null; bonus_multiplier: number | null }
+interface RoleTier { role_key: string; label: string; base_bonus: number; max_effective_rate: number | null }
 interface SeniorityBracket { min_years: number; max_years: number | null; bonus_per_hour: number }
 interface CredentialBonus { credential_key: string; bonus_per_hour: number }
+interface PayConfig { key: string; value: number }
+
+async function getPayConfig(): Promise<Record<string, number>> {
+  try {
+    const { data } = await supabaseAdmin.from('pay_system_config').select('key, value');
+    const cfg: Record<string, number> = {};
+    if (data) (data as PayConfig[]).forEach(r => { cfg[r.key] = Number(r.value); });
+    return cfg;
+  } catch {
+    // Table may not exist yet — return sensible defaults
+    return { max_credential_stack: 8, max_xp_milestone_bonus: 3, max_course_bonus: 3, xp_milestone_bonus: 0.50, course_bonus: 0.50 };
+  }
+}
 
 async function calculateEffectiveRate(
   userEmail: string,
@@ -19,14 +32,22 @@ async function calculateEffectiveRate(
   credential_bonus: number;
   effective_rate: number;
 }> {
-  // 1. Get work type base rate
+  // 0. Load pay system config
+  const config = await getPayConfig();
+  const maxCredStack = config.max_credential_stack ?? 8;
+  const maxXpBonus = config.max_xp_milestone_bonus ?? 3;
+  const maxCourseBonus = config.max_course_bonus ?? 3;
+
+  // 1. Get work type base rate + bonus cap + multiplier
   const { data: wtr } = await supabaseAdmin
     .from('work_type_rates')
-    .select('base_rate')
+    .select('base_rate, max_bonus_cap, bonus_multiplier')
     .eq('work_type', workType)
     .eq('is_active', true)
     .single();
   const baseRate = (wtr as WorkTypeRate | null)?.base_rate ?? 15;
+  const bonusMultiplier = Number((wtr as WorkTypeRate | null)?.bonus_multiplier ?? 1.0);
+  const maxBonusCap = Number((wtr as WorkTypeRate | null)?.max_bonus_cap ?? 999);
 
   // 2. Get employee profile for role and hire date
   const { data: profile } = await supabaseAdmin
@@ -35,15 +56,17 @@ async function calculateEffectiveRate(
     .eq('user_email', userEmail)
     .single();
 
-  // 3. Get role tier bonus
+  // 3. Get role tier bonus + ceiling
   let roleBonus = 0;
+  let maxEffectiveRate: number | null = null;
   if (profile?.job_title) {
     const { data: tier } = await supabaseAdmin
       .from('role_tiers')
-      .select('base_bonus')
+      .select('base_bonus, max_effective_rate')
       .eq('role_key', profile.job_title)
       .single();
     roleBonus = (tier as RoleTier | null)?.base_bonus ?? 0;
+    maxEffectiveRate = (tier as RoleTier | null)?.max_effective_rate ?? null;
   }
 
   // 4. Calculate seniority bonus
@@ -65,7 +88,7 @@ async function calculateEffectiveRate(
     }
   }
 
-  // 5. Sum credential bonuses (verified only)
+  // 5. Sum credential bonuses (verified only) — capped at max_credential_stack
   let credentialBonus = 0;
   const { data: earnedCreds } = await supabaseAdmin
     .from('employee_earned_credentials')
@@ -79,16 +102,51 @@ async function calculateEffectiveRate(
       .select('credential_key, bonus_per_hour')
       .in('credential_key', keys);
     if (credBonuses) {
-      credentialBonus = (credBonuses as CredentialBonus[]).reduce((sum, c) => sum + c.bonus_per_hour, 0);
+      credentialBonus = Math.min(
+        (credBonuses as CredentialBonus[]).reduce((sum, c) => sum + c.bonus_per_hour, 0),
+        maxCredStack
+      );
     }
+  }
+
+  // 6. XP milestone bonus — capped
+  let xpBonus = 0;
+  try {
+    const { count } = await supabaseAdmin
+      .from('xp_milestone_achievements')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_email', userEmail);
+    xpBonus = Math.min((count || 0) * (config.xp_milestone_bonus ?? 0.50), maxXpBonus);
+  } catch { /* table may not exist yet */ }
+
+  // 7. Course completion bonus — capped
+  let courseBonus = 0;
+  try {
+    const { count } = await supabaseAdmin
+      .from('education_courses')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_email', userEmail)
+      .eq('status', 'passed');
+    courseBonus = Math.min((count || 0) * (config.course_bonus ?? 0.50), maxCourseBonus);
+  } catch { /* table may not exist yet */ }
+
+  // 8. Calculate total raw bonus, then apply work-type multiplier and cap
+  const rawTotalBonus = roleBonus + seniorityBonus + credentialBonus + xpBonus + courseBonus;
+  const adjustedBonus = rawTotalBonus * bonusMultiplier;
+  const cappedBonus = Math.min(adjustedBonus, maxBonusCap);
+
+  // 9. Calculate effective rate with role ceiling
+  let effectiveRate = baseRate + cappedBonus;
+  if (maxEffectiveRate !== null && effectiveRate > maxEffectiveRate) {
+    effectiveRate = maxEffectiveRate;
   }
 
   return {
     base_rate: baseRate,
     role_bonus: roleBonus,
     seniority_bonus: seniorityBonus,
-    credential_bonus: credentialBonus,
-    effective_rate: baseRate + roleBonus + seniorityBonus + credentialBonus,
+    credential_bonus: credentialBonus + xpBonus + courseBonus,
+    effective_rate: Math.round(effectiveRate * 100) / 100,
   };
 }
 
