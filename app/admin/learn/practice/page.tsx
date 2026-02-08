@@ -2,6 +2,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { usePageError } from '../../hooks/usePageError';
 
 interface ProblemType {
   id: string; name: string; description: string; category: string; module: number; difficulties: string[];
@@ -27,6 +28,7 @@ interface AnswerResult {
 type Phase = 'setup' | 'active' | 'results';
 
 export default function PracticeSessionPage() {
+  const { safeFetch, safeAction } = usePageError('PracticeSessionPage');
   const [categories, setCategories] = useState<Record<string, ProblemType[]>>({});
   const [loading, setLoading] = useState(true);
   const [phase, setPhase] = useState<Phase>('setup');
@@ -54,11 +56,11 @@ export default function PracticeSessionPage() {
   const [expandedSolutions, setExpandedSolutions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetch('/api/admin/learn/practice?action=types')
-      .then(r => r.json())
-      .then(d => setCategories(d.categories || {}))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    (async () => {
+      const data = await safeFetch<{ categories: Record<string, ProblemType[]> }>('/api/admin/learn/practice?action=types');
+      if (data) setCategories(data.categories || {});
+      setLoading(false);
+    })();
   }, []);
 
   useEffect(() => {
@@ -105,23 +107,22 @@ export default function PracticeSessionPage() {
     if (validConfigs.length === 0) { alert('Please select at least one problem type.'); return; }
 
     setGenerating(true);
-    try {
-      const config = validConfigs.map(c => ({ typeId: c.typeId, count: c.count }));
-      const res = await fetch(`/api/admin/learn/practice?action=generate&randomize=${randomize}&config=${encodeURIComponent(JSON.stringify(config))}`);
-      const data = await res.json();
-      if (data.problems && data.problems.length > 0) {
-        setSessionId(data.session_id);
-        setProblems(data.problems);
-        setAnswers({});
-        setSkippedIds(new Set());
-        setSolutionViewed({});
-        setCurrentIdx(0);
-        setElapsed(0);
-        setPhase('active');
-      } else {
-        alert('No problems generated. Please check your selections.');
-      }
-    } catch (e) { console.error(e); alert('Failed to generate problems.'); }
+    const config = validConfigs.map(c => ({ typeId: c.typeId, count: c.count }));
+    const data = await safeFetch<{ session_id: string; problems: Problem[]; total: number }>(
+      `/api/admin/learn/practice?action=generate&randomize=${randomize}&config=${encodeURIComponent(JSON.stringify(config))}`
+    );
+    if (data?.problems && data.problems.length > 0) {
+      setSessionId(data.session_id);
+      setProblems(data.problems);
+      setAnswers({});
+      setSkippedIds(new Set());
+      setSolutionViewed({});
+      setCurrentIdx(0);
+      setElapsed(0);
+      setPhase('active');
+    } else if (data) {
+      alert('No problems generated. Please check your selections.');
+    }
     setGenerating(false);
   }
 
@@ -129,47 +130,43 @@ export default function PracticeSessionPage() {
     // Mark as skipped (auto-miss)
     setSkippedIds(prev => new Set([...prev, problemId]));
 
-    try {
-      const res = await fetch('/api/admin/learn/practice', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'see_solution', session_id: sessionId, problem_id: problemId }),
-      });
-      const data = await res.json();
-      if (data.solution_steps) {
-        setSolutionViewed(prev => ({
-          ...prev,
-          [problemId]: { steps: data.solution_steps, explanation: data.explanation, correct_answer: data.correct_answer },
-        }));
-      }
-    } catch { /* show error */ }
+    const data = await safeFetch<{ solution_steps: SolutionStep[]; explanation: string; correct_answer: string }>('/api/admin/learn/practice', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'see_solution', session_id: sessionId, problem_id: problemId }),
+    });
+    if (data?.solution_steps) {
+      setSolutionViewed(prev => ({
+        ...prev,
+        [problemId]: { steps: data.solution_steps, explanation: data.explanation, correct_answer: data.correct_answer },
+      }));
+    }
   }
 
   async function submitSession() {
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     setSubmitting(true);
-    try {
-      const answerList = problems.map(p => ({
-        problem_id: p.id,
-        user_answer: skippedIds.has(p.id) ? '' : (answers[p.id] || ''),
-        correct_answer: '', // Server has it
-        question_type: p.question_type,
-        tolerance: p.tolerance,
-      }));
+    const answerList = problems.map(p => ({
+      problem_id: p.id,
+      user_answer: skippedIds.has(p.id) ? '' : (answers[p.id] || ''),
+      correct_answer: '', // Server has it
+      question_type: p.question_type,
+      tolerance: p.tolerance,
+    }));
 
-      const res = await fetch('/api/admin/learn/practice', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'submit_session',
-          session_id: sessionId,
-          answers: answerList,
-          time_spent_seconds: elapsed,
-        }),
-      });
-      const data = await res.json();
+    const data = await safeFetch<{ results: AnswerResult[]; summary: typeof summary }>('/api/admin/learn/practice', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'submit_session',
+        session_id: sessionId,
+        answers: answerList,
+        time_spent_seconds: elapsed,
+      }),
+    });
+    if (data) {
       setResults(data.results || []);
       setSummary(data.summary || null);
       setPhase('results');
-    } catch (e) { console.error(e); alert('Failed to submit session.'); }
+    }
     setSubmitting(false);
   }
 

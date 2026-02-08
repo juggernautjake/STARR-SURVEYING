@@ -661,14 +661,21 @@ function genHorizontalCurve(): GeneratedProblem {
 }
 
 function genVerticalCurve(): GeneratedProblem {
-  const g1 = randFloat(-5, 5, 2);
-  let g2 = randFloat(-5, 5, 2);
-  while (Math.abs(g2 - g1) < 1) g2 = randFloat(-5, 5, 2);
+  // Ensure grades have opposite signs so the high/low point falls within the curve
+  const isCrestType = Math.random() > 0.5;
+  let g1: number, g2: number;
+  if (isCrestType) {
+    g1 = randFloat(1, 5, 2);    // positive grade in
+    g2 = randFloat(-5, -1, 2);  // negative grade out (crest)
+  } else {
+    g1 = randFloat(-5, -1, 2);  // negative grade in
+    g2 = randFloat(1, 5, 2);    // positive grade out (sag)
+  }
   const L = randInt(200, 800);
   const bvcElev = randFloat(400, 600, 2);
   const bvcStation = randInt(10, 50) * 100;
 
-  // High/low point
+  // High/low point — guaranteed to be within [0, L] since g1 and g2 have opposite signs
   const r = (g2 - g1) / L;
   const xHighLow = round(-g1 / r, 2);
   const highLowElev = round(bvcElev + (g1 / 100) * xHighLow + (r / 200) * xHighLow * xHighLow, 2);
@@ -789,7 +796,7 @@ function genSectionArea(): GeneratedProblem {
 function genUnitConversion(): GeneratedProblem {
   const conversions = [
     { from: 'chains', to: 'feet', factor: 66, unit: randInt(1, 50) },
-    { from: 'varas', to: 'feet', factor: 33.33 / 12, unit: randInt(5, 200) },
+    { from: 'varas (Texas)', to: 'feet', factor: 100 / 36, unit: randInt(5, 200) },
     { from: 'acres', to: 'square feet', factor: 43560, unit: randInt(1, 20) },
     { from: 'miles', to: 'feet', factor: 5280, unit: randInt(1, 5) },
     { from: 'feet (US Survey)', to: 'meters', factor: 1200 / 3937, unit: randInt(100, 5000) },

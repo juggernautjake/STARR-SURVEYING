@@ -64,14 +64,11 @@ export default function FlashcardsPage() {
   async function fetchCards() {
     setLoading(true);
     setReady(false);
-    try {
-      const res = await fetch('/api/admin/learn/flashcards');
-      if (res.ok && mountedRef.current) {
-        const data = await res.json();
-        setCards(data.cards || []);
-        if (data.stats) setFcStats(data.stats);
-      }
-    } catch (err) { console.error('FlashcardsPage: failed to fetch cards', err); }
+    const data = await safeFetch<{ cards: Flashcard[]; stats?: FlashcardStats }>('/api/admin/learn/flashcards');
+    if (data && mountedRef.current) {
+      setCards(data.cards || []);
+      if (data.stats) setFcStats(data.stats);
+    }
     if (mountedRef.current) {
       setLoading(false);
       setReady(true);
@@ -81,56 +78,49 @@ export default function FlashcardsPage() {
   async function createCard() {
     if (!newTerm.trim() || !newDef.trim()) return;
     setSaving(true);
-    try {
-      const res = await fetch('/api/admin/learn/flashcards', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          term: newTerm, definition: newDef,
-          hint_1: newH1 || null, hint_2: newH2 || null, hint_3: newH3 || null,
-          keywords: newKeywords.split(',').map(k => k.trim()).filter(Boolean),
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCards(prev => [...prev, data.card]);
-        setNewTerm(''); setNewDef(''); setNewH1(''); setNewH2(''); setNewH3(''); setNewKeywords('');
-        setMode('browse');
-      }
-    } catch (err) { console.error('FlashcardsPage: failed to create card', err); }
+    const data = await safeFetch<{ card: Flashcard }>('/api/admin/learn/flashcards', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        term: newTerm, definition: newDef,
+        hint_1: newH1 || null, hint_2: newH2 || null, hint_3: newH3 || null,
+        keywords: newKeywords.split(',').map(k => k.trim()).filter(Boolean),
+      }),
+    });
+    if (data?.card) {
+      setCards(prev => [...prev, data.card]);
+      setNewTerm(''); setNewDef(''); setNewH1(''); setNewH2(''); setNewH3(''); setNewKeywords('');
+      setMode('browse');
+    }
     setSaving(false);
   }
 
   async function deleteCard(id: string) {
     if (!confirm('Delete this flashcard?')) return;
-    try {
-      await fetch(`/api/admin/learn/flashcards?id=${id}`, { method: 'DELETE' });
-      setCards(prev => prev.filter(c => c.id !== id));
-    } catch (err) { console.error('FlashcardsPage: failed to delete card', err); }
+    const result = await safeFetch(`/api/admin/learn/flashcards?id=${id}`, { method: 'DELETE' });
+    if (result !== null) setCards(prev => prev.filter(c => c.id !== id));
   }
 
   async function submitRating(rating: 'again' | 'hard' | 'good' | 'easy') {
     const card = filtered[currentIdx];
     if (!card) return;
     setRatingSubmitted(true);
-    try {
-      await fetch('/api/admin/learn/flashcards', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: card.id,
-          source: card.source,
-          review_rating: rating,
-        }),
-      });
-      setCards(prev => prev.map(c => {
-        if (c.id !== card.id) return c;
-        return {
-          ...c,
-          times_reviewed: (c.times_reviewed || 0) + 1,
-          times_correct: (c.times_correct || 0) + (rating === 'good' || rating === 'easy' ? 1 : 0),
-        };
-      }));
-    } catch (err) { console.error('FlashcardsPage: failed to submit rating', err); }
+    await safeFetch('/api/admin/learn/flashcards', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: card.id,
+        source: card.source,
+        review_rating: rating,
+      }),
+    });
+    setCards(prev => prev.map(c => {
+      if (c.id !== card.id) return c;
+      return {
+        ...c,
+        times_reviewed: (c.times_reviewed || 0) + 1,
+        times_correct: (c.times_correct || 0) + (rating === 'good' || rating === 'easy' ? 1 : 0),
+      };
+    }));
     setTimeout(() => {
       nextCard();
       setRatingSubmitted(false);
@@ -140,19 +130,17 @@ export default function FlashcardsPage() {
   async function findRelated(card: Flashcard) {
     setSearchingRelated(true);
     setShowRelated(true);
-    try {
-      const searchTerm = card.term;
-      const res = await fetch(`/api/admin/learn/search?q=${encodeURIComponent(searchTerm)}`);
-      if (res.ok) {
-        const data = await res.json();
-        const links: any[] = [];
-        if (data.results?.lessons) links.push(...data.results.lessons.map((l: any) => ({ ...l, label: 'Lesson' })));
-        if (data.results?.articles) links.push(...data.results.articles.map((a: any) => ({ ...a, label: 'Article' })));
-        if (data.results?.modules) links.push(...data.results.modules.map((m: any) => ({ ...m, label: 'Module' })));
-        if (data.results?.topics) links.push(...data.results.topics.map((t: any) => ({ ...t, label: 'Topic' })));
-        setRelatedLinks(links.slice(0, 8));
-      }
-    } catch (err) { console.error('FlashcardsPage: failed to find related content', err); }
+    const data = await safeFetch<{ results: { lessons?: any[]; articles?: any[]; modules?: any[]; topics?: any[] } }>(
+      `/api/admin/learn/search?q=${encodeURIComponent(card.term)}`
+    );
+    if (data?.results) {
+      const links: any[] = [];
+      if (data.results.lessons) links.push(...data.results.lessons.map((l: any) => ({ ...l, label: 'Lesson' })));
+      if (data.results.articles) links.push(...data.results.articles.map((a: any) => ({ ...a, label: 'Article' })));
+      if (data.results.modules) links.push(...data.results.modules.map((m: any) => ({ ...m, label: 'Module' })));
+      if (data.results.topics) links.push(...data.results.topics.map((t: any) => ({ ...t, label: 'Topic' })));
+      setRelatedLinks(links.slice(0, 8));
+    }
     setSearchingRelated(false);
   }
 

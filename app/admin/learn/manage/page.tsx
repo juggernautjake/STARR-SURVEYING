@@ -45,58 +45,55 @@ export default function ManageContentPage() {
 
   async function loadData() {
     setLoading(true);
-    try {
-      switch (tab) {
-        case 'modules': {
-          const res = await fetch('/api/admin/learn/modules');
-          if (res.ok) { const d = await res.json(); setModules(d.modules || []); }
-          break;
-        }
-        case 'lessons': {
-          const [modRes, lesRes] = await Promise.all([
-            fetch('/api/admin/learn/modules'),
-            fetch('/api/admin/learn/lessons?all=true'),
-          ]);
-          if (modRes.ok) { const d = await modRes.json(); setModules(d.modules || []); }
-          if (lesRes.ok) { const d = await lesRes.json(); setLessons(d.lessons || []); }
-          break;
-        }
-        case 'articles': {
-          const res = await fetch('/api/admin/learn/articles');
-          if (res.ok) { const d = await res.json(); setArticles(d.articles || []); }
-          break;
-        }
-        case 'questions': {
-          const [modRes2, qRes] = await Promise.all([
-            fetch('/api/admin/learn/modules'),
-            fetch('/api/admin/learn/questions?limit=100'),
-          ]);
-          if (modRes2.ok) { const d = await modRes2.json(); setModules(d.modules || []); }
-          if (qRes.ok) { const d = await qRes.json(); setQuestions(d.questions || []); }
-          break;
-        }
-        case 'flashcards': {
-          const res = await fetch('/api/admin/learn/flashcards?source=builtin');
-          if (res.ok) { const d = await res.json(); setFlashcards(d.cards || []); }
-          break;
-        }
-        case 'xp_config': {
-          const res = await fetch('/api/admin/learn/xp-config');
-          if (res.ok) {
-            const d = await res.json();
-            setXpLearningModules(d.learning_modules || []);
-            setXpFsModules(d.fs_modules || []);
-            if (d.defaults) setXpDefaults(d.defaults);
-          }
-          break;
-        }
-        case 'recycle_bin': {
-          const res = await fetch('/api/admin/learn/recycle-bin');
-          if (res.ok) { const d = await res.json(); setRecycleBin(d.items || []); }
-          break;
-        }
+    switch (tab) {
+      case 'modules': {
+        const d = await safeFetch<{ modules: Module[] }>('/api/admin/learn/modules');
+        if (d) setModules(d.modules || []);
+        break;
       }
-    } catch (err) { console.error('ManageContentPage: failed to load data', err); }
+      case 'lessons': {
+        const [modData, lesData] = await Promise.all([
+          safeFetch<{ modules: Module[] }>('/api/admin/learn/modules'),
+          safeFetch<{ lessons: Lesson[] }>('/api/admin/learn/lessons?all=true'),
+        ]);
+        if (modData) setModules(modData.modules || []);
+        if (lesData) setLessons(lesData.lessons || []);
+        break;
+      }
+      case 'articles': {
+        const d = await safeFetch<{ articles: Article[] }>('/api/admin/learn/articles');
+        if (d) setArticles(d.articles || []);
+        break;
+      }
+      case 'questions': {
+        const [modData, qData] = await Promise.all([
+          safeFetch<{ modules: Module[] }>('/api/admin/learn/modules'),
+          safeFetch<{ questions: Question[] }>('/api/admin/learn/questions?limit=100'),
+        ]);
+        if (modData) setModules(modData.modules || []);
+        if (qData) setQuestions(qData.questions || []);
+        break;
+      }
+      case 'flashcards': {
+        const d = await safeFetch<{ cards: Flashcard[] }>('/api/admin/learn/flashcards?source=builtin');
+        if (d) setFlashcards(d.cards || []);
+        break;
+      }
+      case 'xp_config': {
+        const d = await safeFetch<{ learning_modules: XPModuleConfig[]; fs_modules: XPModuleConfig[]; defaults: typeof xpDefaults }>('/api/admin/learn/xp-config');
+        if (d) {
+          setXpLearningModules(d.learning_modules || []);
+          setXpFsModules(d.fs_modules || []);
+          if (d.defaults) setXpDefaults(d.defaults);
+        }
+        break;
+      }
+      case 'recycle_bin': {
+        const d = await safeFetch<{ items: typeof recycleBin }>('/api/admin/learn/recycle-bin');
+        if (d) setRecycleBin(d.items || []);
+        break;
+      }
+    }
     setLoading(false);
   }
 
@@ -160,21 +157,18 @@ export default function ManageContentPage() {
       }
 
       if (url) {
-        const res = await fetch(url, {
+        const result = await safeFetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        if (res.ok) {
+        if (result) {
           setShowForm(false);
           setFormData({});
           loadData();
-        } else {
-          const err = await res.json();
-          alert(err.error || 'Failed to create');
         }
       }
-    } catch (e) { console.error('ManageContentPage: failed to create item', e); alert('Error creating item'); }
+    } catch (e) { /* safeFetch handles error reporting */ }
     setSaving(false);
   }
 
@@ -192,24 +186,19 @@ export default function ManageContentPage() {
   async function handleSaveXP() {
     if (!isAdmin || Object.keys(xpEditing).length === 0) return;
     setXpSaving(true);
-    try {
-      const updates = Object.entries(xpEditing).map(([key, vals]) => {
-        const [moduleType, moduleId] = key.split('::');
-        return { module_type: moduleType, module_id: moduleId, xp_value: vals.xp_value, expiry_months: vals.expiry_months };
-      });
-      const res = await fetch('/api/admin/learn/xp-config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updates }),
-      });
-      if (res.ok) {
-        setXpEditing({});
-        loadData();
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to save XP config');
-      }
-    } catch { alert('Failed to save XP config'); }
+    const updates = Object.entries(xpEditing).map(([key, vals]) => {
+      const [moduleType, moduleId] = key.split('::');
+      return { module_type: moduleType, module_id: moduleId, xp_value: vals.xp_value, expiry_months: vals.expiry_months };
+    });
+    const result = await safeFetch('/api/admin/learn/xp-config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updates }),
+    });
+    if (result) {
+      setXpEditing({});
+      loadData();
+    }
     setXpSaving(false);
   }
 
@@ -223,35 +212,28 @@ export default function ManageContentPage() {
 
   async function handleDelete(itemType: string, itemId: string, itemTitle: string) {
     if (!confirm(`Move "${itemTitle}" to the recycle bin? You can restore it later.`)) return;
-    try {
-      const res = await fetch('/api/admin/learn/recycle-bin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_type: itemType, item_id: itemId }),
-      });
-      if (res.ok) loadData();
-      else { const err = await res.json(); alert(err.error || 'Failed to delete'); }
-    } catch { alert('Failed to delete'); }
+    const result = await safeFetch('/api/admin/learn/recycle-bin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_type: itemType, item_id: itemId }),
+    });
+    if (result) loadData();
   }
 
   async function handleRestore(recycleId: string) {
     if (!confirm('Restore this item?')) return;
-    try {
-      const res = await fetch('/api/admin/learn/recycle-bin', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: recycleId, action: 'restore' }),
-      });
-      if (res.ok) loadData();
-    } catch { /* ignore */ }
+    const result = await safeFetch('/api/admin/learn/recycle-bin', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: recycleId, action: 'restore' }),
+    });
+    if (result) loadData();
   }
 
   async function handlePermanentDelete(recycleId: string, title: string) {
     if (!confirm(`PERMANENTLY delete "${title}"? This cannot be undone!`)) return;
-    try {
-      await fetch(`/api/admin/learn/recycle-bin?id=${recycleId}`, { method: 'DELETE' });
-      loadData();
-    } catch { /* ignore */ }
+    const result = await safeFetch(`/api/admin/learn/recycle-bin?id=${recycleId}`, { method: 'DELETE' });
+    if (result) loadData();
   }
 
   const tabs: { key: Tab; label: string; icon: string }[] = [
