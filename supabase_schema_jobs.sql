@@ -74,12 +74,12 @@ CREATE TABLE IF NOT EXISTS jobs (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_jobs_stage ON jobs(stage);
-CREATE INDEX idx_jobs_job_number ON jobs(job_number);
-CREATE INDEX idx_jobs_created_by ON jobs(created_by);
-CREATE INDEX idx_jobs_is_archived ON jobs(is_archived);
-CREATE INDEX idx_jobs_survey_type ON jobs(survey_type);
-CREATE INDEX idx_jobs_lead_rpls ON jobs(lead_rpls_email);
+CREATE INDEX IF NOT EXISTS idx_jobs_stage ON jobs(stage);
+CREATE INDEX IF NOT EXISTS idx_jobs_job_number ON jobs(job_number);
+CREATE INDEX IF NOT EXISTS idx_jobs_created_by ON jobs(created_by);
+CREATE INDEX IF NOT EXISTS idx_jobs_is_archived ON jobs(is_archived);
+CREATE INDEX IF NOT EXISTS idx_jobs_survey_type ON jobs(survey_type);
+CREATE INDEX IF NOT EXISTS idx_jobs_lead_rpls ON jobs(lead_rpls_email);
 
 -- --------------------------------------------------------------------------
 -- 2. job_tags — Flexible tagging system
@@ -91,9 +91,9 @@ CREATE TABLE IF NOT EXISTS job_tags (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_job_tags_job ON job_tags(job_id);
-CREATE INDEX idx_job_tags_tag ON job_tags(tag);
-CREATE UNIQUE INDEX idx_job_tags_unique ON job_tags(job_id, tag);
+CREATE INDEX IF NOT EXISTS idx_job_tags_job ON job_tags(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_tags_tag ON job_tags(tag);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_job_tags_unique ON job_tags(job_id, tag);
 
 -- --------------------------------------------------------------------------
 -- 3. job_team — People assigned with roles
@@ -109,9 +109,9 @@ CREATE TABLE IF NOT EXISTS job_team (
   notes TEXT
 );
 
-CREATE INDEX idx_job_team_job ON job_team(job_id);
-CREATE INDEX idx_job_team_user ON job_team(user_email);
-CREATE UNIQUE INDEX idx_job_team_unique ON job_team(job_id, user_email, role) WHERE removed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_job_team_job ON job_team(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_team_user ON job_team(user_email);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_job_team_unique ON job_team(job_id, user_email, role) WHERE removed_at IS NULL;
 
 -- --------------------------------------------------------------------------
 -- 4. job_equipment — Equipment used on the job
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS job_equipment (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_job_equipment_job ON job_equipment(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_equipment_job ON job_equipment(job_id);
 
 -- --------------------------------------------------------------------------
 -- 5. job_files — File management with backup tracking
@@ -152,9 +152,9 @@ CREATE TABLE IF NOT EXISTS job_files (
   is_deleted BOOLEAN DEFAULT false
 );
 
-CREATE INDEX idx_job_files_job ON job_files(job_id);
-CREATE INDEX idx_job_files_section ON job_files(section);
-CREATE INDEX idx_job_files_type ON job_files(file_type);
+CREATE INDEX IF NOT EXISTS idx_job_files_job ON job_files(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_files_section ON job_files(section);
+CREATE INDEX IF NOT EXISTS idx_job_files_type ON job_files(file_type);
 
 -- --------------------------------------------------------------------------
 -- 6. job_research — Research documents and data for a job
@@ -174,8 +174,8 @@ CREATE TABLE IF NOT EXISTS job_research (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_job_research_job ON job_research(job_id);
-CREATE INDEX idx_job_research_category ON job_research(category);
+CREATE INDEX IF NOT EXISTS idx_job_research_job ON job_research(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_research_category ON job_research(category);
 
 -- --------------------------------------------------------------------------
 -- 7. job_stages_history — Audit trail of stage transitions
@@ -190,7 +190,7 @@ CREATE TABLE IF NOT EXISTS job_stages_history (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_job_stages_history_job ON job_stages_history(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_stages_history_job ON job_stages_history(job_id);
 
 -- --------------------------------------------------------------------------
 -- 8. job_time_entries — Time tracking per job
@@ -209,8 +209,8 @@ CREATE TABLE IF NOT EXISTS job_time_entries (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_job_time_job ON job_time_entries(job_id);
-CREATE INDEX idx_job_time_user ON job_time_entries(user_email);
+CREATE INDEX IF NOT EXISTS idx_job_time_job ON job_time_entries(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_time_user ON job_time_entries(user_email);
 
 -- --------------------------------------------------------------------------
 -- 9. job_payments — Payment records
@@ -228,7 +228,7 @@ CREATE TABLE IF NOT EXISTS job_payments (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_job_payments_job ON job_payments(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_payments_job ON job_payments(job_id);
 
 -- --------------------------------------------------------------------------
 -- 10. job_field_data — Live field data entries
@@ -249,8 +249,8 @@ CREATE TABLE IF NOT EXISTS job_field_data (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_job_field_data_job ON job_field_data(job_id);
-CREATE INDEX idx_job_field_data_type ON job_field_data(data_type);
+CREATE INDEX IF NOT EXISTS idx_job_field_data_job ON job_field_data(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_field_data_type ON job_field_data(data_type);
 
 -- --------------------------------------------------------------------------
 -- 11. job_checklists — Stage-specific checklists
@@ -267,7 +267,7 @@ CREATE TABLE IF NOT EXISTS job_checklists (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_job_checklists_job ON job_checklists(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_checklists_job ON job_checklists(job_id);
 
 -- --------------------------------------------------------------------------
 -- 12. equipment_inventory — Master equipment list
@@ -289,7 +289,7 @@ CREATE TABLE IF NOT EXISTS equipment_inventory (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_equipment_status ON equipment_inventory(status);
+CREATE INDEX IF NOT EXISTS idx_equipment_status ON equipment_inventory(status);
 
 -- --------------------------------------------------------------------------
 -- Triggers for updated_at
@@ -334,15 +334,16 @@ ALTER TABLE job_checklists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE equipment_inventory ENABLE ROW LEVEL SECURITY;
 
 -- Service role bypass (our API uses supabaseAdmin with service_role key)
-CREATE POLICY "Service role bypass" ON jobs FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass" ON job_tags FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass" ON job_team FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass" ON job_equipment FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass" ON job_files FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass" ON job_research FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass" ON job_stages_history FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass" ON job_time_entries FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass" ON job_payments FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass" ON job_field_data FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass" ON job_checklists FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass" ON equipment_inventory FOR ALL USING (auth.role() = 'service_role');
+-- Wrapped in DO blocks so re-running is safe
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON jobs FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON job_tags FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON job_team FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON job_equipment FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON job_files FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON job_research FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON job_stages_history FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON job_time_entries FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON job_payments FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON job_field_data FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON job_checklists FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass" ON equipment_inventory FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;

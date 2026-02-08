@@ -70,8 +70,8 @@ CREATE INDEX IF NOT EXISTS idx_discussion_threads_created_by ON admin_discussion
 CREATE INDEX IF NOT EXISTS idx_discussion_threads_page ON admin_discussion_threads(page_path);
 
 ALTER TABLE admin_discussion_threads ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "discussion_threads_service" ON admin_discussion_threads
-  FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN CREATE POLICY "discussion_threads_service" ON admin_discussion_threads
+  FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -323,8 +323,8 @@ ALTER TABLE fieldbook_notes
 -- RLS for new tables
 ALTER TABLE typing_indicators ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_presence ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "typing_service" ON typing_indicators FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "presence_service" ON user_presence FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN CREATE POLICY "typing_service" ON typing_indicators FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "presence_service" ON user_presence FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- Index for presence lookups
 CREATE INDEX IF NOT EXISTS idx_user_presence_status ON user_presence(status);

@@ -125,11 +125,11 @@ ALTER TABLE message_reactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messaging_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pinned_messages ENABLE ROW LEVEL SECURITY;
 
--- Service role bypasses RLS, so these policies are for anon/user access
-CREATE POLICY "conversations_service" ON conversations FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "conv_participants_service" ON conversation_participants FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "messages_service" ON messages FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "read_receipts_service" ON message_read_receipts FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "reactions_service" ON message_reactions FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "msg_prefs_service" ON messaging_preferences FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "pinned_service" ON pinned_messages FOR ALL USING (true) WITH CHECK (true);
+-- Service role bypasses RLS — wrapped in DO blocks so re-running is safe
+DO $$ BEGIN CREATE POLICY "conversations_service" ON conversations FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "conv_participants_service" ON conversation_participants FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "messages_service" ON messages FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "read_receipts_service" ON message_read_receipts FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "reactions_service" ON message_reactions FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "msg_prefs_service" ON messaging_preferences FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "pinned_service" ON pinned_messages FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
