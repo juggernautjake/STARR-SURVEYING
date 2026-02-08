@@ -75,6 +75,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/my-hours': 'My Hours',
   '/admin/hours-approval': 'Hours Approval',
   '/admin/discussions': 'Discussion Threads',
+  '/admin/learn/fieldbook': 'My Fieldbook',
 };
 
 function getTitle(p: string): string {
