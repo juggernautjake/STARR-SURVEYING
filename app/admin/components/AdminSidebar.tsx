@@ -49,6 +49,12 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
       { href: '/admin/leads', label: 'Leads', icon: '📨', adminOnly: true },
       { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', adminOnly: true },
     ]},
+    { label: 'Rewards & Pay', items: [
+      { href: '/admin/rewards', label: 'Rewards & Store', icon: '🏆' },
+      { href: '/admin/pay-progression', label: 'Pay Progression', icon: '📈' },
+      { href: '/admin/rewards/how-it-works', label: 'How Rewards Work', icon: '💡' },
+      { href: '/admin/rewards/admin', label: 'Manage Rewards', icon: '⚙️', adminOnly: true },
+    ]},
     { label: 'People', items: [
       { href: '/admin/employees', label: 'Employees', icon: '👥', adminOnly: true },
       { href: '/admin/payroll', label: 'Payroll', icon: '💰', adminOnly: true },

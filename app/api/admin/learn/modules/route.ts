@@ -29,11 +29,23 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { data: modules } = await supabaseAdmin.from('learning_modules')
     .select('*').order('order_index');
 
-  // Get lesson counts
+  // Get lesson counts and XP config
+  const { data: xpConfigs } = await supabaseAdmin.from('module_xp_config')
+    .select('module_id, xp_value, expiry_months, difficulty_rating')
+    .eq('module_type', 'learning_module').eq('is_active', true);
+
+  const xpMap = new Map<string, { xp_value: number; expiry_months: number; difficulty_rating: number }>();
+  let defaultXP = { xp_value: 500, expiry_months: 18, difficulty_rating: 3 };
+  (xpConfigs || []).forEach((c: { module_id: string | null; xp_value: number; expiry_months: number; difficulty_rating: number }) => {
+    if (!c.module_id) defaultXP = c;
+    else xpMap.set(c.module_id, c);
+  });
+
   const modulesWithCounts = await Promise.all((modules || []).map(async (m: any) => {
     const { data } = await supabaseAdmin.from('learning_lessons')
       .select('id', { count: 'exact' }).eq('module_id', m.id);
-    return { ...m, lesson_count: data?.length || 0 };
+    const xpConfig = xpMap.get(m.id) || defaultXP;
+    return { ...m, lesson_count: data?.length || 0, xp_value: xpConfig.xp_value, expiry_months: xpConfig.expiry_months };
   }));
 
   return NextResponse.json({ modules: modulesWithCounts });

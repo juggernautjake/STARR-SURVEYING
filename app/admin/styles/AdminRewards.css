@@ -1,0 +1,445 @@
+/*==============================================================================
+  REWARDS, STORE, PAY PROGRESSION, XP, BADGES
+  Company store, XP tracking, pay roadmap, how-it-works
+==============================================================================*/
+
+/* === REWARDS HERO === */
+.rewards__hero {
+  background: linear-gradient(135deg, #1D3095 0%, #0F1419 100%);
+  border-radius: 14px; padding: 2rem; color: #FFF; margin-bottom: 2rem;
+}
+.rewards__hero-balance { text-align: center; margin-bottom: 1.25rem; }
+.rewards__hero-label {
+  display: block; font-family: 'Inter', sans-serif; font-size: 0.8rem;
+  text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 0.25rem;
+}
+.rewards__hero-amount {
+  display: block; font-family: 'Sora', sans-serif; font-size: 2.5rem; font-weight: 700;
+}
+.rewards__hero-sublabel {
+  display: block; font-family: 'Inter', sans-serif; font-size: 0.82rem; opacity: 0.6;
+}
+.rewards__hero-stats {
+  display: flex; justify-content: center; gap: 2rem; margin-bottom: 1.25rem;
+  padding: 1rem 0; border-top: 1px solid rgba(255,255,255,0.15); border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+.rewards__hero-stat { text-align: center; }
+.rewards__hero-stat-value {
+  display: block; font-family: 'Sora', sans-serif; font-size: 1.2rem; font-weight: 700;
+}
+.rewards__hero-stat-label {
+  font-family: 'Inter', sans-serif; font-size: 0.72rem; opacity: 0.6;
+}
+.rewards__hero-links { display: flex; justify-content: center; gap: 0.75rem; }
+.rewards__hero-links .admin-btn--ghost { color: #FFF; border-color: rgba(255,255,255,0.3); }
+.rewards__hero-links .admin-btn--ghost:hover { background: rgba(255,255,255,0.1); }
+
+/* === TABS === */
+.rewards__tabs {
+  display: flex; gap: 0.25rem; border-bottom: 2px solid #E5E7EB;
+  margin-bottom: 1.5rem; overflow-x: auto;
+}
+.rewards__tab {
+  padding: 0.6rem 1.25rem; font-family: 'Inter', sans-serif; font-size: 0.85rem;
+  font-weight: 500; color: #6B7280; background: none; border: none;
+  border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap;
+}
+.rewards__tab:hover { color: #1D3095; }
+.rewards__tab--active { color: #1D3095; border-bottom-color: #1D3095; font-weight: 600; }
+
+/* === STORE === */
+.rewards__store-filters {
+  display: flex; gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap;
+}
+.rewards__filter-select {
+  padding: 0.4rem 0.75rem; border: 1px solid #E5E7EB; border-radius: 8px;
+  font-family: 'Inter', sans-serif; font-size: 0.82rem; background: #FFF;
+}
+.rewards__store-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem;
+}
+.rewards__item {
+  background: #FFF; border: 1px solid #E5E7EB; border-radius: 12px;
+  padding: 1.25rem; display: flex; flex-direction: column; align-items: center;
+  text-align: center; transition: all 0.15s; position: relative; overflow: hidden;
+}
+.rewards__item:hover:not(.rewards__item--locked) {
+  border-color: #1D3095; box-shadow: 0 4px 16px rgba(29,48,149,0.1);
+  transform: translateY(-2px);
+}
+.rewards__item--locked { opacity: 0.55; }
+.rewards__item--sold-out { opacity: 0.4; }
+.rewards__item-tier {
+  position: absolute; top: 0; right: 0; padding: 0.15rem 0.6rem;
+  font-family: 'Inter', sans-serif; font-size: 0.6rem; font-weight: 700;
+  color: #FFF; border-radius: 0 12px 0 8px; letter-spacing: 0.5px;
+}
+.rewards__item-icon { font-size: 2rem; margin: 0.5rem 0; }
+.rewards__item-name {
+  font-family: 'Sora', sans-serif; font-size: 0.9rem; font-weight: 600;
+  color: #0F1419; margin-bottom: 0.25rem;
+}
+.rewards__item-desc {
+  font-family: 'Inter', sans-serif; font-size: 0.75rem; color: #6B7280;
+  line-height: 1.35; margin-bottom: 0.75rem; flex: 1;
+}
+.rewards__item-cost { margin-bottom: 0.5rem; }
+.rewards__item-xp {
+  font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 700; color: #1D3095;
+}
+.rewards__item-btn { font-size: 0.78rem !important; padding: 0.35rem 1rem !important; width: 100%; }
+.rewards__item-unavailable {
+  font-family: 'Inter', sans-serif; font-size: 0.72rem; color: #9CA3AF; font-style: italic;
+}
+
+/* === BADGES === */
+.rewards__section-title {
+  font-family: 'Sora', sans-serif; font-size: 1rem; font-weight: 600;
+  color: #0F1419; margin-bottom: 0.75rem;
+}
+.rewards__badges-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem;
+}
+.rewards__badge {
+  background: #FFF; border: 1px solid #E5E7EB; border-radius: 10px;
+  padding: 1rem; text-align: center; transition: all 0.15s;
+}
+.rewards__badge--earned { border-color: #10B981; background: #F0FDF4; }
+.rewards__badge--locked { opacity: 0.5; }
+.rewards__badge-icon { font-size: 2rem; display: block; margin-bottom: 0.35rem; }
+.rewards__badge-name {
+  font-family: 'Sora', sans-serif; font-size: 0.85rem; font-weight: 600;
+  color: #0F1419; margin-bottom: 0.2rem;
+}
+.rewards__badge-desc {
+  font-family: 'Inter', sans-serif; font-size: 0.72rem; color: #6B7280;
+  line-height: 1.35; margin-bottom: 0.35rem;
+}
+.rewards__badge-xp {
+  display: inline-block; font-family: 'Sora', sans-serif; font-size: 0.72rem;
+  font-weight: 600; color: #1D3095; background: #EFF6FF;
+  padding: 0.1rem 0.4rem; border-radius: 8px;
+}
+.rewards__badge-date {
+  display: block; font-family: 'Inter', sans-serif; font-size: 0.68rem;
+  color: #10B981; margin-top: 0.25rem;
+}
+
+/* === PURCHASE HISTORY === */
+.rewards__purchase-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.75rem 1rem; background: #FFF; border: 1px solid #E5E7EB;
+  border-radius: 8px; margin-bottom: 0.5rem;
+}
+.rewards__purchase-info { display: flex; align-items: center; gap: 1rem; }
+.rewards__purchase-name {
+  font-family: 'Sora', sans-serif; font-size: 0.85rem; font-weight: 600;
+}
+.rewards__purchase-cost {
+  font-family: 'Inter', sans-serif; font-size: 0.82rem; color: #6B7280;
+}
+.rewards__purchase-meta { display: flex; align-items: center; gap: 1rem; }
+.rewards__purchase-status {
+  font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 600;
+  padding: 0.15rem 0.5rem; border-radius: 12px; text-transform: capitalize;
+}
+.rewards__purchase-status--pending { background: #FEF3C7; color: #92400E; }
+.rewards__purchase-status--approved { background: #DBEAFE; color: #1D3095; }
+.rewards__purchase-status--fulfilled { background: #ECFDF5; color: #065F46; }
+.rewards__purchase-status--cancelled { background: #FEE2E2; color: #991B1B; }
+.rewards__purchase-date {
+  font-family: 'Inter', sans-serif; font-size: 0.72rem; color: #9CA3AF;
+}
+
+/* === PAY PROGRESSION === */
+.pay-prog__current {
+  background: linear-gradient(135deg, #1D3095 0%, #0F1419 100%);
+  border-radius: 12px; padding: 1.5rem; color: #FFF; margin-bottom: 2rem;
+}
+.pay-prog__current h3 {
+  font-family: 'Sora', sans-serif; font-size: 1rem; font-weight: 600;
+  margin-bottom: 1rem; opacity: 0.9;
+}
+.pay-prog__current-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+.pay-prog__current-item { text-align: center; }
+.pay-prog__current-label {
+  display: block; font-family: 'Inter', sans-serif; font-size: 0.7rem;
+  opacity: 0.6; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.2rem;
+}
+.pay-prog__current-value {
+  display: block; font-family: 'Sora', sans-serif; font-size: 1.1rem; font-weight: 700;
+}
+
+.pay-prog__section {
+  background: #FFF; border: 1px solid #E5E7EB; border-radius: 12px;
+  padding: 1.5rem; margin-bottom: 1.5rem;
+}
+.pay-prog__section-title {
+  font-family: 'Sora', sans-serif; font-size: 1.05rem; font-weight: 600;
+  color: #0F1419; margin-bottom: 0.25rem;
+}
+.pay-prog__section-desc {
+  font-family: 'Inter', sans-serif; font-size: 0.82rem; color: #6B7280;
+  margin-bottom: 1rem;
+}
+
+/* Rates grid */
+.pay-prog__rates-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem;
+}
+.pay-prog__rate-card {
+  background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px;
+  padding: 0.75rem; text-align: center;
+}
+.pay-prog__rate-icon { font-size: 1.5rem; display: block; margin-bottom: 0.25rem; }
+.pay-prog__rate-label {
+  display: block; font-family: 'Inter', sans-serif; font-size: 0.75rem;
+  color: #6B7280; margin-bottom: 0.15rem; text-transform: capitalize;
+}
+.pay-prog__rate-amount {
+  font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 700; color: #1D3095;
+}
+
+/* Timeline */
+.pay-prog__timeline {
+  display: flex; overflow-x: auto; gap: 0; padding: 1rem 0; align-items: flex-start;
+}
+.pay-prog__timeline-item {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 80px; position: relative; padding: 0 0.25rem;
+}
+.pay-prog__timeline-item--current .pay-prog__timeline-content { background: #EFF6FF; border-color: #1D3095; }
+.pay-prog__timeline-item--reached .pay-prog__timeline-content { border-color: #10B981; }
+.pay-prog__timeline-dot {
+  width: 20px; height: 20px; border-radius: 50%; margin-bottom: 0.5rem; flex-shrink: 0;
+}
+.pay-prog__timeline-content {
+  text-align: center; padding: 0.5rem; border: 1px solid #E5E7EB;
+  border-radius: 6px; background: #F9FAFB;
+}
+.pay-prog__timeline-label {
+  display: block; font-family: 'Inter', sans-serif; font-size: 0.68rem;
+  color: #6B7280; margin-bottom: 0.1rem; text-transform: capitalize;
+}
+.pay-prog__timeline-bonus {
+  display: block; font-family: 'Sora', sans-serif; font-size: 0.78rem;
+  font-weight: 700; color: #10B981;
+}
+.pay-prog__timeline-connector {
+  position: absolute; top: 10px; right: -12px; width: 24px; height: 2px; background: #E5E7EB;
+}
+.pay-prog__timeline-connector--active { background: #10B981; }
+
+/* Credentials grid */
+.pay-prog__creds-grid { display: flex; flex-direction: column; gap: 0.5rem; }
+.pay-prog__cred-card {
+  display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 1rem;
+  background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px;
+}
+.pay-prog__cred-card--earned { background: #F0FDF4; border-color: #A7F3D0; }
+.pay-prog__cred-status { font-size: 1.2rem; flex-shrink: 0; }
+.pay-prog__cred-info { flex: 1; }
+.pay-prog__cred-name {
+  display: block; font-family: 'Sora', sans-serif; font-size: 0.85rem;
+  font-weight: 600; color: #0F1419;
+}
+.pay-prog__cred-type {
+  display: block; font-family: 'Inter', sans-serif; font-size: 0.7rem;
+  color: #9CA3AF; text-transform: capitalize;
+}
+.pay-prog__cred-bonus {
+  font-family: 'Sora', sans-serif; font-size: 0.88rem; font-weight: 700;
+  color: #10B981; flex-shrink: 0;
+}
+
+/* XP Milestones */
+.pay-prog__xp-milestones {
+  display: flex; overflow-x: auto; gap: 0; padding: 1rem 0;
+}
+.pay-prog__xp-milestone {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 100px; position: relative; padding: 0 0.5rem;
+}
+.pay-prog__xp-milestone--achieved .pay-prog__xp-info { background: #F0FDF4; border-color: #10B981; }
+.pay-prog__xp-dot {
+  width: 28px; height: 28px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; color: #FFF;
+  font-family: 'Sora', sans-serif; font-size: 0.72rem; font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+.pay-prog__xp-info {
+  text-align: center; padding: 0.5rem; border: 1px solid #E5E7EB;
+  border-radius: 6px; background: #F9FAFB;
+}
+.pay-prog__xp-label {
+  display: block; font-family: 'Sora', sans-serif; font-size: 0.72rem;
+  font-weight: 600; color: #0F1419; margin-bottom: 0.1rem;
+}
+.pay-prog__xp-threshold {
+  display: block; font-family: 'Inter', sans-serif; font-size: 0.68rem; color: #6B7280;
+}
+.pay-prog__xp-bonus {
+  display: block; font-family: 'Sora', sans-serif; font-size: 0.78rem;
+  font-weight: 700; color: #10B981; margin-top: 0.15rem;
+}
+.pay-prog__xp-connector {
+  position: absolute; top: 14px; right: -8px; width: 16px; height: 2px; background: #E5E7EB;
+}
+.pay-prog__xp-connector--active { background: #10B981; }
+
+/* Education Rules */
+.pay-prog__edu-rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+.pay-prog__edu-rule {
+  padding: 1rem; border-radius: 8px; border-left: 4px solid;
+}
+.pay-prog__edu-rule--green { background: #F0FDF4; border-left-color: #10B981; }
+.pay-prog__edu-rule--yellow { background: #FFFBEB; border-left-color: #F59E0B; }
+.pay-prog__edu-rule--red { background: #FEF2F2; border-left-color: #EF4444; }
+.pay-prog__edu-rule strong {
+  display: block; font-family: 'Sora', sans-serif; font-size: 0.85rem; margin-bottom: 0.2rem;
+}
+.pay-prog__edu-rule p {
+  font-family: 'Inter', sans-serif; font-size: 0.82rem; color: #374151;
+}
+.pay-prog__edu-note {
+  font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #374151;
+  background: #EFF6FF; padding: 0.75rem 1rem; border-radius: 8px;
+}
+
+/* Incentive Cards */
+.pay-prog__incentive-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.pay-prog__incentive-card {
+  background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 10px; padding: 1.25rem;
+}
+.pay-prog__incentive-card--highlight { background: #EFF6FF; border-color: #1D3095; }
+.pay-prog__incentive-card h4 {
+  font-family: 'Sora', sans-serif; font-size: 0.9rem; font-weight: 600;
+  margin-bottom: 0.5rem; color: #0F1419;
+}
+.pay-prog__incentive-card ul {
+  list-style: none; padding: 0; font-family: 'Inter', sans-serif; font-size: 0.82rem; color: #374151;
+}
+.pay-prog__incentive-card li { padding: 0.2rem 0; padding-left: 1rem; position: relative; }
+.pay-prog__incentive-card li::before { content: '\2022'; position: absolute; left: 0; color: #1D3095; }
+
+/* Pay Formula */
+.pay-prog__formula {
+  display: flex; align-items: center; gap: 0.5rem; overflow-x: auto;
+  padding: 1rem; background: #F9FAFB; border-radius: 8px; flex-wrap: wrap;
+  justify-content: center;
+}
+.pay-prog__formula-item {
+  padding: 0.5rem 0.75rem; background: #EFF6FF; border: 1px solid #C7D2FE;
+  border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 0.78rem;
+  font-weight: 500; color: #1D3095; white-space: nowrap;
+}
+.pay-prog__formula-item--total {
+  background: #1D3095; color: #FFF; border-color: #1D3095; font-weight: 700;
+}
+.pay-prog__formula-op {
+  font-family: 'Sora', sans-serif; font-size: 1.1rem; font-weight: 700; color: #9CA3AF;
+}
+
+/* === HOW IT WORKS === */
+.hiw__section {
+  background: #FFF; border: 1px solid #E5E7EB; border-radius: 12px;
+  padding: 1.5rem; margin-bottom: 1.5rem;
+}
+.hiw__title {
+  font-family: 'Sora', sans-serif; font-size: 1.1rem; font-weight: 600;
+  color: #0F1419; margin-bottom: 0.5rem;
+}
+.hiw__text {
+  font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #374151;
+  line-height: 1.55; margin-bottom: 0.75rem;
+}
+.hiw__two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+.hiw__card {
+  background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 1rem;
+}
+.hiw__card h4 {
+  font-family: 'Sora', sans-serif; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.75rem;
+}
+.hiw__table { width: 100%; border-collapse: collapse; }
+.hiw__table td {
+  padding: 0.4rem 0; font-family: 'Inter', sans-serif; font-size: 0.82rem;
+  border-bottom: 1px solid #E5E7EB;
+}
+.hiw__table-xp {
+  text-align: right; font-family: 'Sora', sans-serif; font-weight: 600; color: #1D3095;
+}
+.hiw__callout {
+  padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.75rem;
+}
+.hiw__callout strong {
+  display: block; font-family: 'Sora', sans-serif; font-size: 0.85rem; margin-bottom: 0.2rem;
+}
+.hiw__callout p {
+  font-family: 'Inter', sans-serif; font-size: 0.78rem; margin: 0;
+}
+.hiw__callout--blue { background: #EFF6FF; border-left: 3px solid #1D3095; }
+.hiw__callout--blue strong { color: #1D3095; }
+.hiw__callout--green { background: #F0FDF4; border-left: 3px solid #10B981; }
+.hiw__callout--green strong { color: #065F46; }
+
+.hiw__pay-paths {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;
+}
+.hiw__pay-path { text-align: center; }
+.hiw__pay-path-icon {
+  width: 36px; height: 36px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; color: #FFF;
+  font-family: 'Sora', sans-serif; font-weight: 700; margin: 0 auto 0.5rem;
+}
+.hiw__pay-path h4 {
+  font-family: 'Sora', sans-serif; font-size: 0.9rem; font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.hiw__pay-path p {
+  font-family: 'Inter', sans-serif; font-size: 0.78rem; color: #6B7280; line-height: 1.4;
+}
+
+.hiw__list {
+  font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #374151;
+  padding-left: 1.5rem; line-height: 1.65;
+}
+.hiw__list--highlight { background: #F0FDF4; padding: 1rem 1rem 1rem 2.5rem; border-radius: 8px; }
+.hiw__list li { margin-bottom: 0.3rem; }
+
+.hiw__tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; }
+.hiw__tier {
+  padding: 0.75rem; border-radius: 8px; border-left: 4px solid;
+  background: #F9FAFB;
+}
+.hiw__tier strong { font-family: 'Sora', sans-serif; font-size: 0.85rem; display: block; margin-bottom: 0.2rem; }
+.hiw__tier p { font-family: 'Inter', sans-serif; font-size: 0.75rem; color: #6B7280; margin: 0; }
+
+.hiw__edu-flow {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: center;
+}
+.hiw__edu-step {
+  padding: 0.75rem 1rem; border-radius: 8px; min-width: 160px; max-width: 220px;
+}
+.hiw__edu-step--pass { background: #F0FDF4; border: 1px solid #A7F3D0; }
+.hiw__edu-step--fail { background: #FEF2F2; border: 1px solid #FECACA; }
+.hiw__edu-step--warn { background: #FFFBEB; border: 1px solid #FDE68A; }
+.hiw__edu-step strong { font-family: 'Sora', sans-serif; font-size: 0.82rem; display: block; margin-bottom: 0.2rem; }
+.hiw__edu-step p { font-family: 'Inter', sans-serif; font-size: 0.75rem; color: #374151; margin: 0; }
+.hiw__edu-arrow { font-size: 1.2rem; color: #9CA3AF; }
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .rewards__hero-stats { flex-wrap: wrap; gap: 1rem; }
+  .rewards__store-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .rewards__badges-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .pay-prog__current-grid { grid-template-columns: repeat(2, 1fr); }
+  .pay-prog__rates-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .hiw__two-col { grid-template-columns: 1fr; }
+  .hiw__pay-paths { grid-template-columns: 1fr 1fr; }
+  .pay-prog__incentive-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .rewards__hero-amount { font-size: 2rem; }
+  .pay-prog__current-grid { grid-template-columns: 1fr 1fr; }
+  .pay-prog__timeline { flex-wrap: wrap; }
+}

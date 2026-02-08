@@ -3,6 +3,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { awardXP } from '@/lib/xp';
 
 /* ============= MATH TEMPLATE HELPERS ============= */
 
@@ -430,6 +431,60 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
           });
         }
       } catch { /* ignore - credits are optional */ }
+
+      // --- XP Award for passing quiz ---
+      try {
+        const moduleForXP = module_id || null;
+        if (moduleForXP) {
+          // Check if module already completed (don't double-award XP for same module)
+          const { data: existingCompletion } = await supabaseAdmin.from('module_completions')
+            .select('id').eq('user_email', session.user.email)
+            .eq('module_id', moduleForXP).eq('is_current', true).maybeSingle();
+
+          if (!existingCompletion) {
+            // Look up XP config for this module (specific first, then default)
+            let xpValue = 500; // fallback default
+            let expiryMonths = 18;
+            const moduleType = type === 'exam_prep' ? 'fs_module' : 'learning_module';
+
+            const { data: specificConfig } = await supabaseAdmin.from('module_xp_config')
+              .select('xp_value, expiry_months').eq('module_type', moduleType)
+              .eq('module_id', moduleForXP).eq('is_active', true).maybeSingle();
+
+            if (specificConfig) {
+              xpValue = specificConfig.xp_value;
+              expiryMonths = specificConfig.expiry_months;
+            } else {
+              const { data: defaultConfig } = await supabaseAdmin.from('module_xp_config')
+                .select('xp_value, expiry_months').eq('module_type', moduleType)
+                .is('module_id', null).eq('is_active', true).maybeSingle();
+              if (defaultConfig) {
+                xpValue = defaultConfig.xp_value;
+                expiryMonths = defaultConfig.expiry_months;
+              }
+            }
+
+            // Award XP
+            const expiresAt = new Date();
+            expiresAt.setMonth(expiresAt.getMonth() + expiryMonths);
+
+            await awardXP(
+              session.user.email, xpValue, 'module_complete', moduleType, moduleForXP,
+              `Module completed: quiz passed with ${scorePercent}% (+${xpValue} XP)`
+            );
+
+            // Record module completion with expiry
+            await supabaseAdmin.from('module_completions').insert({
+              user_email: session.user.email,
+              module_type: moduleType,
+              module_id: moduleForXP,
+              xp_earned: xpValue,
+              expires_at: expiresAt.toISOString(),
+              is_current: true,
+            });
+          }
+        }
+      } catch { /* ignore - XP awards are supplementary */ }
     }
   }
 

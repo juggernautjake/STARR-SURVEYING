@@ -18,6 +18,7 @@ import '../styles/AdminFieldWork.css';
 import '../styles/AdminPayroll.css';
 import '../styles/AdminErrors.css';
 import '../styles/AdminAssignments.css';
+import '../styles/AdminRewards.css';
 import '../styles/AdminTimeLogs.css';
 import '../styles/AdminEmployeeManage.css';
 import '../styles/AdminSchedule.css';
@@ -31,7 +32,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/learn/flashcards': 'Flashcards',
   '/admin/learn/flashcards/create': 'Create Flashcards',
   '/admin/learn/exam-prep': 'Exam Prep',
-  '/admin/learn/exam-prep/sit': 'SIT Exam Prep',
+  '/admin/learn/exam-prep/sit': 'FS Exam Prep',
+  '/admin/learn/exam-prep/sit/mock-exam': 'FS Mock Exam',
   '/admin/learn/exam-prep/rpls': 'RPLS Exam Prep',
   '/admin/learn/search': 'Search',
   '/admin/learn/quiz-history': 'Quiz History',
@@ -56,6 +58,11 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/messages/new': 'New Message',
   '/admin/messages/contacts': 'Team Directory',
   '/admin/messages/settings': 'Message Settings',
+  '/admin/rewards': 'Rewards & Store',
+  '/admin/rewards/how-it-works': 'How Rewards Work',
+  '/admin/rewards/store': 'Company Store',
+  '/admin/rewards/admin': 'Manage Rewards',
+  '/admin/pay-progression': 'Pay Progression',
   '/admin/error-log': 'Error Log',
   '/admin/assignments': 'Assignments',
   '/admin/schedule': 'My Schedule',
@@ -65,6 +72,7 @@ const PAGE_TITLES: Record<string, string> = {
 
 function getTitle(p: string): string {
   if (PAGE_TITLES[p]) return PAGE_TITLES[p];
+  if (p.includes('/exam-prep/sit/module/')) return 'FS Module Study';
   if (p.includes('/lesson-builder/')) return 'Lesson Builder';
   if (p.includes('/quiz')) return 'Quiz';
   if (p.includes('/test')) return 'Module Test';

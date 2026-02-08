@@ -7,9 +7,10 @@ import { usePageError } from '../../hooks/usePageError';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
-type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards';
+type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config';
 
-interface Module { id: string; title: string; status: string; order_index: number; description: string; difficulty: string; estimated_hours: number; lesson_count?: number; }
+interface Module { id: string; title: string; status: string; order_index: number; description: string; difficulty: string; estimated_hours: number; lesson_count?: number; xp_value?: number; expiry_months?: number; }
+interface XPModuleConfig { id: string; title: string; difficulty?: string; order_index?: number; module_number?: number; module_type: string; xp_value: number; expiry_months: number; difficulty_rating: number; has_custom_xp: boolean; config_id: string | null; }
 interface Lesson { id: string; title: string; module_id: string; order_index: number; status: string; estimated_minutes: number; module_title?: string; }
 interface Article { id: string; title: string; slug: string; category: string; status: string; }
 interface Question { id: string; question_text: string; question_type: string; module_id?: string; lesson_id?: string; exam_category?: string; difficulty: string; correct_answer: string; options: any; explanation?: string; }
@@ -28,6 +29,11 @@ export default function ManageContentPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [xpLearningModules, setXpLearningModules] = useState<XPModuleConfig[]>([]);
+  const [xpFsModules, setXpFsModules] = useState<XPModuleConfig[]>([]);
+  const [xpDefaults, setXpDefaults] = useState<{ learning_module: { xp_value: number; expiry_months: number }; fs_module: { xp_value: number; expiry_months: number } }>({ learning_module: { xp_value: 500, expiry_months: 18 }, fs_module: { xp_value: 500, expiry_months: 24 } });
+  const [xpEditing, setXpEditing] = useState<Record<string, { xp_value: number; expiry_months: number }>>({});
+  const [xpSaving, setXpSaving] = useState(false);
 
   // Create forms
   const [showForm, setShowForm] = useState(false);
@@ -71,6 +77,16 @@ export default function ManageContentPage() {
         case 'flashcards': {
           const res = await fetch('/api/admin/learn/flashcards?source=builtin');
           if (res.ok) { const d = await res.json(); setFlashcards(d.cards || []); }
+          break;
+        }
+        case 'xp_config': {
+          const res = await fetch('/api/admin/learn/xp-config');
+          if (res.ok) {
+            const d = await res.json();
+            setXpLearningModules(d.learning_modules || []);
+            setXpFsModules(d.fs_modules || []);
+            if (d.defaults) setXpDefaults(d.defaults);
+          }
           break;
         }
       }
@@ -167,12 +183,45 @@ export default function ManageContentPage() {
     );
   }
 
+  async function handleSaveXP() {
+    if (!isAdmin || Object.keys(xpEditing).length === 0) return;
+    setXpSaving(true);
+    try {
+      const updates = Object.entries(xpEditing).map(([key, vals]) => {
+        const [moduleType, moduleId] = key.split('::');
+        return { module_type: moduleType, module_id: moduleId, xp_value: vals.xp_value, expiry_months: vals.expiry_months };
+      });
+      const res = await fetch('/api/admin/learn/xp-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      });
+      if (res.ok) {
+        setXpEditing({});
+        loadData();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to save XP config');
+      }
+    } catch { alert('Failed to save XP config'); }
+    setXpSaving(false);
+  }
+
+  function startEditXP(moduleType: string, moduleId: string, current: { xp_value: number; expiry_months: number }) {
+    setXpEditing(prev => ({ ...prev, [`${moduleType}::${moduleId}`]: { ...current } }));
+  }
+
+  function updateEditXP(key: string, field: 'xp_value' | 'expiry_months', value: number) {
+    setXpEditing(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+  }
+
   const tabs: { key: Tab; label: string; icon: string }[] = [
     { key: 'modules', label: 'Modules', icon: '📚' },
     { key: 'lessons', label: 'Lessons', icon: '📖' },
     { key: 'articles', label: 'Articles', icon: '📄' },
     { key: 'questions', label: 'Questions', icon: '❓' },
     { key: 'flashcards', label: 'Flashcards', icon: '🃏' },
+    { key: 'xp_config', label: 'XP Config', icon: '⭐' },
   ];
 
   return (
@@ -195,7 +244,7 @@ export default function ManageContentPage() {
       {/* Toolbar */}
       <div className="manage__toolbar">
         <span style={{ fontSize: '.85rem', color: '#6B7280' }}>
-          {loading ? 'Loading...' : `${tab === 'modules' ? modules.length : tab === 'lessons' ? lessons.length : tab === 'articles' ? articles.length : tab === 'questions' ? questions.length : flashcards.length} items`}
+          {loading ? 'Loading...' : `${tab === 'modules' ? modules.length : tab === 'lessons' ? lessons.length : tab === 'articles' ? articles.length : tab === 'questions' ? questions.length : tab === 'xp_config' ? xpLearningModules.length + xpFsModules.length : flashcards.length} items`}
         </span>
         {tab === 'questions' ? (
           <Link href="/admin/learn/manage/question-builder" className="admin-btn admin-btn--primary admin-btn--sm">
@@ -297,6 +346,7 @@ export default function ManageContentPage() {
                 <div className="manage__item-meta">
                   <span className={`manage__status manage__status--${m.status}`}>{m.status}</span>
                   {' '}{m.difficulty} · {m.estimated_hours}h · {m.lesson_count || 0} lessons
+                  {m.xp_value && <span style={{ marginLeft: '0.5rem', color: '#10B981', fontWeight: 600 }}>{m.xp_value} XP</span>}
                 </div>
               </div>
               <div className="manage__item-actions">
@@ -368,6 +418,93 @@ export default function ManageContentPage() {
               </div>
             </div>
           ))}
+
+          {tab === 'xp_config' && (
+            <div>
+              {Object.keys(xpEditing).length > 0 && (
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveXP} disabled={xpSaving}>
+                    {xpSaving ? 'Saving...' : `Save ${Object.keys(xpEditing).length} Changes`}
+                  </button>
+                  <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setXpEditing({})}>Cancel</button>
+                </div>
+              )}
+
+              <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.9rem', margin: '0.5rem 0', color: '#1D3095' }}>
+                Learning Modules ({xpLearningModules.length})
+              </h4>
+              <p style={{ fontSize: '0.78rem', color: '#6B7280', marginBottom: '0.75rem' }}>
+                Default: {xpDefaults.learning_module.xp_value} XP, {xpDefaults.learning_module.expiry_months} month expiry. Click a module to customize.
+              </p>
+              {xpLearningModules.map(m => {
+                const editKey = `learning_module::${m.id}`;
+                const editing = xpEditing[editKey];
+                return (
+                  <div key={m.id} className="manage__item" style={{ cursor: 'pointer' }} onClick={() => !editing && startEditXP('learning_module', m.id, { xp_value: m.xp_value, expiry_months: m.expiry_months })}>
+                    <div className="manage__item-info">
+                      <div className="manage__item-title">
+                        <span className="manage__item-order">{m.order_index}</span> {m.title}
+                      </div>
+                      <div className="manage__item-meta">
+                        {m.difficulty} · {m.has_custom_xp ? 'Custom' : 'Default'}
+                        {editing ? (
+                          <span style={{ display: 'inline-flex', gap: '0.4rem', marginLeft: '0.5rem' }} onClick={e => e.stopPropagation()}>
+                            <input type="number" value={editing.xp_value} onChange={e => updateEditXP(editKey, 'xp_value', parseInt(e.target.value) || 0)}
+                              style={{ width: '70px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: '1px solid #D1D5DB', borderRadius: '4px' }} />
+                            <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>XP</span>
+                            <input type="number" value={editing.expiry_months} onChange={e => updateEditXP(editKey, 'expiry_months', parseInt(e.target.value) || 0)}
+                              style={{ width: '50px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: '1px solid #D1D5DB', borderRadius: '4px' }} />
+                            <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>mo</span>
+                          </span>
+                        ) : (
+                          <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: '#10B981' }}>{m.xp_value} XP · {m.expiry_months}mo</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {xpFsModules.length > 0 && (
+                <>
+                  <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.9rem', margin: '1.25rem 0 0.5rem', color: '#1D3095' }}>
+                    FS Prep Modules ({xpFsModules.length})
+                  </h4>
+                  <p style={{ fontSize: '0.78rem', color: '#6B7280', marginBottom: '0.75rem' }}>
+                    Default: {xpDefaults.fs_module.xp_value} XP, {xpDefaults.fs_module.expiry_months} month expiry.
+                  </p>
+                  {xpFsModules.map(m => {
+                    const editKey = `fs_module::${m.id}`;
+                    const editing = xpEditing[editKey];
+                    return (
+                      <div key={m.id} className="manage__item" style={{ cursor: 'pointer' }} onClick={() => !editing && startEditXP('fs_module', m.id, { xp_value: m.xp_value, expiry_months: m.expiry_months })}>
+                        <div className="manage__item-info">
+                          <div className="manage__item-title">
+                            <span className="manage__item-order">{m.module_number}</span> {m.title}
+                          </div>
+                          <div className="manage__item-meta">
+                            {m.has_custom_xp ? 'Custom' : 'Default'}
+                            {editing ? (
+                              <span style={{ display: 'inline-flex', gap: '0.4rem', marginLeft: '0.5rem' }} onClick={e => e.stopPropagation()}>
+                                <input type="number" value={editing.xp_value} onChange={e => updateEditXP(editKey, 'xp_value', parseInt(e.target.value) || 0)}
+                                  style={{ width: '70px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: '1px solid #D1D5DB', borderRadius: '4px' }} />
+                                <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>XP</span>
+                                <input type="number" value={editing.expiry_months} onChange={e => updateEditXP(editKey, 'expiry_months', parseInt(e.target.value) || 0)}
+                                  style={{ width: '50px', padding: '0.15rem 0.3rem', fontSize: '0.78rem', border: '1px solid #D1D5DB', borderRadius: '4px' }} />
+                                <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>mo</span>
+                              </span>
+                            ) : (
+                              <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: '#10B981' }}>{m.xp_value} XP · {m.expiry_months}mo</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          )}
 
           {/* Empty states */}
           {tab === 'modules' && modules.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">📚</div><div className="admin-empty__title">No modules yet</div></div>}
