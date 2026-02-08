@@ -181,13 +181,14 @@ export default function LearnHubPage() {
           <span className="admin-learn__section-arrow">Study Flashcards →</span>
         </Link>
 
-        <Link href="/admin/learn/exam-prep" className="admin-learn__section-card">
+        <Link href="/admin/learn/exam-prep" className="admin-learn__section-card" style={{ borderColor: '#BD1218', borderWidth: '2px' }}>
           <span className="admin-learn__section-icon">📝</span>
-          <h3 className="admin-learn__section-title">Exam Prep (SIT / RPLS)</h3>
+          <h3 className="admin-learn__section-title">Exam Prep (FS / RPLS)</h3>
           <p className="admin-learn__section-desc">
-            Practice for the Surveyor Intern Test (SIT) and Registered Professional Land Surveyor (RPLS) exams with randomized practice tests.
+            Comprehensive FS exam preparation with 8 study modules, 270+ practice questions, timed mock exams, and progress tracking.
+            Complete module quizzes to unlock the next level.
           </p>
-          <span className="admin-learn__section-arrow">Start Exam Prep →</span>
+          <span className="admin-learn__section-arrow" style={{ color: '#BD1218' }}>Start Exam Prep →</span>
         </Link>
 
         <Link href="/admin/learn/fieldbook" className="admin-learn__section-card">
