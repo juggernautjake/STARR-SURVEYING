@@ -2,6 +2,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePageError } from '../../../hooks/usePageError';
 
 interface MediaItem {
   id: string; title: string; caption?: string; media_type: string; url: string;
@@ -13,6 +14,7 @@ interface MediaItem {
 type FilterType = 'all' | 'image' | 'video' | 'audio' | 'document' | 'url';
 
 export default function MediaLibraryPage() {
+  const { safeFetch } = usePageError('MediaLibraryPage');
   const router = useRouter();
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,11 +44,8 @@ export default function MediaLibraryPage() {
     const params = new URLSearchParams();
     if (filter !== 'all') params.set('type', filter);
     if (search) params.set('search', search);
-    try {
-      const res = await fetch(`/api/admin/media?${params}`);
-      const data = await res.json();
-      setMedia(data.media || []);
-    } catch { /* ignore */ }
+    const data = await safeFetch<{ media: MediaItem[] }>(`/api/admin/media?${params}`);
+    if (data) setMedia(data.media || []);
     setLoading(false);
   }
 
@@ -72,59 +71,57 @@ export default function MediaLibraryPage() {
   async function submitUpload() {
     if (!uploadUrl && !uploadTitle) return;
     setUploading(true);
-    try {
-      const res = await fetch('/api/admin/media', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: uploadTitle || 'Untitled',
-          caption: uploadCaption || null,
-          media_type: uploadType,
-          url: uploadUrl.startsWith('data:') ? undefined : uploadUrl,
-          data_url: uploadUrl.startsWith('data:') ? uploadUrl : undefined,
-          alt_text: uploadAlt || null,
-          link_url: uploadLinkUrl || null,
-          is_clickable: uploadClickable,
-          resolution: uploadResolution,
-          tags: uploadTags.split(',').map(t => t.trim()).filter(Boolean),
-        }),
-      });
-      if (res.ok) {
-        resetUploadForm();
-        setShowUpload(false);
-        fetchMedia();
-      }
-    } catch { /* ignore */ }
+    const result = await safeFetch('/api/admin/media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: uploadTitle || 'Untitled',
+        caption: uploadCaption || null,
+        media_type: uploadType,
+        url: uploadUrl.startsWith('data:') ? undefined : uploadUrl,
+        data_url: uploadUrl.startsWith('data:') ? uploadUrl : undefined,
+        alt_text: uploadAlt || null,
+        link_url: uploadLinkUrl || null,
+        is_clickable: uploadClickable,
+        resolution: uploadResolution,
+        tags: uploadTags.split(',').map(t => t.trim()).filter(Boolean),
+      }),
+    });
+    if (result) {
+      resetUploadForm();
+      setShowUpload(false);
+      fetchMedia();
+    }
     setUploading(false);
   }
 
   async function updateMedia() {
     if (!editItem) return;
-    try {
-      await fetch('/api/admin/media', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editItem.id,
-          title: editItem.title,
-          caption: editItem.caption,
-          alt_text: editItem.alt_text,
-          tags: editItem.tags,
-          link_url: editItem.link_url,
-          is_clickable: editItem.is_clickable,
-          resolution: editItem.resolution,
-        }),
-      });
+    const result = await safeFetch('/api/admin/media', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editItem.id,
+        title: editItem.title,
+        caption: editItem.caption,
+        alt_text: editItem.alt_text,
+        tags: editItem.tags,
+        link_url: editItem.link_url,
+        is_clickable: editItem.is_clickable,
+        resolution: editItem.resolution,
+      }),
+    });
+    if (result) {
       setEditItem(null);
       fetchMedia();
-    } catch { /* ignore */ }
+    }
   }
 
   async function deleteMedia(id: string, permanent = false) {
     const msg = permanent ? 'Permanently delete this item? This cannot be undone.' : 'Move this item to the recycle bin?';
     if (!confirm(msg)) return;
-    await fetch(`/api/admin/media?id=${id}&permanent=${permanent}`, { method: 'DELETE' });
-    fetchMedia();
+    const result = await safeFetch(`/api/admin/media?id=${id}&permanent=${permanent}`, { method: 'DELETE' });
+    if (result) fetchMedia();
   }
 
   function resetUploadForm() {
