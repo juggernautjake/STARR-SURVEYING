@@ -251,15 +251,15 @@ ALTER TABLE scheduled_bonuses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_pay_periods ENABLE ROW LEVEL SECURITY;
 
 -- Service role bypass for all tables
-CREATE POLICY "service_role_all_wtr" ON work_type_rates FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_rt" ON role_tiers FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_sb" ON seniority_brackets FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_cb" ON credential_bonuses FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_eec" ON employee_earned_credentials FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_dtl" ON daily_time_logs FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_par" ON pay_advance_requests FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_sbo" ON scheduled_bonuses FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "service_role_all_wpp" ON weekly_pay_periods FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN CREATE POLICY "service_role_all_wtr" ON work_type_rates FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "service_role_all_rt" ON role_tiers FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "service_role_all_sb" ON seniority_brackets FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "service_role_all_cb" ON credential_bonuses FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "service_role_all_eec" ON employee_earned_credentials FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "service_role_all_dtl" ON daily_time_logs FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "service_role_all_par" ON pay_advance_requests FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "service_role_all_sbo" ON scheduled_bonuses FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "service_role_all_wpp" ON weekly_pay_periods FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- ══════════════════════════════════════════════
 -- PAY CALCULATION REFERENCE

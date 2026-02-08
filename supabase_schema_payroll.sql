@@ -261,17 +261,17 @@ ALTER TABLE balance_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE withdrawal_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE job_payment_allocations ENABLE ROW LEVEL SECURITY;
 
--- Service role bypass
-CREATE POLICY "Service role bypass employee_profiles" ON employee_profiles FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass employee_certifications" ON employee_certifications FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass pay_rate_standards" ON pay_rate_standards FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass pay_raises" ON pay_raises FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass role_pay_adjustments" ON role_pay_adjustments FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass payroll_runs" ON payroll_runs FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass pay_stubs" ON pay_stubs FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass balance_transactions" ON balance_transactions FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass withdrawal_requests" ON withdrawal_requests FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "Service role bypass job_payment_allocations" ON job_payment_allocations FOR ALL USING (auth.role() = 'service_role');
+-- Service role bypass — wrapped in DO blocks so re-running is safe
+DO $$ BEGIN CREATE POLICY "Service role bypass employee_profiles" ON employee_profiles FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass employee_certifications" ON employee_certifications FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass pay_rate_standards" ON pay_rate_standards FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass pay_raises" ON pay_raises FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass role_pay_adjustments" ON role_pay_adjustments FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass payroll_runs" ON payroll_runs FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass pay_stubs" ON pay_stubs FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass balance_transactions" ON balance_transactions FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass withdrawal_requests" ON withdrawal_requests FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "Service role bypass job_payment_allocations" ON job_payment_allocations FOR ALL USING (auth.role() = 'service_role'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- Insert default pay rate standards
 INSERT INTO pay_rate_standards (job_title, min_rate, max_rate, default_rate, description) VALUES

@@ -56,7 +56,7 @@ CREATE INDEX IF NOT EXISTS idx_fbc_email ON fieldbook_categories(user_email);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_fbc_unique_name ON fieldbook_categories(user_email, name);
 
 ALTER TABLE fieldbook_categories ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "service_all" ON fieldbook_categories FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN CREATE POLICY "service_all" ON fieldbook_categories FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- Trigger for updated_at
 DO $$ BEGIN
@@ -85,7 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_fec_entry ON fieldbook_entry_categories(entry_id)
 CREATE INDEX IF NOT EXISTS idx_fec_category ON fieldbook_entry_categories(category_id);
 
 ALTER TABLE fieldbook_entry_categories ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "service_all" ON fieldbook_entry_categories FOR ALL USING (true) WITH CHECK (true);
+DO $$ BEGIN CREATE POLICY "service_all" ON fieldbook_entry_categories FOR ALL USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 
 -- ─────────────────────────────────────────────────────────────────────────────

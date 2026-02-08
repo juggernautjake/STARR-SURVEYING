@@ -31,17 +31,17 @@ CREATE INDEX IF NOT EXISTS idx_assignments_due ON assignments(due_date);
 
 ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view own assignments"
+DO $$ BEGIN CREATE POLICY "Users can view own assignments"
   ON assignments FOR SELECT TO authenticated
-  USING (assigned_to = auth.email() OR assigned_by = auth.email());
+  USING (assigned_to = auth.email() OR assigned_by = auth.email()); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-CREATE POLICY "Admins can insert assignments"
+DO $$ BEGIN CREATE POLICY "Admins can insert assignments"
   ON assignments FOR INSERT TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-CREATE POLICY "Users can update own assignments"
+DO $$ BEGIN CREATE POLICY "Users can update own assignments"
   ON assignments FOR UPDATE TO authenticated
-  USING (assigned_to = auth.email() OR assigned_by = auth.email());
+  USING (assigned_to = auth.email() OR assigned_by = auth.email()); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- ─── Notifications ───
 CREATE TABLE IF NOT EXISTS notifications (
@@ -70,17 +70,17 @@ CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at
 
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view own notifications"
+DO $$ BEGIN CREATE POLICY "Users can view own notifications"
   ON notifications FOR SELECT TO authenticated
-  USING (user_email = auth.email());
+  USING (user_email = auth.email()); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-CREATE POLICY "System can insert notifications"
+DO $$ BEGIN CREATE POLICY "System can insert notifications"
   ON notifications FOR INSERT TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-CREATE POLICY "Users can update own notifications"
+DO $$ BEGIN CREATE POLICY "Users can update own notifications"
   ON notifications FOR UPDATE TO authenticated
-  USING (user_email = auth.email());
+  USING (user_email = auth.email()); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- Auto-update timestamps
 CREATE OR REPLACE FUNCTION update_assignments_updated_at()
