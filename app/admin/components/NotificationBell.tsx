@@ -1,4 +1,6 @@
 // app/admin/components/NotificationBell.tsx — Notification bell with badge + dropdown
+// Shows non-message notifications with escalation levels and routing to relevant pages.
+// Message notifications are handled by the FloatingMessenger component instead.
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -14,6 +16,8 @@ interface Notification {
   link: string | null;
   is_read: boolean;
   created_at: string;
+  escalation_level?: string;
+  source_type?: string;
 }
 
 const TYPE_ICONS: Record<string, string> = {
@@ -26,6 +30,14 @@ const TYPE_ICONS: Record<string, string> = {
   approval: '✅',
   mention: '@',
   info: 'ℹ️',
+};
+
+const ESCALATION_COLORS: Record<string, string> = {
+  low: '#10B981',
+  normal: '#6B7280',
+  high: '#F59E0B',
+  urgent: '#EF4444',
+  critical: '#7C3AED',
 };
 
 function timeAgo(dateStr: string): string {
@@ -47,24 +59,30 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = useCallback(async () => {
     if (!session?.user?.email) return;
     try {
-      const res = await fetch('/api/admin/notifications?limit=15');
+      const unreadParam = filter === 'unread' ? '&unread=true' : '';
+      const res = await fetch(`/api/admin/notifications?limit=20${unreadParam}`);
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data.notifications || []);
+        // Filter out message-type notifications (those go to FloatingMessenger)
+        const nonMessageNotifs = (data.notifications || []).filter(
+          (n: Notification) => n.source_type !== 'direct_message' && n.source_type !== 'group_message'
+        );
+        setNotifications(nonMessageNotifs);
         setUnreadCount(data.unread_count || 0);
       }
     } catch { /* silent */ }
-  }, [session]);
+  }, [session, filter]);
 
-  // Poll every 30 seconds
+  // Poll every 20 seconds
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
+    const interval = setInterval(fetchNotifications, 20000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
@@ -143,32 +161,61 @@ export default function NotificationBell() {
         <div className="notif-bell__dropdown">
           <div className="notif-bell__header">
             <h4 className="notif-bell__title">Notifications</h4>
-            {unreadCount > 0 && (
-              <button className="notif-bell__mark-all" onClick={markAllRead} disabled={loading}>
-                Mark all read
+            <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+              {/* Filter toggle */}
+              <button
+                className="notif-bell__mark-all"
+                onClick={() => setFilter(f => f === 'all' ? 'unread' : 'all')}
+                style={{ fontSize: '.68rem' }}
+              >
+                {filter === 'all' ? 'Unread Only' : 'Show All'}
               </button>
-            )}
+              {unreadCount > 0 && (
+                <button className="notif-bell__mark-all" onClick={markAllRead} disabled={loading}>
+                  Mark all read
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="notif-bell__list">
             {notifications.length === 0 ? (
               <div className="notif-bell__empty">
                 <span>🔔</span>
-                <p>No notifications</p>
+                <p>{filter === 'unread' ? 'No unread notifications' : 'No notifications'}</p>
               </div>
             ) : (
               notifications.map(n => {
                 const icon = n.icon || TYPE_ICONS[n.type] || 'ℹ️';
+                const escalationColor = n.escalation_level
+                  ? ESCALATION_COLORS[n.escalation_level] || ESCALATION_COLORS.normal
+                  : undefined;
+                const isUrgent = n.escalation_level === 'urgent' || n.escalation_level === 'critical';
+
                 const inner = (
                   <div
                     className={`notif-bell__item ${!n.is_read ? 'notif-bell__item--unread' : ''}`}
                     onClick={() => handleNotificationClick(n)}
+                    style={isUrgent ? { borderLeft: `3px solid ${escalationColor}` } : undefined}
                   >
                     <span className="notif-bell__item-icon">{icon}</span>
                     <div className="notif-bell__item-content">
                       <span className="notif-bell__item-title">{n.title}</span>
                       {n.body && <span className="notif-bell__item-body">{n.body}</span>}
-                      <span className="notif-bell__item-time">{timeAgo(n.created_at)}</span>
+                      <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+                        <span className="notif-bell__item-time">{timeAgo(n.created_at)}</span>
+                        {n.escalation_level && n.escalation_level !== 'normal' && (
+                          <span style={{
+                            fontSize: '.6rem',
+                            fontWeight: 700,
+                            color: escalationColor,
+                            textTransform: 'uppercase',
+                            letterSpacing: '.3px',
+                          }}>
+                            {n.escalation_level}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <button
                       className="notif-bell__item-dismiss"

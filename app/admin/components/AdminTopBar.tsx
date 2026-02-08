@@ -34,7 +34,7 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
       <div className="admin-topbar__right">
         {/* XP Counter — clickable, links to store */}
         {xp !== null && (
-          <Link href="/admin/rewards/store" className="admin-topbar__xp" title="Click to spend reward points!">
+          <Link href="/admin/rewards" className="admin-topbar__xp" title="Click to spend reward points!">
             <span className="admin-topbar__xp-icon">&#x2B50;</span>
             <span className="admin-topbar__xp-current">{xp.current.toLocaleString()}</span>
             <span className="admin-topbar__xp-sep">/</span>
