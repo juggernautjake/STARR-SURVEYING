@@ -56,6 +56,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const source = searchParams.get('source');
   const dueCount = searchParams.get('due_count');
   const moduleId = searchParams.get('module_id');
+  const discoveredOnly = searchParams.get('discovered') !== 'false'; // Default to discovered only
 
   // Return just the count of due cards
   if (dueCount === 'true') {
@@ -100,7 +101,19 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     userCards = (data || []).map((c: any) => ({ ...c, source: 'user' }));
   }
 
-  const allCards = [...builtIn, ...userCards];
+  let allCards = [...builtIn, ...userCards];
+
+  // Filter to only discovered flashcards (builtin cards the user has unlocked via lesson completion)
+  if (discoveredOnly && !source) {
+    const { data: discoveries } = await supabaseAdmin.from('user_flashcard_discovery')
+      .select('card_id, next_yearly_review_at')
+      .eq('user_email', session.user.email);
+
+    const discoveredIds = new Set((discoveries || []).map((d: any) => d.card_id));
+
+    // Only filter builtin cards by discovery; user-created cards are always visible
+    allCards = allCards.filter((c: any) => c.source === 'user' || discoveredIds.has(c.id));
+  }
 
   // Fetch spaced repetition data for all cards
   const cardIds = allCards.map((c: any) => c.id);
@@ -125,7 +138,20 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     });
   }
 
-  return NextResponse.json({ cards: allCards });
+  // Get discovery stats
+  const { data: totalBuiltin } = await supabaseAdmin.from('flashcards').select('id', { count: 'exact' });
+  const { data: userDiscoveries } = await supabaseAdmin.from('user_flashcard_discovery')
+    .select('id', { count: 'exact' })
+    .eq('user_email', session.user.email);
+
+  return NextResponse.json({
+    cards: allCards,
+    stats: {
+      total_available: totalBuiltin?.length || 0,
+      discovered: userDiscoveries?.length || 0,
+      user_created: userCards.length,
+    },
+  });
 }, { routeName: 'learn/flashcards' });
 
 // POST — Create a user flashcard

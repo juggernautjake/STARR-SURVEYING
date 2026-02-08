@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePageError } from '../../hooks/usePageError';
 
-interface Module { id: string; title: string; description: string; difficulty: string; estimated_hours: number; order_index: number; status: string; lesson_count?: number; }
+interface Module { id: string; title: string; description: string; difficulty: string; estimated_hours: number; order_index: number; status: string; lesson_count?: number; xp_reward?: number; is_fs_required?: boolean; }
 
 export default function ModulesListPage() {
   const { safeFetch, safeAction } = usePageError('ModulesListPage');
@@ -37,8 +37,10 @@ export default function ModulesListPage() {
               <h3 className="modules__card-title">{mod.title}</h3>
               <p className="modules__card-desc">{mod.description}</p>
               <div className="modules__card-meta">
-                <span>⏱ ~{mod.estimated_hours}h</span>
-                {mod.lesson_count !== undefined && <span>📖 {mod.lesson_count} lessons</span>}
+                <span>&#x23F1; ~{mod.estimated_hours}h</span>
+                {mod.lesson_count !== undefined && <span>&#x1F4D6; {mod.lesson_count} lessons</span>}
+                {(mod.xp_reward || 0) > 0 && <span style={{ color: '#10B981', fontWeight: 700 }}>&#x2B50; {mod.xp_reward} XP</span>}
+                {mod.is_fs_required && <span style={{ background: '#EFF6FF', color: '#1D3095', padding: '1px 6px', borderRadius: 4, fontSize: '.68rem', fontWeight: 700 }}>FS REQUIRED</span>}
               </div>
             </Link>
           ))}

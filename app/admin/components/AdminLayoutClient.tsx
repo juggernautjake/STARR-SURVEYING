@@ -39,6 +39,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/learn/quiz-history': 'Quiz History',
   '/admin/learn/manage': 'Manage Content',
   '/admin/learn/manage/question-builder': 'Question Builder',
+  '/admin/learn/manage/media': 'Media Library',
+  '/admin/learn/practice': 'Practice Session',
   '/admin/profile': 'My Profile',
   '/admin/jobs': 'All Jobs',
   '/admin/jobs/new': 'New Job',
