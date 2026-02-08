@@ -922,6 +922,9 @@
   border-color: #1D3095;
 }
 .msg-search__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   background: #1D3095;
   color: #fff;
   border: none;
@@ -929,8 +932,11 @@
   padding: 0.4rem 0.75rem;
   cursor: pointer;
   font-size: 0.85rem;
+  font-weight: 600;
   transition: background 0.15s;
+  white-space: nowrap;
 }
+.msg-search__btn svg { flex-shrink: 0; }
 .msg-search__btn:hover {
   background: #162470;
 }

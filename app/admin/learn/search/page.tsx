@@ -41,10 +41,12 @@ function SearchContent() {
       </div>
       <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '.5rem', maxWidth: '600px' }}>
         <div className="admin-search" style={{ flex: 1, maxWidth: 'none' }}>
-          <span className="admin-search__icon">🔎</span>
           <input type="text" className="admin-search__input" placeholder="Search for any keyword, topic, term..." value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && doSearch(query)} />
         </div>
-        <button className="admin-btn admin-btn--primary" onClick={() => doSearch(query)} disabled={!query.trim()}>Search</button>
+        <button className="admin-search__btn" onClick={() => doSearch(query)} disabled={!query.trim()}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Search
+        </button>
       </div>
 
       {loading && <div className="admin-empty"><div className="admin-empty__icon">⏳</div><div className="admin-empty__title">Searching...</div></div>}

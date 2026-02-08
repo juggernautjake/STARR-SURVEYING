@@ -65,7 +65,6 @@ export default function LearnHubPage() {
 
       {/* Global Search */}
       <div className="admin-search" style={{ maxWidth: '100%', marginBottom: '2rem', position: 'relative' }}>
-        <span className="admin-search__icon">🔍</span>
         <input
           type="text"
           className="admin-search__input"

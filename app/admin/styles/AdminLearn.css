@@ -325,10 +325,10 @@
 .admin-module-detail__back:hover { color:#BD1218; }
 
 /* === ADMIN SEARCH BAR === */
-.admin-search { position:relative; display:flex; align-items:center; background:#FFF; border:2px solid #E5E7EB; border-radius:8px; overflow:hidden; transition:border-color .15s; }
+.admin-search { position:relative; display:flex; align-items:center; background:#FFF; border-radius:8px; transition:border-color .15s; }
 .admin-search:focus-within { border-color:#1D3095; }
-.admin-search__icon { padding:0 .75rem; font-size:1rem; flex-shrink:0; }
-.admin-search__input { flex:1; padding:.65rem .5rem; border:none; outline:none; font-family:'Inter',sans-serif; font-size:.9rem; background:transparent; }
+.admin-search__input { flex:1; padding:.65rem .75rem; border:2px solid #E5E7EB; border-radius:8px; outline:none; font-family:'Inter',sans-serif; font-size:.9rem; background:transparent; }
+.admin-search__input:focus { border-color:#1D3095; }
 .admin-search__input::placeholder { color:#9CA3AF; }
 
 /* === SEARCH DROPDOWN (Learning Hub global search) === */
