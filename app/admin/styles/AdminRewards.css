@@ -199,6 +199,14 @@
 .pay-prog__rate-amount {
   font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 700; color: #1D3095;
 }
+.pay-prog__rate-meta { display:flex; gap:.35rem; justify-content:center; margin-top:.35rem; flex-wrap:wrap; }
+.pay-prog__rate-mult { font-family:'Inter',sans-serif; font-size:.6rem; font-weight:700; padding:.15rem .4rem; border-radius:4px; text-transform:uppercase; }
+.pay-prog__rate-mult--full { background:#DCFCE7; color:#166534; }
+.pay-prog__rate-mult--75 { background:#FEF3C7; color:#92400E; }
+.pay-prog__rate-mult--50 { background:#FEE2E2; color:#991B1B; }
+.pay-prog__rate-cap { font-family:'Inter',sans-serif; font-size:.6rem; font-weight:600; padding:.15rem .4rem; border-radius:4px; background:#F3F4F6; color:#6B7280; }
+.pay-prog__section-note { font-family:'Inter',sans-serif; font-size:.78rem; color:#6B7280; margin-top:.75rem; padding:.65rem .85rem; background:#F9FAFB; border-radius:6px; border-left:3px solid #1D3095; line-height:1.5; }
+.pay-prog__timeline-cap { display:block; font-family:'Inter',sans-serif; font-size:.6rem; font-weight:600; color:#DC2626; margin-top:.1rem; }
 
 /* Timeline */
 .pay-prog__timeline {
@@ -426,6 +434,66 @@
 .hiw__edu-step strong { font-family: 'Sora', sans-serif; font-size: 0.82rem; display: block; margin-bottom: 0.2rem; }
 .hiw__edu-step p { font-family: 'Inter', sans-serif; font-size: 0.75rem; color: #374151; margin: 0; }
 .hiw__edu-arrow { font-size: 1.2rem; color: #9CA3AF; }
+
+/* === PAY TRANSPARENCY === */
+.pay-prog__transparency {
+  display: flex; flex-direction: column; gap: 1.25rem;
+}
+.pay-prog__transparency-block {
+  background: #fff; border: 1px solid #E5E7EB; border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+}
+.pay-prog__transparency-title {
+  font-family: 'Sora', sans-serif; font-size: .95rem; font-weight: 700;
+  color: #1D3095; margin: 0 0 .65rem; border-bottom: 2px solid #EBF0FF;
+  padding-bottom: .45rem;
+}
+.pay-prog__transparency-text {
+  font-family: 'Inter', sans-serif; font-size: .85rem; color: #374151;
+  line-height: 1.6; margin: 0 0 .65rem;
+}
+.pay-prog__transparency-text:last-child { margin-bottom: 0; }
+.pay-prog__transparency-list {
+  font-family: 'Inter', sans-serif; font-size: .85rem; color: #374151;
+  line-height: 1.65; padding-left: 1.5rem; margin: .5rem 0 .5rem;
+}
+.pay-prog__transparency-list li { margin-bottom: .35rem; }
+.pay-prog__transparency-list li strong { color: #0F1419; }
+
+/* Worked Example */
+.pay-prog__example {
+  background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px;
+  overflow: hidden; margin-top: .65rem;
+}
+.pay-prog__example-header {
+  padding: .85rem 1.25rem; background: #EFF6FF; border-bottom: 1px solid #C7D2FE;
+  font-family: 'Inter', sans-serif; font-size: .85rem; color: #1D3095; line-height: 1.5;
+}
+.pay-prog__example-calc { padding: .75rem 1.25rem; }
+.pay-prog__example-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: .4rem 0; border-bottom: 1px solid #F3F4F6;
+  font-family: 'Inter', sans-serif; font-size: .82rem; color: #374151;
+}
+.pay-prog__example-row:last-child { border-bottom: none; }
+.pay-prog__example-row--subtotal {
+  border-top: 2px solid #1D3095; border-bottom: none;
+  margin-top: .25rem; padding-top: .55rem;
+  font-size: .88rem;
+}
+.pay-prog__example-row span:last-child {
+  font-family: 'Sora', sans-serif; font-weight: 600; color: #10B981;
+}
+.pay-prog__example-row--subtotal span:last-child { color: #1D3095; }
+.pay-prog__example-scenarios {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: .75rem; padding: 1rem 1.25rem; border-top: 1px solid #E5E7EB;
+}
+.pay-prog__example-scenario {
+  padding: .85rem; background: #fff; border: 1px solid #E5E7EB; border-radius: 8px;
+  font-family: 'Inter', sans-serif; font-size: .82rem; color: #374151; line-height: 1.55;
+}
+.pay-prog__example-scenario strong { color: #1D3095; }
 
 /* === RESPONSIVE === */
 @media (max-width: 768px) {
