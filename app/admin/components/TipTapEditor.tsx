@@ -10,8 +10,42 @@ import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import TextStyle from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
-import FontFamily from '@tiptap/extension-font-family';
+import { Extension } from '@tiptap/core';
 import { useEffect, useCallback, useState, useRef } from 'react';
+
+// Custom FontFamily extension compatible with TipTap v2.x
+// (The official @tiptap/extension-font-family requires v3.x text-style)
+const FontFamily = Extension.create({
+  name: 'fontFamily',
+  addOptions() {
+    return { types: ['textStyle'] };
+  },
+  addGlobalAttributes() {
+    return [{
+      types: this.options.types,
+      attributes: {
+        fontFamily: {
+          default: null,
+          parseHTML: (element: HTMLElement) => element.style.fontFamily?.replace(/['"]+/g, '') || null,
+          renderHTML: (attributes: Record<string, any>) => {
+            if (!attributes.fontFamily) return {};
+            return { style: `font-family: ${attributes.fontFamily}` };
+          },
+        },
+      },
+    }];
+  },
+  addCommands() {
+    return {
+      setFontFamily: (fontFamily: string) => ({ chain }: any) => {
+        return chain().setMark('textStyle', { fontFamily }).run();
+      },
+      unsetFontFamily: () => ({ chain }: any) => {
+        return chain().setMark('textStyle', { fontFamily: null }).removeEmptyTextStyle().run();
+      },
+    } as any;
+  },
+});
 
 interface TipTapEditorProps {
   content: string;
