@@ -174,7 +174,7 @@ export default function RoadmapPage() {
           const partPct = partTotalLessons > 0 ? Math.round((partCompletedLessons / partTotalLessons) * 100) : 0;
           const partComplete = partPct === 100;
           const partMilestone = partMilestones.find(m => m.part_number === part.num);
-          const isExpanded = expandedParts[part.num] !== false; // default expanded
+          const isExpanded = expandedParts[part.num] === true; // default collapsed
 
           return (
             <div key={part.num} className={`roadmap__part ${partComplete ? 'roadmap__part--complete' : ''}`}>

@@ -49,6 +49,13 @@
 .admin-topbar__role-badge--employee { background:#EFF6FF; color:#1D3095; border:1px solid #BFDBFE; }
 .admin-topbar__signout { display:inline-flex; align-items:center; gap:.4rem; padding:.4rem .85rem; font-family:'Inter',sans-serif; font-size:.8rem; font-weight:600; color:#6B7280; background:#F8F9FA; border:1px solid #E5E7EB; border-radius:6px; cursor:pointer; text-decoration:none; }
 .admin-topbar__signout:hover { background:#FEF2F2; color:#BD1218; border-color:#BD1218; }
+.admin-topbar__username { font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; color:#374151; }
+.admin-topbar__xp { display:inline-flex; align-items:center; gap:.25rem; padding:.3rem .65rem; background:#F8F9FA; border:1px solid #E5E7EB; border-radius:20px; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:700; }
+.admin-topbar__xp-icon { font-size:.85rem; }
+.admin-topbar__xp-current { color:#10B981; }
+.admin-topbar__xp-sep { color:#D1D5DB; font-weight:400; }
+.admin-topbar__xp-total { color:#1D3095; }
+.admin-topbar__xp-label { color:#9CA3AF; font-weight:600; font-size:.68rem; margin-left:.1rem; }
 
 /* === CARD === */
 .admin-card { background:#FFF; border-radius:10px; padding:1.25rem; border:1px solid #E5E7EB; }

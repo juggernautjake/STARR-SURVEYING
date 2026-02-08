@@ -14,6 +14,12 @@ interface Flashcard {
   next_review_at?: string; times_reviewed?: number; times_correct?: number;
 }
 
+interface FlashcardStats {
+  total_available: number;
+  discovered: number;
+  user_created: number;
+}
+
 type FilterMode = 'all' | 'builtin' | 'user' | 'due';
 type ViewMode = 'browse' | 'study' | 'study-setup' | 'create';
 type StudyType = 'term' | 'definition' | 'mixed';
@@ -34,6 +40,7 @@ export default function FlashcardsPage() {
   const [searchingRelated, setSearchingRelated] = useState(false);
   const [shuffled, setShuffled] = useState(false);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [fcStats, setFcStats] = useState<FlashcardStats | null>(null);
   const mountedRef = useRef(true);
 
   // For mixed mode: pre-generate which side shows first for each card
@@ -62,6 +69,7 @@ export default function FlashcardsPage() {
       if (res.ok && mountedRef.current) {
         const data = await res.json();
         setCards(data.cards || []);
+        if (data.stats) setFcStats(data.stats);
       }
     } catch (err) { console.error('FlashcardsPage: failed to fetch cards', err); }
     if (mountedRef.current) {
@@ -491,11 +499,40 @@ export default function FlashcardsPage() {
         ))}
       </div>
 
+      {/* Discovery progress */}
+      {fcStats && fcStats.total_available > 0 && (
+        <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#F0FDF4', borderRadius: '8px', border: '1px solid #BBF7D0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#065F46' }}>
+              Cards Discovered: {fcStats.discovered} / {fcStats.total_available}
+              {fcStats.user_created > 0 && ` + ${fcStats.user_created} custom`}
+            </span>
+            <span style={{ fontSize: '0.75rem', color: '#059669' }}>
+              {Math.round((fcStats.discovered / fcStats.total_available) * 100)}%
+            </span>
+          </div>
+          <div style={{ height: '4px', background: '#D1FAE5', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${Math.round((fcStats.discovered / fcStats.total_available) * 100)}%`, background: '#10B981', borderRadius: '2px', transition: 'width 0.3s' }} />
+          </div>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="admin-empty">
           <div className="admin-empty__icon">&#x1F0CF;</div>
-          <div className="admin-empty__title">{filter === 'due' ? 'No cards due for review' : 'No flashcards yet'}</div>
-          {filter === 'due' && <div className="admin-empty__desc">All caught up! Check back later.</div>}
+          <div className="admin-empty__title">
+            {filter === 'due' ? 'No cards due for review' : 'No flashcards to review'}
+          </div>
+          <div className="admin-empty__desc">
+            {filter === 'due'
+              ? 'All caught up! Check back later.'
+              : 'Complete module lessons to unlock flashcards. As you progress through each lesson, related flashcard terms will be added here for you to study and review.'}
+          </div>
+          {filter !== 'due' && (
+            <Link href="/admin/learn/modules" className="admin-btn admin-btn--primary" style={{ marginTop: '1rem' }}>
+              Go to Modules
+            </Link>
+          )}
         </div>
       ) : (
         <div className="admin-kb__articles">

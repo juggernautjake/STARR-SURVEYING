@@ -7,7 +7,7 @@ import { usePageError } from '../../hooks/usePageError';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
-type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config';
+type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config' | 'recycle_bin';
 
 interface Module { id: string; title: string; status: string; order_index: number; description: string; difficulty: string; estimated_hours: number; lesson_count?: number; xp_value?: number; expiry_months?: number; }
 interface XPModuleConfig { id: string; title: string; difficulty?: string; order_index?: number; module_number?: number; module_type: string; xp_value: number; expiry_months: number; difficulty_rating: number; has_custom_xp: boolean; config_id: string | null; }
@@ -34,6 +34,7 @@ export default function ManageContentPage() {
   const [xpDefaults, setXpDefaults] = useState<{ learning_module: { xp_value: number; expiry_months: number }; fs_module: { xp_value: number; expiry_months: number } }>({ learning_module: { xp_value: 500, expiry_months: 18 }, fs_module: { xp_value: 500, expiry_months: 24 } });
   const [xpEditing, setXpEditing] = useState<Record<string, { xp_value: number; expiry_months: number }>>({});
   const [xpSaving, setXpSaving] = useState(false);
+  const [recycleBin, setRecycleBin] = useState<{ id: string; item_title: string; item_type: string; deleted_by: string; deleted_at: string; original_id: string; original_table: string }[]>([]);
 
   // Create forms
   const [showForm, setShowForm] = useState(false);
@@ -87,6 +88,11 @@ export default function ManageContentPage() {
             setXpFsModules(d.fs_modules || []);
             if (d.defaults) setXpDefaults(d.defaults);
           }
+          break;
+        }
+        case 'recycle_bin': {
+          const res = await fetch('/api/admin/learn/recycle-bin');
+          if (res.ok) { const d = await res.json(); setRecycleBin(d.items || []); }
           break;
         }
       }
@@ -215,13 +221,47 @@ export default function ManageContentPage() {
     setXpEditing(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
   }
 
+  async function handleDelete(itemType: string, itemId: string, itemTitle: string) {
+    if (!confirm(`Move "${itemTitle}" to the recycle bin? You can restore it later.`)) return;
+    try {
+      const res = await fetch('/api/admin/learn/recycle-bin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_type: itemType, item_id: itemId }),
+      });
+      if (res.ok) loadData();
+      else { const err = await res.json(); alert(err.error || 'Failed to delete'); }
+    } catch { alert('Failed to delete'); }
+  }
+
+  async function handleRestore(recycleId: string) {
+    if (!confirm('Restore this item?')) return;
+    try {
+      const res = await fetch('/api/admin/learn/recycle-bin', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: recycleId, action: 'restore' }),
+      });
+      if (res.ok) loadData();
+    } catch { /* ignore */ }
+  }
+
+  async function handlePermanentDelete(recycleId: string, title: string) {
+    if (!confirm(`PERMANENTLY delete "${title}"? This cannot be undone!`)) return;
+    try {
+      await fetch(`/api/admin/learn/recycle-bin?id=${recycleId}`, { method: 'DELETE' });
+      loadData();
+    } catch { /* ignore */ }
+  }
+
   const tabs: { key: Tab; label: string; icon: string }[] = [
-    { key: 'modules', label: 'Modules', icon: '📚' },
-    { key: 'lessons', label: 'Lessons', icon: '📖' },
-    { key: 'articles', label: 'Articles', icon: '📄' },
-    { key: 'questions', label: 'Questions', icon: '❓' },
-    { key: 'flashcards', label: 'Flashcards', icon: '🃏' },
-    { key: 'xp_config', label: 'XP Config', icon: '⭐' },
+    { key: 'modules', label: 'Modules', icon: '\u{1F4DA}' },
+    { key: 'lessons', label: 'Lessons', icon: '\u{1F4D6}' },
+    { key: 'articles', label: 'Articles', icon: '\u{1F4C4}' },
+    { key: 'questions', label: 'Questions', icon: '\u{2753}' },
+    { key: 'flashcards', label: 'Flashcards', icon: '\u{1F0CF}' },
+    { key: 'xp_config', label: 'XP Config', icon: '\u{2B50}' },
+    { key: 'recycle_bin', label: `Recycle Bin${recycleBin.length > 0 ? ` (${recycleBin.length})` : ''}`, icon: '\u{1F5D1}' },
   ];
 
   return (
@@ -351,6 +391,7 @@ export default function ManageContentPage() {
               </div>
               <div className="manage__item-actions">
                 <Link href={`/admin/learn/modules/${m.id}`} className="manage__item-btn">View</Link>
+                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('module', m.id, m.title)}>Delete</button>
               </div>
             </div>
           ))}
@@ -369,6 +410,7 @@ export default function ManageContentPage() {
                   Edit in Builder
                 </Link>
                 <Link href={`/admin/learn/modules/${l.module_id}/${l.id}`} className="manage__item-btn">View</Link>
+                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('lesson', l.id, l.title)}>Delete</button>
               </div>
             </div>
           ))}
@@ -384,6 +426,7 @@ export default function ManageContentPage() {
               </div>
               <div className="manage__item-actions">
                 <Link href={`/admin/learn/knowledge-base/${a.slug}`} className="manage__item-btn">View</Link>
+                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('article', a.id, a.title)}>Delete</button>
               </div>
             </div>
           ))}
@@ -404,6 +447,9 @@ export default function ManageContentPage() {
                   {q.exam_category && ` · ${q.exam_category}`}
                 </div>
               </div>
+              <div className="manage__item-actions">
+                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>
+              </div>
             </div>
           ))}
 
@@ -415,6 +461,9 @@ export default function ManageContentPage() {
                   {f.definition.substring(0, 80)}{f.definition.length > 80 ? '...' : ''}
                   {f.hint_1 && ' · Has hints'}
                 </div>
+              </div>
+              <div className="manage__item-actions">
+                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>
               </div>
             </div>
           ))}
@@ -511,6 +560,30 @@ export default function ManageContentPage() {
           {tab === 'lessons' && lessons.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">📖</div><div className="admin-empty__title">No lessons yet</div></div>}
           {tab === 'articles' && articles.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">📄</div><div className="admin-empty__title">No articles yet</div></div>}
           {tab === 'flashcards' && flashcards.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">🃏</div><div className="admin-empty__title">No built-in flashcards yet</div></div>}
+
+          {tab === 'recycle_bin' && recycleBin.length === 0 && (
+            <div className="admin-empty">
+              <div className="admin-empty__icon">&#x1F5D1;</div>
+              <div className="admin-empty__title">Recycle bin is empty</div>
+              <div className="admin-empty__desc">Deleted items will appear here for 90 days before being permanently removed.</div>
+            </div>
+          )}
+          {tab === 'recycle_bin' && recycleBin.map(item => (
+            <div key={item.id} className="manage__item">
+              <div className="manage__item-info">
+                <div className="manage__item-title" style={{ textDecoration: 'line-through', opacity: 0.7 }}>{item.item_title}</div>
+                <div className="manage__item-meta">
+                  <span style={{ textTransform: 'capitalize' }}>{item.item_type}</span>
+                  {' · Deleted by '}{item.deleted_by}
+                  {' · '}{new Date(item.deleted_at).toLocaleDateString()}
+                </div>
+              </div>
+              <div className="manage__item-actions">
+                <button className="manage__item-btn manage__item-btn--primary" onClick={() => handleRestore(item.id)}>Restore</button>
+                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handlePermanentDelete(item.id, item.item_title)}>Permanently Delete</button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </>

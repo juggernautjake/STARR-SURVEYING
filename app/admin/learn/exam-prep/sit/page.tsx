@@ -169,7 +169,7 @@ export default function FSPrepHubPage() {
 
           <div className="fs-prep__stats-grid">
             <div className="fs-prep__stat">
-              <span className="fs-prep__stat-value">{stats.completed_modules}/{stats.total_modules}</span>
+              <span className="fs-prep__stat-value">{stats.completed_modules}/{stats.total_modules || 8}</span>
               <span className="fs-prep__stat-label">Modules Complete</span>
             </div>
             <div className="fs-prep__stat">
@@ -177,8 +177,8 @@ export default function FSPrepHubPage() {
               <span className="fs-prep__stat-label">Avg Quiz Score</span>
             </div>
             <div className="fs-prep__stat">
-              <span className="fs-prep__stat-value">{stats.total_quiz_attempts}</span>
-              <span className="fs-prep__stat-label">Quizzes Taken</span>
+              <span className="fs-prep__stat-value">{stats.best_mock_score > 0 ? `${stats.best_mock_score}%` : '--'}</span>
+              <span className="fs-prep__stat-label">Best Mock Score</span>
             </div>
             <div className="fs-prep__stat">
               <span className="fs-prep__stat-value">{stats.mock_exams_taken}</span>

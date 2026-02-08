@@ -71,5 +71,27 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   } catch { /* ignore - credits are optional, unique constraint prevents duplicates */ }
 
+  // Auto-discover flashcards associated with this lesson/module
+  try {
+    // Find flashcards tagged with this lesson or module
+    const { data: relatedCards } = await supabaseAdmin.from('flashcards')
+      .select('id')
+      .or(`lesson_id.eq.${lesson_id},module_id.eq.${module_id}`);
+
+    if (relatedCards && relatedCards.length > 0) {
+      const discoveries = relatedCards.map((card: { id: string }) => ({
+        user_email: session.user.email,
+        card_id: card.id,
+        card_source: 'builtin',
+        lesson_id: lesson_id || null,
+        module_id: module_id || null,
+        next_yearly_review_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      }));
+      // Upsert to avoid duplicates
+      await supabaseAdmin.from('user_flashcard_discovery')
+        .upsert(discoveries, { onConflict: 'user_email,card_id' });
+    }
+  } catch { /* ignore - discovery is optional */ }
+
   return NextResponse.json({ progress: data });
 }, { routeName: 'learn/progress' });
