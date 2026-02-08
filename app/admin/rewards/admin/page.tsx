@@ -604,7 +604,7 @@ export default function AdminRewardsPage() {
                     <strong>{c.key.replace(/_/g, ' ')}</strong>
                     <span className="mng__row-meta">{c.description}</span>
                   </div>
-                  <span className="mng__rate-badge">{c.key.includes('interval') ? c.value.toLocaleString() : `$${c.value.toFixed(2)}`}</span>
+                  <span className="mng__rate-badge">{c.key.includes('interval') || c.key.includes('threshold') ? c.value.toLocaleString() : c.key.includes('multiplier') ? `${c.value}x` : `$${c.value.toFixed(2)}`}</span>
                 </div>
               )}
             </div>
