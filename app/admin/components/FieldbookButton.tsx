@@ -59,7 +59,7 @@ export default function FieldbookButton({
     <>
       {/* Floating Button */}
       <button
-        className="fieldbook-fab"
+        className="fieldbook-inline-btn"
         onClick={() => setOpen(true)}
         title="Write in Fieldbook"
       >

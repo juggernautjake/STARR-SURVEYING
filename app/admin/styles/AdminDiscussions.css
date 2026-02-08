@@ -3,13 +3,13 @@
   For flagging content issues, errors, and improvement suggestions
 ==============================================================================*/
 
-/* === FLOATING ACTION BUTTON === */
-.discussion-fab-wrap { position:fixed; bottom:6rem; right:2rem; z-index:90; display:flex; align-items:center; gap:0; }
-.discussion-fab { width:48px; height:48px; border-radius:50%; background:#F59E0B; color:#FFF; border:none; font-size:1.25rem; cursor:pointer; box-shadow:0 4px 16px rgba(245,158,11,.35); transition:all .2s; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; }
-.discussion-fab:hover { background:#D97706; transform:scale(1.08); }
-.discussion-fab-tooltip { position:absolute; right:54px; white-space:nowrap; background:#FEF3C7; color:#92400E; font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; padding:.45rem .85rem; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.1); opacity:0; transform:translateX(8px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
-.discussion-fab-tooltip::after { content:''; position:absolute; right:-6px; top:50%; transform:translateY(-50%); border:6px solid transparent; border-left-color:#FEF3C7; border-right:none; }
-.discussion-fab-wrap:hover .discussion-fab-tooltip { opacity:1; transform:translateX(0); }
+/* === FLOATING ACTION BUTTON — middle in the bottom-right toolbar row === */
+.discussion-fab-wrap { position:fixed; bottom:1.5rem; right:calc(1.5rem + 60px); z-index:90; display:flex; flex-direction:column; align-items:center; }
+.discussion-fab { width:48px; height:48px; border-radius:12px; background:#F59E0B; color:#FFF; border:none; font-size:1.2rem; cursor:pointer; box-shadow:0 4px 16px rgba(245,158,11,.35); transition:all .2s; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; }
+.discussion-fab:hover { background:#D97706; transform:translateY(-2px); box-shadow:0 6px 20px rgba(245,158,11,.45); }
+.discussion-fab-tooltip { position:absolute; bottom:calc(100% + 8px); white-space:nowrap; background:#FEF3C7; color:#92400E; font-family:'Inter',sans-serif; font-size:.75rem; font-weight:600; padding:.35rem .7rem; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.1); opacity:0; transform:translateY(4px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.discussion-fab-tooltip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:#FEF3C7; border-bottom:none; }
+.discussion-fab-wrap:hover .discussion-fab-tooltip { opacity:1; transform:translateY(0); }
 
 /* === DISCUSSION PANEL (slide-up from bottom-right) === */
 .discussion-panel { position:fixed; bottom:0; right:0; width:440px; max-width:100vw; height:80vh; background:#FFF; border-top-left-radius:16px; box-shadow:-4px -4px 24px rgba(0,0,0,.12); z-index:95; display:flex; flex-direction:column; animation:discussion-slide .25s ease-out; }
@@ -101,6 +101,7 @@
 /* === MOBILE === */
 @media(max-width:599px) {
   .discussion-panel { width:100%; border-radius:16px 16px 0 0; }
-  .discussion-fab-wrap { bottom:5.5rem; right:1rem; }
+  .discussion-fab-wrap { bottom:1rem; right:calc(1rem + 56px); }
+  .discussion-fab { width:44px; height:44px; font-size:1.1rem; }
   .discussion-panel__form-row { grid-template-columns:1fr; }
 }

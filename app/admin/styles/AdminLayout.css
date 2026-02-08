@@ -124,13 +124,13 @@
    FIELDBOOK — Two-Page Notebook Component
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* FAB button */
-.fieldbook-fab-wrap { position:fixed; bottom:2rem; right:2rem; z-index:90; display:flex; align-items:center; }
-.fieldbook-fab { width:56px; height:56px; border-radius:50%; background:#BD1218; color:#FFF; border:none; font-size:1.5rem; cursor:pointer; box-shadow:0 4px 16px rgba(189,18,24,.35); transition:all .2s; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; }
-.fieldbook-fab:hover { background:#9A0F14; transform:scale(1.08); }
-.fieldbook-fab-tooltip { position:absolute; right:60px; white-space:nowrap; background:#FEF3C7; color:#92400E; font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; padding:.45rem .85rem; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.1); opacity:0; transform:translateX(8px); pointer-events:none; transition:opacity .2s,.2s; }
-.fieldbook-fab-tooltip::after { content:''; position:absolute; right:-6px; top:50%; transform:translateY(-50%); border:6px solid transparent; border-left-color:#FEF3C7; border-right:none; }
-.fieldbook-fab-wrap:hover .fieldbook-fab-tooltip { opacity:1; transform:translateX(0); }
+/* FAB button — rightmost in the bottom-right toolbar row */
+.fieldbook-fab-wrap { position:fixed; bottom:1.5rem; right:1.5rem; z-index:90; display:flex; flex-direction:column; align-items:center; }
+.fieldbook-fab { width:48px; height:48px; border-radius:12px; background:#BD1218; color:#FFF; border:none; font-size:1.3rem; cursor:pointer; box-shadow:0 4px 16px rgba(189,18,24,.35); transition:all .2s; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; }
+.fieldbook-fab:hover { background:#9A0F14; transform:translateY(-2px); box-shadow:0 6px 20px rgba(189,18,24,.45); }
+.fieldbook-fab-tooltip { position:absolute; bottom:calc(100% + 8px); white-space:nowrap; background:#FEF3C7; color:#92400E; font-family:'Inter',sans-serif; font-size:.75rem; font-weight:600; padding:.35rem .7rem; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,.1); opacity:0; transform:translateY(4px); pointer-events:none; transition:opacity .2s, transform .2s; }
+.fieldbook-fab-tooltip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:#FEF3C7; border-bottom:none; }
+.fieldbook-fab-wrap:hover .fieldbook-fab-tooltip { opacity:1; transform:translateY(0); }
 
 /* ── Main fieldbook container ── */
 .fb { position:fixed; bottom:0; right:0; width:620px; max-width:100vw; height:85vh; max-height:700px; background:#F5F0E8; border-top-left-radius:12px; box-shadow:-4px -4px 24px rgba(0,0,0,.18); z-index:95; display:flex; flex-direction:column; animation:fb-slide .25s ease-out; overflow:hidden; }
@@ -374,6 +374,8 @@
   .admin-dashboard__cards { grid-template-columns:1fr; }
   .dashboard-cards { grid-template-columns:1fr; }
   .dashboard-card__metrics { flex-wrap:wrap; gap:.75rem; }
+  .fieldbook-fab-wrap { bottom:1rem; right:1rem; }
+  .fieldbook-fab { width:44px; height:44px; font-size:1.15rem; }
 }
 .admin-sidebar-overlay { display:none; }
 @media(max-width:1023px) { .admin-sidebar-overlay--active { display:block; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:45; } }
