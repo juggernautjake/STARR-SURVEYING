@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { awardXP } from '@/lib/xp';
+import Anthropic from '@anthropic-ai/sdk';
 
 /* ============= MATH TEMPLATE HELPERS ============= */
 
@@ -53,6 +54,102 @@ function evalFormula(formula: string, vars: Record<string, number>): number {
     return fn(...values);
   } catch {
     return NaN;
+  }
+}
+
+/* ============= AI ESSAY GRADING ============= */
+
+async function gradeEssay(
+  questionText: string,
+  referenceAnswer: string,
+  studentAnswer: string,
+  maxPoints: number = 10
+): Promise<{
+  score: number;
+  max_points: number;
+  percentage: number;
+  feedback: string;
+  strengths: string[];
+  improvements: string[];
+  is_passing: boolean;
+} | null> {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  if (studentAnswer.trim().length < 10) {
+    return {
+      score: 0, max_points: maxPoints, percentage: 0,
+      feedback: 'Your response is too short to evaluate. Please provide a more detailed answer.',
+      strengths: [], improvements: ['Provide a more thorough and detailed response.'],
+      is_passing: false,
+    };
+  }
+
+  try {
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const systemPrompt = `You are a fair, encouraging grading assistant for a professional land surveying training program at Starr Surveying.
+
+GRADING SCALE: 0 to ${maxPoints} points (70% = passing)
+
+EVALUATION CRITERIA:
+1. ACCURACY — Are the facts and concepts correct?
+2. COMPLETENESS — Does the response cover the key points?
+3. UNDERSTANDING — Does the student demonstrate genuine comprehension?
+4. TERMINOLOGY — Does the student use appropriate professional terms?
+
+GRADING GUIDELINES:
+- Be fair but encouraging — students are learning a professional trade
+- Award partial credit for partially correct answers
+- Don't penalize minor grammar or spelling issues
+- If the student shows genuine understanding, credit them even if wording differs
+
+REQUIRED JSON RESPONSE FORMAT (no markdown, no code fences):
+{
+  "score": <integer 0-${maxPoints}>,
+  "feedback": "<2-3 sentence overall evaluation of the response>",
+  "strengths": ["<specific thing done well>", "<another strength>"],
+  "improvements": ["<specific actionable suggestion>", "<another suggestion>"]
+}
+
+RULES:
+- Maximum 3 strengths and 3 improvements
+- Be specific — reference what the student actually wrote
+- Keep feedback professional, constructive, and concise
+- Return ONLY valid JSON`;
+
+    const userPrompt = `QUESTION:
+${questionText}
+
+${referenceAnswer ? `REFERENCE ANSWER (key points a strong answer should cover):
+${referenceAnswer}
+
+` : ''}STUDENT'S RESPONSE:
+${studentAnswer}`;
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 500,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    });
+
+    const textContent = message.content.find(c => c.type === 'text');
+    if (!textContent || textContent.type !== 'text') return null;
+
+    const raw = textContent.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const parsed = JSON.parse(raw);
+    const score = Math.max(0, Math.min(maxPoints, Math.round(parsed.score)));
+    const percentage = Math.round((score / maxPoints) * 100);
+
+    return {
+      score, max_points: maxPoints, percentage,
+      feedback: parsed.feedback || 'No feedback available.',
+      strengths: (parsed.strengths || []).slice(0, 3),
+      improvements: (parsed.improvements || []).slice(0, 3),
+      is_passing: percentage >= 70,
+    };
+  } catch (err) {
+    console.error('AI essay grading error:', err);
+    return null;
   }
 }
 
@@ -221,6 +318,18 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       };
     }
 
+    // Essay questions — no options, don't expose reference answer
+    if (q.question_type === 'essay') {
+      return {
+        id: q.id,
+        question_text: q.question_text,
+        question_type: 'essay',
+        options: [],
+        difficulty: q.difficulty,
+        tags: q.tags,
+      };
+    }
+
     // Standard question types
     const opts = q.question_type === 'short_answer' || q.question_type === 'numeric_input'
       ? []
@@ -265,7 +374,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const qMap = new Map<string, any>(questions.map((q: any) => [q.id, q]));
   let totalScore = 0;
-  const graded = answers.map((a: any) => {
+
+  // Grade all answers (essay questions require async AI grading)
+  const graded = await Promise.all(answers.map(async (a: any) => {
     const q = qMap.get(a.question_id);
     if (!q) {
       return {
@@ -278,6 +389,45 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
 
     const qType = q.question_type as string;
+
+    // Essay — AI grading
+    if (qType === 'essay') {
+      const aiResult = await gradeEssay(
+        q.question_text || '',
+        q.correct_answer || '',
+        a.user_answer || '',
+        10
+      );
+      if (aiResult) {
+        const normalized = aiResult.percentage / 100; // 0-1 scale for total score
+        totalScore += normalized;
+        return {
+          question_id: a.question_id,
+          user_answer: a.user_answer,
+          is_correct: aiResult.is_passing,
+          correct_answer: q.correct_answer,
+          explanation: q.explanation || '',
+          partial_score: normalized,
+          ai_feedback: aiResult,
+        };
+      }
+      // Fallback if AI unavailable
+      totalScore += 0.5;
+      return {
+        question_id: a.question_id,
+        user_answer: a.user_answer,
+        is_correct: false,
+        correct_answer: q.correct_answer,
+        explanation: q.explanation || '',
+        partial_score: 0.5,
+        ai_feedback: {
+          score: 5, max_points: 10, percentage: 50,
+          feedback: 'AI grading is temporarily unavailable. Your answer has been recorded and will be reviewed.',
+          strengths: ['Response submitted'], improvements: ['Manual review pending'],
+          is_passing: false,
+        },
+      };
+    }
 
     // Fill in the blank - partial grading
     if (qType === 'fill_blank') {
@@ -352,7 +502,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       correct_answer: q.correct_answer,
       explanation: q.explanation || '',
     };
-  });
+  }));
 
   const scorePercent = answers.length > 0 ? Math.round((totalScore / answers.length) * 100) : 0;
   const correctCount = graded.filter((g: any) => g.is_correct).length;

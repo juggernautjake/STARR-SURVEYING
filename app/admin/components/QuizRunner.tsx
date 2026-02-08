@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import FillBlankQuestion from './FillBlankQuestion';
 
-type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'numeric_input' | 'math_template';
+type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'numeric_input' | 'math_template' | 'essay';
 
 interface Question {
   id: string;
@@ -26,6 +26,15 @@ interface GradedResult {
   partial_score?: number;
   blank_results?: boolean[];
   correct_answers?: string[];
+  ai_feedback?: {
+    score: number;
+    max_points: number;
+    percentage: number;
+    feedback: string;
+    strengths: string[];
+    improvements: string[];
+    is_passing: boolean;
+  };
 }
 
 interface QuizRunnerProps {
@@ -227,6 +236,14 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                       </div>
                     )}
                   </div>
+                ) : q.question_type === 'essay' ? (
+                  <>
+                    <p className="quiz-results__question-text">{q.question_text}</p>
+                    <div className="quiz-results__essay-response">
+                      <h5 className="quiz-results__essay-label">Your Response:</h5>
+                      <p className="quiz-results__essay-text">{r?.user_answer || '(no response)'}</p>
+                    </div>
+                  </>
                 ) : (
                   <>
                     <p className="quiz-results__question-text">{q.question_text}</p>
@@ -236,7 +253,39 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                     </div>
                   </>
                 )}
-                {r?.explanation && <p className="quiz-results__explanation">{r.explanation}</p>}
+                {/* AI Feedback for essay questions */}
+                {r?.ai_feedback && (
+                  <div className="quiz-results__ai-feedback">
+                    <div className="quiz-results__ai-header">
+                      <span className="quiz-results__ai-badge">AI Evaluation</span>
+                      <span className={`quiz-results__ai-score ${r.ai_feedback.is_passing ? 'quiz-results__ai-score--pass' : 'quiz-results__ai-score--fail'}`}>
+                        {r.ai_feedback.score}/{r.ai_feedback.max_points} ({r.ai_feedback.percentage}%)
+                      </span>
+                    </div>
+                    <p className="quiz-results__ai-summary">{r.ai_feedback.feedback}</p>
+                    {r.ai_feedback.strengths.length > 0 && (
+                      <div className="quiz-results__ai-section">
+                        <h5 className="quiz-results__ai-section-title quiz-results__ai-section-title--good">What you got right</h5>
+                        <ul className="quiz-results__ai-list">
+                          {r.ai_feedback.strengths.map((s, si) => (
+                            <li key={si} className="quiz-results__ai-list-item quiz-results__ai-list-item--good">{s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {r.ai_feedback.improvements.length > 0 && (
+                      <div className="quiz-results__ai-section">
+                        <h5 className="quiz-results__ai-section-title quiz-results__ai-section-title--improve">How to improve</h5>
+                        <ul className="quiz-results__ai-list">
+                          {r.ai_feedback.improvements.map((imp, ii) => (
+                            <li key={ii} className="quiz-results__ai-list-item quiz-results__ai-list-item--improve">{imp}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {r?.explanation && !r?.ai_feedback && <p className="quiz-results__explanation">{r.explanation}</p>}
               </div>
             );
           })}
@@ -269,6 +318,7 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                 {q.question_type === 'fill_blank' && <span className="quiz__question-type-badge">Fill in the Blank</span>}
                 {q.question_type === 'multi_select' && <span className="quiz__question-type-badge">Select All That Apply</span>}
                 {(q.question_type === 'numeric_input' || q._original_type === 'math_template') && <span className="quiz__question-type-badge">Numeric Answer</span>}
+                {q.question_type === 'essay' && <span className="quiz__question-type-badge">AI-Graded Essay</span>}
               </div>
             </div>
 
@@ -343,6 +393,23 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                     onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
                   />
                 </div>
+              </>
+            )}
+
+            {/* Essay / Paragraph */}
+            {q.question_type === 'essay' && (
+              <>
+                <p className="quiz__question-text">{q.question_text}</p>
+                <textarea
+                  className="quiz__essay-input"
+                  placeholder="Write your response here... Be thorough and explain your reasoning."
+                  rows={6}
+                  value={answers[q.id] || ''}
+                  onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                />
+                <span className="quiz__essay-hint">
+                  {(answers[q.id] || '').length} characters &mdash; Aim for a detailed, well-structured response
+                </span>
               </>
             )}
 

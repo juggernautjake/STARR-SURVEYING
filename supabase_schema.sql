@@ -107,7 +107,7 @@ CREATE TABLE question_bank (
   question_text TEXT NOT NULL,
   question_type TEXT CHECK (question_type IN (
     'multiple_choice','true_false','short_answer',
-    'fill_blank','multi_select','numeric_input','math_template'
+    'fill_blank','multi_select','numeric_input','math_template','essay'
   )) DEFAULT 'multiple_choice',
   options JSONB DEFAULT '[]',
   correct_answer TEXT NOT NULL,

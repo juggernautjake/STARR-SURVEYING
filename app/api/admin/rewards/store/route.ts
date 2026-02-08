@@ -57,23 +57,29 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const body = await req.json();
-  const { id, name, description, category, xp_cost, tier, stock_quantity, is_active, sort_order } = body;
+  const { id, name, description, category, xp_cost, tier, stock_quantity, is_active, sort_order, image_url } = body;
 
   if (!name || !category || !xp_cost || !tier) {
     return NextResponse.json({ error: 'name, category, xp_cost, and tier required' }, { status: 400 });
   }
 
+  const itemData = {
+    name, description, category, xp_cost, tier,
+    stock_quantity: stock_quantity ?? -1,
+    is_active: is_active ?? true,
+    sort_order: sort_order ?? 0,
+    image_url: image_url || null,
+  };
+
   if (id) {
     const { data, error } = await supabaseAdmin.from('rewards_catalog')
-      .update({ name, description, category, xp_cost, tier, stock_quantity: stock_quantity ?? -1, is_active: is_active ?? true, sort_order: sort_order ?? 0 })
-      .eq('id', id).select().single();
+      .update(itemData).eq('id', id).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ item: data });
   }
 
   const { data, error } = await supabaseAdmin.from('rewards_catalog')
-    .insert({ name, description, category, xp_cost, tier, stock_quantity: stock_quantity ?? -1, is_active: is_active ?? true, sort_order: sort_order ?? 0 })
-    .select().single();
+    .insert(itemData).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ item: data });
 }, { routeName: 'rewards/store' });

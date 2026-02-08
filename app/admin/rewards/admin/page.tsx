@@ -1,13 +1,14 @@
 // app/admin/rewards/admin/page.tsx — Full Admin Rewards & Pay Management
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 
 /* ─── Interfaces ─── */
 interface StoreItem {
   id: string; name: string; description: string; category: string;
   xp_cost: number; tier: string; stock_quantity: number; is_active: boolean; sort_order: number;
+  image_url?: string;
 }
 interface Purchase {
   id: string; user_email: string; xp_spent: number; status: string; created_at: string;
@@ -66,9 +67,14 @@ export default function AdminRewardsPage() {
 
   // New item / milestone forms
   const [showNewItem, setShowNewItem] = useState(false);
-  const [newItem, setNewItem] = useState({ name: '', description: '', category: 'gear', xp_cost: 1000, tier: 'silver', stock_quantity: -1 });
+  const [newItem, setNewItem] = useState({ name: '', description: '', category: 'gear', xp_cost: 1000, tier: 'silver', stock_quantity: -1, image_url: '' });
   const [showNewMilestone, setShowNewMilestone] = useState(false);
   const [newMilestone, setNewMilestone] = useState({ xp_threshold: 10000, bonus_per_hour: 0.50, label: '', description: '' });
+
+  // Image upload
+  const [editImageUrl, setEditImageUrl] = useState('');
+  const newFileRef = useRef<HTMLInputElement>(null);
+  const editFileRef = useRef<HTMLInputElement>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -159,7 +165,7 @@ export default function AdminRewardsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newItem),
       });
-      if (res.ok) { setShowNewItem(false); setNewItem({ name: '', description: '', category: 'gear', xp_cost: 1000, tier: 'silver', stock_quantity: -1 }); fetchData(); }
+      if (res.ok) { setShowNewItem(false); setNewItem({ name: '', description: '', category: 'gear', xp_cost: 1000, tier: 'silver', stock_quantity: -1, image_url: '' }); fetchData(); }
     } catch { /* ignore */ }
     setSaving(null);
   }
@@ -177,6 +183,25 @@ export default function AdminRewardsPage() {
       if (res.ok) { setShowNewMilestone(false); setNewMilestone({ xp_threshold: 10000, bonus_per_hour: 0.50, label: '', description: '' }); fetchData(); }
     } catch { /* ignore */ }
     setSaving(null);
+  }
+
+  /* ─── Image upload helpers ─── */
+  function handleNewItemImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { alert('Image must be under 2MB'); return; }
+    const reader = new FileReader();
+    reader.onload = () => setNewItem(prev => ({ ...prev, image_url: reader.result as string }));
+    reader.readAsDataURL(file);
+  }
+
+  function handleEditItemImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { alert('Image must be under 2MB'); return; }
+    const reader = new FileReader();
+    reader.onload = () => setEditImageUrl(reader.result as string);
+    reader.readAsDataURL(file);
   }
 
   /* ─── Inline edit helpers ─── */
@@ -279,6 +304,17 @@ export default function AdminRewardsPage() {
                 <input type="number" placeholder="XP Cost" value={newItem.xp_cost} onChange={e => setNewItem({ ...newItem, xp_cost: parseInt(e.target.value) || 0 })} className="mng__input" />
                 <input type="number" placeholder="Stock (-1 = unlimited)" value={newItem.stock_quantity} onChange={e => setNewItem({ ...newItem, stock_quantity: parseInt(e.target.value) })} className="mng__input" />
               </div>
+              <div className="mng__image-upload">
+                <label className="mng__inline-label">Product Image</label>
+                <div className="mng__image-row">
+                  {newItem.image_url && <img src={newItem.image_url} alt="Preview" className="mng__image-preview" />}
+                  <input type="file" ref={newFileRef} accept="image/*" onChange={handleNewItemImage} style={{ display: 'none' }} />
+                  <button type="button" className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => newFileRef.current?.click()}>
+                    {newItem.image_url ? 'Change Image' : 'Upload Image'}
+                  </button>
+                  {newItem.image_url && <button type="button" className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setNewItem(prev => ({ ...prev, image_url: '' }))}>Remove</button>}
+                </div>
+              </div>
               <div className="mng__form-actions">
                 <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleAddItem} disabled={saving === 'new-item'}>{saving === 'new-item' ? 'Saving...' : 'Save Item'}</button>
                 <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setShowNewItem(false)}>Cancel</button>
@@ -297,17 +333,29 @@ export default function AdminRewardsPage() {
                     <EditableNum value={item.stock_quantity} onSave={v => { item.stock_quantity = v; }} label="Stock (-1=unlimited)" min={-1} step="1" />
                     <EditableNum value={item.sort_order} onSave={v => { item.sort_order = v; }} label="Sort Order" step="1" />
                   </div>
+                  <div className="mng__image-upload">
+                    <label className="mng__inline-label">Product Image</label>
+                    <div className="mng__image-row">
+                      {(editImageUrl || item.image_url) && <img src={editImageUrl || item.image_url} alt={item.name} className="mng__image-preview" />}
+                      <input type="file" ref={editFileRef} accept="image/*" onChange={handleEditItemImage} style={{ display: 'none' }} />
+                      <button type="button" className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => editFileRef.current?.click()}>
+                        {(editImageUrl || item.image_url) ? 'Change Image' : 'Upload Image'}
+                      </button>
+                      {(editImageUrl || item.image_url) && <button type="button" className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditImageUrl(''); item.image_url = ''; }}>Remove</button>}
+                    </div>
+                  </div>
                   <div className="mng__form-actions">
                     <button className="admin-btn admin-btn--primary admin-btn--sm" disabled={saving === item.id}
-                      onClick={() => saveEntity('store_item', item.id, { name: item.name, description: item.description, xp_cost: item.xp_cost, stock_quantity: item.stock_quantity, sort_order: item.sort_order, category: item.category, tier: item.tier, is_active: item.is_active })}>
+                      onClick={() => { saveEntity('store_item', item.id, { name: item.name, description: item.description, xp_cost: item.xp_cost, stock_quantity: item.stock_quantity, sort_order: item.sort_order, category: item.category, tier: item.tier, is_active: item.is_active, image_url: editImageUrl || item.image_url || null }); setEditImageUrl(''); }}>
                       Save
                     </button>
-                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setEditingId(null)}>Cancel</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingId(null); setEditImageUrl(''); }}>Cancel</button>
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" style={{ color: '#EF4444' }} onClick={() => deleteEntity('store_item', item.id)}>Delete</button>
                   </div>
                 </>
               ) : (
                 <div className="mng__row" onClick={() => setEditingId(item.id)}>
+                  {item.image_url && <img src={item.image_url} alt={item.name} className="mng__image-thumb" />}
                   <div className="mng__row-info">
                     <strong>{item.name}</strong>
                     <span className="mng__row-meta">
