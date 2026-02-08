@@ -34,7 +34,6 @@ export default function KnowledgeBasePage() {
       </div>
       <div style={{ marginBottom: '1.5rem' }}>
         <div className="admin-search">
-          <span className="admin-search__icon">🔍</span>
           <input type="text" className="admin-search__input" placeholder="Search articles..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
