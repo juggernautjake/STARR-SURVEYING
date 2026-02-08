@@ -7,6 +7,8 @@ import { usePathname } from 'next/navigation';
 import AdminSidebar from './AdminSidebar';
 import AdminTopBar from './AdminTopBar';
 import Fieldbook from './Fieldbook';
+import DiscussionThreadButton from './DiscussionThreadButton';
+import FloatingMessenger from './FloatingMessenger';
 import ErrorProvider from './error/ErrorProvider';
 import ErrorBoundary from './error/ErrorBoundary';
 
@@ -22,6 +24,7 @@ import '../styles/AdminRewards.css';
 import '../styles/AdminTimeLogs.css';
 import '../styles/AdminEmployeeManage.css';
 import '../styles/AdminSchedule.css';
+import '../styles/AdminDiscussions.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',
@@ -71,6 +74,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/schedule': 'My Schedule',
   '/admin/my-hours': 'My Hours',
   '/admin/hours-approval': 'Hours Approval',
+  '/admin/discussions': 'Discussion Threads',
 };
 
 function getTitle(p: string): string {
@@ -85,6 +89,7 @@ function getTitle(p: string): string {
   if (p.startsWith('/admin/messages/') && !PAGE_TITLES[p]) return 'Conversation';
   if (p.startsWith('/admin/jobs/') && !PAGE_TITLES[p]) return 'Job Detail';
   if (p.startsWith('/admin/payroll/') && !PAGE_TITLES[p]) return 'Employee Pay Detail';
+  if (p.startsWith('/admin/discussions/') && !PAGE_TITLES[p]) return 'Discussion Thread';
   return 'Admin';
 }
 
@@ -126,6 +131,8 @@ function Inner({ children }: { children: React.ReactNode }) {
             </ErrorBoundary>
           </div>
         </div>
+        <FloatingMessenger />
+        <DiscussionThreadButton />
         <Fieldbook />
       </div>
     </ErrorProvider>
