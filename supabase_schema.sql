@@ -993,13 +993,12 @@ CREATE INDEX idx_fts_flashcards ON flashcards USING GIN(to_tsvector('english', c
 
 -- XP Pay Milestones
 INSERT INTO xp_pay_milestones (xp_threshold, bonus_per_hour, label, description) VALUES
-(5000, 0.25, 'XP Apprentice', 'First 5,000 XP earned'),
-(10000, 0.50, 'XP Journeyman', '10,000 total XP'),
-(20000, 1.00, 'XP Craftsman', '20,000 total XP'),
-(30000, 1.50, 'XP Expert', '30,000 total XP'),
-(50000, 2.50, 'XP Master', '50,000 total XP'),
-(75000, 3.75, 'XP Grand Master', '75,000 total XP'),
-(100000, 5.00, 'XP Legend', '100,000 total XP')
+(10000, 0.50, 'XP Apprentice', 'First 10,000 XP earned'),
+(20000, 0.50, 'XP Journeyman', '20,000 total XP'),
+(30000, 0.50, 'XP Craftsman', '30,000 total XP'),
+(40000, 0.50, 'XP Expert', '40,000 total XP'),
+(50000, 0.50, 'XP Master', '50,000 total XP'),
+(60000, 0.50, 'XP Grand Master', '60,000 total XP')
 ON CONFLICT (xp_threshold) DO NOTHING;
 
 -- Badges
