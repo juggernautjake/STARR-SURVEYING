@@ -668,10 +668,10 @@ VALUES
 DELETE FROM user_milestone_progress;
 DELETE FROM curriculum_milestones;
 
-INSERT INTO curriculum_milestones (id, title, description, milestone_type, part_number, required_module_ids, order_index, icon, color, created_at)
+INSERT INTO curriculum_milestones (milestone_key, title, description, milestone_type, part_number, required_modules, sort_order, icon, color)
 VALUES
-  -- Part completion milestones
-  (gen_random_uuid(),
+  -- Part completion milestones (9 parts)
+  ('part_1_complete',
    'Part I Complete — Foundations',
    'Completed all foundation modules covering history, mathematics, and measurement theory.',
    'part_complete', 1,
@@ -680,9 +680,9 @@ VALUES
      'c1000002-0000-0000-0000-000000000002',
      'c1000003-0000-0000-0000-000000000003'
    ]::uuid[],
-   1, '🏗️', '#1D3095', now()),
+   1, '🏗️', '#1D3095'),
 
-  (gen_random_uuid(),
+  ('part_2_complete',
    'Part II Complete — Field Techniques',
    'Completed all field technique modules covering distance, angle, and leveling measurement.',
    'part_complete', 2,
@@ -691,9 +691,9 @@ VALUES
      'c1000005-0000-0000-0000-000000000005',
      'c1000006-0000-0000-0000-000000000006'
    ]::uuid[],
-   2, '🔭', '#7C3AED', now()),
+   2, '🔭', '#7C3AED'),
 
-  (gen_random_uuid(),
+  ('part_3_complete',
    'Part III Complete — Coordinates & Computations',
    'Completed all coordinate system and computation modules covering datums, traverses, and area/volume calculations.',
    'part_complete', 3,
@@ -702,9 +702,9 @@ VALUES
      'c1000008-0000-0000-0000-000000000008',
      'c1000009-0000-0000-0000-000000000009'
    ]::uuid[],
-   3, '📐', '#0891B2', now()),
+   3, '📐', '#0891B2'),
 
-  (gen_random_uuid(),
+  ('part_4_complete',
    'Part IV Complete — Modern Technology',
    'Completed all modern technology modules covering total stations, GPS/GNSS, and emerging technologies.',
    'part_complete', 4,
@@ -713,9 +713,9 @@ VALUES
      'c100000b-0000-0000-0000-00000000000b',
      'c100000c-0000-0000-0000-00000000000c'
    ]::uuid[],
-   4, '📡', '#059669', now()),
+   4, '📡', '#059669'),
 
-  (gen_random_uuid(),
+  ('part_5_complete',
    'Part V Complete — Boundary & Legal',
    'Completed all boundary and legal surveying modules covering property law, metes and bounds, Texas titles, and retracement.',
    'part_complete', 5,
@@ -725,9 +725,9 @@ VALUES
      'c100000f-0000-0000-0000-00000000000f',
      'c1000010-0000-0000-0000-000000000010'
    ]::uuid[],
-   5, '⚖️', '#D97706', now()),
+   5, '⚖️', '#D97706'),
 
-  (gen_random_uuid(),
+  ('part_6_complete',
    'Part VI Complete — Subdivision & Construction',
    'Completed all subdivision, construction, and topographic surveying modules.',
    'part_complete', 6,
@@ -736,9 +736,9 @@ VALUES
      'c1000012-0000-0000-0000-000000000012',
      'c1000013-0000-0000-0000-000000000013'
    ]::uuid[],
-   6, '🏗️', '#DC2626', now()),
+   6, '🏗️', '#DC2626'),
 
-  (gen_random_uuid(),
+  ('part_7_complete',
    'Part VII Complete — Specialized Surveying',
    'Completed all specialized surveying modules covering geodetic, hydrographic, and mining surveying.',
    'part_complete', 7,
@@ -747,9 +747,9 @@ VALUES
      'c1000015-0000-0000-0000-000000000015',
      'c1000016-0000-0000-0000-000000000016'
    ]::uuid[],
-   7, '🌊', '#4F46E5', now()),
+   7, '🌊', '#4F46E5'),
 
-  (gen_random_uuid(),
+  ('part_8_complete',
    'Part VIII Complete — Professional Practice',
    'Completed all professional practice modules covering business management and Texas surveying law.',
    'part_complete', 8,
@@ -757,9 +757,9 @@ VALUES
      'c1000017-0000-0000-0000-000000000017',
      'c1000018-0000-0000-0000-000000000018'
    ]::uuid[],
-   8, '💼', '#7C3AED', now()),
+   8, '💼', '#7C3AED'),
 
-  (gen_random_uuid(),
+  ('part_9_complete',
    'Part IX Complete — Exam Prep',
    'Completed all exam preparation modules for both SIT and RPLS exams.',
    'part_complete', 9,
@@ -769,10 +769,10 @@ VALUES
      'c100001b-0000-0000-0000-00000000001b',
      'c100001c-0000-0000-0000-00000000001c'
    ]::uuid[],
-   9, '🎯', '#10B981', now()),
+   9, '🎯', '#10B981'),
 
   -- Exam readiness milestones
-  (gen_random_uuid(),
+  ('sit_exam_ready',
    'SIT Exam Ready',
    'Completed all modules required to sit for the Texas Surveyor Intern Test (SIT) — foundations through modern technology plus SIT exam review.',
    'exam_ready', NULL,
@@ -792,9 +792,9 @@ VALUES
      'c1000019-0000-0000-0000-000000000019',
      'c100001a-0000-0000-0000-00000000001a'
    ]::uuid[],
-   10, '🎓', '#F59E0B', now()),
+   10, '🎓', '#F59E0B'),
 
-  (gen_random_uuid(),
+  ('rpls_exam_ready',
    'RPLS Exam Ready',
    'Completed the entire curriculum — all 28 modules — and is fully prepared for the Registered Professional Land Surveyor (RPLS) exam.',
    'exam_ready', NULL,
@@ -828,10 +828,10 @@ VALUES
      'c100001b-0000-0000-0000-00000000001b',
      'c100001c-0000-0000-0000-00000000001c'
    ]::uuid[],
-   11, '🏆', '#BD1218', now()),
+   11, '🏆', '#BD1218'),
 
   -- Certification milestones
-  (gen_random_uuid(),
+  ('fundamentals_mastered',
    'Fundamentals Mastered',
    'Mastered all fundamental surveying knowledge — Parts I through III covering foundations, field techniques, and coordinate computations.',
    'certification', NULL,
@@ -846,9 +846,9 @@ VALUES
      'c1000008-0000-0000-0000-000000000008',
      'c1000009-0000-0000-0000-000000000009'
    ]::uuid[],
-   12, '⭐', '#1D3095', now()),
+   12, '⭐', '#1D3095'),
 
-  (gen_random_uuid(),
+  ('texas_surveying_expert',
    'Texas Surveying Expert',
    'Completed the entire Texas Land Surveying curriculum — all 28 modules across all 9 parts. Full mastery achieved.',
    'certification', NULL,
@@ -882,7 +882,7 @@ VALUES
      'c100001b-0000-0000-0000-00000000001b',
      'c100001c-0000-0000-0000-00000000001c'
    ]::uuid[],
-   13, '🌟', '#BD1218', now());
+   13, '🌟', '#BD1218');
 
 
 -- ============================================================================
