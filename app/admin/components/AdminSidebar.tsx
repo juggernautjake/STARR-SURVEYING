@@ -99,6 +99,7 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
     if (href === '/admin/learn') return pathname === '/admin/learn';
     if (href === '/admin/jobs') return pathname === '/admin/jobs';
     if (href === '/admin/messages') return pathname === '/admin/messages';
+    if (href === '/admin/rewards') return pathname === '/admin/rewards';
     return pathname.startsWith(href);
   };
 

@@ -4,7 +4,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import FieldbookButton from '@/app/admin/components/FieldbookButton';
 import { usePageError } from '../../../../hooks/usePageError';
 
 interface Topic {
@@ -38,7 +37,6 @@ export default function LessonViewerPage() {
   const [quizCount, setQuizCount] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [marking, setMarking] = useState(false);
 
   useEffect(() => {
     fetchLesson();
@@ -66,19 +64,6 @@ export default function LessonViewerPage() {
         setCompleted(data.completed);
       }
     } catch (err) { console.error('LessonViewerPage: failed to check progress', err); }
-  }
-
-  async function markComplete() {
-    setMarking(true);
-    try {
-      const res = await fetch('/api/admin/learn/progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module_id: moduleId, lesson_id: lessonId }),
-      });
-      if (res.ok) setCompleted(true);
-    } catch (err) { console.error('LessonViewerPage: failed to mark complete', err); }
-    setMarking(false);
   }
 
   if (loading) return <div className="admin-empty"><div className="admin-empty__icon">⏳</div><div className="admin-empty__title">Loading lesson...</div></div>;
@@ -174,28 +159,24 @@ export default function LessonViewerPage() {
 
       {/* Actions */}
       <div className="admin-lesson__actions">
-        <button
-          className={`admin-lesson__complete-btn ${completed ? 'admin-lesson__complete-btn--completed' : ''}`}
-          onClick={markComplete}
-          disabled={completed || marking}
-        >
-          {completed ? '✅ Lesson Completed' : marking ? 'Saving...' : '✓ Mark as Complete'}
-        </button>
+        {completed && (
+          <span className="admin-lesson__complete-btn admin-lesson__complete-btn--completed" style={{ cursor: 'default' }}>
+            ✅ Lesson Completed
+          </span>
+        )}
 
         {quizCount > 0 && (
           <Link href={`/admin/learn/modules/${moduleId}/${lessonId}/quiz`} className="admin-btn admin-btn--secondary">
-            📝 Take Lesson Quiz
+            📝 {completed ? 'Retake Lesson Quiz' : 'Take Lesson Quiz'}
           </Link>
         )}
-      </div>
 
-      {/* Fieldbook Button */}
-      <FieldbookButton
-        contextType="lesson"
-        contextLabel={`Module > ${lesson.title}`}
-        moduleId={moduleId}
-        lessonId={lessonId}
-      />
+        {!completed && quizCount > 0 && (
+          <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0.5rem 0 0' }}>
+            Pass the lesson quiz to mark this lesson as complete.
+          </p>
+        )}
+      </div>
     </>
   );
 }
