@@ -722,7 +722,7 @@ export default function AdminRewardsPage() {
         <div className="mng__section" style={{ maxWidth: '550px' }}>
           <h3 className="mng__card-title">Manage User XP Balances</h3>
           <p className="mng__desc">Look up a user and directly set their current XP balance and/or all-time total. Use this to correct errors or make manual adjustments.</p>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+          <div className="mng__xp-lookup-row" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
             <input placeholder="Employee email" value={manageXpEmail} onChange={e => setManageXpEmail(e.target.value)} className="mng__input" style={{ flex: 1 }} />
             <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={handleLookupXP} disabled={manageXpLoading}>
               {manageXpLoading ? 'Looking up...' : 'Look Up'}
@@ -732,7 +732,7 @@ export default function AdminRewardsPage() {
           {manageXpData && (
             <div className="mng__card">
               <h4 className="mng__card-title" style={{ marginBottom: '0.75rem' }}>XP for {manageXpEmail}</h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem', textAlign: 'center' }}>
+              <div className="mng__xp-stats-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem', textAlign: 'center' }}>
                 <div>
                   <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase' }}>Current Balance</div>
                   <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#10B981' }}>{manageXpData.current_balance.toLocaleString()}</div>

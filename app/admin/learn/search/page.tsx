@@ -39,7 +39,7 @@ function SearchContent() {
         <h2 className="learn__title">🔎 Search Everything</h2>
         <p className="learn__subtitle">Search across modules, lessons, topics, articles, and flashcards.</p>
       </div>
-      <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '.5rem', maxWidth: '600px' }}>
+      <div className="learn-search__bar" style={{ marginBottom: '1.5rem', display: 'flex', gap: '.5rem', maxWidth: '600px' }}>
         <div className="admin-search" style={{ flex: 1, maxWidth: 'none' }}>
           <input type="text" className="admin-search__input" placeholder="Search for any keyword, topic, term..." value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && doSearch(query)} />
         </div>

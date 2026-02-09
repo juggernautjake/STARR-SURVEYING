@@ -118,7 +118,8 @@ export default function FlashcardBankPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '.75rem' }}>
         <input
           type="text" placeholder="Search flashcards..." value={search} onChange={e => setSearch(e.target.value)}
-          style={{ padding: '.45rem .75rem', border: '1.5px solid #E5E7EB', borderRadius: 6, fontSize: '.85rem', fontFamily: 'Inter,sans-serif', width: 260 }}
+          className="fc-bank__search"
+          style={{ padding: '.45rem .75rem', border: '1.5px solid #E5E7EB', borderRadius: 6, fontSize: '.85rem', fontFamily: 'Inter,sans-serif', width: 260, maxWidth: '100%' }}
         />
         <div style={{ display: 'flex', gap: '.5rem' }}>
           {section === 'personal' && (
@@ -173,7 +174,7 @@ export default function FlashcardBankPage() {
               <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.9rem', fontWeight: 600, color: '#1D3095', marginBottom: '.5rem', paddingBottom: '.35rem', borderBottom: '2px solid #EFF6FF' }}>
                 {moduleName} <span style={{ fontWeight: 400, color: '#9CA3AF', fontSize: '.78rem' }}>({cards.length} cards)</span>
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '.75rem' }}>
+              <div className="fc-bank__grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '.75rem' }}>
                 {cards.map(c => (
                   <div key={c.id} onClick={() => setExpandedCard(expandedCard === c.id ? null : c.id)} style={{
                     background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '.85rem', cursor: 'pointer', transition: 'border-color .15s',
@@ -203,7 +204,7 @@ export default function FlashcardBankPage() {
         </div>
       ) : (
         /* Personal cards — flat list */
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '.75rem' }}>
+        <div className="fc-bank__grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '.75rem' }}>
           {filtered.map(c => (
             <div key={c.id} style={{ background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '.85rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '.25rem' }}>

@@ -193,12 +193,12 @@ export default function MediaLibraryPage() {
             )}
 
             <div className="manage__form" style={{ gap: '.65rem' }}>
-              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-                <div style={{ flex: '2 1 200px' }}>
+              <div className="media__form-row" style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+                <div style={{ flex: '2 1 200px', minWidth: 0 }}>
                   <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Title</label>
                   <input className="manage__form-input" value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} placeholder="Media title" />
                 </div>
-                <div style={{ flex: '0 0 140px' }}>
+                <div className="media__field-type" style={{ flex: '0 0 140px' }}>
                   <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Type</label>
                   <select className="manage__form-input" value={uploadType} onChange={e => setUploadType(e.target.value)} style={{ background: '#FFF' }}>
                     <option value="image">Image</option>
@@ -231,8 +231,8 @@ export default function MediaLibraryPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                <div style={{ flex: '0 0 140px' }}>
+              <div className="media__form-row" style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div className="media__field-res" style={{ flex: '0 0 140px' }}>
                   <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Resolution</label>
                   <select className="manage__form-input" value={uploadResolution} onChange={e => setUploadResolution(e.target.value)} style={{ background: '#FFF' }}>
                     <option value="original">Original</option>
@@ -293,7 +293,7 @@ export default function MediaLibraryPage() {
           <div className="admin-empty__desc">Upload images, videos, or other files to use in lessons, articles, and questions.</div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
+        <div className="media__grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
           {media.map(item => (
             <div key={item.id} style={{ background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', cursor: 'pointer' }}>
               <div style={{ height: 120, background: '#F8F9FA', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
