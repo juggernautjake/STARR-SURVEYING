@@ -25,6 +25,7 @@ import '../styles/AdminTimeLogs.css';
 import '../styles/AdminEmployeeManage.css';
 import '../styles/AdminSchedule.css';
 import '../styles/AdminDiscussions.css';
+import '../styles/AdminResponsive.css';
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Dashboard',

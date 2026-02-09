@@ -1,0 +1,565 @@
+/*==============================================================================
+  ADMIN RESPONSIVE — Comprehensive mobile/tablet overrides for all admin pages
+  Breakpoints: 1023px (tablet), 768px (large mobile), 599px (mobile), 480px (small mobile)
+==============================================================================*/
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABLET (max-width: 1023px)
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  /* Topbar adjustments */
+  .admin-topbar__username { display: none; }
+
+  /* Rewards tabs scroll */
+  .rewards__tabs { gap: 0; }
+  .rewards__tab { padding: 0.5rem 0.85rem; font-size: 0.82rem; }
+
+  /* Manage rewards tabs */
+  .mng__tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* How-it-works */
+  .hiw__edu-flow { flex-direction: column; align-items: center; }
+  .hiw__edu-arrow { transform: rotate(90deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LARGE MOBILE (max-width: 768px)
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Layout ── */
+  .admin-layout__content { padding: 1rem; }
+
+  /* ── Topbar ── */
+  .admin-topbar__xp { padding: 0.25rem 0.5rem; font-size: 0.72rem; }
+  .admin-topbar__xp-label { display: none; }
+  .admin-topbar__signout { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+
+  /* ── Dashboard ── */
+  .dashboard-cards { grid-template-columns: 1fr; gap: 0.75rem; }
+  .dashboard-card__metrics { flex-wrap: wrap; }
+  .admin-dashboard__quick-links { grid-template-columns: 1fr; }
+  .dashboard-quiz-item { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .dashboard-activity-item { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+
+  /* ── Rewards ── */
+  .rewards__hero { padding: 1.25rem; }
+  .rewards__hero-amount { font-size: 2rem; }
+  .rewards__hero-stats { flex-wrap: wrap; gap: 0.75rem; justify-content: space-around; }
+  .rewards__hero-links { flex-direction: column; gap: 0.5rem; }
+  .rewards__hero-links .admin-btn { width: 100%; text-align: center; }
+  .rewards__store-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; }
+  .rewards__item { padding: 1rem; }
+  .rewards__item-name { font-size: 0.82rem; }
+  .rewards__item-desc { font-size: 0.72rem; }
+  .rewards__badges-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .rewards__purchase-row { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .rewards__purchase-meta { width: 100%; justify-content: space-between; }
+
+  /* ── Store filters ── */
+  .rewards__store-filters { flex-direction: column; }
+  .rewards__filter-select { width: 100%; }
+
+  /* ── Manage rewards ── */
+  .mng__card { padding: 0.75rem; }
+  .mng__form-grid { grid-template-columns: 1fr; }
+  .mng__row { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .mng__row-actions { width: 100%; justify-content: flex-end; }
+  .mng__form-actions { flex-wrap: wrap; }
+
+  /* ── Pay progression ── */
+  .pay-prog__current { padding: 1rem; }
+  .pay-prog__current-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+  .pay-prog__section { padding: 1rem; }
+  .pay-prog__formula { flex-direction: column; gap: 0.35rem; }
+  .pay-prog__formula-op { display: none; }
+  .pay-prog__example-scenarios { grid-template-columns: 1fr; }
+
+  /* ── How it works ── */
+  .hiw__section { padding: 1rem; }
+  .hiw__two-col { grid-template-columns: 1fr; gap: 1rem; }
+  .hiw__pay-paths { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .hiw__tiers { grid-template-columns: 1fr; }
+
+  /* ── Learn sections ── */
+  .admin-learn__sections { grid-template-columns: 1fr; }
+  .admin-learn__title { font-size: 1.25rem; }
+  .admin-learn__subtitle { font-size: 0.82rem; }
+
+  /* ── Learn manage page ── */
+  .manage__tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+  .manage__tab { white-space: nowrap; font-size: 0.78rem; padding: 0.5rem 0.75rem; flex-shrink: 0; }
+  .manage__item { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .manage__item-actions { justify-content: flex-end; }
+
+  /* ── Modules list ── */
+  .modules__grid { grid-template-columns: 1fr; }
+
+  /* ── Lesson builder ── */
+  .lesson-builder__header { flex-direction: column; gap: 0.5rem; }
+  .lesson-builder__header-right { width: 100%; }
+  .lesson-builder__block-picker { grid-template-columns: repeat(2, 1fr); }
+
+  /* ── TipTap editor ── */
+  .tiptap-editor__toolbar { flex-wrap: wrap; gap: 0.15rem; }
+  .tiptap-editor__toolbar-group { border-right: none; padding-right: 0; margin-right: 0; }
+
+  /* ── Quiz runner ── */
+  .quiz__header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .quiz__header-right { width: 100%; justify-content: space-between; }
+
+  /* ── Roadmap ── */
+  .roadmap__exam-cards { grid-template-columns: 1fr; }
+  .roadmap__certs-grid { grid-template-columns: 1fr; }
+  .roadmap__part-bar { width: 80px; }
+  .roadmap__module-bar { width: 60px; }
+
+  /* ── Jobs ── */
+  .jobs-page__header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+  .jobs-page__grid { grid-template-columns: 1fr; }
+  .job-form__grid { grid-template-columns: 1fr; }
+  .job-detail__overview-grid { grid-template-columns: 1fr; }
+  .job-detail__financial { grid-template-columns: 1fr; }
+  .job-detail__stats { flex-wrap: wrap; gap: 0.75rem; }
+  .job-detail__tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 0; }
+  .job-detail__tab { white-space: nowrap; padding: 0.5rem 0.65rem; font-size: 0.8rem; }
+
+  /* ── Payroll ── */
+  .payroll-summary-cards { grid-template-columns: repeat(2, 1fr); }
+  .payroll-balance__overview { grid-template-columns: 1fr; }
+  .payroll-emp-grid { grid-template-columns: 1fr; }
+  .payroll-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 0; }
+  .payroll-tabs__btn { white-space: nowrap; padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+  .payroll-rates__table { font-size: 0.8rem; }
+  .payroll-rates__table th,
+  .payroll-rates__table td { padding: 0.5rem; }
+
+  /* ── Time logs ── */
+  .tl-summary-cards { grid-template-columns: repeat(2, 1fr); }
+  .tl-entry-card__row { flex-direction: column; }
+  .tl-history-entry { flex-direction: column; }
+  .tl-approval-entry { flex-direction: column; }
+  .tl-tabs__btn { white-space: nowrap; padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+
+  /* ── Messaging ── */
+  .msg-compose__to-row { flex-direction: column; }
+
+  /* ── Schedule ── */
+  .schedule-header { flex-direction: column; gap: 0.5rem; }
+  .schedule-nav { flex-wrap: wrap; }
+
+  /* ── Employee manage ── */
+  .emp-manage__grid { grid-template-columns: 1fr; }
+
+  /* ── Fieldbook full page ── */
+  .fbfull__detail { flex-direction: column; }
+  .fbfull__detail-sidebar { width: 100%; }
+  .fbfull__grid { grid-template-columns: 1fr; }
+
+  /* ── Flashcard study ── */
+  .fc-study__card { height: 260px; }
+  .fc-setup { grid-template-columns: 1fr; }
+
+  /* ── Question bank ── */
+  .qb__types { grid-template-columns: repeat(2, 1fr); }
+  .qb__row { flex-direction: column; gap: 0.5rem; }
+
+  /* ── Tables overflow ── */
+  .payroll-rates__table-wrap,
+  .tl-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE (max-width: 599px)
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 599px) {
+
+  /* ── Layout ── */
+  .admin-layout__content { padding: 0.75rem; margin-top: 56px; }
+  .admin-topbar { padding: 0 0.75rem; height: 56px; }
+  .admin-topbar__title { font-size: 0.9rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .admin-topbar__signout { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+  .admin-topbar__role-badge { display: none; }
+
+  /* ── XP in topbar ── */
+  .admin-topbar__xp { padding: 0.2rem 0.4rem; font-size: 0.68rem; gap: 0.15rem; }
+  .admin-topbar__xp-sep { display: none; }
+  .admin-topbar__xp-total { display: none; }
+
+  /* ── Buttons ── */
+  .admin-btn { padding: 0.45rem 0.85rem; font-size: 0.8rem; }
+  .admin-btn--sm { padding: 0.3rem 0.6rem; font-size: 0.72rem; }
+  .admin-btn--lg { padding: 0.55rem 1.15rem; font-size: 0.88rem; }
+
+  /* ── Cards ── */
+  .admin-card { padding: 1rem; }
+  .admin-card__value { font-size: 1.5rem; }
+
+  /* ── Modal ── */
+  .admin-modal { width: 96%; max-height: 90vh; border-radius: 10px; }
+  .admin-modal__header { padding: 1rem; }
+  .admin-modal__body { padding: 1rem; }
+  .admin-modal__footer { padding: 0.75rem 1rem; flex-wrap: wrap; }
+
+  /* ── Toast ── */
+  .admin-toast { left: 0.75rem; right: 0.75rem; min-width: auto; top: 64px; }
+
+  /* ── Search ── */
+  .admin-search { max-width: 100%; }
+
+  /* ── Dashboard ── */
+  .admin-dashboard__welcome-title { font-size: 1.15rem; }
+  .admin-dashboard__welcome-sub { font-size: 0.82rem; }
+  .admin-dashboard__cards { grid-template-columns: 1fr; }
+  .admin-dashboard__section-title { font-size: 0.95rem; }
+  .dashboard-cards { grid-template-columns: 1fr; gap: 0.65rem; }
+  .dashboard-card { padding: 1rem; gap: 0.5rem; }
+  .dashboard-card__title { font-size: 0.95rem; }
+  .dashboard-card__metric-value { font-size: 1.15rem; }
+
+  /* ── Rewards hero ── */
+  .rewards__hero { padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem; }
+  .rewards__hero-label { font-size: 0.72rem; }
+  .rewards__hero-amount { font-size: 1.75rem; }
+  .rewards__hero-sublabel { font-size: 0.75rem; }
+  .rewards__hero-stat-value { font-size: 1rem; }
+  .rewards__hero-stat-label { font-size: 0.65rem; }
+  .rewards__hero-links { flex-direction: column; gap: 0.5rem; }
+  .rewards__hero-links .admin-btn { font-size: 0.78rem; padding: 0.45rem 0.85rem; }
+
+  /* ── Rewards tabs ── */
+  .rewards__tabs { margin-bottom: 1rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .rewards__tab { padding: 0.45rem 0.75rem; font-size: 0.78rem; white-space: nowrap; flex-shrink: 0; }
+
+  /* ── Store grid ── */
+  .rewards__store-grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+  .rewards__item { padding: 0.75rem; border-radius: 10px; }
+  .rewards__item-tier { font-size: 0.55rem; padding: 0.1rem 0.45rem; }
+  .rewards__item-icon { font-size: 1.5rem; margin: 0.25rem 0; }
+  .rewards__item-image { height: 70px; margin: 0.25rem 0; }
+  .rewards__item-name { font-size: 0.78rem; }
+  .rewards__item-desc { font-size: 0.68rem; margin-bottom: 0.5rem; }
+  .rewards__item-xp { font-size: 0.82rem; }
+  .rewards__item-cash { font-size: 0.72rem; }
+  .rewards__item-btn { font-size: 0.72rem !important; padding: 0.3rem 0.65rem !important; }
+  .rewards__item-unavailable { font-size: 0.65rem; }
+  .rewards__item-buttons { gap: 0.25rem; }
+
+  /* ── Badges ── */
+  .rewards__badges-grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+  .rewards__badge { padding: 0.75rem; }
+  .rewards__badge-icon { font-size: 1.5rem; }
+  .rewards__badge-name { font-size: 0.78rem; }
+  .rewards__badge-desc { font-size: 0.68rem; }
+
+  /* ── Purchase history ── */
+  .rewards__purchase-row { padding: 0.65rem 0.75rem; }
+  .rewards__purchase-name { font-size: 0.8rem; }
+  .rewards__purchase-cost { font-size: 0.75rem; }
+
+  /* ── Manage rewards admin ── */
+  .mng__section { margin-top: 0.25rem; }
+  .mng__card { padding: 0.65rem 0.75rem; }
+  .mng__card-title { font-size: 0.82rem; }
+  .mng__row-info strong { font-size: 0.82rem; }
+  .mng__row-meta { font-size: 0.72rem; }
+  .mng__input { padding: 0.4rem 0.55rem; font-size: 0.8rem; }
+  .mng__inline-input { padding: 0.35rem 0.5rem; font-size: 0.8rem; }
+  .mng__inline-label { font-size: 0.62rem; }
+  .mng__image-preview { width: 60px; height: 60px; }
+  .mng__image-thumb { width: 32px; height: 32px; }
+  .mng__desc { font-size: 0.78rem; }
+
+  /* ── Pay progression ── */
+  .pay-prog__current { padding: 0.85rem; border-radius: 10px; }
+  .pay-prog__current h3 { font-size: 0.88rem; }
+  .pay-prog__current-grid { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .pay-prog__current-label { font-size: 0.62rem; }
+  .pay-prog__current-value { font-size: 0.95rem; }
+  .pay-prog__section { padding: 0.85rem; }
+  .pay-prog__section-title { font-size: 0.92rem; }
+  .pay-prog__section-desc { font-size: 0.78rem; }
+  .pay-prog__rates-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.5rem; }
+  .pay-prog__rate-card { padding: 0.5rem; }
+  .pay-prog__rate-icon { font-size: 1.25rem; }
+  .pay-prog__rate-label { font-size: 0.68rem; }
+  .pay-prog__rate-amount { font-size: 0.82rem; }
+  .pay-prog__timeline { flex-wrap: wrap; justify-content: center; gap: 0.35rem; }
+  .pay-prog__timeline-item { min-width: 65px; padding: 0 0.15rem; }
+  .pay-prog__timeline-connector { display: none; }
+  .pay-prog__xp-milestones { flex-wrap: wrap; justify-content: center; gap: 0.35rem; }
+  .pay-prog__xp-milestone { min-width: 85px; padding: 0 0.25rem; }
+  .pay-prog__xp-connector { display: none; }
+
+  /* ── How it works ── */
+  .hiw__section { padding: 0.85rem; margin-bottom: 1rem; }
+  .hiw__title { font-size: 0.95rem; }
+  .hiw__text { font-size: 0.82rem; }
+  .hiw__card { padding: 0.75rem; }
+  .hiw__card h4 { font-size: 0.82rem; }
+  .hiw__table td { font-size: 0.78rem; padding: 0.3rem 0; }
+  .hiw__table-xp { font-size: 0.78rem; }
+  .hiw__pay-paths { grid-template-columns: 1fr; gap: 0.65rem; }
+  .hiw__pay-path h4 { font-size: 0.82rem; }
+  .hiw__pay-path p { font-size: 0.72rem; }
+  .hiw__pay-path-icon { width: 30px; height: 30px; font-size: 0.82rem; }
+  .hiw__tiers { grid-template-columns: 1fr; }
+  .hiw__tier { padding: 0.6rem; }
+  .hiw__tier strong { font-size: 0.78rem; }
+  .hiw__tier p { font-size: 0.7rem; }
+  .hiw__list { font-size: 0.82rem; padding-left: 1.25rem; }
+  .hiw__edu-flow { flex-direction: column; align-items: stretch; gap: 0.35rem; }
+  .hiw__edu-step { min-width: auto; max-width: none; }
+  .hiw__edu-arrow { text-align: center; transform: rotate(90deg); }
+  .hiw__callout { padding: 0.6rem 0.75rem; }
+  .hiw__callout strong { font-size: 0.78rem; }
+  .hiw__callout p { font-size: 0.72rem; }
+
+  /* ── Learn ── */
+  .learn__sections { grid-template-columns: 1fr; }
+  .modules__grid { grid-template-columns: 1fr; }
+  .flashcards__decks { grid-template-columns: 1fr; }
+  .kb__articles { grid-template-columns: 1fr; }
+  .exam-prep__cards { grid-template-columns: 1fr; }
+  .admin-learn__sections { grid-template-columns: 1fr; }
+  .admin-learn__title { font-size: 1.1rem; }
+
+  /* ── Learn manage ── */
+  .manage__form { padding: 0.85rem; }
+  .manage__item { padding: 0.65rem; }
+  .manage__tabs { gap: 0; }
+  .manage__tab { font-size: 0.72rem; padding: 0.45rem 0.65rem; }
+
+  /* ── Lesson detail ── */
+  .lesson__body { padding: 1rem; }
+  .lesson__title { font-size: 1.1rem; }
+
+  /* ── Flashcard study ── */
+  .fc-study__card { height: 220px; }
+  .fc-study__front-text, .fc-study__back-text { font-size: 0.88rem; }
+  .fc-study__rating-buttons { flex-wrap: wrap; gap: 0.35rem; }
+  .fc-study__rating-btn { font-size: 0.72rem; padding: 0.3rem 0.55rem; }
+
+  /* ── Quiz ── */
+  .quiz__question-card { padding: 0.85rem; }
+  .quiz__question-text { font-size: 0.88rem; }
+  .quiz__option-label { font-size: 0.82rem; padding: 0.55rem 0.65rem; }
+
+  /* ── Quiz history ── */
+  .quiz-history__stats { flex-direction: column; gap: 0.5rem; }
+  .quiz-history__attempt-header { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+
+  /* ── Lesson builder ── */
+  .lesson-builder__block-picker { grid-template-columns: 1fr; }
+  .tiptap-editor__toolbar-group { flex-wrap: wrap; }
+
+  /* ── Roadmap ── */
+  .roadmap__overall { padding: 1rem; }
+  .roadmap__overall-pct { font-size: 1.25rem; }
+  .roadmap__part-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .roadmap__part-right { width: 100%; }
+  .roadmap__part-bar { flex: 1; }
+  .roadmap__module { flex-direction: column; align-items: flex-start; gap: 0.35rem; padding-left: 1.5rem; }
+  .roadmap__module-right { width: 100%; }
+  .roadmap__module-bar { flex: 1; width: auto; }
+  .roadmap__certs-grid { grid-template-columns: 1fr; }
+
+  /* ── Jobs ── */
+  .jobs-page__pipeline { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+  .jobs-page__pipeline-stage { white-space: nowrap; font-size: 0.72rem; padding: 0.35rem 0.65rem; }
+  .jobs-page__list-item { grid-template-columns: 1fr; gap: 0.25rem; }
+  .jobs-page__my-summary { flex-direction: column; }
+  .job-detail__tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .job-detail__stats { flex-direction: column; }
+  .job-timeline__track { gap: 0; overflow-x: auto; }
+  .job-import__type-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* ── Payroll ── */
+  .payroll-summary-cards { grid-template-columns: 1fr; }
+  .payroll-balance__amount { font-size: 1.5rem; }
+  .payroll-emp-detail__header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .payroll-my-header { flex-direction: column; gap: 0.5rem; }
+  .payroll-my-header__stats { width: 100%; flex-wrap: wrap; }
+  .payroll-stubs__item-summary { flex-direction: column; gap: 0.25rem; }
+  .payroll-runs__item-stats { flex-direction: column; gap: 0.25rem; }
+
+  /* ── Time logs ── */
+  .tl-summary-cards { grid-template-columns: 1fr; }
+  .tl-form-group--hours { max-width: none; }
+  .tl-week-nav { flex-wrap: wrap; gap: 0.35rem; }
+  .tl-day-strip { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tl-day-btn { min-width: 45px; padding: 0.4rem; }
+  .tl-day-btn__name { font-size: 0.58rem; }
+  .tl-log-footer { flex-direction: column; align-items: stretch; text-align: center; gap: 0.5rem; }
+  .tl-advance-card { flex-direction: column; }
+  .tl-advance-card__right { flex-direction: row; }
+  .tl-bulk-actions { flex-direction: column; align-items: stretch; }
+
+  /* ── Messaging ── */
+  .msg-threads__list { max-height: none; }
+  .msg-compose__row { flex-direction: column; }
+  .msg-compose__to-row { flex-direction: column; }
+
+  /* ── Schedule ── */
+  .schedule-week-grid { overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 600px; }
+
+  /* ── Fieldbook full page ── */
+  .fbfull__cat-grid { grid-template-columns: 1fr; }
+  .fbfull__toolbar { flex-wrap: wrap; }
+
+  /* ── Notifications dropdown ── */
+  .notif-bell__dropdown { width: calc(100vw - 1.5rem); right: -60px; max-height: 400px; }
+
+  /* ── Empty state ── */
+  .admin-empty { padding: 2rem 1rem; }
+  .admin-empty__icon { font-size: 2rem; }
+  .admin-empty__title { font-size: 0.92rem; }
+  .admin-empty__desc { font-size: 0.78rem; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SMALL MOBILE (max-width: 480px)
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+
+  /* ── Layout ── */
+  .admin-layout__content { padding: 0.5rem; }
+
+  /* ── Dashboard ── */
+  .dashboard-card__metric-value { font-size: 1rem; }
+  .admin-dashboard__welcome-title { font-size: 1rem; }
+
+  /* ── Rewards store ── */
+  .rewards__store-grid { grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+  .rewards__item { padding: 0.6rem; }
+  .rewards__item-name { font-size: 0.72rem; }
+  .rewards__item-desc { font-size: 0.62rem; -webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .rewards__item-xp { font-size: 0.75rem; }
+  .rewards__item-btn { font-size: 0.65rem !important; padding: 0.25rem 0.5rem !important; }
+
+  /* ── Badges ── */
+  .rewards__badges-grid { grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+
+  /* ── Hero ── */
+  .rewards__hero-amount { font-size: 1.5rem; }
+  .rewards__hero-stats { gap: 0.5rem; }
+
+  /* ── Manage rewards ── */
+  .mng__card { padding: 0.5rem 0.6rem; }
+  .mng__inline-input { font-size: 0.75rem; }
+
+  /* ── Pay progression ── */
+  .pay-prog__current-value { font-size: 0.85rem; }
+  .pay-prog__rates-grid { grid-template-columns: 1fr 1fr; }
+
+  /* ── How it works ── */
+  .hiw__table td { font-size: 0.72rem; }
+  .hiw__pay-paths { gap: 0.5rem; }
+
+  /* ── Learn ── */
+  .admin-learn__title { font-size: 1rem; }
+
+  /* ── Quiz ── */
+  .quiz__option-label { font-size: 0.78rem; padding: 0.45rem 0.55rem; }
+
+  /* ── Jobs ── */
+  .job-import__type-grid { grid-template-columns: 1fr 1fr; }
+  .job-detail__tab { font-size: 0.72rem; padding: 0.4rem 0.5rem; }
+
+  /* ── Payroll ── */
+  .payroll-tabs__btn { font-size: 0.72rem; padding: 0.4rem 0.55rem; }
+
+  /* ── Fieldbook ── */
+  .fieldbook-fab-wrap { bottom: 0.75rem; right: 0.75rem; }
+  .fieldbook-fab { width: 40px; height: 40px; font-size: 1rem; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EXTRA SMALL (max-width: 380px)
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 380px) {
+  .admin-topbar__title { font-size: 0.82rem; max-width: 110px; }
+  .admin-topbar__xp { display: none; }
+  .rewards__store-grid { grid-template-columns: 1fr; }
+  .rewards__badges-grid { grid-template-columns: 1fr; }
+  .rewards__hero-amount { font-size: 1.35rem; }
+  .hiw__pay-paths { grid-template-columns: 1fr; }
+  .pay-prog__current-grid { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOUCH TARGET IMPROVEMENTS — Ensure min 44x44px tap areas
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (pointer: coarse) {
+  .admin-btn { min-height: 44px; }
+  .admin-btn--sm { min-height: 36px; }
+  .manage__tab { min-height: 44px; display: inline-flex; align-items: center; }
+  .rewards__tab { min-height: 44px; display: inline-flex; align-items: center; }
+  .rewards__filter-select { min-height: 44px; }
+  .mng__input { min-height: 44px; }
+  .mng__inline-input { min-height: 40px; }
+  .admin-search__input { min-height: 44px; }
+  .manage__form-input { min-height: 44px; }
+  .payroll-tabs__btn { min-height: 44px; }
+  .tl-tabs__btn { min-height: 44px; }
+  .job-detail__tab { min-height: 44px; }
+  .tl-day-btn { min-height: 44px; min-width: 44px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INLINE STYLE OVERRIDES — Override fixed-width inline styles on mobile
+   Uses !important to beat inline style specificity
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Flashcard bank grid — override minmax(280px) */
+  .fc-bank__grid { grid-template-columns: 1fr !important; }
+  .fc-bank__search { width: 100% !important; }
+
+  /* Media library grid — override minmax(180px) */
+  .media__grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important; }
+
+  /* Media form row — override fixed flex basis */
+  .media__form-row { flex-direction: column !important; }
+  .media__field-type { flex: 1 1 auto !important; }
+  .media__field-res { flex: 1 1 auto !important; }
+
+  /* Practice session — override fixed flex basis */
+  .practice__fields-row { flex-direction: column !important; }
+  .practice__field-type { flex: 1 1 auto !important; }
+  .practice__field-qty { flex: 1 1 auto !important; }
+  .practice__field-diff { flex: 1 1 auto !important; }
+
+  /* Search bar */
+  .learn-search__bar { max-width: 100% !important; }
+
+  /* Manage XP stats grid — override 3-column to 1 */
+  .mng__xp-stats-grid { grid-template-columns: 1fr 1fr 1fr !important; }
+
+  /* Manage XP lookup row */
+  .mng__xp-lookup-row { flex-direction: column !important; }
+}
+
+@media (max-width: 599px) {
+  /* Flashcard bank grid */
+  .fc-bank__grid { grid-template-columns: 1fr !important; gap: 0.5rem !important; }
+
+  /* Media library grid — smaller on phones */
+  .media__grid { grid-template-columns: repeat(2, 1fr) !important; gap: 0.5rem !important; }
+
+  /* Manage XP stats — stack to single column */
+  .mng__xp-stats-grid { grid-template-columns: 1fr !important; gap: 0.5rem !important; }
+}
+
+@media (max-width: 480px) {
+  /* Media library — single column on very small screens */
+  .media__grid { grid-template-columns: 1fr !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SAFE AREA — Support for iPhone notch / bottom bar
+   ═══════════════════════════════════════════════════════════════════════════ */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .admin-sidebar { padding-bottom: env(safe-area-inset-bottom); }
+  .fieldbook-fab-wrap { bottom: calc(1rem + env(safe-area-inset-bottom)); }
+  .fb { padding-bottom: env(safe-area-inset-bottom); }
+}

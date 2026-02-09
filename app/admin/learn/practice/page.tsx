@@ -209,8 +209,8 @@ export default function PracticeSessionPage() {
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-              <div style={{ flex: '2 1 250px' }}>
+            <div className="practice__fields-row" style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+              <div className="practice__field-type" style={{ flex: '2 1 250px' }}>
                 <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Problem Type</label>
                 <select
                   value={cfg.typeId}
@@ -228,7 +228,7 @@ export default function PracticeSessionPage() {
                 </select>
               </div>
 
-              <div style={{ flex: '0 0 100px' }}>
+              <div className="practice__field-qty" style={{ flex: '0 0 100px' }}>
                 <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Quantity</label>
                 <input
                   type="number" min={1} max={50}
@@ -238,7 +238,7 @@ export default function PracticeSessionPage() {
                 />
               </div>
 
-              <div style={{ flex: '0 0 120px' }}>
+              <div className="practice__field-diff" style={{ flex: '0 0 120px' }}>
                 <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Difficulty</label>
                 <select
                   value={cfg.difficulty}
