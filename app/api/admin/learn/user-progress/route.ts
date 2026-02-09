@@ -35,14 +35,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const lessons = lessonsRes.data || [];
     const progress = progressRes.data || [];
     const assignments = assignmentsRes.data || [];
-    const progressMap = new Map(progress.map((p: any) => [p.lesson_id, p]));
-    const assignmentMap = new Map(assignments.filter((a: any) => a.lesson_id).map((a: any) => [a.lesson_id, a]));
+    const progressMap = new Map<string, any>(progress.map((p: any) => [p.lesson_id, p]));
+    const assignmentMap = new Map<string, any>(assignments.filter((a: any) => a.lesson_id).map((a: any) => [a.lesson_id, a]));
 
     const enrichedLessons = lessons.map((lesson: any, idx: number) => {
-      const lp = progressMap.get(lesson.id);
+      const lp: any = progressMap.get(lesson.id);
       const assignment = assignmentMap.get(lesson.id);
       const prevLesson = idx > 0 ? lessons[idx - 1] : null;
-      const prevProgress = prevLesson ? progressMap.get(prevLesson.id) : null;
+      const prevProgress: any = prevLesson ? progressMap.get(prevLesson.id) : null;
 
       // Count required content interactions
       let resources: any[] = [];
@@ -50,7 +50,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       try { resources = typeof lesson.resources === 'string' ? JSON.parse(lesson.resources) : (lesson.resources || []); } catch { resources = []; }
       try { videos = typeof lesson.videos === 'string' ? JSON.parse(lesson.videos) : (lesson.videos || []); } catch { videos = []; }
       const totalInteractions = resources.length + videos.length;
-      const interactions = lp?.content_interactions || {};
+      const interactions: Record<string, boolean> = lp?.content_interactions || {};
       const completedInteractions = Object.keys(interactions).filter(k => interactions[k] === true).length;
 
       // Locking logic
@@ -217,10 +217,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
 
     // Upsert lesson progress record
-    const { data: existing } = await supabaseAdmin.from('user_lesson_progress')
+    const { data: existingRaw } = await supabaseAdmin.from('user_lesson_progress')
       .select('*').eq('user_email', userEmail).eq('lesson_id', lesson_id).maybeSingle();
+    const existing = existingRaw as any;
 
-    const interactions = existing?.content_interactions || {};
+    const interactions: Record<string, boolean> = existing?.content_interactions || {};
     interactions[interaction_key] = true;
 
     if (existing) {
@@ -272,18 +273,20 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     const { lesson_id } = body;
     if (!lesson_id) return NextResponse.json({ error: 'lesson_id required' }, { status: 400 });
 
-    const { data: progress } = await supabaseAdmin.from('user_lesson_progress')
+    const { data: progressRaw } = await supabaseAdmin.from('user_lesson_progress')
       .select('*').eq('user_email', userEmail).eq('lesson_id', lesson_id).maybeSingle();
+    const progress = progressRaw as any;
 
-    const { data: lesson } = await supabaseAdmin.from('learning_lessons')
+    const { data: lessonRaw } = await supabaseAdmin.from('learning_lessons')
       .select('resources, videos').eq('id', lesson_id).single();
+    const lesson = lessonRaw as any;
 
     let resources: any[] = [];
     let videos: any[] = [];
     try { resources = typeof lesson?.resources === 'string' ? JSON.parse(lesson.resources) : (lesson?.resources || []); } catch { resources = []; }
     try { videos = typeof lesson?.videos === 'string' ? JSON.parse(lesson.videos) : (lesson?.videos || []); } catch { videos = []; }
     const totalRequired = resources.length + videos.length;
-    const interactions = progress?.content_interactions || {};
+    const interactions: Record<string, boolean> = progress?.content_interactions || {};
     const completedCount = Object.keys(interactions).filter(k => interactions[k] === true).length;
 
     const unlocked = totalRequired === 0 || completedCount >= totalRequired;
