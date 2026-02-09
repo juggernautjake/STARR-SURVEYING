@@ -472,10 +472,6 @@
 
   /* ── Payroll ── */
   .payroll-tabs__btn { font-size: 0.72rem; padding: 0.4rem 0.55rem; }
-
-  /* ── Fieldbook ── */
-  .fieldbook-fab-wrap { bottom: 0.75rem; right: 0.75rem; }
-  .fieldbook-fab { width: 40px; height: 40px; font-size: 1rem; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -508,6 +504,58 @@
   .tl-tabs__btn { min-height: 44px; }
   .job-detail__tab { min-height: 44px; }
   .tl-day-btn { min-height: 44px; min-width: 44px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FAB TOOLBAR — Unified positioning for all 3 floating action buttons
+   Order (right to left): Fieldbook → Discussion → Messenger
+   All use position:fixed, same bottom, calculated right offsets.
+   GPU-composited with translateZ(0) to prevent mobile scroll jitter.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Scroll-stability: promote FABs to GPU layer so they don't jitter
+   when mobile Safari shows/hides the address bar */
+.fieldbook-fab-wrap,
+.discussion-fab-wrap,
+.messenger-fab-wrap {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Desktop base is defined in individual CSS files and is correct:
+   48px buttons, 12px gaps, bottom 1.5rem, right 1.5rem/+60/+120 */
+
+/* 599px: 44px buttons, 12px gaps — individual files handle this.
+   Override here to guarantee all three share the same bottom. */
+@media (max-width: 599px) {
+  .fieldbook-fab-wrap { bottom: 1rem; right: 1rem; }
+  .fieldbook-fab { width: 44px; height: 44px; font-size: 1.15rem; }
+  .discussion-fab-wrap { bottom: 1rem; right: calc(1rem + 56px); }
+  .discussion-fab { width: 44px; height: 44px; font-size: 1.1rem; }
+  .messenger-fab-wrap { bottom: 1rem; right: calc(1rem + 112px); }
+  .messenger-fab { width: 44px; height: 44px; font-size: 1.1rem; }
+}
+
+/* 480px: 40px buttons, 8px gaps */
+@media (max-width: 480px) {
+  .fieldbook-fab-wrap { bottom: 0.75rem; right: 0.75rem; }
+  .fieldbook-fab { width: 40px; height: 40px; font-size: 1rem; }
+  .discussion-fab-wrap { bottom: 0.75rem; right: calc(0.75rem + 48px); }
+  .discussion-fab { width: 40px; height: 40px; font-size: 1rem; }
+  .messenger-fab-wrap { bottom: 0.75rem; right: calc(0.75rem + 96px); }
+  .messenger-fab { width: 40px; height: 40px; font-size: 1rem; }
+}
+
+/* 380px: 36px buttons, 6px gaps */
+@media (max-width: 380px) {
+  .fieldbook-fab-wrap { bottom: 0.75rem; right: 0.75rem; }
+  .fieldbook-fab { width: 36px; height: 36px; font-size: 0.9rem; border-radius: 10px; }
+  .discussion-fab-wrap { bottom: 0.75rem; right: calc(0.75rem + 42px); }
+  .discussion-fab { width: 36px; height: 36px; font-size: 0.9rem; border-radius: 10px; }
+  .messenger-fab-wrap { bottom: 0.75rem; right: calc(0.75rem + 84px); }
+  .messenger-fab { width: 36px; height: 36px; font-size: 0.9rem; border-radius: 10px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -549,9 +597,6 @@
 
   /* Fieldbook button panel */
   .fieldbook-panel { width: calc(100vw - 2rem) !important; }
-
-  /* Messenger panel — already 380px, starts getting tight */
-  .messenger-fab-wrap { right: calc(1.5rem + 56px); }
 
   /* Error dialog */
   .err-dialog__header { padding: 1rem; }
@@ -647,8 +692,6 @@
   .fb__page--left::before { display: none; }
 
   /* Messenger */
-  .messenger-fab-wrap { right: calc(0.75rem + 48px); bottom: 0.75rem; }
-  .messenger-fab { width: 40px; height: 40px; font-size: 1rem; }
   .messenger-panel__msg { max-width: 92%; }
 
   /* Error log */
@@ -747,9 +790,12 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .admin-sidebar { padding-bottom: env(safe-area-inset-bottom); }
-  .fieldbook-fab-wrap { bottom: calc(1rem + env(safe-area-inset-bottom)); }
+  /* All three FABs share the same safe-area offset */
+  .fieldbook-fab-wrap,
+  .discussion-fab-wrap,
   .messenger-fab-wrap { bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
   .fb { padding-bottom: env(safe-area-inset-bottom); }
+  .discussion-panel { padding-bottom: env(safe-area-inset-bottom); }
   .messenger-panel { padding-bottom: env(safe-area-inset-bottom); }
   .messenger-panel__compose { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
 }
