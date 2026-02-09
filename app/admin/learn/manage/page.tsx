@@ -1,4 +1,4 @@
-// app/admin/learn/manage/page.tsx
+// app/admin/learn/manage/page.tsx — Content management with Assignments and Activity Monitor
 'use client';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
@@ -7,7 +7,7 @@ import { usePageError } from '../../hooks/usePageError';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
-type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config' | 'recycle_bin';
+type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config' | 'assignments' | 'activity' | 'recycle_bin';
 
 interface Module { id: string; title: string; status: string; order_index: number; description: string; difficulty: string; estimated_hours: number; lesson_count?: number; xp_value?: number; expiry_months?: number; }
 interface XPModuleConfig { id: string; title: string; difficulty?: string; order_index?: number; module_number?: number; module_type: string; xp_value: number; expiry_months: number; difficulty_rating: number; has_custom_xp: boolean; config_id: string | null; }
@@ -15,11 +15,13 @@ interface Lesson { id: string; title: string; module_id: string; order_index: nu
 interface Article { id: string; title: string; slug: string; category: string; status: string; }
 interface Question { id: string; question_text: string; question_type: string; module_id?: string; lesson_id?: string; exam_category?: string; difficulty: string; correct_answer: string; options: any; explanation?: string; }
 interface Flashcard { id: string; term: string; definition: string; hint_1?: string; }
+interface Assignment { id: string; assigned_to: string; assigned_by: string; module_id?: string; lesson_id?: string; unlock_next: boolean; status: string; due_date?: string; notes?: string; created_at: string; completed_at?: string; module_title?: string; lesson_title?: string; }
+interface Activity { id: string; user_email: string; action_type: string; entity_type?: string; entity_id?: string; metadata?: any; created_at: string; }
 
 export default function ManageContentPage() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
-  const { safeFetch, safeAction } = usePageError('ManageContentPage');
+  const { safeFetch } = usePageError('ManageContentPage');
   const [tab, setTab] = useState<Tab>('modules');
   const [loading, setLoading] = useState(true);
 
@@ -35,6 +37,16 @@ export default function ManageContentPage() {
   const [xpEditing, setXpEditing] = useState<Record<string, { xp_value: number; expiry_months: number }>>({});
   const [xpSaving, setXpSaving] = useState(false);
   const [recycleBin, setRecycleBin] = useState<{ id: string; item_title: string; item_type: string; deleted_by: string; deleted_at: string; original_id: string; original_table: string }[]>([]);
+
+  // Assignments
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignForm, setAssignForm] = useState<Record<string, any>>({});
+  const [assignFilter, setAssignFilter] = useState<string>('all');
+
+  // Activity
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [activityFilter, setActivityFilter] = useState<string>('');
+  const [activityTypeFilter, setActivityTypeFilter] = useState<string>('all');
 
   // Create forms
   const [showForm, setShowForm] = useState(false);
@@ -90,6 +102,20 @@ export default function ManageContentPage() {
           setXpFsModules(d.fs_modules || []);
           if (d.defaults) setXpDefaults(d.defaults);
         }
+        break;
+      }
+      case 'assignments': {
+        const [assignData, modData] = await Promise.all([
+          safeFetch<{ assignments: Assignment[] }>('/api/admin/learn/assignments'),
+          safeFetch<{ modules: Module[] }>('/api/admin/learn/modules'),
+        ]);
+        if (assignData) setAssignments(assignData.assignments || []);
+        if (modData) setModules(modData.modules || []);
+        break;
+      }
+      case 'activity': {
+        const d = await safeFetch<{ activities: Activity[] }>('/api/admin/learn/activity?limit=100');
+        if (d) setActivities(d.activities || []);
         break;
       }
       case 'recycle_bin': {
@@ -172,14 +198,14 @@ export default function ManageContentPage() {
           loadData();
         }
       }
-    } catch (e) { /* safeFetch handles error reporting */ }
+    } catch { /* safeFetch handles error reporting */ }
     setSaving(false);
   }
 
   if (!isAdmin) {
     return (
       <div className="admin-empty">
-        <div className="admin-empty__icon">🔒</div>
+        <div className="admin-empty__icon">&#x1F512;</div>
         <div className="admin-empty__title">Admin Access Required</div>
         <div className="admin-empty__desc">Only administrators can manage learning content.</div>
         <Link href="/admin/learn" className="admin-btn admin-btn--ghost" style={{ marginTop: '1rem' }}>&larr; Back to Learning Hub</Link>
@@ -256,6 +282,75 @@ export default function ManageContentPage() {
     if (result) loadData();
   }
 
+  // Assignment actions
+  async function handleCreateAssignment() {
+    if (!assignForm.assigned_to) { alert('Please enter a user email.'); return; }
+    if (!assignForm.module_id && !assignForm.lesson_id) { alert('Select a module or lesson.'); return; }
+    setSaving(true);
+    const result = await safeFetch('/api/admin/learn/assignments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(assignForm),
+    });
+    if (result) {
+      setAssignForm({});
+      setShowForm(false);
+      loadData();
+    }
+    setSaving(false);
+  }
+
+  async function handleCancelAssignment(id: string) {
+    if (!confirm('Cancel this assignment?')) return;
+    await safeFetch(`/api/admin/learn/assignments?id=${id}`, { method: 'DELETE' });
+    loadData();
+  }
+
+  async function handleUpdateAssignmentStatus(id: string, status: string) {
+    await safeFetch('/api/admin/learn/assignments', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status }),
+    });
+    loadData();
+  }
+
+  // ACC enrollment
+  async function handleEnrollACC() {
+    if (!assignForm.acc_email || !assignForm.acc_course) { alert('Enter email and select course.'); return; }
+    setSaving(true);
+    await safeFetch('/api/admin/learn/assignments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'enroll_acc', user_email: assignForm.acc_email, course_id: assignForm.acc_course }),
+    });
+    setAssignForm(prev => ({ ...prev, acc_email: '', acc_course: '' }));
+    setSaving(false);
+  }
+
+  // Refresh frequency
+  async function handleUpdateRefresh(moduleId: string, months: number) {
+    await safeFetch('/api/admin/learn/assignments', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_refresh', module_id: moduleId, refresh_months: months }),
+    });
+  }
+
+  const filteredAssignments = assignments.filter(a => {
+    if (assignFilter === 'all') return true;
+    return a.status === assignFilter;
+  });
+
+  const filteredActivities = activities.filter(a => {
+    let match = true;
+    if (activityFilter) match = a.user_email.toLowerCase().includes(activityFilter.toLowerCase());
+    if (activityTypeFilter !== 'all') match = match && a.action_type === activityTypeFilter;
+    return match;
+  });
+
+  const activityTypes = [...new Set(activities.map(a => a.action_type))];
+
   const tabs: { key: Tab; label: string; icon: string }[] = [
     { key: 'modules', label: 'Modules', icon: '\u{1F4DA}' },
     { key: 'lessons', label: 'Lessons', icon: '\u{1F4D6}' },
@@ -263,6 +358,8 @@ export default function ManageContentPage() {
     { key: 'questions', label: 'Questions', icon: '\u{2753}' },
     { key: 'flashcards', label: 'Flashcards', icon: '\u{1F0CF}' },
     { key: 'xp_config', label: 'XP Config', icon: '\u{2B50}' },
+    { key: 'assignments', label: 'Assignments', icon: '\u{1F4CB}' },
+    { key: 'activity', label: 'Activity', icon: '\u{1F4CA}' },
     { key: 'recycle_bin', label: `Recycle Bin${recycleBin.length > 0 ? ` (${recycleBin.length})` : ''}`, icon: '\u{1F5D1}' },
   ];
 
@@ -271,7 +368,7 @@ export default function ManageContentPage() {
       <div className="learn__header">
         <Link href="/admin/learn" className="learn__back">&larr; Back to Learning Hub</Link>
         <h2 className="learn__title">Manage Content</h2>
-        <p className="learn__subtitle">Create and manage modules, lessons, articles, question bank, and flashcards. Use the Lesson Builder for rich content editing.</p>
+        <p className="learn__subtitle">Create and manage modules, lessons, articles, question bank, flashcards, assignments, and monitor activity.</p>
       </div>
 
       {/* Tabs */}
@@ -286,12 +383,16 @@ export default function ManageContentPage() {
       {/* Toolbar */}
       <div className="manage__toolbar">
         <span style={{ fontSize: '.85rem', color: '#6B7280' }}>
-          {loading ? 'Loading...' : `${tab === 'modules' ? modules.length : tab === 'lessons' ? lessons.length : tab === 'articles' ? articles.length : tab === 'questions' ? questions.length : tab === 'xp_config' ? xpLearningModules.length + xpFsModules.length : flashcards.length} items`}
+          {loading ? 'Loading...' : tab === 'assignments' ? `${filteredAssignments.length} assignments` : tab === 'activity' ? `${filteredActivities.length} activities` : `${tab === 'modules' ? modules.length : tab === 'lessons' ? lessons.length : tab === 'articles' ? articles.length : tab === 'questions' ? questions.length : tab === 'xp_config' ? xpLearningModules.length + xpFsModules.length : flashcards.length} items`}
         </span>
         {tab === 'questions' ? (
           <Link href="/admin/learn/manage/question-builder" className="admin-btn admin-btn--primary admin-btn--sm">
             Open Question Builder
           </Link>
+        ) : tab === 'assignments' ? (
+          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(!showForm); setAssignForm({}); }}>
+            {showForm ? '\u2715 Cancel' : '+ New Assignment'}
+          </button>
         ) : ['modules', 'lessons', 'articles'].includes(tab) && (
           <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(!showForm); setFormData({}); }}>
             {showForm ? '\u2715 Cancel' : '+ Create New'}
@@ -299,8 +400,150 @@ export default function ManageContentPage() {
         )}
       </div>
 
-      {/* Create Form */}
-      {showForm && (
+      {/* ── ASSIGNMENTS TAB ── */}
+      {tab === 'assignments' && (
+        <>
+          {/* Assignment Create Form */}
+          {showForm && (
+            <div className="manage__form">
+              <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.95rem', fontWeight: 600, color: '#0F1419', margin: '0 0 0.75rem' }}>Create Assignment</h4>
+              <input className="manage__form-input" placeholder="User email *" type="email" value={assignForm.assigned_to || ''} onChange={e => setAssignForm(p => ({ ...p, assigned_to: e.target.value }))} />
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+                <select className="manage__form-input" style={{ flex: 1 }} value={assignForm.module_id || ''} onChange={e => setAssignForm(p => ({ ...p, module_id: e.target.value }))}>
+                  <option value="">Select module</option>
+                  {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input className="manage__form-input" style={{ flex: 1 }} type="date" placeholder="Due date (optional)" value={assignForm.due_date || ''} onChange={e => setAssignForm(p => ({ ...p, due_date: e.target.value }))} />
+                <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.82rem', color: '#374151', whiteSpace: 'nowrap' }}>
+                  <input type="checkbox" checked={assignForm.unlock_next || false} onChange={e => setAssignForm(p => ({ ...p, unlock_next: e.target.checked }))} />
+                  Unlock next module on completion
+                </label>
+              </div>
+              <textarea className="manage__form-textarea" placeholder="Notes (optional)" rows={2} value={assignForm.notes || ''} onChange={e => setAssignForm(p => ({ ...p, notes: e.target.value }))} />
+              <button className="admin-btn admin-btn--primary" onClick={handleCreateAssignment} disabled={saving}>{saving ? 'Creating...' : 'Create Assignment'}</button>
+            </div>
+          )}
+
+          {/* ACC Enrollment Section */}
+          <div className="assign__section">
+            <h4 className="assign__section-title">&#x1F3EB; ACC Course Enrollment</h4>
+            <p className="assign__section-desc">Enroll users in ACC academic courses to grant access to those modules.</p>
+            <div className="assign__enroll-row">
+              <input className="manage__form-input" style={{ flex: 1 }} placeholder="User email" type="email" value={assignForm.acc_email || ''} onChange={e => setAssignForm(p => ({ ...p, acc_email: e.target.value }))} />
+              <select className="manage__form-input" style={{ flex: 1 }} value={assignForm.acc_course || ''} onChange={e => setAssignForm(p => ({ ...p, acc_course: e.target.value }))}>
+                <option value="">Select ACC course</option>
+                <option value="SRVY_1301">SRVY 1301</option>
+                <option value="SRVY_1335">SRVY 1335</option>
+                <option value="SRVY_1341">SRVY 1341</option>
+                <option value="SRVY_2339">SRVY 2339</option>
+                <option value="SRVY_2341">SRVY 2341</option>
+                <option value="SRVY_2343">SRVY 2343</option>
+                <option value="SRVY_2344">SRVY 2344</option>
+              </select>
+              <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleEnrollACC} disabled={saving}>Enroll</button>
+            </div>
+          </div>
+
+          {/* Assignment Filters */}
+          <div className="assign__filters">
+            {['all', 'pending', 'in_progress', 'completed', 'cancelled'].map(f => (
+              <button key={f} className={`modules__filter-btn ${assignFilter === f ? 'modules__filter-btn--active' : ''}`} onClick={() => setAssignFilter(f)}>
+                {f === 'all' ? 'All' : f.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+              </button>
+            ))}
+          </div>
+
+          {/* Assignment List */}
+          {filteredAssignments.length === 0 ? (
+            <div className="admin-empty" style={{ padding: '2rem' }}>
+              <div className="admin-empty__icon">&#x1F4CB;</div>
+              <div className="admin-empty__title">No assignments found</div>
+              <div className="admin-empty__desc">Create an assignment using the button above.</div>
+            </div>
+          ) : (
+            <div className="manage__list">
+              {filteredAssignments.map(a => (
+                <div key={a.id} className="manage__item assign__item">
+                  <div className="manage__item-info">
+                    <div className="manage__item-title">
+                      {a.module_title || a.lesson_title || 'Unknown'}
+                      {a.unlock_next && <span className="assign__unlock-badge">&#x1F513; Unlocks Next</span>}
+                    </div>
+                    <div className="manage__item-meta">
+                      <span className={`assign__status assign__status--${a.status}`}>{a.status.replace('_', ' ')}</span>
+                      {' '}Assigned to: {a.assigned_to}
+                      {' \u00B7 '}{new Date(a.created_at).toLocaleDateString()}
+                      {a.due_date && <span> &middot; Due: {new Date(a.due_date).toLocaleDateString()}</span>}
+                      {a.notes && <span> &middot; Note: {a.notes}</span>}
+                    </div>
+                  </div>
+                  <div className="manage__item-actions">
+                    {a.status === 'pending' && (
+                      <button className="manage__item-btn" onClick={() => handleUpdateAssignmentStatus(a.id, 'in_progress')}>Start</button>
+                    )}
+                    {a.status !== 'completed' && a.status !== 'cancelled' && (
+                      <button className="manage__item-btn manage__item-btn--primary" onClick={() => handleUpdateAssignmentStatus(a.id, 'completed')}>Complete</button>
+                    )}
+                    {a.status !== 'cancelled' && (
+                      <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleCancelAssignment(a.id)}>Cancel</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── ACTIVITY MONITOR TAB ── */}
+      {tab === 'activity' && (
+        <>
+          <div className="activity__filters">
+            <input className="manage__form-input" style={{ flex: 1, maxWidth: '300px' }} placeholder="Filter by user email..." value={activityFilter} onChange={e => setActivityFilter(e.target.value)} />
+            <select className="manage__form-input" style={{ maxWidth: '220px' }} value={activityTypeFilter} onChange={e => setActivityTypeFilter(e.target.value)}>
+              <option value="all">All Activity Types</option>
+              {activityTypes.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+            </select>
+            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={loadData}>&#x1F504; Refresh</button>
+          </div>
+
+          <p className="activity__notice">Activity logs are retained for 4 weeks, then automatically cleaned up.</p>
+
+          {filteredActivities.length === 0 ? (
+            <div className="admin-empty" style={{ padding: '2rem' }}>
+              <div className="admin-empty__icon">&#x1F4CA;</div>
+              <div className="admin-empty__title">No activity found</div>
+              <div className="admin-empty__desc">Activity will appear here as users interact with the learning platform.</div>
+            </div>
+          ) : (
+            <div className="manage__list">
+              {filteredActivities.map(a => (
+                <div key={a.id} className="manage__item activity__item">
+                  <div className="manage__item-info">
+                    <div className="manage__item-title" style={{ fontSize: '.85rem' }}>
+                      <span className="activity__type-badge">{a.action_type.replace(/_/g, ' ')}</span>
+                      {a.entity_type && <span className="activity__entity-badge">{a.entity_type}</span>}
+                    </div>
+                    <div className="manage__item-meta">
+                      {a.user_email} &middot; {new Date(a.created_at).toLocaleString()}
+                      {a.metadata && Object.keys(a.metadata).length > 0 && (
+                        <span style={{ marginLeft: '0.5rem', color: '#9CA3AF' }}>
+                          {JSON.stringify(a.metadata).substring(0, 80)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Create Form (modules/lessons/articles/questions) */}
+      {showForm && tab !== 'assignments' && (
         <div className="manage__form">
           {tab === 'modules' && (
             <>
@@ -377,7 +620,7 @@ export default function ManageContentPage() {
       )}
 
       {/* Content Lists */}
-      {!loading && (
+      {!loading && tab !== 'assignments' && tab !== 'activity' && (
         <div className="manage__list">
           {tab === 'modules' && modules.sort((a, b) => a.order_index - b.order_index).map(m => (
             <div key={m.id} className="manage__item" style={editingModuleId === m.id ? { flexDirection: 'column', alignItems: 'stretch' } : undefined}>
@@ -419,7 +662,7 @@ export default function ManageContentPage() {
                     </div>
                     <div className="manage__item-meta">
                       <span className={`manage__status manage__status--${m.status}`}>{m.status}</span>
-                      {' '}{m.difficulty} · {m.estimated_hours}h · {m.lesson_count || 0} lessons
+                      {' '}{m.difficulty} &middot; {m.estimated_hours}h &middot; {m.lesson_count || 0} lessons
                       {m.xp_value && <span style={{ marginLeft: '0.5rem', color: '#10B981', fontWeight: 600 }}>{m.xp_value} XP</span>}
                     </div>
                   </div>
@@ -439,7 +682,7 @@ export default function ManageContentPage() {
                 <div className="manage__item-title">{l.title}</div>
                 <div className="manage__item-meta">
                   <span className={`manage__status manage__status--${l.status}`}>{l.status}</span>
-                  {' '}Module: {modules.find(m => m.id === l.module_id)?.title || l.module_id?.slice(0, 8)} · Order: {l.order_index} · {l.estimated_minutes}min
+                  {' '}Module: {modules.find(m => m.id === l.module_id)?.title || l.module_id?.slice(0, 8)} &middot; Order: {l.order_index} &middot; {l.estimated_minutes}min
                 </div>
               </div>
               <div className="manage__item-actions">
@@ -458,7 +701,7 @@ export default function ManageContentPage() {
                 <div className="manage__item-title">{a.title}</div>
                 <div className="manage__item-meta">
                   <span className={`manage__status manage__status--${a.status}`}>{a.status}</span>
-                  {' '}{a.category} · /{a.slug}
+                  {' '}{a.category} &middot; /{a.slug}
                 </div>
               </div>
               <div className="manage__item-actions">
@@ -470,7 +713,7 @@ export default function ManageContentPage() {
 
           {tab === 'questions' && questions.length === 0 && !showForm && (
             <div className="admin-empty" style={{ padding: '2rem' }}>
-              <div className="admin-empty__icon">❓</div>
+              <div className="admin-empty__icon">&#x2753;</div>
               <div className="admin-empty__title">No questions loaded</div>
               <div className="admin-empty__desc">Use the Create form above to add questions to the question bank, or add them via SQL.</div>
             </div>
@@ -480,8 +723,8 @@ export default function ManageContentPage() {
               <div className="manage__item-info">
                 <div className="manage__item-title" style={{ fontSize: '.85rem' }}>{q.question_text.substring(0, 120)}{q.question_text.length > 120 ? '...' : ''}</div>
                 <div className="manage__item-meta">
-                  {q.question_type} · {q.difficulty}
-                  {q.exam_category && ` · ${q.exam_category}`}
+                  {q.question_type} &middot; {q.difficulty}
+                  {q.exam_category && ` \u00B7 ${q.exam_category}`}
                 </div>
               </div>
               <div className="manage__item-actions">
@@ -496,7 +739,7 @@ export default function ManageContentPage() {
                 <div className="manage__item-title">{f.term}</div>
                 <div className="manage__item-meta">
                   {f.definition.substring(0, 80)}{f.definition.length > 80 ? '...' : ''}
-                  {f.hint_1 && ' · Has hints'}
+                  {f.hint_1 && ' \u00B7 Has hints'}
                 </div>
               </div>
               <div className="manage__item-actions">
@@ -532,7 +775,7 @@ export default function ManageContentPage() {
                         <span className="manage__item-order">{m.order_index}</span> {m.title}
                       </div>
                       <div className="manage__item-meta">
-                        {m.difficulty} · {m.has_custom_xp ? 'Custom' : 'Default'}
+                        {m.difficulty} &middot; {m.has_custom_xp ? 'Custom' : 'Default'}
                         {editing ? (
                           <span style={{ display: 'inline-flex', gap: '0.4rem', marginLeft: '0.5rem' }} onClick={e => e.stopPropagation()}>
                             <input type="number" value={editing.xp_value} onChange={e => updateEditXP(editKey, 'xp_value', parseInt(e.target.value) || 0)}
@@ -543,7 +786,7 @@ export default function ManageContentPage() {
                             <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>mo</span>
                           </span>
                         ) : (
-                          <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: '#10B981' }}>{m.xp_value} XP · {m.expiry_months}mo</span>
+                          <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: '#10B981' }}>{m.xp_value} XP &middot; {m.expiry_months}mo</span>
                         )}
                       </div>
                     </div>
@@ -580,7 +823,7 @@ export default function ManageContentPage() {
                                 <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>mo</span>
                               </span>
                             ) : (
-                              <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: '#10B981' }}>{m.xp_value} XP · {m.expiry_months}mo</span>
+                              <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: '#10B981' }}>{m.xp_value} XP &middot; {m.expiry_months}mo</span>
                             )}
                           </div>
                         </div>
@@ -593,10 +836,10 @@ export default function ManageContentPage() {
           )}
 
           {/* Empty states */}
-          {tab === 'modules' && modules.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">📚</div><div className="admin-empty__title">No modules yet</div></div>}
-          {tab === 'lessons' && lessons.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">📖</div><div className="admin-empty__title">No lessons yet</div></div>}
-          {tab === 'articles' && articles.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">📄</div><div className="admin-empty__title">No articles yet</div></div>}
-          {tab === 'flashcards' && flashcards.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">🃏</div><div className="admin-empty__title">No built-in flashcards yet</div></div>}
+          {tab === 'modules' && modules.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F4DA;</div><div className="admin-empty__title">No modules yet</div></div>}
+          {tab === 'lessons' && lessons.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F4D6;</div><div className="admin-empty__title">No lessons yet</div></div>}
+          {tab === 'articles' && articles.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F4C4;</div><div className="admin-empty__title">No articles yet</div></div>}
+          {tab === 'flashcards' && flashcards.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F0CF;</div><div className="admin-empty__title">No built-in flashcards yet</div></div>}
 
           {tab === 'recycle_bin' && recycleBin.length === 0 && (
             <div className="admin-empty">
@@ -611,8 +854,8 @@ export default function ManageContentPage() {
                 <div className="manage__item-title" style={{ textDecoration: 'line-through', opacity: 0.7 }}>{item.item_title}</div>
                 <div className="manage__item-meta">
                   <span style={{ textTransform: 'capitalize' }}>{item.item_type}</span>
-                  {' · Deleted by '}{item.deleted_by}
-                  {' · '}{new Date(item.deleted_at).toLocaleDateString()}
+                  {' \u00B7 Deleted by '}{item.deleted_by}
+                  {' \u00B7 '}{new Date(item.deleted_at).toLocaleDateString()}
                 </div>
               </div>
               <div className="manage__item-actions">

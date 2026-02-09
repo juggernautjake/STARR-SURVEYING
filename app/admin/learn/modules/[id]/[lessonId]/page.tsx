@@ -1,36 +1,18 @@
-// app/admin/learn/modules/[id]/[lessonId]/page.tsx
+// app/admin/learn/modules/[id]/[lessonId]/page.tsx — Lesson viewer with content interaction tracking
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { usePageError } from '../../../../hooks/usePageError';
 
-interface Topic {
-  id: string;
-  title: string;
-  content: string;
-  order_index: number;
-  keywords: string[];
-}
-
-interface Resource {
-  title: string;
-  url: string;
-  type: string;
-}
-
-interface Video {
-  title: string;
-  url: string;
-  description?: string;
-}
+interface Topic { id: string; title: string; content: string; order_index: number; keywords: string[]; }
+interface Resource { title: string; url: string; type: string; }
+interface Video { title: string; url: string; description?: string; }
 
 export default function LessonViewerPage() {
   const params = useParams();
   const moduleId = params.id as string;
   const lessonId = params.lessonId as string;
-  const { safeFetch, safeAction } = usePageError('LessonViewerPage');
 
   const [lesson, setLesson] = useState<any>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -38,9 +20,16 @@ export default function LessonViewerPage() {
   const [completed, setCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Content interaction tracking
+  const [interactions, setInteractions] = useState<Record<string, boolean>>({});
+  const [totalRequired, setTotalRequired] = useState(0);
+  const [quizUnlocked, setQuizUnlocked] = useState(false);
+
   useEffect(() => {
     fetchLesson();
     checkProgress();
+    markStarted();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId]);
 
   async function fetchLesson() {
@@ -52,7 +41,7 @@ export default function LessonViewerPage() {
         setTopics(data.topics || []);
         setQuizCount(data.quiz_question_count || 0);
       }
-    } catch (err) { console.error('LessonViewerPage: failed to fetch lesson', err); }
+    } catch (err) { console.error('Failed to fetch lesson', err); }
     setLoading(false);
   }
 
@@ -63,50 +52,140 @@ export default function LessonViewerPage() {
         const data = await res.json();
         setCompleted(data.completed);
       }
-    } catch (err) { console.error('LessonViewerPage: failed to check progress', err); }
+    } catch { /* silent */ }
+
+    // Check quiz unlock
+    try {
+      const res = await fetch('/api/admin/learn/user-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'check_quiz_unlock', lesson_id: lessonId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setQuizUnlocked(data.quiz_unlocked);
+        setTotalRequired(data.total_required);
+      }
+    } catch { /* silent */ }
+
+    // Get current interaction state
+    try {
+      const res = await fetch(`/api/admin/learn/user-progress?module_id=${moduleId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const lessonProgress = (data.lessons || []).find((l: any) => l.id === lessonId);
+        if (lessonProgress) {
+          setInteractions(lessonProgress.content_interactions || {});
+        }
+      }
+    } catch { /* silent */ }
   }
 
-  if (loading) return <div className="admin-empty"><div className="admin-empty__icon">⏳</div><div className="admin-empty__title">Loading lesson...</div></div>;
-  if (!lesson) return <div className="admin-empty"><div className="admin-empty__icon">❌</div><div className="admin-empty__title">Lesson not found</div></div>;
+  async function markStarted() {
+    try {
+      await fetch('/api/admin/learn/user-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start_lesson', lesson_id: lessonId, module_id: moduleId }),
+      });
+    } catch { /* silent */ }
+  }
 
-  const resources: Resource[] = typeof lesson.resources === 'string' ? JSON.parse(lesson.resources) : (lesson.resources || []);
-  const videos: Video[] = typeof lesson.videos === 'string' ? JSON.parse(lesson.videos) : (lesson.videos || []);
+  const recordInteraction = useCallback(async (key: string) => {
+    if (interactions[key]) return; // Already recorded
+    try {
+      const res = await fetch('/api/admin/learn/user-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'content_interaction',
+          lesson_id: lessonId,
+          module_id: moduleId,
+          interaction_key: key,
+        }),
+      });
+      if (res.ok) {
+        setInteractions(prev => ({ ...prev, [key]: true }));
+        // Re-check quiz unlock
+        const unlockRes = await fetch('/api/admin/learn/user-progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'check_quiz_unlock', lesson_id: lessonId }),
+        });
+        if (unlockRes.ok) {
+          const d = await unlockRes.json();
+          setQuizUnlocked(d.quiz_unlocked);
+        }
+      }
+    } catch { /* silent */ }
+  }, [interactions, lessonId, moduleId]);
+
+  if (loading) return <div className="admin-empty"><div className="admin-empty__icon">&#x23F3;</div><div className="admin-empty__title">Loading lesson...</div></div>;
+  if (!lesson) return <div className="admin-empty"><div className="admin-empty__icon">&#x274C;</div><div className="admin-empty__title">Lesson not found</div></div>;
+
+  let resources: Resource[] = [];
+  let videos: Video[] = [];
+  try { resources = typeof lesson.resources === 'string' ? JSON.parse(lesson.resources) : (lesson.resources || []); } catch { resources = []; }
+  try { videos = typeof lesson.videos === 'string' ? JSON.parse(lesson.videos) : (lesson.videos || []); } catch { videos = []; }
+
+  const completedInteractions = Object.keys(interactions).filter(k => interactions[k]).length;
+  const hasRequiredContent = totalRequired > 0;
+  const allContentReviewed = completedInteractions >= totalRequired;
+  const canTakeQuiz = quizUnlocked || !hasRequiredContent || completed;
 
   return (
     <>
       {/* Navigation */}
       <div className="admin-lesson__header">
         <div className="admin-lesson__nav">
-          <Link href={`/admin/learn/modules/${moduleId}`} className="admin-lesson__nav-link">← Back to Module</Link>
-          {quizCount > 0 && (
+          <Link href={`/admin/learn/modules/${moduleId}`} className="admin-lesson__nav-link">&larr; Back to Module</Link>
+          {quizCount > 0 && canTakeQuiz && (
             <Link href={`/admin/learn/modules/${moduleId}/${lessonId}/quiz`} className="admin-btn admin-btn--secondary admin-btn--sm">
-              📝 Take Quiz ({quizCount} questions)
+              Take Quiz ({quizCount} questions)
             </Link>
           )}
         </div>
         <h2 className="admin-lesson__title">{lesson.title}</h2>
-        <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: '#9CA3AF', marginTop: '0.25rem' }}>
-          <span>⏱ ~{lesson.estimated_minutes} min</span>
-          {lesson.tags?.length > 0 && <span>🏷 {lesson.tags.join(', ')}</span>}
+        <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: '#9CA3AF', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+          <span>&#x23F1; ~{lesson.estimated_minutes} min</span>
+          {lesson.tags?.length > 0 && <span>&#x1F3F7; {lesson.tags.join(', ')}</span>}
+          {completed && <span style={{ color: '#10B981', fontWeight: 600 }}>&#x2705; Completed</span>}
         </div>
       </div>
+
+      {/* Content Interaction Tracker */}
+      {hasRequiredContent && !completed && (
+        <div className="lesson-tracker">
+          <div className="lesson-tracker__header">
+            <span className="lesson-tracker__title">Content Progress</span>
+            <span className="lesson-tracker__count">{completedInteractions}/{totalRequired} items reviewed</span>
+          </div>
+          <div className="lesson-tracker__bar">
+            <div className="lesson-tracker__bar-fill" style={{ width: `${totalRequired > 0 ? (completedInteractions / totalRequired) * 100 : 0}%` }} />
+          </div>
+          {!allContentReviewed && (
+            <p className="lesson-tracker__hint">Review all resources and videos below to unlock the quiz.</p>
+          )}
+          {allContentReviewed && quizCount > 0 && (
+            <p className="lesson-tracker__hint" style={{ color: '#10B981' }}>All content reviewed! Quiz is now unlocked.</p>
+          )}
+        </div>
+      )}
 
       {/* Lesson Content */}
       <div className="admin-lesson__body" dangerouslySetInnerHTML={{ __html: lesson.content || '' }} />
 
-      {/* Topics Section */}
+      {/* Topics */}
       {topics.length > 0 && (
         <div className="lesson-topics">
-          <h3 className="lesson-topics__title">📌 Topics in This Lesson</h3>
+          <h3 className="lesson-topics__title">Topics in This Lesson</h3>
           {topics.sort((a, b) => a.order_index - b.order_index).map(topic => (
             <div key={topic.id} className="lesson-topics__item" id={`topic-${topic.id}`}>
               <h4 className="lesson-topics__item-title">{topic.title}</h4>
               <p className="lesson-topics__item-content">{topic.content}</p>
               {topic.keywords?.length > 0 && (
                 <div className="lesson-topics__keywords">
-                  {topic.keywords.map(kw => (
-                    <span key={kw} className="lesson-topics__keyword">{kw}</span>
-                  ))}
+                  {topic.keywords.map(kw => <span key={kw} className="lesson-topics__keyword">{kw}</span>)}
                 </div>
               )}
             </div>
@@ -117,42 +196,68 @@ export default function LessonViewerPage() {
       {/* Key Takeaways */}
       {lesson.key_takeaways?.length > 0 && (
         <div className="lesson-takeaways">
-          <h3 className="lesson-takeaways__title">💡 Key Takeaways</h3>
+          <h3 className="lesson-takeaways__title">Key Takeaways</h3>
           <ul className="lesson-takeaways__list">
-            {lesson.key_takeaways.map((t: string, i: number) => (
-              <li key={i} className="lesson-takeaways__item">{t}</li>
-            ))}
+            {lesson.key_takeaways.map((t: string, i: number) => <li key={i} className="lesson-takeaways__item">{t}</li>)}
           </ul>
         </div>
       )}
 
-      {/* Resources */}
+      {/* Resources (with interaction tracking) */}
       {resources.length > 0 && (
         <div className="lesson-resources">
-          <h3 className="lesson-resources__title">🔗 Resources</h3>
+          <h3 className="lesson-resources__title">Resources</h3>
           <div className="lesson-resources__list">
-            {resources.map((r, i) => (
-              <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="lesson-resources__link">
-                {r.type === 'website' ? '🌐' : r.type === 'pdf' ? '📄' : '📎'} {r.title}
-                <span className="lesson-resources__arrow">↗</span>
-              </a>
-            ))}
+            {resources.map((r, i) => {
+              const key = `resource_${i}`;
+              const reviewed = interactions[key];
+              return (
+                <a
+                  key={i}
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`lesson-resources__link ${reviewed ? 'lesson-resources__link--reviewed' : ''}`}
+                  onClick={() => recordInteraction(key)}
+                >
+                  <span className="lesson-resources__link-status">
+                    {reviewed ? '&#x2705;' : '&#x25CB;'}
+                  </span>
+                  {r.type === 'website' ? '&#x1F310;' : r.type === 'pdf' ? '&#x1F4C4;' : '&#x1F4CE;'} {r.title}
+                  <span className="lesson-resources__arrow">&nearr;</span>
+                </a>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Videos */}
+      {/* Videos (with interaction tracking) */}
       {videos.length > 0 && (
         <div className="lesson-resources">
-          <h3 className="lesson-resources__title">🎥 Videos</h3>
+          <h3 className="lesson-resources__title">Videos</h3>
           <div className="lesson-resources__list">
-            {videos.map((v, i) => (
-              <a key={i} href={v.url} target="_blank" rel="noopener noreferrer" className="lesson-resources__link">
-                🎬 {v.title}
-                {v.description && <span style={{ fontSize: '0.78rem', color: '#9CA3AF', marginLeft: '0.5rem' }}>{v.description}</span>}
-                <span className="lesson-resources__arrow">↗</span>
-              </a>
-            ))}
+            {videos.map((v, i) => {
+              const key = `video_${i}`;
+              const reviewed = interactions[key];
+              return (
+                <a
+                  key={i}
+                  href={v.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`lesson-resources__link ${reviewed ? 'lesson-resources__link--reviewed' : ''}`}
+                  onClick={() => recordInteraction(key)}
+                >
+                  <span className="lesson-resources__link-status">
+                    {reviewed ? '&#x2705;' : '&#x25CB;'}
+                  </span>
+                  &#x1F3AC; {v.title}
+                  {v.description && <span style={{ fontSize: '0.78rem', color: '#9CA3AF', marginLeft: '0.5rem' }}>{v.description}</span>}
+                  <span className="lesson-resources__arrow">&nearr;</span>
+                </a>
+              );
+            })}
           </div>
         </div>
       )}
@@ -161,17 +266,26 @@ export default function LessonViewerPage() {
       <div className="admin-lesson__actions">
         {completed && (
           <span className="admin-lesson__complete-btn admin-lesson__complete-btn--completed" style={{ cursor: 'default' }}>
-            ✅ Lesson Completed
+            &#x2705; Lesson Completed
           </span>
         )}
 
-        {quizCount > 0 && (
+        {quizCount > 0 && canTakeQuiz && (
           <Link href={`/admin/learn/modules/${moduleId}/${lessonId}/quiz`} className="admin-btn admin-btn--secondary">
-            📝 {completed ? 'Retake Lesson Quiz' : 'Take Lesson Quiz'}
+            {completed ? 'Retake Lesson Quiz' : 'Take Lesson Quiz'}
           </Link>
         )}
 
-        {!completed && quizCount > 0 && (
+        {quizCount > 0 && !canTakeQuiz && (
+          <div className="lesson-quiz-locked">
+            <span className="lesson-quiz-locked__icon">&#x1F512;</span>
+            <span className="lesson-quiz-locked__text">
+              Review all content above to unlock the quiz ({completedInteractions}/{totalRequired} done)
+            </span>
+          </div>
+        )}
+
+        {!completed && quizCount > 0 && canTakeQuiz && (
           <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0.5rem 0 0' }}>
             Pass the lesson quiz to mark this lesson as complete.
           </p>
