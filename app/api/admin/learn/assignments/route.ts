@@ -46,12 +46,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (moduleIds.length > 0) {
     const { data: modules } = await supabaseAdmin.from('learning_modules')
       .select('id, title').in('id', moduleIds);
-    for (const m of (modules || [])) moduleMap.set(m.id, m.title);
+    for (const m of (modules || []) as any[]) moduleMap.set(m.id, m.title);
   }
   if (lessonIds.length > 0) {
     const { data: lessons } = await supabaseAdmin.from('learning_lessons')
       .select('id, title').in('id', lessonIds);
-    for (const l of (lessons || [])) lessonMap.set(l.id, l.title);
+    for (const l of (lessons || []) as any[]) lessonMap.set(l.id, l.title);
   }
 
   const enriched = (data || []).map((a: any) => ({
@@ -149,8 +149,9 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     if (!module_id || refresh_months === undefined) return NextResponse.json({ error: 'module_id and refresh_months required' }, { status: 400 });
 
     // Check for existing xp config
-    const { data: existing } = await supabaseAdmin.from('module_xp_config')
+    const { data: existingConfig } = await supabaseAdmin.from('module_xp_config')
       .select('id').eq('module_type', 'learning_module').eq('module_id', module_id).maybeSingle();
+    const existing = existingConfig as any;
 
     if (existing) {
       await supabaseAdmin.from('module_xp_config')
@@ -167,8 +168,9 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   if (!id) return NextResponse.json({ error: 'Assignment id required' }, { status: 400 });
 
   // Only admins can update others' assignments
-  const { data: assignment } = await supabaseAdmin.from('learning_assignments')
+  const { data: assignmentRaw } = await supabaseAdmin.from('learning_assignments')
     .select('*').eq('id', id).single();
+  const assignment = assignmentRaw as any;
 
   if (!assignment) return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
 
