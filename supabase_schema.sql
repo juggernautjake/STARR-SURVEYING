@@ -437,6 +437,7 @@ CREATE TABLE rewards_catalog (
   description TEXT,
   category TEXT NOT NULL CHECK (category IN ('apparel','gear','gift_cards','accessories','cash_bonus','other')),
   xp_cost INTEGER NOT NULL,
+  cash_price NUMERIC(8,2) DEFAULT NULL,
   image_url TEXT,
   tier TEXT NOT NULL DEFAULT 'bronze' CHECK (tier IN ('bronze','silver','gold','platinum','diamond')),
   stock_quantity INTEGER DEFAULT -1,

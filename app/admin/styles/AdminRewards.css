@@ -88,6 +88,12 @@
 .rewards__item-xp {
   font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 700; color: #1D3095;
 }
+.rewards__item-cash {
+  display: block; font-family: 'Inter', sans-serif; font-size: 0.78rem; color: #10B981; font-weight: 500;
+}
+.rewards__item-buttons {
+  display: flex; flex-direction: column; gap: 0.35rem; width: 100%;
+}
 .rewards__item-btn { font-size: 0.78rem !important; padding: 0.35rem 1rem !important; width: 100%; }
 .rewards__item-unavailable {
   font-family: 'Inter', sans-serif; font-size: 0.72rem; color: #9CA3AF; font-style: italic;

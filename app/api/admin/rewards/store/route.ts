@@ -57,18 +57,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   const body = await req.json();
-  const { id, name, description, category, xp_cost, tier, stock_quantity, is_active, sort_order, image_url } = body;
+  const { id, name, description, category, xp_cost, cash_price, tier, stock_quantity, is_active, sort_order, image_url } = body;
 
   if (!name || !category || !xp_cost || !tier) {
     return NextResponse.json({ error: 'name, category, xp_cost, and tier required' }, { status: 400 });
   }
 
-  const itemData = {
+  const itemData: Record<string, unknown> = {
     name, description, category, xp_cost, tier,
     stock_quantity: stock_quantity ?? -1,
     is_active: is_active ?? true,
     sort_order: sort_order ?? 0,
     image_url: image_url || null,
+    cash_price: cash_price ? parseFloat(cash_price) : null,
   };
 
   if (id) {

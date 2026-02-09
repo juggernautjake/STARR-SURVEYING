@@ -2,7 +2,8 @@
 'use client';
 
 import { signOut, useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import NotificationBell from './NotificationBell';
 
@@ -10,9 +11,10 @@ interface AdminTopBarProps { title: string; role: 'admin' | 'employee'; onMenuTo
 
 export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarProps) {
   const { data: session } = useSession();
+  const pathname = usePathname();
   const [xp, setXp] = useState<{ current: number; total: number } | null>(null);
 
-  useEffect(() => {
+  const refreshXp = useCallback(() => {
     fetch('/api/admin/xp')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
@@ -22,6 +24,16 @@ export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarPr
       })
       .catch(() => {});
   }, []);
+
+  // Refresh XP on mount and on navigation
+  useEffect(() => { refreshXp(); }, [pathname, refreshXp]);
+
+  // Listen for custom xp-updated events from other components
+  useEffect(() => {
+    const handler = () => refreshXp();
+    window.addEventListener('xp-updated', handler);
+    return () => window.removeEventListener('xp-updated', handler);
+  }, [refreshXp]);
 
   const userName = session?.user?.name || 'User';
 
