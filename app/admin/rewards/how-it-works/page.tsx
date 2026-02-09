@@ -1,9 +1,56 @@
 // app/admin/rewards/how-it-works/page.tsx
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+interface XPConfig { xp_value: number; expiry_months: number; }
+interface Milestone { xp_threshold: number; bonus_per_hour: number; label: string; }
+interface Badge { name: string; xp_reward: number; badge_key: string; }
+
 export default function HowItWorksPage() {
+  const [moduleXpRange, setModuleXpRange] = useState<{ min: number; max: number }>({ min: 400, max: 600 });
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [badgeXpRange, setBadgeXpRange] = useState<{ min: number; max: number }>({ min: 50, max: 5000 });
+  const [fsReadyXp, setFsReadyXp] = useState(3500);
+  const [sitXp, setSitXp] = useState(5000);
+  const [rplsXp, setRplsXp] = useState(10000);
+
+  useEffect(() => {
+    // Fetch dynamic XP values
+    Promise.all([
+      fetch('/api/admin/learn/xp-config').then(r => r.ok ? r.json() : null),
+      fetch('/api/admin/rewards?section=pay').then(r => r.ok ? r.json() : null),
+      fetch('/api/admin/rewards?section=badges').then(r => r.ok ? r.json() : null),
+    ]).then(([xpData, payData, badgeData]) => {
+      if (xpData?.learning_modules?.length) {
+        const vals = xpData.learning_modules.map((m: XPConfig) => m.xp_value);
+        setModuleXpRange({ min: Math.min(...vals), max: Math.max(...vals) });
+      }
+      if (payData?.xp_milestones?.length) {
+        setMilestones(payData.xp_milestones);
+      }
+      if (badgeData?.badges?.length) {
+        const xps = badgeData.badges.filter((b: Badge) => b.xp_reward > 0).map((b: Badge) => b.xp_reward);
+        if (xps.length) setBadgeXpRange({ min: Math.min(...xps), max: Math.max(...xps) });
+        const fs = badgeData.badges.find((b: Badge) => b.badge_key === 'fs_ready');
+        if (fs) setFsReadyXp(fs.xp_reward);
+        const sit = badgeData.badges.find((b: Badge) => b.badge_key === 'sit_certified');
+        if (sit) setSitXp(sit.xp_reward);
+        const rpls = badgeData.badges.find((b: Badge) => b.badge_key === 'rpls_certified');
+        if (rpls) setRplsXp(rpls.xp_reward);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const fmtRange = (min: number, max: number) =>
+    min === max ? `+${min.toLocaleString()} XP` : `+${min.toLocaleString()}-${max.toLocaleString()} XP`;
+
+  const firstMilestone = milestones[0];
+  const milestoneDesc = firstMilestone
+    ? `Every ${firstMilestone.xp_threshold.toLocaleString()} total XP = +$${firstMilestone.bonus_per_hour.toFixed(2)}/hr permanent bonus.`
+    : 'Every 10,000 total XP = +$0.50/hr permanent bonus.';
+
   return (
     <>
       <div className="admin-learn__header">
@@ -27,12 +74,11 @@ export default function HowItWorksPage() {
             <h4>How to Earn XP</h4>
             <table className="hiw__table">
               <tbody>
-                <tr><td>Complete a learning module</td><td className="hiw__table-xp">+400-600 XP</td></tr>
-                <tr><td>Pass a module quiz (70%+)</td><td className="hiw__table-xp">+50-100 XP</td></tr>
-                <tr><td>Complete FS prep course</td><td className="hiw__table-xp">+3,500 XP</td></tr>
-                <tr><td>Pass SIT/FS exam</td><td className="hiw__table-xp">+5,000 XP</td></tr>
-                <tr><td>Pass RPLS exam</td><td className="hiw__table-xp">+10,000 XP</td></tr>
-                <tr><td>Earn a badge</td><td className="hiw__table-xp">+50-5,000 XP</td></tr>
+                <tr><td>Complete a learning module</td><td className="hiw__table-xp">{fmtRange(moduleXpRange.min, moduleXpRange.max)}</td></tr>
+                <tr><td>Complete FS prep course</td><td className="hiw__table-xp">+{fsReadyXp.toLocaleString()} XP</td></tr>
+                <tr><td>Pass SIT/FS exam</td><td className="hiw__table-xp">+{sitXp.toLocaleString()} XP</td></tr>
+                <tr><td>Pass RPLS exam</td><td className="hiw__table-xp">+{rplsXp.toLocaleString()} XP</td></tr>
+                <tr><td>Earn a badge</td><td className="hiw__table-xp">{fmtRange(badgeXpRange.min, badgeXpRange.max)}</td></tr>
                 <tr><td>Pass a college surveying class</td><td className="hiw__table-xp">+1,000 XP</td></tr>
                 <tr><td>Retake expired module</td><td className="hiw__table-xp">Full XP again</td></tr>
               </tbody>
@@ -75,7 +121,7 @@ export default function HowItWorksPage() {
           <div className="hiw__pay-path">
             <div className="hiw__pay-path-icon" style={{ background: '#F59E0B' }}>3</div>
             <h4>XP Milestones</h4>
-            <p>Every 10,000 total XP = +$0.50/hr permanent bonus. The first 5,000 XP gets you +$0.25/hr. Keep earning!</p>
+            <p>{milestoneDesc} Keep earning!</p>
           </div>
           <div className="hiw__pay-path">
             <div className="hiw__pay-path-icon" style={{ background: '#BD1218' }}>4</div>
@@ -110,7 +156,7 @@ export default function HowItWorksPage() {
       <div className="hiw__section">
         <h3 className="hiw__title">&#x1F6CD;&#xFE0F; Company Store</h3>
         <p className="hiw__text">
-          Spend your XP on real rewards! The store has five tiers of items:
+          Spend your XP on real rewards! Items can be purchased with XP or cash. The store has five tiers of items:
         </p>
         <div className="hiw__tiers">
           <div className="hiw__tier" style={{ borderColor: '#CD7F32' }}>
@@ -175,7 +221,7 @@ export default function HowItWorksPage() {
         </p>
         <ul className="hiw__list hiw__list--highlight">
           <li>The <strong>FS Ready</strong> badge on your profile</li>
-          <li><strong>3,500 XP</strong> bonus</li>
+          <li><strong>{fsReadyXp.toLocaleString()} XP</strong> bonus</li>
           <li>The company will <strong>pay for your FS exam registration</strong></li>
           <li>A <strong>+$5.00/hr raise</strong> when you pass the actual FS exam</li>
           <li>An additional <strong>+$10.00/hr</strong> when you get your SIT certification</li>

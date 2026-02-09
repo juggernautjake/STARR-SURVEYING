@@ -61,3 +61,43 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ module: data });
 }, { routeName: 'learn/modules' });
+
+/* PUT — Admin: update a module */
+export const PUT = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email || !isAdmin(session.user.email)) {
+    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  }
+  const body = await req.json();
+  const { id, ...updates } = body;
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+
+  // Only allow safe fields
+  const allowed: Record<string, unknown> = {};
+  const safeFields = ['title', 'description', 'difficulty', 'estimated_hours', 'order_index', 'status', 'tags', 'xp_reward', 'is_fs_required'];
+  for (const key of safeFields) {
+    if (updates[key] !== undefined) allowed[key] = updates[key];
+  }
+  allowed.updated_at = new Date().toISOString();
+
+  const { data, error } = await supabaseAdmin.from('learning_modules')
+    .update(allowed).eq('id', id).select().single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Sync xp_reward to module_xp_config so the XP award system picks it up
+  if (updates.xp_reward !== undefined) {
+    const { data: existingConfig } = await supabaseAdmin.from('module_xp_config')
+      .select('id').eq('module_type', 'learning_module').eq('module_id', id).maybeSingle();
+
+    if (existingConfig) {
+      await supabaseAdmin.from('module_xp_config')
+        .update({ xp_value: Number(updates.xp_reward) })
+        .eq('id', existingConfig.id);
+    } else {
+      await supabaseAdmin.from('module_xp_config')
+        .insert({ module_type: 'learning_module', module_id: id, xp_value: Number(updates.xp_reward), is_active: true });
+    }
+  }
+
+  return NextResponse.json({ module: data });
+}, { routeName: 'learn/modules' });

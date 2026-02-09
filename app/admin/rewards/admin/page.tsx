@@ -7,7 +7,7 @@ import { useSession } from 'next-auth/react';
 /* ─── Interfaces ─── */
 interface StoreItem {
   id: string; name: string; description: string; category: string;
-  xp_cost: number; tier: string; stock_quantity: number; is_active: boolean; sort_order: number;
+  xp_cost: number; cash_price: number | null; tier: string; stock_quantity: number; is_active: boolean; sort_order: number;
   image_url?: string;
 }
 interface Purchase {
@@ -40,7 +40,7 @@ interface Badge {
   category: string; xp_reward: number; is_active: boolean;
 }
 
-type Tab = 'purchases' | 'store' | 'milestones' | 'work_types' | 'roles' | 'seniority' | 'credentials' | 'pay_config' | 'badges' | 'award';
+type Tab = 'purchases' | 'store' | 'milestones' | 'work_types' | 'roles' | 'seniority' | 'credentials' | 'pay_config' | 'badges' | 'award' | 'manage_xp';
 
 export default function AdminRewardsPage() {
   const { data: session } = useSession();
@@ -62,12 +62,19 @@ export default function AdminRewardsPage() {
   const [awardAmount, setAwardAmount] = useState('');
   const [awardDesc, setAwardDesc] = useState('');
 
+  // Manage XP form
+  const [manageXpEmail, setManageXpEmail] = useState('');
+  const [manageXpData, setManageXpData] = useState<{ current_balance: number; total_earned: number; total_spent: number } | null>(null);
+  const [manageXpCurrent, setManageXpCurrent] = useState('');
+  const [manageXpTotal, setManageXpTotal] = useState('');
+  const [manageXpLoading, setManageXpLoading] = useState(false);
+
   // Editing states
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // New item / milestone forms
   const [showNewItem, setShowNewItem] = useState(false);
-  const [newItem, setNewItem] = useState({ name: '', description: '', category: 'gear', xp_cost: 1000, tier: 'silver', stock_quantity: -1, image_url: '' });
+  const [newItem, setNewItem] = useState({ name: '', description: '', category: 'gear', xp_cost: 1000, cash_price: '' as string, tier: 'silver', stock_quantity: -1, image_url: '' });
   const [showNewMilestone, setShowNewMilestone] = useState(false);
   const [newMilestone, setNewMilestone] = useState({ xp_threshold: 10000, bonus_per_hour: 0.50, label: '', description: '' });
 
@@ -156,16 +163,57 @@ export default function AdminRewardsPage() {
     setSaving(null);
   }
 
+  /* ─── Manage User XP ─── */
+  async function handleLookupXP() {
+    if (!manageXpEmail) return alert('Enter an email');
+    setManageXpLoading(true);
+    try {
+      const res = await fetch(`/api/admin/xp?user_email=${encodeURIComponent(manageXpEmail)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setManageXpData(data.balance);
+        setManageXpCurrent(String(data.balance?.current_balance || 0));
+        setManageXpTotal(String(data.balance?.total_earned || 0));
+      } else { alert('User not found or error'); }
+    } catch { alert('Lookup failed'); }
+    setManageXpLoading(false);
+  }
+
+  async function handleSetXP() {
+    if (!manageXpEmail) return;
+    setSaving('set-xp');
+    try {
+      const res = await fetch('/api/admin/xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set_xp',
+          user_email: manageXpEmail,
+          current_balance: parseInt(manageXpCurrent) || 0,
+          total_earned: parseInt(manageXpTotal) || 0,
+          description: `Admin manual set: current=${manageXpCurrent}, total=${manageXpTotal}`,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setManageXpData(data.balance);
+        alert(`XP updated for ${manageXpEmail}`);
+      } else { const err = await res.json(); alert(err.error || 'Failed'); }
+    } catch { alert('Failed to set XP'); }
+    setSaving(null);
+  }
+
   /* ─── Add new store item ─── */
   async function handleAddItem() {
     setSaving('new-item');
     try {
+      const payload = { ...newItem, cash_price: newItem.cash_price ? parseFloat(newItem.cash_price) : null };
       const res = await fetch('/api/admin/rewards/store', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newItem),
+        body: JSON.stringify(payload),
       });
-      if (res.ok) { setShowNewItem(false); setNewItem({ name: '', description: '', category: 'gear', xp_cost: 1000, tier: 'silver', stock_quantity: -1, image_url: '' }); fetchData(); }
+      if (res.ok) { setShowNewItem(false); setNewItem({ name: '', description: '', category: 'gear', xp_cost: 1000, cash_price: '', tier: 'silver', stock_quantity: -1, image_url: '' }); fetchData(); }
     } catch { /* ignore */ }
     setSaving(null);
   }
@@ -245,6 +293,7 @@ export default function AdminRewardsPage() {
     { key: 'pay_config', label: 'Pay Caps' },
     { key: 'badges', label: 'Badges' },
     { key: 'award', label: 'Award XP' },
+    { key: 'manage_xp', label: 'Manage XP' },
   ];
 
   return (
@@ -302,6 +351,7 @@ export default function AdminRewardsPage() {
                   <option value="platinum">Platinum</option><option value="diamond">Diamond</option>
                 </select>
                 <input type="number" placeholder="XP Cost" value={newItem.xp_cost} onChange={e => setNewItem({ ...newItem, xp_cost: parseInt(e.target.value) || 0 })} className="mng__input" />
+                <input type="number" step="0.01" placeholder="Cash Price $ (optional)" value={newItem.cash_price} onChange={e => setNewItem({ ...newItem, cash_price: e.target.value })} className="mng__input" />
                 <input type="number" placeholder="Stock (-1 = unlimited)" value={newItem.stock_quantity} onChange={e => setNewItem({ ...newItem, stock_quantity: parseInt(e.target.value) })} className="mng__input" />
               </div>
               <div className="mng__image-upload">
@@ -330,8 +380,23 @@ export default function AdminRewardsPage() {
                     <EditableText value={item.name} onSave={v => { item.name = v; }} label="Name" />
                     <EditableText value={item.description} onSave={v => { item.description = v; }} label="Description" />
                     <EditableNum value={item.xp_cost} onSave={v => { item.xp_cost = v; }} label="XP Cost" step="1" />
+                    <EditableNum value={item.cash_price ?? 0} onSave={v => { item.cash_price = v || null; }} label="Cash Price $ (0=none)" step="0.01" />
                     <EditableNum value={item.stock_quantity} onSave={v => { item.stock_quantity = v; }} label="Stock (-1=unlimited)" min={-1} step="1" />
                     <EditableNum value={item.sort_order} onSave={v => { item.sort_order = v; }} label="Sort Order" step="1" />
+                    <div className="mng__inline-field">
+                      <label className="mng__inline-label">Category</label>
+                      <select className="mng__inline-input" value={item.category} onChange={e => { item.category = e.target.value; setEditingId(item.id); }}>
+                        <option value="apparel">Apparel</option><option value="gear">Gear</option><option value="gift_cards">Gift Cards</option>
+                        <option value="accessories">Accessories</option><option value="cash_bonus">Cash Bonus</option><option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div className="mng__inline-field">
+                      <label className="mng__inline-label">Tier</label>
+                      <select className="mng__inline-input" value={item.tier} onChange={e => { item.tier = e.target.value; setEditingId(item.id); }}>
+                        <option value="bronze">Bronze</option><option value="silver">Silver</option><option value="gold">Gold</option>
+                        <option value="platinum">Platinum</option><option value="diamond">Diamond</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="mng__image-upload">
                     <label className="mng__inline-label">Product Image</label>
@@ -346,7 +411,7 @@ export default function AdminRewardsPage() {
                   </div>
                   <div className="mng__form-actions">
                     <button className="admin-btn admin-btn--primary admin-btn--sm" disabled={saving === item.id}
-                      onClick={() => { saveEntity('store_item', item.id, { name: item.name, description: item.description, xp_cost: item.xp_cost, stock_quantity: item.stock_quantity, sort_order: item.sort_order, category: item.category, tier: item.tier, is_active: item.is_active, image_url: editImageUrl || item.image_url || null }); setEditImageUrl(''); }}>
+                      onClick={() => { saveEntity('store_item', item.id, { name: item.name, description: item.description, xp_cost: item.xp_cost, cash_price: item.cash_price || null, stock_quantity: item.stock_quantity, sort_order: item.sort_order, category: item.category, tier: item.tier, is_active: item.is_active, image_url: editImageUrl || item.image_url || null }); setEditImageUrl(''); }}>
                       Save
                     </button>
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingId(null); setEditImageUrl(''); }}>Cancel</button>
@@ -360,6 +425,7 @@ export default function AdminRewardsPage() {
                     <strong>{item.name}</strong>
                     <span className="mng__row-meta">
                       <span className="mng__badge">{item.tier}</span> {item.xp_cost} XP
+                      {item.cash_price ? ` · $${item.cash_price.toFixed(2)}` : ''}
                       {item.stock_quantity >= 0 && ` · ${item.stock_quantity} in stock`}
                     </span>
                   </div>
@@ -639,6 +705,7 @@ export default function AdminRewardsPage() {
       {activeTab === 'award' && (
         <div className="mng__section" style={{ maxWidth: '500px' }}>
           <h3 className="mng__card-title">Manually Award XP</h3>
+          <p className="mng__desc">Add XP to an employee&apos;s balance. This increases both current and all-time totals.</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <input placeholder="Employee email" value={awardEmail} onChange={e => setAwardEmail(e.target.value)} className="mng__input" />
             <input type="number" placeholder="XP amount" value={awardAmount} onChange={e => setAwardAmount(e.target.value)} className="mng__input" />
@@ -647,6 +714,56 @@ export default function AdminRewardsPage() {
               {saving === 'award' ? 'Awarding...' : 'Award XP'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ══════ MANAGE USER XP ══════ */}
+      {activeTab === 'manage_xp' && (
+        <div className="mng__section" style={{ maxWidth: '550px' }}>
+          <h3 className="mng__card-title">Manage User XP Balances</h3>
+          <p className="mng__desc">Look up a user and directly set their current XP balance and/or all-time total. Use this to correct errors or make manual adjustments.</p>
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+            <input placeholder="Employee email" value={manageXpEmail} onChange={e => setManageXpEmail(e.target.value)} className="mng__input" style={{ flex: 1 }} />
+            <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={handleLookupXP} disabled={manageXpLoading}>
+              {manageXpLoading ? 'Looking up...' : 'Look Up'}
+            </button>
+          </div>
+
+          {manageXpData && (
+            <div className="mng__card">
+              <h4 className="mng__card-title" style={{ marginBottom: '0.75rem' }}>XP for {manageXpEmail}</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem', textAlign: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase' }}>Current Balance</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#10B981' }}>{manageXpData.current_balance.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase' }}>Total Earned</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1D3095' }}>{manageXpData.total_earned.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase' }}>Total Spent</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#EF4444' }}>{manageXpData.total_spent.toLocaleString()}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div className="mng__inline-field">
+                  <label className="mng__inline-label">Set Current Balance</label>
+                  <input type="number" className="mng__inline-input" value={manageXpCurrent} onChange={e => setManageXpCurrent(e.target.value)} min="0" />
+                </div>
+                <div className="mng__inline-field">
+                  <label className="mng__inline-label">Set Total Earned</label>
+                  <input type="number" className="mng__inline-input" value={manageXpTotal} onChange={e => setManageXpTotal(e.target.value)} min="0" />
+                </div>
+                <p style={{ fontSize: '0.72rem', color: '#9CA3AF', margin: '0.25rem 0' }}>
+                  Total Spent will auto-calculate as Total Earned minus Current Balance.
+                </p>
+                <button className="admin-btn admin-btn--primary" onClick={handleSetXP} disabled={saving === 'set-xp'}>
+                  {saving === 'set-xp' ? 'Updating...' : 'Update XP Values'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>

@@ -89,6 +89,60 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json(result);
   }
 
+  if (action === 'set_xp') {
+    // Admin-only: directly set current_balance and/or total_earned
+    if (!isAdmin(session.user.email)) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    }
+
+    const { user_email, current_balance, total_earned, description } = body;
+    if (!user_email) return NextResponse.json({ error: 'user_email required' }, { status: 400 });
+    if (current_balance === undefined && total_earned === undefined) {
+      return NextResponse.json({ error: 'Provide current_balance and/or total_earned' }, { status: 400 });
+    }
+
+    // Get or create balance row
+    let { data: balance } = await supabaseAdmin.from('xp_balances')
+      .select('*').eq('user_email', user_email).maybeSingle();
+
+    if (!balance) {
+      const { data: newBal } = await supabaseAdmin.from('xp_balances')
+        .insert({ user_email, current_balance: 0, total_earned: 0, total_spent: 0 })
+        .select().single();
+      balance = newBal;
+    }
+
+    const updates: Record<string, unknown> = { last_updated: new Date().toISOString() };
+    if (current_balance !== undefined) updates.current_balance = Math.max(0, Number(current_balance));
+    if (total_earned !== undefined) updates.total_earned = Math.max(0, Number(total_earned));
+
+    // Recalculate total_spent if both are being set
+    if (current_balance !== undefined && total_earned !== undefined) {
+      updates.total_spent = Math.max(0, Number(total_earned) - Number(current_balance));
+    }
+
+    await supabaseAdmin.from('xp_balances')
+      .update(updates).eq('user_email', user_email);
+
+    // Log the adjustment
+    const desc = description || `Admin set XP: current=${current_balance ?? 'unchanged'}, total=${total_earned ?? 'unchanged'}`;
+    await supabaseAdmin.from('xp_transactions').insert({
+      user_email,
+      amount: 0,
+      transaction_type: 'admin_adjustment',
+      source_type: 'admin',
+      source_id: null,
+      description: desc,
+      balance_after: current_balance !== undefined ? Number(current_balance) : (balance?.current_balance || 0),
+    });
+
+    // Re-fetch updated balance
+    const { data: updated } = await supabaseAdmin.from('xp_balances')
+      .select('*').eq('user_email', user_email).single();
+
+    return NextResponse.json({ balance: updated, message: 'XP values updated' });
+  }
+
   if (action === 'spend_xp') {
     const { amount, description, source_type, source_id } = body;
     if (!amount || amount <= 0) return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });

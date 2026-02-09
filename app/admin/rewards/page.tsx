@@ -16,6 +16,7 @@ interface CatalogItem {
   description: string;
   category: string;
   xp_cost: number;
+  cash_price: number | null;
   tier: string;
   stock_quantity: number;
   is_active: boolean;
@@ -94,18 +95,25 @@ export default function RewardsPage() {
     setLoading(false);
   }
 
-  async function purchaseItem(itemId: string) {
+  async function purchaseItem(itemId: string, paymentMethod: 'xp' | 'cash' = 'xp') {
     setPurchasing(itemId);
     try {
       const res = await fetch('/api/admin/rewards/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id: itemId }),
+        body: JSON.stringify({ item_id: itemId, payment_method: paymentMethod }),
       });
       if (res.ok) {
         const data = await res.json();
-        setBalance(prev => prev ? { ...prev, current_balance: data.new_balance } : prev);
-        alert('Purchase successful! An admin will fulfill your order soon.');
+        if (paymentMethod === 'xp') {
+          setBalance(prev => prev ? { ...prev, current_balance: data.new_balance } : prev);
+        }
+        // Notify topbar to refresh XP display
+        window.dispatchEvent(new Event('xp-updated'));
+        alert(paymentMethod === 'cash'
+          ? `Cash purchase of $${data.cash_amount?.toFixed(2)} submitted! An admin will process your order.`
+          : 'Purchase successful! An admin will fulfill your order soon.'
+        );
         fetchData();
       } else {
         const err = await res.json();
@@ -223,21 +231,41 @@ export default function RewardsPage() {
                   <p className="rewards__item-desc">{item.description}</p>
                   <div className="rewards__item-cost">
                     <span className="rewards__item-xp">{item.xp_cost.toLocaleString()} XP</span>
+                    {item.cash_price ? (
+                      <span className="rewards__item-cash">or ${item.cash_price.toFixed(2)}</span>
+                    ) : null}
                   </div>
-                  {canAfford && !outOfStock ? (
-                    <button
-                      className="admin-btn admin-btn--primary rewards__item-btn"
-                      onClick={() => purchaseItem(item.id)}
-                      disabled={purchasing === item.id}
-                    >
-                      {purchasing === item.id ? 'Purchasing...' : 'Redeem'}
-                    </button>
-                  ) : outOfStock ? (
+                  {outOfStock ? (
                     <span className="rewards__item-unavailable">Sold Out</span>
                   ) : (
-                    <span className="rewards__item-unavailable">
-                      Need {(item.xp_cost - (balance?.current_balance || 0)).toLocaleString()} more XP
-                    </span>
+                    <div className="rewards__item-buttons">
+                      {canAfford ? (
+                        <button
+                          className="admin-btn admin-btn--primary rewards__item-btn"
+                          onClick={() => purchaseItem(item.id, 'xp')}
+                          disabled={purchasing === item.id}
+                        >
+                          {purchasing === item.id ? 'Processing...' : 'Redeem with XP'}
+                        </button>
+                      ) : (
+                        <span className="rewards__item-unavailable" style={{ fontSize: '0.7rem' }}>
+                          Need {(item.xp_cost - (balance?.current_balance || 0)).toLocaleString()} more XP
+                        </span>
+                      )}
+                      {item.cash_price ? (
+                        <button
+                          className="admin-btn admin-btn--secondary rewards__item-btn"
+                          onClick={() => {
+                            if (confirm(`Purchase "${item.name}" for $${item.cash_price!.toFixed(2)}?`)) {
+                              purchaseItem(item.id, 'cash');
+                            }
+                          }}
+                          disabled={purchasing === item.id}
+                        >
+                          Buy for ${item.cash_price.toFixed(2)}
+                        </button>
+                      ) : null}
+                    </div>
                   )}
                 </div>
               );

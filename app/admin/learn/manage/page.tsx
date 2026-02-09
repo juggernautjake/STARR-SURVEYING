@@ -41,6 +41,10 @@ export default function ManageContentPage() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
 
+  // Module editing
+  const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
+  const [editModule, setEditModule] = useState<Record<string, any>>({});
+
   useEffect(() => { loadData(); }, [tab]);
 
   async function loadData() {
@@ -210,6 +214,22 @@ export default function ManageContentPage() {
     setXpEditing(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
   }
 
+  async function handleSaveModule() {
+    if (!editingModuleId) return;
+    setSaving(true);
+    const result = await safeFetch('/api/admin/learn/modules', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingModuleId, ...editModule }),
+    });
+    if (result) {
+      setEditingModuleId(null);
+      setEditModule({});
+      loadData();
+    }
+    setSaving(false);
+  }
+
   async function handleDelete(itemType: string, itemId: string, itemTitle: string) {
     if (!confirm(`Move "${itemTitle}" to the recycle bin? You can restore it later.`)) return;
     const result = await safeFetch('/api/admin/learn/recycle-bin', {
@@ -360,21 +380,56 @@ export default function ManageContentPage() {
       {!loading && (
         <div className="manage__list">
           {tab === 'modules' && modules.sort((a, b) => a.order_index - b.order_index).map(m => (
-            <div key={m.id} className="manage__item">
-              <div className="manage__item-info">
-                <div className="manage__item-title">
-                  <span className="manage__item-order">{m.order_index}</span> {m.title}
-                </div>
-                <div className="manage__item-meta">
-                  <span className={`manage__status manage__status--${m.status}`}>{m.status}</span>
-                  {' '}{m.difficulty} · {m.estimated_hours}h · {m.lesson_count || 0} lessons
-                  {m.xp_value && <span style={{ marginLeft: '0.5rem', color: '#10B981', fontWeight: 600 }}>{m.xp_value} XP</span>}
-                </div>
-              </div>
-              <div className="manage__item-actions">
-                <Link href={`/admin/learn/modules/${m.id}`} className="manage__item-btn">View</Link>
-                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('module', m.id, m.title)}>Delete</button>
-              </div>
+            <div key={m.id} className="manage__item" style={editingModuleId === m.id ? { flexDirection: 'column', alignItems: 'stretch' } : undefined}>
+              {editingModuleId === m.id ? (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem 0' }}>
+                    <input className="manage__form-input" value={editModule.title ?? m.title} onChange={e => setEditModule(p => ({ ...p, title: e.target.value }))} placeholder="Title" />
+                    <textarea className="manage__form-textarea" rows={2} value={editModule.description ?? m.description} onChange={e => setEditModule(p => ({ ...p, description: e.target.value }))} placeholder="Description" />
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <select className="manage__form-input" style={{ flex: 1 }} value={editModule.difficulty ?? m.difficulty} onChange={e => setEditModule(p => ({ ...p, difficulty: e.target.value }))}>
+                        <option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option>
+                      </select>
+                      <input className="manage__form-input" style={{ flex: 1 }} type="number" step="0.5" min="0" placeholder="Est. hours" value={editModule.estimated_hours ?? m.estimated_hours} onChange={e => setEditModule(p => ({ ...p, estimated_hours: parseFloat(e.target.value) || 0 }))} />
+                      <input className="manage__form-input" style={{ flex: 1 }} type="number" step="1" min="0" placeholder="Order" value={editModule.order_index ?? m.order_index} onChange={e => setEditModule(p => ({ ...p, order_index: parseInt(e.target.value) || 0 }))} />
+                      <select className="manage__form-input" style={{ flex: 1 }} value={editModule.status ?? m.status} onChange={e => setEditModule(p => ({ ...p, status: e.target.value }))}>
+                        <option value="draft">Draft</option><option value="published">Published</option>
+                      </select>
+                      <input className="manage__form-input" style={{ flex: 1 }} type="number" step="50" min="0" placeholder="XP Reward" value={editModule.xp_reward ?? (m as any).xp_reward ?? 200} onChange={e => setEditModule(p => ({ ...p, xp_reward: parseInt(e.target.value) || 0 }))} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <label style={{ fontSize: '0.8rem', color: '#6B7280' }}>
+                        <input type="checkbox" checked={editModule.is_fs_required ?? (m as any).is_fs_required ?? false} onChange={e => setEditModule(p => ({ ...p, is_fs_required: e.target.checked }))} />
+                        {' '}FS Required
+                      </label>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem' }}>
+                    <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveModule} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingModuleId(null); setEditModule({}); }}>Cancel</button>
+                    <Link href={`/admin/learn/modules/${m.id}`} className="manage__item-btn" style={{ marginLeft: 'auto' }}>View</Link>
+                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('module', m.id, m.title)}>Delete</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="manage__item-info">
+                    <div className="manage__item-title">
+                      <span className="manage__item-order">{m.order_index}</span> {m.title}
+                    </div>
+                    <div className="manage__item-meta">
+                      <span className={`manage__status manage__status--${m.status}`}>{m.status}</span>
+                      {' '}{m.difficulty} · {m.estimated_hours}h · {m.lesson_count || 0} lessons
+                      {m.xp_value && <span style={{ marginLeft: '0.5rem', color: '#10B981', fontWeight: 600 }}>{m.xp_value} XP</span>}
+                    </div>
+                  </div>
+                  <div className="manage__item-actions">
+                    <button className="manage__item-btn manage__item-btn--primary" onClick={() => { setEditingModuleId(m.id); setEditModule({}); }}>Edit</button>
+                    <Link href={`/admin/learn/modules/${m.id}`} className="manage__item-btn">View</Link>
+                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('module', m.id, m.title)}>Delete</button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
 

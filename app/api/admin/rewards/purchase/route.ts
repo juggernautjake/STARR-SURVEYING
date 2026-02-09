@@ -10,8 +10,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { item_id } = body;
+  const { item_id, payment_method } = body;
   if (!item_id) return NextResponse.json({ error: 'item_id required' }, { status: 400 });
+
+  const useCash = payment_method === 'cash';
 
   // Get item
   const { data: item } = await supabaseAdmin.from('rewards_catalog')
@@ -23,6 +25,47 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Item out of stock' }, { status: 400 });
   }
 
+  // Cash purchase flow
+  if (useCash) {
+    if (!item.cash_price || item.cash_price <= 0) {
+      return NextResponse.json({ error: 'This item is not available for cash purchase' }, { status: 400 });
+    }
+
+    // Create purchase record (no XP deduction)
+    const { data: purchase } = await supabaseAdmin.from('rewards_purchases').insert({
+      user_email: session.user.email,
+      item_id: item.id,
+      xp_spent: 0,
+      status: 'pending',
+      notes: `Cash purchase: $${item.cash_price.toFixed(2)}`,
+    }).select().single();
+
+    // Reduce stock if not unlimited
+    if (item.stock_quantity !== -1) {
+      await supabaseAdmin.from('rewards_catalog')
+        .update({ stock_quantity: item.stock_quantity - 1 })
+        .eq('id', item.id);
+    }
+
+    // Notify admins
+    try {
+      const { data: admins } = await supabaseAdmin.from('employee_profiles')
+        .select('user_email').in('user_email', ['jake@starr-surveying.com']);
+      for (const admin of (admins || [])) {
+        await supabaseAdmin.from('notifications').insert({
+          user_email: admin.user_email,
+          type: 'store_purchase',
+          title: 'New Cash Purchase',
+          message: `${session.user.email} purchased "${item.name}" for $${item.cash_price.toFixed(2)} (cash)`,
+          is_read: false,
+        });
+      }
+    } catch { /* ignore */ }
+
+    return NextResponse.json({ purchase, payment_method: 'cash', cash_amount: item.cash_price });
+  }
+
+  // XP purchase flow
   // Check balance
   const { data: balance } = await supabaseAdmin.from('xp_balances')
     .select('current_balance, total_spent').eq('user_email', session.user.email).maybeSingle();
