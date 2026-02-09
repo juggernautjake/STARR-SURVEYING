@@ -19,7 +19,9 @@
 
   /* How-it-works */
   .hiw__edu-flow { flex-direction: column; align-items: center; }
-  .hiw__edu-arrow { transform: rotate(90deg); }
+  /* Only rotate the right-arrow (→) to point down; down-arrows (↓) stay as-is */
+  .hiw__edu-arrow--right { transform: rotate(90deg); }
+  .hiw__edu-arrow--down { transform: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -310,7 +312,9 @@
   .hiw__list { font-size: 0.82rem; padding-left: 1.25rem; }
   .hiw__edu-flow { flex-direction: column; align-items: stretch; gap: 0.35rem; }
   .hiw__edu-step { min-width: auto; max-width: none; }
-  .hiw__edu-arrow { text-align: center; transform: rotate(90deg); }
+  .hiw__edu-arrow { text-align: center; }
+  .hiw__edu-arrow--right { transform: rotate(90deg); }
+  .hiw__edu-arrow--down { transform: none; }
   .hiw__callout { padding: 0.6rem 0.75rem; }
   .hiw__callout strong { font-size: 0.78rem; }
   .hiw__callout p { font-size: 0.72rem; }
@@ -507,6 +511,189 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   FIELDBOOK FLOATING PANEL — Full responsive coverage
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Prevent iOS Safari zoom on focus for ALL admin inputs.
+   iOS zooms when input font-size < 16px. We force 16px on touch devices
+   at mobile widths so the viewport doesn't jump when tapping a text field. */
+@media (pointer: coarse) and (max-width: 768px) {
+  .fb__textarea,
+  .fb__title-input,
+  .fb__search-input,
+  .fb__new-cat-input,
+  .messenger-panel__input,
+  .messenger-panel__search,
+  .messenger-panel__contact-search,
+  .messenger-panel__group-title,
+  .err-dialog textarea,
+  .err-dialog input,
+  .err-log__search,
+  .admin-input,
+  .admin-textarea,
+  .admin-select,
+  .mng__input,
+  .mng__inline-input,
+  .manage__form-input,
+  .manage__form-textarea {
+    font-size: 16px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Fieldbook floating panel */
+  .fb__toolbar { flex-wrap: wrap; gap: 0.2rem; }
+  .fb__tool { width: 32px; height: 32px; }
+  .fb__emoji-picker { grid-template-columns: repeat(8, 1fr); right: -2rem; }
+  .fb__line-text { font-size: 0.68rem; }
+
+  /* Fieldbook button panel */
+  .fieldbook-panel { width: calc(100vw - 2rem) !important; }
+
+  /* Messenger panel — already 380px, starts getting tight */
+  .messenger-fab-wrap { right: calc(1.5rem + 56px); }
+
+  /* Error dialog */
+  .err-dialog__header { padding: 1rem; }
+  .err-dialog__error-box { padding: 0.75rem 1rem; }
+  .err-dialog__detail-row { flex-direction: column; gap: 0.15rem; }
+  .err-dialog__detail-label { min-width: 0; }
+
+  /* Error log */
+  .err-log__search { min-width: 0; flex: 1; }
+  .err-log__stat { min-width: 120px; }
+  .err-log__status-controls { flex-wrap: wrap; }
+  .err-log__delete-btn { margin-left: 0; width: 100%; margin-top: 0.25rem; }
+}
+
+@media (max-width: 599px) {
+  /* Fieldbook floating panel — full width, single page on mobile */
+  .fb { height: 80vh; max-height: none; }
+  .fb__topbar { padding: 0.35rem 0.5rem; }
+  .fb__tab { font-size: 0.68rem; padding: 0.25rem 0.45rem; }
+  .fb__title-bar { padding: 0.3rem 0.5rem; }
+  .fb__title-input { font-size: 0.82rem; }
+  .fb__new-btn { font-size: 0.62rem; padding: 0.2rem 0.4rem; }
+  .fb__page { padding: 0.35rem 0.5rem 0.35rem 0.6rem; }
+  .fb__page-nav { padding: 0.25rem 0.5rem; gap: 0.5rem; }
+  .fb__page-btn { font-size: 0.68rem; }
+  .fb__editor { padding: 0.25rem 0.5rem; }
+  .fb__textarea { font-size: 0.82rem; min-height: 48px; }
+  .fb__toolbar { padding: 0.25rem 0.5rem; }
+  .fb__tool { width: 30px; height: 30px; font-size: 0.72rem; }
+  .fb__toolbar-sep { height: 14px; margin: 0 0.1rem; }
+  .fb__emoji-picker { grid-template-columns: repeat(4, 1fr); right: 0; min-width: 160px; }
+  .fb__media-list { padding: 0.2rem 0.5rem; max-height: 80px; }
+  .fb__meta { font-size: 0.55rem; padding: 0.15rem 0.5rem 0.3rem; }
+  .fb__cat-bar { padding: 0.35rem 0.5rem; }
+  .fb__cat-chip { font-size: 0.62rem; padding: 0.2rem 0.4rem; }
+  .fb__entry-list { padding: 0.35rem 0.5rem; }
+  .fb__entry-card { padding: 0.45rem; }
+  .fb__entry-card-title { font-size: 0.78rem; }
+  .fb__search-bar { padding: 0.35rem 0.5rem; }
+
+  /* Fieldbook button panel */
+  .fieldbook-panel { width: calc(100vw - 1rem) !important; right: 0.5rem !important; bottom: 4rem !important; }
+
+  /* Messenger panel */
+  .messenger-panel__header { padding: 0.45rem 0.75rem; border-radius: 16px 16px 0 0; }
+  .messenger-panel__title { font-size: 0.85rem; }
+  .messenger-panel__conv { padding: 0.5rem 0.75rem; gap: 0.5rem; }
+  .messenger-panel__conv-avatar { width: 32px; height: 32px; font-size: 0.88rem; }
+  .messenger-panel__conv-name { font-size: 0.78rem; }
+  .messenger-panel__conv-preview { font-size: 0.68rem; }
+  .messenger-panel__compose { padding: 0.35rem 0.5rem; gap: 0.25rem; }
+  .messenger-panel__input { padding: 0.4rem 0.55rem; font-size: 0.78rem; }
+  .messenger-panel__send { width: 30px; height: 30px; font-size: 0.8rem; }
+  .messenger-panel__msg-bubble { font-size: 0.78rem; padding: 0.4rem 0.65rem; }
+  .messenger-panel__msg-sender { font-size: 0.6rem; }
+  .messenger-panel__emoji-picker { grid-template-columns: repeat(4, 1fr); }
+  .messenger-panel__tab { font-size: 0.72rem; padding: 0.4rem; }
+  .messenger-panel__actions { padding: 0.3rem 0.5rem; }
+
+  /* Error dialog */
+  .err-dialog__body { padding: 1rem; }
+  .err-dialog__severity { grid-template-columns: 1fr 1fr; gap: 0.35rem; }
+  .err-dialog__textarea { min-height: 80px; }
+
+  /* Error log */
+  .err-log__filters { flex-direction: column; align-items: stretch; }
+  .err-log__filter-group { width: 100%; }
+  .err-log__stats { flex-direction: column; gap: 0.35rem; }
+  .err-log__stat { min-width: 0; }
+  .err-log__detail-grid { grid-template-columns: 1fr; }
+  .err-log__detail-stack { max-height: 150px; font-size: 0.68rem; }
+  .err-log__item-right { flex-direction: column; align-items: flex-end; gap: 0.2rem; }
+  .err-log__page-info { font-size: 0.72rem; }
+
+  /* Error boundary */
+  .err-boundary__card { padding: 1.5rem; }
+  .err-boundary__severity-row { flex-wrap: wrap; gap: 0.3rem; }
+  .err-boundary__sev-btn { min-width: 70px; font-size: 0.72rem; }
+
+  /* Full messages page — contacts grid */
+  .msg-contacts-page__grid { grid-template-columns: 1fr; }
+  .msg-contacts-page__controls { flex-direction: column; }
+  .msg-contacts-page__search { min-width: 0; }
+  .msg-new__type-selector { flex-direction: column; }
+}
+
+@media (max-width: 480px) {
+  /* Fieldbook */
+  .fb { height: 85vh; }
+  .fb__tool { width: 28px; height: 28px; font-size: 0.68rem; }
+  .fb__emoji-picker { grid-template-columns: repeat(4, 1fr); }
+  .fb__line-text { font-size: 0.62rem; }
+  .fb__page--left::before { display: none; }
+
+  /* Messenger */
+  .messenger-fab-wrap { right: calc(0.75rem + 48px); bottom: 0.75rem; }
+  .messenger-fab { width: 40px; height: 40px; font-size: 1rem; }
+  .messenger-panel__msg { max-width: 92%; }
+
+  /* Error log */
+  .err-log__item-header { padding: 0.5rem 0.75rem; }
+  .err-log__status-btn { font-size: 0.68rem; padding: 0.25rem 0.5rem; }
+  .err-log__page-btn { padding: 0.25rem 0.55rem; font-size: 0.72rem; }
+
+  /* Error dialog */
+  .err-dialog__header { padding: 0.75rem; }
+  .err-dialog__icon { font-size: 1.4rem; }
+  .err-dialog__title { font-size: 0.95rem; }
+}
+
+@media (max-width: 380px) {
+  /* Fieldbook — extremely compact */
+  .fb__book { flex-direction: column; }
+  .fb__spine { width: 100%; height: 3px; }
+  .fb__toolbar-sep { display: none; }
+
+  /* Messenger */
+  .messenger-panel__conv-meta { display: none; }
+
+  /* Error */
+  .err-boundary__severity-row { flex-direction: column; }
+  .err-boundary__sev-btn { width: 100%; }
+}
+
+/* Fieldbook & Messenger touch targets */
+@media (pointer: coarse) {
+  .fb__tool { min-height: 36px; min-width: 36px; }
+  .fb__tab { min-height: 36px; display: inline-flex; align-items: center; }
+  .fb__page-btn { min-height: 36px; }
+  .fb__cat-chip { min-height: 36px; display: inline-flex; align-items: center; }
+  .fb__entry-card { min-height: 44px; }
+  .messenger-panel__tab { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .messenger-panel__conv { min-height: 48px; }
+  .messenger-panel__send { min-height: 36px; min-width: 36px; }
+  .messenger-panel__tool { min-height: 36px; min-width: 36px; }
+  .err-dialog__btn { min-height: 44px; }
+  .err-log__status-btn { min-height: 36px; }
+  .err-log__filter-btn { min-height: 36px; }
+  .err-boundary__btn { min-height: 44px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    INLINE STYLE OVERRIDES — Override fixed-width inline styles on mobile
    Uses !important to beat inline style specificity
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -561,5 +748,8 @@
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .admin-sidebar { padding-bottom: env(safe-area-inset-bottom); }
   .fieldbook-fab-wrap { bottom: calc(1rem + env(safe-area-inset-bottom)); }
+  .messenger-fab-wrap { bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
   .fb { padding-bottom: env(safe-area-inset-bottom); }
+  .messenger-panel { padding-bottom: env(safe-area-inset-bottom); }
+  .messenger-panel__compose { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
 }

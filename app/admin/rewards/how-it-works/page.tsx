@@ -190,22 +190,22 @@ export default function HowItWorksPage() {
             <strong>First Try &mdash; Pass</strong>
             <p>Company pays 100%. You get +$0.50/hr raise. XP awarded. Resets for next class.</p>
           </div>
-          <div className="hiw__edu-arrow">&rarr;</div>
+          <div className="hiw__edu-arrow hiw__edu-arrow--right">&rarr;</div>
           <div className="hiw__edu-step hiw__edu-step--fail">
             <strong>First Try &mdash; Fail</strong>
             <p>No reimbursement. Move to Attempt 2.</p>
           </div>
-          <div className="hiw__edu-arrow">&darr;</div>
+          <div className="hiw__edu-arrow hiw__edu-arrow--down">&darr;</div>
           <div className="hiw__edu-step hiw__edu-step--warn">
             <strong>Second Try</strong>
             <p>Company pays 50%. If you pass, reset to 100% for next semester.</p>
           </div>
-          <div className="hiw__edu-arrow">&darr;</div>
+          <div className="hiw__edu-arrow hiw__edu-arrow--down">&darr;</div>
           <div className="hiw__edu-step hiw__edu-step--fail">
             <strong>Third Try</strong>
             <p>Employee pays 100%. If pass, company resets to 100% for next class.</p>
           </div>
-          <div className="hiw__edu-arrow">&darr;</div>
+          <div className="hiw__edu-arrow hiw__edu-arrow--down">&darr;</div>
           <div className="hiw__edu-step hiw__edu-step--fail">
             <strong>Fourth+ Try (after consecutive failures)</strong>
             <p>Employee pays 100% until they pass. After passing, full reset.</p>
@@ -232,8 +232,8 @@ export default function HowItWorksPage() {
         </p>
       </div>
 
-      <div style={{ textAlign: 'center', margin: '2rem 0' }}>
-        <Link href="/admin/rewards" className="admin-btn admin-btn--primary" style={{ marginRight: '1rem' }}>
+      <div className="hiw__cta-row" style={{ textAlign: 'center', margin: '2rem 0', display: 'flex', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <Link href="/admin/rewards" className="admin-btn admin-btn--primary">
           Go to Rewards Store
         </Link>
         <Link href="/admin/pay-progression" className="admin-btn admin-btn--secondary">
