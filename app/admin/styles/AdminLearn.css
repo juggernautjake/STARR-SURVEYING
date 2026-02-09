@@ -1518,3 +1518,218 @@
   .admin-lesson__actions { flex-direction: column; }
   .admin-lesson__complete-btn { width: 100%; text-align: center; }
 }
+
+/* ==============================================================================
+   MODULES PAGE — Search, Filters, Status Colors, Locking, Academic Section
+============================================================================== */
+
+/* === Search Bar === */
+.modules__search-bar { margin-bottom: 1rem; }
+.modules__search {
+  width: 100%; padding: 0.65rem 1rem; border: 1px solid #E5E7EB; border-radius: 8px;
+  font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #374151;
+  background: #FFF; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.modules__search:focus { outline: none; border-color: #1D3095; box-shadow: 0 0 0 3px rgba(29,48,149,0.1); }
+.modules__search::placeholder { color: #9CA3AF; }
+
+/* === Filter Controls === */
+.modules__filters { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem; align-items: center; }
+.modules__filter-group { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.modules__filter-label { font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 600; color: #6B7280; margin-right: 0.15rem; }
+.modules__filter-btn {
+  padding: 0.3rem 0.65rem; border: 1px solid #E5E7EB; border-radius: 6px; background: #FFF;
+  font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 500; color: #6B7280;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.modules__filter-btn:hover { border-color: #1D3095; color: #1D3095; }
+.modules__filter-btn--active { background: #1D3095; color: #FFF; border-color: #1D3095; }
+
+/* === Module Card Extensions (status, progress, locking) === */
+.modules__card--locked { cursor: default; pointer-events: auto; }
+.modules__card--locked:hover { border-color: #E5E7EB; box-shadow: none; }
+.modules__card-header-right { display: flex; align-items: center; gap: 0.5rem; }
+.modules__card-status {
+  display: inline-block; font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 600;
+  padding: 0.2rem 0.55rem; border-radius: 12px; border: 1px solid; text-transform: capitalize;
+}
+.modules__card-progress { margin-top: 0.35rem; }
+.modules__card-progress-bar { height: 6px; background: #F3F4F6; border-radius: 3px; overflow: hidden; }
+.modules__card-progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+.modules__card-progress-text { font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 600; color: #6B7280; margin-top: 0.15rem; display: block; }
+.modules__card-lock { position: absolute; top: 0.75rem; right: 0.75rem; z-index: 2; }
+.modules__card-lock-icon { font-size: 1.25rem; }
+.modules__card-lock-tooltip {
+  position: absolute; top: 100%; right: 0; margin-top: 0.35rem; padding: 0.5rem 0.75rem;
+  background: #1E293B; color: #FFF; font-family: 'Inter', sans-serif; font-size: 0.75rem;
+  border-radius: 6px; white-space: nowrap; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.modules__card-academic { font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; background: #EFF6FF; color: #1D3095; }
+.modules__card-fs-badge { font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 700; color: #BD1218; background: #FEF2F2; padding: 0.15rem 0.4rem; border-radius: 4px; }
+
+/* === Academic Section Toggle === */
+.modules__academic-section { margin-top: 1.5rem; }
+.modules__academic-toggle {
+  display: flex; align-items: center; gap: 0.65rem; width: 100%; padding: 1rem 1.25rem;
+  background: #F8F9FA; border: 1px solid #E5E7EB; border-radius: 10px; cursor: pointer;
+  transition: background 0.15s; text-align: left;
+}
+.modules__academic-toggle:hover { background: #EFF6FF; border-color: #BFDBFE; }
+.modules__academic-toggle-icon { font-size: 0.85rem; color: #6B7280; }
+.modules__academic-toggle-title { font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 600; color: #0F1419; }
+.modules__academic-toggle-count { font-family: 'Inter', sans-serif; font-size: 0.78rem; color: #6B7280; }
+.modules__academic-toggle-hint { font-family: 'Inter', sans-serif; font-size: 0.72rem; color: #9CA3AF; margin-left: auto; }
+
+/* ==============================================================================
+   LESSON LIST — Status Badges, Interactions, Lock Tooltips
+============================================================================== */
+.lesson-list { display: flex; flex-direction: column; gap: 0; }
+.lesson-item--locked { cursor: default; }
+.lesson-item--locked:hover { border-color: #E5E7EB; background: #FFF; }
+.lesson-item__status-badge {
+  display: inline-block; font-family: 'Inter', sans-serif; font-size: 0.68rem; font-weight: 600;
+  padding: 0.15rem 0.45rem; border-radius: 12px; border: 1px solid; margin-left: 0.5rem;
+}
+.lesson-item__interactions {
+  font-family: 'Inter', sans-serif; font-size: 0.72rem; color: #9CA3AF; margin-top: 0.15rem;
+}
+.lesson-item__lock-tooltip {
+  position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 0.35rem;
+  padding: 0.45rem 0.75rem; background: #1E293B; color: #FFF; font-family: 'Inter', sans-serif;
+  font-size: 0.75rem; border-radius: 6px; white-space: nowrap; z-index: 10;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* ==============================================================================
+   LESSON VIEWER — Content Tracker, Quiz Lock, Resources
+============================================================================== */
+
+/* === Content Progress Tracker === */
+.lesson-tracker {
+  background: #FFF; border: 1px solid #E5E7EB; border-radius: 10px; padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.lesson-tracker__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.lesson-tracker__title { font-family: 'Sora', sans-serif; font-size: 0.9rem; font-weight: 600; color: #0F1419; }
+.lesson-tracker__count { font-family: 'Inter', sans-serif; font-size: 0.78rem; color: #6B7280; }
+.lesson-tracker__bar { height: 8px; background: #F3F4F6; border-radius: 4px; overflow: hidden; }
+.lesson-tracker__bar-fill { height: 100%; background: linear-gradient(90deg, #1D3095, #3B82F6); border-radius: 4px; transition: width 0.4s ease; }
+.lesson-tracker__hint { font-family: 'Inter', sans-serif; font-size: 0.78rem; color: #6B7280; margin-top: 0.5rem; }
+
+/* === Lesson Topics === */
+.lesson-topics { margin-top: 1.5rem; }
+.lesson-topics__title { font-family: 'Sora', sans-serif; font-size: 1.05rem; font-weight: 600; color: #0F1419; margin-bottom: 0.75rem; }
+.lesson-topics__item { background: #FFF; border: 1px solid #E5E7EB; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 0.5rem; }
+.lesson-topics__item-title { font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 600; color: #0F1419; margin-bottom: 0.35rem; }
+.lesson-topics__item-content { font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #374151; line-height: 1.7; }
+.lesson-topics__keywords { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+.lesson-topics__keyword {
+  font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 500; padding: 0.15rem 0.5rem;
+  background: #EFF6FF; color: #1D3095; border-radius: 12px;
+}
+
+/* === Lesson Takeaways === */
+.lesson-takeaways { margin-top: 1.5rem; padding: 1.25rem; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; }
+.lesson-takeaways__title { font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 600; color: #1D3095; margin-bottom: 0.5rem; }
+.lesson-takeaways__list { margin: 0; padding-left: 1.25rem; }
+.lesson-takeaways__item { font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #374151; line-height: 1.7; margin-bottom: 0.25rem; }
+
+/* === Lesson Resources (with tracking) === */
+.lesson-resources { margin-top: 1.5rem; }
+.lesson-resources__title { font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 600; color: #0F1419; margin-bottom: 0.75rem; }
+.lesson-resources__list { display: flex; flex-direction: column; gap: 0.35rem; }
+.lesson-resources__link {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1rem; background: #FFF;
+  border: 1px solid #E5E7EB; border-radius: 8px; text-decoration: none; color: #374151;
+  font-family: 'Inter', sans-serif; font-size: 0.85rem; transition: all 0.15s;
+}
+.lesson-resources__link:hover { border-color: #1D3095; background: #FAFBFF; }
+.lesson-resources__link--reviewed { border-color: #A7F3D0; background: #F0FDF4; }
+.lesson-resources__link-status { font-size: 0.85rem; flex-shrink: 0; }
+.lesson-resources__arrow { margin-left: auto; color: #D1D5DB; font-size: 0.85rem; }
+
+/* === Quiz Lock State === */
+.lesson-quiz-locked {
+  display: flex; align-items: center; gap: 0.65rem; padding: 0.85rem 1.25rem; background: #F9FAFB;
+  border: 1px solid #E5E7EB; border-radius: 8px;
+}
+.lesson-quiz-locked__icon { font-size: 1.25rem; }
+.lesson-quiz-locked__text { font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #6B7280; }
+
+/* ==============================================================================
+   ROADMAP — Lock Tooltip for Modules
+============================================================================== */
+.roadmap__module--locked { cursor: default; }
+.roadmap__module--locked:hover { background: transparent; }
+.roadmap__module-lock-tooltip {
+  position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 0.35rem;
+  padding: 0.45rem 0.75rem; background: #1E293B; color: #FFF; font-family: 'Inter', sans-serif;
+  font-size: 0.75rem; border-radius: 6px; white-space: nowrap; z-index: 10;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* ==============================================================================
+   ASSIGNMENTS — Section, Enrollment, Status Badges
+============================================================================== */
+.assign__section {
+  background: #F8F9FA; border: 1px solid #E5E7EB; border-radius: 10px; padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.assign__section-title { font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 600; color: #0F1419; margin-bottom: 0.25rem; }
+.assign__section-desc { font-family: 'Inter', sans-serif; font-size: 0.82rem; color: #6B7280; margin-bottom: 0.75rem; }
+.assign__enroll-row { display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap; }
+.assign__filters { display: flex; gap: 0.35rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.assign__status {
+  display: inline-block; font-family: 'Inter', sans-serif; font-size: 0.68rem; font-weight: 700;
+  padding: 0.15rem 0.45rem; border-radius: 4px; text-transform: capitalize; letter-spacing: 0.3px;
+}
+.assign__status--pending { background: #FEF3C7; color: #92400E; }
+.assign__status--in_progress { background: #DBEAFE; color: #1E40AF; }
+.assign__status--completed { background: #ECFDF5; color: #065F46; }
+.assign__status--cancelled { background: #F3F4F6; color: #9CA3AF; }
+.assign__unlock-badge {
+  display: inline-block; margin-left: 0.5rem; font-family: 'Inter', sans-serif;
+  font-size: 0.68rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 4px;
+  background: #ECFDF5; color: #065F46;
+}
+
+/* ==============================================================================
+   ACTIVITY MONITOR — Filters, Type Badges, Notice
+============================================================================== */
+.activity__filters { display: flex; gap: 0.65rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.activity__notice { font-family: 'Inter', sans-serif; font-size: 0.75rem; color: #9CA3AF; margin-bottom: 1rem; font-style: italic; }
+.activity__type-badge {
+  display: inline-block; font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 600;
+  padding: 0.15rem 0.5rem; border-radius: 4px; background: #EFF6FF; color: #1D3095;
+  text-transform: capitalize; margin-right: 0.35rem;
+}
+.activity__entity-badge {
+  display: inline-block; font-family: 'Inter', sans-serif; font-size: 0.68rem; font-weight: 500;
+  padding: 0.1rem 0.4rem; border-radius: 4px; background: #F3F4F6; color: #6B7280;
+  text-transform: capitalize;
+}
+
+/* ==============================================================================
+   ADMIN LESSON PAGE — Header, Nav, Body, Actions
+============================================================================== */
+.admin-lesson__header { margin-bottom: 1.5rem; }
+.admin-lesson__nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
+.admin-lesson__nav-link { font-family: 'Inter', sans-serif; font-size: 0.82rem; font-weight: 500; color: #1D3095; text-decoration: none; }
+.admin-lesson__nav-link:hover { color: #BD1218; }
+.admin-lesson__title { font-family: 'Sora', sans-serif; font-size: 1.3rem; font-weight: 700; color: #0F1419; }
+.admin-lesson__body {
+  background: #FFF; border: 1px solid #E5E7EB; border-radius: 10px; padding: 2rem;
+  font-family: 'Inter', sans-serif; font-size: 0.95rem; color: #374151; line-height: 1.8;
+  margin-bottom: 1.5rem;
+}
+.admin-lesson__body h2 { font-family: 'Sora', sans-serif; font-size: 1.2rem; font-weight: 600; color: #0F1419; margin: 1.5rem 0 0.75rem; }
+.admin-lesson__body h3 { font-family: 'Sora', sans-serif; font-size: 1.05rem; font-weight: 600; color: #1D3095; margin: 1.25rem 0 0.5rem; }
+.admin-lesson__body p { margin-bottom: 1rem; }
+.admin-lesson__body ul, .admin-lesson__body ol { margin-bottom: 1rem; padding-left: 1.5rem; }
+.admin-lesson__body li { margin-bottom: 0.35rem; }
+.admin-lesson__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; margin-top: 1.5rem; }
+.admin-lesson__complete-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.65rem 1.25rem;
+  border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 600;
+}
+.admin-lesson__complete-btn--completed { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }

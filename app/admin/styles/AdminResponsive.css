@@ -875,6 +875,85 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   LEARNING PROGRESS — Modules, Filters, Locking, Assignments, Activity
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* --- Tablet (1023px) --- */
+@media (max-width: 1023px) {
+  .modules__grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important; }
+  .modules__filters { gap: 0.5rem !important; }
+  .assign__enroll-row { flex-direction: column !important; }
+  .activity__filters { flex-direction: column !important; align-items: stretch !important; }
+  .activity__filters .manage__form-input { max-width: 100% !important; }
+}
+
+/* --- Large mobile (768px) --- */
+@media (max-width: 768px) {
+  .modules__grid { grid-template-columns: 1fr !important; }
+  .modules__search { font-size: 16px !important; } /* Prevent iOS zoom */
+  .modules__filters { flex-direction: column !important; align-items: flex-start !important; }
+  .modules__filter-group { flex-wrap: wrap !important; }
+  .modules__card-lock-tooltip { white-space: normal !important; max-width: 200px !important; right: -10px !important; }
+  .lesson-item__lock-tooltip { white-space: normal !important; max-width: 220px !important; }
+  .roadmap__module-lock-tooltip { white-space: normal !important; max-width: 220px !important; }
+  .lesson-tracker__header { flex-direction: column !important; align-items: flex-start !important; gap: 0.25rem !important; }
+  .admin-lesson__nav { flex-direction: column !important; align-items: flex-start !important; }
+  .assign__enroll-row { flex-direction: column !important; }
+  .assign__enroll-row .manage__form-input { flex: 1 1 100% !important; }
+  .manage__tabs { overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; flex-wrap: nowrap !important; }
+  .manage__tab { white-space: nowrap !important; flex-shrink: 0 !important; }
+}
+
+/* --- Mobile (599px) --- */
+@media (max-width: 599px) {
+  .modules__card { padding: 1rem !important; }
+  .modules__card-desc { display: none !important; }
+  .modules__card-meta { flex-wrap: wrap !important; gap: 0.5rem !important; }
+  .modules__academic-toggle { flex-wrap: wrap !important; padding: 0.85rem 1rem !important; }
+  .modules__academic-toggle-hint { width: 100% !important; margin-left: 0 !important; }
+  .lesson-item { padding: 0.75rem 1rem !important; }
+  .lesson-item__lock-tooltip { left: 10% !important; transform: none !important; }
+  .roadmap__module-lock-tooltip { left: 10% !important; transform: none !important; }
+  .lesson-resources__link { font-size: 0.82rem !important; padding: 0.55rem 0.85rem !important; }
+  .lesson-quiz-locked { flex-direction: column !important; text-align: center !important; gap: 0.35rem !important; }
+  .admin-lesson__title { font-size: 1.1rem !important; }
+  .admin-lesson__actions { flex-direction: column !important; }
+  .admin-lesson__complete-btn { width: 100% !important; text-align: center !important; justify-content: center !important; }
+  .assign__filters { flex-wrap: wrap !important; }
+  .activity__filters { flex-direction: column !important; align-items: stretch !important; }
+  .activity__filters .manage__form-input { max-width: 100% !important; }
+  .manage__item { flex-direction: column !important; align-items: stretch !important; gap: 0.5rem !important; }
+  .manage__item-actions { justify-content: flex-start !important; flex-wrap: wrap !important; }
+}
+
+/* --- Small mobile (480px) --- */
+@media (max-width: 480px) {
+  .modules__filter-btn { padding: 0.25rem 0.5rem !important; font-size: 0.68rem !important; }
+  .lesson-tracker { padding: 0.75rem 1rem !important; }
+  .lesson-topics__item { padding: 0.75rem 1rem !important; }
+  .lesson-takeaways { padding: 1rem !important; }
+  .assign__section { padding: 1rem !important; }
+}
+
+/* --- Extra small (380px) --- */
+@media (max-width: 380px) {
+  .modules__card-order { width: 24px !important; height: 24px !important; font-size: 0.65rem !important; }
+  .modules__card-title { font-size: 0.9rem !important; }
+  .lesson-item__number { width: 28px !important; height: 28px !important; font-size: 0.75rem !important; }
+}
+
+/* --- Touch targets for coarse pointers --- */
+@media (pointer: coarse) {
+  .modules__filter-btn { min-height: 36px; display: inline-flex; align-items: center; }
+  .modules__search { min-height: 44px; }
+  .assign__filters .modules__filter-btn { min-height: 36px; }
+  .lesson-resources__link { min-height: 44px; }
+  .modules__academic-toggle { min-height: 48px; }
+  .activity__filters .manage__form-input { min-height: 44px; }
+  .activity__filters select { min-height: 44px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    SAFE AREA — Support for iPhone notch / bottom bar
    ═══════════════════════════════════════════════════════════════════════════ */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
