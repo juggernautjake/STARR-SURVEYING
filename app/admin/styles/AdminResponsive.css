@@ -149,6 +149,21 @@
   /* ── Schedule ── */
   .schedule-header { flex-direction: column; gap: 0.5rem; }
   .schedule-nav { flex-wrap: wrap; }
+  .sched__week { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .sched__week-header, .sched__week-body { min-width: 500px; }
+  .sched__month { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .sched__month-header, .sched__month-grid { min-width: 500px; }
+
+  /* ── My Notes ── */
+  .mynotes__tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .mynotes__tab { padding: 0.45rem 0.85rem; font-size: 0.82rem; }
+  .mynotes__new-list-form { flex-direction: column; align-items: stretch; }
+  .mynotes__new-list-form .mynotes__search { min-width: 0; }
+  .mynotes__new-list-form .admin-btn { width: auto; }
+  .mynotes-notebook__meta-row { gap: 0.5rem; }
+
+  /* ── Settings (under construction) ── */
+  .job-detail__integration-cards { grid-template-columns: repeat(2, 1fr) !important; }
 
   /* ── Employee manage ── */
   .emp-manage__grid { grid-template-columns: 1fr; }
@@ -406,6 +421,31 @@
 
   /* ── Schedule ── */
   .schedule-week-grid { overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 600px; }
+  .sched__controls-left { flex-wrap: wrap; justify-content: center; }
+  .sched__controls-right { flex-wrap: wrap; justify-content: center; }
+  .sched__view-btn { padding: 0.35rem 0.65rem; font-size: 0.75rem; }
+  .sched__legend { padding: 0.5rem 0.75rem; gap: 0.4rem; }
+  .sched__legend-item { font-size: 0.68rem; }
+  .sched__event-form { padding: 0.85rem; }
+  .sched__month-cell { min-height: 50px; padding: 0.2rem 0.35rem; }
+  .sched__month-event { font-size: 0.58rem; }
+  .sched__month-cell-num { font-size: 0.72rem; }
+  .sched__week-day { min-height: 80px; padding: 0.2rem; }
+
+  /* ── My Notes ── */
+  .mynotes__tab { padding: 0.4rem 0.75rem; font-size: 0.78rem; }
+  .mynotes__chip { padding: 0.25rem 0.5rem; font-size: 0.72rem; }
+  .mynotes__card { padding: 0.75rem 0.85rem; }
+  .mynotes__card-title { font-size: 0.85rem; }
+  .mynotes__card-preview { font-size: 0.78rem; -webkit-line-clamp: 2; }
+  .mynotes__card-delete { opacity: 0.4; }
+  .mynotes-notebook__job-label { font-size: 0.72rem; }
+
+  /* ── My Files (under construction) ── */
+  .job-detail__field-data-row { font-size: 0.78rem; }
+
+  /* ── Settings (under construction) ── */
+  .job-detail__integration-cards { grid-template-columns: 1fr !important; }
 
   /* ── Fieldbook full page ── */
   .fbfull__cat-grid { grid-template-columns: 1fr; }
@@ -472,6 +512,19 @@
 
   /* ── Payroll ── */
   .payroll-tabs__btn { font-size: 0.72rem; padding: 0.4rem 0.55rem; }
+
+  /* ── My Notes ── */
+  .mynotes__tab { padding: 0.35rem 0.6rem; font-size: 0.75rem; }
+  .mynotes__card-footer { flex-direction: column; align-items: flex-start; }
+  .mynotes__card-created { font-size: 0.68rem; }
+  .mynotes-notebook__vis-toggle { font-size: 0.68rem; padding: 0.15rem 0.4rem; }
+  .mynotes-notebook__vis-badge { font-size: 0.62rem; }
+
+  /* ── Schedule (under construction) ── */
+  .sched__month-label { font-size: 0.92rem; }
+  .sched__nav-btn { width: 32px; height: 32px; font-size: 0.88rem; }
+  .sched__today-btn { font-size: 0.75rem; padding: 0.35rem 0.65rem; }
+  .sched__add-btn { font-size: 0.75rem; padding: 0.35rem 0.65rem; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -485,6 +538,18 @@
   .rewards__hero-amount { font-size: 1.35rem; }
   .hiw__pay-paths { grid-template-columns: 1fr; }
   .pay-prog__current-grid { grid-template-columns: 1fr; }
+
+  /* ── My Notes ── */
+  .mynotes__tabs { gap: 0; }
+  .mynotes__tab { padding: 0.3rem 0.5rem; font-size: 0.72rem; }
+  .mynotes__chips { gap: 0.25rem; }
+  .mynotes__chip { font-size: 0.68rem; padding: 0.2rem 0.4rem; }
+  .mynotes__card-title { font-size: 0.82rem; }
+  .mynotes__card-preview { font-size: 0.75rem; }
+
+  /* ── Schedule ── */
+  .sched__view-toggle { flex-wrap: wrap; }
+  .sched__view-btn { font-size: 0.68rem; padding: 0.3rem 0.5rem; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -583,7 +648,15 @@
   .mng__input,
   .mng__inline-input,
   .manage__form-input,
-  .manage__form-textarea {
+  .manage__form-textarea,
+  .mynotes__search,
+  .mynotes-notebook__title,
+  .mynotes-notebook__textarea,
+  .mynotes__icon-select,
+  .sched__form-field input,
+  .sched__form-field select,
+  .sched__form-field textarea,
+  .msg-settings__select {
     font-size: 16px !important;
   }
 }
@@ -734,6 +807,19 @@
   .err-log__status-btn { min-height: 36px; }
   .err-log__filter-btn { min-height: 36px; }
   .err-boundary__btn { min-height: 44px; }
+  .mynotes__tab { min-height: 44px; display: inline-flex; align-items: center; }
+  .mynotes__chip { min-height: 36px; display: inline-flex; align-items: center; }
+  .mynotes-editor__tool { min-height: 36px; min-width: 36px; }
+  .mynotes-notebook__vis-toggle { min-height: 36px; display: inline-flex; align-items: center; }
+  .mynotes__card { min-height: 44px; }
+  .mynotes-editor__cat { min-height: 36px; display: inline-flex; align-items: center; }
+  .sched__nav-btn { min-height: 44px; min-width: 44px; }
+  .sched__view-btn { min-height: 44px; }
+  .sched__today-btn { min-height: 44px; }
+  .sched__add-btn { min-height: 44px; }
+  .sched__btn { min-height: 44px; }
+  .msg-settings__toggle { min-height: 44px; }
+  .msg-settings__select { min-height: 44px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -767,6 +853,9 @@
 
   /* Manage XP lookup row */
   .mng__xp-lookup-row { flex-direction: column !important; }
+
+  /* My Notes grid — override minmax(280px) */
+  .mynotes__grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important; }
 }
 
 @media (max-width: 599px) {
