@@ -1,5 +1,6 @@
 // app/api/admin/learn/fieldbook/route.ts — Enhanced Fieldbook API
-// Supports CRUD for entries, categories/lists, media, and search.
+// Supports CRUD for entries, categories/lists, media, search,
+// public/private visibility, and job-linked notes.
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
@@ -69,23 +70,50 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ entry: data || null });
   }
 
+  // --- Fetch public job notes (viewable by all team members) ---
+  if (action === 'job_notes') {
+    const jobId = searchParams.get('job_id');
+    let query = supabaseAdmin
+      .from('fieldbook_notes')
+      .select('id, user_email, title, content, job_id, job_name, job_number, created_at, updated_at, tags, media, is_public')
+      .eq('is_public', true)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (jobId) {
+      query = query.eq('job_id', jobId);
+    } else {
+      query = query.not('job_id', 'is', null);
+    }
+
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ entries: data || [] });
+  }
+
   // --- Search entries ---
   if (action === 'search') {
     const q = searchParams.get('q') || '';
     const dateFrom = searchParams.get('from');
     const dateTo = searchParams.get('to');
     const categoryId = searchParams.get('category_id');
+    const visibility = searchParams.get('visibility'); // 'public', 'private', or null for all
+    const jobOnly = searchParams.get('job_only');
 
     let query = supabaseAdmin
       .from('fieldbook_notes')
-      .select('id, title, content, created_at, updated_at, tags, media')
+      .select('id, title, content, created_at, updated_at, tags, media, is_public, job_id, job_name, job_number')
       .eq('user_email', email)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (q) query = query.or(`title.ilike.%${q}%,content.ilike.%${q}%`);
     if (dateFrom) query = query.gte('created_at', dateFrom);
     if (dateTo) query = query.lte('created_at', dateTo);
+    if (visibility === 'public') query = query.eq('is_public', true);
+    if (visibility === 'private') query = query.eq('is_public', false);
+    if (jobOnly === 'true') query = query.not('job_id', 'is', null);
+    if (jobOnly === 'false') query = query.is('job_id', null);
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -110,7 +138,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data, error } = await supabaseAdmin
     .from('fieldbook_notes')
-    .select('id, title, content, context_label, page_url, created_at, updated_at, media, tags')
+    .select('id, title, content, context_label, page_url, created_at, updated_at, media, tags, is_public, job_id, job_name, job_number')
     .eq('user_email', email)
     .order('updated_at', { ascending: false })
     .limit(limit);
@@ -122,6 +150,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     context_label: string | null; page_url: string | null;
     created_at: string; updated_at: string;
     media: unknown[] | null; tags: string[] | null;
+    is_public?: boolean; job_id?: string | null; job_name?: string | null; job_number?: string | null;
   }) => ({
     id: n.id,
     title: n.title || 'Untitled Note',
@@ -132,6 +161,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     updated_at: n.updated_at,
     media: n.media || [],
     tags: n.tags || [],
+    is_public: n.is_public ?? false,
+    job_id: n.job_id || null,
+    job_name: n.job_name || null,
+    job_number: n.job_number || null,
   }));
 
   return NextResponse.json({ entries });
@@ -185,7 +218,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   // --- Create new entry ---
-  const { title, content, media, tags, category_ids } = body;
+  const { title, content, media, tags, category_ids, is_public, job_id, job_name, job_number } = body;
 
   // Unmark any current entry for this user
   await supabaseAdmin
@@ -194,7 +227,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .eq('user_email', email)
     .eq('is_current', true);
 
-  const { data, error } = await supabaseAdmin.from('fieldbook_notes').insert({
+  const insertData: Record<string, unknown> = {
     user_email: email,
     title: title?.trim() || 'Untitled Note',
     content: (content || '').trim(),
@@ -202,7 +235,22 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     tags: tags || [],
     is_current: true,
     content_format: 'rich_text',
-  }).select().single();
+  };
+
+  // Public/private (job notes are always public)
+  if (job_id) {
+    insertData.is_public = true;
+    insertData.job_id = job_id;
+    insertData.job_name = job_name || null;
+    insertData.job_number = job_number || null;
+  } else {
+    insertData.is_public = is_public ?? false;
+  }
+
+  const { data, error } = await supabaseAdmin.from('fieldbook_notes')
+    .insert(insertData)
+    .select()
+    .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -248,14 +296,27 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   }
 
   // --- Auto-save / update entry ---
-  const { id, title, content, media, tags, category_ids } = body;
+  const { id, title, content, media, tags, category_ids, is_public } = body;
   if (!id) return NextResponse.json({ error: 'Entry ID required' }, { status: 400 });
+
+  // Fetch the existing entry to check if it's a job note
+  const { data: existing } = await supabaseAdmin
+    .from('fieldbook_notes')
+    .select('job_id')
+    .eq('id', id)
+    .eq('user_email', email)
+    .single();
 
   const updates: Record<string, unknown> = {};
   if (title !== undefined) updates.title = title.trim() || 'Untitled Note';
   if (content !== undefined) updates.content = content;
   if (media !== undefined) updates.media = media;
   if (tags !== undefined) updates.tags = tags;
+
+  // Public/private — job notes are always public, can't be changed
+  if (is_public !== undefined && !existing?.job_id) {
+    updates.is_public = is_public;
+  }
 
   const { data, error } = await supabaseAdmin
     .from('fieldbook_notes')

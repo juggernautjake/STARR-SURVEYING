@@ -40,7 +40,7 @@ interface Badge {
   category: string; xp_reward: number; is_active: boolean;
 }
 
-type Tab = 'purchases' | 'store' | 'milestones' | 'work_types' | 'roles' | 'seniority' | 'credentials' | 'pay_config' | 'badges' | 'award' | 'manage_xp';
+type Tab = 'purchases' | 'store' | 'milestones' | 'work_types' | 'roles' | 'seniority' | 'credentials' | 'pay_config' | 'badges' | 'xp_management';
 
 export default function AdminRewardsPage() {
   const { data: session } = useSession();
@@ -292,8 +292,7 @@ export default function AdminRewardsPage() {
     { key: 'credentials', label: 'Credentials' },
     { key: 'pay_config', label: 'Pay Caps' },
     { key: 'badges', label: 'Badges' },
-    { key: 'award', label: 'Award XP' },
-    { key: 'manage_xp', label: 'Manage XP' },
+    { key: 'xp_management', label: 'XP Management' },
   ];
 
   return (
@@ -701,38 +700,25 @@ export default function AdminRewardsPage() {
         </div>
       )}
 
-      {/* ══════ AWARD XP ══════ */}
-      {activeTab === 'award' && (
-        <div className="mng__section" style={{ maxWidth: '500px' }}>
-          <h3 className="mng__card-title">Manually Award XP</h3>
-          <p className="mng__desc">Add XP to an employee&apos;s balance. This increases both current and all-time totals.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <input placeholder="Employee email" value={awardEmail} onChange={e => setAwardEmail(e.target.value)} className="mng__input" />
-            <input type="number" placeholder="XP amount" value={awardAmount} onChange={e => setAwardAmount(e.target.value)} className="mng__input" />
-            <input placeholder="Reason/description" value={awardDesc} onChange={e => setAwardDesc(e.target.value)} className="mng__input" />
-            <button className="admin-btn admin-btn--primary" onClick={handleAwardXP} disabled={saving === 'award'}>
-              {saving === 'award' ? 'Awarding...' : 'Award XP'}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* ══════ XP MANAGEMENT (combined Award + Manage) ══════ */}
+      {activeTab === 'xp_management' && (
+        <div className="mng__section" style={{ maxWidth: '600px' }}>
+          <h3 className="mng__card-title">XP Management</h3>
+          <p className="mng__desc">Look up an employee to view their XP balances, award additional XP, or directly set their values.</p>
 
-      {/* ══════ MANAGE USER XP ══════ */}
-      {activeTab === 'manage_xp' && (
-        <div className="mng__section" style={{ maxWidth: '550px' }}>
-          <h3 className="mng__card-title">Manage User XP Balances</h3>
-          <p className="mng__desc">Look up a user and directly set their current XP balance and/or all-time total. Use this to correct errors or make manual adjustments.</p>
-          <div className="mng__xp-lookup-row" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-            <input placeholder="Employee email" value={manageXpEmail} onChange={e => setManageXpEmail(e.target.value)} className="mng__input" style={{ flex: 1 }} />
+          {/* Unified lookup */}
+          <div className="mng__xp-lookup-row" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+            <input placeholder="Employee email" value={manageXpEmail} onChange={e => { setManageXpEmail(e.target.value); setAwardEmail(e.target.value); }} className="mng__input" style={{ flex: 1 }} />
             <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={handleLookupXP} disabled={manageXpLoading}>
               {manageXpLoading ? 'Looking up...' : 'Look Up'}
             </button>
           </div>
 
+          {/* Current balances */}
           {manageXpData && (
-            <div className="mng__card">
-              <h4 className="mng__card-title" style={{ marginBottom: '0.75rem' }}>XP for {manageXpEmail}</h4>
-              <div className="mng__xp-stats-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem', textAlign: 'center' }}>
+            <div className="mng__card" style={{ marginBottom: '1rem' }}>
+              <h4 className="mng__card-title" style={{ marginBottom: '0.75rem' }}>Current XP for {manageXpEmail}</h4>
+              <div className="mng__xp-stats-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', textAlign: 'center' }}>
                 <div>
                   <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase' }}>Current Balance</div>
                   <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#10B981' }}>{manageXpData.current_balance.toLocaleString()}</div>
@@ -746,6 +732,27 @@ export default function AdminRewardsPage() {
                   <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#EF4444' }}>{manageXpData.total_spent.toLocaleString()}</div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Award XP */}
+          <div className="mng__card">
+            <h4 className="mng__card-title">Award XP</h4>
+            <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0 0 0.65rem' }}>Add XP to the employee&apos;s balance. Increases both current and all-time totals.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <input type="number" placeholder="XP amount" value={awardAmount} onChange={e => setAwardAmount(e.target.value)} className="mng__input" />
+              <input placeholder="Reason/description" value={awardDesc} onChange={e => setAwardDesc(e.target.value)} className="mng__input" />
+              <button className="admin-btn admin-btn--primary" onClick={handleAwardXP} disabled={saving === 'award' || !manageXpEmail}>
+                {saving === 'award' ? 'Awarding...' : 'Award XP'}
+              </button>
+            </div>
+          </div>
+
+          {/* Direct Set XP */}
+          {manageXpData && (
+            <div className="mng__card" style={{ marginTop: '0.75rem' }}>
+              <h4 className="mng__card-title">Override XP Values</h4>
+              <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0 0 0.65rem' }}>Directly set the current balance and/or all-time total. Use this to correct errors.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <div className="mng__inline-field">
                   <label className="mng__inline-label">Set Current Balance</label>

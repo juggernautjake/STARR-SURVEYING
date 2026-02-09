@@ -1,6 +1,7 @@
 // app/admin/components/Fieldbook.tsx — Two-page notebook fieldbook
 // Opens as a floating book with lined paper, audio recording, media, emoji,
 // rich text formatting. Stays open across page navigation. Auto-saves.
+// Supports public/private visibility and job-linked notes.
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -25,6 +26,10 @@ interface FieldbookEntry {
   updated_at: string;
   media: MediaItem[];
   tags: string[];
+  is_public?: boolean;
+  job_id?: string | null;
+  job_name?: string | null;
+  job_number?: string | null;
 }
 
 interface Category {
@@ -83,6 +88,7 @@ export default function Fieldbook() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [media, setMedia] = useState<MediaItem[]>([]);
+  const [isPublic, setIsPublic] = useState(false);
   const [spreadIndex, setSpreadIndex] = useState(0);
   const [flipping, setFlipping] = useState<'forward' | 'back' | null>(null);
   const [saving, setSaving] = useState(false);
@@ -105,6 +111,10 @@ export default function Fieldbook() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
 
+  /* ─── Determine if we're on a job page ─── */
+  const jobMatch = pathname.match(/\/admin\/jobs\/([^/]+)/);
+  const isOnJobPage = !!(jobMatch && jobMatch[1] !== 'new' && jobMatch[1] !== 'import');
+
   /* ─── Load current entry on open ─── */
   const loadCurrentEntry = useCallback(async () => {
     try {
@@ -116,6 +126,7 @@ export default function Fieldbook() {
           setTitle(data.entry.title || '');
           setContent(data.entry.content || '');
           setMedia(data.entry.media || []);
+          setIsPublic(data.entry.is_public ?? false);
         }
       }
     } catch { /* silent */ }
@@ -145,7 +156,7 @@ export default function Fieldbook() {
     autoSaveTimer.current = setTimeout(() => saveEntry(false), 2000);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, title, media]);
+  }, [content, title, media, isPublic]);
 
   /* ─── Save entry ─── */
   async function saveEntry(showStatus = true) {
@@ -155,13 +166,13 @@ export default function Fieldbook() {
         await fetch('/api/admin/learn/fieldbook', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: entry.id, title, content, media }),
+          body: JSON.stringify({ id: entry.id, title, content, media, is_public: isPublic }),
         });
       } else {
         const res = await fetch('/api/admin/learn/fieldbook', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, content, media }),
+          body: JSON.stringify({ title, content, media, is_public: isPublic }),
         });
         if (res.ok) {
           const data = await res.json();
@@ -181,6 +192,7 @@ export default function Fieldbook() {
     setTitle('');
     setContent('');
     setMedia([]);
+    setIsPublic(false);
     setSpreadIndex(0);
     setEntryCategoryIds([]);
     setView('write');
@@ -195,6 +207,7 @@ export default function Fieldbook() {
     setTitle(e.title || '');
     setContent(e.content || '');
     setMedia(e.media || []);
+    setIsPublic(e.is_public ?? false);
     setSpreadIndex(0);
     setView('write');
   }
@@ -323,6 +336,8 @@ export default function Fieldbook() {
   const leftLines = allLines.slice(0, LINES_PER_PAGE);
   const rightLines = allLines.slice(LINES_PER_PAGE, LINES_PER_PAGE * 2);
 
+  const isJobNote = !!(entry?.job_id);
+
   return (
     <>
       {/* ─── FAB Button ─── */}
@@ -347,8 +362,8 @@ export default function Fieldbook() {
             </div>
             <div className="fb__topbar-right">
               {saving && <span className="fb__saving">Saving...</span>}
-              <Link href="/admin/learn/fieldbook" className="fb__expand" onClick={() => setIsOpen(false)} title="Full page view">↗</Link>
-              <button className="fb__close" onClick={() => { saveEntry(false); setIsOpen(false); }}>✕</button>
+              <Link href="/admin/my-notes" className="fb__expand" onClick={() => setIsOpen(false)} title="My Notes page">&#x2197;</Link>
+              <button className="fb__close" onClick={() => { saveEntry(false); setIsOpen(false); }}>&#x2715;</button>
             </div>
           </div>
 
@@ -364,6 +379,26 @@ export default function Fieldbook() {
                   placeholder="Entry title..."
                 />
                 <button className="fb__new-btn" onClick={startNewEntry} title="New entry">+ New</button>
+              </div>
+
+              {/* Visibility & Job indicator */}
+              <div className="fb__vis-bar">
+                {isJobNote ? (
+                  <span className="fb__vis-badge fb__vis-badge--job">
+                    &#x1F527; Job Note &mdash; Always Public
+                  </span>
+                ) : (
+                  <button
+                    className={`fb__vis-toggle ${isPublic ? 'fb__vis-toggle--public' : ''}`}
+                    onClick={() => setIsPublic(!isPublic)}
+                    title={isPublic ? 'Click to make private' : 'Click to make public'}
+                  >
+                    {isPublic ? '🌐 Public' : '🔒 Private'}
+                  </button>
+                )}
+                {isOnJobPage && !entry && (
+                  <span className="fb__vis-hint">Tip: Notes on job pages can be linked to that job</span>
+                )}
               </div>
 
               {/* Book spread with page-flip */}
@@ -394,11 +429,11 @@ export default function Fieldbook() {
 
               {/* Page navigation */}
               <div className="fb__page-nav">
-                <button className="fb__page-btn" onClick={flipBack} disabled={spreadIndex === 0}>← Prev</button>
+                <button className="fb__page-btn" onClick={flipBack} disabled={spreadIndex === 0}>&larr; Prev</button>
                 <span className="fb__page-count">
-                  Pages {spreadIndex * 2 + 1}–{Math.min(spreadIndex * 2 + 2, Math.max(1, allLines.length > LINES_PER_PAGE ? spreadIndex * 2 + 2 : spreadIndex * 2 + 1))}
+                  Pages {spreadIndex * 2 + 1}&ndash;{Math.min(spreadIndex * 2 + 2, Math.max(1, allLines.length > LINES_PER_PAGE ? spreadIndex * 2 + 2 : spreadIndex * 2 + 1))}
                 </span>
-                <button className="fb__page-btn" onClick={flipForward} disabled={spreadIndex >= totalSpreads - 1}>Next →</button>
+                <button className="fb__page-btn" onClick={flipForward} disabled={spreadIndex >= totalSpreads - 1}>Next &rarr;</button>
               </div>
 
               {/* Hidden textarea that drives content */}
@@ -423,7 +458,7 @@ export default function Fieldbook() {
                         <div className="fb__media-link">
                           <span>{m.type === 'image' ? '🖼' : m.type === 'video' ? '🎬' : '🔗'}</span>
                           <span className="fb__media-link-text">{m.name}</span>
-                          <button onClick={() => removeMedia(idx)} title="Remove">✕</button>
+                          <button onClick={() => removeMedia(idx)} title="Remove">&#x2715;</button>
                         </div>
                       )}
                     </div>
@@ -443,7 +478,7 @@ export default function Fieldbook() {
                 <button className="fb__tool" onClick={() => applyFormat('**', '**')} title="Bold"><strong>B</strong></button>
                 <button className="fb__tool" onClick={() => applyFormat('*', '*')} title="Italic"><em>I</em></button>
                 <button className="fb__tool" onClick={() => applyFormat('__', '__')} title="Underline" style={{ textDecoration: 'underline' }}>U</button>
-                <button className="fb__tool" onClick={() => applyFormat('- ', '')} title="List">•</button>
+                <button className="fb__tool" onClick={() => applyFormat('- ', '')} title="List">&#x2022;</button>
                 <span className="fb__toolbar-sep" />
                 <button className="fb__tool" onClick={() => setShowRecorder(!showRecorder)} title="Record audio">🎙️</button>
                 <button className="fb__tool" onClick={() => fileInputRef.current?.click()} title="Upload file">📎</button>
@@ -470,6 +505,7 @@ export default function Fieldbook() {
                   {entry.updated_at !== entry.created_at && (
                     <> | Updated: {new Date(entry.updated_at).toLocaleString()}</>
                   )}
+                  {entry.job_name && <> | Job: {entry.job_name}</>}
                 </div>
               )}
             </>
@@ -505,7 +541,11 @@ export default function Fieldbook() {
                 ) : (
                   entries.map(e => (
                     <button key={e.id} className="fb__entry-card" onClick={() => openEntry(e)}>
-                      <div className="fb__entry-card-title">{e.title || 'Untitled Note'}</div>
+                      <div className="fb__entry-card-title">
+                        {e.is_public ? '🌐 ' : '🔒 '}
+                        {e.title || 'Untitled Note'}
+                        {e.job_name && <span className="fb__entry-card-job"> &mdash; {e.job_name}</span>}
+                      </div>
                       <div className="fb__entry-card-preview">{e.content.slice(0, 80)}</div>
                       <div className="fb__entry-card-date">
                         {new Date(e.created_at).toLocaleDateString()}
@@ -540,7 +580,11 @@ export default function Fieldbook() {
                 ) : (
                   entries.map(e => (
                     <button key={e.id} className="fb__entry-card" onClick={() => openEntry(e)}>
-                      <div className="fb__entry-card-title">{e.title || 'Untitled Note'}</div>
+                      <div className="fb__entry-card-title">
+                        {e.is_public ? '🌐 ' : '🔒 '}
+                        {e.title || 'Untitled Note'}
+                        {e.job_name && <span className="fb__entry-card-job"> &mdash; {e.job_name}</span>}
+                      </div>
                       <div className="fb__entry-card-preview">{e.content.slice(0, 80)}</div>
                       <div className="fb__entry-card-date">{new Date(e.created_at).toLocaleDateString()}</div>
                     </button>
