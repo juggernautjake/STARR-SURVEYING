@@ -191,25 +191,25 @@ DELETE FROM learning_topics WHERE lesson_id = 'acc03b01-0000-0000-0000-000000000
 
 INSERT INTO learning_topics (id, lesson_id, title, content, order_index, keywords) VALUES
 
-('acc03t01-0001-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
+('acc03a01-0001-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
  'Measurement Theory: Errors, Precision & Accuracy',
  'Every surveying measurement contains some degree of error. Systematic errors are predictable and correctable — a steel tape calibrated at 68°F that is used at 95°F will consistently read too short, and a temperature correction formula removes the bias. Random errors are the small, unpredictable fluctuations that remain after all systematic corrections are applied; they follow a normal distribution and are reduced (but never eliminated) by taking multiple observations and averaging. Blunders are gross mistakes — reading 278 instead of 287, occupying the wrong point — that must be detected through redundancy (extra measurements) and eliminated entirely. Precision measures how tightly grouped your repeated measurements are (low standard deviation = high precision). Accuracy measures how close the mean of your measurements is to the true value. A survey can be precise but inaccurate if a systematic error biases all readings in the same direction.',
  1,
  ARRAY['systematic error','random error','blunder','precision','accuracy','standard deviation','most probable value','normal distribution','redundancy','calibration']),
 
-('acc03t01-0002-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
+('acc03a01-0002-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
  'Differential Leveling Review',
  'Differential leveling is the most accurate method for determining elevation differences. The instrument (an automatic or digital level) is set up midway between a known benchmark (BM) and the point whose elevation is needed. A backsight (BS) reading on the BM rod gives the Height of Instrument: HI = Elev_BM + BS. A foresight (FS) reading on the unknown point gives its elevation: Elev = HI − FS. For long circuits, turning points (TPs) act as temporary benchmarks — the rod stays on the TP while the instrument leapfrogs forward. A properly closed level loop returns to the starting BM; the difference between the known and computed elevation is the misclosure. Acceptable misclosure depends on the survey order (First, Second, Third) and the total distance leveled. Error is distributed proportionally among the TPs when the misclosure is within tolerance.',
  2,
  ARRAY['differential leveling','backsight','foresight','height of instrument','HI method','turning point','benchmark','misclosure','level circuit','rod reading','automatic level']),
 
-('acc03t01-0003-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
+('acc03a01-0003-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
  'Distance Measurement: Taping & EDM',
  'Steel taping remains relevant for short precise measurements and serves as a check on electronic methods. Three standard corrections apply: temperature (steel expands/contracts with heat), tension (pulling harder stretches the tape), and sag (an unsupported tape droops below a straight line, making the measured distance too long). EDM instruments (Electronic Distance Measurement) use modulated infrared or laser signals reflected by a prism or reflectorless surface. The instrument measures the phase shift of the return signal to compute slope distance, then uses the measured vertical angle to reduce to horizontal distance: HD = SD × cos(α). Atmospheric corrections account for the fact that temperature and barometric pressure alter the speed of light through air, introducing a parts-per-million error. Most modern total stations accept field-entered T and P values and apply the correction automatically.',
  3,
  ARRAY['steel tape','temperature correction','tension correction','sag correction','EDM','slope distance','horizontal distance','atmospheric correction','prism','reflectorless','phase shift']),
 
-('acc03t01-0004-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
+('acc03a01-0004-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
  'Angles and Directions: Azimuths, Bearings & DMS Math',
  'Directions in surveying are expressed as either azimuths or bearings. An azimuth is measured clockwise from north and ranges from 0° to 360° — it is unambiguous and convenient for computation. A bearing is measured from the north or south line toward east or west, ranges from 0° to 90°, and requires a quadrant label (e.g., N 45°30''00" E). Converting between them requires knowing which quadrant the direction falls in: NE quadrant bearing equals the azimuth; SE bearing = 180° − azimuth; SW bearing = azimuth − 180°; NW bearing = 360° − azimuth. Interior angles of a closed polygon sum to (n−2)×180°. Surveyors perform arithmetic in degrees-minutes-seconds (DMS): add or subtract seconds first (carry 60" = 1''), then minutes (carry 60'' = 1°), then degrees. Mastery of DMS arithmetic is essential — nearly every computation in this course uses it.',
  4,
