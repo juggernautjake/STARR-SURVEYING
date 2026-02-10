@@ -1,227 +1,295 @@
 -- ============================================================================
--- ACC SRVY 1341 — Week 2: Traverse Types and Planning
--- Full lesson content, topics, quiz questions (14), and practice problems
--- Module ID: acc00003-0000-0000-0000-000000000003
--- Lesson ID: acc03b02-0000-0000-0000-000000000001
+-- SRVY 1341 — Week 2: Compass Surveying, DD/DMS Conversions & Chaining Review
+-- ============================================================================
+-- Covers compass types, bearings, azimuths, fore/back bearings, magnetic
+-- declination, the SUUNTO KB-14/360, DD↔DMS conversions, and a brief
+-- chaining-corrections review from Week 1.
+--
+-- Lesson UUID: acc03b02-0000-0000-0000-000000000001 (order_index 2)
+-- Module UUID: acc00003-0000-0000-0000-000000000003
+--
+-- Topic UUIDs:
+--   acc03a02-0001  Compass Survey Fundamentals
+--   acc03a02-0002  Bearings, Azimuths & Fore/Back Bearings
+--   acc03a02-0003  Magnetic Declination
+--   acc03a02-0004  The SUUNTO KB-14/360
+--   acc03a02-0005  DD and DMS Conversions
+--   acc03a02-0006  Chaining Corrections Review
+--
+-- Run AFTER supabase_seed_acc_courses.sql and supabase_seed_acc_content_1341_wk1.sql
+-- Safe to re-run.
 -- ============================================================================
 
+BEGIN;
+
 -- ────────────────────────────────────────────────────────────────────────────
--- 1. UPDATE LESSON CONTENT
+-- 1. LESSON CONTENT (rich HTML)
 -- ────────────────────────────────────────────────────────────────────────────
 
-UPDATE learning_lessons SET content = '
-<h2>Traversing: The Backbone of Land Surveying</h2>
+UPDATE learning_lessons SET
 
-<p>A <strong>traverse</strong> is a series of connected lines whose lengths and directions have been measured. It is the most common method of establishing horizontal control for boundary surveys, construction layout, topographic mapping, and route surveys. Nearly every land survey you will perform in your career — from a simple lot survey to a complex pipeline corridor — begins with a traverse.</p>
+title = 'Week 2: Compass Surveying, DD/DMS Conversions & Chaining Review',
 
-<p>The word "traverse" comes from the Latin <em>traversare</em>, meaning "to cross." In surveying, you are literally crossing from one control point to the next, building a framework of known positions upon which all other measurements hang. The quality of every coordinate, boundary line, and area computation downstream depends on the quality of the traverse that produced them.</p>
+description = 'An introduction to the compass as a surveying instrument, bearing and azimuth notation, fore/back bearing relationships, magnetic declination, the SUUNTO KB-14/360, decimal-degree and degree-minute-second conversions with worked examples, and a brief review of the chaining correction formulas from Week 1.',
 
-<p>This week we examine the three fundamental traverse configurations, learn how to plan a traverse for maximum efficiency and accuracy, and review the standards that govern how precise your work must be.</p>
+learning_objectives = ARRAY[
+  'Identify the three main types of surveying compasses and their appropriate field uses',
+  'Express directions using both bearing (N/S angle E/W) and azimuth (0°–360°) notation',
+  'Convert bearings to azimuths and azimuths to bearings for all four quadrants',
+  'Determine the back bearing or back azimuth of any given line',
+  'Define magnetic declination and apply it to convert between magnetic and true bearings',
+  'Convert angles from decimal degrees (DD) to degrees-minutes-seconds (DMS) and vice versa',
+  'Describe the features and field use of the SUUNTO KB-14/360 hand-held compass',
+  'Recall the three chaining correction formulas (Ct, Cp, Cs) from Week 1 and their sign conventions'
+],
 
-<h2>What Is a Traverse?</h2>
+estimated_minutes = 45,
 
-<p>Formally, a traverse consists of:</p>
+content = '
+<h2>Week 2: Compass Surveying, DD/DMS Conversions &amp; Chaining Review</h2>
+
+<p>Before the total station and GPS, the <strong>compass</strong> was one of the surveyor''s most important instruments. Even today, a compass remains essential for reconnaissance work, checking angles in the field, and forestry surveys. This week we study how a compass measures direction, the two systems used to express that direction (bearings and azimuths), the relationship between magnetic north and true north, and a hand-held instrument — the SUUNTO KB-14/360 — that every field surveyor should know how to use. We also cover the critically important skill of converting between <strong>decimal degrees (DD)</strong> and <strong>degrees-minutes-seconds (DMS)</strong>, and wrap up with a quick review of the chaining correction formulas from Week 1.</p>
+
+<hr/>
+
+<h3>1. Compass Survey Fundamentals</h3>
+
+<p>A compass measures the horizontal angle between a line of sight and <strong>magnetic north</strong>. Compass surveys are used for:</p>
 <ul>
-<li>A series of <strong>stations</strong> (points on the ground, typically marked with monuments, nails, or hubs)</li>
-<li><strong>Angles</strong> measured at each station (interior angles, deflection angles, or azimuths)</li>
-<li><strong>Distances</strong> measured along each line connecting consecutive stations</li>
+  <li><strong>Reconnaissance</strong> — quickly sketching site conditions before a full instrument survey</li>
+  <li><strong>Preliminary surveys</strong> — rough mapping for planning purposes</li>
+  <li><strong>Checking angles</strong> — independent field verification of total station readings</li>
+  <li><strong>Forestry and natural-resource work</strong> — where extreme precision is not required</li>
 </ul>
 
-<p>From these raw measurements, you compute <strong>coordinates</strong> (Northing, Easting) for every station. Those coordinates become the foundation for mapping, area calculations, and legal descriptions.</p>
-
-<h2>The Three Types of Traverses</h2>
-
-<h3>1. Open Traverse</h3>
-
-<p>An open traverse starts at a known point and proceeds through a series of stations <em>without returning to the starting point or connecting to another known point</em>. It is essentially a one-way path.</p>
+<h4>Types of Surveying Compasses</h4>
 
 <table>
-<thead><tr><th>Characteristic</th><th>Detail</th></tr></thead>
+<thead><tr><th>Type</th><th>Description</th><th>Typical Use</th></tr></thead>
 <tbody>
-<tr><td>Configuration</td><td>Starts at a known point, ends at an unknown point</td></tr>
-<tr><td>Closure check</td><td><strong>None</strong> — no way to verify angular or linear accuracy</td></tr>
-<tr><td>When used</td><td>Preliminary route surveys, exploratory work, emergency situations</td></tr>
-<tr><td>Risk</td><td>Errors accumulate undetected; results are unreliable for final work</td></tr>
+<tr><td><strong>Surveyor''s Compass</strong></td><td>Mounted on a tripod with sighting vanes (slits). Reads bearings directly on a graduated circle. Historically used for boundary and land surveys in colonial America.</td><td>Historical / educational demonstrations</td></tr>
+<tr><td><strong>Prismatic Compass</strong></td><td>Hand-held with a prism that lets the user read the bearing while simultaneously sighting the target. Common in military and geological fieldwork.</td><td>Military, geology, rough mapping</td></tr>
+<tr><td><strong>Hand/Pocket Compass (e.g., SUUNTO KB-14/360)</strong></td><td>Small, portable, liquid-dampened capsule. Reads directly in 0°–360° (azimuth) or quadrant bearings. Accuracy typically ±0.5° to ±1°.</td><td>Reconnaissance, forestry, quick field checks</td></tr>
 </tbody>
 </table>
 
-<p><strong>Important:</strong> Open traverses provide <em>no mathematical check</em> on the work. A blunder in one angle or distance propagates through every subsequent station and you have no way to detect it. For this reason, open traverses should be <strong>avoided whenever possible</strong> and are never acceptable for boundary surveys in Texas.</p>
+<p>All compasses share a limitation: they measure from <strong>magnetic north</strong>, which differs from <strong>true (geographic) north</strong> by an amount called <strong>declination</strong>. We will address this shortly.</p>
 
-<h3>2. Closed Loop Traverse</h3>
+<hr/>
 
-<p>A closed loop traverse starts and ends at the <em>same</em> point, forming a polygon. This is the most common configuration for boundary surveys because the property being surveyed is itself a closed polygon.</p>
+<h3>2. Bearings</h3>
+
+<p>A <strong>bearing</strong> expresses the direction of a line as an acute angle measured from either north or south toward east or west. The format is always:</p>
+
+<div style="background:#1a1a2e; padding:1rem; border-radius:8px; margin:1rem 0; text-align:center; font-size:1.1rem;">
+  <strong>N/S &lt;angle&gt; E/W</strong>
+</div>
+
+<p>Rules:</p>
+<ul>
+  <li>The angle is always between <strong>0° and 90°</strong>.</li>
+  <li>The first letter is always <strong>N</strong> or <strong>S</strong> (the reference meridian).</li>
+  <li>The last letter is always <strong>E</strong> or <strong>W</strong> (the direction of rotation from the meridian).</li>
+</ul>
+
+<h4>Examples</h4>
+<ul>
+  <li>A line pointing northeast at 45° from north → <strong>N 45°00'' E</strong></li>
+  <li>A line pointing south-southeast at 20° from south toward east → <strong>S 20°00'' E</strong></li>
+  <li>Due east → <strong>N 90°00'' E</strong> (or equivalently S 90°00'' E)</li>
+  <li>Due north → <strong>N 00°00'' E</strong> (or N 00°00'' W — the angle is zero)</li>
+</ul>
+
+<hr/>
+
+<h3>3. Azimuths</h3>
+
+<p>An <strong>azimuth</strong> is the direction of a line measured as a clockwise angle from north, ranging from <strong>0° to 360°</strong>. Azimuths are unambiguous — every direction has exactly one azimuth value.</p>
+
+<div style="background:#1a1a2e; padding:1rem; border-radius:8px; margin:1rem 0; text-align:center; font-size:1.1rem;">
+  <strong>Azimuth: 0° (North) → 90° (East) → 180° (South) → 270° (West) → 360°/0° (North)</strong>
+</div>
+
+<h4>Converting Bearing to Azimuth</h4>
 
 <table>
-<thead><tr><th>Characteristic</th><th>Detail</th></tr></thead>
+<thead><tr><th>Quadrant</th><th>Bearing Format</th><th>Azimuth Formula</th><th>Example</th></tr></thead>
 <tbody>
-<tr><td>Configuration</td><td>Starts and ends at the same station, forming a closed polygon</td></tr>
-<tr><td>Closure check</td><td><strong>Yes</strong> — angular sum and coordinate closure can both be verified</td></tr>
-<tr><td>When used</td><td>Boundary surveys, property surveys, control networks</td></tr>
-<tr><td>Angular check</td><td>Sum of interior angles = (n − 2) × 180°</td></tr>
-<tr><td>Linear check</td><td>Computed return to the starting point; any gap is the linear misclosure</td></tr>
+<tr><td><strong>NE</strong></td><td>N θ E</td><td>Az = θ</td><td>N 45°00'' E → Az = <strong>45°</strong></td></tr>
+<tr><td><strong>SE</strong></td><td>S θ E</td><td>Az = 180° − θ</td><td>S 30°00'' E → Az = 180° − 30° = <strong>150°</strong></td></tr>
+<tr><td><strong>SW</strong></td><td>S θ W</td><td>Az = 180° + θ</td><td>S 45°00'' W → Az = 180° + 45° = <strong>225°</strong></td></tr>
+<tr><td><strong>NW</strong></td><td>N θ W</td><td>Az = 360° − θ</td><td>N 60°00'' W → Az = 360° − 60° = <strong>300°</strong></td></tr>
 </tbody>
 </table>
 
-<p>Because the traverse returns to where it started, the sum of all latitudes should equal zero and the sum of all departures should equal zero. Any deviation from zero represents the <strong>error of closure</strong>, which we will compute in detail during Week 5.</p>
-
-<h3>3. Closed Connecting Traverse</h3>
-
-<p>A closed connecting traverse (also called a <strong>link traverse</strong>) starts at one known point with a known direction and ends at a <em>different</em> known point with a known direction. The "closure" comes from comparing your computed ending position with the known position of the endpoint.</p>
-
-<table>
-<thead><tr><th>Characteristic</th><th>Detail</th></tr></thead>
-<tbody>
-<tr><td>Configuration</td><td>Connects two separate known points/directions</td></tr>
-<tr><td>Closure check</td><td><strong>Yes</strong> — both angular and positional checks available</td></tr>
-<tr><td>When used</td><td>Route surveys, utility corridors, connecting control monuments</td></tr>
-<tr><td>Angular check</td><td>Computed azimuth at endpoint must match the known azimuth</td></tr>
-<tr><td>Linear check</td><td>Computed coordinates at endpoint must match known coordinates</td></tr>
-</tbody>
-</table>
-
-<p>Connecting traverses are common in highway, pipeline, and utility surveying where you are following a linear corridor from one control point to another. They provide the same quality of closure checking as loop traverses.</p>
-
-<h2>Comparing Traverse Types</h2>
-
-<table>
-<thead><tr><th>Feature</th><th>Open</th><th>Closed Loop</th><th>Closed Connecting</th></tr></thead>
-<tbody>
-<tr><td>Returns to known point?</td><td>No</td><td>Yes (same point)</td><td>Yes (different point)</td></tr>
-<tr><td>Angular check?</td><td>No</td><td>Yes</td><td>Yes</td></tr>
-<tr><td>Linear check?</td><td>No</td><td>Yes</td><td>Yes</td></tr>
-<tr><td>Blunder detection?</td><td>No</td><td>Yes</td><td>Yes</td></tr>
-<tr><td>Suitable for boundaries?</td><td>No</td><td>Yes</td><td>Yes (with care)</td></tr>
-<tr><td>Adjustment possible?</td><td>No</td><td>Yes</td><td>Yes</td></tr>
-</tbody>
-</table>
-
-<h2>Interior Angles and the Angle Sum Check</h2>
-
-<p>For any closed polygon with <em>n</em> sides, the sum of the <strong>interior angles</strong> must equal:</p>
-
-<p style="text-align:center; font-size:1.1em;"><strong>Σ Interior Angles = (n − 2) × 180°</strong></p>
-
-<table>
-<thead><tr><th>Sides (n)</th><th>Expected Sum</th></tr></thead>
-<tbody>
-<tr><td>3 (triangle)</td><td>180°</td></tr>
-<tr><td>4 (quadrilateral)</td><td>360°</td></tr>
-<tr><td>5 (pentagon)</td><td>540°</td></tr>
-<tr><td>6 (hexagon)</td><td>720°</td></tr>
-<tr><td>7 (heptagon)</td><td>900°</td></tr>
-<tr><td>8 (octagon)</td><td>1080°</td></tr>
-</tbody>
-</table>
-
-<p>The difference between the measured sum and the theoretical sum is the <strong>angular misclosure</strong>. If it exceeds the allowable tolerance, you must re-measure angles before proceeding to computations.</p>
-
-<h3>Allowable Angular Misclosure</h3>
-
-<p>The maximum acceptable angular misclosure depends on the accuracy standard being followed and the number of angles measured. A common formula is:</p>
-
-<p style="text-align:center;"><strong>Allowable Misclosure = K × √n</strong></p>
-
-<p>where <em>K</em> is a constant based on the accuracy standard and <em>n</em> is the number of angles. For example:</p>
-
+<h4>Converting Azimuth to Bearing</h4>
 <ul>
-<li><strong>First-order:</strong> K = 1.0" (1 second per square root of n)</li>
-<li><strong>Second-order, Class I:</strong> K = 1.5"</li>
-<li><strong>Second-order, Class II:</strong> K = 3.0"</li>
-<li><strong>Third-order, Class I:</strong> K = 5.0"</li>
-<li><strong>Third-order, Class II:</strong> K = 10.0"</li>
-<li><strong>Construction/local surveys:</strong> K = 15" to 30"</li>
+  <li><strong>0°–90°</strong> (NE quadrant): Bearing = N (azimuth)° E. Example: Az 35° → N 35°00'' E</li>
+  <li><strong>90°–180°</strong> (SE quadrant): Bearing = S (180° − azimuth)° E. Example: Az 150° → S 30°00'' E</li>
+  <li><strong>180°–270°</strong> (SW quadrant): Bearing = S (azimuth − 180°)° W. Example: Az 225° → S 45°00'' W</li>
+  <li><strong>270°–360°</strong> (NW quadrant): Bearing = N (360° − azimuth)° W. Example: Az 300° → N 60°00'' W</li>
 </ul>
 
-<p><strong>Example:</strong> A 5-sided traverse measured to third-order, Class I standards. Allowable misclosure = 5" × √5 = 5" × 2.236 = <strong>11.2"</strong> (round to 11"). If your measured angles sum to 540°00''14", the misclosure is 14" which <em>exceeds</em> 11" — you would need to re-observe at least some angles.</p>
+<hr/>
 
-<h2>Traverse Planning</h2>
+<h3>4. Fore Bearings and Back Bearings</h3>
 
-<p>Good traverse results begin with good planning. Before you set foot in the field, you should address the following:</p>
+<p>Every survey line has two directions: the <strong>fore bearing</strong> (direction of travel) and the <strong>back bearing</strong> (the reverse direction). To find the back bearing from a fore bearing, simply reverse both letters:</p>
 
-<h3>Station Selection</h3>
+<div style="background:#1a1a2e; padding:1rem; border-radius:8px; margin:1rem 0; text-align:center; font-size:1.1rem;">
+  <strong>Back Bearing: swap N↔S and E↔W</strong>
+</div>
+
+<h4>Examples</h4>
 <ul>
-<li><strong>Intervisibility:</strong> Every station must have a clear line of sight to the stations before and after it. Vegetation, buildings, and terrain can block sightlines.</li>
-<li><strong>Stability:</strong> Stations must be on firm, stable ground. Avoid soft soil, areas prone to flooding, or active construction zones.</li>
-<li><strong>Accessibility:</strong> You (and future surveyors) need to be able to reach each station. Consider vehicle access, permission, and safety.</li>
-<li><strong>Geometry:</strong> Avoid very short traverse legs (difficult to center over) and very long legs (atmospheric refraction increases). Legs should be roughly equal in length when possible. Avoid very acute or very obtuse angles — angles near 180° or 0° are weak geometrically.</li>
-<li><strong>Monumentation:</strong> Choose locations where you can set durable monuments that won''t be disturbed.</li>
+  <li>Fore bearing = N 35°20'' E → Back bearing = <strong>S 35°20'' W</strong></li>
+  <li>Fore bearing = S 72°45'' W → Back bearing = <strong>N 72°45'' E</strong></li>
 </ul>
 
-<h3>Accuracy Requirements</h3>
-<p>Before starting fieldwork, determine which <strong>accuracy standard</strong> applies. In Texas, the <strong>Texas Board of Professional Land Surveying (TBPELS)</strong> sets minimum standards for boundary surveys. The Federal Geodetic Control Subcommittee (FGCS) standards apply to geodetic control work. Your accuracy standard determines:</p>
-<ul>
-<li>How many times you must measure each angle (repetitions)</li>
-<li>The type of instrument required (total station accuracy class)</li>
-<li>Allowable angular misclosure</li>
-<li>Minimum relative precision ratio for linear closure</li>
-</ul>
+<p>For azimuths, the back azimuth is obtained by adding or subtracting 180°:</p>
 
-<h3>Control and Reference Points</h3>
-<p>Identify existing control points (NGS monuments, county survey markers, previously established corners) near your project. Connecting your traverse to established control:</p>
-<ul>
-<li>Places your survey in the state coordinate system (Texas State Plane or UTM)</li>
-<li>Allows future surveys to tie into your work</li>
-<li>Provides an independent check on your results</li>
-</ul>
+<div style="background:#1a1a2e; padding:1rem; border-radius:8px; margin:1rem 0; text-align:center; font-size:1.1rem;">
+  <strong>Back Azimuth = Azimuth ± 180°</strong><br/>
+  (Add 180° if azimuth &lt; 180°; subtract 180° if azimuth ≥ 180°)
+</div>
 
-<h3>Safety and Logistics</h3>
-<ul>
-<li>Obtain right-of-entry permissions for private land</li>
-<li>Plan for traffic control on road corridors</li>
-<li>Check weather forecasts — heavy heat shimmer, rain, and high winds degrade measurements</li>
-<li>In Texas, be aware of <strong>heat-related illness</strong> risk during summer fieldwork (hydration, shade breaks, buddy system)</li>
-<li>Watch for fire ants, snakes, and thorny brush — common hazards in central Texas</li>
-</ul>
+<p>Example: Az = 45° → Back Az = 45° + 180° = <strong>225°</strong>. Az = 300° → Back Az = 300° − 180° = <strong>120°</strong>.</p>
 
-<h2>Texas-Specific Survey Standards</h2>
+<hr/>
 
-<p>The <strong>Texas Administrative Code, Title 22, Part 29</strong> (TBPELS rules) sets minimum standards for property surveys in Texas. Key points relevant to traversing:</p>
+<h3>5. Magnetic Declination</h3>
+
+<p><strong>Magnetic declination</strong> (also called <em>variation</em>) is the angle between <strong>true north</strong> (geographic north pole) and <strong>magnetic north</strong> (where the compass needle points). The Earth''s magnetic pole does not coincide with the geographic pole, and its position slowly changes over time.</p>
 
 <ul>
-<li>All surveys establishing or re-establishing property boundaries must meet at minimum a <strong>1:10,000 relative precision</strong> (equivalent to third-order accuracy).</li>
-<li>ALTA/NSPS Land Title Surveys (used in commercial real estate transactions) require <strong>1:15,000 minimum relative precision</strong>.</li>
-<li>Angular misclosure must be within tolerance before adjustment.</li>
-<li>The surveyor must set monuments at all property corners found or established.</li>
-<li>All traverse computations must be documented and available for review by TBPELS if requested.</li>
+  <li><strong>East declination</strong>: Magnetic north is <em>east</em> of true north. The compass needle points to the right of true north.</li>
+  <li><strong>West declination</strong>: Magnetic north is <em>west</em> of true north. The compass needle points to the left of true north.</li>
 </ul>
 
-<h2>Practical Example: Planning a Boundary Traverse</h2>
+<h4>Correction Formula</h4>
 
-<p>Suppose you are hired to survey a 5-acre residential lot in Austin, TX. Here is how you would plan the traverse:</p>
+<div style="background:#1a1a2e; padding:1rem; border-radius:8px; margin:1rem 0; text-align:center; font-size:1.1rem;">
+  <strong>True Bearing = Magnetic Bearing + East Declination</strong><br/>
+  <strong>True Bearing = Magnetic Bearing − West Declination</strong>
+</div>
+
+<p>Or more concisely: <strong>True = Magnetic + Declination</strong> (treating east as positive and west as negative).</p>
+
+<h4>Example</h4>
+<p>A compass reads N 40°00'' E. The local declination is 3° East.</p>
+<p>True bearing = 40° + 3° = <strong>N 43°00'' E</strong>.</p>
+
+<p>Lines connecting points of equal declination are called <strong>isogonic lines</strong>. The line where declination is zero is the <strong>agonic line</strong>. Texas currently has approximately <strong>2°–4° east declination</strong>, meaning magnetic north points slightly east of true north across most of the state.</p>
+
+<hr/>
+
+<h3>6. The SUUNTO KB-14/360</h3>
+
+<p>The <strong>SUUNTO KB-14/360</strong> is a hand-held sighting compass widely used in forestry, reconnaissance surveying, and field checks. Key features:</p>
+
+<ul>
+  <li>Reads directly in <strong>degrees 0°–360°</strong> (azimuth format)</li>
+  <li><strong>Liquid-dampened capsule</strong> — the needle settles quickly, even in windy conditions</li>
+  <li>Accuracy: <strong>±0.5°</strong> (±30'')</li>
+  <li>Compact and lightweight — fits in a shirt pocket</li>
+  <li>Sighting through a notch/window while reading the bearing through a lens</li>
+</ul>
+
+<p>The KB-14/360 is not a precision instrument — it cannot replace a total station for boundary work — but it is invaluable for quick directional checks, reconnaissance, and confirming that your total station readings are in the correct quadrant.</p>
+
+<hr/>
+
+<h3>7. DD and DMS Conversions</h3>
+
+<p>Angles can be expressed in two common formats:</p>
+<ul>
+  <li><strong>Decimal Degrees (DD)</strong>: e.g., 47.8° — used by calculators and software</li>
+  <li><strong>Degrees-Minutes-Seconds (DMS)</strong>: e.g., 47°48''00" — used in field notes and legal descriptions</li>
+</ul>
+
+<p>There are 60 minutes in a degree and 60 seconds in a minute (just like hours on a clock).</p>
+
+<h4>DD → DMS Conversion</h4>
 
 <ol>
-<li><strong>Research:</strong> Obtain the deed, prior survey plat, and any subdivision plat from the Travis County records. Identify called-for monuments and bearings/distances.</li>
-<li><strong>Reconnaissance:</strong> Visit the site. Walk the property lines. Locate any existing monuments (iron rods, pipes, concrete monuments). Note obstructions that might affect sightlines.</li>
-<li><strong>Design the traverse:</strong> For a roughly rectangular 5-acre lot, you might need 4–6 traverse stations at the property corners plus any angle points in the boundary. A closed loop traverse is appropriate.</li>
-<li><strong>Select instruments:</strong> A 5" total station is sufficient for boundary work. You will need a prism and pole, tripod, tribrach, field book, and lath/flagging for marking points.</li>
-<li><strong>Establish accuracy target:</strong> TBPELS minimum is 1:10,000. You aim for 1:15,000 to provide a safety margin (and to meet ALTA standards if the client later requests it).</li>
-<li><strong>Compute allowable misclosure:</strong> For a 5-sided traverse at third-order Class I: angular = 5" × √5 ≈ 11". Linear = perimeter / 10,000.</li>
+  <li>The whole-number part is the <strong>degrees</strong>.</li>
+  <li>Multiply the decimal part by 60 — the whole-number result is the <strong>minutes</strong>.</li>
+  <li>Multiply the remaining decimal of the minutes by 60 — the result is the <strong>seconds</strong>.</li>
 </ol>
 
-<h2>Looking Ahead</h2>
+<h4>Worked Example 1: 47.8°</h4>
+<ul>
+  <li>Degrees = 47°</li>
+  <li>0.8 × 60 = 48.0'' → Minutes = 48''</li>
+  <li>0.0 × 60 = 0" → Seconds = 00"</li>
+  <li><strong>Answer: 47°48''00"</strong></li>
+</ul>
 
-<p>Next week we move from planning to execution — the specific <strong>field procedures</strong> for running a traverse. You will learn the direction method and repetition method for measuring angles, how to record traverse data in proper field note format, and how to perform on-site checks that catch blunders before you leave the field.</p>
+<h4>Worked Example 2: 345.678°</h4>
+<ul>
+  <li>Degrees = 345°</li>
+  <li>0.678 × 60 = 40.68'' → Minutes = 40''</li>
+  <li>0.68 × 60 = 40.8" → Seconds ≈ 41"</li>
+  <li><strong>Answer: 345°40''41"</strong></li>
+</ul>
+
+<h4>DMS → DD Conversion</h4>
+
+<div style="background:#1a1a2e; padding:1rem; border-radius:8px; margin:1rem 0; text-align:center; font-size:1.1rem;">
+  <strong>DD = Degrees + Minutes/60 + Seconds/3600</strong>
+</div>
+
+<h4>Worked Example 3: 43°12''15"</h4>
+<ul>
+  <li>DD = 43 + 12/60 + 15/3600</li>
+  <li>DD = 43 + 0.2000 + 0.004167</li>
+  <li><strong>Answer: 43.2042°</strong></li>
+</ul>
+
+<h4>Worked Example 4: 128°45''30"</h4>
+<ul>
+  <li>DD = 128 + 45/60 + 30/3600</li>
+  <li>DD = 128 + 0.7500 + 0.008333</li>
+  <li><strong>Answer: 128.7583°</strong></li>
+</ul>
+
+<p><strong>Tip:</strong> Always sanity-check your conversion. If you start with 47.8° (less than 48°), your DMS result should be 47-something — never 48°. If you start with 43°12'', your DD should be between 43.2 and 43.3.</p>
+
+<hr/>
+
+<h3>8. Chaining Corrections Review</h3>
+
+<p>From Week 1, recall the three systematic corrections applied to steel-tape measurements:</p>
+
+<div style="background:#1a1a2e; padding:1rem; border-radius:8px; margin:1rem 0; text-align:center; font-size:1.1rem;">
+  <strong>C<sub>t</sub> = 0.00000645 × (T<sub>F</sub> − 68) × L</strong> &nbsp; (Temperature)<br/><br/>
+  <strong>C<sub>p</sub> = (P − P<sub>s</sub>) × L / (A × E)</strong> &nbsp; (Tension)<br/><br/>
+  <strong>C<sub>s</sub> = −w² × L³ / (24 × P²)</strong> &nbsp; (Sag — always negative)
+</div>
+
+<p>Corrected distance = Measured + C<sub>t</sub> + C<sub>p</sub> + C<sub>s</sub>. Each correction has its own sign.</p>
+<p>Key reminders: Temperature correction is positive above 68°F and negative below. Tension correction is positive when over-pulling. Sag correction is <strong>always negative</strong> because the catenary arc is longer than the chord.</p>
 ',
 
 resources = '[
-  {"title":"FGCS Standards and Specifications for Geodetic Control Networks","url":"https://www.ngs.noaa.gov/FGCS/tech_pub/1984-stds-specs-geodetic-control-networks.pdf","type":"pdf"},
-  {"title":"TBPELS Rules — Chapter 663 Standards of Practice","url":"https://www.txls.texas.gov/","type":"reference"},
-  {"title":"Traverse Planning Checklist","url":"https://www.surveyingmath.com/traverse-planning","type":"reference"}
+  {"title":"NOAA Magnetic Declination Calculator","url":"https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml","type":"tool"},
+  {"title":"Elementary Surveying (Ghilani) — Compass Surveying and Angle Measurement","url":"https://www.pearson.com/","type":"reference"},
+  {"title":"SUUNTO KB-14/360 Product Specifications","url":"https://www.suunto.com/","type":"reference"}
 ]'::jsonb,
 
 videos = '[
-  {"title":"Types of Traverses Explained — Open, Closed Loop, Connecting","url":"https://www.youtube.com/watch?v=_6bAkqj7KBk"},
-  {"title":"How to Plan a Survey Traverse","url":"https://www.youtube.com/watch?v=h1_OLxNqK0E"}
+  {"title":"Bearings and Azimuths Explained","url":"https://www.youtube.com/watch?v=5qTOlz7bBHY"},
+  {"title":"DD to DMS and DMS to DD Conversions — Step by Step","url":"https://www.youtube.com/watch?v=hjI_0KB5ms4"}
 ]'::jsonb,
 
 key_takeaways = ARRAY[
-  'Define a traverse and explain its role as the foundation of horizontal control',
-  'Describe the three types of traverses: open, closed loop, and closed connecting',
-  'Explain why open traverses provide no accuracy checks and should be avoided for final surveys',
-  'Compute the expected interior angle sum for any n-sided polygon using (n-2) × 180°',
-  'Calculate allowable angular misclosure using K × √n for a given accuracy standard',
-  'Identify key factors in traverse planning: intervisibility, stability, geometry, and accuracy standards',
-  'Understand Texas TBPELS minimum standards for boundary survey precision (1:10,000)'
+  'A compass measures the angle between a line and magnetic north — used for reconnaissance, preliminary surveys, and field checks',
+  'Bearings use the format N/S angle E/W with angles from 0° to 90°; azimuths are measured 0°–360° clockwise from north',
+  'To convert bearing to azimuth: NE = θ, SE = 180° − θ, SW = 180° + θ, NW = 360° − θ',
+  'Back bearing reverses N↔S and E↔W; back azimuth = azimuth ± 180°',
+  'True bearing = magnetic bearing + east declination (or − west declination); Texas has ~2°–4° east declination',
+  'DD→DMS: multiply decimal part by 60 for minutes, then decimal of minutes by 60 for seconds; DMS→DD: D + M/60 + S/3600',
+  'The SUUNTO KB-14/360 is a hand-held sighting compass accurate to ±0.5°, reading 0°–360° with a liquid-dampened capsule'
 ]
 
 WHERE id = 'acc03b02-0000-0000-0000-000000000001';
@@ -236,262 +304,854 @@ DELETE FROM learning_topics WHERE lesson_id = 'acc03b02-0000-0000-0000-000000000
 INSERT INTO learning_topics (id, lesson_id, title, content, order_index, keywords) VALUES
 
 ('acc03a02-0001-0000-0000-000000000001', 'acc03b02-0000-0000-0000-000000000001',
- 'Open Traverses: Configuration and Limitations',
- 'An open traverse begins at a known point and proceeds through a series of stations without closing on itself or on another known point. Because there is no return to a reference position, there is no mathematical check on the accumulated angles or distances. Any blunder — a misread angle, a transposed distance — propagates to every subsequent station and cannot be detected from the traverse data alone. Open traverses are used only when closure is physically impossible (such as a preliminary route survey through dense terrain) or when the work is exploratory and will be superseded by a closed traverse later. Under no circumstances should an open traverse be used for boundary determination or final control in Texas.',
+ 'Compass Survey Fundamentals',
+ 'A compass measures the horizontal angle between a line of sight and magnetic north. Three main types exist: (1) The surveyor''s compass — a tripod-mounted instrument with sighting vanes that reads bearings directly from a graduated circle; historically used for boundary surveys in colonial America. (2) The prismatic compass — a hand-held instrument with a prism allowing the user to sight a target and read the bearing simultaneously; common in military and geological work. (3) The hand/pocket compass such as the SUUNTO KB-14/360 — small, portable, liquid-dampened, reading 0°–360° with accuracy of about ±0.5°; used for reconnaissance, forestry, and quick field checks. Compass surveys are appropriate for reconnaissance, preliminary surveys, checking total station readings, and forestry/natural-resource work. All compasses read magnetic north rather than true north, so declination corrections are required for precise work. Compass accuracy (typically ±0.5° to ±1°) is far below that of a total station (±1" to ±5"), making compasses unsuitable for final boundary or control surveys.',
  1,
- ARRAY['open traverse','no closure','blunder detection','route survey','preliminary','undetected error','limitation']),
+ ARRAY['compass','surveyor''s compass','prismatic compass','pocket compass','SUUNTO','reconnaissance','magnetic north','sighting','field check']),
 
 ('acc03a02-0002-0000-0000-000000000001', 'acc03b02-0000-0000-0000-000000000001',
- 'Closed Traverses: Loop and Connecting Configurations',
- 'A closed loop traverse forms a polygon by returning to the starting station. The angular check is the interior angle sum: (n−2)×180°. The positional check is that the computed coordinates must return to the starting coordinates — any discrepancy is the linear error of closure. A closed connecting (link) traverse starts at one known point/azimuth and ends at a different known point/azimuth. The angular check compares the computed final azimuth with the known value; the positional check compares computed and known ending coordinates. Both types allow blunder detection and enable mathematical adjustment of the traverse. Loop traverses are standard for property surveys; connecting traverses are standard for route and corridor surveys.',
+ 'Bearings, Azimuths & Fore/Back Bearings',
+ 'A bearing expresses direction as an acute angle (0°–90°) measured from north or south toward east or west: the format is N/S angle E/W. For example, N 45°00'' E means 45° measured clockwise from north toward east. An azimuth expresses direction as a single angle measured 0°–360° clockwise from north: 0° = north, 90° = east, 180° = south, 270° = west. Converting bearing to azimuth by quadrant: NE → Az = θ; SE → Az = 180° − θ; SW → Az = 180° + θ; NW → Az = 360° − θ. Converting azimuth to bearing: 0°–90° → N Az° E; 90°–180° → S (180°−Az)° E; 180°–270° → S (Az−180°)° W; 270°–360° → N (360°−Az)° W. Every line has a fore bearing (direction of travel) and a back bearing (reverse). To find the back bearing, swap N↔S and E↔W — the angle stays the same. For azimuths, back azimuth = azimuth ± 180° (add if < 180°, subtract if ≥ 180°). Examples: Fore N 35°20'' E → Back S 35°20'' W. Fore Az 45° → Back Az 225°. Fore Az 300° → Back Az 120°.',
  2,
- ARRAY['closed loop','closed connecting','link traverse','interior angle sum','error of closure','adjustment','polygon','corridor']),
+ ARRAY['bearing','azimuth','fore bearing','back bearing','quadrant','NE','SE','SW','NW','direction','clockwise','conversion']),
 
 ('acc03a02-0003-0000-0000-000000000001', 'acc03b02-0000-0000-0000-000000000001',
- 'Interior Angle Sum and Allowable Misclosure',
- 'For a convex polygon with n sides, the sum of interior angles equals (n−2)×180°. This formula is the primary angular check for closed loop traverses. The angular misclosure is the difference between the measured angle sum and the theoretical sum. The allowable misclosure depends on the survey accuracy standard and the number of angles: Allowable = K × √n, where K is a constant (e.g., 1" for first order, 10" for third-order Class II, up to 30" for construction surveys). If the measured misclosure exceeds the allowable value, the surveyor must re-observe angles — typically starting with the angles measured under the poorest conditions (long sights, shimmer, wind). Only after the angular misclosure is within tolerance can the surveyor proceed to compute latitudes and departures.',
+ 'Magnetic Declination',
+ 'Magnetic declination (also called variation) is the angle between true north (geographic north) and magnetic north (where a compass needle points). The Earth''s magnetic pole does not coincide with the geographic pole, and it drifts slowly over time. East declination means magnetic north is east of true north; west declination means magnetic north is west of true north. To convert between magnetic and true bearings: True Bearing = Magnetic Bearing + East Declination, or True Bearing = Magnetic Bearing − West Declination. More concisely: True = Magnetic + Declination, where east declination is positive and west is negative. Example: Compass reads N 40°00'' E with 3° east declination → True bearing = N 43°00'' E. Lines of equal declination are called isogonic lines. The line of zero declination is the agonic line. Texas currently has approximately 2°–4° east declination, meaning the compass needle points slightly east of true north. Declination changes slowly over time (secular variation) and also exhibits daily oscillation. Historical deeds may reference magnetic bearings from decades or centuries ago — to reestablish those boundaries, the surveyor must determine the declination that existed at the time the deed was written.',
  3,
- ARRAY['interior angle','angle sum','misclosure','allowable','tolerance','FGCS','accuracy standard','re-observe','K factor','square root n']),
+ ARRAY['declination','magnetic north','true north','east declination','west declination','isogonic','agonic','variation','secular variation','Texas declination']),
 
 ('acc03a02-0004-0000-0000-000000000001', 'acc03b02-0000-0000-0000-000000000001',
- 'Traverse Planning and Texas Standards',
- 'Effective traverse planning considers station intervisibility (clear sightlines between consecutive stations), ground stability, accessibility for current and future surveys, and geometric strength (avoiding very short legs or nearly straight angles). The surveyor must determine the applicable accuracy standard before fieldwork begins. In Texas, TBPELS requires a minimum relative precision of 1:10,000 for boundary surveys and 1:15,000 for ALTA/NSPS surveys. The FGCS publishes standards from first order through third order for geodetic control. Connecting to existing control (NGS monuments, county markers) places the survey on the state plane coordinate system and provides independent verification. Logistics include right-of-entry permissions, traffic control plans for road work, weather considerations (heat shimmer degrades EDM accuracy), and safety hazards common to Texas fieldwork (heat illness, venomous snakes, fire ants).',
+ 'The SUUNTO KB-14/360',
+ 'The SUUNTO KB-14/360 is a hand-held sighting compass popular among surveyors, foresters, and field engineers. It reads directly in degrees from 0° to 360° (azimuth format). Key features: (1) Liquid-dampened capsule — the needle settles quickly, reducing wait time even in windy conditions. (2) Accuracy of ±0.5° (±30 minutes of arc), which is adequate for reconnaissance and field checks but not for boundary surveys. (3) Compact and lightweight — fits in a shirt pocket or hangs from a lanyard. (4) The user sights through a notch or window while reading the azimuth through a magnifying lens at the same time. (5) Some models include an adjustable declination correction ring. The KB-14/360 is not a precision instrument and cannot replace a total station for boundary or control work. Its role is rapid directional checks: confirming that total station readings are in the correct quadrant, taking quick bearings during reconnaissance walks, and providing backup directions when electronic equipment fails. Every field surveyor should know how to read and use a hand-held compass.',
  4,
- ARRAY['intervisibility','station selection','geometry','TBPELS','FGCS','relative precision','1:10000','ALTA','control','monument','Texas','safety']);
+ ARRAY['SUUNTO','KB-14','compass','hand-held','liquid-dampened','accuracy','reconnaissance','azimuth','sighting','forestry']),
+
+('acc03a02-0005-0000-0000-000000000001', 'acc03b02-0000-0000-0000-000000000001',
+ 'DD and DMS Conversions',
+ 'Angles in surveying are expressed in two common formats: Decimal Degrees (DD) such as 47.8°, and Degrees-Minutes-Seconds (DMS) such as 47°48''00". There are 60 minutes in a degree and 60 seconds in a minute. DD to DMS conversion: (1) The whole number is the degrees. (2) Multiply the decimal fraction by 60 — the whole part is minutes. (3) Multiply the remaining decimal of minutes by 60 — the result is seconds. Example: 345.678° → Degrees = 345°. 0.678 × 60 = 40.68'' → Minutes = 40''. 0.68 × 60 = 40.8" ≈ 41" → Answer: 345°40''41". DMS to DD conversion: DD = Degrees + Minutes/60 + Seconds/3600. Example: 43°12''15" → 43 + 12/60 + 15/3600 = 43 + 0.2000 + 0.004167 = 43.2042°. For negative angles (south or west), convert the absolute value and then reattach the negative sign. Always sanity-check your result: the DD value should be between the degree value and degree+1 if there are non-zero minutes/seconds. Practice is the only way to master these conversions — they appear constantly in surveying computations, legal descriptions, and licensing exams.',
+ 5,
+ ARRAY['decimal degrees','DD','degrees minutes seconds','DMS','conversion','minutes','seconds','angle format','calculator']),
+
+('acc03a02-0006-0000-0000-000000000001', 'acc03b02-0000-0000-0000-000000000001',
+ 'Chaining Corrections Review',
+ 'A brief review of the three systematic corrections for steel-tape measurement from Week 1: (1) Temperature correction: Ct = 0.00000645 × (TF − 68) × L. The coefficient of thermal expansion for steel is 6.45 × 10⁻⁶ per °F. Standard temperature is 68°F. Positive above 68°F (tape expands, reads short), negative below (tape contracts, reads long). (2) Tension (pull) correction: Cp = (P − Ps) × L / (A × E). P = applied tension, Ps = standard tension, A = cross-sectional area, E = modulus of elasticity ≈ 29,000,000 psi. Positive when over-pulling, negative when under-pulling. (3) Sag correction: Cs = −w² × L³ / (24 × P²). w = weight per foot, L = unsupported span, P = applied tension. Always negative because the catenary arc is longer than the chord. Corrected distance = Measured + Ct + Cp + Cs. Normal tension is the specific pull at which Cp + Cs = 0, allowing a suspended tape to read correctly without corrections.',
+ 6,
+ ARRAY['temperature correction','tension correction','sag correction','Ct','Cp','Cs','chaining','steel tape','review','normal tension','catenary']);
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 3. QUIZ QUESTIONS (14 questions — mixed types and difficulties)
+-- 3. QUIZ QUESTIONS (16 questions — linked to topics via topic_id and study_references)
 -- ────────────────────────────────────────────────────────────────────────────
 
 DELETE FROM question_bank
 WHERE lesson_id = 'acc03b02-0000-0000-0000-000000000001'
-  AND tags @> ARRAY['acc-srvy-1341','week-2'];
+  AND tags @> ARRAY['acc-srvy-1341','week-2','quiz'];
 
-INSERT INTO question_bank
-  (question_text, question_type, options, correct_answer, explanation, difficulty,
-   module_id, lesson_id, exam_category, tags)
-VALUES
+INSERT INTO question_bank (
+  question_text, question_type, options, correct_answer, explanation, difficulty,
+  module_id, lesson_id, topic_id, exam_category, tags, study_references
+) VALUES
 
--- Q1  Multiple Choice  Easy
-('Which type of traverse provides NO mathematical check on accuracy?',
+-- Q1: Compass types (easy)
+('Which type of compass is mounted on a tripod and uses sighting vanes to read bearings directly?',
  'multiple_choice',
- '["Closed loop traverse","Closed connecting traverse","Open traverse","Link traverse"]'::jsonb,
- 'Open traverse',
- 'An open traverse does not return to a known point, so there is no way to compute angular or linear closure. Errors and blunders accumulate undetected. Both closed loop and closed connecting (link) traverses provide closure checks.',
+ '["Prismatic compass","Surveyor''s compass","SUUNTO KB-14/360","Lensatic compass"]'::jsonb,
+ 'Surveyor''s compass',
+ 'The surveyor''s compass is the traditional tripod-mounted instrument with sighting vanes (slits) that reads bearings directly on a graduated circle. Prismatic compasses and hand compasses like the SUUNTO KB-14 are hand-held instruments.',
  'easy',
  'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','open-traverse','closure']),
+ 'acc03a02-0001-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','compass-types'],
+ '[{"type":"topic","id":"acc03a02-0001-0000-0000-000000000001","label":"Compass Survey Fundamentals"}]'::jsonb),
 
--- Q2  Multiple Choice  Easy
-('What is the expected sum of interior angles for a 4-sided closed traverse?',
+-- Q2: Bearing format (easy)
+('A surveying bearing is always expressed as an angle between:',
  'multiple_choice',
- '["180°","270°","360°","540°"]'::jsonb,
- '360°',
- 'Sum = (n − 2) × 180° = (4 − 2) × 180° = 2 × 180° = 360°.',
+ '["0° and 360°","0° and 90°, measured from N or S toward E or W","0° and 180°, measured from east","0° and 90°, measured from E or W toward N or S"]'::jsonb,
+ '0° and 90°, measured from N or S toward E or W',
+ 'Bearings use the format N/S angle E/W. The angle is always between 0° and 90°, measured from the north or south meridian toward east or west. This distinguishes bearings from azimuths, which range 0°–360°.',
  'easy',
  'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','interior-angles','angle-sum']),
+ 'acc03a02-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','bearing-format'],
+ '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"}]'::jsonb),
 
--- Q3  True/False  Easy
-('A closed connecting traverse starts and ends at the same point.',
+-- Q3: Azimuth definition (easy)
+('An azimuth is measured:',
+ 'multiple_choice',
+ '["Counterclockwise from south, 0° to 360°","Clockwise from north, 0° to 360°","From east or west, 0° to 90°","Counterclockwise from north, 0° to 180°"]'::jsonb,
+ 'Clockwise from north, 0° to 360°',
+ 'Azimuths are measured clockwise from north through the full 360°. North = 0° (or 360°), East = 90°, South = 180°, West = 270°. Every direction has a unique azimuth value.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','azimuth-definition'],
+ '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"}]'::jsonb),
+
+-- Q4: Bearing-to-azimuth conversion (medium)
+('Convert the bearing S 30°00'' E to an azimuth.',
+ 'numeric_input',
+ '[]'::jsonb,
+ '150',
+ 'S 30° E is in the SE quadrant. Azimuth = 180° − 30° = 150°. In the SE quadrant, the formula is Az = 180° − bearing angle.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','bearing-to-azimuth','conversion'],
+ '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"}]'::jsonb),
+
+-- Q5: Azimuth-to-bearing conversion (medium)
+('Convert azimuth 225° to a bearing.',
+ 'multiple_choice',
+ '["N 45°00'' W","S 45°00'' E","S 45°00'' W","N 45°00'' E"]'::jsonb,
+ 'S 45°00'' W',
+ 'Azimuth 225° is in the SW quadrant (180°–270°). Bearing angle = 225° − 180° = 45°. Direction is S … W. Therefore the bearing is S 45°00'' W.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','azimuth-to-bearing','conversion'],
+ '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"}]'::jsonb),
+
+-- Q6: Back bearing calculation (medium)
+('The fore bearing of a line is N 52°30'' E. What is the back bearing?',
+ 'multiple_choice',
+ '["N 52°30'' W","S 52°30'' E","S 52°30'' W","S 37°30'' W"]'::jsonb,
+ 'S 52°30'' W',
+ 'To find the back bearing, swap N↔S and E↔W. The angle stays the same. N 52°30'' E becomes S 52°30'' W.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','back-bearing','fore-bearing'],
+ '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"}]'::jsonb),
+
+-- Q7: Magnetic declination concept (easy)
+('Magnetic declination is defined as the angle between:',
+ 'multiple_choice',
+ '["True north and the equator","Magnetic north and true north","The compass needle and the horizontal plane","Grid north and magnetic south"]'::jsonb,
+ 'Magnetic north and true north',
+ 'Magnetic declination is the angular difference between true (geographic) north and magnetic north. It varies by location and changes slowly over time. In Texas, the current declination is approximately 2°–4° east.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0003-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','declination-concept'],
+ '[{"type":"topic","id":"acc03a02-0003-0000-0000-000000000001","label":"Magnetic Declination"}]'::jsonb),
+
+-- Q8: Declination correction calculation (medium)
+('A compass reads N 40°00'' E at a location with 3° east declination. What is the true bearing?',
+ 'multiple_choice',
+ '["N 37°00'' E","N 40°00'' E","N 43°00'' E","N 46°00'' E"]'::jsonb,
+ 'N 43°00'' E',
+ 'True bearing = Magnetic bearing + East declination = 40° + 3° = 43°. The true bearing is N 43°00'' E. East declination is added because magnetic north is east of true north, so the compass under-reads the true angle from true north.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0003-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','declination-correction','calculation'],
+ '[{"type":"topic","id":"acc03a02-0003-0000-0000-000000000001","label":"Magnetic Declination"}]'::jsonb),
+
+-- Q9: DD to DMS conversion (medium)
+('Convert 47.8° to degrees-minutes-seconds (DMS).',
+ 'multiple_choice',
+ '["47°08''00\"","47°48''00\"","47°80''00\"","48°48''00\""]'::jsonb,
+ '47°48''00"',
+ 'Degrees = 47°. Decimal part: 0.8 × 60 = 48.0'' → 48 minutes. Remaining decimal: 0.0 × 60 = 0" → 0 seconds. Answer: 47°48''00".',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','DD-to-DMS','conversion'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+-- Q10: DMS to DD conversion (medium)
+('Convert 43°12''15" to decimal degrees. Round to four decimal places.',
+ 'numeric_input',
+ '[]'::jsonb,
+ '43.2042',
+ 'DD = 43 + 12/60 + 15/3600 = 43 + 0.2000 + 0.004167 = 43.2042°.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','DMS-to-DD','conversion'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+-- Q11: SUUNTO KB-14 features (easy)
+('The SUUNTO KB-14/360 hand-held compass has an accuracy of approximately:',
+ 'multiple_choice',
+ '["±0.01°","±0.1°","±0.5°","±5°"]'::jsonb,
+ '±0.5°',
+ 'The SUUNTO KB-14/360 is accurate to ±0.5° (±30 minutes of arc). This is adequate for reconnaissance and field checks but not for boundary or control survey work, which requires total station accuracy of ±1" to ±5".',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0004-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','SUUNTO','accuracy'],
+ '[{"type":"topic","id":"acc03a02-0004-0000-0000-000000000001","label":"The SUUNTO KB-14/360"}]'::jsonb),
+
+-- Q12: Temperature correction sign (medium, review from Week 1)
+('When the field temperature is BELOW 68°F, the temperature correction for a steel tape is:',
+ 'multiple_choice',
+ '["Positive — add to measured distance","Negative — subtract from measured distance","Zero — temperature has no effect below 68°F","It depends on the tape length"]'::jsonb,
+ 'Negative — subtract from measured distance',
+ 'Below 68°F, the steel tape contracts and becomes shorter than standard. The shortened tape''s graduation marks are closer together, so it reads longer than the true distance. The correction Ct = 0.00000645 × (TF − 68) × L produces a negative value when TF < 68, which is subtracted from the measured distance.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0006-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','temperature-correction','sign','review'],
+ '[{"type":"topic","id":"acc03a02-0006-0000-0000-000000000001","label":"Chaining Corrections Review"}]'::jsonb),
+
+-- Q13: Combined bearing + declination problem (hard)
+('A surveyor uses a compass to measure a bearing of S 55°00'' W at a location with 4° east declination. What is the true azimuth of the line?',
+ 'numeric_input',
+ '[]'::jsonb,
+ '239',
+ 'Step 1: Convert the magnetic bearing to a magnetic azimuth. S 55° W is in the SW quadrant: magnetic azimuth = 180° + 55° = 235°. Step 2: Apply east declination (add): True azimuth = 235° + 4° = 239°. The true azimuth is 239°.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0003-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','bearing-declination','combined','hard'],
+ '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"},{"type":"topic","id":"acc03a02-0003-0000-0000-000000000001","label":"Magnetic Declination"}]'::jsonb),
+
+-- Q14: Complex DD/DMS conversion (hard)
+('Convert 256.789° to DMS. Which is correct?',
+ 'multiple_choice',
+ '["256°47''20\"","256°78''54\"","256°47''34\"","256°07''89\""]'::jsonb,
+ '256°47''20"',
+ 'Degrees = 256°. 0.789 × 60 = 47.34'' → Minutes = 47''. 0.34 × 60 = 20.4" ≈ 20" → Seconds = 20". Answer: 256°47''20". Note that minutes and seconds can never exceed 59 — any answer with 78'' or 89" is automatically wrong.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','DD-to-DMS','hard','conversion'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+-- Q15: Article question — Gunter's chain (easy)
+('Edmund Gunter designed his surveying chain in 1620. How long was the Gunter''s chain?',
+ 'multiple_choice',
+ '["33 feet","50 feet","66 feet","100 feet"]'::jsonb,
+ '66 feet',
+ 'Gunter''s chain was 66 feet long (4 rods or poles). It contained 100 links, each 0.66 feet (7.92 inches) long. The chain''s length was chosen so that 80 chains = 1 mile and 10 square chains = 1 acre, making area and distance calculations convenient in the English system.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0001-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','gunter-chain','history','article'],
+ '[{"type":"topic","id":"acc03a02-0001-0000-0000-000000000001","label":"Compass Survey Fundamentals"}]'::jsonb),
+
+-- Q16: Sag correction always negative T/F (easy, review)
+('The sag correction for a suspended steel tape is always negative.',
  'true_false',
  '["True","False"]'::jsonb,
- 'False',
- 'A closed connecting (link) traverse starts at one known point and ends at a DIFFERENT known point. A closed LOOP traverse is the one that starts and ends at the same point. Both provide closure checks.',
+ 'True',
+ 'A suspended tape hangs in a catenary curve. The arc length (what the tape reads) is always greater than the straight-line chord distance between endpoints. Since we need the shorter chord distance, the sag correction Cs = −w²L³/(24P²) is always negative.',
  'easy',
  'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','connecting-traverse','loop-traverse']),
-
--- Q4  True/False  Easy
-('Open traverses are acceptable for final boundary surveys in Texas.',
- 'true_false',
- '["True","False"]'::jsonb,
- 'False',
- 'Open traverses provide no closure checks and cannot detect blunders. TBPELS standards require that boundary surveys have verifiable accuracy, which means a closed traverse (loop or connecting) is required. Open traverses are only used for preliminary or exploratory work.',
- 'easy',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','open-traverse','Texas','TBPELS']),
-
--- Q5  Numeric Input  Medium
-('A closed traverse has 7 sides. What should the interior angles sum to in degrees?',
- 'numeric_input',
- '[]'::jsonb,
- '900',
- '(n − 2) × 180° = (7 − 2) × 180° = 5 × 180° = 900°.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','interior-angles','computation']),
-
--- Q6  Multiple Choice  Medium
-('Which factor is MOST important when selecting traverse station locations?',
- 'multiple_choice',
- '["Proximity to the office","Intervisibility between consecutive stations","The station being on public land","Availability of cell phone signal"]'::jsonb,
- 'Intervisibility between consecutive stations',
- 'The instrument at each station must have a clear line of sight to the adjacent stations for angle and distance measurements. Without intervisibility, the traverse cannot be measured. While accessibility and land permissions matter, intervisibility is the fundamental geometric requirement.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','station-selection','planning']),
-
--- Q7  Multiple Choice  Medium
-('The minimum relative precision required by TBPELS for boundary surveys in Texas is:',
- 'multiple_choice',
- '["1:5,000","1:10,000","1:15,000","1:20,000"]'::jsonb,
- '1:10,000',
- 'TBPELS rules require a minimum relative precision of 1:10,000 for property boundary surveys. ALTA/NSPS surveys require 1:15,000. Higher-order geodetic control surveys have even stricter requirements.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','TBPELS','precision','standards']),
-
--- Q8  Numeric Input  Medium (Allowable misclosure calculation)
-('A 6-sided traverse is being measured to third-order, Class I standards (K = 5"). What is the allowable angular misclosure in seconds? (Round to 1 decimal place)',
- 'numeric_input',
- '[]'::jsonb,
- '12.2',
- 'Allowable misclosure = K × √n = 5" × √6 = 5" × 2.449 = 12.2" (rounded to 1 decimal).',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','allowable-misclosure','computation']),
-
--- Q9  Multiple Choice  Medium
-('A closed connecting traverse differs from a closed loop traverse because it:',
- 'multiple_choice',
- '["Has no angular closure check","Ends at a different known point than it started","Uses only EDM for distance measurement","Cannot be adjusted"]'::jsonb,
- 'Ends at a different known point than it started',
- 'A connecting (link) traverse starts at one known point/direction and ends at a different known point/direction. It still provides both angular and positional closure checks, can be adjusted, and can use any distance measurement method. The key distinction is the two separate known endpoints.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','connecting-traverse','comparison']),
-
--- Q10  Numeric Input  Hard (Multi-step: check if misclosure is within tolerance)
-('A surveyor measures the interior angles of a 5-sided closed traverse and gets a sum of 540°00''18". The survey is being performed to second-order, Class II standards (K = 3"). (a) What is the angular misclosure in seconds? (b) What is the allowable misclosure? Give ONLY the allowable misclosure in seconds, rounded to 1 decimal place.',
- 'numeric_input',
- '[]'::jsonb,
- '6.7',
- 'Theoretical sum = (5 − 2) × 180° = 540°. Measured sum = 540°00''18". (a) Angular misclosure = 18". (b) Allowable = K × √n = 3" × √5 = 3" × 2.236 = 6.7". Since the measured misclosure (18") exceeds the allowable (6.7"), the surveyor must re-observe angles.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','misclosure','tolerance','multi-step']),
-
--- Q11  Numeric Input  Hard (Word problem: angle sum and misclosure)
-('A surveyor runs a closed loop traverse around a property with 9 sides. The measured interior angles are: 147°12''05", 136°28''42", 148°03''18", 155°40''10", 122°15''33", 141°52''47", 138°44''22", 129°08''55", and 140°34''15". What is the angular misclosure in seconds? (Give the absolute value.)',
- 'numeric_input',
- '[]'::jsonb,
- '7',
- 'Theoretical sum = (9 − 2) × 180° = 1260°00''00". Add the measured angles: Sum the seconds: 05+42+18+10+33+47+22+55+15 = 247" = 4''07". Sum the minutes: 12+28+03+40+15+52+44+08+34 + 4(carried) = 240'' = 4°00''. Sum the degrees: 147+136+148+155+122+141+138+129+140 + 4(carried) = 1260°. Total = 1260°00''07". Misclosure = |1260°00''07" − 1260°00''00"| = 7".',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','angle-sum','misclosure','9-sided','word-problem']),
-
--- Q12  Essay  Hard
-('Compare and contrast the three types of traverses (open, closed loop, and closed connecting). For each type, describe: (a) its configuration, (b) what closure checks are available, (c) a real-world situation where it would be used, and (d) its limitations. Explain why open traverses are generally unacceptable for boundary surveys.',
- 'essay',
- '[]'::jsonb,
- 'Key points: (1) Open: starts at known point, no return, zero closure checks, used only for preliminary/exploratory work, unacceptable for boundaries because blunders go undetected. (2) Closed loop: forms polygon, angular check via (n-2)×180°, linear check via coordinate closure, standard for property/boundary surveys, limitation is that it does not connect to external control unless tied to known monuments. (3) Closed connecting: links two known points, angular check via final azimuth comparison, linear check via endpoint coordinates, used for route/corridor surveys, requires two known control points. All should emphasize that open traverses have NO ability to detect errors or blunders.',
- 'A strong answer describes all three types with correct technical details, provides realistic field examples, discusses both angular and linear closure checks for closed traverses, and clearly explains why the lack of any check makes open traverses unsuitable for legal boundary work.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','essay','traverse-types','comparison']),
-
--- Q13  Essay  Medium
-('You are planning a boundary survey of a 10-acre rural property in central Texas. Describe at least five factors you would consider when planning your traverse, and explain why each factor matters.',
- 'essay',
- '[]'::jsonb,
- 'Key points should include: (1) Intervisibility — clear sightlines needed between stations for measurement. (2) Station stability — firm ground to prevent monument movement. (3) Accuracy standard — TBPELS requires 1:10,000 minimum; determines instrument and methods. (4) Existing control — tying to NGS or county monuments for coordinate system reference. (5) Safety — heat illness prevention, snake awareness, right-of-entry permissions. (6) Geometry — avoid short legs and near-straight angles. (7) Monumentation — durable markers at corners.',
- 'A complete answer identifies at least five planning factors with explanations of why each matters for survey quality and safety. Bonus for mentioning Texas-specific concerns (TBPELS standards, heat, wildlife).',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','essay','planning','Texas']),
-
--- Q14  Multiple Choice  Hard
-('A 10-sided traverse is being measured to first-order standards (K = 1"). The measured angle sum is 1440°00''04". Which statement is correct?',
- 'multiple_choice',
- '["The misclosure is within tolerance — proceed with computations","The misclosure exceeds tolerance — re-observe angles","The theoretical sum is 1440° so there is no misclosure","First-order surveys do not require angular closure checks"]'::jsonb,
- 'The misclosure exceeds tolerance — re-observe angles',
- 'Theoretical sum = (10 − 2) × 180° = 1440°. Misclosure = 4". Allowable = K × √n = 1" × √10 = 3.16". Since 4" > 3.16", the misclosure exceeds tolerance and angles must be re-observed. First-order surveys absolutely require angular closure checks — they have the strictest requirements.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','first-order','misclosure','tolerance']);
+ 'acc03a02-0006-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','quiz','sag-correction','always-negative','review'],
+ '[{"type":"topic","id":"acc03a02-0006-0000-0000-000000000001","label":"Chaining Corrections Review"}]'::jsonb);
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 4. PRACTICE PROBLEMS
+-- 4. PRACTICE PROBLEMS (45 total)
 -- ────────────────────────────────────────────────────────────────────────────
 
-INSERT INTO question_bank
-  (question_text, question_type, options, correct_answer, explanation, difficulty,
-   module_id, lesson_id, exam_category, tags)
-VALUES
+DELETE FROM question_bank
+WHERE lesson_id = 'acc03b02-0000-0000-0000-000000000001'
+  AND tags @> ARRAY['acc-srvy-1341','week-2','practice'];
 
--- Practice 1: Basic angle sum
-('Practice: What is the sum of interior angles for a closed traverse with 12 sides?',
- 'numeric_input', '[]'::jsonb,
- '1800',
- '(n − 2) × 180° = (12 − 2) × 180° = 10 × 180° = 1800°.',
- 'easy',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','angle-sum']),
+INSERT INTO question_bank (
+  question_text, question_type, options, correct_answer, explanation, difficulty,
+  module_id, lesson_id, topic_id, exam_category, tags, study_references
+) VALUES
 
--- Practice 2: Allowable misclosure
-('Practice: Compute the allowable angular misclosure for an 8-sided traverse measured to third-order, Class II standards (K = 10"). Round to 1 decimal place.',
- 'numeric_input', '[]'::jsonb,
- '28.3',
- 'Allowable = K × √n = 10" × √8 = 10" × 2.828 = 28.3".',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','allowable-misclosure']),
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Section 1: DD → DMS (10 problems)
+-- ═══════════════════════════════════════════════════════════════════════════
 
--- Practice 3: Is the misclosure acceptable?
-('Practice: A 4-sided traverse measured to second-order Class I standards (K = 1.5") yields angle measurements summing to 360°00''04". Is the misclosure within tolerance? Answer "Yes" or "No" and show your work.',
- 'short_answer', '[]'::jsonb,
- 'No',
- 'Theoretical sum = 360°. Misclosure = 4". Allowable = 1.5" × √4 = 1.5" × 2 = 3.0". Since 4" > 3.0", the misclosure is NOT within tolerance. The surveyor must re-observe angles.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','misclosure','tolerance-check']),
-
--- Practice 4: Identify traverse type
-('Practice: A survey crew starts at NGS monument "Alpha" (known coordinates and azimuth), measures through 6 intermediate stations, and ends at NGS monument "Beta" (known coordinates and azimuth). What type of traverse is this?',
+('Convert 47.8° to DMS.',
  'multiple_choice',
- '["Open traverse","Closed loop traverse","Closed connecting traverse","Radial traverse"]'::jsonb,
- 'Closed connecting traverse',
- 'The traverse starts at one known point and ends at a different known point — this is a closed connecting (link) traverse. It provides both angular and positional closure checks even though it does not return to the starting point.',
+ '["47°48''00\"","47°08''00\"","47°80''00\"","48°48''00\""]'::jsonb,
+ '47°48''00"',
+ 'Degrees = 47°. 0.8 × 60 = 48.0'' → 48 minutes. 0.0 × 60 = 0" → 0 seconds. Answer: 47°48''00".',
  'easy',
  'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','traverse-type','identification']),
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
 
--- Practice 5: Word problem — determine number of sides from angle sum
-('Practice: A surveyor measures the interior angles of a closed traverse and expects them to sum to 1080°. How many sides does the traverse have?',
- 'numeric_input', '[]'::jsonb,
- '8',
- 'Using (n − 2) × 180° = 1080°: n − 2 = 1080 / 180 = 6, so n = 8 sides.',
+('Convert 168.35° to DMS.',
+ 'multiple_choice',
+ '["168°21''00\"","168°35''00\"","168°03''30\"","168°02''06\""]'::jsonb,
+ '168°21''00"',
+ 'Degrees = 168°. 0.35 × 60 = 21.0'' → 21 minutes. 0.0 × 60 = 0" → 0 seconds. Answer: 168°21''00".',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 7.21° to DMS.',
+ 'multiple_choice',
+ '["7°12''36\"","7°21''00\"","7°02''06\"","7°12''06\""]'::jsonb,
+ '7°12''36"',
+ 'Degrees = 7°. 0.21 × 60 = 12.6'' → 12 minutes. 0.6 × 60 = 36" → 36 seconds. Answer: 7°12''36".',
  'medium',
  'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','angle-sum','reverse-computation']),
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
 
--- Practice 6: Relative precision concept
-('Practice: A traverse has a perimeter of 3,500 ft and a linear error of closure of 0.25 ft. What is the relative precision ratio? Express as 1:X where X is a whole number.',
- 'numeric_input', '[]'::jsonb,
- '14000',
- 'Relative precision = error / perimeter = 0.25 / 3500 = 1 / 14,000. So the ratio is 1:14,000. This exceeds the TBPELS minimum of 1:10,000 and therefore passes.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','relative-precision','word-problem']),
-
--- Practice 7: Multi-step word problem
-('Practice: You are planning a boundary traverse of a hexagonal (6-sided) property. You will use a 5" total station and measure to third-order Class I standards (K = 5"). (a) What is the theoretical interior angle sum? (b) What is the maximum allowable angular misclosure? (c) If your measured angles sum to 720°00''10", should you re-observe? Give your answer to part (b) only, rounded to 1 decimal.',
- 'numeric_input', '[]'::jsonb,
- '12.2',
- '(a) Sum = (6 − 2) × 180° = 720°. (b) Allowable = 5" × √6 = 5 × 2.449 = 12.2". (c) Misclosure = 10". Since 10" < 12.2", the misclosure is within tolerance — no need to re-observe.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','multi-step','planning','word-problem']),
-
--- Practice 8: Essay — traverse type selection
-('Practice: A client asks you to survey a pipeline easement that runs 2 miles from an existing county road monument to a wellhead marked by a state plane coordinate monument. (a) What type of traverse would you use and why? (b) What closure checks would be available? (c) Name two factors that would affect your choice of accuracy standard.',
- 'essay', '[]'::jsonb,
- 'Key points: (a) Closed connecting traverse — it starts at one known monument and ends at another, which is ideal for a linear corridor. (b) Angular closure: compare computed final azimuth with known azimuth at the wellhead monument. Positional closure: compare computed coordinates at the endpoint with known state plane coordinates. (c) Factors: the legal purpose of the survey (easement establishment = boundary-level accuracy), the client requirements, TBPELS minimum standards (1:10,000), and whether the client wants ALTA-level precision (1:15,000).',
- 'A good answer selects the connecting traverse with correct reasoning, describes both angular and positional closure checks, and identifies at least two factors influencing accuracy (legal purpose, standards, client needs, terrain, equipment).',
+('Convert 345.678° to DMS.',
+ 'multiple_choice',
+ '["345°40''41\"","345°67''48\"","345°40''68\"","345°06''47\""]'::jsonb,
+ '345°40''41"',
+ 'Degrees = 345°. 0.678 × 60 = 40.68'' → 40 minutes. 0.68 × 60 = 40.8" ≈ 41 seconds. Answer: 345°40''41".',
  'medium',
  'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','essay','traverse-selection','pipeline']);
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert -22.5° to DMS.',
+ 'multiple_choice',
+ '["-22°30''00\"","-22°05''00\"","-22°50''00\"","-22°03''00\""]'::jsonb,
+ '-22°30''00"',
+ 'Work with the absolute value: 22.5°. Degrees = 22°. 0.5 × 60 = 30.0'' → 30 minutes. 0.0 × 60 = 0" → 0 seconds. Reattach the negative sign. Answer: -22°30''00".',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS','negative'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 0.0125° to DMS.',
+ 'multiple_choice',
+ '["0°00''45\"","0°01''25\"","0°00''08\"","0°12''30\""]'::jsonb,
+ '0°00''45"',
+ 'Degrees = 0°. 0.0125 × 60 = 0.75'' → 0 minutes. 0.75 × 60 = 45" → 45 seconds. Answer: 0°00''45".',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS','small-angle'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 100.99° to DMS.',
+ 'multiple_choice',
+ '["100°59''24\"","100°99''00\"","100°59''40\"","101°00''36\""]'::jsonb,
+ '100°59''24"',
+ 'Degrees = 100°. 0.99 × 60 = 59.4'' → 59 minutes. 0.4 × 60 = 24" → 24 seconds. Answer: 100°59''24". Note that 99 minutes is impossible — minutes max at 59.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 256.789° to DMS.',
+ 'multiple_choice',
+ '["256°47''20\"","256°78''54\"","256°47''34\"","256°07''89\""]'::jsonb,
+ '256°47''20"',
+ 'Degrees = 256°. 0.789 × 60 = 47.34'' → 47 minutes. 0.34 × 60 = 20.4" ≈ 20 seconds. Answer: 256°47''20".',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert -88.125° to DMS.',
+ 'multiple_choice',
+ '["-88°07''30\"","-88°12''30\"","-88°12''50\"","-88°01''25\""]'::jsonb,
+ '-88°07''30"',
+ 'Work with absolute value: 88.125°. Degrees = 88°. 0.125 × 60 = 7.5'' → 7 minutes. 0.5 × 60 = 30" → 30 seconds. Reattach negative. Answer: -88°07''30".',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS','negative'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 300.007° to DMS.',
+ 'multiple_choice',
+ '["300°00''25\"","300°00''42\"","300°07''00\"","300°00''07\""]'::jsonb,
+ '300°00''25"',
+ 'Degrees = 300°. 0.007 × 60 = 0.42'' → 0 minutes. 0.42 × 60 = 25.2" ≈ 25 seconds. Answer: 300°00''25".',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS','small-decimal'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Section 2: DMS → DD (10 problems)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+('Convert 43°12''15" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '43.2042',
+ 'DD = 43 + 12/60 + 15/3600 = 43 + 0.2000 + 0.004167 = 43.2042°.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 128°45''30" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '128.7583',
+ 'DD = 128 + 45/60 + 30/3600 = 128 + 0.7500 + 0.008333 = 128.7583°.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 6°05''45" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '6.0958',
+ 'DD = 6 + 5/60 + 45/3600 = 6 + 0.08333 + 0.01250 = 6.0958°.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 359°59''59" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '359.9997',
+ 'DD = 359 + 59/60 + 59/3600 = 359 + 0.98333 + 0.01639 = 359.9997°.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert -15°30''00" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '-15.5000',
+ 'Work with absolute value: DD = 15 + 30/60 + 0/3600 = 15 + 0.5 = 15.5. Reattach negative: -15.5000°.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD','negative'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 0°00''45" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '0.0125',
+ 'DD = 0 + 0/60 + 45/3600 = 0 + 0 + 0.0125 = 0.0125°.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD','small-angle'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 90°15''20" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '90.2556',
+ 'DD = 90 + 15/60 + 20/3600 = 90 + 0.2500 + 0.005556 = 90.2556°.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 270°30''40" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '270.5111',
+ 'DD = 270 + 30/60 + 40/3600 = 270 + 0.5000 + 0.01111 = 270.5111°.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert -67°42''36" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '-67.7100',
+ 'Work with absolute value: DD = 67 + 42/60 + 36/3600 = 67 + 0.7000 + 0.0100 = 67.7100. Reattach negative: -67.7100°.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD','negative'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 180°00''01" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '180.0003',
+ 'DD = 180 + 0/60 + 1/3600 = 180 + 0 + 0.000278 = 180.0003°.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD','small-seconds'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Section 3: Mixed DD↔DMS (10 problems)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+('Convert 22.75° to DMS.',
+ 'multiple_choice',
+ '["22°45''00\"","22°75''00\"","22°07''30\"","23°15''00\""]'::jsonb,
+ '22°45''00"',
+ 'Degrees = 22°. 0.75 × 60 = 45.0'' → 45 minutes. 0.0 × 60 = 0" → 0 seconds. Answer: 22°45''00".',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS','mixed'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 56°18''54" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '56.3150',
+ 'DD = 56 + 18/60 + 54/3600 = 56 + 0.3000 + 0.0150 = 56.3150°.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD','mixed'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 333.005° to DMS.',
+ 'multiple_choice',
+ '["333°00''18\"","333°00''30\"","333°05''00\"","333°00''05\""]'::jsonb,
+ '333°00''18"',
+ 'Degrees = 333°. 0.005 × 60 = 0.3'' → 0 minutes. 0.3 × 60 = 18" → 18 seconds. Answer: 333°00''18".',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS','mixed','small-decimal'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 89°59''60" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '90.0000',
+ 'DD = 89 + 59/60 + 60/3600 = 89 + 0.98333 + 0.01667 = 90.0000°. Note: 60 seconds = 1 minute, so 89°59''60" is exactly 90°00''00".',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD','mixed','edge-case'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert -45.875° to DMS.',
+ 'multiple_choice',
+ '["-45°52''30\"","-45°87''30\"","-45°52''50\"","-45°08''75\""]'::jsonb,
+ '-45°52''30"',
+ 'Work with absolute value: 45.875°. Degrees = 45°. 0.875 × 60 = 52.5'' → 52 minutes. 0.5 × 60 = 30" → 30 seconds. Reattach negative. Answer: -45°52''30".',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS','mixed','negative'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 0°30''30" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '0.5083',
+ 'DD = 0 + 30/60 + 30/3600 = 0 + 0.5000 + 0.008333 = 0.5083°.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD','mixed'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 199.999° to DMS.',
+ 'multiple_choice',
+ '["199°59''56\"","199°99''54\"","200°00''04\"","199°59''94\""]'::jsonb,
+ '199°59''56"',
+ 'Degrees = 199°. 0.999 × 60 = 59.94'' → 59 minutes. 0.94 × 60 = 56.4" ≈ 56 seconds. Answer: 199°59''56".',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS','mixed','near-boundary'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 270°15''45" to decimal degrees. Round to 4 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '270.2625',
+ 'DD = 270 + 15/60 + 45/3600 = 270 + 0.2500 + 0.0125 = 270.2625°.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD','mixed'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert -0.125° to DMS.',
+ 'multiple_choice',
+ '["-0°07''30\"","-0°12''30\"","-0°01''25\"","-0°00''08\""]'::jsonb,
+ '-0°07''30"',
+ 'Work with absolute value: 0.125°. Degrees = 0°. 0.125 × 60 = 7.5'' → 7 minutes. 0.5 × 60 = 30" → 30 seconds. Reattach negative. Answer: -0°07''30".',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DD-to-DMS','mixed','negative'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+('Convert 360°00''00" to decimal degrees.',
+ 'numeric_input', '[]'::jsonb,
+ '360.0000',
+ 'DD = 360 + 0/60 + 0/3600 = 360.0000°. This represents a full circle and is equivalent to 0°.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','DMS-to-DD','mixed','full-circle'],
+ '[{"type":"topic","id":"acc03a02-0005-0000-0000-000000000001","label":"DD and DMS Conversions"}]'::jsonb),
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Section 4: Compass / Bearing / Declination (5 problems)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+('Convert the bearing N 35°20'' E to an azimuth.',
+ 'numeric_input', '[]'::jsonb,
+ '35.333',
+ 'N 35°20'' E is in the NE quadrant. Azimuth = bearing angle = 35°20''. In decimal degrees: 35 + 20/60 = 35.333°. (As a DMS azimuth, it is simply 35°20''.)',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','bearing-to-azimuth','compass'],
+ '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"}]'::jsonb),
+
+('Convert azimuth 210°15'' to a bearing.',
+ 'multiple_choice',
+ '["S 30°15'' W","N 30°15'' W","S 30°15'' E","N 30°15'' E"]'::jsonb,
+ 'S 30°15'' W',
+ 'Azimuth 210°15'' is in the SW quadrant (180°–270°). Bearing angle = 210°15'' − 180° = 30°15''. Direction is S … W. Bearing = S 30°15'' W.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','azimuth-to-bearing','compass'],
+ '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"}]'::jsonb),
+
+('What is the back bearing of N 72°45'' E?',
+ 'multiple_choice',
+ '["S 72°45'' W","N 72°45'' W","S 72°45'' E","S 17°15'' W"]'::jsonb,
+ 'S 72°45'' W',
+ 'To find the back bearing, swap N↔S and E↔W while keeping the angle the same. N 72°45'' E → S 72°45'' W.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','back-bearing','compass'],
+ '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"}]'::jsonb),
+
+('A compass reads a magnetic bearing of N 40°00'' E. The local declination is 3° East. What is the true bearing?',
+ 'multiple_choice',
+ '["N 37°00'' E","N 40°00'' E","N 43°00'' E","N 46°00'' E"]'::jsonb,
+ 'N 43°00'' E',
+ 'True bearing = Magnetic bearing + East declination = 40° + 3° = 43°. True bearing = N 43°00'' E.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0003-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','declination','compass'],
+ '[{"type":"topic","id":"acc03a02-0003-0000-0000-000000000001","label":"Magnetic Declination"}]'::jsonb),
+
+('Convert azimuth 315°30'' to a bearing.',
+ 'multiple_choice',
+ '["N 44°30'' W","N 45°30'' W","S 44°30'' E","N 44°30'' E"]'::jsonb,
+ 'N 44°30'' W',
+ 'Azimuth 315°30'' is in the NW quadrant (270°–360°). Bearing angle = 360° − 315°30'' = 44°30''. Direction is N … W. Bearing = N 44°30'' W.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ 'acc03a02-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-2','practice','azimuth-to-bearing','compass'],
+ '[{"type":"topic","id":"acc03a02-0002-0000-0000-000000000001","label":"Bearings, Azimuths & Fore/Back Bearings"}]'::jsonb);
+
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 5. FLASHCARDS (20 — auto-discovered when lesson is completed)
+-- ────────────────────────────────────────────────────────────────────────────
+
+DELETE FROM flashcards
+WHERE lesson_id = 'acc03b02-0000-0000-0000-000000000001';
+
+INSERT INTO flashcards (id, term, definition, hint_1, hint_2, hint_3, module_id, lesson_id, keywords, tags, category) VALUES
+
+('fc02-0001-0000-0000-000000000001',
+ 'Bearing (Surveying Direction)',
+ 'A direction expressed as an acute angle (0°–90°) measured from north or south toward east or west. Format: N/S angle E/W. Example: N 45°00'' E means 45° clockwise from north toward east.',
+ 'The angle is always between 0° and 90°',
+ 'The first letter is N or S, the last is E or W',
+ 'N 45° E is a bearing; 45° is an azimuth',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['bearing','direction','N/S','E/W','quadrant','acute angle'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0002-0000-0000-000000000001',
+ 'Azimuth',
+ 'A direction measured as a clockwise angle from north, ranging from 0° to 360°. North = 0°, East = 90°, South = 180°, West = 270°. Every direction has exactly one azimuth value.',
+ 'Always measured clockwise from north',
+ 'Range: 0° to 360° — never negative',
+ 'North can be 0° or 360°',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['azimuth','direction','clockwise','360 degrees','north reference'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0003-0000-0000-000000000001',
+ 'DD to DMS Conversion Steps',
+ 'To convert decimal degrees to degrees-minutes-seconds: (1) Whole part = degrees. (2) Multiply decimal × 60 → whole part = minutes. (3) Multiply remaining decimal × 60 → seconds. Example: 47.8° → 47° + (0.8 × 60 = 48'') + (0.0 × 60 = 00") = 47°48''00".',
+ 'Multiply by 60 twice — first for minutes, then for seconds',
+ 'Minutes and seconds can never exceed 59',
+ 'Start by separating the whole degrees from the decimal',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['DD','DMS','conversion','decimal degrees','minutes','seconds'],
+ ARRAY['acc-srvy-1341','week-2','conversion','formula'], 'surveying'),
+
+('fc02-0004-0000-0000-000000000001',
+ 'DMS to DD Formula',
+ 'Decimal Degrees = Degrees + Minutes/60 + Seconds/3600. Example: 43°12''15" = 43 + 12/60 + 15/3600 = 43 + 0.2000 + 0.004167 = 43.2042°.',
+ 'Divide minutes by 60 and seconds by 3600',
+ 'There are 60 minutes in a degree and 60 seconds in a minute',
+ 'DD = D + M/60 + S/3600',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['DMS','DD','formula','conversion','degrees','minutes','seconds'],
+ ARRAY['acc-srvy-1341','week-2','conversion','formula'], 'surveying'),
+
+('fc02-0005-0000-0000-000000000001',
+ 'Fore and Back Bearing Rule',
+ 'To find the back bearing from a fore bearing, swap N↔S and E↔W while keeping the angle the same. Example: Fore = N 35°20'' E → Back = S 35°20'' W. For azimuths, back azimuth = azimuth ± 180°.',
+ 'Reverse both letters, keep the angle',
+ 'For azimuths, add 180° if < 180°, subtract 180° if ≥ 180°',
+ 'Fore N 35°20'' E → Back S 35°20'' W',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['fore bearing','back bearing','reverse','back azimuth','direction'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0006-0000-0000-000000000001',
+ 'Magnetic Declination',
+ 'The angle between true (geographic) north and magnetic north at a given location. East declination means magnetic north is east of true north; west declination means it is west. Declination varies by location and changes slowly over time.',
+ 'Also called "variation" in older texts',
+ 'True north ≠ magnetic north',
+ 'Texas has approximately 2°–4° east declination',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['declination','magnetic north','true north','variation','angle'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0007-0000-0000-000000000001',
+ 'East vs. West Declination',
+ 'East declination: magnetic north is east of true north — the compass needle points to the right of true north. West declination: magnetic north is west of true north — the compass needle points to the left of true north.',
+ 'East: needle points right of true north',
+ 'West: needle points left of true north',
+ 'Most of Texas has east declination',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['east declination','west declination','compass needle','direction'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0008-0000-0000-000000000001',
+ 'True Bearing Formula (Declination Correction)',
+ 'True Bearing = Magnetic Bearing + East Declination, or True Bearing = Magnetic Bearing − West Declination. Concisely: True = Magnetic + Declination (east positive, west negative).',
+ 'East declination is added, west is subtracted',
+ 'Think: "East is positive, west is negative"',
+ 'Example: Magnetic N 40° E + 3° East declination = True N 43° E',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['true bearing','magnetic bearing','declination correction','formula','east','west'],
+ ARRAY['acc-srvy-1341','week-2','compass','formula'], 'surveying'),
+
+('fc02-0009-0000-0000-000000000001',
+ 'SUUNTO KB-14/360',
+ 'A hand-held sighting compass that reads 0°–360° (azimuth format) with a liquid-dampened capsule. Accuracy: ±0.5°. Used for reconnaissance, forestry, and quick field checks. Not precise enough for boundary or control surveys.',
+ 'Reads directly in degrees 0°–360°',
+ 'Accuracy is ±0.5° (±30 minutes)',
+ 'Liquid-dampened means the needle settles quickly',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['SUUNTO','KB-14','compass','hand-held','liquid-dampened','azimuth','reconnaissance'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0010-0000-0000-000000000001',
+ 'Surveyor''s Compass',
+ 'A tripod-mounted compass with sighting vanes (slits) that reads bearings directly from a graduated circle. Historically used for boundary and land surveys in colonial America. Now primarily used for educational purposes and historical reenactments.',
+ 'Mounted on a tripod, unlike hand-held compasses',
+ 'Uses sighting vanes to align with the target',
+ 'The instrument that George Washington used for his surveys',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['surveyor''s compass','tripod','sighting vanes','bearing','graduated circle','historical'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0011-0000-0000-000000000001',
+ 'Compass Errors and Limitations',
+ 'Compasses are subject to: (1) Declination error — difference between magnetic and true north. (2) Local attraction — nearby magnetic materials (iron, steel, power lines) deflect the needle. (3) Instrument error — pivot friction, bent needle. (4) Reading error — parallax, incorrect sighting. Accuracy is typically ±0.5° to ±1°, far below total station precision.',
+ 'Local attraction is caused by nearby magnetic materials',
+ 'Accuracy is typically ±0.5° to ±1°',
+ 'Total stations are accurate to ±1" to ±5" — far more precise',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['compass error','local attraction','declination','instrument error','reading error','limitations'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0012-0000-0000-000000000001',
+ 'Local Attraction',
+ 'Deflection of a compass needle caused by nearby magnetic materials such as iron pipes, steel structures, vehicles, power lines, or mineral deposits. Local attraction causes the compass to read an incorrect bearing. Detected by comparing fore and back bearings — if they don''t differ by exactly 180° (as azimuths), local attraction is present at one or both stations.',
+ 'Nearby iron, steel, or power lines cause it',
+ 'Detected by comparing fore and back bearings',
+ 'If fore and back bearings are inconsistent, suspect local attraction',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['local attraction','magnetic','interference','iron','steel','compass error','fore bearing','back bearing'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0013-0000-0000-000000000001',
+ 'Bearing Quadrants',
+ 'The four bearing quadrants correspond to compass directions: NE (N angle E, azimuth 0°–90°), SE (S angle E, azimuth 90°–180°), SW (S angle W, azimuth 180°–270°), NW (N angle W, azimuth 270°–360°). The bearing angle is always 0°–90° regardless of quadrant.',
+ 'NE: N θ E; SE: S θ E; SW: S θ W; NW: N θ W',
+ 'First letter tells you which end of the meridian; last letter tells direction of rotation',
+ 'The bearing angle never exceeds 90°',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['quadrant','NE','SE','SW','NW','bearing','azimuth','compass'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0014-0000-0000-000000000001',
+ 'Azimuth Range',
+ 'Azimuths range from 0° to 360°, measured clockwise from north. Key values: North = 0° (or 360°), East = 90°, South = 180°, West = 270°. Unlike bearings, azimuths are unambiguous — every direction has exactly one azimuth value.',
+ '0° = North, 90° = East, 180° = South, 270° = West',
+ 'Always clockwise from north',
+ 'No letters needed — the number alone defines the direction',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['azimuth','range','0 to 360','clockwise','north','east','south','west'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0015-0000-0000-000000000001',
+ 'Temperature Correction Formula (Ct)',
+ 'Ct = 0.00000645 × (TF − 68) × L. TF = field temperature in °F, L = measured distance in feet, 68°F = standard temperature. Positive above 68°F (tape expands, reads short), negative below 68°F (tape contracts, reads long).',
+ 'The coefficient is 6.45 × 10⁻⁶ per °F',
+ 'Standard temperature is 68°F (20°C)',
+ 'Hot day → positive correction; cold day → negative correction',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['temperature correction','Ct','formula','68°F','thermal expansion','chaining'],
+ ARRAY['acc-srvy-1341','week-2','chaining','review','formula'], 'surveying'),
+
+('fc02-0016-0000-0000-000000000001',
+ 'Sag Correction Is Always Negative',
+ 'The sag correction Cs = −w²L³/(24P²) is always negative because a suspended tape hangs in a catenary curve that is longer than the straight-line chord distance. The tape reads the arc length, but the true distance is the shorter chord — so you must subtract the sag amount.',
+ 'The catenary arc is always longer than the chord',
+ 'The formula has a negative sign built in',
+ 'If the tape is supported on the ground, sag correction = 0',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['sag correction','Cs','always negative','catenary','chord','suspended tape'],
+ ARRAY['acc-srvy-1341','week-2','chaining','review'], 'surveying'),
+
+('fc02-0017-0000-0000-000000000001',
+ 'Gunter''s Chain Length',
+ 'Edmund Gunter''s surveying chain (designed 1620) was 66 feet long, consisting of 100 links each 0.66 feet (7.92 inches) long. Its length was chosen so that 80 chains = 1 mile and 10 square chains = 1 acre, making English-system calculations convenient.',
+ '66 feet — the same as 4 rods or poles',
+ '80 chains make 1 mile; 10 square chains make 1 acre',
+ 'Each link is 7.92 inches (0.66 ft)',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['Gunter''s chain','66 feet','100 links','Edmund Gunter','1620','chain','acre','mile'],
+ ARRAY['acc-srvy-1341','week-2','history'], 'surveying'),
+
+('fc02-0018-0000-0000-000000000001',
+ 'Compass Accuracy Limitations',
+ 'Typical compass accuracy is ±0.5° to ±1° (±30'' to ±60''). A total station reads to ±1" to ±5" — hundreds of times more precise. Compasses are adequate for reconnaissance, rough mapping, and field checks, but never for final boundary or control surveys.',
+ 'Compasses: ±0.5° to ±1°; Total stations: ±1" to ±5"',
+ 'Compass accuracy is measured in degrees; total station accuracy in seconds',
+ 'One degree = 3600 seconds — that is the scale of the difference',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['compass accuracy','total station','precision','limitations','field check'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying'),
+
+('fc02-0019-0000-0000-000000000001',
+ 'Normal Tension',
+ 'The specific tension at which the positive elongation from over-pulling exactly cancels the negative shortening from sag. At normal tension, a suspended tape reads the correct distance without corrections (Cp + Cs = 0). Normal tension is typically higher than standard tension.',
+ 'It is where sag correction equals tension correction in magnitude',
+ 'Higher than the standard tension printed on the tape',
+ 'At this tension, Cp + Cs = 0',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['normal tension','sag','tension','equilibrium','suspended tape','chaining'],
+ ARRAY['acc-srvy-1341','week-2','chaining','review'], 'surveying'),
+
+('fc02-0020-0000-0000-000000000001',
+ 'Isogonic Lines',
+ 'Lines on a map connecting points of equal magnetic declination. The agonic line connects points where declination is zero (magnetic north = true north). Isogonic charts are published by NOAA and updated periodically as the Earth''s magnetic field changes.',
+ 'Iso = equal, gonic = angle',
+ 'The agonic line is where declination equals zero',
+ 'Published by NOAA; updated as the magnetic field drifts',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b02-0000-0000-0000-000000000001',
+ ARRAY['isogonic lines','agonic line','declination','map','NOAA','magnetic field'],
+ ARRAY['acc-srvy-1341','week-2','compass'], 'surveying');
+
+COMMIT;
