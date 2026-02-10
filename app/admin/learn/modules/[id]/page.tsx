@@ -164,7 +164,7 @@ function LessonRow({ lesson, moduleId }: { lesson: EnrichedLesson; moduleId: str
         lesson.status === 'completed' ? { background: '#10B981', color: '#FFF' } :
         lesson.status === 'in_progress' ? { background: '#F59E0B', color: '#FFF' } : {}
       }>
-        {isLocked ? '&#x1F512;' : lesson.status === 'completed' ? '&#x2713;' : lesson.order_index}
+        {isLocked ? '\u{1F512}' : lesson.status === 'completed' ? '\u2713' : lesson.order_index}
       </div>
 
       <div className="lesson-item__content">

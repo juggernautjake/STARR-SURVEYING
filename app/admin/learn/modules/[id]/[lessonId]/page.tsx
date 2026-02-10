@@ -265,9 +265,9 @@ export default function LessonViewerPage() {
                   onClick={() => recordInteraction(key)}
                 >
                   <span className="lesson-resources__link-status">
-                    {reviewed ? '&#x2705;' : '&#x25CB;'}
+                    {reviewed ? '\u2705' : '\u25CB'}
                   </span>
-                  {r.type === 'website' ? '&#x1F310;' : r.type === 'pdf' ? '&#x1F4C4;' : '&#x1F4CE;'} {r.title}
+                  {r.type === 'website' ? '\u{1F310}' : r.type === 'pdf' ? '\u{1F4C4}' : '\u{1F4CE}'} {r.title}
                   <span className="lesson-resources__arrow">&nearr;</span>
                 </a>
               );
@@ -294,7 +294,7 @@ export default function LessonViewerPage() {
                   onClick={() => recordInteraction(key)}
                 >
                   <span className="lesson-resources__link-status">
-                    {reviewed ? '&#x2705;' : '&#x25CB;'}
+                    {reviewed ? '\u2705' : '\u25CB'}
                   </span>
                   &#x1F3AC; {v.title}
                   {v.description && <span style={{ fontSize: '0.78rem', color: '#9CA3AF', marginLeft: '0.5rem' }}>{v.description}</span>}

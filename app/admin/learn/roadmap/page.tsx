@@ -196,7 +196,7 @@ export default function RoadmapPage() {
                 )}
               </div>
               <div className={`roadmap__exam-status ${m.achieved ? 'roadmap__exam-status--done' : ''}`}>
-                {m.achieved ? '&#x2705;' : '&#x1F512;'}
+                {m.achieved ? '\u2705' : '\u{1F512}'}
               </div>
             </div>
           ))}
@@ -324,7 +324,7 @@ function RoadmapModuleRow({ mod }: { mod: ModuleProgress }) {
           status === 'due' ? { background: '#3B82F6' } :
           status === 'needs_refreshing' ? { background: '#8B5CF6' } : {}
         }>
-          {isLocked ? '&#x1F512;' : modComplete ? '&#x2713;' : mod.order_index}
+          {isLocked ? '\u{1F512}' : modComplete ? '\u2713' : mod.order_index}
         </span>
         <div>
           <div className="roadmap__module-title">{mod.title}</div>
