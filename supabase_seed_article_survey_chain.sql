@@ -408,16 +408,16 @@ ON CONFLICT (lesson_id, article_id) DO UPDATE SET
 -- constraint beyond the PK, so ON CONFLICT on id is used as fallback).
 
 DELETE FROM flashcards WHERE id IN (
-  'fc02-a001-0000-0000-000000000001',
-  'fc02-a002-0000-0000-000000000001',
-  'fc02-a003-0000-0000-000000000001',
-  'fc02-a004-0000-0000-000000000001',
-  'fc02-a005-0000-0000-000000000001',
-  'fc02-a006-0000-0000-000000000001',
-  'fc02-a007-0000-0000-000000000001',
-  'fc02-a008-0000-0000-000000000001',
-  'fc02-a009-0000-0000-000000000001',
-  'fc02-a010-0000-0000-000000000001'
+  'fc02a001-0000-0000-0000-000000000001',
+  'fc02a002-0000-0000-0000-000000000001',
+  'fc02a003-0000-0000-0000-000000000001',
+  'fc02a004-0000-0000-0000-000000000001',
+  'fc02a005-0000-0000-0000-000000000001',
+  'fc02a006-0000-0000-0000-000000000001',
+  'fc02a007-0000-0000-0000-000000000001',
+  'fc02a008-0000-0000-0000-000000000001',
+  'fc02a009-0000-0000-0000-000000000001',
+  'fc02a010-0000-0000-0000-000000000001'
 );
 
 INSERT INTO flashcards (id, term, definition, hint_1, hint_2, hint_3, module_id, lesson_id, keywords, tags, category)
@@ -425,7 +425,7 @@ VALUES
 
 -- Card 1: Gunter's Chain length
 (
-  'fc02-a001-0000-0000-000000000001',
+  'fc02a001-0000-0000-0000-000000000001',
   'Gunter''s Chain — Total Length and Links',
   'Gunter''s chain is 66 feet long and consists of 100 links, each 7.92 inches long. Designed by Edmund Gunter in 1620, its dimensions create clean conversions: 80 chains = 1 mile and 10 square chains = 1 acre.',
   'Think about what number of chains makes a mile — it''s a round number',
@@ -440,7 +440,7 @@ VALUES
 
 -- Card 2: 80 chains = 1 mile
 (
-  'fc02-a002-0000-0000-000000000001',
+  'fc02a002-0000-0000-0000-000000000001',
   'How many Gunter''s chains equal one mile?',
   '80 Gunter''s chains = 1 mile (5,280 feet). This works because 80 x 66 feet = 5,280 feet. This relationship was central to the U.S. Public Land Survey System, where section lines were 80 chains long.',
   'It''s a round number — think multiples of 10',
@@ -455,7 +455,7 @@ VALUES
 
 -- Card 3: 10 square chains = 1 acre
 (
-  'fc02-a003-0000-0000-000000000001',
+  'fc02a003-0000-0000-0000-000000000001',
   'How many square Gunter''s chains equal one acre?',
   '10 square Gunter''s chains = 1 acre (43,560 square feet). A rectangle 1 chain (66 ft) wide by 10 chains (660 ft) long equals exactly 1 acre. This elegant relationship made Gunter''s chain ideal for computing land area.',
   'A very small number of square chains — think single digits plus one',
@@ -470,7 +470,7 @@ VALUES
 
 -- Card 4: Engineer's Chain
 (
-  'fc02-a004-0000-0000-000000000001',
+  'fc02a004-0000-0000-0000-000000000001',
   'Engineer''s Chain vs. Gunter''s Chain',
   'The engineer''s chain is 100 feet long with 100 links of 1 foot each, compared to Gunter''s 66-foot chain with 7.92-inch links. The engineer''s chain was used for construction and route surveys where feet and decimals were more practical, but it had no clean relationship to the acre.',
   'The engineer''s chain uses a rounder, more "engineering-friendly" length',
@@ -485,7 +485,7 @@ VALUES
 
 -- Card 5: Brazed joints (post-1855)
 (
-  'fc02-a005-0000-0000-000000000001',
+  'fc02a005-0000-0000-0000-000000000001',
   'Brazed Chain Joints (Post-1855)',
   'After approximately 1855, chain manufacturers began brazing (fusing with brass alloy) the wire joints in chain links. Brazed joints replaced the earlier open wire links, creating sealed connections that resisted stretching, lasted longer, and slid through vegetation more easily.',
   'A soldering technique named after the metal alloy used',
@@ -500,7 +500,7 @@ VALUES
 
 -- Card 6: Abraham Lincoln as surveyor
 (
-  'fc02-a006-0000-0000-000000000001',
+  'fc02a006-0000-0000-0000-000000000001',
   'Abraham Lincoln — Deputy Surveyor',
   'In 1833, Abraham Lincoln was appointed deputy surveyor of Sangamon County, Illinois by county surveyor John Calhoun. Lincoln taught himself surveying from Gibson''s and Flint''s textbooks and worked as a surveyor for approximately three years, surveying roads, town plats, and farm boundaries.',
   'He was appointed in the 1830s — before he became a lawyer',
@@ -515,7 +515,7 @@ VALUES
 
 -- Card 7: Chesterman steel tape
 (
-  'fc02-a007-0000-0000-000000000001',
+  'fc02a007-0000-0000-0000-000000000001',
   'Who developed the first practical steel band tape?',
   'James Chesterman of Sheffield, England developed the first practical steel band tape. The steel tape offered greater precision, lighter weight, and more consistent calibration than the chain. It eventually replaced the chain for precision surveying work.',
   'He was from a famous steel-making city in England',
@@ -530,7 +530,7 @@ VALUES
 
 -- Card 8: Texas vara
 (
-  'fc02-a008-0000-0000-000000000001',
+  'fc02a008-0000-0000-0000-000000000001',
   'The Spanish Vara in Texas Surveying',
   'Texas used the Spanish vara alongside the Gunter''s chain due to its Spanish and Mexican land-grant heritage. One vara equals approximately 33.333 inches (about 2.778 feet). Texas surveyors must understand both systems when retracing historical surveys.',
   'It''s a Spanish unit of length — about 1/3 longer than a yardstick',
@@ -545,7 +545,7 @@ VALUES
 
 -- Card 9: Gurley and K&E
 (
-  'fc02-a009-0000-0000-000000000001',
+  'fc02a009-0000-0000-0000-000000000001',
   'Major US Surveying Instrument Manufacturers',
   'W. & L.E. Gurley of Troy, New York and Keuffel & Esser (K&E) of New York City were the two principal American manufacturers of precision surveying tapes and instruments. Both produced steel tapes graduated to hundredths of a foot for professional surveying use.',
   'One company was based in Troy, NY; the other in New York City',
@@ -560,7 +560,7 @@ VALUES
 
 -- Card 10: Edmund Gunter
 (
-  'fc02-a010-0000-0000-000000000001',
+  'fc02a010-0000-0000-0000-000000000001',
   'Who was Edmund Gunter?',
   'Edmund Gunter (1581–1626) was an English clergyman and mathematician who held the chair of astronomy at Gresham College, London. In 1620, he designed the 66-foot, 100-link chain that became the universal standard for land surveying, brilliantly bridging traditional English land units with decimal arithmetic.',
   'He was both a clergyman and a mathematician in early 17th-century England',
