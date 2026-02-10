@@ -65,7 +65,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const articleMap = new Map((articles || []).map((a: any) => [a.id, a]));
 
     const result = requirements.map((r: any) => ({
-      ...articleMap.get(r.article_id),
+      ...(articleMap.get(r.article_id) || {}),
       order_index: r.order_index,
       completed: completionMap.has(r.article_id),
       completed_at: completionMap.get(r.article_id) || null,

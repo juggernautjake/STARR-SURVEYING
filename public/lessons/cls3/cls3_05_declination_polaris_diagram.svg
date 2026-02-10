@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+  <rect width="800" height="500" fill="#1a2332" rx="8"/>
+  <rect x="4" y="4" width="792" height="492" fill="none" stroke="#3b82f6" stroke-width="2" stroke-dasharray="8,4" rx="6"/>
+  <text x="400" y="230" text-anchor="middle" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="18" font-weight="600">📷 Image Placeholder</text>
+  <text x="400" y="270" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="14">Declination via Polaris Observation Diagram</text>
+  <text x="400" y="300" text-anchor="middle" fill="#475569" font-family="system-ui,sans-serif" font-size="12">Replace with actual lecture slide image</text>
+</svg>
