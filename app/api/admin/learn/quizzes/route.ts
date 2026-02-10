@@ -4,7 +4,6 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { awardXP } from '@/lib/xp';
-import Anthropic from '@anthropic-ai/sdk';
 
 /* ============= MATH TEMPLATE HELPERS ============= */
 
@@ -84,6 +83,7 @@ async function gradeEssay(
   }
 
   try {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const systemPrompt = `You are a fair, encouraging grading assistant for a professional land surveying training program at Starr Surveying.
