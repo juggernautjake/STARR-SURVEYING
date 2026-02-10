@@ -304,5 +304,48 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     });
   }
 
+  // Complete a lesson (for intro/no-quiz lessons)
+  if (action === 'complete_lesson') {
+    const { lesson_id, module_id } = body;
+    if (!lesson_id || !module_id) {
+      return NextResponse.json({ error: 'lesson_id and module_id required' }, { status: 400 });
+    }
+
+    // Verify this lesson has no quiz questions (only allow for no-quiz lessons)
+    const { data: questionCount } = await supabaseAdmin.from('question_bank')
+      .select('id', { count: 'exact' }).eq('lesson_id', lesson_id);
+    if (questionCount && questionCount.length > 0) {
+      return NextResponse.json({ error: 'This lesson has a quiz. Complete the quiz to finish the lesson.' }, { status: 400 });
+    }
+
+    // Mark user_lesson_progress as completed
+    const { data: existingRaw } = await supabaseAdmin.from('user_lesson_progress')
+      .select('*').eq('user_email', userEmail).eq('lesson_id', lesson_id).maybeSingle();
+    const existing = existingRaw as any;
+    const now = new Date().toISOString();
+
+    if (existing) {
+      await supabaseAdmin.from('user_lesson_progress')
+        .update({ status: 'completed', completed_at: now })
+        .eq('id', existing.id);
+    } else {
+      await supabaseAdmin.from('user_lesson_progress')
+        .insert({
+          user_email: userEmail,
+          module_id,
+          lesson_id,
+          status: 'completed',
+          started_at: now,
+          completed_at: now,
+        });
+    }
+
+    // Also record in user_progress table (for progress API compatibility)
+    await supabaseAdmin.from('user_progress')
+      .upsert({ user_email: userEmail, module_id, lesson_id }, { onConflict: 'user_email,lesson_id' });
+
+    return NextResponse.json({ completed: true });
+  }
+
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
 }, { routeName: 'learn/user-progress' });

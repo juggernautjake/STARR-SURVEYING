@@ -582,6 +582,26 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         }
       } catch { /* ignore - credits are optional */ }
 
+      // --- Mark lesson as completed when lesson quiz is passed ---
+      if (type === 'lesson_quiz' && lesson_id && module_id) {
+        try {
+          const now = new Date().toISOString();
+          // Update user_lesson_progress
+          const { data: existingLP } = await supabaseAdmin.from('user_lesson_progress')
+            .select('id, status').eq('user_email', session.user.email).eq('lesson_id', lesson_id).maybeSingle();
+          if (existingLP && existingLP.status !== 'completed') {
+            await supabaseAdmin.from('user_lesson_progress')
+              .update({ status: 'completed', completed_at: now }).eq('id', existingLP.id);
+          } else if (!existingLP) {
+            await supabaseAdmin.from('user_lesson_progress')
+              .insert({ user_email: session.user.email, module_id, lesson_id, status: 'completed', started_at: now, completed_at: now });
+          }
+          // Record in user_progress table
+          await supabaseAdmin.from('user_progress')
+            .upsert({ user_email: session.user.email, module_id, lesson_id }, { onConflict: 'user_email,lesson_id' });
+        } catch { /* ignore - lesson tracking is supplementary */ }
+      }
+
       // --- XP Award for passing quiz ---
       try {
         const moduleForXP = module_id || null;
