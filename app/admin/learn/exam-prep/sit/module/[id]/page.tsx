@@ -158,11 +158,11 @@ export default function FSModulePage() {
   const bestScore = progress?.quiz_best_score || 0;
 
   const tabs = [
-    { key: 'overview', label: 'Overview', icon: '&#x1F4D6;' },
-    { key: 'concepts', label: 'Key Concepts', icon: '&#x1F4A1;' },
-    { key: 'formulas', label: 'Formulas', icon: '&#x1F522;' },
-    { key: 'examples', label: 'Examples', icon: '&#x270F;&#xFE0F;' },
-    { key: 'tips', label: 'Exam Tips', icon: '&#x1F4CC;' },
+    { key: 'overview', label: 'Overview', icon: '\u{1F4D6}' },
+    { key: 'concepts', label: 'Key Concepts', icon: '\u{1F4A1}' },
+    { key: 'formulas', label: 'Formulas', icon: '\u{1F522}' },
+    { key: 'examples', label: 'Examples', icon: '\u270F\uFE0F' },
+    { key: 'tips', label: 'Exam Tips', icon: '\u{1F4CC}' },
   ];
 
   return (

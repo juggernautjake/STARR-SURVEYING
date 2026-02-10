@@ -180,7 +180,7 @@ export default function ModulesListPage() {
                 className="modules__academic-toggle"
                 onClick={() => setShowAcademic(!showAcademic)}
               >
-                <span className="modules__academic-toggle-icon">{showAcademic ? '&#x25BC;' : '&#x25B6;'}</span>
+                <span className="modules__academic-toggle-icon">{showAcademic ? '\u25BC' : '\u25B6'}</span>
                 <span className="modules__academic-toggle-title">ACC Academic Courses</span>
                 <span className="modules__academic-toggle-count">{academicModules.length} course{academicModules.length !== 1 ? 's' : ''}</span>
                 <span className="modules__academic-toggle-hint">Requires enrollment to access</span>

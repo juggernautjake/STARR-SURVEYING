@@ -18,19 +18,19 @@ interface JobFile {
 }
 
 const FILE_TYPES: Record<string, { label: string; icon: string }> = {
-  drawing: { label: 'Drawing', icon: '&#x1F4D0;' },
-  field_data: { label: 'Field Data', icon: '&#x1F4CA;' },
-  image: { label: 'Image', icon: '&#x1F5BC;' },
-  satellite_image: { label: 'Satellite Image', icon: '&#x1F6F0;' },
-  voice_memo: { label: 'Voice Memo', icon: '&#x1F399;' },
-  document: { label: 'Document', icon: '&#x1F4C4;' },
-  deed: { label: 'Deed', icon: '&#x1F4DC;' },
-  plat: { label: 'Plat', icon: '&#x1F5FA;' },
-  legal: { label: 'Legal', icon: '&#x2696;' },
-  cad: { label: 'CAD File', icon: '&#x1F4BB;' },
-  trimble: { label: 'Trimble Data', icon: '&#x1F4E1;' },
-  backup: { label: 'Backup', icon: '&#x1F4BE;' },
-  other: { label: 'Other', icon: '&#x1F4CE;' },
+  drawing: { label: 'Drawing', icon: '\u{1F4D0}' },
+  field_data: { label: 'Field Data', icon: '\u{1F4CA}' },
+  image: { label: 'Image', icon: '\u{1F5BC}' },
+  satellite_image: { label: 'Satellite Image', icon: '\u{1F6F0}' },
+  voice_memo: { label: 'Voice Memo', icon: '\u{1F399}' },
+  document: { label: 'Document', icon: '\u{1F4C4}' },
+  deed: { label: 'Deed', icon: '\u{1F4DC}' },
+  plat: { label: 'Plat', icon: '\u{1F5FA}' },
+  legal: { label: 'Legal', icon: '\u2696' },
+  cad: { label: 'CAD File', icon: '\u{1F4BB}' },
+  trimble: { label: 'Trimble Data', icon: '\u{1F4E1}' },
+  backup: { label: 'Backup', icon: '\u{1F4BE}' },
+  other: { label: 'Other', icon: '\u{1F4CE}' },
 };
 
 const FILE_TYPE_ICONS: Record<string, string> = {
