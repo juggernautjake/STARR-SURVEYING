@@ -295,7 +295,7 @@ export default function LessonViewerPage() {
                     {reviewed ? '\u2705' : '\u25CB'}
                   </span>
                   {r.type === 'website' ? '\u{1F310}' : r.type === 'pdf' ? '\u{1F4C4}' : '\u{1F4CE}'} {r.title}
-                  <span className="lesson-resources__arrow">&nearr;</span>
+                  <span className="lesson-resources__arrow">{'\u2197'}</span>
                 </a>
               );
             })}
@@ -325,7 +325,7 @@ export default function LessonViewerPage() {
                   </span>
                   &#x1F3AC; {v.title}
                   {v.description && <span style={{ fontSize: '0.78rem', color: '#9CA3AF', marginLeft: '0.5rem' }}>{v.description}</span>}
-                  <span className="lesson-resources__arrow">&nearr;</span>
+                  <span className="lesson-resources__arrow">{'\u2197'}</span>
                 </a>
               );
             })}
@@ -357,7 +357,7 @@ export default function LessonViewerPage() {
                     {art.completed && art.completed_at ? ` \u00B7 Completed ${new Date(art.completed_at).toLocaleDateString()}` : ''}
                   </p>
                 </div>
-                <span className="lesson-articles__card-arrow">&nearr;</span>
+                <span className="lesson-articles__card-arrow">{'\u2197'}</span>
               </a>
             ))}
           </div>
