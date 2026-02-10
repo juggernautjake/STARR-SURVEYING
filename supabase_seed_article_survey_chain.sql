@@ -5,7 +5,7 @@
 -- Article: "Development of the Survey Chain" / "Abraham Lincoln's Chain"
 -- Linked as required reading for SRVY 1341, Lesson 2 (Traverse Types & Planning)
 --
--- Article UUID: art00001-0000-0000-0000-000000000001
+-- Article UUID: a1100001-0000-0000-0000-000000000001
 -- Module UUID:  acc00003-0000-0000-0000-000000000003  (SRVY 1341)
 -- Lesson UUID:  acc03b02-0000-0000-0000-000000000001  (Lesson 2)
 --
@@ -36,7 +36,7 @@ INSERT INTO kb_articles (
   estimated_minutes
 )
 VALUES (
-  'art00001-0000-0000-0000-000000000001',
+  'a1100001-0000-0000-0000-000000000001',
   'Development of the Survey Chain',
   'development-of-the-survey-chain',
   'History & Heritage',
@@ -394,7 +394,7 @@ ON CONFLICT (id) DO UPDATE SET
 INSERT INTO lesson_required_articles (lesson_id, article_id, order_index)
 VALUES (
   'acc03b02-0000-0000-0000-000000000001',   -- SRVY 1341 Lesson 2
-  'art00001-0000-0000-0000-000000000001',   -- this article
+  'a1100001-0000-0000-0000-000000000001',   -- this article
   0                                          -- first required article
 )
 ON CONFLICT (lesson_id, article_id) DO UPDATE SET
