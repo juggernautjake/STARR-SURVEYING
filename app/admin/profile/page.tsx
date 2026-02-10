@@ -77,14 +77,14 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div style={{ maxWidth: '700px' }}>
+    <div className="profile-page">
       {/* Header card */}
       <div className="admin-card" style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+        <div className="profile-page__header" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
           {image ? (
-            <img src={image} alt={name || 'User'} style={{ width: 64, height: 64, borderRadius: '50%', border: '3px solid #E5E7EB' }} />
+            <img src={image} alt={name || 'User'} className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', border: '3px solid #E5E7EB' }} />
           ) : (
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#BD1218', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora,sans-serif', fontSize: '1.25rem', fontWeight: 700 }}>
+            <div className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', background: '#BD1218', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora,sans-serif', fontSize: '1.25rem', fontWeight: 700 }}>
               {(name || 'U').charAt(0)}
             </div>
           )}
@@ -95,7 +95,7 @@ export default function ProfilePage() {
           </div>
         </div>
         {profile && (
-          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+          <div className="profile-page__stats" style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
             <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>HOURLY RATE</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: '#1D3095' }}>{fmtCurrency(profile.hourly_rate)}/hr</span></div>
             <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>LEARNING CREDITS</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: '#1D3095' }}>{totalPoints}</span></div>
             <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>CREDENTIALS</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: '#1D3095' }}>{certs.length}</span></div>

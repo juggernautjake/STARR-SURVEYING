@@ -549,7 +549,7 @@ export default function ManageContentPage() {
             <>
               <input className="manage__form-input" placeholder="Module title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
               <textarea className="manage__form-textarea" placeholder="Description" rows={2} value={formData.description || ''} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} />
-              <div style={{ display: 'flex', gap: '.75rem' }}>
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <select className="manage__form-input" value={formData.difficulty || 'beginner'} onChange={e => setFormData(p => ({ ...p, difficulty: e.target.value }))}>
                   <option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option>
                 </select>
@@ -567,7 +567,7 @@ export default function ManageContentPage() {
                 {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
               </select>
               <input className="manage__form-input" placeholder="Lesson title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
-              <div style={{ display: 'flex', gap: '.75rem' }}>
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <input className="manage__form-input" type="number" placeholder="Order index" value={formData.order_index || ''} onChange={e => setFormData(p => ({ ...p, order_index: e.target.value }))} />
                 <input className="manage__form-input" type="number" placeholder="Est. minutes" value={formData.estimated_minutes || ''} onChange={e => setFormData(p => ({ ...p, estimated_minutes: e.target.value }))} />
                 <select className="manage__form-input" value={formData.status || 'draft'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
@@ -589,7 +589,7 @@ export default function ManageContentPage() {
           {tab === 'questions' && (
             <>
               <textarea className="manage__form-textarea" placeholder="Question text *" rows={2} value={formData.question_text || ''} onChange={e => setFormData(p => ({ ...p, question_text: e.target.value }))} />
-              <div style={{ display: 'flex', gap: '.75rem' }}>
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <select className="manage__form-input" value={formData.question_type || 'multiple_choice'} onChange={e => setFormData(p => ({ ...p, question_type: e.target.value }))}>
                   <option value="multiple_choice">Multiple Choice</option>
                   <option value="true_false">True/False</option>
@@ -602,7 +602,7 @@ export default function ManageContentPage() {
               <input className="manage__form-input" placeholder="Options (pipe-separated, e.g. Option A|Option B|Option C)" value={formData.options || ''} onChange={e => setFormData(p => ({ ...p, options: e.target.value }))} />
               <input className="manage__form-input" placeholder="Correct answer *" value={formData.correct_answer || ''} onChange={e => setFormData(p => ({ ...p, correct_answer: e.target.value }))} />
               <textarea className="manage__form-textarea" placeholder="Explanation" rows={2} value={formData.explanation || ''} onChange={e => setFormData(p => ({ ...p, explanation: e.target.value }))} />
-              <div style={{ display: 'flex', gap: '.75rem' }}>
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <select className="manage__form-input" value={formData.module_id || ''} onChange={e => setFormData(p => ({ ...p, module_id: e.target.value }))}>
                   <option value="">Module (optional)</option>
                   {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
@@ -647,7 +647,7 @@ export default function ManageContentPage() {
                       </label>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem', flexWrap: 'wrap' }}>
                     <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveModule} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingModuleId(null); setEditModule({}); }}>Cancel</button>
                     <Link href={`/admin/learn/modules/${m.id}`} className="manage__item-btn" style={{ marginLeft: 'auto' }}>View</Link>

@@ -189,6 +189,16 @@
   .quiz-results__review-links { gap: 0.4rem; }
   .quiz-results__study-refs-list { gap: 0.35rem; }
 
+  /* ── My Profile ── */
+  .emp-manage__tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+  .emp-manage__tab { white-space: nowrap; flex-shrink: 0; font-size: 0.82rem; }
+  .emp-manage__field { flex-direction: column; gap: 0.25rem; }
+  .emp-manage__cred-item { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .emp-manage__credit-item { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+
+  /* ── My Files data table ── */
+  .job-detail__field-data-row { font-size: 0.78rem; }
+
   /* ── Tables overflow ── */
   .payroll-rates__table-wrap,
   .tl-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -406,6 +416,19 @@
   .job-form__grid { grid-template-columns: 1fr; }
   .job-form__input, .job-form__select { font-size: 0.85rem; }
   .msg-setup-guide__prompt { font-size: 0.72rem; overflow-x: auto; }
+
+  /* ── My Profile ── */
+  .emp-manage__tab { padding: 0.4rem 0.65rem; font-size: 0.78rem; }
+  .emp-manage__grid { grid-template-columns: 1fr; }
+  .emp-manage__changelog { max-height: 250px; }
+
+  /* ── Error log ── */
+  .err-log__item-left { flex: 1; min-width: 0; }
+  .err-log__item-msg { font-size: 0.8rem; word-break: break-word; }
+  .err-log__item-type { font-size: 0.65rem; }
+  .err-log__detail-field { font-size: 0.78rem; }
+  .err-log__detail-section { padding: 0.65rem; }
+  .err-log__detail-stack { font-size: 0.68rem; max-height: 200px; }
 
   /* ── Quiz history ── */
   .quiz-history__stats { flex-direction: column; gap: 0.5rem; }
@@ -910,7 +933,7 @@
   /* Search bar */
   .learn-search__bar { max-width: 100% !important; }
 
-  /* Manage XP stats grid — override 3-column to 1 */
+  /* Manage XP stats grid — override 3-column to 2 */
   .mng__xp-stats-grid { grid-template-columns: 1fr 1fr 1fr !important; }
 
   /* Manage XP lookup row */
@@ -918,6 +941,21 @@
 
   /* My Notes grid — override minmax(280px) */
   .mynotes__grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important; }
+
+  /* Manage Rewards XP section — override inline maxWidth */
+  .mng__section { max-width: 100% !important; }
+
+  /* My Files data table */
+  .job-detail__field-data-row { flex-wrap: wrap !important; gap: 0.5rem !important; }
+
+  /* Development guide boxes */
+  .msg-setup-guide { padding: 1rem !important; }
+  .msg-setup-guide__section { padding: 0.75rem !important; }
+
+  /* Profile page — override inline flex on header and stats */
+  .profile-page__header { gap: 0.75rem !important; }
+  .profile-page__avatar { width: 52px !important; height: 52px !important; font-size: 1rem !important; }
+  .profile-page__stats { gap: 1rem !important; }
 }
 
 @media (max-width: 599px) {
@@ -929,6 +967,23 @@
 
   /* Manage XP stats — stack to single column */
   .mng__xp-stats-grid { grid-template-columns: 1fr !important; gap: 0.5rem !important; }
+
+  /* Manage Rewards XP section — override inline maxWidth on mobile */
+  .mng__section { max-width: 100% !important; }
+
+  /* My Files — stack data table rows on mobile */
+  .job-detail__field-data-row--header { display: none !important; }
+  .job-detail__field-data-row { flex-direction: column !important; align-items: flex-start !important; gap: 0.25rem !important; padding: 0.65rem 0.75rem !important; }
+
+  /* Development guide boxes */
+  .msg-setup-guide { padding: 0.75rem !important; }
+  .msg-setup-guide__prompt { font-size: 0.68rem !important; padding: 0.65rem !important; }
+
+  /* Profile page — stack header vertically on mobile */
+  .profile-page__header { flex-direction: column !important; align-items: center !important; text-align: center !important; gap: 0.5rem !important; }
+  .profile-page__avatar { width: 48px !important; height: 48px !important; font-size: 0.95rem !important; }
+  .profile-page__stats { gap: 0.75rem !important; justify-content: center !important; }
+  .profile-page__stats > div { text-align: center !important; }
 }
 
 @media (max-width: 480px) {
