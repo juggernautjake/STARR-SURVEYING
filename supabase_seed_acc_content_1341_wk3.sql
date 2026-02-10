@@ -215,25 +215,25 @@ UPDATE learning_lessons SET content = '
 <p>Next week we take the raw field data — angles and distances from every station — and turn them into coordinates. You will learn how to compute <strong>azimuths</strong> from the measured angles, convert slope distances to horizontal, compute <strong>latitudes and departures</strong>, and quantify the traverse''s <strong>error of closure</strong>. This is where the mathematics of traversing truly begins.</p>
 ',
 
-resources = ''[
+resources = '[
   {"title":"FGCS Specifications for Horizontal Control Surveys","url":"https://www.ngs.noaa.gov/FGCS/tech_pub/1984-stds-specs-geodetic-control-networks.pdf","type":"pdf"},
   {"title":"Total Station Setup and Leveling Procedures","url":"https://www.surveyingmath.com/total-station-setup","type":"reference"},
   {"title":"Forced Centering Technique Explained","url":"https://www.surveyingmath.com/forced-centering","type":"reference"}
-]''::jsonb,
+]'::jsonb,
 
-videos = ''[
+videos = '[
   {"title":"Setting Up a Total Station Over a Point","url":"https://www.youtube.com/watch?v=3xLkVJrZjKI"},
   {"title":"Measuring Traverse Angles: Direct and Reverse","url":"https://www.youtube.com/watch?v=QXwYh9Vf1nM"}
-]''::jsonb,
+]'::jsonb,
 
 key_takeaways = ARRAY[
-  ''Set up a total station over a point: tripod placement, leveling, centering, and HI measurement'',
-  ''Execute the backsight–foresight measurement sequence at each traverse station'',
-  ''Distinguish between interior angles, deflection angles, and angles to the right'',
-  ''Perform direct and reverse (D&R) angle measurement and compute the mean'',
-  ''Apply atmospheric, prism constant, and slope corrections to EDM distances'',
-  ''Use field checks (angle closure, forward/back distances, note review) to catch blunders'',
-  ''Describe the forced centering technique and explain when it should be used''
+  'Set up a total station over a point: tripod placement, leveling, centering, and HI measurement',
+  'Execute the backsight–foresight measurement sequence at each traverse station',
+  'Distinguish between interior angles, deflection angles, and angles to the right',
+  'Perform direct and reverse (D&R) angle measurement and compute the mean',
+  'Apply atmospheric, prism constant, and slope corrections to EDM distances',
+  'Use field checks (angle closure, forward/back distances, note review) to catch blunders',
+  'Describe the forced centering technique and explain when it should be used'
 ]
 
 WHERE id = 'acc03b03-0000-0000-0000-000000000001';

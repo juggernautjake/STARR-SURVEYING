@@ -204,61 +204,61 @@ Az(A→B) = 140°03′15″ + 180° + 87°12′15″ = 407°15′30″ − 360°
 <p>Next week we complete the traverse computation by <strong>adjusting</strong> the latitudes and departures to force exact closure, then computing <strong>final coordinates</strong> for each station. We will cover the <strong>Compass (Bowditch) Rule</strong> and the <strong>Transit Rule</strong>, the two most common adjustment methods, and discuss when each is appropriate.</p>
 ',
 
-resources = ''[
+resources = '[
   {"title":"Traverse Computation Step-by-Step Guide","url":"https://www.surveyingmath.com/traverse-computation","type":"reference"},
   {"title":"Azimuth and Bearing Conversion Table","url":"https://www.surveyingmath.com/azimuth-bearing","type":"reference"},
   {"title":"FGCS Standards for Geodetic Control Networks","url":"https://www.ngs.noaa.gov/FGCS/tech_pub/1984-stds-specs-geodetic-control-networks.pdf","type":"pdf"}
-]''::jsonb,
+]'::jsonb,
 
-videos = ''[
+videos = '[
   {"title":"Computing Azimuths from Interior Angles","url":"https://www.youtube.com/watch?v=DqEm1JZr_6c"},
   {"title":"Latitudes and Departures — Full Worked Example","url":"https://www.youtube.com/watch?v=KZmBsTN4a_s"}
-]''::jsonb,
+]'::jsonb,
 
 key_takeaways = ARRAY[
-  ''Balance the angular misclosure by distributing the correction equally among all measured angles'',
-  ''Propagate azimuths through the traverse using Az_forward = Az_back + 180° + interior angle'',
-  ''Convert between azimuths (0°–360° from north) and bearings (N/S angle E/W) in all four quadrants'',
-  ''Compute latitude (Dist × cos Az) and departure (Dist × sin Az) for each traverse line'',
-  ''Determine the sign of latitude and departure from the azimuth quadrant'',
-  ''Compute the linear error of closure from ΣLat and ΣDep'',
-  ''Calculate relative precision and compare it to the required accuracy standard''
+  'Balance the angular misclosure by distributing the correction equally among all measured angles',
+  'Propagate azimuths through the traverse using Az_forward = Az_back + 180° + interior angle',
+  'Convert between azimuths (0°–360° from north) and bearings (N/S angle E/W) in all four quadrants',
+  'Compute latitude (Dist × cos Az) and departure (Dist × sin Az) for each traverse line',
+  'Determine the sign of latitude and departure from the azimuth quadrant',
+  'Compute the linear error of closure from ΣLat and ΣDep',
+  'Calculate relative precision and compare it to the required accuracy standard'
 ]
 
-WHERE id = ''acc03b04-0000-0000-0000-000000000001'';
+WHERE id = 'acc03b04-0000-0000-0000-000000000001';
 
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 2. TOPICS
 -- ────────────────────────────────────────────────────────────────────────────
 
-DELETE FROM learning_topics WHERE lesson_id = ''acc03b04-0000-0000-0000-000000000001'';
+DELETE FROM learning_topics WHERE lesson_id = 'acc03b04-0000-0000-0000-000000000001';
 
 INSERT INTO learning_topics (id, lesson_id, title, content, order_index, keywords) VALUES
 
-(''acc03a04-0001-0000-0000-000000000001'', ''acc03b04-0000-0000-0000-000000000001'',
- ''Angle Balancing: Distributing the Angular Misclosure'',
- ''Before any coordinate computation, the angular misclosure must be distributed among the measured angles so they sum to the theoretical value (n−2)×180°. The equal distribution method divides the total misclosure by the number of angles and applies the correction (with opposite sign) to each angle. For example, a +15″ misclosure over 5 angles yields a −3″ correction per angle. Weighted distribution applies larger corrections to less reliable angles (measured under poorer conditions). The equal distribution method is standard for third-order boundary surveys. Only after balancing are the angles suitable for azimuth computation — using unbalanced angles propagates the error through every subsequent azimuth and coordinate.'',
+('acc03a04-0001-0000-0000-000000000001', 'acc03b04-0000-0000-0000-000000000001',
+ 'Angle Balancing: Distributing the Angular Misclosure',
+ 'Before any coordinate computation, the angular misclosure must be distributed among the measured angles so they sum to the theoretical value (n−2)×180°. The equal distribution method divides the total misclosure by the number of angles and applies the correction (with opposite sign) to each angle. For example, a +15″ misclosure over 5 angles yields a −3″ correction per angle. Weighted distribution applies larger corrections to less reliable angles (measured under poorer conditions). The equal distribution method is standard for third-order boundary surveys. Only after balancing are the angles suitable for azimuth computation — using unbalanced angles propagates the error through every subsequent azimuth and coordinate.',
  1,
- ARRAY[''angle balancing'',''angular misclosure'',''equal distribution'',''weighted correction'',''interior angles'',''theoretical sum'',''adjustment'']),
+ ARRAY['angle balancing','angular misclosure','equal distribution','weighted correction','interior angles','theoretical sum','adjustment']),
 
-(''acc03a04-0002-0000-0000-000000000001'', ''acc03b04-0000-0000-0000-000000000001'',
- ''Azimuth Propagation and Bearing Conversion'',
- ''Azimuths are computed sequentially through the traverse using the formula: Az_forward = Az_back + 180° + interior_angle (subtract 360° if result exceeds 360°). The process requires one known starting azimuth and the balanced interior angles. A critical check is that the azimuth computation closes — the final computed azimuth back to the starting line must match the known starting azimuth. Azimuths (measured clockwise from north, 0°–360°) can be converted to bearings (angle from N or S toward E or W, 0°–90°) for use in legal descriptions: NE quadrant = N(az)°E, SE = S(180−az)°E, SW = S(az−180)°W, NW = N(360−az)°W. Texas deed calls traditionally use the bearing format.'',
+('acc03a04-0002-0000-0000-000000000001', 'acc03b04-0000-0000-0000-000000000001',
+ 'Azimuth Propagation and Bearing Conversion',
+ 'Azimuths are computed sequentially through the traverse using the formula: Az_forward = Az_back + 180° + interior_angle (subtract 360° if result exceeds 360°). The process requires one known starting azimuth and the balanced interior angles. A critical check is that the azimuth computation closes — the final computed azimuth back to the starting line must match the known starting azimuth. Azimuths (measured clockwise from north, 0°–360°) can be converted to bearings (angle from N or S toward E or W, 0°–90°) for use in legal descriptions: NE quadrant = N(az)°E, SE = S(180−az)°E, SW = S(az−180)°W, NW = N(360−az)°W. Texas deed calls traditionally use the bearing format.',
  2,
- ARRAY[''azimuth'',''bearing'',''propagation'',''back azimuth'',''forward azimuth'',''quadrant'',''NE'',''SE'',''SW'',''NW'',''legal description'',''deed call'']),
+ ARRAY['azimuth','bearing','propagation','back azimuth','forward azimuth','quadrant','NE','SE','SW','NW','legal description','deed call']),
 
-(''acc03a04-0003-0000-0000-000000000001'', ''acc03b04-0000-0000-0000-000000000001'',
- ''Latitude and Departure Computation'',
- ''Latitude is the north-south component of a traverse line: Lat = Distance × cos(Azimuth). Departure is the east-west component: Dep = Distance × sin(Azimuth). The trigonometric functions automatically produce correct signs: cosine is positive for azimuths 0°–90° and 270°–360° (northward), negative for 90°–180° and 180°–270° (southward). Sine is positive for 0°–180° (eastward), negative for 180°–360° (westward). For a perfectly closed traverse, ΣLat = 0 and ΣDep = 0. Nonzero sums represent the closure error in latitude and departure. This decomposition into orthogonal components is the mathematical bridge between polar measurements (angle and distance) and rectangular coordinates (N, E).'',
+('acc03a04-0003-0000-0000-000000000001', 'acc03b04-0000-0000-0000-000000000001',
+ 'Latitude and Departure Computation',
+ 'Latitude is the north-south component of a traverse line: Lat = Distance × cos(Azimuth). Departure is the east-west component: Dep = Distance × sin(Azimuth). The trigonometric functions automatically produce correct signs: cosine is positive for azimuths 0°–90° and 270°–360° (northward), negative for 90°–180° and 180°–270° (southward). Sine is positive for 0°–180° (eastward), negative for 180°–360° (westward). For a perfectly closed traverse, ΣLat = 0 and ΣDep = 0. Nonzero sums represent the closure error in latitude and departure. This decomposition into orthogonal components is the mathematical bridge between polar measurements (angle and distance) and rectangular coordinates (N, E).',
  3,
- ARRAY[''latitude'',''departure'',''cosine'',''sine'',''north-south'',''east-west'',''polar to rectangular'',''sign convention'',''coordinate component'']),
+ ARRAY['latitude','departure','cosine','sine','north-south','east-west','polar to rectangular','sign convention','coordinate component']),
 
-(''acc03a04-0004-0000-0000-000000000001'', ''acc03b04-0000-0000-0000-000000000001'',
- ''Linear Error of Closure and Relative Precision'',
- ''The linear error of closure is the Pythagorean combination of the latitude and departure misclosures: Error = √(ΣLat² + ΣDep²). It represents the distance by which the traverse fails to close on itself. Relative precision expresses the error as a ratio of the total perimeter: 1:(Perimeter/Error). This ratio is the standard measure of traverse quality. TBPELS requires a minimum of 1:10,000 for boundary surveys (i.e., the closure error must be less than 1/10,000 of the perimeter). ALTA/NSPS surveys require 1:15,000. If the relative precision does not meet the standard, the surveyor must identify the source of error — often a distance or angle blunder on a specific leg — and re-measure before proceeding to traverse adjustment.'',
+('acc03a04-0004-0000-0000-000000000001', 'acc03b04-0000-0000-0000-000000000001',
+ 'Linear Error of Closure and Relative Precision',
+ 'The linear error of closure is the Pythagorean combination of the latitude and departure misclosures: Error = √(ΣLat² + ΣDep²). It represents the distance by which the traverse fails to close on itself. Relative precision expresses the error as a ratio of the total perimeter: 1:(Perimeter/Error). This ratio is the standard measure of traverse quality. TBPELS requires a minimum of 1:10,000 for boundary surveys (i.e., the closure error must be less than 1/10,000 of the perimeter). ALTA/NSPS surveys require 1:15,000. If the relative precision does not meet the standard, the surveyor must identify the source of error — often a distance or angle blunder on a specific leg — and re-measure before proceeding to traverse adjustment.',
  4,
- ARRAY[''linear error'',''error of closure'',''relative precision'',''perimeter'',''Pythagorean'',''1:10000'',''TBPELS'',''ALTA'',''closure ratio'',''quality check'']);
+ ARRAY['linear error','error of closure','relative precision','perimeter','Pythagorean','1:10000','TBPELS','ALTA','closure ratio','quality check']);
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -267,8 +267,8 @@ INSERT INTO learning_topics (id, lesson_id, title, content, order_index, keyword
 
 -- Remove any existing week-4 quiz/practice questions for this lesson
 DELETE FROM question_bank
-WHERE lesson_id = ''acc03b04-0000-0000-0000-000000000001''
-  AND tags @> ARRAY[''acc-srvy-1341'',''week-4''];
+WHERE lesson_id = 'acc03b04-0000-0000-0000-000000000001'
+  AND tags @> ARRAY['acc-srvy-1341','week-4'];
 
 INSERT INTO question_bank
   (question_text, question_type, options, correct_answer, explanation, difficulty,
@@ -276,144 +276,144 @@ INSERT INTO question_bank
 VALUES
 
 -- Q1  Multiple Choice  Easy
-(''Latitude is computed as:'',
- ''multiple_choice'',
- ''["Distance × sin(azimuth)","Distance × cos(azimuth)","Distance × tan(azimuth)","Distance / cos(azimuth)"]''::jsonb,
- ''Distance × cos(azimuth)'',
- ''Latitude (the N-S component) = Distance × cos(Azimuth). Departure (the E-W component) = Distance × sin(Azimuth). Remember: "Lat = D cos A" — the cosine gives the component along the north-south axis.'',
- ''easy'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''latitude'',''formula'']),
+('Latitude is computed as:',
+ 'multiple_choice',
+ '["Distance × sin(azimuth)","Distance × cos(azimuth)","Distance × tan(azimuth)","Distance / cos(azimuth)"]'::jsonb,
+ 'Distance × cos(azimuth)',
+ 'Latitude (the N-S component) = Distance × cos(Azimuth). Departure (the E-W component) = Distance × sin(Azimuth). Remember: "Lat = D cos A" — the cosine gives the component along the north-south axis.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','latitude','formula']),
 
 -- Q2  Multiple Choice  Easy
-(''Departure is computed as:'',
- ''multiple_choice'',
- ''["Distance × cos(azimuth)","Distance × sin(azimuth)","Distance × tan(azimuth)","Distance / sin(azimuth)"]''::jsonb,
- ''Distance × sin(azimuth)'',
- ''Departure (the E-W component) = Distance × sin(Azimuth). Positive departures indicate movement east; negative departures indicate movement west.'',
- ''easy'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''departure'',''formula'']),
+('Departure is computed as:',
+ 'multiple_choice',
+ '["Distance × cos(azimuth)","Distance × sin(azimuth)","Distance × tan(azimuth)","Distance / sin(azimuth)"]'::jsonb,
+ 'Distance × sin(azimuth)',
+ 'Departure (the E-W component) = Distance × sin(Azimuth). Positive departures indicate movement east; negative departures indicate movement west.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','departure','formula']),
 
 -- Q3  True/False  Easy
-(''In a perfectly closed traverse, the sum of all latitudes should equal zero.'',
- ''true_false'',
- ''["True","False"]''::jsonb,
- ''True'',
- ''For a closed traverse that returns to the starting point, the net north-south displacement is zero, so ΣLatitudes = 0. Similarly, ΣDepartures = 0. Any nonzero sums represent the linear misclosure caused by measurement errors.'',
- ''easy'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''closure'',''latitude-sum'']),
+('In a perfectly closed traverse, the sum of all latitudes should equal zero.',
+ 'true_false',
+ '["True","False"]'::jsonb,
+ 'True',
+ 'For a closed traverse that returns to the starting point, the net north-south displacement is zero, so ΣLatitudes = 0. Similarly, ΣDepartures = 0. Any nonzero sums represent the linear misclosure caused by measurement errors.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','closure','latitude-sum']),
 
 -- Q4  True/False  Easy
-(''The angular misclosure must be distributed among the measured angles before computing azimuths.'',
- ''true_false'',
- ''["True","False"]''::jsonb,
- ''True'',
- ''Using unbalanced angles to compute azimuths propagates the angular error through every subsequent azimuth and, consequently, through every latitude and departure. The angles must be balanced first so that they sum to the correct theoretical value before azimuth propagation begins.'',
- ''easy'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''angle-balancing'',''azimuth'']),
+('The angular misclosure must be distributed among the measured angles before computing azimuths.',
+ 'true_false',
+ '["True","False"]'::jsonb,
+ 'True',
+ 'Using unbalanced angles to compute azimuths propagates the angular error through every subsequent azimuth and, consequently, through every latitude and departure. The angles must be balanced first so that they sum to the correct theoretical value before azimuth propagation begins.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','angle-balancing','azimuth']),
 
 -- Q5  Numeric Input  Medium
-(''A traverse line has an azimuth of 135°00′00″ and a distance of 200.00 ft. What is its latitude? Round to 2 decimal places.'',
- ''numeric_input'',
- ''[]''::jsonb,
- ''-141.42'',
- ''Lat = 200.00 × cos(135°) = 200.00 × (−0.70711) = −141.42 ft. The negative sign indicates a southward component, which is correct — an azimuth of 135° is in the SE quadrant.'',
- ''medium'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''latitude'',''computation'',''SE-quadrant'']),
+('A traverse line has an azimuth of 135°00′00″ and a distance of 200.00 ft. What is its latitude? Round to 2 decimal places.',
+ 'numeric_input',
+ '[]'::jsonb,
+ '-141.42',
+ 'Lat = 200.00 × cos(135°) = 200.00 × (−0.70711) = −141.42 ft. The negative sign indicates a southward component, which is correct — an azimuth of 135° is in the SE quadrant.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','latitude','computation','SE-quadrant']),
 
 -- Q6  Numeric Input  Medium
-(''The same traverse line (azimuth 135°, distance 200.00 ft) has a departure of what value? Round to 2 decimal places.'',
- ''numeric_input'',
- ''[]''::jsonb,
- ''141.42'',
- ''Dep = 200.00 × sin(135°) = 200.00 × 0.70711 = +141.42 ft. Positive departure means the line goes eastward.'',
- ''medium'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''departure'',''computation'']),
+('The same traverse line (azimuth 135°, distance 200.00 ft) has a departure of what value? Round to 2 decimal places.',
+ 'numeric_input',
+ '[]'::jsonb,
+ '141.42',
+ 'Dep = 200.00 × sin(135°) = 200.00 × 0.70711 = +141.42 ft. Positive departure means the line goes eastward.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','departure','computation']),
 
 -- Q7  Multiple Choice  Medium
-(''An azimuth of 228°45′00″ falls in which quadrant, and what is the equivalent bearing?'',
- ''multiple_choice'',
- ''["NE quadrant — N 48°45′00″ E","SE quadrant — S 48°45′00″ E","SW quadrant — S 48°45′00″ W","NW quadrant — N 48°45′00″ W"]''::jsonb,
- ''SW quadrant — S 48°45′00″ W'',
- ''Azimuths from 180° to 270° are in the SW quadrant. Bearing = S (azimuth − 180°) W = S (228°45′ − 180°) W = S 48°45′00″ W.'',
- ''medium'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''azimuth'',''bearing'',''quadrant-conversion'']),
+('An azimuth of 228°45′00″ falls in which quadrant, and what is the equivalent bearing?',
+ 'multiple_choice',
+ '["NE quadrant — N 48°45′00″ E","SE quadrant — S 48°45′00″ E","SW quadrant — S 48°45′00″ W","NW quadrant — N 48°45′00″ W"]'::jsonb,
+ 'SW quadrant — S 48°45′00″ W',
+ 'Azimuths from 180° to 270° are in the SW quadrant. Bearing = S (azimuth − 180°) W = S (228°45′ − 180°) W = S 48°45′00″ W.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','azimuth','bearing','quadrant-conversion']),
 
 -- Q8  Multiple Choice  Medium
-(''A 5-sided traverse has measured interior angles summing to 540°00′20″. Using equal distribution, the correction applied to each angle is:'',
- ''multiple_choice'',
- ''["+4″ to each angle","−4″ to each angle","+20″ to one angle","−20″ to one angle"]''::jsonb,
- ''−4″ to each angle'',
- ''Theoretical sum = (5−2)×180° = 540°. Misclosure = 540°00′20″ − 540°00′00″ = +20″. Correction per angle = −20″ / 5 = −4″. The correction has the opposite sign of the misclosure.'',
- ''medium'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''angle-balancing'',''equal-distribution'']),
+('A 5-sided traverse has measured interior angles summing to 540°00′20″. Using equal distribution, the correction applied to each angle is:',
+ 'multiple_choice',
+ '["+4″ to each angle","−4″ to each angle","+20″ to one angle","−20″ to one angle"]'::jsonb,
+ '−4″ to each angle',
+ 'Theoretical sum = (5−2)×180° = 540°. Misclosure = 540°00′20″ − 540°00′00″ = +20″. Correction per angle = −20″ / 5 = −4″. The correction has the opposite sign of the misclosure.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','angle-balancing','equal-distribution']),
 
 -- Q9  Numeric Input  Medium
-(''The azimuth from Station P to Station Q is 312°30′00″. What is the back azimuth (azimuth from Q to P)?'',
- ''numeric_input'',
- ''[]''::jsonb,
- ''132.5'',
- ''Back azimuth = forward azimuth − 180° = 312°30′ − 180° = 132°30′ = 132.5° (in decimal degrees). Since the forward azimuth was > 180°, we subtract 180°. If it had been < 180°, we would add 180°.'',
- ''medium'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''back-azimuth'',''computation'']),
+('The azimuth from Station P to Station Q is 312°30′00″. What is the back azimuth (azimuth from Q to P)?',
+ 'numeric_input',
+ '[]'::jsonb,
+ '132.5',
+ 'Back azimuth = forward azimuth − 180° = 312°30′ − 180° = 132°30′ = 132.5° (in decimal degrees). Since the forward azimuth was > 180°, we subtract 180°. If it had been < 180°, we would add 180°.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','back-azimuth','computation']),
 
 -- Q10  Numeric Input  Hard (Multi-step: lat/dep and closure)
-(''A traverse has the following latitude and departure sums: ΣLat = +0.12 ft, ΣDep = −0.16 ft, and a perimeter of 2,400 ft. What is the relative precision expressed as 1:X? Give X as a whole number.'',
- ''numeric_input'',
- ''[]''::jsonb,
- ''12000'',
- ''Linear error = √(0.12² + 0.16²) = √(0.0144 + 0.0256) = √0.0400 = 0.20 ft. Relative precision = Perimeter / Error = 2400 / 0.20 = 12,000. So the precision is 1:12,000, which meets the TBPELS minimum of 1:10,000.'',
- ''hard'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''linear-error'',''relative-precision'',''multi-step'']),
+('A traverse has the following latitude and departure sums: ΣLat = +0.12 ft, ΣDep = −0.16 ft, and a perimeter of 2,400 ft. What is the relative precision expressed as 1:X? Give X as a whole number.',
+ 'numeric_input',
+ '[]'::jsonb,
+ '12000',
+ 'Linear error = √(0.12² + 0.16²) = √(0.0144 + 0.0256) = √0.0400 = 0.20 ft. Relative precision = Perimeter / Error = 2400 / 0.20 = 12,000. So the precision is 1:12,000, which meets the TBPELS minimum of 1:10,000.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','linear-error','relative-precision','multi-step']),
 
 -- Q11  Numeric Input  Hard (Azimuth propagation)
-(''The azimuth from Station 1 to Station 2 is 65°20′00″. The balanced interior angle at Station 2 is 105°40′00″. Using the formula Az_forward = Az_back + 180° + interior_angle, what is the azimuth from Station 2 to Station 3? Give your answer in decimal degrees to 2 decimal places.'',
- ''numeric_input'',
- ''[]''::jsonb,
- ''351.00'',
- ''Az(2→3) = Az(1→2) + 180° + interior_angle_at_2 = 65°20′ + 180° + 105°40′ = 351°00′ = 351.00°. Since the result is less than 360°, no subtraction is needed.'',
- ''hard'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''azimuth-propagation'',''computation'']),
+('The azimuth from Station 1 to Station 2 is 65°20′00″. The balanced interior angle at Station 2 is 105°40′00″. Using the formula Az_forward = Az_back + 180° + interior_angle, what is the azimuth from Station 2 to Station 3? Give your answer in decimal degrees to 2 decimal places.',
+ 'numeric_input',
+ '[]'::jsonb,
+ '351.00',
+ 'Az(2→3) = Az(1→2) + 180° + interior_angle_at_2 = 65°20′ + 180° + 105°40′ = 351°00′ = 351.00°. Since the result is less than 360°, no subtraction is needed.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','azimuth-propagation','computation']),
 
 -- Q12  Numeric Input  Hard (Full lat/dep computation for one line)
-(''A traverse line runs from Station A to Station B with an azimuth of 247°18′00″ and a horizontal distance of 412.56 ft. Compute the departure of this line. Round to 2 decimal places.'',
- ''numeric_input'',
- ''[]''::jsonb,
- ''-380.12'',
- ''Dep = 412.56 × sin(247°18′) = 412.56 × sin(247.3°) = 412.56 × (−0.9214) = −380.12 ft. The negative departure indicates the line runs westward, which is expected for an azimuth in the SW quadrant (180°–270°).'',
- ''hard'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''departure'',''SW-quadrant'',''computation'']),
+('A traverse line runs from Station A to Station B with an azimuth of 247°18′00″ and a horizontal distance of 412.56 ft. Compute the departure of this line. Round to 2 decimal places.',
+ 'numeric_input',
+ '[]'::jsonb,
+ '-380.12',
+ 'Dep = 412.56 × sin(247°18′) = 412.56 × sin(247.3°) = 412.56 × (−0.9214) = −380.12 ft. The negative departure indicates the line runs westward, which is expected for an azimuth in the SW quadrant (180°–270°).',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','departure','SW-quadrant','computation']),
 
 -- Q13  Essay  Hard
-(''A surveyor completes a 6-sided closed loop traverse. The measured interior angles sum to 720°00′24″. The surveyor balances the angles, computes azimuths, and then computes latitudes and departures. The sums are ΣLat = −0.08 ft and ΣDep = +0.06 ft. The perimeter is 1,850 ft. (a) Show how the angles would be balanced using equal distribution. (b) Compute the linear error of closure. (c) Compute the relative precision. (d) Does this traverse meet TBPELS minimum standards for a boundary survey? Explain.'',
- ''essay'',
- ''[]''::jsonb,
- ''Key points: (a) Theoretical sum = (6−2)×180° = 720°. Misclosure = +24″. Correction per angle = −24/6 = −4″ per angle. Subtract 4″ from each measured angle. (b) Linear error = √(0.08² + 0.06²) = √(0.0064 + 0.0036) = √0.0100 = 0.10 ft. (c) Relative precision = 1:(1850/0.10) = 1:18,500. (d) Yes — TBPELS minimum for boundary surveys is 1:10,000. This traverse at 1:18,500 exceeds the minimum by a comfortable margin. It also meets the ALTA/NSPS standard of 1:15,000.'',
- ''A complete answer correctly balances angles (−4″ each), computes the linear error (0.10 ft), derives relative precision (1:18,500), and correctly compares to TBPELS (1:10,000) and optionally ALTA (1:15,000) standards with a clear pass/fail determination.'',
- ''hard'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''essay'',''angle-balancing'',''closure'',''precision'',''multi-step'']),
+('A surveyor completes a 6-sided closed loop traverse. The measured interior angles sum to 720°00′24″. The surveyor balances the angles, computes azimuths, and then computes latitudes and departures. The sums are ΣLat = −0.08 ft and ΣDep = +0.06 ft. The perimeter is 1,850 ft. (a) Show how the angles would be balanced using equal distribution. (b) Compute the linear error of closure. (c) Compute the relative precision. (d) Does this traverse meet TBPELS minimum standards for a boundary survey? Explain.',
+ 'essay',
+ '[]'::jsonb,
+ 'Key points: (a) Theoretical sum = (6−2)×180° = 720°. Misclosure = +24″. Correction per angle = −24/6 = −4″ per angle. Subtract 4″ from each measured angle. (b) Linear error = √(0.08² + 0.06²) = √(0.0064 + 0.0036) = √0.0100 = 0.10 ft. (c) Relative precision = 1:(1850/0.10) = 1:18,500. (d) Yes — TBPELS minimum for boundary surveys is 1:10,000. This traverse at 1:18,500 exceeds the minimum by a comfortable margin. It also meets the ALTA/NSPS standard of 1:15,000.',
+ 'A complete answer correctly balances angles (−4″ each), computes the linear error (0.10 ft), derives relative precision (1:18,500), and correctly compares to TBPELS (1:10,000) and optionally ALTA (1:15,000) standards with a clear pass/fail determination.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','essay','angle-balancing','closure','precision','multi-step']),
 
 -- Q14  Essay  Medium
-(''Explain the difference between an azimuth and a bearing. Convert the following azimuths to bearings: (a) 52°30′, (b) 168°15′, (c) 243°00′, (d) 315°45′. Then explain why Texas deed descriptions typically use bearings rather than azimuths.'',
- ''essay'',
- ''[]''::jsonb,
- ''Key points: An azimuth is measured clockwise from north, ranging 0°–360°. A bearing is measured from either N or S toward E or W, ranging 0°–90°. Conversions: (a) 52°30′ → N 52°30′ E (NE quadrant). (b) 168°15′ → S 11°45′ E (SE: 180−168.25=11.75°=11°45′). (c) 243°00′ → S 63°00′ W (SW: 243−180=63°). (d) 315°45′ → N 44°15′ W (NW: 360−315.75=44.25°=44°15′). Texas deeds use bearings because they explicitly indicate direction (N/S/E/W), making them more intuitive for non-surveyors reading legal descriptions, and they follow the traditional metes-and-bounds format inherited from English common law.'',
- ''A good answer clearly defines both terms, correctly converts all four examples, and explains the practical/legal reason for bearing usage in Texas deed descriptions.'',
- ''medium'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''quiz'',''essay'',''azimuth'',''bearing'',''conversion'',''legal-description'']);
+('Explain the difference between an azimuth and a bearing. Convert the following azimuths to bearings: (a) 52°30′, (b) 168°15′, (c) 243°00′, (d) 315°45′. Then explain why Texas deed descriptions typically use bearings rather than azimuths.',
+ 'essay',
+ '[]'::jsonb,
+ 'Key points: An azimuth is measured clockwise from north, ranging 0°–360°. A bearing is measured from either N or S toward E or W, ranging 0°–90°. Conversions: (a) 52°30′ → N 52°30′ E (NE quadrant). (b) 168°15′ → S 11°45′ E (SE: 180−168.25=11.75°=11°45′). (c) 243°00′ → S 63°00′ W (SW: 243−180=63°). (d) 315°45′ → N 44°15′ W (NW: 360−315.75=44.25°=44°15′). Texas deeds use bearings because they explicitly indicate direction (N/S/E/W), making them more intuitive for non-surveyors reading legal descriptions, and they follow the traditional metes-and-bounds format inherited from English common law.',
+ 'A good answer clearly defines both terms, correctly converts all four examples, and explains the practical/legal reason for bearing usage in Texas deed descriptions.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','quiz','essay','azimuth','bearing','conversion','legal-description']);
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -426,73 +426,73 @@ INSERT INTO question_bank
 VALUES
 
 -- Practice 1: Angle balancing
-(''Practice: A 4-sided traverse has measured interior angles of 89°15′08″, 91°42′16″, 88°30′24″, and 90°32′20″. (a) What is the angular misclosure? (b) Apply equal distribution to balance the angles. Give the correction per angle in seconds.'',
- ''numeric_input'', ''[]''::jsonb,
- ''-2'',
- ''Theoretical sum = (4−2)×180° = 360°. Measured sum: 89°15′08″ + 91°42′16″ + 88°30′24″ + 90°32′20″. Seconds: 8+16+24+20 = 68″ = 1′08″. Minutes: 15+42+30+32+1 = 120′ = 2°00′. Degrees: 89+91+88+90+2 = 360°. Total = 360°00′08″. Misclosure = +8″. Correction per angle = −8″/4 = −2″.'',
- ''medium'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''practice'',''angle-balancing'']),
+('Practice: A 4-sided traverse has measured interior angles of 89°15′08″, 91°42′16″, 88°30′24″, and 90°32′20″. (a) What is the angular misclosure? (b) Apply equal distribution to balance the angles. Give the correction per angle in seconds.',
+ 'numeric_input', '[]'::jsonb,
+ '-2',
+ 'Theoretical sum = (4−2)×180° = 360°. Measured sum: 89°15′08″ + 91°42′16″ + 88°30′24″ + 90°32′20″. Seconds: 8+16+24+20 = 68″ = 1′08″. Minutes: 15+42+30+32+1 = 120′ = 2°00′. Degrees: 89+91+88+90+2 = 360°. Total = 360°00′08″. Misclosure = +8″. Correction per angle = −8″/4 = −2″.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','practice','angle-balancing']),
 
 -- Practice 2: Azimuth to bearing
-(''Practice: Convert the following azimuth to a bearing: 297°14′30″.'',
- ''short_answer'', ''[]''::jsonb,
- ''N 62°45′30″ W'',
- ''Azimuth 297°14′30″ is in the NW quadrant (270°–360°). Bearing = N (360° − 297°14′30″) W = N 62°45′30″ W.'',
- ''easy'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''practice'',''bearing'',''conversion'']),
+('Practice: Convert the following azimuth to a bearing: 297°14′30″.',
+ 'short_answer', '[]'::jsonb,
+ 'N 62°45′30″ W',
+ 'Azimuth 297°14′30″ is in the NW quadrant (270°–360°). Bearing = N (360° − 297°14′30″) W = N 62°45′30″ W.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','practice','bearing','conversion']),
 
 -- Practice 3: Bearing to azimuth
-(''Practice: Convert the bearing S 37°22′00″ E to an azimuth.'',
- ''numeric_input'', ''[]''::jsonb,
- ''142.63'',
- ''S xx° E is in the SE quadrant. Azimuth = 180° − 37°22′ = 142°38′. In decimal: 142 + 38/60 = 142.633° ≈ 142.63°.'',
- ''easy'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''practice'',''azimuth'',''conversion'']),
+('Practice: Convert the bearing S 37°22′00″ E to an azimuth.',
+ 'numeric_input', '[]'::jsonb,
+ '142.63',
+ 'S xx° E is in the SE quadrant. Azimuth = 180° − 37°22′ = 142°38′. In decimal: 142 + 38/60 = 142.633° ≈ 142.63°.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','practice','azimuth','conversion']),
 
 -- Practice 4: Lat/dep for a single line
-(''Practice: A traverse line has an azimuth of 72°30′00″ and a distance of 185.64 ft. Compute (a) the latitude and (b) the departure. Round each to 2 decimal places. Give the latitude only.'',
- ''numeric_input'', ''[]''::jsonb,
- ''55.81'',
- ''Lat = 185.64 × cos(72°30′) = 185.64 × cos(72.5°) = 185.64 × 0.30071 = 55.81 ft (positive — northward). Dep = 185.64 × sin(72.5°) = 185.64 × 0.95372 = 177.04 ft (positive — eastward).'',
- ''medium'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''practice'',''latitude'',''departure'',''computation'']),
+('Practice: A traverse line has an azimuth of 72°30′00″ and a distance of 185.64 ft. Compute (a) the latitude and (b) the departure. Round each to 2 decimal places. Give the latitude only.',
+ 'numeric_input', '[]'::jsonb,
+ '55.81',
+ 'Lat = 185.64 × cos(72°30′) = 185.64 × cos(72.5°) = 185.64 × 0.30071 = 55.81 ft (positive — northward). Dep = 185.64 × sin(72.5°) = 185.64 × 0.95372 = 177.04 ft (positive — eastward).',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','practice','latitude','departure','computation']),
 
 -- Practice 5: Linear error of closure
-(''Practice: A closed traverse has ΣLat = −0.05 ft and ΣDep = +0.12 ft, with a total perimeter of 3,200 ft. (a) What is the linear error of closure? (b) What is the relative precision (as 1:X)? Give X as a whole number.'',
- ''numeric_input'', ''[]''::jsonb,
- ''24615'',
- ''Linear error = √(0.05² + 0.12²) = √(0.0025 + 0.0144) = √0.0169 = 0.13 ft. Relative precision = 3200 / 0.13 = 24,615. So the precision is 1:24,615.'',
- ''hard'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''practice'',''linear-error'',''relative-precision'',''word-problem'']),
+('Practice: A closed traverse has ΣLat = −0.05 ft and ΣDep = +0.12 ft, with a total perimeter of 3,200 ft. (a) What is the linear error of closure? (b) What is the relative precision (as 1:X)? Give X as a whole number.',
+ 'numeric_input', '[]'::jsonb,
+ '24615',
+ 'Linear error = √(0.05² + 0.12²) = √(0.0025 + 0.0144) = √0.0169 = 0.13 ft. Relative precision = 3200 / 0.13 = 24,615. So the precision is 1:24,615.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','practice','linear-error','relative-precision','word-problem']),
 
 -- Practice 6: Azimuth propagation
-(''Practice: The azimuth from Station A to Station B is 130°15′00″. The balanced interior angle at Station B is 78°50′00″. What is the azimuth from Station B to Station C? Use Az_forward = Az_previous + 180° + interior_angle (subtract 360° if needed). Give your answer in decimal degrees to 2 decimal places.'',
- ''numeric_input'', ''[]''::jsonb,
- ''29.08'',
- ''Az(B→C) = Az(A→B) + 180° + angle_at_B = 130°15′ + 180° + 78°50′ = 389°05′. Subtract 360°: 29°05′ = 29.083° ≈ 29.08°.'',
- ''hard'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''practice'',''azimuth-propagation'',''computation'']),
+('Practice: The azimuth from Station A to Station B is 130°15′00″. The balanced interior angle at Station B is 78°50′00″. What is the azimuth from Station B to Station C? Use Az_forward = Az_previous + 180° + interior_angle (subtract 360° if needed). Give your answer in decimal degrees to 2 decimal places.',
+ 'numeric_input', '[]'::jsonb,
+ '29.08',
+ 'Az(B→C) = Az(A→B) + 180° + angle_at_B = 130°15′ + 180° + 78°50′ = 389°05′. Subtract 360°: 29°05′ = 29.083° ≈ 29.08°.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','practice','azimuth-propagation','computation']),
 
 -- Practice 7: Multi-step word problem — complete lat/dep for two lines
-(''Practice: A 3-sided traverse (triangle) has the following data after angle balancing. Starting azimuth A→B = 40°00′00″. Interior angle at B = 120°00′00″. Distance B→C = 250.00 ft. (a) Compute the azimuth from B to C using Az_forward = Az_previous + 180° + interior_angle. (b) Compute the latitude of line B→C. Round latitude to 2 decimal places. Give the latitude only.'',
- ''numeric_input'', ''[]''::jsonb,
- ''234.92'',
- ''Az(B→C) = Az(A→B) + 180° + angle_at_B = 40° + 180° + 120° = 340°. Since 340° < 360°, no subtraction needed. Lat(B→C) = 250 × cos(340°) = 250 × 0.93969 = 234.92 ft. The positive latitude means the line goes northward, consistent with azimuth 340° being in the NW quadrant.'',
- ''hard'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''practice'',''azimuth-propagation'',''latitude'',''multi-step'']),
+('Practice: A 3-sided traverse (triangle) has the following data after angle balancing. Starting azimuth A→B = 40°00′00″. Interior angle at B = 120°00′00″. Distance B→C = 250.00 ft. (a) Compute the azimuth from B to C using Az_forward = Az_previous + 180° + interior_angle. (b) Compute the latitude of line B→C. Round latitude to 2 decimal places. Give the latitude only.',
+ 'numeric_input', '[]'::jsonb,
+ '234.92',
+ 'Az(B→C) = Az(A→B) + 180° + angle_at_B = 40° + 180° + 120° = 340°. Since 340° < 360°, no subtraction needed. Lat(B→C) = 250 × cos(340°) = 250 × 0.93969 = 234.92 ft. The positive latitude means the line goes northward, consistent with azimuth 340° being in the NW quadrant.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','practice','azimuth-propagation','latitude','multi-step']),
 
 -- Practice 8: Essay — full workflow
-(''Practice: Describe the complete workflow for computing latitudes and departures from raw traverse field data. Your answer should cover: (a) angle balancing — what it is, why it is necessary, and how corrections are distributed; (b) azimuth propagation — the formula used and the closure check; (c) latitude and departure formulas with sign conventions; (d) how to compute the linear error of closure and relative precision; (e) what to do if the relative precision does not meet the required accuracy standard.'',
- ''essay'', ''[]''::jsonb,
- ''Key points: (a) Angular misclosure = measured sum − (n−2)×180°. Must be within tolerance before proceeding. Equal distribution: correction = −misclosure/n applied to each angle. (b) Az_forward = Az_back + 180° + interior_angle; subtract 360° if >360°. Closure check: final computed azimuth must match starting azimuth. (c) Lat = D × cos(Az), Dep = D × sin(Az). Positive lat = north, negative = south; positive dep = east, negative = west. (d) Linear error = √(ΣLat² + ΣDep²). Relative precision = 1:(Perimeter/Error). (e) If precision is insufficient, review field data for blunders (large residuals on specific legs), check for recording errors, and re-measure suspect distances or angles. Do not proceed to adjustment until the raw traverse meets the minimum precision standard.'',
- ''A thorough answer covers all five parts with correct formulas and logical reasoning. Strong answers include the sign convention table, mention the azimuth closure check, and discuss blunder hunting for failed precision checks.'',
- ''medium'',
- ''acc00003-0000-0000-0000-000000000003'', ''acc03b04-0000-0000-0000-000000000001'',
- ''ACC-1341'', ARRAY[''acc-srvy-1341'',''week-4'',''practice'',''essay'',''workflow'',''lat-dep'',''comprehensive'']);
+('Practice: Describe the complete workflow for computing latitudes and departures from raw traverse field data. Your answer should cover: (a) angle balancing — what it is, why it is necessary, and how corrections are distributed; (b) azimuth propagation — the formula used and the closure check; (c) latitude and departure formulas with sign conventions; (d) how to compute the linear error of closure and relative precision; (e) what to do if the relative precision does not meet the required accuracy standard.',
+ 'essay', '[]'::jsonb,
+ 'Key points: (a) Angular misclosure = measured sum − (n−2)×180°. Must be within tolerance before proceeding. Equal distribution: correction = −misclosure/n applied to each angle. (b) Az_forward = Az_back + 180° + interior_angle; subtract 360° if >360°. Closure check: final computed azimuth must match starting azimuth. (c) Lat = D × cos(Az), Dep = D × sin(Az). Positive lat = north, negative = south; positive dep = east, negative = west. (d) Linear error = √(ΣLat² + ΣDep²). Relative precision = 1:(Perimeter/Error). (e) If precision is insufficient, review field data for blunders (large residuals on specific legs), check for recording errors, and re-measure suspect distances or angles. Do not proceed to adjustment until the raw traverse meets the minimum precision standard.',
+ 'A thorough answer covers all five parts with correct formulas and logical reasoning. Strong answers include the sign convention table, mention the azimuth closure check, and discuss blunder hunting for failed precision checks.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b04-0000-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-4','practice','essay','workflow','lat-dep','comprehensive']);
