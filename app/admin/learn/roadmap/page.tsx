@@ -229,7 +229,7 @@ export default function RoadmapPage() {
               >
                 <div className="roadmap__part-left">
                   <span className={`roadmap__part-chevron ${isExpanded ? 'roadmap__part-chevron--open' : ''}`}>&#x276F;</span>
-                  <span className="roadmap__part-icon">{partMilestone?.icon || '&#x1F4D8;'}</span>
+                  <span className="roadmap__part-icon">{partMilestone?.icon || '\u{1F4D8}'}</span>
                   <div>
                     <div className="roadmap__part-title">{part.title}</div>
                     <div className="roadmap__part-meta">
