@@ -42,6 +42,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     module_id = null,
     lesson_id = null,
     exam_category = null,
+    topic_id = null,
+    study_references = [],
+    tags = [],
   } = body;
 
   if (!question_text || !correct_answer) {
@@ -58,6 +61,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     module_id,
     lesson_id,
     exam_category,
+    topic_id: topic_id || null,
+    study_references: study_references || [],
+    tags: tags || [],
   }).select().single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

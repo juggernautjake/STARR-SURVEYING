@@ -17,6 +17,12 @@ interface Question {
   _blank_count?: number;
 }
 
+interface StudyReference {
+  type: 'topic' | 'lesson' | 'module';
+  id: string;
+  label: string;
+}
+
 interface GradedResult {
   question_id: string;
   user_answer: string;
@@ -26,6 +32,7 @@ interface GradedResult {
   partial_score?: number;
   blank_results?: boolean[];
   correct_answers?: string[];
+  study_references?: StudyReference[];
   ai_feedback?: {
     score: number;
     max_points: number;
@@ -208,6 +215,41 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
           </p>
         </div>
 
+        {/* Areas to Review summary — deduplicated study references from all missed questions */}
+        {(() => {
+          const allRefs = new Map<string, { type: string; id: string; label: string }>();
+          results.results.filter(r => !r.is_correct && r.study_references).forEach(r => {
+            r.study_references!.forEach(ref => {
+              if (!allRefs.has(ref.id)) allRefs.set(ref.id, ref);
+            });
+          });
+          if (allRefs.size === 0) return null;
+          return (
+            <div className="quiz-results__review-summary">
+              <h3 className="quiz-results__review-title">{'\u{1F4DA}'} Areas to Review</h3>
+              <p className="quiz-results__review-desc">Based on the questions you missed, we recommend reviewing these topics:</p>
+              <div className="quiz-results__review-links">
+                {[...allRefs.values()].map((ref, i) => {
+                  let href = '';
+                  if (ref.type === 'topic' && moduleId && lessonId) {
+                    href = `/admin/learn/modules/${moduleId}/${lessonId}#topic-${ref.id}`;
+                  } else if (ref.type === 'lesson' && moduleId) {
+                    href = `/admin/learn/modules/${moduleId}/${ref.id}`;
+                  } else if (ref.type === 'module') {
+                    href = `/admin/learn/modules/${ref.id}`;
+                  }
+                  return (
+                    <a key={i} href={href} className="quiz-results__review-link">
+                      {ref.type === 'topic' ? '\u{1F4CC}' : ref.type === 'lesson' ? '\u{1F4D6}' : '\u{1F4DA}'}{' '}
+                      {ref.label}
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
         <div className="quiz-results__questions">
           {questions.map((q, i) => {
             const r = results.results.find(r => r.question_id === q.id);
@@ -288,6 +330,30 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
                   </div>
                 )}
                 {r?.explanation && !r?.ai_feedback && <p className="quiz-results__explanation">{r.explanation}</p>}
+                {/* Study Recommendations for missed questions */}
+                {!r?.is_correct && r?.study_references && r.study_references.length > 0 && (
+                  <div className="quiz-results__study-refs">
+                    <h5 className="quiz-results__study-refs-title">{'\u{1F4DA}'} Recommended Study Material</h5>
+                    <div className="quiz-results__study-refs-list">
+                      {r.study_references.map((ref, ri) => {
+                        let href = '';
+                        if (ref.type === 'topic' && moduleId && lessonId) {
+                          href = `/admin/learn/modules/${moduleId}/${lessonId}#topic-${ref.id}`;
+                        } else if (ref.type === 'lesson' && moduleId) {
+                          href = `/admin/learn/modules/${moduleId}/${ref.id}`;
+                        } else if (ref.type === 'module') {
+                          href = `/admin/learn/modules/${ref.id}`;
+                        }
+                        return (
+                          <a key={ri} href={href} className="quiz-results__study-ref-link">
+                            {ref.type === 'topic' ? '\u{1F4CC}' : ref.type === 'lesson' ? '\u{1F4D6}' : '\u{1F4DA}'}{' '}
+                            {ref.label}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}

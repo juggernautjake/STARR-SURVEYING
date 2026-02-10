@@ -12,6 +12,8 @@ type QType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 
 
 interface Module { id: string; title: string; }
 interface Lesson { id: string; title: string; module_id: string; }
+interface Topic { id: string; title: string; lesson_id: string; }
+interface StudyRef { type: 'topic' | 'lesson' | 'module'; id: string; label: string; }
 interface Question {
   id: string;
   question_text: string;
@@ -23,6 +25,8 @@ interface Question {
   module_id: string | null;
   lesson_id: string | null;
   exam_category: string | null;
+  topic_id: string | null;
+  study_references: StudyRef[];
   tags: string[];
 }
 
@@ -52,6 +56,10 @@ export default function QuestionBuilderPage() {
   const [moduleId, setModuleId] = useState('');
   const [lessonId, setLessonId] = useState('');
   const [examCategory, setExamCategory] = useState('');
+  const [topicId, setTopicId] = useState('');
+  const [studyRefs, setStudyRefs] = useState<StudyRef[]>([]);
+  const [tagInput, setTagInput] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
 
   // Fill blank specifics
   const [fillSource, setFillSource] = useState('');
@@ -65,6 +73,7 @@ export default function QuestionBuilderPage() {
   // Data
   const [modules, setModules] = useState<Module[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -79,6 +88,16 @@ export default function QuestionBuilderPage() {
     loadQuestions();
   }, []);
 
+  // Fetch topics when lesson changes
+  useEffect(() => {
+    if (lessonId) {
+      loadTopics(lessonId);
+    } else {
+      setTopics([]);
+      setTopicId('');
+    }
+  }, [lessonId]);
+
   async function loadModulesAndLessons() {
     try {
       const [modRes, lesRes] = await Promise.all([
@@ -88,6 +107,13 @@ export default function QuestionBuilderPage() {
       if (modRes.ok) { const d = await modRes.json(); setModules(d.modules || []); }
       if (lesRes.ok) { const d = await lesRes.json(); setLessons(d.lessons || []); }
     } catch (err) { console.error('QuestionBuilderPage: failed to load modules/lessons', err); }
+  }
+
+  async function loadTopics(lid: string) {
+    try {
+      const res = await fetch(`/api/admin/learn/topics?lessonId=${lid}`);
+      if (res.ok) { const d = await res.json(); setTopics(d.topics || []); }
+    } catch { setTopics([]); }
   }
 
   async function loadQuestions() {
@@ -101,6 +127,7 @@ export default function QuestionBuilderPage() {
     setQuestionText(''); setOptions(['', '']); setCorrectAnswer('');
     setCorrectAnswers([]); setExplanation(''); setDifficulty('medium');
     setModuleId(''); setLessonId(''); setExamCategory('');
+    setTopicId(''); setStudyRefs([]); setTags([]); setTagInput('');
     setFillSource(''); setDistractors([]); setNewDistractor('');
     setFormula(''); setTestResult(null); setEditId(null);
     setShowPreview(false); setPreviewBlanks([]);
@@ -114,6 +141,9 @@ export default function QuestionBuilderPage() {
     setModuleId(q.module_id || '');
     setLessonId(q.lesson_id || '');
     setExamCategory(q.exam_category || '');
+    setTopicId(q.topic_id || '');
+    setStudyRefs(q.study_references || []);
+    setTags(q.tags || []);
     setEditId(q.id);
     setShowPreview(false);
 
@@ -209,6 +239,9 @@ export default function QuestionBuilderPage() {
         module_id: moduleId || null,
         lesson_id: lessonId || null,
         exam_category: examCategory || null,
+        topic_id: topicId || null,
+        study_references: studyRefs,
+        tags,
       };
 
       if (qType === 'fill_blank') {
@@ -526,11 +559,11 @@ export default function QuestionBuilderPage() {
               <option value="medium">Medium</option>
               <option value="hard">Hard</option>
             </select>
-            <select className="qb__select" value={moduleId} onChange={e => { setModuleId(e.target.value); setLessonId(''); }}>
+            <select className="qb__select" value={moduleId} onChange={e => { setModuleId(e.target.value); setLessonId(''); setTopicId(''); }}>
               <option value="">Module (optional)</option>
               {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
             </select>
-            <select className="qb__select" value={lessonId} onChange={e => setLessonId(e.target.value)}>
+            <select className="qb__select" value={lessonId} onChange={e => { setLessonId(e.target.value); setTopicId(''); }}>
               <option value="">Lesson (optional)</option>
               {filteredLessons.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
             </select>
@@ -539,6 +572,136 @@ export default function QuestionBuilderPage() {
               <option value="SIT">SIT</option>
               <option value="RPLS">RPLS</option>
             </select>
+          </div>
+
+          {/* Topic Selector */}
+          {lessonId && topics.length > 0 && (
+            <div className="qb__topic-row">
+              <label className="qb__label">Topic</label>
+              <select className="qb__select" value={topicId} onChange={e => setTopicId(e.target.value)}>
+                <option value="">No specific topic</option>
+                {topics.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Study References */}
+          <div className="qb__study-refs">
+            <label className="qb__label">Study References (recommended material when student misses this question)</label>
+            {studyRefs.length > 0 && (
+              <div className="qb__study-refs-list">
+                {studyRefs.map((ref, i) => (
+                  <div key={i} className="qb__study-ref-item">
+                    <span className="qb__study-ref-badge">{ref.type}</span>
+                    <span className="qb__study-ref-label">{ref.label}</span>
+                    <button className="qb__study-ref-remove" onClick={() => setStudyRefs(studyRefs.filter((_, j) => j !== i))}>&times;</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="qb__study-refs-add">
+              {/* Quick-add from current topic */}
+              {topicId && topics.length > 0 && (
+                <button
+                  className="admin-btn admin-btn--ghost admin-btn--sm"
+                  onClick={() => {
+                    const topic = topics.find(t => t.id === topicId);
+                    if (topic && !studyRefs.some(r => r.id === topic.id)) {
+                      setStudyRefs([...studyRefs, { type: 'topic', id: topic.id, label: topic.title }]);
+                    }
+                  }}
+                >
+                  + Add Current Topic
+                </button>
+              )}
+              {/* Add any topic from current lesson */}
+              {lessonId && topics.length > 0 && (
+                <select
+                  className="qb__select qb__select--sm"
+                  value=""
+                  onChange={e => {
+                    const t = topics.find(t => t.id === e.target.value);
+                    if (t && !studyRefs.some(r => r.id === t.id)) {
+                      setStudyRefs([...studyRefs, { type: 'topic', id: t.id, label: t.title }]);
+                    }
+                  }}
+                >
+                  <option value="">+ Add topic from lesson...</option>
+                  {topics.filter(t => !studyRefs.some(r => r.id === t.id)).map(t => (
+                    <option key={t.id} value={t.id}>{t.title}</option>
+                  ))}
+                </select>
+              )}
+              {/* Add current lesson as study ref */}
+              {lessonId && (
+                <button
+                  className="admin-btn admin-btn--ghost admin-btn--sm"
+                  onClick={() => {
+                    const les = lessons.find(l => l.id === lessonId);
+                    if (les && !studyRefs.some(r => r.id === les.id)) {
+                      setStudyRefs([...studyRefs, { type: 'lesson', id: les.id, label: les.title }]);
+                    }
+                  }}
+                >
+                  + Add Current Lesson
+                </button>
+              )}
+              {/* Add current module as study ref */}
+              {moduleId && (
+                <button
+                  className="admin-btn admin-btn--ghost admin-btn--sm"
+                  onClick={() => {
+                    const mod = modules.find(m => m.id === moduleId);
+                    if (mod && !studyRefs.some(r => r.id === mod.id)) {
+                      setStudyRefs([...studyRefs, { type: 'module', id: mod.id, label: mod.title }]);
+                    }
+                  }}
+                >
+                  + Add Current Module
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div className="qb__tags-section">
+            <label className="qb__label">Tags (optional)</label>
+            {tags.length > 0 && (
+              <div className="qb__tags-list">
+                {tags.map((tag, i) => (
+                  <span key={i} className="qb__tag-item">
+                    {tag}
+                    <button onClick={() => setTags(tags.filter((_, j) => j !== i))}>&times;</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="qb__tag-add">
+              <input
+                className="qb__input qb__input--sm"
+                placeholder="Add tag..."
+                value={tagInput}
+                onChange={e => setTagInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && tagInput.trim()) {
+                    e.preventDefault();
+                    if (!tags.includes(tagInput.trim())) setTags([...tags, tagInput.trim()]);
+                    setTagInput('');
+                  }
+                }}
+              />
+              <button
+                className="admin-btn admin-btn--ghost admin-btn--sm"
+                onClick={() => {
+                  if (tagInput.trim() && !tags.includes(tagInput.trim())) {
+                    setTags([...tags, tagInput.trim()]);
+                    setTagInput('');
+                  }
+                }}
+              >
+                Add
+              </button>
+            </div>
           </div>
         </div>
 
@@ -573,6 +736,12 @@ export default function QuestionBuilderPage() {
                   <span className="qb__bank-type">{TYPE_INFO[q.question_type]?.label || q.question_type}</span>
                   <span className={`qb__bank-diff qb__bank-diff--${q.difficulty}`}>{q.difficulty}</span>
                   {q.exam_category && <span className="qb__bank-exam">{q.exam_category}</span>}
+                  {q.study_references && q.study_references.length > 0 && (
+                    <span className="qb__bank-refs">{'\u{1F4DA}'} {q.study_references.length} ref{q.study_references.length !== 1 ? 's' : ''}</span>
+                  )}
+                  {q.tags && q.tags.length > 0 && (
+                    <span className="qb__bank-tags">{q.tags.join(', ')}</span>
+                  )}
                 </div>
                 <p className="qb__bank-text">{q.question_text.substring(0, 150)}{q.question_text.length > 150 ? '...' : ''}</p>
                 {q.question_type !== 'fill_blank' && q.question_type !== 'math_template' && (

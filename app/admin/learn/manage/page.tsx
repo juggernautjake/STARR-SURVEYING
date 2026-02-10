@@ -12,7 +12,7 @@ type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp
 interface Module { id: string; title: string; status: string; order_index: number; description: string; difficulty: string; estimated_hours: number; lesson_count?: number; xp_value?: number; expiry_months?: number; }
 interface XPModuleConfig { id: string; title: string; difficulty?: string; order_index?: number; module_number?: number; module_type: string; xp_value: number; expiry_months: number; difficulty_rating: number; has_custom_xp: boolean; config_id: string | null; }
 interface Lesson { id: string; title: string; module_id: string; order_index: number; status: string; estimated_minutes: number; module_title?: string; }
-interface Article { id: string; title: string; slug: string; category: string; status: string; }
+interface Article { id: string; title: string; slug: string; category: string; status: string; author?: string; subtitle?: string; estimated_minutes?: number; excerpt?: string; }
 interface Question { id: string; question_text: string; question_type: string; module_id?: string; lesson_id?: string; exam_category?: string; difficulty: string; correct_answer: string; options: any; explanation?: string; }
 interface Flashcard { id: string; term: string; definition: string; hint_1?: string; }
 interface Assignment { id: string; assigned_to: string; assigned_by: string; module_id?: string; lesson_id?: string; unlock_next: boolean; status: string; due_date?: string; notes?: string; created_at: string; completed_at?: string; module_title?: string; lesson_title?: string; }
@@ -166,6 +166,9 @@ export default function ManageContentPage() {
             slug: formData.slug || formData.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'new-article',
             category: formData.category || 'General',
             excerpt: formData.excerpt || '',
+            author: formData.author || '',
+            subtitle: formData.subtitle || '',
+            estimated_minutes: Number(formData.estimated_minutes) || 10,
             status: formData.status || 'draft',
           };
           break;
@@ -549,7 +552,7 @@ export default function ManageContentPage() {
             <>
               <input className="manage__form-input" placeholder="Module title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
               <textarea className="manage__form-textarea" placeholder="Description" rows={2} value={formData.description || ''} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} />
-              <div style={{ display: 'flex', gap: '.75rem' }}>
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <select className="manage__form-input" value={formData.difficulty || 'beginner'} onChange={e => setFormData(p => ({ ...p, difficulty: e.target.value }))}>
                   <option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option>
                 </select>
@@ -567,7 +570,7 @@ export default function ManageContentPage() {
                 {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
               </select>
               <input className="manage__form-input" placeholder="Lesson title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
-              <div style={{ display: 'flex', gap: '.75rem' }}>
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <input className="manage__form-input" type="number" placeholder="Order index" value={formData.order_index || ''} onChange={e => setFormData(p => ({ ...p, order_index: e.target.value }))} />
                 <input className="manage__form-input" type="number" placeholder="Est. minutes" value={formData.estimated_minutes || ''} onChange={e => setFormData(p => ({ ...p, estimated_minutes: e.target.value }))} />
                 <select className="manage__form-input" value={formData.status || 'draft'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
@@ -580,16 +583,26 @@ export default function ManageContentPage() {
           {tab === 'articles' && (
             <>
               <input className="manage__form-input" placeholder="Article title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
-              <input className="manage__form-input" placeholder="URL slug" value={formData.slug || ''} onChange={e => setFormData(p => ({ ...p, slug: e.target.value }))} />
-              <input className="manage__form-input" placeholder="Category" value={formData.category || ''} onChange={e => setFormData(p => ({ ...p, category: e.target.value }))} />
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+                <input className="manage__form-input" style={{ flex: 1 }} placeholder="Author" value={formData.author || ''} onChange={e => setFormData(p => ({ ...p, author: e.target.value }))} />
+                <input className="manage__form-input" style={{ flex: 1 }} placeholder="Subtitle" value={formData.subtitle || ''} onChange={e => setFormData(p => ({ ...p, subtitle: e.target.value }))} />
+              </div>
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+                <input className="manage__form-input" style={{ flex: 1 }} placeholder="URL slug" value={formData.slug || ''} onChange={e => setFormData(p => ({ ...p, slug: e.target.value }))} />
+                <input className="manage__form-input" style={{ flex: 1 }} placeholder="Category" value={formData.category || ''} onChange={e => setFormData(p => ({ ...p, category: e.target.value }))} />
+                <input className="manage__form-input" style={{ width: '100px' }} type="number" placeholder="Minutes" value={formData.estimated_minutes || ''} onChange={e => setFormData(p => ({ ...p, estimated_minutes: e.target.value }))} />
+                <select className="manage__form-input" style={{ width: '120px' }} value={formData.status || 'draft'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
+                  <option value="draft">Draft</option><option value="published">Published</option>
+                </select>
+              </div>
               <input className="manage__form-input" placeholder="Short excerpt" value={formData.excerpt || ''} onChange={e => setFormData(p => ({ ...p, excerpt: e.target.value }))} />
-              <textarea className="manage__form-textarea" placeholder="HTML content" rows={6} value={formData.content || ''} onChange={e => setFormData(p => ({ ...p, content: e.target.value }))} />
+              <p style={{ fontSize: '.78rem', color: '#6B7280' }}>Use the Article Editor to add rich content after creating the article.</p>
             </>
           )}
           {tab === 'questions' && (
             <>
               <textarea className="manage__form-textarea" placeholder="Question text *" rows={2} value={formData.question_text || ''} onChange={e => setFormData(p => ({ ...p, question_text: e.target.value }))} />
-              <div style={{ display: 'flex', gap: '.75rem' }}>
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <select className="manage__form-input" value={formData.question_type || 'multiple_choice'} onChange={e => setFormData(p => ({ ...p, question_type: e.target.value }))}>
                   <option value="multiple_choice">Multiple Choice</option>
                   <option value="true_false">True/False</option>
@@ -602,7 +615,7 @@ export default function ManageContentPage() {
               <input className="manage__form-input" placeholder="Options (pipe-separated, e.g. Option A|Option B|Option C)" value={formData.options || ''} onChange={e => setFormData(p => ({ ...p, options: e.target.value }))} />
               <input className="manage__form-input" placeholder="Correct answer *" value={formData.correct_answer || ''} onChange={e => setFormData(p => ({ ...p, correct_answer: e.target.value }))} />
               <textarea className="manage__form-textarea" placeholder="Explanation" rows={2} value={formData.explanation || ''} onChange={e => setFormData(p => ({ ...p, explanation: e.target.value }))} />
-              <div style={{ display: 'flex', gap: '.75rem' }}>
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <select className="manage__form-input" value={formData.module_id || ''} onChange={e => setFormData(p => ({ ...p, module_id: e.target.value }))}>
                   <option value="">Module (optional)</option>
                   {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
@@ -647,7 +660,7 @@ export default function ManageContentPage() {
                       </label>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem', flexWrap: 'wrap' }}>
                     <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveModule} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingModuleId(null); setEditModule({}); }}>Cancel</button>
                     <Link href={`/admin/learn/modules/${m.id}`} className="manage__item-btn" style={{ marginLeft: 'auto' }}>View</Link>
@@ -701,11 +714,17 @@ export default function ManageContentPage() {
                 <div className="manage__item-title">{a.title}</div>
                 <div className="manage__item-meta">
                   <span className={`manage__status manage__status--${a.status}`}>{a.status}</span>
-                  {' '}{a.category} &middot; /{a.slug}
+                  {' '}{a.category || 'Uncategorized'}
+                  {a.author && ` \u00B7 ${a.author}`}
+                  {a.estimated_minutes && ` \u00B7 ${a.estimated_minutes} min`}
+                  {' \u00B7 '}/{a.slug}
                 </div>
               </div>
               <div className="manage__item-actions">
-                <Link href={`/admin/learn/knowledge-base/${a.slug}`} className="manage__item-btn">View</Link>
+                <Link href={`/admin/learn/manage/article-editor/${a.id}`} className="manage__item-btn manage__item-btn--primary">
+                  Edit
+                </Link>
+                <Link href={`/admin/learn/articles/${a.id}`} className="manage__item-btn">View</Link>
                 <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('article', a.id, a.title)}>Delete</button>
               </div>
             </div>

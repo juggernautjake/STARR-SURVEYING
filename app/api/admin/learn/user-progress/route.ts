@@ -285,9 +285,28 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     let videos: any[] = [];
     try { resources = typeof lesson?.resources === 'string' ? JSON.parse(lesson.resources) : (lesson?.resources || []); } catch { resources = []; }
     try { videos = typeof lesson?.videos === 'string' ? JSON.parse(lesson.videos) : (lesson?.videos || []); } catch { videos = []; }
-    const totalRequired = resources.length + videos.length;
+
+    // Check required articles
+    const { data: requiredArticles } = await supabaseAdmin
+      .from('lesson_required_articles')
+      .select('article_id')
+      .eq('lesson_id', lesson_id);
+    let articlesRequired = 0;
+    let articlesCompleted = 0;
+    if (requiredArticles && requiredArticles.length > 0) {
+      articlesRequired = requiredArticles.length;
+      const articleIds = requiredArticles.map((r: any) => r.article_id);
+      const { data: completions } = await supabaseAdmin
+        .from('user_article_completions')
+        .select('article_id')
+        .eq('user_email', userEmail)
+        .in('article_id', articleIds);
+      articlesCompleted = completions?.length || 0;
+    }
+
+    const totalRequired = resources.length + videos.length + articlesRequired;
     const interactions: Record<string, boolean> = progress?.content_interactions || {};
-    const completedCount = Object.keys(interactions).filter(k => interactions[k] === true).length;
+    const completedCount = Object.keys(interactions).filter(k => interactions[k] === true).length + articlesCompleted;
 
     const unlocked = totalRequired === 0 || completedCount >= totalRequired;
 

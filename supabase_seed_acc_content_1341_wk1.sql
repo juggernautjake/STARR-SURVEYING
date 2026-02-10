@@ -1,183 +1,203 @@
 -- ============================================================================
--- ACC SRVY 1341 — Week 1: Course Introduction & SRVY 1301 Review
--- Full lesson content, topics, quiz questions (14), and practice problems
--- Module ID: acc00003-0000-0000-0000-000000000003
--- Lesson ID: acc03b01-0000-0000-0000-000000000001
+-- SRVY 1341 — Week 1: Distance Measurement — Chaining & Tape Corrections
+-- ============================================================================
+-- Based on lecture slides: chain/tape measurement procedures and
+-- correction formulas (temperature, tension, sag).
+--
+-- Lesson UUID: acc03b01-0000-0000-0000-000000000001 (order_index 1)
+-- Module UUID: acc00003-0000-0000-0000-000000000003
+--
+-- Topic UUIDs:
+--   acc03a01-0001  Chain/Tape Measurement Principles
+--   acc03a01-0002  Temperature Correction
+--   acc03a01-0003  Tension (Pull) Correction
+--   acc03a01-0004  Sag Correction
+--   acc03a01-0005  Applying Multiple Corrections
+--
+-- Run AFTER supabase_seed_acc_courses.sql and supabase_seed_acc_content_1341_wk0.sql
+-- Safe to re-run.
 -- ============================================================================
 
+BEGIN;
+
 -- ────────────────────────────────────────────────────────────────────────────
--- 1. UPDATE LESSON CONTENT
+-- 1. LESSON CONTENT (rich HTML)
 -- ────────────────────────────────────────────────────────────────────────────
 
-UPDATE learning_lessons SET content = '
-<h2>Welcome to SRVY 1341 — Land Surveying</h2>
+UPDATE learning_lessons SET
 
-<p>SRVY 1341 builds directly on the foundations you established in SRVY 1301: Introduction to Surveying. Where 1301 introduced the tools and basic techniques of the profession, this course focuses on the <strong>computational and analytical methods</strong> that transform raw field measurements into reliable coordinates, boundaries, and legal descriptions. Over the next 16 weeks you will master traverse computations, coordinate geometry, area calculations, boundary analysis, and adjustment techniques that every practicing land surveyor in Texas must know.</p>
+title = 'Week 1: Distance Measurement — Chaining & Tape Corrections',
 
-<p>This first week serves two purposes: (1) orient you to the course structure, grading, and expectations, and (2) provide a thorough review of the SRVY 1301 concepts you will apply every week going forward. If any of these review topics feel rusty, now is the time to shore them up — every computation in this course depends on a solid grasp of measurement theory, leveling, distance measurement, and angular relationships.</p>
+description = 'Field procedures for measuring with a steel chain or tape, and the three systematic corrections every surveyor must apply: temperature, tension, and sag. Includes the standard correction formulas, worked examples, and practice problems.',
 
-<h2>Course Structure and Objectives</h2>
+learning_objectives = ARRAY[
+  'Describe proper chain/tape measurement procedure including correct tension and forward/back measurement',
+  'Apply the temperature correction formula Ct = 0.00000645 × (TF − 68) × L',
+  'Apply the tension correction formula Cp = (P − Ps) × L / (A × E)',
+  'Apply the sag correction formula Cs = −w² × L³ / (24 × P²)',
+  'Determine the sign of each correction and explain its physical cause',
+  'Compute corrected distances by combining all applicable corrections'
+],
 
-<p>SRVY 1341 is the lecture companion to SRVY 1335 (Lab). While 1335 puts instruments in your hands, 1341 gives you the mathematical framework to <em>process, adjust, and verify</em> the data you collect. The major topic blocks are:</p>
+content = '
+<h2>Week 1: Distance Measurement — Chaining &amp; Tape Corrections</h2>
 
-<table>
-<thead><tr><th>Weeks</th><th>Topic Block</th><th>Key Skills</th></tr></thead>
-<tbody>
-<tr><td>1</td><td>Review &amp; Orientation</td><td>Measurement theory, leveling, angles, distances</td></tr>
-<tr><td>2–3</td><td>Traverse Types &amp; Field Procedures</td><td>Open/closed traverses, angle methods, field checks</td></tr>
-<tr><td>4–7</td><td>Traverse Computations &amp; Adjustment</td><td>Lat/dep, closure, compass rule, transit rule, coordinates</td></tr>
-<tr><td>8</td><td>Midterm Exam</td><td>Weeks 1–7 comprehensive</td></tr>
-<tr><td>9–10</td><td>Coordinate Geometry &amp; Areas</td><td>Inverse, intersection, coordinate area, DMD</td></tr>
-<tr><td>11–12</td><td>Boundary Surveying</td><td>Evidence, priority of calls, retracement, lost corners</td></tr>
-<tr><td>13–14</td><td>Subdivisions, Curves &amp; Software</td><td>Platting, horizontal curves, COGO, spreadsheets</td></tr>
-<tr><td>15</td><td>Standards &amp; Professional Practice</td><td>TBPELS rules, ALTA/NSPS standards, ethics</td></tr>
-<tr><td>16</td><td>Final Exam</td><td>Comprehensive</td></tr>
-</tbody>
-</table>
+<p>Accurate distance measurement is the foundation of every survey. Before electronic distance measurement (EDM) became standard, all distances were measured with <strong>steel chains</strong> or <strong>steel tapes</strong> — and even today, tape measurement remains a critical skill tested on licensing exams and used in short-range field checks.</p>
 
-<p><strong>Grading breakdown (typical):</strong> Homework 25 %, Quizzes 15 %, Midterm 25 %, Final 35 %. Your instructor may adjust these weights — always refer to the official syllabus.</p>
+<p>A steel surveying tape is typically 100 feet or 30 meters long. It is manufactured to be exactly that length under <strong>standard conditions</strong>: a temperature of <strong>68°F (20°C)</strong>, a pull of <strong>10 to 20 pounds</strong> (depending on the tape), and full support along its length (no sag). When field conditions differ from these standards, the tape physically changes length, and the surveyor must apply <strong>corrections</strong> to obtain the true distance.</p>
 
-<h2>Review: Measurement Theory</h2>
+<h3>Measuring with a Chain/Tape — Proper Procedure</h3>
 
-<p>Every number a surveyor records is an <strong>observation</strong>, not an absolute truth. Understanding how errors behave is critical to knowing when your work is good enough — and when it is not.</p>
+<p>The fundamental rules of chain measurement have not changed in centuries:</p>
 
-<h3>Types of Errors</h3>
-<ul>
-<li><strong>Systematic errors</strong> — follow a predictable pattern and can be corrected. Examples: a steel tape that is 0.02 ft too long, an instrument whose vertical axis is not truly vertical, atmospheric refraction. Systematic errors <em>accumulate</em> in one direction and do not cancel out.</li>
-<li><strong>Random errors</strong> — small, unavoidable variations that follow a normal (bell-curve) distribution. They are equally likely to be positive or negative. Repeated observations reduce their effect. The <em>standard deviation</em> quantifies the spread of random errors.</li>
-<li><strong>Blunders (mistakes)</strong> — large errors caused by human carelessness: reading the wrong graduation, transposing digits, occupying the wrong point. Blunders are detected by redundant measurements and field checks — they must be eliminated, not adjusted.</li>
-</ul>
-
-<h3>Precision vs. Accuracy</h3>
-<p><strong>Precision</strong> describes the repeatability of measurements — how closely repeated observations agree with each other. <strong>Accuracy</strong> describes how close a measurement is to the true (or accepted) value. A set of measurements can be precise but inaccurate (e.g., a mis-calibrated tape gives consistent but wrong distances). The goal is always both high precision <em>and</em> high accuracy.</p>
-
-<p>Key formulas from SRVY 1301:</p>
-<ul>
-<li><strong>Most probable value (mean):</strong> x&#772; = &Sigma;x<sub>i</sub> / n</li>
-<li><strong>Standard deviation:</strong> s = &radic;[&Sigma;(x<sub>i</sub> &minus; x&#772;)&sup2; / (n &minus; 1)]</li>
-<li><strong>Standard error of the mean:</strong> s<sub>x&#772;</sub> = s / &radic;n</li>
-</ul>
-
-<h2>Review: Leveling</h2>
-
-<p>Differential leveling determines <strong>elevation differences</strong> between points using a level instrument and a graduated rod. It is the most precise method of establishing vertical control.</p>
-
-<h3>The HI Method</h3>
 <ol>
-<li>Set up the level roughly midway between the benchmark (BM) and the point of interest.</li>
-<li>Read a <strong>backsight (BS)</strong> on the rod held on the BM.</li>
-<li>Compute the <strong>Height of Instrument (HI)</strong>: HI = Elev<sub>BM</sub> + BS</li>
-<li>Turn the instrument toward the unknown point and read the <strong>foresight (FS)</strong>.</li>
-<li>Compute the point''s elevation: Elev = HI &minus; FS</li>
+  <li><strong>Apply Proper Tension:</strong> The tape must be pulled with the correct amount of force — typically <strong>20 to 25 pounds</strong> of tension (or whatever the tape was standardized at). Too little tension leaves slack; too much stretches the tape beyond its calibrated length. A spring balance (tension handle) should be used to ensure consistent pull.</li>
+
+  <li><strong>Always Measure Distances Twice:</strong> Every distance is measured once <strong>forward</strong> and once <strong>back</strong> to catch mistakes. The two measurements should agree within the required tolerance. This is the surveyor''s equivalent of <em>"measure twice, cut once."</em> If forward and back measurements disagree beyond tolerance, the measurement must be repeated until they do.</li>
+
+  <li><strong>Align the Tape:</strong> The tape must be held on line between the two points. Range poles or plumb bobs are used to keep the tape aligned over the correct ground points.</li>
+
+  <li><strong>Read and Record Correctly:</strong> Read the tape at the correct graduation. Call out and independently record each reading. Transposed digits and misread graduations are the most common blunders in taping.</li>
+
+  <li><strong>Keep the Tape Level (or Apply Slope Correction):</strong> If the tape is held level, horizontal distance is measured directly. If the terrain is sloped, either break the chain into level segments (''breaking chain'') or measure the slope distance and reduce it to horizontal using the slope angle or elevation difference.</li>
 </ol>
 
-<p><strong>Example:</strong> BM elevation = 512.34 ft, BS = 6.78 ft, FS = 3.45 ft.</p>
+<h3>Why Corrections Are Necessary</h3>
+
+<p>A steel tape is a <strong>physical object</strong> — it expands and contracts with temperature, stretches under tension, and curves under its own weight. These are <strong>systematic errors</strong>: they always push the measurement in the same direction for the same conditions, and they can be mathematically corrected once the conditions are known.</p>
+
+<p>The three primary chain corrections are:</p>
 <ul>
-<li>HI = 512.34 + 6.78 = <strong>519.12 ft</strong></li>
-<li>Elevation of new point = 519.12 &minus; 3.45 = <strong>515.67 ft</strong></li>
+  <li><strong>Temperature Correction (C<sub>t</sub>)</strong> — accounts for thermal expansion/contraction</li>
+  <li><strong>Tension/Pull Correction (C<sub>p</sub>)</strong> — accounts for stretching beyond the standard pull</li>
+  <li><strong>Sag Correction (C<sub>s</sub>)</strong> — accounts for the tape hanging in a catenary curve</li>
 </ul>
 
-<p>When the distance is too great for a single setup, you use <strong>turning points (TPs)</strong>. At each TP the rod stays in place while you read a FS, move the instrument, then read a BS on the same TP before continuing forward.</p>
+<h3>Temperature Correction</h3>
 
-<h3>Leveling Checks</h3>
-<p>A level circuit that returns to the starting BM should close. The <strong>misclosure</strong> is the difference between the known BM elevation and the computed return elevation. Allowable misclosure depends on the order of survey:</p>
-<table>
-<thead><tr><th>Order</th><th>Allowable Misclosure</th></tr></thead>
-<tbody>
-<tr><td>First Order, Class I</td><td>&plusmn; 0.5 mm &times; &radic;K</td></tr>
-<tr><td>Second Order, Class I</td><td>&plusmn; 6 mm &times; &radic;K</td></tr>
-<tr><td>Third Order</td><td>&plusmn; 12 mm &times; &radic;K</td></tr>
-</tbody>
-</table>
-<p>where K is the total leveling distance in kilometers.</p>
+<p>Steel expands when heated and contracts when cooled. The coefficient of thermal expansion for steel is approximately <strong>0.00000645 per °F</strong> (6.45 × 10<sup>−6</sup> /°F). Standard tapes are manufactured at <strong>68°F</strong>.</p>
 
-<h2>Review: Distance Measurement</h2>
+<div style="background:#1a1a2e; padding:1rem; border-radius:8px; margin:1rem 0; text-align:center; font-size:1.1rem;">
+  <strong>C<sub>t</sub> = 0.00000645 × (T<sub>F</sub> − 68) × L</strong>
+</div>
 
-<h3>Taping</h3>
-<p>Steel tapes are still used for short, precise measurements. Three corrections commonly applied:</p>
+<p>Where:</p>
 <ul>
-<li><strong>Temperature correction:</strong> C<sub>t</sub> = &alpha; &times; L &times; (T &minus; T<sub>s</sub>), where &alpha; = 0.00000645 per &deg;F for steel, L is the measured length, T is the field temperature, and T<sub>s</sub> is the standardization temperature (usually 68 &deg;F).</li>
-<li><strong>Tension correction:</strong> C<sub>p</sub> = (P &minus; P<sub>s</sub>) &times; L / (A &times; E), where P is applied tension, P<sub>s</sub> is standard tension, A is cross-sectional area, and E is the modulus of elasticity.</li>
-<li><strong>Sag correction:</strong> C<sub>s</sub> = &minus;w&sup2; &times; L&sup3; / (24 &times; P&sup2;), always negative (the tape hangs below a straight line).</li>
+  <li><strong>C<sub>t</sub></strong> = correction in feet due to temperature</li>
+  <li><strong>T<sub>F</sub></strong> = field temperature in °F</li>
+  <li><strong>L</strong> = measured distance in feet</li>
+  <li><strong>68°F</strong> = standard temperature at which the tape was calibrated</li>
 </ul>
 
-<h3>Electronic Distance Measurement (EDM)</h3>
-<p>Modern EDMs use modulated infrared or laser signals reflected by a prism. The instrument measures the phase difference of the returned signal to compute distance. EDMs are affected by <strong>atmospheric conditions</strong> — temperature and pressure change the speed of light through air, requiring a parts-per-million (ppm) correction. Most instruments let you key in temperature and pressure for automatic correction.</p>
-
-<p><strong>Slope to horizontal:</strong> When an EDM measures a slope distance (SD), you convert to horizontal distance (HD) using the vertical angle (&alpha;):</p>
-<p>HD = SD &times; cos(&alpha;)</p>
-
-<h2>Review: Angles and Directions</h2>
-
-<h3>Azimuths</h3>
-<p>An <strong>azimuth</strong> is a direction measured clockwise from north, ranging from 0&deg; to 360&deg;. Azimuths are unambiguous — every direction has exactly one azimuth value.</p>
-
-<h3>Bearings</h3>
-<p>A <strong>bearing</strong> is a direction expressed as an angle east or west of the north-south line. Format: N 45&deg;30''00" E. Bearings range from 0&deg; to 90&deg; and require a quadrant designation (NE, SE, SW, NW).</p>
-
-<h3>Converting Between Azimuths and Bearings</h3>
-<table>
-<thead><tr><th>Quadrant</th><th>Azimuth Range</th><th>Bearing Formula</th><th>Example</th></tr></thead>
-<tbody>
-<tr><td>NE</td><td>0&deg; – 90&deg;</td><td>Bearing = Azimuth</td><td>Az 45&deg; &rarr; N 45&deg;00''00" E</td></tr>
-<tr><td>SE</td><td>90&deg; – 180&deg;</td><td>Bearing = 180&deg; &minus; Azimuth</td><td>Az 135&deg; &rarr; S 45&deg;00''00" E</td></tr>
-<tr><td>SW</td><td>180&deg; – 270&deg;</td><td>Bearing = Azimuth &minus; 180&deg;</td><td>Az 225&deg; &rarr; S 45&deg;00''00" W</td></tr>
-<tr><td>NW</td><td>270&deg; – 360&deg;</td><td>Bearing = 360&deg; &minus; Azimuth</td><td>Az 315&deg; &rarr; N 45&deg;00''00" W</td></tr>
-</tbody>
-</table>
-
-<h3>Interior Angles</h3>
-<p>For a closed polygon traverse with <em>n</em> sides, the sum of interior angles must equal:</p>
-<p><strong>&Sigma; Interior Angles = (n &minus; 2) &times; 180&deg;</strong></p>
-<p>Examples: triangle (3 sides) = 180&deg;, quadrilateral (4) = 360&deg;, pentagon (5) = 540&deg;, hexagon (6) = 720&deg;.</p>
-
-<h3>DMS Arithmetic</h3>
-<p>Surveyors work in degrees-minutes-seconds (DMS). When adding or subtracting:</p>
+<h4>Sign Convention</h4>
 <ul>
-<li>Add/subtract seconds first. If seconds &ge; 60, carry 1 minute.</li>
-<li>Add/subtract minutes. If minutes &ge; 60, carry 1 degree.</li>
-<li>Add/subtract degrees.</li>
+  <li><strong>Above 68°F:</strong> The tape is longer than standard → it spans more ground per graduation → readings are <strong>too short</strong> → correction is <strong>positive</strong> (add to measured distance)</li>
+  <li><strong>Below 68°F:</strong> The tape is shorter than standard → it spans less ground → readings are <strong>too long</strong> → correction is <strong>negative</strong> (subtract from measured distance)</li>
 </ul>
-<p><strong>Example:</strong> 47&deg;38''45" + 85&deg;42''30" = 133&deg;21''15"</p>
-<p>45" + 30" = 75" = 1''15" (carry 1 minute). 38'' + 42'' + 1'' = 81'' = 1&deg;21'' (carry 1 degree). 47&deg; + 85&deg; + 1&deg; = 133&deg;. Result: 133&deg;21''15".</p>
 
-<h2>The Surveying Workflow</h2>
+<h4>Example 1 — Hot Day</h4>
+<p>Observed distance: <strong>357.22 ft</strong>, Field temperature: <strong>88°F</strong></p>
+<p>C<sub>t</sub> = 0.00000645 × (88 − 68) × 357.22 = 0.00000645 × 20 × 357.22 = <strong>+0.046 ft</strong></p>
+<p>Corrected distance = 357.22 + 0.046 = <strong>357.27 ft</strong></p>
 
-<p>Every survey project follows a general workflow that connects field work to final deliverables:</p>
-<ol>
-<li><strong>Project planning</strong> — research deeds, plats, and control; define scope and accuracy requirements.</li>
-<li><strong>Reconnaissance</strong> — visit the site; locate monuments, access routes, and hazards.</li>
-<li><strong>Control establishment</strong> — set or verify horizontal and vertical control points.</li>
-<li><strong>Data collection</strong> — measure angles, distances, and elevations in the field.</li>
-<li><strong>Computation &amp; adjustment</strong> — compute coordinates, adjust for closure, verify accuracy.</li>
-<li><strong>Mapping &amp; deliverables</strong> — produce plats, descriptions, reports, and digital data.</li>
-</ol>
+<h4>Example 2 — Cold Day</h4>
+<p>Observed distance: <strong>357.22 ft</strong>, Field temperature: <strong>48°F</strong></p>
+<p>C<sub>t</sub> = 0.00000645 × (48 − 68) × 357.22 = 0.00000645 × (−20) × 357.22 = <strong>−0.046 ft</strong></p>
+<p>Corrected distance = 357.22 + (−0.046) = <strong>357.17 ft</strong></p>
 
-<p>SRVY 1341 focuses primarily on steps 5 and 6 — turning raw measurements into reliable, adjusted results. The lab course (SRVY 1335) handles steps 2–4.</p>
+<p>Notice how the same tape, the same distance, but a 40°F temperature difference produces a total spread of 0.10 ft (about 1.2 inches). On a 1,000-foot traverse, this would be even larger. <strong>Temperature correction is never optional on precision work.</strong></p>
 
-<h2>Looking Ahead</h2>
+<h3>Tension (Pull) Correction</h3>
 
-<p>Starting next week, we dive into <strong>traverse types and planning</strong>. A traverse is the backbone of nearly every boundary and control survey. Understanding the different traverse configurations — and when each is appropriate — will set the stage for the computation methods that follow in weeks 4–7. Make sure your calculator is set to <strong>degrees</strong> mode (not radians) and that you are comfortable with trigonometric functions (sin, cos, tan) and inverse trig functions (arctan, atan2).</p>
+<p>If you pull the tape harder than the standard tension, it stretches; if you pull lighter, it sags more. The tension correction accounts for the elastic deformation of the tape:</p>
+
+<div style="background:#1a1a2e; padding:1rem; border-radius:8px; margin:1rem 0; text-align:center; font-size:1.1rem;">
+  <strong>C<sub>p</sub> = (P − P<sub>s</sub>) × L / (A × E)</strong>
+</div>
+
+<p>Where:</p>
+<ul>
+  <li><strong>C<sub>p</sub></strong> = correction in feet due to tension</li>
+  <li><strong>P</strong> = applied tension in pounds</li>
+  <li><strong>P<sub>s</sub></strong> = standard tension (from tape specifications) in pounds</li>
+  <li><strong>L</strong> = measured distance in feet</li>
+  <li><strong>A</strong> = cross-sectional area of the tape in square inches</li>
+  <li><strong>E</strong> = modulus of elasticity of steel ≈ 29,000,000 psi (29 × 10<sup>6</sup> psi)</li>
+</ul>
+
+<h4>Sign Convention</h4>
+<ul>
+  <li><strong>P &gt; P<sub>s</sub>:</strong> Over-pulling stretches the tape → correction is <strong>positive</strong></li>
+  <li><strong>P &lt; P<sub>s</sub>:</strong> Under-pulling means tape is too short → correction is <strong>negative</strong></li>
+</ul>
+
+<h4>Example — Tension Correction</h4>
+<p>Standard tension P<sub>s</sub> = 10 lbs, Applied tension P = 25 lbs, Distance L = 500 ft, Cross-section A = 0.005 in², E = 29,000,000 psi</p>
+<p>C<sub>p</sub> = (25 − 10) × 500 / (0.005 × 29,000,000) = 7,500 / 145,000 = <strong>+0.052 ft</strong></p>
+
+<h3>Sag Correction</h3>
+
+<p>When a tape is suspended between two supports (not lying on the ground), gravity pulls the middle downward into a <strong>catenary curve</strong>. The chord distance (straight line between endpoints) is always shorter than the tape reading. Sag correction is <strong>always negative</strong>.</p>
+
+<div style="background:#1a1a2e; padding:1rem; border-radius:8px; margin:1rem 0; text-align:center; font-size:1.1rem;">
+  <strong>C<sub>s</sub> = −w² × L³ / (24 × P²)</strong>
+</div>
+
+<p>Where:</p>
+<ul>
+  <li><strong>C<sub>s</sub></strong> = sag correction in feet (always negative)</li>
+  <li><strong>w</strong> = weight of tape per foot (lbs/ft)</li>
+  <li><strong>L</strong> = unsupported length in feet</li>
+  <li><strong>P</strong> = applied tension in pounds</li>
+</ul>
+
+<h4>Why Sag Is Always Negative</h4>
+<p>The tape sags into an arc. The arc is longer than the straight-line (chord) distance between the endpoints. Since the tape reading reflects the arc length, but you need the chord length, you must subtract the sag amount. Increasing tension reduces sag — there is a specific tension called the <strong>normal tension</strong> at which the sag correction exactly cancels the tension correction.</p>
+
+<h4>Example — Sag Correction</h4>
+<p>Tape weight w = 0.015 lbs/ft, Span L = 100 ft (unsupported), Tension P = 20 lbs</p>
+<p>C<sub>s</sub> = −(0.015)² × (100)³ / (24 × (20)²) = −0.000225 × 1,000,000 / 9,600 = <strong>−0.023 ft</strong></p>
+
+<h3>Applying All Corrections Together</h3>
+
+<p>When field conditions require multiple corrections, simply add them all to the observed distance:</p>
+
+<div style="background:#1a1a2e; padding:1rem; border-radius:8px; margin:1rem 0; text-align:center; font-size:1.1rem;">
+  <strong>D<sub>corrected</sub> = D<sub>measured</sub> + C<sub>t</sub> + C<sub>p</sub> + C<sub>s</sub></strong>
+</div>
+
+<p>Each correction has its own sign (positive or negative). Compute each one separately, then sum. <strong>Always show your work</strong> — on licensing exams and in professional practice, a clearly documented correction sheet protects you from errors and challenges.</p>
+
+<h4>Combined Example</h4>
+<p>A surveyor measures 500.00 ft on a day when T = 95°F, using a 25-lb pull on a tape standardized at P<sub>s</sub> = 10 lbs, A = 0.005 in², w = 0.015 lbs/ft, fully supported (no sag).</p>
+<ul>
+  <li>C<sub>t</sub> = 0.00000645 × (95 − 68) × 500 = 0.00000645 × 27 × 500 = +0.087 ft</li>
+  <li>C<sub>p</sub> = (25 − 10) × 500 / (0.005 × 29,000,000) = +0.052 ft</li>
+  <li>C<sub>s</sub> = 0 (tape fully supported on ground)</li>
+  <li><strong>D<sub>corrected</sub> = 500.00 + 0.087 + 0.052 + 0 = 500.14 ft</strong></li>
+</ul>
+
+<p>The true distance is about 1.7 inches longer than measured. On a multi-thousand-foot traverse, these corrections accumulate and become critical for meeting accuracy standards.</p>
 ',
 
 resources = '[
-  {"title":"Surveying Mathematics Review Sheet","url":"https://www.e-education.psu.edu/geog862/node/1725","type":"reference"},
-  {"title":"SRVY 1301 Formula Reference Card","url":"https://www.surveyingmath.com/formulas","type":"pdf"},
-  {"title":"DMS Calculator (Online)","url":"https://www.calculator.net/angle-calculator.html","type":"tool"}
+  {"title":"Surveying Mathematics — Tape Correction Formulas","url":"https://www.surveyingmath.com/tape-corrections","type":"reference"},
+  {"title":"Elementary Surveying (Ghilani) — Chapter on Distance Measurement","url":"https://www.pearson.com/","type":"reference"},
+  {"title":"NOAA/NGS — Distance Measurement Standards","url":"https://www.ngs.noaa.gov/","type":"reference"}
 ]'::jsonb,
 
 videos = '[
-  {"title":"Precision vs Accuracy Explained for Surveyors","url":"https://www.youtube.com/watch?v=hRAFPdDppzs"},
-  {"title":"Differential Leveling Step by Step","url":"https://www.youtube.com/watch?v=oc_AdMmLOqk"}
+  {"title":"Steel Tape Measurement Procedure","url":"https://www.youtube.com/watch?v=3xLkVJrZjKI"},
+  {"title":"Tape Corrections — Temperature, Tension, and Sag","url":"https://www.youtube.com/watch?v=QXwYh9Vf1nM"}
 ]'::jsonb,
 
 key_takeaways = ARRAY[
-  'Review key concepts from SRVY 1301 including measurement theory, leveling, distances, and angles',
-  'Distinguish between systematic errors, random errors, and blunders',
-  'Compute elevations using the HI method for differential leveling',
-  'Convert between azimuths and bearings in all four quadrants',
-  'Perform DMS (degrees-minutes-seconds) arithmetic correctly',
-  'Understand the surveying workflow from planning through deliverables'
+  'Always apply 20–25 lbs of proper tension and measure every distance forward and back',
+  'Temperature correction: Ct = 0.00000645 × (TF − 68) × L — positive above 68°F, negative below',
+  'Tension correction: Cp = (P − Ps) × L / (A × E) — positive when over-pulling, negative when under-pulling',
+  'Sag correction: Cs = −w² × L³ / (24 × P²) — always negative because the catenary arc is longer than the chord',
+  'Combine all corrections: Dcorrected = Dmeasured + Ct + Cp + Cs',
+  'Standard conditions: 68°F temperature, standard pull, full support (no sag)'
 ]
 
 WHERE id = 'acc03b01-0000-0000-0000-000000000001';
@@ -192,262 +212,462 @@ DELETE FROM learning_topics WHERE lesson_id = 'acc03b01-0000-0000-0000-000000000
 INSERT INTO learning_topics (id, lesson_id, title, content, order_index, keywords) VALUES
 
 ('acc03a01-0001-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
- 'Measurement Theory: Errors, Precision & Accuracy',
- 'Every surveying measurement contains some degree of error. Systematic errors are predictable and correctable — a steel tape calibrated at 68°F that is used at 95°F will consistently read too short, and a temperature correction formula removes the bias. Random errors are the small, unpredictable fluctuations that remain after all systematic corrections are applied; they follow a normal distribution and are reduced (but never eliminated) by taking multiple observations and averaging. Blunders are gross mistakes — reading 278 instead of 287, occupying the wrong point — that must be detected through redundancy (extra measurements) and eliminated entirely. Precision measures how tightly grouped your repeated measurements are (low standard deviation = high precision). Accuracy measures how close the mean of your measurements is to the true value. A survey can be precise but inaccurate if a systematic error biases all readings in the same direction.',
+ 'Chain/Tape Measurement Principles and Procedure',
+ 'A steel surveying tape is a precision instrument calibrated under standard conditions (68°F, standard pull, full support). Proper measurement procedure requires: (1) Apply the correct tension — typically 20 to 25 pounds, using a spring balance to ensure consistency. Too little tension leaves slack in the tape; too much stretches it beyond calibration. (2) Measure every distance twice — once forward and once back. Comparing forward and back measurements catches blunders such as miscounts, misreads, and misalignment. The two values should agree within the required accuracy standard. If they do not, remeasure. This is the surveyor''s version of "measure twice, cut once." (3) Align the tape on line between the two points using range poles or plumb bobs. An off-line tape reads longer than the true distance (since the hypotenuse of a right triangle is always longer than either leg). (4) Keep the tape horizontal or apply a slope correction. On sloped terrain, either "break chain" by measuring in short horizontal segments, or measure the full slope distance and reduce to horizontal using the formula H = S × cos(α) where α is the slope angle. (5) Read the tape carefully at the correct graduation. Call out each reading and record it independently. Transposed digits and misread graduations are the most common taping blunders in the field.',
  1,
- ARRAY['systematic error','random error','blunder','precision','accuracy','standard deviation','most probable value','normal distribution','redundancy','calibration']),
+ ARRAY['chain','tape','measurement','tension','forward and back','alignment','slope correction','plumb bob','range pole','field procedure']),
 
 ('acc03a01-0002-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
- 'Differential Leveling Review',
- 'Differential leveling is the most accurate method for determining elevation differences. The instrument (an automatic or digital level) is set up midway between a known benchmark (BM) and the point whose elevation is needed. A backsight (BS) reading on the BM rod gives the Height of Instrument: HI = Elev_BM + BS. A foresight (FS) reading on the unknown point gives its elevation: Elev = HI − FS. For long circuits, turning points (TPs) act as temporary benchmarks — the rod stays on the TP while the instrument leapfrogs forward. A properly closed level loop returns to the starting BM; the difference between the known and computed elevation is the misclosure. Acceptable misclosure depends on the survey order (First, Second, Third) and the total distance leveled. Error is distributed proportionally among the TPs when the misclosure is within tolerance.',
+ 'Temperature Correction',
+ 'Steel has a coefficient of thermal expansion of approximately 0.00000645 per °F (6.45 × 10⁻⁶/°F). A standard surveying tape is manufactured to be exactly its nominal length at 68°F (20°C). When the field temperature differs from 68°F, the tape physically changes length. The temperature correction formula is: Ct = 0.00000645 × (TF − 68) × L, where TF is the field temperature in Fahrenheit and L is the measured distance in feet. Sign convention: When TF > 68°F, the tape is physically longer than standard. It spans more ground per graduation mark, so each reading is shorter than reality. The correction is positive — add it to the measured distance. When TF < 68°F, the tape contracts. It spans less ground, so readings are longer than reality. The correction is negative — subtract it. Example: At 88°F, measuring 357.22 ft: Ct = 0.00000645 × (88-68) × 357.22 = +0.046 ft. Corrected distance = 357.27 ft. At 48°F with the same reading: Ct = 0.00000645 × (48-68) × 357.22 = -0.046 ft. Corrected distance = 357.17 ft. The 40°F temperature swing produces a 0.09 ft difference — significant for any precision survey. Temperature correction is always applied on professional work.',
  2,
- ARRAY['differential leveling','backsight','foresight','height of instrument','HI method','turning point','benchmark','misclosure','level circuit','rod reading','automatic level']),
+ ARRAY['temperature correction','thermal expansion','coefficient','68 degrees','standard temperature','Ct','positive correction','negative correction','hot','cold','steel expansion']),
 
 ('acc03a01-0003-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
- 'Distance Measurement: Taping & EDM',
- 'Steel taping remains relevant for short precise measurements and serves as a check on electronic methods. Three standard corrections apply: temperature (steel expands/contracts with heat), tension (pulling harder stretches the tape), and sag (an unsupported tape droops below a straight line, making the measured distance too long). EDM instruments (Electronic Distance Measurement) use modulated infrared or laser signals reflected by a prism or reflectorless surface. The instrument measures the phase shift of the return signal to compute slope distance, then uses the measured vertical angle to reduce to horizontal distance: HD = SD × cos(α). Atmospheric corrections account for the fact that temperature and barometric pressure alter the speed of light through air, introducing a parts-per-million error. Most modern total stations accept field-entered T and P values and apply the correction automatically.',
+ 'Tension (Pull) Correction',
+ 'When a tape is pulled with a force different from its standard tension (the tension at which it was calibrated), the tape undergoes elastic deformation — it stretches or relaxes according to Hooke''s Law. The tension correction formula is: Cp = (P − Ps) × L / (A × E), where P = applied tension (lbs), Ps = standard tension (lbs), L = measured distance (ft), A = cross-sectional area of tape (in²), and E = modulus of elasticity of steel ≈ 29,000,000 psi. Sign convention: When P > Ps (over-pulling), the tape stretches and spans more ground — correction is positive. When P < Ps (under-pulling), the tape is shorter — correction is negative. Example: If Ps = 10 lbs, P = 25 lbs, L = 500 ft, A = 0.005 in², E = 29×10⁶ psi: Cp = (25-10) × 500 / (0.005 × 29,000,000) = 15 × 500 / 145,000 = +0.052 ft. In practice, the cross-sectional area A of the tape is provided by the manufacturer or computed from the tape width and thickness (A = width × thickness). The modulus of elasticity E is a property of steel and is effectively constant at 29,000,000 psi for standard surveying tapes. Tension corrections are usually small for short distances but become significant on long measurements or when the applied tension differs greatly from standard.',
  3,
- ARRAY['steel tape','temperature correction','tension correction','sag correction','EDM','slope distance','horizontal distance','atmospheric correction','prism','reflectorless','phase shift']),
+ ARRAY['tension correction','pull correction','Hooke''s law','elastic deformation','modulus of elasticity','cross-sectional area','standard tension','Cp','over-pulling','under-pulling','spring balance']),
 
 ('acc03a01-0004-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
- 'Angles and Directions: Azimuths, Bearings & DMS Math',
- 'Directions in surveying are expressed as either azimuths or bearings. An azimuth is measured clockwise from north and ranges from 0° to 360° — it is unambiguous and convenient for computation. A bearing is measured from the north or south line toward east or west, ranges from 0° to 90°, and requires a quadrant label (e.g., N 45°30''00" E). Converting between them requires knowing which quadrant the direction falls in: NE quadrant bearing equals the azimuth; SE bearing = 180° − azimuth; SW bearing = azimuth − 180°; NW bearing = 360° − azimuth. Interior angles of a closed polygon sum to (n−2)×180°. Surveyors perform arithmetic in degrees-minutes-seconds (DMS): add or subtract seconds first (carry 60" = 1''), then minutes (carry 60'' = 1°), then degrees. Mastery of DMS arithmetic is essential — nearly every computation in this course uses it.',
+ 'Sag Correction',
+ 'When a tape is suspended between two supports rather than resting on the ground, gravity pulls the middle of the tape downward into a curve called a catenary. The length along the catenary (what the tape reads) is always greater than the straight-line chord distance between the endpoints. The sag correction formula is: Cs = −w² × L³ / (24 × P²), where w = weight of tape per unit length (lbs/ft), L = unsupported span length (ft), and P = applied tension (lbs). The sag correction is always negative because the curved tape reads longer than the true chord distance. Increasing tension reduces sag — the tape becomes straighter as you pull harder. There exists a specific tension called the "normal tension" at which the elongation due to tension exactly equals the shortening due to sag; at normal tension, the tape reads the correct distance even when unsupported. Normal tension is typically higher than standard tension. Example: w = 0.015 lbs/ft, L = 100 ft, P = 20 lbs: Cs = −(0.015)² × (100)³ / (24 × 20²) = −0.000225 × 1,000,000 / 9,600 = −0.023 ft. If the tape is supported on the ground (as in most land surveying), the sag correction is zero. Sag correction matters most on long suspended spans such as measurements across gullies, over fences, or in catenary-wire baseline measurements.',
  4,
- ARRAY['azimuth','bearing','quadrant','north','clockwise','interior angle','DMS','degrees minutes seconds','conversion','polygon','direction']);
+ ARRAY['sag correction','catenary','chord distance','Cs','unsupported span','gravity','normal tension','tape weight','suspended tape','always negative']),
+
+('acc03a01-0005-0000-0000-000000000001', 'acc03b01-0000-0000-0000-000000000001',
+ 'Applying Multiple Corrections — Combined Workflow',
+ 'In practice, multiple corrections may apply simultaneously. The corrected distance is: Dcorrected = Dmeasured + Ct + Cp + Cs. Each correction is computed independently and has its own sign. The workflow for a professional measurement is: (1) Record the observed distance and all field conditions (temperature, applied tension, support conditions, tape specifications). (2) Compute each applicable correction using the standard formulas. (3) Sum all corrections and add to the measured distance. (4) Document everything on the computation sheet — the observed value, each correction, and the final corrected distance. Clear documentation protects against errors and is required for professional certification standards. For example, a surveyor measures 500.00 ft at 95°F, pulling 25 lbs on a tape standardized at 10 lbs (A = 0.005 in²), with the tape fully supported. Ct = 0.00000645 × 27 × 500 = +0.087 ft. Cp = 15 × 500 / 145,000 = +0.052 ft. Cs = 0 (supported). Dcorrected = 500.00 + 0.087 + 0.052 = 500.14 ft. Always show your work on correction computations. On the SIT exam and in professional practice, partial credit is given for correct methodology even if arithmetic contains a minor error.',
+ 5,
+ ARRAY['combined corrections','corrected distance','workflow','computation sheet','documentation','multiple corrections','sum','field conditions','professional practice']);
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 3. QUIZ QUESTIONS (14 questions — mixed types and difficulties)
+-- 3. QUIZ QUESTIONS (linked to topics via topic_id and study_references)
 -- ────────────────────────────────────────────────────────────────────────────
 
 DELETE FROM question_bank
 WHERE lesson_id = 'acc03b01-0000-0000-0000-000000000001'
-  AND tags @> ARRAY['acc-srvy-1341','week-1'];
+  AND tags @> ARRAY['acc-srvy-1341','week-1','quiz'];
 
-INSERT INTO question_bank
-  (question_text, question_type, options, correct_answer, explanation, difficulty,
-   module_id, lesson_id, exam_category, tags)
-VALUES
+INSERT INTO question_bank (
+  question_text, question_type, options, correct_answer, explanation, difficulty,
+  module_id, lesson_id, topic_id, exam_category, tags, study_references
+) VALUES
 
--- Q1  Multiple Choice  Easy
-('Which type of error follows a predictable pattern and can be mathematically corrected?',
+-- Q1: Measurement Procedure (Topic 1)
+('When measuring with a chain or steel tape, what is the typical amount of tension that should be applied?',
  'multiple_choice',
- '["Random error","Systematic error","Blunder","Probable error"]'::jsonb,
- 'Systematic error',
- 'Systematic errors are predictable — they always push the measurement in the same direction (e.g., a tape that is 0.01 ft too long). Because the pattern is known, a correction formula can remove the bias. Random errors are unpredictable, and blunders are gross mistakes.',
+ '["5 to 10 pounds","10 to 15 pounds","20 to 25 pounds","50 to 60 pounds"]'::jsonb,
+ '20 to 25 pounds',
+ 'Standard field tension for a steel surveying tape is typically 20 to 25 pounds. This is sufficient to remove slack without overstretching the tape. A spring balance should be used to ensure consistent tension.',
  'easy',
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','measurement-theory','errors']),
+ 'acc03a01-0001-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','measurement-procedure','tension'],
+ '[{"type":"topic","id":"acc03a01-0001-0000-0000-000000000001","label":"Chain/Tape Measurement Principles and Procedure"}]'::jsonb),
 
--- Q2  Multiple Choice  Easy
-('An azimuth of 225° falls in which quadrant?',
+-- Q2: Forward and Back (Topic 1)
+('Why should every tape distance be measured both forward and back?',
  'multiple_choice',
- '["Northeast","Southeast","Southwest","Northwest"]'::jsonb,
- 'Southwest',
- 'Azimuths are measured clockwise from north. 0°–90° = NE, 90°–180° = SE, 180°–270° = SW, 270°–360° = NW. Since 225° is between 180° and 270°, it falls in the southwest quadrant.',
+ '["To average out temperature effects","To detect and eliminate blunders","To determine the slope angle","To calibrate the tape"]'::jsonb,
+ 'To detect and eliminate blunders',
+ 'Measuring forward and back provides an independent check on the measurement. If both values agree within tolerance, blunders (miscounts, misreads, misalignment) are unlikely. Temperature and other systematic errors affect both measurements equally and are corrected separately.',
  'easy',
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','azimuths','quadrant']),
+ 'acc03a01-0001-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','forward-back','blunder-detection'],
+ '[{"type":"topic","id":"acc03a01-0001-0000-0000-000000000001","label":"Chain/Tape Measurement Principles and Procedure"}]'::jsonb),
 
--- Q3  True/False  Easy
-('Precision and accuracy mean the same thing in surveying.',
- 'true_false',
- '["True","False"]'::jsonb,
- 'False',
- 'Precision refers to how closely repeated measurements agree with each other (repeatability). Accuracy refers to how close measurements are to the true value. A set of measurements can be precise but inaccurate if a systematic error shifts all values in the same direction.',
+-- Q3: Standard Temperature (Topic 2)
+('At what temperature are standard surveying steel tapes calibrated?',
+ 'multiple_choice',
+ '["32°F","50°F","68°F","72°F"]'::jsonb,
+ '68°F',
+ 'Standard steel tapes are manufactured and calibrated at 68°F (20°C). This is the reference temperature for the temperature correction formula. Any field temperature above or below 68°F requires a correction.',
  'easy',
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','precision','accuracy']),
+ 'acc03a01-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','standard-temperature','calibration'],
+ '[{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"}]'::jsonb),
 
--- Q4  True/False  Easy
-('In differential leveling, the Height of Instrument (HI) equals the benchmark elevation plus the backsight reading.',
+-- Q4: Temperature Correction Sign (Topic 2)
+('When the field temperature is above 68°F, the temperature correction is:',
+ 'multiple_choice',
+ '["Positive — add to measured distance","Negative — subtract from measured distance","Zero — no correction needed","It depends on the tape length"]'::jsonb,
+ 'Positive — add to measured distance',
+ 'Above 68°F, the tape expands and becomes physically longer than standard. Each graduation mark spans more ground, so the tape reads shorter than reality. The correction is positive — you must add it to get the true (longer) distance.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','temperature-correction','sign-convention'],
+ '[{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"}]'::jsonb),
+
+-- Q5: Temperature Correction Calculation (Topic 2)
+('A surveyor measures 357.22 ft with the tape at 88°F. What is the temperature correction?',
+ 'numeric_input',
+ '[]'::jsonb,
+ '0.046',
+ 'Ct = 0.00000645 × (88 − 68) × 357.22 = 0.00000645 × 20 × 357.22 = 0.0461 ft. Rounded to three decimal places: +0.046 ft. The correction is positive because 88°F > 68°F.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','temperature-correction','calculation'],
+ '[{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"}]'::jsonb),
+
+-- Q6: Temperature Correction Cold
+('The same tape measures 357.22 ft at 48°F. What is the corrected distance?',
+ 'numeric_input',
+ '[]'::jsonb,
+ '357.17',
+ 'Ct = 0.00000645 × (48 − 68) × 357.22 = 0.00000645 × (−20) × 357.22 = −0.046 ft. Corrected distance = 357.22 + (−0.046) = 357.174 ft ≈ 357.17 ft.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','temperature-correction','cold-day'],
+ '[{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"},{"type":"topic","id":"acc03a01-0005-0000-0000-000000000001","label":"Applying Multiple Corrections — Combined Workflow"}]'::jsonb),
+
+-- Q7: Sag Direction (Topic 4)
+('The sag correction for a suspended tape is always:',
+ 'multiple_choice',
+ '["Positive","Negative","Zero","It depends on the temperature"]'::jsonb,
+ 'Negative',
+ 'A suspended tape hangs in a catenary curve, which is longer than the straight-line chord. Since the tape reads the arc length but the true distance is the shorter chord, you must subtract the sag amount. Sag correction is always negative.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0004-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','sag-correction','sign'],
+ '[{"type":"topic","id":"acc03a01-0004-0000-0000-000000000001","label":"Sag Correction"}]'::jsonb),
+
+-- Q8: Tension Correction Concept (Topic 3)
+('If a tape is pulled with MORE tension than its standard, the tension correction is:',
+ 'multiple_choice',
+ '["Positive — the tape stretches and reads short","Negative — the tape compresses and reads long","Zero — tension does not affect the tape","Depends on temperature"]'::jsonb,
+ 'Positive — the tape stretches and reads short',
+ 'Over-pulling stretches the tape beyond its calibrated length. The stretched tape spans more ground per mark, so readings are shorter than reality. Correction Cp is positive to compensate.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0003-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','tension-correction','over-pulling'],
+ '[{"type":"topic","id":"acc03a01-0003-0000-0000-000000000001","label":"Tension (Pull) Correction"}]'::jsonb),
+
+-- Q9: Tension Correction Calc (Topic 3)
+('A tape has standard tension Ps = 10 lbs, cross-section A = 0.005 in², E = 29,000,000 psi. If pulled at 25 lbs over a distance of 500 ft, what is the tension correction?',
+ 'numeric_input',
+ '[]'::jsonb,
+ '0.052',
+ 'Cp = (P − Ps) × L / (A × E) = (25 − 10) × 500 / (0.005 × 29,000,000) = 15 × 500 / 145,000 = 7,500 / 145,000 = 0.0517 ft ≈ 0.052 ft. Positive because P > Ps.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0003-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','tension-correction','calculation'],
+ '[{"type":"topic","id":"acc03a01-0003-0000-0000-000000000001","label":"Tension (Pull) Correction"}]'::jsonb),
+
+-- Q10: Sag Correction Calc (Topic 4)
+('A tape weighing 0.015 lbs/ft is suspended over a 100-ft span with 20 lbs of tension. What is the sag correction?',
+ 'numeric_input',
+ '[]'::jsonb,
+ '-0.023',
+ 'Cs = −w² × L³ / (24 × P²) = −(0.015)² × (100)³ / (24 × 20²) = −0.000225 × 1,000,000 / 9,600 = −225 / 9,600 = −0.0234 ft ≈ −0.023 ft.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0004-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','sag-correction','calculation'],
+ '[{"type":"topic","id":"acc03a01-0004-0000-0000-000000000001","label":"Sag Correction"}]'::jsonb),
+
+-- Q11: Combined Corrections (Topic 5)
+('When applying chain corrections, the corrected distance equals:',
+ 'multiple_choice',
+ '["Measured − Ct − Cp − Cs","Measured + Ct + Cp + Cs","Measured × Ct × Cp × Cs","Measured / (Ct + Cp + Cs)"]'::jsonb,
+ 'Measured + Ct + Cp + Cs',
+ 'Each correction has its own sign (positive or negative). You simply add all corrections to the measured distance: Dcorrected = Dmeasured + Ct + Cp + Cs. The signs of the individual corrections handle the direction automatically.',
+ 'easy',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','combined-corrections','formula'],
+ '[{"type":"topic","id":"acc03a01-0005-0000-0000-000000000001","label":"Applying Multiple Corrections — Combined Workflow"}]'::jsonb),
+
+-- Q12: True/False — Sag on ground
+('If the tape is fully supported on the ground, the sag correction is zero.',
  'true_false',
  '["True","False"]'::jsonb,
  'True',
- 'HI = Elevation_BM + BS. The backsight reading on the rod held at the benchmark is added to the known BM elevation to get the height of the instrument''s line of sight above the datum.',
+ 'Sag occurs only when the tape is suspended between supports. When the tape rests on the ground, there is no catenary curve, so the sag correction is zero.',
  'easy',
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','leveling','HI-method']),
+ 'acc03a01-0004-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','sag-correction','supported-tape'],
+ '[{"type":"topic","id":"acc03a01-0004-0000-0000-000000000001","label":"Sag Correction"}]'::jsonb),
 
--- Q5  Multiple Choice  Medium
-('A bearing of S 52°15''00" E corresponds to what azimuth?',
- 'multiple_choice',
- '["52°15''00\"","127°45''00\"","232°15''00\"","307°45''00\""]'::jsonb,
- '127°45''00"',
- 'A SE bearing converts to azimuth by: Az = 180° − bearing angle. Az = 180°00''00" − 52°15''00" = 127°45''00". In the SE quadrant, azimuths range from 90° to 180°.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','bearing','azimuth','conversion']),
-
--- Q6  Multiple Choice  Medium
-('Which correction is always negative (makes the corrected distance shorter than the measured distance)?',
- 'multiple_choice',
- '["Temperature correction","Sag correction","Tension correction","Atmospheric correction"]'::jsonb,
- 'Sag correction',
- 'A tape supported only at its ends sags below a straight line, making the distance measured along the catenary longer than the true straight-line distance. The sag correction C_s = −w²L³/(24P²) is therefore always negative. Temperature and tension corrections can be positive or negative depending on field conditions vs. standard conditions.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','taping','sag-correction']),
-
--- Q7  Numeric Input  Medium (Leveling computation)
-('A benchmark has an elevation of 487.52 ft. The backsight reading is 8.34 ft and the foresight reading to an unknown point is 5.17 ft. What is the elevation of the unknown point? (Answer in feet, round to 2 decimal places)',
+-- Q13: Combined Calculation (Topic 5)
+('A surveyor measures 500.00 ft at 95°F with 25 lbs tension (Ps=10, A=0.005 in², tape fully supported). What is the corrected distance?',
  'numeric_input',
  '[]'::jsonb,
- '490.69',
- 'Step 1: HI = BM elevation + BS = 487.52 + 8.34 = 495.86 ft. Step 2: Elevation = HI − FS = 495.86 − 5.17 = 490.69 ft.',
- 'medium',
+ '500.14',
+ 'Ct = 0.00000645 × (95-68) × 500 = +0.087 ft. Cp = (25-10) × 500 / (0.005 × 29,000,000) = +0.052 ft. Cs = 0. Dcorrected = 500.00 + 0.087 + 0.052 = 500.139 ≈ 500.14 ft.',
+ 'hard',
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','leveling','computation','HI-method']),
+ 'acc03a01-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','combined-corrections','full-calculation'],
+ '[{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"},{"type":"topic","id":"acc03a01-0003-0000-0000-000000000001","label":"Tension (Pull) Correction"},{"type":"topic","id":"acc03a01-0005-0000-0000-000000000001","label":"Applying Multiple Corrections — Combined Workflow"}]'::jsonb),
 
--- Q8  Numeric Input  Medium (DMS arithmetic)
-('Add the following two angles: 67°48''35" + 54°23''48". Express your answer in decimal degrees rounded to 4 decimal places. (Hint: 122°12''23" = 122.2064°)',
- 'numeric_input',
- '[]'::jsonb,
- '122.2064',
- 'Step 1: Add seconds: 35" + 48" = 83" = 1''23" (carry 1 minute). Step 2: Add minutes: 48'' + 23'' + 1'' = 72'' = 1°12'' (carry 1 degree). Step 3: Add degrees: 67° + 54° + 1° = 122°. Result: 122°12''23". Converting to decimal: 122 + 12/60 + 23/3600 = 122 + 0.2000 + 0.006389 = 122.2064°.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','DMS','arithmetic','angle-addition']),
-
--- Q9  Multiple Choice  Medium
-('In the surveying workflow, which step comes immediately after data collection?',
+-- Q14: Systematic errors
+('Chain corrections for temperature, tension, and sag correct what type of error?',
  'multiple_choice',
- '["Reconnaissance","Computation and adjustment","Project planning","Mapping and deliverables"]'::jsonb,
- 'Computation and adjustment',
- 'The standard surveying workflow is: (1) Project planning, (2) Reconnaissance, (3) Control establishment, (4) Data collection, (5) Computation & adjustment, (6) Mapping & deliverables. Computation and adjustment transforms raw field data into reliable coordinates.',
- 'medium',
+ '["Random errors","Systematic errors","Blunders","Probable errors"]'::jsonb,
+ 'Systematic errors',
+ 'Temperature, tension, and sag produce systematic errors — they push the measurement in a predictable direction that depends on measurable conditions. Because they are predictable, they can be mathematically corrected.',
+ 'easy',
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','workflow','surveying-process']),
-
--- Q10  Numeric Input  Hard (Multi-step leveling word problem)
-('A surveyor runs a level circuit from BM Alpha (elev 325.18 ft) through three turning points to BM Beta. The readings are: BS₁ = 7.62, FS₁ = 4.31 (TP1); BS₂ = 9.15, FS₂ = 6.88 (TP2); BS₃ = 5.44, FS₃ = 8.07 (BM Beta). What is the computed elevation of BM Beta? (Round to 2 decimal places)',
- 'numeric_input',
- '[]'::jsonb,
- '328.13',
- 'HI₁ = 325.18 + 7.62 = 332.80; Elev_TP1 = 332.80 − 4.31 = 328.49. HI₂ = 328.49 + 9.15 = 337.64; Elev_TP2 = 337.64 − 6.88 = 330.76. HI₃ = 330.76 + 5.44 = 336.20; Elev_BM_Beta = 336.20 − 8.07 = 328.13 ft.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','leveling','turning-points','multi-step']),
-
--- Q11  Numeric Input  Hard (Slope-to-horizontal reduction)
-('An EDM measures a slope distance of 412.85 ft at a vertical angle of 6°15''00" above horizontal. What is the horizontal distance? (Round to 2 decimal places)',
- 'numeric_input',
- '[]'::jsonb,
- '410.40',
- 'HD = SD × cos(vertical angle). First convert 6°15''00" to decimal: 6 + 15/60 = 6.25°. HD = 412.85 × cos(6.25°) = 412.85 × 0.99406 = 410.40 ft.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','EDM','slope-distance','horizontal-distance']),
-
--- Q12  Essay  Hard
-('Explain the difference between systematic errors, random errors, and blunders in surveying. For each type, give one specific field example and describe how a surveyor should handle it.',
- 'essay',
- '[]'::jsonb,
- 'Key points: (1) Systematic errors are predictable, accumulate in one direction, and are removed by applying corrections (example: temperature correction for a steel tape used in heat). (2) Random errors are small, unpredictable, follow a normal distribution, and are reduced by averaging multiple observations (example: slight variations in reading a level rod). (3) Blunders are gross mistakes that must be detected through redundant measurements and eliminated — they cannot be adjusted away (example: reading 5.42 instead of 4.52 on a rod, or setting up over the wrong point). A complete answer discusses all three types with clear examples and appropriate remediation strategies.',
- 'A strong answer will: define all three error types clearly; provide a realistic field example for each; explain the correct handling method (correction formula for systematic, averaging/statistics for random, redundancy/re-measurement for blunders); and note that blunders must be eliminated before any adjustment is performed.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','essay','measurement-theory','errors']),
-
--- Q13  Essay  Medium
-('Describe the complete procedure for running a differential leveling circuit from a known benchmark to an unknown point and back. Include the purpose of turning points and how you would check your work.',
- 'essay',
- '[]'::jsonb,
- 'Key points: (1) Set up level midway between BM and first point. (2) Read BS on BM, compute HI = Elev_BM + BS. (3) Read FS on turning point or target, compute Elev = HI − FS. (4) Move instrument forward, use TP as new reference with a BS. (5) Repeat until reaching the unknown point. (6) To check: continue the circuit back to the original BM. (7) Compare computed return elevation to known BM elevation — the difference is the misclosure. (8) If misclosure is within tolerance, distribute error proportionally among TPs.',
- 'A complete answer covers: the HI method formula, the role of turning points for extending the circuit, the concept of closing the loop back to the starting BM, computing misclosure, and evaluating whether the misclosure meets the required accuracy standard.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','essay','leveling','procedure']),
-
--- Q14  Multiple Choice  Hard (Azimuth/bearing conversion requiring careful math)
-('An azimuth of 312°27''15" converts to which bearing?',
- 'multiple_choice',
- '["N 47°32''45\" W","S 47°32''45\" W","N 42°27''15\" W","S 42°27''15\" E"]'::jsonb,
- 'N 47°32''45" W',
- 'An azimuth between 270° and 360° is in the NW quadrant. Bearing = 360°00''00" − 312°27''15". Subtract: 360°00''00" − 312°27''15" → 59''60" − 27''15" = 32''45", 359° − 312° = 47°. Bearing = N 47°32''45" W.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','bearing','azimuth','conversion','DMS']);
+ 'acc03a01-0001-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','quiz','systematic-error','correction-type'],
+ '[{"type":"topic","id":"acc03a01-0001-0000-0000-000000000001","label":"Chain/Tape Measurement Principles and Procedure"}]'::jsonb);
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- 4. PRACTICE PROBLEMS (tagged separately from quiz questions)
+-- 4. PRACTICE PROBLEMS
 -- ────────────────────────────────────────────────────────────────────────────
 
-INSERT INTO question_bank
-  (question_text, question_type, options, correct_answer, explanation, difficulty,
-   module_id, lesson_id, exam_category, tags)
-VALUES
+DELETE FROM question_bank
+WHERE lesson_id = 'acc03b01-0000-0000-0000-000000000001'
+  AND tags @> ARRAY['acc-srvy-1341','week-1','practice'];
 
--- Practice 1: Simple leveling
-('Practice: BM elevation = 256.91 ft, BS = 5.43 ft, FS = 9.12 ft. What is the elevation of the foresight point?',
- 'numeric_input', '[]'::jsonb,
- '253.22',
- 'HI = 256.91 + 5.43 = 262.34. Elevation = 262.34 − 9.12 = 253.22 ft. Note that the FS is larger than the BS, so the new point is lower than the benchmark.',
+INSERT INTO question_bank (
+  question_text, question_type, options, correct_answer, explanation, difficulty,
+  module_id, lesson_id, topic_id, exam_category, tags, study_references
+) VALUES
+
+('A distance of 250.00 ft is measured at 100°F. Calculate the temperature correction.',
+ 'numeric_input', '[]'::jsonb, '0.052',
+ 'Ct = 0.00000645 × (100 − 68) × 250 = 0.00000645 × 32 × 250 = 0.0516 ft ≈ +0.052 ft.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','temperature-correction'],
+ '[{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"}]'::jsonb),
+
+('A distance of 800.00 ft is measured at 30°F. What is the corrected distance?',
+ 'numeric_input', '[]'::jsonb, '799.80',
+ 'Ct = 0.00000645 × (30 − 68) × 800 = 0.00000645 × (−38) × 800 = −0.196 ft. Corrected = 800.00 − 0.196 = 799.804 ft ≈ 799.80 ft.',
+ 'medium',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','temperature-correction','cold'],
+ '[{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"}]'::jsonb),
+
+('A 300-ft distance is measured with 30 lbs tension. The tape standard tension is 15 lbs, A = 0.003 in², E = 29,000,000 psi. What is the tension correction?',
+ 'numeric_input', '[]'::jsonb, '0.052',
+ 'Cp = (30 − 15) × 300 / (0.003 × 29,000,000) = 4,500 / 87,000 = 0.0517 ft ≈ +0.052 ft.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0003-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','tension-correction'],
+ '[{"type":"topic","id":"acc03a01-0003-0000-0000-000000000001","label":"Tension (Pull) Correction"}]'::jsonb),
+
+('A tape weighing 0.02 lbs/ft is suspended over a 100-ft span at 15 lbs tension. What is the sag correction?',
+ 'numeric_input', '[]'::jsonb, '-0.074',
+ 'Cs = −(0.02)² × (100)³ / (24 × 15²) = −0.0004 × 1,000,000 / 5,400 = −0.0741 ft ≈ −0.074 ft.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0004-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','sag-correction'],
+ '[{"type":"topic","id":"acc03a01-0004-0000-0000-000000000001","label":"Sag Correction"}]'::jsonb),
+
+('A 600-ft distance is measured at 90°F, 20 lbs tension (Ps=10, A=0.005 in²), tape on ground. What is the corrected distance?',
+ 'numeric_input', '[]'::jsonb, '600.13',
+ 'Ct = 0.00000645 × 22 × 600 = +0.085 ft. Cp = 10 × 600 / 145,000 = +0.041 ft. Cs = 0. Dcorrected = 600.00 + 0.085 + 0.041 = 600.126 ≈ 600.13 ft.',
+ 'hard',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ 'acc03a01-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','combined-corrections'],
+ '[{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"},{"type":"topic","id":"acc03a01-0003-0000-0000-000000000001","label":"Tension (Pull) Correction"},{"type":"topic","id":"acc03a01-0005-0000-0000-000000000001","label":"Applying Multiple Corrections — Combined Workflow"}]'::jsonb),
+
+('A temperature below 68°F causes the steel tape to expand, making readings too long.',
+ 'true_false', '["True","False"]'::jsonb, 'False',
+ 'Below 68°F, the tape contracts (gets shorter), not expands. The shortened tape reads LONGER than the true distance because its graduations are squeezed closer together. The correction is negative.',
  'easy',
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','leveling']),
+ 'acc03a01-0002-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','temperature-correction','sign'],
+ '[{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"}]'::jsonb),
 
--- Practice 2: Azimuth to bearing
-('Practice: Convert an azimuth of 158°30''00" to a bearing.',
+('What is "normal tension" in the context of tape measurement?',
  'multiple_choice',
- '["S 21°30''00\" E","N 21°30''00\" E","S 58°30''00\" E","N 158°30''00\" W"]'::jsonb,
- 'S 21°30''00" E',
- 'Az 158°30'' is in the SE quadrant (90°–180°). Bearing = 180° − 158°30'' = 21°30''. Direction: S 21°30''00" E.',
- 'easy',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','azimuth','bearing']),
-
--- Practice 3: Bearing to azimuth
-('Practice: Convert a bearing of S 73°45''20" W to an azimuth.',
- 'numeric_input', '[]'::jsonb,
- '253.7556',
- 'SW quadrant: Az = 180° + bearing angle = 180° + 73°45''20". In decimal: 73 + 45/60 + 20/3600 = 73.7556°. Az = 180 + 73.7556 = 253.7556°. (Or in DMS: 253°45''20".)',
+ '["The standard tension printed on the tape","The tension at which sag correction equals tension correction","The maximum safe tension for the tape","The tension used in EDM measurement"]'::jsonb,
+ 'The tension at which sag correction equals tension correction',
+ 'Normal tension is the specific pull at which the positive elongation from tension exactly cancels the negative shortening from sag. At normal tension, the tape reads the correct distance even when unsupported.',
  'medium',
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','bearing','azimuth']),
+ 'acc03a01-0004-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','normal-tension','sag'],
+ '[{"type":"topic","id":"acc03a01-0004-0000-0000-000000000001","label":"Sag Correction"},{"type":"topic","id":"acc03a01-0003-0000-0000-000000000001","label":"Tension (Pull) Correction"}]'::jsonb),
 
--- Practice 4: Interior angle sum
-('Practice: A closed traverse has 8 sides. What should the interior angles sum to?',
- 'numeric_input', '[]'::jsonb,
- '1080',
- '(n − 2) × 180° = (8 − 2) × 180° = 6 × 180° = 1080°.',
- 'easy',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','interior-angles']),
-
--- Practice 5: DMS subtraction
-('Practice: Subtract 38°52''17" from 125°15''04". Express your answer in DMS format as decimal degrees rounded to 4 places.',
- 'numeric_input', '[]'::jsonb,
- '86.3797',
- 'Seconds: 04" − 17" → borrow: 64" − 17" = 47" (subtract 1 from minutes). Minutes: 14'' − 52'' → borrow: 74'' − 52'' = 22'' (subtract 1 from degrees). Degrees: 124° − 38° = 86°. Result: 86°22''47". Decimal: 86 + 22/60 + 47/3600 = 86 + 0.3667 + 0.01306 = 86.3797°.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','DMS','subtraction']),
-
--- Practice 6: Multi-step level circuit (word problem)
-('Practice: A surveyor levels from BM Oak (elev 401.55 ft) to point X using two turning points. Readings: BS₁=6.21, FS₁=3.89 (TP1); BS₂=7.33, FS₂=10.14 (Point X). Part (a): What is the elevation of TP1? Part (b): What is the elevation of Point X? Give your answer for Part (b) only.',
- 'numeric_input', '[]'::jsonb,
- '401.06',
- 'Part (a): HI₁ = 401.55 + 6.21 = 407.76; Elev_TP1 = 407.76 − 3.89 = 403.87 ft. Part (b): HI₂ = 403.87 + 7.33 = 411.20; Elev_X = 411.20 − 10.14 = 401.06 ft.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','leveling','multi-step','word-problem']),
-
--- Practice 7: Slope distance to horizontal
-('Practice: A total station measures a slope distance of 285.67 ft at a zenith angle of 86°30''00". What is the horizontal distance? (Remember: vertical angle = 90° − zenith angle). Round to 2 decimal places.',
- 'numeric_input', '[]'::jsonb,
- '285.14',
- 'Vertical angle from horizontal = 90° − 86°30'' = 3°30'' = 3.5°. HD = 285.67 × cos(3.5°) = 285.67 × 0.99813 = 285.14 ft. (Alternatively, HD = SD × sin(zenith) = 285.67 × sin(86.5°) = 285.67 × 0.99813 = 285.14 ft.)',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','slope-distance','zenith-angle','trigonometry']),
-
--- Practice 8: Conceptual essay practice
-('Practice: A survey crew measures the same distance five times and gets: 325.42, 325.44, 325.41, 325.43, 325.42 ft. (a) What is the most probable value? (b) Are these measurements more likely affected by random error or systematic error? Explain your reasoning.',
+('Explain why a professional surveyor must apply chain corrections rather than just accepting the raw tape reading. Describe each of the three main corrections and when each is most significant.',
  'essay', '[]'::jsonb,
- 'Key points: (a) Most probable value = mean = (325.42+325.44+325.41+325.43+325.42)/5 = 325.424 ft. (b) The measurements cluster tightly (range of 0.03 ft) suggesting high precision. The small variations are characteristic of random error — each measurement differs slightly and unpredictably from the mean. If a systematic error were present, all values would be shifted in the same direction, but we cannot detect that from internal evidence alone (we would need to compare to a known true distance).',
- 'A good answer computes the mean correctly, identifies the small spread as evidence of random error, and notes that systematic error cannot be detected from repeated measurements alone — it requires comparison to an independent standard.',
+ 'A professional surveyor must apply chain corrections because a steel tape is a physical object that changes length with conditions. The three corrections are: (1) Temperature correction — steel expands/contracts with temperature; significant on hot or cold days and long measurements. (2) Tension correction — applying more or less pull than standard stretches or relaxes the tape; significant when applied tension differs greatly from standard. (3) Sag correction — a suspended tape forms a catenary curve longer than the chord; significant on long unsupported spans. Uncorrected systematic errors accumulate over a traverse and can cause the survey to fail accuracy standards.',
  'medium',
  'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','essay','statistics','error-analysis']);
+ 'acc03a01-0005-0000-0000-000000000001',
+ 'ACC-1341', ARRAY['acc-srvy-1341','week-1','practice','essay','all-corrections'],
+ '[{"type":"topic","id":"acc03a01-0001-0000-0000-000000000001","label":"Chain/Tape Measurement Principles and Procedure"},{"type":"topic","id":"acc03a01-0002-0000-0000-000000000001","label":"Temperature Correction"},{"type":"topic","id":"acc03a01-0003-0000-0000-000000000001","label":"Tension (Pull) Correction"},{"type":"topic","id":"acc03a01-0004-0000-0000-000000000001","label":"Sag Correction"},{"type":"topic","id":"acc03a01-0005-0000-0000-000000000001","label":"Applying Multiple Corrections — Combined Workflow"}]'::jsonb);
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- 5. FLASHCARDS (auto-discovered when lesson is completed)
+-- ────────────────────────────────────────────────────────────────────────────
+
+DELETE FROM flashcards
+WHERE lesson_id = 'acc03b01-0000-0000-0000-000000000001';
+
+INSERT INTO flashcards (id, term, definition, hint_1, hint_2, hint_3, module_id, lesson_id, keywords, tags, category) VALUES
+
+('fc01-0001-0000-0000-000000000001',
+ 'Standard Temperature for Steel Tape',
+ '68°F (20°C). Steel surveying tapes are manufactured and calibrated at this temperature. Any field temperature above or below 68°F requires a temperature correction.',
+ 'It is the same as "room temperature" in many standards',
+ 'The formula uses (TF - ?) in the temperature correction',
+ 'Sixty-eight degrees Fahrenheit',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['standard temperature','68°F','20°C','calibration','steel tape'],
+ ARRAY['acc-srvy-1341','week-1','chaining'], 'surveying'),
+
+('fc01-0002-0000-0000-000000000001',
+ 'Temperature Correction Formula (Ct)',
+ 'Ct = 0.00000645 × (TF − 68) × L, where TF is field temperature in °F, L is measured distance in feet, and 0.00000645 is the coefficient of thermal expansion for steel per °F.',
+ 'The coefficient is approximately 6.45 × 10⁻⁶',
+ 'Positive when hot (above 68°F), negative when cold',
+ 'Ct = α × ΔT × L',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['temperature correction','Ct','thermal expansion','coefficient','formula'],
+ ARRAY['acc-srvy-1341','week-1','chaining','formula'], 'surveying'),
+
+('fc01-0003-0000-0000-000000000001',
+ 'Tension (Pull) Correction Formula (Cp)',
+ 'Cp = (P − Ps) × L / (A × E), where P = applied tension, Ps = standard tension, L = distance, A = cross-sectional area of tape, E = modulus of elasticity of steel (≈ 29,000,000 psi).',
+ 'Based on Hooke''s Law of elastic deformation',
+ 'Positive when over-pulling (P > Ps)',
+ 'The modulus of elasticity E for steel is about 29 million psi',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['tension correction','pull correction','Cp','Hooke''s law','modulus of elasticity'],
+ ARRAY['acc-srvy-1341','week-1','chaining','formula'], 'surveying'),
+
+('fc01-0004-0000-0000-000000000001',
+ 'Sag Correction Formula (Cs)',
+ 'Cs = −w² × L³ / (24 × P²), where w = weight of tape per foot (lbs/ft), L = unsupported span (ft), P = applied tension (lbs). Always negative because the catenary arc is longer than the chord.',
+ 'This correction is ALWAYS negative',
+ 'Applies only when the tape is suspended, not when lying on the ground',
+ 'Increasing tension reduces sag',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['sag correction','Cs','catenary','chord','suspended tape','always negative'],
+ ARRAY['acc-srvy-1341','week-1','chaining','formula'], 'surveying'),
+
+('fc01-0005-0000-0000-000000000001',
+ 'Corrected Distance Formula',
+ 'Dcorrected = Dmeasured + Ct + Cp + Cs. Each correction has its own sign (positive or negative). Simply add all corrections to the measured distance.',
+ 'Sum all corrections — do not multiply them',
+ 'Each correction''s sign handles the direction automatically',
+ 'Think of it as Measured + Temperature + Tension + Sag',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['corrected distance','combined corrections','formula','Dcorrected'],
+ ARRAY['acc-srvy-1341','week-1','chaining','formula'], 'surveying'),
+
+('fc01-0006-0000-0000-000000000001',
+ 'Why Measure Forward and Back?',
+ 'Measuring every distance forward and back detects and eliminates blunders such as miscounts, misreads, and misalignment. If both values agree within tolerance, the measurement is accepted. This is the surveyor''s "measure twice, cut once."',
+ 'It catches mistakes, not systematic errors',
+ 'Temperature affects both measurements equally',
+ 'The two values should agree within the required tolerance',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['forward and back','blunder detection','measurement procedure','quality control'],
+ ARRAY['acc-srvy-1341','week-1','chaining'], 'surveying'),
+
+('fc01-0007-0000-0000-000000000001',
+ 'Standard Field Tension',
+ 'Typically 20 to 25 pounds of pull. This is the amount of tension applied to a steel tape during field measurement. A spring balance (tension handle) should be used to ensure consistent pull.',
+ 'Not too much (stretches tape), not too little (causes slack)',
+ 'A spring balance is used to verify the tension',
+ 'Twenty to twenty-five pounds',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['field tension','20 pounds','25 pounds','spring balance','tension handle'],
+ ARRAY['acc-srvy-1341','week-1','chaining'], 'surveying'),
+
+('fc01-0008-0000-0000-000000000001',
+ 'Systematic Error vs. Random Error vs. Blunder',
+ 'Systematic errors are predictable and always push measurements in the same direction (temperature, tension, sag) — they can be corrected mathematically. Random errors are unpredictable small variations that follow a normal distribution. Blunders are gross mistakes (misreading, miscounting) caught by redundant measurements.',
+ 'Temperature, tension, and sag are all systematic errors',
+ 'Measuring forward and back catches blunders',
+ 'Systematic = correctable, Random = unavoidable, Blunder = mistake',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['systematic error','random error','blunder','error types','correction'],
+ ARRAY['acc-srvy-1341','week-1','chaining'], 'surveying'),
+
+('fc01-0009-0000-0000-000000000001',
+ 'Normal Tension',
+ 'The specific tension at which the positive elongation from over-pulling exactly cancels the negative shortening from sag. At normal tension, a suspended tape reads the correct distance without any corrections. Normal tension is typically higher than standard tension.',
+ 'It is where sag correction equals tension correction (in magnitude)',
+ 'Higher than the standard tension printed on the tape',
+ 'At this tension, Cp + Cs = 0',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['normal tension','sag','tension','equilibrium','suspended tape'],
+ ARRAY['acc-srvy-1341','week-1','chaining'], 'surveying'),
+
+('fc01-0010-0000-0000-000000000001',
+ 'Catenary Curve',
+ 'The natural curve formed by a flexible chain or tape hanging under its own weight between two support points. The length along the catenary is always greater than the straight-line chord distance, which is why sag correction is always negative.',
+ 'Named from the Latin word "catena" meaning chain',
+ 'This is why sag correction subtracts from the measured distance',
+ 'Think of a clothesline sagging between two poles',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['catenary','sag','curve','chain','suspended','gravity'],
+ ARRAY['acc-srvy-1341','week-1','chaining'], 'surveying'),
+
+('fc01-0011-0000-0000-000000000001',
+ 'Breaking Chain',
+ 'A technique for measuring on sloped terrain by holding the tape level and measuring in short horizontal segments. Each segment is marked with a plumb bob, and the partial measurements are summed. This avoids the need for slope corrections.',
+ 'Used on steep terrain instead of measuring along the slope',
+ 'A plumb bob marks each segment''s endpoint on the ground',
+ 'The alternative is to measure the slope distance and apply a slope correction',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['breaking chain','slope','horizontal measurement','plumb bob','terrain'],
+ ARRAY['acc-srvy-1341','week-1','chaining'], 'surveying'),
+
+('fc01-0012-0000-0000-000000000001',
+ 'Modulus of Elasticity (E) for Steel',
+ 'Approximately 29,000,000 psi (29 × 10⁶ psi). This is a material property of steel that measures its stiffness — how much it resists elastic deformation. Used in the tension correction formula: Cp = (P − Ps) × L / (A × E).',
+ 'About 29 million pounds per square inch',
+ 'It appears in the denominator of the tension correction formula',
+ 'A higher E means the material is stiffer and deforms less under tension',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['modulus of elasticity','29000000 psi','steel','stiffness','tension correction'],
+ ARRAY['acc-srvy-1341','week-1','chaining','formula'], 'surveying'),
+
+('fc01-0013-0000-0000-000000000001',
+ 'Temperature Correction Sign Convention',
+ 'Above 68°F → tape expands → reads short → correction is POSITIVE (add). Below 68°F → tape contracts → reads long → correction is NEGATIVE (subtract). The formula''s sign handles this automatically via (TF − 68).',
+ 'Hot = tape longer = reads short = add correction',
+ 'Cold = tape shorter = reads long = subtract correction',
+ 'The sign comes naturally from (TF - 68) in the formula',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['temperature correction','sign convention','positive','negative','hot','cold'],
+ ARRAY['acc-srvy-1341','week-1','chaining'], 'surveying'),
+
+('fc01-0014-0000-0000-000000000001',
+ 'Coefficient of Thermal Expansion for Steel',
+ '0.00000645 per °F (6.45 × 10⁻⁶ /°F). This means that for every degree Fahrenheit above or below the standard temperature, each foot of steel changes length by 0.00000645 feet.',
+ 'About 6.45 millionths per degree Fahrenheit',
+ 'The same value used in the temperature correction formula',
+ 'For a 100-ft tape at 20°F above standard: 100 × 0.00000645 × 20 = 0.013 ft change',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['thermal expansion coefficient','0.00000645','steel','temperature'],
+ ARRAY['acc-srvy-1341','week-1','chaining','formula'], 'surveying'),
+
+('fc01-0015-0000-0000-000000000001',
+ 'Cross-Sectional Area of a Tape (A)',
+ 'The cross-sectional area of the steel tape in square inches, computed as width × thickness. Used in the tension correction formula: Cp = (P − Ps) × L / (A × E). Typical values range from 0.003 to 0.006 in². Provided by the manufacturer or measured directly.',
+ 'Computed as tape width times tape thickness',
+ 'Appears in the denominator of the tension correction formula',
+ 'A thicker tape has a larger A and deforms less under the same tension',
+ 'acc00003-0000-0000-0000-000000000003', 'acc03b01-0000-0000-0000-000000000001',
+ ARRAY['cross-sectional area','tape','width','thickness','tension correction'],
+ ARRAY['acc-srvy-1341','week-1','chaining'], 'surveying');
+
+COMMIT;

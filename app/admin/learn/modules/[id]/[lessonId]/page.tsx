@@ -31,11 +31,27 @@ export default function LessonViewerPage() {
   const [totalRequired, setTotalRequired] = useState(0);
   const [quizUnlocked, setQuizUnlocked] = useState(false);
 
+  // Required reading articles
+  const [requiredArticles, setRequiredArticles] = useState<any[]>([]);
+  const [allArticlesRead, setAllArticlesRead] = useState(true);
+
   useEffect(() => {
     fetchLesson();
     fetchSiblingLessons();
     checkProgress();
+    fetchRequiredArticles();
     markStarted();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lessonId]);
+
+  // Re-check when tab gains focus (user may have completed article in another tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchRequiredArticles();
+      checkProgress();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId]);
 
@@ -97,6 +113,17 @@ export default function LessonViewerPage() {
         if (lessonProgress) {
           setInteractions(lessonProgress.content_interactions || {});
         }
+      }
+    } catch { /* silent */ }
+  }
+
+  async function fetchRequiredArticles() {
+    try {
+      const res = await fetch(`/api/admin/learn/articles?lesson_id=${lessonId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRequiredArticles(data.articles || []);
+        setAllArticlesRead(data.all_completed ?? true);
       }
     } catch { /* silent */ }
   }
@@ -170,7 +197,7 @@ export default function LessonViewerPage() {
   const completedInteractions = Object.keys(interactions).filter(k => interactions[k]).length;
   const hasRequiredContent = totalRequired > 0;
   const allContentReviewed = completedInteractions >= totalRequired;
-  const canTakeQuiz = quizUnlocked || !hasRequiredContent || completed;
+  const canTakeQuiz = (quizUnlocked && allArticlesRead) || (!hasRequiredContent && allArticlesRead) || completed;
 
   // Determine next lesson
   const currentIdx = siblingLessons.findIndex(l => l.id === lessonId);
@@ -208,7 +235,7 @@ export default function LessonViewerPage() {
             <div className="lesson-tracker__bar-fill" style={{ width: `${totalRequired > 0 ? (completedInteractions / totalRequired) * 100 : 0}%` }} />
           </div>
           {!allContentReviewed && (
-            <p className="lesson-tracker__hint">Review all resources and videos below to unlock the quiz.</p>
+            <p className="lesson-tracker__hint">Review all resources{requiredArticles.length > 0 ? ', articles,' : ''} and videos below to unlock the quiz.</p>
           )}
           {allContentReviewed && quizCount > 0 && (
             <p className="lesson-tracker__hint" style={{ color: '#10B981' }}>All content reviewed! Quiz is now unlocked.</p>
@@ -303,6 +330,42 @@ export default function LessonViewerPage() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Required Reading Articles */}
+      {requiredArticles.length > 0 && (
+        <div className="lesson-articles">
+          <h3 className="lesson-articles__title">Required Reading</h3>
+          <div className="lesson-articles__list">
+            {requiredArticles.map((art: any) => (
+              <a
+                key={art.id}
+                href={`/admin/learn/articles/${art.id}?lesson_id=${lessonId}&module_id=${moduleId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`lesson-articles__card ${art.completed ? 'lesson-articles__card--completed' : ''}`}
+              >
+                <span className="lesson-articles__card-status">
+                  {art.completed ? '\u2705' : '\u{1F4D6}'}
+                </span>
+                <div className="lesson-articles__card-info">
+                  <p className="lesson-articles__card-title">{art.title}</p>
+                  <p className="lesson-articles__card-meta">
+                    {art.author ? `By ${art.author} \u00B7 ` : ''}
+                    {art.estimated_minutes ? `${art.estimated_minutes} min read` : ''}
+                    {art.completed && art.completed_at ? ` \u00B7 Completed ${new Date(art.completed_at).toLocaleDateString()}` : ''}
+                  </p>
+                </div>
+                <span className="lesson-articles__card-arrow">&nearr;</span>
+              </a>
+            ))}
+          </div>
+          {!allArticlesRead && !completed && (
+            <p style={{ fontSize: '0.78rem', color: '#F59E0B', marginTop: '0.5rem' }}>
+              Read all required articles to unlock the quiz.
+            </p>
+          )}
         </div>
       )}
 

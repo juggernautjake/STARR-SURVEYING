@@ -26,6 +26,7 @@ import '../styles/AdminEmployeeManage.css';
 import '../styles/AdminSchedule.css';
 import '../styles/AdminDiscussions.css';
 import '../styles/AdminMyNotes.css';
+import '../styles/AdminArticle.css';
 import '../styles/AdminResponsive.css';
 
 const PAGE_TITLES: Record<string, string> = {
@@ -87,6 +88,8 @@ function getTitle(p: string): string {
   if (p.includes('/quiz')) return 'Quiz';
   if (p.includes('/test')) return 'Module Test';
   if (p.includes('/learn/modules/')) return 'Module';
+  if (p.includes('/learn/manage/article-editor/')) return 'Article Editor';
+  if (p.includes('/learn/articles/')) return 'Article';
   if (p.includes('/learn/knowledge-base/')) return 'Article';
   if (p.includes('/learn/flashcards/')) return 'Study Deck';
   if (p.startsWith('/admin/messages/') && !PAGE_TITLES[p]) return 'Conversation';
