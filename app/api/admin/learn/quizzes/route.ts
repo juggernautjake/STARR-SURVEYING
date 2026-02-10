@@ -365,7 +365,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const questionIds = answers.map((a: any) => a.question_id);
   const { data: questions, error } = await supabaseAdmin
     .from('question_bank')
-    .select('id, question_type, correct_answer, explanation, options')
+    .select('id, question_type, correct_answer, explanation, options, study_references, topic_id, lesson_id')
     .in('id', questionIds);
 
   if (error || !questions) {
@@ -504,8 +504,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     };
   }));
 
+  // Enrich graded results with study_references for incorrect answers
+  const enrichedGraded = graded.map((g: any) => {
+    const q = qMap.get(g.question_id);
+    if (q && !g.is_correct && q.study_references && Array.isArray(q.study_references) && q.study_references.length > 0) {
+      return { ...g, study_references: q.study_references };
+    }
+    return g;
+  });
+
   const scorePercent = answers.length > 0 ? Math.round((totalScore / answers.length) * 100) : 0;
-  const correctCount = graded.filter((g: any) => g.is_correct).length;
+  const correctCount = enrichedGraded.filter((g: any) => g.is_correct).length;
 
   // Save attempt
   const { data: attempt, error: attemptErr } = await supabaseAdmin
@@ -530,7 +539,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (attempt) {
     await supabaseAdmin.from('quiz_attempt_answers').insert(
-      graded.map((g: any) => ({
+      enrichedGraded.map((g: any) => ({
         attempt_id: attempt.id,
         question_id: g.question_id,
         user_answer: g.user_answer,
@@ -663,7 +672,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     total_questions: answers.length,
     correct_answers: correctCount,
     score_percent: scorePercent,
-    results: graded,
+    results: enrichedGraded,
     passed: scorePercent >= 70,
     partial_total: totalScore,
   });

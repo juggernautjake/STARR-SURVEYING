@@ -180,6 +180,14 @@
   /* ── Question bank ── */
   .qb__types { grid-template-columns: repeat(2, 1fr); }
   .qb__row { flex-direction: column; gap: 0.5rem; }
+  .qb__study-refs-add { flex-direction: column; align-items: stretch; }
+  .qb__select--sm { max-width: 100%; }
+  .qb__tag-add { flex-wrap: wrap; }
+
+  /* ── Quiz results study references ── */
+  .quiz-results__review-summary { padding: 0.85rem 1rem; }
+  .quiz-results__review-links { gap: 0.4rem; }
+  .quiz-results__study-refs-list { gap: 0.35rem; }
 
   /* ── Tables overflow ── */
   .payroll-rates__table-wrap,
@@ -364,6 +372,37 @@
   .quiz__question-text { font-size: 0.88rem; }
   .quiz__option-label { font-size: 0.82rem; padding: 0.55rem 0.65rem; }
 
+  /* ── Quiz results study references ── */
+  .quiz-results__review-summary { padding: 0.75rem 0.85rem; border-radius: 8px; }
+  .quiz-results__review-title { font-size: 0.92rem; }
+  .quiz-results__review-desc { font-size: 0.78rem; }
+  .quiz-results__review-links { flex-direction: column; }
+  .quiz-results__review-link { font-size: 0.78rem; padding: 0.35rem 0.65rem; }
+  .quiz-results__study-refs { padding: 0.5rem 0.65rem; }
+  .quiz-results__study-refs-title { font-size: 0.75rem; }
+  .quiz-results__study-refs-list { flex-direction: column; }
+  .quiz-results__study-ref-link { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+  .quiz-results__actions { flex-direction: column; align-items: stretch; }
+  .quiz-results__actions .admin-btn { text-align: center; justify-content: center; }
+  .quiz-results__score { font-size: 2rem; }
+
+  /* ── Question builder new fields ── */
+  .qb__study-ref-item { flex-wrap: wrap; font-size: 0.78rem; }
+  .qb__study-refs-add { flex-direction: column; align-items: stretch; gap: 0.35rem; }
+  .qb__tag-item { font-size: 0.72rem; }
+  .qb__input--sm { max-width: 100%; }
+  .qb__types { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
+  .qb__type-desc { display: none; }
+  .qb__editor { padding: 0.85rem; }
+  .qb__textarea { font-size: 0.85rem; }
+  .qb__bank-item { padding: 0.65rem; }
+  .qb__bank-item-main { flex-wrap: wrap; gap: 0.25rem; }
+
+  /* ── Settings page ── */
+  .job-form__grid { grid-template-columns: 1fr; }
+  .job-form__input, .job-form__select { font-size: 0.85rem; }
+  .msg-setup-guide__prompt { font-size: 0.72rem; overflow-x: auto; }
+
   /* ── Quiz history ── */
   .quiz-history__stats { flex-direction: column; gap: 0.5rem; }
   .quiz-history__attempt-header { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
@@ -505,6 +544,14 @@
 
   /* ── Quiz ── */
   .quiz__option-label { font-size: 0.78rem; padding: 0.45rem 0.55rem; }
+  .quiz-results__score { font-size: 1.75rem; }
+  .quiz-results__review-link { font-size: 0.75rem; }
+
+  /* ── Question builder ── */
+  .qb__types { grid-template-columns: 1fr 1fr; gap: 0.3rem; }
+  .qb__type-btn { padding: 0.5rem; }
+  .qb__type-icon { font-size: 0.85rem; }
+  .qb__type-label { font-size: 0.68rem; }
 
   /* ── Jobs ── */
   .job-import__type-grid { grid-template-columns: 1fr 1fr; }
@@ -820,6 +867,9 @@
   .sched__btn { min-height: 44px; }
   .msg-settings__toggle { min-height: 44px; }
   .msg-settings__select { min-height: 44px; }
+  .qb__study-ref-remove { min-height: 36px; min-width: 36px; display: inline-flex; align-items: center; justify-content: center; }
+  .quiz-results__review-link { min-height: 44px; display: inline-flex; align-items: center; }
+  .quiz-results__study-ref-link { min-height: 36px; display: inline-flex; align-items: center; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -838,6 +888,14 @@
   .media__form-row { flex-direction: column !important; }
   .media__field-type { flex: 1 1 auto !important; }
   .media__field-res { flex: 1 1 auto !important; }
+
+  /* Media search input fixed width */
+  .media__toolbar input[type="text"] { width: 100% !important; min-width: 0 !important; }
+
+  /* Lesson builder table cells */
+  .lesson-builder__block-content table { font-size: 0.78rem !important; width: 100% !important; }
+  .lesson-builder__block-content th,
+  .lesson-builder__block-content td { padding: 0.3rem 0.4rem !important; }
 
   /* Practice session — override fixed flex basis */
   .practice__fields-row { flex-direction: column !important; }

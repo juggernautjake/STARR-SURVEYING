@@ -132,6 +132,19 @@
 .quiz-results__blank-item--correct { background:#ECFDF5; color:#065F46; }
 .quiz-results__blank-item--wrong { background:#FEF2F2; color:#BD1218; }
 .quiz-results__blank-correct { color:#059669; margin-left:.25rem; }
+/* Study References (per-question) */
+.quiz-results__study-refs { margin-top:.75rem; padding:.65rem .85rem; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:6px; }
+.quiz-results__study-refs-title { font-family:'Inter',sans-serif; font-size:.8rem; font-weight:600; color:#1E40AF; margin:0 0 .4rem; }
+.quiz-results__study-refs-list { display:flex; flex-wrap:wrap; gap:.4rem; }
+.quiz-results__study-ref-link { display:inline-flex; align-items:center; gap:.25rem; padding:.3rem .6rem; background:#DBEAFE; color:#1D4ED8; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:500; border-radius:4px; text-decoration:none; transition:background .15s; }
+.quiz-results__study-ref-link:hover { background:#BFDBFE; }
+/* Areas to Review summary */
+.quiz-results__review-summary { margin-bottom:1.5rem; padding:1rem 1.25rem; background:#EFF6FF; border:1.5px solid #93C5FD; border-radius:10px; }
+.quiz-results__review-title { font-family:'Inter',sans-serif; font-size:1rem; font-weight:700; color:#1E3A5F; margin:0 0 .25rem; }
+.quiz-results__review-desc { font-family:'Inter',sans-serif; font-size:.82rem; color:#4B5563; margin:0 0 .6rem; }
+.quiz-results__review-links { display:flex; flex-wrap:wrap; gap:.5rem; }
+.quiz-results__review-link { display:inline-flex; align-items:center; gap:.3rem; padding:.4rem .75rem; background:#DBEAFE; color:#1D4ED8; font-family:'Inter',sans-serif; font-size:.82rem; font-weight:500; border-radius:6px; text-decoration:none; transition:background .15s, transform .1s; }
+.quiz-results__review-link:hover { background:#BFDBFE; transform:translateY(-1px); }
 .quiz-results__actions { display:flex; gap:.75rem; align-items:center; }
 
 /* === Essay Input === */
@@ -252,6 +265,28 @@
 .qb__bank-answer { font-family:'Inter',sans-serif; font-size:.78rem; color:#6B7280; }
 .qb__bank-opts { font-family:'Inter',sans-serif; font-size:.72rem; color:#9CA3AF; }
 .qb__bank-actions { display:flex; gap:.5rem; margin-top:.5rem; }
+.qb__bank-refs { font-family:'Inter',sans-serif; font-size:.68rem; font-weight:600; color:#1D4ED8; background:#DBEAFE; padding:.1rem .4rem; border-radius:3px; }
+.qb__bank-tags { font-family:'Inter',sans-serif; font-size:.68rem; color:#6B7280; font-style:italic; }
+/* Topic selector */
+.qb__topic-row { margin-top:.75rem; }
+/* Study References editor */
+.qb__study-refs { margin-top:.75rem; }
+.qb__study-refs-list { display:flex; flex-direction:column; gap:.35rem; margin-bottom:.5rem; }
+.qb__study-ref-item { display:flex; align-items:center; gap:.5rem; padding:.35rem .65rem; background:#EFF6FF; border:1px solid #BFDBFE; border-radius:5px; font-family:'Inter',sans-serif; font-size:.82rem; }
+.qb__study-ref-badge { font-size:.68rem; font-weight:700; color:#FFF; background:#2563EB; padding:.1rem .4rem; border-radius:3px; text-transform:uppercase; }
+.qb__study-ref-label { flex:1; color:#1E3A5F; }
+.qb__study-ref-remove { background:none; border:none; color:#EF4444; cursor:pointer; font-size:1rem; line-height:1; padding:0 .15rem; }
+.qb__study-ref-remove:hover { color:#DC2626; }
+.qb__study-refs-add { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+.qb__select--sm { font-size:.8rem; padding:.3rem .5rem; max-width:280px; }
+/* Tags */
+.qb__tags-section { margin-top:.75rem; }
+.qb__tags-list { display:flex; flex-wrap:wrap; gap:.35rem; margin-bottom:.5rem; }
+.qb__tag-item { display:inline-flex; align-items:center; gap:.25rem; padding:.2rem .5rem; background:#F3F4F6; border:1px solid #D1D5DB; border-radius:4px; font-family:'Inter',sans-serif; font-size:.78rem; color:#374151; }
+.qb__tag-item button { background:none; border:none; color:#6B7280; cursor:pointer; font-size:.85rem; line-height:1; padding:0; }
+.qb__tag-item button:hover { color:#EF4444; }
+.qb__tag-add { display:flex; gap:.5rem; }
+.qb__input--sm { font-size:.82rem; padding:.35rem .6rem; max-width:200px; }
 
 /* === FLASHCARDS === */
 .flashcards__decks { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1rem; margin-bottom:2rem; }
