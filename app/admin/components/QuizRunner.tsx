@@ -46,9 +46,11 @@ interface QuizRunnerProps {
   title: string;
   backUrl: string;
   backLabel: string;
+  nextLessonUrl?: string;
+  nextLessonLabel?: string;
 }
 
-export default function QuizRunner({ type, lessonId, moduleId, examCategory, questionCount = 5, title, backUrl, backLabel }: QuizRunnerProps) {
+export default function QuizRunner({ type, lessonId, moduleId, examCategory, questionCount = 5, title, backUrl, backLabel, nextLessonUrl, nextLessonLabel }: QuizRunnerProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [results, setResults] = useState<{
@@ -292,7 +294,12 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
         </div>
 
         <div className="quiz-results__actions">
-          <button className="admin-btn admin-btn--primary" onClick={retake}>Retake (New Questions)</button>
+          {results.passed && nextLessonUrl && (
+            <a href={nextLessonUrl} className="admin-btn admin-btn--primary">
+              {nextLessonLabel || 'Next Lesson'} &rarr;
+            </a>
+          )}
+          <button className={`admin-btn ${results.passed && nextLessonUrl ? 'admin-btn--secondary' : 'admin-btn--primary'}`} onClick={retake}>Retake (New Questions)</button>
           <a href={backUrl} className="admin-btn admin-btn--ghost">{backLabel}</a>
         </div>
       </div>

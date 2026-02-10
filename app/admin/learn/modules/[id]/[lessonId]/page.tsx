@@ -2,15 +2,17 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 interface Topic { id: string; title: string; content: string; order_index: number; keywords: string[]; }
 interface Resource { title: string; url: string; type: string; }
 interface Video { title: string; url: string; description?: string; }
+interface SiblingLesson { id: string; title: string; order_index: number; }
 
 export default function LessonViewerPage() {
   const params = useParams();
+  const router = useRouter();
   const moduleId = params.id as string;
   const lessonId = params.lessonId as string;
 
@@ -19,6 +21,10 @@ export default function LessonViewerPage() {
   const [quizCount, setQuizCount] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [completing, setCompleting] = useState(false);
+
+  // Sibling lessons for next/prev navigation
+  const [siblingLessons, setSiblingLessons] = useState<SiblingLesson[]>([]);
 
   // Content interaction tracking
   const [interactions, setInteractions] = useState<Record<string, boolean>>({});
@@ -27,6 +33,7 @@ export default function LessonViewerPage() {
 
   useEffect(() => {
     fetchLesson();
+    fetchSiblingLessons();
     checkProgress();
     markStarted();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -43,6 +50,19 @@ export default function LessonViewerPage() {
       }
     } catch (err) { console.error('Failed to fetch lesson', err); }
     setLoading(false);
+  }
+
+  async function fetchSiblingLessons() {
+    try {
+      const res = await fetch(`/api/admin/learn/lessons?module_id=${moduleId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const sorted = (data.lessons || [])
+          .sort((a: any, b: any) => a.order_index - b.order_index)
+          .map((l: any) => ({ id: l.id, title: l.title, order_index: l.order_index }));
+        setSiblingLessons(sorted);
+      }
+    } catch { /* silent */ }
   }
 
   async function checkProgress() {
@@ -91,6 +111,25 @@ export default function LessonViewerPage() {
     } catch { /* silent */ }
   }
 
+  async function completeAndContinue() {
+    setCompleting(true);
+    try {
+      const res = await fetch('/api/admin/learn/user-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'complete_lesson', lesson_id: lessonId, module_id: moduleId }),
+      });
+      if (res.ok) {
+        setCompleted(true);
+        // Navigate to next lesson if available
+        if (nextLesson) {
+          router.push(`/admin/learn/modules/${moduleId}/${nextLesson.id}`);
+        }
+      }
+    } catch { /* silent */ }
+    setCompleting(false);
+  }
+
   const recordInteraction = useCallback(async (key: string) => {
     if (interactions[key]) return; // Already recorded
     try {
@@ -132,6 +171,11 @@ export default function LessonViewerPage() {
   const hasRequiredContent = totalRequired > 0;
   const allContentReviewed = completedInteractions >= totalRequired;
   const canTakeQuiz = quizUnlocked || !hasRequiredContent || completed;
+
+  // Determine next lesson
+  const currentIdx = siblingLessons.findIndex(l => l.id === lessonId);
+  const nextLesson = currentIdx >= 0 && currentIdx < siblingLessons.length - 1 ? siblingLessons[currentIdx + 1] : null;
+  const isIntroLesson = quizCount === 0;
 
   return (
     <>
@@ -264,12 +308,37 @@ export default function LessonViewerPage() {
 
       {/* Actions */}
       <div className="admin-lesson__actions">
+        {/* No-quiz intro lesson: Complete & Continue button */}
+        {isIntroLesson && !completed && (
+          <button
+            className="admin-btn admin-btn--primary"
+            onClick={completeAndContinue}
+            disabled={completing}
+            style={{ padding: '0.75rem 2rem', fontSize: '0.95rem' }}
+          >
+            {completing ? 'Completing...' : nextLesson ? `Continue to Next Lesson \u2192` : 'Mark as Complete'}
+          </button>
+        )}
+
+        {/* Completed badge */}
         {completed && (
           <span className="admin-lesson__complete-btn admin-lesson__complete-btn--completed" style={{ cursor: 'default' }}>
             &#x2705; Lesson Completed
           </span>
         )}
 
+        {/* Next Lesson button (shown after completion for all lesson types) */}
+        {completed && nextLesson && (
+          <Link
+            href={`/admin/learn/modules/${moduleId}/${nextLesson.id}`}
+            className="admin-btn admin-btn--primary"
+            style={{ padding: '0.75rem 2rem', fontSize: '0.95rem' }}
+          >
+            Next Lesson: {nextLesson.title} &rarr;
+          </Link>
+        )}
+
+        {/* Quiz actions for lessons with quizzes */}
         {quizCount > 0 && canTakeQuiz && (
           <Link href={`/admin/learn/modules/${moduleId}/${lessonId}/quiz`} className="admin-btn admin-btn--secondary">
             {completed ? 'Retake Lesson Quiz' : 'Take Lesson Quiz'}
@@ -290,6 +359,11 @@ export default function LessonViewerPage() {
             Pass the lesson quiz to mark this lesson as complete.
           </p>
         )}
+
+        {/* Back to Module link at bottom */}
+        <Link href={`/admin/learn/modules/${moduleId}`} className="admin-btn admin-btn--ghost" style={{ marginTop: '0.5rem' }}>
+          &larr; Back to Module
+        </Link>
       </div>
     </>
   );
