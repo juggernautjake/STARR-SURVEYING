@@ -2675,17 +2675,54 @@
 .override-lesson__grade-input { width: 48px; height: 28px; padding: 0 0.3rem; font-size: 0.78rem; border: 1px solid #D1D5DB; border-radius: 5px; text-align: center; font-family: 'Inter', sans-serif; }
 .override-lesson__grade-input:focus { border-color: #1D3095; outline: none; box-shadow: 0 0 0 2px rgba(29,48,149,0.12); }
 
-/* Responsive */
+/* Responsive: override panel */
 @media (max-width: 768px) {
   .override-panel__search { flex-direction: column; }
-  .override-panel__stats { gap: 0.5rem 0.75rem; }
+  .override-panel__search .admin-btn { width: 100%; }
+  .override-panel__summary { padding: 0.75rem 1rem; }
+  .override-panel__email { font-size: 0.92rem; }
+  .override-panel__stats { gap: 0.4rem 0.75rem; }
+  .override-panel__stat { font-size: 0.78rem; }
+  .override-panel__quick { padding: 0.65rem 0.75rem; }
   .override-panel__quick-row { flex-direction: column; }
   .override-panel__quick-row input { width: 100% !important; }
-  .override-module__header { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .override-panel__quick-row .admin-btn { width: 100%; }
+  .override-module__header { flex-direction: column; align-items: flex-start; gap: 0.35rem; padding: 0.65rem 0.75rem; }
   .override-module__meta { margin-left: 2.4rem; }
+  .override-module__body { padding: 0.65rem 0.75rem; }
   .override-module__actions { gap: 0.3rem; }
   .override-btn { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
-  .override-lesson { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .override-lesson { flex-direction: column; align-items: flex-start; gap: 0.35rem; padding: 0.4rem 0.25rem; }
   .override-lesson__actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
   .override-lesson__title { white-space: normal; }
+}
+
+@media (max-width: 599px) {
+  .override-panel__summary { padding: 0.6rem 0.75rem; border-radius: 8px; }
+  .override-panel__email { font-size: 0.85rem; margin-bottom: 0.35rem; }
+  .override-panel__stats { gap: 0.35rem 0.6rem; }
+  .override-panel__stat { font-size: 0.75rem; }
+  .override-module__info { gap: 0.35rem; }
+  .override-module__title { font-size: 0.82rem; }
+  .override-module__order { width: 20px; height: 20px; font-size: 0.6rem; }
+  .override-module__badge { font-size: 0.62rem; padding: 0.1rem 0.35rem; }
+  .override-module__meta { font-size: 0.72rem; margin-left: 0; }
+  .override-module__actions { gap: 0.25rem; }
+  .override-btn { font-size: 0.65rem; padding: 0.2rem 0.4rem; }
+  .override-lesson__info { gap: 0.3rem; }
+  .override-lesson__title { font-size: 0.78rem; }
+  .override-lesson__order { font-size: 0.7rem; }
+  .override-btn-sm { width: 26px; height: 26px; font-size: 0.78rem; }
+  .override-lesson__grade-input { width: 44px; height: 26px; font-size: 0.72rem; }
+}
+
+@media (max-width: 480px) {
+  .override-panel__modules { gap: 0.35rem; }
+  .override-module__header { padding: 0.5rem 0.6rem; }
+  .override-module__body { padding: 0.5rem 0.6rem; }
+  .override-module__actions { flex-direction: column; }
+  .override-btn { width: 100%; text-align: center; justify-content: center; display: flex; align-items: center; }
+  .override-lesson__actions { gap: 0.2rem; }
+  .override-btn-sm { width: 24px; height: 24px; font-size: 0.72rem; border-radius: 4px; }
+  .override-lesson__grade-input { width: 40px; height: 24px; font-size: 0.68rem; }
 }
