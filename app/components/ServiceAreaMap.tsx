@@ -5,7 +5,7 @@ import { GoogleMap, LoadScript, Circle, Marker, InfoWindow } from '@react-google
 
 // ============================================================================
 // GOOGLE MAPS SERVICE AREA MAP
-// Shows 175-mile radius around Belton, TX headquarters
+// Shows 125-mile radius around Belton, TX headquarters
 // Includes "Get Directions" functionality
 // ============================================================================
 
@@ -27,8 +27,8 @@ export const OFFICE_ADDRESS = '3779 W FM 436, Belton, TX 76513';
 export const OFFICE_ADDRESS_LINE1 = '3779 W FM 436';
 export const OFFICE_ADDRESS_LINE2 = 'Belton, TX 76513';
 
-// ~175 miles in meters = 281,635 meters (175 * 1609.34)
-const radiusInMeters = 281635;
+// ~125 miles in meters = 201,168 meters (125 * 1609.34)
+const radiusInMeters = 201168;
 
 const circleOptions = {
   strokeColor: '#BD1218',
@@ -83,7 +83,7 @@ function PlaceholderMap() {
           </div>
           <div className="placeholder-map__center-label">
             <span className="placeholder-map__center-title">Belton HQ</span>
-            <span className="placeholder-map__center-radius">175-mile radius</span>
+            <span className="placeholder-map__center-radius">125-mile radius</span>
           </div>
         </div>
       </div>
@@ -153,10 +153,10 @@ export default function ServiceAreaMap() {
         <GoogleMap
           mapContainerStyle={containerStyle}
           center={beltonCenter}
-          zoom={6.8}
+          zoom={7.2}
           options={mapOptions}
         >
-          {/* 175-mile radius circle */}
+          {/* 125-mile radius circle */}
           <Circle 
             center={beltonCenter} 
             radius={radiusInMeters} 
