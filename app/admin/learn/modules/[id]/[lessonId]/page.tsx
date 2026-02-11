@@ -70,6 +70,8 @@ export default function LessonViewerPage() {
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
   const [quizRevealed, setQuizRevealed] = useState<Record<string, boolean>>({});
   const [slideshowIndexes, setSlideshowIndexes] = useState<Record<string, number>>({});
+  const [viewerTabIndexes, setViewerTabIndexes] = useState<Record<string, number>>({});
+  const [viewerAccordionOpen, setViewerAccordionOpen] = useState<Record<string, boolean>>({});
 
   // Required reading articles
   const [requiredArticles, setRequiredArticles] = useState<any[]>([]);
@@ -381,6 +383,40 @@ export default function LessonViewerPage() {
                     <div className={`lesson-builder__equation ${block.content.display === 'inline' ? 'lesson-builder__equation--inline' : ''}`}>
                       <div className="lesson-builder__equation-rendered" dangerouslySetInnerHTML={{ __html: renderLatex(block.content.latex || '') }} />
                       {block.content.label && <div className="lesson-builder__equation-label">{block.content.label}</div>}
+                    </div>
+                  )}
+                  {block.block_type === 'tabs' && (
+                    <div className="block-tabs">
+                      <div className="block-tabs__header">
+                        {(block.content.tabs || []).map((tab: any, ti: number) => (
+                          <button key={ti} className={`block-tabs__tab ${(viewerTabIndexes[block.id] ?? 0) === ti ? 'block-tabs__tab--active' : ''}`} onClick={() => setViewerTabIndexes(prev => ({ ...prev, [block.id]: ti }))}>{tab.title || `Tab ${ti + 1}`}</button>
+                        ))}
+                      </div>
+                      <div className="block-tabs__content" dangerouslySetInnerHTML={{ __html: (block.content.tabs || [])[viewerTabIndexes[block.id] ?? 0]?.content || '' }} />
+                    </div>
+                  )}
+                  {block.block_type === 'accordion' && (
+                    <div className="block-accordion">
+                      {(block.content.sections || []).map((sec: any, si: number) => {
+                        const key = `${block.id}-${si}`;
+                        const isOpen = viewerAccordionOpen[key] ?? sec.open;
+                        return (
+                          <div key={si} className="block-accordion__section">
+                            <button className="block-accordion__header" onClick={() => setViewerAccordionOpen(prev => ({ ...prev, [key]: !isOpen }))}>
+                              <span className="block-accordion__arrow">{isOpen ? '▾' : '▸'}</span>
+                              <span className="block-accordion__title">{sec.title || `Section ${si + 1}`}</span>
+                            </button>
+                            {isOpen && <div className="block-accordion__content" dangerouslySetInnerHTML={{ __html: sec.content || '' }} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {block.block_type === 'columns' && (
+                    <div className="block-columns" style={{ gridTemplateColumns: `repeat(${block.content.columnCount || 2}, 1fr)` }}>
+                      {(block.content.columns || []).map((col: any, ci: number) => (
+                        <div key={ci} className="block-columns__col" dangerouslySetInnerHTML={{ __html: col.html || '' }} />
+                      ))}
                     </div>
                   )}
                   {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}

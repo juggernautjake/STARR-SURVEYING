@@ -24,7 +24,8 @@ BEGIN
       'quiz', 'callout', 'divider', 'embed', 'table',
       'html', 'audio', 'link_reference',
       'flashcard', 'popup_article', 'backend_link',
-      'highlight', 'key_takeaways'
+      'highlight', 'key_takeaways', 'equation',
+      'tabs', 'accordion', 'columns'
     ));
 END $$;
 

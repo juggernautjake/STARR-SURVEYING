@@ -8,7 +8,7 @@ import { usePageError } from '../../../../hooks/usePageError';
 
 const TipTapEditor = dynamic(() => import('@/app/admin/components/TipTapEditor'), { ssr: false });
 
-type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow' | 'html' | 'audio' | 'link_reference' | 'flashcard' | 'popup_article' | 'backend_link' | 'highlight' | 'key_takeaways' | 'equation';
+type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow' | 'html' | 'audio' | 'link_reference' | 'flashcard' | 'popup_article' | 'backend_link' | 'highlight' | 'key_takeaways' | 'equation' | 'tabs' | 'accordion' | 'columns';
 
 interface BlockStyle {
   backgroundColor?: string;
@@ -60,6 +60,9 @@ const BLOCK_TYPES: { type: BlockType; label: string; icon: string; description: 
   { type: 'popup_article', label: 'Popup Article', icon: '📰', description: 'Expandable summary / article', group: 'Interactive' },
   { type: 'backend_link', label: 'Page Link', icon: '➡', description: 'Link card to app page', group: 'Interactive' },
   { type: 'equation', label: 'Equation', icon: 'Σ', description: 'Math formula (LaTeX)', group: 'Content' },
+  { type: 'tabs', label: 'Tabs', icon: '⊞', description: 'Tabbed content panels', group: 'Layout' },
+  { type: 'accordion', label: 'Accordion', icon: '≡', description: 'Collapsible FAQ sections', group: 'Layout' },
+  { type: 'columns', label: 'Columns', icon: '▥', description: '2-3 column layout', group: 'Layout' },
 ];
 
 function convertToEmbedUrl(url: string): string {
@@ -255,6 +258,9 @@ export default function LessonBuilderPage() {
   const [flashcardIndexes, setFlashcardIndexes] = useState<Record<string, number>>({});
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
   const [quizRevealed, setQuizRevealed] = useState<Record<string, boolean>>({});
+  const [previewTabIndexes, setPreviewTabIndexes] = useState<Record<string, number>>({});
+  const [previewAccordionOpen, setPreviewAccordionOpen] = useState<Record<string, boolean>>({});
+  const [multiSelect, setMultiSelect] = useState<Set<string>>(new Set());
   const [qbQuestions, setQbQuestions] = useState<any[]>([]);
   const [showQbPicker, setShowQbPicker] = useState<string | null>(null);
   const [qbLoading, setQbLoading] = useState(false);
@@ -472,10 +478,12 @@ export default function LessonBuilderPage() {
 
   async function saveAsTemplate() {
     if (!saveTemplateName.trim()) return;
-    // Save selected block or all blocks as a template
-    const blocksToSave = selectedBlockId
-      ? blocks.filter(b => b.id === selectedBlockId).map(b => ({ block_type: b.block_type, content: b.content, style: b.style }))
-      : blocks.map(b => ({ block_type: b.block_type, content: b.content, style: b.style }));
+    // Save multi-selected, single-selected, or all blocks as a template
+    const blocksToSave = multiSelect.size > 1
+      ? blocks.filter(b => multiSelect.has(b.id)).map(b => ({ block_type: b.block_type, content: b.content, style: b.style }))
+      : selectedBlockId
+        ? blocks.filter(b => b.id === selectedBlockId).map(b => ({ block_type: b.block_type, content: b.content, style: b.style }))
+        : blocks.map(b => ({ block_type: b.block_type, content: b.content, style: b.style }));
     try {
       const res = await fetch('/api/admin/learn/block-templates', {
         method: 'POST',
@@ -556,6 +564,9 @@ export default function LessonBuilderPage() {
       case 'highlight': return { text: 'Key term or concept', style: 'blue' };
       case 'key_takeaways': return { title: 'Key Takeaways', items: ['First takeaway', 'Second takeaway'] };
       case 'equation': return { latex: 'E = mc^2', label: '', display: 'block' };
+      case 'tabs': return { tabs: [{ title: 'Tab 1', content: '<p>Content for tab 1</p>' }, { title: 'Tab 2', content: '<p>Content for tab 2</p>' }], activeTab: 0 };
+      case 'accordion': return { sections: [{ title: 'Section 1', content: '<p>Content for section 1</p>', open: true }, { title: 'Section 2', content: '<p>Content for section 2</p>', open: false }] };
+      case 'columns': return { columnCount: 2, columns: [{ html: '<p>Left column content</p>' }, { html: '<p>Right column content</p>' }] };
       default: return {};
     }
   }
@@ -877,6 +888,40 @@ export default function LessonBuilderPage() {
                   {block.content.label && <div className="lesson-builder__equation-label">{block.content.label}</div>}
                 </div>
               )}
+              {block.block_type === 'tabs' && (
+                <div className="block-tabs">
+                  <div className="block-tabs__header">
+                    {(block.content.tabs || []).map((tab: any, ti: number) => (
+                      <button key={ti} className={`block-tabs__tab ${(previewTabIndexes[block.id] ?? 0) === ti ? 'block-tabs__tab--active' : ''}`} onClick={() => setPreviewTabIndexes(prev => ({ ...prev, [block.id]: ti }))}>{tab.title || `Tab ${ti + 1}`}</button>
+                    ))}
+                  </div>
+                  <div className="block-tabs__content" dangerouslySetInnerHTML={{ __html: (block.content.tabs || [])[previewTabIndexes[block.id] ?? 0]?.content || '' }} />
+                </div>
+              )}
+              {block.block_type === 'accordion' && (
+                <div className="block-accordion">
+                  {(block.content.sections || []).map((sec: any, si: number) => {
+                    const key = `${block.id}-${si}`;
+                    const isOpen = previewAccordionOpen[key] ?? sec.open;
+                    return (
+                      <div key={si} className="block-accordion__section">
+                        <button className="block-accordion__header" onClick={() => setPreviewAccordionOpen(prev => ({ ...prev, [key]: !isOpen }))}>
+                          <span className="block-accordion__arrow">{isOpen ? '▾' : '▸'}</span>
+                          <span className="block-accordion__title">{sec.title || `Section ${si + 1}`}</span>
+                        </button>
+                        {isOpen && <div className="block-accordion__content" dangerouslySetInnerHTML={{ __html: sec.content || '' }} />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {block.block_type === 'columns' && (
+                <div className="block-columns" style={{ gridTemplateColumns: `repeat(${block.content.columnCount || 2}, 1fr)` }}>
+                  {(block.content.columns || []).map((col: any, ci: number) => (
+                    <div key={ci} className="block-columns__col" dangerouslySetInnerHTML={{ __html: col.html || '' }} />
+                  ))}
+                </div>
+              )}
               {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}
               {block.block_type === 'embed' && block.content.url && (
                 <iframe src={block.content.url} style={{ width: '100%', height: `${block.content.height || 400}px`, border: '1px solid #E5E7EB', borderRadius: '8px', margin: '1.5rem 0' }} />
@@ -1055,6 +1100,40 @@ export default function LessonBuilderPage() {
       ) : (
         /* Edit Mode */
         <div className="lesson-builder__canvas">
+          {/* Multi-select bulk actions bar */}
+          {multiSelect.size > 1 && (
+            <div className="lesson-builder__bulk-bar">
+              <span style={{ fontWeight: 600, fontSize: '.82rem' }}>{multiSelect.size} blocks selected</span>
+              <div style={{ display: 'flex', gap: '.35rem' }}>
+                <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
+                  setSaveTemplateName('');
+                  setSaveTemplateDesc('');
+                  setShowSaveTemplate(true);
+                  // Save multi-selected blocks (override single selection logic temporarily)
+                  setSelectedBlockId(null);
+                }}>Save as Template</button>
+                <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
+                  // Duplicate all selected blocks
+                  const selectedBlocks = blocks.filter(b => multiSelect.has(b.id));
+                  const copies = selectedBlocks.map((b, i) => ({
+                    id: `temp-${Date.now()}-dup-${i}`,
+                    block_type: b.block_type,
+                    content: JSON.parse(JSON.stringify(b.content)),
+                    order_index: blocks.length + i,
+                    style: b.style ? JSON.parse(JSON.stringify(b.style)) : undefined,
+                  }));
+                  setBlocks([...blocks, ...copies].map((b, i) => ({ ...b, order_index: i })));
+                  setMultiSelect(new Set());
+                }}>Duplicate All</button>
+                <button className="admin-btn admin-btn--ghost admin-btn--sm lesson-builder__block-btn--danger" style={{ color: '#DC2626' }} onClick={() => {
+                  setBlocks(blocks.filter(b => !multiSelect.has(b.id)).map((b, i) => ({ ...b, order_index: i })));
+                  setMultiSelect(new Set());
+                  setSelectedBlockId(null);
+                }}>Delete All</button>
+                <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setMultiSelect(new Set())}>Clear</button>
+              </div>
+            </div>
+          )}
           {blocks.length === 0 && (
             <div className="lesson-builder__empty">
               <p>This lesson has no content blocks yet.</p>
@@ -1075,8 +1154,28 @@ export default function LessonBuilderPage() {
                 />
               )}
             <div
-              className={`lesson-builder__block ${selectedBlockId === block.id ? 'lesson-builder__block--selected' : ''} ${dragBlockId === block.id ? 'lesson-builder__block--dragging' : ''}`}
-              onClick={() => setSelectedBlockId(block.id)}
+              className={`lesson-builder__block ${selectedBlockId === block.id ? 'lesson-builder__block--selected' : ''} ${multiSelect.has(block.id) ? 'lesson-builder__block--multi-selected' : ''} ${dragBlockId === block.id ? 'lesson-builder__block--dragging' : ''}`}
+              onClick={(e) => {
+                if (e.shiftKey && selectedBlockId) {
+                  // Shift+click: range select between current and target
+                  const startIdx = blocks.findIndex(b => b.id === selectedBlockId);
+                  const endIdx = blocks.findIndex(b => b.id === block.id);
+                  if (startIdx >= 0 && endIdx >= 0) {
+                    const [lo, hi] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+                    const newSet = new Set(multiSelect);
+                    for (let i = lo; i <= hi; i++) newSet.add(blocks[i].id);
+                    setMultiSelect(newSet);
+                  }
+                } else if (e.ctrlKey || e.metaKey) {
+                  // Ctrl/Cmd+click: toggle individual selection
+                  const newSet = new Set(multiSelect);
+                  if (newSet.has(block.id)) newSet.delete(block.id); else newSet.add(block.id);
+                  setMultiSelect(newSet);
+                } else {
+                  setSelectedBlockId(block.id);
+                  setMultiSelect(new Set());
+                }
+              }}
               draggable
               onDragStart={e => onBlockDragStart(e, block.id)}
               onDragEnd={onBlockDragEnd}
@@ -1659,6 +1758,99 @@ export default function LessonBuilderPage() {
                         <div className="lesson-builder__equation-rendered" dangerouslySetInnerHTML={{ __html: renderLatex(block.content.latex || '') }} />
                       </div>
                     )}
+                  </div>
+                )}
+
+                {block.block_type === 'tabs' && (
+                  <div>
+                    {(block.content.tabs || []).map((tab: any, ti: number) => (
+                      <div key={ti} className="lesson-builder__container-section">
+                        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.35rem' }}>
+                          <input className="fc-form__input" value={tab.title || ''} onChange={e => {
+                            const tabs = [...(block.content.tabs || [])];
+                            tabs[ti] = { ...tabs[ti], title: e.target.value };
+                            updateBlockContent(block.id, { ...block.content, tabs });
+                          }} placeholder={`Tab ${ti + 1} title`} style={{ flex: 1, fontWeight: 600 }} />
+                          {(block.content.tabs || []).length > 1 && (
+                            <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
+                              const tabs = (block.content.tabs || []).filter((_: any, i: number) => i !== ti);
+                              updateBlockContent(block.id, { ...block.content, tabs });
+                            }}>✕</button>
+                          )}
+                        </div>
+                        <textarea className="fc-form__textarea" value={tab.content || ''} onChange={e => {
+                          const tabs = [...(block.content.tabs || [])];
+                          tabs[ti] = { ...tabs[ti], content: e.target.value };
+                          updateBlockContent(block.id, { ...block.content, tabs });
+                        }} placeholder="Tab content (HTML supported)" rows={3} />
+                      </div>
+                    ))}
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
+                      const tabs = [...(block.content.tabs || []), { title: `Tab ${(block.content.tabs || []).length + 1}`, content: '' }];
+                      updateBlockContent(block.id, { ...block.content, tabs });
+                    }}>+ Add Tab</button>
+                  </div>
+                )}
+
+                {block.block_type === 'accordion' && (
+                  <div>
+                    {(block.content.sections || []).map((sec: any, si: number) => (
+                      <div key={si} className="lesson-builder__container-section">
+                        <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.35rem' }}>
+                          <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '.25rem', flexShrink: 0 }}>
+                            <input type="checkbox" checked={sec.open || false} onChange={e => {
+                              const sections = [...(block.content.sections || [])];
+                              sections[si] = { ...sections[si], open: e.target.checked };
+                              updateBlockContent(block.id, { ...block.content, sections });
+                            }} /> Open
+                          </label>
+                          <input className="fc-form__input" value={sec.title || ''} onChange={e => {
+                            const sections = [...(block.content.sections || [])];
+                            sections[si] = { ...sections[si], title: e.target.value };
+                            updateBlockContent(block.id, { ...block.content, sections });
+                          }} placeholder={`Section ${si + 1} title`} style={{ flex: 1, fontWeight: 600 }} />
+                          {(block.content.sections || []).length > 1 && (
+                            <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
+                              const sections = (block.content.sections || []).filter((_: any, i: number) => i !== si);
+                              updateBlockContent(block.id, { ...block.content, sections });
+                            }}>✕</button>
+                          )}
+                        </div>
+                        <textarea className="fc-form__textarea" value={sec.content || ''} onChange={e => {
+                          const sections = [...(block.content.sections || [])];
+                          sections[si] = { ...sections[si], content: e.target.value };
+                          updateBlockContent(block.id, { ...block.content, sections });
+                        }} placeholder="Section content (HTML supported)" rows={3} />
+                      </div>
+                    ))}
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
+                      const sections = [...(block.content.sections || []), { title: `Section ${(block.content.sections || []).length + 1}`, content: '', open: false }];
+                      updateBlockContent(block.id, { ...block.content, sections });
+                    }}>+ Add Section</button>
+                  </div>
+                )}
+
+                {block.block_type === 'columns' && (
+                  <div>
+                    <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.65rem' }}>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#374151' }}>Columns:</span>
+                      {[2, 3].map(n => (
+                        <button key={n} className={`admin-btn admin-btn--sm ${(block.content.columnCount || 2) === n ? 'admin-btn--primary' : 'admin-btn--ghost'}`} onClick={() => {
+                          const cols = [...(block.content.columns || [])];
+                          while (cols.length < n) cols.push({ html: '' });
+                          updateBlockContent(block.id, { ...block.content, columnCount: n, columns: cols.slice(0, n) });
+                        }}>{n}</button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${block.content.columnCount || 2}, 1fr)`, gap: '.65rem' }}>
+                      {(block.content.columns || []).map((col: any, ci: number) => (
+                        <textarea key={ci} className="fc-form__textarea" value={col.html || ''} onChange={e => {
+                          const columns = [...(block.content.columns || [])];
+                          columns[ci] = { ...columns[ci], html: e.target.value };
+                          updateBlockContent(block.id, { ...block.content, columns });
+                        }} placeholder={`Column ${ci + 1} (HTML supported)`} rows={4} />
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
