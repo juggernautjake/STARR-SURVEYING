@@ -11,6 +11,7 @@ import DiscussionThreadButton from './DiscussionThreadButton';
 import FloatingMessenger from './FloatingMessenger';
 import ErrorProvider from './error/ErrorProvider';
 import ErrorBoundary from './error/ErrorBoundary';
+import { ToastProvider } from './Toast';
 
 import '../styles/AdminLayout.css';
 import '../styles/AdminLearn.css';
@@ -122,6 +123,7 @@ function Inner({ children }: { children: React.ReactNode }) {
 
   return (
     <ErrorProvider>
+      <ToastProvider>
       <div className="admin-layout">
         <AdminSidebar role={role} userName={session.user.name || 'User'} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="admin-layout__main">
@@ -141,6 +143,7 @@ function Inner({ children }: { children: React.ReactNode }) {
         <DiscussionThreadButton />
         <Fieldbook />
       </div>
+    </ToastProvider>
     </ErrorProvider>
   );
 }

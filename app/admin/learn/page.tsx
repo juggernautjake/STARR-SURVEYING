@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useState, useCallback } from 'react';
 import { usePageError } from '../hooks/usePageError';
+import SmartSearch from './components/SmartSearch';
 
 interface SearchResult {
   id: string;
@@ -63,83 +64,9 @@ export default function LearnHubPage() {
         </p>
       </div>
 
-      {/* Global Search */}
-      <div className="admin-search" style={{ maxWidth: '100%', marginBottom: '2rem', position: 'relative' }}>
-        <input
-          type="text"
-          className="admin-search__input"
-          placeholder="Search modules, lessons, topics, articles, flashcards..."
-          value={query}
-          onChange={handleSearch}
-        />
-        {searching && <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', color: '#9CA3AF' }}>Searching...</span>}
-
-        {/* Search Results Dropdown */}
-        {results && query.length >= 2 && (
-          <div className="search-dropdown">
-            {allResults.length === 0 ? (
-              <div className="search-dropdown__empty">No results found for &ldquo;{query}&rdquo;</div>
-            ) : (
-              <>
-                {results.modules?.length > 0 && (
-                  <div className="search-dropdown__section">
-                    <div className="search-dropdown__section-label">📚 Modules</div>
-                    {results.modules.map((r: any) => (
-                      <Link key={r.id} href={r.url} className="search-dropdown__item" onClick={() => { setQuery(''); setResults(null); }}>
-                        <span className="search-dropdown__item-title">{r.title}</span>
-                        <span className="search-dropdown__item-type">Module</span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-                {results.lessons?.length > 0 && (
-                  <div className="search-dropdown__section">
-                    <div className="search-dropdown__section-label">📖 Lessons</div>
-                    {results.lessons.map((r: any) => (
-                      <Link key={r.id} href={r.url} className="search-dropdown__item" onClick={() => { setQuery(''); setResults(null); }}>
-                        <span className="search-dropdown__item-title">{r.title}</span>
-                        <span className="search-dropdown__item-type">Lesson</span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-                {results.topics?.length > 0 && (
-                  <div className="search-dropdown__section">
-                    <div className="search-dropdown__section-label">📌 Topics</div>
-                    {results.topics.map((r: any) => (
-                      <div key={r.id} className="search-dropdown__item">
-                        <span className="search-dropdown__item-title">{r.title}</span>
-                        <span className="search-dropdown__item-type">Topic</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {results.articles?.length > 0 && (
-                  <div className="search-dropdown__section">
-                    <div className="search-dropdown__section-label">📄 Articles</div>
-                    {results.articles.map((r: any) => (
-                      <Link key={r.id} href={r.url} className="search-dropdown__item" onClick={() => { setQuery(''); setResults(null); }}>
-                        <span className="search-dropdown__item-title">{r.title}</span>
-                        <span className="search-dropdown__item-type">{r.category}</span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-                {results.flashcards?.length > 0 && (
-                  <div className="search-dropdown__section">
-                    <div className="search-dropdown__section-label">🃏 Flashcards</div>
-                    {results.flashcards.map((r: any) => (
-                      <Link key={r.id} href="/admin/learn/flashcards" className="search-dropdown__item" onClick={() => { setQuery(''); setResults(null); }}>
-                        <span className="search-dropdown__item-title">{r.term}</span>
-                        <span className="search-dropdown__item-type">Flashcard</span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
+      {/* Universal Smart Search */}
+      <div style={{ maxWidth: '100%', marginBottom: '2rem' }}>
+        <SmartSearch placeholder="Search modules, lessons, topics, articles, flashcards, questions... (Ctrl+K)" />
       </div>
 
       {/* Section Cards */}

@@ -1,15 +1,69 @@
 // app/admin/learn/modules/[id]/[lessonId]/page.tsx — Lesson viewer with content interaction tracking
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+
+/* ── Confetti burst (lightweight CSS-only, no deps) ── */
+function ConfettiBurst({ onDone }: { onDone: () => void }) {
+  useEffect(() => { const t = setTimeout(onDone, 2500); return () => clearTimeout(t); }, [onDone]);
+  const colors = ['#10B981', '#F59E0B', '#3B82F6', '#EF4444', '#8B5CF6', '#EC4899', '#1D3095'];
+  return (
+    <div className="confetti-container" aria-hidden="true">
+      {Array.from({ length: 40 }).map((_, i) => {
+        const left = Math.random() * 100;
+        const delay = Math.random() * 0.6;
+        const size = 4 + Math.random() * 6;
+        const color = colors[i % colors.length];
+        const rotation = Math.random() * 360;
+        const drift = (Math.random() - 0.5) * 120;
+        return (
+          <span key={i} className="confetti-piece" style={{
+            left: `${left}%`, animationDelay: `${delay}s`,
+            width: `${size}px`, height: `${size * (0.4 + Math.random() * 0.6)}px`,
+            background: color, transform: `rotate(${rotation}deg)`,
+            '--drift': `${drift}px`,
+          } as React.CSSProperties} />
+        );
+      })}
+    </div>
+  );
+}
 
 interface Topic { id: string; title: string; content: string; order_index: number; keywords: string[]; }
 interface Resource { title: string; url: string; type: string; }
 interface Video { title: string; url: string; description?: string; }
 interface SiblingLesson { id: string; title: string; order_index: number; }
 interface LessonBlock { id: string; block_type: string; content: Record<string, any>; order_index: number; style?: Record<string, any>; }
+
+// Lightweight LaTeX to HTML renderer for common math notation
+function renderLatex(tex: string): string {
+  if (!tex) return '';
+  let html = tex
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '<span class="eq-frac"><span class="eq-num">$1</span><span class="eq-den">$2</span></span>')
+    .replace(/\\sqrt\{([^}]+)\}/g, '<span class="eq-sqrt">&radic;<span style="text-decoration:overline">$1</span></span>')
+    .replace(/\^\{([^}]+)\}/g, '<sup>$1</sup>').replace(/\^([a-zA-Z0-9])/g, '<sup>$1</sup>')
+    .replace(/_\{([^}]+)\}/g, '<sub>$1</sub>').replace(/_([a-zA-Z0-9])/g, '<sub>$1</sub>')
+    .replace(/\\alpha/g, '&alpha;').replace(/\\beta/g, '&beta;').replace(/\\gamma/g, '&gamma;')
+    .replace(/\\delta/g, '&delta;').replace(/\\epsilon/g, '&epsilon;').replace(/\\theta/g, '&theta;')
+    .replace(/\\lambda/g, '&lambda;').replace(/\\mu/g, '&mu;').replace(/\\pi/g, '&pi;')
+    .replace(/\\sigma/g, '&sigma;').replace(/\\phi/g, '&phi;').replace(/\\omega/g, '&omega;')
+    .replace(/\\Delta/g, '&Delta;').replace(/\\Sigma/g, '&Sigma;').replace(/\\Omega/g, '&Omega;')
+    .replace(/\\Theta/g, '&Theta;').replace(/\\Pi/g, '&Pi;')
+    .replace(/\\times/g, '&times;').replace(/\\div/g, '&divide;').replace(/\\pm/g, '&plusmn;')
+    .replace(/\\cdot/g, '&middot;').replace(/\\leq/g, '&le;').replace(/\\geq/g, '&ge;')
+    .replace(/\\neq/g, '&ne;').replace(/\\approx/g, '&asymp;').replace(/\\infty/g, '&infin;')
+    .replace(/\\sum/g, '&Sigma;').replace(/\\prod/g, '&Pi;').replace(/\\int/g, '&int;')
+    .replace(/\\partial/g, '&part;').replace(/\\nabla/g, '&nabla;')
+    .replace(/\\rightarrow/g, '&rarr;').replace(/\\leftarrow/g, '&larr;')
+    .replace(/\\Rightarrow/g, '&rArr;').replace(/\\Leftarrow/g, '&lArr;')
+    .replace(/\\quad/g, '&emsp;').replace(/\\,/g, '&thinsp;')
+    .replace(/\\text\{([^}]+)\}/g, '<span style="font-style:normal;font-family:Inter,sans-serif">$1</span>')
+    .replace(/\\([a-zA-Z]+)/g, '<em>$1</em>');
+  return html;
+}
 
 export default function LessonViewerPage() {
   const params = useParams();
@@ -42,6 +96,15 @@ export default function LessonViewerPage() {
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
   const [quizRevealed, setQuizRevealed] = useState<Record<string, boolean>>({});
   const [slideshowIndexes, setSlideshowIndexes] = useState<Record<string, number>>({});
+  const [practiceStepRevealed, setPracticeStepRevealed] = useState<Record<string, number>>({});
+  const [practiceHintShown, setPracticeHintShown] = useState<Record<string, boolean>>({});
+  const [viewerTabIndexes, setViewerTabIndexes] = useState<Record<string, number>>({});
+  const [viewerAccordionOpen, setViewerAccordionOpen] = useState<Record<string, boolean>>({});
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [blockViewed, setBlockViewed] = useState<Record<string, boolean>>({});
+  const blockRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const blockTimeStart = useRef<Record<string, number>>({});
+  const blockTimeAccum = useRef<Record<string, number>>({});
 
   // Required reading articles
   const [requiredArticles, setRequiredArticles] = useState<any[]>([]);
@@ -66,6 +129,62 @@ export default function LessonViewerPage() {
     return () => window.removeEventListener('focus', handleFocus);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId]);
+
+  // Per-block progress: mark blocks as "viewed" + track time-on-block
+  useEffect(() => {
+    if (lessonBlocks.length === 0) return;
+    const observer = new IntersectionObserver((entries) => {
+      const now = Date.now();
+      entries.forEach(entry => {
+        const blockId = entry.target.getAttribute('data-block-id');
+        if (!blockId) return;
+        if (entry.isIntersecting) {
+          setBlockViewed(prev => ({ ...prev, [blockId]: true }));
+          blockTimeStart.current[blockId] = now;
+        } else {
+          // Block scrolled out — accumulate time
+          const start = blockTimeStart.current[blockId];
+          if (start) {
+            blockTimeAccum.current[blockId] = (blockTimeAccum.current[blockId] || 0) + (now - start);
+            delete blockTimeStart.current[blockId];
+          }
+        }
+      });
+    }, { threshold: 0.4 });
+    const timer = setTimeout(() => {
+      Object.values(blockRefs.current).forEach(el => { if (el) observer.observe(el); });
+    }, 200);
+    return () => { clearTimeout(timer); observer.disconnect(); };
+  }, [lessonBlocks]);
+
+  // Save block analytics on page leave
+  useEffect(() => {
+    function saveBlockAnalytics() {
+      // Finalize any blocks still in view
+      const now = Date.now();
+      for (const [blockId, start] of Object.entries(blockTimeStart.current)) {
+        blockTimeAccum.current[blockId] = (blockTimeAccum.current[blockId] || 0) + (now - start);
+      }
+      const blockTimes: Record<string, number> = {};
+      for (const [blockId, ms] of Object.entries(blockTimeAccum.current)) {
+        blockTimes[blockId] = Math.round(ms / 1000); // seconds
+      }
+      if (Object.keys(blockTimes).length === 0) return;
+      // Use sendBeacon for reliability on page unload
+      const payload = JSON.stringify({
+        action: 'block_analytics',
+        lesson_id: lessonId,
+        module_id: moduleId,
+        block_times: blockTimes,
+        blocks_viewed: Object.keys(blockViewed).length,
+        total_blocks: lessonBlocks.length,
+      });
+      navigator.sendBeacon('/api/admin/learn/user-progress', payload);
+    }
+    window.addEventListener('beforeunload', saveBlockAnalytics);
+    return () => window.removeEventListener('beforeunload', saveBlockAnalytics);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lessonId, moduleId, lessonBlocks.length, blockViewed]);
 
   async function fetchLesson() {
     try {
@@ -226,9 +345,9 @@ export default function LessonViewerPage() {
   return (
     <>
       {/* Navigation */}
-      <div className="admin-lesson__header">
-        <div className="admin-lesson__nav">
-          <Link href={`/admin/learn/modules/${moduleId}`} className="admin-lesson__nav-link">&larr; Back to Module</Link>
+      <div className="admin-lesson__header" role="banner" aria-label="Lesson header">
+        <div className="admin-lesson__nav" role="navigation" aria-label="Lesson navigation">
+          <Link href={`/admin/learn/modules/${moduleId}`} className="admin-lesson__nav-link" aria-label="Back to module">&larr; Back to Module</Link>
           {quizCount > 0 && canTakeQuiz && (
             <Link href={`/admin/learn/modules/${moduleId}/${lessonId}/quiz`} className="admin-btn admin-btn--secondary admin-btn--sm">
               Take Quiz ({quizCount} questions)
@@ -262,9 +381,22 @@ export default function LessonViewerPage() {
         </div>
       )}
 
+      {/* Confetti overlay */}
+      {showConfetti && <ConfettiBurst onDone={() => setShowConfetti(false)} />}
+
+      {/* Block scroll progress */}
+      {lessonBlocks.length > 0 && (
+        <div className="block-progress" role="progressbar" aria-valuenow={Object.keys(blockViewed).length} aria-valuemin={0} aria-valuemax={lessonBlocks.length} aria-label="Reading progress">
+          <div className="block-progress__bar">
+            <div className="block-progress__fill" style={{ width: `${lessonBlocks.length > 0 ? (Object.keys(blockViewed).length / lessonBlocks.length) * 100 : 0}%` }} />
+          </div>
+          <span className="block-progress__label">{Object.keys(blockViewed).length}/{lessonBlocks.length} sections viewed</span>
+        </div>
+      )}
+
       {/* Lesson Content — Blocks preferred, fallback to legacy HTML */}
       {lessonBlocks.length > 0 ? (
-        <div className="admin-lesson__body">
+        <div className="admin-lesson__body" role="main" aria-label="Lesson content">
           {lessonBlocks.map((block) => {
             const st: React.CSSProperties = {};
             if (block.style?.backgroundColor && block.style.backgroundColor !== '#ffffff') st.backgroundColor = block.style.backgroundColor;
@@ -285,7 +417,7 @@ export default function LessonViewerPage() {
 
             if (isHidden && isCollapsed) {
               return (
-                <div key={block.id} style={{ textAlign: 'center', margin: '1rem 0' }}>
+                <div key={block.id} data-block-id={block.id} ref={(el) => { blockRefs.current[block.id] = el; }} style={{ textAlign: 'center', margin: '1rem 0' }}>
                   <button className="admin-btn admin-btn--ghost" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: false }))} style={{ fontSize: '.85rem' }}>
                     {block.style?.hiddenLabel || 'Click to reveal'}
                   </button>
@@ -294,7 +426,7 @@ export default function LessonViewerPage() {
             }
 
             return (
-              <div key={block.id} style={st}>
+              <div key={block.id} data-block-id={block.id} ref={(el) => { blockRefs.current[block.id] = el; }} style={st}>
                 {isCollapsible && (
                   <button className="lesson-builder__collapse-toggle" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !isCollapsed }))}>
                     <span style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform .2s' }}>&#x25BC;</span>
@@ -302,7 +434,9 @@ export default function LessonViewerPage() {
                   </button>
                 )}
                 <div className={`block-collapsible-wrap ${(!isCollapsible || !isCollapsed) ? 'block-collapsible-wrap--open' : ''}`}><div>
-                  {block.block_type === 'text' && <div dangerouslySetInnerHTML={{ __html: block.content.html || '' }} />}
+                  {block.block_type === 'text' && block.content.html && block.content.html !== '<p></p>' && block.content.html !== '<p>Enter text here...</p>' && (
+                    <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
+                  )}
                   {block.block_type === 'html' && <div dangerouslySetInnerHTML={{ __html: block.content.code || '' }} />}
                   {block.block_type === 'image' && block.content.url && (
                     <figure style={{ textAlign: (block.content.alignment || 'center') as any, margin: '1.5rem 0' }}>
@@ -349,6 +483,46 @@ export default function LessonViewerPage() {
                       </ul>
                     </div>
                   )}
+                  {block.block_type === 'equation' && (
+                    <div className={`lesson-builder__equation ${block.content.display === 'inline' ? 'lesson-builder__equation--inline' : ''}`}>
+                      <div className="lesson-builder__equation-rendered" dangerouslySetInnerHTML={{ __html: renderLatex(block.content.latex || '') }} />
+                      {block.content.label && <div className="lesson-builder__equation-label">{block.content.label}</div>}
+                    </div>
+                  )}
+                  {block.block_type === 'tabs' && (
+                    <div className="block-tabs">
+                      <div className="block-tabs__header">
+                        {(block.content.tabs || []).map((tab: any, ti: number) => (
+                          <button key={ti} className={`block-tabs__tab ${(viewerTabIndexes[block.id] ?? 0) === ti ? 'block-tabs__tab--active' : ''}`} onClick={() => setViewerTabIndexes(prev => ({ ...prev, [block.id]: ti }))}>{tab.title || `Tab ${ti + 1}`}</button>
+                        ))}
+                      </div>
+                      <div className="block-tabs__content" dangerouslySetInnerHTML={{ __html: (block.content.tabs || [])[viewerTabIndexes[block.id] ?? 0]?.content || '' }} />
+                    </div>
+                  )}
+                  {block.block_type === 'accordion' && (
+                    <div className="block-accordion">
+                      {(block.content.sections || []).map((sec: any, si: number) => {
+                        const key = `${block.id}-${si}`;
+                        const isOpen = viewerAccordionOpen[key] ?? sec.open;
+                        return (
+                          <div key={si} className="block-accordion__section">
+                            <button className="block-accordion__header" onClick={() => setViewerAccordionOpen(prev => ({ ...prev, [key]: !isOpen }))}>
+                              <span className="block-accordion__arrow">{isOpen ? '▾' : '▸'}</span>
+                              <span className="block-accordion__title">{sec.title || `Section ${si + 1}`}</span>
+                            </button>
+                            {isOpen && <div className="block-accordion__content" dangerouslySetInnerHTML={{ __html: sec.content || '' }} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {block.block_type === 'columns' && (
+                    <div className="block-columns" style={{ gridTemplateColumns: `repeat(${block.content.columnCount || 2}, 1fr)` }}>
+                      {(block.content.columns || []).map((col: any, ci: number) => (
+                        <div key={ci} className="block-columns__col" dangerouslySetInnerHTML={{ __html: col.html || '' }} />
+                      ))}
+                    </div>
+                  )}
                   {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}
                   {block.block_type === 'embed' && block.content.url && (
                     <iframe src={block.content.url} style={{ width: '100%', height: `${block.content.height || 400}px`, border: '1px solid #E5E7EB', borderRadius: '8px', margin: '1.5rem 0' }} />
@@ -389,7 +563,30 @@ export default function LessonViewerPage() {
                           })}
                         </div>
                         {selected !== null && !revealed && (
-                          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setQuizRevealed(prev => ({ ...prev, [qKey]: true })); recordInteraction(`quiz_block_${block.id}`); }} style={{ marginTop: '.75rem' }}>Check Answer</button>
+                          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => {
+                            setQuizRevealed(prev => ({ ...prev, [qKey]: true }));
+                            recordInteraction(`quiz_block_${block.id}`);
+                            const isCorrect = selected === block.content.correct;
+                            if (isCorrect) setShowConfetti(true);
+                            // Record inline quiz answer for analytics
+                            fetch('/api/admin/learn/user-progress', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                action: 'block_analytics',
+                                lesson_id: lessonId,
+                                module_id: moduleId,
+                                block_times: {},
+                                quiz_answer: {
+                                  block_id: block.id,
+                                  question: block.content.question,
+                                  selected_option: selected,
+                                  correct_option: block.content.correct,
+                                  is_correct: isCorrect,
+                                },
+                              }),
+                            }).catch(() => {});
+                          }} style={{ marginTop: '.75rem' }}>Check Answer</button>
                         )}
                         {revealed && (
                           <div className={`block-quiz__result ${selected === block.content.correct ? 'block-quiz__result--correct' : 'block-quiz__result--wrong'}`}>
@@ -502,6 +699,75 @@ export default function LessonViewerPage() {
                       <span className="block-backend-link__arrow">→</span>
                     </a>
                   )}
+                  {block.block_type === 'practice_problem' && (() => {
+                    const steps = block.content.steps || [];
+                    const revealedCount = practiceStepRevealed[block.id] ?? 0;
+                    const allRevealed = revealedCount >= steps.length;
+                    return (
+                      <div className="block-practice" style={{ margin: '1.5rem 0' }}>
+                        <div className="block-practice__header">
+                          <span className="block-practice__icon">🧮</span>
+                          <div>
+                            <h4 className="block-practice__title">{block.content.title || 'Practice Problem'}</h4>
+                            <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                              {block.content.category && <span className="block-practice__cat">{block.content.category}</span>}
+                              {block.content.difficulty && <span className={`manage__diff-badge manage__diff-badge--${block.content.difficulty}`}>{block.content.difficulty}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        {block.content.problem_statement && (
+                          <div className="block-practice__statement">{block.content.problem_statement}</div>
+                        )}
+                        <div className="block-practice__steps">
+                          {steps.map((step: any, si: number) => {
+                            const isVisible = si < revealedCount;
+                            const hintKey = `${block.id}-${si}`;
+                            const showHint = practiceHintShown[hintKey];
+                            return (
+                              <div key={si} className={`block-practice__step ${isVisible ? 'block-practice__step--visible' : 'block-practice__step--hidden'}`}>
+                                <span className="block-practice__step-num">{si + 1}</span>
+                                {isVisible ? (
+                                  <div style={{ flex: 1 }}>
+                                    <strong>{step.label}</strong>
+                                    {step.content && <p style={{ margin: '.25rem 0 0', fontSize: '.85rem', color: '#374151', lineHeight: 1.6 }}>{step.content}</p>}
+                                  </div>
+                                ) : si === revealedCount ? (
+                                  <div style={{ flex: 1, display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => setPracticeStepRevealed(prev => ({ ...prev, [block.id]: revealedCount + 1 }))}>
+                                      Reveal Step {si + 1}
+                                    </button>
+                                    {step.hint && !showHint && (
+                                      <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setPracticeHintShown(prev => ({ ...prev, [hintKey]: true }))}>
+                                        Show Hint
+                                      </button>
+                                    )}
+                                    {showHint && <span style={{ fontSize: '.82rem', color: '#D97706', fontStyle: 'italic' }}>{step.hint}</span>}
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: '.82rem', color: '#9CA3AF' }}>Locked — reveal previous steps first</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {allRevealed && (
+                          <div className="block-practice__answer">
+                            <strong>Final Answer:</strong> {block.content.final_answer}
+                            {block.content.explanation && (
+                              <p style={{ margin: '.5rem 0 0', fontSize: '.85rem', color: '#374151', lineHeight: 1.6 }}>{block.content.explanation}</p>
+                            )}
+                          </div>
+                        )}
+                        {!allRevealed && (
+                          <div style={{ textAlign: 'center', marginTop: '.75rem' }}>
+                            <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => setPracticeStepRevealed(prev => ({ ...prev, [block.id]: steps.length }))}>
+                              Reveal All Steps
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {isHidden && !isCollapsed && (
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: true }))} style={{ marginTop: '.5rem', fontSize: '.78rem' }}>Hide</button>
                   )}

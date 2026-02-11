@@ -2,27 +2,35 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
+import SmartSearch from '../components/SmartSearch';
+import { useToast } from '../../components/Toast';
+import SmallScreenBanner from '../../components/SmallScreenBanner';
+import StudentOverridePanel from '../../components/StudentOverridePanel';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
-type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config' | 'assignments' | 'activity' | 'recycle_bin';
+type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config' | 'assignments' | 'student_overrides' | 'activity' | 'recycle_bin';
 
 interface Module { id: string; title: string; status: string; order_index: number; description: string; difficulty: string; estimated_hours: number; lesson_count?: number; xp_value?: number; expiry_months?: number; }
 interface XPModuleConfig { id: string; title: string; difficulty?: string; order_index?: number; module_number?: number; module_type: string; xp_value: number; expiry_months: number; difficulty_rating: number; has_custom_xp: boolean; config_id: string | null; }
 interface Lesson { id: string; title: string; module_id: string; order_index: number; status: string; estimated_minutes: number; module_title?: string; }
 interface Article { id: string; title: string; slug: string; category: string; status: string; author?: string; subtitle?: string; estimated_minutes?: number; excerpt?: string; }
-interface Question { id: string; question_text: string; question_type: string; module_id?: string; lesson_id?: string; exam_category?: string; difficulty: string; correct_answer: string; options: any; explanation?: string; }
-interface Flashcard { id: string; term: string; definition: string; hint_1?: string; }
+interface Question { id: string; question_text: string; question_type: string; module_id?: string; lesson_id?: string; exam_category?: string; difficulty: string; correct_answer: string; options: any; explanation?: string; tags?: string[]; }
+interface Flashcard { id: string; term: string; definition: string; hint_1?: string; hint_2?: string; hint_3?: string; module_id?: string; lesson_id?: string; tags?: string[]; source?: string; }
 interface Assignment { id: string; assigned_to: string; assigned_by: string; module_id?: string; lesson_id?: string; unlock_next: boolean; status: string; due_date?: string; notes?: string; created_at: string; completed_at?: string; module_title?: string; lesson_title?: string; }
 interface Activity { id: string; user_email: string; action_type: string; entity_type?: string; entity_id?: string; metadata?: any; created_at: string; }
 
 export default function ManageContentPage() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
   const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
   const { safeFetch } = usePageError('ManageContentPage');
-  const [tab, setTab] = useState<Tab>('modules');
+  const { addToast } = useToast();
+  const initialTab = (searchParams.get('tab') as Tab) || 'modules';
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [loading, setLoading] = useState(true);
 
   // Data
@@ -56,6 +64,58 @@ export default function ManageContentPage() {
   // Module editing
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   const [editModule, setEditModule] = useState<Record<string, any>>({});
+
+  // Flashcard editing
+  const [editingFlashcardId, setEditingFlashcardId] = useState<string | null>(null);
+  const [editFlashcard, setEditFlashcard] = useState<Record<string, any>>({});
+
+  // Question editing
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [editQuestion, setEditQuestion] = useState<Record<string, any>>({});
+
+  // Dirty tracking — true when user has entered data into a form
+  const isFormDirty = Object.values(formData).some(v => v !== '' && v !== undefined && v !== null);
+  const isEditModuleDirty = Object.keys(editModule).length > 0;
+  const isEditQuestionDirty = Object.keys(editQuestion).length > 0;
+  const isEditFlashcardDirty = Object.keys(editFlashcard).length > 0;
+
+  function confirmDiscard(dirty: boolean): boolean {
+    if (!dirty) return true;
+    return confirm('You have unsaved changes. Discard them?');
+  }
+
+  function handleCancelForm() {
+    if (!confirmDiscard(isFormDirty)) return;
+    setShowForm(false);
+    setFormData({});
+  }
+
+  function handleToggleForm() {
+    if (showForm) {
+      handleCancelForm();
+    } else {
+      setShowForm(true);
+      setFormData({});
+    }
+  }
+
+  function handleCancelEditModule() {
+    if (!confirmDiscard(isEditModuleDirty)) return;
+    setEditingModuleId(null);
+    setEditModule({});
+  }
+
+  function handleCancelEditQuestion() {
+    if (!confirmDiscard(isEditQuestionDirty)) return;
+    setEditingQuestionId(null);
+    setEditQuestion({});
+  }
+
+  function handleCancelEditFlashcard() {
+    if (!confirmDiscard(isEditFlashcardDirty)) return;
+    setEditingFlashcardId(null);
+    setEditFlashcard({});
+  }
 
   useEffect(() => { loadData(); }, [tab]);
 
@@ -91,8 +151,12 @@ export default function ManageContentPage() {
         break;
       }
       case 'flashcards': {
-        const d = await safeFetch<{ cards: Flashcard[] }>('/api/admin/learn/flashcards?source=builtin');
-        if (d) setFlashcards(d.cards || []);
+        const [fData, modData] = await Promise.all([
+          safeFetch<{ cards: Flashcard[] }>('/api/admin/learn/flashcards?source=builtin&discovered=false'),
+          safeFetch<{ modules: Module[] }>('/api/admin/learn/modules'),
+        ]);
+        if (fData) setFlashcards(fData.cards || []);
+        if (modData) setModules(modData.modules || []);
         break;
       }
       case 'xp_config': {
@@ -156,7 +220,7 @@ export default function ManageContentPage() {
             estimated_minutes: Number(formData.estimated_minutes) || 30,
             status: formData.status || 'draft',
           };
-          if (!body.module_id) { alert('Please select a module.'); setSaving(false); return; }
+          if (!body.module_id) { addToast('Please select a module.', 'warning'); setSaving(false); return; }
           break;
         case 'articles':
           url = '/api/admin/learn/articles';
@@ -185,7 +249,7 @@ export default function ManageContentPage() {
             lesson_id: formData.lesson_id || null,
             exam_category: formData.exam_category || null,
           };
-          if (!body.question_text) { alert('Please enter a question.'); setSaving(false); return; }
+          if (!body.question_text) { addToast('Please enter a question.', 'warning'); setSaving(false); return; }
           break;
       }
 
@@ -199,6 +263,7 @@ export default function ManageContentPage() {
           setShowForm(false);
           setFormData({});
           loadData();
+          addToast(`${tab.slice(0, -1).replace('_', ' ')} created successfully!`, 'success');
         }
       }
     } catch { /* safeFetch handles error reporting */ }
@@ -255,6 +320,69 @@ export default function ManageContentPage() {
       setEditingModuleId(null);
       setEditModule({});
       loadData();
+      addToast('Module updated successfully!', 'success');
+    }
+    setSaving(false);
+  }
+
+  async function handleSaveFlashcard() {
+    if (!editingFlashcardId) return;
+    setSaving(true);
+    const result = await safeFetch('/api/admin/learn/flashcards', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingFlashcardId, source: 'builtin', ...editFlashcard }),
+    });
+    if (result) {
+      setEditingFlashcardId(null);
+      setEditFlashcard({});
+      loadData();
+      addToast('Flashcard updated!', 'success');
+    }
+    setSaving(false);
+  }
+
+  async function handleCreateFlashcard() {
+    setSaving(true);
+    const result = await safeFetch('/api/admin/learn/flashcards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: 'builtin',
+        term: formData.term || 'New Term',
+        definition: formData.definition || '',
+        hint_1: formData.hint_1 || null,
+        hint_2: formData.hint_2 || null,
+        hint_3: formData.hint_3 || null,
+        module_id: formData.module_id || null,
+        lesson_id: formData.lesson_id || null,
+      }),
+    });
+    if (result) {
+      setShowForm(false);
+      setFormData({});
+      loadData();
+      addToast('Flashcard created!', 'success');
+    }
+    setSaving(false);
+  }
+
+  async function handleSaveQuestion() {
+    if (!editingQuestionId) return;
+    setSaving(true);
+    const optionsVal = typeof editQuestion.options === 'string'
+      ? editQuestion.options.split('|').map((o: string) => o.trim()).filter(Boolean)
+      : editQuestion.options;
+    const result = await safeFetch('/api/admin/learn/questions', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingQuestionId, ...editQuestion, options: optionsVal }),
+    });
+    if (result) {
+      setEditingQuestionId(null);
+      setEditQuestion({});
+      loadData();
+      addToast('Question updated!', 'success');
     }
     setSaving(false);
   }
@@ -266,7 +394,10 @@ export default function ManageContentPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item_type: itemType, item_id: itemId }),
     });
-    if (result) loadData();
+    if (result) {
+      loadData();
+      addToast(`"${itemTitle}" moved to recycle bin.`, 'info');
+    }
   }
 
   async function handleRestore(recycleId: string) {
@@ -362,22 +493,32 @@ export default function ManageContentPage() {
     { key: 'flashcards', label: 'Flashcards', icon: '\u{1F0CF}' },
     { key: 'xp_config', label: 'XP Config', icon: '\u{2B50}' },
     { key: 'assignments', label: 'Assignments', icon: '\u{1F4CB}' },
+    { key: 'student_overrides', label: 'Student Overrides', icon: '\u{1F6E0}' },
     { key: 'activity', label: 'Activity', icon: '\u{1F4CA}' },
     { key: 'recycle_bin', label: `Recycle Bin${recycleBin.length > 0 ? ` (${recycleBin.length})` : ''}`, icon: '\u{1F5D1}' },
   ];
 
   return (
     <>
+      <SmallScreenBanner storageKey="manage-content-banner" />
       <div className="learn__header">
         <Link href="/admin/learn" className="learn__back">&larr; Back to Learning Hub</Link>
         <h2 className="learn__title">Manage Content</h2>
         <p className="learn__subtitle">Create and manage modules, lessons, articles, question bank, flashcards, assignments, and monitor activity.</p>
       </div>
 
+      {/* Universal Smart Search */}
+      <div style={{ marginBottom: '1rem' }}>
+        <SmartSearch placeholder="Search everything: modules, lessons, questions, flashcards, articles... (Ctrl+K)" />
+      </div>
+
       {/* Tabs */}
       <div className="manage__tabs">
         {tabs.map(t => (
-          <button key={t.key} className={`manage__tab ${tab === t.key ? 'manage__tab--active' : ''}`} onClick={() => { setTab(t.key); setShowForm(false); }}>
+          <button key={t.key} className={`manage__tab ${tab === t.key ? 'manage__tab--active' : ''}`} onClick={() => {
+            if (showForm && isFormDirty && !confirm('You have unsaved changes. Switch tabs and discard?')) return;
+            setTab(t.key); setShowForm(false); setFormData({});
+          }}>
             {t.icon} {t.label}
           </button>
         ))}
@@ -386,18 +527,29 @@ export default function ManageContentPage() {
       {/* Toolbar */}
       <div className="manage__toolbar">
         <span style={{ fontSize: '.85rem', color: '#6B7280' }}>
-          {loading ? 'Loading...' : tab === 'assignments' ? `${filteredAssignments.length} assignments` : tab === 'activity' ? `${filteredActivities.length} activities` : `${tab === 'modules' ? modules.length : tab === 'lessons' ? lessons.length : tab === 'articles' ? articles.length : tab === 'questions' ? questions.length : tab === 'xp_config' ? xpLearningModules.length + xpFsModules.length : flashcards.length} items`}
+          {loading ? 'Loading...' : tab === 'assignments' ? `${filteredAssignments.length} assignments` : tab === 'activity' ? `${filteredActivities.length} activities` : tab === 'student_overrides' ? 'Admin student control panel' : `${tab === 'modules' ? modules.length : tab === 'lessons' ? lessons.length : tab === 'articles' ? articles.length : tab === 'questions' ? questions.length : tab === 'xp_config' ? xpLearningModules.length + xpFsModules.length : flashcards.length} items`}
         </span>
         {tab === 'questions' ? (
-          <Link href="/admin/learn/manage/question-builder" className="admin-btn admin-btn--primary admin-btn--sm">
-            Open Question Builder
-          </Link>
+          <div style={{ display: 'flex', gap: '.5rem' }}>
+            <Link href="/admin/learn/manage/question-builder" className="admin-btn admin-btn--primary admin-btn--sm">
+              Question Builder
+            </Link>
+            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleToggleForm}>
+              {showForm ? '\u2715 Cancel' : '+ Quick Add'}
+            </button>
+          </div>
+        ) : tab === 'flashcards' ? (
+          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleToggleForm}>
+            {showForm ? '\u2715 Cancel' : '+ New Flashcard'}
+          </button>
         ) : tab === 'assignments' ? (
-          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(!showForm); setAssignForm({}); }}>
+          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => {
+            if (showForm) { handleCancelForm(); } else { setShowForm(true); setAssignForm({}); }
+          }}>
             {showForm ? '\u2715 Cancel' : '+ New Assignment'}
           </button>
         ) : ['modules', 'lessons', 'articles'].includes(tab) && (
-          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(!showForm); setFormData({}); }}>
+          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleToggleForm}>
             {showForm ? '\u2715 Cancel' : '+ Create New'}
           </button>
         )}
@@ -500,6 +652,9 @@ export default function ManageContentPage() {
         </>
       )}
 
+      {/* ── STUDENT OVERRIDES TAB ── */}
+      {tab === 'student_overrides' && <StudentOverridePanel />}
+
       {/* ── ACTIVITY MONITOR TAB ── */}
       {tab === 'activity' && (
         <>
@@ -550,34 +705,64 @@ export default function ManageContentPage() {
         <div className="manage__form">
           {tab === 'modules' && (
             <>
-              <input className="manage__form-input" placeholder="Module title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
-              <textarea className="manage__form-textarea" placeholder="Description" rows={2} value={formData.description || ''} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} />
+              <div className="manage__form-field">
+                <input className="manage__form-input" placeholder="Module title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
+                <span className="manage__form-hint">The display name for this module (e.g., &ldquo;Introduction to Boundary Law&rdquo;).</span>
+              </div>
+              <div className="manage__form-field">
+                <textarea className="manage__form-textarea" placeholder="Description" rows={2} value={formData.description || ''} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} />
+                <span className="manage__form-hint">A brief summary shown on the module card. Explain what students will learn.</span>
+              </div>
               <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-                <select className="manage__form-input" value={formData.difficulty || 'beginner'} onChange={e => setFormData(p => ({ ...p, difficulty: e.target.value }))}>
-                  <option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option>
-                </select>
-                <input className="manage__form-input" type="number" placeholder="Est. hours" value={formData.estimated_hours || ''} onChange={e => setFormData(p => ({ ...p, estimated_hours: e.target.value }))} />
-                <select className="manage__form-input" value={formData.status || 'draft'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
-                  <option value="draft">Draft</option><option value="published">Published</option>
-                </select>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <select className="manage__form-input" value={formData.difficulty || 'beginner'} onChange={e => setFormData(p => ({ ...p, difficulty: e.target.value }))}>
+                    <option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option>
+                  </select>
+                  <span className="manage__form-hint">Difficulty level shown to students.</span>
+                </div>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <input className="manage__form-input" type="number" min="0" step="0.5" placeholder="Est. hours" value={formData.estimated_hours || ''} onChange={e => setFormData(p => ({ ...p, estimated_hours: e.target.value }))} />
+                  <span className="manage__form-hint">Estimated time to complete all lessons.</span>
+                </div>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <select className="manage__form-input" value={formData.status || 'draft'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
+                    <option value="draft">Draft</option><option value="published">Published</option>
+                  </select>
+                  <span className="manage__form-hint">Draft modules are hidden from students.</span>
+                </div>
               </div>
             </>
           )}
           {tab === 'lessons' && (
             <>
-              <select className="manage__form-input" value={formData.module_id || ''} onChange={e => setFormData(p => ({ ...p, module_id: e.target.value }))}>
-                <option value="">Select module *</option>
-                {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
-              </select>
-              <input className="manage__form-input" placeholder="Lesson title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
-              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-                <input className="manage__form-input" type="number" placeholder="Order index" value={formData.order_index || ''} onChange={e => setFormData(p => ({ ...p, order_index: e.target.value }))} />
-                <input className="manage__form-input" type="number" placeholder="Est. minutes" value={formData.estimated_minutes || ''} onChange={e => setFormData(p => ({ ...p, estimated_minutes: e.target.value }))} />
-                <select className="manage__form-input" value={formData.status || 'draft'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
-                  <option value="draft">Draft</option><option value="published">Published</option>
+              <div className="manage__form-field">
+                <select className="manage__form-input" value={formData.module_id || ''} onChange={e => setFormData(p => ({ ...p, module_id: e.target.value }))}>
+                  <option value="">Select module *</option>
+                  {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
                 </select>
+                <span className="manage__form-hint">Which module this lesson belongs to. Students must complete lessons in module order.</span>
               </div>
-              <p style={{ fontSize: '.78rem', color: '#6B7280' }}>Use the Lesson Builder to add rich content after creating the lesson.</p>
+              <div className="manage__form-field">
+                <input className="manage__form-input" placeholder="Lesson title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
+                <span className="manage__form-hint">The lesson name shown in the module&rsquo;s lesson list (e.g., &ldquo;Types of Legal Descriptions&rdquo;).</span>
+              </div>
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <input className="manage__form-input" type="number" min="1" step="1" placeholder="Order (e.g. 1, 2, 3)" value={formData.order_index || ''} onChange={e => setFormData(p => ({ ...p, order_index: Math.max(1, parseInt(e.target.value) || 1).toString() }))} />
+                  <span className="manage__form-hint">Position in the module (1 = first lesson). Must be 1 or higher.</span>
+                </div>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <input className="manage__form-input" type="number" min="1" step="5" placeholder="Est. minutes (e.g. 30)" value={formData.estimated_minutes || ''} onChange={e => setFormData(p => ({ ...p, estimated_minutes: e.target.value }))} />
+                  <span className="manage__form-hint">Approximate reading/study time for this lesson.</span>
+                </div>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <select className="manage__form-input" value={formData.status || 'draft'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
+                    <option value="draft">Draft</option><option value="published">Published</option>
+                  </select>
+                  <span className="manage__form-hint">Draft = hidden. Publish when content is ready.</span>
+                </div>
+              </div>
+              <p style={{ fontSize: '.78rem', color: '#6B7280', marginTop: '.25rem' }}>After creating, use the <strong>Lesson Builder</strong> to add rich content blocks (text, images, quizzes, etc.).</p>
             </>
           )}
           {tab === 'articles' && (
@@ -628,13 +813,64 @@ export default function ManageContentPage() {
               </div>
             </>
           )}
-          <button className="admin-btn admin-btn--primary" onClick={handleCreate} disabled={saving}>{saving ? 'Creating...' : 'Create'}</button>
+          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+            {['modules', 'lessons', 'articles'].includes(tab) && formData.status !== 'draft' && (
+              <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => { setFormData(p => ({ ...p, status: 'draft' })); handleCreate(); }} disabled={saving}>
+                Save as Draft
+              </button>
+            )}
+            <button className="admin-btn admin-btn--primary" onClick={handleCreate} disabled={saving}>
+              {saving ? 'Creating...' : formData.status === 'draft' || !['modules', 'lessons', 'articles'].includes(tab) ? 'Create' : 'Create & Publish'}
+            </button>
+            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelForm}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Flashcard Create Form */}
+      {showForm && tab === 'flashcards' && (
+        <div className="manage__form">
+          <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.95rem', fontWeight: 600, color: '#0F1419', margin: '0 0 0.75rem' }}>Create Builtin Flashcard</h4>
+          <input className="manage__form-input" placeholder="Term *" value={formData.term || ''} onChange={e => setFormData(p => ({ ...p, term: e.target.value }))} />
+          <textarea className="manage__form-textarea" placeholder="Definition *" rows={3} value={formData.definition || ''} onChange={e => setFormData(p => ({ ...p, definition: e.target.value }))} />
+          <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+            <input className="manage__form-input" style={{ flex: 1 }} placeholder="Hint 1 (optional)" value={formData.hint_1 || ''} onChange={e => setFormData(p => ({ ...p, hint_1: e.target.value }))} />
+            <input className="manage__form-input" style={{ flex: 1 }} placeholder="Hint 2 (optional)" value={formData.hint_2 || ''} onChange={e => setFormData(p => ({ ...p, hint_2: e.target.value }))} />
+            <input className="manage__form-input" style={{ flex: 1 }} placeholder="Hint 3 (optional)" value={formData.hint_3 || ''} onChange={e => setFormData(p => ({ ...p, hint_3: e.target.value }))} />
+          </div>
+          <select className="manage__form-input" value={formData.module_id || ''} onChange={e => setFormData(p => ({ ...p, module_id: e.target.value }))}>
+            <option value="">Link to module (optional)</option>
+            {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
+          </select>
+          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+            <button className="admin-btn admin-btn--primary" onClick={handleCreateFlashcard} disabled={saving}>{saving ? 'Creating...' : 'Create Flashcard'}</button>
+            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelForm}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Skeleton */}
+      {loading && (
+        <div style={{ padding: '0.5rem 0' }}>
+          {[1,2,3,4].map(i => (
+            <div key={i} className="skeleton skeleton--card" style={{ height: 64 }} />
+          ))}
         </div>
       )}
 
       {/* Content Lists */}
       {!loading && tab !== 'assignments' && tab !== 'activity' && (
-        <div className="manage__list">
+        <div className="manage__list" role="list" aria-label={`${tab} list`}>
+          {tab === 'modules' && modules.length === 0 && !showForm && (
+            <div className="admin-empty">
+              <div className="admin-empty__icon">{'\u{1F4DA}'}</div>
+              <div className="admin-empty__title">No modules yet</div>
+              <div className="admin-empty__desc">Create your first learning module to get started. Modules contain lessons that guide students through topics.</div>
+              <div className="admin-empty__action">
+                <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(true); setFormData({}); }}>+ Create Module</button>
+              </div>
+            </div>
+          )}
           {tab === 'modules' && modules.sort((a, b) => a.order_index - b.order_index).map(m => (
             <div key={m.id} className="manage__item" style={editingModuleId === m.id ? { flexDirection: 'column', alignItems: 'stretch' } : undefined}>
               {editingModuleId === m.id ? (
@@ -647,7 +883,7 @@ export default function ManageContentPage() {
                         <option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option>
                       </select>
                       <input className="manage__form-input" style={{ flex: 1 }} type="number" step="0.5" min="0" placeholder="Est. hours" value={editModule.estimated_hours ?? m.estimated_hours} onChange={e => setEditModule(p => ({ ...p, estimated_hours: parseFloat(e.target.value) || 0 }))} />
-                      <input className="manage__form-input" style={{ flex: 1 }} type="number" step="1" min="0" placeholder="Order" value={editModule.order_index ?? m.order_index} onChange={e => setEditModule(p => ({ ...p, order_index: parseInt(e.target.value) || 0 }))} />
+                      <input className="manage__form-input" style={{ flex: 1 }} type="number" step="1" min="1" placeholder="Order" value={editModule.order_index ?? m.order_index} onChange={e => setEditModule(p => ({ ...p, order_index: Math.max(1, parseInt(e.target.value) || 1) }))} />
                       <select className="manage__form-input" style={{ flex: 1 }} value={editModule.status ?? m.status} onChange={e => setEditModule(p => ({ ...p, status: e.target.value }))}>
                         <option value="draft">Draft</option><option value="published">Published</option>
                       </select>
@@ -662,7 +898,7 @@ export default function ManageContentPage() {
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem', flexWrap: 'wrap' }}>
                     <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveModule} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingModuleId(null); setEditModule({}); }}>Cancel</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelEditModule}>Cancel</button>
                     <Link href={`/admin/learn/modules/${m.id}`} className="manage__item-btn" style={{ marginLeft: 'auto' }}>View</Link>
                     <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('module', m.id, m.title)}>Delete</button>
                   </div>
@@ -734,36 +970,124 @@ export default function ManageContentPage() {
             <div className="admin-empty" style={{ padding: '2rem' }}>
               <div className="admin-empty__icon">&#x2753;</div>
               <div className="admin-empty__title">No questions loaded</div>
-              <div className="admin-empty__desc">Use the Create form above to add questions to the question bank, or add them via SQL.</div>
+              <div className="admin-empty__desc">Use the Question Builder or Quick Add to add questions to the bank.</div>
             </div>
           )}
           {tab === 'questions' && questions.map(q => (
-            <div key={q.id} className="manage__item">
-              <div className="manage__item-info">
-                <div className="manage__item-title" style={{ fontSize: '.85rem' }}>{q.question_text.substring(0, 120)}{q.question_text.length > 120 ? '...' : ''}</div>
-                <div className="manage__item-meta">
-                  {q.question_type} &middot; {q.difficulty}
-                  {q.exam_category && ` \u00B7 ${q.exam_category}`}
-                </div>
-              </div>
-              <div className="manage__item-actions">
-                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>
-              </div>
+            <div key={q.id} className="manage__item" style={editingQuestionId === q.id ? { flexDirection: 'column', alignItems: 'stretch' } : undefined}>
+              {editingQuestionId === q.id ? (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem 0' }}>
+                    <textarea className="manage__form-textarea" rows={3} value={editQuestion.question_text ?? q.question_text} onChange={e => setEditQuestion(p => ({ ...p, question_text: e.target.value }))} placeholder="Question text" />
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <select className="manage__form-input" style={{ flex: 1 }} value={editQuestion.question_type ?? q.question_type} onChange={e => setEditQuestion(p => ({ ...p, question_type: e.target.value }))}>
+                        <option value="multiple_choice">Multiple Choice</option>
+                        <option value="true_false">True/False</option>
+                        <option value="short_answer">Short Answer</option>
+                        <option value="fill_blank">Fill in the Blank</option>
+                        <option value="multi_select">Multi-Select</option>
+                        <option value="numeric_input">Numeric Input</option>
+                      </select>
+                      <select className="manage__form-input" style={{ flex: 1 }} value={editQuestion.difficulty ?? q.difficulty} onChange={e => setEditQuestion(p => ({ ...p, difficulty: e.target.value }))}>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                      <select className="manage__form-input" style={{ flex: 1 }} value={editQuestion.exam_category ?? q.exam_category ?? ''} onChange={e => setEditQuestion(p => ({ ...p, exam_category: e.target.value || null }))}>
+                        <option value="">No exam category</option>
+                        <option value="SIT">SIT</option>
+                        <option value="RPLS">RPLS</option>
+                      </select>
+                    </div>
+                    <input className="manage__form-input" placeholder="Options (pipe-separated: A|B|C|D)" value={editQuestion.options !== undefined ? (typeof editQuestion.options === 'string' ? editQuestion.options : (Array.isArray(editQuestion.options) ? editQuestion.options.join(' | ') : '')) : (Array.isArray(q.options) ? q.options.join(' | ') : '')} onChange={e => setEditQuestion(p => ({ ...p, options: e.target.value }))} />
+                    <input className="manage__form-input" placeholder="Correct answer *" value={editQuestion.correct_answer ?? q.correct_answer} onChange={e => setEditQuestion(p => ({ ...p, correct_answer: e.target.value }))} />
+                    <textarea className="manage__form-textarea" rows={2} placeholder="Explanation" value={editQuestion.explanation ?? q.explanation ?? ''} onChange={e => setEditQuestion(p => ({ ...p, explanation: e.target.value }))} />
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <select className="manage__form-input" style={{ flex: 1 }} value={editQuestion.module_id ?? q.module_id ?? ''} onChange={e => setEditQuestion(p => ({ ...p, module_id: e.target.value || null }))}>
+                        <option value="">No linked module</option>
+                        {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem', flexWrap: 'wrap' }}>
+                    <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveQuestion} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelEditQuestion}>Cancel</button>
+                    <Link href={`/admin/learn/manage/question-builder`} className="manage__item-btn" style={{ marginLeft: 'auto' }}>Open in Builder</Link>
+                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="manage__item-info">
+                    <div className="manage__item-title" style={{ fontSize: '.85rem' }}>{q.question_text.substring(0, 120)}{q.question_text.length > 120 ? '...' : ''}</div>
+                    <div className="manage__item-meta">
+                      <span className="manage__qtype-badge">{q.question_type.replace('_', ' ')}</span>
+                      {' '}<span className={`manage__diff-badge manage__diff-badge--${q.difficulty}`}>{q.difficulty}</span>
+                      {q.exam_category && <span> &middot; {q.exam_category}</span>}
+                      {q.module_id && (
+                        <span> &middot; <Link href={`/admin/learn/modules/${q.module_id}`} style={{ color: '#1D3095', textDecoration: 'underline', fontSize: '.78rem' }} onClick={e => e.stopPropagation()}>
+                          {modules.find(m => m.id === q.module_id)?.title || 'Module'}
+                        </Link></span>
+                      )}
+                      {q.lesson_id && (
+                        <span> &middot; <Link href={`/admin/learn/manage/lesson-builder/${q.lesson_id}`} style={{ color: '#059669', textDecoration: 'underline', fontSize: '.78rem' }} onClick={e => e.stopPropagation()}>
+                          Lesson
+                        </Link></span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="manage__item-actions">
+                    <button className="manage__item-btn manage__item-btn--primary" onClick={() => { setEditingQuestionId(q.id); setEditQuestion({}); }}>Edit</button>
+                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
 
           {tab === 'flashcards' && flashcards.map(f => (
-            <div key={f.id} className="manage__item">
-              <div className="manage__item-info">
-                <div className="manage__item-title">{f.term}</div>
-                <div className="manage__item-meta">
-                  {f.definition.substring(0, 80)}{f.definition.length > 80 ? '...' : ''}
-                  {f.hint_1 && ' \u00B7 Has hints'}
-                </div>
-              </div>
-              <div className="manage__item-actions">
-                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>
-              </div>
+            <div key={f.id} className="manage__item" style={editingFlashcardId === f.id ? { flexDirection: 'column', alignItems: 'stretch' } : undefined}>
+              {editingFlashcardId === f.id ? (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem 0' }}>
+                    <input className="manage__form-input" value={editFlashcard.term ?? f.term} onChange={e => setEditFlashcard(p => ({ ...p, term: e.target.value }))} placeholder="Term" />
+                    <textarea className="manage__form-textarea" rows={3} value={editFlashcard.definition ?? f.definition} onChange={e => setEditFlashcard(p => ({ ...p, definition: e.target.value }))} placeholder="Definition" />
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <input className="manage__form-input" style={{ flex: 1 }} value={editFlashcard.hint_1 ?? f.hint_1 ?? ''} onChange={e => setEditFlashcard(p => ({ ...p, hint_1: e.target.value || null }))} placeholder="Hint 1" />
+                      <input className="manage__form-input" style={{ flex: 1 }} value={editFlashcard.hint_2 ?? f.hint_2 ?? ''} onChange={e => setEditFlashcard(p => ({ ...p, hint_2: e.target.value || null }))} placeholder="Hint 2" />
+                      <input className="manage__form-input" style={{ flex: 1 }} value={editFlashcard.hint_3 ?? f.hint_3 ?? ''} onChange={e => setEditFlashcard(p => ({ ...p, hint_3: e.target.value || null }))} placeholder="Hint 3" />
+                    </div>
+                    <select className="manage__form-input" value={editFlashcard.module_id ?? f.module_id ?? ''} onChange={e => setEditFlashcard(p => ({ ...p, module_id: e.target.value || null }))}>
+                      <option value="">No linked module</option>
+                      {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem' }}>
+                    <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveFlashcard} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelEditFlashcard}>Cancel</button>
+                    <button className="manage__item-btn manage__item-btn--danger" style={{ marginLeft: 'auto' }} onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="manage__item-info">
+                    <div className="manage__item-title">{f.term}</div>
+                    <div className="manage__item-meta">
+                      {f.definition.substring(0, 100)}{f.definition.length > 100 ? '...' : ''}
+                      {f.hint_1 && <span> &middot; <span style={{ color: '#7C3AED' }}>3 hints</span></span>}
+                      {f.module_id && (
+                        <span> &middot; <Link href={`/admin/learn/modules/${f.module_id}`} style={{ color: '#1D3095', textDecoration: 'underline', fontSize: '.78rem' }} onClick={e => e.stopPropagation()}>
+                          {modules.find(m => m.id === f.module_id)?.title || 'Module'}
+                        </Link></span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="manage__item-actions">
+                    <button className="manage__item-btn manage__item-btn--primary" onClick={() => { setEditingFlashcardId(f.id); setEditFlashcard({}); }}>Edit</button>
+                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
 
@@ -855,10 +1179,36 @@ export default function ManageContentPage() {
           )}
 
           {/* Empty states */}
-          {tab === 'modules' && modules.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F4DA;</div><div className="admin-empty__title">No modules yet</div></div>}
-          {tab === 'lessons' && lessons.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F4D6;</div><div className="admin-empty__title">No lessons yet</div></div>}
-          {tab === 'articles' && articles.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F4C4;</div><div className="admin-empty__title">No articles yet</div></div>}
-          {tab === 'flashcards' && flashcards.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F0CF;</div><div className="admin-empty__title">No built-in flashcards yet</div></div>}
+          {tab === 'lessons' && lessons.length === 0 && !showForm && (
+            <div className="admin-empty">
+              <div className="admin-empty__icon">{'\u{1F4D6}'}</div>
+              <div className="admin-empty__title">No lessons yet</div>
+              <div className="admin-empty__desc">Lessons live inside modules. Create a lesson and then use the Lesson Builder to add rich content blocks.</div>
+              <div className="admin-empty__action">
+                <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(true); setFormData({}); }}>+ Create Lesson</button>
+              </div>
+            </div>
+          )}
+          {tab === 'articles' && articles.length === 0 && !showForm && (
+            <div className="admin-empty">
+              <div className="admin-empty__icon">{'\u{1F4C4}'}</div>
+              <div className="admin-empty__title">No articles yet</div>
+              <div className="admin-empty__desc">Knowledge base articles help students learn key surveying concepts. Create one to get started.</div>
+              <div className="admin-empty__action">
+                <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(true); setFormData({}); }}>+ Create Article</button>
+              </div>
+            </div>
+          )}
+          {tab === 'flashcards' && flashcards.length === 0 && !showForm && (
+            <div className="admin-empty">
+              <div className="admin-empty__icon">{'\u{1F0CF}'}</div>
+              <div className="admin-empty__title">No built-in flashcards yet</div>
+              <div className="admin-empty__desc">Built-in flashcards are company-wide study aids linked to modules. Students discover them as they progress.</div>
+              <div className="admin-empty__action">
+                <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(true); setFormData({}); }}>+ Create Flashcard</button>
+              </div>
+            </div>
+          )}
 
           {tab === 'recycle_bin' && recycleBin.length === 0 && (
             <div className="admin-empty">

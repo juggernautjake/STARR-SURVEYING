@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
+import { useToast } from '../../components/Toast';
 
 interface Flashcard {
   id: string; term: string; definition: string;
@@ -18,6 +19,7 @@ type Section = 'company' | 'personal';
 
 export default function FlashcardBankPage() {
   const { safeFetch } = usePageError('FlashcardBankPage');
+  const { addToast } = useToast();
   const [section, setSection] = useState<Section>('company');
   const [companyCards, setCompanyCards] = useState<Flashcard[]>([]);
   const [personalCards, setPersonalCards] = useState<Flashcard[]>([]);
@@ -34,6 +36,10 @@ export default function FlashcardBankPage() {
   const [newH3, setNewH3] = useState('');
   const [newTags, setNewTags] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Inline edit
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState<Record<string, string>>({});
 
   useEffect(() => { loadCards(); }, []);
 
@@ -63,6 +69,7 @@ export default function FlashcardBankPage() {
       setPersonalCards(prev => [data.card, ...prev]);
       setNewTerm(''); setNewDef(''); setNewH1(''); setNewH2(''); setNewH3(''); setNewTags('');
       setShowCreate(false);
+      addToast('Flashcard created!', 'success');
     }
     setSaving(false);
   }
@@ -70,7 +77,33 @@ export default function FlashcardBankPage() {
   async function deleteCard(id: string) {
     if (!confirm('Delete this flashcard?')) return;
     const result = await safeFetch(`/api/admin/learn/flashcards?id=${id}`, { method: 'DELETE' });
-    if (result !== null) setPersonalCards(prev => prev.filter(c => c.id !== id));
+    if (result !== null) {
+      setPersonalCards(prev => prev.filter(c => c.id !== id));
+      addToast('Flashcard deleted.', 'info');
+    }
+  }
+
+  async function saveEdit(card: Flashcard) {
+    setSaving(true);
+    const result = await safeFetch<{ card: Flashcard }>('/api/admin/learn/flashcards', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: card.id,
+        source: card.source,
+        term: editData.term ?? card.term,
+        definition: editData.definition ?? card.definition,
+        hint_1: editData.hint_1 ?? card.hint_1 ?? null,
+        hint_2: editData.hint_2 ?? card.hint_2 ?? null,
+        hint_3: editData.hint_3 ?? card.hint_3 ?? null,
+      }),
+    });
+    if (result) {
+      setEditingId(null);
+      setEditData({});
+      loadCards();
+      addToast('Flashcard updated!', 'success');
+    }
+    setSaving(false);
   }
 
   const currentCards = section === 'company' ? companyCards : personalCards;
@@ -203,22 +236,49 @@ export default function FlashcardBankPage() {
           ))}
         </div>
       ) : (
-        /* Personal cards — flat list */
+        /* Personal cards — flat list with edit support */
         <div className="fc-bank__grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '.75rem' }}>
           {filtered.map(c => (
-            <div key={c.id} style={{ background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '.85rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '.25rem' }}>
-                <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '.85rem', fontWeight: 600, color: '#0F1419' }}>{c.term}</div>
-                <button onClick={(e) => { e.stopPropagation(); deleteCard(c.id); }} style={{
-                  background: 'none', border: 'none', color: '#BD1218', cursor: 'pointer', fontSize: '.72rem', fontWeight: 600, padding: '.1rem .3rem',
-                }}>Delete</button>
-              </div>
-              <div style={{ fontSize: '.78rem', color: '#6B7280', lineHeight: 1.5 }}>{c.definition}</div>
-              {c.hint_1 && <div style={{ marginTop: '.35rem', fontSize: '.72rem', color: '#9CA3AF' }}>Hint: {c.hint_1}</div>}
-              {c.times_reviewed != null && c.times_reviewed > 0 && (
-                <div style={{ marginTop: '.35rem', fontSize: '.68rem', color: '#10B981' }}>
-                  Reviewed {c.times_reviewed}x &middot; {c.times_correct || 0} correct
+            <div key={c.id} style={{ background: '#FFF', border: `1px solid ${editingId === c.id ? '#1D3095' : '#E5E7EB'}`, borderRadius: 8, padding: '.85rem' }}>
+              {editingId === c.id ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.45rem' }}>
+                  <input className="manage__form-input" value={editData.term ?? c.term} onChange={e => setEditData(p => ({ ...p, term: e.target.value }))} placeholder="Term" style={{ fontSize: '.82rem' }} />
+                  <textarea className="manage__form-textarea" rows={3} value={editData.definition ?? c.definition} onChange={e => setEditData(p => ({ ...p, definition: e.target.value }))} placeholder="Definition" style={{ fontSize: '.82rem' }} />
+                  <input className="manage__form-input" value={editData.hint_1 ?? c.hint_1 ?? ''} onChange={e => setEditData(p => ({ ...p, hint_1: e.target.value }))} placeholder="Hint 1" style={{ fontSize: '.78rem' }} />
+                  <input className="manage__form-input" value={editData.hint_2 ?? c.hint_2 ?? ''} onChange={e => setEditData(p => ({ ...p, hint_2: e.target.value }))} placeholder="Hint 2" style={{ fontSize: '.78rem' }} />
+                  <input className="manage__form-input" value={editData.hint_3 ?? c.hint_3 ?? ''} onChange={e => setEditData(p => ({ ...p, hint_3: e.target.value }))} placeholder="Hint 3" style={{ fontSize: '.78rem' }} />
+                  <div style={{ display: 'flex', gap: '.35rem' }}>
+                    <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => saveEdit(c)} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
+                      if (Object.keys(editData).length > 0 && !confirm('Discard unsaved changes?')) return;
+                      setEditingId(null); setEditData({});
+                    }}>Cancel</button>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '.25rem' }}>
+                    <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '.85rem', fontWeight: 600, color: '#0F1419' }}>{c.term}</div>
+                    <div style={{ display: 'flex', gap: '.35rem', flexShrink: 0 }}>
+                      <button onClick={(e) => { e.stopPropagation(); setEditingId(c.id); setEditData({}); }} style={{
+                        background: 'none', border: 'none', color: '#1D3095', cursor: 'pointer', fontSize: '.72rem', fontWeight: 600, padding: '.1rem .3rem',
+                      }}>Edit</button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteCard(c.id); }} style={{
+                        background: 'none', border: 'none', color: '#BD1218', cursor: 'pointer', fontSize: '.72rem', fontWeight: 600, padding: '.1rem .3rem',
+                      }}>Delete</button>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '.78rem', color: '#6B7280', lineHeight: 1.5 }}>{c.definition}</div>
+                  {c.hint_1 && <div style={{ marginTop: '.35rem', fontSize: '.72rem', color: '#9CA3AF' }}>Hint: {c.hint_1}</div>}
+                  {c.times_reviewed != null && c.times_reviewed > 0 && (
+                    <div style={{ marginTop: '.35rem', fontSize: '.68rem', color: '#10B981', display: 'flex', alignItems: 'center', gap: '.35rem', flexWrap: 'wrap' }}>
+                      <span>Reviewed {c.times_reviewed}x &middot; {c.times_correct || 0} correct</span>
+                      <span className={`quiz-avg-badge ${((c.times_correct || 0) / c.times_reviewed * 100) >= 70 ? 'quiz-avg-badge--green' : ((c.times_correct || 0) / c.times_reviewed * 100) >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>
+                        {Math.round(((c.times_correct || 0) / c.times_reviewed) * 100)}%
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))}

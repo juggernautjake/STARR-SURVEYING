@@ -14,31 +14,42 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const tsquery = q.split(/\s+/).filter(Boolean).map(w => w + ':*').join(' & ');
 
-  // Search across modules, lessons, topics, articles, flashcards
-  const [modules, lessons, topics, articles, flashcards] = await Promise.all([
-    supabaseAdmin.from('learning_modules').select('id, title, description, tags')
-      .textSearch('title', tsquery, { type: 'websearch' }).eq('status', 'published').limit(5),
-    supabaseAdmin.from('learning_lessons').select('id, module_id, title, tags')
-      .textSearch('title', tsquery, { type: 'websearch' }).eq('status', 'published').limit(8),
+  // Include all content (incl. drafts) if admin, otherwise published only
+  const includeAll = searchParams.get('include_all') === 'true';
+  const statusFilter = includeAll ? {} : { status: 'published' };
+
+  // Search across modules, lessons, topics, articles, flashcards, questions, assignments
+  const [modules, lessons, topics, articles, flashcards, questions, assignments] = await Promise.all([
+    supabaseAdmin.from('learning_modules').select('id, title, description, tags, status')
+      .textSearch('title', tsquery, { type: 'websearch' })
+      .match(statusFilter).limit(5),
+    supabaseAdmin.from('learning_lessons').select('id, module_id, title, tags, status')
+      .textSearch('title', tsquery, { type: 'websearch' })
+      .match(statusFilter).limit(8),
     supabaseAdmin.from('learning_topics').select('id, lesson_id, title, keywords')
       .textSearch('title', tsquery, { type: 'websearch' }).limit(8),
-    supabaseAdmin.from('kb_articles').select('id, title, slug, category, excerpt')
-      .textSearch('title', tsquery, { type: 'websearch' }).eq('status', 'published').limit(5),
-    supabaseAdmin.from('flashcards').select('id, term, definition, keywords')
+    supabaseAdmin.from('kb_articles').select('id, title, slug, category, excerpt, status')
+      .textSearch('title', tsquery, { type: 'websearch' })
+      .match(statusFilter).limit(5),
+    supabaseAdmin.from('flashcards').select('id, term, definition, keywords, module_id, lesson_id')
       .textSearch('term', tsquery, { type: 'websearch' }).limit(5),
+    supabaseAdmin.from('question_bank').select('id, question_text, question_type, difficulty, module_id, lesson_id, exam_category')
+      .ilike('question_text', `%${q}%`).limit(6),
+    supabaseAdmin.from('learning_assignments').select('id, module_id, lesson_id, assigned_to, status, due_date, notes')
+      .or(`notes.ilike.%${q}%,assigned_to.ilike.%${q}%`).limit(5),
   ]);
 
   // Also do ilike fallback for partial matches
   const [modFallback, lesFallback, topFallback, artFallback, fcFallback] = await Promise.all([
-    supabaseAdmin.from('learning_modules').select('id, title, description, tags')
-      .ilike('title', `%${q}%`).eq('status', 'published').limit(5),
-    supabaseAdmin.from('learning_lessons').select('id, module_id, title, tags')
-      .ilike('title', `%${q}%`).eq('status', 'published').limit(8),
+    supabaseAdmin.from('learning_modules').select('id, title, description, tags, status')
+      .ilike('title', `%${q}%`).match(statusFilter).limit(5),
+    supabaseAdmin.from('learning_lessons').select('id, module_id, title, tags, status')
+      .ilike('title', `%${q}%`).match(statusFilter).limit(8),
     supabaseAdmin.from('learning_topics').select('id, lesson_id, title, keywords')
       .or(`title.ilike.%${q}%,content.ilike.%${q}%`).limit(8),
-    supabaseAdmin.from('kb_articles').select('id, title, slug, category, excerpt')
-      .or(`title.ilike.%${q}%,content.ilike.%${q}%`).eq('status', 'published').limit(5),
-    supabaseAdmin.from('flashcards').select('id, term, definition, keywords')
+    supabaseAdmin.from('kb_articles').select('id, title, slug, category, excerpt, status')
+      .or(`title.ilike.%${q}%,content.ilike.%${q}%`).match(statusFilter).limit(5),
+    supabaseAdmin.from('flashcards').select('id, term, definition, keywords, module_id, lesson_id')
       .or(`term.ilike.%${q}%,definition.ilike.%${q}%`).limit(5),
   ]);
 
@@ -54,6 +65,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     })),
     lessons: dedup(lessons.data || [], lesFallback.data || []).map((l: any) => ({
       ...l, type: 'lesson', url: `/admin/learn/modules/${l.module_id}/${l.id}`,
+      builderUrl: `/admin/learn/manage/lesson-builder/${l.id}`,
     })),
     topics: dedup(topics.data || [], topFallback.data || []).map((t: any) => ({
       ...t, type: 'topic',
@@ -64,7 +76,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     flashcards: dedup(flashcards.data || [], fcFallback.data || []).map((f: any) => ({
       ...f, type: 'flashcard', url: `/admin/learn/flashcards`,
     })),
+    questions: (questions.data || []).map((q: any) => ({
+      ...q, type: 'question', url: `/admin/learn/manage`,
+    })),
+    assignments: (assignments.data || []).map((a: any) => ({
+      ...a, type: 'assignment', url: `/admin/learn/manage`,
+    })),
   };
 
-  return NextResponse.json({ results });
+  // Compute total result count
+  const totalCount = Object.values(results).reduce((sum, arr) => sum + (arr as any[]).length, 0);
+
+  return NextResponse.json({ results, totalCount });
 }, { routeName: 'learn/search' });

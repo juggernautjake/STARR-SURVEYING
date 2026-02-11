@@ -27,7 +27,44 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ questions: data || [] });
+
+  const questions = data || [];
+
+  // If stats=true, fetch per-question attempt analytics (admin only)
+  const includeStats = searchParams.get('stats') === 'true';
+  if (includeStats && isAdmin(session.user?.email || '')) {
+    const questionIds = questions.map((q: any) => q.id);
+    if (questionIds.length > 0) {
+      const { data: answerData } = await supabaseAdmin
+        .from('quiz_attempt_answers')
+        .select('question_id, is_correct')
+        .in('question_id', questionIds);
+
+      // Aggregate: per question -> { attempts, correct, wrong, pass_rate }
+      const statsMap: Record<string, { attempts: number; correct: number }> = {};
+      for (const ans of (answerData || [])) {
+        if (!statsMap[ans.question_id]) statsMap[ans.question_id] = { attempts: 0, correct: 0 };
+        statsMap[ans.question_id].attempts++;
+        if (ans.is_correct) statsMap[ans.question_id].correct++;
+      }
+
+      for (const q of questions) {
+        const s = statsMap[q.id];
+        if (s) {
+          (q as any).stats = {
+            attempts: s.attempts,
+            correct: s.correct,
+            wrong: s.attempts - s.correct,
+            pass_rate: Math.round((s.correct / s.attempts) * 100),
+          };
+        } else {
+          (q as any).stats = { attempts: 0, correct: 0, wrong: 0, pass_rate: null };
+        }
+      }
+    }
+  }
+
+  return NextResponse.json({ questions });
 }, { routeName: 'learn/questions' });
 
 export const POST = withErrorHandler(async (req: NextRequest) => {

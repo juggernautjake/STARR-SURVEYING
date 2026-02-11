@@ -1,5 +1,5 @@
 // app/api/admin/learn/flashcards/route.ts
-import { auth } from '@/lib/auth';
+import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
@@ -56,6 +56,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const source = searchParams.get('source');
   const dueCount = searchParams.get('due_count');
   const moduleId = searchParams.get('module_id');
+  const lessonId = searchParams.get('lesson_id');
   const discoveredOnly = searchParams.get('discovered') !== 'false'; // Default to discovered only
 
   // Return just the count of due cards
@@ -90,6 +91,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (!source || source === 'builtin') {
     let q = supabaseAdmin.from('flashcards').select('*');
     if (moduleId) q = q.eq('module_id', moduleId);
+    if (lessonId) q = q.eq('lesson_id', lessonId);
     const { data } = await q.order('created_at', { ascending: true });
     builtIn = (data || []).map((c: any) => ({ ...c, source: 'builtin' }));
   }
@@ -97,6 +99,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (!source || source === 'user') {
     let q = supabaseAdmin.from('user_flashcards').select('*').eq('user_email', session.user.email);
     if (moduleId) q = q.eq('module_id', moduleId);
+    if (lessonId) q = q.eq('lesson_id', lessonId);
     const { data } = await q.order('created_at', { ascending: false });
     userCards = (data || []).map((c: any) => ({ ...c, source: 'user' }));
   }
@@ -154,16 +157,33 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   });
 }, { routeName: 'learn/flashcards' });
 
-// POST — Create a user flashcard
+// POST — Create a flashcard (user or builtin for admins)
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { term, definition, hint_1, hint_2, hint_3, keywords, tags, module_id, lesson_id } = body;
+  const { term, definition, hint_1, hint_2, hint_3, keywords, tags, module_id, lesson_id, source: requestedSource } = body;
 
   if (!term?.trim() || !definition?.trim()) {
     return NextResponse.json({ error: 'Term and definition are required' }, { status: 400 });
+  }
+
+  // Admin can create builtin flashcards
+  if (requestedSource === 'builtin' && isAdmin(session.user.email)) {
+    const { data, error } = await supabaseAdmin.from('flashcards').insert({
+      term: term.trim(),
+      definition: definition.trim(),
+      hint_1: hint_1?.trim() || null,
+      hint_2: hint_2?.trim() || null,
+      hint_3: hint_3?.trim() || null,
+      keywords: keywords || [],
+      tags: tags || [],
+      module_id: module_id || null,
+      lesson_id: lesson_id || null,
+    }).select().single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ card: { ...data, source: 'builtin' } });
   }
 
   const { data, error } = await supabaseAdmin.from('user_flashcards').insert({
@@ -241,7 +261,20 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ success: true, next_review: nextReview.toISOString() });
   }
 
-  // Regular card update
+  // Admin editing builtin flashcards
+  if (source === 'builtin' && isAdmin(session.user.email)) {
+    const allowedFields = ['term', 'definition', 'hint_1', 'hint_2', 'hint_3', 'keywords', 'tags', 'module_id', 'lesson_id'];
+    const cleanUpdates: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) cleanUpdates[field] = updates[field];
+    }
+    const { data, error } = await supabaseAdmin.from('flashcards')
+      .update(cleanUpdates).eq('id', id).select().single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ card: data });
+  }
+
+  // Regular user card update
   const { data, error } = await supabaseAdmin.from('user_flashcards')
     .update(updates).eq('id', id).eq('user_email', session.user.email).select().single();
 

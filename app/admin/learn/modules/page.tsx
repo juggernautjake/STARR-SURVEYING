@@ -2,6 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState, useMemo } from 'react';
+import SmartSearch from '../components/SmartSearch';
 
 interface EnrichedModule {
   id: string; title: string; description: string; difficulty: string;
@@ -12,6 +13,7 @@ interface EnrichedModule {
   user_status: string; total_lessons: number; completed_lessons: number;
   started_lessons: number; percentage: number; locked: boolean;
   lock_reason: string; is_assigned: boolean; is_enrolled: boolean;
+  avg_quiz_score: number | null; quiz_attempts: number;
 }
 
 type StatusFilter = 'all' | 'not_started' | 'in_progress' | 'completed' | 'due' | 'needs_refreshing' | 'assigned';
@@ -115,6 +117,10 @@ export default function ModulesListPage() {
         <p className="learn__subtitle">
           Progressive courses with sequential progression. Complete lessons in order, pass quizzes, and master each module before advancing.
         </p>
+      </div>
+
+      <div style={{ marginBottom: '1rem' }}>
+        <SmartSearch compact placeholder="Search modules, lessons, questions... (Ctrl+K)" />
       </div>
 
       {/* Search */}
@@ -271,6 +277,11 @@ function ModuleCard({ mod }: { mod: EnrichedModule }) {
         <span>&#x1F4D6; {mod.total_lessons} lesson{mod.total_lessons !== 1 ? 's' : ''}</span>
         {mod.completed_lessons > 0 && (
           <span style={{ color: '#10B981', fontWeight: 600 }}>&#x2705; {mod.completed_lessons}/{mod.total_lessons}</span>
+        )}
+        {mod.avg_quiz_score != null && (
+          <span className={`quiz-avg-badge ${mod.avg_quiz_score >= 70 ? 'quiz-avg-badge--green' : mod.avg_quiz_score >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>
+            Avg: {mod.avg_quiz_score}%
+          </span>
         )}
         {mod.is_fs_required && (
           <span className="modules__card-fs-badge">FS REQUIRED</span>

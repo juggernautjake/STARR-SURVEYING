@@ -71,6 +71,7 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [noQuestions, setNoQuestions] = useState(false);
+  const [historicalAvg, setHistoricalAvg] = useState<{ avg: number; attempts: number } | null>(null);
   const startTime = useRef(Date.now());
 
   useEffect(() => { fetchQuiz(); }, []);
@@ -153,9 +154,33 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
     setSubmitting(false);
   }
 
+  // Fetch historical average when results are available
+  useEffect(() => {
+    if (!results) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/learn/quizzes?history=true&limit=50');
+        if (res.ok) {
+          const data = await res.json();
+          const attempts = (data.attempts || []).filter((a: any) => {
+            if (type === 'lesson_quiz' && lessonId) return a.attempt_type === 'lesson_quiz' && a.lesson_id === lessonId;
+            if (type === 'module_test' && moduleId) return a.attempt_type === 'module_test' && a.module_id === moduleId;
+            if (type === 'exam_prep' && examCategory) return a.attempt_type === 'exam_prep' && a.exam_category === examCategory;
+            return a.attempt_type === type;
+          });
+          if (attempts.length > 0) {
+            const total = attempts.reduce((s: number, a: any) => s + (a.score_percent || 0), 0);
+            setHistoricalAvg({ avg: Math.round(total / attempts.length), attempts: attempts.length });
+          }
+        }
+      } catch { /* silent */ }
+    })();
+  }, [results, type, lessonId, moduleId, examCategory]);
+
   function retake() {
     setResults(null);
     setAnswers({});
+    setHistoricalAvg(null);
     setLoading(true);
     fetchQuiz();
   }
@@ -213,6 +238,14 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
             {results.correct_answers} of {results.total_questions} correct
             {results.passed ? ' \u2014 Great work!' : ' \u2014 You need 70% to pass.'}
           </p>
+          {historicalAvg && historicalAvg.attempts > 1 && (
+            <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '0.82rem', color: '#6B7280', marginTop: '0.5rem' }}>
+              Your average across {historicalAvg.attempts} attempt{historicalAvg.attempts !== 1 ? 's' : ''}:{' '}
+              <span className={`quiz-avg-badge ${historicalAvg.avg >= 70 ? 'quiz-avg-badge--green' : historicalAvg.avg >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>
+                {historicalAvg.avg}%
+              </span>
+            </p>
+          )}
         </div>
 
         {/* Areas to Review summary — deduplicated study references from all missed questions */}
