@@ -260,6 +260,15 @@ export default function LessonBuilderPage() {
   const [qbLoading, setQbLoading] = useState(false);
   const [autoSaveFlash, setAutoSaveFlash] = useState(false);
   const [blockPickerSearch, setBlockPickerSearch] = useState('');
+  const [blockPickerTab, setBlockPickerTab] = useState<'blocks' | 'templates'>('blocks');
+  const [savedTemplates, setSavedTemplates] = useState<any[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [saveTemplateName, setSaveTemplateName] = useState('');
+  const [saveTemplateDesc, setSaveTemplateDesc] = useState('');
+  const [saveTemplateCat, setSaveTemplateCat] = useState('custom');
+  const [dragBlockId, setDragBlockId] = useState<string | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const undoStack = useRef<LessonBlock[][]>([]);
   const redoStack = useRef<LessonBlock[][]>([]);
   const isUndoRedo = useRef(false);
@@ -294,9 +303,12 @@ export default function LessonBuilderPage() {
     redoStack.current = [];
   }, [blocks]);
 
-  // Ctrl+S save, Ctrl+Z undo, Ctrl+Shift+Z / Ctrl+Y redo
+  // Keyboard shortcuts: Ctrl+S save, Ctrl+Z undo, Ctrl+Shift+Z redo, arrow nav, Delete
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement)?.isContentEditable;
+
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         if (blocks.length > 0 && !saving) saveBlocks(false);
@@ -320,10 +332,31 @@ export default function LessonBuilderPage() {
           setBlocks(JSON.parse(JSON.stringify(next)));
         }
       }
+      // Block navigation: Alt+ArrowUp/Down to move selection, Alt+Delete to remove
+      if (!isInput && e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        if (blocks.length === 0) return;
+        const curIdx = selectedBlockId ? blocks.findIndex(b => b.id === selectedBlockId) : -1;
+        if (e.key === 'ArrowUp') {
+          const newIdx = curIdx > 0 ? curIdx - 1 : blocks.length - 1;
+          setSelectedBlockId(blocks[newIdx].id);
+        } else {
+          const newIdx = curIdx < blocks.length - 1 ? curIdx + 1 : 0;
+          setSelectedBlockId(blocks[newIdx].id);
+        }
+      }
+      if (!isInput && e.altKey && e.key === 'Delete' && selectedBlockId) {
+        e.preventDefault();
+        removeBlock(selectedBlockId);
+      }
+      // Escape to deselect
+      if (e.key === 'Escape' && selectedBlockId && !isInput) {
+        setSelectedBlockId(null);
+      }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [blocks, saving]);
+  }, [blocks, saving, selectedBlockId]);
 
   async function loadLesson() {
     setLoading(true);
@@ -403,6 +436,74 @@ export default function LessonBuilderPage() {
     });
     setShowQbPicker(null);
     setQbQuestions([]);
+  }
+
+  // Block templates CRUD
+  async function loadTemplates() {
+    if (savedTemplates.length > 0) return; // already loaded
+    setTemplatesLoading(true);
+    try {
+      const res = await fetch('/api/admin/learn/block-templates');
+      if (res.ok) {
+        const data = await res.json();
+        setSavedTemplates(data.templates || []);
+      }
+    } catch (err) { console.error('Failed to load block templates', err); }
+    setTemplatesLoading(false);
+  }
+
+  function insertTemplate(template: any) {
+    const idx = insertIdx !== null ? insertIdx : blocks.length;
+    const templateBlocks = (template.blocks || []).map((b: any, i: number) => ({
+      id: `temp-${Date.now()}-${i}`,
+      block_type: b.block_type,
+      content: JSON.parse(JSON.stringify(b.content || {})),
+      order_index: idx + i,
+      style: b.style ? JSON.parse(JSON.stringify(b.style)) : undefined,
+    }));
+    const updated = [...blocks];
+    updated.splice(idx, 0, ...templateBlocks);
+    setBlocks(updated.map((b, i) => ({ ...b, order_index: i })));
+    setShowBlockPicker(false);
+    setInsertIdx(null);
+    setBlockPickerTab('blocks');
+    if (templateBlocks.length > 0) setSelectedBlockId(templateBlocks[0].id);
+  }
+
+  async function saveAsTemplate() {
+    if (!saveTemplateName.trim()) return;
+    // Save selected block or all blocks as a template
+    const blocksToSave = selectedBlockId
+      ? blocks.filter(b => b.id === selectedBlockId).map(b => ({ block_type: b.block_type, content: b.content, style: b.style }))
+      : blocks.map(b => ({ block_type: b.block_type, content: b.content, style: b.style }));
+    try {
+      const res = await fetch('/api/admin/learn/block-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: saveTemplateName.trim(),
+          description: saveTemplateDesc.trim(),
+          category: saveTemplateCat,
+          blocks: blocksToSave,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSavedTemplates(prev => [...prev, data.template]);
+        setShowSaveTemplate(false);
+        setSaveTemplateName('');
+        setSaveTemplateDesc('');
+      }
+    } catch (err) { console.error('Failed to save template', err); }
+  }
+
+  async function deleteTemplate(templateId: string) {
+    try {
+      const res = await fetch(`/api/admin/learn/block-templates?id=${templateId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSavedTemplates(prev => prev.filter(t => t.id !== templateId));
+      }
+    } catch (err) { console.error('Failed to delete template', err); }
   }
 
   async function togglePublish() {
@@ -564,6 +665,61 @@ export default function LessonBuilderPage() {
     setDragOverBlockId(null);
   }
 
+  // Block-level drag-and-drop reordering
+  function onBlockDragStart(e: React.DragEvent, blockId: string) {
+    setDragBlockId(blockId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', blockId);
+    // Make drag image slightly transparent
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5';
+    }
+  }
+  function onBlockDragEnd(e: React.DragEvent) {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1';
+    }
+    setDragBlockId(null);
+    setDragOverIdx(null);
+  }
+  function onBlockDragOver(e: React.DragEvent, targetIdx: number) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragBlockId) setDragOverIdx(targetIdx);
+  }
+  function onBlockDrop(e: React.DragEvent, targetIdx: number) {
+    e.preventDefault();
+    if (!dragBlockId) return;
+    const fromIdx = blocks.findIndex(b => b.id === dragBlockId);
+    if (fromIdx < 0 || fromIdx === targetIdx) { setDragBlockId(null); setDragOverIdx(null); return; }
+    const newBlocks = [...blocks];
+    const [moved] = newBlocks.splice(fromIdx, 1);
+    const adjustedIdx = targetIdx > fromIdx ? targetIdx - 1 : targetIdx;
+    newBlocks.splice(adjustedIdx, 0, moved);
+    setBlocks(newBlocks.map((b, i) => ({ ...b, order_index: i })));
+    setDragBlockId(null);
+    setDragOverIdx(null);
+  }
+
+  // Estimate reading time from block content
+  function estimateReadingTime(): number {
+    let wordCount = 0;
+    for (const block of blocks) {
+      const c = block.content;
+      if (c.html) wordCount += c.html.replace(/<[^>]+>/g, '').split(/\s+/).filter(Boolean).length;
+      if (c.text) wordCount += c.text.split(/\s+/).filter(Boolean).length;
+      if (c.question) wordCount += c.question.split(/\s+/).filter(Boolean).length;
+      if (c.explanation) wordCount += c.explanation.split(/\s+/).filter(Boolean).length;
+      if (c.code) wordCount += c.code.replace(/<[^>]+>/g, '').split(/\s+/).filter(Boolean).length;
+      if (c.summary) wordCount += c.summary.split(/\s+/).filter(Boolean).length;
+      if (c.full_content) wordCount += c.full_content.replace(/<[^>]+>/g, '').split(/\s+/).filter(Boolean).length;
+      if (Array.isArray(c.items)) c.items.forEach((item: string) => { wordCount += item.split(/\s+/).filter(Boolean).length; });
+      if (Array.isArray(c.cards)) c.cards.forEach((card: any) => { wordCount += ((card.front || '') + ' ' + (card.back || '')).split(/\s+/).filter(Boolean).length; });
+      if (Array.isArray(c.options)) c.options.forEach((opt: string) => { wordCount += opt.split(/\s+/).filter(Boolean).length; });
+    }
+    return Math.max(1, Math.ceil(wordCount / 200));
+  }
+
   // Slideshow navigation
   function slideshowNav(blockId: string, dir: 'prev' | 'next', total: number) {
     setSlideshowIndexes(prev => {
@@ -615,10 +771,15 @@ export default function LessonBuilderPage() {
           <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setPreviewMode(!previewMode)}>
             {previewMode ? 'Edit' : 'Preview'}
           </button>
+          {blocks.length > 0 && (
+            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setShowSaveTemplate(true)} title="Save blocks as reusable template">
+              Save Template
+            </button>
+          )}
           <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => saveBlocks(false)} disabled={saving}>
             {saving ? 'Saving...' : 'Save'}
           </button>
-          <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{blocks.length} block{blocks.length !== 1 ? 's' : ''}</span>
+          <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{blocks.length} block{blocks.length !== 1 ? 's' : ''} &middot; ~{estimateReadingTime()} min read</span>
           <div style={{ display: 'flex', gap: '.25rem' }}>
             <button className="lesson-builder__undo-btn" title="Undo (Ctrl+Z)" disabled={undoStack.current.length <= 1} onClick={() => { if (undoStack.current.length > 1) { const cur = undoStack.current.pop()!; redoStack.current.push(cur); isUndoRedo.current = true; setBlocks(JSON.parse(JSON.stringify(undoStack.current[undoStack.current.length - 1]))); } }}>↶</button>
             <button className="lesson-builder__undo-btn" title="Redo (Ctrl+Shift+Z)" disabled={redoStack.current.length === 0} onClick={() => { if (redoStack.current.length > 0) { const next = redoStack.current.pop()!; undoStack.current.push(next); isUndoRedo.current = true; setBlocks(JSON.parse(JSON.stringify(next))); } }}>↷</button>
@@ -904,14 +1065,34 @@ export default function LessonBuilderPage() {
           )}
 
           {blocks.map((block, idx) => (
-            <div key={block.id} className={`lesson-builder__block ${selectedBlockId === block.id ? 'lesson-builder__block--selected' : ''}`} onClick={() => setSelectedBlockId(block.id)}>
+            <div key={block.id}>
+              {/* Drop indicator above block */}
+              {dragBlockId && dragBlockId !== block.id && (
+                <div
+                  className={`lesson-builder__drop-indicator ${dragOverIdx === idx ? 'lesson-builder__drop-indicator--active' : ''}`}
+                  onDragOver={e => onBlockDragOver(e, idx)}
+                  onDrop={e => onBlockDrop(e, idx)}
+                />
+              )}
+            <div
+              className={`lesson-builder__block ${selectedBlockId === block.id ? 'lesson-builder__block--selected' : ''} ${dragBlockId === block.id ? 'lesson-builder__block--dragging' : ''}`}
+              onClick={() => setSelectedBlockId(block.id)}
+              draggable
+              onDragStart={e => onBlockDragStart(e, block.id)}
+              onDragEnd={onBlockDragEnd}
+              onDragOver={e => onBlockDragOver(e, idx)}
+              onDrop={e => onBlockDrop(e, idx)}
+            >
               {/* Block Toolbar */}
               <div className="lesson-builder__block-toolbar">
-                <span className="lesson-builder__block-type">
-                  {block.block_type}
-                  {block.style?.collapsible && <span style={{ marginLeft: '.35rem', fontSize: '.6rem', background: '#DBEAFE', color: '#1E40AF', padding: '.1rem .3rem', borderRadius: '3px' }}>COLLAPSIBLE</span>}
-                  {block.style?.hidden && <span style={{ marginLeft: '.35rem', fontSize: '.6rem', background: '#FEF3C7', color: '#92400E', padding: '.1rem .3rem', borderRadius: '3px' }}>HIDDEN</span>}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.35rem' }}>
+                  <span className="lesson-builder__drag-handle" title="Drag to reorder">⠿</span>
+                  <span className="lesson-builder__block-type">
+                    {block.block_type}
+                    {block.style?.collapsible && <span style={{ marginLeft: '.35rem', fontSize: '.6rem', background: '#DBEAFE', color: '#1E40AF', padding: '.1rem .3rem', borderRadius: '3px' }}>COLLAPSIBLE</span>}
+                    {block.style?.hidden && <span style={{ marginLeft: '.35rem', fontSize: '.6rem', background: '#FEF3C7', color: '#92400E', padding: '.1rem .3rem', borderRadius: '3px' }}>HIDDEN</span>}
+                  </span>
+                </div>
                 <div className="lesson-builder__block-actions">
                   <button className="lesson-builder__block-btn" onClick={(e) => { e.stopPropagation(); setShowStylePanel(showStylePanel === block.id ? null : block.id); }} title="Style" style={showStylePanel === block.id ? { borderColor: '#1D3095', color: '#1D3095' } : undefined}>🎨</button>
                   <button className="lesson-builder__block-btn" onClick={() => moveBlock(block.id, 'up')} disabled={idx === 0} title="Move up">↑</button>
@@ -1552,44 +1733,122 @@ export default function LessonBuilderPage() {
                 </button>
               </div>
             </div>
+            {/* Trailing drop indicator for last block */}
+            {dragBlockId && dragBlockId !== block.id && idx === blocks.length - 1 && (
+              <div
+                className={`lesson-builder__drop-indicator ${dragOverIdx === blocks.length ? 'lesson-builder__drop-indicator--active' : ''}`}
+                onDragOver={e => onBlockDragOver(e, blocks.length)}
+                onDrop={e => onBlockDrop(e, blocks.length)}
+              />
+            )}
+            </div>
           ))}
         </div>
       )}
 
       {/* Block Picker Modal */}
       {showBlockPicker && (
-        <div className="admin-modal-overlay" onClick={() => { setShowBlockPicker(false); setBlockPickerSearch(''); }}>
-          <div className="admin-modal" onClick={e => e.stopPropagation()}>
+        <div className="admin-modal-overlay" onClick={() => { setShowBlockPicker(false); setBlockPickerSearch(''); setBlockPickerTab('blocks'); }}>
+          <div className="admin-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '620px' }}>
             <div className="admin-modal__header">
               <h3 className="admin-modal__title">Add Content Block</h3>
-              <button className="admin-modal__close" onClick={() => { setShowBlockPicker(false); setBlockPickerSearch(''); }}>✕</button>
+              <button className="admin-modal__close" onClick={() => { setShowBlockPicker(false); setBlockPickerSearch(''); setBlockPickerTab('blocks'); }}>✕</button>
+            </div>
+            {/* Tabs: Blocks | Templates */}
+            <div className="lesson-builder__picker-tabs">
+              <button className={`lesson-builder__picker-tab ${blockPickerTab === 'blocks' ? 'lesson-builder__picker-tab--active' : ''}`} onClick={() => setBlockPickerTab('blocks')}>Blocks</button>
+              <button className={`lesson-builder__picker-tab ${blockPickerTab === 'templates' ? 'lesson-builder__picker-tab--active' : ''}`} onClick={() => { setBlockPickerTab('templates'); loadTemplates(); }}>Templates</button>
             </div>
             <div className="admin-modal__body">
-              <input className="fc-form__input lesson-builder__picker-search" placeholder="Search blocks..." value={blockPickerSearch} onChange={e => setBlockPickerSearch(e.target.value)} autoFocus />
-              {['Content', 'Media', 'Layout', 'Interactive'].map(group => {
-                const search = blockPickerSearch.toLowerCase();
-                const groupTypes = BLOCK_TYPES.filter(bt => bt.group === group && (!search || bt.label.toLowerCase().includes(search) || bt.description.toLowerCase().includes(search) || bt.type.includes(search)));
-                if (groupTypes.length === 0) return null;
-                return (
-                  <div key={group} style={{ marginBottom: '1rem' }}>
-                    <h4 style={{ fontSize: '.78rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '.5rem' }}>{group}</h4>
-                    <div className="lesson-builder__block-picker">
-                      {groupTypes.map((bt) => (
-                        <button key={bt.type} className="lesson-builder__block-option" onClick={() => { addBlock(bt.type); setBlockPickerSearch(''); }}>
-                          <span className="lesson-builder__block-option-icon">{bt.icon}</span>
-                          <div>
-                            <div className="lesson-builder__block-option-label">{bt.label}</div>
-                            <div className="lesson-builder__block-option-desc">{bt.description}</div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-              {blockPickerSearch && BLOCK_TYPES.filter(bt => { const s = blockPickerSearch.toLowerCase(); return bt.label.toLowerCase().includes(s) || bt.description.toLowerCase().includes(s) || bt.type.includes(s); }).length === 0 && (
-                <p style={{ textAlign: 'center', color: '#9CA3AF', fontSize: '.85rem', padding: '1rem 0' }}>No blocks match &ldquo;{blockPickerSearch}&rdquo;</p>
+              {blockPickerTab === 'blocks' && (
+                <>
+                  <input className="fc-form__input lesson-builder__picker-search" placeholder="Search blocks..." value={blockPickerSearch} onChange={e => setBlockPickerSearch(e.target.value)} autoFocus />
+                  {['Content', 'Media', 'Layout', 'Interactive'].map(group => {
+                    const search = blockPickerSearch.toLowerCase();
+                    const groupTypes = BLOCK_TYPES.filter(bt => bt.group === group && (!search || bt.label.toLowerCase().includes(search) || bt.description.toLowerCase().includes(search) || bt.type.includes(search)));
+                    if (groupTypes.length === 0) return null;
+                    return (
+                      <div key={group} style={{ marginBottom: '1rem' }}>
+                        <h4 style={{ fontSize: '.78rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '.5rem' }}>{group}</h4>
+                        <div className="lesson-builder__block-picker">
+                          {groupTypes.map((bt) => (
+                            <button key={bt.type} className="lesson-builder__block-option" onClick={() => { addBlock(bt.type); setBlockPickerSearch(''); }}>
+                              <span className="lesson-builder__block-option-icon">{bt.icon}</span>
+                              <div>
+                                <div className="lesson-builder__block-option-label">{bt.label}</div>
+                                <div className="lesson-builder__block-option-desc">{bt.description}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {blockPickerSearch && BLOCK_TYPES.filter(bt => { const s = blockPickerSearch.toLowerCase(); return bt.label.toLowerCase().includes(s) || bt.description.toLowerCase().includes(s) || bt.type.includes(s); }).length === 0 && (
+                    <p style={{ textAlign: 'center', color: '#9CA3AF', fontSize: '.85rem', padding: '1rem 0' }}>No blocks match &ldquo;{blockPickerSearch}&rdquo;</p>
+                  )}
+                </>
               )}
+              {blockPickerTab === 'templates' && (
+                <div>
+                  {templatesLoading && <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '1rem' }}>Loading templates...</p>}
+                  {!templatesLoading && savedTemplates.length === 0 && (
+                    <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '1rem' }}>No templates yet. Save blocks as a template to reuse them!</p>
+                  )}
+                  {['content', 'interactive', 'layout', 'assessment', 'custom'].map(cat => {
+                    const catTemplates = savedTemplates.filter(t => t.category === cat);
+                    if (catTemplates.length === 0) return null;
+                    return (
+                      <div key={cat} style={{ marginBottom: '1rem' }}>
+                        <h4 style={{ fontSize: '.78rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '.5rem' }}>{cat}</h4>
+                        {catTemplates.map((t: any) => (
+                          <div key={t.id} className="lesson-builder__template-item">
+                            <button className="lesson-builder__template-btn" onClick={() => insertTemplate(t)}>
+                              <div>
+                                <div style={{ fontWeight: 600, fontSize: '.85rem', color: '#0F1419' }}>{t.name} {t.is_builtin && <span style={{ fontSize: '.6rem', background: '#DBEAFE', color: '#1E40AF', padding: '.1rem .3rem', borderRadius: '3px', marginLeft: '.25rem' }}>BUILT-IN</span>}</div>
+                                <div style={{ fontSize: '.72rem', color: '#6B7280' }}>{t.description || `${(t.blocks || []).length} block${(t.blocks || []).length !== 1 ? 's' : ''}`}</div>
+                              </div>
+                            </button>
+                            {!t.is_builtin && (
+                              <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => deleteTemplate(t.id)} title="Delete template" style={{ flexShrink: 0 }}>✕</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save as Template Modal */}
+      {showSaveTemplate && (
+        <div className="admin-modal-overlay" onClick={() => setShowSaveTemplate(false)}>
+          <div className="admin-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="admin-modal__header">
+              <h3 className="admin-modal__title">Save as Template</h3>
+              <button className="admin-modal__close" onClick={() => setShowSaveTemplate(false)}>✕</button>
+            </div>
+            <div className="admin-modal__body">
+              <p style={{ fontSize: '.82rem', color: '#6B7280', marginBottom: '.75rem' }}>
+                {selectedBlockId ? 'Save the selected block as a reusable template.' : `Save all ${blocks.length} blocks as a reusable template.`}
+              </p>
+              <input className="fc-form__input" placeholder="Template name" value={saveTemplateName} onChange={e => setSaveTemplateName(e.target.value)} autoFocus style={{ marginBottom: '.5rem' }} />
+              <input className="fc-form__input" placeholder="Description (optional)" value={saveTemplateDesc} onChange={e => setSaveTemplateDesc(e.target.value)} style={{ marginBottom: '.5rem' }} />
+              <select className="fc-form__select" value={saveTemplateCat} onChange={e => setSaveTemplateCat(e.target.value)} style={{ marginBottom: '.75rem' }}>
+                <option value="custom">Custom</option>
+                <option value="content">Content</option>
+                <option value="interactive">Interactive</option>
+                <option value="layout">Layout</option>
+                <option value="assessment">Assessment</option>
+              </select>
+              <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
+                <button className="admin-btn admin-btn--ghost" onClick={() => setShowSaveTemplate(false)}>Cancel</button>
+                <button className="admin-btn admin-btn--primary" onClick={saveAsTemplate} disabled={!saveTemplateName.trim()}>Save Template</button>
+              </div>
             </div>
           </div>
         </div>

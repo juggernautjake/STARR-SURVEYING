@@ -938,6 +938,27 @@
 .eq-den { padding:.1em .2em 0; font-size:.85em; }
 .eq-sqrt { white-space:nowrap; }
 
+/* === LESSON BUILDER: Drag Handle === */
+.lesson-builder__drag-handle { cursor:grab; font-size:1rem; color:#9CA3AF; line-height:1; user-select:none; padding:0 .15rem; }
+.lesson-builder__drag-handle:active { cursor:grabbing; }
+.lesson-builder__block--dragging { opacity:.5; }
+
+/* === LESSON BUILDER: Drop Indicator === */
+.lesson-builder__drop-indicator { height:4px; margin:0 0 -2px; border-radius:2px; transition:background .15s, height .15s; }
+.lesson-builder__drop-indicator--active { background:#1D3095; height:4px; box-shadow:0 0 6px rgba(29,48,149,.3); }
+
+/* === LESSON BUILDER: Block Picker Tabs === */
+.lesson-builder__picker-tabs { display:flex; border-bottom:2px solid #E5E7EB; padding:0 1.25rem; gap:0; }
+.lesson-builder__picker-tab { font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; color:#6B7280; background:none; border:none; border-bottom:2px solid transparent; padding:.6rem 1rem; cursor:pointer; transition:all .15s; margin-bottom:-2px; }
+.lesson-builder__picker-tab:hover { color:#374151; }
+.lesson-builder__picker-tab--active { color:#1D3095; border-bottom-color:#1D3095; }
+
+/* === LESSON BUILDER: Template Items === */
+.lesson-builder__template-item { display:flex; align-items:center; gap:.5rem; border:1px solid #E5E7EB; border-radius:8px; margin-bottom:.5rem; overflow:hidden; }
+.lesson-builder__template-btn { flex:1; text-align:left; background:none; border:none; padding:.65rem .85rem; cursor:pointer; font-family:'Inter',sans-serif; transition:background .1s; }
+.lesson-builder__template-btn:hover { background:#EFF6FF; }
+.lesson-builder__template-item .lesson-builder__block-btn--danger { margin-right:.5rem; }
+
 /* === BLOCK: Smooth Collapsible/Hidden Transitions === */
 .block-collapsible-wrap { display:grid; grid-template-rows:0fr; transition:grid-template-rows .3s ease; }
 .block-collapsible-wrap--open { grid-template-rows:1fr; }
