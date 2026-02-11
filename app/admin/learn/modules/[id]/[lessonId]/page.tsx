@@ -327,7 +327,24 @@ export default function LessonViewerPage() {
                     </div>
                   )}
                   {block.block_type === 'callout' && (
-                    <div className={`lesson-builder__callout lesson-builder__callout--${block.content.type || 'info'}`}>{block.content.text}</div>
+                    <div className={`lesson-builder__callout lesson-builder__callout--${block.content.type || 'info'}`}>
+                      <span dangerouslySetInnerHTML={{ __html: block.content.text || '' }} />
+                    </div>
+                  )}
+                  {block.block_type === 'highlight' && (
+                    <div className={`block-highlight block-highlight--${block.content.style || 'blue'}`}>
+                      <span dangerouslySetInnerHTML={{ __html: block.content.text || '' }} />
+                    </div>
+                  )}
+                  {block.block_type === 'key_takeaways' && (
+                    <div className="block-takeaways">
+                      <h4 className="block-takeaways__title">{block.content.title || 'Key Takeaways'}</h4>
+                      <ul className="block-takeaways__list">
+                        {(block.content.items || []).map((item: string, i: number) => (
+                          <li key={i} className="block-takeaways__item">{item}</li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                   {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}
                   {block.block_type === 'embed' && block.content.url && (
