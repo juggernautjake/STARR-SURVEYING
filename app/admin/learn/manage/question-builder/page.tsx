@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import FillBlankQuestion from '@/app/admin/components/FillBlankQuestion';
 import { usePageError } from '../../../hooks/usePageError';
+import { useToast } from '../../../components/Toast';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
@@ -141,6 +142,7 @@ export default function QuestionBuilderPage() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
   const { safeFetch, safeAction } = usePageError('QuestionBuilderPage');
+  const { addToast } = useToast();
 
   // ========= SHARED STATE =========
   const [activeTab, setActiveTab] = useState<Tab>('questions');
@@ -494,13 +496,19 @@ export default function QuestionBuilderPage() {
 
       if (res.ok) {
         setMessage(editId ? 'Question updated!' : 'Question created!');
+        addToast(editId ? 'Question updated!' : 'Question created successfully!', 'success');
         resetForm();
         loadQuestions();
       } else {
         const err = await res.json();
         setMessage(err.error || 'Failed to save');
+        addToast(err.error || 'Failed to save question.', 'error');
       }
-    } catch (err) { console.error('QuestionBuilderPage: failed to save question', err); setMessage('Network error'); }
+    } catch (err) {
+      console.error('QuestionBuilderPage: failed to save question', err);
+      setMessage('Network error');
+      addToast('Network error — check your connection.', 'error');
+    }
     setSaving(false);
   }
 
@@ -508,7 +516,11 @@ export default function QuestionBuilderPage() {
     if (!confirm('Delete this question?')) return;
     try {
       const res = await fetch(`/api/admin/learn/questions?id=${id}`, { method: 'DELETE' });
-      if (res.ok) { loadQuestions(); if (editId === id) resetForm(); }
+      if (res.ok) {
+        loadQuestions();
+        if (editId === id) resetForm();
+        addToast('Question deleted.', 'info');
+      }
     } catch (err) { console.error('QuestionBuilderPage: failed to delete question', err); }
   }
 

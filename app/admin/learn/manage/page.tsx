@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
 import SmartSearch from '../components/SmartSearch';
+import { useToast } from '../../components/Toast';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
@@ -25,6 +26,7 @@ export default function ManageContentPage() {
   const searchParams = useSearchParams();
   const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
   const { safeFetch } = usePageError('ManageContentPage');
+  const { addToast } = useToast();
   const initialTab = (searchParams.get('tab') as Tab) || 'modules';
   const [tab, setTab] = useState<Tab>(initialTab);
   const [loading, setLoading] = useState(true);
@@ -216,7 +218,7 @@ export default function ManageContentPage() {
             estimated_minutes: Number(formData.estimated_minutes) || 30,
             status: formData.status || 'draft',
           };
-          if (!body.module_id) { alert('Please select a module.'); setSaving(false); return; }
+          if (!body.module_id) { addToast('Please select a module.', 'warning'); setSaving(false); return; }
           break;
         case 'articles':
           url = '/api/admin/learn/articles';
@@ -245,7 +247,7 @@ export default function ManageContentPage() {
             lesson_id: formData.lesson_id || null,
             exam_category: formData.exam_category || null,
           };
-          if (!body.question_text) { alert('Please enter a question.'); setSaving(false); return; }
+          if (!body.question_text) { addToast('Please enter a question.', 'warning'); setSaving(false); return; }
           break;
       }
 
@@ -259,6 +261,7 @@ export default function ManageContentPage() {
           setShowForm(false);
           setFormData({});
           loadData();
+          addToast(`${tab.slice(0, -1).replace('_', ' ')} created successfully!`, 'success');
         }
       }
     } catch { /* safeFetch handles error reporting */ }
@@ -315,6 +318,7 @@ export default function ManageContentPage() {
       setEditingModuleId(null);
       setEditModule({});
       loadData();
+      addToast('Module updated successfully!', 'success');
     }
     setSaving(false);
   }
@@ -331,6 +335,7 @@ export default function ManageContentPage() {
       setEditingFlashcardId(null);
       setEditFlashcard({});
       loadData();
+      addToast('Flashcard updated!', 'success');
     }
     setSaving(false);
   }
@@ -355,6 +360,7 @@ export default function ManageContentPage() {
       setShowForm(false);
       setFormData({});
       loadData();
+      addToast('Flashcard created!', 'success');
     }
     setSaving(false);
   }
@@ -374,6 +380,7 @@ export default function ManageContentPage() {
       setEditingQuestionId(null);
       setEditQuestion({});
       loadData();
+      addToast('Question updated!', 'success');
     }
     setSaving(false);
   }
@@ -385,7 +392,10 @@ export default function ManageContentPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item_type: itemType, item_id: itemId }),
     });
-    if (result) loadData();
+    if (result) {
+      loadData();
+      addToast(`"${itemTitle}" moved to recycle bin.`, 'info');
+    }
   }
 
   async function handleRestore(recycleId: string) {
@@ -832,9 +842,28 @@ export default function ManageContentPage() {
         </div>
       )}
 
+      {/* Loading Skeleton */}
+      {loading && (
+        <div style={{ padding: '0.5rem 0' }}>
+          {[1,2,3,4].map(i => (
+            <div key={i} className="skeleton skeleton--card" style={{ height: 64 }} />
+          ))}
+        </div>
+      )}
+
       {/* Content Lists */}
       {!loading && tab !== 'assignments' && tab !== 'activity' && (
-        <div className="manage__list">
+        <div className="manage__list" role="list" aria-label={`${tab} list`}>
+          {tab === 'modules' && modules.length === 0 && !showForm && (
+            <div className="admin-empty">
+              <div className="admin-empty__icon">{'\u{1F4DA}'}</div>
+              <div className="admin-empty__title">No modules yet</div>
+              <div className="admin-empty__desc">Create your first learning module to get started. Modules contain lessons that guide students through topics.</div>
+              <div className="admin-empty__action">
+                <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(true); setFormData({}); }}>+ Create Module</button>
+              </div>
+            </div>
+          )}
           {tab === 'modules' && modules.sort((a, b) => a.order_index - b.order_index).map(m => (
             <div key={m.id} className="manage__item" style={editingModuleId === m.id ? { flexDirection: 'column', alignItems: 'stretch' } : undefined}>
               {editingModuleId === m.id ? (
@@ -1143,10 +1172,36 @@ export default function ManageContentPage() {
           )}
 
           {/* Empty states */}
-          {tab === 'modules' && modules.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F4DA;</div><div className="admin-empty__title">No modules yet</div></div>}
-          {tab === 'lessons' && lessons.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F4D6;</div><div className="admin-empty__title">No lessons yet</div></div>}
-          {tab === 'articles' && articles.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F4C4;</div><div className="admin-empty__title">No articles yet</div></div>}
-          {tab === 'flashcards' && flashcards.length === 0 && <div className="admin-empty"><div className="admin-empty__icon">&#x1F0CF;</div><div className="admin-empty__title">No built-in flashcards yet</div></div>}
+          {tab === 'lessons' && lessons.length === 0 && !showForm && (
+            <div className="admin-empty">
+              <div className="admin-empty__icon">{'\u{1F4D6}'}</div>
+              <div className="admin-empty__title">No lessons yet</div>
+              <div className="admin-empty__desc">Lessons live inside modules. Create a lesson and then use the Lesson Builder to add rich content blocks.</div>
+              <div className="admin-empty__action">
+                <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(true); setFormData({}); }}>+ Create Lesson</button>
+              </div>
+            </div>
+          )}
+          {tab === 'articles' && articles.length === 0 && !showForm && (
+            <div className="admin-empty">
+              <div className="admin-empty__icon">{'\u{1F4C4}'}</div>
+              <div className="admin-empty__title">No articles yet</div>
+              <div className="admin-empty__desc">Knowledge base articles help students learn key surveying concepts. Create one to get started.</div>
+              <div className="admin-empty__action">
+                <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(true); setFormData({}); }}>+ Create Article</button>
+              </div>
+            </div>
+          )}
+          {tab === 'flashcards' && flashcards.length === 0 && !showForm && (
+            <div className="admin-empty">
+              <div className="admin-empty__icon">{'\u{1F0CF}'}</div>
+              <div className="admin-empty__title">No built-in flashcards yet</div>
+              <div className="admin-empty__desc">Built-in flashcards are company-wide study aids linked to modules. Students discover them as they progress.</div>
+              <div className="admin-empty__action">
+                <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(true); setFormData({}); }}>+ Create Flashcard</button>
+              </div>
+            </div>
+          )}
 
           {tab === 'recycle_bin' && recycleBin.length === 0 && (
             <div className="admin-empty">

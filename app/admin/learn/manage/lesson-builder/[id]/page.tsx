@@ -6,6 +6,7 @@ import SmartSearch from '../../../components/SmartSearch';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { usePageError } from '../../../../hooks/usePageError';
+import { useToast } from '../../../../components/Toast';
 
 const TipTapEditor = dynamic(() => import('@/app/admin/components/TipTapEditor'), { ssr: false });
 
@@ -241,6 +242,7 @@ export default function LessonBuilderPage() {
   const lessonId = params.id as string;
   const router = useRouter();
   const { safeFetch, safeAction } = usePageError('LessonBuilderPage');
+  const { addToast } = useToast();
   const [lesson, setLesson] = useState<LessonMeta | null>(null);
   const [blocks, setBlocks] = useState<LessonBlock[]>([]);
   const [loading, setLoading] = useState(true);
@@ -447,8 +449,14 @@ export default function LessonBuilderPage() {
         lastSavedBlocks.current = JSON.stringify(blocks);
         setHasUnsavedChanges(false);
         if (isAutoSave) { setAutoSaveFlash(true); setTimeout(() => setAutoSaveFlash(false), 2000); }
+        else addToast(`${blocks.length} blocks saved successfully`, 'success', 3000);
+      } else {
+        addToast('Failed to save blocks. Please try again.', 'error');
       }
-    } catch (err) { console.error('LessonBuilderPage: failed to save blocks', err); }
+    } catch (err) {
+      console.error('LessonBuilderPage: failed to save blocks', err);
+      addToast('Save failed — check your connection.', 'error');
+    }
     setSaving(false);
   }
 
@@ -539,8 +547,14 @@ export default function LessonBuilderPage() {
         setShowSaveTemplate(false);
         setSaveTemplateName('');
         setSaveTemplateDesc('');
+        addToast(`Template "${saveTemplateName.trim()}" saved!`, 'success');
+      } else {
+        addToast('Failed to save template.', 'error');
       }
-    } catch (err) { console.error('Failed to save template', err); }
+    } catch (err) {
+      console.error('Failed to save template', err);
+      addToast('Failed to save template.', 'error');
+    }
   }
 
   async function deleteTemplate(templateId: string) {
@@ -548,6 +562,7 @@ export default function LessonBuilderPage() {
       const res = await fetch(`/api/admin/learn/block-templates?id=${templateId}`, { method: 'DELETE' });
       if (res.ok) {
         setSavedTemplates(prev => prev.filter(t => t.id !== templateId));
+        addToast('Template deleted.', 'info');
       }
     } catch (err) { console.error('Failed to delete template', err); }
   }
@@ -598,8 +613,16 @@ export default function LessonBuilderPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: lessonId, status: newStatus }),
       });
-      if (res.ok) setIsDraft(!isDraft);
-    } catch (err) { console.error('LessonBuilderPage: failed to toggle publish', err); }
+      if (res.ok) {
+        setIsDraft(!isDraft);
+        addToast(isDraft ? 'Lesson published!' : 'Lesson reverted to draft.', isDraft ? 'success' : 'info');
+      } else {
+        addToast('Failed to update publish status.', 'error');
+      }
+    } catch (err) {
+      console.error('LessonBuilderPage: failed to toggle publish', err);
+      addToast('Publish toggle failed.', 'error');
+    }
   }
 
   function addBlock(type: BlockType) {
@@ -829,9 +852,14 @@ export default function LessonBuilderPage() {
 
   if (loading) {
     return (
-      <div className="admin-empty">
-        <div className="admin-empty__icon">⏳</div>
-        <div className="admin-empty__title">Loading lesson builder...</div>
+      <div style={{ padding: '1.5rem' }}>
+        <div className="skeleton skeleton--title" />
+        <div className="skeleton skeleton--text" style={{ width: '30%' }} />
+        <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="skeleton skeleton--block" />
+          <div className="skeleton skeleton--block" style={{ height: 120 }} />
+          <div className="skeleton skeleton--block" style={{ height: 60 }} />
+        </div>
       </div>
     );
   }
@@ -900,10 +928,10 @@ export default function LessonBuilderPage() {
             <button className="lesson-builder__undo-btn" title="Undo (Ctrl+Z)" disabled={undoStack.current.length <= 1} onClick={() => { if (undoStack.current.length > 1) { const cur = undoStack.current.pop()!; redoStack.current.push(cur); isUndoRedo.current = true; setBlocks(JSON.parse(JSON.stringify(undoStack.current[undoStack.current.length - 1]))); } }}>↶</button>
             <button className="lesson-builder__undo-btn" title="Redo (Ctrl+Shift+Z)" disabled={redoStack.current.length === 0} onClick={() => { if (redoStack.current.length > 0) { const next = redoStack.current.pop()!; undoStack.current.push(next); isUndoRedo.current = true; setBlocks(JSON.parse(JSON.stringify(next))); } }}>↷</button>
           </div>
-          {hasUnsavedChanges && <span style={{ fontSize: '0.72rem', color: '#D97706', fontWeight: 600 }}>Unsaved changes</span>}
-          {lastSaved && !hasUnsavedChanges && <span style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Saved {lastSaved}</span>}
+          {hasUnsavedChanges && <span className="saved-indicator saved-indicator--unsaved">Unsaved changes</span>}
+          {lastSaved && !hasUnsavedChanges && <span className="saved-indicator saved-indicator--saved">{'\u2713'} Saved {lastSaved}</span>}
           {autoSaveFlash && <span className="lesson-builder__autosave-flash">Auto-saved</span>}
-          <span style={{ fontSize: '0.65rem', color: '#D1D5DB' }}>Ctrl+S / Z / Y</span>
+          <span className="shortcut-hint"><kbd>Ctrl</kbd>+<kbd>S</kbd> save <kbd>Z</kbd> undo <kbd>Y</kbd> redo</span>
         </div>
       </div>
 
@@ -2144,7 +2172,7 @@ export default function LessonBuilderPage() {
             <div className="admin-modal__body">
               {blockPickerTab === 'blocks' && (
                 <>
-                  <input className="fc-form__input lesson-builder__picker-search" placeholder="Search blocks..." value={blockPickerSearch} onChange={e => setBlockPickerSearch(e.target.value)} autoFocus />
+                  <input className="fc-form__input lesson-builder__picker-search" placeholder="Search blocks..." value={blockPickerSearch} onChange={e => setBlockPickerSearch(e.target.value)} autoFocus aria-label="Search block types" />
                   {['Content', 'Media', 'Layout', 'Interactive'].map(group => {
                     const search = blockPickerSearch.toLowerCase();
                     const groupTypes = BLOCK_TYPES.filter(bt => bt.group === group && (!search || bt.label.toLowerCase().includes(search) || bt.description.toLowerCase().includes(search) || bt.type.includes(search)));

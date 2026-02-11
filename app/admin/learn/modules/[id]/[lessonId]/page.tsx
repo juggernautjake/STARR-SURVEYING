@@ -345,9 +345,9 @@ export default function LessonViewerPage() {
   return (
     <>
       {/* Navigation */}
-      <div className="admin-lesson__header">
-        <div className="admin-lesson__nav">
-          <Link href={`/admin/learn/modules/${moduleId}`} className="admin-lesson__nav-link">&larr; Back to Module</Link>
+      <div className="admin-lesson__header" role="banner" aria-label="Lesson header">
+        <div className="admin-lesson__nav" role="navigation" aria-label="Lesson navigation">
+          <Link href={`/admin/learn/modules/${moduleId}`} className="admin-lesson__nav-link" aria-label="Back to module">&larr; Back to Module</Link>
           {quizCount > 0 && canTakeQuiz && (
             <Link href={`/admin/learn/modules/${moduleId}/${lessonId}/quiz`} className="admin-btn admin-btn--secondary admin-btn--sm">
               Take Quiz ({quizCount} questions)
@@ -386,7 +386,7 @@ export default function LessonViewerPage() {
 
       {/* Block scroll progress */}
       {lessonBlocks.length > 0 && (
-        <div className="block-progress">
+        <div className="block-progress" role="progressbar" aria-valuenow={Object.keys(blockViewed).length} aria-valuemin={0} aria-valuemax={lessonBlocks.length} aria-label="Reading progress">
           <div className="block-progress__bar">
             <div className="block-progress__fill" style={{ width: `${lessonBlocks.length > 0 ? (Object.keys(blockViewed).length / lessonBlocks.length) * 100 : 0}%` }} />
           </div>
@@ -396,7 +396,7 @@ export default function LessonViewerPage() {
 
       {/* Lesson Content — Blocks preferred, fallback to legacy HTML */}
       {lessonBlocks.length > 0 ? (
-        <div className="admin-lesson__body">
+        <div className="admin-lesson__body" role="main" aria-label="Lesson content">
           {lessonBlocks.map((block) => {
             const st: React.CSSProperties = {};
             if (block.style?.backgroundColor && block.style.backgroundColor !== '#ffffff') st.backgroundColor = block.style.backgroundColor;

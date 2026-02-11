@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
+import { useToast } from '../../components/Toast';
 
 interface Flashcard {
   id: string; term: string; definition: string;
@@ -18,6 +19,7 @@ type Section = 'company' | 'personal';
 
 export default function FlashcardBankPage() {
   const { safeFetch } = usePageError('FlashcardBankPage');
+  const { addToast } = useToast();
   const [section, setSection] = useState<Section>('company');
   const [companyCards, setCompanyCards] = useState<Flashcard[]>([]);
   const [personalCards, setPersonalCards] = useState<Flashcard[]>([]);
@@ -67,6 +69,7 @@ export default function FlashcardBankPage() {
       setPersonalCards(prev => [data.card, ...prev]);
       setNewTerm(''); setNewDef(''); setNewH1(''); setNewH2(''); setNewH3(''); setNewTags('');
       setShowCreate(false);
+      addToast('Flashcard created!', 'success');
     }
     setSaving(false);
   }
@@ -74,7 +77,10 @@ export default function FlashcardBankPage() {
   async function deleteCard(id: string) {
     if (!confirm('Delete this flashcard?')) return;
     const result = await safeFetch(`/api/admin/learn/flashcards?id=${id}`, { method: 'DELETE' });
-    if (result !== null) setPersonalCards(prev => prev.filter(c => c.id !== id));
+    if (result !== null) {
+      setPersonalCards(prev => prev.filter(c => c.id !== id));
+      addToast('Flashcard deleted.', 'info');
+    }
   }
 
   async function saveEdit(card: Flashcard) {
@@ -95,6 +101,7 @@ export default function FlashcardBankPage() {
       setEditingId(null);
       setEditData({});
       loadCards();
+      addToast('Flashcard updated!', 'success');
     }
     setSaving(false);
   }
