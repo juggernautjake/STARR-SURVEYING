@@ -37,6 +37,20 @@ interface Video { title: string; url: string; description?: string; }
 interface SiblingLesson { id: string; title: string; order_index: number; }
 interface LessonBlock { id: string; block_type: string; content: Record<string, any>; order_index: number; style?: Record<string, any>; }
 
+// Helper: group blocks by rowGroup for side-by-side rendering
+function getBlockRows(blockList: LessonBlock[]): { rowGroup: string | null; blocks: LessonBlock[] }[] {
+  const rows: { rowGroup: string | null; blocks: LessonBlock[] }[] = [];
+  for (const block of blockList) {
+    const rg = block.style?.rowGroup || null;
+    if (rg && rows.length > 0 && rows[rows.length - 1].rowGroup === rg) {
+      rows[rows.length - 1].blocks.push(block);
+    } else {
+      rows.push({ rowGroup: rg, blocks: [block] });
+    }
+  }
+  return rows;
+}
+
 // Lightweight LaTeX to HTML renderer for common math notation
 function renderLatex(tex: string): string {
   if (!tex) return '';
@@ -397,7 +411,9 @@ export default function LessonViewerPage() {
       {/* Lesson Content — Blocks preferred, fallback to legacy HTML */}
       {lessonBlocks.length > 0 ? (
         <div className="admin-lesson__body" role="main" aria-label="Lesson content">
-          {lessonBlocks.map((block) => {
+          {getBlockRows(lessonBlocks).map((row, rowIdx) => {
+            const isRowGroup = row.rowGroup && row.blocks.length > 1;
+            const rowContent = row.blocks.map((block) => {
             const st: React.CSSProperties = {};
             if (block.style?.backgroundColor && block.style.backgroundColor !== '#ffffff') st.backgroundColor = block.style.backgroundColor;
             if (block.style?.borderColor && block.style?.borderWidth) st.border = `${block.style.borderWidth}px solid ${block.style.borderColor}`;
@@ -468,11 +484,18 @@ export default function LessonViewerPage() {
                       <span dangerouslySetInnerHTML={{ __html: block.content.text || '' }} />
                     </div>
                   )}
-                  {block.block_type === 'highlight' && (
-                    <div className={`block-highlight block-highlight--${block.content.style || 'blue'}`}>
-                      <span dangerouslySetInnerHTML={{ __html: block.content.text || '' }} />
-                    </div>
-                  )}
+                  {block.block_type === 'highlight' && (() => {
+                    const items = block.content.items || (block.content.text ? [{ text: block.content.text, style: block.content.style || 'blue' }] : []);
+                    return (
+                      <div className="block-highlight-group">
+                        {items.map((item: any, i: number) => (
+                          <div key={i} className={`block-highlight block-highlight--${item.style || 'blue'}`}>
+                            <span dangerouslySetInnerHTML={{ __html: item.text || '' }} />
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   {block.block_type === 'key_takeaways' && (
                     <div className="block-takeaways">
                       <h4 className="block-takeaways__title">{block.content.title || 'Key Takeaways'}</h4>
@@ -648,6 +671,33 @@ export default function LessonViewerPage() {
                   )}
                   {block.block_type === 'flashcard' && (block.content.cards || []).length > 0 && (() => {
                     const cards = block.content.cards || [];
+                    const isGrid = block.content.layout === 'grid';
+                    if (isGrid) {
+                      return (
+                        <div className="block-flashcard-grid" style={{ margin: '1.5rem 0' }}>
+                          {cards.map((card: any, ci: number) => {
+                            const flipKey = `${block.id}-${ci}`;
+                            const isFlipped = flippedCards[flipKey] || false;
+                            return (
+                              <div key={ci} className="block-flashcard block-flashcard--grid-item">
+                                <div className={`block-flashcard__card ${isFlipped ? 'block-flashcard__card--flipped' : ''}`} onClick={() => setFlippedCards(prev => ({ ...prev, [flipKey]: !isFlipped }))}>
+                                  <div className="block-flashcard__face block-flashcard__front">
+                                    <span className="block-flashcard__label">FRONT</span>
+                                    <p className="block-flashcard__text">{card?.front || ''}</p>
+                                    <span className="block-flashcard__hint">Click to flip</span>
+                                  </div>
+                                  <div className="block-flashcard__face block-flashcard__back">
+                                    <span className="block-flashcard__label">BACK</span>
+                                    <p className="block-flashcard__text">{card?.back || ''}</p>
+                                    <span className="block-flashcard__hint">Click to flip</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
                     const cardIdx = flashcardIndexes[block.id] || 0;
                     const card = cards[cardIdx];
                     const isFlipped = flippedCards[block.id] || false;
@@ -773,6 +823,12 @@ export default function LessonViewerPage() {
                   )}
                 </div></div>
               </div>
+            );
+            });
+            return isRowGroup ? (
+              <div key={`row-${rowIdx}`} className="block-row-group">{rowContent}</div>
+            ) : (
+              <>{rowContent}</>
             );
           })}
         </div>
