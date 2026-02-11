@@ -969,6 +969,31 @@
   .profile-page__header { gap: 0.75rem !important; }
   .profile-page__avatar { width: 52px !important; height: 52px !important; font-size: 1rem !important; }
   .profile-page__stats { gap: 1rem !important; }
+
+  /* Lesson builder — inline style overrides for blocks */
+  .lesson-builder__block-content table { display: block !important; overflow-x: auto !important; }
+  .lesson-builder__slideshow-images { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important; }
+
+  /* Student viewer — columns should stack on mobile */
+  .admin-lesson__body [style*="display: grid"][style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Student viewer — table blocks responsive */
+  .admin-lesson__body table { display: block !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; }
+  .admin-lesson__body table th,
+  .admin-lesson__body table td { white-space: nowrap !important; padding: 0.4rem 0.65rem !important; font-size: 0.82rem !important; }
+
+  /* Student viewer — images responsive */
+  .admin-lesson__body img { max-width: 100% !important; height: auto !important; }
+  .admin-lesson__body iframe { max-width: 100% !important; }
+  .admin-lesson__body video { max-width: 100% !important; height: auto !important; }
+
+  /* Student viewer — slideshow */
+  .admin-lesson__body .block-slideshow img { max-width: 100% !important; max-height: 300px !important; object-fit: contain !important; }
+
+  /* Module detail — manage section */
+  .module-lesson-card { flex-direction: column !important; gap: 0.5rem !important; }
+  .module-lesson-card > div:last-child { flex-wrap: wrap !important; }
 }
 
 @media (max-width: 599px) {
@@ -997,6 +1022,24 @@
   .profile-page__avatar { width: 48px !important; height: 48px !important; font-size: 0.95rem !important; }
   .profile-page__stats { gap: 0.75rem !important; justify-content: center !important; }
   .profile-page__stats > div { text-align: center !important; }
+
+  /* Lesson builder — compact at mobile */
+  .lesson-builder__header-right .admin-btn { font-size: 0.72rem !important; padding: 0.3rem 0.55rem !important; }
+  .lesson-builder__linked-panel { max-height: 200px !important; }
+  .lesson-builder__style-panel-body label { font-size: 0.72rem !important; }
+  .lesson-builder__slideshow-images { grid-template-columns: 1fr 1fr !important; gap: 0.35rem !important; }
+
+  /* Student viewer — block spacing */
+  .admin-lesson__body > div { margin-bottom: 0.75rem !important; }
+
+  /* Quiz results — compact */
+  .quiz-results__header { padding: 1.25rem !important; }
+  .quiz-results__score { font-size: 2rem !important; }
+  .quiz-results__actions { flex-direction: column !important; align-items: stretch !important; gap: 0.5rem !important; }
+  .quiz-results__actions .admin-btn { text-align: center !important; justify-content: center !important; }
+
+  /* Flashcard create form — hints stack vertically on mobile */
+  .fc-bank__grid [style*="display: flex"][style*="flex-wrap: wrap"] { flex-direction: column !important; }
 }
 
 @media (max-width: 480px) {

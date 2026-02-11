@@ -24,12 +24,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   // If module_id provided: return lesson-level progress for that module
   if (moduleId) {
-    const [lessonsRes, progressRes, assignmentsRes] = await Promise.all([
+    const [lessonsRes, progressRes, assignmentsRes, lessonQuizRes] = await Promise.all([
       supabaseAdmin.from('learning_lessons').select('id, title, order_index, estimated_minutes, resources, videos, status')
         .eq('module_id', moduleId).order('order_index'),
       supabaseAdmin.from('user_lesson_progress').select('*').eq('user_email', email).eq('module_id', moduleId),
       supabaseAdmin.from('learning_assignments').select('*').eq('assigned_to', email)
         .eq('module_id', moduleId).neq('status', 'cancelled'),
+      supabaseAdmin.from('quiz_attempts').select('lesson_id, score_percent').eq('user_email', email).eq('module_id', moduleId),
     ]);
 
     const lessons = lessonsRes.data || [];
@@ -37,6 +38,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const assignments = assignmentsRes.data || [];
     const progressMap = new Map<string, any>(progress.map((p: any) => [p.lesson_id, p]));
     const assignmentMap = new Map<string, any>(assignments.filter((a: any) => a.lesson_id).map((a: any) => [a.lesson_id, a]));
+
+    // Build per-lesson quiz stats
+    const lessonQuizMap = new Map<string, { attempts: number; totalScore: number }>();
+    for (const qa of (lessonQuizRes.data || [])) {
+      if (!qa.lesson_id) continue;
+      const entry = lessonQuizMap.get(qa.lesson_id) || { attempts: 0, totalScore: 0 };
+      entry.attempts++;
+      entry.totalScore += qa.score_percent || 0;
+      lessonQuizMap.set(qa.lesson_id, entry);
+    }
 
     const enrichedLessons = lessons.map((lesson: any, idx: number) => {
       const lp: any = progressMap.get(lesson.id);
@@ -63,6 +74,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         }
       }
 
+      const lqStats = lessonQuizMap.get(lesson.id);
       return {
         ...lesson,
         status: lp?.status || 'not_started',
@@ -76,6 +88,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         lock_reason: lockReason,
         is_assigned: !!assignment,
         assignment,
+        avg_quiz_score: lqStats ? Math.round(lqStats.totalScore / lqStats.attempts) : null,
+        quiz_attempts: lqStats?.attempts || 0,
       };
     });
 
@@ -83,13 +97,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Otherwise: return all modules with status for the user
-  const [modulesRes, completionsRes, lessonCountRes, lessonProgressRes, assignmentsRes, enrollmentsRes] = await Promise.all([
+  const [modulesRes, completionsRes, lessonCountRes, lessonProgressRes, assignmentsRes, enrollmentsRes, quizAttemptsRes] = await Promise.all([
     supabaseAdmin.from('learning_modules').select('*').eq('status', 'published').order('order_index'),
     supabaseAdmin.from('module_completions').select('*').eq('user_email', email).eq('module_type', 'learning_module'),
     supabaseAdmin.from('learning_lessons').select('id, module_id'),
     supabaseAdmin.from('user_lesson_progress').select('lesson_id, module_id, status').eq('user_email', email),
     supabaseAdmin.from('learning_assignments').select('*').eq('assigned_to', email).neq('status', 'cancelled'),
     supabaseAdmin.from('acc_course_enrollments').select('course_id').eq('user_email', email),
+    supabaseAdmin.from('quiz_attempts').select('module_id, lesson_id, score_percent').eq('user_email', email),
   ]);
 
   const modules = modulesRes.data || [];
@@ -98,6 +113,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const allProgress = lessonProgressRes.data || [];
   const assignments = assignmentsRes.data || [];
   const enrollments = new Set((enrollmentsRes.data || []).map((e: any) => e.course_id));
+
+  // Build quiz stats per module: { total_attempts, total_score, avg_quiz_score }
+  const moduleQuizMap = new Map<string, { attempts: number; totalScore: number }>();
+  for (const qa of (quizAttemptsRes.data || [])) {
+    if (!qa.module_id) continue;
+    const entry = moduleQuizMap.get(qa.module_id) || { attempts: 0, totalScore: 0 };
+    entry.attempts++;
+    entry.totalScore += qa.score_percent || 0;
+    moduleQuizMap.set(qa.module_id, entry);
+  }
 
   // Build lookup maps
   const completionMap = new Map<string, any>();
@@ -173,6 +198,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       }
     }
 
+    const quizStats = moduleQuizMap.get(mod.id);
     return {
       ...mod,
       user_status: userStatus,
@@ -185,6 +211,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       is_assigned: !!assignment,
       assignment,
       is_enrolled: mod.is_academic && mod.acc_course_id ? enrollments.has(mod.acc_course_id) : true,
+      avg_quiz_score: quizStats ? Math.round(quizStats.totalScore / quizStats.attempts) : null,
+      quiz_attempts: quizStats?.attempts || 0,
     };
   });
 

@@ -271,8 +271,11 @@ export default function FlashcardBankPage() {
                   <div style={{ fontSize: '.78rem', color: '#6B7280', lineHeight: 1.5 }}>{c.definition}</div>
                   {c.hint_1 && <div style={{ marginTop: '.35rem', fontSize: '.72rem', color: '#9CA3AF' }}>Hint: {c.hint_1}</div>}
                   {c.times_reviewed != null && c.times_reviewed > 0 && (
-                    <div style={{ marginTop: '.35rem', fontSize: '.68rem', color: '#10B981' }}>
-                      Reviewed {c.times_reviewed}x &middot; {c.times_correct || 0} correct
+                    <div style={{ marginTop: '.35rem', fontSize: '.68rem', color: '#10B981', display: 'flex', alignItems: 'center', gap: '.35rem', flexWrap: 'wrap' }}>
+                      <span>Reviewed {c.times_reviewed}x &middot; {c.times_correct || 0} correct</span>
+                      <span className={`quiz-avg-badge ${((c.times_correct || 0) / c.times_reviewed * 100) >= 70 ? 'quiz-avg-badge--green' : ((c.times_correct || 0) / c.times_reviewed * 100) >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>
+                        {Math.round(((c.times_correct || 0) / c.times_reviewed) * 100)}%
+                      </span>
                     </div>
                   )}
                 </>

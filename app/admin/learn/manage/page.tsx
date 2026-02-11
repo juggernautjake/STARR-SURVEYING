@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
 import SmartSearch from '../components/SmartSearch';
 import { useToast } from '../../components/Toast';
+import SmallScreenBanner from '../../components/SmallScreenBanner';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
@@ -497,6 +498,7 @@ export default function ManageContentPage() {
 
   return (
     <>
+      <SmallScreenBanner storageKey="manage-content-banner" />
       <div className="learn__header">
         <Link href="/admin/learn" className="learn__back">&larr; Back to Learning Hub</Link>
         <h2 className="learn__title">Manage Content</h2>

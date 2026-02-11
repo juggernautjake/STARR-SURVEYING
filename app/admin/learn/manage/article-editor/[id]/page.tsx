@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import ArticleEditor from '@/app/admin/components/ArticleEditor';
+import SmallScreenBanner from '@/app/admin/components/SmallScreenBanner';
 
 export default function ArticleEditorPage() {
   const params = useParams();
@@ -69,6 +70,7 @@ export default function ArticleEditorPage() {
 
   return (
     <>
+      <SmallScreenBanner storageKey="article-editor-banner" />
       <div className="learn__header">
         <Link href="/admin/learn/manage?tab=articles" className="learn__back">&larr; Back to Articles</Link>
         <h2 className="learn__title">Edit Article: {article.title}</h2>

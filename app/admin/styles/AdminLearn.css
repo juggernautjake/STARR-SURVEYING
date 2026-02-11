@@ -2395,6 +2395,40 @@
 .skeleton--card { height: 120px; width: 100%; border-radius: 10px; margin-bottom: 0.75rem; }
 @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
+/* ─── SMALL SCREEN BANNER (editor disclaimer) ─── */
+.small-screen-banner {
+  display: none; /* shown only on small screens via media query */
+  align-items: center; justify-content: space-between; gap: 0.5rem;
+  padding: 0.6rem 0.85rem; margin-bottom: 1rem;
+  background: linear-gradient(135deg, #DBEAFE, #EFF6FF);
+  border: 1px solid #93C5FD; border-radius: 8px;
+  font-family: 'Inter', sans-serif; font-size: 0.78rem; color: #1E40AF;
+  line-height: 1.4; animation: fadeIn 0.3s ease;
+}
+.small-screen-banner__content {
+  display: flex; align-items: center; gap: 0.5rem; flex: 1;
+}
+.small-screen-banner__icon { font-size: 1.1rem; flex-shrink: 0; }
+.small-screen-banner__text { margin: 0; }
+.small-screen-banner__dismiss {
+  background: none; border: none; font-size: 1.2rem; color: #1E40AF;
+  cursor: pointer; padding: 0.2rem; line-height: 1; opacity: 0.6;
+  flex-shrink: 0;
+}
+.small-screen-banner__dismiss:hover { opacity: 1; }
+
+/* ─── QUIZ PERFORMANCE BADGE ─── */
+.quiz-avg-badge {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-family: 'Inter', sans-serif; font-size: 0.68rem; font-weight: 700;
+  padding: 0.15rem 0.5rem; border-radius: 10px;
+  white-space: nowrap;
+}
+.quiz-avg-badge--green { background: #ECFDF5; color: #065F46; }
+.quiz-avg-badge--yellow { background: #FEF3C7; color: #92400E; }
+.quiz-avg-badge--red { background: #FEF2F2; color: #991B1B; }
+.quiz-avg-badge--none { background: #F3F4F6; color: #9CA3AF; }
+
 /* ─── IMPROVED TABLET RESPONSIVENESS ─── */
 @media (max-width: 1024px) {
   .lesson-builder__main { padding: 0.75rem; }
@@ -2403,11 +2437,169 @@
   .manage__tab { font-size: 0.72rem; padding: 0.35rem 0.65rem; }
 }
 @media (max-width: 768px) {
+  /* Show small screen banner */
+  .small-screen-banner { display: flex; }
+
+  /* Toast positioning */
   .toast-container { top: auto; bottom: 1rem; right: 0.5rem; left: 0.5rem; max-width: none; }
   .toast-item { font-size: 0.78rem; padding: 0.55rem 0.7rem; }
+
+  /* Block picker */
   .block-picker__grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
   .block-picker__item { padding: 0.4rem 0.3rem; }
   .block-picker__item-desc { display: none; }
+
+  /* Empty states */
   .admin-empty { padding: 1.5rem 1rem; min-height: 140px; }
   .admin-empty__icon { font-size: 2rem; }
+
+  /* ── Lesson Builder: comprehensive mobile ── */
+  .lesson-builder { max-width: 100%; }
+  .lesson-builder__header { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .lesson-builder__header-left { width: 100%; }
+  .lesson-builder__header-right { width: 100%; flex-wrap: wrap; justify-content: flex-start; }
+  .lesson-builder__title { font-size: 1.05rem; }
+  .lesson-builder__block-toolbar { flex-wrap: wrap; gap: 0.25rem; padding: 0.4rem 0.5rem; }
+  .lesson-builder__block-type { font-size: 0.65rem; }
+  .lesson-builder__block-actions { flex-wrap: wrap; }
+  .lesson-builder__block-btn { width: 26px; height: 26px; font-size: 0.78rem; }
+  .lesson-builder__block-content { padding: 0.65rem; }
+  .lesson-builder__block-picker { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+  .lesson-builder__block-option { padding: 0.6rem; gap: 0.5rem; }
+  .lesson-builder__block-option-icon { width: 28px; height: 28px; font-size: 1rem; }
+  .lesson-builder__block-option-label { font-size: 0.78rem; }
+  .lesson-builder__block-option-desc { font-size: 0.65rem; }
+  .lesson-builder__picker-tabs { padding: 0 0.65rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .lesson-builder__picker-tab { font-size: 0.78rem; padding: 0.5rem 0.75rem; white-space: nowrap; flex-shrink: 0; }
+  .lesson-builder__linked-panel { width: 100%; max-width: 100%; }
+  .lesson-builder__style-panel-body { padding: 0.5rem; }
+  .lesson-builder__style-row { flex-wrap: wrap; gap: 0.35rem; }
+  .lesson-builder__style-row label { min-width: 70px; font-size: 0.72rem; }
+  .lesson-builder__bulk-bar { flex-direction: column; align-items: stretch; gap: 0.35rem; padding: 0.5rem 0.75rem; }
+  .lesson-builder__convert-banner { flex-direction: column; align-items: flex-start; gap: 0.35rem; font-size: 0.78rem; }
+  .lesson-builder__template-item { flex-direction: column; }
+  .lesson-builder__template-btn { padding: 0.5rem 0.65rem; font-size: 0.82rem; }
+  .lesson-builder__qb-picker { max-height: 150px; }
+  .lesson-builder__qb-question { padding: 0.5rem 0.65rem; font-size: 0.82rem; gap: 0.5rem; }
+  .lesson-builder__drop-zone { min-height: 80px; padding: 1rem; }
+  .lesson-builder__slideshow-images { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.5rem; }
+  .lesson-builder__slideshow-thumb { height: 70px; }
+  .lesson-builder__equation-input { font-size: 0.78rem; }
+  .lesson-builder__equation-preview { padding: 0.5rem; }
+  .lesson-builder__equation-rendered { font-size: 1.1rem; }
+  .lesson-builder__preview-table { font-size: 0.78rem; }
+  .lesson-builder__preview-table th,
+  .lesson-builder__preview-table td { padding: 0.4rem 0.5rem; }
+
+  /* Shortcut hints hidden on mobile */
+  .shortcut-hint { display: none; }
+
+  /* ── TipTap editor mobile ── */
+  .tiptap-editor__toolbar { padding: 0.35rem 0.4rem; gap: 0.15rem; }
+  .tiptap-editor__toolbar-group { border-right: none; padding-right: 0; margin-right: 0; }
+  .tiptap-editor__btn { width: 28px; height: 28px; font-size: 0.75rem; }
+  .tiptap-editor__content { padding: 0.65rem; min-height: 100px; font-size: 0.88rem; }
+  .tiptap-editor__dropdown { min-width: 140px; }
+  .tiptap-editor__color-grid { grid-template-columns: repeat(6, 1fr); }
+
+  /* ── Student viewer blocks mobile ── */
+  .block-flashcard { max-width: 100%; }
+  .block-flashcard__face { padding: 1.25rem 1rem; min-height: 160px; }
+  .block-flashcard__text { font-size: 0.95rem; }
+  .block-flashcard__nav { gap: 0.5rem; }
+  .block-quiz { padding: 0.85rem 1rem; }
+  .block-quiz__question { font-size: 0.92rem; }
+  .block-quiz__option { padding: 0.6rem 0.75rem; font-size: 0.82rem; gap: 0.5rem; }
+  .block-tabs__header { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .block-tabs__tab { padding: 0.5rem 0.85rem; font-size: 0.78rem; }
+  .block-tabs__content { padding: 0.75rem 1rem; font-size: 0.88rem; }
+  .block-accordion__header { padding: 0.6rem 0.75rem; font-size: 0.85rem; }
+  .block-accordion__content { padding: 0.6rem 0.75rem 0.6rem 1.8rem; font-size: 0.85rem; }
+  .block-columns { gap: 1rem; }
+  .block-practice { margin: 1rem 0; }
+  .block-practice__header { flex-direction: column; gap: 0.35rem; align-items: flex-start; }
+  .block-practice__step { padding: 0.5rem 0.65rem; gap: 0.5rem; }
+  .block-popup-article__header { padding: 0.75rem 1rem; gap: 0.5rem; }
+  .block-popup-article__title { font-size: 0.92rem; }
+  .block-popup-article__summary { font-size: 0.78rem; }
+  .block-popup-article__content { padding: 0 1rem 1rem; font-size: 0.85rem; }
+  .block-backend-link { padding: 0.75rem 1rem; gap: 0.65rem; }
+  .block-backend-link__title { font-size: 0.85rem; }
+  .block-backend-link__desc { font-size: 0.72rem; }
+  .block-highlight { padding: 0.45rem 1rem; font-size: 0.85rem; }
+  .block-takeaways { padding: 1rem 1.15rem; }
+  .block-takeaways__title { font-size: 0.92rem; }
+  .block-takeaways__item { font-size: 0.82rem; padding-left: 1.25rem; }
+
+  /* Tables overflow on mobile */
+  .lesson-builder__preview-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* ── Flashcard study mobile ── */
+  .fc-study__card { height: 240px; }
+  .fc-study__card-term { font-size: 1.2rem; }
+  .fc-study__card-def { font-size: 0.88rem; }
+  .fc-study__card-front, .fc-study__card-back { padding: 1.25rem; }
+  .flashcard { height: 260px; }
+  .flashcard__term { font-size: 1.15rem; }
+  .flashcard__definition { font-size: 0.88rem; }
+  .flashcard__front, .flashcard__back { padding: 1.25rem; }
+
+  /* ── Quiz history mobile ── */
+  .quiz-history__stats { gap: 0.5rem; }
+  .quiz-history__stat { padding: 0.75rem; }
+  .quiz-history__stat-value { font-size: 1.35rem; }
+  .quiz-history__attempt-left { flex-wrap: wrap; gap: 0.25rem; }
+  .quiz-history__attempt-right { flex-wrap: wrap; gap: 0.25rem; }
+  .quiz-history__question { padding: 0.65rem; }
+  .quiz-history__question-text { font-size: 0.82rem; }
+
+  /* ── Manage form mobile ── */
+  .manage__form { padding: 0.85rem; }
+  .manage__toolbar { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .manage__item { flex-direction: column; align-items: stretch; gap: 0.35rem; }
+  .manage__item-actions { flex-wrap: wrap; justify-content: flex-start; gap: 0.25rem; }
+
+  /* ── Question builder mobile ── */
+  .qb__editor { padding: 0.85rem; }
+  .qb__section-title { font-size: 0.92rem; }
+  .qb__actions { flex-wrap: wrap; }
+  .qb__option-row { gap: 0.35rem; }
+  .qb__option-correct { width: 24px; height: 24px; }
+  .qb__option-row .qb__input { min-width: 0; }
+  .qb__distractor-add { flex-direction: column; gap: 0.35rem; }
+  .qb__param-row { flex-direction: column; align-items: stretch; gap: 0.35rem; }
+  .qb__param-row .qb__select { flex: 1 1 auto; }
+  .qb__solution-step { padding: 0.55rem; }
+  .qb__solution-step-header { gap: 0.35rem; }
+  .qb__common { padding-top: 0.75rem; }
+  .qb__test-result { font-size: 0.78rem; padding: 0.5rem; }
+  .qb__bank-actions { flex-wrap: wrap; gap: 0.25rem; }
+
+  /* ── Flashcard bank mobile ── */
+  .fc-bank__search { width: 100% !important; }
+}
+
+/* ─── ADDITIONAL MOBILE (599px) ─── */
+@media (max-width: 599px) {
+  .small-screen-banner { font-size: 0.72rem; padding: 0.5rem 0.65rem; }
+  .small-screen-banner__icon { font-size: 0.95rem; }
+
+  .lesson-builder__block-picker { grid-template-columns: 1fr; }
+  .lesson-builder__block-option-desc { display: none; }
+  .lesson-builder__title { font-size: 0.95rem; }
+  .lesson-builder__empty { padding: 1.5rem 1rem; }
+
+  .block-flashcard__face { min-height: 140px; padding: 1rem 0.75rem; }
+  .block-columns { grid-template-columns: 1fr !important; }
+  .block-tabs__tab { font-size: 0.72rem; padding: 0.4rem 0.65rem; }
+  .block-accordion__content { padding-left: 1.5rem; }
+
+  .qb__types { grid-template-columns: 1fr 1fr; gap: 0.35rem; }
+  .qb__type-desc { display: none; }
+  .qb__tf-options { gap: 0.35rem; }
+  .qb__tf-btn { padding: 0.65rem; font-size: 0.85rem; }
+
+  .quiz-history__stats { flex-direction: column; }
+  .quiz-history__attempt-header { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .quiz-history__attempt-right { justify-content: flex-start; }
 }

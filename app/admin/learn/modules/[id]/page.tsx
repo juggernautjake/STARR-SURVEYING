@@ -14,6 +14,7 @@ interface EnrichedLesson {
   quiz_unlocked: boolean; content_interactions: Record<string, boolean>;
   total_interactions: number; completed_interactions: number;
   locked: boolean; lock_reason: string; is_assigned: boolean;
+  avg_quiz_score: number | null; quiz_attempts: number;
 }
 interface ModuleDetail {
   id: string; title: string; description: string; difficulty: string;
@@ -103,6 +104,12 @@ export default function ModuleDetailPage() {
   const totalCount = lessons.length;
   const allComplete = totalCount > 0 && completedCount === totalCount;
 
+  // Compute module-level avg quiz score from lesson quiz attempts
+  const lessonsWithQuiz = lessons.filter(l => l.avg_quiz_score != null);
+  const moduleAvgQuiz = lessonsWithQuiz.length > 0
+    ? Math.round(lessonsWithQuiz.reduce((sum, l) => sum + (l.avg_quiz_score || 0), 0) / lessonsWithQuiz.length)
+    : null;
+
   if (loading) return <div className="admin-empty"><div className="admin-empty__icon">&#x23F3;</div><div className="admin-empty__title">Loading...</div></div>;
   if (!mod) return <div className="admin-empty"><div className="admin-empty__icon">&#x274C;</div><div className="admin-empty__title">Module not found</div><button onClick={() => router.back()} className="admin-btn admin-btn--ghost admin-btn--sm">&larr; Go Back</button></div>;
 
@@ -117,6 +124,11 @@ export default function ModuleDetailPage() {
           <span>&#x23F1; ~{mod.estimated_hours}h</span>
           <span>&#x1F4D6; {totalCount} lessons</span>
           {completedCount > 0 && <span style={{ color: '#10B981', fontWeight: 700 }}>&#x2705; {completedCount}/{totalCount} complete</span>}
+          {moduleAvgQuiz != null && (
+            <span className={`quiz-avg-badge ${moduleAvgQuiz >= 70 ? 'quiz-avg-badge--green' : moduleAvgQuiz >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>
+              Avg Quiz: {moduleAvgQuiz}%
+            </span>
+          )}
           {mod.is_fs_required && <span className="modules__card-fs-badge">FS Exam Required</span>}
         </div>
 
@@ -250,6 +262,11 @@ function LessonRow({ lesson, moduleId }: { lesson: EnrichedLesson; moduleId: str
           {lesson.is_assigned && (
             <span className="lesson-item__status-badge" style={{ color: '#991B1B', background: '#FEF2F2', borderColor: '#EF4444' }}>
               Assigned
+            </span>
+          )}
+          {lesson.avg_quiz_score != null && (
+            <span className={`quiz-avg-badge ${lesson.avg_quiz_score >= 70 ? 'quiz-avg-badge--green' : lesson.avg_quiz_score >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>
+              Avg: {lesson.avg_quiz_score}%
             </span>
           )}
         </div>

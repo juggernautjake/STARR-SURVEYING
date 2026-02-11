@@ -6,6 +6,7 @@ import Link from 'next/link';
 import FillBlankQuestion from '@/app/admin/components/FillBlankQuestion';
 import { usePageError } from '../../../hooks/usePageError';
 import { useToast } from '../../../components/Toast';
+import SmallScreenBanner from '../../../components/SmallScreenBanner';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
@@ -811,6 +812,7 @@ export default function QuestionBuilderPage() {
 
   return (
     <>
+      <SmallScreenBanner storageKey="question-builder-banner" />
       <div className="learn__header">
         <Link href="/admin/learn/manage?tab=questions" className="learn__back">&larr; Back to Questions</Link>
         <h2 className="learn__title">Problem Builder</h2>

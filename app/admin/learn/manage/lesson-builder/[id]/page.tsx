@@ -7,6 +7,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { usePageError } from '../../../../hooks/usePageError';
 import { useToast } from '../../../../components/Toast';
+import SmallScreenBanner from '../../../../components/SmallScreenBanner';
 
 const TipTapEditor = dynamic(() => import('@/app/admin/components/TipTapEditor'), { ssr: false });
 
@@ -876,6 +877,7 @@ export default function LessonBuilderPage() {
 
   return (
     <div className="lesson-builder">
+      <SmallScreenBanner storageKey="lesson-builder-banner" />
       {/* Hidden file input for uploads */}
       <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileSelect} />
 
