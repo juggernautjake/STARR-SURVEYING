@@ -886,6 +886,51 @@
 /* === LESSON BUILDER: HTML Preview === */
 .lesson-builder__html-preview { padding:1rem; border:1px solid #E5E7EB; border-radius:6px; background:#FFF; min-height:60px; }
 
+/* === BLOCK: Smooth Collapsible/Hidden Transitions === */
+.block-collapsible-wrap { display:grid; grid-template-rows:0fr; transition:grid-template-rows .3s ease; }
+.block-collapsible-wrap--open { grid-template-rows:1fr; }
+.block-collapsible-wrap > div { overflow:hidden; }
+
+/* === BLOCK: Flashcard === */
+.block-flashcard { perspective:800px; max-width:500px; margin:0 auto; }
+.block-flashcard__card { position:relative; width:100%; min-height:200px; cursor:pointer; transform-style:preserve-3d; transition:transform .5s ease; }
+.block-flashcard__card--flipped { transform:rotateY(180deg); }
+.block-flashcard__face { position:absolute; top:0; left:0; width:100%; min-height:200px; backface-visibility:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2rem 1.5rem; border-radius:12px; font-family:'Inter',sans-serif; text-align:center; box-sizing:border-box; }
+.block-flashcard__front { background:linear-gradient(135deg,#EFF6FF,#DBEAFE); border:2px solid #93C5FD; color:#1E40AF; }
+.block-flashcard__back { background:linear-gradient(135deg,#ECFDF5,#D1FAE5); border:2px solid #6EE7B7; color:#065F46; transform:rotateY(180deg); }
+.block-flashcard__label { font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; opacity:.6; position:absolute; top:.75rem; left:1rem; }
+.block-flashcard__text { font-size:1.1rem; font-weight:600; line-height:1.5; margin:0; }
+.block-flashcard__hint { font-size:.72rem; opacity:.5; position:absolute; bottom:.75rem; }
+.block-flashcard__nav { display:flex; align-items:center; justify-content:center; gap:1rem; margin-top:.75rem; }
+
+/* === BLOCK: Popup Article === */
+.block-popup-article { border:1px solid #E5E7EB; border-radius:10px; overflow:hidden; background:#FFF; }
+.block-popup-article__header { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.25rem; cursor:pointer; gap:1rem; transition:background .15s; }
+.block-popup-article__header:hover { background:#FAFBFF; }
+.block-popup-article__title { font-family:'Sora',sans-serif; font-size:1rem; font-weight:700; color:#0F1419; margin:0 0 .25rem; }
+.block-popup-article__summary { font-family:'Inter',sans-serif; font-size:.85rem; color:#6B7280; margin:0; line-height:1.4; }
+.block-popup-article__chevron { font-size:.75rem; color:#9CA3AF; transition:transform .25s ease; flex-shrink:0; }
+.block-popup-article__chevron--open { transform:rotate(180deg); }
+.block-popup-article__body { display:grid; grid-template-rows:0fr; transition:grid-template-rows .35s ease; }
+.block-popup-article__body--open { grid-template-rows:1fr; }
+.block-popup-article__body > .block-popup-article__content { overflow:hidden; }
+.block-popup-article__content { padding:0 1.25rem 1.25rem; font-family:'Inter',sans-serif; font-size:.9rem; line-height:1.6; color:#374151; border-top:1px solid #E5E7EB; }
+.block-popup-article__body--open > .block-popup-article__content { padding-top:1rem; }
+
+/* === BLOCK: Backend Link Card === */
+.block-backend-link { display:flex; align-items:center; gap:1rem; padding:1rem 1.25rem; background:#FAFBFF; border:1px solid #E5E7EB; border-radius:10px; cursor:pointer; transition:all .15s; font-family:'Inter',sans-serif; color:inherit; }
+.block-backend-link:hover { border-color:#1D3095; background:#EFF6FF; transform:translateY(-1px); box-shadow:0 2px 8px rgba(29,48,149,.08); }
+.block-backend-link__icon { font-size:1.5rem; flex-shrink:0; }
+.block-backend-link__info { flex:1; display:flex; flex-direction:column; gap:.15rem; }
+.block-backend-link__title { font-weight:600; font-size:.92rem; color:#0F1419; }
+.block-backend-link__desc { font-size:.78rem; color:#6B7280; }
+.block-backend-link__arrow { font-size:1.1rem; color:#1D3095; flex-shrink:0; transition:transform .15s; }
+.block-backend-link:hover .block-backend-link__arrow { transform:translateX(3px); }
+
+/* === Interactive Link Click Effect (green checkmark) === */
+.lesson-resources__link--reviewed .lesson-resources__link-status { animation:checkmark-pop .3s ease; }
+@keyframes checkmark-pop { 0% { transform:scale(0.5); } 60% { transform:scale(1.3); } 100% { transform:scale(1); } }
+
 /* === PHASE 3 RESPONSIVE ADDITIONS === */
 @media(max-width:599px) {
   .quiz-history__stats { flex-direction:column; }

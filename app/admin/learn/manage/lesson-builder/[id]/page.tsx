@@ -8,7 +8,7 @@ import { usePageError } from '../../../../hooks/usePageError';
 
 const TipTapEditor = dynamic(() => import('@/app/admin/components/TipTapEditor'), { ssr: false });
 
-type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow' | 'html' | 'audio' | 'link_reference';
+type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow' | 'html' | 'audio' | 'link_reference' | 'flashcard' | 'popup_article' | 'backend_link';
 
 interface BlockStyle {
   backgroundColor?: string;
@@ -54,6 +54,9 @@ const BLOCK_TYPES: { type: BlockType; label: string; icon: string; description: 
   { type: 'file', label: 'File', icon: '📎', description: 'Downloadable attachment', group: 'Media' },
   { type: 'slideshow', label: 'Slideshow', icon: '🎞', description: 'Image slideshow/carousel', group: 'Media' },
   { type: 'link_reference', label: 'Links / Refs', icon: '🔗', description: 'Curated links & references', group: 'Interactive' },
+  { type: 'flashcard', label: 'Flashcards', icon: '🃏', description: 'Flip-card study deck', group: 'Interactive' },
+  { type: 'popup_article', label: 'Popup Article', icon: '📰', description: 'Expandable summary / article', group: 'Interactive' },
+  { type: 'backend_link', label: 'Page Link', icon: '➡', description: 'Link card to app page', group: 'Interactive' },
 ];
 
 function convertToEmbedUrl(url: string): string {
@@ -92,6 +95,9 @@ export default function LessonBuilderPage() {
   const [convertedFromHtml, setConvertedFromHtml] = useState(false);
   const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
   const [showStylePanel, setShowStylePanel] = useState<string | null>(null);
+  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
+  const [expandedPopups, setExpandedPopups] = useState<Record<string, boolean>>({});
+  const [flashcardIndexes, setFlashcardIndexes] = useState<Record<string, number>>({});
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileUploadTarget, setFileUploadTarget] = useState<{ blockId: string; field: string } | null>(null);
@@ -210,6 +216,9 @@ export default function LessonBuilderPage() {
       case 'file': return { url: '', name: '', size: 0, type: '' };
       case 'slideshow': return { images: [{ url: '', alt: '', caption: '' }] };
       case 'link_reference': return { links: [{ title: '', url: '', type: 'reference', description: '' }] };
+      case 'flashcard': return { cards: [{ front: 'Term or question', back: 'Definition or answer' }] };
+      case 'popup_article': return { summary: 'Click to read more...', title: 'Article Title', full_content: '<p>Full article content here...</p>' };
+      case 'backend_link': return { path: '/admin/learn', title: 'Page Title', description: 'Click to navigate', icon: '📖' };
       default: return {};
     }
   }
@@ -422,7 +431,7 @@ export default function LessonBuilderPage() {
                   {' '}{block.style?.collapsedLabel || block.block_type}
                 </button>
               )}
-              {(!isCollapsible || !isCollapsed) && (<>
+              <div className={`block-collapsible-wrap ${(!isCollapsible || !isCollapsed) ? 'block-collapsible-wrap--open' : ''}`}><div>
               {block.block_type === 'text' && (
                 <div dangerouslySetInnerHTML={{ __html: block.content.html || '' }} />
               )}
@@ -528,10 +537,63 @@ export default function LessonBuilderPage() {
                   </div>
                 </div>
               )}
+              {block.block_type === 'flashcard' && (block.content.cards || []).length > 0 && (() => {
+                const cards = block.content.cards || [];
+                const cardIdx = flashcardIndexes[block.id] || 0;
+                const card = cards[cardIdx];
+                const isFlipped = flippedCards[block.id] || false;
+                return (
+                  <div className="block-flashcard" style={{ margin: '1.5rem 0' }}>
+                    <div className={`block-flashcard__card ${isFlipped ? 'block-flashcard__card--flipped' : ''}`} onClick={() => setFlippedCards(prev => ({ ...prev, [block.id]: !isFlipped }))}>
+                      <div className="block-flashcard__face block-flashcard__front">
+                        <span className="block-flashcard__label">FRONT</span>
+                        <p className="block-flashcard__text">{card?.front || ''}</p>
+                        <span className="block-flashcard__hint">Click to flip</span>
+                      </div>
+                      <div className="block-flashcard__face block-flashcard__back">
+                        <span className="block-flashcard__label">BACK</span>
+                        <p className="block-flashcard__text">{card?.back || ''}</p>
+                        <span className="block-flashcard__hint">Click to flip</span>
+                      </div>
+                    </div>
+                    {cards.length > 1 && (
+                      <div className="block-flashcard__nav">
+                        <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx <= 0 ? cards.length - 1 : cardIdx - 1 })); }}>&larr;</button>
+                        <span style={{ fontSize: '.82rem', color: '#6B7280' }}>{cardIdx + 1} / {cards.length}</span>
+                        <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx >= cards.length - 1 ? 0 : cardIdx + 1 })); }}>&rarr;</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+              {block.block_type === 'popup_article' && (
+                <div className="block-popup-article" style={{ margin: '1.5rem 0' }}>
+                  <div className="block-popup-article__header" onClick={() => setExpandedPopups(prev => ({ ...prev, [block.id]: !prev[block.id] }))}>
+                    <div>
+                      <h4 className="block-popup-article__title">{block.content.title || 'Article'}</h4>
+                      <p className="block-popup-article__summary">{block.content.summary || ''}</p>
+                    </div>
+                    <span className={`block-popup-article__chevron ${expandedPopups[block.id] ? 'block-popup-article__chevron--open' : ''}`}>&#x25BC;</span>
+                  </div>
+                  <div className={`block-popup-article__body ${expandedPopups[block.id] ? 'block-popup-article__body--open' : ''}`}>
+                    <div className="block-popup-article__content" dangerouslySetInnerHTML={{ __html: block.content.full_content || '' }} />
+                  </div>
+                </div>
+              )}
+              {block.block_type === 'backend_link' && (
+                <div className="block-backend-link" style={{ margin: '1.5rem 0' }}>
+                  <span className="block-backend-link__icon">{block.content.icon || '📖'}</span>
+                  <div className="block-backend-link__info">
+                    <span className="block-backend-link__title">{block.content.title || 'Page'}</span>
+                    {block.content.description && <span className="block-backend-link__desc">{block.content.description}</span>}
+                  </div>
+                  <span className="block-backend-link__arrow">→</span>
+                </div>
+              )}
               {isHidden && !isCollapsed && (
                 <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: true }))} style={{ marginTop: '.5rem', fontSize: '.78rem' }}>Hide</button>
               )}
-              </>)}
+              </div></div>
             </div>
             );
           })}
@@ -944,6 +1006,92 @@ export default function LessonBuilderPage() {
                       const links = [...(block.content.links || []), { title: '', url: '', type: 'reference', description: '' }];
                       updateBlockContent(block.id, { ...block.content, links });
                     }}>+ Add Link</button>
+                  </div>
+                )}
+
+                {/* Flashcard Block */}
+                {block.block_type === 'flashcard' && (
+                  <div>
+                    <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280', marginBottom: '.5rem', display: 'block' }}>Flashcard Deck ({(block.content.cards || []).length} cards)</span>
+                    {(block.content.cards || []).map((card: any, ci: number) => (
+                      <div key={ci} style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '.5rem', padding: '.5rem', background: '#F9FAFB', borderRadius: '6px', border: '1px solid #E5E7EB' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
+                          <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                            <span style={{ fontSize: '.72rem', fontWeight: 600, color: '#1D3095', minWidth: '40px' }}>Front</span>
+                            <input className="fc-form__input" placeholder="Term or question" value={card.front || ''} onChange={e => {
+                              const cards = [...(block.content.cards || [])];
+                              cards[ci] = { ...cards[ci], front: e.target.value };
+                              updateBlockContent(block.id, { ...block.content, cards });
+                            }} />
+                          </div>
+                          <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                            <span style={{ fontSize: '.72rem', fontWeight: 600, color: '#059669', minWidth: '40px' }}>Back</span>
+                            <input className="fc-form__input" placeholder="Definition or answer" value={card.back || ''} onChange={e => {
+                              const cards = [...(block.content.cards || [])];
+                              cards[ci] = { ...cards[ci], back: e.target.value };
+                              updateBlockContent(block.id, { ...block.content, cards });
+                            }} />
+                          </div>
+                        </div>
+                        {(block.content.cards || []).length > 1 && (
+                          <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
+                            const cards = (block.content.cards || []).filter((_: any, i: number) => i !== ci);
+                            updateBlockContent(block.id, { ...block.content, cards });
+                          }}>✕</button>
+                        )}
+                      </div>
+                    ))}
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
+                      const cards = [...(block.content.cards || []), { front: '', back: '' }];
+                      updateBlockContent(block.id, { ...block.content, cards });
+                    }}>+ Add Card</button>
+                  </div>
+                )}
+
+                {/* Popup Article Block */}
+                {block.block_type === 'popup_article' && (
+                  <div>
+                    <input className="fc-form__input" placeholder="Article title" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} />
+                    <textarea className="fc-form__textarea" placeholder="Summary text (shown collapsed)" value={block.content.summary || ''} onChange={e => updateBlockContent(block.id, { ...block.content, summary: e.target.value })} rows={2} style={{ marginTop: '.5rem' }} />
+                    <div style={{ marginTop: '.5rem' }}>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: '.35rem' }}>Full Content (HTML supported)</span>
+                      <textarea
+                        className="fc-form__textarea"
+                        value={block.content.full_content || ''}
+                        onChange={e => updateBlockContent(block.id, { ...block.content, full_content: e.target.value })}
+                        rows={8}
+                        style={{ fontFamily: 'monospace', fontSize: '.82rem' }}
+                        placeholder="<p>Full article content here...</p>"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Backend Link Block */}
+                {block.block_type === 'backend_link' && (
+                  <div>
+                    <input className="fc-form__input" placeholder="Page path (e.g. /admin/learn/modules/...)" value={block.content.path || ''} onChange={e => updateBlockContent(block.id, { ...block.content, path: e.target.value })} />
+                    <input className="fc-form__input" placeholder="Link title" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} style={{ marginTop: '.5rem' }} />
+                    <input className="fc-form__input" placeholder="Description" value={block.content.description || ''} onChange={e => updateBlockContent(block.id, { ...block.content, description: e.target.value })} style={{ marginTop: '.5rem' }} />
+                    <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.5rem' }}>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280' }}>Icon:</span>
+                      {['📖', '📝', '🎯', '📊', '🏠', '⚙', '🔬', '📐'].map(emoji => (
+                        <button key={emoji} className={`admin-btn admin-btn--ghost admin-btn--sm ${block.content.icon === emoji ? 'admin-btn--active' : ''}`}
+                          onClick={() => updateBlockContent(block.id, { ...block.content, icon: emoji })}
+                          style={{ padding: '.2rem .4rem', fontSize: '1.1rem', border: block.content.icon === emoji ? '2px solid #1D3095' : undefined }}>
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Preview */}
+                    <div className="block-backend-link" style={{ marginTop: '.75rem' }}>
+                      <span className="block-backend-link__icon">{block.content.icon || '📖'}</span>
+                      <div className="block-backend-link__info">
+                        <span className="block-backend-link__title">{block.content.title || 'Page Title'}</span>
+                        {block.content.description && <span className="block-backend-link__desc">{block.content.description}</span>}
+                      </div>
+                      <span className="block-backend-link__arrow">→</span>
+                    </div>
                   </div>
                 )}
               </div>

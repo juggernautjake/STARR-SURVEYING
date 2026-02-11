@@ -35,6 +35,10 @@ export default function LessonViewerPage() {
   // Block-based content
   const [lessonBlocks, setLessonBlocks] = useState<LessonBlock[]>([]);
   const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
+  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
+  const [flashcardIndexes, setFlashcardIndexes] = useState<Record<string, number>>({});
+  const [expandedPopups, setExpandedPopups] = useState<Record<string, boolean>>({});
+  const [clickedLinks, setClickedLinks] = useState<Record<string, boolean>>({});
 
   // Required reading articles
   const [requiredArticles, setRequiredArticles] = useState<any[]>([]);
@@ -294,7 +298,7 @@ export default function LessonViewerPage() {
                     {' '}{block.style?.collapsedLabel || block.block_type}
                   </button>
                 )}
-                {(!isCollapsible || !isCollapsed) && (<>
+                <div className={`block-collapsible-wrap ${(!isCollapsible || !isCollapsed) ? 'block-collapsible-wrap--open' : ''}`}><div>
                   {block.block_type === 'text' && <div dangerouslySetInnerHTML={{ __html: block.content.html || '' }} />}
                   {block.block_type === 'html' && <div dangerouslySetInnerHTML={{ __html: block.content.code || '' }} />}
                   {block.block_type === 'image' && block.content.url && (
@@ -359,20 +363,82 @@ export default function LessonViewerPage() {
                   {block.block_type === 'link_reference' && (block.content.links || []).length > 0 && (
                     <div className="lesson-resources" style={{ margin: '1.5rem 0' }}>
                       <div className="lesson-resources__list">
-                        {(block.content.links || []).map((link: any, i: number) => (
-                          <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="lesson-resources__link">
-                            {link.type === 'pdf' ? '📄' : link.type === 'website' ? '🌐' : '📎'} {link.title || link.url}
-                            {link.description && <span style={{ fontSize: '.78rem', color: '#9CA3AF', marginLeft: '.5rem' }}>{link.description}</span>}
-                            <span className="lesson-resources__arrow">↗</span>
-                          </a>
-                        ))}
+                        {(block.content.links || []).map((link: any, i: number) => {
+                          const linkKey = `${block.id}_link_${i}`;
+                          const wasClicked = clickedLinks[linkKey];
+                          return (
+                            <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+                              className={`lesson-resources__link ${wasClicked ? 'lesson-resources__link--reviewed' : ''}`}
+                              onClick={() => { setClickedLinks(prev => ({ ...prev, [linkKey]: true })); recordInteraction(`block_link_${block.id}_${i}`); }}>
+                              <span className="lesson-resources__link-status">
+                                {wasClicked ? '\u2705' : '\u25CB'}
+                              </span>
+                              {link.type === 'pdf' ? '📄' : link.type === 'website' ? '🌐' : '📎'} {link.title || link.url}
+                              {link.description && <span style={{ fontSize: '.78rem', color: '#9CA3AF', marginLeft: '.5rem' }}>{link.description}</span>}
+                              <span className="lesson-resources__arrow">↗</span>
+                            </a>
+                          );
+                        })}
                       </div>
                     </div>
+                  )}
+                  {block.block_type === 'flashcard' && (block.content.cards || []).length > 0 && (() => {
+                    const cards = block.content.cards || [];
+                    const cardIdx = flashcardIndexes[block.id] || 0;
+                    const card = cards[cardIdx];
+                    const isFlipped = flippedCards[block.id] || false;
+                    return (
+                      <div className="block-flashcard" style={{ margin: '1.5rem 0' }}>
+                        <div className={`block-flashcard__card ${isFlipped ? 'block-flashcard__card--flipped' : ''}`} onClick={() => setFlippedCards(prev => ({ ...prev, [block.id]: !isFlipped }))}>
+                          <div className="block-flashcard__face block-flashcard__front">
+                            <span className="block-flashcard__label">FRONT</span>
+                            <p className="block-flashcard__text">{card?.front || ''}</p>
+                            <span className="block-flashcard__hint">Click to flip</span>
+                          </div>
+                          <div className="block-flashcard__face block-flashcard__back">
+                            <span className="block-flashcard__label">BACK</span>
+                            <p className="block-flashcard__text">{card?.back || ''}</p>
+                            <span className="block-flashcard__hint">Click to flip</span>
+                          </div>
+                        </div>
+                        {cards.length > 1 && (
+                          <div className="block-flashcard__nav">
+                            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx <= 0 ? cards.length - 1 : cardIdx - 1 })); }}>&larr;</button>
+                            <span style={{ fontSize: '.82rem', color: '#6B7280' }}>{cardIdx + 1} / {cards.length}</span>
+                            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx >= cards.length - 1 ? 0 : cardIdx + 1 })); }}>&rarr;</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  {block.block_type === 'popup_article' && (
+                    <div className="block-popup-article" style={{ margin: '1.5rem 0' }}>
+                      <div className="block-popup-article__header" onClick={() => setExpandedPopups(prev => ({ ...prev, [block.id]: !prev[block.id] }))}>
+                        <div>
+                          <h4 className="block-popup-article__title">{block.content.title || 'Article'}</h4>
+                          <p className="block-popup-article__summary">{block.content.summary || ''}</p>
+                        </div>
+                        <span className={`block-popup-article__chevron ${expandedPopups[block.id] ? 'block-popup-article__chevron--open' : ''}`}>&#x25BC;</span>
+                      </div>
+                      <div className={`block-popup-article__body ${expandedPopups[block.id] ? 'block-popup-article__body--open' : ''}`}>
+                        <div className="block-popup-article__content" dangerouslySetInnerHTML={{ __html: block.content.full_content || '' }} />
+                      </div>
+                    </div>
+                  )}
+                  {block.block_type === 'backend_link' && block.content.path && (
+                    <a href={block.content.path} className="block-backend-link" style={{ margin: '1.5rem 0', textDecoration: 'none' }}>
+                      <span className="block-backend-link__icon">{block.content.icon || '📖'}</span>
+                      <div className="block-backend-link__info">
+                        <span className="block-backend-link__title">{block.content.title || 'Page'}</span>
+                        {block.content.description && <span className="block-backend-link__desc">{block.content.description}</span>}
+                      </div>
+                      <span className="block-backend-link__arrow">→</span>
+                    </a>
                   )}
                   {isHidden && !isCollapsed && (
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: true }))} style={{ marginTop: '.5rem', fontSize: '.78rem' }}>Hide</button>
                   )}
-                </>)}
+                </div></div>
               </div>
             );
           })}

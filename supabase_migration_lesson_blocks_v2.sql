@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Migration: Enhance lesson_blocks with new block types and style support
 -- ============================================================================
--- Adds: html, audio, link_reference block types
+-- Adds: html, audio, link_reference, flashcard, popup_article, backend_link block types
 -- Adds: style JSONB column for per-block visual customization
 -- Run AFTER supabase_schema.sql. Safe to re-run.
 -- ============================================================================
@@ -22,7 +22,8 @@ BEGIN
     CHECK (block_type IN (
       'text', 'image', 'video', 'slideshow', 'file',
       'quiz', 'callout', 'divider', 'embed', 'table',
-      'html', 'audio', 'link_reference'
+      'html', 'audio', 'link_reference',
+      'flashcard', 'popup_article', 'backend_link'
     ));
 END $$;
 
