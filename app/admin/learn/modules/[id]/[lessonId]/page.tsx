@@ -39,6 +39,9 @@ export default function LessonViewerPage() {
   const [flashcardIndexes, setFlashcardIndexes] = useState<Record<string, number>>({});
   const [expandedPopups, setExpandedPopups] = useState<Record<string, boolean>>({});
   const [clickedLinks, setClickedLinks] = useState<Record<string, boolean>>({});
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
+  const [quizRevealed, setQuizRevealed] = useState<Record<string, boolean>>({});
+  const [slideshowIndexes, setSlideshowIndexes] = useState<Record<string, number>>({});
 
   // Required reading articles
   const [requiredArticles, setRequiredArticles] = useState<any[]>([]);
@@ -360,16 +363,44 @@ export default function LessonViewerPage() {
                       </table>
                     </div>
                   )}
-                  {block.block_type === 'quiz' && (
-                    <div className="lesson-builder__callout lesson-builder__callout--info" style={{ margin: '1.5rem 0' }}>
-                      <strong>Quiz: </strong>{block.content.question}
-                      <div style={{ marginTop: '.75rem' }}>
-                        {(block.content.options || []).map((opt: string, i: number) => (
-                          <div key={i} style={{ padding: '.3rem 0', fontSize: '.9rem' }}>{String.fromCharCode(65 + i)}. {opt}</div>
-                        ))}
+                  {block.block_type === 'quiz' && (() => {
+                    const qKey = block.id;
+                    const selected = quizAnswers[qKey] ?? null;
+                    const revealed = quizRevealed[qKey] || false;
+                    return (
+                      <div className="block-quiz" style={{ margin: '1.5rem 0' }}>
+                        <div className="block-quiz__question">{block.content.question}</div>
+                        <div className="block-quiz__options">
+                          {(block.content.options || []).map((opt: string, i: number) => {
+                            const isCorrect = i === block.content.correct;
+                            const isSelected = selected === i;
+                            let cls = 'block-quiz__option';
+                            if (revealed && isCorrect) cls += ' block-quiz__option--correct';
+                            else if (revealed && isSelected) cls += ' block-quiz__option--wrong';
+                            else if (isSelected) cls += ' block-quiz__option--selected';
+                            return (
+                              <button key={i} className={cls} onClick={() => { if (!revealed) setQuizAnswers(prev => ({ ...prev, [qKey]: i })); }} disabled={revealed}>
+                                <span className="block-quiz__option-letter">{String.fromCharCode(65 + i)}</span>
+                                <span className="block-quiz__option-text">{opt}</span>
+                                {revealed && isCorrect && <span className="block-quiz__option-icon">&#x2713;</span>}
+                                {revealed && isSelected && !isCorrect && <span className="block-quiz__option-icon">&#x2717;</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {selected !== null && !revealed && (
+                          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setQuizRevealed(prev => ({ ...prev, [qKey]: true })); recordInteraction(`quiz_block_${block.id}`); }} style={{ marginTop: '.75rem' }}>Check Answer</button>
+                        )}
+                        {revealed && (
+                          <div className={`block-quiz__result ${selected === block.content.correct ? 'block-quiz__result--correct' : 'block-quiz__result--wrong'}`}>
+                            <strong>{selected === block.content.correct ? 'Correct!' : 'Incorrect.'}</strong>
+                            {block.content.explanation && <p style={{ margin: '.35rem 0 0' }}>{block.content.explanation}</p>}
+                            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setQuizAnswers(prev => ({ ...prev, [qKey]: null })); setQuizRevealed(prev => ({ ...prev, [qKey]: false })); }} style={{ marginTop: '.5rem' }}>Try Again</button>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                   {block.block_type === 'file' && block.content.url && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: '1px solid #E5E7EB' }}>
                       <span style={{ fontSize: '1.5rem' }}>📎</span>
@@ -377,6 +408,25 @@ export default function LessonViewerPage() {
                       <a href={block.content.url} download={block.content.name} className="admin-btn admin-btn--ghost admin-btn--sm" style={{ marginLeft: 'auto' }}>Download</a>
                     </div>
                   )}
+                  {block.block_type === 'slideshow' && (block.content.images || []).length > 0 && (() => {
+                    const images = block.content.images || [];
+                    const idx = slideshowIndexes[block.id] || 0;
+                    const img = images[idx];
+                    if (!img) return null;
+                    return (
+                      <div style={{ margin: '1.5rem 0', textAlign: 'center' }}>
+                        <img src={img.url} alt={img.alt || ''} style={{ maxWidth: '100%', maxHeight: '500px', borderRadius: '8px', objectFit: 'contain' }} />
+                        {img.caption && <p style={{ fontSize: '.82rem', color: '#6B7280', marginTop: '.5rem' }}>{img.caption}</p>}
+                        {images.length > 1 && (
+                          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '.75rem' }}>
+                            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setSlideshowIndexes(prev => ({ ...prev, [block.id]: idx <= 0 ? images.length - 1 : idx - 1 }))}>&larr;</button>
+                            <span style={{ fontSize: '.82rem', color: '#6B7280' }}>{idx + 1} / {images.length}</span>
+                            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setSlideshowIndexes(prev => ({ ...prev, [block.id]: idx >= images.length - 1 ? 0 : idx + 1 }))}>&rarr;</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {block.block_type === 'link_reference' && (block.content.links || []).length > 0 && (
                     <div className="lesson-resources" style={{ margin: '1.5rem 0' }}>
                       <div className="lesson-resources__list">

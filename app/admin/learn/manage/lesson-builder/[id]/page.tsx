@@ -78,6 +78,120 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
+// Smart HTML-to-blocks parser: splits seeded lesson HTML into discrete block types
+function parseHtmlToBlocks(htmlStr: string): LessonBlock[] {
+  if (typeof window === 'undefined' || !htmlStr?.trim()) return [];
+  const blocks: LessonBlock[] = [];
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlStr, 'text/html');
+  const body = doc.body;
+  let pendingHtml = '';
+  let idx = 0;
+
+  function makeId() { return `temp-conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${idx++}`; }
+
+  function flushPending() {
+    const trimmed = pendingHtml.trim();
+    if (!trimmed) return;
+    blocks.push({ id: makeId(), block_type: 'text', content: { html: trimmed }, order_index: 0 });
+    pendingHtml = '';
+  }
+
+  function detectCalloutType(style: string): string | null {
+    const s = style.toLowerCase();
+    if (s.includes('#1a1a2e')) return 'formula';
+    if (s.includes('#f0f4f8') || (s.includes('border-left') && s.includes('#2563eb'))) return 'note';
+    if (s.includes('#fffbeb')) return 'example';
+    if (s.includes('#ecfdf5')) return 'tip';
+    if (s.includes('#fee2e2') || s.includes('#fef2f2') || (s.includes('border-left') && s.includes('#dc2626'))) return 'danger';
+    return null;
+  }
+
+  function processNode(node: Node) {
+    if (node.nodeType === Node.COMMENT_NODE) return;
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.textContent?.trim()) pendingHtml += node.textContent;
+      return;
+    }
+    const el = node as Element;
+    const tag = el.tagName?.toLowerCase();
+    if (!tag) return;
+
+    // HR → divider block
+    if (tag === 'hr') {
+      flushPending();
+      blocks.push({ id: makeId(), block_type: 'divider', content: {}, order_index: 0 });
+      return;
+    }
+
+    // TABLE → table block
+    if (tag === 'table') {
+      flushPending();
+      const headers: string[] = [];
+      const rows: string[][] = [];
+      el.querySelectorAll('thead th').forEach(th => headers.push(th.textContent?.trim() || ''));
+      el.querySelectorAll('tbody tr').forEach(tr => {
+        const row: string[] = [];
+        tr.querySelectorAll('td').forEach(td => row.push(td.textContent?.trim() || ''));
+        if (row.length > 0) rows.push(row);
+      });
+      // Fallback: no thead, use first row with th as headers
+      if (headers.length === 0) {
+        const firstTr = el.querySelector('tr');
+        if (firstTr) {
+          const ths = firstTr.querySelectorAll('th');
+          if (ths.length > 0) {
+            ths.forEach(th => headers.push(th.textContent?.trim() || ''));
+          } else {
+            // First row becomes headers
+            const tds = firstTr.querySelectorAll('td');
+            tds.forEach(td => headers.push(td.textContent?.trim() || ''));
+            // Remove first row from rows if it was added by tbody selector
+            if (rows.length > 0 && rows[0].join() === headers.join()) rows.shift();
+          }
+        }
+      }
+      blocks.push({ id: makeId(), block_type: 'table', content: { headers, rows }, order_index: 0 });
+      return;
+    }
+
+    // IMG → image block
+    if (tag === 'img') {
+      flushPending();
+      blocks.push({ id: makeId(), block_type: 'image', content: { url: el.getAttribute('src') || '', alt: el.getAttribute('alt') || '', caption: '', alignment: 'center' }, order_index: 0 });
+      return;
+    }
+
+    // DIV → check for styled callout, otherwise process children
+    if (tag === 'div') {
+      const style = el.getAttribute('style') || '';
+      const calloutType = detectCalloutType(style);
+      if (calloutType) {
+        flushPending();
+        blocks.push({ id: makeId(), block_type: 'callout', content: { type: calloutType, text: el.innerHTML.trim() }, order_index: 0 });
+        return;
+      }
+      // Non-styled div: recurse into children
+      Array.from(el.childNodes).forEach(processNode);
+      return;
+    }
+
+    // H2 / H3 → flush pending, start a new text section with the heading
+    if (tag === 'h2' || tag === 'h3') {
+      flushPending();
+      pendingHtml = el.outerHTML;
+      return;
+    }
+
+    // Everything else (p, ul, ol, h4, pre, etc.) → accumulate
+    pendingHtml += el.outerHTML;
+  }
+
+  Array.from(body.childNodes).forEach(processNode);
+  flushPending();
+  return blocks.map((b, i) => ({ ...b, order_index: i }));
+}
+
 export default function LessonBuilderPage() {
   const params = useParams();
   const lessonId = params.id as string;
@@ -100,6 +214,8 @@ export default function LessonBuilderPage() {
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
   const [expandedPopups, setExpandedPopups] = useState<Record<string, boolean>>({});
   const [flashcardIndexes, setFlashcardIndexes] = useState<Record<string, number>>({});
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
+  const [quizRevealed, setQuizRevealed] = useState<Record<string, boolean>>({});
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileUploadTarget, setFileUploadTarget] = useState<{ blockId: string; field: string } | null>(null);
@@ -120,6 +236,18 @@ export default function LessonBuilderPage() {
     };
   }, [blocks, saving]);
 
+  // Ctrl+S / Cmd+S keyboard shortcut to save
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (blocks.length > 0 && !saving) saveBlocks(false);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [blocks, saving]);
+
   async function loadLesson() {
     setLoading(true);
     try {
@@ -138,15 +266,10 @@ export default function LessonBuilderPage() {
         const data = await blocksRes.json();
         const loadedBlocks = (data.blocks || []).sort((a: LessonBlock, b: LessonBlock) => a.order_index - b.order_index);
 
-        // Auto-convert: If lesson has HTML content but no blocks, create a text block from it
+        // Auto-convert: If lesson has HTML content but no blocks, parse into discrete blocks
         if (loadedBlocks.length === 0 && lessonData?.content && lessonData.content.trim().length > 0) {
-          const convertedBlock: LessonBlock = {
-            id: `temp-converted-${Date.now()}`,
-            block_type: 'text',
-            content: { html: lessonData.content },
-            order_index: 0,
-          };
-          setBlocks([convertedBlock]);
+          const parsed = parseHtmlToBlocks(lessonData.content);
+          setBlocks(parsed.length > 0 ? parsed : [{ id: `temp-converted-${Date.now()}`, block_type: 'text', content: { html: lessonData.content }, order_index: 0 }]);
           setConvertedFromHtml(true);
         } else {
           setBlocks(loadedBlocks);
@@ -387,13 +510,14 @@ export default function LessonBuilderPage() {
             {saving ? 'Saving...' : 'Save'}
           </button>
           {lastSaved && <span style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Saved {lastSaved}</span>}
+          <span style={{ fontSize: '0.65rem', color: '#D1D5DB' }}>Ctrl+S</span>
         </div>
       </div>
 
       {/* Conversion Banner */}
       {convertedFromHtml && (
         <div className="lesson-builder__convert-banner">
-          <span>This lesson was created with SQL and has been auto-converted to editable blocks. Click <strong>Save</strong> to persist the conversion.</span>
+          <span>This lesson&apos;s HTML content was auto-parsed into {blocks.length} editable block{blocks.length !== 1 ? 's' : ''} (headings, callouts, tables, images, etc.). Click <strong>Save</strong> to persist.</span>
           <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setConvertedFromHtml(false)}>Dismiss</button>
         </div>
       )}
@@ -489,18 +613,44 @@ export default function LessonBuilderPage() {
                   </table>
                 </div>
               )}
-              {block.block_type === 'quiz' && (
-                <div className="lesson-builder__callout lesson-builder__callout--info" style={{ margin: '1.5rem 0' }}>
-                  <strong>Quiz: </strong>{block.content.question}
-                  <div style={{ marginTop: '0.75rem' }}>
-                    {(block.content.options || []).map((opt: string, i: number) => (
-                      <div key={i} style={{ padding: '0.3rem 0', fontSize: '0.9rem' }}>
-                        {String.fromCharCode(65 + i)}. {opt}
+              {block.block_type === 'quiz' && (() => {
+                const qKey = block.id;
+                const selected = quizAnswers[qKey] ?? null;
+                const revealed = quizRevealed[qKey] || false;
+                return (
+                  <div className="block-quiz" style={{ margin: '1.5rem 0' }}>
+                    <div className="block-quiz__question">{block.content.question}</div>
+                    <div className="block-quiz__options">
+                      {(block.content.options || []).map((opt: string, i: number) => {
+                        const isCorrect = i === block.content.correct;
+                        const isSelected = selected === i;
+                        let cls = 'block-quiz__option';
+                        if (revealed && isCorrect) cls += ' block-quiz__option--correct';
+                        else if (revealed && isSelected) cls += ' block-quiz__option--wrong';
+                        else if (isSelected) cls += ' block-quiz__option--selected';
+                        return (
+                          <button key={i} className={cls} onClick={() => { if (!revealed) setQuizAnswers(prev => ({ ...prev, [qKey]: i })); }} disabled={revealed}>
+                            <span className="block-quiz__option-letter">{String.fromCharCode(65 + i)}</span>
+                            <span className="block-quiz__option-text">{opt}</span>
+                            {revealed && isCorrect && <span className="block-quiz__option-icon">&#x2713;</span>}
+                            {revealed && isSelected && !isCorrect && <span className="block-quiz__option-icon">&#x2717;</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selected !== null && !revealed && (
+                      <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => setQuizRevealed(prev => ({ ...prev, [qKey]: true }))} style={{ marginTop: '.75rem' }}>Check Answer</button>
+                    )}
+                    {revealed && (
+                      <div className={`block-quiz__result ${selected === block.content.correct ? 'block-quiz__result--correct' : 'block-quiz__result--wrong'}`}>
+                        <strong>{selected === block.content.correct ? 'Correct!' : 'Incorrect.'}</strong>
+                        {block.content.explanation && <p style={{ margin: '.35rem 0 0' }}>{block.content.explanation}</p>}
+                        <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setQuizAnswers(prev => ({ ...prev, [qKey]: null })); setQuizRevealed(prev => ({ ...prev, [qKey]: false })); }} style={{ marginTop: '.5rem' }}>Try Again</button>
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
               {block.block_type === 'file' && block.content.url && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: '1px solid #E5E7EB' }}>
                   <span style={{ fontSize: '1.5rem' }}>📎</span>
