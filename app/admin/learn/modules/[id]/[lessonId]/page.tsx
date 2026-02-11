@@ -11,6 +11,34 @@ interface Video { title: string; url: string; description?: string; }
 interface SiblingLesson { id: string; title: string; order_index: number; }
 interface LessonBlock { id: string; block_type: string; content: Record<string, any>; order_index: number; style?: Record<string, any>; }
 
+// Lightweight LaTeX to HTML renderer for common math notation
+function renderLatex(tex: string): string {
+  if (!tex) return '';
+  let html = tex
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '<span class="eq-frac"><span class="eq-num">$1</span><span class="eq-den">$2</span></span>')
+    .replace(/\\sqrt\{([^}]+)\}/g, '<span class="eq-sqrt">&radic;<span style="text-decoration:overline">$1</span></span>')
+    .replace(/\^\{([^}]+)\}/g, '<sup>$1</sup>').replace(/\^([a-zA-Z0-9])/g, '<sup>$1</sup>')
+    .replace(/_\{([^}]+)\}/g, '<sub>$1</sub>').replace(/_([a-zA-Z0-9])/g, '<sub>$1</sub>')
+    .replace(/\\alpha/g, '&alpha;').replace(/\\beta/g, '&beta;').replace(/\\gamma/g, '&gamma;')
+    .replace(/\\delta/g, '&delta;').replace(/\\epsilon/g, '&epsilon;').replace(/\\theta/g, '&theta;')
+    .replace(/\\lambda/g, '&lambda;').replace(/\\mu/g, '&mu;').replace(/\\pi/g, '&pi;')
+    .replace(/\\sigma/g, '&sigma;').replace(/\\phi/g, '&phi;').replace(/\\omega/g, '&omega;')
+    .replace(/\\Delta/g, '&Delta;').replace(/\\Sigma/g, '&Sigma;').replace(/\\Omega/g, '&Omega;')
+    .replace(/\\Theta/g, '&Theta;').replace(/\\Pi/g, '&Pi;')
+    .replace(/\\times/g, '&times;').replace(/\\div/g, '&divide;').replace(/\\pm/g, '&plusmn;')
+    .replace(/\\cdot/g, '&middot;').replace(/\\leq/g, '&le;').replace(/\\geq/g, '&ge;')
+    .replace(/\\neq/g, '&ne;').replace(/\\approx/g, '&asymp;').replace(/\\infty/g, '&infin;')
+    .replace(/\\sum/g, '&Sigma;').replace(/\\prod/g, '&Pi;').replace(/\\int/g, '&int;')
+    .replace(/\\partial/g, '&part;').replace(/\\nabla/g, '&nabla;')
+    .replace(/\\rightarrow/g, '&rarr;').replace(/\\leftarrow/g, '&larr;')
+    .replace(/\\Rightarrow/g, '&rArr;').replace(/\\Leftarrow/g, '&lArr;')
+    .replace(/\\quad/g, '&emsp;').replace(/\\,/g, '&thinsp;')
+    .replace(/\\text\{([^}]+)\}/g, '<span style="font-style:normal;font-family:Inter,sans-serif">$1</span>')
+    .replace(/\\([a-zA-Z]+)/g, '<em>$1</em>');
+  return html;
+}
+
 export default function LessonViewerPage() {
   const params = useParams();
   const router = useRouter();
@@ -347,6 +375,12 @@ export default function LessonViewerPage() {
                           <li key={i} className="block-takeaways__item">{item}</li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+                  {block.block_type === 'equation' && (
+                    <div className={`lesson-builder__equation ${block.content.display === 'inline' ? 'lesson-builder__equation--inline' : ''}`}>
+                      <div className="lesson-builder__equation-rendered" dangerouslySetInnerHTML={{ __html: renderLatex(block.content.latex || '') }} />
+                      {block.content.label && <div className="lesson-builder__equation-label">{block.content.label}</div>}
                     </div>
                   )}
                   {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}

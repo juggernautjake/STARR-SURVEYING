@@ -8,7 +8,7 @@ import { usePageError } from '../../../../hooks/usePageError';
 
 const TipTapEditor = dynamic(() => import('@/app/admin/components/TipTapEditor'), { ssr: false });
 
-type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow' | 'html' | 'audio' | 'link_reference' | 'flashcard' | 'popup_article' | 'backend_link' | 'highlight' | 'key_takeaways';
+type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow' | 'html' | 'audio' | 'link_reference' | 'flashcard' | 'popup_article' | 'backend_link' | 'highlight' | 'key_takeaways' | 'equation';
 
 interface BlockStyle {
   backgroundColor?: string;
@@ -59,6 +59,7 @@ const BLOCK_TYPES: { type: BlockType; label: string; icon: string; description: 
   { type: 'flashcard', label: 'Flashcards', icon: '🃏', description: 'Flip-card study deck', group: 'Interactive' },
   { type: 'popup_article', label: 'Popup Article', icon: '📰', description: 'Expandable summary / article', group: 'Interactive' },
   { type: 'backend_link', label: 'Page Link', icon: '➡', description: 'Link card to app page', group: 'Interactive' },
+  { type: 'equation', label: 'Equation', icon: 'Σ', description: 'Math formula (LaTeX)', group: 'Content' },
 ];
 
 function convertToEmbedUrl(url: string): string {
@@ -76,6 +77,46 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+// Lightweight LaTeX to HTML renderer for common math notation
+function renderLatex(tex: string): string {
+  if (!tex) return '';
+  let html = tex
+    // Escape HTML first
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // Fractions: \frac{a}{b}
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '<span class="eq-frac"><span class="eq-num">$1</span><span class="eq-den">$2</span></span>')
+    // Square root: \sqrt{x}
+    .replace(/\\sqrt\{([^}]+)\}/g, '<span class="eq-sqrt">&radic;<span style="text-decoration:overline">$1</span></span>')
+    // Superscript: ^{...} or ^x
+    .replace(/\^\{([^}]+)\}/g, '<sup>$1</sup>')
+    .replace(/\^([a-zA-Z0-9])/g, '<sup>$1</sup>')
+    // Subscript: _{...} or _x
+    .replace(/_\{([^}]+)\}/g, '<sub>$1</sub>')
+    .replace(/_([a-zA-Z0-9])/g, '<sub>$1</sub>')
+    // Greek letters
+    .replace(/\\alpha/g, '&alpha;').replace(/\\beta/g, '&beta;').replace(/\\gamma/g, '&gamma;')
+    .replace(/\\delta/g, '&delta;').replace(/\\epsilon/g, '&epsilon;').replace(/\\theta/g, '&theta;')
+    .replace(/\\lambda/g, '&lambda;').replace(/\\mu/g, '&mu;').replace(/\\pi/g, '&pi;')
+    .replace(/\\sigma/g, '&sigma;').replace(/\\phi/g, '&phi;').replace(/\\omega/g, '&omega;')
+    .replace(/\\Delta/g, '&Delta;').replace(/\\Sigma/g, '&Sigma;').replace(/\\Omega/g, '&Omega;')
+    .replace(/\\Theta/g, '&Theta;').replace(/\\Pi/g, '&Pi;')
+    // Operators
+    .replace(/\\times/g, '&times;').replace(/\\div/g, '&divide;').replace(/\\pm/g, '&plusmn;')
+    .replace(/\\cdot/g, '&middot;').replace(/\\leq/g, '&le;').replace(/\\geq/g, '&ge;')
+    .replace(/\\neq/g, '&ne;').replace(/\\approx/g, '&asymp;').replace(/\\infty/g, '&infin;')
+    .replace(/\\sum/g, '&Sigma;').replace(/\\prod/g, '&Pi;').replace(/\\int/g, '&int;')
+    .replace(/\\partial/g, '&part;').replace(/\\nabla/g, '&nabla;')
+    // Arrows
+    .replace(/\\rightarrow/g, '&rarr;').replace(/\\leftarrow/g, '&larr;')
+    .replace(/\\Rightarrow/g, '&rArr;').replace(/\\Leftarrow/g, '&lArr;')
+    // Spacing and text
+    .replace(/\\quad/g, '&emsp;').replace(/\\,/g, '&thinsp;')
+    .replace(/\\text\{([^}]+)\}/g, '<span style="font-style:normal;font-family:Inter,sans-serif">$1</span>')
+    // Remaining backslash commands (show symbol name in italic as fallback)
+    .replace(/\\([a-zA-Z]+)/g, '<em>$1</em>');
+  return html;
 }
 
 // Smart HTML-to-blocks parser: splits seeded lesson HTML into discrete block types
@@ -218,6 +259,10 @@ export default function LessonBuilderPage() {
   const [showQbPicker, setShowQbPicker] = useState<string | null>(null);
   const [qbLoading, setQbLoading] = useState(false);
   const [autoSaveFlash, setAutoSaveFlash] = useState(false);
+  const [blockPickerSearch, setBlockPickerSearch] = useState('');
+  const undoStack = useRef<LessonBlock[][]>([]);
+  const redoStack = useRef<LessonBlock[][]>([]);
+  const isUndoRedo = useRef(false);
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileUploadTarget, setFileUploadTarget] = useState<{ blockId: string; field: string } | null>(null);
@@ -238,12 +283,42 @@ export default function LessonBuilderPage() {
     };
   }, [blocks, saving]);
 
-  // Ctrl+S / Cmd+S keyboard shortcut to save
+  // Track block changes for undo/redo
+  useEffect(() => {
+    if (isUndoRedo.current) { isUndoRedo.current = false; return; }
+    if (blocks.length === 0) return;
+    const last = undoStack.current[undoStack.current.length - 1];
+    if (last && JSON.stringify(last) === JSON.stringify(blocks)) return;
+    undoStack.current.push(JSON.parse(JSON.stringify(blocks)));
+    if (undoStack.current.length > 50) undoStack.current.shift();
+    redoStack.current = [];
+  }, [blocks]);
+
+  // Ctrl+S save, Ctrl+Z undo, Ctrl+Shift+Z / Ctrl+Y redo
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         if (blocks.length > 0 && !saving) saveBlocks(false);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (undoStack.current.length > 1) {
+          const current = undoStack.current.pop()!;
+          redoStack.current.push(current);
+          const prev = undoStack.current[undoStack.current.length - 1];
+          isUndoRedo.current = true;
+          setBlocks(JSON.parse(JSON.stringify(prev)));
+        }
+      }
+      if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+        e.preventDefault();
+        if (redoStack.current.length > 0) {
+          const next = redoStack.current.pop()!;
+          undoStack.current.push(next);
+          isUndoRedo.current = true;
+          setBlocks(JSON.parse(JSON.stringify(next)));
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown);
@@ -379,6 +454,7 @@ export default function LessonBuilderPage() {
       case 'backend_link': return { path: '/admin/learn', title: 'Page Title', description: 'Click to navigate', icon: '📖' };
       case 'highlight': return { text: 'Key term or concept', style: 'blue' };
       case 'key_takeaways': return { title: 'Key Takeaways', items: ['First takeaway', 'Second takeaway'] };
+      case 'equation': return { latex: 'E = mc^2', label: '', display: 'block' };
       default: return {};
     }
   }
@@ -543,9 +619,13 @@ export default function LessonBuilderPage() {
             {saving ? 'Saving...' : 'Save'}
           </button>
           <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{blocks.length} block{blocks.length !== 1 ? 's' : ''}</span>
+          <div style={{ display: 'flex', gap: '.25rem' }}>
+            <button className="lesson-builder__undo-btn" title="Undo (Ctrl+Z)" disabled={undoStack.current.length <= 1} onClick={() => { if (undoStack.current.length > 1) { const cur = undoStack.current.pop()!; redoStack.current.push(cur); isUndoRedo.current = true; setBlocks(JSON.parse(JSON.stringify(undoStack.current[undoStack.current.length - 1]))); } }}>↶</button>
+            <button className="lesson-builder__undo-btn" title="Redo (Ctrl+Shift+Z)" disabled={redoStack.current.length === 0} onClick={() => { if (redoStack.current.length > 0) { const next = redoStack.current.pop()!; undoStack.current.push(next); isUndoRedo.current = true; setBlocks(JSON.parse(JSON.stringify(next))); } }}>↷</button>
+          </div>
           {lastSaved && <span style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Saved {lastSaved}</span>}
           {autoSaveFlash && <span className="lesson-builder__autosave-flash">Auto-saved</span>}
-          <span style={{ fontSize: '0.65rem', color: '#D1D5DB' }}>Ctrl+S</span>
+          <span style={{ fontSize: '0.65rem', color: '#D1D5DB' }}>Ctrl+S / Z / Y</span>
         </div>
       </div>
 
@@ -628,6 +708,12 @@ export default function LessonBuilderPage() {
                       <li key={i} className="block-takeaways__item">{item}</li>
                     ))}
                   </ul>
+                </div>
+              )}
+              {block.block_type === 'equation' && (
+                <div className={`lesson-builder__equation ${block.content.display === 'inline' ? 'lesson-builder__equation--inline' : ''}`}>
+                  <div className="lesson-builder__equation-rendered" dangerouslySetInnerHTML={{ __html: renderLatex(block.content.latex || '') }} />
+                  {block.content.label && <div className="lesson-builder__equation-label">{block.content.label}</div>}
                 </div>
               )}
               {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}
@@ -1375,6 +1461,25 @@ export default function LessonBuilderPage() {
                     }}>+ Add Takeaway</button>
                   </div>
                 )}
+
+                {block.block_type === 'equation' && (
+                  <div>
+                    <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.5rem' }}>
+                      <select className="fc-form__select" value={block.content.display || 'block'} onChange={e => updateBlockContent(block.id, { ...block.content, display: e.target.value })} style={{ width: 'auto' }}>
+                        <option value="block">Block (centered)</option>
+                        <option value="inline">Inline</option>
+                      </select>
+                      <input className="fc-form__input" placeholder="Label (e.g. Equation 1)" value={block.content.label || ''} onChange={e => updateBlockContent(block.id, { ...block.content, label: e.target.value })} style={{ flex: 1 }} />
+                    </div>
+                    <textarea className="fc-form__textarea lesson-builder__equation-input" placeholder="LaTeX: e.g. E = mc^2  or  \frac{a}{b}" value={block.content.latex || ''} onChange={e => updateBlockContent(block.id, { ...block.content, latex: e.target.value })} rows={3} spellCheck={false} />
+                    {block.content.latex && (
+                      <div className="lesson-builder__equation-preview">
+                        <span style={{ fontSize: '.68rem', fontWeight: 600, color: '#6B7280', marginBottom: '.25rem', display: 'block' }}>Preview</span>
+                        <div className="lesson-builder__equation-rendered" dangerouslySetInnerHTML={{ __html: renderLatex(block.content.latex || '') }} />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Block Style Panel */}
@@ -1453,22 +1558,24 @@ export default function LessonBuilderPage() {
 
       {/* Block Picker Modal */}
       {showBlockPicker && (
-        <div className="admin-modal-overlay" onClick={() => setShowBlockPicker(false)}>
+        <div className="admin-modal-overlay" onClick={() => { setShowBlockPicker(false); setBlockPickerSearch(''); }}>
           <div className="admin-modal" onClick={e => e.stopPropagation()}>
             <div className="admin-modal__header">
               <h3 className="admin-modal__title">Add Content Block</h3>
-              <button className="admin-modal__close" onClick={() => setShowBlockPicker(false)}>✕</button>
+              <button className="admin-modal__close" onClick={() => { setShowBlockPicker(false); setBlockPickerSearch(''); }}>✕</button>
             </div>
             <div className="admin-modal__body">
+              <input className="fc-form__input lesson-builder__picker-search" placeholder="Search blocks..." value={blockPickerSearch} onChange={e => setBlockPickerSearch(e.target.value)} autoFocus />
               {['Content', 'Media', 'Layout', 'Interactive'].map(group => {
-                const groupTypes = BLOCK_TYPES.filter(bt => bt.group === group);
+                const search = blockPickerSearch.toLowerCase();
+                const groupTypes = BLOCK_TYPES.filter(bt => bt.group === group && (!search || bt.label.toLowerCase().includes(search) || bt.description.toLowerCase().includes(search) || bt.type.includes(search)));
                 if (groupTypes.length === 0) return null;
                 return (
                   <div key={group} style={{ marginBottom: '1rem' }}>
                     <h4 style={{ fontSize: '.78rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '.5rem' }}>{group}</h4>
                     <div className="lesson-builder__block-picker">
                       {groupTypes.map((bt) => (
-                        <button key={bt.type} className="lesson-builder__block-option" onClick={() => addBlock(bt.type)}>
+                        <button key={bt.type} className="lesson-builder__block-option" onClick={() => { addBlock(bt.type); setBlockPickerSearch(''); }}>
                           <span className="lesson-builder__block-option-icon">{bt.icon}</span>
                           <div>
                             <div className="lesson-builder__block-option-label">{bt.label}</div>
@@ -1480,6 +1587,9 @@ export default function LessonBuilderPage() {
                   </div>
                 );
               })}
+              {blockPickerSearch && BLOCK_TYPES.filter(bt => { const s = blockPickerSearch.toLowerCase(); return bt.label.toLowerCase().includes(s) || bt.description.toLowerCase().includes(s) || bt.type.includes(s); }).length === 0 && (
+                <p style={{ textAlign: 'center', color: '#9CA3AF', fontSize: '.85rem', padding: '1rem 0' }}>No blocks match &ldquo;{blockPickerSearch}&rdquo;</p>
+              )}
             </div>
           </div>
         </div>

@@ -916,6 +916,28 @@
 /* === LESSON BUILDER: HTML Preview === */
 .lesson-builder__html-preview { padding:1rem; border:1px solid #E5E7EB; border-radius:6px; background:#FFF; min-height:60px; }
 
+/* === LESSON BUILDER: Undo/Redo Buttons === */
+.lesson-builder__undo-btn { width:28px; height:28px; border:1px solid #E5E7EB; border-radius:6px; background:#FFF; color:#374151; font-size:1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; font-family:'Inter',sans-serif; }
+.lesson-builder__undo-btn:hover:not(:disabled) { background:#F3F4F6; border-color:#D1D5DB; }
+.lesson-builder__undo-btn:disabled { opacity:.35; cursor:not-allowed; }
+
+/* === LESSON BUILDER: Block Picker Search === */
+.lesson-builder__picker-search { margin-bottom:.85rem !important; background:#FAFBFF; }
+
+/* === LESSON BUILDER: Equation Block === */
+.lesson-builder__equation { text-align:center; padding:1.5rem 1rem; margin:1rem 0; }
+.lesson-builder__equation--inline { display:inline-block; text-align:left; padding:.5rem; margin:0; }
+.lesson-builder__equation-rendered { font-family:'Cambria Math','Times New Roman','STIX Two Math',serif; font-size:1.35rem; line-height:1.8; color:#0F1419; }
+.lesson-builder__equation-label { font-family:'Inter',sans-serif; font-size:.78rem; color:#6B7280; font-style:italic; margin-top:.5rem; }
+.lesson-builder__equation-input { font-family:'Fira Code','Consolas',monospace !important; font-size:.85rem; background:#F9FAFB; }
+.lesson-builder__equation-preview { margin-top:.65rem; padding:.75rem; background:#FAFBFF; border:1px solid #E5E7EB; border-radius:8px; text-align:center; }
+
+/* Equation fraction rendering */
+.eq-frac { display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle; margin:0 .15em; }
+.eq-num { border-bottom:1.5px solid currentColor; padding:0 .2em .1em; font-size:.85em; }
+.eq-den { padding:.1em .2em 0; font-size:.85em; }
+.eq-sqrt { white-space:nowrap; }
+
 /* === BLOCK: Smooth Collapsible/Hidden Transitions === */
 .block-collapsible-wrap { display:grid; grid-template-rows:0fr; transition:grid-template-rows .3s ease; }
 .block-collapsible-wrap--open { grid-template-rows:1fr; }
