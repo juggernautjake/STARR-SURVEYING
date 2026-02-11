@@ -35,6 +35,13 @@ export default function LessonViewerPage() {
   // Block-based content
   const [lessonBlocks, setLessonBlocks] = useState<LessonBlock[]>([]);
   const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
+  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
+  const [flashcardIndexes, setFlashcardIndexes] = useState<Record<string, number>>({});
+  const [expandedPopups, setExpandedPopups] = useState<Record<string, boolean>>({});
+  const [clickedLinks, setClickedLinks] = useState<Record<string, boolean>>({});
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
+  const [quizRevealed, setQuizRevealed] = useState<Record<string, boolean>>({});
+  const [slideshowIndexes, setSlideshowIndexes] = useState<Record<string, number>>({});
 
   // Required reading articles
   const [requiredArticles, setRequiredArticles] = useState<any[]>([]);
@@ -294,7 +301,7 @@ export default function LessonViewerPage() {
                     {' '}{block.style?.collapsedLabel || block.block_type}
                   </button>
                 )}
-                {(!isCollapsible || !isCollapsed) && (<>
+                <div className={`block-collapsible-wrap ${(!isCollapsible || !isCollapsed) ? 'block-collapsible-wrap--open' : ''}`}><div>
                   {block.block_type === 'text' && <div dangerouslySetInnerHTML={{ __html: block.content.html || '' }} />}
                   {block.block_type === 'html' && <div dangerouslySetInnerHTML={{ __html: block.content.code || '' }} />}
                   {block.block_type === 'image' && block.content.url && (
@@ -323,7 +330,24 @@ export default function LessonViewerPage() {
                     </div>
                   )}
                   {block.block_type === 'callout' && (
-                    <div className={`lesson-builder__callout lesson-builder__callout--${block.content.type || 'info'}`}>{block.content.text}</div>
+                    <div className={`lesson-builder__callout lesson-builder__callout--${block.content.type || 'info'}`}>
+                      <span dangerouslySetInnerHTML={{ __html: block.content.text || '' }} />
+                    </div>
+                  )}
+                  {block.block_type === 'highlight' && (
+                    <div className={`block-highlight block-highlight--${block.content.style || 'blue'}`}>
+                      <span dangerouslySetInnerHTML={{ __html: block.content.text || '' }} />
+                    </div>
+                  )}
+                  {block.block_type === 'key_takeaways' && (
+                    <div className="block-takeaways">
+                      <h4 className="block-takeaways__title">{block.content.title || 'Key Takeaways'}</h4>
+                      <ul className="block-takeaways__list">
+                        {(block.content.items || []).map((item: string, i: number) => (
+                          <li key={i} className="block-takeaways__item">{item}</li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                   {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}
                   {block.block_type === 'embed' && block.content.url && (
@@ -332,23 +356,51 @@ export default function LessonViewerPage() {
                   {block.block_type === 'table' && (
                     <div style={{ overflowX: 'auto', margin: '1.5rem 0' }}>
                       <table className="lesson-builder__preview-table">
-                        <thead><tr>{(block.content.headers || []).map((h: string, i: number) => <th key={i}>{h}</th>)}</tr></thead>
+                        <thead><tr>{(block.content.headers || []).map((h: string, i: number) => <th key={i} dangerouslySetInnerHTML={{ __html: h }} />)}</tr></thead>
                         <tbody>{(block.content.rows || []).map((row: string[], ri: number) => (
-                          <tr key={ri}>{row.map((cell: string, ci: number) => <td key={ci}>{cell}</td>)}</tr>
+                          <tr key={ri}>{row.map((cell: string, ci: number) => <td key={ci} dangerouslySetInnerHTML={{ __html: cell }} />)}</tr>
                         ))}</tbody>
                       </table>
                     </div>
                   )}
-                  {block.block_type === 'quiz' && (
-                    <div className="lesson-builder__callout lesson-builder__callout--info" style={{ margin: '1.5rem 0' }}>
-                      <strong>Quiz: </strong>{block.content.question}
-                      <div style={{ marginTop: '.75rem' }}>
-                        {(block.content.options || []).map((opt: string, i: number) => (
-                          <div key={i} style={{ padding: '.3rem 0', fontSize: '.9rem' }}>{String.fromCharCode(65 + i)}. {opt}</div>
-                        ))}
+                  {block.block_type === 'quiz' && (() => {
+                    const qKey = block.id;
+                    const selected = quizAnswers[qKey] ?? null;
+                    const revealed = quizRevealed[qKey] || false;
+                    return (
+                      <div className="block-quiz" style={{ margin: '1.5rem 0' }}>
+                        <div className="block-quiz__question">{block.content.question}</div>
+                        <div className="block-quiz__options">
+                          {(block.content.options || []).map((opt: string, i: number) => {
+                            const isCorrect = i === block.content.correct;
+                            const isSelected = selected === i;
+                            let cls = 'block-quiz__option';
+                            if (revealed && isCorrect) cls += ' block-quiz__option--correct';
+                            else if (revealed && isSelected) cls += ' block-quiz__option--wrong';
+                            else if (isSelected) cls += ' block-quiz__option--selected';
+                            return (
+                              <button key={i} className={cls} onClick={() => { if (!revealed) setQuizAnswers(prev => ({ ...prev, [qKey]: i })); }} disabled={revealed}>
+                                <span className="block-quiz__option-letter">{String.fromCharCode(65 + i)}</span>
+                                <span className="block-quiz__option-text">{opt}</span>
+                                {revealed && isCorrect && <span className="block-quiz__option-icon">&#x2713;</span>}
+                                {revealed && isSelected && !isCorrect && <span className="block-quiz__option-icon">&#x2717;</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {selected !== null && !revealed && (
+                          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setQuizRevealed(prev => ({ ...prev, [qKey]: true })); recordInteraction(`quiz_block_${block.id}`); }} style={{ marginTop: '.75rem' }}>Check Answer</button>
+                        )}
+                        {revealed && (
+                          <div className={`block-quiz__result ${selected === block.content.correct ? 'block-quiz__result--correct' : 'block-quiz__result--wrong'}`}>
+                            <strong>{selected === block.content.correct ? 'Correct!' : 'Incorrect.'}</strong>
+                            {block.content.explanation && <p style={{ margin: '.35rem 0 0' }}>{block.content.explanation}</p>}
+                            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setQuizAnswers(prev => ({ ...prev, [qKey]: null })); setQuizRevealed(prev => ({ ...prev, [qKey]: false })); }} style={{ marginTop: '.5rem' }}>Try Again</button>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                   {block.block_type === 'file' && block.content.url && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: '1px solid #E5E7EB' }}>
                       <span style={{ fontSize: '1.5rem' }}>📎</span>
@@ -356,23 +408,104 @@ export default function LessonViewerPage() {
                       <a href={block.content.url} download={block.content.name} className="admin-btn admin-btn--ghost admin-btn--sm" style={{ marginLeft: 'auto' }}>Download</a>
                     </div>
                   )}
+                  {block.block_type === 'slideshow' && (block.content.images || []).length > 0 && (() => {
+                    const images = block.content.images || [];
+                    const idx = slideshowIndexes[block.id] || 0;
+                    const img = images[idx];
+                    if (!img) return null;
+                    return (
+                      <div style={{ margin: '1.5rem 0', textAlign: 'center' }}>
+                        <img src={img.url} alt={img.alt || ''} style={{ maxWidth: '100%', maxHeight: '500px', borderRadius: '8px', objectFit: 'contain' }} />
+                        {img.caption && <p style={{ fontSize: '.82rem', color: '#6B7280', marginTop: '.5rem' }}>{img.caption}</p>}
+                        {images.length > 1 && (
+                          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '.75rem' }}>
+                            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setSlideshowIndexes(prev => ({ ...prev, [block.id]: idx <= 0 ? images.length - 1 : idx - 1 }))}>&larr;</button>
+                            <span style={{ fontSize: '.82rem', color: '#6B7280' }}>{idx + 1} / {images.length}</span>
+                            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setSlideshowIndexes(prev => ({ ...prev, [block.id]: idx >= images.length - 1 ? 0 : idx + 1 }))}>&rarr;</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {block.block_type === 'link_reference' && (block.content.links || []).length > 0 && (
                     <div className="lesson-resources" style={{ margin: '1.5rem 0' }}>
                       <div className="lesson-resources__list">
-                        {(block.content.links || []).map((link: any, i: number) => (
-                          <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="lesson-resources__link">
-                            {link.type === 'pdf' ? '📄' : link.type === 'website' ? '🌐' : '📎'} {link.title || link.url}
-                            {link.description && <span style={{ fontSize: '.78rem', color: '#9CA3AF', marginLeft: '.5rem' }}>{link.description}</span>}
-                            <span className="lesson-resources__arrow">↗</span>
-                          </a>
-                        ))}
+                        {(block.content.links || []).map((link: any, i: number) => {
+                          const linkKey = `${block.id}_link_${i}`;
+                          const wasClicked = clickedLinks[linkKey];
+                          return (
+                            <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+                              className={`lesson-resources__link ${wasClicked ? 'lesson-resources__link--reviewed' : ''}`}
+                              onClick={() => { setClickedLinks(prev => ({ ...prev, [linkKey]: true })); recordInteraction(`block_link_${block.id}_${i}`); }}>
+                              <span className="lesson-resources__link-status">
+                                {wasClicked ? '\u2705' : '\u25CB'}
+                              </span>
+                              {link.type === 'pdf' ? '📄' : link.type === 'website' ? '🌐' : '📎'} {link.title || link.url}
+                              {link.description && <span style={{ fontSize: '.78rem', color: '#9CA3AF', marginLeft: '.5rem' }}>{link.description}</span>}
+                              <span className="lesson-resources__arrow">↗</span>
+                            </a>
+                          );
+                        })}
                       </div>
                     </div>
+                  )}
+                  {block.block_type === 'flashcard' && (block.content.cards || []).length > 0 && (() => {
+                    const cards = block.content.cards || [];
+                    const cardIdx = flashcardIndexes[block.id] || 0;
+                    const card = cards[cardIdx];
+                    const isFlipped = flippedCards[block.id] || false;
+                    return (
+                      <div className="block-flashcard" style={{ margin: '1.5rem 0' }}>
+                        <div className={`block-flashcard__card ${isFlipped ? 'block-flashcard__card--flipped' : ''}`} onClick={() => setFlippedCards(prev => ({ ...prev, [block.id]: !isFlipped }))}>
+                          <div className="block-flashcard__face block-flashcard__front">
+                            <span className="block-flashcard__label">FRONT</span>
+                            <p className="block-flashcard__text">{card?.front || ''}</p>
+                            <span className="block-flashcard__hint">Click to flip</span>
+                          </div>
+                          <div className="block-flashcard__face block-flashcard__back">
+                            <span className="block-flashcard__label">BACK</span>
+                            <p className="block-flashcard__text">{card?.back || ''}</p>
+                            <span className="block-flashcard__hint">Click to flip</span>
+                          </div>
+                        </div>
+                        {cards.length > 1 && (
+                          <div className="block-flashcard__nav">
+                            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx <= 0 ? cards.length - 1 : cardIdx - 1 })); }}>&larr;</button>
+                            <span style={{ fontSize: '.82rem', color: '#6B7280' }}>{cardIdx + 1} / {cards.length}</span>
+                            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx >= cards.length - 1 ? 0 : cardIdx + 1 })); }}>&rarr;</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  {block.block_type === 'popup_article' && (
+                    <div className="block-popup-article" style={{ margin: '1.5rem 0' }}>
+                      <div className="block-popup-article__header" onClick={() => setExpandedPopups(prev => ({ ...prev, [block.id]: !prev[block.id] }))}>
+                        <div>
+                          <h4 className="block-popup-article__title">{block.content.title || 'Article'}</h4>
+                          <p className="block-popup-article__summary">{block.content.summary || ''}</p>
+                        </div>
+                        <span className={`block-popup-article__chevron ${expandedPopups[block.id] ? 'block-popup-article__chevron--open' : ''}`}>&#x25BC;</span>
+                      </div>
+                      <div className={`block-popup-article__body ${expandedPopups[block.id] ? 'block-popup-article__body--open' : ''}`}>
+                        <div className="block-popup-article__content" dangerouslySetInnerHTML={{ __html: block.content.full_content || '' }} />
+                      </div>
+                    </div>
+                  )}
+                  {block.block_type === 'backend_link' && block.content.path && (
+                    <a href={block.content.path} className="block-backend-link" style={{ margin: '1.5rem 0', textDecoration: 'none' }}>
+                      <span className="block-backend-link__icon">{block.content.icon || '📖'}</span>
+                      <div className="block-backend-link__info">
+                        <span className="block-backend-link__title">{block.content.title || 'Page'}</span>
+                        {block.content.description && <span className="block-backend-link__desc">{block.content.description}</span>}
+                      </div>
+                      <span className="block-backend-link__arrow">→</span>
+                    </a>
                   )}
                   {isHidden && !isCollapsed && (
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: true }))} style={{ marginTop: '.5rem', fontSize: '.78rem' }}>Hide</button>
                   )}
-                </>)}
+                </div></div>
               </div>
             );
           })}

@@ -778,6 +778,26 @@
 .lesson-builder__callout--warning { background:#FEF3C7; border-left-color:#F59E0B; color:#92400E; }
 .lesson-builder__callout--tip { background:#ECFDF5; border-left-color:#10B981; color:#065F46; }
 .lesson-builder__callout--danger { background:#FEF2F2; border-left-color:#BD1218; color:#BD1218; }
+.lesson-builder__callout--formula { background:#1a1a2e; border-left-color:#6366F1; color:#E2E8F0; text-align:center; font-size:1.05rem; font-weight:600; }
+.lesson-builder__callout--example { background:#FFFBEB; border-left-color:#F59E0B; color:#78350F; border:1px solid #FCD34D; border-left-width:4px; }
+.lesson-builder__callout--note { background:#F0F4F8; border-left-color:#2563EB; color:#1E40AF; }
+.lesson-builder__callout--key_concept { background:#EFF6FF; border-left:none; border:2px solid #93C5FD; color:#1E40AF; text-align:center; font-weight:600; font-size:1rem; border-radius:12px; }
+
+/* === BLOCK: Highlight / Key Term Bubble === */
+.block-highlight { display:inline-block; padding:.6rem 1.25rem; border-radius:20px; font-family:'Inter',sans-serif; font-size:.92rem; font-weight:600; line-height:1.5; margin:.5rem 0; }
+.block-highlight--blue { background:#EFF6FF; color:#1D3095; border:1px solid #BFDBFE; }
+.block-highlight--dark { background:#1E293B; color:#E2E8F0; border:1px solid #334155; }
+.block-highlight--green { background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; }
+.block-highlight--amber { background:#FEF3C7; color:#92400E; border:1px solid #FCD34D; }
+.block-highlight--red { background:#FEF2F2; color:#991B1B; border:1px solid #FECACA; }
+.block-highlight--purple { background:#F5F3FF; color:#5B21B6; border:1px solid #C4B5FD; }
+
+/* === BLOCK: Key Takeaways === */
+.block-takeaways { background:#EFF6FF; border:1px solid #BFDBFE; border-radius:10px; padding:1.25rem 1.5rem; margin:1.5rem 0; }
+.block-takeaways__title { font-family:'Sora',sans-serif; font-size:1rem; font-weight:700; color:#1D3095; margin:0 0 .75rem; }
+.block-takeaways__list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:.4rem; }
+.block-takeaways__item { position:relative; padding-left:1.5rem; font-family:'Inter',sans-serif; font-size:.9rem; line-height:1.6; color:#374151; }
+.block-takeaways__item::before { content:'\2713'; position:absolute; left:0; color:#10B981; font-weight:700; font-size:.85rem; }
 
 /* === TIPTAP EDITOR === */
 .tiptap-editor { border:2px solid #E5E7EB; border-radius:8px; overflow:hidden; }
@@ -868,6 +888,16 @@
 .lesson-builder__preview-table td { padding:.55rem .85rem; border:1px solid #E5E7EB; color:#374151; }
 .lesson-builder__preview-table tr:nth-child(even) { background:#FAFBFF; }
 
+/* === LESSON BUILDER: Auto-save Flash === */
+.lesson-builder__autosave-flash { font-family:'Inter',sans-serif; font-size:.68rem; font-weight:600; color:#059669; animation:autosave-flash 2s ease forwards; }
+@keyframes autosave-flash { 0% { opacity:0; transform:translateY(-2px); } 15% { opacity:1; transform:translateY(0); } 85% { opacity:1; } 100% { opacity:0; } }
+
+/* === LESSON BUILDER: Question Bank Picker === */
+.lesson-builder__qb-picker { max-height:200px; overflow-y:auto; border:1px solid #E5E7EB; border-radius:8px; margin-bottom:.65rem; background:#FAFBFF; }
+.lesson-builder__qb-question { display:flex; align-items:center; gap:.75rem; width:100%; padding:.65rem .85rem; background:none; border:none; border-bottom:1px solid #F3F4F6; cursor:pointer; text-align:left; font-family:'Inter',sans-serif; transition:background .1s; }
+.lesson-builder__qb-question:last-child { border-bottom:none; }
+.lesson-builder__qb-question:hover { background:#EFF6FF; }
+
 /* === LESSON BUILDER: Conversion Banner === */
 .lesson-builder__convert-banner { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.75rem 1rem; background:#DBEAFE; border:1px solid #93C5FD; border-radius:8px; margin-bottom:1rem; font-family:'Inter',sans-serif; font-size:.85rem; color:#1E40AF; }
 
@@ -885,6 +915,71 @@
 
 /* === LESSON BUILDER: HTML Preview === */
 .lesson-builder__html-preview { padding:1rem; border:1px solid #E5E7EB; border-radius:6px; background:#FFF; min-height:60px; }
+
+/* === BLOCK: Smooth Collapsible/Hidden Transitions === */
+.block-collapsible-wrap { display:grid; grid-template-rows:0fr; transition:grid-template-rows .3s ease; }
+.block-collapsible-wrap--open { grid-template-rows:1fr; }
+.block-collapsible-wrap > div { overflow:hidden; }
+
+/* === BLOCK: Flashcard === */
+.block-flashcard { perspective:800px; max-width:500px; margin:0 auto; }
+.block-flashcard__card { position:relative; width:100%; min-height:200px; cursor:pointer; transform-style:preserve-3d; transition:transform .5s ease; }
+.block-flashcard__card--flipped { transform:rotateY(180deg); }
+.block-flashcard__face { position:absolute; top:0; left:0; width:100%; min-height:200px; backface-visibility:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2rem 1.5rem; border-radius:12px; font-family:'Inter',sans-serif; text-align:center; box-sizing:border-box; }
+.block-flashcard__front { background:linear-gradient(135deg,#EFF6FF,#DBEAFE); border:2px solid #93C5FD; color:#1E40AF; }
+.block-flashcard__back { background:linear-gradient(135deg,#ECFDF5,#D1FAE5); border:2px solid #6EE7B7; color:#065F46; transform:rotateY(180deg); }
+.block-flashcard__label { font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; opacity:.6; position:absolute; top:.75rem; left:1rem; }
+.block-flashcard__text { font-size:1.1rem; font-weight:600; line-height:1.5; margin:0; }
+.block-flashcard__hint { font-size:.72rem; opacity:.5; position:absolute; bottom:.75rem; }
+.block-flashcard__nav { display:flex; align-items:center; justify-content:center; gap:1rem; margin-top:.75rem; }
+
+/* === BLOCK: Popup Article === */
+.block-popup-article { border:1px solid #E5E7EB; border-radius:10px; overflow:hidden; background:#FFF; }
+.block-popup-article__header { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.25rem; cursor:pointer; gap:1rem; transition:background .15s; }
+.block-popup-article__header:hover { background:#FAFBFF; }
+.block-popup-article__title { font-family:'Sora',sans-serif; font-size:1rem; font-weight:700; color:#0F1419; margin:0 0 .25rem; }
+.block-popup-article__summary { font-family:'Inter',sans-serif; font-size:.85rem; color:#6B7280; margin:0; line-height:1.4; }
+.block-popup-article__chevron { font-size:.75rem; color:#9CA3AF; transition:transform .25s ease; flex-shrink:0; }
+.block-popup-article__chevron--open { transform:rotate(180deg); }
+.block-popup-article__body { display:grid; grid-template-rows:0fr; transition:grid-template-rows .35s ease; }
+.block-popup-article__body--open { grid-template-rows:1fr; }
+.block-popup-article__body > .block-popup-article__content { overflow:hidden; }
+.block-popup-article__content { padding:0 1.25rem 1.25rem; font-family:'Inter',sans-serif; font-size:.9rem; line-height:1.6; color:#374151; border-top:1px solid #E5E7EB; }
+.block-popup-article__body--open > .block-popup-article__content { padding-top:1rem; }
+
+/* === BLOCK: Backend Link Card === */
+.block-backend-link { display:flex; align-items:center; gap:1rem; padding:1rem 1.25rem; background:#FAFBFF; border:1px solid #E5E7EB; border-radius:10px; cursor:pointer; transition:all .15s; font-family:'Inter',sans-serif; color:inherit; }
+.block-backend-link:hover { border-color:#1D3095; background:#EFF6FF; transform:translateY(-1px); box-shadow:0 2px 8px rgba(29,48,149,.08); }
+.block-backend-link__icon { font-size:1.5rem; flex-shrink:0; }
+.block-backend-link__info { flex:1; display:flex; flex-direction:column; gap:.15rem; }
+.block-backend-link__title { font-weight:600; font-size:.92rem; color:#0F1419; }
+.block-backend-link__desc { font-size:.78rem; color:#6B7280; }
+.block-backend-link__arrow { font-size:1.1rem; color:#1D3095; flex-shrink:0; transition:transform .15s; }
+.block-backend-link:hover .block-backend-link__arrow { transform:translateX(3px); }
+
+/* === BLOCK: Interactive Quiz === */
+.block-quiz { background:#FFF; border:1px solid #E5E7EB; border-radius:10px; padding:1.25rem 1.5rem; }
+.block-quiz__question { font-family:'Sora',sans-serif; font-size:1rem; font-weight:600; color:#0F1419; margin-bottom:1rem; }
+.block-quiz__options { display:flex; flex-direction:column; gap:.5rem; }
+.block-quiz__option { display:flex; align-items:center; gap:.75rem; padding:.75rem 1rem; background:#F8F9FA; border:2px solid #E5E7EB; border-radius:8px; cursor:pointer; font-family:'Inter',sans-serif; font-size:.9rem; color:#374151; transition:all .15s; text-align:left; }
+.block-quiz__option:hover:not(:disabled) { border-color:#1D3095; background:#FAFBFF; }
+.block-quiz__option--selected { border-color:#1D3095; background:#EFF6FF; color:#1D3095; }
+.block-quiz__option--correct { border-color:#10B981; background:#ECFDF5; color:#065F46; }
+.block-quiz__option--wrong { border-color:#EF4444; background:#FEF2F2; color:#991B1B; }
+.block-quiz__option:disabled { cursor:default; }
+.block-quiz__option-letter { width:28px; height:28px; display:flex; align-items:center; justify-content:center; background:#E5E7EB; border-radius:50%; font-weight:700; font-size:.82rem; flex-shrink:0; transition:all .15s; }
+.block-quiz__option--selected .block-quiz__option-letter { background:#1D3095; color:#FFF; }
+.block-quiz__option--correct .block-quiz__option-letter { background:#10B981; color:#FFF; }
+.block-quiz__option--wrong .block-quiz__option-letter { background:#EF4444; color:#FFF; }
+.block-quiz__option-text { flex:1; }
+.block-quiz__option-icon { font-size:1.1rem; font-weight:700; flex-shrink:0; }
+.block-quiz__result { margin-top:.75rem; padding:.75rem 1rem; border-radius:8px; font-family:'Inter',sans-serif; font-size:.88rem; line-height:1.5; }
+.block-quiz__result--correct { background:#ECFDF5; border:1px solid #A7F3D0; color:#065F46; }
+.block-quiz__result--wrong { background:#FEF2F2; border:1px solid #FECACA; color:#991B1B; }
+
+/* === Interactive Link Click Effect (green checkmark) === */
+.lesson-resources__link--reviewed .lesson-resources__link-status { animation:checkmark-pop .3s ease; }
+@keyframes checkmark-pop { 0% { transform:scale(0.5); } 60% { transform:scale(1.3); } 100% { transform:scale(1); } }
 
 /* === PHASE 3 RESPONSIVE ADDITIONS === */
 @media(max-width:599px) {

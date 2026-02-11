@@ -8,7 +8,7 @@ import { usePageError } from '../../../../hooks/usePageError';
 
 const TipTapEditor = dynamic(() => import('@/app/admin/components/TipTapEditor'), { ssr: false });
 
-type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow' | 'html' | 'audio' | 'link_reference';
+type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow' | 'html' | 'audio' | 'link_reference' | 'flashcard' | 'popup_article' | 'backend_link' | 'highlight' | 'key_takeaways';
 
 interface BlockStyle {
   backgroundColor?: string;
@@ -46,7 +46,9 @@ const BLOCK_TYPES: { type: BlockType; label: string; icon: string; description: 
   { type: 'image', label: 'Image', icon: '🖼', description: 'Upload or link an image', group: 'Media' },
   { type: 'video', label: 'Video', icon: '▶', description: 'YouTube/Vimeo embed', group: 'Media' },
   { type: 'audio', label: 'Audio', icon: '🔊', description: 'Audio player / podcast', group: 'Media' },
-  { type: 'callout', label: 'Callout', icon: '💡', description: 'Info, warning, or tip box', group: 'Content' },
+  { type: 'callout', label: 'Callout', icon: '💡', description: 'Styled info/warning/formula box', group: 'Content' },
+  { type: 'highlight', label: 'Highlight', icon: '✦', description: 'Key term or concept bubble', group: 'Content' },
+  { type: 'key_takeaways', label: 'Takeaways', icon: '🎯', description: 'Key takeaways checklist', group: 'Content' },
   { type: 'divider', label: 'Divider', icon: '—', description: 'Visual separator', group: 'Layout' },
   { type: 'quiz', label: 'Quiz', icon: '?', description: 'Inline quiz question', group: 'Interactive' },
   { type: 'embed', label: 'Embed', icon: '⧉', description: 'External content via URL', group: 'Media' },
@@ -54,6 +56,9 @@ const BLOCK_TYPES: { type: BlockType; label: string; icon: string; description: 
   { type: 'file', label: 'File', icon: '📎', description: 'Downloadable attachment', group: 'Media' },
   { type: 'slideshow', label: 'Slideshow', icon: '🎞', description: 'Image slideshow/carousel', group: 'Media' },
   { type: 'link_reference', label: 'Links / Refs', icon: '🔗', description: 'Curated links & references', group: 'Interactive' },
+  { type: 'flashcard', label: 'Flashcards', icon: '🃏', description: 'Flip-card study deck', group: 'Interactive' },
+  { type: 'popup_article', label: 'Popup Article', icon: '📰', description: 'Expandable summary / article', group: 'Interactive' },
+  { type: 'backend_link', label: 'Page Link', icon: '➡', description: 'Link card to app page', group: 'Interactive' },
 ];
 
 function convertToEmbedUrl(url: string): string {
@@ -71,6 +76,118 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+// Smart HTML-to-blocks parser: splits seeded lesson HTML into discrete block types
+function parseHtmlToBlocks(htmlStr: string): LessonBlock[] {
+  if (typeof window === 'undefined' || !htmlStr?.trim()) return [];
+  const blocks: LessonBlock[] = [];
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlStr, 'text/html');
+  const body = doc.body;
+  let pendingHtml = '';
+  let idx = 0;
+
+  function makeId() { return `temp-conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${idx++}`; }
+
+  function flushPending() {
+    const trimmed = pendingHtml.trim();
+    if (!trimmed) return;
+    blocks.push({ id: makeId(), block_type: 'text', content: { html: trimmed }, order_index: 0 });
+    pendingHtml = '';
+  }
+
+  function detectCalloutType(style: string): string | null {
+    const s = style.toLowerCase();
+    if (s.includes('#1a1a2e')) return 'formula';
+    if (s.includes('#f0f4f8') || (s.includes('border-left') && s.includes('#2563eb'))) return 'note';
+    if (s.includes('#fffbeb')) return 'example';
+    if (s.includes('#ecfdf5')) return 'tip';
+    if (s.includes('#fee2e2') || s.includes('#fef2f2') || (s.includes('border-left') && s.includes('#dc2626'))) return 'danger';
+    return null;
+  }
+
+  function processNode(node: Node) {
+    if (node.nodeType === Node.COMMENT_NODE) return;
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.textContent?.trim()) pendingHtml += node.textContent;
+      return;
+    }
+    const el = node as Element;
+    const tag = el.tagName?.toLowerCase();
+    if (!tag) return;
+
+    // HR → divider block
+    if (tag === 'hr') {
+      flushPending();
+      blocks.push({ id: makeId(), block_type: 'divider', content: {}, order_index: 0 });
+      return;
+    }
+
+    // TABLE → table block
+    if (tag === 'table') {
+      flushPending();
+      const headers: string[] = [];
+      const rows: string[][] = [];
+      el.querySelectorAll('thead th').forEach(th => headers.push(th.innerHTML?.trim() || ''));
+      el.querySelectorAll('tbody tr').forEach(tr => {
+        const row: string[] = [];
+        tr.querySelectorAll('td').forEach(td => row.push(td.innerHTML?.trim() || ''));
+        if (row.length > 0) rows.push(row);
+      });
+      // Fallback: no thead, use first row with th as headers
+      if (headers.length === 0) {
+        const firstTr = el.querySelector('tr');
+        if (firstTr) {
+          const ths = firstTr.querySelectorAll('th');
+          if (ths.length > 0) {
+            ths.forEach(th => headers.push(th.innerHTML?.trim() || ''));
+          } else {
+            const tds = firstTr.querySelectorAll('td');
+            tds.forEach(td => headers.push(td.innerHTML?.trim() || ''));
+            if (rows.length > 0 && rows[0].join() === headers.join()) rows.shift();
+          }
+        }
+      }
+      blocks.push({ id: makeId(), block_type: 'table', content: { headers, rows }, order_index: 0 });
+      return;
+    }
+
+    // IMG → image block
+    if (tag === 'img') {
+      flushPending();
+      blocks.push({ id: makeId(), block_type: 'image', content: { url: el.getAttribute('src') || '', alt: el.getAttribute('alt') || '', caption: '', alignment: 'center' }, order_index: 0 });
+      return;
+    }
+
+    // DIV → check for styled callout, otherwise process children
+    if (tag === 'div') {
+      const style = el.getAttribute('style') || '';
+      const calloutType = detectCalloutType(style);
+      if (calloutType) {
+        flushPending();
+        blocks.push({ id: makeId(), block_type: 'callout', content: { type: calloutType, text: el.innerHTML.trim() }, order_index: 0 });
+        return;
+      }
+      // Non-styled div: recurse into children
+      Array.from(el.childNodes).forEach(processNode);
+      return;
+    }
+
+    // H2 / H3 → flush pending, start a new text section with the heading
+    if (tag === 'h2' || tag === 'h3') {
+      flushPending();
+      pendingHtml = el.outerHTML;
+      return;
+    }
+
+    // Everything else (p, ul, ol, h4, pre, etc.) → accumulate
+    pendingHtml += el.outerHTML;
+  }
+
+  Array.from(body.childNodes).forEach(processNode);
+  flushPending();
+  return blocks.map((b, i) => ({ ...b, order_index: i }));
 }
 
 export default function LessonBuilderPage() {
@@ -92,6 +209,15 @@ export default function LessonBuilderPage() {
   const [convertedFromHtml, setConvertedFromHtml] = useState(false);
   const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
   const [showStylePanel, setShowStylePanel] = useState<string | null>(null);
+  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
+  const [expandedPopups, setExpandedPopups] = useState<Record<string, boolean>>({});
+  const [flashcardIndexes, setFlashcardIndexes] = useState<Record<string, number>>({});
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
+  const [quizRevealed, setQuizRevealed] = useState<Record<string, boolean>>({});
+  const [qbQuestions, setQbQuestions] = useState<any[]>([]);
+  const [showQbPicker, setShowQbPicker] = useState<string | null>(null);
+  const [qbLoading, setQbLoading] = useState(false);
+  const [autoSaveFlash, setAutoSaveFlash] = useState(false);
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileUploadTarget, setFileUploadTarget] = useState<{ blockId: string; field: string } | null>(null);
@@ -112,6 +238,18 @@ export default function LessonBuilderPage() {
     };
   }, [blocks, saving]);
 
+  // Ctrl+S / Cmd+S keyboard shortcut to save
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (blocks.length > 0 && !saving) saveBlocks(false);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [blocks, saving]);
+
   async function loadLesson() {
     setLoading(true);
     try {
@@ -130,15 +268,10 @@ export default function LessonBuilderPage() {
         const data = await blocksRes.json();
         const loadedBlocks = (data.blocks || []).sort((a: LessonBlock, b: LessonBlock) => a.order_index - b.order_index);
 
-        // Auto-convert: If lesson has HTML content but no blocks, create a text block from it
+        // Auto-convert: If lesson has HTML content but no blocks, parse into discrete blocks
         if (loadedBlocks.length === 0 && lessonData?.content && lessonData.content.trim().length > 0) {
-          const convertedBlock: LessonBlock = {
-            id: `temp-converted-${Date.now()}`,
-            block_type: 'text',
-            content: { html: lessonData.content },
-            order_index: 0,
-          };
-          setBlocks([convertedBlock]);
+          const parsed = parseHtmlToBlocks(lessonData.content);
+          setBlocks(parsed.length > 0 ? parsed : [{ id: `temp-converted-${Date.now()}`, block_type: 'text', content: { html: lessonData.content }, order_index: 0 }]);
           setConvertedFromHtml(true);
         } else {
           setBlocks(loadedBlocks);
@@ -161,9 +294,40 @@ export default function LessonBuilderPage() {
       });
       if (res.ok) {
         setLastSaved(new Date().toLocaleTimeString());
+        if (isAutoSave) { setAutoSaveFlash(true); setTimeout(() => setAutoSaveFlash(false), 2000); }
       }
     } catch (err) { console.error('LessonBuilderPage: failed to save blocks', err); }
     setSaving(false);
+  }
+
+  // Fetch question bank questions for quiz block import
+  async function fetchQuestionBank(blockId: string) {
+    setQbLoading(true);
+    setShowQbPicker(blockId);
+    try {
+      const res = await fetch(`/api/admin/learn/questions?lesson_id=${lessonId}&limit=50`);
+      if (res.ok) {
+        const data = await res.json();
+        setQbQuestions((data.questions || []).filter((q: any) =>
+          q.question_type === 'multiple_choice' || q.question_type === 'true_false'
+        ));
+      }
+    } catch (err) { console.error('Failed to fetch question bank', err); }
+    setQbLoading(false);
+  }
+
+  function importQuestion(blockId: string, question: any) {
+    const options: string[] = Array.isArray(question.options) ? question.options : [];
+    const correctIdx = options.findIndex((o: string) => o === question.correct_answer);
+    updateBlockContent(blockId, {
+      question: question.question_text,
+      options: options.length > 0 ? options : ['', ''],
+      correct: correctIdx >= 0 ? correctIdx : 0,
+      explanation: question.explanation || '',
+      source_question_id: question.id,
+    });
+    setShowQbPicker(null);
+    setQbQuestions([]);
   }
 
   async function togglePublish() {
@@ -210,6 +374,11 @@ export default function LessonBuilderPage() {
       case 'file': return { url: '', name: '', size: 0, type: '' };
       case 'slideshow': return { images: [{ url: '', alt: '', caption: '' }] };
       case 'link_reference': return { links: [{ title: '', url: '', type: 'reference', description: '' }] };
+      case 'flashcard': return { cards: [{ front: 'Term or question', back: 'Definition or answer' }] };
+      case 'popup_article': return { summary: 'Click to read more...', title: 'Article Title', full_content: '<p>Full article content here...</p>' };
+      case 'backend_link': return { path: '/admin/learn', title: 'Page Title', description: 'Click to navigate', icon: '📖' };
+      case 'highlight': return { text: 'Key term or concept', style: 'blue' };
+      case 'key_takeaways': return { title: 'Key Takeaways', items: ['First takeaway', 'Second takeaway'] };
       default: return {};
     }
   }
@@ -373,14 +542,17 @@ export default function LessonBuilderPage() {
           <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => saveBlocks(false)} disabled={saving}>
             {saving ? 'Saving...' : 'Save'}
           </button>
+          <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{blocks.length} block{blocks.length !== 1 ? 's' : ''}</span>
           {lastSaved && <span style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Saved {lastSaved}</span>}
+          {autoSaveFlash && <span className="lesson-builder__autosave-flash">Auto-saved</span>}
+          <span style={{ fontSize: '0.65rem', color: '#D1D5DB' }}>Ctrl+S</span>
         </div>
       </div>
 
       {/* Conversion Banner */}
       {convertedFromHtml && (
         <div className="lesson-builder__convert-banner">
-          <span>This lesson was created with SQL and has been auto-converted to editable blocks. Click <strong>Save</strong> to persist the conversion.</span>
+          <span>This lesson&apos;s HTML content was auto-parsed into {blocks.length} editable block{blocks.length !== 1 ? 's' : ''} (headings, callouts, tables, images, etc.). Click <strong>Save</strong> to persist.</span>
           <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setConvertedFromHtml(false)}>Dismiss</button>
         </div>
       )}
@@ -422,7 +594,7 @@ export default function LessonBuilderPage() {
                   {' '}{block.style?.collapsedLabel || block.block_type}
                 </button>
               )}
-              {(!isCollapsible || !isCollapsed) && (<>
+              <div className={`block-collapsible-wrap ${(!isCollapsible || !isCollapsed) ? 'block-collapsible-wrap--open' : ''}`}><div>
               {block.block_type === 'text' && (
                 <div dangerouslySetInnerHTML={{ __html: block.content.html || '' }} />
               )}
@@ -440,7 +612,22 @@ export default function LessonBuilderPage() {
               )}
               {block.block_type === 'callout' && (
                 <div className={`lesson-builder__callout lesson-builder__callout--${block.content.type || 'info'}`}>
-                  {block.content.text}
+                  <span dangerouslySetInnerHTML={{ __html: block.content.text || '' }} />
+                </div>
+              )}
+              {block.block_type === 'highlight' && (
+                <div className={`block-highlight block-highlight--${block.content.style || 'blue'}`}>
+                  <span dangerouslySetInnerHTML={{ __html: block.content.text || '' }} />
+                </div>
+              )}
+              {block.block_type === 'key_takeaways' && (
+                <div className="block-takeaways">
+                  <h4 className="block-takeaways__title">{block.content.title || 'Key Takeaways'}</h4>
+                  <ul className="block-takeaways__list">
+                    {(block.content.items || []).map((item: string, i: number) => (
+                      <li key={i} className="block-takeaways__item">{item}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
               {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}
@@ -451,28 +638,54 @@ export default function LessonBuilderPage() {
                 <div style={{ overflowX: 'auto', margin: '1.5rem 0' }}>
                   <table className="lesson-builder__preview-table">
                     <thead>
-                      <tr>{(block.content.headers || []).map((h: string, i: number) => <th key={i}>{h}</th>)}</tr>
+                      <tr>{(block.content.headers || []).map((h: string, i: number) => <th key={i} dangerouslySetInnerHTML={{ __html: h }} />)}</tr>
                     </thead>
                     <tbody>
                       {(block.content.rows || []).map((row: string[], ri: number) => (
-                        <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+                        <tr key={ri}>{row.map((cell, ci) => <td key={ci} dangerouslySetInnerHTML={{ __html: cell }} />)}</tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
-              {block.block_type === 'quiz' && (
-                <div className="lesson-builder__callout lesson-builder__callout--info" style={{ margin: '1.5rem 0' }}>
-                  <strong>Quiz: </strong>{block.content.question}
-                  <div style={{ marginTop: '0.75rem' }}>
-                    {(block.content.options || []).map((opt: string, i: number) => (
-                      <div key={i} style={{ padding: '0.3rem 0', fontSize: '0.9rem' }}>
-                        {String.fromCharCode(65 + i)}. {opt}
+              {block.block_type === 'quiz' && (() => {
+                const qKey = block.id;
+                const selected = quizAnswers[qKey] ?? null;
+                const revealed = quizRevealed[qKey] || false;
+                return (
+                  <div className="block-quiz" style={{ margin: '1.5rem 0' }}>
+                    <div className="block-quiz__question">{block.content.question}</div>
+                    <div className="block-quiz__options">
+                      {(block.content.options || []).map((opt: string, i: number) => {
+                        const isCorrect = i === block.content.correct;
+                        const isSelected = selected === i;
+                        let cls = 'block-quiz__option';
+                        if (revealed && isCorrect) cls += ' block-quiz__option--correct';
+                        else if (revealed && isSelected) cls += ' block-quiz__option--wrong';
+                        else if (isSelected) cls += ' block-quiz__option--selected';
+                        return (
+                          <button key={i} className={cls} onClick={() => { if (!revealed) setQuizAnswers(prev => ({ ...prev, [qKey]: i })); }} disabled={revealed}>
+                            <span className="block-quiz__option-letter">{String.fromCharCode(65 + i)}</span>
+                            <span className="block-quiz__option-text">{opt}</span>
+                            {revealed && isCorrect && <span className="block-quiz__option-icon">&#x2713;</span>}
+                            {revealed && isSelected && !isCorrect && <span className="block-quiz__option-icon">&#x2717;</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selected !== null && !revealed && (
+                      <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => setQuizRevealed(prev => ({ ...prev, [qKey]: true }))} style={{ marginTop: '.75rem' }}>Check Answer</button>
+                    )}
+                    {revealed && (
+                      <div className={`block-quiz__result ${selected === block.content.correct ? 'block-quiz__result--correct' : 'block-quiz__result--wrong'}`}>
+                        <strong>{selected === block.content.correct ? 'Correct!' : 'Incorrect.'}</strong>
+                        {block.content.explanation && <p style={{ margin: '.35rem 0 0' }}>{block.content.explanation}</p>}
+                        <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setQuizAnswers(prev => ({ ...prev, [qKey]: null })); setQuizRevealed(prev => ({ ...prev, [qKey]: false })); }} style={{ marginTop: '.5rem' }}>Try Again</button>
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
               {block.block_type === 'file' && block.content.url && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: '1px solid #E5E7EB' }}>
                   <span style={{ fontSize: '1.5rem' }}>📎</span>
@@ -528,10 +741,63 @@ export default function LessonBuilderPage() {
                   </div>
                 </div>
               )}
+              {block.block_type === 'flashcard' && (block.content.cards || []).length > 0 && (() => {
+                const cards = block.content.cards || [];
+                const cardIdx = flashcardIndexes[block.id] || 0;
+                const card = cards[cardIdx];
+                const isFlipped = flippedCards[block.id] || false;
+                return (
+                  <div className="block-flashcard" style={{ margin: '1.5rem 0' }}>
+                    <div className={`block-flashcard__card ${isFlipped ? 'block-flashcard__card--flipped' : ''}`} onClick={() => setFlippedCards(prev => ({ ...prev, [block.id]: !isFlipped }))}>
+                      <div className="block-flashcard__face block-flashcard__front">
+                        <span className="block-flashcard__label">FRONT</span>
+                        <p className="block-flashcard__text">{card?.front || ''}</p>
+                        <span className="block-flashcard__hint">Click to flip</span>
+                      </div>
+                      <div className="block-flashcard__face block-flashcard__back">
+                        <span className="block-flashcard__label">BACK</span>
+                        <p className="block-flashcard__text">{card?.back || ''}</p>
+                        <span className="block-flashcard__hint">Click to flip</span>
+                      </div>
+                    </div>
+                    {cards.length > 1 && (
+                      <div className="block-flashcard__nav">
+                        <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx <= 0 ? cards.length - 1 : cardIdx - 1 })); }}>&larr;</button>
+                        <span style={{ fontSize: '.82rem', color: '#6B7280' }}>{cardIdx + 1} / {cards.length}</span>
+                        <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={(e) => { e.stopPropagation(); setFlippedCards(prev => ({ ...prev, [block.id]: false })); setFlashcardIndexes(prev => ({ ...prev, [block.id]: cardIdx >= cards.length - 1 ? 0 : cardIdx + 1 })); }}>&rarr;</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+              {block.block_type === 'popup_article' && (
+                <div className="block-popup-article" style={{ margin: '1.5rem 0' }}>
+                  <div className="block-popup-article__header" onClick={() => setExpandedPopups(prev => ({ ...prev, [block.id]: !prev[block.id] }))}>
+                    <div>
+                      <h4 className="block-popup-article__title">{block.content.title || 'Article'}</h4>
+                      <p className="block-popup-article__summary">{block.content.summary || ''}</p>
+                    </div>
+                    <span className={`block-popup-article__chevron ${expandedPopups[block.id] ? 'block-popup-article__chevron--open' : ''}`}>&#x25BC;</span>
+                  </div>
+                  <div className={`block-popup-article__body ${expandedPopups[block.id] ? 'block-popup-article__body--open' : ''}`}>
+                    <div className="block-popup-article__content" dangerouslySetInnerHTML={{ __html: block.content.full_content || '' }} />
+                  </div>
+                </div>
+              )}
+              {block.block_type === 'backend_link' && (
+                <div className="block-backend-link" style={{ margin: '1.5rem 0' }}>
+                  <span className="block-backend-link__icon">{block.content.icon || '📖'}</span>
+                  <div className="block-backend-link__info">
+                    <span className="block-backend-link__title">{block.content.title || 'Page'}</span>
+                    {block.content.description && <span className="block-backend-link__desc">{block.content.description}</span>}
+                  </div>
+                  <span className="block-backend-link__arrow">→</span>
+                </div>
+              )}
               {isHidden && !isCollapsed && (
                 <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: true }))} style={{ marginTop: '.5rem', fontSize: '.78rem' }}>Hide</button>
               )}
-              </>)}
+              </div></div>
             </div>
             );
           })}
@@ -628,14 +894,21 @@ export default function LessonBuilderPage() {
                 {block.block_type === 'callout' && (
                   <div>
                     <select className="fc-form__input" value={block.content.type || 'info'} onChange={e => updateBlockContent(block.id, { ...block.content, type: e.target.value })} style={{ marginBottom: '0.5rem' }}>
-                      <option value="info">Info</option>
-                      <option value="warning">Warning</option>
-                      <option value="tip">Tip</option>
-                      <option value="danger">Danger</option>
+                      <option value="info">Info (blue accent)</option>
+                      <option value="warning">Warning (amber)</option>
+                      <option value="tip">Tip / Success (green)</option>
+                      <option value="danger">Danger / Important (red)</option>
+                      <option value="formula">Formula / Definition (dark)</option>
+                      <option value="example">Example / Worked Problem (yellow)</option>
+                      <option value="note">Note (blue left border)</option>
+                      <option value="key_concept">Key Concept (blue bubble)</option>
                     </select>
-                    <textarea className="fc-form__textarea" value={block.content.text || ''} onChange={e => updateBlockContent(block.id, { ...block.content, text: e.target.value })} rows={3} placeholder="Callout text..." />
+                    <textarea className="fc-form__textarea" value={block.content.text || ''} onChange={e => updateBlockContent(block.id, { ...block.content, text: e.target.value })} rows={3} placeholder="Callout text... (supports basic text)" />
+                    {block.content.type === 'formula' && (
+                      <p style={{ fontSize: '.72rem', color: '#9CA3AF', marginTop: '.25rem' }}>Use &lt;sub&gt; for subscripts, &lt;sup&gt; for superscripts in formulas.</p>
+                    )}
                     <div className={`lesson-builder__callout lesson-builder__callout--${block.content.type || 'info'}`} style={{ marginTop: '0.5rem' }}>
-                      {block.content.text || 'Preview...'}
+                      <span dangerouslySetInnerHTML={{ __html: block.content.text || 'Preview...' }} />
                     </div>
                   </div>
                 )}
@@ -646,6 +919,31 @@ export default function LessonBuilderPage() {
 
                 {block.block_type === 'quiz' && (
                   <div>
+                    <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => showQbPicker === block.id ? setShowQbPicker(null) : fetchQuestionBank(block.id)}>
+                        {showQbPicker === block.id ? 'Close' : 'Import from Question Bank'}
+                      </button>
+                      {block.content.source_question_id && (
+                        <span style={{ fontSize: '.72rem', color: '#059669', fontWeight: 600 }}>Linked to QB #{block.content.source_question_id.slice(0, 8)}</span>
+                      )}
+                    </div>
+                    {showQbPicker === block.id && (
+                      <div className="lesson-builder__qb-picker">
+                        {qbLoading && <p style={{ fontSize: '.82rem', color: '#9CA3AF', padding: '.5rem' }}>Loading questions...</p>}
+                        {!qbLoading && qbQuestions.length === 0 && (
+                          <p style={{ fontSize: '.82rem', color: '#9CA3AF', padding: '.5rem' }}>No multiple-choice questions found for this lesson. Add questions in the Question Bank first.</p>
+                        )}
+                        {qbQuestions.map((q: any) => (
+                          <button key={q.id} className="lesson-builder__qb-question" onClick={() => importQuestion(block.id, q)}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 600, fontSize: '.85rem', color: '#0F1419', marginBottom: '.2rem' }}>{q.question_text}</div>
+                              <div style={{ fontSize: '.72rem', color: '#6B7280' }}>{q.question_type} &middot; {q.difficulty} &middot; {(q.options || []).length} options</div>
+                            </div>
+                            <span style={{ fontSize: '.72rem', color: '#1D3095', fontWeight: 600, flexShrink: 0 }}>Import</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <input className="fc-form__input" placeholder="Question" value={block.content.question || ''} onChange={e => updateBlockContent(block.id, { ...block.content, question: e.target.value })} />
                     <div style={{ marginTop: '0.5rem' }}>
                       {(block.content.options || []).map((opt: string, oi: number) => (
@@ -944,6 +1242,137 @@ export default function LessonBuilderPage() {
                       const links = [...(block.content.links || []), { title: '', url: '', type: 'reference', description: '' }];
                       updateBlockContent(block.id, { ...block.content, links });
                     }}>+ Add Link</button>
+                  </div>
+                )}
+
+                {/* Flashcard Block */}
+                {block.block_type === 'flashcard' && (
+                  <div>
+                    <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280', marginBottom: '.5rem', display: 'block' }}>Flashcard Deck ({(block.content.cards || []).length} cards)</span>
+                    {(block.content.cards || []).map((card: any, ci: number) => (
+                      <div key={ci} style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '.5rem', padding: '.5rem', background: '#F9FAFB', borderRadius: '6px', border: '1px solid #E5E7EB' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
+                          <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                            <span style={{ fontSize: '.72rem', fontWeight: 600, color: '#1D3095', minWidth: '40px' }}>Front</span>
+                            <input className="fc-form__input" placeholder="Term or question" value={card.front || ''} onChange={e => {
+                              const cards = [...(block.content.cards || [])];
+                              cards[ci] = { ...cards[ci], front: e.target.value };
+                              updateBlockContent(block.id, { ...block.content, cards });
+                            }} />
+                          </div>
+                          <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                            <span style={{ fontSize: '.72rem', fontWeight: 600, color: '#059669', minWidth: '40px' }}>Back</span>
+                            <input className="fc-form__input" placeholder="Definition or answer" value={card.back || ''} onChange={e => {
+                              const cards = [...(block.content.cards || [])];
+                              cards[ci] = { ...cards[ci], back: e.target.value };
+                              updateBlockContent(block.id, { ...block.content, cards });
+                            }} />
+                          </div>
+                        </div>
+                        {(block.content.cards || []).length > 1 && (
+                          <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
+                            const cards = (block.content.cards || []).filter((_: any, i: number) => i !== ci);
+                            updateBlockContent(block.id, { ...block.content, cards });
+                          }}>✕</button>
+                        )}
+                      </div>
+                    ))}
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
+                      const cards = [...(block.content.cards || []), { front: '', back: '' }];
+                      updateBlockContent(block.id, { ...block.content, cards });
+                    }}>+ Add Card</button>
+                  </div>
+                )}
+
+                {/* Popup Article Block */}
+                {block.block_type === 'popup_article' && (
+                  <div>
+                    <input className="fc-form__input" placeholder="Article title" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} />
+                    <textarea className="fc-form__textarea" placeholder="Summary text (shown collapsed)" value={block.content.summary || ''} onChange={e => updateBlockContent(block.id, { ...block.content, summary: e.target.value })} rows={2} style={{ marginTop: '.5rem' }} />
+                    <div style={{ marginTop: '.5rem' }}>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280', display: 'block', marginBottom: '.35rem' }}>Full Content (HTML supported)</span>
+                      <textarea
+                        className="fc-form__textarea"
+                        value={block.content.full_content || ''}
+                        onChange={e => updateBlockContent(block.id, { ...block.content, full_content: e.target.value })}
+                        rows={8}
+                        style={{ fontFamily: 'monospace', fontSize: '.82rem' }}
+                        placeholder="<p>Full article content here...</p>"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Backend Link Block */}
+                {block.block_type === 'backend_link' && (
+                  <div>
+                    <input className="fc-form__input" placeholder="Page path (e.g. /admin/learn/modules/...)" value={block.content.path || ''} onChange={e => updateBlockContent(block.id, { ...block.content, path: e.target.value })} />
+                    <input className="fc-form__input" placeholder="Link title" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} style={{ marginTop: '.5rem' }} />
+                    <input className="fc-form__input" placeholder="Description" value={block.content.description || ''} onChange={e => updateBlockContent(block.id, { ...block.content, description: e.target.value })} style={{ marginTop: '.5rem' }} />
+                    <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.5rem' }}>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280' }}>Icon:</span>
+                      {['📖', '📝', '🎯', '📊', '🏠', '⚙', '🔬', '📐'].map(emoji => (
+                        <button key={emoji} className={`admin-btn admin-btn--ghost admin-btn--sm ${block.content.icon === emoji ? 'admin-btn--active' : ''}`}
+                          onClick={() => updateBlockContent(block.id, { ...block.content, icon: emoji })}
+                          style={{ padding: '.2rem .4rem', fontSize: '1.1rem', border: block.content.icon === emoji ? '2px solid #1D3095' : undefined }}>
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Preview */}
+                    <div className="block-backend-link" style={{ marginTop: '.75rem' }}>
+                      <span className="block-backend-link__icon">{block.content.icon || '📖'}</span>
+                      <div className="block-backend-link__info">
+                        <span className="block-backend-link__title">{block.content.title || 'Page Title'}</span>
+                        {block.content.description && <span className="block-backend-link__desc">{block.content.description}</span>}
+                      </div>
+                      <span className="block-backend-link__arrow">→</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Highlight / Key Term Block */}
+                {block.block_type === 'highlight' && (
+                  <div>
+                    <select className="fc-form__input" value={block.content.style || 'blue'} onChange={e => updateBlockContent(block.id, { ...block.content, style: e.target.value })} style={{ marginBottom: '.5rem' }}>
+                      <option value="blue">Blue Bubble</option>
+                      <option value="dark">Dark / Formula</option>
+                      <option value="green">Green / Success</option>
+                      <option value="amber">Amber / Highlight</option>
+                      <option value="red">Red / Important</option>
+                      <option value="purple">Purple / Definition</option>
+                    </select>
+                    <textarea className="fc-form__textarea" value={block.content.text || ''} onChange={e => updateBlockContent(block.id, { ...block.content, text: e.target.value })} rows={2} placeholder="Key term, formula, or important concept... (HTML supported for sub/sup)" />
+                    <div className={`block-highlight block-highlight--${block.content.style || 'blue'}`} style={{ marginTop: '.5rem' }}>
+                      <span dangerouslySetInnerHTML={{ __html: block.content.text || 'Preview...' }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Key Takeaways Block */}
+                {block.block_type === 'key_takeaways' && (
+                  <div>
+                    <input className="fc-form__input" placeholder="Section title" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} style={{ marginBottom: '.5rem' }} />
+                    {(block.content.items || []).map((item: string, ii: number) => (
+                      <div key={ii} style={{ display: 'flex', gap: '.5rem', marginBottom: '.35rem', alignItems: 'center' }}>
+                        <span style={{ color: '#10B981', fontSize: '.9rem', flexShrink: 0 }}>&#x2713;</span>
+                        <input className="fc-form__input" value={item} onChange={e => {
+                          const items = [...(block.content.items || [])];
+                          items[ii] = e.target.value;
+                          updateBlockContent(block.id, { ...block.content, items });
+                        }} placeholder={`Takeaway ${ii + 1}`} style={{ flex: 1 }} />
+                        {(block.content.items || []).length > 1 && (
+                          <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
+                            const items = (block.content.items || []).filter((_: any, i: number) => i !== ii);
+                            updateBlockContent(block.id, { ...block.content, items });
+                          }}>✕</button>
+                        )}
+                      </div>
+                    ))}
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
+                      const items = [...(block.content.items || []), ''];
+                      updateBlockContent(block.id, { ...block.content, items });
+                    }}>+ Add Takeaway</button>
                   </div>
                 )}
               </div>
