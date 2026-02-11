@@ -9,6 +9,7 @@ interface Topic { id: string; title: string; content: string; order_index: numbe
 interface Resource { title: string; url: string; type: string; }
 interface Video { title: string; url: string; description?: string; }
 interface SiblingLesson { id: string; title: string; order_index: number; }
+interface LessonBlock { id: string; block_type: string; content: Record<string, any>; order_index: number; style?: Record<string, any>; }
 
 export default function LessonViewerPage() {
   const params = useParams();
@@ -30,6 +31,10 @@ export default function LessonViewerPage() {
   const [interactions, setInteractions] = useState<Record<string, boolean>>({});
   const [totalRequired, setTotalRequired] = useState(0);
   const [quizUnlocked, setQuizUnlocked] = useState(false);
+
+  // Block-based content
+  const [lessonBlocks, setLessonBlocks] = useState<LessonBlock[]>([]);
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
 
   // Required reading articles
   const [requiredArticles, setRequiredArticles] = useState<any[]>([]);
@@ -57,12 +62,19 @@ export default function LessonViewerPage() {
 
   async function fetchLesson() {
     try {
-      const res = await fetch(`/api/admin/learn/lessons?id=${lessonId}`);
-      if (res.ok) {
-        const data = await res.json();
+      const [lessonRes, blocksRes] = await Promise.all([
+        fetch(`/api/admin/learn/lessons?id=${lessonId}`),
+        fetch(`/api/admin/learn/lesson-blocks?lesson_id=${lessonId}`),
+      ]);
+      if (lessonRes.ok) {
+        const data = await lessonRes.json();
         setLesson(data.lesson);
         setTopics(data.topics || []);
         setQuizCount(data.quiz_question_count || 0);
+      }
+      if (blocksRes.ok) {
+        const data = await blocksRes.json();
+        setLessonBlocks((data.blocks || []).sort((a: LessonBlock, b: LessonBlock) => a.order_index - b.order_index));
       }
     } catch (err) { console.error('Failed to fetch lesson', err); }
     setLoading(false);
@@ -243,8 +255,131 @@ export default function LessonViewerPage() {
         </div>
       )}
 
-      {/* Lesson Content */}
-      <div className="admin-lesson__body" dangerouslySetInnerHTML={{ __html: lesson.content || '' }} />
+      {/* Lesson Content — Blocks preferred, fallback to legacy HTML */}
+      {lessonBlocks.length > 0 ? (
+        <div className="admin-lesson__body">
+          {lessonBlocks.map((block) => {
+            const st: React.CSSProperties = {};
+            if (block.style?.backgroundColor && block.style.backgroundColor !== '#ffffff') st.backgroundColor = block.style.backgroundColor;
+            if (block.style?.borderColor && block.style?.borderWidth) st.border = `${block.style.borderWidth}px solid ${block.style.borderColor}`;
+            if (block.style?.borderRadius !== undefined) st.borderRadius = `${block.style.borderRadius}px`;
+            if (block.style?.boxShadow && block.style.boxShadow !== 'none') {
+              const shadows: Record<string, string> = { sm: '0 1px 3px rgba(0,0,0,.1)', md: '0 4px 12px rgba(0,0,0,.1)', lg: '0 8px 24px rgba(0,0,0,.12)', xl: '0 16px 40px rgba(0,0,0,.15)' };
+              st.boxShadow = shadows[block.style.boxShadow] || 'none';
+            }
+            if (block.style?.width && block.style.width !== 'full') {
+              const widths: Record<string, string> = { wide: '80%', half: '50%', third: '33%' };
+              st.maxWidth = widths[block.style.width]; st.margin = '0 auto';
+            }
+            if (Object.keys(st).length > 0) { st.padding = st.padding || '1rem'; st.marginBottom = '1rem'; }
+            const isCollapsible = block.style?.collapsible;
+            const isHidden = block.style?.hidden;
+            const isCollapsed = collapsedBlocks[block.id] ?? true;
+
+            if (isHidden && isCollapsed) {
+              return (
+                <div key={block.id} style={{ textAlign: 'center', margin: '1rem 0' }}>
+                  <button className="admin-btn admin-btn--ghost" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: false }))} style={{ fontSize: '.85rem' }}>
+                    {block.style?.hiddenLabel || 'Click to reveal'}
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div key={block.id} style={st}>
+                {isCollapsible && (
+                  <button className="lesson-builder__collapse-toggle" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !isCollapsed }))}>
+                    <span style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform .2s' }}>&#x25BC;</span>
+                    {' '}{block.style?.collapsedLabel || block.block_type}
+                  </button>
+                )}
+                {(!isCollapsible || !isCollapsed) && (<>
+                  {block.block_type === 'text' && <div dangerouslySetInnerHTML={{ __html: block.content.html || '' }} />}
+                  {block.block_type === 'html' && <div dangerouslySetInnerHTML={{ __html: block.content.code || '' }} />}
+                  {block.block_type === 'image' && block.content.url && (
+                    <figure style={{ textAlign: (block.content.alignment || 'center') as any, margin: '1.5rem 0' }}>
+                      <img src={block.content.url} alt={block.content.alt || ''} style={{ maxWidth: '100%', borderRadius: '8px' }} />
+                      {block.content.caption && <figcaption style={{ fontSize: '.82rem', color: '#6B7280', marginTop: '.5rem' }}>{block.content.caption}</figcaption>}
+                    </figure>
+                  )}
+                  {block.block_type === 'video' && block.content.url && (() => {
+                    let embedUrl = block.content.url;
+                    const ytMatch = embedUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+                    if (ytMatch) embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+                    const vimeoMatch = embedUrl.match(/vimeo\.com\/(\d+)/);
+                    if (vimeoMatch) embedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+                    return (
+                      <div style={{ margin: '1.5rem 0' }}>
+                        <iframe src={embedUrl} style={{ width: '100%', aspectRatio: '16/9', border: 'none', borderRadius: '8px' }} allowFullScreen />
+                        {block.content.caption && <p style={{ fontSize: '.82rem', color: '#6B7280', marginTop: '.5rem', textAlign: 'center' }}>{block.content.caption}</p>}
+                      </div>
+                    );
+                  })()}
+                  {block.block_type === 'audio' && block.content.url && (
+                    <div style={{ margin: '1.5rem 0' }}>
+                      {block.content.title && <p style={{ fontWeight: 600, marginBottom: '.5rem' }}>{block.content.title}</p>}
+                      <audio controls src={block.content.url} style={{ width: '100%' }}>Your browser does not support audio.</audio>
+                    </div>
+                  )}
+                  {block.block_type === 'callout' && (
+                    <div className={`lesson-builder__callout lesson-builder__callout--${block.content.type || 'info'}`}>{block.content.text}</div>
+                  )}
+                  {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}
+                  {block.block_type === 'embed' && block.content.url && (
+                    <iframe src={block.content.url} style={{ width: '100%', height: `${block.content.height || 400}px`, border: '1px solid #E5E7EB', borderRadius: '8px', margin: '1.5rem 0' }} />
+                  )}
+                  {block.block_type === 'table' && (
+                    <div style={{ overflowX: 'auto', margin: '1.5rem 0' }}>
+                      <table className="lesson-builder__preview-table">
+                        <thead><tr>{(block.content.headers || []).map((h: string, i: number) => <th key={i}>{h}</th>)}</tr></thead>
+                        <tbody>{(block.content.rows || []).map((row: string[], ri: number) => (
+                          <tr key={ri}>{row.map((cell: string, ci: number) => <td key={ci}>{cell}</td>)}</tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  )}
+                  {block.block_type === 'quiz' && (
+                    <div className="lesson-builder__callout lesson-builder__callout--info" style={{ margin: '1.5rem 0' }}>
+                      <strong>Quiz: </strong>{block.content.question}
+                      <div style={{ marginTop: '.75rem' }}>
+                        {(block.content.options || []).map((opt: string, i: number) => (
+                          <div key={i} style={{ padding: '.3rem 0', fontSize: '.9rem' }}>{String.fromCharCode(65 + i)}. {opt}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {block.block_type === 'file' && block.content.url && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', padding: '1rem', background: '#F8F9FA', borderRadius: '8px', margin: '1.5rem 0', border: '1px solid #E5E7EB' }}>
+                      <span style={{ fontSize: '1.5rem' }}>📎</span>
+                      <div><div style={{ fontWeight: 600, fontSize: '.9rem' }}>{block.content.name || 'File'}</div></div>
+                      <a href={block.content.url} download={block.content.name} className="admin-btn admin-btn--ghost admin-btn--sm" style={{ marginLeft: 'auto' }}>Download</a>
+                    </div>
+                  )}
+                  {block.block_type === 'link_reference' && (block.content.links || []).length > 0 && (
+                    <div className="lesson-resources" style={{ margin: '1.5rem 0' }}>
+                      <div className="lesson-resources__list">
+                        {(block.content.links || []).map((link: any, i: number) => (
+                          <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="lesson-resources__link">
+                            {link.type === 'pdf' ? '📄' : link.type === 'website' ? '🌐' : '📎'} {link.title || link.url}
+                            {link.description && <span style={{ fontSize: '.78rem', color: '#9CA3AF', marginLeft: '.5rem' }}>{link.description}</span>}
+                            <span className="lesson-resources__arrow">↗</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {isHidden && !isCollapsed && (
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: true }))} style={{ marginTop: '.5rem', fontSize: '.78rem' }}>Hide</button>
+                  )}
+                </>)}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="admin-lesson__body" dangerouslySetInnerHTML={{ __html: lesson.content || '' }} />
+      )}
 
       {/* Topics */}
       {topics.length > 0 && (

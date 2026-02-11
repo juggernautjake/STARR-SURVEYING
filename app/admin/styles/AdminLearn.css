@@ -868,6 +868,24 @@
 .lesson-builder__preview-table td { padding:.55rem .85rem; border:1px solid #E5E7EB; color:#374151; }
 .lesson-builder__preview-table tr:nth-child(even) { background:#FAFBFF; }
 
+/* === LESSON BUILDER: Conversion Banner === */
+.lesson-builder__convert-banner { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.75rem 1rem; background:#DBEAFE; border:1px solid #93C5FD; border-radius:8px; margin-bottom:1rem; font-family:'Inter',sans-serif; font-size:.85rem; color:#1E40AF; }
+
+/* === LESSON BUILDER: Style Panel === */
+.lesson-builder__style-panel { border-top:1px solid #E5E7EB; background:#FAFBFF; }
+.lesson-builder__style-panel-header { display:flex; align-items:center; justify-content:space-between; padding:.5rem .75rem; border-bottom:1px solid #E5E7EB; }
+.lesson-builder__style-panel-body { padding:.75rem; display:flex; flex-direction:column; gap:.5rem; }
+.lesson-builder__style-row { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.lesson-builder__style-row label { font-family:'Inter',sans-serif; font-size:.78rem; font-weight:600; color:#374151; min-width:80px; display:flex; align-items:center; gap:.35rem; }
+.lesson-builder__style-row input[type="checkbox"] { margin:0; }
+
+/* === LESSON BUILDER: Collapse Toggle === */
+.lesson-builder__collapse-toggle { display:flex; align-items:center; gap:.5rem; background:none; border:none; font-family:'Inter',sans-serif; font-size:.88rem; font-weight:600; color:#1D3095; cursor:pointer; padding:.5rem 0; width:100%; text-align:left; }
+.lesson-builder__collapse-toggle:hover { color:#162470; }
+
+/* === LESSON BUILDER: HTML Preview === */
+.lesson-builder__html-preview { padding:1rem; border:1px solid #E5E7EB; border-radius:6px; background:#FFF; min-height:60px; }
+
 /* === PHASE 3 RESPONSIVE ADDITIONS === */
 @media(max-width:599px) {
   .quiz-history__stats { flex-direction:column; }
