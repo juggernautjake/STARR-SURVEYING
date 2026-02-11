@@ -14,8 +14,8 @@ interface Module { id: string; title: string; status: string; order_index: numbe
 interface XPModuleConfig { id: string; title: string; difficulty?: string; order_index?: number; module_number?: number; module_type: string; xp_value: number; expiry_months: number; difficulty_rating: number; has_custom_xp: boolean; config_id: string | null; }
 interface Lesson { id: string; title: string; module_id: string; order_index: number; status: string; estimated_minutes: number; module_title?: string; }
 interface Article { id: string; title: string; slug: string; category: string; status: string; author?: string; subtitle?: string; estimated_minutes?: number; excerpt?: string; }
-interface Question { id: string; question_text: string; question_type: string; module_id?: string; lesson_id?: string; exam_category?: string; difficulty: string; correct_answer: string; options: any; explanation?: string; }
-interface Flashcard { id: string; term: string; definition: string; hint_1?: string; }
+interface Question { id: string; question_text: string; question_type: string; module_id?: string; lesson_id?: string; exam_category?: string; difficulty: string; correct_answer: string; options: any; explanation?: string; tags?: string[]; }
+interface Flashcard { id: string; term: string; definition: string; hint_1?: string; hint_2?: string; hint_3?: string; module_id?: string; lesson_id?: string; tags?: string[]; source?: string; }
 interface Assignment { id: string; assigned_to: string; assigned_by: string; module_id?: string; lesson_id?: string; unlock_next: boolean; status: string; due_date?: string; notes?: string; created_at: string; completed_at?: string; module_title?: string; lesson_title?: string; }
 interface Activity { id: string; user_email: string; action_type: string; entity_type?: string; entity_id?: string; metadata?: any; created_at: string; }
 
@@ -58,6 +58,14 @@ export default function ManageContentPage() {
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   const [editModule, setEditModule] = useState<Record<string, any>>({});
 
+  // Flashcard editing
+  const [editingFlashcardId, setEditingFlashcardId] = useState<string | null>(null);
+  const [editFlashcard, setEditFlashcard] = useState<Record<string, any>>({});
+
+  // Question editing
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [editQuestion, setEditQuestion] = useState<Record<string, any>>({});
+
   useEffect(() => { loadData(); }, [tab]);
 
   async function loadData() {
@@ -92,8 +100,12 @@ export default function ManageContentPage() {
         break;
       }
       case 'flashcards': {
-        const d = await safeFetch<{ cards: Flashcard[] }>('/api/admin/learn/flashcards?source=builtin');
-        if (d) setFlashcards(d.cards || []);
+        const [fData, modData] = await Promise.all([
+          safeFetch<{ cards: Flashcard[] }>('/api/admin/learn/flashcards?source=builtin&discovered=false'),
+          safeFetch<{ modules: Module[] }>('/api/admin/learn/modules'),
+        ]);
+        if (fData) setFlashcards(fData.cards || []);
+        if (modData) setModules(modData.modules || []);
         break;
       }
       case 'xp_config': {
@@ -260,6 +272,65 @@ export default function ManageContentPage() {
     setSaving(false);
   }
 
+  async function handleSaveFlashcard() {
+    if (!editingFlashcardId) return;
+    setSaving(true);
+    const result = await safeFetch('/api/admin/learn/flashcards', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingFlashcardId, source: 'builtin', ...editFlashcard }),
+    });
+    if (result) {
+      setEditingFlashcardId(null);
+      setEditFlashcard({});
+      loadData();
+    }
+    setSaving(false);
+  }
+
+  async function handleCreateFlashcard() {
+    setSaving(true);
+    const result = await safeFetch('/api/admin/learn/flashcards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: 'builtin',
+        term: formData.term || 'New Term',
+        definition: formData.definition || '',
+        hint_1: formData.hint_1 || null,
+        hint_2: formData.hint_2 || null,
+        hint_3: formData.hint_3 || null,
+        module_id: formData.module_id || null,
+        lesson_id: formData.lesson_id || null,
+      }),
+    });
+    if (result) {
+      setShowForm(false);
+      setFormData({});
+      loadData();
+    }
+    setSaving(false);
+  }
+
+  async function handleSaveQuestion() {
+    if (!editingQuestionId) return;
+    setSaving(true);
+    const optionsVal = typeof editQuestion.options === 'string'
+      ? editQuestion.options.split('|').map((o: string) => o.trim()).filter(Boolean)
+      : editQuestion.options;
+    const result = await safeFetch('/api/admin/learn/questions', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingQuestionId, ...editQuestion, options: optionsVal }),
+    });
+    if (result) {
+      setEditingQuestionId(null);
+      setEditQuestion({});
+      loadData();
+    }
+    setSaving(false);
+  }
+
   async function handleDelete(itemType: string, itemId: string, itemTitle: string) {
     if (!confirm(`Move "${itemTitle}" to the recycle bin? You can restore it later.`)) return;
     const result = await safeFetch('/api/admin/learn/recycle-bin', {
@@ -395,9 +466,18 @@ export default function ManageContentPage() {
           {loading ? 'Loading...' : tab === 'assignments' ? `${filteredAssignments.length} assignments` : tab === 'activity' ? `${filteredActivities.length} activities` : `${tab === 'modules' ? modules.length : tab === 'lessons' ? lessons.length : tab === 'articles' ? articles.length : tab === 'questions' ? questions.length : tab === 'xp_config' ? xpLearningModules.length + xpFsModules.length : flashcards.length} items`}
         </span>
         {tab === 'questions' ? (
-          <Link href="/admin/learn/manage/question-builder" className="admin-btn admin-btn--primary admin-btn--sm">
-            Open Question Builder
-          </Link>
+          <div style={{ display: 'flex', gap: '.5rem' }}>
+            <Link href="/admin/learn/manage/question-builder" className="admin-btn admin-btn--primary admin-btn--sm">
+              Question Builder
+            </Link>
+            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setShowForm(!showForm); setFormData({}); }}>
+              {showForm ? '\u2715 Cancel' : '+ Quick Add'}
+            </button>
+          </div>
+        ) : tab === 'flashcards' ? (
+          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(!showForm); setFormData({}); }}>
+            {showForm ? '\u2715 Cancel' : '+ New Flashcard'}
+          </button>
         ) : tab === 'assignments' ? (
           <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(!showForm); setAssignForm({}); }}>
             {showForm ? '\u2715 Cancel' : '+ New Assignment'}
@@ -638,6 +718,25 @@ export default function ManageContentPage() {
         </div>
       )}
 
+      {/* Flashcard Create Form */}
+      {showForm && tab === 'flashcards' && (
+        <div className="manage__form">
+          <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.95rem', fontWeight: 600, color: '#0F1419', margin: '0 0 0.75rem' }}>Create Builtin Flashcard</h4>
+          <input className="manage__form-input" placeholder="Term *" value={formData.term || ''} onChange={e => setFormData(p => ({ ...p, term: e.target.value }))} />
+          <textarea className="manage__form-textarea" placeholder="Definition *" rows={3} value={formData.definition || ''} onChange={e => setFormData(p => ({ ...p, definition: e.target.value }))} />
+          <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+            <input className="manage__form-input" style={{ flex: 1 }} placeholder="Hint 1 (optional)" value={formData.hint_1 || ''} onChange={e => setFormData(p => ({ ...p, hint_1: e.target.value }))} />
+            <input className="manage__form-input" style={{ flex: 1 }} placeholder="Hint 2 (optional)" value={formData.hint_2 || ''} onChange={e => setFormData(p => ({ ...p, hint_2: e.target.value }))} />
+            <input className="manage__form-input" style={{ flex: 1 }} placeholder="Hint 3 (optional)" value={formData.hint_3 || ''} onChange={e => setFormData(p => ({ ...p, hint_3: e.target.value }))} />
+          </div>
+          <select className="manage__form-input" value={formData.module_id || ''} onChange={e => setFormData(p => ({ ...p, module_id: e.target.value }))}>
+            <option value="">Link to module (optional)</option>
+            {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
+          </select>
+          <button className="admin-btn admin-btn--primary" onClick={handleCreateFlashcard} disabled={saving}>{saving ? 'Creating...' : 'Create Flashcard'}</button>
+        </div>
+      )}
+
       {/* Content Lists */}
       {!loading && tab !== 'assignments' && tab !== 'activity' && (
         <div className="manage__list">
@@ -740,36 +839,124 @@ export default function ManageContentPage() {
             <div className="admin-empty" style={{ padding: '2rem' }}>
               <div className="admin-empty__icon">&#x2753;</div>
               <div className="admin-empty__title">No questions loaded</div>
-              <div className="admin-empty__desc">Use the Create form above to add questions to the question bank, or add them via SQL.</div>
+              <div className="admin-empty__desc">Use the Question Builder or Quick Add to add questions to the bank.</div>
             </div>
           )}
           {tab === 'questions' && questions.map(q => (
-            <div key={q.id} className="manage__item">
-              <div className="manage__item-info">
-                <div className="manage__item-title" style={{ fontSize: '.85rem' }}>{q.question_text.substring(0, 120)}{q.question_text.length > 120 ? '...' : ''}</div>
-                <div className="manage__item-meta">
-                  {q.question_type} &middot; {q.difficulty}
-                  {q.exam_category && ` \u00B7 ${q.exam_category}`}
-                </div>
-              </div>
-              <div className="manage__item-actions">
-                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>
-              </div>
+            <div key={q.id} className="manage__item" style={editingQuestionId === q.id ? { flexDirection: 'column', alignItems: 'stretch' } : undefined}>
+              {editingQuestionId === q.id ? (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem 0' }}>
+                    <textarea className="manage__form-textarea" rows={3} value={editQuestion.question_text ?? q.question_text} onChange={e => setEditQuestion(p => ({ ...p, question_text: e.target.value }))} placeholder="Question text" />
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <select className="manage__form-input" style={{ flex: 1 }} value={editQuestion.question_type ?? q.question_type} onChange={e => setEditQuestion(p => ({ ...p, question_type: e.target.value }))}>
+                        <option value="multiple_choice">Multiple Choice</option>
+                        <option value="true_false">True/False</option>
+                        <option value="short_answer">Short Answer</option>
+                        <option value="fill_blank">Fill in the Blank</option>
+                        <option value="multi_select">Multi-Select</option>
+                        <option value="numeric_input">Numeric Input</option>
+                      </select>
+                      <select className="manage__form-input" style={{ flex: 1 }} value={editQuestion.difficulty ?? q.difficulty} onChange={e => setEditQuestion(p => ({ ...p, difficulty: e.target.value }))}>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                      <select className="manage__form-input" style={{ flex: 1 }} value={editQuestion.exam_category ?? q.exam_category ?? ''} onChange={e => setEditQuestion(p => ({ ...p, exam_category: e.target.value || null }))}>
+                        <option value="">No exam category</option>
+                        <option value="SIT">SIT</option>
+                        <option value="RPLS">RPLS</option>
+                      </select>
+                    </div>
+                    <input className="manage__form-input" placeholder="Options (pipe-separated: A|B|C|D)" value={editQuestion.options !== undefined ? (typeof editQuestion.options === 'string' ? editQuestion.options : (Array.isArray(editQuestion.options) ? editQuestion.options.join(' | ') : '')) : (Array.isArray(q.options) ? q.options.join(' | ') : '')} onChange={e => setEditQuestion(p => ({ ...p, options: e.target.value }))} />
+                    <input className="manage__form-input" placeholder="Correct answer *" value={editQuestion.correct_answer ?? q.correct_answer} onChange={e => setEditQuestion(p => ({ ...p, correct_answer: e.target.value }))} />
+                    <textarea className="manage__form-textarea" rows={2} placeholder="Explanation" value={editQuestion.explanation ?? q.explanation ?? ''} onChange={e => setEditQuestion(p => ({ ...p, explanation: e.target.value }))} />
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <select className="manage__form-input" style={{ flex: 1 }} value={editQuestion.module_id ?? q.module_id ?? ''} onChange={e => setEditQuestion(p => ({ ...p, module_id: e.target.value || null }))}>
+                        <option value="">No linked module</option>
+                        {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem', flexWrap: 'wrap' }}>
+                    <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveQuestion} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingQuestionId(null); setEditQuestion({}); }}>Cancel</button>
+                    <Link href={`/admin/learn/manage/question-builder`} className="manage__item-btn" style={{ marginLeft: 'auto' }}>Open in Builder</Link>
+                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="manage__item-info">
+                    <div className="manage__item-title" style={{ fontSize: '.85rem' }}>{q.question_text.substring(0, 120)}{q.question_text.length > 120 ? '...' : ''}</div>
+                    <div className="manage__item-meta">
+                      <span className="manage__qtype-badge">{q.question_type.replace('_', ' ')}</span>
+                      {' '}<span className={`manage__diff-badge manage__diff-badge--${q.difficulty}`}>{q.difficulty}</span>
+                      {q.exam_category && <span> &middot; {q.exam_category}</span>}
+                      {q.module_id && (
+                        <span> &middot; <Link href={`/admin/learn/modules/${q.module_id}`} style={{ color: '#1D3095', textDecoration: 'underline', fontSize: '.78rem' }} onClick={e => e.stopPropagation()}>
+                          {modules.find(m => m.id === q.module_id)?.title || 'Module'}
+                        </Link></span>
+                      )}
+                      {q.lesson_id && (
+                        <span> &middot; <Link href={`/admin/learn/manage/lesson-builder/${q.lesson_id}`} style={{ color: '#059669', textDecoration: 'underline', fontSize: '.78rem' }} onClick={e => e.stopPropagation()}>
+                          Lesson
+                        </Link></span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="manage__item-actions">
+                    <button className="manage__item-btn manage__item-btn--primary" onClick={() => { setEditingQuestionId(q.id); setEditQuestion({}); }}>Edit</button>
+                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
 
           {tab === 'flashcards' && flashcards.map(f => (
-            <div key={f.id} className="manage__item">
-              <div className="manage__item-info">
-                <div className="manage__item-title">{f.term}</div>
-                <div className="manage__item-meta">
-                  {f.definition.substring(0, 80)}{f.definition.length > 80 ? '...' : ''}
-                  {f.hint_1 && ' \u00B7 Has hints'}
-                </div>
-              </div>
-              <div className="manage__item-actions">
-                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>
-              </div>
+            <div key={f.id} className="manage__item" style={editingFlashcardId === f.id ? { flexDirection: 'column', alignItems: 'stretch' } : undefined}>
+              {editingFlashcardId === f.id ? (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem 0' }}>
+                    <input className="manage__form-input" value={editFlashcard.term ?? f.term} onChange={e => setEditFlashcard(p => ({ ...p, term: e.target.value }))} placeholder="Term" />
+                    <textarea className="manage__form-textarea" rows={3} value={editFlashcard.definition ?? f.definition} onChange={e => setEditFlashcard(p => ({ ...p, definition: e.target.value }))} placeholder="Definition" />
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <input className="manage__form-input" style={{ flex: 1 }} value={editFlashcard.hint_1 ?? f.hint_1 ?? ''} onChange={e => setEditFlashcard(p => ({ ...p, hint_1: e.target.value || null }))} placeholder="Hint 1" />
+                      <input className="manage__form-input" style={{ flex: 1 }} value={editFlashcard.hint_2 ?? f.hint_2 ?? ''} onChange={e => setEditFlashcard(p => ({ ...p, hint_2: e.target.value || null }))} placeholder="Hint 2" />
+                      <input className="manage__form-input" style={{ flex: 1 }} value={editFlashcard.hint_3 ?? f.hint_3 ?? ''} onChange={e => setEditFlashcard(p => ({ ...p, hint_3: e.target.value || null }))} placeholder="Hint 3" />
+                    </div>
+                    <select className="manage__form-input" value={editFlashcard.module_id ?? f.module_id ?? ''} onChange={e => setEditFlashcard(p => ({ ...p, module_id: e.target.value || null }))}>
+                      <option value="">No linked module</option>
+                      {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem' }}>
+                    <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveFlashcard} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingFlashcardId(null); setEditFlashcard({}); }}>Cancel</button>
+                    <button className="manage__item-btn manage__item-btn--danger" style={{ marginLeft: 'auto' }} onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="manage__item-info">
+                    <div className="manage__item-title">{f.term}</div>
+                    <div className="manage__item-meta">
+                      {f.definition.substring(0, 100)}{f.definition.length > 100 ? '...' : ''}
+                      {f.hint_1 && <span> &middot; <span style={{ color: '#7C3AED' }}>3 hints</span></span>}
+                      {f.module_id && (
+                        <span> &middot; <Link href={`/admin/learn/modules/${f.module_id}`} style={{ color: '#1D3095', textDecoration: 'underline', fontSize: '.78rem' }} onClick={e => e.stopPropagation()}>
+                          {modules.find(m => m.id === f.module_id)?.title || 'Module'}
+                        </Link></span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="manage__item-actions">
+                    <button className="manage__item-btn manage__item-btn--primary" onClick={() => { setEditingFlashcardId(f.id); setEditFlashcard({}); }}>Edit</button>
+                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
 

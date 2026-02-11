@@ -523,13 +523,19 @@ export default function LessonBuilderPage() {
     if (linkedLoaded) return;
     setLinkedLoaded(true);
     try {
-      const [qRes, fcRes] = await Promise.all([
+      const [qRes, fcRes, artRes] = await Promise.all([
         fetch(`/api/admin/learn/questions?lesson_id=${lessonId}&limit=20`),
         fetch(`/api/admin/learn/flashcards?lesson_id=${lessonId}&limit=20`),
+        fetch(`/api/admin/learn/articles?lesson_id=${lessonId}`),
       ]);
       const qData = qRes.ok ? await qRes.json() : { questions: [] };
       const fcData = fcRes.ok ? await fcRes.json() : { flashcards: [] };
-      setLinkedContent(prev => ({ ...prev, questions: qData.questions || [], flashcards: fcData.flashcards || fcData.cards || [] }));
+      const artData = artRes.ok ? await artRes.json() : { articles: [] };
+      setLinkedContent({
+        questions: qData.questions || [],
+        flashcards: fcData.flashcards || fcData.cards || [],
+        articles: artData.articles || [],
+      });
     } catch (err) { console.error('Failed to load linked content', err); }
   }
 
@@ -2082,26 +2088,44 @@ export default function LessonBuilderPage() {
         <div className="lesson-builder__linked-panel">
           <div className="lesson-builder__linked-header">
             <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.92rem', fontWeight: 700, color: '#1D3095', margin: 0 }}>Linked Content</h3>
-            <button className="lesson-builder__block-btn" onClick={() => setShowLinkedPanel(false)}>✕</button>
+            <button className="lesson-builder__block-btn" onClick={() => setShowLinkedPanel(false)}>{'\u2715'}</button>
           </div>
           <div className="lesson-builder__linked-body">
+            {/* Module reference */}
+            {lesson?.module_id && (
+              <div className="lesson-builder__linked-section">
+                <h4 className="lesson-builder__linked-section-title">Parent Module</h4>
+                <Link href={`/admin/learn/modules/${lesson.module_id}`} className="lesson-builder__linked-item" style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#1D3095' }}>{'\u{1F4DA}'} View Module</span>
+                  <span style={{ fontSize: '.72rem', color: '#6B7280' }}>{'\u2192'}</span>
+                </Link>
+              </div>
+            )}
+
             {/* Questions */}
             <div className="lesson-builder__linked-section">
-              <h4 className="lesson-builder__linked-section-title">Questions ({linkedContent.questions.length})</h4>
+              <h4 className="lesson-builder__linked-section-title">{'\u2753'} Questions ({linkedContent.questions.length})</h4>
               {linkedContent.questions.length === 0 && <p className="lesson-builder__linked-empty">No questions linked to this lesson.</p>}
               {linkedContent.questions.map((q: any) => (
                 <div key={q.id} className="lesson-builder__linked-item">
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '.82rem', fontWeight: 600, color: '#0F1419' }}>{(q.question_text || '').slice(0, 80)}{(q.question_text || '').length > 80 ? '...' : ''}</div>
-                    <div style={{ fontSize: '.68rem', color: '#6B7280' }}>{q.question_type} &middot; {q.difficulty}</div>
+                    <div style={{ fontSize: '.68rem', color: '#6B7280' }}>
+                      <span className="manage__qtype-badge">{(q.question_type || '').replace('_', ' ')}</span>
+                      <span className={`manage__diff-badge manage__diff-badge--${q.difficulty}`}>{q.difficulty}</span>
+                    </div>
                   </div>
-                  <Link href="/admin/learn/manage" style={{ fontSize: '.72rem', color: '#1D3095', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>View</Link>
+                  <Link href="/admin/learn/manage/question-builder" style={{ fontSize: '.72rem', color: '#0891B2', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>Edit</Link>
                 </div>
               ))}
+              <Link href="/admin/learn/manage/question-builder" style={{ display: 'block', fontSize: '.72rem', color: '#1D3095', textDecoration: 'none', textAlign: 'center', padding: '.35rem', marginTop: '.25rem' }}>
+                + Add Question
+              </Link>
             </div>
+
             {/* Flashcards */}
             <div className="lesson-builder__linked-section">
-              <h4 className="lesson-builder__linked-section-title">Flashcards ({linkedContent.flashcards.length})</h4>
+              <h4 className="lesson-builder__linked-section-title">{'\u{1F0CF}'} Flashcards ({linkedContent.flashcards.length})</h4>
               {linkedContent.flashcards.length === 0 && <p className="lesson-builder__linked-empty">No flashcards linked to this lesson.</p>}
               {linkedContent.flashcards.map((fc: any) => (
                 <div key={fc.id} className="lesson-builder__linked-item">
@@ -2109,11 +2133,33 @@ export default function LessonBuilderPage() {
                     <div style={{ fontSize: '.82rem', fontWeight: 600, color: '#0F1419' }}>{fc.term}</div>
                     <div style={{ fontSize: '.68rem', color: '#6B7280' }}>{(fc.definition || '').slice(0, 60)}</div>
                   </div>
-                  <Link href="/admin/learn/flashcards" style={{ fontSize: '.72rem', color: '#1D3095', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>View</Link>
+                  <Link href="/admin/learn/flashcard-bank" style={{ fontSize: '.72rem', color: '#D97706', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>Edit</Link>
+                </div>
+              ))}
+              <Link href="/admin/learn/flashcard-bank" style={{ display: 'block', fontSize: '.72rem', color: '#1D3095', textDecoration: 'none', textAlign: 'center', padding: '.35rem', marginTop: '.25rem' }}>
+                + Add Flashcard
+              </Link>
+            </div>
+
+            {/* Articles */}
+            <div className="lesson-builder__linked-section">
+              <h4 className="lesson-builder__linked-section-title">{'\u{1F4F0}'} Articles ({linkedContent.articles.length})</h4>
+              {linkedContent.articles.length === 0 && <p className="lesson-builder__linked-empty">No articles linked to this lesson.</p>}
+              {linkedContent.articles.map((art: any) => (
+                <div key={art.id} className="lesson-builder__linked-item">
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '.82rem', fontWeight: 600, color: '#0F1419' }}>{art.title}</div>
+                    <div style={{ fontSize: '.68rem', color: '#6B7280' }}>{art.category || 'General'}{art.estimated_minutes ? ` \u00B7 ${art.estimated_minutes} min` : ''}</div>
+                  </div>
+                  <Link href={`/admin/learn/manage/article-editor/${art.id}`} style={{ fontSize: '.72rem', color: '#DC2626', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>Edit</Link>
                 </div>
               ))}
             </div>
-            <p style={{ fontSize: '.72rem', color: '#9CA3AF', textAlign: 'center', marginTop: '.75rem' }}>Lesson ID: {lessonId}</p>
+
+            <p style={{ fontSize: '.72rem', color: '#9CA3AF', textAlign: 'center', marginTop: '.75rem' }}>
+              Lesson: {lessonId?.slice(0, 8)}
+              {lesson?.module_id && <> &middot; Module: {lesson.module_id.slice(0, 8)}</>}
+            </p>
           </div>
         </div>
       )}
