@@ -77,6 +77,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
       block_type: b.block_type,
       content: b.content || {},
       order_index: b.order_index ?? i,
+      ...(b.style ? { style: b.style } : {}),
     }));
 
     const { error } = await supabaseAdmin.from('lesson_blocks')

@@ -5,6 +5,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { PROBLEM_TYPES, generateProblems, type GeneratedProblem } from '@/lib/problemGenerators';
 import { checkNumericAnswer, checkTextAnswer, checkMultipleChoice } from '@/lib/solutionChecker';
+import {
+  generateFromTemplate,
+  generateBatchFromTemplate,
+  dbRowToTemplate,
+  type ProblemTemplate,
+} from '@/lib/problemEngine';
 
 /* GET — Get problem types or generate a practice set */
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -16,7 +22,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   // Return all available problem types grouped by category
   if (action === 'types') {
-    const grouped: Record<string, { id: string; name: string; description: string; category: string; module: number; difficulties: string[] }[]> = {};
+    const grouped: Record<string, { id: string; name: string; description: string; category: string; module: number; difficulties: string[]; source?: string }[]> = {};
     for (const pt of PROBLEM_TYPES) {
       if (!grouped[pt.category]) grouped[pt.category] = [];
       grouped[pt.category].push({
@@ -26,9 +32,31 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         category: pt.category,
         module: pt.module,
         difficulties: pt.difficulties,
+        source: 'hardcoded',
       });
     }
-    return NextResponse.json({ categories: grouped, total_types: PROBLEM_TYPES.length });
+
+    // Also include active DB templates (non-generator-linked)
+    const { data: templates } = await supabaseAdmin.from('problem_templates')
+      .select('*').eq('is_active', true);
+    const customTemplates = (templates || [])
+      .filter((t: any) => !t.generator_id)
+      .map((t: any) => dbRowToTemplate(t));
+    for (const t of customTemplates) {
+      if (!grouped[t.category]) grouped[t.category] = [];
+      grouped[t.category].push({
+        id: `tmpl:${t.id}`,
+        name: t.name,
+        description: t.description || '',
+        category: t.category,
+        module: 0,
+        difficulties: [t.difficulty],
+        source: 'template',
+      });
+    }
+
+    const totalTypes = PROBLEM_TYPES.length + customTemplates.length;
+    return NextResponse.json({ categories: grouped, total_types: totalTypes });
   }
 
   // Generate problems from config (passed as JSON in query param)
@@ -40,9 +68,33 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     try { config = JSON.parse(configStr); } catch { return NextResponse.json({ error: 'Invalid config JSON' }, { status: 400 }); }
 
     const problems: GeneratedProblem[] = [];
+
+    // Gather any template IDs we need to fetch
+    const templateIds = config
+      .filter(c => c.typeId.startsWith('tmpl:'))
+      .map(c => c.typeId.slice(5));
+    const templateMap = new Map<string, ProblemTemplate>();
+    if (templateIds.length > 0) {
+      const { data: tmplRows } = await supabaseAdmin.from('problem_templates')
+        .select('*').in('id', templateIds);
+      for (const row of (tmplRows || [])) {
+        templateMap.set(row.id, dbRowToTemplate(row));
+      }
+    }
+
     for (const c of config) {
-      const generated = generateProblems(c.typeId, c.count);
-      problems.push(...generated);
+      if (c.typeId.startsWith('tmpl:')) {
+        // Generate from DB template
+        const tmplId = c.typeId.slice(5);
+        const template = templateMap.get(tmplId);
+        if (template) {
+          problems.push(...generateBatchFromTemplate(template, c.count));
+        }
+      } else {
+        // Generate from hardcoded generator
+        const generated = generateProblems(c.typeId, c.count);
+        problems.push(...generated);
+      }
     }
 
     const randomize = searchParams.get('randomize') === 'true';

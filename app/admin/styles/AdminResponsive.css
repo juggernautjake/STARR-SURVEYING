@@ -183,6 +183,14 @@
   .qb__study-refs-add { flex-direction: column; align-items: stretch; }
   .qb__select--sm { max-width: 100%; }
   .qb__tag-add { flex-wrap: wrap; }
+  .qb__tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .qb__tab { padding: 0.6rem 1rem; font-size: 0.82rem; white-space: nowrap; }
+  .qb__filters { flex-direction: column; }
+  .qb__search-input { min-width: 0; width: 100%; }
+  .qb__param-row { flex-direction: column; align-items: stretch; }
+  .qb__param-row .qb__select { flex: 1; }
+  .qb__gen-btns { gap: 0.25rem; }
+  .qb__gen-btn { font-size: 0.72rem; padding: 0.35rem 0.65rem; }
 
   /* ── Quiz results study references ── */
   .quiz-results__review-summary { padding: 0.85rem 1rem; }
@@ -405,6 +413,11 @@
   .qb__study-refs-add { flex-direction: column; align-items: stretch; gap: 0.35rem; }
   .qb__tag-item { font-size: 0.72rem; }
   .qb__input--sm { max-width: 100%; }
+  .qb__tab { padding: 0.5rem 0.75rem; font-size: 0.78rem; }
+  .qb__gen-category h4 { font-size: 0.82rem; padding: 0.5rem 0.75rem; }
+  .qb__gen-problem { padding: 0.75rem; }
+  .qb__template-actions { gap: 0.25rem; }
+  .qb__btn-xs { font-size: 0.68rem; padding: 0.25rem 0.5rem; }
   .qb__types { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
   .qb__type-desc { display: none; }
   .qb__editor { padding: 0.85rem; }

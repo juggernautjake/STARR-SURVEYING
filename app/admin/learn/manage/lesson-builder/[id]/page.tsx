@@ -8,13 +8,27 @@ import { usePageError } from '../../../../hooks/usePageError';
 
 const TipTapEditor = dynamic(() => import('@/app/admin/components/TipTapEditor'), { ssr: false });
 
-type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow';
+type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow' | 'html' | 'audio' | 'link_reference';
+
+interface BlockStyle {
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  boxShadow?: string;
+  width?: 'full' | 'wide' | 'half' | 'third';
+  collapsible?: boolean;
+  collapsedLabel?: string;
+  hidden?: boolean;
+  hiddenLabel?: string;
+}
 
 interface LessonBlock {
   id: string;
   block_type: BlockType;
   content: Record<string, any>;
   order_index: number;
+  style?: BlockStyle;
 }
 
 interface LessonMeta {
@@ -23,19 +37,23 @@ interface LessonMeta {
   status: string;
   module_id: string;
   estimated_minutes: number;
+  content?: string; // Legacy HTML content for seeded lessons
 }
 
-const BLOCK_TYPES: { type: BlockType; label: string; icon: string; description: string }[] = [
-  { type: 'text', label: 'Text', icon: 'T', description: 'Rich text with formatting' },
-  { type: 'image', label: 'Image', icon: '🖼', description: 'Upload or link an image' },
-  { type: 'video', label: 'Video', icon: '▶', description: 'YouTube/Vimeo embed or upload' },
-  { type: 'callout', label: 'Callout', icon: '💡', description: 'Info, warning, or tip box' },
-  { type: 'divider', label: 'Divider', icon: '—', description: 'Visual separator' },
-  { type: 'quiz', label: 'Quiz', icon: '?', description: 'Inline quiz question' },
-  { type: 'embed', label: 'Embed', icon: '⧉', description: 'External content via URL' },
-  { type: 'table', label: 'Table', icon: '▦', description: 'Data table' },
-  { type: 'file', label: 'File', icon: '📎', description: 'Downloadable attachment' },
-  { type: 'slideshow', label: 'Slideshow', icon: '🎞', description: 'Image slideshow/carousel' },
+const BLOCK_TYPES: { type: BlockType; label: string; icon: string; description: string; group?: string }[] = [
+  { type: 'text', label: 'Text', icon: 'T', description: 'Rich text with formatting', group: 'Content' },
+  { type: 'html', label: 'HTML', icon: '</>', description: 'Raw HTML code block', group: 'Content' },
+  { type: 'image', label: 'Image', icon: '🖼', description: 'Upload or link an image', group: 'Media' },
+  { type: 'video', label: 'Video', icon: '▶', description: 'YouTube/Vimeo embed', group: 'Media' },
+  { type: 'audio', label: 'Audio', icon: '🔊', description: 'Audio player / podcast', group: 'Media' },
+  { type: 'callout', label: 'Callout', icon: '💡', description: 'Info, warning, or tip box', group: 'Content' },
+  { type: 'divider', label: 'Divider', icon: '—', description: 'Visual separator', group: 'Layout' },
+  { type: 'quiz', label: 'Quiz', icon: '?', description: 'Inline quiz question', group: 'Interactive' },
+  { type: 'embed', label: 'Embed', icon: '⧉', description: 'External content via URL', group: 'Media' },
+  { type: 'table', label: 'Table', icon: '▦', description: 'Data table', group: 'Content' },
+  { type: 'file', label: 'File', icon: '📎', description: 'Downloadable attachment', group: 'Media' },
+  { type: 'slideshow', label: 'Slideshow', icon: '🎞', description: 'Image slideshow/carousel', group: 'Media' },
+  { type: 'link_reference', label: 'Links / Refs', icon: '🔗', description: 'Curated links & references', group: 'Interactive' },
 ];
 
 function convertToEmbedUrl(url: string): string {
@@ -71,6 +89,9 @@ export default function LessonBuilderPage() {
   const [isDraft, setIsDraft] = useState(true);
   const [dragOverBlockId, setDragOverBlockId] = useState<string | null>(null);
   const [slideshowIndexes, setSlideshowIndexes] = useState<Record<string, number>>({});
+  const [convertedFromHtml, setConvertedFromHtml] = useState(false);
+  const [collapsedBlocks, setCollapsedBlocks] = useState<Record<string, boolean>>({});
+  const [showStylePanel, setShowStylePanel] = useState<string | null>(null);
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileUploadTarget, setFileUploadTarget] = useState<{ blockId: string; field: string } | null>(null);
@@ -98,14 +119,30 @@ export default function LessonBuilderPage() {
         fetch(`/api/admin/learn/lessons?id=${lessonId}`),
         fetch(`/api/admin/learn/lesson-blocks?lesson_id=${lessonId}`),
       ]);
+      let lessonData: any = null;
       if (lessonRes.ok) {
         const data = await lessonRes.json();
+        lessonData = data.lesson || null;
         setLesson(data.lesson || null);
         setIsDraft(data.lesson?.status === 'draft');
       }
       if (blocksRes.ok) {
         const data = await blocksRes.json();
-        setBlocks((data.blocks || []).sort((a: LessonBlock, b: LessonBlock) => a.order_index - b.order_index));
+        const loadedBlocks = (data.blocks || []).sort((a: LessonBlock, b: LessonBlock) => a.order_index - b.order_index);
+
+        // Auto-convert: If lesson has HTML content but no blocks, create a text block from it
+        if (loadedBlocks.length === 0 && lessonData?.content && lessonData.content.trim().length > 0) {
+          const convertedBlock: LessonBlock = {
+            id: `temp-converted-${Date.now()}`,
+            block_type: 'text',
+            content: { html: lessonData.content },
+            order_index: 0,
+          };
+          setBlocks([convertedBlock]);
+          setConvertedFromHtml(true);
+        } else {
+          setBlocks(loadedBlocks);
+        }
       }
     } catch (err) { console.error('LessonBuilderPage: failed to load lesson', err); }
     setLoading(false);
@@ -119,7 +156,7 @@ export default function LessonBuilderPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           lesson_id: lessonId,
-          blocks: blocks.map((b, i) => ({ ...b, order_index: i })),
+          blocks: blocks.map((b, i) => ({ block_type: b.block_type, content: b.content, order_index: i, style: b.style || undefined })),
         }),
       });
       if (res.ok) {
@@ -161,8 +198,10 @@ export default function LessonBuilderPage() {
   function getDefaultContent(type: BlockType): Record<string, any> {
     switch (type) {
       case 'text': return { html: '<p>Enter text here...</p>' };
+      case 'html': return { code: '<div>\n  <p>Your HTML here</p>\n</div>' };
       case 'image': return { url: '', alt: '', caption: '', alignment: 'center' };
       case 'video': return { url: '', type: 'youtube', caption: '' };
+      case 'audio': return { url: '', title: '', autoplay: false };
       case 'callout': return { type: 'info', text: 'Important information here.' };
       case 'divider': return {};
       case 'quiz': return { question: '', options: ['', ''], correct: 0, explanation: '' };
@@ -170,6 +209,7 @@ export default function LessonBuilderPage() {
       case 'table': return { headers: ['Column 1', 'Column 2'], rows: [['', '']] };
       case 'file': return { url: '', name: '', size: 0, type: '' };
       case 'slideshow': return { images: [{ url: '', alt: '', caption: '' }] };
+      case 'link_reference': return { links: [{ title: '', url: '', type: 'reference', description: '' }] };
       default: return {};
     }
   }
@@ -208,6 +248,10 @@ export default function LessonBuilderPage() {
 
   function updateBlockContent(id: string, content: Record<string, any>) {
     setBlocks(prev => prev.map(b => b.id === id ? { ...b, content } : b));
+  }
+
+  function updateBlockStyle(id: string, styleUpdate: Partial<BlockStyle>) {
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, style: { ...(b.style || {}), ...styleUpdate } } : b));
   }
 
   // File handling via browser FileReader (converts to base64 data URL)
@@ -333,11 +377,52 @@ export default function LessonBuilderPage() {
         </div>
       </div>
 
+      {/* Conversion Banner */}
+      {convertedFromHtml && (
+        <div className="lesson-builder__convert-banner">
+          <span>This lesson was created with SQL and has been auto-converted to editable blocks. Click <strong>Save</strong> to persist the conversion.</span>
+          <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setConvertedFromHtml(false)}>Dismiss</button>
+        </div>
+      )}
+
       {/* Preview Mode */}
       {previewMode ? (
         <div className="lesson__body">
-          {blocks.map((block) => (
-            <div key={block.id}>
+          {blocks.map((block) => {
+            const blockWrapStyle: React.CSSProperties = {};
+            if (block.style?.backgroundColor && block.style.backgroundColor !== '#ffffff') blockWrapStyle.backgroundColor = block.style.backgroundColor;
+            if (block.style?.borderColor && block.style?.borderWidth) { blockWrapStyle.border = `${block.style.borderWidth}px solid ${block.style.borderColor}`; }
+            if (block.style?.borderRadius !== undefined) blockWrapStyle.borderRadius = `${block.style.borderRadius}px`;
+            if (block.style?.boxShadow && block.style.boxShadow !== 'none') {
+              const shadows: Record<string, string> = { sm: '0 1px 3px rgba(0,0,0,.1)', md: '0 4px 12px rgba(0,0,0,.1)', lg: '0 8px 24px rgba(0,0,0,.12)', xl: '0 16px 40px rgba(0,0,0,.15)' };
+              blockWrapStyle.boxShadow = shadows[block.style.boxShadow] || 'none';
+            }
+            if (block.style?.width && block.style.width !== 'full') {
+              const widths: Record<string, string> = { wide: '80%', half: '50%', third: '33%' };
+              blockWrapStyle.maxWidth = widths[block.style.width]; blockWrapStyle.margin = '0 auto';
+            }
+            if (Object.keys(blockWrapStyle).length > 0) { blockWrapStyle.padding = blockWrapStyle.padding || '1rem'; blockWrapStyle.marginBottom = '1rem'; }
+            const isCollapsible = block.style?.collapsible;
+            const isHidden = block.style?.hidden;
+            const isCollapsed = collapsedBlocks[block.id] ?? true;
+            if (isHidden && isCollapsed) {
+              return (
+                <div key={block.id} style={{ textAlign: 'center', margin: '1rem 0' }}>
+                  <button className="admin-btn admin-btn--ghost" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: false }))} style={{ fontSize: '.85rem' }}>
+                    {block.style?.hiddenLabel || 'Click to reveal'}
+                  </button>
+                </div>
+              );
+            }
+            return (
+            <div key={block.id} style={blockWrapStyle}>
+              {isCollapsible && (
+                <button className="lesson-builder__collapse-toggle" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !isCollapsed }))}>
+                  <span style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform .2s' }}>&#x25BC;</span>
+                  {' '}{block.style?.collapsedLabel || block.block_type}
+                </button>
+              )}
+              {(!isCollapsible || !isCollapsed) && (<>
               {block.block_type === 'text' && (
                 <div dangerouslySetInnerHTML={{ __html: block.content.html || '' }} />
               )}
@@ -421,8 +506,35 @@ export default function LessonBuilderPage() {
                   })()}
                 </div>
               )}
+              {block.block_type === 'html' && (
+                <div dangerouslySetInnerHTML={{ __html: block.content.code || '' }} style={{ margin: '1.5rem 0' }} />
+              )}
+              {block.block_type === 'audio' && block.content.url && (
+                <div style={{ margin: '1.5rem 0' }}>
+                  {block.content.title && <p style={{ fontWeight: 600, marginBottom: '.5rem' }}>{block.content.title}</p>}
+                  <audio controls src={block.content.url} style={{ width: '100%' }}>Your browser does not support audio.</audio>
+                </div>
+              )}
+              {block.block_type === 'link_reference' && (block.content.links || []).length > 0 && (
+                <div className="lesson-resources" style={{ margin: '1.5rem 0' }}>
+                  <div className="lesson-resources__list">
+                    {(block.content.links || []).map((link: any, i: number) => (
+                      <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="lesson-resources__link">
+                        {link.type === 'pdf' ? '📄' : link.type === 'website' ? '🌐' : link.type === 'quiz' ? '❓' : link.type === 'practice' ? '🎯' : '📎'} {link.title || link.url}
+                        {link.description && <span style={{ fontSize: '.78rem', color: '#9CA3AF', marginLeft: '.5rem' }}>{link.description}</span>}
+                        <span className="lesson-resources__arrow">↗</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {isHidden && !isCollapsed && (
+                <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: true }))} style={{ marginTop: '.5rem', fontSize: '.78rem' }}>Hide</button>
+              )}
+              </>)}
             </div>
-          ))}
+            );
+          })}
           {blocks.length === 0 && (
             <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '3rem' }}>No content blocks yet. Switch to Edit mode to add blocks.</p>
           )}
@@ -443,8 +555,13 @@ export default function LessonBuilderPage() {
             <div key={block.id} className={`lesson-builder__block ${selectedBlockId === block.id ? 'lesson-builder__block--selected' : ''}`} onClick={() => setSelectedBlockId(block.id)}>
               {/* Block Toolbar */}
               <div className="lesson-builder__block-toolbar">
-                <span className="lesson-builder__block-type">{block.block_type}</span>
+                <span className="lesson-builder__block-type">
+                  {block.block_type}
+                  {block.style?.collapsible && <span style={{ marginLeft: '.35rem', fontSize: '.6rem', background: '#DBEAFE', color: '#1E40AF', padding: '.1rem .3rem', borderRadius: '3px' }}>COLLAPSIBLE</span>}
+                  {block.style?.hidden && <span style={{ marginLeft: '.35rem', fontSize: '.6rem', background: '#FEF3C7', color: '#92400E', padding: '.1rem .3rem', borderRadius: '3px' }}>HIDDEN</span>}
+                </span>
                 <div className="lesson-builder__block-actions">
+                  <button className="lesson-builder__block-btn" onClick={(e) => { e.stopPropagation(); setShowStylePanel(showStylePanel === block.id ? null : block.id); }} title="Style" style={showStylePanel === block.id ? { borderColor: '#1D3095', color: '#1D3095' } : undefined}>🎨</button>
                   <button className="lesson-builder__block-btn" onClick={() => moveBlock(block.id, 'up')} disabled={idx === 0} title="Move up">↑</button>
                   <button className="lesson-builder__block-btn" onClick={() => moveBlock(block.id, 'down')} disabled={idx === blocks.length - 1} title="Move down">↓</button>
                   <button className="lesson-builder__block-btn" onClick={() => duplicateBlock(block.id)} title="Duplicate">⧉</button>
@@ -738,7 +855,161 @@ export default function LessonBuilderPage() {
                     </div>
                   </div>
                 )}
+
+                {/* HTML Block */}
+                {block.block_type === 'html' && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.5rem' }}>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280' }}>Raw HTML</span>
+                      <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => updateBlockContent(block.id, { ...block.content, showPreview: !block.content.showPreview })}>
+                        {block.content.showPreview ? 'Edit' : 'Preview'}
+                      </button>
+                    </div>
+                    {block.content.showPreview ? (
+                      <div className="lesson-builder__html-preview" dangerouslySetInnerHTML={{ __html: block.content.code || '' }} />
+                    ) : (
+                      <textarea
+                        className="fc-form__textarea"
+                        value={block.content.code || ''}
+                        onChange={e => updateBlockContent(block.id, { ...block.content, code: e.target.value })}
+                        rows={12}
+                        style={{ fontFamily: 'monospace', fontSize: '.82rem', whiteSpace: 'pre', tabSize: 2 }}
+                        placeholder="<div>Your HTML code here...</div>"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Audio Block */}
+                {block.block_type === 'audio' && (
+                  <div>
+                    <input className="fc-form__input" placeholder="Audio URL (MP3, WAV, or external link)" value={block.content.url || ''} onChange={e => updateBlockContent(block.id, { ...block.content, url: e.target.value })} />
+                    <input className="fc-form__input" placeholder="Title (optional)" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} style={{ marginTop: '.5rem' }} />
+                    <div style={{ display: 'flex', gap: '.5rem', marginTop: '.5rem' }}>
+                      <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => triggerFileUpload(block.id, 'url', 'audio/*')}>Upload Audio File</button>
+                    </div>
+                    {block.content.url && (
+                      <div style={{ marginTop: '.75rem' }}>
+                        <audio controls src={block.content.url} style={{ width: '100%' }}>Your browser does not support audio.</audio>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Link / Reference Block */}
+                {block.block_type === 'link_reference' && (
+                  <div>
+                    {(block.content.links || []).map((link: any, li: number) => (
+                      <div key={li} style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '.5rem', padding: '.5rem', background: '#F9FAFB', borderRadius: '6px', border: '1px solid #E5E7EB' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
+                          <input className="fc-form__input" placeholder="Link title" value={link.title || ''} onChange={e => {
+                            const links = [...(block.content.links || [])];
+                            links[li] = { ...links[li], title: e.target.value };
+                            updateBlockContent(block.id, { ...block.content, links });
+                          }} />
+                          <input className="fc-form__input" placeholder="URL" value={link.url || ''} onChange={e => {
+                            const links = [...(block.content.links || [])];
+                            links[li] = { ...links[li], url: e.target.value };
+                            updateBlockContent(block.id, { ...block.content, links });
+                          }} />
+                          <div style={{ display: 'flex', gap: '.5rem' }}>
+                            <select className="fc-form__input" value={link.type || 'reference'} onChange={e => {
+                              const links = [...(block.content.links || [])];
+                              links[li] = { ...links[li], type: e.target.value };
+                              updateBlockContent(block.id, { ...block.content, links });
+                            }} style={{ flex: '0 0 140px' }}>
+                              <option value="reference">Reference</option>
+                              <option value="website">Website</option>
+                              <option value="pdf">PDF</option>
+                              <option value="article">Article</option>
+                              <option value="practice">Practice</option>
+                              <option value="quiz">Quiz</option>
+                              <option value="lesson">Lesson Link</option>
+                              <option value="module">Module Link</option>
+                            </select>
+                            <input className="fc-form__input" placeholder="Description (optional)" value={link.description || ''} onChange={e => {
+                              const links = [...(block.content.links || [])];
+                              links[li] = { ...links[li], description: e.target.value };
+                              updateBlockContent(block.id, { ...block.content, links });
+                            }} style={{ flex: 1 }} />
+                          </div>
+                        </div>
+                        <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
+                          const links = (block.content.links || []).filter((_: any, i: number) => i !== li);
+                          updateBlockContent(block.id, { ...block.content, links });
+                        }}>✕</button>
+                      </div>
+                    ))}
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
+                      const links = [...(block.content.links || []), { title: '', url: '', type: 'reference', description: '' }];
+                      updateBlockContent(block.id, { ...block.content, links });
+                    }}>+ Add Link</button>
+                  </div>
+                )}
               </div>
+
+              {/* Block Style Panel */}
+              {showStylePanel === block.id && (
+                <div className="lesson-builder__style-panel">
+                  <div className="lesson-builder__style-panel-header">
+                    <span style={{ fontWeight: 600, fontSize: '.82rem' }}>Block Styling</span>
+                    <button className="lesson-builder__block-btn" onClick={() => setShowStylePanel(null)}>✕</button>
+                  </div>
+                  <div className="lesson-builder__style-panel-body">
+                    <div className="lesson-builder__style-row">
+                      <label>Width</label>
+                      <select className="fc-form__input" value={block.style?.width || 'full'} onChange={e => updateBlockStyle(block.id, { width: e.target.value as BlockStyle['width'] })}>
+                        <option value="full">Full width</option>
+                        <option value="wide">Wide (80%)</option>
+                        <option value="half">Half (50%)</option>
+                        <option value="third">Third (33%)</option>
+                      </select>
+                    </div>
+                    <div className="lesson-builder__style-row">
+                      <label>Background</label>
+                      <input type="color" value={block.style?.backgroundColor || '#ffffff'} onChange={e => updateBlockStyle(block.id, { backgroundColor: e.target.value })} style={{ width: '40px', height: '30px', border: 'none', cursor: 'pointer' }} />
+                      <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => updateBlockStyle(block.id, { backgroundColor: undefined })} style={{ fontSize: '.68rem' }}>Clear</button>
+                    </div>
+                    <div className="lesson-builder__style-row">
+                      <label>Border</label>
+                      <input type="color" value={block.style?.borderColor || '#e5e7eb'} onChange={e => updateBlockStyle(block.id, { borderColor: e.target.value, borderWidth: block.style?.borderWidth || 1 })} style={{ width: '40px', height: '30px', border: 'none', cursor: 'pointer' }} />
+                      <input type="number" className="fc-form__input" value={block.style?.borderWidth || 0} onChange={e => updateBlockStyle(block.id, { borderWidth: parseInt(e.target.value) || 0 })} style={{ width: '60px' }} min={0} max={10} />
+                      <span style={{ fontSize: '.72rem', color: '#9CA3AF' }}>px</span>
+                    </div>
+                    <div className="lesson-builder__style-row">
+                      <label>Radius</label>
+                      <input type="number" className="fc-form__input" value={block.style?.borderRadius ?? 8} onChange={e => updateBlockStyle(block.id, { borderRadius: parseInt(e.target.value) || 0 })} style={{ width: '60px' }} min={0} max={50} />
+                      <span style={{ fontSize: '.72rem', color: '#9CA3AF' }}>px</span>
+                    </div>
+                    <div className="lesson-builder__style-row">
+                      <label>Shadow</label>
+                      <select className="fc-form__input" value={block.style?.boxShadow || 'none'} onChange={e => updateBlockStyle(block.id, { boxShadow: e.target.value })}>
+                        <option value="none">None</option>
+                        <option value="sm">Small</option>
+                        <option value="md">Medium</option>
+                        <option value="lg">Large</option>
+                        <option value="xl">Extra Large</option>
+                      </select>
+                    </div>
+                    <div className="lesson-builder__style-row">
+                      <label>
+                        <input type="checkbox" checked={block.style?.collapsible || false} onChange={e => updateBlockStyle(block.id, { collapsible: e.target.checked })} /> Collapsible
+                      </label>
+                      {block.style?.collapsible && (
+                        <input className="fc-form__input" placeholder="Collapsed label" value={block.style?.collapsedLabel || ''} onChange={e => updateBlockStyle(block.id, { collapsedLabel: e.target.value })} style={{ flex: 1 }} />
+                      )}
+                    </div>
+                    <div className="lesson-builder__style-row">
+                      <label>
+                        <input type="checkbox" checked={block.style?.hidden || false} onChange={e => updateBlockStyle(block.id, { hidden: e.target.checked })} /> Hidden until clicked
+                      </label>
+                      {block.style?.hidden && (
+                        <input className="fc-form__input" placeholder="Reveal button label" value={block.style?.hiddenLabel || ''} onChange={e => updateBlockStyle(block.id, { hiddenLabel: e.target.value })} style={{ flex: 1 }} />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Insert point between blocks */}
               <div className="lesson-builder__insert-point">
@@ -760,17 +1031,26 @@ export default function LessonBuilderPage() {
               <button className="admin-modal__close" onClick={() => setShowBlockPicker(false)}>✕</button>
             </div>
             <div className="admin-modal__body">
-              <div className="lesson-builder__block-picker">
-                {BLOCK_TYPES.map((bt) => (
-                  <button key={bt.type} className="lesson-builder__block-option" onClick={() => addBlock(bt.type)}>
-                    <span className="lesson-builder__block-option-icon">{bt.icon}</span>
-                    <div>
-                      <div className="lesson-builder__block-option-label">{bt.label}</div>
-                      <div className="lesson-builder__block-option-desc">{bt.description}</div>
+              {['Content', 'Media', 'Layout', 'Interactive'].map(group => {
+                const groupTypes = BLOCK_TYPES.filter(bt => bt.group === group);
+                if (groupTypes.length === 0) return null;
+                return (
+                  <div key={group} style={{ marginBottom: '1rem' }}>
+                    <h4 style={{ fontSize: '.78rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: '.5rem' }}>{group}</h4>
+                    <div className="lesson-builder__block-picker">
+                      {groupTypes.map((bt) => (
+                        <button key={bt.type} className="lesson-builder__block-option" onClick={() => addBlock(bt.type)}>
+                          <span className="lesson-builder__block-option-icon">{bt.icon}</span>
+                          <div>
+                            <div className="lesson-builder__block-option-label">{bt.label}</div>
+                            <div className="lesson-builder__block-option-desc">{bt.description}</div>
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  </button>
-                ))}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

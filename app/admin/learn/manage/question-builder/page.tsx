@@ -1,6 +1,6 @@
 // app/admin/learn/manage/question-builder/page.tsx
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import FillBlankQuestion from '@/app/admin/components/FillBlankQuestion';
@@ -9,6 +9,7 @@ import { usePageError } from '../../../hooks/usePageError';
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
 type QType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'numeric_input' | 'math_template' | 'essay';
+type Tab = 'questions' | 'templates' | 'generators';
 
 interface Module { id: string; title: string; }
 interface Lesson { id: string; title: string; module_id: string; }
@@ -28,6 +29,96 @@ interface Question {
   topic_id: string | null;
   study_references: StudyRef[];
   tags: string[];
+  template_id?: string | null;
+  is_dynamic?: boolean;
+  solution_steps?: SolutionStep[];
+  tolerance?: number;
+}
+
+interface SolutionStep {
+  step_number: number;
+  title: string;
+  description?: string;
+  formula?: string;
+  calculation?: string;
+  result?: string;
+}
+
+interface TemplateParam {
+  name: string;
+  label: string;
+  type: 'integer' | 'float' | 'angle_dms' | 'bearing' | 'choice' | 'computed';
+  min?: number;
+  max?: number;
+  decimals?: number;
+  step?: number;
+  unit?: string;
+  choices?: string[];
+  formula?: string;
+}
+
+interface ComputedVar {
+  name: string;
+  formula: string;
+}
+
+interface SolutionStepTemplate {
+  step_number: number;
+  title: string;
+  description_template?: string;
+  formula?: string;
+  calculation_template?: string;
+  result_template?: string;
+}
+
+interface ProblemTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  category: string;
+  subcategory?: string;
+  question_type: string;
+  difficulty: string;
+  question_template: string;
+  answer_formula: string;
+  answer_format: { decimals?: number; tolerance?: number; unit?: string };
+  parameters: TemplateParam[];
+  computed_vars: ComputedVar[];
+  solution_steps_template: SolutionStepTemplate[];
+  options_generator: { method: string; offsets?: { add?: number; multiply?: number }[]; wrong_formulas?: string[] };
+  explanation_template?: string;
+  module_id?: string;
+  lesson_id?: string;
+  topic_id?: string;
+  exam_category?: string;
+  tags: string[];
+  study_references?: StudyRef[];
+  generator_id?: string;
+  is_active: boolean;
+}
+
+interface GeneratorInfo {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  module: number;
+  difficulties: string[];
+}
+
+interface GeneratedProblem {
+  id: string;
+  question_text: string;
+  question_type: string;
+  options?: string[];
+  correct_answer: string;
+  tolerance: number;
+  solution_steps: SolutionStep[];
+  difficulty: string;
+  category: string;
+  subcategory: string;
+  tags: string[];
+  explanation: string;
 }
 
 const TYPE_INFO: Record<QType, { label: string; icon: string; desc: string }> = {
@@ -41,16 +132,29 @@ const TYPE_INFO: Record<QType, { label: string; icon: string; desc: string }> = 
   essay:            { label: 'Essay / Paragraph', icon: 'E', desc: 'AI-graded paragraph response' },
 };
 
+const EMPTY_PARAM: TemplateParam = { name: '', label: '', type: 'float', min: 0, max: 100, decimals: 2 };
+const EMPTY_COMPUTED: ComputedVar = { name: '', formula: '' };
+const EMPTY_STEP: SolutionStepTemplate = { step_number: 1, title: '', description_template: '', formula: '', calculation_template: '', result_template: '' };
+
 export default function QuestionBuilderPage() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
   const { safeFetch, safeAction } = usePageError('QuestionBuilderPage');
 
+  // ========= SHARED STATE =========
+  const [activeTab, setActiveTab] = useState<Tab>('questions');
+  const [modules, setModules] = useState<Module[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // ========= QUESTIONS TAB STATE =========
   const [qType, setQType] = useState<QType>('multiple_choice');
   const [questionText, setQuestionText] = useState('');
   const [options, setOptions] = useState<string[]>(['', '']);
   const [correctAnswer, setCorrectAnswer] = useState('');
-  const [correctAnswers, setCorrectAnswers] = useState<string[]>([]); // multi_select
+  const [correctAnswers, setCorrectAnswers] = useState<string[]>([]);
   const [explanation, setExplanation] = useState('');
   const [difficulty, setDifficulty] = useState('medium');
   const [moduleId, setModuleId] = useState('');
@@ -60,44 +164,80 @@ export default function QuestionBuilderPage() {
   const [studyRefs, setStudyRefs] = useState<StudyRef[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-
-  // Fill blank specifics
   const [fillSource, setFillSource] = useState('');
   const [distractors, setDistractors] = useState<string[]>([]);
   const [newDistractor, setNewDistractor] = useState('');
-
-  // Math template specifics
   const [formula, setFormula] = useState('');
   const [testResult, setTestResult] = useState<string | null>(null);
-
-  // Data
-  const [modules, setModules] = useState<Module[]>([]);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [topics, setTopics] = useState<Topic[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [previewBlanks, setPreviewBlanks] = useState<string[]>([]);
+  const [qFilter, setQFilter] = useState('');
+  const [qTypeFilter, setQTypeFilter] = useState<string>('all');
+  const [qDiffFilter, setQDiffFilter] = useState<string>('all');
+  // Solution steps for static questions
+  const [solutionSteps, setSolutionSteps] = useState<SolutionStep[]>([]);
+  const [tolerance, setTolerance] = useState('0.01');
+
+  // ========= TEMPLATES TAB STATE =========
+  const [templates, setTemplates] = useState<ProblemTemplate[]>([]);
+  const [tmplEditId, setTmplEditId] = useState<string | null>(null);
+  const [tmplName, setTmplName] = useState('');
+  const [tmplDescription, setTmplDescription] = useState('');
+  const [tmplCategory, setTmplCategory] = useState('');
+  const [tmplSubcategory, setTmplSubcategory] = useState('');
+  const [tmplQuestionType, setTmplQuestionType] = useState('numeric_input');
+  const [tmplDifficulty, setTmplDifficulty] = useState('medium');
+  const [tmplQuestionTemplate, setTmplQuestionTemplate] = useState('');
+  const [tmplAnswerFormula, setTmplAnswerFormula] = useState('');
+  const [tmplDecimals, setTmplDecimals] = useState(2);
+  const [tmplTolerance, setTmplTolerance] = useState(0.01);
+  const [tmplUnit, setTmplUnit] = useState('');
+  const [tmplParams, setTmplParams] = useState<TemplateParam[]>([]);
+  const [tmplComputedVars, setTmplComputedVars] = useState<ComputedVar[]>([]);
+  const [tmplSolutionSteps, setTmplSolutionSteps] = useState<SolutionStepTemplate[]>([]);
+  const [tmplExplanation, setTmplExplanation] = useState('');
+  const [tmplModuleId, setTmplModuleId] = useState('');
+  const [tmplLessonId, setTmplLessonId] = useState('');
+  const [tmplExamCategory, setTmplExamCategory] = useState('');
+  const [tmplTags, setTmplTags] = useState<string[]>([]);
+  const [tmplTagInput, setTmplTagInput] = useState('');
+  const [tmplGeneratorId, setTmplGeneratorId] = useState('');
+  const [tmplPreviewResult, setTmplPreviewResult] = useState<GeneratedProblem | null>(null);
+  const [tmplPreviewParams, setTmplPreviewParams] = useState<Record<string, unknown> | null>(null);
+  const [tmplFilter, setTmplFilter] = useState('');
+
+  // ========= GENERATORS TAB STATE =========
+  const [generators, setGenerators] = useState<GeneratorInfo[]>([]);
+  const [genSelected, setGenSelected] = useState('');
+  const [genCount, setGenCount] = useState(5);
+  const [genPreview, setGenPreview] = useState<GeneratedProblem[]>([]);
+  const [genLoading, setGenLoading] = useState(false);
+  const [genPublishLesson, setGenPublishLesson] = useState('');
+  const [genPublishModule, setGenPublishModule] = useState('');
+  const [genPublishExam, setGenPublishExam] = useState('');
 
   const sourceRef = useRef<HTMLTextAreaElement>(null);
 
+  // ========= EFFECTS =========
   useEffect(() => {
     loadModulesAndLessons();
     loadQuestions();
+    loadTemplates();
+    loadGenerators();
   }, []);
 
-  // Fetch topics when lesson changes
   useEffect(() => {
-    if (lessonId) {
-      loadTopics(lessonId);
-    } else {
-      setTopics([]);
-      setTopicId('');
-    }
+    if (lessonId) loadTopics(lessonId);
+    else { setTopics([]); setTopicId(''); }
   }, [lessonId]);
 
+  useEffect(() => {
+    if (tmplLessonId) loadTopics(tmplLessonId);
+  }, [tmplLessonId]);
+
+  // ========= DATA LOADING =========
   async function loadModulesAndLessons() {
     try {
       const [modRes, lesRes] = await Promise.all([
@@ -118,11 +258,26 @@ export default function QuestionBuilderPage() {
 
   async function loadQuestions() {
     try {
-      const res = await fetch('/api/admin/learn/questions?limit=100');
+      const res = await fetch('/api/admin/learn/questions?limit=500');
       if (res.ok) { const d = await res.json(); setQuestions(d.questions || []); }
     } catch (err) { console.error('QuestionBuilderPage: failed to load questions', err); }
   }
 
+  async function loadTemplates() {
+    try {
+      const res = await fetch('/api/admin/learn/templates?action=list');
+      if (res.ok) { const d = await res.json(); setTemplates(d.templates || []); }
+    } catch (err) { console.error('QuestionBuilderPage: failed to load templates', err); }
+  }
+
+  async function loadGenerators() {
+    try {
+      const res = await fetch('/api/admin/learn/templates?action=generators');
+      if (res.ok) { const d = await res.json(); setGenerators(d.generators || []); }
+    } catch (err) { console.error('QuestionBuilderPage: failed to load generators', err); }
+  }
+
+  // ========= QUESTIONS TAB FUNCTIONS =========
   function resetForm() {
     setQuestionText(''); setOptions(['', '']); setCorrectAnswer('');
     setCorrectAnswers([]); setExplanation(''); setDifficulty('medium');
@@ -131,9 +286,11 @@ export default function QuestionBuilderPage() {
     setFillSource(''); setDistractors([]); setNewDistractor('');
     setFormula(''); setTestResult(null); setEditId(null);
     setShowPreview(false); setPreviewBlanks([]);
+    setSolutionSteps([]); setTolerance('0.01');
   }
 
   function loadForEdit(q: Question) {
+    setActiveTab('questions');
     setQType(q.question_type);
     setQuestionText(q.question_text);
     setExplanation(q.explanation || '');
@@ -146,24 +303,20 @@ export default function QuestionBuilderPage() {
     setTags(q.tags || []);
     setEditId(q.id);
     setShowPreview(false);
+    setSolutionSteps(q.solution_steps || []);
+    setTolerance(String(q.tolerance ?? 0.01));
 
     const opts = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || []);
 
     if (q.question_type === 'fill_blank') {
       try {
         const correctArr = JSON.parse(q.correct_answer) as string[];
-        // Reconstruct source: replace {{BLANK}} with correct answers
         let src = q.question_text;
-        for (const ans of correctArr) {
-          src = src.replace('{{BLANK}}', `{{${ans}}}`);
-        }
+        for (const ans of correctArr) { src = src.replace('{{BLANK}}', `{{${ans}}}`); }
         setFillSource(src);
-        // Distractors are opts that aren't correct answers
         const correctSet = new Set(correctArr.map(a => a.toLowerCase()));
         setDistractors(opts.filter((o: string) => !correctSet.has(o.toLowerCase())));
-      } catch {
-        setFillSource(q.question_text);
-      }
+      } catch { setFillSource(q.question_text); }
       setOptions(opts);
     } else if (q.question_type === 'multi_select') {
       setOptions(opts);
@@ -178,7 +331,6 @@ export default function QuestionBuilderPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // Fill blank: highlight selected text to make blank
   function handleMakeBlank() {
     const ta = sourceRef.current;
     if (!ta) return;
@@ -192,7 +344,6 @@ export default function QuestionBuilderPage() {
     setMessage('');
   }
 
-  // Build fill_blank question data from source
   function buildFillBlankData() {
     const regex = /\{\{(.+?)\}\}/g;
     const correctArr: string[] = [];
@@ -205,7 +356,6 @@ export default function QuestionBuilderPage() {
     return { questionText: qText, correctAnswer: JSON.stringify(correctArr), options: allOptions };
   }
 
-  // Math template test
   function testMathTemplate() {
     const regex = /\{\{(\w+):(\d+):(\d+)\}\}/g;
     const vars: Record<string, number> = {};
@@ -242,6 +392,8 @@ export default function QuestionBuilderPage() {
         topic_id: topicId || null,
         study_references: studyRefs,
         tags,
+        solution_steps: solutionSteps.length > 0 ? solutionSteps : undefined,
+        tolerance: parseFloat(tolerance) || 0.01,
       };
 
       if (qType === 'fill_blank') {
@@ -260,11 +412,12 @@ export default function QuestionBuilderPage() {
         body.question_type = 'math_template';
         body.options = [];
         body.correct_answer = `formula:${formula}`;
+        body.is_dynamic = true;
       } else if (qType === 'essay') {
         body.question_text = questionText;
         body.question_type = 'essay';
         body.options = [];
-        body.correct_answer = correctAnswer; // reference answer for AI grading
+        body.correct_answer = correctAnswer;
       } else if (qType === 'numeric_input') {
         body.question_text = questionText;
         body.question_type = 'numeric_input';
@@ -313,6 +466,192 @@ export default function QuestionBuilderPage() {
     } catch (err) { console.error('QuestionBuilderPage: failed to delete question', err); }
   }
 
+  // ========= TEMPLATE TAB FUNCTIONS =========
+  function resetTemplateForm() {
+    setTmplEditId(null); setTmplName(''); setTmplDescription('');
+    setTmplCategory(''); setTmplSubcategory(''); setTmplQuestionType('numeric_input');
+    setTmplDifficulty('medium'); setTmplQuestionTemplate(''); setTmplAnswerFormula('');
+    setTmplDecimals(2); setTmplTolerance(0.01); setTmplUnit('');
+    setTmplParams([]); setTmplComputedVars([]); setTmplSolutionSteps([]);
+    setTmplExplanation(''); setTmplModuleId(''); setTmplLessonId('');
+    setTmplExamCategory(''); setTmplTags([]); setTmplTagInput('');
+    setTmplGeneratorId(''); setTmplPreviewResult(null); setTmplPreviewParams(null);
+  }
+
+  function loadTemplateForEdit(t: ProblemTemplate) {
+    setActiveTab('templates');
+    setTmplEditId(t.id);
+    setTmplName(t.name);
+    setTmplDescription(t.description || '');
+    setTmplCategory(t.category);
+    setTmplSubcategory(t.subcategory || '');
+    setTmplQuestionType(t.question_type);
+    setTmplDifficulty(t.difficulty);
+    setTmplQuestionTemplate(t.question_template);
+    setTmplAnswerFormula(t.answer_formula);
+    setTmplDecimals(t.answer_format?.decimals ?? 2);
+    setTmplTolerance(t.answer_format?.tolerance ?? 0.01);
+    setTmplUnit(t.answer_format?.unit || '');
+    setTmplParams(t.parameters || []);
+    setTmplComputedVars(t.computed_vars || []);
+    setTmplSolutionSteps(t.solution_steps_template || []);
+    setTmplExplanation(t.explanation_template || '');
+    setTmplModuleId(t.module_id || '');
+    setTmplLessonId(t.lesson_id || '');
+    setTmplExamCategory(t.exam_category || '');
+    setTmplTags(t.tags || []);
+    setTmplGeneratorId(t.generator_id || '');
+    setTmplPreviewResult(null);
+    setTmplPreviewParams(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function handlePreviewTemplate() {
+    setMessage('');
+    try {
+      const body: any = {
+        action: 'preview',
+        name: tmplName || 'Preview',
+        category: tmplCategory || 'Preview',
+        subcategory: tmplSubcategory,
+        question_type: tmplQuestionType,
+        difficulty: tmplDifficulty,
+        question_template: tmplQuestionTemplate,
+        answer_formula: tmplAnswerFormula,
+        answer_format: { decimals: tmplDecimals, tolerance: tmplTolerance, unit: tmplUnit },
+        parameters: tmplParams,
+        computed_vars: tmplComputedVars,
+        solution_steps_template: tmplSolutionSteps,
+        explanation_template: tmplExplanation,
+        tags: tmplTags,
+        generator_id: tmplGeneratorId || undefined,
+      };
+      const res = await fetch('/api/admin/learn/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTmplPreviewResult(data.problem);
+        setTmplPreviewParams(data.parameters || null);
+        setMessage('Preview generated!');
+      } else {
+        setMessage(data.error || 'Preview failed');
+        if (data.validation_errors) {
+          setMessage(data.validation_errors.join('; '));
+        }
+      }
+    } catch (err) { setMessage('Network error during preview'); }
+  }
+
+  async function handleSaveTemplate() {
+    setSaving(true); setMessage('');
+    try {
+      const body: any = {
+        name: tmplName,
+        description: tmplDescription || null,
+        category: tmplCategory,
+        subcategory: tmplSubcategory || null,
+        question_type: tmplQuestionType,
+        difficulty: tmplDifficulty,
+        question_template: tmplQuestionTemplate,
+        answer_formula: tmplAnswerFormula,
+        answer_format: { decimals: tmplDecimals, tolerance: tmplTolerance, unit: tmplUnit || undefined },
+        parameters: tmplParams,
+        computed_vars: tmplComputedVars,
+        solution_steps_template: tmplSolutionSteps,
+        explanation_template: tmplExplanation || null,
+        module_id: tmplModuleId || null,
+        lesson_id: tmplLessonId || null,
+        exam_category: tmplExamCategory || null,
+        tags: tmplTags,
+        generator_id: tmplGeneratorId || null,
+      };
+
+      if (tmplEditId) {
+        body.id = tmplEditId;
+        const res = await fetch('/api/admin/learn/templates', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        if (res.ok) { setMessage('Template updated!'); loadTemplates(); }
+        else { const err = await res.json(); setMessage(err.error || 'Failed to update'); }
+      } else {
+        const res = await fetch('/api/admin/learn/templates', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        if (res.ok) { setMessage('Template created!'); resetTemplateForm(); loadTemplates(); }
+        else { const err = await res.json(); setMessage(err.error || (err.validation_errors || []).join('; ') || 'Failed to create'); }
+      }
+    } catch { setMessage('Network error'); }
+    setSaving(false);
+  }
+
+  async function handlePublishTemplate(templateId: string, count: number, asDynamic: boolean) {
+    setSaving(true); setMessage('');
+    try {
+      const res = await fetch('/api/admin/learn/templates', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'publish', template_id: templateId, count, as_dynamic: asDynamic }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage(`Published ${data.count} question(s) to the question bank!`);
+        loadQuestions();
+      } else { setMessage(data.error || 'Failed to publish'); }
+    } catch { setMessage('Network error'); }
+    setSaving(false);
+  }
+
+  async function handleDeleteTemplate(id: string) {
+    if (!confirm('Deactivate this template?')) return;
+    try {
+      const res = await fetch(`/api/admin/learn/templates?id=${id}`, { method: 'DELETE' });
+      if (res.ok) { loadTemplates(); if (tmplEditId === id) resetTemplateForm(); }
+    } catch { setMessage('Failed to delete template'); }
+  }
+
+  // ========= GENERATORS TAB FUNCTIONS =========
+  async function handleGeneratePreview() {
+    if (!genSelected) return;
+    setGenLoading(true);
+    try {
+      const res = await fetch('/api/admin/learn/templates', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate_hardcoded', generator_id: genSelected, count: genCount }),
+      });
+      const data = await res.json();
+      if (res.ok) { setGenPreview(data.problems || []); }
+      else { setMessage(data.error || 'Generation failed'); }
+    } catch { setMessage('Network error'); }
+    setGenLoading(false);
+  }
+
+  async function handlePublishGenerated() {
+    if (!genSelected) return;
+    setSaving(true); setMessage('');
+    try {
+      const res = await fetch('/api/admin/learn/templates', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'publish_hardcoded',
+          generator_id: genSelected,
+          count: genCount,
+          lesson_id: genPublishLesson || null,
+          module_id: genPublishModule || null,
+          exam_category: genPublishExam || null,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage(`Published ${data.count} question(s) from "${data.generator}" to the question bank!`);
+        loadQuestions();
+      } else { setMessage(data.error || 'Publish failed'); }
+    } catch { setMessage('Network error'); }
+    setSaving(false);
+  }
+
+  // ========= ACCESS CHECK =========
   if (!isAdmin) {
     return (
       <div className="admin-empty">
@@ -324,441 +663,869 @@ export default function QuestionBuilderPage() {
   }
 
   const filteredLessons = moduleId ? lessons.filter(l => l.module_id === moduleId) : lessons;
-
-  // Build preview data for fill_blank
+  const tmplFilteredLessons = tmplModuleId ? lessons.filter(l => l.module_id === tmplModuleId) : lessons;
   const fillPreview = qType === 'fill_blank' ? buildFillBlankData() : null;
+
+  // Filtered questions
+  const filteredQuestions = questions.filter(q => {
+    if (qTypeFilter !== 'all' && q.question_type !== qTypeFilter) return false;
+    if (qDiffFilter !== 'all' && q.difficulty !== qDiffFilter) return false;
+    if (qFilter && !q.question_text.toLowerCase().includes(qFilter.toLowerCase()) &&
+        !(q.tags || []).some(t => t.toLowerCase().includes(qFilter.toLowerCase()))) return false;
+    return true;
+  });
+
+  // Filtered templates
+  const filteredTemplates = templates.filter(t => {
+    if (tmplFilter && !t.name.toLowerCase().includes(tmplFilter.toLowerCase()) &&
+        !t.category.toLowerCase().includes(tmplFilter.toLowerCase())) return false;
+    return true;
+  });
+
+  // Group generators
+  const genGrouped: Record<string, GeneratorInfo[]> = {};
+  for (const g of generators) {
+    if (!genGrouped[g.category]) genGrouped[g.category] = [];
+    genGrouped[g.category].push(g);
+  }
 
   return (
     <>
       <div className="learn__header">
         <Link href="/admin/learn/manage" className="learn__back">&larr; Back to Manage Content</Link>
-        <h2 className="learn__title">{editId ? 'Edit Question' : 'Question Builder'}</h2>
-        <p className="learn__subtitle">Create questions for quizzes, tests, and exams. Choose a type, then fill in the details.</p>
+        <h2 className="learn__title">Problem Builder</h2>
+        <p className="learn__subtitle">Create, edit, and auto-generate questions for quizzes, tests, and practice sessions.</p>
       </div>
 
-      {/* Question Type Selector */}
-      <div className="qb__types">
-        {(Object.keys(TYPE_INFO) as QType[]).map(t => (
-          <button
-            key={t}
-            className={`qb__type-btn ${qType === t ? 'qb__type-btn--active' : ''}`}
-            onClick={() => { setQType(t); if (!editId) { resetForm(); setQType(t); } }}
-          >
-            <span className="qb__type-icon">{TYPE_INFO[t].icon}</span>
-            <span className="qb__type-label">{TYPE_INFO[t].label}</span>
-            <span className="qb__type-desc">{TYPE_INFO[t].desc}</span>
-          </button>
-        ))}
+      {/* Tab Navigation */}
+      <div className="qb__tabs">
+        <button className={`qb__tab ${activeTab === 'questions' ? 'qb__tab--active' : ''}`} onClick={() => setActiveTab('questions')}>
+          Questions ({questions.length})
+        </button>
+        <button className={`qb__tab ${activeTab === 'templates' ? 'qb__tab--active' : ''}`} onClick={() => setActiveTab('templates')}>
+          Templates ({templates.length})
+        </button>
+        <button className={`qb__tab ${activeTab === 'generators' ? 'qb__tab--active' : ''}`} onClick={() => setActiveTab('generators')}>
+          Auto-Generate ({generators.length})
+        </button>
       </div>
 
-      {/* Editor Form */}
-      <div className="qb__editor">
-        <h3 className="qb__section-title">
-          {TYPE_INFO[qType].label} Question
-          {editId && <span className="qb__editing-badge">Editing</span>}
-        </h3>
+      {message && <p className={`qb__message ${message.includes('!') ? 'qb__message--success' : 'qb__message--error'}`}>{message}</p>}
 
-        {/* MULTIPLE CHOICE */}
-        {qType === 'multiple_choice' && (
-          <>
-            <textarea className="qb__textarea" placeholder="Question text *" rows={3} value={questionText} onChange={e => setQuestionText(e.target.value)} />
-            <div className="qb__options-editor">
-              <label className="qb__label">Answer Options (click to mark correct)</label>
-              {options.map((opt, i) => (
-                <div key={i} className="qb__option-row">
-                  <div
-                    className={`qb__option-correct ${correctAnswer === opt && opt ? 'qb__option-correct--active' : ''}`}
-                    onClick={() => { if (opt) setCorrectAnswer(opt); }}
-                    title="Mark as correct"
-                  >
-                    {correctAnswer === opt && opt ? '\u2713' : ''}
-                  </div>
-                  <input className="qb__input" placeholder={`Option ${String.fromCharCode(65 + i)}`} value={opt} onChange={e => {
-                    const newOpts = [...options];
-                    if (correctAnswer === options[i]) setCorrectAnswer(e.target.value);
-                    newOpts[i] = e.target.value;
-                    setOptions(newOpts);
-                  }} />
-                  {options.length > 2 && (
-                    <button className="qb__option-remove" onClick={() => {
-                      const newOpts = options.filter((_, j) => j !== i);
-                      setOptions(newOpts);
-                      if (correctAnswer === opt) setCorrectAnswer('');
-                    }}>&times;</button>
-                  )}
-                </div>
-              ))}
-              {options.length < 8 && (
-                <button className="qb__add-option" onClick={() => setOptions([...options, ''])}>+ Add Option</button>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* TRUE / FALSE */}
-        {qType === 'true_false' && (
-          <>
-            <textarea className="qb__textarea" placeholder="Statement (the student will mark it true or false) *" rows={3} value={questionText} onChange={e => setQuestionText(e.target.value)} />
-            <label className="qb__label">Correct Answer</label>
-            <div className="qb__tf-options">
-              {['True', 'False'].map(v => (
-                <div key={v} className={`qb__tf-btn ${correctAnswer === v ? 'qb__tf-btn--active' : ''}`} onClick={() => setCorrectAnswer(v)}>{v}</div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* SHORT ANSWER */}
-        {qType === 'short_answer' && (
-          <>
-            <textarea className="qb__textarea" placeholder="Question text *" rows={3} value={questionText} onChange={e => setQuestionText(e.target.value)} />
-            <input className="qb__input" placeholder="Correct answer (case-insensitive) *" value={correctAnswer} onChange={e => setCorrectAnswer(e.target.value)} />
-          </>
-        )}
-
-        {/* FILL IN THE BLANK */}
-        {qType === 'fill_blank' && (
-          <>
-            <label className="qb__label">Source Text (wrap blank words in {'{{double braces}}'} or select text and click &quot;Make Blank&quot;)</label>
-            <textarea
-              ref={sourceRef}
-              className="qb__textarea"
-              placeholder='E.g.: The {{Texas General Land Office}} was established in {{1836}}.'
-              rows={4}
-              value={fillSource}
-              onChange={e => setFillSource(e.target.value)}
-            />
-            <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={handleMakeBlank} style={{ marginBottom: '.75rem' }}>
-              Make Selection a Blank
-            </button>
-
-            {/* Distractors */}
-            <label className="qb__label">Distractor Words (wrong answers to mix in)</label>
-            <div className="qb__distractor-list">
-              {distractors.map((d, i) => (
-                <span key={i} className="qb__distractor-tag">
-                  {d}
-                  <button onClick={() => setDistractors(distractors.filter((_, j) => j !== i))}>&times;</button>
-                </span>
-              ))}
-            </div>
-            <div className="qb__distractor-add">
-              <input className="qb__input" placeholder="Add distractor word..." value={newDistractor} onChange={e => setNewDistractor(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && newDistractor.trim()) { e.preventDefault(); setDistractors([...distractors, newDistractor.trim()]); setNewDistractor(''); } }} />
-              <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { if (newDistractor.trim()) { setDistractors([...distractors, newDistractor.trim()]); setNewDistractor(''); } }}>Add</button>
-            </div>
-
-            {/* Preview */}
-            {fillPreview && fillPreview.options.length > 0 && (
-              <div className="qb__preview-section">
-                <label className="qb__label">Preview</label>
-                <FillBlankQuestion
-                  questionText={fillPreview.questionText}
-                  options={fillPreview.options}
-                  blanks={previewBlanks}
-                  onChange={setPreviewBlanks}
-                />
-              </div>
-            )}
-          </>
-        )}
-
-        {/* MULTI SELECT */}
-        {qType === 'multi_select' && (
-          <>
-            <textarea className="qb__textarea" placeholder="Question text (e.g., Select all that apply...) *" rows={3} value={questionText} onChange={e => setQuestionText(e.target.value)} />
-            <div className="qb__options-editor">
-              <label className="qb__label">Options (check all correct answers)</label>
-              {options.map((opt, i) => (
-                <div key={i} className="qb__option-row">
-                  <div
-                    className={`qb__option-correct qb__option-correct--check ${correctAnswers.includes(opt) && opt ? 'qb__option-correct--active' : ''}`}
-                    onClick={() => {
-                      if (!opt) return;
-                      if (correctAnswers.includes(opt)) setCorrectAnswers(correctAnswers.filter(a => a !== opt));
-                      else setCorrectAnswers([...correctAnswers, opt]);
-                    }}
-                    title="Mark as correct"
-                  >
-                    {correctAnswers.includes(opt) && opt ? '\u2713' : ''}
-                  </div>
-                  <input className="qb__input" placeholder={`Option ${String.fromCharCode(65 + i)}`} value={opt} onChange={e => {
-                    const newOpts = [...options];
-                    const wasCorrect = correctAnswers.includes(options[i]);
-                    if (wasCorrect) {
-                      setCorrectAnswers(correctAnswers.map(a => a === options[i] ? e.target.value : a));
-                    }
-                    newOpts[i] = e.target.value;
-                    setOptions(newOpts);
-                  }} />
-                  {options.length > 2 && (
-                    <button className="qb__option-remove" onClick={() => {
-                      setCorrectAnswers(correctAnswers.filter(a => a !== options[i]));
-                      setOptions(options.filter((_, j) => j !== i));
-                    }}>&times;</button>
-                  )}
-                </div>
-              ))}
-              {options.length < 10 && (
-                <button className="qb__add-option" onClick={() => setOptions([...options, ''])}>+ Add Option</button>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* NUMERIC INPUT */}
-        {qType === 'numeric_input' && (
-          <>
-            <textarea className="qb__textarea" placeholder="Question text (e.g., What is the sum of 15 and 27?) *" rows={3} value={questionText} onChange={e => setQuestionText(e.target.value)} />
-            <input className="qb__input" type="number" step="any" placeholder="Correct numeric answer *" value={correctAnswer} onChange={e => setCorrectAnswer(e.target.value)} />
-            <p className="qb__hint">Answers are compared with a tolerance of 0.01.</p>
-          </>
-        )}
-
-        {/* ESSAY / PARAGRAPH */}
-        {qType === 'essay' && (
-          <>
-            <textarea className="qb__textarea" placeholder="Question text (e.g., Explain the general steps involved in...) *" rows={4} value={questionText} onChange={e => setQuestionText(e.target.value)} />
-            <label className="qb__label">Reference Answer (what a good answer should cover — used by AI to grade)</label>
-            <textarea className="qb__textarea" placeholder="A strong answer should mention: project planning, field reconnaissance, establishing control, data collection, computations/adjustments, map preparation, and final deliverables..." rows={5} value={correctAnswer} onChange={e => setCorrectAnswer(e.target.value)} />
-            <p className="qb__hint">The AI will use this reference to evaluate the student&apos;s paragraph response. Be thorough — list the key points, concepts, and terminology a good answer should include.</p>
-          </>
-        )}
-
-        {/* MATH TEMPLATE */}
-        {qType === 'math_template' && (
-          <>
-            <label className="qb__label">Question Template (use {'{{varName:min:max}}'} for random numbers)</label>
-            <textarea
-              className="qb__textarea"
-              placeholder='E.g.: A surveyor measures {{d:100:500}} feet at a bearing of N{{a:10:80}}°E. What is the departure?'
-              rows={4}
-              value={questionText}
-              onChange={e => setQuestionText(e.target.value)}
-            />
-            <label className="qb__label">Answer Formula (use variable names, math functions: sin, cos, tan, sqrt, pow, round, PI)</label>
-            <input
-              className="qb__input"
-              placeholder='E.g.: round(d * sin(a * PI / 180), 2)'
-              value={formula}
-              onChange={e => setFormula(e.target.value)}
-            />
-            <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={testMathTemplate} style={{ marginTop: '.5rem' }}>
-              Test with Random Values
-            </button>
-            {testResult && <pre className="qb__test-result">{testResult}</pre>}
-          </>
-        )}
-
-        {/* Common Fields */}
-        <div className="qb__common">
-          <textarea className="qb__textarea" placeholder="Explanation (shown after grading, optional)" rows={2} value={explanation} onChange={e => setExplanation(e.target.value)} />
-          <div className="qb__row">
-            <select className="qb__select" value={difficulty} onChange={e => setDifficulty(e.target.value)}>
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
-            <select className="qb__select" value={moduleId} onChange={e => { setModuleId(e.target.value); setLessonId(''); setTopicId(''); }}>
-              <option value="">Module (optional)</option>
-              {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
-            </select>
-            <select className="qb__select" value={lessonId} onChange={e => { setLessonId(e.target.value); setTopicId(''); }}>
-              <option value="">Lesson (optional)</option>
-              {filteredLessons.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
-            </select>
-            <select className="qb__select" value={examCategory} onChange={e => setExamCategory(e.target.value)}>
-              <option value="">Exam (optional)</option>
-              <option value="SIT">SIT</option>
-              <option value="RPLS">RPLS</option>
-            </select>
+      {/* ================================================================== */}
+      {/* TAB 1: QUESTIONS (Static question CRUD — the original builder) */}
+      {/* ================================================================== */}
+      {activeTab === 'questions' && (
+        <>
+          {/* Question Type Selector */}
+          <div className="qb__types">
+            {(Object.keys(TYPE_INFO) as QType[]).map(t => (
+              <button
+                key={t}
+                className={`qb__type-btn ${qType === t ? 'qb__type-btn--active' : ''}`}
+                onClick={() => { setQType(t); if (!editId) { resetForm(); setQType(t); } }}
+              >
+                <span className="qb__type-icon">{TYPE_INFO[t].icon}</span>
+                <span className="qb__type-label">{TYPE_INFO[t].label}</span>
+                <span className="qb__type-desc">{TYPE_INFO[t].desc}</span>
+              </button>
+            ))}
           </div>
 
-          {/* Topic Selector */}
-          {lessonId && topics.length > 0 && (
-            <div className="qb__topic-row">
-              <label className="qb__label">Topic</label>
-              <select className="qb__select" value={topicId} onChange={e => setTopicId(e.target.value)}>
-                <option value="">No specific topic</option>
-                {topics.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+          {/* Editor Form */}
+          <div className="qb__editor">
+            <h3 className="qb__section-title">
+              {TYPE_INFO[qType].label} Question
+              {editId && <span className="qb__editing-badge">Editing</span>}
+            </h3>
+
+            {/* MULTIPLE CHOICE */}
+            {qType === 'multiple_choice' && (
+              <>
+                <textarea className="qb__textarea" placeholder="Question text *" rows={3} value={questionText} onChange={e => setQuestionText(e.target.value)} />
+                <div className="qb__options-editor">
+                  <label className="qb__label">Answer Options (click to mark correct)</label>
+                  {options.map((opt, i) => (
+                    <div key={i} className="qb__option-row">
+                      <div
+                        className={`qb__option-correct ${correctAnswer === opt && opt ? 'qb__option-correct--active' : ''}`}
+                        onClick={() => { if (opt) setCorrectAnswer(opt); }}
+                        title="Mark as correct"
+                      >
+                        {correctAnswer === opt && opt ? '\u2713' : ''}
+                      </div>
+                      <input className="qb__input" placeholder={`Option ${String.fromCharCode(65 + i)}`} value={opt} onChange={e => {
+                        const newOpts = [...options];
+                        if (correctAnswer === options[i]) setCorrectAnswer(e.target.value);
+                        newOpts[i] = e.target.value;
+                        setOptions(newOpts);
+                      }} />
+                      {options.length > 2 && (
+                        <button className="qb__option-remove" onClick={() => {
+                          const newOpts = options.filter((_, j) => j !== i);
+                          setOptions(newOpts);
+                          if (correctAnswer === opt) setCorrectAnswer('');
+                        }}>&times;</button>
+                      )}
+                    </div>
+                  ))}
+                  {options.length < 8 && (
+                    <button className="qb__add-option" onClick={() => setOptions([...options, ''])}>+ Add Option</button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* TRUE / FALSE */}
+            {qType === 'true_false' && (
+              <>
+                <textarea className="qb__textarea" placeholder="Statement (the student will mark it true or false) *" rows={3} value={questionText} onChange={e => setQuestionText(e.target.value)} />
+                <label className="qb__label">Correct Answer</label>
+                <div className="qb__tf-options">
+                  {['True', 'False'].map(v => (
+                    <div key={v} className={`qb__tf-btn ${correctAnswer === v ? 'qb__tf-btn--active' : ''}`} onClick={() => setCorrectAnswer(v)}>{v}</div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* SHORT ANSWER */}
+            {qType === 'short_answer' && (
+              <>
+                <textarea className="qb__textarea" placeholder="Question text *" rows={3} value={questionText} onChange={e => setQuestionText(e.target.value)} />
+                <input className="qb__input" placeholder="Correct answer (case-insensitive) *" value={correctAnswer} onChange={e => setCorrectAnswer(e.target.value)} />
+              </>
+            )}
+
+            {/* FILL IN THE BLANK */}
+            {qType === 'fill_blank' && (
+              <>
+                <label className="qb__label">Source Text (wrap blank words in {'{{double braces}}'} or select text and click &quot;Make Blank&quot;)</label>
+                <textarea ref={sourceRef} className="qb__textarea"
+                  placeholder='E.g.: The {{Texas General Land Office}} was established in {{1836}}.'
+                  rows={4} value={fillSource} onChange={e => setFillSource(e.target.value)} />
+                <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={handleMakeBlank} style={{ marginBottom: '.75rem' }}>
+                  Make Selection a Blank
+                </button>
+                <label className="qb__label">Distractor Words (wrong answers to mix in)</label>
+                <div className="qb__distractor-list">
+                  {distractors.map((d, i) => (
+                    <span key={i} className="qb__distractor-tag">
+                      {d} <button onClick={() => setDistractors(distractors.filter((_, j) => j !== i))}>&times;</button>
+                    </span>
+                  ))}
+                </div>
+                <div className="qb__distractor-add">
+                  <input className="qb__input" placeholder="Add distractor word..." value={newDistractor} onChange={e => setNewDistractor(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && newDistractor.trim()) { e.preventDefault(); setDistractors([...distractors, newDistractor.trim()]); setNewDistractor(''); } }} />
+                  <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { if (newDistractor.trim()) { setDistractors([...distractors, newDistractor.trim()]); setNewDistractor(''); } }}>Add</button>
+                </div>
+                {fillPreview && fillPreview.options.length > 0 && (
+                  <div className="qb__preview-section">
+                    <label className="qb__label">Preview</label>
+                    <FillBlankQuestion questionText={fillPreview.questionText} options={fillPreview.options} blanks={previewBlanks} onChange={setPreviewBlanks} />
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* MULTI SELECT */}
+            {qType === 'multi_select' && (
+              <>
+                <textarea className="qb__textarea" placeholder="Question text (e.g., Select all that apply...) *" rows={3} value={questionText} onChange={e => setQuestionText(e.target.value)} />
+                <div className="qb__options-editor">
+                  <label className="qb__label">Options (check all correct answers)</label>
+                  {options.map((opt, i) => (
+                    <div key={i} className="qb__option-row">
+                      <div
+                        className={`qb__option-correct qb__option-correct--check ${correctAnswers.includes(opt) && opt ? 'qb__option-correct--active' : ''}`}
+                        onClick={() => {
+                          if (!opt) return;
+                          if (correctAnswers.includes(opt)) setCorrectAnswers(correctAnswers.filter(a => a !== opt));
+                          else setCorrectAnswers([...correctAnswers, opt]);
+                        }}
+                        title="Mark as correct"
+                      >
+                        {correctAnswers.includes(opt) && opt ? '\u2713' : ''}
+                      </div>
+                      <input className="qb__input" placeholder={`Option ${String.fromCharCode(65 + i)}`} value={opt} onChange={e => {
+                        const newOpts = [...options];
+                        const wasCorrect = correctAnswers.includes(options[i]);
+                        if (wasCorrect) setCorrectAnswers(correctAnswers.map(a => a === options[i] ? e.target.value : a));
+                        newOpts[i] = e.target.value;
+                        setOptions(newOpts);
+                      }} />
+                      {options.length > 2 && (
+                        <button className="qb__option-remove" onClick={() => {
+                          setCorrectAnswers(correctAnswers.filter(a => a !== options[i]));
+                          setOptions(options.filter((_, j) => j !== i));
+                        }}>&times;</button>
+                      )}
+                    </div>
+                  ))}
+                  {options.length < 10 && (
+                    <button className="qb__add-option" onClick={() => setOptions([...options, ''])}>+ Add Option</button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* NUMERIC INPUT */}
+            {qType === 'numeric_input' && (
+              <>
+                <textarea className="qb__textarea" placeholder="Question text *" rows={3} value={questionText} onChange={e => setQuestionText(e.target.value)} />
+                <div className="qb__row">
+                  <input className="qb__input" type="number" step="any" placeholder="Correct numeric answer *" value={correctAnswer} onChange={e => setCorrectAnswer(e.target.value)} style={{ flex: 2 }} />
+                  <input className="qb__input" type="number" step="any" placeholder="Tolerance" value={tolerance} onChange={e => setTolerance(e.target.value)} style={{ flex: 1 }} />
+                </div>
+                <p className="qb__hint">Answers are compared with the specified tolerance (default 0.01).</p>
+              </>
+            )}
+
+            {/* ESSAY / PARAGRAPH */}
+            {qType === 'essay' && (
+              <>
+                <textarea className="qb__textarea" placeholder="Question text *" rows={4} value={questionText} onChange={e => setQuestionText(e.target.value)} />
+                <label className="qb__label">Reference Answer (what a good answer should cover -- used by AI to grade)</label>
+                <textarea className="qb__textarea" placeholder="A strong answer should mention..." rows={5} value={correctAnswer} onChange={e => setCorrectAnswer(e.target.value)} />
+                <p className="qb__hint">The AI will use this reference to evaluate the student&apos;s paragraph response.</p>
+              </>
+            )}
+
+            {/* MATH TEMPLATE */}
+            {qType === 'math_template' && (
+              <>
+                <label className="qb__label">Question Template (use {'{{varName:min:max}}'} for random numbers)</label>
+                <textarea className="qb__textarea"
+                  placeholder='E.g.: A surveyor measures {{d:100:500}} feet at a bearing of N{{a:10:80}}E. What is the departure?'
+                  rows={4} value={questionText} onChange={e => setQuestionText(e.target.value)} />
+                <label className="qb__label">Answer Formula (use variable names, math functions: sin, cos, tan, sqrt, pow, round, PI)</label>
+                <input className="qb__input"
+                  placeholder='E.g.: round(d * sin(a * PI / 180), 2)'
+                  value={formula} onChange={e => setFormula(e.target.value)} />
+                <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={testMathTemplate} style={{ marginTop: '.5rem' }}>
+                  Test with Random Values
+                </button>
+                {testResult && <pre className="qb__test-result">{testResult}</pre>}
+              </>
+            )}
+
+            {/* Solution Steps (for numeric_input, short_answer) */}
+            {(qType === 'numeric_input' || qType === 'short_answer') && (
+              <div className="qb__solution-steps">
+                <label className="qb__label">Solution Steps (optional -- shown when student views solution)</label>
+                {solutionSteps.map((step, i) => (
+                  <div key={i} className="qb__solution-step">
+                    <div className="qb__solution-step-header">
+                      <span className="qb__solution-step-num">Step {i + 1}</span>
+                      <button className="qb__option-remove" onClick={() => setSolutionSteps(solutionSteps.filter((_, j) => j !== i))}>&times;</button>
+                    </div>
+                    <input className="qb__input" placeholder="Step title" value={step.title}
+                      onChange={e => { const s = [...solutionSteps]; s[i] = { ...s[i], title: e.target.value }; setSolutionSteps(s); }} />
+                    <input className="qb__input" placeholder="Formula (optional)" value={step.formula || ''}
+                      onChange={e => { const s = [...solutionSteps]; s[i] = { ...s[i], formula: e.target.value }; setSolutionSteps(s); }} />
+                    <input className="qb__input" placeholder="Calculation (optional)" value={step.calculation || ''}
+                      onChange={e => { const s = [...solutionSteps]; s[i] = { ...s[i], calculation: e.target.value }; setSolutionSteps(s); }} />
+                    <input className="qb__input" placeholder="Result (optional)" value={step.result || ''}
+                      onChange={e => { const s = [...solutionSteps]; s[i] = { ...s[i], result: e.target.value }; setSolutionSteps(s); }} />
+                  </div>
+                ))}
+                <button className="qb__add-option" onClick={() => setSolutionSteps([...solutionSteps, { step_number: solutionSteps.length + 1, title: '' }])}>
+                  + Add Solution Step
+                </button>
+              </div>
+            )}
+
+            {/* Common Fields */}
+            <div className="qb__common">
+              <textarea className="qb__textarea" placeholder="Explanation (shown after grading, optional)" rows={2} value={explanation} onChange={e => setExplanation(e.target.value)} />
+              <div className="qb__row">
+                <select className="qb__select" value={difficulty} onChange={e => setDifficulty(e.target.value)}>
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+                <select className="qb__select" value={moduleId} onChange={e => { setModuleId(e.target.value); setLessonId(''); setTopicId(''); }}>
+                  <option value="">Module (optional)</option>
+                  {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+                </select>
+                <select className="qb__select" value={lessonId} onChange={e => { setLessonId(e.target.value); setTopicId(''); }}>
+                  <option value="">Lesson (optional)</option>
+                  {filteredLessons.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
+                </select>
+                <select className="qb__select" value={examCategory} onChange={e => setExamCategory(e.target.value)}>
+                  <option value="">Exam (optional)</option>
+                  <option value="SIT">SIT</option>
+                  <option value="RPLS">RPLS</option>
+                </select>
+              </div>
+
+              {lessonId && topics.length > 0 && (
+                <div className="qb__topic-row">
+                  <label className="qb__label">Topic</label>
+                  <select className="qb__select" value={topicId} onChange={e => setTopicId(e.target.value)}>
+                    <option value="">No specific topic</option>
+                    {topics.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Study References */}
+              <div className="qb__study-refs">
+                <label className="qb__label">Study References</label>
+                {studyRefs.length > 0 && (
+                  <div className="qb__study-refs-list">
+                    {studyRefs.map((ref, i) => (
+                      <div key={i} className="qb__study-ref-item">
+                        <span className="qb__study-ref-badge">{ref.type}</span>
+                        <span className="qb__study-ref-label">{ref.label}</span>
+                        <button className="qb__study-ref-remove" onClick={() => setStudyRefs(studyRefs.filter((_, j) => j !== i))}>&times;</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="qb__study-refs-add">
+                  {topicId && topics.length > 0 && (
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm"
+                      onClick={() => { const topic = topics.find(t => t.id === topicId); if (topic && !studyRefs.some(r => r.id === topic.id)) setStudyRefs([...studyRefs, { type: 'topic', id: topic.id, label: topic.title }]); }}>
+                      + Add Current Topic
+                    </button>
+                  )}
+                  {lessonId && topics.length > 0 && (
+                    <select className="qb__select qb__select--sm" value=""
+                      onChange={e => { const t = topics.find(t => t.id === e.target.value); if (t && !studyRefs.some(r => r.id === t.id)) setStudyRefs([...studyRefs, { type: 'topic', id: t.id, label: t.title }]); }}>
+                      <option value="">+ Add topic from lesson...</option>
+                      {topics.filter(t => !studyRefs.some(r => r.id === t.id)).map(t => (
+                        <option key={t.id} value={t.id}>{t.title}</option>
+                      ))}
+                    </select>
+                  )}
+                  {lessonId && (
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm"
+                      onClick={() => { const les = lessons.find(l => l.id === lessonId); if (les && !studyRefs.some(r => r.id === les.id)) setStudyRefs([...studyRefs, { type: 'lesson', id: les.id, label: les.title }]); }}>
+                      + Add Current Lesson
+                    </button>
+                  )}
+                  {moduleId && (
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm"
+                      onClick={() => { const mod = modules.find(m => m.id === moduleId); if (mod && !studyRefs.some(r => r.id === mod.id)) setStudyRefs([...studyRefs, { type: 'module', id: mod.id, label: mod.title }]); }}>
+                      + Add Current Module
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div className="qb__tags-section">
+                <label className="qb__label">Tags (optional)</label>
+                {tags.length > 0 && (
+                  <div className="qb__tags-list">
+                    {tags.map((tag, i) => (
+                      <span key={i} className="qb__tag-item">{tag} <button onClick={() => setTags(tags.filter((_, j) => j !== i))}>&times;</button></span>
+                    ))}
+                  </div>
+                )}
+                <div className="qb__tag-add">
+                  <input className="qb__input qb__input--sm" placeholder="Add tag..." value={tagInput}
+                    onChange={e => setTagInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && tagInput.trim()) { e.preventDefault(); if (!tags.includes(tagInput.trim())) setTags([...tags, tagInput.trim()]); setTagInput(''); } }} />
+                  <button className="admin-btn admin-btn--ghost admin-btn--sm"
+                    onClick={() => { if (tagInput.trim() && !tags.includes(tagInput.trim())) { setTags([...tags, tagInput.trim()]); setTagInput(''); } }}>Add</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="qb__actions">
+              <button className="admin-btn admin-btn--primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving...' : editId ? 'Update Question' : 'Create Question'}
+              </button>
+              {editId && <button className="admin-btn admin-btn--ghost" onClick={resetForm}>Cancel Edit</button>}
+            </div>
+          </div>
+
+          {/* Question Bank List */}
+          <div className="qb__bank">
+            <h3 className="qb__section-title">Question Bank ({filteredQuestions.length}{filteredQuestions.length !== questions.length ? ` of ${questions.length}` : ''} questions)</h3>
+
+            {/* Filters */}
+            <div className="qb__filters">
+              <input className="qb__input qb__input--sm" placeholder="Search questions..." value={qFilter} onChange={e => setQFilter(e.target.value)} style={{ flex: 2 }} />
+              <select className="qb__select qb__select--sm" value={qTypeFilter} onChange={e => setQTypeFilter(e.target.value)}>
+                <option value="all">All Types</option>
+                {(Object.keys(TYPE_INFO) as QType[]).map(t => <option key={t} value={t}>{TYPE_INFO[t].label}</option>)}
+              </select>
+              <select className="qb__select qb__select--sm" value={qDiffFilter} onChange={e => setQDiffFilter(e.target.value)}>
+                <option value="all">All Difficulties</option>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
               </select>
             </div>
-          )}
 
-          {/* Study References */}
-          <div className="qb__study-refs">
-            <label className="qb__label">Study References (recommended material when student misses this question)</label>
-            {studyRefs.length > 0 && (
-              <div className="qb__study-refs-list">
-                {studyRefs.map((ref, i) => (
-                  <div key={i} className="qb__study-ref-item">
-                    <span className="qb__study-ref-badge">{ref.type}</span>
-                    <span className="qb__study-ref-label">{ref.label}</span>
-                    <button className="qb__study-ref-remove" onClick={() => setStudyRefs(studyRefs.filter((_, j) => j !== i))}>&times;</button>
+            {filteredQuestions.length === 0 && (
+              <div className="admin-empty" style={{ padding: '2rem' }}>
+                <div className="admin-empty__icon">&#x2753;</div>
+                <div className="admin-empty__title">{questions.length === 0 ? 'No questions yet' : 'No matching questions'}</div>
+                <div className="admin-empty__desc">{questions.length === 0 ? 'Create your first question above.' : 'Try adjusting your filters.'}</div>
+              </div>
+            )}
+            <div className="qb__bank-list">
+              {filteredQuestions.map(q => {
+                const opts = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || []);
+                return (
+                  <div key={q.id} className={`qb__bank-item ${editId === q.id ? 'qb__bank-item--editing' : ''}`}>
+                    <div className="qb__bank-item-main">
+                      <span className="qb__bank-type">{TYPE_INFO[q.question_type]?.label || q.question_type}</span>
+                      <span className={`qb__bank-diff qb__bank-diff--${q.difficulty}`}>{q.difficulty}</span>
+                      {q.exam_category && <span className="qb__bank-exam">{q.exam_category}</span>}
+                      {q.is_dynamic && <span className="qb__bank-dynamic">Dynamic</span>}
+                      {q.template_id && <span className="qb__bank-template">Template</span>}
+                      {q.study_references && q.study_references.length > 0 && (
+                        <span className="qb__bank-refs">{q.study_references.length} ref{q.study_references.length !== 1 ? 's' : ''}</span>
+                      )}
+                      {q.tags && q.tags.length > 0 && <span className="qb__bank-tags">{q.tags.join(', ')}</span>}
+                    </div>
+                    <p className="qb__bank-text">{q.question_text.substring(0, 150)}{q.question_text.length > 150 ? '...' : ''}</p>
+                    {q.question_type !== 'fill_blank' && q.question_type !== 'math_template' && (
+                      <p className="qb__bank-answer">Correct: {q.correct_answer.substring(0, 80)}</p>
+                    )}
+                    {opts.length > 0 && q.question_type !== 'fill_blank' && (
+                      <p className="qb__bank-opts">{opts.length} options</p>
+                    )}
+                    <div className="qb__bank-actions">
+                      <button className="manage__item-btn" onClick={() => loadForEdit(q)}>Edit</button>
+                      <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete(q.id)}>Delete</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ================================================================== */}
+      {/* TAB 2: TEMPLATES (Parametric problem template CRUD) */}
+      {/* ================================================================== */}
+      {activeTab === 'templates' && (
+        <>
+          <div className="qb__editor">
+            <h3 className="qb__section-title">
+              {tmplEditId ? 'Edit Template' : 'Create Problem Template'}
+              {tmplEditId && <span className="qb__editing-badge">Editing</span>}
+            </h3>
+            <p className="qb__hint" style={{ marginBottom: '1rem' }}>
+              Templates define parametric problems with variable ranges and formulas. Each template can generate unlimited unique problem instances.
+            </p>
+
+            {/* Basic Info */}
+            <div className="qb__row">
+              <input className="qb__input" placeholder="Template name *" value={tmplName} onChange={e => setTmplName(e.target.value)} style={{ flex: 2 }} />
+              <input className="qb__input" placeholder="Category *" value={tmplCategory} onChange={e => setTmplCategory(e.target.value)} />
+              <input className="qb__input" placeholder="Subcategory" value={tmplSubcategory} onChange={e => setTmplSubcategory(e.target.value)} />
+            </div>
+            <textarea className="qb__textarea" placeholder="Description (optional)" rows={2} value={tmplDescription} onChange={e => setTmplDescription(e.target.value)} />
+
+            <div className="qb__row">
+              <select className="qb__select" value={tmplQuestionType} onChange={e => setTmplQuestionType(e.target.value)}>
+                <option value="numeric_input">Numeric Answer</option>
+                <option value="multiple_choice">Multiple Choice</option>
+                <option value="short_answer">Short Answer</option>
+              </select>
+              <select className="qb__select" value={tmplDifficulty} onChange={e => setTmplDifficulty(e.target.value)}>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+                <option value="very_hard">Very Hard</option>
+              </select>
+              <select className="qb__select" value={tmplGeneratorId} onChange={e => setTmplGeneratorId(e.target.value)}>
+                <option value="">No linked generator (custom formula)</option>
+                {generators.map(g => <option key={g.id} value={g.id}>[{g.category}] {g.name}</option>)}
+              </select>
+            </div>
+
+            {/* Link to module/lesson */}
+            <div className="qb__row">
+              <select className="qb__select" value={tmplModuleId} onChange={e => setTmplModuleId(e.target.value)}>
+                <option value="">Module (optional)</option>
+                {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+              </select>
+              <select className="qb__select" value={tmplLessonId} onChange={e => setTmplLessonId(e.target.value)}>
+                <option value="">Lesson (optional)</option>
+                {tmplFilteredLessons.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
+              </select>
+              <select className="qb__select" value={tmplExamCategory} onChange={e => setTmplExamCategory(e.target.value)}>
+                <option value="">Exam (optional)</option>
+                <option value="SIT">SIT</option>
+                <option value="RPLS">RPLS</option>
+              </select>
+            </div>
+
+            {/* Question Template */}
+            {!tmplGeneratorId && (
+              <>
+                <label className="qb__label">Question Template (use {'{{paramName}}'} for variables)</label>
+                <textarea className="qb__textarea"
+                  placeholder='E.g.: A surveyor measures a slope distance of {{slope_dist}} ft at a vertical angle of {{vert_angle}}. What is the horizontal distance? Round to 2 decimal places.'
+                  rows={4} value={tmplQuestionTemplate} onChange={e => setTmplQuestionTemplate(e.target.value)} />
+
+                {/* Parameters */}
+                <label className="qb__label">Parameters (variables used in the question and formulas)</label>
+                {tmplParams.map((p, i) => (
+                  <div key={i} className="qb__param-row">
+                    <input className="qb__input qb__input--sm" placeholder="Name" value={p.name}
+                      onChange={e => { const np = [...tmplParams]; np[i] = { ...np[i], name: e.target.value }; setTmplParams(np); }} style={{ width: '120px' }} />
+                    <input className="qb__input qb__input--sm" placeholder="Label" value={p.label}
+                      onChange={e => { const np = [...tmplParams]; np[i] = { ...np[i], label: e.target.value }; setTmplParams(np); }} style={{ width: '140px' }} />
+                    <select className="qb__select qb__select--sm" value={p.type}
+                      onChange={e => { const np = [...tmplParams]; np[i] = { ...np[i], type: e.target.value as TemplateParam['type'] }; setTmplParams(np); }} style={{ width: '110px' }}>
+                      <option value="integer">Integer</option>
+                      <option value="float">Float</option>
+                      <option value="angle_dms">Angle (DMS)</option>
+                      <option value="bearing">Bearing</option>
+                      <option value="choice">Choice</option>
+                      <option value="computed">Computed</option>
+                    </select>
+                    {(p.type === 'integer' || p.type === 'float' || p.type === 'angle_dms') && (
+                      <>
+                        <input className="qb__input qb__input--sm" type="number" placeholder="Min" value={p.min ?? ''} style={{ width: '80px' }}
+                          onChange={e => { const np = [...tmplParams]; np[i] = { ...np[i], min: parseFloat(e.target.value) }; setTmplParams(np); }} />
+                        <input className="qb__input qb__input--sm" type="number" placeholder="Max" value={p.max ?? ''} style={{ width: '80px' }}
+                          onChange={e => { const np = [...tmplParams]; np[i] = { ...np[i], max: parseFloat(e.target.value) }; setTmplParams(np); }} />
+                      </>
+                    )}
+                    {p.type === 'float' && (
+                      <input className="qb__input qb__input--sm" type="number" placeholder="Decimals" value={p.decimals ?? 2} style={{ width: '70px' }}
+                        onChange={e => { const np = [...tmplParams]; np[i] = { ...np[i], decimals: parseInt(e.target.value) }; setTmplParams(np); }} />
+                    )}
+                    {p.type === 'choice' && (
+                      <input className="qb__input qb__input--sm" placeholder='Choices (comma-separated)' value={(p.choices || []).join(',')}
+                        onChange={e => { const np = [...tmplParams]; np[i] = { ...np[i], choices: e.target.value.split(',').map(s => s.trim()) }; setTmplParams(np); }} />
+                    )}
+                    {p.type === 'computed' && (
+                      <input className="qb__input qb__input--sm" placeholder='Formula (e.g. a + b)' value={p.formula || ''}
+                        onChange={e => { const np = [...tmplParams]; np[i] = { ...np[i], formula: e.target.value }; setTmplParams(np); }} />
+                    )}
+                    <input className="qb__input qb__input--sm" placeholder="Unit" value={p.unit || ''} style={{ width: '60px' }}
+                      onChange={e => { const np = [...tmplParams]; np[i] = { ...np[i], unit: e.target.value }; setTmplParams(np); }} />
+                    <button className="qb__option-remove" onClick={() => setTmplParams(tmplParams.filter((_, j) => j !== i))}>&times;</button>
+                  </div>
+                ))}
+                <button className="qb__add-option" onClick={() => setTmplParams([...tmplParams, { ...EMPTY_PARAM }])}>+ Add Parameter</button>
+
+                {/* Computed Variables */}
+                <label className="qb__label" style={{ marginTop: '1rem' }}>Computed Variables (intermediate calculations for solution steps)</label>
+                {tmplComputedVars.map((cv, i) => (
+                  <div key={i} className="qb__param-row">
+                    <input className="qb__input qb__input--sm" placeholder="Name (e.g. _cos_angle)" value={cv.name} style={{ width: '160px' }}
+                      onChange={e => { const nc = [...tmplComputedVars]; nc[i] = { ...nc[i], name: e.target.value }; setTmplComputedVars(nc); }} />
+                    <input className="qb__input" placeholder='Formula (e.g. round(cos(angle * PI / 180), 6))' value={cv.formula}
+                      onChange={e => { const nc = [...tmplComputedVars]; nc[i] = { ...nc[i], formula: e.target.value }; setTmplComputedVars(nc); }} />
+                    <button className="qb__option-remove" onClick={() => setTmplComputedVars(tmplComputedVars.filter((_, j) => j !== i))}>&times;</button>
+                  </div>
+                ))}
+                <button className="qb__add-option" onClick={() => setTmplComputedVars([...tmplComputedVars, { ...EMPTY_COMPUTED }])}>+ Add Computed Variable</button>
+
+                {/* Answer Formula */}
+                <label className="qb__label" style={{ marginTop: '1rem' }}>Answer Formula (compute the correct answer from parameters)</label>
+                <input className="qb__input" placeholder='E.g.: round(slope_dist * cos(vert_angle * PI / 180), 2)' value={tmplAnswerFormula} onChange={e => setTmplAnswerFormula(e.target.value)} />
+                <div className="qb__row">
+                  <div>
+                    <label className="qb__label">Decimal Places</label>
+                    <input className="qb__input qb__input--sm" type="number" value={tmplDecimals} onChange={e => setTmplDecimals(parseInt(e.target.value) || 2)} style={{ width: '80px' }} />
+                  </div>
+                  <div>
+                    <label className="qb__label">Tolerance</label>
+                    <input className="qb__input qb__input--sm" type="number" step="any" value={tmplTolerance} onChange={e => setTmplTolerance(parseFloat(e.target.value) || 0.01)} style={{ width: '100px' }} />
+                  </div>
+                  <div>
+                    <label className="qb__label">Unit</label>
+                    <input className="qb__input qb__input--sm" placeholder="ft, m, deg" value={tmplUnit} onChange={e => setTmplUnit(e.target.value)} style={{ width: '80px' }} />
+                  </div>
+                </div>
+
+                {/* Solution Step Templates */}
+                <label className="qb__label" style={{ marginTop: '1rem' }}>Solution Steps (use {'{{paramName}}'} and {'{{_answer}}'} for substitution)</label>
+                {tmplSolutionSteps.map((st, i) => (
+                  <div key={i} className="qb__solution-step">
+                    <div className="qb__solution-step-header">
+                      <span className="qb__solution-step-num">Step {i + 1}</span>
+                      <button className="qb__option-remove" onClick={() => setTmplSolutionSteps(tmplSolutionSteps.filter((_, j) => j !== i))}>&times;</button>
+                    </div>
+                    <input className="qb__input" placeholder="Step title" value={st.title}
+                      onChange={e => { const s = [...tmplSolutionSteps]; s[i] = { ...s[i], title: e.target.value }; setTmplSolutionSteps(s); }} />
+                    <input className="qb__input" placeholder="Description template (use {{vars}})" value={st.description_template || ''}
+                      onChange={e => { const s = [...tmplSolutionSteps]; s[i] = { ...s[i], description_template: e.target.value }; setTmplSolutionSteps(s); }} />
+                    <input className="qb__input" placeholder="Formula display" value={st.formula || ''}
+                      onChange={e => { const s = [...tmplSolutionSteps]; s[i] = { ...s[i], formula: e.target.value }; setTmplSolutionSteps(s); }} />
+                    <input className="qb__input" placeholder="Calculation template (use {{vars}})" value={st.calculation_template || ''}
+                      onChange={e => { const s = [...tmplSolutionSteps]; s[i] = { ...s[i], calculation_template: e.target.value }; setTmplSolutionSteps(s); }} />
+                    <input className="qb__input" placeholder="Result template (use {{_answer}})" value={st.result_template || ''}
+                      onChange={e => { const s = [...tmplSolutionSteps]; s[i] = { ...s[i], result_template: e.target.value }; setTmplSolutionSteps(s); }} />
+                  </div>
+                ))}
+                <button className="qb__add-option" onClick={() => setTmplSolutionSteps([...tmplSolutionSteps, { ...EMPTY_STEP, step_number: tmplSolutionSteps.length + 1 }])}>
+                  + Add Solution Step
+                </button>
+
+                {/* Explanation Template */}
+                <label className="qb__label" style={{ marginTop: '1rem' }}>Explanation Template</label>
+                <textarea className="qb__textarea" rows={2} placeholder='E.g.: H = S x cos(alpha) = {{slope_dist}} x cos({{vert_angle}}) = {{_answer}} ft.'
+                  value={tmplExplanation} onChange={e => setTmplExplanation(e.target.value)} />
+              </>
+            )}
+
+            {tmplGeneratorId && (
+              <div className="qb__callout" style={{ background: 'var(--bg-alt, #f0f4f8)', padding: '1rem', borderRadius: '8px', margin: '1rem 0' }}>
+                <strong>Linked to hardcoded generator:</strong> {generators.find(g => g.id === tmplGeneratorId)?.name || tmplGeneratorId}
+                <p style={{ margin: '.5rem 0 0', fontSize: '.85rem', opacity: .8 }}>
+                  This template delegates to an existing algorithm. The question template, parameters, and formula fields above are for reference only.
+                </p>
+              </div>
+            )}
+
+            {/* Tags */}
+            <div className="qb__tags-section">
+              <label className="qb__label">Tags</label>
+              {tmplTags.length > 0 && (
+                <div className="qb__tags-list">
+                  {tmplTags.map((tag, i) => (
+                    <span key={i} className="qb__tag-item">{tag} <button onClick={() => setTmplTags(tmplTags.filter((_, j) => j !== i))}>&times;</button></span>
+                  ))}
+                </div>
+              )}
+              <div className="qb__tag-add">
+                <input className="qb__input qb__input--sm" placeholder="Add tag..." value={tmplTagInput}
+                  onChange={e => setTmplTagInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && tmplTagInput.trim()) { e.preventDefault(); if (!tmplTags.includes(tmplTagInput.trim())) setTmplTags([...tmplTags, tmplTagInput.trim()]); setTmplTagInput(''); } }} />
+                <button className="admin-btn admin-btn--ghost admin-btn--sm"
+                  onClick={() => { if (tmplTagInput.trim() && !tmplTags.includes(tmplTagInput.trim())) { setTmplTags([...tmplTags, tmplTagInput.trim()]); setTmplTagInput(''); } }}>Add</button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="qb__actions">
+              <button className="admin-btn admin-btn--secondary" onClick={handlePreviewTemplate} disabled={saving}>
+                Test / Preview
+              </button>
+              <button className="admin-btn admin-btn--primary" onClick={handleSaveTemplate} disabled={saving}>
+                {saving ? 'Saving...' : tmplEditId ? 'Update Template' : 'Create Template'}
+              </button>
+              {tmplEditId && <button className="admin-btn admin-btn--ghost" onClick={resetTemplateForm}>Cancel Edit</button>}
+            </div>
+
+            {/* Preview Result */}
+            {tmplPreviewResult && (
+              <div className="qb__preview-result">
+                <h4 className="qb__label">Generated Preview</h4>
+                {tmplPreviewParams && (
+                  <div className="qb__preview-params">
+                    <strong>Parameters:</strong> {JSON.stringify(tmplPreviewParams, null, 2)}
+                  </div>
+                )}
+                <div className="qb__preview-question">
+                  <strong>Question:</strong> {tmplPreviewResult.question_text}
+                </div>
+                <div className="qb__preview-answer">
+                  <strong>Answer:</strong> {tmplPreviewResult.correct_answer}
+                  {tmplPreviewResult.tolerance > 0 && <span style={{ opacity: .6 }}> (tolerance: {tmplPreviewResult.tolerance})</span>}
+                </div>
+                {tmplPreviewResult.solution_steps && tmplPreviewResult.solution_steps.length > 0 && (
+                  <div className="qb__preview-steps">
+                    <strong>Solution Steps:</strong>
+                    {tmplPreviewResult.solution_steps.map((s, i) => (
+                      <div key={i} className="qb__preview-step">
+                        <span className="qb__preview-step-num">{s.step_number}.</span>
+                        <strong>{s.title}</strong>
+                        {s.description && <div style={{ fontSize: '.85rem', whiteSpace: 'pre-wrap' }}>{s.description}</div>}
+                        {s.formula && <div style={{ fontSize: '.85rem', fontStyle: 'italic' }}>{s.formula}</div>}
+                        {s.calculation && <div style={{ fontSize: '.85rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{s.calculation}</div>}
+                        {s.result && <div style={{ fontSize: '.85rem', fontWeight: 600 }}>{s.result}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {tmplPreviewResult.explanation && (
+                  <div className="qb__preview-explanation">
+                    <strong>Explanation:</strong> {tmplPreviewResult.explanation}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Template Library */}
+          <div className="qb__bank">
+            <h3 className="qb__section-title">Template Library ({filteredTemplates.length} templates)</h3>
+            <div className="qb__filters">
+              <input className="qb__input qb__input--sm" placeholder="Search templates..." value={tmplFilter} onChange={e => setTmplFilter(e.target.value)} />
+            </div>
+            {filteredTemplates.length === 0 && (
+              <div className="admin-empty" style={{ padding: '2rem' }}>
+                <div className="admin-empty__icon">&#x1F9E9;</div>
+                <div className="admin-empty__title">No templates yet</div>
+                <div className="admin-empty__desc">Create your first problem template above, or templates will be auto-created when you run the migration.</div>
+              </div>
+            )}
+            <div className="qb__bank-list">
+              {filteredTemplates.map(t => (
+                <div key={t.id} className={`qb__bank-item ${tmplEditId === t.id ? 'qb__bank-item--editing' : ''}`}>
+                  <div className="qb__bank-item-main">
+                    <span className="qb__bank-type">{t.category}</span>
+                    <span className={`qb__bank-diff qb__bank-diff--${t.difficulty}`}>{t.difficulty}</span>
+                    {t.generator_id && <span className="qb__bank-dynamic">Algorithm</span>}
+                    {!t.generator_id && <span className="qb__bank-template">Custom</span>}
+                    {t.subcategory && <span className="qb__bank-tags">{t.subcategory}</span>}
+                  </div>
+                  <p className="qb__bank-text"><strong>{t.name}</strong>{t.description ? ` -- ${t.description}` : ''}</p>
+                  <p className="qb__bank-answer" style={{ fontSize: '.8rem' }}>
+                    {t.parameters.length} params | Formula: {t.answer_formula.substring(0, 60)}{t.answer_formula.length > 60 ? '...' : ''}
+                  </p>
+                  <div className="qb__bank-actions">
+                    <button className="manage__item-btn" onClick={() => loadTemplateForEdit(t)}>Edit</button>
+                    <button className="manage__item-btn" onClick={() => handlePreviewFromList(t)} title="Generate a sample problem">Preview</button>
+                    <button className="manage__item-btn" onClick={() => handlePublishTemplate(t.id, 1, true)} title="Add 1 dynamic question to question bank">Publish 1</button>
+                    <button className="manage__item-btn" onClick={() => handlePublishTemplate(t.id, 5, false)} title="Generate 5 static questions">Publish 5</button>
+                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDeleteTemplate(t.id)}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ================================================================== */}
+      {/* TAB 3: AUTO-GENERATE (Use hardcoded generators) */}
+      {/* ================================================================== */}
+      {activeTab === 'generators' && (
+        <>
+          <div className="qb__editor">
+            <h3 className="qb__section-title">Auto-Generate Problems</h3>
+            <p className="qb__hint" style={{ marginBottom: '1rem' }}>
+              Select a problem type and click Generate to create random problems with full solutions.
+              Problems can be previewed, then published to the question bank for use in quizzes.
+            </p>
+
+            {/* Generator Selector */}
+            <label className="qb__label">Select Problem Type</label>
+            <div className="qb__gen-categories">
+              {Object.entries(genGrouped).map(([cat, gens]) => (
+                <div key={cat} className="qb__gen-category">
+                  <h4 className="qb__gen-category-title">{cat}</h4>
+                  <div className="qb__gen-buttons">
+                    {gens.map(g => (
+                      <button key={g.id}
+                        className={`qb__gen-btn ${genSelected === g.id ? 'qb__gen-btn--active' : ''}`}
+                        onClick={() => { setGenSelected(g.id); setGenPreview([]); }}>
+                        <span className="qb__gen-btn-name">{g.name}</span>
+                        <span className="qb__gen-btn-desc">{g.description}</span>
+                        <span className="qb__gen-btn-diff">{g.difficulties.join(', ')}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {genSelected && (
+              <div className="qb__gen-controls">
+                <div className="qb__row" style={{ alignItems: 'flex-end' }}>
+                  <div>
+                    <label className="qb__label">Count</label>
+                    <input className="qb__input" type="number" min="1" max="50" value={genCount} onChange={e => setGenCount(Math.min(50, parseInt(e.target.value) || 1))} style={{ width: '80px' }} />
+                  </div>
+                  <button className="admin-btn admin-btn--secondary" onClick={handleGeneratePreview} disabled={genLoading}>
+                    {genLoading ? 'Generating...' : 'Generate Preview'}
+                  </button>
+                </div>
+
+                {/* Publish options */}
+                <div className="qb__gen-publish" style={{ marginTop: '1rem' }}>
+                  <label className="qb__label">Publish to (optional -- assign to lesson/module before publishing)</label>
+                  <div className="qb__row">
+                    <select className="qb__select" value={genPublishModule} onChange={e => setGenPublishModule(e.target.value)}>
+                      <option value="">Module (optional)</option>
+                      {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+                    </select>
+                    <select className="qb__select" value={genPublishLesson} onChange={e => setGenPublishLesson(e.target.value)}>
+                      <option value="">Lesson (optional)</option>
+                      {(genPublishModule ? lessons.filter(l => l.module_id === genPublishModule) : lessons).map(l => (
+                        <option key={l.id} value={l.id}>{l.title}</option>
+                      ))}
+                    </select>
+                    <select className="qb__select" value={genPublishExam} onChange={e => setGenPublishExam(e.target.value)}>
+                      <option value="">Exam (optional)</option>
+                      <option value="SIT">SIT</option>
+                      <option value="RPLS">RPLS</option>
+                    </select>
+                    <button className="admin-btn admin-btn--primary" onClick={handlePublishGenerated} disabled={saving || genPreview.length === 0}>
+                      {saving ? 'Publishing...' : `Publish ${genCount} to Question Bank`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Preview Results */}
+            {genPreview.length > 0 && (
+              <div className="qb__gen-preview">
+                <h4 className="qb__label">Generated Problems ({genPreview.length})</h4>
+                {genPreview.map((p, i) => (
+                  <div key={p.id} className="qb__gen-problem">
+                    <div className="qb__gen-problem-header">
+                      <span className="qb__gen-problem-num">#{i + 1}</span>
+                      <span className={`qb__bank-diff qb__bank-diff--${p.difficulty}`}>{p.difficulty}</span>
+                      <span className="qb__bank-tags">{p.subcategory}</span>
+                    </div>
+                    <p className="qb__gen-problem-text">{p.question_text}</p>
+                    <p className="qb__gen-problem-answer">
+                      <strong>Answer:</strong> {p.correct_answer}
+                      {p.tolerance > 0 && <span style={{ opacity: .6 }}> (tol: {p.tolerance})</span>}
+                    </p>
+                    <details className="qb__gen-problem-details">
+                      <summary>Solution Steps ({p.solution_steps.length})</summary>
+                      <div className="qb__gen-solution">
+                        {p.solution_steps.map((s, j) => (
+                          <div key={j} className="qb__gen-solution-step">
+                            <strong>Step {s.step_number}: {s.title}</strong>
+                            {s.description && <div style={{ whiteSpace: 'pre-wrap', fontSize: '.85rem' }}>{s.description}</div>}
+                            {s.formula && <div style={{ fontStyle: 'italic', fontSize: '.85rem' }}>{s.formula}</div>}
+                            {s.calculation && <div style={{ fontFamily: 'monospace', fontSize: '.85rem', whiteSpace: 'pre-wrap' }}>{s.calculation}</div>}
+                            {s.result && <div style={{ fontWeight: 600, fontSize: '.85rem' }}>{s.result}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                    {p.explanation && (
+                      <p className="qb__gen-problem-explanation" style={{ fontSize: '.85rem', opacity: .8, marginTop: '.25rem' }}>
+                        {p.explanation}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
             )}
-            <div className="qb__study-refs-add">
-              {/* Quick-add from current topic */}
-              {topicId && topics.length > 0 && (
-                <button
-                  className="admin-btn admin-btn--ghost admin-btn--sm"
-                  onClick={() => {
-                    const topic = topics.find(t => t.id === topicId);
-                    if (topic && !studyRefs.some(r => r.id === topic.id)) {
-                      setStudyRefs([...studyRefs, { type: 'topic', id: topic.id, label: topic.title }]);
-                    }
-                  }}
-                >
-                  + Add Current Topic
-                </button>
-              )}
-              {/* Add any topic from current lesson */}
-              {lessonId && topics.length > 0 && (
-                <select
-                  className="qb__select qb__select--sm"
-                  value=""
-                  onChange={e => {
-                    const t = topics.find(t => t.id === e.target.value);
-                    if (t && !studyRefs.some(r => r.id === t.id)) {
-                      setStudyRefs([...studyRefs, { type: 'topic', id: t.id, label: t.title }]);
-                    }
-                  }}
-                >
-                  <option value="">+ Add topic from lesson...</option>
-                  {topics.filter(t => !studyRefs.some(r => r.id === t.id)).map(t => (
-                    <option key={t.id} value={t.id}>{t.title}</option>
-                  ))}
-                </select>
-              )}
-              {/* Add current lesson as study ref */}
-              {lessonId && (
-                <button
-                  className="admin-btn admin-btn--ghost admin-btn--sm"
-                  onClick={() => {
-                    const les = lessons.find(l => l.id === lessonId);
-                    if (les && !studyRefs.some(r => r.id === les.id)) {
-                      setStudyRefs([...studyRefs, { type: 'lesson', id: les.id, label: les.title }]);
-                    }
-                  }}
-                >
-                  + Add Current Lesson
-                </button>
-              )}
-              {/* Add current module as study ref */}
-              {moduleId && (
-                <button
-                  className="admin-btn admin-btn--ghost admin-btn--sm"
-                  onClick={() => {
-                    const mod = modules.find(m => m.id === moduleId);
-                    if (mod && !studyRefs.some(r => r.id === mod.id)) {
-                      setStudyRefs([...studyRefs, { type: 'module', id: mod.id, label: mod.title }]);
-                    }
-                  }}
-                >
-                  + Add Current Module
-                </button>
-              )}
-            </div>
           </div>
-
-          {/* Tags */}
-          <div className="qb__tags-section">
-            <label className="qb__label">Tags (optional)</label>
-            {tags.length > 0 && (
-              <div className="qb__tags-list">
-                {tags.map((tag, i) => (
-                  <span key={i} className="qb__tag-item">
-                    {tag}
-                    <button onClick={() => setTags(tags.filter((_, j) => j !== i))}>&times;</button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="qb__tag-add">
-              <input
-                className="qb__input qb__input--sm"
-                placeholder="Add tag..."
-                value={tagInput}
-                onChange={e => setTagInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && tagInput.trim()) {
-                    e.preventDefault();
-                    if (!tags.includes(tagInput.trim())) setTags([...tags, tagInput.trim()]);
-                    setTagInput('');
-                  }
-                }}
-              />
-              <button
-                className="admin-btn admin-btn--ghost admin-btn--sm"
-                onClick={() => {
-                  if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-                    setTags([...tags, tagInput.trim()]);
-                    setTagInput('');
-                  }
-                }}
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {message && <p className={`qb__message ${message.includes('!') ? 'qb__message--success' : 'qb__message--error'}`}>{message}</p>}
-
-        <div className="qb__actions">
-          <button className="admin-btn admin-btn--primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : editId ? 'Update Question' : 'Create Question'}
-          </button>
-          {editId && (
-            <button className="admin-btn admin-btn--ghost" onClick={resetForm}>Cancel Edit</button>
-          )}
-        </div>
-      </div>
-
-      {/* Question Bank List */}
-      <div className="qb__bank">
-        <h3 className="qb__section-title">Question Bank ({questions.length} questions)</h3>
-        {questions.length === 0 && (
-          <div className="admin-empty" style={{ padding: '2rem' }}>
-            <div className="admin-empty__icon">&#x2753;</div>
-            <div className="admin-empty__title">No questions yet</div>
-            <div className="admin-empty__desc">Create your first question above.</div>
-          </div>
-        )}
-        <div className="qb__bank-list">
-          {questions.map(q => {
-            const opts = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || []);
-            return (
-              <div key={q.id} className={`qb__bank-item ${editId === q.id ? 'qb__bank-item--editing' : ''}`}>
-                <div className="qb__bank-item-main">
-                  <span className="qb__bank-type">{TYPE_INFO[q.question_type]?.label || q.question_type}</span>
-                  <span className={`qb__bank-diff qb__bank-diff--${q.difficulty}`}>{q.difficulty}</span>
-                  {q.exam_category && <span className="qb__bank-exam">{q.exam_category}</span>}
-                  {q.study_references && q.study_references.length > 0 && (
-                    <span className="qb__bank-refs">{'\u{1F4DA}'} {q.study_references.length} ref{q.study_references.length !== 1 ? 's' : ''}</span>
-                  )}
-                  {q.tags && q.tags.length > 0 && (
-                    <span className="qb__bank-tags">{q.tags.join(', ')}</span>
-                  )}
-                </div>
-                <p className="qb__bank-text">{q.question_text.substring(0, 150)}{q.question_text.length > 150 ? '...' : ''}</p>
-                {q.question_type !== 'fill_blank' && q.question_type !== 'math_template' && (
-                  <p className="qb__bank-answer">Correct: {q.correct_answer.substring(0, 80)}</p>
-                )}
-                {opts.length > 0 && q.question_type !== 'fill_blank' && (
-                  <p className="qb__bank-opts">{opts.length} options</p>
-                )}
-                <div className="qb__bank-actions">
-                  <button className="manage__item-btn" onClick={() => loadForEdit(q)}>Edit</button>
-                  <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete(q.id)}>Delete</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+        </>
+      )}
     </>
   );
+
+  // Helper: preview from template list item
+  async function handlePreviewFromList(t: ProblemTemplate) {
+    try {
+      const res = await fetch(`/api/admin/learn/templates?action=preview&id=${t.id}`);
+      const data = await res.json();
+      if (res.ok) {
+        setTmplPreviewResult(data.problem);
+        setTmplPreviewParams(data.parameters);
+        setMessage('Preview generated!');
+        // Scroll to preview
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        setMessage(data.error || 'Preview failed');
+      }
+    } catch { setMessage('Network error'); }
+  }
 }
