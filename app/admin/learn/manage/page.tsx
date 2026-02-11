@@ -2,6 +2,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
 import SmartSearch from '../components/SmartSearch';
@@ -21,9 +22,11 @@ interface Activity { id: string; user_email: string; action_type: string; entity
 
 export default function ManageContentPage() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
   const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
   const { safeFetch } = usePageError('ManageContentPage');
-  const [tab, setTab] = useState<Tab>('modules');
+  const initialTab = (searchParams.get('tab') as Tab) || 'modules';
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [loading, setLoading] = useState(true);
 
   // Data
@@ -636,34 +639,64 @@ export default function ManageContentPage() {
         <div className="manage__form">
           {tab === 'modules' && (
             <>
-              <input className="manage__form-input" placeholder="Module title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
-              <textarea className="manage__form-textarea" placeholder="Description" rows={2} value={formData.description || ''} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} />
+              <div className="manage__form-field">
+                <input className="manage__form-input" placeholder="Module title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
+                <span className="manage__form-hint">The display name for this module (e.g., &ldquo;Introduction to Boundary Law&rdquo;).</span>
+              </div>
+              <div className="manage__form-field">
+                <textarea className="manage__form-textarea" placeholder="Description" rows={2} value={formData.description || ''} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} />
+                <span className="manage__form-hint">A brief summary shown on the module card. Explain what students will learn.</span>
+              </div>
               <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-                <select className="manage__form-input" value={formData.difficulty || 'beginner'} onChange={e => setFormData(p => ({ ...p, difficulty: e.target.value }))}>
-                  <option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option>
-                </select>
-                <input className="manage__form-input" type="number" placeholder="Est. hours" value={formData.estimated_hours || ''} onChange={e => setFormData(p => ({ ...p, estimated_hours: e.target.value }))} />
-                <select className="manage__form-input" value={formData.status || 'draft'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
-                  <option value="draft">Draft</option><option value="published">Published</option>
-                </select>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <select className="manage__form-input" value={formData.difficulty || 'beginner'} onChange={e => setFormData(p => ({ ...p, difficulty: e.target.value }))}>
+                    <option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option>
+                  </select>
+                  <span className="manage__form-hint">Difficulty level shown to students.</span>
+                </div>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <input className="manage__form-input" type="number" min="0" step="0.5" placeholder="Est. hours" value={formData.estimated_hours || ''} onChange={e => setFormData(p => ({ ...p, estimated_hours: e.target.value }))} />
+                  <span className="manage__form-hint">Estimated time to complete all lessons.</span>
+                </div>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <select className="manage__form-input" value={formData.status || 'draft'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
+                    <option value="draft">Draft</option><option value="published">Published</option>
+                  </select>
+                  <span className="manage__form-hint">Draft modules are hidden from students.</span>
+                </div>
               </div>
             </>
           )}
           {tab === 'lessons' && (
             <>
-              <select className="manage__form-input" value={formData.module_id || ''} onChange={e => setFormData(p => ({ ...p, module_id: e.target.value }))}>
-                <option value="">Select module *</option>
-                {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
-              </select>
-              <input className="manage__form-input" placeholder="Lesson title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
-              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-                <input className="manage__form-input" type="number" placeholder="Order index" value={formData.order_index || ''} onChange={e => setFormData(p => ({ ...p, order_index: e.target.value }))} />
-                <input className="manage__form-input" type="number" placeholder="Est. minutes" value={formData.estimated_minutes || ''} onChange={e => setFormData(p => ({ ...p, estimated_minutes: e.target.value }))} />
-                <select className="manage__form-input" value={formData.status || 'draft'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
-                  <option value="draft">Draft</option><option value="published">Published</option>
+              <div className="manage__form-field">
+                <select className="manage__form-input" value={formData.module_id || ''} onChange={e => setFormData(p => ({ ...p, module_id: e.target.value }))}>
+                  <option value="">Select module *</option>
+                  {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
                 </select>
+                <span className="manage__form-hint">Which module this lesson belongs to. Students must complete lessons in module order.</span>
               </div>
-              <p style={{ fontSize: '.78rem', color: '#6B7280' }}>Use the Lesson Builder to add rich content after creating the lesson.</p>
+              <div className="manage__form-field">
+                <input className="manage__form-input" placeholder="Lesson title *" value={formData.title || ''} onChange={e => setFormData(p => ({ ...p, title: e.target.value }))} />
+                <span className="manage__form-hint">The lesson name shown in the module&rsquo;s lesson list (e.g., &ldquo;Types of Legal Descriptions&rdquo;).</span>
+              </div>
+              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <input className="manage__form-input" type="number" min="1" step="1" placeholder="Order (e.g. 1, 2, 3)" value={formData.order_index || ''} onChange={e => setFormData(p => ({ ...p, order_index: Math.max(1, parseInt(e.target.value) || 1).toString() }))} />
+                  <span className="manage__form-hint">Position in the module (1 = first lesson). Must be 1 or higher.</span>
+                </div>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <input className="manage__form-input" type="number" min="1" step="5" placeholder="Est. minutes (e.g. 30)" value={formData.estimated_minutes || ''} onChange={e => setFormData(p => ({ ...p, estimated_minutes: e.target.value }))} />
+                  <span className="manage__form-hint">Approximate reading/study time for this lesson.</span>
+                </div>
+                <div className="manage__form-field" style={{ flex: 1 }}>
+                  <select className="manage__form-input" value={formData.status || 'draft'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
+                    <option value="draft">Draft</option><option value="published">Published</option>
+                  </select>
+                  <span className="manage__form-hint">Draft = hidden. Publish when content is ready.</span>
+                </div>
+              </div>
+              <p style={{ fontSize: '.78rem', color: '#6B7280', marginTop: '.25rem' }}>After creating, use the <strong>Lesson Builder</strong> to add rich content blocks (text, images, quizzes, etc.).</p>
             </>
           )}
           {tab === 'articles' && (
@@ -752,7 +785,7 @@ export default function ManageContentPage() {
                         <option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option>
                       </select>
                       <input className="manage__form-input" style={{ flex: 1 }} type="number" step="0.5" min="0" placeholder="Est. hours" value={editModule.estimated_hours ?? m.estimated_hours} onChange={e => setEditModule(p => ({ ...p, estimated_hours: parseFloat(e.target.value) || 0 }))} />
-                      <input className="manage__form-input" style={{ flex: 1 }} type="number" step="1" min="0" placeholder="Order" value={editModule.order_index ?? m.order_index} onChange={e => setEditModule(p => ({ ...p, order_index: parseInt(e.target.value) || 0 }))} />
+                      <input className="manage__form-input" style={{ flex: 1 }} type="number" step="1" min="1" placeholder="Order" value={editModule.order_index ?? m.order_index} onChange={e => setEditModule(p => ({ ...p, order_index: Math.max(1, parseInt(e.target.value) || 1) }))} />
                       <select className="manage__form-input" style={{ flex: 1 }} value={editModule.status ?? m.status} onChange={e => setEditModule(p => ({ ...p, status: e.target.value }))}>
                         <option value="draft">Draft</option><option value="published">Published</option>
                       </select>

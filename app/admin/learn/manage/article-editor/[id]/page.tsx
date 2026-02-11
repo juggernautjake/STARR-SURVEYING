@@ -62,7 +62,7 @@ export default function ArticleEditorPage() {
       <div className="admin-empty">
         <div className="admin-empty__icon">&#x274C;</div>
         <div className="admin-empty__title">Article not found</div>
-        <Link href="/admin/learn/manage" className="admin-btn admin-btn--ghost" style={{ marginTop: '1rem' }}>&larr; Back to Manage</Link>
+        <Link href="/admin/learn/manage?tab=articles" className="admin-btn admin-btn--ghost" style={{ marginTop: '1rem' }}>&larr; Back to Articles</Link>
       </div>
     );
   }
@@ -70,8 +70,8 @@ export default function ArticleEditorPage() {
   return (
     <>
       <div className="learn__header">
-        <Link href="/admin/learn/manage" className="learn__back">&larr; Back to Manage Content</Link>
-        <h2 className="learn__title">Edit Article</h2>
+        <Link href="/admin/learn/manage?tab=articles" className="learn__back">&larr; Back to Articles</Link>
+        <h2 className="learn__title">Edit Article: {article.title}</h2>
         <p className="learn__subtitle">Edit article content, metadata, and media. Use Source mode for HTML and Preview to see the rendered result.</p>
       </div>
       <ArticleEditor article={article} onSave={handleSave} />

@@ -1,9 +1,35 @@
 // app/admin/learn/modules/[id]/[lessonId]/page.tsx — Lesson viewer with content interaction tracking
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+
+/* ── Confetti burst (lightweight CSS-only, no deps) ── */
+function ConfettiBurst({ onDone }: { onDone: () => void }) {
+  useEffect(() => { const t = setTimeout(onDone, 2500); return () => clearTimeout(t); }, [onDone]);
+  const colors = ['#10B981', '#F59E0B', '#3B82F6', '#EF4444', '#8B5CF6', '#EC4899', '#1D3095'];
+  return (
+    <div className="confetti-container" aria-hidden="true">
+      {Array.from({ length: 40 }).map((_, i) => {
+        const left = Math.random() * 100;
+        const delay = Math.random() * 0.6;
+        const size = 4 + Math.random() * 6;
+        const color = colors[i % colors.length];
+        const rotation = Math.random() * 360;
+        const drift = (Math.random() - 0.5) * 120;
+        return (
+          <span key={i} className="confetti-piece" style={{
+            left: `${left}%`, animationDelay: `${delay}s`,
+            width: `${size}px`, height: `${size * (0.4 + Math.random() * 0.6)}px`,
+            background: color, transform: `rotate(${rotation}deg)`,
+            '--drift': `${drift}px`,
+          } as React.CSSProperties} />
+        );
+      })}
+    </div>
+  );
+}
 
 interface Topic { id: string; title: string; content: string; order_index: number; keywords: string[]; }
 interface Resource { title: string; url: string; type: string; }
@@ -70,8 +96,15 @@ export default function LessonViewerPage() {
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
   const [quizRevealed, setQuizRevealed] = useState<Record<string, boolean>>({});
   const [slideshowIndexes, setSlideshowIndexes] = useState<Record<string, number>>({});
+  const [practiceStepRevealed, setPracticeStepRevealed] = useState<Record<string, number>>({});
+  const [practiceHintShown, setPracticeHintShown] = useState<Record<string, boolean>>({});
   const [viewerTabIndexes, setViewerTabIndexes] = useState<Record<string, number>>({});
   const [viewerAccordionOpen, setViewerAccordionOpen] = useState<Record<string, boolean>>({});
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [blockViewed, setBlockViewed] = useState<Record<string, boolean>>({});
+  const blockRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const blockTimeStart = useRef<Record<string, number>>({});
+  const blockTimeAccum = useRef<Record<string, number>>({});
 
   // Required reading articles
   const [requiredArticles, setRequiredArticles] = useState<any[]>([]);
@@ -96,6 +129,62 @@ export default function LessonViewerPage() {
     return () => window.removeEventListener('focus', handleFocus);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId]);
+
+  // Per-block progress: mark blocks as "viewed" + track time-on-block
+  useEffect(() => {
+    if (lessonBlocks.length === 0) return;
+    const observer = new IntersectionObserver((entries) => {
+      const now = Date.now();
+      entries.forEach(entry => {
+        const blockId = entry.target.getAttribute('data-block-id');
+        if (!blockId) return;
+        if (entry.isIntersecting) {
+          setBlockViewed(prev => ({ ...prev, [blockId]: true }));
+          blockTimeStart.current[blockId] = now;
+        } else {
+          // Block scrolled out — accumulate time
+          const start = blockTimeStart.current[blockId];
+          if (start) {
+            blockTimeAccum.current[blockId] = (blockTimeAccum.current[blockId] || 0) + (now - start);
+            delete blockTimeStart.current[blockId];
+          }
+        }
+      });
+    }, { threshold: 0.4 });
+    const timer = setTimeout(() => {
+      Object.values(blockRefs.current).forEach(el => { if (el) observer.observe(el); });
+    }, 200);
+    return () => { clearTimeout(timer); observer.disconnect(); };
+  }, [lessonBlocks]);
+
+  // Save block analytics on page leave
+  useEffect(() => {
+    function saveBlockAnalytics() {
+      // Finalize any blocks still in view
+      const now = Date.now();
+      for (const [blockId, start] of Object.entries(blockTimeStart.current)) {
+        blockTimeAccum.current[blockId] = (blockTimeAccum.current[blockId] || 0) + (now - start);
+      }
+      const blockTimes: Record<string, number> = {};
+      for (const [blockId, ms] of Object.entries(blockTimeAccum.current)) {
+        blockTimes[blockId] = Math.round(ms / 1000); // seconds
+      }
+      if (Object.keys(blockTimes).length === 0) return;
+      // Use sendBeacon for reliability on page unload
+      const payload = JSON.stringify({
+        action: 'block_analytics',
+        lesson_id: lessonId,
+        module_id: moduleId,
+        block_times: blockTimes,
+        blocks_viewed: Object.keys(blockViewed).length,
+        total_blocks: lessonBlocks.length,
+      });
+      navigator.sendBeacon('/api/admin/learn/user-progress', payload);
+    }
+    window.addEventListener('beforeunload', saveBlockAnalytics);
+    return () => window.removeEventListener('beforeunload', saveBlockAnalytics);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lessonId, moduleId, lessonBlocks.length, blockViewed]);
 
   async function fetchLesson() {
     try {
@@ -292,6 +381,19 @@ export default function LessonViewerPage() {
         </div>
       )}
 
+      {/* Confetti overlay */}
+      {showConfetti && <ConfettiBurst onDone={() => setShowConfetti(false)} />}
+
+      {/* Block scroll progress */}
+      {lessonBlocks.length > 0 && (
+        <div className="block-progress">
+          <div className="block-progress__bar">
+            <div className="block-progress__fill" style={{ width: `${lessonBlocks.length > 0 ? (Object.keys(blockViewed).length / lessonBlocks.length) * 100 : 0}%` }} />
+          </div>
+          <span className="block-progress__label">{Object.keys(blockViewed).length}/{lessonBlocks.length} sections viewed</span>
+        </div>
+      )}
+
       {/* Lesson Content — Blocks preferred, fallback to legacy HTML */}
       {lessonBlocks.length > 0 ? (
         <div className="admin-lesson__body">
@@ -315,7 +417,7 @@ export default function LessonViewerPage() {
 
             if (isHidden && isCollapsed) {
               return (
-                <div key={block.id} style={{ textAlign: 'center', margin: '1rem 0' }}>
+                <div key={block.id} data-block-id={block.id} ref={(el) => { blockRefs.current[block.id] = el; }} style={{ textAlign: 'center', margin: '1rem 0' }}>
                   <button className="admin-btn admin-btn--ghost" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: false }))} style={{ fontSize: '.85rem' }}>
                     {block.style?.hiddenLabel || 'Click to reveal'}
                   </button>
@@ -324,7 +426,7 @@ export default function LessonViewerPage() {
             }
 
             return (
-              <div key={block.id} style={st}>
+              <div key={block.id} data-block-id={block.id} ref={(el) => { blockRefs.current[block.id] = el; }} style={st}>
                 {isCollapsible && (
                   <button className="lesson-builder__collapse-toggle" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: !isCollapsed }))}>
                     <span style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform .2s' }}>&#x25BC;</span>
@@ -332,7 +434,9 @@ export default function LessonViewerPage() {
                   </button>
                 )}
                 <div className={`block-collapsible-wrap ${(!isCollapsible || !isCollapsed) ? 'block-collapsible-wrap--open' : ''}`}><div>
-                  {block.block_type === 'text' && <div dangerouslySetInnerHTML={{ __html: block.content.html || '' }} />}
+                  {block.block_type === 'text' && block.content.html && block.content.html !== '<p></p>' && block.content.html !== '<p>Enter text here...</p>' && (
+                    <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
+                  )}
                   {block.block_type === 'html' && <div dangerouslySetInnerHTML={{ __html: block.content.code || '' }} />}
                   {block.block_type === 'image' && block.content.url && (
                     <figure style={{ textAlign: (block.content.alignment || 'center') as any, margin: '1.5rem 0' }}>
@@ -459,7 +563,11 @@ export default function LessonViewerPage() {
                           })}
                         </div>
                         {selected !== null && !revealed && (
-                          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setQuizRevealed(prev => ({ ...prev, [qKey]: true })); recordInteraction(`quiz_block_${block.id}`); }} style={{ marginTop: '.75rem' }}>Check Answer</button>
+                          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => {
+                            setQuizRevealed(prev => ({ ...prev, [qKey]: true }));
+                            recordInteraction(`quiz_block_${block.id}`);
+                            if (selected === block.content.correct) setShowConfetti(true);
+                          }} style={{ marginTop: '.75rem' }}>Check Answer</button>
                         )}
                         {revealed && (
                           <div className={`block-quiz__result ${selected === block.content.correct ? 'block-quiz__result--correct' : 'block-quiz__result--wrong'}`}>
@@ -572,6 +680,75 @@ export default function LessonViewerPage() {
                       <span className="block-backend-link__arrow">→</span>
                     </a>
                   )}
+                  {block.block_type === 'practice_problem' && (() => {
+                    const steps = block.content.steps || [];
+                    const revealedCount = practiceStepRevealed[block.id] ?? 0;
+                    const allRevealed = revealedCount >= steps.length;
+                    return (
+                      <div className="block-practice" style={{ margin: '1.5rem 0' }}>
+                        <div className="block-practice__header">
+                          <span className="block-practice__icon">🧮</span>
+                          <div>
+                            <h4 className="block-practice__title">{block.content.title || 'Practice Problem'}</h4>
+                            <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                              {block.content.category && <span className="block-practice__cat">{block.content.category}</span>}
+                              {block.content.difficulty && <span className={`manage__diff-badge manage__diff-badge--${block.content.difficulty}`}>{block.content.difficulty}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        {block.content.problem_statement && (
+                          <div className="block-practice__statement">{block.content.problem_statement}</div>
+                        )}
+                        <div className="block-practice__steps">
+                          {steps.map((step: any, si: number) => {
+                            const isVisible = si < revealedCount;
+                            const hintKey = `${block.id}-${si}`;
+                            const showHint = practiceHintShown[hintKey];
+                            return (
+                              <div key={si} className={`block-practice__step ${isVisible ? 'block-practice__step--visible' : 'block-practice__step--hidden'}`}>
+                                <span className="block-practice__step-num">{si + 1}</span>
+                                {isVisible ? (
+                                  <div style={{ flex: 1 }}>
+                                    <strong>{step.label}</strong>
+                                    {step.content && <p style={{ margin: '.25rem 0 0', fontSize: '.85rem', color: '#374151', lineHeight: 1.6 }}>{step.content}</p>}
+                                  </div>
+                                ) : si === revealedCount ? (
+                                  <div style={{ flex: 1, display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => setPracticeStepRevealed(prev => ({ ...prev, [block.id]: revealedCount + 1 }))}>
+                                      Reveal Step {si + 1}
+                                    </button>
+                                    {step.hint && !showHint && (
+                                      <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setPracticeHintShown(prev => ({ ...prev, [hintKey]: true }))}>
+                                        Show Hint
+                                      </button>
+                                    )}
+                                    {showHint && <span style={{ fontSize: '.82rem', color: '#D97706', fontStyle: 'italic' }}>{step.hint}</span>}
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: '.82rem', color: '#9CA3AF' }}>Locked — reveal previous steps first</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {allRevealed && (
+                          <div className="block-practice__answer">
+                            <strong>Final Answer:</strong> {block.content.final_answer}
+                            {block.content.explanation && (
+                              <p style={{ margin: '.5rem 0 0', fontSize: '.85rem', color: '#374151', lineHeight: 1.6 }}>{block.content.explanation}</p>
+                            )}
+                          </div>
+                        )}
+                        {!allRevealed && (
+                          <div style={{ textAlign: 'center', marginTop: '.75rem' }}>
+                            <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => setPracticeStepRevealed(prev => ({ ...prev, [block.id]: steps.length }))}>
+                              Reveal All Steps
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {isHidden && !isCollapsed && (
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => setCollapsedBlocks(prev => ({ ...prev, [block.id]: true }))} style={{ marginTop: '.5rem', fontSize: '.78rem' }}>Hide</button>
                   )}

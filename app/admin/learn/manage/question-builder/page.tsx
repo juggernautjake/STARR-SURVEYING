@@ -218,6 +218,18 @@ export default function QuestionBuilderPage() {
   const [genPublishModule, setGenPublishModule] = useState('');
   const [genPublishExam, setGenPublishExam] = useState('');
 
+  // ========= BULK IMPORT STATE =========
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkJson, setBulkJson] = useState('');
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ success: number; errors: string[] } | null>(null);
+
+  // ========= SIMULATED SCORING STATE =========
+  const [showSimQuiz, setShowSimQuiz] = useState(false);
+  const [simQuestions, setSimQuestions] = useState<Question[]>([]);
+  const [simAnswers, setSimAnswers] = useState<Record<string, string>>({});
+  const [simRevealed, setSimRevealed] = useState(false);
+
   const sourceRef = useRef<HTMLTextAreaElement>(null);
 
   // ========= EFFECTS =========
@@ -466,6 +478,68 @@ export default function QuestionBuilderPage() {
     } catch (err) { console.error('QuestionBuilderPage: failed to delete question', err); }
   }
 
+  // ========= BULK IMPORT =========
+  async function handleBulkImport() {
+    setBulkImporting(true);
+    setBulkResult(null);
+    try {
+      const parsed = JSON.parse(bulkJson);
+      const items: any[] = Array.isArray(parsed) ? parsed : [parsed];
+      let success = 0;
+      const errors: string[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const q = items[i];
+        if (!q.question_text || !q.correct_answer) {
+          errors.push(`Item ${i + 1}: Missing question_text or correct_answer`);
+          continue;
+        }
+        try {
+          const res = await fetch('/api/admin/learn/questions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              question_text: q.question_text,
+              question_type: q.question_type || 'multiple_choice',
+              options: q.options || [],
+              correct_answer: q.correct_answer,
+              explanation: q.explanation || '',
+              difficulty: q.difficulty || 'medium',
+              module_id: q.module_id || null,
+              lesson_id: q.lesson_id || null,
+              exam_category: q.exam_category || null,
+              tags: q.tags || [],
+            }),
+          });
+          if (res.ok) success++;
+          else { const e = await res.json(); errors.push(`Item ${i + 1}: ${e.error || 'Failed'}`); }
+        } catch { errors.push(`Item ${i + 1}: Network error`); }
+      }
+      setBulkResult({ success, errors });
+      if (success > 0) loadQuestions();
+    } catch {
+      setBulkResult({ success: 0, errors: ['Invalid JSON. Please paste a valid JSON array of questions.'] });
+    }
+    setBulkImporting(false);
+  }
+
+  // ========= SIMULATED SCORING =========
+  function startSimQuiz(pool: Question[]) {
+    const eligible = pool.filter(q => q.question_type === 'multiple_choice' || q.question_type === 'true_false');
+    const shuffled = [...eligible].sort(() => Math.random() - 0.5).slice(0, 10);
+    setSimQuestions(shuffled);
+    setSimAnswers({});
+    setSimRevealed(false);
+    setShowSimQuiz(true);
+  }
+
+  function getSimScore(): { correct: number; total: number } {
+    let correct = 0;
+    for (const q of simQuestions) {
+      if (simAnswers[q.id] === q.correct_answer) correct++;
+    }
+    return { correct, total: simQuestions.length };
+  }
+
   // ========= TEMPLATE TAB FUNCTIONS =========
   function resetTemplateForm() {
     setTmplEditId(null); setTmplName(''); setTmplDescription('');
@@ -692,7 +766,7 @@ export default function QuestionBuilderPage() {
   return (
     <>
       <div className="learn__header">
-        <Link href="/admin/learn/manage" className="learn__back">&larr; Back to Manage Content</Link>
+        <Link href="/admin/learn/manage?tab=questions" className="learn__back">&larr; Back to Questions</Link>
         <h2 className="learn__title">Problem Builder</h2>
         <p className="learn__subtitle">Create, edit, and auto-generate questions for quizzes, tests, and practice sessions.</p>
       </div>
@@ -1045,7 +1119,116 @@ export default function QuestionBuilderPage() {
 
           {/* Question Bank List */}
           <div className="qb__bank">
-            <h3 className="qb__section-title">Question Bank ({filteredQuestions.length}{filteredQuestions.length !== questions.length ? ` of ${questions.length}` : ''} questions)</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '.5rem', marginBottom: '.75rem' }}>
+              <h3 className="qb__section-title" style={{ marginBottom: 0 }}>Question Bank ({filteredQuestions.length}{filteredQuestions.length !== questions.length ? ` of ${questions.length}` : ''} questions)</h3>
+              <div style={{ display: 'flex', gap: '.35rem' }}>
+                <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setShowBulkImport(!showBulkImport); setShowSimQuiz(false); }}>
+                  {showBulkImport ? 'Close Import' : 'Bulk Import'}
+                </button>
+                <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => {
+                  if (showSimQuiz) { setShowSimQuiz(false); } else { startSimQuiz(filteredQuestions); }
+                }}>
+                  {showSimQuiz ? 'Close Quiz' : 'Practice Quiz'}
+                </button>
+              </div>
+            </div>
+
+            {/* Bulk Import Panel */}
+            {showBulkImport && (
+              <div style={{ background: '#FAFBFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
+                <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.88rem', fontWeight: 600, color: '#1D3095', marginBottom: '.5rem' }}>Bulk Import Questions</h4>
+                <p style={{ fontSize: '.78rem', color: '#6B7280', marginBottom: '.5rem' }}>Paste a JSON array of questions. Each object needs at minimum: <code>question_text</code>, <code>correct_answer</code>. Optional: <code>question_type</code>, <code>options</code>, <code>explanation</code>, <code>difficulty</code>, <code>module_id</code>, <code>lesson_id</code>, <code>tags</code>.</p>
+                <textarea
+                  className="fc-form__textarea"
+                  rows={6}
+                  placeholder={'[\n  {\n    "question_text": "What is a bearing?",\n    "question_type": "multiple_choice",\n    "options": ["A direction", "A distance", "An elevation", "A coordinate"],\n    "correct_answer": "A direction",\n    "difficulty": "easy"\n  }\n]'}
+                  value={bulkJson}
+                  onChange={e => setBulkJson(e.target.value)}
+                  style={{ fontFamily: 'monospace', fontSize: '.8rem' }}
+                />
+                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.5rem' }}>
+                  <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleBulkImport} disabled={bulkImporting || !bulkJson.trim()}>
+                    {bulkImporting ? 'Importing...' : 'Import Questions'}
+                  </button>
+                  {bulkResult && (
+                    <span style={{ fontSize: '.78rem', color: bulkResult.errors.length > 0 ? '#D97706' : '#10B981' }}>
+                      {bulkResult.success} imported{bulkResult.errors.length > 0 ? `, ${bulkResult.errors.length} errors` : ''}
+                    </span>
+                  )}
+                </div>
+                {bulkResult && bulkResult.errors.length > 0 && (
+                  <div style={{ marginTop: '.5rem', fontSize: '.75rem', color: '#DC2626' }}>
+                    {bulkResult.errors.map((e, i) => <div key={i}>{e}</div>)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Simulated Practice Quiz */}
+            {showSimQuiz && simQuestions.length > 0 && (
+              <div style={{ background: '#FFF', border: '2px solid #1D3095', borderRadius: 10, padding: '1.25rem', marginBottom: '1rem' }}>
+                <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.95rem', fontWeight: 700, color: '#1D3095', marginBottom: '.75rem' }}>
+                  Practice Quiz ({simQuestions.length} questions)
+                </h4>
+                {simQuestions.map((q, qi) => {
+                  const opts = typeof q.options === 'string' ? JSON.parse(q.options) : (q.options || []);
+                  const answered = simAnswers[q.id];
+                  const isCorrect = answered === q.correct_answer;
+                  return (
+                    <div key={q.id} style={{ marginBottom: '1rem', paddingBottom: '1rem', borderBottom: qi < simQuestions.length - 1 ? '1px solid #E5E7EB' : 'none' }}>
+                      <p style={{ fontSize: '.88rem', fontWeight: 600, color: '#0F1419', marginBottom: '.5rem' }}>
+                        {qi + 1}. {q.question_text}
+                        <span className={`manage__diff-badge manage__diff-badge--${q.difficulty}`} style={{ marginLeft: '.5rem' }}>{q.difficulty}</span>
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                        {opts.map((opt: string, oi: number) => {
+                          let bg = '#F9FAFB';
+                          let border = '1px solid #E5E7EB';
+                          if (simRevealed) {
+                            if (opt === q.correct_answer) { bg = '#ECFDF5'; border = '1.5px solid #10B981'; }
+                            else if (opt === answered && !isCorrect) { bg = '#FEF2F2'; border = '1.5px solid #EF4444'; }
+                          } else if (opt === answered) {
+                            bg = '#EFF6FF'; border = '1.5px solid #1D3095';
+                          }
+                          return (
+                            <button key={oi} onClick={() => { if (!simRevealed) setSimAnswers(prev => ({ ...prev, [q.id]: opt })); }}
+                              disabled={simRevealed}
+                              style={{ textAlign: 'left', padding: '.45rem .75rem', borderRadius: 6, background: bg, border, fontSize: '.82rem', cursor: simRevealed ? 'default' : 'pointer', fontFamily: 'Inter,sans-serif' }}>
+                              <strong style={{ marginRight: '.35rem' }}>{String.fromCharCode(65 + oi)}.</strong> {opt}
+                              {simRevealed && opt === q.correct_answer && <span style={{ marginLeft: '.5rem', color: '#10B981' }}>&#x2713;</span>}
+                              {simRevealed && opt === answered && !isCorrect && <span style={{ marginLeft: '.5rem', color: '#EF4444' }}>&#x2717;</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {simRevealed && q.explanation && (
+                        <p style={{ fontSize: '.78rem', color: '#1D3095', marginTop: '.35rem', background: '#F0F4FF', padding: '.35rem .65rem', borderRadius: 6 }}>{q.explanation}</p>
+                      )}
+                    </div>
+                  );
+                })}
+                <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+                  {!simRevealed ? (
+                    <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => setSimRevealed(true)}
+                      disabled={Object.keys(simAnswers).length < simQuestions.length}>
+                      Submit &amp; Score ({Object.keys(simAnswers).length}/{simQuestions.length} answered)
+                    </button>
+                  ) : (
+                    <>
+                      <span style={{ fontFamily: 'Sora,sans-serif', fontSize: '.95rem', fontWeight: 700, color: getSimScore().correct >= getSimScore().total * 0.7 ? '#10B981' : '#EF4444' }}>
+                        Score: {getSimScore().correct}/{getSimScore().total} ({Math.round((getSimScore().correct / getSimScore().total) * 100)}%)
+                      </span>
+                      <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => startSimQuiz(filteredQuestions)}>New Quiz</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+            {showSimQuiz && simQuestions.length === 0 && (
+              <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '1rem', marginBottom: '1rem', fontSize: '.85rem', color: '#92400E' }}>
+                No multiple choice or true/false questions match the current filters. Adjust filters to include eligible questions.
+              </div>
+            )}
 
             {/* Filters */}
             <div className="qb__filters">

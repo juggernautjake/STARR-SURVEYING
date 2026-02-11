@@ -366,5 +366,70 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ completed: true });
   }
 
+  if (action === 'block_analytics') {
+    const { lesson_id, module_id, block_times, blocks_viewed, total_blocks } = body;
+    if (!lesson_id || !block_times) {
+      return NextResponse.json({ error: 'lesson_id and block_times required' }, { status: 400 });
+    }
+
+    // Store block analytics as an activity log entry with rich metadata
+    await supabaseAdmin.from('activity_log').insert({
+      user_email: userEmail,
+      action_type: 'block_analytics',
+      entity_type: 'lesson',
+      entity_id: lesson_id,
+      metadata: {
+        module_id,
+        block_times,       // { blockId: seconds }
+        blocks_viewed,     // number of blocks scrolled into view
+        total_blocks,      // total block count
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    return NextResponse.json({ saved: true });
+  }
+
+  if (action === 'get_block_analytics') {
+    // Admin only: fetch aggregated block analytics for a lesson
+    const { lesson_id: targetLessonId } = body;
+    if (!targetLessonId) {
+      return NextResponse.json({ error: 'lesson_id required' }, { status: 400 });
+    }
+    if (!isAdmin(userEmail)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const { data: logs } = await supabaseAdmin.from('activity_log')
+      .select('metadata, user_email, created_at')
+      .eq('action_type', 'block_analytics')
+      .eq('entity_id', targetLessonId)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    // Aggregate: per-block average time and view count
+    const blockStats: Record<string, { totalTime: number; viewCount: number }> = {};
+    let sessionCount = 0;
+    for (const log of (logs || [])) {
+      const meta = log.metadata as any;
+      if (!meta?.block_times) continue;
+      sessionCount++;
+      for (const [blockId, seconds] of Object.entries(meta.block_times)) {
+        if (!blockStats[blockId]) blockStats[blockId] = { totalTime: 0, viewCount: 0 };
+        blockStats[blockId].totalTime += seconds as number;
+        blockStats[blockId].viewCount++;
+      }
+    }
+
+    const aggregated = Object.entries(blockStats).map(([blockId, stats]) => ({
+      block_id: blockId,
+      avg_time_seconds: Math.round(stats.totalTime / stats.viewCount),
+      total_time_seconds: stats.totalTime,
+      view_count: stats.viewCount,
+    })).sort((a, b) => b.avg_time_seconds - a.avg_time_seconds);
+
+    return NextResponse.json({ analytics: aggregated, session_count: sessionCount });
+  }
+
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
 }, { routeName: 'learn/user-progress' });

@@ -9,7 +9,7 @@ import { usePageError } from '../../../../hooks/usePageError';
 
 const TipTapEditor = dynamic(() => import('@/app/admin/components/TipTapEditor'), { ssr: false });
 
-type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow' | 'html' | 'audio' | 'link_reference' | 'flashcard' | 'popup_article' | 'backend_link' | 'highlight' | 'key_takeaways' | 'equation' | 'tabs' | 'accordion' | 'columns';
+type BlockType = 'text' | 'image' | 'video' | 'callout' | 'divider' | 'quiz' | 'embed' | 'table' | 'file' | 'slideshow' | 'html' | 'audio' | 'link_reference' | 'flashcard' | 'popup_article' | 'backend_link' | 'highlight' | 'key_takeaways' | 'equation' | 'tabs' | 'accordion' | 'columns' | 'practice_problem';
 
 interface BlockStyle {
   backgroundColor?: string;
@@ -64,6 +64,7 @@ const BLOCK_TYPES: { type: BlockType; label: string; icon: string; description: 
   { type: 'tabs', label: 'Tabs', icon: '⊞', description: 'Tabbed content panels', group: 'Layout' },
   { type: 'accordion', label: 'Accordion', icon: '≡', description: 'Collapsible FAQ sections', group: 'Layout' },
   { type: 'columns', label: 'Columns', icon: '▥', description: '2-3 column layout', group: 'Layout' },
+  { type: 'practice_problem', label: 'Practice Problem', icon: '🧮', description: 'Step-by-step worked problem', group: 'Interactive' },
 ];
 
 function convertToEmbedUrl(url: string): string {
@@ -276,6 +277,9 @@ export default function LessonBuilderPage() {
   const [saveTemplateDesc, setSaveTemplateDesc] = useState('');
   const [linkedContent, setLinkedContent] = useState<{ questions: any[]; flashcards: any[]; articles: any[] }>({ questions: [], flashcards: [], articles: [] });
   const [showLinkedPanel, setShowLinkedPanel] = useState(false);
+  const [blockAnalytics, setBlockAnalytics] = useState<{ block_id: string; avg_time_seconds: number; view_count: number }[]>([]);
+  const [analyticsSessionCount, setAnalyticsSessionCount] = useState(0);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [linkedLoaded, setLinkedLoaded] = useState(false);
   const [saveTemplateCat, setSaveTemplateCat] = useState('custom');
   const [dragBlockId, setDragBlockId] = useState<string | null>(null);
@@ -539,6 +543,23 @@ export default function LessonBuilderPage() {
     } catch (err) { console.error('Failed to load linked content', err); }
   }
 
+  async function loadBlockAnalytics() {
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch('/api/admin/learn/user-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_block_analytics', lesson_id: lessonId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBlockAnalytics(data.analytics || []);
+        setAnalyticsSessionCount(data.session_count || 0);
+      }
+    } catch (err) { console.error('Failed to load block analytics', err); }
+    setAnalyticsLoading(false);
+  }
+
   async function togglePublish() {
     const newStatus = isDraft ? 'published' : 'draft';
     try {
@@ -570,7 +591,7 @@ export default function LessonBuilderPage() {
 
   function getDefaultContent(type: BlockType): Record<string, any> {
     switch (type) {
-      case 'text': return { html: '<p>Enter text here...</p>' };
+      case 'text': return { html: '' };
       case 'html': return { code: '<div>\n  <p>Your HTML here</p>\n</div>' };
       case 'image': return { url: '', alt: '', caption: '', alignment: 'center' };
       case 'video': return { url: '', type: 'youtube', caption: '' };
@@ -592,6 +613,15 @@ export default function LessonBuilderPage() {
       case 'tabs': return { tabs: [{ title: 'Tab 1', content: '<p>Content for tab 1</p>' }, { title: 'Tab 2', content: '<p>Content for tab 2</p>' }], activeTab: 0 };
       case 'accordion': return { sections: [{ title: 'Section 1', content: '<p>Content for section 1</p>', open: true }, { title: 'Section 2', content: '<p>Content for section 2</p>', open: false }] };
       case 'columns': return { columnCount: 2, columns: [{ html: '<p>Left column content</p>' }, { html: '<p>Right column content</p>' }] };
+      case 'practice_problem': return {
+        title: '',
+        problem_statement: '',
+        difficulty: 'medium',
+        category: '',
+        steps: [{ label: 'Step 1', content: '', hint: '' }],
+        final_answer: '',
+        explanation: '',
+      };
       default: return {};
     }
   }
@@ -781,7 +811,7 @@ export default function LessonBuilderPage() {
       <div className="admin-empty">
         <div className="admin-empty__icon">❌</div>
         <div className="admin-empty__title">Lesson not found</div>
-        <Link href="/admin/learn/manage" className="admin-btn admin-btn--ghost">&larr; Back to Manage Content</Link>
+        <Link href="/admin/learn/manage?tab=lessons" className="admin-btn admin-btn--ghost">&larr; Back to Lessons</Link>
       </div>
     );
   }
@@ -802,9 +832,17 @@ export default function LessonBuilderPage() {
       {/* Builder Header */}
       <div className="lesson-builder__header">
         <div className="lesson-builder__header-left">
-          <Link href="/admin/learn/manage" className="learn__back">&larr; Back to Manage</Link>
+          {lesson.module_id ? (
+            <Link href={`/admin/learn/modules/${lesson.module_id}`} className="learn__back">&larr; Back to Module</Link>
+          ) : (
+            <Link href="/admin/learn/manage?tab=lessons" className="learn__back">&larr; Back to Lessons</Link>
+          )}
           <h2 className="lesson-builder__title">{lesson.title}</h2>
-          {lesson.module_id && <span style={{ fontSize: '.72rem', color: '#6B7280' }}>Module: {lesson.module_id.slice(0, 8)}...</span>}
+          {lesson.module_id && (
+            <Link href={`/admin/learn/modules/${lesson.module_id}`} style={{ fontSize: '.72rem', color: '#1D3095', textDecoration: 'none' }}>
+              Module {lesson.module_id.slice(0, 8)}... &rarr;
+            </Link>
+          )}
         </div>
         <div className="lesson-builder__header-right">
           <span className={`lesson-builder__status ${isDraft ? 'lesson-builder__status--draft' : 'lesson-builder__status--published'}`}>
@@ -884,8 +922,11 @@ export default function LessonBuilderPage() {
                 </button>
               )}
               <div className={`block-collapsible-wrap ${(!isCollapsible || !isCollapsed) ? 'block-collapsible-wrap--open' : ''}`}><div>
-              {block.block_type === 'text' && (
-                <div dangerouslySetInnerHTML={{ __html: block.content.html || '' }} />
+              {block.block_type === 'text' && block.content.html && block.content.html !== '<p></p>' && (
+                <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
+              )}
+              {block.block_type === 'text' && (!block.content.html || block.content.html === '<p></p>') && (
+                <p style={{ color: '#9CA3AF', fontStyle: 'italic' }}>Empty text block (will not render in published view)</p>
               )}
               {block.block_type === 'image' && block.content.url && (
                 <figure style={{ textAlign: (block.content.alignment || 'center') as any, margin: '1.5rem 0' }}>
@@ -957,6 +998,35 @@ export default function LessonBuilderPage() {
                   {(block.content.columns || []).map((col: any, ci: number) => (
                     <div key={ci} className="block-columns__col" dangerouslySetInnerHTML={{ __html: col.html || '' }} />
                   ))}
+                </div>
+              )}
+              {block.block_type === 'practice_problem' && (
+                <div className="block-practice">
+                  <div className="block-practice__header">
+                    <span className="block-practice__icon">🧮</span>
+                    <div>
+                      <h4 className="block-practice__title">{block.content.title || 'Practice Problem'}</h4>
+                      {block.content.category && <span className="block-practice__cat">{block.content.category}</span>}
+                      {block.content.difficulty && <span className={`manage__diff-badge manage__diff-badge--${block.content.difficulty}`}>{block.content.difficulty}</span>}
+                    </div>
+                  </div>
+                  {block.content.problem_statement && <div className="block-practice__statement">{block.content.problem_statement}</div>}
+                  <div className="block-practice__steps">
+                    {(block.content.steps || []).map((step: any, si: number) => (
+                      <div key={si} className="block-practice__step">
+                        <span className="block-practice__step-num">{si + 1}</span>
+                        <div>
+                          <strong>{step.label}</strong>
+                          {step.content && <p style={{ margin: '.25rem 0 0', fontSize: '.85rem', color: '#374151' }}>{step.content}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {block.content.final_answer && (
+                    <div className="block-practice__answer">
+                      <strong>Answer:</strong> {block.content.final_answer}
+                    </div>
+                  )}
                 </div>
               )}
               {block.block_type === 'divider' && <hr style={{ border: 'none', borderTop: '2px solid #E5E7EB', margin: '2rem 0' }} />}
@@ -1890,6 +1960,58 @@ export default function LessonBuilderPage() {
                     </div>
                   </div>
                 )}
+
+                {block.block_type === 'practice_problem' && (
+                  <div>
+                    <input className="fc-form__input" placeholder="Problem title (e.g. Bearing Calculation)" value={block.content.title || ''} onChange={e => updateBlockContent(block.id, { ...block.content, title: e.target.value })} />
+                    <div style={{ display: 'flex', gap: '.5rem', marginTop: '.5rem' }}>
+                      <select className="fc-form__input" value={block.content.difficulty || 'medium'} onChange={e => updateBlockContent(block.id, { ...block.content, difficulty: e.target.value })} style={{ maxWidth: '140px' }}>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                      <input className="fc-form__input" placeholder="Category (e.g. Trigonometry)" value={block.content.category || ''} onChange={e => updateBlockContent(block.id, { ...block.content, category: e.target.value })} style={{ flex: 1 }} />
+                    </div>
+                    <textarea className="fc-form__textarea" placeholder="Problem statement — describe the problem for the student" value={block.content.problem_statement || ''} onChange={e => updateBlockContent(block.id, { ...block.content, problem_statement: e.target.value })} rows={3} style={{ marginTop: '.5rem' }} />
+                    <div style={{ marginTop: '.75rem' }}>
+                      <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#374151', marginBottom: '.35rem', display: 'block' }}>Solution Steps</span>
+                      {(block.content.steps || []).map((step: any, si: number) => (
+                        <div key={si} style={{ display: 'flex', gap: '.35rem', marginBottom: '.45rem', alignItems: 'flex-start' }}>
+                          <span style={{ fontSize: '.78rem', fontWeight: 700, color: '#1D3095', minWidth: '1.5rem', marginTop: '.35rem' }}>{si + 1}.</span>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
+                            <input className="fc-form__input" placeholder={`Step ${si + 1} label (e.g. "Identify known values")`} value={step.label || ''} onChange={e => {
+                              const steps = [...(block.content.steps || [])];
+                              steps[si] = { ...steps[si], label: e.target.value };
+                              updateBlockContent(block.id, { ...block.content, steps });
+                            }} style={{ fontSize: '.82rem' }} />
+                            <textarea className="fc-form__textarea" placeholder="Detailed work / explanation for this step" value={step.content || ''} onChange={e => {
+                              const steps = [...(block.content.steps || [])];
+                              steps[si] = { ...steps[si], content: e.target.value };
+                              updateBlockContent(block.id, { ...block.content, steps });
+                            }} rows={2} style={{ fontSize: '.82rem' }} />
+                            <input className="fc-form__input" placeholder="Hint (optional — shown if student requests help)" value={step.hint || ''} onChange={e => {
+                              const steps = [...(block.content.steps || [])];
+                              steps[si] = { ...steps[si], hint: e.target.value };
+                              updateBlockContent(block.id, { ...block.content, steps });
+                            }} style={{ fontSize: '.78rem' }} />
+                          </div>
+                          {(block.content.steps || []).length > 1 && (
+                            <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => {
+                              const steps = (block.content.steps || []).filter((_: any, i: number) => i !== si);
+                              updateBlockContent(block.id, { ...block.content, steps });
+                            }} style={{ marginTop: '.35rem' }}>✕</button>
+                          )}
+                        </div>
+                      ))}
+                      <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
+                        const steps = [...(block.content.steps || []), { label: `Step ${(block.content.steps || []).length + 1}`, content: '', hint: '' }];
+                        updateBlockContent(block.id, { ...block.content, steps });
+                      }}>+ Add Step</button>
+                    </div>
+                    <input className="fc-form__input" placeholder="Final Answer (e.g. 42.5° NE)" value={block.content.final_answer || ''} onChange={e => updateBlockContent(block.id, { ...block.content, final_answer: e.target.value })} style={{ marginTop: '.65rem' }} />
+                    <textarea className="fc-form__textarea" placeholder="Explanation / discussion (shown after all steps revealed)" value={block.content.explanation || ''} onChange={e => updateBlockContent(block.id, { ...block.content, explanation: e.target.value })} rows={2} style={{ marginTop: '.5rem' }} />
+                  </div>
+                )}
               </div>
 
               {/* Block Style Panel */}
@@ -2154,6 +2276,42 @@ export default function LessonBuilderPage() {
                   <Link href={`/admin/learn/manage/article-editor/${art.id}`} style={{ fontSize: '.72rem', color: '#DC2626', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>Edit</Link>
                 </div>
               ))}
+            </div>
+
+            {/* Block Analytics */}
+            <div className="lesson-builder__linked-section">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h4 className="lesson-builder__linked-section-title">{'\u{1F4CA}'} Block Analytics</h4>
+                <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={loadBlockAnalytics} disabled={analyticsLoading} style={{ fontSize: '.68rem' }}>
+                  {analyticsLoading ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+              {blockAnalytics.length === 0 && !analyticsLoading && (
+                <p className="lesson-builder__linked-empty">No analytics data yet. Students must view this lesson for data to appear.</p>
+              )}
+              {blockAnalytics.length > 0 && (
+                <>
+                  <p style={{ fontSize: '.72rem', color: '#6B7280', marginBottom: '.5rem' }}>{analyticsSessionCount} viewing session{analyticsSessionCount !== 1 ? 's' : ''} recorded</p>
+                  {blockAnalytics.slice(0, 10).map((stat) => {
+                    const matchingBlock = blocks.find(b => b.id === stat.block_id);
+                    const blockLabel = matchingBlock
+                      ? `${matchingBlock.block_type} #${blocks.indexOf(matchingBlock) + 1}`
+                      : stat.block_id.slice(0, 8);
+                    const maxTime = Math.max(...blockAnalytics.map(s => s.avg_time_seconds), 1);
+                    return (
+                      <div key={stat.block_id} style={{ marginBottom: '.4rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.72rem', marginBottom: '.15rem' }}>
+                          <span style={{ fontWeight: 600, color: '#374151', textTransform: 'capitalize' }}>{blockLabel}</span>
+                          <span style={{ color: '#6B7280' }}>{stat.avg_time_seconds}s avg &middot; {stat.view_count} views</span>
+                        </div>
+                        <div style={{ height: 4, background: '#F3F4F6', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${(stat.avg_time_seconds / maxTime) * 100}%`, background: stat.avg_time_seconds > 30 ? '#EF4444' : stat.avg_time_seconds > 15 ? '#F59E0B' : '#10B981', borderRadius: 2 }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
 
             <p style={{ fontSize: '.72rem', color: '#9CA3AF', textAlign: 'center', marginTop: '.75rem' }}>
