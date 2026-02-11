@@ -4,8 +4,13 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { awardXP } from '@/lib/xp';
+import {
+  generateDynamicQuestion,
+  dbRowToTemplate,
+  evalFormula as evalFormulaEngine,
+} from '@/lib/problemEngine';
 
-/* ============= MATH TEMPLATE HELPERS ============= */
+/* ============= MATH TEMPLATE HELPERS (legacy) ============= */
 
 function parseMathVars(text: string): { name: string; min: number; max: number }[] {
   const regex = /\{\{(\w+):(\d+):(\d+)\}\}/g;
@@ -30,30 +35,7 @@ function substituteMathVars(text: string, vars: Record<string, number>): string 
 }
 
 function evalFormula(formula: string, vars: Record<string, number>): number {
-  const scope: Record<string, unknown> = {
-    ...vars,
-    PI: Math.PI,
-    sin: Math.sin,
-    cos: Math.cos,
-    tan: Math.tan,
-    sqrt: Math.sqrt,
-    abs: Math.abs,
-    pow: Math.pow,
-    floor: Math.floor,
-    ceil: Math.ceil,
-    round: (n: number, d: number = 0) => {
-      const f = Math.pow(10, d);
-      return Math.round(n * f) / f;
-    },
-  };
-  const keys = Object.keys(scope);
-  const values = keys.map(k => scope[k]);
-  try {
-    const fn = new Function(...keys, `"use strict"; return (${formula});`);
-    return fn(...values);
-  } catch {
-    return NaN;
-  }
+  return evalFormulaEngine(formula, vars);
 }
 
 /* ============= AI ESSAY GRADING ============= */
@@ -287,8 +269,44 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const shuffled = allQuestions.sort(() => Math.random() - 0.5);
   const selected = shuffled.slice(0, count);
 
+  // Fetch templates for any dynamic questions that reference them
+  const templateIds = [...new Set(
+    selected
+      .filter((q: any) => q.is_dynamic && q.template_id)
+      .map((q: any) => q.template_id)
+  )];
+  const templateMap = new Map<string, any>();
+  if (templateIds.length > 0) {
+    const { data: templates } = await supabaseAdmin.from('problem_templates')
+      .select('*').in('id', templateIds);
+    for (const t of (templates || [])) {
+      templateMap.set(t.id, dbRowToTemplate(t));
+    }
+  }
+
   const clientQuestions = selected.map((q: any) => {
-    // Handle math_template: generate concrete values
+    // Handle dynamic template-linked questions: generate fresh values
+    if (q.is_dynamic && q.template_id && templateMap.has(q.template_id)) {
+      const template = templateMap.get(q.template_id);
+      const generated = generateDynamicQuestion(q, template);
+      if (generated) {
+        return {
+          id: q.id,
+          question_text: generated.question_text,
+          question_type: template.question_type === 'multiple_choice' ? 'multiple_choice' : 'numeric_input',
+          options: generated.options || [],
+          difficulty: q.difficulty,
+          tags: q.tags,
+          _dynamic: true,
+          _template_id: q.template_id,
+          _generated_answer: generated.correct_answer,
+          _solution_steps: generated.solution_steps,
+          _tolerance: template.answer_format?.tolerance || q.tolerance || 0.01,
+        };
+      }
+    }
+
+    // Handle math_template: generate concrete values (legacy)
     if (q.question_type === 'math_template') {
       const varDefs = parseMathVars(q.question_text);
       const vars = generateMathVars(varDefs);
@@ -365,7 +383,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const questionIds = answers.map((a: any) => a.question_id);
   const { data: questions, error } = await supabaseAdmin
     .from('question_bank')
-    .select('id, question_type, correct_answer, explanation, options, study_references, topic_id, lesson_id')
+    .select('id, question_type, correct_answer, explanation, options, study_references, topic_id, lesson_id, template_id, is_dynamic, tolerance')
     .in('id', questionIds);
 
   if (error || !questions) {
@@ -385,6 +403,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         is_correct: false,
         correct_answer: '',
         explanation: '',
+      };
+    }
+
+    // For dynamic template questions, use the generated answer from the quiz session
+    const isDynamic = a._dynamic || (q.is_dynamic && q.template_id);
+    const dynamicAnswer = a._generated_answer;
+    const dynamicTolerance = a._tolerance || q.tolerance;
+    const dynamicSteps = a._solution_steps;
+
+    // If this was a dynamically generated question, grade using the generated answer
+    if (isDynamic && dynamicAnswer) {
+      const tol = dynamicTolerance || 0.01;
+      const userNum = parseFloat(a.user_answer);
+      const correctNum = parseFloat(dynamicAnswer);
+      const isCorrect = !isNaN(userNum) && !isNaN(correctNum) && Math.abs(userNum - correctNum) <= tol;
+      totalScore += isCorrect ? 1 : 0;
+      return {
+        question_id: a.question_id,
+        user_answer: a.user_answer,
+        is_correct: isCorrect,
+        correct_answer: dynamicAnswer,
+        explanation: q.explanation || '',
+        solution_steps: dynamicSteps || [],
+        tolerance: tol,
       };
     }
 
@@ -461,7 +503,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
     // Numeric input
     if (qType === 'numeric_input') {
-      const tolerance = 0.01;
+      const tolerance = q.tolerance || 0.01;
       const result = gradeNumeric(a.user_answer, q.correct_answer, tolerance);
       totalScore += result.is_correct ? 1 : 0;
       return {
@@ -470,6 +512,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         is_correct: result.is_correct,
         correct_answer: q.correct_answer,
         explanation: q.explanation || '',
+        solution_steps: q.solution_steps || [],
       };
     }
 
@@ -479,7 +522,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       let formulaStr = q.correct_answer || '';
       if (formulaStr.startsWith('formula:')) formulaStr = formulaStr.slice(8);
       const expected = evalFormula(formulaStr, mathVars);
-      const tolerance = 0.5;
+      const tolerance = q.tolerance || 0.5;
       const userNum = parseFloat(a.user_answer);
       const isCorrect = !isNaN(expected) && !isNaN(userNum) && Math.abs(userNum - expected) <= tolerance;
       totalScore += isCorrect ? 1 : 0;

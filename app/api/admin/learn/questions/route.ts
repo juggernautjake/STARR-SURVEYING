@@ -12,6 +12,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const moduleId = searchParams.get('module_id');
   const lessonId = searchParams.get('lesson_id');
   const examCategory = searchParams.get('exam_category');
+  const templateId = searchParams.get('template_id');
+  const isDynamic = searchParams.get('is_dynamic');
   const limit = parseInt(searchParams.get('limit') || '100', 10);
 
   let query = supabaseAdmin.from('question_bank').select('*').order('created_at', { ascending: false }).limit(limit);
@@ -19,6 +21,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (moduleId) query = query.eq('module_id', moduleId);
   if (lessonId) query = query.eq('lesson_id', lessonId);
   if (examCategory) query = query.eq('exam_category', examCategory);
+  if (templateId) query = query.eq('template_id', templateId);
+  if (isDynamic === 'true') query = query.eq('is_dynamic', true);
+  if (isDynamic === 'false') query = query.eq('is_dynamic', false);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -45,6 +50,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     topic_id = null,
     study_references = [],
     tags = [],
+    // New template-related fields
+    template_id = null,
+    is_dynamic = false,
+    solution_steps = null,
+    tolerance = null,
   } = body;
 
   if (!question_text || !correct_answer) {
@@ -64,6 +74,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     topic_id: topic_id || null,
     study_references: study_references || [],
     tags: tags || [],
+    template_id: template_id || null,
+    is_dynamic: is_dynamic || false,
+    solution_steps: solution_steps || null,
+    tolerance: tolerance || null,
   }).select().single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -80,9 +94,21 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   const { id, ...updates } = body;
   if (!id) return NextResponse.json({ error: 'Missing question id' }, { status: 400 });
 
+  // Whitelist updatable fields to prevent unexpected column errors
+  const allowedFields = [
+    'question_text', 'question_type', 'options', 'correct_answer',
+    'explanation', 'difficulty', 'module_id', 'lesson_id', 'exam_category',
+    'topic_id', 'study_references', 'tags', 'template_id', 'is_dynamic',
+    'solution_steps', 'tolerance',
+  ];
+  const cleanUpdates: Record<string, unknown> = {};
+  for (const field of allowedFields) {
+    if (updates[field] !== undefined) cleanUpdates[field] = updates[field];
+  }
+
   const { data, error } = await supabaseAdmin
     .from('question_bank')
-    .update(updates)
+    .update(cleanUpdates)
     .eq('id', id)
     .select()
     .single();
