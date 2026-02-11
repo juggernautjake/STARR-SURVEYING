@@ -44,7 +44,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const templates = (data || []).map(row => dbRowToTemplate(row));
+    const templates = (data || []).map((row: Record<string, unknown>) => dbRowToTemplate(row));
 
     // Group by category for convenience
     const grouped: Record<string, ProblemTemplate[]> = {};
