@@ -1,7 +1,8 @@
 // app/admin/learn/manage/lesson-builder/[id]/page.tsx
 'use client';
 import { useState, useEffect, useRef, DragEvent, ChangeEvent } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import SmartSearch from '../../../components/SmartSearch';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { usePageError } from '../../../../hooks/usePageError';
@@ -237,6 +238,7 @@ function parseHtmlToBlocks(htmlStr: string): LessonBlock[] {
 export default function LessonBuilderPage() {
   const params = useParams();
   const lessonId = params.id as string;
+  const router = useRouter();
   const { safeFetch, safeAction } = usePageError('LessonBuilderPage');
   const [lesson, setLesson] = useState<LessonMeta | null>(null);
   const [blocks, setBlocks] = useState<LessonBlock[]>([]);
@@ -272,6 +274,9 @@ export default function LessonBuilderPage() {
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [saveTemplateName, setSaveTemplateName] = useState('');
   const [saveTemplateDesc, setSaveTemplateDesc] = useState('');
+  const [linkedContent, setLinkedContent] = useState<{ questions: any[]; flashcards: any[]; articles: any[] }>({ questions: [], flashcards: [], articles: [] });
+  const [showLinkedPanel, setShowLinkedPanel] = useState(false);
+  const [linkedLoaded, setLinkedLoaded] = useState(false);
   const [saveTemplateCat, setSaveTemplateCat] = useState('custom');
   const [dragBlockId, setDragBlockId] = useState<string | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -512,6 +517,20 @@ export default function LessonBuilderPage() {
         setSavedTemplates(prev => prev.filter(t => t.id !== templateId));
       }
     } catch (err) { console.error('Failed to delete template', err); }
+  }
+
+  async function loadLinkedContent() {
+    if (linkedLoaded) return;
+    setLinkedLoaded(true);
+    try {
+      const [qRes, fcRes] = await Promise.all([
+        fetch(`/api/admin/learn/questions?lesson_id=${lessonId}&limit=20`),
+        fetch(`/api/admin/learn/flashcards?lesson_id=${lessonId}&limit=20`),
+      ]);
+      const qData = qRes.ok ? await qRes.json() : { questions: [] };
+      const fcData = fcRes.ok ? await fcRes.json() : { flashcards: [] };
+      setLinkedContent(prev => ({ ...prev, questions: qData.questions || [], flashcards: fcData.flashcards || fcData.cards || [] }));
+    } catch (err) { console.error('Failed to load linked content', err); }
   }
 
   async function togglePublish() {
@@ -766,11 +785,20 @@ export default function LessonBuilderPage() {
       {/* Hidden file input for uploads */}
       <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileSelect} />
 
+      {/* Smart Search */}
+      <div style={{ marginBottom: '.75rem' }}>
+        <SmartSearch compact onSelect={(result) => {
+          if (result.builderUrl) router.push(result.builderUrl);
+          else if (result.url) router.push(result.url);
+        }} placeholder="Search modules, lessons, questions, flashcards... (Ctrl+K)" />
+      </div>
+
       {/* Builder Header */}
       <div className="lesson-builder__header">
         <div className="lesson-builder__header-left">
           <Link href="/admin/learn/manage" className="learn__back">&larr; Back to Manage</Link>
           <h2 className="lesson-builder__title">{lesson.title}</h2>
+          {lesson.module_id && <span style={{ fontSize: '.72rem', color: '#6B7280' }}>Module: {lesson.module_id.slice(0, 8)}...</span>}
         </div>
         <div className="lesson-builder__header-right">
           <span className={`lesson-builder__status ${isDraft ? 'lesson-builder__status--draft' : 'lesson-builder__status--published'}`}>
@@ -787,6 +815,9 @@ export default function LessonBuilderPage() {
               Save Template
             </button>
           )}
+          <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setShowLinkedPanel(!showLinkedPanel); loadLinkedContent(); }}>
+            Linked Content
+          </button>
           <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => saveBlocks(false)} disabled={saving}>
             {saving ? 'Saving...' : 'Save'}
           </button>
@@ -2042,6 +2073,47 @@ export default function LessonBuilderPage() {
                 <button className="admin-btn admin-btn--primary" onClick={saveAsTemplate} disabled={!saveTemplateName.trim()}>Save Template</button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Linked Content Panel */}
+      {showLinkedPanel && (
+        <div className="lesson-builder__linked-panel">
+          <div className="lesson-builder__linked-header">
+            <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.92rem', fontWeight: 700, color: '#1D3095', margin: 0 }}>Linked Content</h3>
+            <button className="lesson-builder__block-btn" onClick={() => setShowLinkedPanel(false)}>✕</button>
+          </div>
+          <div className="lesson-builder__linked-body">
+            {/* Questions */}
+            <div className="lesson-builder__linked-section">
+              <h4 className="lesson-builder__linked-section-title">Questions ({linkedContent.questions.length})</h4>
+              {linkedContent.questions.length === 0 && <p className="lesson-builder__linked-empty">No questions linked to this lesson.</p>}
+              {linkedContent.questions.map((q: any) => (
+                <div key={q.id} className="lesson-builder__linked-item">
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '.82rem', fontWeight: 600, color: '#0F1419' }}>{(q.question_text || '').slice(0, 80)}{(q.question_text || '').length > 80 ? '...' : ''}</div>
+                    <div style={{ fontSize: '.68rem', color: '#6B7280' }}>{q.question_type} &middot; {q.difficulty}</div>
+                  </div>
+                  <Link href="/admin/learn/manage" style={{ fontSize: '.72rem', color: '#1D3095', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>View</Link>
+                </div>
+              ))}
+            </div>
+            {/* Flashcards */}
+            <div className="lesson-builder__linked-section">
+              <h4 className="lesson-builder__linked-section-title">Flashcards ({linkedContent.flashcards.length})</h4>
+              {linkedContent.flashcards.length === 0 && <p className="lesson-builder__linked-empty">No flashcards linked to this lesson.</p>}
+              {linkedContent.flashcards.map((fc: any) => (
+                <div key={fc.id} className="lesson-builder__linked-item">
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '.82rem', fontWeight: 600, color: '#0F1419' }}>{fc.term}</div>
+                    <div style={{ fontSize: '.68rem', color: '#6B7280' }}>{(fc.definition || '').slice(0, 60)}</div>
+                  </div>
+                  <Link href="/admin/learn/flashcards" style={{ fontSize: '.72rem', color: '#1D3095', fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}>View</Link>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: '.72rem', color: '#9CA3AF', textAlign: 'center', marginTop: '.75rem' }}>Lesson ID: {lessonId}</p>
           </div>
         </div>
       )}

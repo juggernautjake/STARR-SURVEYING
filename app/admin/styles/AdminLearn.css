@@ -989,6 +989,41 @@
 .block-columns__col { font-family:'Inter',sans-serif; font-size:.95rem; line-height:1.7; color:#374151; }
 @media (max-width:640px) { .block-columns { grid-template-columns:1fr !important; } }
 
+/* === SMART SEARCH COMPONENT === */
+.smart-search { position:relative; z-index:100; }
+.smart-search__input-wrap { position:relative; }
+.smart-search__input { font-family:'Inter',sans-serif; }
+.smart-search__input--compact { padding:.55rem .85rem !important; font-size:.85rem !important; }
+.smart-search__spinner { position:absolute; right:12px; top:50%; transform:translateY(-50%); width:14px; height:14px; border:2px solid #E5E7EB; border-top-color:#1D3095; border-radius:50%; animation:spin .6s linear infinite; }
+@keyframes spin { to { transform:translateY(-50%) rotate(360deg); } }
+.smart-search__dropdown { position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#FFF; border:1px solid #E5E7EB; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.12); max-height:420px; overflow-y:auto; z-index:999; }
+.smart-search__empty { padding:1.5rem; text-align:center; font-family:'Inter',sans-serif; font-size:.85rem; color:#9CA3AF; }
+.smart-search__group { border-bottom:1px solid #F3F4F6; }
+.smart-search__group:last-child { border-bottom:none; }
+.smart-search__group-header { display:flex; align-items:center; gap:.35rem; padding:.45rem .85rem; font-family:'Inter',sans-serif; font-size:.72rem; font-weight:700; color:#6B7280; text-transform:uppercase; letter-spacing:.5px; background:#FAFBFF; }
+.smart-search__group-count { font-size:.62rem; background:#E5E7EB; color:#6B7280; padding:.05rem .35rem; border-radius:8px; margin-left:auto; }
+.smart-search__result { display:block; width:100%; text-align:left; padding:.55rem .85rem; border:none; background:none; cursor:pointer; font-family:'Inter',sans-serif; transition:background .1s; }
+.smart-search__result:hover, .smart-search__result--selected { background:#EFF6FF; }
+.smart-search__result-main { display:flex; align-items:center; gap:.5rem; }
+.smart-search__result-badge { font-size:.58rem; font-weight:700; color:#FFF; padding:.1rem .4rem; border-radius:4px; text-transform:uppercase; letter-spacing:.3px; flex-shrink:0; }
+.smart-search__result-title { font-size:.85rem; font-weight:600; color:#0F1419; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.smart-search__result-sub { font-size:.72rem; color:#6B7280; margin-top:.15rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.smart-search__footer { display:flex; justify-content:space-between; padding:.4rem .85rem; font-family:'Inter',sans-serif; font-size:.65rem; color:#9CA3AF; border-top:1px solid #F3F4F6; background:#FAFBFF; border-radius:0 0 10px 10px; }
+
+/* === LESSON BUILDER: Linked Content Panel === */
+.lesson-builder__linked-panel { position:fixed; top:0; right:0; width:340px; height:100vh; background:#FFF; border-left:1px solid #E5E7EB; box-shadow:-4px 0 16px rgba(0,0,0,.08); z-index:200; display:flex; flex-direction:column; animation:slideInRight .2s ease; }
+@keyframes slideInRight { from { transform:translateX(100%); } to { transform:translateX(0); } }
+.lesson-builder__linked-header { display:flex; align-items:center; justify-content:space-between; padding:.85rem 1rem; border-bottom:1px solid #E5E7EB; }
+.lesson-builder__linked-body { flex:1; overflow-y:auto; padding:.75rem; }
+.lesson-builder__linked-section { margin-bottom:1rem; }
+.lesson-builder__linked-section-title { font-family:'Inter',sans-serif; font-size:.78rem; font-weight:700; color:#374151; margin-bottom:.5rem; }
+.lesson-builder__linked-empty { font-family:'Inter',sans-serif; font-size:.78rem; color:#9CA3AF; }
+.lesson-builder__linked-item { display:flex; align-items:center; gap:.5rem; padding:.45rem .65rem; background:#F9FAFB; border:1px solid #E5E7EB; border-radius:6px; margin-bottom:.35rem; }
+
+/* === MODULE DETAIL: Lesson Management Card === */
+.module-lesson-card { display:flex; align-items:center; gap:.75rem; padding:.65rem .85rem; background:#FFF; border:1px solid #E5E7EB; border-radius:8px; transition:border-color .15s; }
+.module-lesson-card:hover { border-color:#D1D5DB; }
+
 /* === BLOCK: Smooth Collapsible/Hidden Transitions === */
 .block-collapsible-wrap { display:grid; grid-template-rows:0fr; transition:grid-template-rows .3s ease; }
 .block-collapsible-wrap--open { grid-template-rows:1fr; }

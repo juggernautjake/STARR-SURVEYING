@@ -2,6 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState, useMemo } from 'react';
+import SmartSearch from '../components/SmartSearch';
 
 interface EnrichedModule {
   id: string; title: string; description: string; difficulty: string;
@@ -115,6 +116,10 @@ export default function ModulesListPage() {
         <p className="learn__subtitle">
           Progressive courses with sequential progression. Complete lessons in order, pass quizzes, and master each module before advancing.
         </p>
+      </div>
+
+      <div style={{ marginBottom: '1rem' }}>
+        <SmartSearch compact placeholder="Search modules, lessons, questions... (Ctrl+K)" />
       </div>
 
       {/* Search */}

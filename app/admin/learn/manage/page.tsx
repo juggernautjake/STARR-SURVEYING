@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
+import SmartSearch from '../components/SmartSearch';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
@@ -372,6 +373,11 @@ export default function ManageContentPage() {
         <Link href="/admin/learn" className="learn__back">&larr; Back to Learning Hub</Link>
         <h2 className="learn__title">Manage Content</h2>
         <p className="learn__subtitle">Create and manage modules, lessons, articles, question bank, flashcards, assignments, and monitor activity.</p>
+      </div>
+
+      {/* Universal Smart Search */}
+      <div style={{ marginBottom: '1rem' }}>
+        <SmartSearch placeholder="Search everything: modules, lessons, questions, flashcards, articles... (Ctrl+K)" />
       </div>
 
       {/* Tabs */}
