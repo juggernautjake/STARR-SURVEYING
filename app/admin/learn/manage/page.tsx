@@ -8,10 +8,11 @@ import { usePageError } from '../../hooks/usePageError';
 import SmartSearch from '../components/SmartSearch';
 import { useToast } from '../../components/Toast';
 import SmallScreenBanner from '../../components/SmallScreenBanner';
+import StudentOverridePanel from '../../components/StudentOverridePanel';
 
 const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
 
-type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config' | 'assignments' | 'activity' | 'recycle_bin';
+type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config' | 'assignments' | 'student_overrides' | 'activity' | 'recycle_bin';
 
 interface Module { id: string; title: string; status: string; order_index: number; description: string; difficulty: string; estimated_hours: number; lesson_count?: number; xp_value?: number; expiry_months?: number; }
 interface XPModuleConfig { id: string; title: string; difficulty?: string; order_index?: number; module_number?: number; module_type: string; xp_value: number; expiry_months: number; difficulty_rating: number; has_custom_xp: boolean; config_id: string | null; }
@@ -492,6 +493,7 @@ export default function ManageContentPage() {
     { key: 'flashcards', label: 'Flashcards', icon: '\u{1F0CF}' },
     { key: 'xp_config', label: 'XP Config', icon: '\u{2B50}' },
     { key: 'assignments', label: 'Assignments', icon: '\u{1F4CB}' },
+    { key: 'student_overrides', label: 'Student Overrides', icon: '\u{1F6E0}' },
     { key: 'activity', label: 'Activity', icon: '\u{1F4CA}' },
     { key: 'recycle_bin', label: `Recycle Bin${recycleBin.length > 0 ? ` (${recycleBin.length})` : ''}`, icon: '\u{1F5D1}' },
   ];
@@ -525,7 +527,7 @@ export default function ManageContentPage() {
       {/* Toolbar */}
       <div className="manage__toolbar">
         <span style={{ fontSize: '.85rem', color: '#6B7280' }}>
-          {loading ? 'Loading...' : tab === 'assignments' ? `${filteredAssignments.length} assignments` : tab === 'activity' ? `${filteredActivities.length} activities` : `${tab === 'modules' ? modules.length : tab === 'lessons' ? lessons.length : tab === 'articles' ? articles.length : tab === 'questions' ? questions.length : tab === 'xp_config' ? xpLearningModules.length + xpFsModules.length : flashcards.length} items`}
+          {loading ? 'Loading...' : tab === 'assignments' ? `${filteredAssignments.length} assignments` : tab === 'activity' ? `${filteredActivities.length} activities` : tab === 'student_overrides' ? 'Admin student control panel' : `${tab === 'modules' ? modules.length : tab === 'lessons' ? lessons.length : tab === 'articles' ? articles.length : tab === 'questions' ? questions.length : tab === 'xp_config' ? xpLearningModules.length + xpFsModules.length : flashcards.length} items`}
         </span>
         {tab === 'questions' ? (
           <div style={{ display: 'flex', gap: '.5rem' }}>
@@ -649,6 +651,9 @@ export default function ManageContentPage() {
           )}
         </>
       )}
+
+      {/* ── STUDENT OVERRIDES TAB ── */}
+      {tab === 'student_overrides' && <StudentOverridePanel />}
 
       {/* ── ACTIVITY MONITOR TAB ── */}
       {tab === 'activity' && (

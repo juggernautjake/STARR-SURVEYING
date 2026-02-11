@@ -2603,3 +2603,89 @@
   .quiz-history__attempt-header { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
   .quiz-history__attempt-right { justify-content: flex-start; }
 }
+
+/* ==============================================================================
+   STUDENT OVERRIDE PANEL
+============================================================================== */
+.override-panel__search { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+.override-panel__summary { background: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+.override-panel__email { font-family: 'Sora', sans-serif; font-size: 1rem; font-weight: 600; color: #0F1419; margin: 0 0 0.5rem; }
+.override-panel__stats { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; }
+.override-panel__stat { font-family: 'Inter', sans-serif; font-size: 0.82rem; color: #6B7280; }
+.override-panel__stat strong { color: #1D3095; font-weight: 700; }
+
+.override-panel__quick { background: #FFF; border: 1px solid #E5E7EB; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; }
+.override-panel__quick-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+.override-panel__modules { display: flex; flex-direction: column; gap: 0.5rem; }
+
+/* Module row */
+.override-module { background: #FFF; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; }
+.override-module__header { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; cursor: pointer; user-select: none; transition: background 0.1s; }
+.override-module__header:hover { background: #F8FAFC; }
+.override-module__info { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; flex: 1; }
+.override-module__expand { font-size: 0.7rem; color: #9CA3AF; width: 16px; }
+.override-module__order { font-family: 'Sora', sans-serif; font-size: 0.7rem; font-weight: 700; color: #FFF; background: #1D3095; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.override-module__title { font-family: 'Sora', sans-serif; font-size: 0.88rem; font-weight: 600; color: #0F1419; }
+.override-module__badge { font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.45rem; border-radius: 10px; }
+.override-module__badge--completed { background: #ECFDF5; color: #065F46; }
+.override-module__badge--assigned { background: #EFF6FF; color: #1E40AF; }
+.override-module__badge--progress { background: #FEF3C7; color: #92400E; }
+.override-module__meta { font-family: 'Inter', sans-serif; font-size: 0.78rem; color: #9CA3AF; flex-shrink: 0; }
+
+.override-module__body { border-top: 1px solid #F3F4F6; padding: 0.75rem 1rem; }
+.override-module__actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+
+/* Action buttons */
+.override-btn { font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 500; padding: 0.3rem 0.65rem; border: 1px solid #E5E7EB; border-radius: 6px; background: #FFF; cursor: pointer; transition: all 0.12s; white-space: nowrap; }
+.override-btn:hover:not(:disabled) { border-color: #1D3095; background: #F0F4FF; }
+.override-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.override-btn--unlock { border-color: #93C5FD; background: #EFF6FF; color: #1E40AF; }
+.override-btn--unlock:hover:not(:disabled) { background: #DBEAFE; }
+.override-btn--complete { border-color: #86EFAC; background: #ECFDF5; color: #065F46; }
+.override-btn--complete:hover:not(:disabled) { background: #D1FAE5; }
+.override-btn--warning { border-color: #FCD34D; background: #FFFBEB; color: #92400E; }
+.override-btn--warning:hover:not(:disabled) { background: #FEF3C7; }
+.override-btn--grant { border-color: #C4B5FD; background: #F5F3FF; color: #5B21B6; }
+.override-btn--grant:hover:not(:disabled) { background: #EDE9FE; }
+.override-btn--danger { border-color: #FCA5A5; background: #FEF2F2; color: #991B1B; }
+.override-btn--danger:hover:not(:disabled) { background: #FEE2E2; }
+
+/* Lesson rows */
+.override-lessons { display: flex; flex-direction: column; gap: 0.25rem; }
+.override-lesson { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0.5rem; border-radius: 6px; transition: background 0.1s; gap: 0.5rem; }
+.override-lesson:hover { background: #F9FAFB; }
+.override-lesson__info { display: flex; align-items: center; gap: 0.4rem; flex: 1; flex-wrap: wrap; min-width: 0; }
+.override-lesson__status { font-size: 0.85rem; flex-shrink: 0; }
+.override-lesson__order { font-family: 'Sora', sans-serif; font-size: 0.75rem; font-weight: 600; color: #6B7280; flex-shrink: 0; }
+.override-lesson__title { font-family: 'Inter', sans-serif; font-size: 0.82rem; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.override-lesson__actions { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+
+/* Small action buttons for lessons */
+.override-btn-sm { font-size: 0.85rem; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 1px solid #E5E7EB; border-radius: 6px; background: #FFF; cursor: pointer; transition: all 0.12s; padding: 0; }
+.override-btn-sm:hover:not(:disabled) { border-color: #1D3095; background: #F0F4FF; transform: scale(1.05); }
+.override-btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
+.override-btn-sm--green:hover:not(:disabled) { border-color: #059669; background: #ECFDF5; }
+.override-btn-sm--yellow:hover:not(:disabled) { border-color: #D97706; background: #FFFBEB; }
+.override-btn-sm--red:hover:not(:disabled) { border-color: #DC2626; background: #FEF2F2; }
+.override-btn-sm--blue:hover:not(:disabled) { border-color: #2563EB; background: #EFF6FF; }
+
+/* Inline grade input */
+.override-lesson__grade { display: flex; align-items: center; gap: 0.2rem; }
+.override-lesson__grade-input { width: 48px; height: 28px; padding: 0 0.3rem; font-size: 0.78rem; border: 1px solid #D1D5DB; border-radius: 5px; text-align: center; font-family: 'Inter', sans-serif; }
+.override-lesson__grade-input:focus { border-color: #1D3095; outline: none; box-shadow: 0 0 0 2px rgba(29,48,149,0.12); }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .override-panel__search { flex-direction: column; }
+  .override-panel__stats { gap: 0.5rem 0.75rem; }
+  .override-panel__quick-row { flex-direction: column; }
+  .override-panel__quick-row input { width: 100% !important; }
+  .override-module__header { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .override-module__meta { margin-left: 2.4rem; }
+  .override-module__actions { gap: 0.3rem; }
+  .override-btn { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+  .override-lesson { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .override-lesson__actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .override-lesson__title { white-space: normal; }
+}
