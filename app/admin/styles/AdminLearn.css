@@ -888,6 +888,16 @@
 .lesson-builder__preview-table td { padding:.55rem .85rem; border:1px solid #E5E7EB; color:#374151; }
 .lesson-builder__preview-table tr:nth-child(even) { background:#FAFBFF; }
 
+/* === LESSON BUILDER: Auto-save Flash === */
+.lesson-builder__autosave-flash { font-family:'Inter',sans-serif; font-size:.68rem; font-weight:600; color:#059669; animation:autosave-flash 2s ease forwards; }
+@keyframes autosave-flash { 0% { opacity:0; transform:translateY(-2px); } 15% { opacity:1; transform:translateY(0); } 85% { opacity:1; } 100% { opacity:0; } }
+
+/* === LESSON BUILDER: Question Bank Picker === */
+.lesson-builder__qb-picker { max-height:200px; overflow-y:auto; border:1px solid #E5E7EB; border-radius:8px; margin-bottom:.65rem; background:#FAFBFF; }
+.lesson-builder__qb-question { display:flex; align-items:center; gap:.75rem; width:100%; padding:.65rem .85rem; background:none; border:none; border-bottom:1px solid #F3F4F6; cursor:pointer; text-align:left; font-family:'Inter',sans-serif; transition:background .1s; }
+.lesson-builder__qb-question:last-child { border-bottom:none; }
+.lesson-builder__qb-question:hover { background:#EFF6FF; }
+
 /* === LESSON BUILDER: Conversion Banner === */
 .lesson-builder__convert-banner { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.75rem 1rem; background:#DBEAFE; border:1px solid #93C5FD; border-radius:8px; margin-bottom:1rem; font-family:'Inter',sans-serif; font-size:.85rem; color:#1E40AF; }
 

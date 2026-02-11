@@ -129,10 +129,10 @@ function parseHtmlToBlocks(htmlStr: string): LessonBlock[] {
       flushPending();
       const headers: string[] = [];
       const rows: string[][] = [];
-      el.querySelectorAll('thead th').forEach(th => headers.push(th.textContent?.trim() || ''));
+      el.querySelectorAll('thead th').forEach(th => headers.push(th.innerHTML?.trim() || ''));
       el.querySelectorAll('tbody tr').forEach(tr => {
         const row: string[] = [];
-        tr.querySelectorAll('td').forEach(td => row.push(td.textContent?.trim() || ''));
+        tr.querySelectorAll('td').forEach(td => row.push(td.innerHTML?.trim() || ''));
         if (row.length > 0) rows.push(row);
       });
       // Fallback: no thead, use first row with th as headers
@@ -141,12 +141,10 @@ function parseHtmlToBlocks(htmlStr: string): LessonBlock[] {
         if (firstTr) {
           const ths = firstTr.querySelectorAll('th');
           if (ths.length > 0) {
-            ths.forEach(th => headers.push(th.textContent?.trim() || ''));
+            ths.forEach(th => headers.push(th.innerHTML?.trim() || ''));
           } else {
-            // First row becomes headers
             const tds = firstTr.querySelectorAll('td');
-            tds.forEach(td => headers.push(td.textContent?.trim() || ''));
-            // Remove first row from rows if it was added by tbody selector
+            tds.forEach(td => headers.push(td.innerHTML?.trim() || ''));
             if (rows.length > 0 && rows[0].join() === headers.join()) rows.shift();
           }
         }
@@ -216,6 +214,10 @@ export default function LessonBuilderPage() {
   const [flashcardIndexes, setFlashcardIndexes] = useState<Record<string, number>>({});
   const [quizAnswers, setQuizAnswers] = useState<Record<string, number | null>>({});
   const [quizRevealed, setQuizRevealed] = useState<Record<string, boolean>>({});
+  const [qbQuestions, setQbQuestions] = useState<any[]>([]);
+  const [showQbPicker, setShowQbPicker] = useState<string | null>(null);
+  const [qbLoading, setQbLoading] = useState(false);
+  const [autoSaveFlash, setAutoSaveFlash] = useState(false);
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileUploadTarget, setFileUploadTarget] = useState<{ blockId: string; field: string } | null>(null);
@@ -292,9 +294,40 @@ export default function LessonBuilderPage() {
       });
       if (res.ok) {
         setLastSaved(new Date().toLocaleTimeString());
+        if (isAutoSave) { setAutoSaveFlash(true); setTimeout(() => setAutoSaveFlash(false), 2000); }
       }
     } catch (err) { console.error('LessonBuilderPage: failed to save blocks', err); }
     setSaving(false);
+  }
+
+  // Fetch question bank questions for quiz block import
+  async function fetchQuestionBank(blockId: string) {
+    setQbLoading(true);
+    setShowQbPicker(blockId);
+    try {
+      const res = await fetch(`/api/admin/learn/questions?lesson_id=${lessonId}&limit=50`);
+      if (res.ok) {
+        const data = await res.json();
+        setQbQuestions((data.questions || []).filter((q: any) =>
+          q.question_type === 'multiple_choice' || q.question_type === 'true_false'
+        ));
+      }
+    } catch (err) { console.error('Failed to fetch question bank', err); }
+    setQbLoading(false);
+  }
+
+  function importQuestion(blockId: string, question: any) {
+    const options: string[] = Array.isArray(question.options) ? question.options : [];
+    const correctIdx = options.findIndex((o: string) => o === question.correct_answer);
+    updateBlockContent(blockId, {
+      question: question.question_text,
+      options: options.length > 0 ? options : ['', ''],
+      correct: correctIdx >= 0 ? correctIdx : 0,
+      explanation: question.explanation || '',
+      source_question_id: question.id,
+    });
+    setShowQbPicker(null);
+    setQbQuestions([]);
   }
 
   async function togglePublish() {
@@ -509,7 +542,9 @@ export default function LessonBuilderPage() {
           <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => saveBlocks(false)} disabled={saving}>
             {saving ? 'Saving...' : 'Save'}
           </button>
+          <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{blocks.length} block{blocks.length !== 1 ? 's' : ''}</span>
           {lastSaved && <span style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Saved {lastSaved}</span>}
+          {autoSaveFlash && <span className="lesson-builder__autosave-flash">Auto-saved</span>}
           <span style={{ fontSize: '0.65rem', color: '#D1D5DB' }}>Ctrl+S</span>
         </div>
       </div>
@@ -603,11 +638,11 @@ export default function LessonBuilderPage() {
                 <div style={{ overflowX: 'auto', margin: '1.5rem 0' }}>
                   <table className="lesson-builder__preview-table">
                     <thead>
-                      <tr>{(block.content.headers || []).map((h: string, i: number) => <th key={i}>{h}</th>)}</tr>
+                      <tr>{(block.content.headers || []).map((h: string, i: number) => <th key={i} dangerouslySetInnerHTML={{ __html: h }} />)}</tr>
                     </thead>
                     <tbody>
                       {(block.content.rows || []).map((row: string[], ri: number) => (
-                        <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+                        <tr key={ri}>{row.map((cell, ci) => <td key={ci} dangerouslySetInnerHTML={{ __html: cell }} />)}</tr>
                       ))}
                     </tbody>
                   </table>
@@ -884,6 +919,31 @@ export default function LessonBuilderPage() {
 
                 {block.block_type === 'quiz' && (
                   <div>
+                    <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => showQbPicker === block.id ? setShowQbPicker(null) : fetchQuestionBank(block.id)}>
+                        {showQbPicker === block.id ? 'Close' : 'Import from Question Bank'}
+                      </button>
+                      {block.content.source_question_id && (
+                        <span style={{ fontSize: '.72rem', color: '#059669', fontWeight: 600 }}>Linked to QB #{block.content.source_question_id.slice(0, 8)}</span>
+                      )}
+                    </div>
+                    {showQbPicker === block.id && (
+                      <div className="lesson-builder__qb-picker">
+                        {qbLoading && <p style={{ fontSize: '.82rem', color: '#9CA3AF', padding: '.5rem' }}>Loading questions...</p>}
+                        {!qbLoading && qbQuestions.length === 0 && (
+                          <p style={{ fontSize: '.82rem', color: '#9CA3AF', padding: '.5rem' }}>No multiple-choice questions found for this lesson. Add questions in the Question Bank first.</p>
+                        )}
+                        {qbQuestions.map((q: any) => (
+                          <button key={q.id} className="lesson-builder__qb-question" onClick={() => importQuestion(block.id, q)}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 600, fontSize: '.85rem', color: '#0F1419', marginBottom: '.2rem' }}>{q.question_text}</div>
+                              <div style={{ fontSize: '.72rem', color: '#6B7280' }}>{q.question_type} &middot; {q.difficulty} &middot; {(q.options || []).length} options</div>
+                            </div>
+                            <span style={{ fontSize: '.72rem', color: '#1D3095', fontWeight: 600, flexShrink: 0 }}>Import</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <input className="fc-form__input" placeholder="Question" value={block.content.question || ''} onChange={e => updateBlockContent(block.id, { ...block.content, question: e.target.value })} />
                     <div style={{ marginTop: '0.5rem' }}>
                       {(block.content.options || []).map((opt: string, oi: number) => (

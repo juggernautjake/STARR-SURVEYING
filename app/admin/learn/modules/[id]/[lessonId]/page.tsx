@@ -356,9 +356,9 @@ export default function LessonViewerPage() {
                   {block.block_type === 'table' && (
                     <div style={{ overflowX: 'auto', margin: '1.5rem 0' }}>
                       <table className="lesson-builder__preview-table">
-                        <thead><tr>{(block.content.headers || []).map((h: string, i: number) => <th key={i}>{h}</th>)}</tr></thead>
+                        <thead><tr>{(block.content.headers || []).map((h: string, i: number) => <th key={i} dangerouslySetInnerHTML={{ __html: h }} />)}</tr></thead>
                         <tbody>{(block.content.rows || []).map((row: string[], ri: number) => (
-                          <tr key={ri}>{row.map((cell: string, ci: number) => <td key={ci}>{cell}</td>)}</tr>
+                          <tr key={ri}>{row.map((cell: string, ci: number) => <td key={ci} dangerouslySetInnerHTML={{ __html: cell }} />)}</tr>
                         ))}</tbody>
                       </table>
                     </div>
