@@ -1,219 +1,384 @@
 -- ============================================================================
--- ACC SRVY 1341 — Week 5: Traverse Computations II — Error of Closure
--- Full lesson content, topics, quiz questions (14), and practice problems (8)
--- Module ID: acc00003-0000-0000-0000-000000000003
--- Lesson ID: acc03b05-0000-0000-0000-000000000001
+-- ACC SRVY 1341 — Week 5: Instrument Leveling & Setup Over a Point
+-- PART 1 OF 2: Lesson content, topics, and resource metadata
+-- ============================================================================
+-- Full lesson HTML, 4 searchable topics, videos, and key takeaways.
+-- Quiz questions, practice problems, and flashcards are in the companion file:
+--   supabase_seed_acc_content_1341_wk5_quiz.sql
+--
+-- Module ID : acc00003-0000-0000-0000-000000000003
+-- Lesson ID : acc03b05-0000-0000-0000-000000000001
+--
+-- Topic UUIDs:
+--   acc03a05-0001  Instrument Leveling Fundamentals
+--   acc03a05-0002  Three-Screw Leveling Procedure
+--   acc03a05-0003  Optical and Laser Plummets
+--   acc03a05-0004  Instrument Setup Over a Point
+--
+-- Run AFTER supabase_seed_acc_courses.sql and wk0–wk4 seeds.
+-- Safe to re-run (uses DELETE before INSERT, UPDATE with WHERE).
 -- ============================================================================
 
+BEGIN;
+
 -- ────────────────────────────────────────────────────────────────────────────
--- 1. UPDATE LESSON CONTENT
+-- 1. LESSON CONTENT (rich HTML)
 -- ────────────────────────────────────────────────────────────────────────────
 
-UPDATE learning_lessons SET content = '
-<h2>Quantifying Traverse Quality: Error of Closure and Precision</h2>
+UPDATE learning_lessons SET
 
-<p>Last week you computed latitudes and departures for every line of a closed traverse. In a perfect world, the sums of those latitudes and departures would both be exactly zero — the traverse would close on itself perfectly. In reality, measurement errors cause small residuals. This week you learn how to <strong>quantify</strong> that closure error, express it as a <strong>relative precision</strong>, compare it to accuracy standards, and decide whether the traverse is good enough to adjust or whether you must return to the field.</p>
+title = 'Week 5: Instrument Leveling & Setup Over a Point',
 
-<p>This is the critical quality-control step between raw computation and final adjustment. No traverse should be adjusted until it has passed the precision test.</p>
+description = 'Procedures for leveling a three-screw surveying instrument and setting up precisely over a ground point using an optical or laser plummet. Covers the left thumb rule, indexing screws, the complete leveling procedure, circular vs. plate bubbles, tribrach operation, and the 10-step setup procedure for centering and leveling over a known point. Follows the Week 4 instrument care review and Quiz 1.',
 
-<h2>Review: Latitudes and Departures</h2>
+learning_objectives = ARRAY[
+  'Explain the left thumb rule and demonstrate its use for centering a level bubble',
+  'Describe why leveling screws should be turned equally and in opposite directions',
+  'Define indexing the screws and explain why instruments should be stored with screws indexed',
+  'Distinguish between the circular (bull''s-eye) bubble and the plate (tubular) bubble',
+  'Perform the complete procedure for leveling a three-screw instrument',
+  'Interpret the 180-degree verification check and identify when a plate bubble needs adjustment',
+  'Compare and contrast optical plummets and laser plummets',
+  'Identify the components and function of a tribrach',
+  'Execute the 10-step procedure for setting up an instrument over a known point',
+  'Explain why the tribrach must not be rotated when sliding to center over a point'
+],
 
-<p>Recall from Week 4:</p>
+estimated_minutes = 45,
+
+content = '
+<h2>Week 5: Instrument Leveling &amp; Setup Over a Point</h2>
+
+<img src="/lessons/cls5/cls5_00_title_instrument_setup.svg" alt="Title graphic showing a total station on a tripod set up over a survey monument with level bubbles centered" style="max-width:100%; margin:1rem 0;" />
+
+<p>Last week you learned the rules of <strong>instrument care</strong> — how to transport, protect, and maintain your surveying equipment. This week we put those instruments to work. The two fundamental skills you will practice today are <strong>instrument leveling</strong> (making the instrument''s vertical axis truly vertical) and <strong>instrument setup over a point</strong> (centering the instrument directly above a known ground mark). These are the first things you do at every station in every traverse, and getting them right is essential to accurate measurements.</p>
+
+<div style="background:#f0f4f8; padding:1rem; border-left:4px solid #2563eb; margin:1rem 0; font-size:1.1em;">
+  <strong>Class 5 Agenda:</strong> (1) Review of Instrument Care from Week 4, (2) Quiz 1, (3) Instrument Leveling, (4) Instrument Setup with an Optical or Laser Plummet.
+</div>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- TOPIC 1 — INSTRUMENT LEVELING FUNDAMENTALS                        -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<h2>1. Instrument Leveling</h2>
+
+<p>Instrument leveling is <strong>quick and easy</strong> when a few guidelines are followed. Without these guidelines, beginners tend to use a random, trial-and-error method that takes much longer and produces inconsistent results. An experienced surveyor can level a three-screw instrument in <strong>less than two to three minutes</strong>.</p>
+
+<h3>Guideline 1: The Head of the Tripod Should Be Horizontal</h3>
+
+<p>Before you even touch the leveling screws, the <strong>tripod head must be approximately horizontal</strong>. As you learned in Week 4, a tilted tripod head forces the leveling screws to their extremes, making leveling difficult or impossible. Adjust the <strong>tripod leg lengths</strong> until the head is roughly parallel to the ground.</p>
+
+<img src="/lessons/cls5/cls5_01_tripod_head_horizontal.svg" alt="[IMAGE NEEDED] Side-by-side comparison: LEFT shows a tripod with head severely tilted and leveling screws at their extremes (red X), RIGHT shows a tripod with head approximately horizontal and leveling screws near mid-range (green check)" style="max-width:100%; margin:1rem 0;" />
+
+<h3>Guideline 2: The Bubble Follows the Left Thumb</h3>
+
+<p>The <strong>left thumb rule</strong> is the single most important technique for efficient leveling. When you grip two leveling screws — one in each hand — and turn them simultaneously in opposite directions, <strong>the bubble always moves in the direction your left thumb turns</strong>.</p>
+
+<img src="/lessons/cls5/cls5_02_left_thumb_rule_diagram.svg" alt="[IMAGE NEEDED] Top-down view of instrument base showing two hands gripping leveling screws A and B. Left thumb arrow points RIGHT; bubble in the vial moves RIGHT. Clear labels: LEFT HAND on screw A, RIGHT HAND on screw B, arrows showing opposite rotation, and the bubble movement matching the left thumb direction." style="max-width:100%; margin:1rem 0;" />
+
+<p>This works because turning two opposite screws in opposite directions tilts the instrument in a predictable direction. The left thumb provides a reliable directional reference that eliminates guesswork. People who try to level without this rule tend to chase the bubble randomly, which takes much longer.</p>
+
+<div style="background:#fffbeb; padding:1rem; border:1px solid #f59e0b; border-radius:6px; margin:1rem 0;">
+  <strong>Memory Aid:</strong> "The bubble follows the LEFT THUMB." If the bubble is to the left of center and you need it to move right, turn your left thumb to the right. Both thumbs move in opposite directions simultaneously.
+</div>
+
+<h3>Guideline 3: Turn Leveling Screws Equally and in Opposite Directions</h3>
+
+<p>When using two leveling screws together, <strong>rotate them the same amount, in opposite directions, at the same rate</strong>. Think of it as one thumb pushing toward you while the other pushes away — both moving at the same speed. Turning them unequal amounts shifts the instrument laterally on the tripod head, which affects your centering over the point.</p>
+
+<img src="/lessons/cls5/cls5_03_equal_opposite_turns.svg" alt="[IMAGE NEEDED] Close-up of two hands on adjacent leveling screws. Curved arrows show equal rotation: left screw clockwise, right screw counterclockwise, same number of turns. A small inset shows the instrument staying centered when turns are equal vs. shifting sideways when they are unequal." style="max-width:100%; margin:1rem 0;" />
+
+<h3>Guideline 4: Index the Screws</h3>
+
+<p>On most instruments, the <strong>midpoint of the leveling screw''s travel</strong> is indicated by a <strong>line on the screw body</strong>. When the top of the knob aligns with this line, the screw is at its mid-range — meaning an equal number of turns can be made up or down.</p>
+
+<img src="/lessons/cls5/cls5_04_index_line_on_screw.svg" alt="[IMAGE NEEDED] Close-up of a single leveling foot screw. The screw body has a horizontal index line engraved on it. The top of the knob is aligned with the index line. Arrows point up and down from the index line showing equal travel available in both directions. Label: INDEX MARK." style="max-width:100%; margin:1rem 0;" />
+
 <ul>
-<li><strong>Latitude</strong> = Distance × cos(Azimuth) — the N-S component</li>
-<li><strong>Departure</strong> = Distance × sin(Azimuth) — the E-W component</li>
-<li>For a closed traverse: ΣLat should = 0 and ΣDep should = 0</li>
+  <li><strong>Before leveling:</strong> Set all three screws to their indexed (mid-range) position. This gives you maximum adjustment range in both directions.</li>
+  <li><strong>After use:</strong> <strong>Store your instrument with all leveling screws indexed</strong> so the instrument is ready for the next use. This also reduces stress on the instrument base plate during storage and transport.</li>
 </ul>
 
-<p>The deviations from zero are:</p>
-<ul>
-<li><strong>Closure in Latitude (ε<sub>Lat</sub>)</strong> = ΣLat (the total residual in the N-S direction)</li>
-<li><strong>Closure in Departure (ε<sub>Dep</sub>)</strong> = ΣDep (the total residual in the E-W direction)</li>
-</ul>
+<h3>Circular (Bull''s-Eye) Bubble vs. Plate (Tubular) Bubble</h3>
 
-<h2>Linear Error of Closure</h2>
-
-<p>The <strong>linear error of closure</strong> is the straight-line distance by which the traverse fails to close. It is the hypotenuse of a right triangle formed by the latitude closure and departure closure:</p>
-
-<p style="text-align:center; font-size:1.2em;"><strong>Linear Error = √(ε<sub>Lat</sub>² + ε<sub>Dep</sub>²)</strong></p>
-
-<p>This single number captures the total positional error of the traverse in one value, regardless of direction.</p>
-
-<h3>Worked Example</h3>
+<p>Most surveying instruments have <strong>two types of level bubbles</strong>. Understanding the difference is essential:</p>
 
 <table>
-<thead><tr><th>Line</th><th>Azimuth</th><th>Distance (ft)</th><th>Latitude (ft)</th><th>Departure (ft)</th></tr></thead>
+<thead><tr><th>Feature</th><th>Circular (Bull''s-Eye) Bubble</th><th>Plate (Tubular) Bubble</th></tr></thead>
 <tbody>
-<tr><td>A→B</td><td>47°15′30″</td><td>325.48</td><td>+220.853</td><td>+238.924</td></tr>
-<tr><td>B→C</td><td>139°54′15″</td><td>280.16</td><td>−214.597</td><td>+180.208</td></tr>
-<tr><td>C→D</td><td>228°48′45″</td><td>310.22</td><td>−203.748</td><td>−233.871</td></tr>
-<tr><td>D→E</td><td>283°22′10″</td><td>265.31</td><td>+61.388</td><td>−258.128</td></tr>
-<tr><td>E→A</td><td>355°10′50″</td><td>230.56</td><td>+230.009</td><td>−19.478</td></tr>
-<tr><td colspan="2"><strong>Sums:</strong></td><td><strong>1411.73</strong></td><td><strong>+93.905</strong></td><td><strong>−92.345</strong></td></tr>
+<tr><td><strong>Shape</strong></td><td>Round vial with a circular bubble</td><td>Elongated tube with an oblong bubble</td></tr>
+<tr><td><strong>Sensitivity</strong></td><td>Lower — used for <strong>rough</strong> leveling</td><td>Higher — used for <strong>fine/precise</strong> leveling</td></tr>
+<tr><td><strong>Dimensions Leveled</strong></td><td>Levels in <strong>two axes</strong> simultaneously</td><td>Levels in <strong>one axis</strong> only</td></tr>
+<tr><td><strong>When Used</strong></td><td><strong>First</strong> — to get approximately level</td><td><strong>Second</strong> — to achieve precise level</td></tr>
+<tr><td><strong>Adjusted By</strong></td><td>Tripod leg lengths (rough)</td><td>Leveling foot screws (fine)</td></tr>
 </tbody>
 </table>
 
-<p><em>(Note: These are intentionally large errors for illustration. Real traverses have much smaller closure errors.)</em></p>
+<img src="/lessons/cls5/cls5_05_circular_vs_tubular_bubble.svg" alt="[IMAGE NEEDED] Side-by-side comparison: LEFT shows a circular/bull''s-eye bubble vial from above with the round bubble centered in the inner circle, labeled ROUGH LEVEL. RIGHT shows a tubular/plate bubble vial from the side with the elongated bubble centered between graduation lines, labeled PRECISE LEVEL. Arrows indicate the sequence: circular first, then tubular." style="max-width:100%; margin:1rem 0;" />
 
-<p>Wait — those sums are far too large for a realistic example. Let me use realistic values:</p>
+<p>The sequence is always: <strong>rough-level with the circular bubble first</strong> (using tripod legs), then <strong>fine-level with the plate bubble</strong> (using foot screws and the left thumb rule).</p>
 
-<table>
-<thead><tr><th>Line</th><th>Azimuth</th><th>Distance (ft)</th><th>Latitude (ft)</th><th>Departure (ft)</th></tr></thead>
-<tbody>
-<tr><td>A→B</td><td>47°15′30″</td><td>325.48</td><td>+220.853</td><td>+238.924</td></tr>
-<tr><td>B→C</td><td>132°18′45″</td><td>280.16</td><td>−188.222</td><td>+207.376</td></tr>
-<tr><td>C→D</td><td>218°42′10″</td><td>310.22</td><td>−242.110</td><td>−193.482</td></tr>
-<tr><td>D→E</td><td>295°08′20″</td><td>265.31</td><td>+112.639</td><td>−240.275</td></tr>
-<tr><td>E→A</td><td>3°55′00″</td><td>230.56</td><td>+230.019</td><td>−15.764</td></tr>
-<tr><td colspan="2"><strong>Sums:</strong></td><td><strong>1411.73</strong></td><td><strong>+133.179</strong></td><td><strong>−3.221</strong></td></tr>
-</tbody>
-</table>
+<hr/>
 
-<p>Still too large. In practice, a well-executed traverse yields closure errors measured in hundredths or thousandths of a foot. Here is a realistic example:</p>
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- TOPIC 2 — THREE-SCREW LEVELING PROCEDURE                         -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
 
-<table>
-<thead><tr><th>Line</th><th>Distance (ft)</th><th>Latitude (ft)</th><th>Departure (ft)</th></tr></thead>
-<tbody>
-<tr><td>A→B</td><td>325.48</td><td>+220.853</td><td>+238.924</td></tr>
-<tr><td>B→C</td><td>280.16</td><td>−188.222</td><td>+207.376</td></tr>
-<tr><td>C→D</td><td>310.22</td><td>−242.158</td><td>−193.482</td></tr>
-<tr><td>D→E</td><td>265.31</td><td>+112.639</td><td>−240.275</td></tr>
-<tr><td>E→A</td><td>230.56</td><td>+96.926</td><td>−12.475</td></tr>
-<tr><td colspan="2"><strong>Sums:</strong></td><td><strong>+0.038</strong></td><td><strong>+0.068</strong></td></tr>
-</tbody>
-</table>
+<h2>2. Procedure for Leveling a Three-Screw Instrument</h2>
 
-<p>Now:</p>
-<p style="text-align:center;"><strong>Linear Error = √(0.038² + 0.068²) = √(0.001444 + 0.004624) = √0.006068 = 0.078 ft</strong></p>
+<p>If a systematic procedure is followed, a three-screw instrument can be leveled in <strong>less than two to three minutes</strong>. Here is the standard procedure:</p>
 
-<h2>Relative Precision</h2>
+<h3>Step 1: Align the Bubble Over Two Screws</h3>
 
-<p>The linear error alone does not tell you whether the traverse is good or bad — a 0.078 ft error on a 100 ft traverse is terrible, but on a 10,000 ft traverse it is excellent. To make the error meaningful, we express it relative to the total traverse length (perimeter):</p>
+<p>Stand between two of the leveling screws and rotate the instrument so the <strong>plate (tubular) level vial is aligned parallel to the line connecting those two screws</strong>.</p>
 
-<p style="text-align:center; font-size:1.2em;"><strong>Relative Precision = 1 : (Perimeter / Linear Error)</strong></p>
+<img src="/lessons/cls5/cls5_06_step1_align_over_two_screws.svg" alt="[IMAGE NEEDED] Top-down diagram of the three leveling screws labeled A, B, and C arranged in a triangle. A dashed line connects screws A and B. The plate bubble vial is shown aligned parallel to this A–B line. The surveyor''s position is indicated standing between A and B. Screw C is opposite." style="max-width:100%; margin:1rem 0;" />
 
-<p>For our example:</p>
-<p style="text-align:center;">Perimeter = 325.48 + 280.16 + 310.22 + 265.31 + 230.56 = <strong>1,411.73 ft</strong></p>
-<p style="text-align:center;">Relative Precision = 1 : (1411.73 / 0.078) = <strong>1 : 18,099</strong></p>
+<h3>Step 2: Center the Bubble Using Two Screws</h3>
 
-<p>This means the closure error is about 1 part in 18,099. By convention, this is rounded to <strong>1:18,000</strong>.</p>
+<p>Find where the bubble is (left or right of center). Using the <strong>left thumb rule</strong>, grip screws A and B and turn them <strong>equal amounts in opposite directions</strong> to move the bubble toward the center of the vial.</p>
 
-<h2>Accuracy Standards</h2>
+<img src="/lessons/cls5/cls5_07_step2_center_with_two_screws.svg" alt="[IMAGE NEEDED] Close-up showing hands on screws A and B with rotation arrows. The plate bubble is shown in three stages: off-center left, moving, then centered. The left thumb arrow matches the bubble movement direction." style="max-width:100%; margin:1rem 0;" />
 
-<p>The relative precision is compared to published accuracy standards to determine if the traverse meets requirements:</p>
+<h3>Step 3: Rotate 90 Degrees to the Third Screw</h3>
 
-<table>
-<thead><tr><th>Standard</th><th>Minimum Relative Precision</th><th>Typical Use</th></tr></thead>
-<tbody>
-<tr><td>First Order</td><td>1:100,000</td><td>National geodetic control</td></tr>
-<tr><td>Second Order, Class I</td><td>1:50,000</td><td>Regional control networks</td></tr>
-<tr><td>Second Order, Class II</td><td>1:20,000</td><td>Large project control</td></tr>
-<tr><td>Third Order, Class I</td><td>1:10,000</td><td>Local control, boundary surveys</td></tr>
-<tr><td>Third Order, Class II</td><td>1:5,000</td><td>Construction layout</td></tr>
-<tr><td><strong>TBPELS Boundary Minimum</strong></td><td><strong>1:10,000</strong></td><td><strong>Texas property surveys</strong></td></tr>
-<tr><td><strong>ALTA/NSPS</strong></td><td><strong>1:15,000</strong></td><td><strong>Commercial real estate</strong></td></tr>
-</tbody>
-</table>
+<p>Turn the instrument <strong>90 degrees</strong> so the plate bubble is now aligned toward the <strong>third leveling screw</strong> (screw C).</p>
 
-<p>Our example traverse at 1:18,000 meets both the TBPELS minimum (1:10,000) and the ALTA/NSPS requirement (1:15,000). It is ready for adjustment.</p>
+<img src="/lessons/cls5/cls5_08_step3_rotate_90.svg" alt="[IMAGE NEEDED] Top-down view showing the instrument rotated 90° from the A–B line so the plate bubble vial now points toward screw C. A curved arrow shows the 90° rotation. The new alignment is clearly labeled." style="max-width:100%; margin:1rem 0;" />
 
-<h3>Reading the Ratio</h3>
-<p>A <strong>larger number</strong> after the colon means <strong>better</strong> precision. 1:18,000 is better than 1:10,000, which is better than 1:5,000. Think of it as: "for every 18,000 units of distance, I have 1 unit of error."</p>
+<h3>Step 4: Center the Bubble Using Only the Third Screw</h3>
 
-<h2>Direction of Closure Error</h2>
+<p>Find the position of the bubble and, following the left thumb rule, <strong>turn only screw C</strong> to center the bubble. Do not touch the other two screws during this step.</p>
 
-<p>The closure error has both magnitude (the linear error) and <strong>direction</strong>:</p>
+<img src="/lessons/cls5/cls5_09_step4_third_screw_only.svg" alt="[IMAGE NEEDED] Close-up of a single hand adjusting screw C with a rotation arrow. Screws A and B are shown grayed out with DO NOT TOUCH labels. The plate bubble moves toward center." style="max-width:100%; margin:1rem 0;" />
 
-<p style="text-align:center;"><strong>Direction of Error = arctan(ε<sub>Dep</sub> / ε<sub>Lat</sub>)</strong></p>
+<h3>Step 5: Return to the Original Two Screws</h3>
 
-<p>For our example: arctan(0.068 / 0.038) = arctan(1.789) = 60.8°. Since both ε<sub>Lat</sub> and ε<sub>Dep</sub> are positive, the direction is in the NE quadrant: <strong>N 60°48′ E</strong>.</p>
+<p>Rotate the instrument <strong>90 degrees back</strong> to align the bubble over the original two screws (A and B). Check whether the bubble is still centered. If not, re-center it using screws A and B.</p>
 
-<p>The direction of closure is useful for diagnosing the source of error. If the closure direction is roughly parallel to one of the traverse legs, the error may be concentrated in that leg''s distance measurement.</p>
+<h3>Step 6: Rotate Back to the Third Screw and Repeat</h3>
 
-<h2>When the Traverse Fails</h2>
+<p>Rotate 90 degrees again to check the bubble over screw C. Re-center if necessary. <strong>Repeat this process</strong> — alternating between the two positions — <strong>until the bubble stays centered as the instrument is rotated</strong>.</p>
 
-<p>If the relative precision does not meet the required standard, you must identify the source of error before re-measuring. Common strategies:</p>
+<div style="background:#f0f4f8; padding:1rem; border-left:4px solid #2563eb; margin:1rem 0;">
+  <strong>Why iteration is necessary:</strong> Adjusting screws A and B slightly affects the tilt in the C direction, and vice versa. The two axes interact. Each iteration reduces the residual error until the bubble remains centered in both orientations. Typically 2–3 iterations are sufficient.
+</div>
 
-<h3>1. Check for Blunders First</h3>
-<ul>
-<li><strong>Compare forward and back distances</strong> — a large discrepancy on one leg suggests a distance blunder.</li>
-<li><strong>Re-check field notes</strong> for transposed digits, wrong prism constant, or missing atmospheric corrections.</li>
-<li><strong>Look at the direction of closure</strong> — if it aligns with one leg, suspect that leg.</li>
-</ul>
+<img src="/lessons/cls5/cls5_10_iteration_flowchart.svg" alt="[IMAGE NEEDED] Flowchart showing the iterative leveling process: Step 1 Align over A–B → Step 2 Center bubble → Step 3 Rotate 90° → Step 4 Center with C → Step 5 Check A–B → Step 6 Check C → Decision diamond: Bubble stays centered? YES → Done / NO → Return to Step 2." style="max-width:100%; margin:1rem 0;" />
 
-<h3>2. Recompute from Scratch</h3>
-<ul>
-<li>Verify angle balancing was done correctly.</li>
-<li>Check azimuth propagation — one wrong azimuth corrupts all subsequent latitudes and departures.</li>
-<li>Verify that slope distances were correctly reduced to horizontal.</li>
-</ul>
+<h3>The 180° Verification Check</h3>
 
-<h3>3. Return to the Field</h3>
-<ul>
-<li>Re-measure the suspect leg(s) — both angle and distance.</li>
-<li>If no specific leg is suspect, re-measure the longest legs first (they contribute the most to potential error).</li>
-<li>Consider adding redundant measurements (extra distance shots, angle repetitions).</li>
-</ul>
+<p>After the bubble stays centered in both the A–B and C positions, perform a final check: rotate the instrument <strong>180 degrees</strong> from its current position. If the bubble <strong>stays centered</strong>, the instrument is properly leveled and the vertical axis is truly vertical.</p>
 
-<h2>Complete Traverse Worksheet</h2>
+<p>If the bubble <strong>moves off center</strong> when rotated 180°, the <strong>plate level bubble itself needs adjustment</strong>. This means the bubble vial''s axis is not perpendicular to the vertical axis of the instrument. The correction procedure is:</p>
 
-<p>Professional traverse computations are organized on a standard <strong>traverse worksheet</strong> (also called a traverse computation sheet). The format below organizes all data for a 5-sided traverse:</p>
-
-<table>
-<thead><tr><th>Station</th><th>Balanced Angle</th><th>Azimuth</th><th>Distance</th><th>Latitude</th><th>Departure</th></tr></thead>
-<tbody>
-<tr><td>A</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-<tr><td></td><td></td><td>Az(A→B)</td><td>Dist(A→B)</td><td>Lat(A→B)</td><td>Dep(A→B)</td></tr>
-<tr><td>B</td><td>∠B</td><td></td><td></td><td></td><td></td></tr>
-<tr><td></td><td></td><td>Az(B→C)</td><td>Dist(B→C)</td><td>Lat(B→C)</td><td>Dep(B→C)</td></tr>
-<tr><td>C</td><td>∠C</td><td></td><td></td><td></td><td></td></tr>
-<tr><td></td><td></td><td>Az(C→D)</td><td>Dist(C→D)</td><td>Lat(C→D)</td><td>Dep(C→D)</td></tr>
-<tr><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td></tr>
-<tr><td colspan="3"><strong>Sums:</strong></td><td><strong>Perimeter</strong></td><td><strong>ΣLat</strong></td><td><strong>ΣDep</strong></td></tr>
-</tbody>
-</table>
-
-<p>At the bottom of the worksheet, compute:</p>
 <ol>
-<li>Linear Error = √(ΣLat² + ΣDep²)</li>
-<li>Relative Precision = 1 : (Perimeter / Linear Error)</li>
-<li>Pass/Fail against the required standard</li>
+  <li>Using the <strong>leveling screws</strong>, bring the bubble <strong>halfway</strong> back toward center. (The other half of the error is in the bubble tube itself — this is the <em>principle of reversal</em>.)</li>
+  <li>Using the <strong>capstan adjusting screws</strong> on the bubble tube, adjust the tube until the bubble is fully centered.</li>
+  <li>Repeat the 180° test until the bubble stays centered through a full rotation.</li>
 </ol>
 
-<h2>Significant Figures and Rounding</h2>
+<img src="/lessons/cls5/cls5_11_180_degree_check.svg" alt="[IMAGE NEEDED] Two diagrams side by side: LEFT shows the bubble centered before rotation (labeled PASS); RIGHT shows the bubble displaced after 180° rotation (labeled FAIL — bubble needs adjustment). An arrow shows the 180° rotation between the two positions." style="max-width:100%; margin:1rem 0;" />
 
-<p>When computing latitudes, departures, and closure errors:</p>
+<p><em>Note: If you are not trained in capstan screw adjustment, report the condition to your party chief. Do not attempt adjustments you do not fully understand.</em></p>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- TOPIC 3 — OPTICAL AND LASER PLUMMETS                              -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<h2>3. Optical and Laser Plummets</h2>
+
+<p>Setting up over a known point requires a way to see — or project — a <strong>vertical line</strong> from the instrument down to the ground mark. Two technologies are used:</p>
+
+<p>An <strong>optical plummet</strong> is a small telescope built into the tribrach or instrument that looks straight down through the vertical axis. When the instrument is level, the plummet projects a truly vertical line of sight to the ground, allowing you to see whether the instrument is centered exactly over a ground mark.</p>
+
+<p>A <strong>laser plummet</strong> does the same thing but projects a visible <strong>laser beam</strong> (typically red or green) downward instead of using a telescope. The laser dot is visible on the ground without looking through an eyepiece.</p>
+
+<img src="/lessons/cls5/cls5_12_optical_plummet_cutaway.svg" alt="[IMAGE NEEDED] Cutaway diagram of an optical plummet inside a tribrach, showing the internal optics: an eyepiece at the top, a 90° reflecting prism, and the line of sight going straight down through the vertical axis to a ground mark below. Label each optical component." style="max-width:100%; margin:1rem 0;" />
+
+<img src="/lessons/cls5/cls5_13_laser_plummet_beam.svg" alt="[IMAGE NEEDED] Side view of an instrument on a tripod with a laser plummet projecting a visible red dot downward to a ground mark (PK nail). The laser beam path is shown as a dashed red line. A person can see the dot from standing height without bending down." style="max-width:100%; margin:1rem 0;" />
+
+<table>
+<thead><tr><th>Feature</th><th>Optical Plummet</th><th>Laser Plummet</th></tr></thead>
+<tbody>
+<tr><td><strong>How It Works</strong></td><td>Small telescope with crosshairs looking straight down</td><td>Projects a visible laser dot downward</td></tr>
+<tr><td><strong>Power Required</strong></td><td>None — entirely optical</td><td>Yes — requires battery</td></tr>
+<tr><td><strong>Visibility</strong></td><td>Requires light to see the ground mark through the eyepiece</td><td>Visible in low light; may wash out in bright sunlight</td></tr>
+<tr><td><strong>Ease of Use</strong></td><td>Must bend down and look through eyepiece</td><td>Laser dot visible from any angle; a second person can verify</td></tr>
+<tr><td><strong>Reliability</strong></td><td>Very reliable — no batteries to fail</td><td>Dependent on battery life</td></tr>
+<tr><td><strong>Focusing</strong></td><td>Must focus on crosshairs AND on the ground mark to remove parallax</td><td>No focusing required</td></tr>
+<tr><td><strong>Accuracy</strong></td><td>Very high — limited by telescope magnification</td><td>Very high — limited by dot size (~1–2 mm at 1.5 m height)</td></tr>
+</tbody>
+</table>
+
+<h3>The Tribrach</h3>
+
+<p>A <strong>tribrach</strong> is the precision mounting plate that connects a surveying instrument to the tripod. The name comes from the Greek words for "three" and "arm," referring to its three leveling screws. The tribrach is a critical component because it provides both <strong>centering</strong> (over a point) and <strong>leveling</strong> (making the horizontal plane truly horizontal).</p>
+
+<p>A tribrach contains:</p>
 <ul>
-<li>Carry <strong>at least one more decimal place</strong> than the final required precision throughout intermediate calculations.</li>
-<li>For distances measured to the nearest 0.01 ft, compute lat/dep to <strong>0.001 ft</strong> or better.</li>
-<li>Round the <strong>final</strong> relative precision ratio to three significant figures (e.g., 1:18,100 → 1:18,000).</li>
-<li>Do not round intermediate values — rounding too early can introduce significant errors in the closure computation.</li>
+  <li><strong>Three leveling (foot) screws</strong> — for precise leveling of the instrument</li>
+  <li>A <strong>circular (bull''s-eye) bubble</strong> — for rough leveling</li>
+  <li>An <strong>optical or laser plummet</strong> — for centering over a ground point</li>
+  <li>A <strong>locking clamp</strong> — for securing the instrument (or prism/target) to the tribrach</li>
+  <li>A <strong>5/8-inch-11 central mounting screw</strong> — for attaching the tribrach to the tripod head</li>
 </ul>
+
+<img src="/lessons/cls5/cls5_14_tribrach_labeled.svg" alt="[IMAGE NEEDED] Annotated photograph or technical drawing of a tribrach viewed from a 3/4 angle. Callout lines identify: (1) three leveling foot screws, (2) circular bubble, (3) optical plummet eyepiece, (4) locking clamp lever, (5) 5/8-inch central mounting screw on the bottom. Each label is numbered and clearly connected to the part." style="max-width:100%; margin:1rem 0;" />
+
+<p>The tribrach''s locking clamp can accept <strong>interchangeable instruments</strong> — you can swap a total station for a prism target without disturbing the tribrach''s position on the tripod. This is the basis of <strong>forced centering</strong>, an advanced traverse technique that speeds up fieldwork and reduces centering errors. You will learn forced centering later in the lab course (SRVY 1335).</p>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- TOPIC 4 — INSTRUMENT SETUP OVER A POINT                           -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<h2>4. Instrument Setup Over a Point Using an Optical or Laser Plummet</h2>
+
+<p>Setting up over a known ground point (such as a PK nail, hub and tack, or survey monument) requires both <strong>precise centering</strong> and <strong>precise leveling</strong> simultaneously. These two adjustments are <em>interactive</em> — adjusting one slightly affects the other — so the process is iterative. With practice, the complete setup takes <strong>less than five minutes</strong>.</p>
+
+<h3>Step 1: Rough-Set the Tripod</h3>
+
+<p>Rough-set the tripod over the ground point by positioning the legs around the mark. A practical technique:</p>
+<ul>
+  <li>Hold two legs and place the <strong>third leg past the point</strong>.</li>
+  <li>Move the two you are holding until the <strong>head of the tripod is approximately over the point</strong> and is <strong>horizontal</strong>.</li>
+  <li>Press all three leg tips firmly into the ground.</li>
+</ul>
+
+<img src="/lessons/cls5/cls5_15_rough_set_tripod.svg" alt="[IMAGE NEEDED] Overhead view showing a surveyor''s hands holding two tripod legs while the third is already planted past the ground mark (shown as a red dot). Arrows show the two held legs being positioned to center the tripod head over the mark. The tripod head is shown approximately horizontal." style="max-width:100%; margin:1rem 0;" />
+
+<h3>Step 2: Attach the Instrument and Adjust</h3>
+
+<p>Mount the instrument (or tribrach with instrument) on the tripod head. Look through the <strong>optical plummet</strong>:</p>
+<ol>
+  <li>First, <strong>focus onto the crosshairs</strong> (turn the eyepiece ring).</li>
+  <li>Then <strong>focus onto the ground mark</strong> (turn the objective focus).</li>
+  <li><strong>Tip:</strong> Place your foot next to the point to help locate it in the plummet''s field of view.</li>
+</ol>
+<p>While holding up two of the legs nearest you, adjust the location of the tripod if necessary to make the point visible in the optical plummet.</p>
+
+<img src="/lessons/cls5/cls5_16_look_through_plummet.svg" alt="[IMAGE NEEDED] A surveyor bending to look through the optical plummet eyepiece on the tribrach. A circular inset shows the plummet''s field of view: crosshairs visible with a PK nail nearby but not yet centered. A boot is visible next to the nail for reference." style="max-width:100%; margin:1rem 0;" />
+
+<h3>Step 3: Center the Optical Plummet on the Point</h3>
+
+<p>When the point is visible in the optical plummet, use the <strong>instrument''s leveling screws</strong> to move the crosshairs until they are <strong>exactly centered on the point</strong>.</p>
+
+<img src="/lessons/cls5/cls5_17_center_plummet_on_point.svg" alt="[IMAGE NEEDED] Two circular plummet views side by side: LEFT shows crosshairs offset from the nail (labeled BEFORE), RIGHT shows crosshairs perfectly centered on the nail (labeled AFTER). Arrows indicate the leveling screws were adjusted to achieve centering." style="max-width:100%; margin:1rem 0;" />
+
+<div style="background:#fffbeb; padding:1rem; border:1px solid #f59e0b; border-radius:6px; margin:1rem 0;">
+  <strong>Important:</strong> Using the leveling screws to center the plummet intentionally throws the instrument out of level. That is OK at this stage — you will level it properly in the next steps. The goal right now is to get the plummet centered on the point.
+</div>
+
+<h3>Step 4: Adjust the Tripod Legs to Level</h3>
+
+<p>Now focus on the <strong>bull''s-eye (circular) bubble</strong>. Adjust the <strong>tripod legs up or down</strong> — extending or shortening them — to center the circular bubble. <strong>Work with only one leg at a time!</strong></p>
+
+<p>Extending or shortening a leg moves the instrument in an arc roughly centered on the ground mark, so the plummet should remain close to the point.</p>
+
+<img src="/lessons/cls5/cls5_18_adjust_legs_for_level.svg" alt="[IMAGE NEEDED] Side view showing one tripod leg being extended (arrow pointing down at the foot). The circular bubble on the tribrach is shown moving toward center. Bold label: ONE LEG AT A TIME. The other two legs are shown anchored." style="max-width:100%; margin:1rem 0;" />
+
+<h3>Step 5: Confirm the Position</h3>
+
+<p>Check to confirm that the optical plummet is <strong>still on or very close to the point</strong>. The leg adjustments in Step 4 may have shifted the centering slightly.</p>
+
+<h3>Step 6: Center the Plate Bubble</h3>
+
+<p>Return to the <strong>leveling screws</strong> and use the full three-screw leveling procedure (Section 2 above) to <strong>precisely center the plate (tubular) bubble</strong>. The plate bubble should remain centered when the instrument is rotated about its vertical axis.</p>
+
+<h3>Step 7: Check the Optical Plummet</h3>
+
+<p>Look through the optical plummet again and check its position relative to the point. <strong>It will probably be slightly off the point</strong> — this is normal because fine-leveling with the foot screws shifts the instrument''s position slightly.</p>
+
+<h3>Step 8: Center the Instrument Over the Point</h3>
+
+<p>Loosen the <strong>instrument attachment clamp on the tripod</strong> slightly (the central 5/8-inch mounting screw). While looking through the optical plummet, <strong>slide the instrument on the tripod head</strong> until the crosshairs are exactly on the point.</p>
+
+<div style="background:#fee2e2; padding:1rem; border:1px solid #ef4444; border-radius:6px; margin:1rem 0;">
+  <strong>Critical Rule: Do NOT rotate the tribrach!</strong> Slide it in straight lines only — toward/away and left/right. The tripod head surface has minor imperfections. When you <em>slide</em>, the base plate maintains approximately the same tilt. When you <em>rotate</em>, different parts of the base plate contact different areas of the head surface, changing the tilt and destroying your established level. If you rotate, you must re-level from scratch.
+</div>
+
+<img src="/lessons/cls5/cls5_19_slide_not_rotate.svg" alt="[IMAGE NEEDED] Top-down view of the tribrach on the tripod head. LEFT side shows straight-line sliding arrows (green, labeled CORRECT — Slide). RIGHT side shows a curved rotation arrow (red, labeled WRONG — Do Not Rotate). Clear visual distinction between the two motions." style="max-width:100%; margin:1rem 0;" />
+
+<h3>Step 9: Tighten the Attachment Clamp</h3>
+
+<p>Tighten the attachment clamp (central mounting screw) and <strong>recheck the plate level</strong>. Sliding the instrument may have slightly disturbed the level.</p>
+
+<h3>Step 10: Re-Level and Repeat</h3>
+
+<p>Re-level using the foot screws and repeat the centering check if necessary until the instrument is <strong>exactly level AND directly over the point simultaneously</strong>.</p>
+
+<p>When both conditions are achieved, <strong>check the instrument frequently during use</strong> to ensure it remains level and over the point. Tripod legs can settle, especially on soft ground, hot asphalt, or in warm temperatures.</p>
+
+<img src="/lessons/cls5/cls5_20_final_setup_complete.svg" alt="[IMAGE NEEDED] A properly set up total station on a tripod over a survey monument. Callout labels confirm: (1) plate bubble centered, (2) optical plummet on the mark, (3) attachment clamp tight, (4) tripod legs firmly planted. A green checkmark indicates setup is complete." style="max-width:100%; margin:1rem 0;" />
+
+<hr/>
+
+<h2>Common Mistakes to Avoid</h2>
+
+<img src="/lessons/cls5/cls5_21_common_mistakes.svg" alt="[IMAGE NEEDED] Infographic showing 6 common setup mistakes with icons: (1) tilted tripod head, (2) random screw turning, (3) screws not indexed, (4) rotating tribrach, (5) over-tightened screws, (6) skipping iteration. Each has a brief label and a prohibition symbol." style="max-width:100%; margin:1rem 0;" />
+
+<ul>
+  <li><strong>Skipping the rough-level step</strong> — trying to level entirely with foot screws when the tripod head is severely tilted</li>
+  <li><strong>Leveling without a system</strong> — randomly turning screws instead of following the left thumb rule and the two-position procedure</li>
+  <li><strong>Not indexing screws before starting</strong> — running out of adjustment range mid-procedure</li>
+  <li><strong>Rotating the tribrach when sliding to center</strong> — this destroys the established level and forces you to start over</li>
+  <li><strong>Over-tightening the foot screws</strong> — this warps the base plate and can damage the instrument</li>
+  <li><strong>Not iterating between centering and leveling</strong> — a single pass is rarely sufficient because the adjustments interact</li>
+  <li><strong>Confusing the circular and plate bubbles</strong> — using only the circular bubble and assuming the instrument is precisely level</li>
+  <li><strong>Not rechecking during extended use</strong> — the instrument can settle out of level over time, especially on soft ground</li>
+</ul>
+
+<hr/>
+
+<h2>Video Resources</h2>
+
+<ul>
+  <li><a href="https://www.youtube.com/watch?v=xHFt-fkvfrg" target="_blank">Instrument Setup Over a Point — Complete Procedure</a> (12:42 min)</li>
+  <li><a href="https://www.youtube.com/watch?v=iAQgFFHBiPo" target="_blank">Total Station Setup and Leveling Demonstration</a> (9:02 min) <strong>*Recommended</strong></li>
+</ul>
+
+<p><strong>Homework:</strong> Find and watch additional videos on instrument leveling and setup on the internet. Share any videos you find that are especially clear or helpful with me, please.</p>
+
+<hr/>
 
 <h2>Looking Ahead</h2>
 
-<p>Now that you can compute and evaluate the error of closure, next week you will learn to <strong>adjust</strong> the traverse — distributing the closure error among all the latitudes and departures to force exact closure. We will cover the <strong>Compass (Bowditch) Rule</strong> and the <strong>Transit Rule</strong>, the two most common adjustment methods in professional practice.</p>
+<p>Now that you can properly care for, level, and set up a surveying instrument over a point, you are ready to begin the computational core of the course. Next week we move to <strong>traverse computations</strong> — converting raw field angles into azimuths and decomposing traverse legs into latitudes and departures. This is where the math meets the fieldwork.</p>
 ',
 
 resources = '[
-  {"title":"Traverse Computation and Error Analysis Guide","url":"https://www.surveyingmath.com/traverse-error-analysis","type":"reference"},
-  {"title":"FGCS Standards for Geodetic Control Networks","url":"https://www.ngs.noaa.gov/FGCS/tech_pub/1984-stds-specs-geodetic-control-networks.pdf","type":"pdf"},
-  {"title":"TBPELS Rules — Chapter 663 Standards of Practice","url":"https://www.txls.texas.gov/","type":"reference"}
+  {"title":"Elementary Surveying: An Introduction to Geomatics (Ghilani) — Chapters on Leveling and Instrument Setup","url":"https://www.pearson.com/en-us/subject-catalog/p/elementary-surveying-an-introduction-to-geomatics/P200000003437","type":"reference"},
+  {"title":"Jerry Mahun''s Open Access Surveying Library — TSI Setup Procedures","url":"https://www.jerrymahun.com/index.php/home/open-access/14-total-station-instruments/213-tsi-chap-c-2","type":"reference"},
+  {"title":"Surveying with Construction Applications (Kavanagh & Slattery) — Instrument Operations","url":"https://www.pearson.com/en-us/subject-catalog/p/surveying-with-construction-applications/P200000003285","type":"reference"},
+  {"title":"Trimble Total Station Support — Setup Guides","url":"https://www.trimble.com/support","type":"reference"},
+  {"title":"Leica Geosystems — Instrument Setup Procedures","url":"https://leica-geosystems.com/support","type":"reference"}
 ]'::jsonb,
 
 videos = '[
-  {"title":"Computing Error of Closure and Relative Precision","url":"https://www.youtube.com/watch?v=KZmBsTN4a_s"},
-  {"title":"Traverse Worksheet: Full Worked Example","url":"https://www.youtube.com/watch?v=DqEm1JZr_6c"}
+  {"title":"Instrument Setup Over a Point — Complete Procedure (12:42)","url":"https://www.youtube.com/watch?v=xHFt-fkvfrg"},
+  {"title":"Total Station Setup and Leveling Demonstration (9:02)","url":"https://www.youtube.com/watch?v=iAQgFFHBiPo"}
 ]'::jsonb,
 
 key_takeaways = ARRAY[
-  'Compute the linear error of closure using √(ΣLat² + ΣDep²)',
-  'Calculate relative precision as 1:(Perimeter / Linear Error)',
-  'Compare relative precision to TBPELS (1:10,000), ALTA (1:15,000), and FGCS standards',
-  'Understand that a larger number in the ratio means better precision',
-  'Compute the direction of closure error using arctan(εDep / εLat)',
-  'Diagnose sources of error when a traverse fails: check blunders, recompute, then re-measure',
-  'Organize traverse data on a standard computation worksheet'
+  'The tripod head must be approximately horizontal before you begin leveling with the foot screws',
+  'The left thumb rule: the bubble always moves in the direction your left thumb turns',
+  'Turn leveling screws equally and in opposite directions to avoid shifting the instrument laterally',
+  'Index all leveling screws to mid-range before leveling and before storing the instrument',
+  'Use the circular (bull''s-eye) bubble for rough leveling, then the plate (tubular) bubble for fine leveling',
+  'The three-screw procedure: align over two screws, center, rotate 90°, center with third screw only, repeat until stable',
+  'If the bubble moves off center at 180° rotation, the plate bubble vial itself needs adjustment — use the principle of reversal',
+  'Optical plummets use a telescope looking down; laser plummets project a visible dot — both center you over a ground mark',
+  'A tribrach provides three leveling screws, a circular bubble, and an optical/laser plummet in one mounting plate',
+  'The 10-step setup: rough-set tripod, center plummet, adjust legs for level, fine-level with foot screws, slide to re-center, iterate',
+  'NEVER rotate the tribrach when sliding to center — slide in straight lines only',
+  'Check the instrument frequently during use to ensure it remains level and centered over the point'
 ]
 
 WHERE id = 'acc03b05-0000-0000-0000-000000000001';
@@ -228,262 +393,28 @@ DELETE FROM learning_topics WHERE lesson_id = 'acc03b05-0000-0000-0000-000000000
 INSERT INTO learning_topics (id, lesson_id, title, content, order_index, keywords) VALUES
 
 ('acc03a05-0001-0000-0000-000000000001', 'acc03b05-0000-0000-0000-000000000001',
- 'Linear Error of Closure',
- 'For a closed traverse, ΣLat and ΣDep should both equal zero. The deviations (εLat = ΣLat, εDep = ΣDep) represent the closure error in the N-S and E-W directions respectively. The linear error of closure is the Pythagorean combination: Linear Error = √(εLat² + εDep²). This single value represents the total positional misclosure — the straight-line distance by which the traverse fails to return to the starting point. It combines errors from all sources (angle measurement, distance measurement, centering) into one number. The direction of closure error is arctan(εDep/εLat), resolved to the correct quadrant. The direction can help diagnose which traverse leg may contain the largest error.',
+ 'Instrument Leveling Fundamentals',
+ 'Instrument leveling makes the vertical axis of the instrument truly vertical so that horizontal angles are measured in a horizontal plane and vertical angles are referenced correctly. Four guidelines make the process fast and reliable. (1) The tripod head must be approximately horizontal before leveling — a tilted head forces foot screws to their extremes and may exceed the compensator range (typically ±3′ to ±6′). (2) The left thumb rule: when gripping two foot screws and turning them simultaneously in opposite directions, the bubble always moves in the direction the left thumb turns. This eliminates guesswork and is the single most efficient leveling technique. (3) Turn screws equally and in opposite directions at the same rate; unequal turns shift the instrument laterally on the tripod head, affecting centering. (4) Index the screws — set them to mid-range (marked by a line on the screw body) before leveling to ensure maximum adjustment range in both directions, and store the instrument with screws indexed. Two types of level bubbles are used: the circular (bull''s-eye) bubble for rough two-axis leveling (adjusted by tripod leg lengths), followed by the more sensitive plate (tubular) bubble for precise single-axis leveling (adjusted by foot screws using the left thumb rule).',
  1,
- ARRAY['linear error','error of closure','latitude closure','departure closure','Pythagorean','positional error','direction of closure']),
+ ARRAY['leveling','left thumb rule','foot screws','indexing','circular bubble','plate bubble','tubular bubble','bull''s-eye','tripod head','horizontal','compensator','vertical axis']),
 
 ('acc03a05-0002-0000-0000-000000000001', 'acc03b05-0000-0000-0000-000000000001',
- 'Relative Precision and Accuracy Standards',
- 'Relative precision expresses the closure error as a fraction of the total traverse perimeter: Relative Precision = 1:(Perimeter/Linear Error). A larger denominator means better precision: 1:18,000 is better than 1:10,000. Standards: TBPELS requires 1:10,000 minimum for Texas boundary surveys; ALTA/NSPS requires 1:15,000 for commercial land title surveys. FGCS standards range from 1:5,000 (third-order Class II) to 1:100,000 (first order). The traverse must meet the applicable standard before adjustment; if it fails, the error source must be identified and corrected. Relative precision is the universal metric for comparing traverse quality because it normalizes the error against the survey size — a 0.1 ft error on a 100 ft traverse (1:1,000) is far worse than 0.1 ft on a 10,000 ft traverse (1:100,000).',
+ 'Three-Screw Leveling Procedure',
+ 'The standard procedure for leveling a three-screw instrument takes less than two to three minutes when performed systematically. Step 1: Align the plate bubble parallel to the line connecting two of the three foot screws (A and B). Step 2: Using the left thumb rule, grip screws A and B and turn them equal amounts in opposite directions to center the bubble. Step 3: Rotate the instrument 90° so the bubble aligns toward the third screw (C). Step 4: Turn only screw C to center the bubble — do not touch A or B. Step 5: Rotate back to the A–B alignment and recheck. Step 6: Rotate to screw C and recheck. Repeat (iterate) until the bubble stays centered in both orientations. Typically 2–3 iterations are sufficient because adjusting one axis slightly affects the other. Final verification: rotate the instrument 180°. If the bubble stays centered, the instrument is level. If the bubble moves off center at 180°, the plate bubble vial itself needs adjustment: bring the bubble halfway back with the foot screws (the other half is the vial error — the principle of reversal), then use the capstan adjusting screws on the vial to center it fully. Repeat until the bubble remains centered through a full rotation.',
  2,
- ARRAY['relative precision','accuracy standard','TBPELS','ALTA','FGCS','1:10000','1:15000','perimeter','ratio','quality metric']),
+ ARRAY['three-screw','procedure','step-by-step','align','rotate 90','iterate','180 degree check','principle of reversal','capstan screws','vial adjustment','systematic']),
 
 ('acc03a05-0003-0000-0000-000000000001', 'acc03b05-0000-0000-0000-000000000001',
- 'Diagnosing and Resolving Failed Closures',
- 'When relative precision fails to meet the required standard, systematic diagnosis is necessary. Step 1: Check for blunders — review field notes for transposed digits, verify prism constants and atmospheric corrections, compare forward/back distances for large discrepancies. Step 2: Recompute — verify angle balancing, check azimuth propagation for errors (one wrong azimuth corrupts all downstream lat/dep), confirm slope-to-horizontal reductions. Step 3: Analyze the direction of closure error — if it aligns with a specific traverse leg, suspect that leg''s distance or the angles at its endpoints. Step 4: Return to the field — re-measure suspect legs (longest legs first if no specific suspect), add redundant measurements. A failed closure should never be force-adjusted because adjustment distributes error; it cannot create accuracy that was not measured.',
+ 'Optical and Laser Plummets',
+ 'An optical plummet is a small telescope built into the tribrach or instrument body that looks straight down through the vertical axis. It has crosshairs that the surveyor centers on the ground mark by looking through an eyepiece. The surveyor must focus both the crosshairs and the ground mark to remove parallax. Optical plummets require no power and are very reliable. A laser plummet projects a visible laser beam (red or green) downward from the vertical axis to the ground. The dot is visible without bending to an eyepiece, and a second person can verify centering. However, laser plummets require battery power and may wash out in bright sunlight on light surfaces. Both types can be built into the tribrach or the instrument. When the plummet is in the instrument, it rotates with the telescope, which allows the 360° rotation check to verify its adjustment. A tribrach is the precision mounting plate connecting instrument to tripod. It contains three leveling (foot) screws, a circular bubble, an optical or laser plummet, a locking clamp for interchangeable instruments, and a 5/8″-11 central mounting screw for attaching to the tripod head. The tribrach''s ability to accept interchangeable instruments is the basis of forced centering — an advanced traverse technique where the instrument and prism are swapped between tribrachs without disturbing their centering, speeding up fieldwork and reducing centering errors.',
  3,
- ARRAY['failed closure','blunder','diagnosis','transposed digits','prism constant','atmospheric','recompute','azimuth error','re-measure','redundancy']),
+ ARRAY['optical plummet','laser plummet','tribrach','crosshairs','focus','parallax','vertical axis','locking clamp','mounting screw','forced centering','interchangeable','red dot','eyepiece','5/8 inch']),
 
 ('acc03a05-0004-0000-0000-000000000001', 'acc03b05-0000-0000-0000-000000000001',
- 'Traverse Worksheet Organization and Rounding',
- 'Professional traverse computation is organized on a standard worksheet with columns: Station, Balanced Angle, Azimuth, Distance, Latitude, Departure. The bottom of the worksheet records ΣLat, ΣDep, Perimeter, Linear Error, Relative Precision, and Pass/Fail against the standard. Rounding discipline is critical: carry at least one extra decimal place through all intermediate calculations. For distances measured to 0.01 ft, compute lat/dep to 0.001 ft. Round relative precision to three significant figures only at the final step. Premature rounding can introduce artificial errors that degrade the computed precision. The worksheet provides a complete audit trail from field data to closure evaluation, suitable for professional review and legal record.',
+ 'Instrument Setup Over a Point',
+ 'Setting up over a known ground point (PK nail, hub and tack, survey monument) requires simultaneous precise centering and leveling. The two adjustments interact — adjusting one slightly affects the other — so the process is iterative. The 10-step procedure: (1) Rough-set the tripod — hold two legs, place the third past the point, position the head approximately over the point and horizontal, press all tips firmly into the ground. (2) Attach the instrument; look through the optical plummet; focus on crosshairs then on the ground mark; place your foot near the point to locate it. (3) Use the leveling screws to center the plummet crosshairs exactly on the point (this intentionally un-levels the instrument). (4) Adjust tripod legs up or down ONE AT A TIME to center the circular bubble; leg changes move the instrument in an arc roughly centered on the ground mark. (5) Confirm the plummet is still near the point. (6) Use the three-screw leveling procedure to precisely center the plate bubble. (7) Recheck the optical plummet — it will probably be slightly off the point. (8) Loosen the central mounting screw slightly and SLIDE (do not rotate!) the instrument on the tripod head until the plummet is exactly on the point. Do not rotate because different parts of the base plate contacting different areas of the tripod head surface change the tilt. (9) Tighten the clamp and recheck the plate level. (10) Re-level and repeat if necessary until both conditions — exactly level and directly over the point — are satisfied simultaneously. Check frequently during use because tripod legs settle, especially on soft ground or hot asphalt.',
  4,
- ARRAY['traverse worksheet','computation sheet','columns','rounding','significant figures','decimal places','audit trail','professional record']);
+ ARRAY['setup over a point','10-step procedure','PK nail','hub and tack','monument','rough-set','optical plummet','centering','leveling','circular bubble','plate bubble','slide','do not rotate','attachment clamp','mounting screw','iterate','settle','interactive']);
 
 
--- ────────────────────────────────────────────────────────────────────────────
--- 3. QUIZ QUESTIONS (14 questions)
--- ────────────────────────────────────────────────────────────────────────────
-
-DELETE FROM question_bank
-WHERE lesson_id = 'acc03b05-0000-0000-0000-000000000001'
-  AND tags @> ARRAY['acc-srvy-1341','week-5'];
-
-INSERT INTO question_bank
-  (question_text, question_type, options, correct_answer, explanation, difficulty,
-   module_id, lesson_id, exam_category, tags)
-VALUES
-
--- Q1  Multiple Choice  Easy
-('The linear error of closure is computed as:',
- 'multiple_choice',
- '["ΣLat + ΣDep","ΣLat × ΣDep","√(ΣLat² + ΣDep²)","(ΣLat² + ΣDep²) / 2"]'::jsonb,
- '√(ΣLat² + ΣDep²)',
- 'The linear error of closure is the Pythagorean combination of the latitude and departure residuals. It represents the total straight-line distance by which the traverse fails to close.',
- 'easy',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','linear-error','formula']),
-
--- Q2  True/False  Easy
-('A relative precision of 1:20,000 is better than 1:10,000.',
- 'true_false',
- '["True","False"]'::jsonb,
- 'True',
- 'A larger number after the colon means better precision. 1:20,000 means 1 unit of error per 20,000 units of distance — half the error rate of 1:10,000. Think of it as "I would have to travel 20,000 units before accumulating 1 unit of error."',
- 'easy',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','relative-precision','comparison']),
-
--- Q3  True/False  Easy
-('If a traverse does not meet the required precision standard, it should be adjusted anyway to force closure.',
- 'true_false',
- '["True","False"]'::jsonb,
- 'False',
- 'A traverse that fails the precision standard should NEVER be adjusted to force closure. Adjustment distributes error — it cannot create accuracy that was not measured. The error source must be identified and corrected (recompute or re-measure) before adjustment.',
- 'easy',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','failed-closure','adjustment']),
-
--- Q4  Multiple Choice  Easy
-('The TBPELS minimum relative precision for boundary surveys in Texas is:',
- 'multiple_choice',
- '["1:5,000","1:10,000","1:15,000","1:50,000"]'::jsonb,
- '1:10,000',
- 'TBPELS requires a minimum relative precision of 1:10,000 for property boundary surveys in Texas. ALTA/NSPS land title surveys require 1:15,000. Higher-order geodetic control surveys have stricter requirements.',
- 'easy',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','TBPELS','standards']),
-
--- Q5  Numeric Input  Medium
-('A traverse has ΣLat = +0.06 ft and ΣDep = −0.08 ft. What is the linear error of closure? Round to 2 decimal places.',
- 'numeric_input',
- '[]'::jsonb,
- '0.10',
- 'Linear Error = √(0.06² + 0.08²) = √(0.0036 + 0.0064) = √0.0100 = 0.10 ft.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','linear-error','computation']),
-
--- Q6  Numeric Input  Medium
-('The traverse from Q5 has a perimeter of 2,500 ft. What is the relative precision expressed as 1:X? Give X as a whole number.',
- 'numeric_input',
- '[]'::jsonb,
- '25000',
- 'Relative Precision = Perimeter / Linear Error = 2500 / 0.10 = 25,000. The precision is 1:25,000.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','relative-precision','computation']),
-
--- Q7  Multiple Choice  Medium
-('A traverse has ΣLat = +0.03 ft and ΣDep = −0.04 ft with a perimeter of 2,500 ft. The relative precision is:',
- 'multiple_choice',
- '["1:5,000","1:50,000","1:25,000","1:500"]'::jsonb,
- '1:50,000',
- 'Error = √(0.03² + 0.04²) = √(0.0009 + 0.0016) = √0.0025 = 0.05 ft. Relative precision = 2500 / 0.05 = 50,000. So precision is 1:50,000.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','relative-precision','3-4-5-triangle']),
-
--- Q8  Multiple Choice  Medium
-('Which of the following relative precision values meets BOTH TBPELS and ALTA/NSPS standards?',
- 'multiple_choice',
- '["1:8,000","1:12,000","1:14,000","1:18,000"]'::jsonb,
- '1:18,000',
- 'TBPELS requires ≥1:10,000 and ALTA/NSPS requires ≥1:15,000. Only 1:18,000 meets both. 1:14,000 meets TBPELS but not ALTA. 1:12,000 meets TBPELS but not ALTA. 1:8,000 fails both.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','TBPELS','ALTA','standards-comparison']),
-
--- Q9  Numeric Input  Hard (Full multi-step computation)
-('A 4-sided traverse has: ΣLat = −0.09 ft, ΣDep = +0.12 ft, perimeter = 1,800 ft. (a) Compute the linear error. (b) Compute relative precision as 1:X. Give X as a whole number.',
- 'numeric_input',
- '[]'::jsonb,
- '12000',
- 'Linear Error = √(0.09² + 0.12²) = √(0.0081 + 0.0144) = √0.0225 = 0.15 ft. Relative precision = 1800 / 0.15 = 12,000. Precision is 1:12,000.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','multi-step','linear-error','precision']),
-
--- Q10  Numeric Input  Hard (Does it pass?)
-('Using the traverse from Q9 (1:12,000 precision), would this traverse meet TBPELS boundary standards (1:10,000 minimum)? Give 1 for Yes, 0 for No.',
- 'numeric_input',
- '[]'::jsonb,
- '1',
- '1:12,000 > 1:10,000 (12,000 > 10,000), so yes, this traverse meets the TBPELS minimum. However, it would NOT meet ALTA/NSPS standards (1:15,000) because 12,000 < 15,000.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','TBPELS','pass-fail']),
-
--- Q11  Numeric Input  Hard (Direction of closure)
-('A traverse has ΣLat = −0.05 ft and ΣDep = +0.05 ft. In what quadrant does the closure error lie?  Give 1 for NE, 2 for SE, 3 for SW, 4 for NW.',
- 'numeric_input',
- '[]'::jsonb,
- '2',
- 'ΣLat is negative (south) and ΣDep is positive (east). The closure error is in the SE quadrant (quadrant 2). The direction = S arctan(0.05/0.05) E = S 45°00′ E.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','direction-of-closure','quadrant']),
-
--- Q12  Multiple Choice  Hard
-('A traverse has a linear error of 0.22 ft and a perimeter of 1,650 ft. The surveyor wants to submit an ALTA/NSPS survey. What should the surveyor do?',
- 'multiple_choice',
- '["Adjust the traverse — the error will be distributed","Submit the survey — the precision is adequate","Return to the field — the precision is 1:7,500 which fails the 1:15,000 ALTA requirement","Increase the number of decimal places in the computation"]'::jsonb,
- 'Return to the field — the precision is 1:7,500 which fails the 1:15,000 ALTA requirement',
- 'Relative precision = 1650 / 0.22 = 7,500. The precision is 1:7,500, which fails both ALTA (1:15,000) and TBPELS (1:10,000). Adjusting a traverse that fails the precision standard is not acceptable — the error must be found and corrected. Increasing decimal places does not improve actual measurement quality.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','ALTA','failed-precision','decision']),
-
--- Q13  Essay  Hard
-('A surveyor completes a 6-sided closed loop traverse with a total perimeter of 3,200 ft. The computed ΣLat = +0.18 ft and ΣDep = −0.24 ft. (a) Compute the linear error of closure. (b) Compute the relative precision. (c) Does this traverse meet TBPELS minimum standards (1:10,000)? (d) Does it meet ALTA/NSPS standards (1:15,000)? (e) If it fails, describe three steps the surveyor should take before returning to the field.',
- 'essay',
- '[]'::jsonb,
- 'Key points: (a) Linear Error = √(0.18² + 0.24²) = √(0.0324 + 0.0576) = √0.0900 = 0.30 ft. (b) Relative precision = 3200 / 0.30 = 10,667. Precision is 1:10,667. (c) Yes — 1:10,667 > 1:10,000 (barely passes). (d) No — 1:10,667 < 1:15,000 (fails ALTA). (e) Before returning to the field: (1) Review field notes for transposed digits, wrong prism constant, or missing atmospheric corrections. (2) Recompute the entire traverse from scratch — verify angle balancing, azimuth propagation, and slope-to-horizontal reductions. (3) Analyze the direction of closure error (S 53°08′ E) to see if it aligns with a specific traverse leg that might have a distance blunder.',
- 'A complete answer includes correct computations for (a)-(d) and describes at least three diagnostic steps for (e). Strong answers note that 1:10,667 barely passes TBPELS and suggest the surveyor should strive for better precision.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','essay','full-computation','diagnosis']),
-
--- Q14  Essay  Medium
-('Explain why relative precision is a more useful measure of traverse quality than the linear error alone. Give an example where two traverses have the same linear error but very different quality.',
- 'essay',
- '[]'::jsonb,
- 'Key points: The linear error alone does not account for the size of the traverse. A 0.10 ft error on a 500 ft traverse (1:5,000) represents poor work, while the same 0.10 ft error on a 5,000 ft traverse (1:50,000) represents excellent work. Relative precision normalizes the error against the perimeter, allowing meaningful comparison. Example: Traverse A has perimeter = 500 ft and error = 0.10 ft → 1:5,000. Traverse B has perimeter = 5,000 ft and error = 0.10 ft → 1:50,000. Same linear error, but Traverse B is 10× more precise relative to its size. Only Traverse B would meet TBPELS standards.',
- 'A good answer clearly explains normalization, provides a numerical example with contrasting quality, and relates both to accuracy standards.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','quiz','essay','relative-vs-linear','comparison']);
-
-
--- ────────────────────────────────────────────────────────────────────────────
--- 4. PRACTICE PROBLEMS
--- ────────────────────────────────────────────────────────────────────────────
-
-INSERT INTO question_bank
-  (question_text, question_type, options, correct_answer, explanation, difficulty,
-   module_id, lesson_id, exam_category, tags)
-VALUES
-
--- Practice 1: Basic linear error
-('Practice: ΣLat = +0.04 ft, ΣDep = −0.03 ft. Compute the linear error of closure. Round to 3 decimal places.',
- 'numeric_input', '[]'::jsonb,
- '0.050',
- 'Linear Error = √(0.04² + 0.03²) = √(0.0016 + 0.0009) = √0.0025 = 0.050 ft.',
- 'easy',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','practice','linear-error']),
-
--- Practice 2: Basic relative precision
-('Practice: Linear error = 0.050 ft, perimeter = 2,000 ft. Compute relative precision as 1:X. Give X as a whole number.',
- 'numeric_input', '[]'::jsonb,
- '40000',
- 'Relative precision = 2000 / 0.050 = 40,000. Precision is 1:40,000.',
- 'easy',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','practice','relative-precision']),
-
--- Practice 3: Pass/fail against standards
-('Practice: A traverse has relative precision of 1:13,500. Which standards does it meet? (a) TBPELS boundary (1:10,000)? (b) ALTA/NSPS (1:15,000)? (c) Second-order Class II (1:20,000)?',
- 'multiple_choice',
- '["Meets all three","Meets (a) and (b) only","Meets (a) only","Fails all three"]'::jsonb,
- 'Meets (a) only',
- '1:13,500 means 13,500. TBPELS requires ≥10,000 → 13,500 ≥ 10,000 ✓. ALTA requires ≥15,000 → 13,500 < 15,000 ✗. Second-order Class II requires ≥20,000 → 13,500 < 20,000 ✗. It meets only TBPELS.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','practice','standards','pass-fail']),
-
--- Practice 4: Multi-step computation
-('Practice: A 5-sided traverse has ΣLat = −0.07 ft and ΣDep = +0.24 ft. The perimeter is 4,500 ft. Compute relative precision as 1:X. Give X as a whole number.',
- 'numeric_input', '[]'::jsonb,
- '18000',
- 'Linear Error = √(0.07² + 0.24²) = √(0.0049 + 0.0576) = √0.0625 = 0.25 ft. Precision = 4500 / 0.25 = 18,000. Precision is 1:18,000.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','practice','multi-step','computation']),
-
--- Practice 5: Direction of closure
-('Practice: ΣLat = +0.10 ft, ΣDep = +0.10 ft. What is the bearing of the closure error direction?',
- 'short_answer', '[]'::jsonb,
- 'N 45°00′ E',
- 'ΣLat is positive (north) and ΣDep is positive (east) → NE quadrant. Angle = arctan(0.10/0.10) = arctan(1) = 45°. Bearing = N 45°00′ E.',
- 'medium',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','practice','direction-of-closure']),
-
--- Practice 6: Ranking precision values
-('Practice: Rank the following from BEST to WORST precision: 1:8,000, 1:25,000, 1:15,000, 1:50,000.',
- 'short_answer', '[]'::jsonb,
- '1:50,000, 1:25,000, 1:15,000, 1:8,000',
- 'Larger denominator = better precision. 50,000 > 25,000 > 15,000 > 8,000. So 1:50,000 is best and 1:8,000 is worst.',
- 'easy',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','practice','precision-ranking']),
-
--- Practice 7: Word problem — find maximum allowable error
-('Practice: A surveyor must achieve 1:15,000 precision on a traverse with an estimated perimeter of 2,400 ft. What is the maximum allowable linear error of closure? Round to 3 decimal places.',
- 'numeric_input', '[]'::jsonb,
- '0.160',
- 'Max error = Perimeter / Required ratio = 2400 / 15000 = 0.160 ft.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','practice','max-error','word-problem']),
-
--- Practice 8: Essay — diagnosis
-('Practice: A 4-sided boundary traverse yields ΣLat = +0.35 ft and ΣDep = −0.02 ft, with a perimeter of 1,200 ft. (a) Compute the linear error and relative precision. (b) Does it pass TBPELS? (c) The closure error direction is nearly due north. One of the traverse legs runs almost due N-S with a distance of 380 ft. Explain what this suggests about the source of error and what you would do.',
- 'essay', '[]'::jsonb,
- 'Key points: (a) Linear Error = √(0.35² + 0.02²) = √(0.1225 + 0.0004) = √0.1229 = 0.351 ft. Precision = 1200 / 0.351 = 3,419. 1:3,419. (b) No — 1:3,419 fails TBPELS (1:10,000) badly. (c) The closure direction is nearly N (arctan(0.02/0.35) ≈ 3°), and the nearly N-S leg is 380 ft. A distance blunder on that leg would produce a nearly pure latitude error. The surveyor should: re-check the recorded distance for that leg (transposed digits? wrong prism constant?), verify the slope-to-horizontal reduction (wrong zenith angle?), and re-measure that leg if the computation checks out. Also check whether the atmospheric correction was applied — in Texas heat, a 380 ft uncorrected distance could be off by several mm, though 0.35 ft is far too large for atmospheric alone and suggests a blunder.',
- 'A strong answer correctly computes the precision, identifies the failed standard, connects the closure direction to the N-S leg, and describes a logical diagnostic sequence.',
- 'hard',
- 'acc00003-0000-0000-0000-000000000003', 'acc03b05-0000-0000-0000-000000000001',
- 'ACC-1341', ARRAY['acc-srvy-1341','week-5','practice','essay','diagnosis','closure-direction']);
+COMMIT;
