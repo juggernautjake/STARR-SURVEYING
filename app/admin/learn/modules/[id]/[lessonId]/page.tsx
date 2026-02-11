@@ -566,7 +566,26 @@ export default function LessonViewerPage() {
                           <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => {
                             setQuizRevealed(prev => ({ ...prev, [qKey]: true }));
                             recordInteraction(`quiz_block_${block.id}`);
-                            if (selected === block.content.correct) setShowConfetti(true);
+                            const isCorrect = selected === block.content.correct;
+                            if (isCorrect) setShowConfetti(true);
+                            // Record inline quiz answer for analytics
+                            fetch('/api/admin/learn/user-progress', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                action: 'block_analytics',
+                                lesson_id: lessonId,
+                                module_id: moduleId,
+                                block_times: {},
+                                quiz_answer: {
+                                  block_id: block.id,
+                                  question: block.content.question,
+                                  selected_option: selected,
+                                  correct_option: block.content.correct,
+                                  is_correct: isCorrect,
+                                },
+                              }),
+                            }).catch(() => {});
                           }} style={{ marginTop: '.75rem' }}>Check Answer</button>
                         )}
                         {revealed && (

@@ -242,7 +242,10 @@ export default function FlashcardBankPage() {
                   <input className="manage__form-input" value={editData.hint_3 ?? c.hint_3 ?? ''} onChange={e => setEditData(p => ({ ...p, hint_3: e.target.value }))} placeholder="Hint 3" style={{ fontSize: '.78rem' }} />
                   <div style={{ display: 'flex', gap: '.35rem' }}>
                     <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => saveEdit(c)} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingId(null); setEditData({}); }}>Cancel</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
+                      if (Object.keys(editData).length > 0 && !confirm('Discard unsaved changes?')) return;
+                      setEditingId(null); setEditData({});
+                    }}>Cancel</button>
                   </div>
                 </div>
               ) : (

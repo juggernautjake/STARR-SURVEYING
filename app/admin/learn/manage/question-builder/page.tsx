@@ -33,6 +33,7 @@ interface Question {
   is_dynamic?: boolean;
   solution_steps?: SolutionStep[];
   tolerance?: number;
+  stats?: { attempts: number; correct: number; wrong: number; pass_rate: number | null };
 }
 
 interface SolutionStep {
@@ -232,6 +233,39 @@ export default function QuestionBuilderPage() {
 
   const sourceRef = useRef<HTMLTextAreaElement>(null);
 
+  // ========= QUIZ ANALYTICS STATE =========
+  const [showQuizAnalytics, setShowQuizAnalytics] = useState(false);
+  const [quizAnalytics, setQuizAnalytics] = useState<{
+    summary: { total_attempts: number; passed: number; failed: number; pass_rate: number; avg_score: number; avg_time_seconds: number; unique_users: number };
+    breakdown: { key: string; label: string; attempts: number; passed: number; failed: number; avg_score: number; pass_rate: number }[];
+  } | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  async function loadQuizAnalytics() {
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch('/api/admin/learn/user-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_quiz_analytics' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setQuizAnalytics(data);
+      }
+    } catch (err) { console.error('Failed to load quiz analytics', err); }
+    setAnalyticsLoading(false);
+  }
+
+  // Track if form is dirty (has unsaved changes)
+  const isQuestionFormDirty = Boolean(questionText || explanation || options.some(o => o.trim()) || correctAnswer || correctAnswers.length > 0 || fillSource || formula || solutionSteps.length > 0 || tags.length > 0);
+
+  function safeResetForm() {
+    if (!isQuestionFormDirty || confirm('You have unsaved changes. Discard them?')) {
+      resetForm();
+    }
+  }
+
   // ========= EFFECTS =========
   useEffect(() => {
     loadModulesAndLessons();
@@ -270,7 +304,7 @@ export default function QuestionBuilderPage() {
 
   async function loadQuestions() {
     try {
-      const res = await fetch('/api/admin/learn/questions?limit=500');
+      const res = await fetch('/api/admin/learn/questions?limit=500&stats=true');
       if (res.ok) { const d = await res.json(); setQuestions(d.questions || []); }
     } catch (err) { console.error('QuestionBuilderPage: failed to load questions', err); }
   }
@@ -797,7 +831,11 @@ export default function QuestionBuilderPage() {
               <button
                 key={t}
                 className={`qb__type-btn ${qType === t ? 'qb__type-btn--active' : ''}`}
-                onClick={() => { setQType(t); if (!editId) { resetForm(); setQType(t); } }}
+                onClick={() => {
+                  if (editId) { setQType(t); return; }
+                  if (isQuestionFormDirty && !confirm('Switch question type? Unsaved data will be lost.')) return;
+                  resetForm(); setQType(t);
+                }}
               >
                 <span className="qb__type-icon">{TYPE_INFO[t].icon}</span>
                 <span className="qb__type-label">{TYPE_INFO[t].label}</span>
@@ -1113,8 +1151,88 @@ export default function QuestionBuilderPage() {
               <button className="admin-btn admin-btn--primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving...' : editId ? 'Update Question' : 'Create Question'}
               </button>
-              {editId && <button className="admin-btn admin-btn--ghost" onClick={resetForm}>Cancel Edit</button>}
+              {editId && <button className="admin-btn admin-btn--ghost" onClick={safeResetForm}>Cancel Edit</button>}
             </div>
+          </div>
+
+          {/* Quiz Analytics Panel */}
+          <div className="qb__bank" style={{ marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showQuizAnalytics ? '.75rem' : 0 }}>
+              <h3 className="qb__section-title" style={{ marginBottom: 0, cursor: 'pointer' }} onClick={() => { setShowQuizAnalytics(!showQuizAnalytics); if (!quizAnalytics && !showQuizAnalytics) loadQuizAnalytics(); }}>
+                {showQuizAnalytics ? '\u25BC' : '\u25B6'} Quiz Analytics
+              </h3>
+              {showQuizAnalytics && (
+                <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={loadQuizAnalytics} disabled={analyticsLoading} style={{ fontSize: '.7rem' }}>
+                  {analyticsLoading ? 'Loading...' : 'Refresh'}
+                </button>
+              )}
+            </div>
+            {showQuizAnalytics && (
+              <>
+                {analyticsLoading && !quizAnalytics && (
+                  <p style={{ fontSize: '.78rem', color: '#6B7280' }}>Loading quiz analytics...</p>
+                )}
+                {quizAnalytics && (
+                  <div>
+                    {/* Summary row */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '.5rem', marginBottom: '.75rem' }}>
+                      <div style={{ background: '#F0FDF4', borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#16A34A' }}>{quizAnalytics.summary.pass_rate}%</div>
+                        <div style={{ fontSize: '.68rem', color: '#6B7280' }}>Overall Pass Rate</div>
+                      </div>
+                      <div style={{ background: '#EFF6FF', borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1D4ED8' }}>{quizAnalytics.summary.avg_score}%</div>
+                        <div style={{ fontSize: '.68rem', color: '#6B7280' }}>Avg Score</div>
+                      </div>
+                      <div style={{ background: '#FAFBFF', borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#374151' }}>{quizAnalytics.summary.total_attempts}</div>
+                        <div style={{ fontSize: '.68rem', color: '#6B7280' }}>Total Attempts</div>
+                      </div>
+                      <div style={{ background: '#FAFBFF', borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#374151' }}>{quizAnalytics.summary.unique_users}</div>
+                        <div style={{ fontSize: '.68rem', color: '#6B7280' }}>Unique Users</div>
+                      </div>
+                    </div>
+                    {/* Pass/Fail bar */}
+                    {quizAnalytics.summary.total_attempts > 0 && (
+                      <div style={{ marginBottom: '.75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.72rem', marginBottom: '.2rem' }}>
+                          <span style={{ color: '#16A34A', fontWeight: 600 }}>{quizAnalytics.summary.passed} passed</span>
+                          <span style={{ color: '#DC2626', fontWeight: 600 }}>{quizAnalytics.summary.failed} failed</span>
+                        </div>
+                        <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#FEE2E2' }}>
+                          <div style={{ width: `${quizAnalytics.summary.pass_rate}%`, background: '#16A34A', borderRadius: '4px 0 0 4px', transition: 'width .3s' }} />
+                        </div>
+                      </div>
+                    )}
+                    {/* Breakdown by quiz type */}
+                    {quizAnalytics.breakdown.length > 0 && (
+                      <div>
+                        <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.4rem' }}>Breakdown by Quiz</h4>
+                        {quizAnalytics.breakdown.map(b => {
+                          const passColor = b.pass_rate >= 70 ? '#10B981' : b.pass_rate >= 40 ? '#F59E0B' : '#EF4444';
+                          return (
+                            <div key={b.key} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.35rem', fontSize: '.72rem' }}>
+                              <span style={{ fontWeight: 600, color: '#374151', minWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={b.label}>
+                                {b.label.length > 12 ? b.label.slice(0, 12) + '...' : b.label}
+                              </span>
+                              <div style={{ flex: 1, height: 6, background: '#F3F4F6', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${b.pass_rate}%`, background: passColor, borderRadius: 3 }} />
+                              </div>
+                              <span style={{ color: passColor, fontWeight: 700, minWidth: 40, textAlign: 'right' }}>{b.pass_rate}%</span>
+                              <span style={{ color: '#9CA3AF', minWidth: 50 }}>{b.attempts} att.</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {quizAnalytics.summary.total_attempts === 0 && (
+                      <p style={{ fontSize: '.78rem', color: '#9CA3AF', textAlign: 'center' }}>No quiz attempts recorded yet.</p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Question Bank List */}
@@ -1274,6 +1392,22 @@ export default function QuestionBuilderPage() {
                     )}
                     {opts.length > 0 && q.question_type !== 'fill_blank' && (
                       <p className="qb__bank-opts">{opts.length} options</p>
+                    )}
+                    {q.stats && q.stats.attempts > 0 && (
+                      <div className="qb__bank-stats">
+                        <div className="qb__bank-stats-bar">
+                          <div className="qb__bank-stats-fill" style={{
+                            width: `${q.stats.pass_rate ?? 0}%`,
+                            background: (q.stats.pass_rate ?? 0) >= 70 ? '#10B981' : (q.stats.pass_rate ?? 0) >= 40 ? '#F59E0B' : '#EF4444',
+                          }} />
+                        </div>
+                        <span className="qb__bank-stats-label">
+                          {q.stats.pass_rate}% pass ({q.stats.correct}/{q.stats.attempts})
+                        </span>
+                      </div>
+                    )}
+                    {q.stats && q.stats.attempts === 0 && (
+                      <span style={{ fontSize: '.68rem', color: '#D1D5DB' }}>No attempts yet</span>
                     )}
                     <div className="qb__bank-actions">
                       <button className="manage__item-btn" onClick={() => loadForEdit(q)}>Edit</button>

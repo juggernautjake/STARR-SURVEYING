@@ -367,25 +367,47 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   if (action === 'block_analytics') {
-    const { lesson_id, module_id, block_times, blocks_viewed, total_blocks } = body;
-    if (!lesson_id || !block_times) {
-      return NextResponse.json({ error: 'lesson_id and block_times required' }, { status: 400 });
+    const { lesson_id, module_id, block_times, blocks_viewed, total_blocks, quiz_answer } = body;
+    if (!lesson_id) {
+      return NextResponse.json({ error: 'lesson_id required' }, { status: 400 });
     }
 
-    // Store block analytics as an activity log entry with rich metadata
-    await supabaseAdmin.from('activity_log').insert({
-      user_email: userEmail,
-      action_type: 'block_analytics',
-      entity_type: 'lesson',
-      entity_id: lesson_id,
-      metadata: {
-        module_id,
-        block_times,       // { blockId: seconds }
-        blocks_viewed,     // number of blocks scrolled into view
-        total_blocks,      // total block count
-        timestamp: new Date().toISOString(),
-      },
-    });
+    // If this is an inline quiz answer, log it separately for question analytics
+    if (quiz_answer) {
+      await supabaseAdmin.from('activity_log').insert({
+        user_email: userEmail,
+        action_type: 'inline_quiz_answer',
+        entity_type: 'lesson_block',
+        entity_id: quiz_answer.block_id,
+        metadata: {
+          lesson_id,
+          module_id,
+          question: quiz_answer.question,
+          selected_option: quiz_answer.selected_option,
+          correct_option: quiz_answer.correct_option,
+          is_correct: quiz_answer.is_correct,
+          timestamp: new Date().toISOString(),
+        },
+      });
+      return NextResponse.json({ saved: true });
+    }
+
+    // Store block time analytics as an activity log entry
+    if (block_times && Object.keys(block_times).length > 0) {
+      await supabaseAdmin.from('activity_log').insert({
+        user_email: userEmail,
+        action_type: 'block_analytics',
+        entity_type: 'lesson',
+        entity_id: lesson_id,
+        metadata: {
+          module_id,
+          block_times,
+          blocks_viewed,
+          total_blocks,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
 
     return NextResponse.json({ saved: true });
   }
@@ -428,7 +450,97 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       view_count: stats.viewCount,
     })).sort((a, b) => b.avg_time_seconds - a.avg_time_seconds);
 
-    return NextResponse.json({ analytics: aggregated, session_count: sessionCount });
+    // Also fetch inline quiz answer stats for this lesson
+    const { data: quizLogs } = await supabaseAdmin.from('activity_log')
+      .select('metadata')
+      .eq('action_type', 'inline_quiz_answer')
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    // Filter to this lesson and aggregate
+    const quizStats: Record<string, { attempts: number; correct: number; question: string }> = {};
+    for (const log of (quizLogs || [])) {
+      const meta = log.metadata as any;
+      if (meta?.lesson_id !== targetLessonId) continue;
+      const blockId = meta?.block_id || (log as any).entity_id;
+      if (!blockId) continue;
+      if (!quizStats[blockId]) quizStats[blockId] = { attempts: 0, correct: 0, question: meta.question || '' };
+      quizStats[blockId].attempts++;
+      if (meta.is_correct) quizStats[blockId].correct++;
+    }
+
+    const quizAnalytics = Object.entries(quizStats).map(([blockId, s]) => ({
+      block_id: blockId,
+      question: s.question,
+      attempts: s.attempts,
+      correct: s.correct,
+      wrong: s.attempts - s.correct,
+      pass_rate: Math.round((s.correct / s.attempts) * 100),
+    })).sort((a, b) => a.pass_rate - b.pass_rate);
+
+    return NextResponse.json({ analytics: aggregated, quiz_analytics: quizAnalytics, session_count: sessionCount });
+  }
+
+  // Admin-only: aggregated quiz attempt analytics (formal QuizRunner quizzes)
+  if (action === 'get_quiz_analytics') {
+    if (!isAdmin(userEmail)) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
+    const { module_id: targetModuleId, lesson_id: targetLessonId, attempt_type } = body;
+
+    let query = supabaseAdmin.from('quiz_attempts')
+      .select('id, attempt_type, module_id, lesson_id, exam_category, total_questions, correct_answers, score_percent, time_spent_seconds, user_email, completed_at')
+      .order('completed_at', { ascending: false })
+      .limit(500);
+
+    if (targetModuleId) query = query.eq('module_id', targetModuleId);
+    if (targetLessonId) query = query.eq('lesson_id', targetLessonId);
+    if (attempt_type) query = query.eq('attempt_type', attempt_type);
+
+    const { data: attempts, error: attErr } = await query;
+    if (attErr) return NextResponse.json({ error: attErr.message }, { status: 500 });
+
+    const allAttempts = attempts || [];
+    const totalAttempts = allAttempts.length;
+    const passedAttempts = allAttempts.filter((a: any) => a.score_percent >= 70).length;
+    const avgScore = totalAttempts > 0 ? Math.round(allAttempts.reduce((sum: number, a: any) => sum + a.score_percent, 0) / totalAttempts) : 0;
+    const avgTime = totalAttempts > 0 ? Math.round(allAttempts.reduce((sum: number, a: any) => sum + (a.time_spent_seconds || 0), 0) / totalAttempts) : 0;
+    const uniqueUsers = new Set(allAttempts.map((a: any) => a.user_email)).size;
+
+    // Group by quiz type / lesson
+    const grouped: Record<string, { attempts: number; passed: number; totalScore: number; label: string }> = {};
+    for (const a of allAttempts) {
+      const key = a.lesson_id || a.module_id || a.exam_category || a.attempt_type || 'unknown';
+      if (!grouped[key]) grouped[key] = { attempts: 0, passed: 0, totalScore: 0, label: key };
+      grouped[key].attempts++;
+      if (a.score_percent >= 70) grouped[key].passed++;
+      grouped[key].totalScore += a.score_percent;
+    }
+
+    const breakdown = Object.entries(grouped).map(([key, g]) => ({
+      key,
+      label: g.label,
+      attempts: g.attempts,
+      passed: g.passed,
+      failed: g.attempts - g.passed,
+      avg_score: Math.round(g.totalScore / g.attempts),
+      pass_rate: Math.round((g.passed / g.attempts) * 100),
+    })).sort((a, b) => b.attempts - a.attempts);
+
+    return NextResponse.json({
+      summary: {
+        total_attempts: totalAttempts,
+        passed: passedAttempts,
+        failed: totalAttempts - passedAttempts,
+        pass_rate: totalAttempts > 0 ? Math.round((passedAttempts / totalAttempts) * 100) : 0,
+        avg_score: avgScore,
+        avg_time_seconds: avgTime,
+        unique_users: uniqueUsers,
+      },
+      breakdown,
+      recent_attempts: allAttempts.slice(0, 20),
+    });
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

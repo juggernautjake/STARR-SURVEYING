@@ -264,6 +264,20 @@
 .qb__bank-text { font-family:'Inter',sans-serif; font-size:.85rem; color:#0F1419; line-height:1.45; margin-bottom:.25rem; }
 .qb__bank-answer { font-family:'Inter',sans-serif; font-size:.78rem; color:#6B7280; }
 .qb__bank-opts { font-family:'Inter',sans-serif; font-size:.72rem; color:#9CA3AF; }
+.qb__bank-stats {
+  display: flex; align-items: center; gap: 0.5rem; margin-top: 0.35rem;
+}
+.qb__bank-stats-bar {
+  flex: 1; max-width: 120px; height: 5px; background: #F3F4F6;
+  border-radius: 3px; overflow: hidden;
+}
+.qb__bank-stats-fill {
+  height: 100%; border-radius: 3px; transition: width 0.3s;
+}
+.qb__bank-stats-label {
+  font-family: 'Inter', sans-serif; font-size: 0.68rem; font-weight: 600;
+  color: #6B7280; white-space: nowrap;
+}
 .qb__bank-actions { display:flex; gap:.5rem; margin-top:.5rem; }
 .qb__bank-refs { font-family:'Inter',sans-serif; font-size:.68rem; font-weight:600; color:#1D4ED8; background:#DBEAFE; padding:.1rem .4rem; border-radius:3px; }
 .qb__bank-tags { font-family:'Inter',sans-serif; font-size:.68rem; color:#6B7280; font-style:italic; }

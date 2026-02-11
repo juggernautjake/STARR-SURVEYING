@@ -69,6 +69,50 @@ export default function ManageContentPage() {
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [editQuestion, setEditQuestion] = useState<Record<string, any>>({});
 
+  // Dirty tracking — true when user has entered data into a form
+  const isFormDirty = Object.values(formData).some(v => v !== '' && v !== undefined && v !== null);
+  const isEditModuleDirty = Object.keys(editModule).length > 0;
+  const isEditQuestionDirty = Object.keys(editQuestion).length > 0;
+  const isEditFlashcardDirty = Object.keys(editFlashcard).length > 0;
+
+  function confirmDiscard(dirty: boolean): boolean {
+    if (!dirty) return true;
+    return confirm('You have unsaved changes. Discard them?');
+  }
+
+  function handleCancelForm() {
+    if (!confirmDiscard(isFormDirty)) return;
+    setShowForm(false);
+    setFormData({});
+  }
+
+  function handleToggleForm() {
+    if (showForm) {
+      handleCancelForm();
+    } else {
+      setShowForm(true);
+      setFormData({});
+    }
+  }
+
+  function handleCancelEditModule() {
+    if (!confirmDiscard(isEditModuleDirty)) return;
+    setEditingModuleId(null);
+    setEditModule({});
+  }
+
+  function handleCancelEditQuestion() {
+    if (!confirmDiscard(isEditQuestionDirty)) return;
+    setEditingQuestionId(null);
+    setEditQuestion({});
+  }
+
+  function handleCancelEditFlashcard() {
+    if (!confirmDiscard(isEditFlashcardDirty)) return;
+    setEditingFlashcardId(null);
+    setEditFlashcard({});
+  }
+
   useEffect(() => { loadData(); }, [tab]);
 
   async function loadData() {
@@ -457,7 +501,10 @@ export default function ManageContentPage() {
       {/* Tabs */}
       <div className="manage__tabs">
         {tabs.map(t => (
-          <button key={t.key} className={`manage__tab ${tab === t.key ? 'manage__tab--active' : ''}`} onClick={() => { setTab(t.key); setShowForm(false); }}>
+          <button key={t.key} className={`manage__tab ${tab === t.key ? 'manage__tab--active' : ''}`} onClick={() => {
+            if (showForm && isFormDirty && !confirm('You have unsaved changes. Switch tabs and discard?')) return;
+            setTab(t.key); setShowForm(false); setFormData({});
+          }}>
             {t.icon} {t.label}
           </button>
         ))}
@@ -473,20 +520,22 @@ export default function ManageContentPage() {
             <Link href="/admin/learn/manage/question-builder" className="admin-btn admin-btn--primary admin-btn--sm">
               Question Builder
             </Link>
-            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setShowForm(!showForm); setFormData({}); }}>
+            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleToggleForm}>
               {showForm ? '\u2715 Cancel' : '+ Quick Add'}
             </button>
           </div>
         ) : tab === 'flashcards' ? (
-          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(!showForm); setFormData({}); }}>
+          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleToggleForm}>
             {showForm ? '\u2715 Cancel' : '+ New Flashcard'}
           </button>
         ) : tab === 'assignments' ? (
-          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(!showForm); setAssignForm({}); }}>
+          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => {
+            if (showForm) { handleCancelForm(); } else { setShowForm(true); setAssignForm({}); }
+          }}>
             {showForm ? '\u2715 Cancel' : '+ New Assignment'}
           </button>
         ) : ['modules', 'lessons', 'articles'].includes(tab) && (
-          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setShowForm(!showForm); setFormData({}); }}>
+          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleToggleForm}>
             {showForm ? '\u2715 Cancel' : '+ Create New'}
           </button>
         )}
@@ -747,7 +796,17 @@ export default function ManageContentPage() {
               </div>
             </>
           )}
-          <button className="admin-btn admin-btn--primary" onClick={handleCreate} disabled={saving}>{saving ? 'Creating...' : 'Create'}</button>
+          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+            {['modules', 'lessons', 'articles'].includes(tab) && formData.status !== 'draft' && (
+              <button className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => { setFormData(p => ({ ...p, status: 'draft' })); handleCreate(); }} disabled={saving}>
+                Save as Draft
+              </button>
+            )}
+            <button className="admin-btn admin-btn--primary" onClick={handleCreate} disabled={saving}>
+              {saving ? 'Creating...' : formData.status === 'draft' || !['modules', 'lessons', 'articles'].includes(tab) ? 'Create' : 'Create & Publish'}
+            </button>
+            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelForm}>Cancel</button>
+          </div>
         </div>
       )}
 
@@ -766,7 +825,10 @@ export default function ManageContentPage() {
             <option value="">Link to module (optional)</option>
             {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
           </select>
-          <button className="admin-btn admin-btn--primary" onClick={handleCreateFlashcard} disabled={saving}>{saving ? 'Creating...' : 'Create Flashcard'}</button>
+          <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+            <button className="admin-btn admin-btn--primary" onClick={handleCreateFlashcard} disabled={saving}>{saving ? 'Creating...' : 'Create Flashcard'}</button>
+            <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelForm}>Cancel</button>
+          </div>
         </div>
       )}
 
@@ -800,7 +862,7 @@ export default function ManageContentPage() {
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem', flexWrap: 'wrap' }}>
                     <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveModule} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingModuleId(null); setEditModule({}); }}>Cancel</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelEditModule}>Cancel</button>
                     <Link href={`/admin/learn/modules/${m.id}`} className="manage__item-btn" style={{ marginLeft: 'auto' }}>View</Link>
                     <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('module', m.id, m.title)}>Delete</button>
                   </div>
@@ -913,7 +975,7 @@ export default function ManageContentPage() {
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem', flexWrap: 'wrap' }}>
                     <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveQuestion} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingQuestionId(null); setEditQuestion({}); }}>Cancel</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelEditQuestion}>Cancel</button>
                     <Link href={`/admin/learn/manage/question-builder`} className="manage__item-btn" style={{ marginLeft: 'auto' }}>Open in Builder</Link>
                     <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>
                   </div>
@@ -966,7 +1028,7 @@ export default function ManageContentPage() {
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem' }}>
                     <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveFlashcard} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => { setEditingFlashcardId(null); setEditFlashcard({}); }}>Cancel</button>
+                    <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelEditFlashcard}>Cancel</button>
                     <button className="manage__item-btn manage__item-btn--danger" style={{ marginLeft: 'auto' }} onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>
                   </div>
                 </>

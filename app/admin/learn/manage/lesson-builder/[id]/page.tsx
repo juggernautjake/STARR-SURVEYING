@@ -278,6 +278,7 @@ export default function LessonBuilderPage() {
   const [linkedContent, setLinkedContent] = useState<{ questions: any[]; flashcards: any[]; articles: any[] }>({ questions: [], flashcards: [], articles: [] });
   const [showLinkedPanel, setShowLinkedPanel] = useState(false);
   const [blockAnalytics, setBlockAnalytics] = useState<{ block_id: string; avg_time_seconds: number; view_count: number }[]>([]);
+  const [quizBlockAnalytics, setQuizBlockAnalytics] = useState<{ block_id: string; question: string; attempts: number; correct: number; wrong: number; pass_rate: number }[]>([]);
   const [analyticsSessionCount, setAnalyticsSessionCount] = useState(0);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [linkedLoaded, setLinkedLoaded] = useState(false);
@@ -288,6 +289,8 @@ export default function LessonBuilderPage() {
   const redoStack = useRef<LessonBlock[][]>([]);
   const isUndoRedo = useRef(false);
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const lastSavedBlocks = useRef<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileUploadTarget, setFileUploadTarget] = useState<{ blockId: string; field: string } | null>(null);
 
@@ -306,6 +309,27 @@ export default function LessonBuilderPage() {
       if (autoSaveTimer.current) clearInterval(autoSaveTimer.current);
     };
   }, [blocks, saving]);
+
+  // Track unsaved changes
+  useEffect(() => {
+    if (blocks.length === 0) return;
+    const current = JSON.stringify(blocks);
+    if (lastSavedBlocks.current && current !== lastSavedBlocks.current) {
+      setHasUnsavedChanges(true);
+    }
+  }, [blocks]);
+
+  // Warn on page leave with unsaved changes
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   // Track block changes for undo/redo
   useEffect(() => {
@@ -394,10 +418,13 @@ export default function LessonBuilderPage() {
         // Auto-convert: If lesson has HTML content but no blocks, parse into discrete blocks
         if (loadedBlocks.length === 0 && lessonData?.content && lessonData.content.trim().length > 0) {
           const parsed = parseHtmlToBlocks(lessonData.content);
-          setBlocks(parsed.length > 0 ? parsed : [{ id: `temp-converted-${Date.now()}`, block_type: 'text', content: { html: lessonData.content }, order_index: 0 }]);
+          const converted: LessonBlock[] = parsed.length > 0 ? parsed : [{ id: `temp-converted-${Date.now()}`, block_type: 'text' as BlockType, content: { html: lessonData.content }, order_index: 0 }];
+          setBlocks(converted);
+          lastSavedBlocks.current = JSON.stringify(converted);
           setConvertedFromHtml(true);
         } else {
           setBlocks(loadedBlocks);
+          lastSavedBlocks.current = JSON.stringify(loadedBlocks);
         }
       }
     } catch (err) { console.error('LessonBuilderPage: failed to load lesson', err); }
@@ -417,6 +444,8 @@ export default function LessonBuilderPage() {
       });
       if (res.ok) {
         setLastSaved(new Date().toLocaleTimeString());
+        lastSavedBlocks.current = JSON.stringify(blocks);
+        setHasUnsavedChanges(false);
         if (isAutoSave) { setAutoSaveFlash(true); setTimeout(() => setAutoSaveFlash(false), 2000); }
       }
     } catch (err) { console.error('LessonBuilderPage: failed to save blocks', err); }
@@ -555,6 +584,7 @@ export default function LessonBuilderPage() {
         const data = await res.json();
         setBlockAnalytics(data.analytics || []);
         setAnalyticsSessionCount(data.session_count || 0);
+        setQuizBlockAnalytics(data.quiz_analytics || []);
       }
     } catch (err) { console.error('Failed to load block analytics', err); }
     setAnalyticsLoading(false);
@@ -870,7 +900,8 @@ export default function LessonBuilderPage() {
             <button className="lesson-builder__undo-btn" title="Undo (Ctrl+Z)" disabled={undoStack.current.length <= 1} onClick={() => { if (undoStack.current.length > 1) { const cur = undoStack.current.pop()!; redoStack.current.push(cur); isUndoRedo.current = true; setBlocks(JSON.parse(JSON.stringify(undoStack.current[undoStack.current.length - 1]))); } }}>↶</button>
             <button className="lesson-builder__undo-btn" title="Redo (Ctrl+Shift+Z)" disabled={redoStack.current.length === 0} onClick={() => { if (redoStack.current.length > 0) { const next = redoStack.current.pop()!; undoStack.current.push(next); isUndoRedo.current = true; setBlocks(JSON.parse(JSON.stringify(next))); } }}>↷</button>
           </div>
-          {lastSaved && <span style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Saved {lastSaved}</span>}
+          {hasUnsavedChanges && <span style={{ fontSize: '0.72rem', color: '#D97706', fontWeight: 600 }}>Unsaved changes</span>}
+          {lastSaved && !hasUnsavedChanges && <span style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Saved {lastSaved}</span>}
           {autoSaveFlash && <span className="lesson-builder__autosave-flash">Auto-saved</span>}
           <span style={{ fontSize: '0.65rem', color: '#D1D5DB' }}>Ctrl+S / Z / Y</span>
         </div>
@@ -2313,6 +2344,39 @@ export default function LessonBuilderPage() {
                 </>
               )}
             </div>
+
+            {/* Quiz Block Analytics */}
+            {quizBlockAnalytics.length > 0 && (
+              <div className="lesson-builder__linked-section">
+                <h4 className="lesson-builder__linked-section-title">{'\u{2753}'} Quiz Pass/Fail Rates</h4>
+                <p style={{ fontSize: '.72rem', color: '#6B7280', marginBottom: '.5rem' }}>Per-question analytics from inline quiz blocks</p>
+                {quizBlockAnalytics.map((qa, i) => {
+                  const matchingBlock = blocks.find(b => b.id === qa.block_id);
+                  const blockLabel = matchingBlock
+                    ? `Quiz #${blocks.indexOf(matchingBlock) + 1}`
+                    : qa.block_id.slice(0, 8);
+                  const passColor = qa.pass_rate >= 70 ? '#10B981' : qa.pass_rate >= 40 ? '#F59E0B' : '#EF4444';
+                  return (
+                    <div key={`${qa.block_id}-${i}`} style={{ marginBottom: '.6rem', background: '#FAFAFA', borderRadius: 6, padding: '.5rem .6rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '.72rem', marginBottom: '.2rem' }}>
+                        <span style={{ fontWeight: 600, color: '#374151' }}>{blockLabel}</span>
+                        <span style={{ color: passColor, fontWeight: 700 }}>{qa.pass_rate}% pass</span>
+                      </div>
+                      <div style={{ fontSize: '.68rem', color: '#6B7280', marginBottom: '.25rem', lineHeight: 1.3 }}>
+                        {qa.question.length > 60 ? qa.question.substring(0, 60) + '...' : qa.question}
+                      </div>
+                      <div style={{ height: 6, background: '#E5E7EB', borderRadius: 3, overflow: 'hidden', marginBottom: '.15rem' }}>
+                        <div style={{ height: '100%', width: `${qa.pass_rate}%`, background: passColor, borderRadius: 3, transition: 'width .3s' }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.65rem', color: '#9CA3AF' }}>
+                        <span>{qa.correct} correct / {qa.wrong} wrong</span>
+                        <span>{qa.attempts} total attempts</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <p style={{ fontSize: '.72rem', color: '#9CA3AF', textAlign: 'center', marginTop: '.75rem' }}>
               Lesson: {lessonId?.slice(0, 8)}
