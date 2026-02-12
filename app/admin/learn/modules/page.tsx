@@ -249,6 +249,21 @@ function ModuleCard({ mod }: { mod: EnrichedModule }) {
   const meta = STATUS_META[mod.user_status] || STATUS_META.not_started;
   const isLocked = mod.locked;
   const [showTooltip, setShowTooltip] = useState(false);
+  const [tipPos, setTipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  function handleMouseMove(e: React.MouseEvent) {
+    if (!isLocked) return;
+    setTipPos({ x: e.clientX, y: e.clientY });
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    if (!isLocked) return;
+    const touch = e.touches[0];
+    setTipPos({ x: touch.clientX, y: touch.clientY });
+    setShowTooltip(true);
+    // Auto-dismiss after 3 seconds on mobile
+    setTimeout(() => setShowTooltip(false), 3000);
+  }
 
   const cardStyle: React.CSSProperties = {
     background: meta.bg,
@@ -264,15 +279,21 @@ function ModuleCard({ mod }: { mod: EnrichedModule }) {
       style={cardStyle}
       onMouseEnter={() => isLocked && setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
-      onClick={() => isLocked && setShowTooltip(true)}
+      onMouseMove={handleMouseMove}
+      onTouchStart={handleTouchStart}
     >
       {/* Lock overlay */}
       {isLocked && (
         <div className="modules__card-lock">
           <span className="modules__card-lock-icon">&#x1F512;</span>
-          {showTooltip && (
-            <div className="modules__card-lock-tooltip">{mod.lock_reason}</div>
-          )}
+        </div>
+      )}
+
+      {/* Cursor-following lock tooltip */}
+      {isLocked && showTooltip && (
+        <div className="lock-tooltip" style={{ left: tipPos.x, top: tipPos.y }}>
+          <span className="lock-tooltip__icon">&#x1F512;</span>
+          <span className="lock-tooltip__text">{mod.lock_reason}</span>
         </div>
       )}
 

@@ -1942,11 +1942,19 @@
 .modules__card-progress-text { font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 600; color: #6B7280; margin-top: 0.15rem; display: block; }
 .modules__card-lock { position: absolute; top: 0.75rem; right: 0.75rem; z-index: 2; }
 .modules__card-lock-icon { font-size: 1.25rem; }
-.modules__card-lock-tooltip {
-  position: absolute; top: 100%; right: 0; margin-top: 0.35rem; padding: 0.5rem 0.75rem;
-  background: #1E293B; color: #FFF; font-family: 'Inter', sans-serif; font-size: 0.75rem;
-  border-radius: 6px; white-space: nowrap; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+/* Cursor-following lock tooltip (used by both module cards and lesson rows) */
+.lock-tooltip {
+  position: fixed; transform: translate(12px, -100%); pointer-events: none;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.5rem 0.85rem; background: #1E293B; color: #FFF;
+  font-family: 'Inter', sans-serif; font-size: 0.78rem; font-weight: 500;
+  border-radius: 8px; white-space: nowrap; z-index: 9999;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.12);
+  animation: lockTipFadeIn 0.15s ease-out;
 }
+.lock-tooltip__icon { font-size: 0.85rem; }
+.lock-tooltip__text { line-height: 1.3; }
+@keyframes lockTipFadeIn { from { opacity: 0; transform: translate(12px, -90%); } to { opacity: 1; transform: translate(12px, -100%); } }
 .modules__card-academic { font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; background: #EFF6FF; color: #1D3095; }
 .modules__card-fs-badge { font-family: 'Inter', sans-serif; font-size: 0.65rem; font-weight: 700; color: #BD1218; background: #FEF2F2; padding: 0.15rem 0.4rem; border-radius: 4px; }
 
