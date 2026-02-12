@@ -96,7 +96,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Create learning assignment
-  const { assigned_to, module_id, lesson_id, unlock_next, due_date, notes } = body;
+  const { assigned_to, module_id, lesson_id, unlock_next, due_date, notes, status: assignStatus } = body;
   if (!assigned_to) return NextResponse.json({ error: 'assigned_to required' }, { status: 400 });
   if (!module_id && !lesson_id) return NextResponse.json({ error: 'module_id or lesson_id required' }, { status: 400 });
 
@@ -109,6 +109,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       unlock_next: unlock_next || false,
       due_date: due_date || null,
       notes: notes || null,
+      status: assignStatus || 'in_progress',
     })
     .select().single();
 
