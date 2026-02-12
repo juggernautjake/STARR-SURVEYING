@@ -48,11 +48,13 @@ export default function ManageContentPage() {
 
   // Assignments
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [assignForm, setAssignForm] = useState<Record<string, any>>({});
+  const [assignForm, setAssignForm] = useState<Record<string, any>>({ lesson_mode: 'first', no_due_date: true });
   const [assignFilter, setAssignFilter] = useState<string>('all');
   const [assignSearch, setAssignSearch] = useState<string>('');
   const [showHistory, setShowHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState<string>('');
+  const [enrollLessons, setEnrollLessons] = useState<{ id: string; title: string; order_index: number }[]>([]);
+  const [selectedLessonSlots, setSelectedLessonSlots] = useState<string[]>(['']);
 
   // Activity
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -419,27 +421,6 @@ export default function ManageContentPage() {
     if (result) loadData();
   }
 
-  // Assignment actions
-  async function handleCreateAssignment() {
-    if (!assignForm.assigned_to) { addToast('Please enter a user email.', 'warning'); return; }
-    if (!assignForm.module_id && !assignForm.lesson_id) { addToast('Select a module or lesson.', 'warning'); return; }
-    setSaving(true);
-    const result = await safeFetch('/api/admin/learn/assignments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...assignForm, status: 'in_progress', unlock_all_lessons: assignForm.unlock_all_lessons ?? false }),
-    });
-    if (result) {
-      setAssignForm({});
-      setShowForm(false);
-      addToast('Assignment created successfully!', 'success');
-      loadData();
-    } else {
-      addToast('Failed to create assignment. Check the email and try again.', 'error');
-    }
-    setSaving(false);
-  }
-
   async function handleCancelAssignment(id: string) {
     if (!confirm('Cancel this assignment?')) return;
     await safeFetch(`/api/admin/learn/assignments?id=${id}`, { method: 'DELETE' });
@@ -455,10 +436,30 @@ export default function ManageContentPage() {
     loadData();
   }
 
-  // Module enrollment (simple unlock, no due date)
+  // Fetch lessons when a module is selected in the enrollment form
+  async function loadModuleLessons(moduleId: string) {
+    if (!moduleId) { setEnrollLessons([]); return; }
+    const d = await safeFetch<{ lessons: { id: string; title: string; order_index: number }[] }>(`/api/admin/learn/lessons?module_id=${moduleId}`);
+    setEnrollLessons((d?.lessons || []).sort((a, b) => a.order_index - b.order_index));
+  }
+
+  // Handle module change in enrollment form — reset lesson-related state
+  function handleEnrollModuleChange(moduleId: string) {
+    setAssignForm(prev => ({ ...prev, enroll_module_id: moduleId, lesson_mode: 'first', no_due_date: true, due_date: '' }));
+    setSelectedLessonSlots(['']);
+    loadModuleLessons(moduleId);
+  }
+
+  // Unified enrollment handler
   async function handleEnrollModule() {
     if (!assignForm.enroll_email) { addToast('Please enter a student email.', 'warning'); return; }
     if (!assignForm.enroll_module_id) { addToast('Select a module to enroll in.', 'warning'); return; }
+    const mode = assignForm.lesson_mode || 'first';
+    // Validate specific lesson selection
+    const validLessons = selectedLessonSlots.filter((id: string) => id);
+    if (mode === 'specific' && validLessons.length === 0) {
+      addToast('Please select at least one lesson.', 'warning'); return;
+    }
     setSaving(true);
     const result = await safeFetch('/api/admin/learn/assignments', {
       method: 'POST',
@@ -467,34 +468,20 @@ export default function ManageContentPage() {
         action: 'enroll_module',
         user_email: assignForm.enroll_email,
         module_id: assignForm.enroll_module_id,
-        unlock_all_lessons: assignForm.enroll_all_lessons ?? false,
+        lesson_mode: mode,
+        selected_lessons: mode === 'specific' ? validLessons : undefined,
+        due_date: assignForm.no_due_date ? null : (assignForm.due_date || null),
       }),
     });
     if (result) {
       const mod = modules.find(m => m.id === assignForm.enroll_module_id);
       addToast(`Enrolled student in "${mod?.title || 'module'}"! The student will be notified.`, 'success');
-      setAssignForm(prev => ({ ...prev, enroll_email: '', enroll_module_id: '', enroll_all_lessons: false }));
+      setAssignForm({ lesson_mode: 'first', no_due_date: true });
+      setSelectedLessonSlots(['']);
+      setEnrollLessons([]);
       loadData();
     } else {
       addToast('Failed to enroll student. Check the email and try again.', 'error');
-    }
-    setSaving(false);
-  }
-
-  // ACC course enrollment
-  async function handleEnrollACC() {
-    if (!assignForm.acc_email || !assignForm.acc_course) { addToast('Enter email and select an ACC course.', 'warning'); return; }
-    setSaving(true);
-    const result = await safeFetch('/api/admin/learn/assignments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'enroll_acc', user_email: assignForm.acc_email, course_id: assignForm.acc_course }),
-    });
-    if (result) {
-      addToast(`Enrolled ${assignForm.acc_email} in ${assignForm.acc_course.replace(/_/g, ' ')}! The student will be notified.`, 'success');
-      setAssignForm(prev => ({ ...prev, acc_email: '', acc_course: '' }));
-    } else {
-      addToast('Failed to enroll user. Check the email and try again.', 'error');
     }
     setSaving(false);
   }
@@ -508,17 +495,20 @@ export default function ManageContentPage() {
     });
   }
 
-  // Split assignments into active vs history
-  const activeAssignments = assignments.filter(a => a.status === 'pending' || a.status === 'in_progress');
-  const historyAssignments = assignments.filter(a => a.status === 'completed' || a.status === 'cancelled');
+  // Only show module-level assignments (no lesson_id) — lesson sub-assignments are hidden
+  const moduleLevelAssignments = assignments.filter(a => !a.lesson_id);
+  const lessonSubAssignments = assignments.filter(a => !!a.lesson_id);
+
+  // Split into active vs history
+  const activeAssignments = moduleLevelAssignments.filter(a => a.status === 'pending' || a.status === 'in_progress');
+  const historyAssignments = moduleLevelAssignments.filter(a => a.status === 'completed' || a.status === 'cancelled');
 
   // Apply email search to active assignments
   const filteredActiveAssignments = activeAssignments.filter(a => {
     if (assignSearch) {
       const search = assignSearch.toLowerCase();
       return a.assigned_to.toLowerCase().includes(search) ||
-        (a.module_title || '').toLowerCase().includes(search) ||
-        (a.lesson_title || '').toLowerCase().includes(search);
+        (a.module_title || '').toLowerCase().includes(search);
     }
     return true;
   });
@@ -528,17 +518,19 @@ export default function ManageContentPage() {
     if (historySearch) {
       const search = historySearch.toLowerCase();
       return a.assigned_to.toLowerCase().includes(search) ||
-        (a.module_title || '').toLowerCase().includes(search) ||
-        (a.lesson_title || '').toLowerCase().includes(search);
+        (a.module_title || '').toLowerCase().includes(search);
     }
     return true;
   });
 
-  // Legacy filter for backward compat (used in toolbar count)
-  const filteredAssignments = assignments.filter(a => {
-    if (assignFilter === 'all') return true;
-    return a.status === assignFilter;
-  });
+  // Count lesson sub-assignments per module+user for progress bars
+  function getAssignmentProgress(a: Assignment) {
+    if (!a.module_id) return null;
+    const subs = lessonSubAssignments.filter(s => s.module_id === a.module_id && s.assigned_to === a.assigned_to);
+    if (subs.length === 0) return null;
+    const completed = subs.filter(s => s.status === 'completed').length;
+    return { total: subs.length, completed, percent: Math.round((completed / subs.length) * 100) };
+  }
 
   const filteredActivities = activities.filter(a => {
     let match = true;
@@ -607,89 +599,134 @@ export default function ManageContentPage() {
           <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleToggleForm}>
             {showForm ? '\u2715 Cancel' : '+ New Flashcard'}
           </button>
-        ) : tab === 'assignments' ? (
-          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => {
-            if (showForm) { handleCancelForm(); } else { setShowForm(true); setAssignForm({}); }
-          }}>
-            {showForm ? '\u2715 Cancel' : '+ New Assignment'}
-          </button>
-        ) : ['modules', 'lessons', 'articles'].includes(tab) && (
+        ) : ['modules', 'lessons', 'articles'].includes(tab) ? (
           <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleToggleForm}>
             {showForm ? '\u2715 Cancel' : '+ Create New'}
           </button>
-        )}
+        ) : null}
       </div>
 
       {/* ── ASSIGNMENTS TAB ── */}
       {tab === 'assignments' && (
         <>
-          {/* Assignment Create Form */}
-          {showForm && (
-            <div className="manage__form">
-              <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: '0.95rem', fontWeight: 600, color: '#0F1419', margin: '0 0 0.75rem' }}>Create Assignment</h4>
-              <input className="manage__form-input" placeholder="User email *" type="email" value={assignForm.assigned_to || ''} onChange={e => setAssignForm(p => ({ ...p, assigned_to: e.target.value }))} />
-              <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-                <select className="manage__form-input" style={{ flex: 1 }} value={assignForm.module_id || ''} onChange={e => setAssignForm(p => ({ ...p, module_id: e.target.value }))}>
-                  <option value="">Select module</option>
-                  {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
-                </select>
+          {/* ── Enroll Student in Module ── */}
+          <div className="assign__section" style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '.75rem' }}>
+              <div>
+                <h4 className="assign__section-title" style={{ margin: 0 }}>Enroll Student in Module</h4>
+                <p className="assign__section-desc" style={{ margin: '.25rem 0 0' }}>Assign a module to a student, choose which lessons to open, and optionally set a due date.</p>
               </div>
-              <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input className="manage__form-input" style={{ flex: 1 }} type="date" placeholder="Due date (optional)" value={assignForm.due_date || ''} onChange={e => setAssignForm(p => ({ ...p, due_date: e.target.value }))} />
-                <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.82rem', color: '#374151', whiteSpace: 'nowrap' }}>
-                  <input type="checkbox" checked={assignForm.unlock_next || false} onChange={e => setAssignForm(p => ({ ...p, unlock_next: e.target.checked }))} />
-                  Unlock next module on completion
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.82rem', color: '#374151', whiteSpace: 'nowrap' }}>
-                  <input type="checkbox" checked={assignForm.unlock_all_lessons ?? false} onChange={e => setAssignForm(p => ({ ...p, unlock_all_lessons: e.target.checked }))} />
-                  Open all lessons at once
-                </label>
-              </div>
-              <textarea className="manage__form-textarea" placeholder="Notes (optional)" rows={2} value={assignForm.notes || ''} onChange={e => setAssignForm(p => ({ ...p, notes: e.target.value }))} />
-              <button className="admin-btn admin-btn--primary" onClick={handleCreateAssignment} disabled={saving}>{saving ? 'Creating...' : 'Create Assignment'}</button>
+              <button
+                className="admin-btn admin-btn--primary admin-btn--sm"
+                style={{ whiteSpace: 'nowrap', flexShrink: 0, marginLeft: '1rem' }}
+                onClick={handleEnrollModule}
+                disabled={saving}
+              >{saving ? 'Enrolling...' : 'Enroll Student'}</button>
             </div>
-          )}
 
-          {/* Module Enrollment Section */}
-          <div className="assign__section">
-            <h4 className="assign__section-title">&#x1F4D6; Enroll Student in Module</h4>
-            <p className="assign__section-desc">Quickly open a module for a student. No due date, no formal assignment tracking &mdash; just unlocks the content.</p>
-            <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-              <input className="manage__form-input" style={{ flex: '1 1 180px', width: 'auto' }} placeholder="Student email *" type="email" value={assignForm.enroll_email || ''} onChange={e => setAssignForm(p => ({ ...p, enroll_email: e.target.value }))} />
-              <select className="manage__form-input" style={{ flex: '1 1 180px', width: 'auto' }} value={assignForm.enroll_module_id || ''} onChange={e => setAssignForm(p => ({ ...p, enroll_module_id: e.target.value }))}>
+            {/* Row 1: Email + Module */}
+            <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '.5rem' }}>
+              <input
+                className="manage__form-input"
+                style={{ flex: '1 1 200px', width: 'auto' }}
+                placeholder="Student email or username *"
+                type="email"
+                value={assignForm.enroll_email || ''}
+                onChange={e => setAssignForm(p => ({ ...p, enroll_email: e.target.value }))}
+              />
+              <select
+                className="manage__form-input"
+                style={{ flex: '1 1 200px', width: 'auto' }}
+                value={assignForm.enroll_module_id || ''}
+                onChange={e => handleEnrollModuleChange(e.target.value)}
+              >
                 <option value="">Select module *</option>
                 {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
               </select>
             </div>
-            <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center', marginTop: '.5rem', flexWrap: 'wrap' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.82rem', color: '#374151', cursor: 'pointer' }}>
-                <input type="checkbox" checked={assignForm.enroll_all_lessons ?? false} onChange={e => setAssignForm(p => ({ ...p, enroll_all_lessons: e.target.checked }))} />
-                Open all lessons at once
-              </label>
-              <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleEnrollModule} disabled={saving}>{saving ? 'Enrolling...' : 'Enroll Student'}</button>
-            </div>
-            <p style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: '.35rem' }}>If unchecked, only the first lesson is available and the rest unlock sequentially as the student progresses.</p>
-          </div>
 
-          {/* ACC Course Enrollment Section */}
-          <div className="assign__section">
-            <h4 className="assign__section-title">&#x1F3EB; ACC Academic Course Enrollment</h4>
-            <p className="assign__section-desc">For modules tied to ACC college courses. Enrolling grants access to the academic module.</p>
-            <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-              <input className="manage__form-input" style={{ flex: '1 1 180px', width: 'auto' }} placeholder="Student email *" type="email" value={assignForm.acc_email || ''} onChange={e => setAssignForm(p => ({ ...p, acc_email: e.target.value }))} />
-              <select className="manage__form-input" style={{ flex: '1 1 180px', width: 'auto' }} value={assignForm.acc_course || ''} onChange={e => setAssignForm(p => ({ ...p, acc_course: e.target.value }))}>
-                <option value="">Select ACC course</option>
-                <option value="SRVY_1301">SRVY 1301</option>
-                <option value="SRVY_1335">SRVY 1335</option>
-                <option value="SRVY_1341">SRVY 1341</option>
-                <option value="SRVY_2339">SRVY 2339</option>
-                <option value="SRVY_2341">SRVY 2341</option>
-                <option value="SRVY_2343">SRVY 2343</option>
-                <option value="SRVY_2344">SRVY 2344</option>
+            {/* Row 2: Lesson Access Mode */}
+            <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '.5rem' }}>
+              <select
+                className="manage__form-input"
+                style={{ flex: '1 1 250px', width: 'auto' }}
+                value={assignForm.lesson_mode || 'first'}
+                onChange={e => {
+                  setAssignForm(p => ({ ...p, lesson_mode: e.target.value }));
+                  if (e.target.value !== 'specific') setSelectedLessonSlots(['']);
+                }}
+              >
+                <option value="first">First lesson in module (sequential unlock)</option>
+                <option value="all">All lessons in module (open everything)</option>
+                <option value="specific">One or more lessons in module (choose below)</option>
               </select>
             </div>
-            <div style={{ marginTop: '.5rem' }}>
-              <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleEnrollACC} disabled={saving}>{saving ? 'Enrolling...' : 'Enroll in ACC Course'}</button>
+
+            {/* Specific Lesson Selection (shown when mode = 'specific') */}
+            {assignForm.lesson_mode === 'specific' && assignForm.enroll_module_id && (
+              <div style={{ background: '#F3F4F6', borderRadius: '8px', padding: '.75rem', marginBottom: '.5rem' }}>
+                <p style={{ fontSize: '.8rem', color: '#4B5563', margin: '0 0 .5rem', fontWeight: 500 }}>Select lessons to open:</p>
+                {selectedLessonSlots.map((slotValue: string, idx: number) => (
+                  <div key={idx} style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.35rem' }}>
+                    <select
+                      className="manage__form-input"
+                      style={{ flex: 1, width: 'auto' }}
+                      value={slotValue}
+                      onChange={e => {
+                        const updated = [...selectedLessonSlots];
+                        updated[idx] = e.target.value;
+                        setSelectedLessonSlots(updated);
+                      }}
+                    >
+                      <option value="">Select a lesson</option>
+                      {enrollLessons
+                        .filter(l => l.id === slotValue || !selectedLessonSlots.includes(l.id))
+                        .map(l => <option key={l.id} value={l.id}>{l.order_index}. {l.title}</option>)}
+                    </select>
+                    {selectedLessonSlots.length > 1 && (
+                      <button
+                        className="manage__item-btn manage__item-btn--danger"
+                        style={{ padding: '.25rem .5rem', fontSize: '.75rem' }}
+                        onClick={() => setSelectedLessonSlots(prev => prev.filter((_, i) => i !== idx))}
+                      >Remove</button>
+                    )}
+                  </div>
+                ))}
+                {selectedLessonSlots.length < enrollLessons.length && (
+                  <button
+                    className="admin-btn admin-btn--ghost admin-btn--sm"
+                    style={{ marginTop: '.25rem', fontSize: '.78rem' }}
+                    onClick={() => setSelectedLessonSlots(prev => [...prev, ''])}
+                  >+ Add another lesson</button>
+                )}
+              </div>
+            )}
+            {assignForm.lesson_mode === 'specific' && !assignForm.enroll_module_id && (
+              <p style={{ fontSize: '.78rem', color: '#F59E0B', margin: '0 0 .5rem' }}>Select a module above to see available lessons.</p>
+            )}
+
+            {/* Row 3: Due Date */}
+            <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.82rem', color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <input
+                  type="checkbox"
+                  checked={assignForm.no_due_date ?? true}
+                  onChange={e => setAssignForm(p => ({ ...p, no_due_date: e.target.checked, due_date: e.target.checked ? '' : p.due_date }))}
+                />
+                No due date
+              </label>
+              {!assignForm.no_due_date && (
+                <input
+                  className="manage__form-input"
+                  style={{ width: 'auto', flex: '0 1 200px' }}
+                  type="date"
+                  value={assignForm.due_date || ''}
+                  onChange={e => setAssignForm(p => ({ ...p, due_date: e.target.value }))}
+                />
+              )}
+              {!assignForm.no_due_date && !assignForm.due_date && (
+                <span style={{ fontSize: '.75rem', color: '#F59E0B' }}>Pick a due date or check &ldquo;No due date&rdquo;</span>
+              )}
             </div>
           </div>
 
@@ -719,34 +756,43 @@ export default function ManageContentPage() {
             <div className="admin-empty" style={{ padding: '2rem' }}>
               <div className="admin-empty__icon">&#x1F4CB;</div>
               <div className="admin-empty__title">{assignSearch ? 'No matching assignments' : 'No active assignments'}</div>
-              <div className="admin-empty__desc">{assignSearch ? 'Try a different search term.' : 'Create an assignment or enroll a student using the forms above.'}</div>
+              <div className="admin-empty__desc">{assignSearch ? 'Try a different search term.' : 'Enroll a student using the form above.'}</div>
             </div>
           ) : (
             <div className="manage__list">
-              {filteredActiveAssignments.map(a => (
-                <div key={a.id} className="manage__item assign__item">
-                  <div className="manage__item-info">
-                    <div className="manage__item-title">
-                      {a.module_title || a.lesson_title || 'Unknown'}
-                      {a.unlock_next && <span className="assign__unlock-badge">&#x1F513; Unlocks Next</span>}
+              {filteredActiveAssignments.map(a => {
+                const progress = getAssignmentProgress(a);
+                return (
+                  <div key={a.id} className="manage__item assign__item">
+                    <div className="manage__item-info" style={{ flex: 1 }}>
+                      <div className="manage__item-title">
+                        {a.module_title || 'Unknown'}
+                      </div>
+                      <div className="manage__item-meta">
+                        <span className={`assign__status assign__status--${a.status}`}>{a.status.replace('_', ' ')}</span>
+                        {' '}Assigned to: <strong>{a.assigned_to}</strong>
+                        {' \u00B7 '}{new Date(a.created_at).toLocaleDateString()}
+                        {a.due_date && <span> &middot; Due: {new Date(a.due_date).toLocaleDateString()}</span>}
+                        {!a.due_date && <span style={{ color: '#9CA3AF' }}> &middot; No due date</span>}
+                        {a.notes && <span> &middot; {a.notes}</span>}
+                      </div>
+                      {/* Progress bar */}
+                      {progress && (
+                        <div style={{ marginTop: '.35rem', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                          <div style={{ flex: 1, maxWidth: '200px', height: '6px', background: '#E5E7EB', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${progress.percent}%`, height: '100%', background: progress.percent === 100 ? '#10B981' : '#3B82F6', borderRadius: '3px', transition: 'width 0.3s ease' }} />
+                          </div>
+                          <span style={{ fontSize: '.72rem', color: '#6B7280' }}>{progress.completed}/{progress.total} lessons ({progress.percent}%)</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="manage__item-meta">
-                      <span className={`assign__status assign__status--${a.status}`}>{a.status.replace('_', ' ')}</span>
-                      {' '}Assigned to: <strong>{a.assigned_to}</strong>
-                      {' \u00B7 '}{new Date(a.created_at).toLocaleDateString()}
-                      {a.due_date && <span> &middot; Due: {new Date(a.due_date).toLocaleDateString()}</span>}
-                      {a.notes && <span> &middot; Note: {a.notes}</span>}
+                    <div className="manage__item-actions">
+                      <button className="manage__item-btn manage__item-btn--primary" onClick={() => handleUpdateAssignmentStatus(a.id, 'completed')}>Complete</button>
+                      <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleCancelAssignment(a.id)}>Cancel</button>
                     </div>
                   </div>
-                  <div className="manage__item-actions">
-                    {a.status === 'pending' && (
-                      <button className="manage__item-btn" onClick={() => handleUpdateAssignmentStatus(a.id, 'in_progress')}>Start</button>
-                    )}
-                    <button className="manage__item-btn manage__item-btn--primary" onClick={() => handleUpdateAssignmentStatus(a.id, 'completed')}>Complete</button>
-                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleCancelAssignment(a.id)}>Cancel</button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -801,14 +847,14 @@ export default function ManageContentPage() {
                       <div key={a.id} className="manage__item assign__item" style={{ opacity: a.status === 'cancelled' ? 0.7 : 1 }}>
                         <div className="manage__item-info">
                           <div className="manage__item-title" style={a.status === 'cancelled' ? { textDecoration: 'line-through' } : undefined}>
-                            {a.module_title || a.lesson_title || 'Unknown'}
+                            {a.module_title || 'Unknown'}
                           </div>
                           <div className="manage__item-meta">
                             <span className={`assign__status assign__status--${a.status}`}>{a.status.replace('_', ' ')}</span>
                             {' '}Assigned to: <strong>{a.assigned_to}</strong>
                             {' \u00B7 '}{new Date(a.created_at).toLocaleDateString()}
                             {a.completed_at && <span> &middot; {a.status === 'completed' ? 'Completed' : 'Cancelled'}: {new Date(a.completed_at).toLocaleDateString()}</span>}
-                            {a.notes && <span> &middot; Note: {a.notes}</span>}
+                            {a.notes && <span> &middot; {a.notes}</span>}
                           </div>
                         </div>
                         <div className="manage__item-actions">
