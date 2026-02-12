@@ -28,6 +28,7 @@ import '../styles/AdminSchedule.css';
 import '../styles/AdminDiscussions.css';
 import '../styles/AdminMyNotes.css';
 import '../styles/AdminArticle.css';
+import '../styles/AdminUsers.css';
 import '../styles/AdminResponsive.css';
 
 const PAGE_TITLES: Record<string, string> = {
@@ -56,6 +57,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/jobs/import': 'Import Jobs',
   '/admin/my-jobs': 'My Jobs',
   '/admin/employees': 'Employees',
+  '/admin/users': 'Manage Users',
   '/admin/employees/manage': 'Manage Employee',
   '/admin/payroll': 'Payroll',
   '/admin/my-pay': 'My Pay',
@@ -121,13 +123,14 @@ function Inner({ children }: { children: React.ReactNode }) {
   if (!session?.user) return <>{children}</>;
 
   const role = session.user.role || 'employee';
+  const roles = session.user.roles || [role];
   const pageTitle = getTitle(pathname);
 
   return (
     <ErrorProvider>
       <ToastProvider>
       <div className="admin-layout">
-        <AdminSidebar role={role} userName={session.user.name || 'User'} userEmail={session.user.email || ''} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AdminSidebar role={role} roles={roles} userName={session.user.name || 'User'} userEmail={session.user.email || ''} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="admin-layout__main">
           <AdminTopBar title={pageTitle} role={role} onMenuToggle={() => setSidebarOpen((p) => !p)} />
           <div className="admin-layout__content">

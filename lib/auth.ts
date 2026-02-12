@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 // ROLE SYSTEM
 // Three roles: admin (full access), teacher (content + student management),
 // employee (learner - consumes content only)
+// Users can hold MULTIPLE roles (e.g. admin + teacher)
 // =============================================================================
 
 export type UserRole = 'admin' | 'teacher' | 'employee';
@@ -20,38 +21,56 @@ const ADMIN_EMAILS: string[] = [
 ];
 
 // Teachers can create content, manage students, review grades
-// Add teacher emails here or manage via the admin Settings page (future DB-backed)
 const TEACHER_EMAILS: string[] = [];
 
 const ALLOWED_DOMAIN = 'starr-surveying.com';
 
-export function getUserRole(email: string): UserRole {
+/** Get all roles for a company (Google) user based on email lists */
+export function getUserRoles(email: string): UserRole[] {
   const lower = email.toLowerCase();
-  if (ADMIN_EMAILS.includes(lower)) return 'admin';
-  if (TEACHER_EMAILS.includes(lower)) return 'teacher';
+  const roles: UserRole[] = ['employee']; // everyone is at least an employee
+  if (ADMIN_EMAILS.includes(lower)) roles.push('admin');
+  if (TEACHER_EMAILS.includes(lower)) roles.push('teacher');
+  return roles;
+}
+
+/** Get the primary (highest) role for display purposes: admin > teacher > employee */
+export function getUserRole(email: string): UserRole {
+  const roles = getUserRoles(email);
+  if (roles.includes('admin')) return 'admin';
+  if (roles.includes('teacher')) return 'teacher';
   return 'employee';
 }
 
-export function isAdmin(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return getUserRole(email) === 'admin';
+/** Get primary role from a roles array */
+export function getPrimaryRole(roles: UserRole[]): UserRole {
+  if (roles.includes('admin')) return 'admin';
+  if (roles.includes('teacher')) return 'teacher';
+  return 'employee';
+}
+
+export function isAdmin(emailOrRoles: string | UserRole[] | null | undefined): boolean {
+  if (!emailOrRoles) return false;
+  if (Array.isArray(emailOrRoles)) return emailOrRoles.includes('admin');
+  return getUserRoles(emailOrRoles).includes('admin');
 }
 
 /** Teacher OR admin — can create/edit content and view student progress */
-export function isTeacher(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const role = getUserRole(email);
-  return role === 'admin' || role === 'teacher';
+export function isTeacher(emailOrRoles: string | UserRole[] | null | undefined): boolean {
+  if (!emailOrRoles) return false;
+  if (Array.isArray(emailOrRoles)) return emailOrRoles.includes('admin') || emailOrRoles.includes('teacher');
+  const roles = getUserRoles(emailOrRoles);
+  return roles.includes('admin') || roles.includes('teacher');
 }
 
 /** Can manage content (create, edit, publish lessons/modules/articles/questions/flashcards) */
-export function canManageContent(email: string | null | undefined): boolean {
-  return isTeacher(email);
+export function canManageContent(emailOrRoles: string | UserRole[] | null | undefined): boolean {
+  return isTeacher(emailOrRoles);
 }
 
 /** Can perform destructive admin operations (delete users, manage payroll, settings, etc.) */
-export function isFullAdmin(email: string | null | undefined): boolean {
-  return isAdmin(email);
+export function isFullAdmin(emailOrRoles: string | UserRole[] | null | undefined): boolean {
+  return isAdmin(emailOrRoles);
 }
 
 /** Is this user a company domain employee (vs external registered user)? */
@@ -81,21 +100,25 @@ const authConfig: NextAuthConfig = {
         // Look up user in registered_users table
         const { data: user, error } = await supabaseAdmin
           .from('registered_users')
-          .select('id, email, name, password_hash, role, is_approved')
+          .select('id, email, name, password_hash, roles, is_approved, is_banned')
           .eq('email', email)
           .single();
 
         if (error || !user) return null;
         if (!user.is_approved) return null;
+        if (user.is_banned) return null;
 
         const isValid = await bcrypt.compare(password, user.password_hash);
         if (!isValid) return null;
+
+        const roles = (user.roles as UserRole[]) || ['employee'];
 
         return {
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role as UserRole,
+          role: getPrimaryRole(roles),
+          roles: roles,
         };
       },
     }),
@@ -115,8 +138,9 @@ const authConfig: NextAuthConfig = {
     async jwt({ token, user }) {
       if (user?.email) {
         token.email = user.email.toLowerCase();
-        // Credentials users have role set by authorize(); Google users use email-based lookup
-        token.role = user.role || getUserRole(user.email);
+        // Credentials users have roles set by authorize(); Google users use email-based lookup
+        token.roles = user.roles || getUserRoles(user.email);
+        token.role = user.role || getPrimaryRole(token.roles as UserRole[]);
         token.name = user.name;
         token.picture = user.image;
       }
@@ -125,7 +149,8 @@ const authConfig: NextAuthConfig = {
     async session({ session, token }) {
       if (session.user && token.email) {
         session.user.email = token.email as string;
-        session.user.role = token.role as UserRole;
+        session.user.roles = (token.roles as UserRole[]) || ['employee'];
+        session.user.role = (token.role as UserRole) || getPrimaryRole(session.user.roles);
         session.user.name = token.name as string;
         session.user.image = token.picture as string;
       }

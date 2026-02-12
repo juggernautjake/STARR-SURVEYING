@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { GoogleMap, LoadScript, Circle, Marker, InfoWindow } from '@react-google-maps/api';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { GoogleMap, LoadScript, Circle, InfoWindow } from '@react-google-maps/api';
 
 // ============================================================================
 // GOOGLE MAPS SERVICE AREA MAP
 // Shows 150-mile radius around Belton, TX headquarters
 // Includes "Get Directions" functionality
+// Uses AdvancedMarkerElement (replaces deprecated google.maps.Marker)
 // ============================================================================
 
 const containerStyle = {
@@ -38,12 +39,16 @@ const circleOptions = {
   fillOpacity: 0.08,
 };
 
+const LIBRARIES: ('marker')[] = ['marker'];
+
 const mapOptions = {
   mapTypeId: 'hybrid' as const,
   mapTypeControl: true,
   streetViewControl: false,
   fullscreenControl: true,
   zoomControl: true,
+  // mapId required for AdvancedMarkerElement — use DEMO_MAP_ID for basic usage
+  mapId: 'DEMO_MAP_ID',
 };
 
 // Generate Google Maps directions URL using EXACT GPS coordinates
@@ -59,10 +64,10 @@ function PlaceholderMap() {
       {/* Stylized Texas Map Background */}
       <div className="placeholder-map__texas-bg">
         <svg viewBox="0 0 400 350" className="placeholder-map__texas-svg">
-          <path 
-            d="M 50 50 L 280 50 L 290 80 L 350 100 L 380 180 L 350 280 L 280 320 L 200 300 L 150 320 L 80 280 L 50 200 L 30 150 Z" 
-            fill="rgba(29, 48, 149, 0.06)" 
-            stroke="rgba(29, 48, 149, 0.15)" 
+          <path
+            d="M 50 50 L 280 50 L 290 80 L 350 100 L 380 180 L 350 280 L 280 320 L 200 300 L 150 320 L 80 280 L 50 200 L 30 150 Z"
+            fill="rgba(29, 48, 149, 0.06)"
+            stroke="rgba(29, 48, 149, 0.15)"
             strokeWidth="2"
           />
         </svg>
@@ -74,7 +79,7 @@ function PlaceholderMap() {
         <div className="placeholder-map__circle">
           <div className="placeholder-map__ring"></div>
         </div>
-        
+
         <div className="placeholder-map__center">
           <div className="placeholder-map__pin-marker">
             <svg viewBox="0 0 24 24" fill="#BD1218" width="32" height="32">
@@ -110,6 +115,8 @@ export default function ServiceAreaMap() {
   const [isClient, setIsClient] = useState(false);
   const [mapError, setMapError] = useState(false);
   const [showInfoWindow, setShowInfoWindow] = useState(false);
+  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
+  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
@@ -117,16 +124,52 @@ export default function ServiceAreaMap() {
     setIsClient(true);
   }, []);
 
+  // Create AdvancedMarkerElement when map is ready
+  useEffect(() => {
+    if (!mapInstance) return;
+
+    // Clean up previous marker
+    if (markerRef.current) {
+      markerRef.current.map = null;
+      markerRef.current = null;
+    }
+
+    try {
+      const marker = new google.maps.marker.AdvancedMarkerElement({
+        map: mapInstance,
+        position: beltonCenter,
+        title: 'Starr Surveying HQ - Belton, TX',
+      });
+
+      marker.addListener('click', () => {
+        setShowInfoWindow(true);
+      });
+
+      markerRef.current = marker;
+    } catch {
+      // Fallback: if AdvancedMarkerElement is not available, the map still works
+      // The circle overlay will indicate the location
+      console.warn('AdvancedMarkerElement not available, using map without marker pin');
+    }
+
+    return () => {
+      if (markerRef.current) {
+        markerRef.current.map = null;
+        markerRef.current = null;
+      }
+    };
+  }, [mapInstance]);
+
   const handleGetDirections = useCallback(() => {
     window.open(getDirectionsUrl(), '_blank');
   }, []);
 
-  const handleMarkerClick = useCallback(() => {
-    setShowInfoWindow(true);
-  }, []);
-
   const handleInfoWindowClose = useCallback(() => {
     setShowInfoWindow(false);
+  }, []);
+
+  const handleMapLoad = useCallback((map: google.maps.Map) => {
+    setMapInstance(map);
   }, []);
 
   // Show loading state during SSR
@@ -146,8 +189,9 @@ export default function ServiceAreaMap() {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <LoadScript 
+      <LoadScript
         googleMapsApiKey={apiKey}
+        libraries={LIBRARIES}
         onError={() => setMapError(true)}
       >
         <GoogleMap
@@ -155,19 +199,13 @@ export default function ServiceAreaMap() {
           center={beltonCenter}
           zoom={7.0}
           options={mapOptions}
+          onLoad={handleMapLoad}
         >
           {/* 150-mile radius circle */}
-          <Circle 
-            center={beltonCenter} 
-            radius={radiusInMeters} 
-            options={circleOptions} 
-          />
-          
-          {/* HQ Marker */}
-          <Marker 
-            position={beltonCenter} 
-            title="Starr Surveying HQ - Belton, TX"
-            onClick={handleMarkerClick}
+          <Circle
+            center={beltonCenter}
+            radius={radiusInMeters}
+            options={circleOptions}
           />
 
           {/* Info Window when marker is clicked */}
@@ -176,23 +214,23 @@ export default function ServiceAreaMap() {
               position={beltonCenter}
               onCloseClick={handleInfoWindowClose}
             >
-              <div style={{ 
-                padding: '8px', 
+              <div style={{
+                padding: '8px',
                 fontFamily: 'Inter, sans-serif',
                 maxWidth: '200px'
               }}>
-                <h3 style={{ 
-                  margin: '0 0 8px 0', 
-                  fontSize: '14px', 
+                <h3 style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '14px',
                   fontWeight: '700',
                   color: '#BD1218',
                   fontFamily: 'Sora, sans-serif'
                 }}>
                   Starr Surveying HQ
                 </h3>
-                <p style={{ 
-                  margin: '0 0 8px 0', 
-                  fontSize: '12px', 
+                <p style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '12px',
                   color: '#4B5563',
                   lineHeight: '1.4'
                 }}>
@@ -217,7 +255,7 @@ export default function ServiceAreaMap() {
                     fontFamily: 'Sora, sans-serif'
                   }}
                 >
-                  🚗 Get Directions
+                  Get Directions
                 </button>
               </div>
             </InfoWindow>
