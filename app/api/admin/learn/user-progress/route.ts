@@ -76,10 +76,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         }
       }
 
+      // If the lesson is locked, override status so it doesn't show "In Progress" on locked lessons
+      const lessonStatus = locked && lp?.status !== 'completed' ? 'not_started' : (lp?.status || 'not_started');
+
       const lqStats = lessonQuizMap.get(lesson.id);
       return {
         ...lesson,
-        status: lp?.status || 'not_started',
+        status: lessonStatus,
         started_at: lp?.started_at,
         completed_at: lp?.completed_at,
         quiz_unlocked: lp?.quiz_unlocked || false,
@@ -208,6 +211,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
           lockReason = `Complete "${prevModule.title}" first`;
         }
       }
+    }
+
+    // If the module is locked, override status so it doesn't show misleading
+    // statuses like "In Progress" or "Enrolled" on a module the student can't access
+    if (locked && userStatus !== 'completed' && userStatus !== 'needs_refreshing' && userStatus !== 'due') {
+      userStatus = 'not_started';
     }
 
     const quizStats = moduleQuizMap.get(mod.id);

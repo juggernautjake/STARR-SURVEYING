@@ -344,6 +344,13 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
       .eq('assigned_to', assignment.assigned_to)
       .eq('module_id', assignment.module_id)
       .neq('status', 'cancelled');
+
+    // Reset in_progress lesson progress so cancelled modules don't show stale statuses
+    await supabaseAdmin.from('user_lesson_progress')
+      .update({ status: 'not_started', started_at: null, completed_at: null })
+      .eq('user_email', assignment.assigned_to)
+      .eq('module_id', assignment.module_id)
+      .eq('status', 'in_progress');
   }
 
   return NextResponse.json({ success: true });

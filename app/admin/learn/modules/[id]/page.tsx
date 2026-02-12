@@ -273,6 +273,20 @@ function LessonRow({ lesson, moduleId }: { lesson: EnrichedLesson; moduleId: str
   const meta = LESSON_STATUS[lesson.status] || LESSON_STATUS.not_started;
   const isLocked = lesson.locked;
   const [showTip, setShowTip] = useState(false);
+  const [tipPos, setTipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  function handleMouseMove(e: React.MouseEvent) {
+    if (!isLocked) return;
+    setTipPos({ x: e.clientX, y: e.clientY });
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    if (!isLocked) return;
+    const touch = e.touches[0];
+    setTipPos({ x: touch.clientX, y: touch.clientY });
+    setShowTip(true);
+    setTimeout(() => setShowTip(false), 3000);
+  }
 
   const rowStyle: React.CSSProperties = {
     background: meta.bg,
@@ -290,7 +304,8 @@ function LessonRow({ lesson, moduleId }: { lesson: EnrichedLesson; moduleId: str
       style={rowStyle}
       onMouseEnter={() => isLocked && setShowTip(true)}
       onMouseLeave={() => setShowTip(false)}
-      onClick={() => isLocked && setShowTip(true)}
+      onMouseMove={handleMouseMove}
+      onTouchStart={handleTouchStart}
     >
       <div className="lesson-item__number" style={
         lesson.status === 'completed' ? { background: '#10B981', color: '#FFF' } :
@@ -309,8 +324,8 @@ function LessonRow({ lesson, moduleId }: { lesson: EnrichedLesson; moduleId: str
             </span>
           )}
           {lesson.is_assigned && (
-            <span className="lesson-item__status-badge" style={{ color: '#991B1B', background: '#FEF2F2', borderColor: '#EF4444' }}>
-              Assigned
+            <span className="lesson-item__status-badge" style={{ color: '#1E40AF', background: '#EFF6FF', borderColor: '#3B82F6' }}>
+              Enrolled
             </span>
           )}
           {lesson.avg_quiz_score != null && (
@@ -332,9 +347,12 @@ function LessonRow({ lesson, moduleId }: { lesson: EnrichedLesson; moduleId: str
         {!isLocked && <span className="lesson-item__arrow">&rarr;</span>}
       </div>
 
-      {/* Lock tooltip */}
+      {/* Cursor-following lock tooltip */}
       {isLocked && showTip && (
-        <div className="lesson-item__lock-tooltip">{lesson.lock_reason}</div>
+        <div className="lock-tooltip" style={{ left: tipPos.x, top: tipPos.y }}>
+          <span className="lock-tooltip__icon">&#x1F512;</span>
+          <span className="lock-tooltip__text">{lesson.lock_reason}</span>
+        </div>
       )}
     </div>
   );
