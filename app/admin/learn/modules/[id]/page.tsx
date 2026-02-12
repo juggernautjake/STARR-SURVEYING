@@ -203,10 +203,12 @@ export default function ModuleDetailPage() {
         <div className="admin-empty">
           <div className="admin-empty__icon">&#x1F4D6;</div>
           <div className="admin-empty__title">No lessons yet</div>
-          <div className="admin-empty__desc">This module doesn&apos;t have any lessons.</div>
-          <button className="admin-btn admin-btn--primary" onClick={seedContent} disabled={seeding} style={{ marginTop: '1rem' }}>
-            {seeding ? 'Populating...' : 'Populate Introductory Content'}
-          </button>
+          <div className="admin-empty__desc">{canManage ? 'This module doesn\'t have any lessons.' : 'Content is being prepared for this module.'}</div>
+          {canManage && (
+            <button className="admin-btn admin-btn--primary" onClick={seedContent} disabled={seeding} style={{ marginTop: '1rem' }}>
+              {seeding ? 'Populating...' : 'Populate Introductory Content'}
+            </button>
+          )}
           {seedMsg && <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: seedMsg.includes('error') || seedMsg.includes('Failed') ? '#EF4444' : '#10B981' }}>{seedMsg}</p>}
         </div>
       ) : (
