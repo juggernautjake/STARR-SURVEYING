@@ -309,3 +309,43 @@ export async function notifyXPEarned(userEmail: string, amount: number, reason: 
     source_type: 'xp_earned',
   });
 }
+
+/** Learning module or lesson assigned to a student */
+export async function notifyLearningAssignment(
+  userEmail: string,
+  moduleTitle: string,
+  moduleId: string,
+  lessonTitle?: string | null,
+  assignedBy?: string | null,
+) {
+  const isLesson = !!lessonTitle;
+  await notify({
+    user_email: userEmail,
+    type: 'assignment',
+    title: isLesson
+      ? `📋 New Lesson Assigned: ${lessonTitle}`
+      : `📋 New Module Assigned: ${moduleTitle}`,
+    body: isLesson
+      ? `You've been assigned "${lessonTitle}" in ${moduleTitle}. Start learning now!`
+      : `You've been assigned the module "${moduleTitle}". Start learning now!`,
+    icon: '📋',
+    link: `/admin/learn/modules/${moduleId}`,
+    source_type: 'learning_assignment',
+    source_id: moduleId,
+    escalation_level: 'high',
+  });
+}
+
+/** ACC academic course enrollment */
+export async function notifyACCEnrollment(userEmail: string, courseId: string) {
+  await notify({
+    user_email: userEmail,
+    type: 'assignment',
+    title: `🎓 Enrolled in ACC Course: ${courseId.replace(/_/g, ' ')}`,
+    body: `You've been enrolled in the academic course ${courseId.replace(/_/g, ' ')}. The associated module is now available.`,
+    icon: '🎓',
+    link: '/admin/learn/modules',
+    source_type: 'acc_enrollment',
+    source_id: courseId,
+  });
+}

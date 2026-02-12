@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { awardXP } from '@/lib/xp';
+import { notifyLearningAssignment } from '@/lib/notifications';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -153,6 +154,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       }
     }
 
+    // Notify the student
+    try {
+      const { data: modInfo } = await supabaseAdmin.from('learning_modules').select('title').eq('id', module_id).single();
+      await notifyLearningAssignment(user_email, (modInfo as any)?.title || 'a module', module_id, null, adminEmail);
+    } catch { /* ignore */ }
+
     await logOverride(adminEmail, 'module', module_id, 'unlock_module', user_email, { unlock_all_lessons });
     return NextResponse.json({ success: true, message: unlock_all_lessons ? 'Module and all lessons unlocked' : 'Module unlocked' });
   }
@@ -171,6 +178,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       notes: 'Admin override: lesson unlock',
       status: 'in_progress',
     });
+
+    // Notify the student
+    try {
+      const { data: lesInfo } = await supabaseAdmin.from('learning_lessons').select('title, module_id').eq('id', lesson_id).single();
+      const lessonInfo = lesInfo as any;
+      let moduleTitle = 'a module';
+      if (lessonInfo?.module_id) {
+        const { data: modInfo } = await supabaseAdmin.from('learning_modules').select('title').eq('id', lessonInfo.module_id).single();
+        moduleTitle = (modInfo as any)?.title || moduleTitle;
+      }
+      await notifyLearningAssignment(user_email, moduleTitle, lessonInfo?.module_id || '', lessonInfo?.title || null, adminEmail);
+    } catch { /* ignore */ }
 
     await logOverride(adminEmail, 'lesson', lesson_id, 'unlock_lesson', user_email);
     return NextResponse.json({ success: true });

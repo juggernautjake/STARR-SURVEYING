@@ -424,7 +424,7 @@ export default function ManageContentPage() {
     const result = await safeFetch('/api/admin/learn/assignments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...assignForm, status: 'in_progress' }),
+      body: JSON.stringify({ ...assignForm, status: 'in_progress', unlock_all_lessons: assignForm.unlock_all_lessons ?? false }),
     });
     if (result) {
       setAssignForm({});
@@ -452,9 +452,35 @@ export default function ManageContentPage() {
     loadData();
   }
 
-  // ACC enrollment
+  // Module enrollment (simple unlock, no due date)
+  async function handleEnrollModule() {
+    if (!assignForm.enroll_email) { addToast('Please enter a student email.', 'warning'); return; }
+    if (!assignForm.enroll_module_id) { addToast('Select a module to enroll in.', 'warning'); return; }
+    setSaving(true);
+    const result = await safeFetch('/api/admin/learn/assignments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'enroll_module',
+        user_email: assignForm.enroll_email,
+        module_id: assignForm.enroll_module_id,
+        unlock_all_lessons: assignForm.enroll_all_lessons ?? false,
+      }),
+    });
+    if (result) {
+      const mod = modules.find(m => m.id === assignForm.enroll_module_id);
+      addToast(`Enrolled student in "${mod?.title || 'module'}"! The student will be notified.`, 'success');
+      setAssignForm(prev => ({ ...prev, enroll_email: '', enroll_module_id: '', enroll_all_lessons: false }));
+      loadData();
+    } else {
+      addToast('Failed to enroll student. Check the email and try again.', 'error');
+    }
+    setSaving(false);
+  }
+
+  // ACC course enrollment
   async function handleEnrollACC() {
-    if (!assignForm.acc_email || !assignForm.acc_course) { addToast('Enter email and select course.', 'warning'); return; }
+    if (!assignForm.acc_email || !assignForm.acc_course) { addToast('Enter email and select an ACC course.', 'warning'); return; }
     setSaving(true);
     const result = await safeFetch('/api/admin/learn/assignments', {
       method: 'POST',
@@ -462,7 +488,7 @@ export default function ManageContentPage() {
       body: JSON.stringify({ action: 'enroll_acc', user_email: assignForm.acc_email, course_id: assignForm.acc_course }),
     });
     if (result) {
-      addToast(`Enrolled ${assignForm.acc_email} in ${assignForm.acc_course.replace('_', ' ')}!`, 'success');
+      addToast(`Enrolled ${assignForm.acc_email} in ${assignForm.acc_course.replace(/_/g, ' ')}! The student will be notified.`, 'success');
       setAssignForm(prev => ({ ...prev, acc_email: '', acc_course: '' }));
     } else {
       addToast('Failed to enroll user. Check the email and try again.', 'error');
@@ -584,19 +610,42 @@ export default function ManageContentPage() {
                   <input type="checkbox" checked={assignForm.unlock_next || false} onChange={e => setAssignForm(p => ({ ...p, unlock_next: e.target.checked }))} />
                   Unlock next module on completion
                 </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.82rem', color: '#374151', whiteSpace: 'nowrap' }}>
+                  <input type="checkbox" checked={assignForm.unlock_all_lessons ?? false} onChange={e => setAssignForm(p => ({ ...p, unlock_all_lessons: e.target.checked }))} />
+                  Open all lessons at once
+                </label>
               </div>
               <textarea className="manage__form-textarea" placeholder="Notes (optional)" rows={2} value={assignForm.notes || ''} onChange={e => setAssignForm(p => ({ ...p, notes: e.target.value }))} />
               <button className="admin-btn admin-btn--primary" onClick={handleCreateAssignment} disabled={saving}>{saving ? 'Creating...' : 'Create Assignment'}</button>
             </div>
           )}
 
-          {/* ACC Enrollment Section */}
+          {/* Module Enrollment Section */}
           <div className="assign__section">
-            <h4 className="assign__section-title">&#x1F3EB; ACC Course Enrollment</h4>
-            <p className="assign__section-desc">Enroll users in ACC academic courses to grant access to those modules.</p>
-            <div className="assign__enroll-row">
-              <input className="manage__form-input" style={{ flex: 1 }} placeholder="User email" type="email" value={assignForm.acc_email || ''} onChange={e => setAssignForm(p => ({ ...p, acc_email: e.target.value }))} />
-              <select className="manage__form-input" style={{ flex: 1 }} value={assignForm.acc_course || ''} onChange={e => setAssignForm(p => ({ ...p, acc_course: e.target.value }))}>
+            <h4 className="assign__section-title">&#x1F4D6; Enroll Student in Module</h4>
+            <p className="assign__section-desc">Quickly open a module for a student. No due date, no formal assignment tracking &mdash; just unlocks the content.</p>
+            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input className="manage__form-input" style={{ flex: '1 1 200px' }} placeholder="Student email *" type="email" value={assignForm.enroll_email || ''} onChange={e => setAssignForm(p => ({ ...p, enroll_email: e.target.value }))} />
+              <select className="manage__form-input" style={{ flex: '1 1 200px' }} value={assignForm.enroll_module_id || ''} onChange={e => setAssignForm(p => ({ ...p, enroll_module_id: e.target.value }))}>
+                <option value="">Select module *</option>
+                {modules.sort((a, b) => a.order_index - b.order_index).map(m => <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>)}
+              </select>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.8rem', color: '#374151', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                <input type="checkbox" checked={assignForm.enroll_all_lessons ?? false} onChange={e => setAssignForm(p => ({ ...p, enroll_all_lessons: e.target.checked }))} />
+                Open all lessons
+              </label>
+              <button className="admin-btn admin-btn--primary admin-btn--sm" style={{ whiteSpace: 'nowrap', alignSelf: 'center' }} onClick={handleEnrollModule} disabled={saving}>{saving ? 'Enrolling...' : 'Enroll'}</button>
+            </div>
+            <p style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: '.35rem' }}>If &ldquo;Open all lessons&rdquo; is unchecked, only the first lesson is available and the rest unlock sequentially as the student progresses.</p>
+          </div>
+
+          {/* ACC Course Enrollment Section */}
+          <div className="assign__section">
+            <h4 className="assign__section-title">&#x1F3EB; ACC Academic Course Enrollment</h4>
+            <p className="assign__section-desc">For modules tied to ACC college courses. Enrolling grants access to the academic module.</p>
+            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input className="manage__form-input" style={{ flex: '1 1 200px' }} placeholder="Student email *" type="email" value={assignForm.acc_email || ''} onChange={e => setAssignForm(p => ({ ...p, acc_email: e.target.value }))} />
+              <select className="manage__form-input" style={{ flex: '1 1 200px' }} value={assignForm.acc_course || ''} onChange={e => setAssignForm(p => ({ ...p, acc_course: e.target.value }))}>
                 <option value="">Select ACC course</option>
                 <option value="SRVY_1301">SRVY 1301</option>
                 <option value="SRVY_1335">SRVY 1335</option>
@@ -606,7 +655,7 @@ export default function ManageContentPage() {
                 <option value="SRVY_2343">SRVY 2343</option>
                 <option value="SRVY_2344">SRVY 2344</option>
               </select>
-              <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleEnrollACC} disabled={saving}>Enroll</button>
+              <button className="admin-btn admin-btn--primary admin-btn--sm" style={{ whiteSpace: 'nowrap', alignSelf: 'center' }} onClick={handleEnrollACC} disabled={saving}>{saving ? 'Enrolling...' : 'Enroll'}</button>
             </div>
           </div>
 
