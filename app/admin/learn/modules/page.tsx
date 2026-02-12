@@ -50,7 +50,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string; bo
   completed:       { label: 'Completed',         color: '#065F46', bg: '#ECFDF5',    border: '#10B981' },
   due:             { label: 'Due',               color: '#1E40AF', bg: '#EFF6FF',    border: '#3B82F6' },
   needs_refreshing:{ label: 'Needs Refreshing',  color: '#6D28D9', bg: '#F5F3FF',    border: '#8B5CF6' },
-  enrolled:        { label: 'Enrolled',          color: '#7C3AED', bg: '#F5F3FF',    border: '#8B5CF6' },
+  enrolled:        { label: 'Enrolled',          color: '#1E40AF', bg: '#EFF6FF',    border: '#3B82F6' },
   past_due:        { label: 'Past Due',          color: '#991B1B', bg: '#FEF2F2',    border: '#EF4444' },
 };
 
