@@ -174,7 +174,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     // Determine status
     let userStatus = 'not_started';
     if (assignment && assignment.status !== 'completed') {
-      userStatus = 'assigned';
+      // Check if the assignment is past due
+      if (assignment.due_date && new Date(assignment.due_date) < new Date()) {
+        userStatus = 'past_due';
+      } else {
+        userStatus = 'enrolled';
+      }
     } else if (completion?.is_current && completion.expires_at && new Date(completion.expires_at) > new Date()) {
       userStatus = 'completed';
     } else if (completion?.completed_at && completion.expires_at && new Date(completion.expires_at) <= new Date()) {

@@ -16,7 +16,7 @@ interface EnrichedModule {
   avg_quiz_score: number | null; quiz_attempts: number;
 }
 
-type StatusFilter = 'all' | 'not_started' | 'in_progress' | 'completed' | 'due' | 'needs_refreshing' | 'assigned';
+type StatusFilter = 'all' | 'not_started' | 'in_progress' | 'completed' | 'due' | 'needs_refreshing' | 'enrolled' | 'past_due';
 type DifficultyFilter = 'all' | 'beginner' | 'intermediate' | 'advanced';
 type AvailFilter = 'all' | 'available' | 'unavailable';
 
@@ -27,7 +27,8 @@ const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
   { key: 'completed', label: 'Completed' },
   { key: 'due', label: 'Due' },
   { key: 'needs_refreshing', label: 'Needs Refreshing' },
-  { key: 'assigned', label: 'Assigned' },
+  { key: 'enrolled', label: 'Enrolled' },
+  { key: 'past_due', label: 'Past Due' },
 ];
 
 const DIFF_OPTIONS: { key: DifficultyFilter; label: string }[] = [
@@ -49,7 +50,8 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string; bo
   completed:       { label: 'Completed',         color: '#065F46', bg: '#ECFDF5',    border: '#10B981' },
   due:             { label: 'Due',               color: '#1E40AF', bg: '#EFF6FF',    border: '#3B82F6' },
   needs_refreshing:{ label: 'Needs Refreshing',  color: '#6D28D9', bg: '#F5F3FF',    border: '#8B5CF6' },
-  assigned:        { label: 'Assigned',          color: '#991B1B', bg: '#FEF2F2',    border: '#EF4444' },
+  enrolled:        { label: 'Enrolled',          color: '#7C3AED', bg: '#F5F3FF',    border: '#8B5CF6' },
+  past_due:        { label: 'Past Due',          color: '#991B1B', bg: '#FEF2F2',    border: '#EF4444' },
 };
 
 export default function ModulesListPage() {
