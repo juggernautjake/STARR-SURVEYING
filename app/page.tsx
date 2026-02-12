@@ -328,12 +328,12 @@ export default function HomePage(): React.ReactElement {
         </div>
       </section>
 
-      {/* Service Area Section - Single Map with 175-Mile Radius */}
+      {/* Service Area Section - Single Map with 150-Mile Radius */}
       <section className="home-area">
         <div className="home-area__container">
           <h2 className="home-area__title">Service Area</h2>
           <p className="home-area__subtitle">
-            We proudly serve clients within a 175-mile radius of our Belton headquarters.
+            We proudly serve clients within a 150-mile radius of our Belton headquarters.
           </p>
           <p className="home-area__address">
             📍 {OFFICE_ADDRESS}
@@ -346,7 +346,7 @@ export default function HomePage(): React.ReactElement {
               <span className="home-area__hq-icon">📍</span>
               <div className="home-area__hq-info">
                 <span className="home-area__hq-title">Belton, TX (HQ)</span>
-                <span className="home-area__hq-radius">175-mile service radius</span>
+                <span className="home-area__hq-radius">150-mile service radius</span>
               </div>
             </div>
             

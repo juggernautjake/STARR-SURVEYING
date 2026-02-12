@@ -24,6 +24,7 @@ interface BlockStyle {
   collapsedLabel?: string;
   hidden?: boolean;
   hiddenLabel?: string;
+  rowGroup?: string; // blocks with same rowGroup render side-by-side (1-4 per row)
 }
 
 interface LessonBlock {
@@ -658,10 +659,10 @@ export default function LessonBuilderPage() {
       case 'file': return { url: '', name: '', size: 0, type: '' };
       case 'slideshow': return { images: [{ url: '', alt: '', caption: '' }] };
       case 'link_reference': return { links: [{ title: '', url: '', type: 'reference', description: '' }] };
-      case 'flashcard': return { cards: [{ front: 'Term or question', back: 'Definition or answer' }] };
+      case 'flashcard': return { cards: [{ front: 'Term or question', back: 'Definition or answer' }], layout: 'single' };
       case 'popup_article': return { summary: 'Click to read more...', title: 'Article Title', full_content: '<p>Full article content here...</p>' };
       case 'backend_link': return { path: '/admin/learn', title: 'Page Title', description: 'Click to navigate', icon: '📖' };
-      case 'highlight': return { text: 'Key term or concept', style: 'blue' };
+      case 'highlight': return { items: [{ text: 'Key term or concept', style: 'blue' }] };
       case 'key_takeaways': return { title: 'Key Takeaways', items: ['First takeaway', 'Second takeaway'] };
       case 'equation': return { latex: 'E = mc^2', label: '', display: 'block' };
       case 'tabs': return { tabs: [{ title: 'Tab 1', content: '<p>Content for tab 1</p>' }, { title: 'Tab 2', content: '<p>Content for tab 2</p>' }], activeTab: 0 };
@@ -710,6 +711,33 @@ export default function LessonBuilderPage() {
     updated.splice(idx + 1, 0, copy);
     setBlocks(updated.map((b, i) => ({ ...b, order_index: i })));
     setSelectedBlockId(copy.id);
+  }
+
+  // Row grouping: group selected blocks into a side-by-side row (max 4)
+  function groupBlocksIntoRow(blockIds: string[]) {
+    if (blockIds.length < 2 || blockIds.length > 4) { addToast('Select 2-4 blocks to group into a row', 'warning'); return; }
+    const rowId = `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    setBlocks(prev => prev.map(b => blockIds.includes(b.id) ? { ...b, style: { ...(b.style || {}), rowGroup: rowId } } : b));
+    setMultiSelect(new Set());
+    addToast(`${blockIds.length} blocks grouped into a row`, 'success');
+  }
+
+  function ungroupBlock(id: string) {
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, style: { ...(b.style || {}), rowGroup: undefined } } : b));
+  }
+
+  // Helper: get blocks grouped by rowGroup for rendering
+  function getBlockRows(blockList: LessonBlock[]): { rowGroup: string | null; blocks: LessonBlock[] }[] {
+    const rows: { rowGroup: string | null; blocks: LessonBlock[] }[] = [];
+    for (const block of blockList) {
+      const rg = block.style?.rowGroup || null;
+      if (rg && rows.length > 0 && rows[rows.length - 1].rowGroup === rg) {
+        rows[rows.length - 1].blocks.push(block);
+      } else {
+        rows.push({ rowGroup: rg, blocks: [block] });
+      }
+    }
+    return rows;
   }
 
   function updateBlockContent(id: string, content: Record<string, any>) {
@@ -948,7 +976,9 @@ export default function LessonBuilderPage() {
       {/* Preview Mode */}
       {previewMode ? (
         <div className="lesson__body">
-          {blocks.map((block) => {
+          {getBlockRows(blocks).map((row, rowIdx) => {
+            const isRowGroup = row.rowGroup && row.blocks.length > 1;
+            const rowContent = row.blocks.map((block) => {
             const blockWrapStyle: React.CSSProperties = {};
             if (block.style?.backgroundColor && block.style.backgroundColor !== '#ffffff') blockWrapStyle.backgroundColor = block.style.backgroundColor;
             if (block.style?.borderColor && block.style?.borderWidth) { blockWrapStyle.border = `${block.style.borderWidth}px solid ${block.style.borderColor}`; }
@@ -1006,11 +1036,18 @@ export default function LessonBuilderPage() {
                   <span dangerouslySetInnerHTML={{ __html: block.content.text || '' }} />
                 </div>
               )}
-              {block.block_type === 'highlight' && (
-                <div className={`block-highlight block-highlight--${block.content.style || 'blue'}`}>
-                  <span dangerouslySetInnerHTML={{ __html: block.content.text || '' }} />
-                </div>
-              )}
+              {block.block_type === 'highlight' && (() => {
+                const items = block.content.items || (block.content.text ? [{ text: block.content.text, style: block.content.style || 'blue' }] : []);
+                return (
+                  <div className="block-highlight-group">
+                    {items.map((item: any, i: number) => (
+                      <div key={i} className={`block-highlight block-highlight--${item.style || 'blue'}`}>
+                        <span dangerouslySetInnerHTML={{ __html: item.text || '' }} />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
               {block.block_type === 'key_takeaways' && (
                 <div className="block-takeaways">
                   <h4 className="block-takeaways__title">{block.content.title || 'Key Takeaways'}</h4>
@@ -1203,6 +1240,33 @@ export default function LessonBuilderPage() {
               )}
               {block.block_type === 'flashcard' && (block.content.cards || []).length > 0 && (() => {
                 const cards = block.content.cards || [];
+                const isGrid = block.content.layout === 'grid';
+                if (isGrid) {
+                  return (
+                    <div className="block-flashcard-grid" style={{ margin: '1.5rem 0' }}>
+                      {cards.map((card: any, ci: number) => {
+                        const flipKey = `${block.id}-${ci}`;
+                        const isFlipped = flippedCards[flipKey] || false;
+                        return (
+                          <div key={ci} className="block-flashcard block-flashcard--grid-item">
+                            <div className={`block-flashcard__card ${isFlipped ? 'block-flashcard__card--flipped' : ''}`} onClick={() => setFlippedCards(prev => ({ ...prev, [flipKey]: !isFlipped }))}>
+                              <div className="block-flashcard__face block-flashcard__front">
+                                <span className="block-flashcard__label">FRONT</span>
+                                <p className="block-flashcard__text">{card?.front || ''}</p>
+                                <span className="block-flashcard__hint">Click to flip</span>
+                              </div>
+                              <div className="block-flashcard__face block-flashcard__back">
+                                <span className="block-flashcard__label">BACK</span>
+                                <p className="block-flashcard__text">{card?.back || ''}</p>
+                                <span className="block-flashcard__hint">Click to flip</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                }
                 const cardIdx = flashcardIndexes[block.id] || 0;
                 const card = cards[cardIdx];
                 const isFlipped = flippedCards[block.id] || false;
@@ -1260,6 +1324,12 @@ export default function LessonBuilderPage() {
               </div></div>
             </div>
             );
+            });
+            return isRowGroup ? (
+              <div key={`row-${rowIdx}`} className="block-row-group">{rowContent}</div>
+            ) : (
+              <>{rowContent}</>
+            );
           })}
           {blocks.length === 0 && (
             <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '3rem' }}>No content blocks yet. Switch to Edit mode to add blocks.</p>
@@ -1272,7 +1342,12 @@ export default function LessonBuilderPage() {
           {multiSelect.size > 1 && (
             <div className="lesson-builder__bulk-bar">
               <span style={{ fontWeight: 600, fontSize: '.82rem' }}>{multiSelect.size} blocks selected</span>
-              <div style={{ display: 'flex', gap: '.35rem' }}>
+              <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap' }}>
+                {multiSelect.size >= 2 && multiSelect.size <= 4 && (
+                  <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => groupBlocksIntoRow(Array.from(multiSelect))}>
+                    Group into Row ({multiSelect.size})
+                  </button>
+                )}
                 <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => {
                   setSaveTemplateName('');
                   setSaveTemplateDesc('');
@@ -1311,8 +1386,19 @@ export default function LessonBuilderPage() {
             </div>
           )}
 
-          {blocks.map((block, idx) => (
+          {blocks.map((block, idx) => {
+            const rg = block.style?.rowGroup;
+            const isRowStart = rg && (idx === 0 || blocks[idx - 1]?.style?.rowGroup !== rg);
+            const isRowEnd = rg && (idx === blocks.length - 1 || blocks[idx + 1]?.style?.rowGroup !== rg);
+            const rowCount = rg ? blocks.filter(b => b.style?.rowGroup === rg).length : 0;
+            return (
             <div key={block.id}>
+              {/* Row group start indicator */}
+              {isRowStart && (
+                <div className="lesson-builder__row-group-badge">
+                  Row Group ({rowCount} block{rowCount !== 1 ? 's' : ''} side-by-side)
+                </div>
+              )}
               {/* Drop indicator above block */}
               {dragBlockId && dragBlockId !== block.id && (
                 <div
@@ -1361,6 +1447,9 @@ export default function LessonBuilderPage() {
                   </span>
                 </div>
                 <div className="lesson-builder__block-actions">
+                  {block.style?.rowGroup && (
+                    <button className="lesson-builder__block-btn" onClick={(e) => { e.stopPropagation(); ungroupBlock(block.id); }} title="Remove from row group" style={{ fontSize: '.65rem', color: '#DC2626' }}>Ungroup</button>
+                  )}
                   <button className="lesson-builder__block-btn" onClick={(e) => { e.stopPropagation(); setShowStylePanel(showStylePanel === block.id ? null : block.id); }} title="Style" style={showStylePanel === block.id ? { borderColor: '#1D3095', color: '#1D3095' } : undefined}>🎨</button>
                   <button className="lesson-builder__block-btn" onClick={() => moveBlock(block.id, 'up')} disabled={idx === 0} title="Move up">↑</button>
                   <button className="lesson-builder__block-btn" onClick={() => moveBlock(block.id, 'down')} disabled={idx === blocks.length - 1} title="Move down">↓</button>
@@ -1782,7 +1871,13 @@ export default function LessonBuilderPage() {
                 {/* Flashcard Block */}
                 {block.block_type === 'flashcard' && (
                   <div>
-                    <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280', marginBottom: '.5rem', display: 'block' }}>Flashcard Deck ({(block.content.cards || []).length} cards)</span>
+                    <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.5rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280' }}>Flashcard Deck ({(block.content.cards || []).length} cards)</span>
+                      <div style={{ display: 'flex', gap: '.25rem' }}>
+                        <button className={`admin-btn admin-btn--sm ${(block.content.layout || 'single') === 'single' ? 'admin-btn--primary' : 'admin-btn--ghost'}`} onClick={() => updateBlockContent(block.id, { ...block.content, layout: 'single' })} style={{ fontSize: '.72rem' }}>Single</button>
+                        <button className={`admin-btn admin-btn--sm ${block.content.layout === 'grid' ? 'admin-btn--primary' : 'admin-btn--ghost'}`} onClick={() => updateBlockContent(block.id, { ...block.content, layout: 'grid' })} style={{ fontSize: '.72rem' }}>Grid (side-by-side)</button>
+                      </div>
+                    </div>
                     {(block.content.cards || []).map((card: any, ci: number) => (
                       <div key={ci} style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '.5rem', padding: '.5rem', background: '#F9FAFB', borderRadius: '6px', border: '1px solid #E5E7EB' }}>
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '.35rem' }}>
@@ -1865,23 +1960,46 @@ export default function LessonBuilderPage() {
                   </div>
                 )}
 
-                {/* Highlight / Key Term Block */}
-                {block.block_type === 'highlight' && (
-                  <div>
-                    <select className="fc-form__input" value={block.content.style || 'blue'} onChange={e => updateBlockContent(block.id, { ...block.content, style: e.target.value })} style={{ marginBottom: '.5rem' }}>
-                      <option value="blue">Blue Bubble</option>
-                      <option value="dark">Dark / Formula</option>
-                      <option value="green">Green / Success</option>
-                      <option value="amber">Amber / Highlight</option>
-                      <option value="red">Red / Important</option>
-                      <option value="purple">Purple / Definition</option>
-                    </select>
-                    <textarea className="fc-form__textarea" value={block.content.text || ''} onChange={e => updateBlockContent(block.id, { ...block.content, text: e.target.value })} rows={2} placeholder="Key term, formula, or important concept... (HTML supported for sub/sup)" />
-                    <div className={`block-highlight block-highlight--${block.content.style || 'blue'}`} style={{ marginTop: '.5rem' }}>
-                      <span dangerouslySetInnerHTML={{ __html: block.content.text || 'Preview...' }} />
+                {/* Highlight / Key Term Block — multi-item */}
+                {block.block_type === 'highlight' && (() => {
+                  // Backward compat: convert legacy {text,style} to {items:[{text,style}]}
+                  const items: { text: string; style: string }[] = block.content.items || (block.content.text ? [{ text: block.content.text, style: block.content.style || 'blue' }] : [{ text: '', style: 'blue' }]);
+                  const updateItems = (newItems: { text: string; style: string }[]) => updateBlockContent(block.id, { items: newItems });
+                  return (
+                    <div>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#6B7280', marginBottom: '.5rem', display: 'block' }}>Concept Bubbles ({items.length} item{items.length !== 1 ? 's' : ''}) — displayed side-by-side</span>
+                      {items.map((item, ii) => (
+                        <div key={ii} style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginBottom: '.5rem', padding: '.5rem', background: '#F9FAFB', borderRadius: '6px', border: '1px solid #E5E7EB' }}>
+                          <select className="fc-form__input" value={item.style || 'blue'} onChange={e => {
+                            const next = [...items]; next[ii] = { ...next[ii], style: e.target.value }; updateItems(next);
+                          }} style={{ flex: '0 0 120px' }}>
+                            <option value="blue">Blue</option>
+                            <option value="dark">Dark</option>
+                            <option value="green">Green</option>
+                            <option value="amber">Amber</option>
+                            <option value="red">Red</option>
+                            <option value="purple">Purple</option>
+                          </select>
+                          <textarea className="fc-form__textarea" value={item.text || ''} onChange={e => {
+                            const next = [...items]; next[ii] = { ...next[ii], text: e.target.value }; updateItems(next);
+                          }} rows={1} placeholder="Key term, formula, or concept... (HTML for sub/sup)" style={{ flex: 1 }} />
+                          {items.length > 1 && (
+                            <button className="lesson-builder__block-btn lesson-builder__block-btn--danger" onClick={() => updateItems(items.filter((_, i) => i !== ii))}>✕</button>
+                          )}
+                        </div>
+                      ))}
+                      <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => updateItems([...items, { text: '', style: items[items.length - 1]?.style || 'blue' }])}>+ Add Concept</button>
+                      {/* Preview */}
+                      <div className="block-highlight-group" style={{ marginTop: '.75rem' }}>
+                        {items.map((item, ii) => (
+                          <div key={ii} className={`block-highlight block-highlight--${item.style || 'blue'}`}>
+                            <span dangerouslySetInnerHTML={{ __html: item.text || 'Preview...' }} />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Key Takeaways Block */}
                 {block.block_type === 'key_takeaways' && (
@@ -2154,7 +2272,8 @@ export default function LessonBuilderPage() {
               />
             )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

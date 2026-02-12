@@ -798,13 +798,32 @@
 .lesson-builder__callout--key_concept { background:#EFF6FF; border-left:none; border:2px solid #93C5FD; color:#1E40AF; text-align:center; font-weight:600; font-size:1rem; border-radius:12px; }
 
 /* === BLOCK: Highlight / Key Term Bubble === */
-.block-highlight { display:inline-block; padding:.6rem 1.25rem; border-radius:20px; font-family:'Inter',sans-serif; font-size:.92rem; font-weight:600; line-height:1.5; margin:.5rem 0; }
+.block-highlight { display:inline-block; padding:.6rem 1.25rem; border-radius:20px; font-family:'Inter',sans-serif; font-size:.92rem; font-weight:600; line-height:1.5; margin:.35rem .25rem; }
 .block-highlight--blue { background:#EFF6FF; color:#1D3095; border:1px solid #BFDBFE; }
 .block-highlight--dark { background:#1E293B; color:#E2E8F0; border:1px solid #334155; }
 .block-highlight--green { background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; }
 .block-highlight--amber { background:#FEF3C7; color:#92400E; border:1px solid #FCD34D; }
 .block-highlight--red { background:#FEF2F2; color:#991B1B; border:1px solid #FECACA; }
 .block-highlight--purple { background:#F5F3FF; color:#5B21B6; border:1px solid #C4B5FD; }
+
+/* Multi-item highlight group — flex-wrap layout */
+.block-highlight-group { display:flex; flex-wrap:wrap; gap:.35rem; align-items:flex-start; margin:.75rem 0; }
+
+/* === BLOCK: Row Group (1-4 blocks side-by-side) === */
+.block-row-group { display:grid; gap:1.25rem; margin:1rem 0; align-items:start; }
+.block-row-group > * { min-width:0; }
+/* Auto columns: evenly distribute children up to 4 */
+.block-row-group { grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); }
+
+/* === BLOCK: Flashcard Grid (side-by-side cards) === */
+.block-flashcard-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:1rem; margin:1.5rem 0; }
+.block-flashcard--grid-item { perspective:800px; }
+.block-flashcard--grid-item .block-flashcard__card { min-height:160px; }
+.block-flashcard--grid-item .block-flashcard__face { min-height:160px; padding:1.25rem 1rem; }
+.block-flashcard--grid-item .block-flashcard__text { font-size:.95rem; }
+
+/* Row group badge in lesson builder edit mode */
+.lesson-builder__row-group-badge { display:inline-block; font-size:.68rem; font-weight:700; color:#1D3095; background:#EFF6FF; border:1px dashed #93C5FD; border-radius:4px; padding:.15rem .5rem; margin:.35rem 0 .15rem; letter-spacing:.3px; text-transform:uppercase; }
 
 /* === BLOCK: Key Takeaways === */
 .block-takeaways { background:#EFF6FF; border:1px solid #BFDBFE; border-radius:10px; padding:1.25rem 1.5rem; margin:1.5rem 0; }
@@ -2527,6 +2546,13 @@
   .block-backend-link__title { font-size: 0.85rem; }
   .block-backend-link__desc { font-size: 0.72rem; }
   .block-highlight { padding: 0.45rem 1rem; font-size: 0.85rem; }
+  .block-highlight-group { gap: 0.3rem; }
+  /* Row groups stack vertically on tablets */
+  .block-row-group { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  /* Flashcard grid 2-col on tablets */
+  .block-flashcard-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+  .block-flashcard--grid-item .block-flashcard__face { min-height: 140px; padding: 1rem 0.75rem; }
+  .block-flashcard--grid-item .block-flashcard__text { font-size: 0.88rem; }
   .block-takeaways { padding: 1rem 1.15rem; }
   .block-takeaways__title { font-size: 0.92rem; }
   .block-takeaways__item { font-size: 0.82rem; padding-left: 1.25rem; }
@@ -2591,6 +2617,14 @@
 
   .block-flashcard__face { min-height: 140px; padding: 1rem 0.75rem; }
   .block-columns { grid-template-columns: 1fr !important; }
+  /* Row groups fully stack on small phones */
+  .block-row-group { grid-template-columns: 1fr !important; gap: 0.5rem; }
+  /* Flashcard grid stacks to single column */
+  .block-flashcard-grid { grid-template-columns: 1fr; gap: 0.6rem; }
+  .block-flashcard--grid-item .block-flashcard__face { min-height: 120px; padding: 0.85rem 0.65rem; }
+  .block-flashcard--grid-item .block-flashcard__text { font-size: 0.82rem; }
+  .block-highlight { padding: 0.4rem 0.85rem; font-size: 0.8rem; border-radius: 16px; }
+  .block-highlight-group { gap: 0.25rem; }
   .block-tabs__tab { font-size: 0.72rem; padding: 0.4rem 0.65rem; }
   .block-accordion__content { padding-left: 1.5rem; }
 
