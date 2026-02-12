@@ -15,6 +15,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const targetEmail = searchParams.get('user_email');
   const email = (isAdmin(userEmail) && targetEmail) ? targetEmail : userEmail;
 
+  // Prevent browser from caching progress data so assignment changes appear immediately
+  const noCacheHeaders = { 'Cache-Control': 'no-store, no-cache, must-revalidate', 'Pragma': 'no-cache' };
+
   // If module_id provided: return lesson-level progress for that module
   if (moduleId) {
     // Only content managers (admin/teacher) can see draft lessons
@@ -93,7 +96,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       };
     });
 
-    return NextResponse.json({ lessons: enrichedLessons });
+    return NextResponse.json({ lessons: enrichedLessons }, { headers: noCacheHeaders });
   }
 
   // Otherwise: return all modules with status for the user
@@ -221,7 +224,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     };
   });
 
-  return NextResponse.json({ modules: enrichedModules });
+  return NextResponse.json({ modules: enrichedModules }, { headers: noCacheHeaders });
 }, { routeName: 'learn/user-progress' });
 
 function getModuleStatus(mod: any, completionMap: Map<string, any>, progressMap: Map<string, any>): string {

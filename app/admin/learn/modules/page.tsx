@@ -1,7 +1,7 @@
 // app/admin/learn/modules/page.tsx — Module listing with filters, search, status tracking, locking
 'use client';
 import Link from 'next/link';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import SmartSearch from '../components/SmartSearch';
 
 interface EnrichedModule {
@@ -61,13 +61,45 @@ export default function ModulesListPage() {
   const [availFilter, setAvailFilter] = useState<AvailFilter>('all');
   const [showAcademic, setShowAcademic] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/admin/learn/user-progress')
-      .then(r => r.json())
-      .then(d => setModules(d.modules || []))
-      .catch(err => console.error('Failed to load modules', err))
-      .finally(() => setLoading(false));
+  // Refresh function that can be called on mount, poll, and tab-focus
+  const refreshRef = useRef(false); // prevent concurrent fetches
+  const refreshModules = useCallback(async (silent = false) => {
+    if (refreshRef.current) return;
+    refreshRef.current = true;
+    try {
+      const res = await fetch('/api/admin/learn/user-progress');
+      const d = await res.json();
+      setModules(d.modules || []);
+    } catch (err) {
+      if (!silent) console.error('Failed to load modules', err);
+    } finally {
+      refreshRef.current = false;
+      setLoading(false);
+    }
   }, []);
+
+  // Initial load
+  useEffect(() => { refreshModules(); }, [refreshModules]);
+
+  // Poll every 15 seconds so admin assignments appear quickly
+  useEffect(() => {
+    const interval = setInterval(() => refreshModules(true), 15_000);
+    return () => clearInterval(interval);
+  }, [refreshModules]);
+
+  // Refetch immediately when student switches back to this tab
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refreshModules(true);
+    };
+    const onFocus = () => refreshModules(true);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [refreshModules]);
 
   // Split modules into regular and academic
   const regularModules = useMemo(() => modules.filter(m => !m.is_academic), [modules]);

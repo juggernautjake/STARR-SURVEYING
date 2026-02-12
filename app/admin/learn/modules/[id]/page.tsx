@@ -1,7 +1,7 @@
 // app/admin/learn/modules/[id]/page.tsx — Module detail with lesson locking, status, and admin management
 'use client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import SmartSearch from '../../components/SmartSearch';
@@ -67,23 +67,54 @@ export default function ModuleDetailPage() {
     } catch (err) { console.error('Failed to delete lesson', err); }
   }
 
-  useEffect(() => {
-    Promise.all([
-      fetch(`/api/admin/learn/modules?id=${moduleId}`).then(r => r.json()),
-      fetch(`/api/admin/learn/user-progress?module_id=${moduleId}`).then(r => r.json()),
-      fetch(`/api/admin/learn/lessons?module_id=${moduleId}`).then(r => r.json()),
-    ]).then(([modData, progressData, lessonData]) => {
+  // Refresh function reusable for mount, poll, and tab-focus
+  const refreshRef = useRef(false);
+  const refreshData = useCallback(async (silent = false) => {
+    if (refreshRef.current) return;
+    refreshRef.current = true;
+    try {
+      const [modData, progressData, lessonData] = await Promise.all([
+        fetch(`/api/admin/learn/modules?id=${moduleId}`).then(r => r.json()),
+        fetch(`/api/admin/learn/user-progress?module_id=${moduleId}`).then(r => r.json()),
+        fetch(`/api/admin/learn/lessons?module_id=${moduleId}`).then(r => r.json()),
+      ]);
       setMod(modData.module || null);
       setLessons(progressData.lessons || []);
-      // Build publish status map from the raw lesson data (before user-progress overwrites status)
       const statusMap: Record<string, string> = {};
       (lessonData.lessons || lessonData || []).forEach((l: { id: string; status?: string }) => {
         statusMap[l.id] = l.status || 'published';
       });
       setPublishStatuses(statusMap);
-    }).catch(err => console.error('Failed to load', err))
-    .finally(() => setLoading(false));
+    } catch (err) {
+      if (!silent) console.error('Failed to load', err);
+    } finally {
+      refreshRef.current = false;
+      setLoading(false);
+    }
   }, [moduleId]);
+
+  // Initial load
+  useEffect(() => { refreshData(); }, [refreshData]);
+
+  // Poll every 15 seconds so admin assignments/unlocks appear quickly
+  useEffect(() => {
+    const interval = setInterval(() => refreshData(true), 15_000);
+    return () => clearInterval(interval);
+  }, [refreshData]);
+
+  // Refetch immediately when student switches back to this tab
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refreshData(true);
+    };
+    const onFocus = () => refreshData(true);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [refreshData]);
 
   async function seedContent() {
     setSeeding(true);
