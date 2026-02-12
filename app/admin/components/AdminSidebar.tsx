@@ -63,6 +63,7 @@ export default function AdminSidebar({ role, userName, userEmail, userImage, isO
       { href: '/admin/learn/quiz-history', label: 'Quiz History', icon: '📊' },
       { href: '/admin/learn/fieldbook', label: 'My Fieldbook', icon: '📓' },
       { href: '/admin/learn/search', label: 'Search', icon: '🔎' },
+      { href: '/admin/learn/students', label: 'Student Progress', icon: '👨‍🎓', roles: ['admin', 'teacher'] },
       { href: '/admin/learn/manage', label: 'Manage Content', icon: '✏️', roles: ['admin', 'teacher'] },
     ]},
     { label: 'Work', items: [

@@ -45,6 +45,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/learn/exam-prep/rpls': 'RPLS Exam Prep',
   '/admin/learn/search': 'Search',
   '/admin/learn/quiz-history': 'Quiz History',
+  '/admin/learn/students': 'Student Progress',
   '/admin/learn/manage': 'Manage Content',
   '/admin/learn/manage/question-builder': 'Question Builder',
   '/admin/learn/manage/media': 'Media Library',
@@ -93,6 +94,7 @@ function getTitle(p: string): string {
   if (p.includes('/learn/articles/')) return 'Article';
   if (p.includes('/learn/knowledge-base/')) return 'Article';
   if (p.includes('/learn/flashcards/')) return 'Study Deck';
+  if (p.includes('/learn/students/')) return 'Student Detail';
   if (p.startsWith('/admin/messages/') && !PAGE_TITLES[p]) return 'Conversation';
   if (p.startsWith('/admin/jobs/') && !PAGE_TITLES[p]) return 'Job Detail';
   if (p.startsWith('/admin/payroll/') && !PAGE_TITLES[p]) return 'Employee Pay Detail';

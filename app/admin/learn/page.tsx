@@ -127,6 +127,17 @@ export default function LearnHubPage() {
         </Link>
 
         {(role === 'admin' || role === 'teacher') && (
+          <Link href="/admin/learn/students" className="admin-learn__section-card" style={{ borderColor: '#1D3095' }}>
+            <span className="admin-learn__section-icon">👨‍🎓</span>
+            <h3 className="admin-learn__section-title">Student Progress</h3>
+            <p className="admin-learn__section-desc">
+              View student learning activity, quiz scores, module completions, and XP.
+            </p>
+            <span className="admin-learn__section-arrow" style={{ color: '#1D3095' }}>View Students →</span>
+          </Link>
+        )}
+
+        {(role === 'admin' || role === 'teacher') && (
           <Link href="/admin/learn/manage" className="admin-learn__section-card" style={{ borderColor: '#BD1218' }}>
             <span className="admin-learn__section-icon">✏️</span>
             <h3 className="admin-learn__section-title">Manage Content</h3>
