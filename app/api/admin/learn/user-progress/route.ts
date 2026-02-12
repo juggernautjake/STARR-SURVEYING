@@ -39,11 +39,6 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const assignments = assignmentsRes.data || [];
     const progressMap = new Map<string, any>(progress.map((p: any) => [p.lesson_id, p]));
     const assignmentMap = new Map<string, any>(assignments.filter((a: any) => a.lesson_id).map((a: any) => [a.lesson_id, a]));
-    // Module-level assignment means admin has granted access to the module
-    // If per-lesson assignments also exist, unlock ALL lessons; otherwise keep sequential lesson order
-    const hasModuleLevelAssignment = assignments.some((a: any) => !a.lesson_id);
-    const hasLessonAssignments = assignments.some((a: any) => a.lesson_id);
-    const hasModuleOverride = hasModuleLevelAssignment && hasLessonAssignments;
 
     // Build per-lesson quiz stats
     const lessonQuizMap = new Map<string, { attempts: number; totalScore: number }>();
@@ -70,10 +65,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       const interactions: Record<string, boolean> = lp?.content_interactions || {};
       const completedInteractions = Object.keys(interactions).filter(k => interactions[k] === true).length;
 
-      // Locking logic (module-level override bypasses all lesson locks)
+      // Locking logic: a lesson is unlocked if it has a per-lesson assignment,
+      // or if the previous lesson is completed (sequential unlock)
       let locked = false;
       let lockReason = '';
-      if (idx > 0 && !assignment && !hasModuleOverride) {
+      if (idx > 0 && !assignment) {
         if (!prevProgress || prevProgress.status !== 'completed') {
           locked = true;
           lockReason = `Complete "${prevLesson.title}" first`;

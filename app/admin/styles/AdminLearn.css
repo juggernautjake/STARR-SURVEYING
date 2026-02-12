@@ -1033,7 +1033,7 @@
 @media (max-width:640px) { .block-columns { grid-template-columns:1fr !important; } }
 
 /* === SMART SEARCH COMPONENT === */
-.smart-search { position:relative; z-index:100; }
+.smart-search { position:relative; z-index:10; }
 .smart-search__input-wrap { position:relative; }
 .smart-search__input { font-family:'Inter',sans-serif; }
 .smart-search__input--compact { padding:.55rem .85rem !important; font-size:.85rem !important; }
