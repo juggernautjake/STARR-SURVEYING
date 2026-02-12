@@ -268,7 +268,7 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
                     )}
                   </span>
                   <span className="job-files__item-meta">
-                    {typeLabel} {formatFileSize(file.file_size) && `\u00B7 ${formatFileSize(file.file_size)}`} &middot; {new Date(file.uploaded_at).toLocaleDateString()}
+                    {typeLabel} {formatFileSize(file.file_size) && `\u00B7 ${formatFileSize(file.file_size)}`} {'\u00B7'} {new Date(file.uploaded_at).toLocaleDateString()}
                   </span>
                   {file.description && (
                     <span className="job-files__item-desc">{file.description}</span>

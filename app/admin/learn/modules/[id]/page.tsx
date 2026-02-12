@@ -39,9 +39,11 @@ export default function ModuleDetailPage() {
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [publishStatuses, setPublishStatuses] = useState<Record<string, string>>({});
 
-  async function toggleLessonStatus(lessonId: string, currentStatus: string) {
-    const newStatus = currentStatus === 'published' ? 'draft' : 'published';
+  async function toggleLessonStatus(lessonId: string) {
+    const currentPublishStatus = publishStatuses[lessonId] || 'published';
+    const newStatus = currentPublishStatus === 'published' ? 'draft' : 'published';
     try {
       const res = await fetch('/api/admin/learn/lessons', {
         method: 'PUT',
@@ -49,7 +51,7 @@ export default function ModuleDetailPage() {
         body: JSON.stringify({ id: lessonId, status: newStatus }),
       });
       if (res.ok) {
-        setLessons(prev => prev.map(l => l.id === lessonId ? { ...l, status: newStatus === 'draft' ? 'not_started' : l.status } : l));
+        setPublishStatuses(prev => ({ ...prev, [lessonId]: newStatus }));
       }
     } catch (err) { console.error('Failed to toggle lesson status', err); }
   }
@@ -68,9 +70,16 @@ export default function ModuleDetailPage() {
     Promise.all([
       fetch(`/api/admin/learn/modules?id=${moduleId}`).then(r => r.json()),
       fetch(`/api/admin/learn/user-progress?module_id=${moduleId}`).then(r => r.json()),
-    ]).then(([modData, progressData]) => {
+      fetch(`/api/admin/learn/lessons?module_id=${moduleId}`).then(r => r.json()),
+    ]).then(([modData, progressData, lessonData]) => {
       setMod(modData.module || null);
       setLessons(progressData.lessons || []);
+      // Build publish status map from the raw lesson data (before user-progress overwrites status)
+      const statusMap: Record<string, string> = {};
+      (lessonData.lessons || lessonData || []).forEach((l: { id: string; status?: string }) => {
+        statusMap[l.id] = l.status || 'published';
+      });
+      setPublishStatuses(statusMap);
     }).catch(err => console.error('Failed to load', err))
     .finally(() => setLoading(false));
   }, [moduleId]);
@@ -83,12 +92,18 @@ export default function ModuleDetailPage() {
       const data = await res.json();
       if (data.success) {
         setSeedMsg('Content seeded! Reloading...');
-        const [modData, progressData] = await Promise.all([
+        const [modData, progressData, lessonData] = await Promise.all([
           fetch(`/api/admin/learn/modules?id=${moduleId}`).then(r => r.json()),
           fetch(`/api/admin/learn/user-progress?module_id=${moduleId}`).then(r => r.json()),
+          fetch(`/api/admin/learn/lessons?module_id=${moduleId}`).then(r => r.json()),
         ]);
         setMod(modData.module || null);
         setLessons(progressData.lessons || []);
+        const statusMap: Record<string, string> = {};
+        (lessonData.lessons || lessonData || []).forEach((l: { id: string; status?: string }) => {
+          statusMap[l.id] = l.status || 'published';
+        });
+        setPublishStatuses(statusMap);
         setSeedMsg('');
       } else {
         setSeedMsg(data.error || 'Failed to seed content');
@@ -164,8 +179,8 @@ export default function ModuleDetailPage() {
                 </div>
                 <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center', flexShrink: 0 }}>
                   <Link href={`/admin/learn/manage/lesson-builder/${lesson.id}`} className="admin-btn admin-btn--primary admin-btn--sm">Edit</Link>
-                  <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => toggleLessonStatus(lesson.id, lesson.status === 'not_started' ? 'published' : lesson.status === 'completed' ? 'published' : 'published')}>
-                    Unpublish
+                  <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => toggleLessonStatus(lesson.id)}>
+                    {(publishStatuses[lesson.id] || 'published') === 'published' ? 'Unpublish' : 'Publish'}
                   </button>
                   {deleteConfirm === lesson.id ? (
                     <div style={{ display: 'flex', gap: '.25rem', alignItems: 'center' }}>

@@ -24,9 +24,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   // If module_id provided: return lesson-level progress for that module
   if (moduleId) {
+    // Non-admin users only see published lessons
+    let lessonsQuery = supabaseAdmin.from('learning_lessons').select('id, title, order_index, estimated_minutes, resources, videos, status')
+      .eq('module_id', moduleId);
+    if (!isAdmin(userEmail)) {
+      lessonsQuery = lessonsQuery.eq('status', 'published');
+    }
     const [lessonsRes, progressRes, assignmentsRes, lessonQuizRes] = await Promise.all([
-      supabaseAdmin.from('learning_lessons').select('id, title, order_index, estimated_minutes, resources, videos, status')
-        .eq('module_id', moduleId).order('order_index'),
+      lessonsQuery.order('order_index'),
       supabaseAdmin.from('user_lesson_progress').select('*').eq('user_email', email).eq('module_id', moduleId),
       supabaseAdmin.from('learning_assignments').select('*').eq('assigned_to', email)
         .eq('module_id', moduleId).neq('status', 'cancelled'),
@@ -99,10 +104,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Otherwise: return all modules with status for the user
+  // Non-admin users only see published lessons in lesson counts
+  let lessonCountQuery = supabaseAdmin.from('learning_lessons').select('id, module_id');
+  if (!isAdmin(userEmail)) {
+    lessonCountQuery = lessonCountQuery.eq('status', 'published');
+  }
   const [modulesRes, completionsRes, lessonCountRes, lessonProgressRes, assignmentsRes, enrollmentsRes, quizAttemptsRes] = await Promise.all([
     supabaseAdmin.from('learning_modules').select('*').eq('status', 'published').order('order_index'),
     supabaseAdmin.from('module_completions').select('*').eq('user_email', email).eq('module_type', 'learning_module'),
-    supabaseAdmin.from('learning_lessons').select('id, module_id'),
+    lessonCountQuery,
     supabaseAdmin.from('user_lesson_progress').select('lesson_id, module_id, status').eq('user_email', email),
     supabaseAdmin.from('learning_assignments').select('*').eq('assigned_to', email).neq('status', 'cancelled'),
     supabaseAdmin.from('acc_course_enrollments').select('course_id').eq('user_email', email),

@@ -8,15 +8,22 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userIsAdmin = isAdmin(session.user.email);
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
 
   if (id) {
     const { data: mod } = await supabaseAdmin.from('learning_modules').select('*').eq('id', id).single();
-    const { data: lessons } = await supabaseAdmin.from('learning_lessons')
+    // Non-admin users cannot access draft modules
+    if (!userIsAdmin && mod?.status === 'draft') {
+      return NextResponse.json({ error: 'Module not found' }, { status: 404 });
+    }
+    let lessonsQuery = supabaseAdmin.from('learning_lessons')
       .select('id, title, order_index, estimated_minutes, status, tags')
-      .eq('module_id', id).order('order_index');
+      .eq('module_id', id);
+    if (!userIsAdmin) lessonsQuery = lessonsQuery.eq('status', 'published');
+    const { data: lessons } = await lessonsQuery.order('order_index');
     const { data: questionCount } = await supabaseAdmin.from('question_bank')
       .select('id', { count: 'exact' }).eq('module_id', id).is('lesson_id', null);
     return NextResponse.json({
@@ -26,8 +33,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     });
   }
 
-  const { data: modules } = await supabaseAdmin.from('learning_modules')
-    .select('*').order('order_index');
+  // Non-admin users only see published modules
+  let modulesQuery = supabaseAdmin.from('learning_modules').select('*');
+  if (!userIsAdmin) modulesQuery = modulesQuery.eq('status', 'published');
+  const { data: modules } = await modulesQuery.order('order_index');
 
   // Get lesson counts and XP config
   const { data: xpConfigs } = await supabaseAdmin.from('module_xp_config')
@@ -42,8 +51,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   });
 
   const modulesWithCounts = await Promise.all((modules || []).map(async (m: any) => {
-    const { data } = await supabaseAdmin.from('learning_lessons')
+    let countQuery = supabaseAdmin.from('learning_lessons')
       .select('id', { count: 'exact' }).eq('module_id', m.id);
+    if (!userIsAdmin) countQuery = countQuery.eq('status', 'published');
+    const { data } = await countQuery;
     const xpConfig = xpMap.get(m.id) || defaultXP;
     return { ...m, lesson_count: data?.length || 0, xp_value: xpConfig.xp_value, expiry_months: xpConfig.expiry_months };
   }));

@@ -8,6 +8,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userIsAdmin = isAdmin(session.user.email);
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
@@ -15,6 +16,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   if (id) {
     const { data: lesson } = await supabaseAdmin.from('learning_lessons').select('*').eq('id', id).single();
+    // Non-admin users cannot access draft lessons
+    if (!userIsAdmin && lesson?.status === 'draft') {
+      return NextResponse.json({ error: 'Lesson not found' }, { status: 404 });
+    }
     const { data: topics } = await supabaseAdmin.from('learning_topics')
       .select('*').eq('lesson_id', id).order('order_index');
     const { data: questionCount } = await supabaseAdmin.from('question_bank')
@@ -27,16 +32,19 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   if (moduleId) {
-    const { data } = await supabaseAdmin.from('learning_lessons')
-      .select('*').eq('module_id', moduleId).order('order_index');
+    let query = supabaseAdmin.from('learning_lessons')
+      .select('*').eq('module_id', moduleId);
+    if (!userIsAdmin) query = query.eq('status', 'published');
+    const { data } = await query.order('order_index');
     return NextResponse.json({ lessons: data || [] });
   }
 
   // Support fetching all lessons (for manage page)
   const all = searchParams.get('all');
   if (all) {
-    const { data } = await supabaseAdmin.from('learning_lessons')
-      .select('*').order('order_index');
+    let query = supabaseAdmin.from('learning_lessons').select('*');
+    if (!userIsAdmin) query = query.eq('status', 'published');
+    const { data } = await query.order('order_index');
     return NextResponse.json({ lessons: data || [] });
   }
 

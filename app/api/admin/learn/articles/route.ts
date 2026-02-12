@@ -8,6 +8,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userIsAdmin = isAdmin(session.user.email);
 
   const { searchParams } = new URL(req.url);
   const slug = searchParams.get('slug');
@@ -22,6 +23,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     else if (id) query = query.eq('id', id);
     const { data } = await query.maybeSingle();
     if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    // Non-admin users cannot access draft articles
+    if (!userIsAdmin && data.status === 'draft') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
 
     const { data: completion } = await supabaseAdmin.from('user_article_completions')
       .select('completed_at')
@@ -77,11 +82,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     });
   }
 
-  // All articles — optionally filtered by module
+  // All articles — optionally filtered by module; non-admins see published only
   let query = supabaseAdmin.from('kb_articles')
     .select('id, title, slug, category, tags, excerpt, author, subtitle, estimated_minutes, status, module_id, lesson_id, created_at')
     .order('created_at', { ascending: false });
   if (moduleId) query = query.eq('module_id', moduleId);
+  if (!userIsAdmin) query = query.eq('status', 'published');
   const { data } = await query;
   return NextResponse.json({ articles: data || [] });
 }, { routeName: 'learn/articles' });
