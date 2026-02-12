@@ -2,6 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import SmartSearch from '../components/SmartSearch';
 
 interface EnrichedModule {
@@ -289,13 +290,7 @@ function ModuleCard({ mod }: { mod: EnrichedModule }) {
         </div>
       )}
 
-      {/* Cursor-following lock tooltip */}
-      {isLocked && showTooltip && (
-        <div className="lock-tooltip" style={{ left: tipPos.x, top: tipPos.y }}>
-          <span className="lock-tooltip__icon">&#x1F512;</span>
-          <span className="lock-tooltip__text">{mod.lock_reason}</span>
-        </div>
-      )}
+      {/* tooltip rendered via portal below */}
 
       <div className="modules__card-header">
         <div className="modules__card-order">{mod.order_index}</div>
@@ -345,11 +340,24 @@ function ModuleCard({ mod }: { mod: EnrichedModule }) {
     </div>
   );
 
-  if (isLocked) return inner;
+  const tooltip = isLocked && showTooltip && typeof document !== 'undefined'
+    ? createPortal(
+        <div className="lock-tooltip" style={{ left: tipPos.x, top: tipPos.y }}>
+          <span className="lock-tooltip__icon">&#x1F512;</span>
+          <span className="lock-tooltip__text">{mod.lock_reason}</span>
+        </div>,
+        document.body,
+      )
+    : null;
+
+  if (isLocked) return <>{inner}{tooltip}</>;
 
   return (
-    <Link href={`/admin/learn/modules/${mod.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-      {inner}
-    </Link>
+    <>
+      <Link href={`/admin/learn/modules/${mod.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+        {inner}
+      </Link>
+      {tooltip}
+    </>
   );
 }

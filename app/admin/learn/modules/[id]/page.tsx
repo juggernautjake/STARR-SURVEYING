@@ -2,6 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import SmartSearch from '../../components/SmartSearch';
@@ -347,21 +348,27 @@ function LessonRow({ lesson, moduleId }: { lesson: EnrichedLesson; moduleId: str
         {!isLocked && <span className="lesson-item__arrow">&rarr;</span>}
       </div>
 
-      {/* Cursor-following lock tooltip */}
-      {isLocked && showTip && (
-        <div className="lock-tooltip" style={{ left: tipPos.x, top: tipPos.y }}>
-          <span className="lock-tooltip__icon">&#x1F512;</span>
-          <span className="lock-tooltip__text">{lesson.lock_reason}</span>
-        </div>
-      )}
     </div>
   );
 
-  if (isLocked) return content;
+  const tooltip = isLocked && showTip && typeof document !== 'undefined'
+    ? createPortal(
+        <div className="lock-tooltip" style={{ left: tipPos.x, top: tipPos.y }}>
+          <span className="lock-tooltip__icon">&#x1F512;</span>
+          <span className="lock-tooltip__text">{lesson.lock_reason}</span>
+        </div>,
+        document.body,
+      )
+    : null;
+
+  if (isLocked) return <>{content}{tooltip}</>;
 
   return (
-    <Link href={`/admin/learn/modules/${moduleId}/${lesson.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-      {content}
-    </Link>
+    <>
+      <Link href={`/admin/learn/modules/${moduleId}/${lesson.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+        {content}
+      </Link>
+      {tooltip}
+    </>
   );
 }
