@@ -148,7 +148,14 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
     return section.items.some((i) => isActive(i.href));
   };
 
-  const getInitials = (name: string) => name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+  const getInitials = (name: string) => {
+    // Filter to words starting with a letter (skip parenthetical nicknames, numbers, etc.)
+    const words = name.split(/\s+/).filter(w => /^[a-zA-Z]/.test(w));
+    if (words.length === 0) return '?';
+    if (words.length === 1) return words[0][0].toUpperCase();
+    // Use first letter of first word + first letter of last word (skip middle names)
+    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  };
 
   return (
     <>

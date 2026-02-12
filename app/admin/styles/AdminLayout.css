@@ -66,7 +66,7 @@
 }
 
 /* === TOP BAR === */
-.admin-topbar { position:fixed; top:0; left:260px; right:0; height:64px; background:#FFF; border-bottom:2px solid #E5E7EB; display:flex; align-items:center; justify-content:space-between; padding:0 2rem; z-index:40; transition:left .3s; }
+.admin-topbar { position:fixed; top:0; left:260px; right:0; height:64px; background:#FFF; border-bottom:2px solid #E5E7EB; display:flex; align-items:center; justify-content:space-between; padding:0 2rem; z-index:200; transition:left .3s; }
 .admin-topbar__left { display:flex; align-items:center; gap:1rem; }
 .admin-topbar__hamburger { display:none; align-items:center; justify-content:center; width:36px; height:36px; background:none; border:2px solid #E5E7EB; border-radius:6px; color:#4B5563; font-size:1.25rem; cursor:pointer; }
 .admin-topbar__hamburger:hover { border-color:#1D3095; color:#1D3095; }
