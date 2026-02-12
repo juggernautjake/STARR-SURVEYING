@@ -83,11 +83,23 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ enrollment: data });
   }
 
-  // Enroll user in a module (simple unlock, no due date)
+  // Enroll user in a module (unified enrollment)
   if (action === 'enroll_module') {
-    const { user_email, module_id: enrollModuleId, unlock_all_lessons } = body;
+    const { user_email, module_id: enrollModuleId, lesson_mode, selected_lessons, due_date } = body;
     if (!user_email || !enrollModuleId) return NextResponse.json({ error: 'user_email and module_id required' }, { status: 400 });
     const normalizedEmail = user_email.trim().toLowerCase();
+    // lesson_mode: 'all' | 'specific' | 'first' (default: 'first')
+    const mode = lesson_mode || 'first';
+
+    // Look up module info (title + ACC course data)
+    const { data: modInfo } = await supabaseAdmin.from('learning_modules')
+      .select('title, is_academic, acc_course_id').eq('id', enrollModuleId).single();
+    const mod = modInfo as any;
+    const moduleTitle = mod?.title || 'a module';
+
+    // Build notes describing the enrollment mode
+    const modeLabels: Record<string, string> = { all: 'all lessons open', specific: 'specific lessons', first: 'sequential (first lesson)' };
+    const enrollNotes = `Enrolled: ${modeLabels[mode] || mode}${due_date ? ` | Due: ${due_date}` : ''}`;
 
     // Create module-level assignment (unlocks the module)
     const { data: assignData, error: assignErr } = await supabaseAdmin.from('learning_assignments')
@@ -98,13 +110,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         lesson_id: null,
         unlock_next: false,
         status: 'in_progress',
-        notes: unlock_all_lessons ? 'Enrolled: all lessons open' : 'Enrolled: sequential',
+        due_date: due_date || null,
+        notes: enrollNotes,
       })
       .select().single();
     if (assignErr) return NextResponse.json({ error: assignErr.message }, { status: 500 });
 
-    // If unlock_all_lessons, also create per-lesson assignments so all lessons are immediately available
-    if (unlock_all_lessons) {
+    // Create per-lesson assignments based on mode
+    if (mode === 'all') {
+      // Unlock ALL published lessons
       const { data: moduleLessons } = await supabaseAdmin.from('learning_lessons')
         .select('id').eq('module_id', enrollModuleId).eq('status', 'published');
       if (moduleLessons && moduleLessons.length > 0) {
@@ -114,16 +128,33 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
           module_id: enrollModuleId,
           lesson_id: l.id,
           status: 'in_progress',
+          due_date: due_date || null,
           notes: 'Enrolled: lesson unlock',
         }));
         await supabaseAdmin.from('learning_assignments').insert(lessonRows);
       }
+    } else if (mode === 'specific' && Array.isArray(selected_lessons) && selected_lessons.length > 0) {
+      // Unlock only selected lessons
+      const lessonRows = selected_lessons.map((lessonId: string) => ({
+        assigned_to: normalizedEmail,
+        assigned_by: session.user.email,
+        module_id: enrollModuleId,
+        lesson_id: lessonId,
+        status: 'in_progress',
+        due_date: due_date || null,
+        notes: 'Enrolled: specific lesson',
+      }));
+      await supabaseAdmin.from('learning_assignments').insert(lessonRows);
     }
+    // mode === 'first': no lesson-level assignments, sequential unlock via hasModuleOverride logic
 
-    // Look up module title for notification
-    const { data: modInfo } = await supabaseAdmin.from('learning_modules')
-      .select('title').eq('id', enrollModuleId).single();
-    const moduleTitle = (modInfo as any)?.title || 'a module';
+    // If the module is academic and has an ACC course, also enroll in the ACC course
+    if (mod?.is_academic && mod?.acc_course_id) {
+      await supabaseAdmin.from('acc_course_enrollments')
+        .upsert({ user_email: normalizedEmail, course_id: mod.acc_course_id, enrolled_by: session.user.email },
+          { onConflict: 'user_email,course_id' });
+      try { await notifyACCEnrollment(normalizedEmail, mod.acc_course_id); } catch { /* ignore */ }
+    }
 
     // Notify the student
     try { await notifyLearningAssignment(normalizedEmail, moduleTitle, enrollModuleId); } catch { /* ignore */ }
@@ -135,7 +166,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         action_type: 'module_enrollment',
         entity_type: 'module',
         entity_id: enrollModuleId,
-        metadata: { enrolled_user: normalizedEmail, unlock_all_lessons },
+        metadata: { enrolled_user: normalizedEmail, lesson_mode: mode, due_date: due_date || null },
       });
     } catch { /* ignore */ }
 
