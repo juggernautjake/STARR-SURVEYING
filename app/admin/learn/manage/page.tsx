@@ -418,18 +418,21 @@ export default function ManageContentPage() {
 
   // Assignment actions
   async function handleCreateAssignment() {
-    if (!assignForm.assigned_to) { alert('Please enter a user email.'); return; }
-    if (!assignForm.module_id && !assignForm.lesson_id) { alert('Select a module or lesson.'); return; }
+    if (!assignForm.assigned_to) { addToast('Please enter a user email.', 'warning'); return; }
+    if (!assignForm.module_id && !assignForm.lesson_id) { addToast('Select a module or lesson.', 'warning'); return; }
     setSaving(true);
     const result = await safeFetch('/api/admin/learn/assignments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(assignForm),
+      body: JSON.stringify({ ...assignForm, status: 'in_progress' }),
     });
     if (result) {
       setAssignForm({});
       setShowForm(false);
+      addToast('Assignment created successfully!', 'success');
       loadData();
+    } else {
+      addToast('Failed to create assignment. Check the email and try again.', 'error');
     }
     setSaving(false);
   }
@@ -451,14 +454,19 @@ export default function ManageContentPage() {
 
   // ACC enrollment
   async function handleEnrollACC() {
-    if (!assignForm.acc_email || !assignForm.acc_course) { alert('Enter email and select course.'); return; }
+    if (!assignForm.acc_email || !assignForm.acc_course) { addToast('Enter email and select course.', 'warning'); return; }
     setSaving(true);
-    await safeFetch('/api/admin/learn/assignments', {
+    const result = await safeFetch('/api/admin/learn/assignments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'enroll_acc', user_email: assignForm.acc_email, course_id: assignForm.acc_course }),
     });
-    setAssignForm(prev => ({ ...prev, acc_email: '', acc_course: '' }));
+    if (result) {
+      addToast(`Enrolled ${assignForm.acc_email} in ${assignForm.acc_course.replace('_', ' ')}!`, 'success');
+      setAssignForm(prev => ({ ...prev, acc_email: '', acc_course: '' }));
+    } else {
+      addToast('Failed to enroll user. Check the email and try again.', 'error');
+    }
     setSaving(false);
   }
 
