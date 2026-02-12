@@ -5,6 +5,7 @@ import { auth, isAdmin, canManageContent } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notifyLearningAssignment, notifyACCEnrollment } from '@/lib/notifications';
 
 /* ── GET: List assignments ── */
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -69,12 +70,76 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (action === 'enroll_acc') {
     const { user_email, course_id } = body;
     if (!user_email || !course_id) return NextResponse.json({ error: 'user_email and course_id required' }, { status: 400 });
+    const normalizedEmail = user_email.trim().toLowerCase();
 
     const { data, error } = await supabaseAdmin.from('acc_course_enrollments')
-      .upsert({ user_email, course_id, enrolled_by: session.user.email }, { onConflict: 'user_email,course_id' })
+      .upsert({ user_email: normalizedEmail, course_id, enrolled_by: session.user.email }, { onConflict: 'user_email,course_id' })
       .select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Notify the student
+    try { await notifyACCEnrollment(normalizedEmail, course_id); } catch { /* ignore */ }
+
     return NextResponse.json({ enrollment: data });
+  }
+
+  // Enroll user in a module (simple unlock, no due date)
+  if (action === 'enroll_module') {
+    const { user_email, module_id: enrollModuleId, unlock_all_lessons } = body;
+    if (!user_email || !enrollModuleId) return NextResponse.json({ error: 'user_email and module_id required' }, { status: 400 });
+    const normalizedEmail = user_email.trim().toLowerCase();
+
+    // Create module-level assignment (unlocks the module)
+    const { data: assignData, error: assignErr } = await supabaseAdmin.from('learning_assignments')
+      .insert({
+        assigned_to: normalizedEmail,
+        assigned_by: session.user.email,
+        module_id: enrollModuleId,
+        lesson_id: null,
+        unlock_next: false,
+        status: 'in_progress',
+        notes: unlock_all_lessons ? 'Enrolled: all lessons open' : 'Enrolled: sequential',
+      })
+      .select().single();
+    if (assignErr) return NextResponse.json({ error: assignErr.message }, { status: 500 });
+
+    // If unlock_all_lessons, also create per-lesson assignments so all lessons are immediately available
+    if (unlock_all_lessons) {
+      const { data: moduleLessons } = await supabaseAdmin.from('learning_lessons')
+        .select('id').eq('module_id', enrollModuleId).eq('status', 'published');
+      if (moduleLessons && moduleLessons.length > 0) {
+        const lessonRows = moduleLessons.map((l: any) => ({
+          assigned_to: normalizedEmail,
+          assigned_by: session.user.email,
+          module_id: enrollModuleId,
+          lesson_id: l.id,
+          status: 'in_progress',
+          notes: 'Enrolled: lesson unlock',
+        }));
+        await supabaseAdmin.from('learning_assignments').insert(lessonRows);
+      }
+    }
+
+    // Look up module title for notification
+    const { data: modInfo } = await supabaseAdmin.from('learning_modules')
+      .select('title').eq('id', enrollModuleId).single();
+    const moduleTitle = (modInfo as any)?.title || 'a module';
+
+    // Notify the student
+    try { await notifyLearningAssignment(normalizedEmail, moduleTitle, enrollModuleId); } catch { /* ignore */ }
+
+    // Log activity
+    try {
+      await supabaseAdmin.from('activity_log').insert({
+        user_email: session.user.email,
+        action_type: 'module_enrollment',
+        entity_type: 'module',
+        entity_id: enrollModuleId,
+        metadata: { enrolled_user: normalizedEmail, unlock_all_lessons },
+      });
+    } catch { /* ignore */ }
+
+    return NextResponse.json({ enrollment: assignData });
   }
 
   // Remove ACC enrollment
@@ -96,13 +161,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Create learning assignment
-  const { assigned_to, module_id, lesson_id, unlock_next, due_date, notes, status: assignStatus } = body;
+  const { assigned_to, module_id, lesson_id, unlock_next, due_date, notes, status: assignStatus, unlock_all_lessons } = body;
   if (!assigned_to) return NextResponse.json({ error: 'assigned_to required' }, { status: 400 });
   if (!module_id && !lesson_id) return NextResponse.json({ error: 'module_id or lesson_id required' }, { status: 400 });
+  const normalizedAssignTo = assigned_to.trim().toLowerCase();
 
   const { data, error } = await supabaseAdmin.from('learning_assignments')
     .insert({
-      assigned_to,
+      assigned_to: normalizedAssignTo,
       assigned_by: session.user.email,
       module_id: module_id || null,
       lesson_id: lesson_id || null,
@@ -115,6 +181,37 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // If unlock_all_lessons, also create per-lesson assignments
+  if (unlock_all_lessons && module_id && !lesson_id) {
+    const { data: moduleLessons } = await supabaseAdmin.from('learning_lessons')
+      .select('id').eq('module_id', module_id).eq('status', 'published');
+    if (moduleLessons && moduleLessons.length > 0) {
+      const lessonRows = moduleLessons.map((l: any) => ({
+        assigned_to: normalizedAssignTo,
+        assigned_by: session.user.email,
+        module_id,
+        lesson_id: l.id,
+        status: 'in_progress',
+        notes: 'Assignment: lesson unlock',
+      }));
+      await supabaseAdmin.from('learning_assignments').insert(lessonRows);
+    }
+  }
+
+  // Notify the student
+  try {
+    const { data: modInfo } = await supabaseAdmin.from('learning_modules')
+      .select('title').eq('id', module_id).single();
+    const moduleTitle = (modInfo as any)?.title || 'a module';
+    let lessonTitle: string | null = null;
+    if (lesson_id) {
+      const { data: lesInfo } = await supabaseAdmin.from('learning_lessons')
+        .select('title').eq('id', lesson_id).single();
+      lessonTitle = (lesInfo as any)?.title || null;
+    }
+    await notifyLearningAssignment(normalizedAssignTo, moduleTitle, module_id || '', lessonTitle, session.user.email);
+  } catch { /* ignore */ }
+
   // Log activity
   try {
     await supabaseAdmin.from('activity_log').insert({
@@ -122,7 +219,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       action_type: 'assignment_created',
       entity_type: module_id ? 'module' : 'lesson',
       entity_id: module_id || lesson_id,
-      metadata: { assigned_to, unlock_next },
+      metadata: { assigned_to: normalizedAssignTo, unlock_next, unlock_all_lessons },
     });
   } catch { /* ignore */ }
 
