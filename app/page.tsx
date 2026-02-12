@@ -328,12 +328,12 @@ export default function HomePage(): React.ReactElement {
         </div>
       </section>
 
-      {/* Service Area Section - Single Map with 125-Mile Radius */}
+      {/* Service Area Section - Single Map with 150-Mile Radius */}
       <section className="home-area">
         <div className="home-area__container">
           <h2 className="home-area__title">Service Area</h2>
           <p className="home-area__subtitle">
-            We proudly serve clients within a 125-mile radius of our Belton headquarters.
+            We proudly serve clients within a 150-mile radius of our Belton headquarters.
           </p>
           <p className="home-area__address">
             📍 {OFFICE_ADDRESS}
@@ -346,7 +346,7 @@ export default function HomePage(): React.ReactElement {
               <span className="home-area__hq-icon">📍</span>
               <div className="home-area__hq-info">
                 <span className="home-area__hq-title">Belton, TX (HQ)</span>
-                <span className="home-area__hq-radius">125-mile service radius</span>
+                <span className="home-area__hq-radius">150-mile service radius</span>
               </div>
             </div>
             
@@ -371,7 +371,7 @@ export default function HomePage(): React.ReactElement {
           <div className="home-area__cta">
             <h3 className="home-area__cta-title">Not sure if we service your location?</h3>
             <p className="home-area__cta-text">
-              Contact us today! We serve Bell, Williamson, Coryell, Falls, McLennan, Travis, Madison, Walker counties and beyond.
+              Contact us today! We serve Bell, Williamson, Coryell, Falls, McLennan, Travis, Madison, Walker, Montgomery counties and beyond.
             </p>
             <div className="home-area__cta-buttons">
               <Link href="/service-area" className="home-area__cta-btn home-area__cta-btn--primary">

@@ -26,10 +26,12 @@ interface CoverageCard {
 }
 
 export default function ServiceAreaPage(): React.ReactElement {
-  // Counties within ~125 mile radius of Belton (ALPHABETICALLY SORTED)
+  // Counties within ~150 mile radius of Belton (ALPHABETICALLY SORTED)
   const counties: string[] = [
+    'Austin County',
     'Bastrop County',
     'Bell County',
+    'Bexar County',
     'Bosque County',
     'Brazos County',
     'Brown County',
@@ -38,14 +40,18 @@ export default function ServiceAreaPage(): React.ReactElement {
     'Comanche County',
     'Comal County',
     'Coryell County',
+    'Dallas County',
+    'Denton County',
     'Ellis County',
     'Erath County',
     'Falls County',
     'Fayette County',
+    'Fort Bend County',
     'Freestone County',
     'Grimes County',
     'Guadalupe County',
     'Hamilton County',
+    'Harris County',
     'Hays County',
     'Hill County',
     'Johnson County',
@@ -57,11 +63,16 @@ export default function ServiceAreaPage(): React.ReactElement {
     'McLennan County',
     'Milam County',
     'Mills County',
+    'Montgomery County',
     'Navarro County',
     'Robertson County',
+    'San Jacinto County',
     'San Saba County',
+    'Tarrant County',
     'Travis County',
+    'Trinity County',
     'Walker County',
+    'Waller County',
     'Williamson County',
   ];
 
@@ -88,7 +99,7 @@ export default function ServiceAreaPage(): React.ReactElement {
               <span className="service-area-hero__title-accent">Service Area</span>
             </h1>
             <p className="service-area-hero__subtitle">
-              Professional land surveying throughout Central Texas and beyond. We proudly serve clients within a 125-mile radius of our headquarters.
+              Professional land surveying throughout Central Texas and beyond. We proudly serve clients within a 150-mile radius of our headquarters.
             </p>
           </div>
         </div>
@@ -103,7 +114,7 @@ export default function ServiceAreaPage(): React.ReactElement {
             <p className="service-area-map__hq-location">Belton, Texas</p>
             <address className="service-area-map__hq-address">{OFFICE_ADDRESS}</address>
             <div className="service-area-map__hq-radius">
-              <span className="service-area-map__hq-radius-number">125</span>
+              <span className="service-area-map__hq-radius-number">150</span>
               <span className="service-area-map__hq-radius-unit">mile service radius</span>
             </div>
           </div>

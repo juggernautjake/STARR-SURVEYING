@@ -475,7 +475,7 @@ export default function ContactPage(): React.ReactElement {
               <h3 className="contact-area__title">Our Service Area</h3>
               <p className="contact-area__text">
                 We serve Bell County, Williamson County, Coryell County, Falls County, McLennan County, 
-                Travis County, and surrounding Central Texas areas within a 175-mile radius of Belton.
+                Travis County, and surrounding Central Texas areas within a 150-mile radius of Belton.
               </p>
               <p className="contact-area__note">
                 Projects outside our primary service area? Contact us anyway — we&apos;re happy to discuss!
