@@ -8,6 +8,7 @@ import type { UserRole } from '@/lib/auth';
 
 interface AdminSidebarProps {
   role: UserRole;
+  roles: UserRole[];
   userName: string;
   userEmail: string;
   userImage?: string;
@@ -42,10 +43,15 @@ const BRAND_LABELS: Record<UserRole, string> = {
   employee: 'Learning Portal',
 };
 
-export default function AdminSidebar({ role, userName, userEmail, userImage, isOpen, onClose }: AdminSidebarProps) {
+export default function AdminSidebar({ role, roles, userName, userEmail, userImage, isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isCompanyUser = userEmail.toLowerCase().endsWith('@starr-surveying.com');
+
+  // Display label showing all roles
+  const roleDisplay = roles.filter(r => r !== 'employee').length > 0
+    ? roles.filter(r => r !== 'employee').map(r => ROLE_LABELS[r]).join(' + ')
+    : ROLE_LABELS.employee;
 
   const sections: NavSection[] = [
     { label: 'Main', items: [
@@ -83,6 +89,7 @@ export default function AdminSidebar({ role, userName, userEmail, userImage, isO
     ]},
     { label: 'People', items: [
       { href: '/admin/employees', label: 'Employees', icon: '👥', roles: ['admin'], internalOnly: true },
+      { href: '/admin/users', label: 'Manage Users', icon: '🔑', roles: ['admin'] },
       { href: '/admin/payroll', label: 'Payroll', icon: '💰', roles: ['admin'], internalOnly: true },
       { href: '/admin/my-pay', label: 'My Pay', icon: '💵', internalOnly: true },
       { href: '/admin/payout-log', label: 'Payout History', icon: '📒', internalOnly: true },
@@ -120,11 +127,12 @@ export default function AdminSidebar({ role, userName, userEmail, userImage, isO
     });
   };
 
-  /** Check if user's role and domain are allowed for this nav item */
+  /** Check if user's roles and domain are allowed for this nav item */
   const canAccess = (item: NavItem): boolean => {
     if (item.internalOnly && !isCompanyUser) return false;
     if (!item.roles) return true; // no restriction = everyone
-    return item.roles.includes(role);
+    // Check if any of the user's roles match any of the item's required roles
+    return item.roles.some(r => roles.includes(r));
   };
 
   const isActive = (href: string): boolean => {
@@ -197,7 +205,7 @@ export default function AdminSidebar({ role, userName, userEmail, userImage, isO
              <div className="admin-sidebar__avatar-placeholder">{getInitials(userName)}</div>}
             <div className="admin-sidebar__user-info">
               <div className="admin-sidebar__user-name">{userName}</div>
-              <div className="admin-sidebar__user-role">{ROLE_LABELS[role]}</div>
+              <div className="admin-sidebar__user-role">{roleDisplay}</div>
             </div>
           </div>
         </div>

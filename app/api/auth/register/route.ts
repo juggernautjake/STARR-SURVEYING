@@ -56,15 +56,16 @@ export async function POST(req: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create user
+    // Create user with roles array (default: employee)
     const { data: newUser, error: insertError } = await supabaseAdmin
       .from('registered_users')
       .insert({
         email: cleanEmail,
         password_hash: passwordHash,
         name: cleanName,
-        role: 'employee',
+        roles: ['employee'],
         is_approved: true,
+        is_banned: false,
       })
       .select('id, email, name')
       .single();
