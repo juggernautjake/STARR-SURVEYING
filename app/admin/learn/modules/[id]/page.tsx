@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import SmartSearch from '../../components/SmartSearch';
 
-const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
+// Use session role instead of hardcoded email list
 
 interface EnrichedLesson {
   id: string; title: string; order_index: number; estimated_minutes: number;
@@ -31,7 +31,8 @@ export default function ModuleDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { data: session } = useSession();
-  const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
+  const userRole = session?.user?.role || 'employee';
+  const canManage = userRole === 'admin' || userRole === 'teacher';
   const moduleId = params.id as string;
   const [mod, setMod] = useState<ModuleDetail | null>(null);
   const [lessons, setLessons] = useState<EnrichedLesson[]>([]);
@@ -167,7 +168,7 @@ export default function ModuleDetailPage() {
       </div>
 
       {/* Admin: Lesson Management Cards */}
-      {isAdmin && lessons.length > 0 && (
+      {canManage && lessons.length > 0 && (
         <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#FAFBFF', border: '1px solid #E5E7EB', borderRadius: '10px' }}>
           <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.92rem', fontWeight: 700, color: '#1D3095', marginBottom: '.75rem' }}>Manage Lessons</h3>
           <div style={{ display: 'grid', gap: '.5rem' }}>

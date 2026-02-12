@@ -7,7 +7,9 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import NotificationBell from './NotificationBell';
 
-interface AdminTopBarProps { title: string; role: 'admin' | 'employee'; onMenuToggle: () => void; }
+import type { UserRole } from '@/lib/auth';
+
+interface AdminTopBarProps { title: string; role: UserRole; onMenuToggle: () => void; }
 
 export default function AdminTopBar({ title, role, onMenuToggle }: AdminTopBarProps) {
   const { data: session } = useSession();

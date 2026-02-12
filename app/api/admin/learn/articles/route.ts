@@ -1,6 +1,5 @@
 // app/api/admin/learn/articles/route.ts
-import { auth } from '@/lib/auth';
-import { isAdmin } from '@/lib/auth';
+import { auth, isAdmin, canManageContent } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
@@ -8,7 +7,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userIsAdmin = isAdmin(session.user.email);
+  const userCanManage = canManageContent(session.user.email);
 
   const { searchParams } = new URL(req.url);
   const slug = searchParams.get('slug');
@@ -24,7 +23,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const { data } = await query.maybeSingle();
     if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     // Non-admin users cannot access draft articles
-    if (!userIsAdmin && data.status === 'draft') {
+    if (!userCanManage && data.status === 'draft') {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
@@ -87,15 +86,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .select('id, title, slug, category, tags, excerpt, author, subtitle, estimated_minutes, status, module_id, lesson_id, created_at')
     .order('created_at', { ascending: false });
   if (moduleId) query = query.eq('module_id', moduleId);
-  if (!userIsAdmin) query = query.eq('status', 'published');
+  if (!userCanManage) query = query.eq('status', 'published');
   const { data } = await query;
   return NextResponse.json({ articles: data || [] });
 }, { routeName: 'learn/articles' });
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!session?.user?.email || !canManageContent(session.user.email)) {
+    return NextResponse.json({ error: 'Content management access required' }, { status: 403 });
   }
   const body = await req.json();
   const { required_for_lesson_id, ...articleData } = body;
@@ -115,8 +114,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
 export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!session?.user?.email || !canManageContent(session.user.email)) {
+    return NextResponse.json({ error: 'Content management access required' }, { status: 403 });
   }
   const body = await req.json();
   const { id, ...updates } = body;

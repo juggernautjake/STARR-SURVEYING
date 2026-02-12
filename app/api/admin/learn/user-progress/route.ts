@@ -1,16 +1,9 @@
 // app/api/admin/learn/user-progress/route.ts
 // Comprehensive user progress: module statuses, lesson progress, content interactions, locking
-import { auth } from '@/lib/auth';
+import { auth, isAdmin, canManageContent } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-
-const ADMIN_EMAILS = [
-  'hankmaddux@starr-surveying.com',
-  'jacobmaddux@starr-surveying.com',
-  'info@starr-surveying.com',
-];
-function isAdmin(email: string) { return ADMIN_EMAILS.includes(email); }
 
 /* ── GET: Module/lesson progress with status calculation ── */
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -24,10 +17,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   // If module_id provided: return lesson-level progress for that module
   if (moduleId) {
-    // Non-admin users only see published lessons
+    // Only content managers (admin/teacher) can see draft lessons
     let lessonsQuery = supabaseAdmin.from('learning_lessons').select('id, title, order_index, estimated_minutes, resources, videos, status')
       .eq('module_id', moduleId);
-    if (!isAdmin(userEmail)) {
+    if (!canManageContent(userEmail)) {
       lessonsQuery = lessonsQuery.eq('status', 'published');
     }
     const [lessonsRes, progressRes, assignmentsRes, lessonQuizRes] = await Promise.all([
@@ -104,9 +97,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Otherwise: return all modules with status for the user
-  // Non-admin users only see published lessons in lesson counts
+  // Only content managers (admin/teacher) see draft lessons in counts
   let lessonCountQuery = supabaseAdmin.from('learning_lessons').select('id, module_id');
-  if (!isAdmin(userEmail)) {
+  if (!canManageContent(userEmail)) {
     lessonCountQuery = lessonCountQuery.eq('status', 'published');
   }
   const [modulesRes, completionsRes, lessonCountRes, lessonProgressRes, assignmentsRes, enrollmentsRes, quizAttemptsRes] = await Promise.all([
