@@ -1,5 +1,5 @@
 // app/api/admin/learn/flashcards/route.ts
-import { auth, isAdmin } from '@/lib/auth';
+import { auth, isAdmin, canManageContent } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
@@ -169,8 +169,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Term and definition are required' }, { status: 400 });
   }
 
-  // Admin can create builtin flashcards
-  if (requestedSource === 'builtin' && isAdmin(session.user.email)) {
+  // Admin/teacher can create builtin flashcards
+  if (requestedSource === 'builtin' && canManageContent(session.user.email)) {
     const { data, error } = await supabaseAdmin.from('flashcards').insert({
       term: term.trim(),
       definition: definition.trim(),
@@ -261,8 +261,8 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ success: true, next_review: nextReview.toISOString() });
   }
 
-  // Admin editing builtin flashcards
-  if (source === 'builtin' && isAdmin(session.user.email)) {
+  // Admin/teacher editing builtin flashcards
+  if (source === 'builtin' && canManageContent(session.user.email)) {
     const allowedFields = ['term', 'definition', 'hint_1', 'hint_2', 'hint_3', 'keywords', 'tags', 'module_id', 'lesson_id'];
     const cleanUpdates: Record<string, unknown> = {};
     for (const field of allowedFields) {

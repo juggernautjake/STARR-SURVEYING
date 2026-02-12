@@ -1,5 +1,5 @@
 // app/api/admin/messages/send/route.ts
-import { auth } from '@/lib/auth';
+import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
@@ -209,7 +209,3 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   return NextResponse.json({ success: true });
 }, { routeName: 'messages/send' });
 
-function isAdmin(email: string): boolean {
-  const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
-  return ADMIN_EMAILS.includes(email.toLowerCase());
-}

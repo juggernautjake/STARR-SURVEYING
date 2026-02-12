@@ -1,5 +1,5 @@
 // app/api/admin/learn/questions/route.ts
-import { auth, isAdmin } from '@/lib/auth';
+import { auth, isAdmin, canManageContent } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
@@ -69,8 +69,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!session?.user?.email || !canManageContent(session.user.email)) {
+    return NextResponse.json({ error: 'Content management access required' }, { status: 403 });
   }
 
   const body = await req.json();
@@ -123,8 +123,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
 export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!session?.user?.email || !canManageContent(session.user.email)) {
+    return NextResponse.json({ error: 'Content management access required' }, { status: 403 });
   }
 
   const body = await req.json();

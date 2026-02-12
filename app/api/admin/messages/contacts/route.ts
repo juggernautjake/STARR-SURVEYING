@@ -1,8 +1,15 @@
 // app/api/admin/messages/contacts/route.ts
-import { auth } from '@/lib/auth';
+import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+
+// Admin emails that should always appear in contact list
+const ALWAYS_SHOW_EMAILS = [
+  'hankmaddux@starr-surveying.com',
+  'jacobmaddux@starr-surveying.com',
+  'info@starr-surveying.com',
+];
 
 // GET: Get list of contacts (all employees in the domain)
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -18,14 +25,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const uniqueEmails: string[] = [...new Set<string>((knownUsers || []).map((u: { user_email: string }) => u.user_email))];
 
-  // Also check if we have admin emails that should always be available
-  const ADMIN_EMAILS = [
-    'hankmaddux@starr-surveying.com',
-    'jacobmaddux@starr-surveying.com',
-    'info@starr-surveying.com',
-  ];
-
-  const allEmails: string[] = [...new Set<string>([...uniqueEmails, ...ADMIN_EMAILS])].filter(
+  const allEmails: string[] = [...new Set<string>([...uniqueEmails, ...ALWAYS_SHOW_EMAILS])].filter(
     (email: string) => email !== session.user!.email
   );
 
@@ -41,7 +41,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return {
       email,
       name,
-      is_admin: ADMIN_EMAILS.includes(email),
+      is_admin: isAdmin(email),
     };
   });
 
