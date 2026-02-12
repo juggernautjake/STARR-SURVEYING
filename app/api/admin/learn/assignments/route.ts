@@ -293,9 +293,27 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
+  // Look up the assignment to check if it's module-level
+  const { data: assignmentRaw } = await supabaseAdmin.from('learning_assignments')
+    .select('*').eq('id', id).single();
+  const assignment = assignmentRaw as any;
+
+  if (!assignment) return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
+
+  // Cancel the assignment
   const { error } = await supabaseAdmin.from('learning_assignments')
     .update({ status: 'cancelled' }).eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // If this is a module-level assignment (no lesson_id), also cancel all related
+  // lesson-level assignments for the same user+module so re-enrollment starts fresh
+  if (assignment.module_id && !assignment.lesson_id) {
+    await supabaseAdmin.from('learning_assignments')
+      .update({ status: 'cancelled' })
+      .eq('assigned_to', assignment.assigned_to)
+      .eq('module_id', assignment.module_id)
+      .neq('status', 'cancelled');
+  }
 
   return NextResponse.json({ success: true });
 }, { routeName: 'learn/assignments' });
