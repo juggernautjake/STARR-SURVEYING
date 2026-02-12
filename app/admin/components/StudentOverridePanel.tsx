@@ -236,7 +236,7 @@ export default function StudentOverridePanel() {
                             onClick={() => { if (confirm(`Mark entire module "${mod.title}" as completed for ${overview.user_email}? This will complete all lessons and award XP.`)) doAction('mark_module_complete', { module_id: mod.id }, `Module "${mod.title}" marked complete`); }}
                             disabled={!!actionLoading}
                           >
-                            \u2705 Mark Module Complete
+                            {'\u2705'} Mark Module Complete
                           </button>
                         ) : (
                           <button
@@ -244,7 +244,7 @@ export default function StudentOverridePanel() {
                             onClick={() => { if (confirm(`Remove module completion for "${mod.title}"? The lesson progress will remain.`)) doAction('mark_module_incomplete', { module_id: mod.id }, `Module "${mod.title}" marked incomplete`); }}
                             disabled={!!actionLoading}
                           >
-                            \u21A9 Mark Incomplete
+                            {'\u21A9'} Mark Incomplete
                           </button>
                         )}
                         <button
@@ -295,12 +295,12 @@ export default function StudentOverridePanel() {
                                       </button>
                                     )}
                                     <button className="override-btn-sm override-btn-sm--green" onClick={() => doAction('mark_lesson_complete', { module_id: mod.id, lesson_id: lesson.id }, `"${lesson.title}" marked complete`)} disabled={!!actionLoading} title="Mark complete">
-                                      \u2705
+                                      {'\u2705'}
                                     </button>
                                   </>
                                 ) : (
                                   <button className="override-btn-sm override-btn-sm--yellow" onClick={() => doAction('mark_lesson_incomplete', { lesson_id: lesson.id }, `"${lesson.title}" marked incomplete`)} disabled={!!actionLoading} title="Mark incomplete">
-                                    \u21A9
+                                    {'\u21A9'}
                                   </button>
                                 )}
                                 <button className="override-btn-sm override-btn-sm--red" onClick={() => { if (confirm(`Reset all progress for "${lesson.title}"?`)) doAction('reset_lesson_progress', { lesson_id: lesson.id }, `"${lesson.title}" progress reset`); }} disabled={!!actionLoading} title="Reset progress">
@@ -321,7 +321,7 @@ export default function StudentOverridePanel() {
                                   />
                                   {gradeForm[gradeKey] && (
                                     <button className="override-btn-sm override-btn-sm--blue" onClick={() => handleManualGrade(mod.id, lesson.id)} disabled={!!actionLoading} title="Submit grade">
-                                      \u2714
+                                      {'\u2714'}
                                     </button>
                                   )}
                                 </div>

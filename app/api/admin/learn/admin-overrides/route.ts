@@ -1,17 +1,10 @@
 // app/api/admin/learn/admin-overrides/route.ts
 // Admin-only: comprehensive student override system for access, completion, and grades
-import { auth } from '@/lib/auth';
+import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { awardXP } from '@/lib/xp';
-
-const ADMIN_EMAILS = [
-  'hankmaddux@starr-surveying.com',
-  'jacobmaddux@starr-surveying.com',
-  'info@starr-surveying.com',
-];
-function isAdmin(email: string) { return ADMIN_EMAILS.includes(email); }
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();

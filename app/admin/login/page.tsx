@@ -2,25 +2,86 @@
 'use client';
 
 import { signIn } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import Link from 'next/link';
 import '../styles/AdminLogin.css';
 
 function LoginContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const error = searchParams.get('error');
+  const registered = searchParams.get('registered');
   const callbackUrl = searchParams.get('callbackUrl') || '/admin/dashboard';
-  const errorMessages: Record<string, string> = { AccessDenied: 'Access denied. Only @starr-surveying.com accounts are allowed.', OAuthCallback: 'Authentication error. Please try again.', Default: 'An error occurred. Please try again.' };
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const errorMessages: Record<string, string> = {
+    AccessDenied: 'Access denied. Only @starr-surveying.com accounts can use Google sign-in.',
+    OAuthCallback: 'Authentication error. Please try again.',
+    CredentialsSignin: 'Invalid email or password.',
+    Default: 'An error occurred. Please try again.',
+  };
   const errorMessage = error ? (errorMessages[error] || errorMessages.Default) : null;
+
+  async function handleCredentialsLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError('');
+
+    if (!email.trim() || !password) {
+      setFormError('Email and password are required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await signIn('credentials', {
+        email: email.trim(),
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setFormError('Invalid email or password');
+        setLoading(false);
+        return;
+      }
+
+      // Success — redirect
+      router.push(callbackUrl);
+    } catch {
+      setFormError('Network error. Please try again.');
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="admin-login">
       <div className="admin-login__card">
-        <img src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png" alt="Starr Surveying" className="admin-login__logo" />
+        <img
+          src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png"
+          alt="Starr Surveying"
+          className="admin-login__logo"
+        />
         <h1 className="admin-login__title">Starr Surveying</h1>
-        <p className="admin-login__subtitle">Sign in to access the admin panel</p>
+        <p className="admin-login__subtitle">Sign in to the Learning Hub</p>
+
         {errorMessage && <div className="admin-login__error">{errorMessage}</div>}
-        <button className="admin-login__google-btn" onClick={() => signIn('google', { callbackUrl })}>
+        {registered && (
+          <div className="admin-login__success">
+            Account created successfully! Sign in below.
+          </div>
+        )}
+        {formError && <div className="admin-login__error">{formError}</div>}
+
+        {/* Google Sign-In for company employees */}
+        <button
+          className="admin-login__google-btn"
+          onClick={() => signIn('google', { callbackUrl })}
+        >
           <svg className="admin-login__google-icon" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -29,14 +90,52 @@ function LoginContent() {
           </svg>
           Sign in with Google
         </button>
-        <div className="admin-login__divider"><span className="admin-login__divider-text">Authorized Access Only</span></div>
-        <p className="admin-login__notice">This panel is restricted to <strong>@starr-surveying.com</strong> Google Workspace accounts only.</p>
-        <a href="/" className="admin-login__back">← Back to starr-surveying.com</a>
+        <p className="admin-login__hint">For @starr-surveying.com employees</p>
+
+        <div className="admin-login__divider">
+          <span className="admin-login__divider-text">Or sign in with email</span>
+        </div>
+
+        {/* Email / Password Login */}
+        <form onSubmit={handleCredentialsLogin} className="admin-login__form">
+          <input
+            type="email"
+            className="admin-login__input"
+            placeholder="Email address"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+          />
+          <input
+            type="password"
+            className="admin-login__input"
+            placeholder="Password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+          />
+          <button type="submit" className="admin-login__submit" disabled={loading}>
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
+        </form>
+
+        <p className="admin-login__register-prompt">
+          Don&apos;t have an account?{' '}
+          <Link href="/register" className="admin-login__register-link">Create one</Link>
+        </p>
+
+        <a href="/" className="admin-login__back">&larr; Back to starr-surveying.com</a>
       </div>
     </div>
   );
 }
 
 export default function AdminLoginPage() {
-  return <Suspense fallback={<div className="admin-login"><div className="admin-login__card">Loading...</div></div>}><LoginContent /></Suspense>;
+  return (
+    <Suspense fallback={<div className="admin-login"><div className="admin-login__card">Loading...</div></div>}>
+      <LoginContent />
+    </Suspense>
+  );
 }

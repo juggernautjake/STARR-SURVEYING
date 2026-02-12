@@ -5,8 +5,6 @@ import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import UnderConstruction from '../components/messaging/UnderConstruction';
 
-const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
-
 type ViewMode = 'week' | 'month';
 
 interface ScheduleEvent {
@@ -83,7 +81,8 @@ export default function SchedulePage() {
     end_date: '', end_time: '17:00', all_day: false, location: '', notes: '',
   });
 
-  const isAdmin = session?.user?.email ? ADMIN_EMAILS.includes(session.user.email.toLowerCase()) : false;
+  const userRole = session?.user?.role || 'employee';
+  const isAdmin = userRole === 'admin';
 
   function navigatePrev() {
     const d = new Date(currentDate);

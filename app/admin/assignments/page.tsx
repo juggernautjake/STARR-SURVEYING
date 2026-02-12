@@ -6,8 +6,6 @@ import { useSession } from 'next-auth/react';
 import UnderConstruction from '../components/messaging/UnderConstruction';
 import { usePageError } from '../hooks/usePageError';
 
-const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
-
 interface Assignment {
   id: string;
   title: string;
@@ -95,7 +93,9 @@ export default function AssignmentsPage() {
   const [creating, setCreating] = useState(false);
   const [employees, setEmployees] = useState<string[]>([]);
 
-  const isAdmin = session?.user?.email ? ADMIN_EMAILS.includes(session.user.email.toLowerCase()) : false;
+  const userRole = session?.user?.role || 'employee';
+  const canManage = userRole === 'admin' || userRole === 'teacher';
+  const isAdmin = userRole === 'admin';
 
   const loadAssignments = useCallback(async () => {
     setLoading(true);
@@ -118,14 +118,14 @@ export default function AssignmentsPage() {
   useEffect(() => {
     if (session?.user) {
       loadAssignments();
-      // Load employee list for admin form
-      if (isAdmin) {
+      // Load employee list for admin/teacher form
+      if (canManage) {
         fetch('/api/admin/messages/contacts').then(r => r.json()).then(d => {
           if (d.contacts) setEmployees(d.contacts.map((c: { email: string }) => c.email));
         }).catch(() => {});
       }
     }
-  }, [session, isAdmin, loadAssignments]);
+  }, [session, canManage, loadAssignments]);
 
   async function handleCreate() {
     if (!formData.title.trim() || !formData.assigned_to) return;
@@ -180,7 +180,7 @@ export default function AssignmentsPage() {
           <h2 className="assign__title">My Assignments</h2>
           <span className="assign__count">{assignments.length} total</span>
         </div>
-        {isAdmin && (
+        {canManage && (
           <button className="assign__create-btn" onClick={() => setShowCreateForm(!showCreateForm)}>
             {showCreateForm ? 'Cancel' : '+ Assign Task'}
           </button>
@@ -188,7 +188,7 @@ export default function AssignmentsPage() {
       </div>
 
       {/* Admin create form */}
-      {showCreateForm && isAdmin && (
+      {showCreateForm && canManage && (
         <div className="assign__form">
           <h3 className="assign__form-title">Create New Assignment</h3>
           <div className="assign__form-grid">
@@ -295,7 +295,7 @@ export default function AssignmentsPage() {
                       <span className="assign__item-title">{a.title}</span>
                       <div className="assign__item-meta">
                         <span className="assign__item-type">{ti.label}</span>
-                        {isAdmin && <span className="assign__item-assignee">to {formatName(a.assigned_to)}</span>}
+                        {canManage && <span className="assign__item-assignee">to {formatName(a.assigned_to)}</span>}
                         <span className="assign__item-from">from {formatName(a.assigned_by)}</span>
                       </div>
                     </div>
@@ -358,7 +358,7 @@ export default function AssignmentsPage() {
                           Mark Complete
                         </button>
                       )}
-                      {isAdmin && a.status !== 'cancelled' && (
+                      {canManage && a.status !== 'cancelled' && (
                         <button className="assign__btn assign__btn--danger" onClick={() => updateStatus(a.id, 'cancelled')}>
                           Cancel
                         </button>

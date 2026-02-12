@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import SmartSearch from '../../components/SmartSearch';
 
-const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
+// Use session role instead of hardcoded email list
 
 interface EnrichedLesson {
   id: string; title: string; order_index: number; estimated_minutes: number;
@@ -31,7 +31,8 @@ export default function ModuleDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { data: session } = useSession();
-  const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
+  const userRole = session?.user?.role || 'employee';
+  const canManage = userRole === 'admin' || userRole === 'teacher';
   const moduleId = params.id as string;
   const [mod, setMod] = useState<ModuleDetail | null>(null);
   const [lessons, setLessons] = useState<EnrichedLesson[]>([]);
@@ -39,9 +40,11 @@ export default function ModuleDetailPage() {
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [publishStatuses, setPublishStatuses] = useState<Record<string, string>>({});
 
-  async function toggleLessonStatus(lessonId: string, currentStatus: string) {
-    const newStatus = currentStatus === 'published' ? 'draft' : 'published';
+  async function toggleLessonStatus(lessonId: string) {
+    const currentPublishStatus = publishStatuses[lessonId] || 'published';
+    const newStatus = currentPublishStatus === 'published' ? 'draft' : 'published';
     try {
       const res = await fetch('/api/admin/learn/lessons', {
         method: 'PUT',
@@ -49,7 +52,7 @@ export default function ModuleDetailPage() {
         body: JSON.stringify({ id: lessonId, status: newStatus }),
       });
       if (res.ok) {
-        setLessons(prev => prev.map(l => l.id === lessonId ? { ...l, status: newStatus === 'draft' ? 'not_started' : l.status } : l));
+        setPublishStatuses(prev => ({ ...prev, [lessonId]: newStatus }));
       }
     } catch (err) { console.error('Failed to toggle lesson status', err); }
   }
@@ -68,9 +71,16 @@ export default function ModuleDetailPage() {
     Promise.all([
       fetch(`/api/admin/learn/modules?id=${moduleId}`).then(r => r.json()),
       fetch(`/api/admin/learn/user-progress?module_id=${moduleId}`).then(r => r.json()),
-    ]).then(([modData, progressData]) => {
+      fetch(`/api/admin/learn/lessons?module_id=${moduleId}`).then(r => r.json()),
+    ]).then(([modData, progressData, lessonData]) => {
       setMod(modData.module || null);
       setLessons(progressData.lessons || []);
+      // Build publish status map from the raw lesson data (before user-progress overwrites status)
+      const statusMap: Record<string, string> = {};
+      (lessonData.lessons || lessonData || []).forEach((l: { id: string; status?: string }) => {
+        statusMap[l.id] = l.status || 'published';
+      });
+      setPublishStatuses(statusMap);
     }).catch(err => console.error('Failed to load', err))
     .finally(() => setLoading(false));
   }, [moduleId]);
@@ -83,12 +93,18 @@ export default function ModuleDetailPage() {
       const data = await res.json();
       if (data.success) {
         setSeedMsg('Content seeded! Reloading...');
-        const [modData, progressData] = await Promise.all([
+        const [modData, progressData, lessonData] = await Promise.all([
           fetch(`/api/admin/learn/modules?id=${moduleId}`).then(r => r.json()),
           fetch(`/api/admin/learn/user-progress?module_id=${moduleId}`).then(r => r.json()),
+          fetch(`/api/admin/learn/lessons?module_id=${moduleId}`).then(r => r.json()),
         ]);
         setMod(modData.module || null);
         setLessons(progressData.lessons || []);
+        const statusMap: Record<string, string> = {};
+        (lessonData.lessons || lessonData || []).forEach((l: { id: string; status?: string }) => {
+          statusMap[l.id] = l.status || 'published';
+        });
+        setPublishStatuses(statusMap);
         setSeedMsg('');
       } else {
         setSeedMsg(data.error || 'Failed to seed content');
@@ -152,7 +168,7 @@ export default function ModuleDetailPage() {
       </div>
 
       {/* Admin: Lesson Management Cards */}
-      {isAdmin && lessons.length > 0 && (
+      {canManage && lessons.length > 0 && (
         <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#FAFBFF', border: '1px solid #E5E7EB', borderRadius: '10px' }}>
           <h3 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.92rem', fontWeight: 700, color: '#1D3095', marginBottom: '.75rem' }}>Manage Lessons</h3>
           <div style={{ display: 'grid', gap: '.5rem' }}>
@@ -164,8 +180,8 @@ export default function ModuleDetailPage() {
                 </div>
                 <div style={{ display: 'flex', gap: '.35rem', alignItems: 'center', flexShrink: 0 }}>
                   <Link href={`/admin/learn/manage/lesson-builder/${lesson.id}`} className="admin-btn admin-btn--primary admin-btn--sm">Edit</Link>
-                  <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => toggleLessonStatus(lesson.id, lesson.status === 'not_started' ? 'published' : lesson.status === 'completed' ? 'published' : 'published')}>
-                    Unpublish
+                  <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => toggleLessonStatus(lesson.id)}>
+                    {(publishStatuses[lesson.id] || 'published') === 'published' ? 'Unpublish' : 'Publish'}
                   </button>
                   {deleteConfirm === lesson.id ? (
                     <div style={{ display: 'flex', gap: '.25rem', alignItems: 'center' }}>
@@ -187,10 +203,12 @@ export default function ModuleDetailPage() {
         <div className="admin-empty">
           <div className="admin-empty__icon">&#x1F4D6;</div>
           <div className="admin-empty__title">No lessons yet</div>
-          <div className="admin-empty__desc">This module doesn&apos;t have any lessons.</div>
-          <button className="admin-btn admin-btn--primary" onClick={seedContent} disabled={seeding} style={{ marginTop: '1rem' }}>
-            {seeding ? 'Populating...' : 'Populate Introductory Content'}
-          </button>
+          <div className="admin-empty__desc">{canManage ? 'This module doesn\'t have any lessons.' : 'Content is being prepared for this module.'}</div>
+          {canManage && (
+            <button className="admin-btn admin-btn--primary" onClick={seedContent} disabled={seeding} style={{ marginTop: '1rem' }}>
+              {seeding ? 'Populating...' : 'Populate Introductory Content'}
+            </button>
+          )}
           {seedMsg && <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: seedMsg.includes('error') || seedMsg.includes('Failed') ? '#EF4444' : '#10B981' }}>{seedMsg}</p>}
         </div>
       ) : (

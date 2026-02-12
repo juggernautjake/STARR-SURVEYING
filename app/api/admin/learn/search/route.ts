@@ -1,5 +1,5 @@
 // app/api/admin/learn/search/route.ts
-import { auth } from '@/lib/auth';
+import { auth, canManageContent } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
@@ -14,8 +14,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const tsquery = q.split(/\s+/).filter(Boolean).map(w => w + ':*').join(' & ');
 
-  // Include all content (incl. drafts) if admin, otherwise published only
-  const includeAll = searchParams.get('include_all') === 'true';
+  // Include all content (incl. drafts) only for admin/teacher, otherwise published only
+  const includeAll = searchParams.get('include_all') === 'true' && canManageContent(session.user?.email);
   const statusFilter = includeAll ? {} : { status: 'published' };
 
   // Search across modules, lessons, topics, articles, flashcards, questions, assignments

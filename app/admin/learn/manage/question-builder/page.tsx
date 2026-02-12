@@ -8,8 +8,6 @@ import { usePageError } from '../../../hooks/usePageError';
 import { useToast } from '../../../components/Toast';
 import SmallScreenBanner from '../../../components/SmallScreenBanner';
 
-const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
-
 type QType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'numeric_input' | 'math_template' | 'essay';
 type Tab = 'questions' | 'templates' | 'generators';
 
@@ -141,7 +139,8 @@ const EMPTY_STEP: SolutionStepTemplate = { step_number: 1, title: '', descriptio
 
 export default function QuestionBuilderPage() {
   const { data: session } = useSession();
-  const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
+  const userRole = session?.user?.role || 'employee';
+  const canManage = userRole === 'admin' || userRole === 'teacher';
   const { safeFetch, safeAction } = usePageError('QuestionBuilderPage');
   const { addToast } = useToast();
 
@@ -773,11 +772,11 @@ export default function QuestionBuilderPage() {
   }
 
   // ========= ACCESS CHECK =========
-  if (!isAdmin) {
+  if (!canManage) {
     return (
       <div className="admin-empty">
         <div className="admin-empty__icon">&#x1F512;</div>
-        <div className="admin-empty__title">Admin Access Required</div>
+        <div className="admin-empty__title">Content Management Access Required</div>
         <Link href="/admin/learn" className="admin-btn admin-btn--ghost" style={{ marginTop: '1rem' }}>&larr; Back</Link>
       </div>
     );

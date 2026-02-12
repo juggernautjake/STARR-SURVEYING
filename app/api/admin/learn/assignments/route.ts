@@ -1,17 +1,10 @@
 // app/api/admin/learn/assignments/route.ts
 // Admin: assign modules/lessons to users, manage assignments
 // Users: view their own assignments
-import { auth } from '@/lib/auth';
+import { auth, isAdmin, canManageContent } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-
-const ADMIN_EMAILS = [
-  'hankmaddux@starr-surveying.com',
-  'jacobmaddux@starr-surveying.com',
-  'info@starr-surveying.com',
-];
-function isAdminUser(email: string) { return ADMIN_EMAILS.includes(email); }
 
 /* ── GET: List assignments ── */
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -21,7 +14,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status');
   const userEmail = searchParams.get('user_email');
-  const admin = isAdminUser(session.user.email);
+  const admin = canManageContent(session.user.email);
 
   let query = supabaseAdmin.from('learning_assignments').select('*').order('created_at', { ascending: false });
 
@@ -67,7 +60,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdminUser(session.user.email)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  if (!canManageContent(session.user.email)) return NextResponse.json({ error: 'Content management access required' }, { status: 403 });
 
   const body = await req.json();
   const { action } = body;
@@ -144,7 +137,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 
   // Update refresh/recoverage frequency
   if (body.action === 'update_refresh') {
-    if (!isAdminUser(session.user.email)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     const { module_id, refresh_months } = body;
     if (!module_id || refresh_months === undefined) return NextResponse.json({ error: 'module_id and refresh_months required' }, { status: 400 });
 
@@ -175,8 +168,8 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   if (!assignment) return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
 
   const isOwner = assignment.assigned_to === session.user.email;
-  const admin = isAdminUser(session.user.email);
-  if (!isOwner && !admin) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+  const adminOrTeacher = canManageContent(session.user.email);
+  if (!isOwner && !adminOrTeacher) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
 
   const updates: any = {};
   if (newStatus) {
@@ -196,7 +189,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdminUser(session.user.email)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  if (!canManageContent(session.user.email)) return NextResponse.json({ error: 'Content management access required' }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');

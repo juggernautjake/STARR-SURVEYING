@@ -6,11 +6,49 @@
 .admin-login__google-btn { display:flex; align-items:center; justify-content:center; gap:.75rem; width:100%; padding:.85rem 1.5rem; font-family:'Inter',sans-serif; font-size:.95rem; font-weight:600; color:#0F1419; background:#FFF; border:2px solid #E5E7EB; border-radius:8px; cursor:pointer; transition:all .2s; }
 .admin-login__google-btn:hover { border-color:#1D3095; box-shadow:0 2px 12px rgba(29,48,149,.15); }
 .admin-login__google-icon { width:20px; height:20px; }
+.admin-login__hint { font-family:'Inter',sans-serif; font-size:.75rem; color:#9CA3AF; margin-top:.5rem; }
 .admin-login__divider { margin:1.5rem 0; display:flex; align-items:center; gap:.75rem; }
 .admin-login__divider::before,.admin-login__divider::after { content:''; flex:1; height:1px; background:#E5E7EB; }
-.admin-login__divider-text { font-family:'Inter',sans-serif; font-size:.75rem; color:#9CA3AF; text-transform:uppercase; letter-spacing:.5px; }
+.admin-login__divider-text { font-family:'Inter',sans-serif; font-size:.75rem; color:#9CA3AF; text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
 .admin-login__notice { font-family:'Inter',sans-serif; font-size:.8rem; color:#9CA3AF; line-height:1.5; }
 .admin-login__notice strong { color:#BD1218; }
 .admin-login__error { margin-bottom:1.25rem; padding:.75rem 1rem; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; color:#BD1218; }
+.admin-login__success { margin-bottom:1.25rem; padding:.75rem 1rem; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; color:#065F46; }
+.admin-login__form { display:flex; flex-direction:column; gap:.75rem; }
+.admin-login__input { width:100%; padding:.75rem 1rem; font-family:'Inter',sans-serif; font-size:.9rem; color:#0F1419; background:#FFF; border:2px solid #E5E7EB; border-radius:8px; outline:none; transition:border-color .2s; box-sizing:border-box; }
+.admin-login__input:focus { border-color:#1D3095; }
+.admin-login__input::placeholder { color:#9CA3AF; }
+.admin-login__submit { width:100%; padding:.85rem 1.5rem; font-family:'Inter',sans-serif; font-size:.95rem; font-weight:600; color:#FFF; background:#1D3095; border:none; border-radius:8px; cursor:pointer; transition:all .2s; }
+.admin-login__submit:hover { background:#152050; }
+.admin-login__submit:disabled { background:#9CA3AF; cursor:not-allowed; }
+.admin-login__register-prompt { font-family:'Inter',sans-serif; font-size:.85rem; color:#6B7280; margin-top:1.25rem; }
+.admin-login__register-link { color:#1D3095; font-weight:600; text-decoration:none; }
+.admin-login__register-link:hover { text-decoration:underline; }
 .admin-login__back { display:inline-block; margin-top:1.5rem; font-family:'Inter',sans-serif; font-size:.8rem; color:#9CA3AF; text-decoration:none; }
 .admin-login__back:hover { color:#1D3095; }
+
+/* ===== Register Page ===== */
+.register-page { min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#152050 0%,#1D3095 50%,#BD1218 100%); padding:2rem; }
+.register-card { background:#FFF; border-radius:16px; padding:2.5rem; max-width:440px; width:100%; box-shadow:0 16px 48px rgba(0,0,0,.25); text-align:center; }
+.register-card__logo { width:70px; height:70px; margin:0 auto 1rem; object-fit:contain; }
+.register-card__title { font-family:'Sora',sans-serif; font-size:1.35rem; font-weight:700; color:#0F1419; margin-bottom:.35rem; }
+.register-card__subtitle { font-family:'Inter',sans-serif; font-size:.85rem; color:#6B7280; margin-bottom:1.5rem; line-height:1.5; }
+.register-card__error { margin-bottom:1rem; padding:.75rem 1rem; background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; font-family:'Inter',sans-serif; font-size:.85rem; color:#BD1218; }
+.register-card__form { display:flex; flex-direction:column; gap:.65rem; text-align:left; }
+.register-card__field { display:flex; flex-direction:column; gap:.25rem; }
+.register-card__label { font-family:'Inter',sans-serif; font-size:.78rem; font-weight:600; color:#374151; }
+.register-card__input { width:100%; padding:.7rem .9rem; font-family:'Inter',sans-serif; font-size:.88rem; color:#0F1419; background:#FFF; border:2px solid #E5E7EB; border-radius:8px; outline:none; transition:border-color .2s; box-sizing:border-box; }
+.register-card__input:focus { border-color:#1D3095; }
+.register-card__input::placeholder { color:#9CA3AF; }
+.register-card__submit { width:100%; margin-top:.5rem; padding:.85rem 1.5rem; font-family:'Inter',sans-serif; font-size:.95rem; font-weight:600; color:#FFF; background:#1D3095; border:none; border-radius:8px; cursor:pointer; transition:all .2s; }
+.register-card__submit:hover { background:#152050; }
+.register-card__submit:disabled { background:#9CA3AF; cursor:not-allowed; }
+.register-card__divider { margin:1.25rem 0 .75rem; display:flex; align-items:center; gap:.75rem; }
+.register-card__divider::before,.register-card__divider::after { content:''; flex:1; height:1px; background:#E5E7EB; }
+.register-card__divider-text { font-family:'Inter',sans-serif; font-size:.75rem; color:#9CA3AF; white-space:nowrap; }
+.register-card__login-link { display:inline-block; padding:.6rem 2rem; font-family:'Inter',sans-serif; font-size:.9rem; font-weight:600; color:#1D3095; background:#FFF; border:2px solid #1D3095; border-radius:8px; text-decoration:none; transition:all .2s; }
+.register-card__login-link:hover { background:#1D3095; color:#FFF; }
+.register-card__notice { font-family:'Inter',sans-serif; font-size:.75rem; color:#9CA3AF; margin-top:1.25rem; line-height:1.5; }
+.register-card__notice strong { color:#1D3095; }
+.register-card__back { display:inline-block; margin-top:1rem; font-family:'Inter',sans-serif; font-size:.8rem; color:#9CA3AF; text-decoration:none; }
+.register-card__back:hover { color:#1D3095; }

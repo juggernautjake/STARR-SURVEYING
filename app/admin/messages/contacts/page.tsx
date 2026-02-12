@@ -20,7 +20,7 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'admin' | 'employee'>('all');
+  const [filter, setFilter] = useState<'all' | 'admin' | 'teacher' | 'employee'>('all');
 
   useEffect(() => {
     loadContacts();

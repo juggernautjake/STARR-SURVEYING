@@ -10,8 +10,6 @@ import { useToast } from '../../components/Toast';
 import SmallScreenBanner from '../../components/SmallScreenBanner';
 import StudentOverridePanel from '../../components/StudentOverridePanel';
 
-const ADMIN_EMAILS = ['hankmaddux@starr-surveying.com', 'jacobmaddux@starr-surveying.com', 'info@starr-surveying.com'];
-
 type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config' | 'assignments' | 'student_overrides' | 'activity' | 'recycle_bin';
 
 interface Module { id: string; title: string; status: string; order_index: number; description: string; difficulty: string; estimated_hours: number; lesson_count?: number; xp_value?: number; expiry_months?: number; }
@@ -26,7 +24,9 @@ interface Activity { id: string; user_email: string; action_type: string; entity
 export default function ManageContentPage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
-  const isAdmin = session?.user?.email && ADMIN_EMAILS.includes(session.user.email);
+  const userRole = session?.user?.role || 'employee';
+  const canManage = userRole === 'admin' || userRole === 'teacher';
+  const isAdmin = userRole === 'admin';
   const { safeFetch } = usePageError('ManageContentPage');
   const { addToast } = useToast();
   const initialTab = (searchParams.get('tab') as Tab) || 'modules';
@@ -192,7 +192,7 @@ export default function ManageContentPage() {
   }
 
   async function handleCreate() {
-    if (!isAdmin) return;
+    if (!canManage) return;
     setSaving(true);
     try {
       let url = '';
@@ -270,19 +270,19 @@ export default function ManageContentPage() {
     setSaving(false);
   }
 
-  if (!isAdmin) {
+  if (!canManage) {
     return (
       <div className="admin-empty">
         <div className="admin-empty__icon">&#x1F512;</div>
-        <div className="admin-empty__title">Admin Access Required</div>
-        <div className="admin-empty__desc">Only administrators can manage learning content.</div>
+        <div className="admin-empty__title">Content Management Access Required</div>
+        <div className="admin-empty__desc">Only administrators and teachers can manage learning content.</div>
         <Link href="/admin/learn" className="admin-btn admin-btn--ghost" style={{ marginTop: '1rem' }}>&larr; Back to Learning Hub</Link>
       </div>
     );
   }
 
   async function handleSaveXP() {
-    if (!isAdmin || Object.keys(xpEditing).length === 0) return;
+    if (!canManage || Object.keys(xpEditing).length === 0) return;
     setXpSaving(true);
     const updates = Object.entries(xpEditing).map(([key, vals]) => {
       const [moduleType, moduleId] = key.split('::');
@@ -485,18 +485,19 @@ export default function ManageContentPage() {
 
   const activityTypes = [...new Set(activities.map(a => a.action_type))];
 
-  const tabs: { key: Tab; label: string; icon: string }[] = [
+  const allTabs: { key: Tab; label: string; icon: string; adminOnly?: boolean }[] = [
     { key: 'modules', label: 'Modules', icon: '\u{1F4DA}' },
     { key: 'lessons', label: 'Lessons', icon: '\u{1F4D6}' },
     { key: 'articles', label: 'Articles', icon: '\u{1F4C4}' },
     { key: 'questions', label: 'Questions', icon: '\u{2753}' },
     { key: 'flashcards', label: 'Flashcards', icon: '\u{1F0CF}' },
-    { key: 'xp_config', label: 'XP Config', icon: '\u{2B50}' },
+    { key: 'xp_config', label: 'XP Config', icon: '\u{2B50}', adminOnly: true },
     { key: 'assignments', label: 'Assignments', icon: '\u{1F4CB}' },
-    { key: 'student_overrides', label: 'Student Overrides', icon: '\u{1F6E0}' },
-    { key: 'activity', label: 'Activity', icon: '\u{1F4CA}' },
-    { key: 'recycle_bin', label: `Recycle Bin${recycleBin.length > 0 ? ` (${recycleBin.length})` : ''}`, icon: '\u{1F5D1}' },
+    { key: 'student_overrides', label: 'Student Overrides', icon: '\u{1F6E0}', adminOnly: true },
+    { key: 'activity', label: 'Activity', icon: '\u{1F4CA}', adminOnly: true },
+    { key: 'recycle_bin', label: `Recycle Bin${recycleBin.length > 0 ? ` (${recycleBin.length})` : ''}`, icon: '\u{1F5D1}', adminOnly: true },
   ];
+  const tabs = allTabs.filter(t => !t.adminOnly || isAdmin);
 
   return (
     <>
