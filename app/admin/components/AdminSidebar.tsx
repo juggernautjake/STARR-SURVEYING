@@ -9,17 +9,20 @@ import type { UserRole } from '@/lib/auth';
 interface AdminSidebarProps {
   role: UserRole;
   userName: string;
+  userEmail: string;
   userImage?: string;
   isOpen: boolean;
   onClose: () => void;
 }
 
 // roles: which roles can see this item. If omitted, all roles can see it.
+// internalOnly: if true, only company-domain users can see this item.
 interface NavItem {
   href: string;
   label: string;
   icon: string;
   roles?: UserRole[];
+  internalOnly?: boolean;
 }
 interface NavSection { label: string; items: NavItem[]; }
 
@@ -39,15 +42,16 @@ const BRAND_LABELS: Record<UserRole, string> = {
   employee: 'Learning Portal',
 };
 
-export default function AdminSidebar({ role, userName, userImage, isOpen, onClose }: AdminSidebarProps) {
+export default function AdminSidebar({ role, userName, userEmail, userImage, isOpen, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const isCompanyUser = userEmail.toLowerCase().endsWith('@starr-surveying.com');
 
   const sections: NavSection[] = [
     { label: 'Main', items: [
       { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
-      { href: '/admin/assignments', label: 'Assignments', icon: '📋' },
-      { href: '/admin/schedule', label: 'My Schedule', icon: '📅' },
+      { href: '/admin/assignments', label: 'Assignments', icon: '📋', internalOnly: true },
+      { href: '/admin/schedule', label: 'My Schedule', icon: '📅', internalOnly: true },
     ]},
     { label: 'Learning', items: [
       { href: '/admin/learn', label: 'Learning Hub', icon: '🎓' },
@@ -62,34 +66,34 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
       { href: '/admin/learn/manage', label: 'Manage Content', icon: '✏️', roles: ['admin', 'teacher'] },
     ]},
     { label: 'Work', items: [
-      { href: '/admin/jobs', label: 'All Jobs', icon: '📋', roles: ['admin'] },
-      { href: '/admin/my-jobs', label: 'My Jobs', icon: '🗂️' },
-      { href: '/admin/my-hours', label: 'My Hours', icon: '⏱️' },
-      { href: '/admin/jobs/new', label: 'New Job', icon: '➕', roles: ['admin'] },
-      { href: '/admin/jobs/import', label: 'Import Jobs', icon: '📥', roles: ['admin'] },
-      { href: '/admin/leads', label: 'Leads', icon: '📨', roles: ['admin'] },
-      { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', roles: ['admin'] },
+      { href: '/admin/jobs', label: 'All Jobs', icon: '📋', roles: ['admin'], internalOnly: true },
+      { href: '/admin/my-jobs', label: 'My Jobs', icon: '🗂️', internalOnly: true },
+      { href: '/admin/my-hours', label: 'My Hours', icon: '⏱️', internalOnly: true },
+      { href: '/admin/jobs/new', label: 'New Job', icon: '➕', roles: ['admin'], internalOnly: true },
+      { href: '/admin/jobs/import', label: 'Import Jobs', icon: '📥', roles: ['admin'], internalOnly: true },
+      { href: '/admin/leads', label: 'Leads', icon: '📨', roles: ['admin'], internalOnly: true },
+      { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', roles: ['admin'], internalOnly: true },
     ]},
     { label: 'Rewards & Pay', items: [
-      { href: '/admin/rewards', label: 'Rewards & Store', icon: '🏆' },
-      { href: '/admin/pay-progression', label: 'Pay Progression', icon: '📈' },
-      { href: '/admin/rewards/how-it-works', label: 'How Rewards Work', icon: '💡' },
-      { href: '/admin/rewards/admin', label: 'Manage Rewards', icon: '⚙️', roles: ['admin'] },
+      { href: '/admin/rewards', label: 'Rewards & Store', icon: '🏆', internalOnly: true },
+      { href: '/admin/pay-progression', label: 'Pay Progression', icon: '📈', internalOnly: true },
+      { href: '/admin/rewards/how-it-works', label: 'How Rewards Work', icon: '💡', internalOnly: true },
+      { href: '/admin/rewards/admin', label: 'Manage Rewards', icon: '⚙️', roles: ['admin'], internalOnly: true },
     ]},
     { label: 'People', items: [
-      { href: '/admin/employees', label: 'Employees', icon: '👥', roles: ['admin'] },
-      { href: '/admin/payroll', label: 'Payroll', icon: '💰', roles: ['admin'] },
-      { href: '/admin/my-pay', label: 'My Pay', icon: '💵' },
-      { href: '/admin/payout-log', label: 'Payout History', icon: '📒' },
+      { href: '/admin/employees', label: 'Employees', icon: '👥', roles: ['admin'], internalOnly: true },
+      { href: '/admin/payroll', label: 'Payroll', icon: '💰', roles: ['admin'], internalOnly: true },
+      { href: '/admin/my-pay', label: 'My Pay', icon: '💵', internalOnly: true },
+      { href: '/admin/payout-log', label: 'Payout History', icon: '📒', internalOnly: true },
     ]},
     { label: 'Communication', items: [
-      { href: '/admin/messages', label: 'Messages', icon: '💬' },
-      { href: '/admin/messages/contacts', label: 'Team Directory', icon: '📇' },
+      { href: '/admin/messages', label: 'Messages', icon: '💬', internalOnly: true },
+      { href: '/admin/messages/contacts', label: 'Team Directory', icon: '📇', internalOnly: true },
     ]},
     { label: 'Notes & Files', items: [
-      { href: '/admin/notes', label: 'Company Notes', icon: '📝', roles: ['admin'] },
-      { href: '/admin/my-notes', label: 'My Notes', icon: '📒' },
-      { href: '/admin/my-files', label: 'My Files', icon: '📁' },
+      { href: '/admin/notes', label: 'Company Notes', icon: '📝', roles: ['admin'], internalOnly: true },
+      { href: '/admin/my-notes', label: 'My Notes', icon: '📒', internalOnly: true },
+      { href: '/admin/my-files', label: 'My Files', icon: '📁', internalOnly: true },
     ]},
     { label: 'Account', items: [
       { href: '/admin/profile', label: 'My Profile', icon: '👤' },
@@ -115,8 +119,9 @@ export default function AdminSidebar({ role, userName, userImage, isOpen, onClos
     });
   };
 
-  /** Check if user's role is allowed for this nav item */
+  /** Check if user's role and domain are allowed for this nav item */
   const canAccess = (item: NavItem): boolean => {
+    if (item.internalOnly && !isCompanyUser) return false;
     if (!item.roles) return true; // no restriction = everyone
     return item.roles.includes(role);
   };

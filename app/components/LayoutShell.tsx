@@ -7,8 +7,9 @@ import Footer from './Footer';
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAdmin = pathname.startsWith('/admin');
+  const isAuthPage = pathname === '/register';
 
-  if (isAdmin) {
+  if (isAdmin || isAuthPage) {
     return <>{children}</>;
   }
 

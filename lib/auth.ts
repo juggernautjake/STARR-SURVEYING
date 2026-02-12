@@ -1,6 +1,9 @@
 import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
+import Credentials from 'next-auth/providers/credentials';
 import type { NextAuthConfig } from 'next-auth';
+import bcrypt from 'bcryptjs';
+import { supabaseAdmin } from '@/lib/supabase';
 
 // =============================================================================
 // ROLE SYSTEM
@@ -51,24 +54,69 @@ export function isFullAdmin(email: string | null | undefined): boolean {
   return isAdmin(email);
 }
 
+/** Is this user a company domain employee (vs external registered user)? */
+export function isCompanyUser(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`);
+}
+
 const authConfig: NextAuthConfig = {
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
+    Credentials({
+      name: 'Email',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+
+        const email = (credentials.email as string).toLowerCase();
+        const password = credentials.password as string;
+
+        // Look up user in registered_users table
+        const { data: user, error } = await supabaseAdmin
+          .from('registered_users')
+          .select('id, email, name, password_hash, role, is_approved')
+          .eq('email', email)
+          .single();
+
+        if (error || !user) return null;
+        if (!user.is_approved) return null;
+
+        const isValid = await bcrypt.compare(password, user.password_hash);
+        if (!isValid) return null;
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role as UserRole,
+        };
+      },
+    }),
   ],
   pages: { signIn: '/admin/login', error: '/admin/login' },
   callbacks: {
-    async signIn({ user }) {
-      const email = user.email?.toLowerCase();
-      if (!email) return false;
-      return email.split('@')[1] === ALLOWED_DOMAIN;
+    async signIn({ user, account }) {
+      if (account?.provider === 'google') {
+        // Google: enforce company domain
+        const email = user.email?.toLowerCase();
+        if (!email) return false;
+        return email.split('@')[1] === ALLOWED_DOMAIN;
+      }
+      // Credentials: already validated in authorize()
+      return true;
     },
     async jwt({ token, user }) {
       if (user?.email) {
         token.email = user.email.toLowerCase();
-        token.role = getUserRole(user.email);
+        // Credentials users have role set by authorize(); Google users use email-based lookup
+        token.role = user.role || getUserRole(user.email);
         token.name = user.name;
         token.picture = user.image;
       }

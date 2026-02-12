@@ -125,7 +125,7 @@ function Inner({ children }: { children: React.ReactNode }) {
     <ErrorProvider>
       <ToastProvider>
       <div className="admin-layout">
-        <AdminSidebar role={role} userName={session.user.name || 'User'} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AdminSidebar role={role} userName={session.user.name || 'User'} userEmail={session.user.email || ''} userImage={session.user.image || undefined} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="admin-layout__main">
           <AdminTopBar title={pageTitle} role={role} onMenuToggle={() => setSidebarOpen((p) => !p)} />
           <div className="admin-layout__content">
