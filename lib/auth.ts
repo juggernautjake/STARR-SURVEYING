@@ -137,12 +137,29 @@ const authConfig: NextAuthConfig = {
     },
     async jwt({ token, user }) {
       if (user?.email) {
+        // Initial sign-in: populate token from user object
         token.email = user.email.toLowerCase();
-        // Credentials users have roles set by authorize(); Google users use email-based lookup
         token.roles = user.roles || getUserRoles(user.email);
         token.role = user.role || getPrimaryRole(token.roles as UserRole[]);
         token.name = user.name;
         token.picture = user.image;
+      } else if (token.email && !token.roles) {
+        // Existing session missing roles (pre-update JWT) — recompute from email
+        // For company users this uses the hardcoded email lists;
+        // for registered users we look up their DB roles
+        const email = token.email as string;
+        if (isCompanyUser(email)) {
+          token.roles = getUserRoles(email);
+        } else {
+          // External user — fetch roles from DB
+          const { data } = await supabaseAdmin
+            .from('registered_users')
+            .select('roles')
+            .eq('email', email)
+            .single();
+          token.roles = (data?.roles as UserRole[]) || ['employee'];
+        }
+        token.role = getPrimaryRole(token.roles as UserRole[]);
       }
       return token;
     },
