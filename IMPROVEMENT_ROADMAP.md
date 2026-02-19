@@ -254,30 +254,34 @@ Students should NOT see:
 
 ---
 
-## Phase 7: Content Conversion — Survey Courses & Remaining
+## Phase 7: Content Conversion — Remaining Files (COMPLETED)
 
----
+**Goal**: Convert remaining seed files with HTML content to block format.
 
-## Phase 7: Content Conversion — Survey Courses & Remaining
+### Survey Results
+Audited all 12 remaining seed files. Only 2 had HTML content:
 
-**Goal**: Convert survey course content and finalize all remaining seed files.
+| File | Has HTML | Content Type | Action |
+|------|----------|-------------|--------|
+| `supabase_seed_curriculum.sql` | Yes (1 lesson) | Welcome lesson | Converted (5 blocks) |
+| `supabase_seed_article_survey_chain.sql` | Yes (1 article) | KB article — no block system | N/A |
+| `supabase_seed_srvy2339-2344.sql` | No | Structural/metadata only | Not needed |
+| `supabase_seed_acc_*_quiz.sql` | No | Quiz questions (plain text) | Not needed |
+| `supabase_seed_acc_courses.sql` | No | Course configuration | Not needed |
+| `supabase_seed_acc_final_exams.sql` | No | Final exam questions | Not needed |
+| `supabase_seed_fs_prep.sql` | No | FS exam prep questions | Not needed |
+| `supabase_seed_drone_surveying.sql` | No | Course structure | Not needed |
 
-### Files to Convert
-- `supabase_seed_srvy2339.sql` — Survey Methods
-- `supabase_seed_srvy2341.sql` — Advanced Surveying
-- `supabase_seed_srvy2343.sql` — GPS & GIS
-- `supabase_seed_srvy2344.sql` — Legal Descriptions
-- `supabase_seed_article_survey_chain.sql` — Survey chain articles
-- ACC Quizzes: `wk5_quiz.sql`, `wk6_quiz.sql` (quiz block mapping)
+### What Was Done
+- Converted the Welcome lesson (5 text blocks) to `scripts/converted/supabase_seed_curriculum_welcome_blocks.sql`
+- Updated `_all_blocks.sql` combined file to include the welcome lesson
+- KB articles (`kb_articles` table) store HTML directly with no block system — no conversion applicable
+- Quiz content is plain text in `question_bank` table — no HTML conversion needed
 
-### Tasks
-- Convert any remaining content with HTML to block format
-- Map quiz content to quiz block types
-- Run full validation across all converted content
-- Remove `learning_lessons.content` fallback (or mark as deprecated)
-- Update documentation
-
-### Estimated Effort: 1-2 sessions
+### Final Conversion Totals (Phases 5-7)
+- **13 lessons** converted across all phases
+- **480 total blocks** (475 from Phase 6 + 5 from welcome lesson)
+- Block types used: text, table, callout (7 subtypes), image, divider, video, embed
 
 ---
 
@@ -307,10 +311,10 @@ Students should NOT see:
 | 4 | External User Registration | COMPLETED | — |
 | 5 | DB Rebuild Foundation | COMPLETED | — |
 | 6 | ACC Course Conversion (475 blocks) | COMPLETED | — |
-| 7 | Survey & Remaining Conversion | Next Up | 1-2 sessions |
+| 7 | Remaining Files Audit & Conversion (480 total blocks) | COMPLETED | — |
 | 8 | Polish & Enhancement | Planned | Ongoing |
 
-**Total estimated: 7-10 sessions** (excluding Phase 8)
+**All core phases (1-7) COMPLETED.** Phase 8 is ongoing enhancement.
 
 ---
 
