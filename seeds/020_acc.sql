@@ -749,7 +749,7 @@ key_takeaways = ARRAY[
   'Apply the rules of field note recording: pencil only, no erasing, immediate recording, include sketches',
   'Execute proper equipment check-out and return procedures',
   'Explain why field notes are considered legal documents'
-],
+]
 
 WHERE id = 'acc02b01-0000-0000-0000-000000000001';
 
@@ -997,7 +997,7 @@ key_takeaways = ARRAY[
   'Apply atmospheric corrections by entering actual temperature and pressure into the instrument',
   'Distinguish between slope distance and horizontal distance and convert between them using HD = SD × sin(ZA)',
   'Record all required EDM data in a field book including HI, HR, prism constant, atmospheric conditions, and multiple readings'
-],
+]
 
 WHERE id = 'acc02b02-0000-0000-0000-000000000001';
 
@@ -1261,7 +1261,7 @@ key_takeaways = ARRAY[
   'Measure horizontal angles, zenith angles, and distances to multiple targets from a single setup',
   'Perform Face Left / Face Right measurements and compute mean angles',
   'Close on the backsight after all measurements to verify orientation stability'
-],
+]
 
 WHERE id = 'acc02b03-0000-0000-0000-000000000001';
 
@@ -1510,7 +1510,7 @@ key_takeaways = ARRAY[
   'Identify systematic errors (collimation, trunnion axis tilt, VCI) eliminated by D&R',
   'Identify random errors (pointing, reading, centering) reduced by repetition',
   'Record angular measurements properly including method, initial/accumulated readings, and mean'
-],
+]
 
 WHERE id = 'acc02b04-0000-0000-0000-000000000001';
 
@@ -1710,7 +1710,7 @@ key_takeaways = ARRAY[
   'Identify and re-measure suspect angles before leaving the field site',
   'Record all repetition data in proper field note format with left-page data and right-page sketch',
   'Distribute the angular misclosure to balance the angles for subsequent azimuth computation'
-],
+]
 
 WHERE id = 'acc02b05-0000-0000-0000-000000000001';
 
@@ -1802,7 +1802,7 @@ UPDATE learning_lessons SET content = '
 </ul>
 
 <p>Review the resources and videos below to get oriented, then click <strong>Continue to Next Lesson</strong> to begin Week 1: Distance Measurement.</p>
-',
+'
 
 WHERE id = 'acc03b00-0000-0000-0000-000000000001';
 
@@ -1982,7 +1982,7 @@ key_takeaways = ARRAY[
   'Sag correction: Cs = −w² × L³ / (24 × P²) — always negative because the catenary arc is longer than the chord',
   'Combine all corrections: Dcorrected = Dmeasured + Ct + Cp + Cs',
   'Standard conditions: 68°F temperature, standard pull, full support (no sag)'
-],
+]
 
 WHERE id = 'acc03b01-0000-0000-0000-000000000001';
 
@@ -2252,7 +2252,7 @@ key_takeaways = ARRAY[
   'True bearing = magnetic bearing + east declination (or − west declination); Texas has ~2°–4° east declination',
   'DD→DMS: multiply decimal part by 60 for minutes, then decimal of minutes by 60 for seconds; DMS→DD: D + M/60 + S/3600',
   'The SUUNTO KB-14/360 is a hand-held sighting compass accurate to ±0.5°, reading 0°–360° with a liquid-dampened capsule'
-],
+]
 
 WHERE id = 'acc03b02-0000-0000-0000-000000000001';
 
@@ -2667,7 +2667,7 @@ key_takeaways = ARRAY[
   'Field notes are legal documents that can be subpoenaed — never erase, always initial corrections, use a 4H pencil',
   'A complete field book includes title page, table of contents, legend, standard symbols, dated headers, and proportional sketches',
   'Trade magazines (The American Surveyor, xyHt) are essential for staying current with technology and professional standards'
-],
+]
 
 WHERE id = 'acc03b03-0000-0000-0000-000000000001';
 
@@ -3012,7 +3012,7 @@ key_takeaways = ARRAY[
   'Follow the minimum maintenance schedule: daily wipe-down, weekly calibration checks, yearly shop service',
   'Perform peg tests on levels weekly and before any long bench circuit',
   'Check the optical plummet monthly using the 120° rotation method'
-],
+]
 
 WHERE id = 'acc03b04-0000-0000-0000-000000000001';
 
@@ -3372,7 +3372,7 @@ key_takeaways = ARRAY[
   'The 10-step setup: rough-set tripod, center plummet, adjust legs for level, fine-level with foot screws, slide to re-center, iterate',
   'NEVER rotate the tribrach when sliding to center — slide in straight lines only',
   'Check the instrument frequently during use to ensure it remains level and centered over the point'
-],
+]
 
 WHERE id = 'acc03b05-0000-0000-0000-000000000001';
 
@@ -3811,7 +3811,7 @@ key_takeaways = ARRAY[
   'The European method (5-step D/R set): zero on backsight, turn to foresight (FL), plunge and re-sight foresight (FR), turn to backsight (FR)',
   'Reverse angle = Step 4 − Step 5; if negative, add 360° (this occurs when the angle exceeds 180°)',
   'Mean angle = (direct angle + reverse angle) / 2 — this is the final, error-corrected result'
-],
+]
 
 WHERE id = 'acc03b06-0000-0000-0000-000000000001';
 
