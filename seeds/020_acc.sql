@@ -475,7 +475,7 @@ VALUES
 
 -- SRVY 1341 Lesson 0 — Course Introduction (order_index 0)
 INSERT INTO learning_lessons (
-  id, module_id, title, description, learning_objectives,
+  id, module_id, title, content, key_takeaways,
   order_index, estimated_minutes, resources, videos, tags, status
 )
 VALUES (
@@ -506,8 +506,8 @@ VALUES (
 )
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
-  description = EXCLUDED.description,
-  learning_objectives = EXCLUDED.learning_objectives,
+  content = EXCLUDED.content,
+  key_takeaways = EXCLUDED.key_takeaways,
   order_index = EXCLUDED.order_index,
   estimated_minutes = EXCLUDED.estimated_minutes,
   resources = EXCLUDED.resources,
@@ -520,7 +520,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- ============================================================================
 -- SECTION 3: LESSON CONTENT UPDATES  (HTML content — kept as fallback)
--- Blocks hold the real content; content_migrated = TRUE signals this.
+-- Blocks hold the real content; content_migrated flag is set by 021_acc_blocks.sql.
 -- ============================================================================
 
 
@@ -750,8 +750,6 @@ key_takeaways = ARRAY[
   'Execute proper equipment check-out and return procedures',
   'Explain why field notes are considered legal documents'
 ],
-
-content_migrated = TRUE
 
 WHERE id = 'acc02b01-0000-0000-0000-000000000001';
 
@@ -1000,8 +998,6 @@ key_takeaways = ARRAY[
   'Distinguish between slope distance and horizontal distance and convert between them using HD = SD × sin(ZA)',
   'Record all required EDM data in a field book including HI, HR, prism constant, atmospheric conditions, and multiple readings'
 ],
-
-content_migrated = TRUE
 
 WHERE id = 'acc02b02-0000-0000-0000-000000000001';
 
@@ -1267,8 +1263,6 @@ key_takeaways = ARRAY[
   'Close on the backsight after all measurements to verify orientation stability'
 ],
 
-content_migrated = TRUE
-
 WHERE id = 'acc02b03-0000-0000-0000-000000000001';
 
 
@@ -1518,8 +1512,6 @@ key_takeaways = ARRAY[
   'Record angular measurements properly including method, initial/accumulated readings, and mean'
 ],
 
-content_migrated = TRUE
-
 WHERE id = 'acc02b04-0000-0000-0000-000000000001';
 
 
@@ -1720,8 +1712,6 @@ key_takeaways = ARRAY[
   'Distribute the angular misclosure to balance the angles for subsequent azimuth computation'
 ],
 
-content_migrated = TRUE
-
 WHERE id = 'acc02b05-0000-0000-0000-000000000001';
 
 
@@ -1814,8 +1804,6 @@ UPDATE learning_lessons SET content = '
 <p>Review the resources and videos below to get oriented, then click <strong>Continue to Next Lesson</strong> to begin Week 1: Distance Measurement.</p>
 ',
 
-content_migrated = TRUE
-
 WHERE id = 'acc03b00-0000-0000-0000-000000000001';
 
 
@@ -1824,9 +1812,9 @@ UPDATE learning_lessons SET
 
 title = 'Week 1: Distance Measurement — Chaining & Tape Corrections',
 
-description = 'Field procedures for measuring with a steel chain or tape, and the three systematic corrections every surveyor must apply: temperature, tension, and sag. Includes the standard correction formulas, worked examples, and practice problems.',
+content = 'Field procedures for measuring with a steel chain or tape, and the three systematic corrections every surveyor must apply: temperature, tension, and sag. Includes the standard correction formulas, worked examples, and practice problems.',
 
-learning_objectives = ARRAY[
+key_takeaways = ARRAY[
   'Describe proper chain/tape measurement procedure including correct tension and forward/back measurement',
   'Apply the temperature correction formula Ct = 0.00000645 × (TF − 68) × L',
   'Apply the tension correction formula Cp = (P − Ps) × L / (A × E)',
@@ -1996,8 +1984,6 @@ key_takeaways = ARRAY[
   'Standard conditions: 68°F temperature, standard pull, full support (no sag)'
 ],
 
-content_migrated = TRUE
-
 WHERE id = 'acc03b01-0000-0000-0000-000000000001';
 
 
@@ -2006,9 +1992,9 @@ UPDATE learning_lessons SET
 
 title = 'Week 2: Compass Surveying, DD/DMS Conversions & Chaining Review',
 
-description = 'An introduction to the compass as a surveying instrument, bearing and azimuth notation, fore/back bearing relationships, magnetic declination, the SUUNTO KB-14/360, decimal-degree and degree-minute-second conversions with worked examples, and a brief review of the chaining correction formulas from Week 1.',
+content = 'An introduction to the compass as a surveying instrument, bearing and azimuth notation, fore/back bearing relationships, magnetic declination, the SUUNTO KB-14/360, decimal-degree and degree-minute-second conversions with worked examples, and a brief review of the chaining correction formulas from Week 1.',
 
-learning_objectives = ARRAY[
+key_takeaways = ARRAY[
   'Identify the three main types of surveying compasses and their appropriate field uses',
   'Express directions using both bearing (N/S angle E/W) and azimuth (0°–360°) notation',
   'Convert bearings to azimuths and azimuths to bearings for all four quadrants',
@@ -2268,8 +2254,6 @@ key_takeaways = ARRAY[
   'The SUUNTO KB-14/360 is a hand-held sighting compass accurate to ±0.5°, reading 0°–360° with a liquid-dampened capsule'
 ],
 
-content_migrated = TRUE
-
 WHERE id = 'acc03b02-0000-0000-0000-000000000001';
 
 
@@ -2278,9 +2262,9 @@ UPDATE learning_lessons SET
 
 title = 'Week 3: Magnetic Declination Review, Smartphone Compass Apps, Field Notekeeping & Trade Magazines',
 
-description = 'A deeper review of magnetic declination with four worked DMS-arithmetic examples, an introduction to smartphone compass applications (Hunter Pro Compass and Theodolite), comprehensive field notekeeping best practices including legal status, symbols, and sketching techniques, plus an overview of professional survey trade magazines.',
+content = 'A deeper review of magnetic declination with four worked DMS-arithmetic examples, an introduction to smartphone compass applications (Hunter Pro Compass and Theodolite), comprehensive field notekeeping best practices including legal status, symbols, and sketching techniques, plus an overview of professional survey trade magazines.',
 
-learning_objectives = ARRAY[
+key_takeaways = ARRAY[
   'Solve multi-step magnetic declination problems using DMS arithmetic with borrowing',
   'Apply secular variation rates to update historical declination values to the present',
   'Describe the features and field uses of the Hunter Pro Compass and Theodolite smartphone apps',
@@ -2685,8 +2669,6 @@ key_takeaways = ARRAY[
   'Trade magazines (The American Surveyor, xyHt) are essential for staying current with technology and professional standards'
 ],
 
-content_migrated = TRUE
-
 WHERE id = 'acc03b03-0000-0000-0000-000000000001';
 
 
@@ -2695,9 +2677,9 @@ UPDATE learning_lessons SET
 
 title = 'Week 4: Instrument Care, Tripod Best Practices & Maintenance Schedules',
 
-description = 'A comprehensive guide to the care, handling, and maintenance of surveying instruments and tripods. Covers proper transport, environmental protection, lens care, tripod setup, climatization, electronic instrument precautions, and the minimum maintenance schedule every field crew must follow. Includes review of magnetic declination, smartphone compass apps, and field notekeeping from previous weeks.',
+content = 'A comprehensive guide to the care, handling, and maintenance of surveying instruments and tripods. Covers proper transport, environmental protection, lens care, tripod setup, climatization, electronic instrument precautions, and the minimum maintenance schedule every field crew must follow. Includes review of magnetic declination, smartphone compass apps, and field notekeeping from previous weeks.',
 
-learning_objectives = ARRAY[
+key_takeaways = ARRAY[
   'Demonstrate proper procedures for transporting surveying instruments between setups and in vehicles',
   'Explain why an empty instrument case must remain closed and the consequences of leaving it open',
   'Describe the correct method for attaching an instrument to a tripod and the proper grip technique',
@@ -3032,8 +3014,6 @@ key_takeaways = ARRAY[
   'Check the optical plummet monthly using the 120° rotation method'
 ],
 
-content_migrated = TRUE
-
 WHERE id = 'acc03b04-0000-0000-0000-000000000001';
 
 
@@ -3042,9 +3022,9 @@ UPDATE learning_lessons SET
 
 title = 'Week 5: Instrument Leveling & Setup Over a Point',
 
-description = 'Procedures for leveling a three-screw surveying instrument and setting up precisely over a ground point using an optical or laser plummet. Covers the left thumb rule, indexing screws, the complete leveling procedure, circular vs. plate bubbles, tribrach operation, and the 10-step setup procedure for centering and leveling over a known point. Follows the Week 4 instrument care review and Quiz 1.',
+content = 'Procedures for leveling a three-screw surveying instrument and setting up precisely over a ground point using an optical or laser plummet. Covers the left thumb rule, indexing screws, the complete leveling procedure, circular vs. plate bubbles, tribrach operation, and the 10-step setup procedure for centering and leveling over a known point. Follows the Week 4 instrument care review and Quiz 1.',
 
-learning_objectives = ARRAY[
+key_takeaways = ARRAY[
   'Explain the left thumb rule and demonstrate its use for centering a level bubble',
   'Describe why leveling screws should be turned equally and in opposite directions',
   'Define indexing the screws and explain why instruments should be stored with screws indexed',
@@ -3394,8 +3374,6 @@ key_takeaways = ARRAY[
   'Check the instrument frequently during use to ensure it remains level and centered over the point'
 ],
 
-content_migrated = TRUE
-
 WHERE id = 'acc03b05-0000-0000-0000-000000000001';
 
 
@@ -3404,9 +3382,9 @@ UPDATE learning_lessons SET
 
 title = 'Week 6: Types of Angles & Angle Measurement',
 
-description = 'Introduction to horizontal, interior, deflection, and vertical angles. Fundamentals of the horizontal circle, DMS arithmetic, face left (direct) and face right (reverse) measurement positions. Complete procedures for measuring a direct angle and a reverse angle, including the European method for turning a set of angles with worked examples for angles less than and greater than 180 degrees.',
+content = 'Introduction to horizontal, interior, deflection, and vertical angles. Fundamentals of the horizontal circle, DMS arithmetic, face left (direct) and face right (reverse) measurement positions. Complete procedures for measuring a direct angle and a reverse angle, including the European method for turning a set of angles with worked examples for angles less than and greater than 180 degrees.',
 
-learning_objectives = ARRAY[
+key_takeaways = ARRAY[
   'Define and distinguish horizontal, interior, deflection, and vertical angles',
   'Explain how the horizontal circle measures angles independent of vertical sighting',
   'Perform DMS (degrees-minutes-seconds) addition and subtraction with borrowing',
@@ -3834,8 +3812,6 @@ key_takeaways = ARRAY[
   'Reverse angle = Step 4 − Step 5; if negative, add 360° (this occurs when the angle exceeds 180°)',
   'Mean angle = (direct angle + reverse angle) / 2 — this is the final, error-corrected result'
 ],
-
-content_migrated = TRUE
 
 WHERE id = 'acc03b06-0000-0000-0000-000000000001';
 

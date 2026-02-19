@@ -7,7 +7,8 @@
 
 BEGIN;
 
--- content_migrated column is created by 001_config.sql
+-- Ensure content_migrated column exists (may not be part of original schema)
+ALTER TABLE learning_lessons ADD COLUMN IF NOT EXISTS content_migrated BOOLEAN DEFAULT FALSE;
 
 -- ----------------------------------------------------------------------------
 -- SRVY 1335 — Week 1: Lab Safety, Equipment Overview & Field Books
