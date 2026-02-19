@@ -43,6 +43,9 @@ export default function LeadsPage() {
 
   if (!session?.user) return null;
 
+  // Admin-only page guard
+  if (session.user.role !== 'admin') return null;
+
   const filtered = statusFilter === 'all' ? leads : leads.filter(l => l.status === statusFilter);
 
   return (

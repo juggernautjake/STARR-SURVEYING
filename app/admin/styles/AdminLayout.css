@@ -334,6 +334,13 @@
 .admin-dashboard__welcome { margin-bottom:2rem; }
 .admin-dashboard__welcome-title { font-family:'Sora',sans-serif; font-size:1.5rem; font-weight:700; color:#0F1419; margin-bottom:.25rem; }
 .admin-dashboard__welcome-sub { font-family:'Inter',sans-serif; font-size:.9rem; color:#6B7280; }
+/* Pending registrations banner */
+.dashboard-pending-banner { display:flex; align-items:center; gap:.75rem; padding:.85rem 1.25rem; margin-bottom:1rem; background:#FFF7ED; border:1px solid #FDBA74; border-radius:10px; text-decoration:none; color:inherit; transition:all .15s; }
+.dashboard-pending-banner:hover { background:#FFF0DB; border-color:#F59E0B; }
+.dashboard-pending-banner__icon { font-size:1.25rem; }
+.dashboard-pending-banner__text { flex:1; font-family:'Inter',sans-serif; font-size:.85rem; color:#92400E; }
+.dashboard-pending-banner__text strong { color:#78350F; }
+.dashboard-pending-banner__action { font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; color:#D97706; }
 .admin-dashboard__cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem; margin-bottom:2rem; }
 .admin-dashboard__section { margin-bottom:2rem; }
 .admin-dashboard__section-title { font-family:'Sora',sans-serif; font-size:1.1rem; font-weight:600; color:#0F1419; margin-bottom:1rem; padding-bottom:.5rem; border-bottom:2px solid #E5E7EB; }

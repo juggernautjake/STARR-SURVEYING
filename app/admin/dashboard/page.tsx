@@ -31,6 +31,7 @@ export default function AdminDashboardPage() {
   const [flashcardsDue, setFlashcardsDue] = useState(0);
   const [recentQuizzes, setRecentQuizzes] = useState<QuizAttempt[]>([]);
   const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const role = session?.user?.role || 'employee';
@@ -74,8 +75,9 @@ export default function AdminDashboardPage() {
         reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'flashcard due count' });
       }
 
-      // Admin activity feed
+      // Admin-only data
       if (role === 'admin') {
+        // Activity feed
         try {
           const actRes = await fetch('/api/admin/learn/activity?limit=10');
           if (actRes.ok) {
@@ -84,6 +86,17 @@ export default function AdminDashboardPage() {
           }
         } catch (err) {
           reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'activity feed' });
+        }
+
+        // Pending registrations count
+        try {
+          const usersRes = await fetch('/api/admin/users');
+          if (usersRes.ok) {
+            const usersData = await usersRes.json();
+            setPendingCount(usersData.pending_count || 0);
+          }
+        } catch (err) {
+          reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'pending registrations' });
         }
       }
     } catch (err) {
@@ -135,6 +148,17 @@ export default function AdminDashboardPage() {
             : 'Access your education, jobs, finances, and schedule.'}
         </p>
       </div>
+
+      {/* Pending Registrations Banner (admin only) */}
+      {role === 'admin' && pendingCount > 0 && (
+        <Link href="/admin/users" className="dashboard-pending-banner">
+          <span className="dashboard-pending-banner__icon">&#x1F514;</span>
+          <span className="dashboard-pending-banner__text">
+            <strong>{pendingCount} pending registration{pendingCount !== 1 ? 's' : ''}</strong> awaiting approval
+          </span>
+          <span className="dashboard-pending-banner__action">Review &rarr;</span>
+        </Link>
+      )}
 
       {/* 4-Card Dashboard */}
       <div className="dashboard-cards">

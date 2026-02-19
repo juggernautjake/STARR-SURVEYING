@@ -53,6 +53,9 @@ export default function EmployeesPage() {
 
   if (!session?.user) return null;
 
+  // Admin-only page guard
+  if (!isAdmin) return null;
+
   const filtered = employees.filter(e => {
     if (roleFilter !== 'all' && e.job_title !== roleFilter) return false;
     if (search) {

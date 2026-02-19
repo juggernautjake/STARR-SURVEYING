@@ -1949,6 +1949,7 @@
   padding: 0.5rem 0.85rem; background: #1E293B; color: #FFF;
   font-family: 'Inter', sans-serif; font-size: 0.78rem; font-weight: 500;
   border-radius: 8px; white-space: nowrap; z-index: 9999;
+  opacity: 1 !important;
   box-shadow: 0 8px 24px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.12);
   animation: lockTipFadeIn 0.15s ease-out;
 }

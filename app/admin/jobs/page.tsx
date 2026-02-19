@@ -26,7 +26,7 @@ interface Job {
 }
 
 export default function AllJobsPage() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const { safeFetch, safeAction, reportPageError } = usePageError('AllJobsPage');
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -37,6 +37,13 @@ export default function AllJobsPage() {
   const [total, setTotal] = useState(0);
 
   useEffect(() => { loadJobs(); }, [stageFilter]);
+
+  // Admin-only page guard (middleware handles redirect, this prevents flash)
+  const userRole = session?.user?.role || 'employee';
+  if (sessionStatus === 'authenticated' && userRole !== 'admin') {
+    router.replace('/admin/dashboard');
+    return null;
+  }
 
   async function loadJobs() {
     setLoading(true);

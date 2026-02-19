@@ -18,7 +18,7 @@ interface RegisteredUser {
   updated_at: string;
 }
 
-type FilterTab = 'all' | 'active' | 'banned' | 'admins' | 'teachers';
+type FilterTab = 'all' | 'pending' | 'active' | 'banned' | 'admins' | 'teachers';
 
 export default function UsersPage() {
   const { data: session } = useSession();
@@ -32,6 +32,11 @@ export default function UsersPage() {
   const [banReason, setBanReason] = useState('');
   const [editingRoles, setEditingRoles] = useState<{ userId: string; roles: UserRole[] } | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
+  const [showPromote, setShowPromote] = useState(false);
+  const [promoteEmail, setPromoteEmail] = useState('');
+  const [promoteName, setPromoteName] = useState('');
+  const [promoteRole, setPromoteRole] = useState<'teacher' | 'admin'>('teacher');
+  const [promoting, setPromoting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -58,6 +63,9 @@ export default function UsersPage() {
 
   const isUserAdmin = session?.user?.role === 'admin';
 
+  // Admin-only page guard
+  if (session?.user && !isUserAdmin) return null;
+
   // Filter users
   const filtered = users.filter(u => {
     const matchesSearch = !search ||
@@ -66,7 +74,8 @@ export default function UsersPage() {
     if (!matchesSearch) return false;
 
     switch (filterTab) {
-      case 'active': return !u.is_banned;
+      case 'pending': return !u.is_approved && !u.is_banned;
+      case 'active': return u.is_approved && !u.is_banned;
       case 'banned': return u.is_banned;
       case 'admins': return u.roles.includes('admin');
       case 'teachers': return u.roles.includes('teacher');
@@ -75,9 +84,11 @@ export default function UsersPage() {
   });
 
   // Counts for tabs
+  const pendingCount = users.filter(u => !u.is_approved && !u.is_banned).length;
   const counts = {
     all: users.length,
-    active: users.filter(u => !u.is_banned).length,
+    pending: pendingCount,
+    active: users.filter(u => u.is_approved && !u.is_banned).length,
     banned: users.filter(u => u.is_banned).length,
     admins: users.filter(u => u.roles.includes('admin')).length,
     teachers: users.filter(u => u.roles.includes('teacher')).length,
@@ -173,6 +184,73 @@ export default function UsersPage() {
     setEditingRoles({ ...editingRoles, roles: newRoles });
   }
 
+  async function handlePromote() {
+    if (!promoteEmail) return;
+    setPromoting(true);
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: promoteEmail,
+          name: promoteName || undefined,
+          roles: ['employee', promoteRole],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSuccessMsg(data.message);
+      setShowPromote(false);
+      setPromoteEmail('');
+      setPromoteName('');
+      setPromoteRole('teacher');
+      fetchUsers();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to promote user');
+    } finally {
+      setPromoting(false);
+    }
+  }
+
+  async function handleApprove(userId: string) {
+    setActionLoading(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSuccessMsg(data.message);
+      fetchUsers();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to approve user');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleReject(userId: string) {
+    setActionLoading(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSuccessMsg(data.message);
+      fetchUsers();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to reject user');
+    } finally {
+      setActionLoading(null);
+      setConfirmAction(null);
+    }
+  }
+
   function formatDate(d: string) {
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
@@ -197,9 +275,41 @@ export default function UsersPage() {
   return (
     <div className="jobs-page">
       <div className="jobs-page__header">
-        <h2 className="jobs-page__title">User Management</h2>
-        <p className="um-subtitle">Manage registered external users — assign roles, ban, or remove accounts</p>
+        <div>
+          <h2 className="jobs-page__title">User Management</h2>
+          <p className="um-subtitle">Manage users — assign roles, promote employees, ban, or remove accounts</p>
+        </div>
+        <button className="um-btn um-btn--primary" onClick={() => setShowPromote(!showPromote)}>
+          {showPromote ? 'Cancel' : '+ Promote Employee'}
+        </button>
       </div>
+
+      {showPromote && (
+        <div style={{ padding: '1rem', marginBottom: '1rem', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '10px' }}>
+          <h3 style={{ fontSize: '.92rem', fontWeight: 700, color: '#0369A1', marginBottom: '.75rem' }}>Promote Employee to Teacher/Admin</h3>
+          <p style={{ fontSize: '.78rem', color: '#6B7280', marginBottom: '.75rem' }}>Enter the email of a company employee (Google login) or external user to assign them a higher role. They will gain the role on their next login.</p>
+          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: 2, minWidth: '200px' }}>
+              <label style={{ fontSize: '.78rem', fontWeight: 600, color: '#374151' }}>Email *</label>
+              <input className="job-form__input" type="email" placeholder="user@starr-surveying.com" value={promoteEmail} onChange={e => setPromoteEmail(e.target.value)} />
+            </div>
+            <div style={{ flex: 1, minWidth: '150px' }}>
+              <label style={{ fontSize: '.78rem', fontWeight: 600, color: '#374151' }}>Display Name</label>
+              <input className="job-form__input" type="text" placeholder="Optional" value={promoteName} onChange={e => setPromoteName(e.target.value)} />
+            </div>
+            <div style={{ flex: 1, minWidth: '120px' }}>
+              <label style={{ fontSize: '.78rem', fontWeight: 600, color: '#374151' }}>Role</label>
+              <select className="job-form__input" value={promoteRole} onChange={e => setPromoteRole(e.target.value as 'teacher' | 'admin')}>
+                <option value="teacher">Teacher</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <button className="um-btn um-btn--primary" onClick={handlePromote} disabled={promoting || !promoteEmail} style={{ height: '38px' }}>
+              {promoting ? 'Promoting...' : 'Promote'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Success / Error messages */}
       {successMsg && <div className="um-toast um-toast--success">{successMsg}</div>}
@@ -219,6 +329,7 @@ export default function UsersPage() {
         <div className="um-filter-tabs">
           {([
             ['all', 'All'],
+            ['pending', 'Pending'],
             ['active', 'Active'],
             ['banned', 'Banned'],
             ['admins', 'Admins'],
@@ -226,7 +337,7 @@ export default function UsersPage() {
           ] as [FilterTab, string][]).map(([key, label]) => (
             <button
               key={key}
-              className={`um-filter-tab ${filterTab === key ? 'um-filter-tab--active' : ''}`}
+              className={`um-filter-tab ${filterTab === key ? 'um-filter-tab--active' : ''} ${key === 'pending' && counts.pending > 0 ? 'um-filter-tab--alert' : ''}`}
               onClick={() => setFilterTab(key)}
             >
               {label}
@@ -259,7 +370,7 @@ export default function UsersPage() {
             </thead>
             <tbody>
               {filtered.map(user => (
-                <tr key={user.id} className={user.is_banned ? 'um-row--banned' : ''}>
+                <tr key={user.id} className={user.is_banned ? 'um-row--banned' : !user.is_approved ? 'um-row--pending' : ''}>
                   <td className="um-cell-user">
                     <div className="um-avatar">{user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}</div>
                     <div>
@@ -268,7 +379,9 @@ export default function UsersPage() {
                     </div>
                   </td>
                   <td className="um-cell-roles">
-                    {editingRoles?.userId === user.id ? (
+                    {!user.is_approved ? (
+                      <span className="um-role-badge um-role-badge--employee">employee</span>
+                    ) : editingRoles?.userId === user.id ? (
                       <div className="um-role-editor">
                         <label className="um-role-toggle">
                           <input type="checkbox" checked disabled />
@@ -327,13 +440,32 @@ export default function UsersPage() {
                         {user.banned_reason && <div className="um-ban-reason" title={user.banned_reason}>{user.banned_reason}</div>}
                         {user.banned_at && <div className="um-ban-date">Since {formatDate(user.banned_at)}</div>}
                       </div>
+                    ) : !user.is_approved ? (
+                      <span className="um-status-badge um-status-badge--pending">Pending</span>
                     ) : (
                       <span className="um-status-badge um-status-badge--active">Active</span>
                     )}
                   </td>
                   <td className="um-cell-date">{formatDate(user.created_at)}</td>
                   <td className="um-cell-actions">
-                    {user.is_banned ? (
+                    {!user.is_approved && !user.is_banned ? (
+                      <>
+                        <button
+                          className="um-btn um-btn--sm um-btn--success"
+                          onClick={() => handleApprove(user.id)}
+                          disabled={actionLoading === user.id}
+                        >
+                          {actionLoading === user.id ? '...' : 'Approve'}
+                        </button>
+                        <button
+                          className="um-btn um-btn--sm um-btn--danger"
+                          onClick={() => setConfirmAction({ userId: user.id, action: 'reject', userName: user.name })}
+                          disabled={actionLoading === user.id}
+                        >
+                          Reject
+                        </button>
+                      </>
+                    ) : user.is_banned ? (
                       <button
                         className="um-btn um-btn--sm um-btn--success"
                         onClick={() => handleUnban(user.id)}
@@ -369,7 +501,22 @@ export default function UsersPage() {
       {confirmAction && (
         <div className="um-modal-overlay" onClick={() => setConfirmAction(null)}>
           <div className="um-modal" onClick={e => e.stopPropagation()}>
-            {confirmAction.action === 'ban' ? (
+            {confirmAction.action === 'reject' ? (
+              <>
+                <h3 className="um-modal__title">Reject {confirmAction.userName}?</h3>
+                <p className="um-modal__desc">This will permanently delete their registration. They can re-register later if needed.</p>
+                <div className="um-modal__actions">
+                  <button className="um-btn um-btn--ghost" onClick={() => setConfirmAction(null)}>Cancel</button>
+                  <button
+                    className="um-btn um-btn--danger"
+                    onClick={() => handleReject(confirmAction.userId)}
+                    disabled={actionLoading === confirmAction.userId}
+                  >
+                    {actionLoading === confirmAction.userId ? 'Rejecting...' : 'Reject Registration'}
+                  </button>
+                </div>
+              </>
+            ) : confirmAction.action === 'ban' ? (
               <>
                 <h3 className="um-modal__title">Ban {confirmAction.userName}?</h3>
                 <p className="um-modal__desc">This user will be unable to log in until unbanned.</p>

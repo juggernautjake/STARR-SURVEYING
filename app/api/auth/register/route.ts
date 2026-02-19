@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create user with roles array (default: employee)
+    // Create user with roles array (default: employee) — requires admin approval
     const { data: newUser, error: insertError } = await supabaseAdmin
       .from('registered_users')
       .insert({
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         password_hash: passwordHash,
         name: cleanName,
         roles: ['employee'],
-        is_approved: true,
+        is_approved: false,
         is_banned: false,
       })
       .select('id, email, name')
@@ -77,8 +77,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Account created successfully. You can now sign in.',
+      message: 'Account created! An administrator will review your registration.',
       user: { id: newUser.id, email: newUser.email, name: newUser.name },
+      pending: true,
     });
   } catch (err) {
     console.error('Registration error:', err);

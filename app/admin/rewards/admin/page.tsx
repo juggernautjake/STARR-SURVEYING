@@ -295,6 +295,9 @@ export default function AdminRewardsPage() {
     { key: 'xp_management', label: 'XP Management' },
   ];
 
+  // Admin-only page guard
+  if (session?.user && session.user.role !== 'admin') return null;
+
   return (
     <>
       <div className="admin-learn__header">
