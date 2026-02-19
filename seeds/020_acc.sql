@@ -1812,8 +1812,6 @@ UPDATE learning_lessons SET
 
 title = 'Week 1: Distance Measurement — Chaining & Tape Corrections',
 
-content = 'Field procedures for measuring with a steel chain or tape, and the three systematic corrections every surveyor must apply: temperature, tension, and sag. Includes the standard correction formulas, worked examples, and practice problems.',
-
 key_takeaways = ARRAY[
   'Describe proper chain/tape measurement procedure including correct tension and forward/back measurement',
   'Apply the temperature correction formula Ct = 0.00000645 × (TF − 68) × L',
@@ -1991,8 +1989,6 @@ WHERE id = 'acc03b01-0000-0000-0000-000000000001';
 UPDATE learning_lessons SET
 
 title = 'Week 2: Compass Surveying, DD/DMS Conversions & Chaining Review',
-
-content = 'An introduction to the compass as a surveying instrument, bearing and azimuth notation, fore/back bearing relationships, magnetic declination, the SUUNTO KB-14/360, decimal-degree and degree-minute-second conversions with worked examples, and a brief review of the chaining correction formulas from Week 1.',
 
 key_takeaways = ARRAY[
   'Identify the three main types of surveying compasses and their appropriate field uses',
@@ -2261,8 +2257,6 @@ WHERE id = 'acc03b02-0000-0000-0000-000000000001';
 UPDATE learning_lessons SET
 
 title = 'Week 3: Magnetic Declination Review, Smartphone Compass Apps, Field Notekeeping & Trade Magazines',
-
-content = 'A deeper review of magnetic declination with four worked DMS-arithmetic examples, an introduction to smartphone compass applications (Hunter Pro Compass and Theodolite), comprehensive field notekeeping best practices including legal status, symbols, and sketching techniques, plus an overview of professional survey trade magazines.',
 
 key_takeaways = ARRAY[
   'Solve multi-step magnetic declination problems using DMS arithmetic with borrowing',
@@ -2677,8 +2671,6 @@ UPDATE learning_lessons SET
 
 title = 'Week 4: Instrument Care, Tripod Best Practices & Maintenance Schedules',
 
-content = 'A comprehensive guide to the care, handling, and maintenance of surveying instruments and tripods. Covers proper transport, environmental protection, lens care, tripod setup, climatization, electronic instrument precautions, and the minimum maintenance schedule every field crew must follow. Includes review of magnetic declination, smartphone compass apps, and field notekeeping from previous weeks.',
-
 key_takeaways = ARRAY[
   'Demonstrate proper procedures for transporting surveying instruments between setups and in vehicles',
   'Explain why an empty instrument case must remain closed and the consequences of leaving it open',
@@ -3021,8 +3013,6 @@ WHERE id = 'acc03b04-0000-0000-0000-000000000001';
 UPDATE learning_lessons SET
 
 title = 'Week 5: Instrument Leveling & Setup Over a Point',
-
-content = 'Procedures for leveling a three-screw surveying instrument and setting up precisely over a ground point using an optical or laser plummet. Covers the left thumb rule, indexing screws, the complete leveling procedure, circular vs. plate bubbles, tribrach operation, and the 10-step setup procedure for centering and leveling over a known point. Follows the Week 4 instrument care review and Quiz 1.',
 
 key_takeaways = ARRAY[
   'Explain the left thumb rule and demonstrate its use for centering a level bubble',
@@ -3381,8 +3371,6 @@ WHERE id = 'acc03b05-0000-0000-0000-000000000001';
 UPDATE learning_lessons SET
 
 title = 'Week 6: Types of Angles & Angle Measurement',
-
-content = 'Introduction to horizontal, interior, deflection, and vertical angles. Fundamentals of the horizontal circle, DMS arithmetic, face left (direct) and face right (reverse) measurement positions. Complete procedures for measuring a direct angle and a reverse angle, including the European method for turning a set of angles with worked examples for angles less than and greater than 180 degrees.',
 
 key_takeaways = ARRAY[
   'Define and distinguish horizontal, interior, deflection, and vertical angles',
