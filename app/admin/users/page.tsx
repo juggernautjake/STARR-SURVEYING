@@ -58,6 +58,9 @@ export default function UsersPage() {
 
   const isUserAdmin = session?.user?.role === 'admin';
 
+  // Admin-only page guard
+  if (session?.user && !isUserAdmin) return null;
+
   // Filter users
   const filtered = users.filter(u => {
     const matchesSearch = !search ||

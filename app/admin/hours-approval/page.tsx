@@ -349,6 +349,9 @@ export default function HoursApprovalPage() {
     return <div className="tl-loading">Admin access required</div>;
   }
 
+  // Admin-only page guard
+  if (session?.user && session.user.role !== 'admin') return null;
+
   return (
     <div className="tl-page">
       {/* Week navigation */}
