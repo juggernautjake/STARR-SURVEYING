@@ -7,6 +7,49 @@
 
 BEGIN;
 
+-- ── Create tables if they don't exist yet ────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS block_templates (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  category    text NOT NULL DEFAULT 'custom',
+  is_builtin  boolean NOT NULL DEFAULT false,
+  blocks      jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_by  text,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS problem_templates (
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name                    text NOT NULL,
+  description             text,
+  category                text NOT NULL,
+  subcategory             text,
+  question_type           text NOT NULL DEFAULT 'numeric_input',
+  difficulty              text NOT NULL DEFAULT 'medium',
+  question_template       text NOT NULL DEFAULT '',
+  answer_formula          text NOT NULL DEFAULT '',
+  answer_format           text,
+  parameters              jsonb NOT NULL DEFAULT '[]'::jsonb,
+  computed_vars           jsonb NOT NULL DEFAULT '[]'::jsonb,
+  solution_steps_template jsonb NOT NULL DEFAULT '[]'::jsonb,
+  options_generator       jsonb,
+  explanation_template    text,
+  module_id               uuid,
+  lesson_id               uuid,
+  topic_id                uuid,
+  exam_category           text,
+  tags                    text[] NOT NULL DEFAULT '{}',
+  study_references        jsonb,
+  generator_id            text,
+  created_by              text,
+  is_active               boolean NOT NULL DEFAULT true,
+  created_at              timestamptz NOT NULL DEFAULT now(),
+  updated_at              timestamptz NOT NULL DEFAULT now()
+);
+
 -- ── Block Templates ───────────────────────────────────────────────────────
 -- Reusable patterns for the lesson builder. Users can apply these when
 -- creating new lesson content.
