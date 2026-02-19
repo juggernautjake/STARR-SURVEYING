@@ -9,6 +9,9 @@
 
 BEGIN;
 
+-- ── Schema patches (add columns that may not exist yet) ───────────────────
+ALTER TABLE learning_lessons ADD COLUMN IF NOT EXISTS content_migrated BOOLEAN DEFAULT FALSE;
+
 -- ── XP Pay Milestones ─────────────────────────────────────────────────────
 INSERT INTO xp_pay_milestones (xp_threshold, bonus_per_hour, label, description) VALUES
 (10000, 0.50, 'XP Apprentice', 'First 10,000 XP earned'),
