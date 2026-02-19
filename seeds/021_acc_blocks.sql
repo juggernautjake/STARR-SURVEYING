@@ -7,9 +7,7 @@
 
 BEGIN;
 
--- Ensure content_migrated column exists
-ALTER TABLE learning_lessons ADD COLUMN IF NOT EXISTS content_migrated BOOLEAN DEFAULT FALSE;
-
+-- content_migrated column is created by 001_config.sql
 
 -- ----------------------------------------------------------------------------
 -- SRVY 1335 — Week 1: Lab Safety, Equipment Overview & Field Books
