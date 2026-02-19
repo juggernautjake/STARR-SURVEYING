@@ -320,7 +320,7 @@ export default function PayrollPage() {
         <h3>Payroll System Setup Guide</h3>
         <div className="payroll-setup-guide__content">
           <h4>1. Run Database Migration</h4>
-          <p>Execute <code>supabase_schema_payroll.sql</code> in your Supabase SQL editor to create all payroll tables.</p>
+          <p>Payroll tables are created by the database migrations. To re-seed data, run <code>./seeds/run_all.sh</code>.</p>
 
           <h4>2. Configure Employee Profiles</h4>
           <p>Add employees with their job title, hourly rate, and hire date. Each employee&apos;s pay is automatically calculated based on time entries from the job management system.</p>

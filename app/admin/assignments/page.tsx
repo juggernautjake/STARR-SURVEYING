@@ -384,7 +384,7 @@ export default function AssignmentsPage() {
             <li>Auto-notification created when admin assigns a task</li>
             <li>Overdue highlighting for past-due assignments</li>
           </ul>
-          <p style={{ margin: '0 0 0.5rem' }}><strong>Database:</strong> Run <code>supabase_migration_assignments_notifications.sql</code></p>
+          <p style={{ margin: '0 0 0.5rem' }}><strong>Database:</strong> Assignments and notifications tables are created by database migrations</p>
         </div>
         <pre style={{ background: '#1F2937', color: '#E5E7EB', padding: '1rem', borderRadius: '6px', fontSize: '0.75rem', overflow: 'auto', marginTop: '0.75rem' }}>{`CONTINUATION PROMPT:
 Improve assignments at /admin/assignments/page.tsx.
