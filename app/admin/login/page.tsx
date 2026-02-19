@@ -12,6 +12,7 @@ function LoginContent() {
   const router = useRouter();
   const error = searchParams.get('error');
   const registered = searchParams.get('registered');
+  const pending = searchParams.get('pending');
   const callbackUrl = searchParams.get('callbackUrl') || '/admin/dashboard';
 
   const [email, setEmail] = useState('');
@@ -38,6 +39,26 @@ function LoginContent() {
 
     setLoading(true);
     try {
+      // Pre-check account status before attempting sign-in
+      const statusRes = await fetch('/api/auth/check-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        if (statusData.status === 'pending') {
+          setFormError('Your account is awaiting admin approval. You\u2019ll be able to sign in once approved.');
+          setLoading(false);
+          return;
+        }
+        if (statusData.status === 'banned') {
+          setFormError('Your account has been suspended. Contact an administrator for assistance.');
+          setLoading(false);
+          return;
+        }
+      }
+
       const result = await signIn('credentials', {
         email: email.trim(),
         password,
@@ -45,7 +66,7 @@ function LoginContent() {
       });
 
       if (result?.error) {
-        setFormError('Invalid email or password');
+        setFormError('Invalid email or password.');
         setLoading(false);
         return;
       }
@@ -73,6 +94,11 @@ function LoginContent() {
         {registered && (
           <div className="admin-login__success">
             Account created successfully! Sign in below.
+          </div>
+        )}
+        {pending && (
+          <div className="admin-login__info">
+            Account created! An administrator will review your registration. You&apos;ll be able to sign in once approved.
           </div>
         )}
         {formError && <div className="admin-login__error">{formError}</div>}

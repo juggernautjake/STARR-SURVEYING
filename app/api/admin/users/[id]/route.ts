@@ -89,7 +89,39 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ success: true, message: `${user.name} has been unbanned` });
   }
 
-  return NextResponse.json({ error: 'Invalid action. Use: update_roles, ban, or unban' }, { status: 400 });
+  if (action === 'approve') {
+    const { error } = await supabaseAdmin
+      .from('registered_users')
+      .update({
+        is_approved: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error approving user:', error);
+      return NextResponse.json({ error: 'Failed to approve user' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, message: `${user.name} has been approved` });
+  }
+
+  if (action === 'reject') {
+    // Reject = delete the pending registration
+    const { error } = await supabaseAdmin
+      .from('registered_users')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error rejecting user:', error);
+      return NextResponse.json({ error: 'Failed to reject user' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, message: `Registration for ${user.name} (${user.email}) has been rejected` });
+  }
+
+  return NextResponse.json({ error: 'Invalid action. Use: update_roles, ban, unban, approve, or reject' }, { status: 400 });
 }
 
 // DELETE - Permanently delete a user

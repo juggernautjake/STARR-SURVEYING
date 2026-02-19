@@ -20,7 +20,9 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
   }
 
-  return NextResponse.json({ users: data || [] });
+  const users = data || [];
+  const pending_count = users.filter((u: { is_approved: boolean; is_banned: boolean }) => !u.is_approved && !u.is_banned).length;
+  return NextResponse.json({ users, pending_count });
 }
 
 // POST - Promote a company employee to teacher (creates registered_users entry for role tracking)

@@ -50,8 +50,8 @@ export default function RegisterPage() {
         return;
       }
 
-      // Success — redirect to login
-      router.push('/admin/login?registered=true');
+      // Success — redirect to login with pending approval message
+      router.push('/admin/login?pending=true');
     } catch {
       setError('Network error. Please try again.');
       setLoading(false);
