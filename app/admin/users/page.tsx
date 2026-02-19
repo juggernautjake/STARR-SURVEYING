@@ -32,6 +32,11 @@ export default function UsersPage() {
   const [banReason, setBanReason] = useState('');
   const [editingRoles, setEditingRoles] = useState<{ userId: string; roles: UserRole[] } | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
+  const [showPromote, setShowPromote] = useState(false);
+  const [promoteEmail, setPromoteEmail] = useState('');
+  const [promoteName, setPromoteName] = useState('');
+  const [promoteRole, setPromoteRole] = useState<'teacher' | 'admin'>('teacher');
+  const [promoting, setPromoting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -176,6 +181,34 @@ export default function UsersPage() {
     setEditingRoles({ ...editingRoles, roles: newRoles });
   }
 
+  async function handlePromote() {
+    if (!promoteEmail) return;
+    setPromoting(true);
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: promoteEmail,
+          name: promoteName || undefined,
+          roles: ['employee', promoteRole],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSuccessMsg(data.message);
+      setShowPromote(false);
+      setPromoteEmail('');
+      setPromoteName('');
+      setPromoteRole('teacher');
+      fetchUsers();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to promote user');
+    } finally {
+      setPromoting(false);
+    }
+  }
+
   function formatDate(d: string) {
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
@@ -200,9 +233,41 @@ export default function UsersPage() {
   return (
     <div className="jobs-page">
       <div className="jobs-page__header">
-        <h2 className="jobs-page__title">User Management</h2>
-        <p className="um-subtitle">Manage registered external users — assign roles, ban, or remove accounts</p>
+        <div>
+          <h2 className="jobs-page__title">User Management</h2>
+          <p className="um-subtitle">Manage users — assign roles, promote employees, ban, or remove accounts</p>
+        </div>
+        <button className="um-btn um-btn--primary" onClick={() => setShowPromote(!showPromote)}>
+          {showPromote ? 'Cancel' : '+ Promote Employee'}
+        </button>
       </div>
+
+      {showPromote && (
+        <div style={{ padding: '1rem', marginBottom: '1rem', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '10px' }}>
+          <h3 style={{ fontSize: '.92rem', fontWeight: 700, color: '#0369A1', marginBottom: '.75rem' }}>Promote Employee to Teacher/Admin</h3>
+          <p style={{ fontSize: '.78rem', color: '#6B7280', marginBottom: '.75rem' }}>Enter the email of a company employee (Google login) or external user to assign them a higher role. They will gain the role on their next login.</p>
+          <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: 2, minWidth: '200px' }}>
+              <label style={{ fontSize: '.78rem', fontWeight: 600, color: '#374151' }}>Email *</label>
+              <input className="job-form__input" type="email" placeholder="user@starr-surveying.com" value={promoteEmail} onChange={e => setPromoteEmail(e.target.value)} />
+            </div>
+            <div style={{ flex: 1, minWidth: '150px' }}>
+              <label style={{ fontSize: '.78rem', fontWeight: 600, color: '#374151' }}>Display Name</label>
+              <input className="job-form__input" type="text" placeholder="Optional" value={promoteName} onChange={e => setPromoteName(e.target.value)} />
+            </div>
+            <div style={{ flex: 1, minWidth: '120px' }}>
+              <label style={{ fontSize: '.78rem', fontWeight: 600, color: '#374151' }}>Role</label>
+              <select className="job-form__input" value={promoteRole} onChange={e => setPromoteRole(e.target.value as 'teacher' | 'admin')}>
+                <option value="teacher">Teacher</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <button className="um-btn um-btn--primary" onClick={handlePromote} disabled={promoting || !promoteEmail} style={{ height: '38px' }}>
+              {promoting ? 'Promoting...' : 'Promote'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Success / Error messages */}
       {successMsg && <div className="um-toast um-toast--success">{successMsg}</div>}

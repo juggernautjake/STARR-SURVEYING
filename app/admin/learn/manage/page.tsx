@@ -1136,7 +1136,7 @@ export default function ManageContentPage() {
                     <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveModule} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelEditModule}>Cancel</button>
                     <Link href={`/admin/learn/modules/${m.id}`} className="manage__item-btn" style={{ marginLeft: 'auto' }}>View</Link>
-                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('module', m.id, m.title)}>Delete</button>
+                    {isAdmin && <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('module', m.id, m.title)}>Delete</button>}
                   </div>
                 </>
               ) : (
@@ -1157,7 +1157,7 @@ export default function ManageContentPage() {
                       {m.status === 'published' ? 'Unpublish' : 'Publish'}
                     </button>
                     <Link href={`/admin/learn/modules/${m.id}`} className="manage__item-btn">View</Link>
-                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('module', m.id, m.title)}>Delete</button>
+                    {isAdmin && <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('module', m.id, m.title)}>Delete</button>}
                   </div>
                 </>
               )}
@@ -1181,7 +1181,7 @@ export default function ManageContentPage() {
                   {l.status === 'published' ? 'Unpublish' : 'Publish'}
                 </button>
                 <Link href={`/admin/learn/modules/${l.module_id}/${l.id}`} className="manage__item-btn">View</Link>
-                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('lesson', l.id, l.title)}>Delete</button>
+                {isAdmin && <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('lesson', l.id, l.title)}>Delete</button>}
               </div>
             </div>
           ))}
@@ -1206,7 +1206,7 @@ export default function ManageContentPage() {
                   {a.status === 'published' ? 'Unpublish' : 'Publish'}
                 </button>
                 <Link href={`/admin/learn/articles/${a.id}`} className="manage__item-btn">View</Link>
-                <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('article', a.id, a.title)}>Delete</button>
+                {isAdmin && <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('article', a.id, a.title)}>Delete</button>}
               </div>
             </div>
           ))}
@@ -1258,7 +1258,7 @@ export default function ManageContentPage() {
                     <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveQuestion} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelEditQuestion}>Cancel</button>
                     <Link href={`/admin/learn/manage/question-builder`} className="manage__item-btn" style={{ marginLeft: 'auto' }}>Open in Builder</Link>
-                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>
+                    {isAdmin && <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>}
                   </div>
                 </>
               ) : (
@@ -1283,7 +1283,7 @@ export default function ManageContentPage() {
                   </div>
                   <div className="manage__item-actions">
                     <button className="manage__item-btn manage__item-btn--primary" onClick={() => { setEditingQuestionId(q.id); setEditQuestion({}); }}>Edit</button>
-                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>
+                    {isAdmin && <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('question', q.id, q.question_text.substring(0, 40))}>Delete</button>}
                   </div>
                 </>
               )}
@@ -1310,7 +1310,7 @@ export default function ManageContentPage() {
                   <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.5rem' }}>
                     <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={handleSaveFlashcard} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleCancelEditFlashcard}>Cancel</button>
-                    <button className="manage__item-btn manage__item-btn--danger" style={{ marginLeft: 'auto' }} onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>
+                    {isAdmin && <button className="manage__item-btn manage__item-btn--danger" style={{ marginLeft: 'auto' }} onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>}
                   </div>
                 </>
               ) : (
@@ -1329,7 +1329,7 @@ export default function ManageContentPage() {
                   </div>
                   <div className="manage__item-actions">
                     <button className="manage__item-btn manage__item-btn--primary" onClick={() => { setEditingFlashcardId(f.id); setEditFlashcard({}); }}>Edit</button>
-                    <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>
+                    {isAdmin && <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('flashcard', f.id, f.term)}>Delete</button>}
                   </div>
                 </>
               )}

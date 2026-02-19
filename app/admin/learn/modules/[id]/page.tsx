@@ -34,6 +34,7 @@ export default function ModuleDetailPage() {
   const { data: session } = useSession();
   const userRole = session?.user?.role || 'employee';
   const canManage = userRole === 'admin' || userRole === 'teacher';
+  const isAdminUser = userRole === 'admin';
   const moduleId = params.id as string;
   const [mod, setMod] = useState<ModuleDetail | null>(null);
   const [lessons, setLessons] = useState<EnrichedLesson[]>([]);
@@ -215,7 +216,7 @@ export default function ModuleDetailPage() {
                   <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={() => toggleLessonStatus(lesson.id)}>
                     {(publishStatuses[lesson.id] || 'published') === 'published' ? 'Unpublish' : 'Publish'}
                   </button>
-                  {deleteConfirm === lesson.id ? (
+                  {isAdminUser && (deleteConfirm === lesson.id ? (
                     <div style={{ display: 'flex', gap: '.25rem', alignItems: 'center' }}>
                       <span style={{ fontSize: '.72rem', color: '#DC2626', fontWeight: 600 }}>Delete?</span>
                       <button className="admin-btn admin-btn--sm" style={{ color: '#DC2626', borderColor: '#DC2626' }} onClick={() => deleteLesson(lesson.id)}>Yes</button>
@@ -223,7 +224,7 @@ export default function ModuleDetailPage() {
                     </div>
                   ) : (
                     <button className="admin-btn admin-btn--ghost admin-btn--sm" style={{ color: '#DC2626' }} onClick={() => setDeleteConfirm(lesson.id)}>Delete</button>
-                  )}
+                  ))}
                 </div>
               </div>
             ))}

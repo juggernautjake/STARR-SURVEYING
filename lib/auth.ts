@@ -25,13 +25,34 @@ const TEACHER_EMAILS: string[] = [];
 
 const ALLOWED_DOMAIN = 'starr-surveying.com';
 
-/** Get all roles for a company (Google) user based on email lists */
+/** Get roles for a user from hardcoded email lists (synchronous fallback) */
 export function getUserRoles(email: string): UserRole[] {
   const lower = email.toLowerCase();
   const roles: UserRole[] = ['employee']; // everyone is at least an employee
   if (ADMIN_EMAILS.includes(lower)) roles.push('admin');
   if (TEACHER_EMAILS.includes(lower)) roles.push('teacher');
   return roles;
+}
+
+/** Get roles for any user, checking DB first then falling back to email lists */
+export async function getUserRolesFromDB(email: string): Promise<UserRole[]> {
+  const lower = email.toLowerCase();
+  // Check registered_users table for DB-managed roles
+  const { data } = await supabaseAdmin
+    .from('registered_users')
+    .select('roles')
+    .eq('email', lower)
+    .maybeSingle();
+  if (data?.roles && Array.isArray(data.roles) && data.roles.length > 0) {
+    // Merge DB roles with hardcoded roles (hardcoded admins always stay admin)
+    const dbRoles = new Set<UserRole>(data.roles as UserRole[]);
+    if (ADMIN_EMAILS.includes(lower)) dbRoles.add('admin');
+    if (TEACHER_EMAILS.includes(lower)) dbRoles.add('teacher');
+    dbRoles.add('employee');
+    return Array.from(dbRoles);
+  }
+  // Fallback to hardcoded email lists
+  return getUserRoles(lower);
 }
 
 /** Get the primary (highest) role for display purposes: admin > teacher > employee */
@@ -139,26 +160,18 @@ const authConfig: NextAuthConfig = {
       if (user?.email) {
         // Initial sign-in: populate token from user object
         token.email = user.email.toLowerCase();
-        token.roles = user.roles || getUserRoles(user.email);
-        token.role = user.role || getPrimaryRole(token.roles as UserRole[]);
+        // For company (Google) users, check DB roles too (admin may have promoted them)
+        if (!user.roles || (Array.isArray(user.roles) && user.roles.length <= 1)) {
+          token.roles = await getUserRolesFromDB(user.email);
+        } else {
+          token.roles = user.roles;
+        }
+        token.role = getPrimaryRole(token.roles as UserRole[]);
         token.name = user.name;
         token.picture = user.image;
       } else if (token.email && !token.roles) {
-        // Existing session missing roles (pre-update JWT) — recompute from email
-        // For company users this uses the hardcoded email lists;
-        // for registered users we look up their DB roles
-        const email = token.email as string;
-        if (isCompanyUser(email)) {
-          token.roles = getUserRoles(email);
-        } else {
-          // External user — fetch roles from DB
-          const { data } = await supabaseAdmin
-            .from('registered_users')
-            .select('roles')
-            .eq('email', email)
-            .single();
-          token.roles = (data?.roles as UserRole[]) || ['employee'];
-        }
+        // Existing session missing roles — recompute from DB + email lists
+        token.roles = await getUserRolesFromDB(token.email as string);
         token.role = getPrimaryRole(token.roles as UserRole[]);
       }
       return token;
