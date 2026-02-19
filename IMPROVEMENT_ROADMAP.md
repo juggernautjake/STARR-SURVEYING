@@ -24,7 +24,7 @@ These issues have been resolved in the current session:
 
 ---
 
-## Phase 2: Role-Based Access Control (Student vs Admin)
+## Phase 2: Role-Based Access Control (COMPLETED)
 
 **Goal**: Students/employees should only see learning content, not admin management tools.
 
@@ -82,7 +82,7 @@ Students should NOT see:
 
 ---
 
-## Phase 3: Teacher Role Implementation
+## Phase 3: Teacher Role Implementation (COMPLETED)
 
 **Goal**: Teachers can create and manage content but don't have full admin control.
 
@@ -126,7 +126,7 @@ Students should NOT see:
 
 ---
 
-## Phase 4: External User Registration
+## Phase 4: External User Registration (COMPLETED)
 
 **Goal**: Allow non-company users (private Gmail accounts) to register and access learning materials.
 
@@ -164,7 +164,7 @@ Students should NOT see:
 
 ---
 
-## Phase 5: Database Content Rebuild — Foundation
+## Phase 5: Database Content Rebuild — Foundation (COMPLETED)
 
 **Goal**: Set up infrastructure for converting monolithic HTML to structured lesson blocks.
 
@@ -295,11 +295,11 @@ For each lesson in these files:
 | Phase | Focus | Status | Est. Effort |
 |-------|-------|--------|-------------|
 | 1 | Bug Fixes & Quick Wins | COMPLETED | — |
-| 2 | Role-Based Access Control | Next Up | 1-2 sessions |
-| 3 | Teacher Role | Planned | 1-2 sessions |
-| 4 | External User Registration | Planned | 1 session |
-| 5 | DB Rebuild Foundation | Planned | 1 session |
-| 6 | Core Curriculum Conversion | Planned | 2-3 sessions |
+| 2 | Role-Based Access Control | COMPLETED | — |
+| 3 | Teacher Role | COMPLETED | — |
+| 4 | External User Registration | COMPLETED | — |
+| 5 | DB Rebuild Foundation | COMPLETED | — |
+| 6 | Core Curriculum Conversion | Next Up | 2-3 sessions |
 | 7 | ACC Course Conversion | Planned | 2-3 sessions |
 | 8 | Survey & Remaining Conversion | Planned | 1-2 sessions |
 | 9 | Polish & Enhancement | Planned | Ongoing |
