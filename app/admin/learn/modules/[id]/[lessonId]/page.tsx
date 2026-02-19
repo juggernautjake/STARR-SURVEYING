@@ -4,6 +4,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { decodeUnicodeEscapes } from '@/lib/decodeUnicode';
+
+/** Shorthand for dangerouslySetInnerHTML with unicode escape decoding */
+function dhtml(html: string) { return { __html: decodeUnicodeEscapes(html || '') }; }
 
 /* ── Confetti burst (lightweight CSS-only, no deps) ── */
 function ConfettiBurst({ onDone }: { onDone: () => void }) {
@@ -451,9 +455,9 @@ export default function LessonViewerPage() {
                 )}
                 <div className={`block-collapsible-wrap ${(!isCollapsible || !isCollapsed) ? 'block-collapsible-wrap--open' : ''}`}><div>
                   {block.block_type === 'text' && block.content.html && block.content.html !== '<p></p>' && block.content.html !== '<p>Enter text here...</p>' && (
-                    <div dangerouslySetInnerHTML={{ __html: block.content.html }} />
+                    <div dangerouslySetInnerHTML={dhtml(block.content.html)} />
                   )}
-                  {block.block_type === 'html' && <div dangerouslySetInnerHTML={{ __html: block.content.code || '' }} />}
+                  {block.block_type === 'html' && <div dangerouslySetInnerHTML={dhtml(block.content.code)} />}
                   {block.block_type === 'image' && block.content.url && (
                     <figure style={{ textAlign: (block.content.alignment || 'center') as any, margin: '1.5rem 0' }}>
                       <img src={block.content.url} alt={block.content.alt || ''} style={{ maxWidth: '100%', borderRadius: '8px' }} />
@@ -481,7 +485,7 @@ export default function LessonViewerPage() {
                   )}
                   {block.block_type === 'callout' && (
                     <div className={`lesson-builder__callout lesson-builder__callout--${block.content.type || 'info'}`}>
-                      <span dangerouslySetInnerHTML={{ __html: block.content.text || '' }} />
+                      <span dangerouslySetInnerHTML={dhtml(block.content.text)} />
                     </div>
                   )}
                   {block.block_type === 'highlight' && (() => {
@@ -490,7 +494,7 @@ export default function LessonViewerPage() {
                       <div className="block-highlight-group">
                         {items.map((item: any, i: number) => (
                           <div key={i} className={`block-highlight block-highlight--${item.style || 'blue'}`}>
-                            <span dangerouslySetInnerHTML={{ __html: item.text || '' }} />
+                            <span dangerouslySetInnerHTML={dhtml(item.text)} />
                           </div>
                         ))}
                       </div>
@@ -508,7 +512,7 @@ export default function LessonViewerPage() {
                   )}
                   {block.block_type === 'equation' && (
                     <div className={`lesson-builder__equation ${block.content.display === 'inline' ? 'lesson-builder__equation--inline' : ''}`}>
-                      <div className="lesson-builder__equation-rendered" dangerouslySetInnerHTML={{ __html: renderLatex(block.content.latex || '') }} />
+                      <div className="lesson-builder__equation-rendered" dangerouslySetInnerHTML={dhtml(renderLatex(block.content.latex || ''))} />
                       {block.content.label && <div className="lesson-builder__equation-label">{block.content.label}</div>}
                     </div>
                   )}
@@ -519,7 +523,7 @@ export default function LessonViewerPage() {
                           <button key={ti} className={`block-tabs__tab ${(viewerTabIndexes[block.id] ?? 0) === ti ? 'block-tabs__tab--active' : ''}`} onClick={() => setViewerTabIndexes(prev => ({ ...prev, [block.id]: ti }))}>{tab.title || `Tab ${ti + 1}`}</button>
                         ))}
                       </div>
-                      <div className="block-tabs__content" dangerouslySetInnerHTML={{ __html: (block.content.tabs || [])[viewerTabIndexes[block.id] ?? 0]?.content || '' }} />
+                      <div className="block-tabs__content" dangerouslySetInnerHTML={dhtml((block.content.tabs || [])[viewerTabIndexes[block.id] ?? 0]?.content)} />
                     </div>
                   )}
                   {block.block_type === 'accordion' && (
@@ -533,7 +537,7 @@ export default function LessonViewerPage() {
                               <span className="block-accordion__arrow">{isOpen ? '▾' : '▸'}</span>
                               <span className="block-accordion__title">{sec.title || `Section ${si + 1}`}</span>
                             </button>
-                            {isOpen && <div className="block-accordion__content" dangerouslySetInnerHTML={{ __html: sec.content || '' }} />}
+                            {isOpen && <div className="block-accordion__content" dangerouslySetInnerHTML={dhtml(sec.content)} />}
                           </div>
                         );
                       })}
@@ -542,7 +546,7 @@ export default function LessonViewerPage() {
                   {block.block_type === 'columns' && (
                     <div className="block-columns" style={{ gridTemplateColumns: `repeat(${block.content.columnCount || 2}, 1fr)` }}>
                       {(block.content.columns || []).map((col: any, ci: number) => (
-                        <div key={ci} className="block-columns__col" dangerouslySetInnerHTML={{ __html: col.html || '' }} />
+                        <div key={ci} className="block-columns__col" dangerouslySetInnerHTML={dhtml(col.html)} />
                       ))}
                     </div>
                   )}
@@ -553,9 +557,9 @@ export default function LessonViewerPage() {
                   {block.block_type === 'table' && (
                     <div style={{ overflowX: 'auto', margin: '1.5rem 0' }}>
                       <table className="lesson-builder__preview-table">
-                        <thead><tr>{(block.content.headers || []).map((h: string, i: number) => <th key={i} dangerouslySetInnerHTML={{ __html: h }} />)}</tr></thead>
+                        <thead><tr>{(block.content.headers || []).map((h: string, i: number) => <th key={i} dangerouslySetInnerHTML={dhtml(h)} />)}</tr></thead>
                         <tbody>{(block.content.rows || []).map((row: string[], ri: number) => (
-                          <tr key={ri}>{row.map((cell: string, ci: number) => <td key={ci} dangerouslySetInnerHTML={{ __html: cell }} />)}</tr>
+                          <tr key={ri}>{row.map((cell: string, ci: number) => <td key={ci} dangerouslySetInnerHTML={dhtml(cell)} />)}</tr>
                         ))}</tbody>
                       </table>
                     </div>
@@ -735,7 +739,7 @@ export default function LessonViewerPage() {
                         <span className={`block-popup-article__chevron ${expandedPopups[block.id] ? 'block-popup-article__chevron--open' : ''}`}>&#x25BC;</span>
                       </div>
                       <div className={`block-popup-article__body ${expandedPopups[block.id] ? 'block-popup-article__body--open' : ''}`}>
-                        <div className="block-popup-article__content" dangerouslySetInnerHTML={{ __html: block.content.full_content || '' }} />
+                        <div className="block-popup-article__content" dangerouslySetInnerHTML={dhtml(block.content.full_content)} />
                       </div>
                     </div>
                   )}
@@ -833,7 +837,7 @@ export default function LessonViewerPage() {
           })}
         </div>
       ) : (
-        <div className="admin-lesson__body" dangerouslySetInnerHTML={{ __html: lesson.content || '' }} />
+        <div className="admin-lesson__body" dangerouslySetInnerHTML={dhtml(lesson.content)} />
       )}
 
       {/* Topics */}

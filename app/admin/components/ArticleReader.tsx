@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { decodeUnicodeEscapes } from '@/lib/decodeUnicode';
 
 interface ArticleReaderProps {
   article: {
@@ -113,7 +114,7 @@ export default function ArticleReader({ article, completed: initialCompleted, co
       <div
         ref={contentRef}
         className="article-reader__content"
-        dangerouslySetInnerHTML={{ __html: article.content }}
+        dangerouslySetInnerHTML={{ __html: decodeUnicodeEscapes(article.content || '') }}
       />
 
       {/* Bottom sentinel for IntersectionObserver */}

@@ -330,6 +330,22 @@ export default function ManageContentPage() {
     setSaving(false);
   }
 
+  async function togglePublishStatus(type: 'module' | 'lesson' | 'article', id: string, currentStatus: string) {
+    const newStatus = currentStatus === 'published' ? 'draft' : 'published';
+    const urlMap = { module: '/api/admin/learn/modules', lesson: '/api/admin/learn/lessons', article: '/api/admin/learn/articles' };
+    const result = await safeFetch(urlMap[type], {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status: newStatus }),
+    });
+    if (result) {
+      if (type === 'module') setModules(prev => prev.map(m => m.id === id ? { ...m, status: newStatus } : m));
+      else if (type === 'lesson') setLessons(prev => prev.map(l => l.id === id ? { ...l, status: newStatus } : l));
+      else if (type === 'article') setArticles(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
+      addToast(`${type.charAt(0).toUpperCase() + type.slice(1)} ${newStatus === 'published' ? 'published' : 'unpublished'}!`, 'success');
+    }
+  }
+
   async function handleSaveFlashcard() {
     if (!editingFlashcardId) return;
     setSaving(true);
@@ -1137,6 +1153,9 @@ export default function ManageContentPage() {
                   </div>
                   <div className="manage__item-actions">
                     <button className="manage__item-btn manage__item-btn--primary" onClick={() => { setEditingModuleId(m.id); setEditModule({}); }}>Edit</button>
+                    <button className="manage__item-btn" onClick={() => togglePublishStatus('module', m.id, m.status)}>
+                      {m.status === 'published' ? 'Unpublish' : 'Publish'}
+                    </button>
                     <Link href={`/admin/learn/modules/${m.id}`} className="manage__item-btn">View</Link>
                     <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('module', m.id, m.title)}>Delete</button>
                   </div>
@@ -1158,6 +1177,9 @@ export default function ManageContentPage() {
                 <Link href={`/admin/learn/manage/lesson-builder/${l.id}`} className="manage__item-btn manage__item-btn--primary">
                   Edit in Builder
                 </Link>
+                <button className="manage__item-btn" onClick={() => togglePublishStatus('lesson', l.id, l.status)}>
+                  {l.status === 'published' ? 'Unpublish' : 'Publish'}
+                </button>
                 <Link href={`/admin/learn/modules/${l.module_id}/${l.id}`} className="manage__item-btn">View</Link>
                 <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('lesson', l.id, l.title)}>Delete</button>
               </div>
@@ -1180,6 +1202,9 @@ export default function ManageContentPage() {
                 <Link href={`/admin/learn/manage/article-editor/${a.id}`} className="manage__item-btn manage__item-btn--primary">
                   Edit
                 </Link>
+                <button className="manage__item-btn" onClick={() => togglePublishStatus('article', a.id, a.status)}>
+                  {a.status === 'published' ? 'Unpublish' : 'Publish'}
+                </button>
                 <Link href={`/admin/learn/articles/${a.id}`} className="manage__item-btn">View</Link>
                 <button className="manage__item-btn manage__item-btn--danger" onClick={() => handleDelete('article', a.id, a.title)}>Delete</button>
               </div>
