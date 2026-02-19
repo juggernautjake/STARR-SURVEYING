@@ -667,10 +667,10 @@ VALUES
 
 
 -- --------------------------------------------------------------------------
--- Welcome Lesson (has HTML content -- marked content_migrated = TRUE)
--- The HTML is kept as fallback; real content will live in lesson_blocks.
+-- Welcome Lesson (has HTML content as fallback; real content in lesson_blocks)
+-- content_migrated flag is set by 011_curriculum_blocks.sql
 -- --------------------------------------------------------------------------
-INSERT INTO learning_lessons (id, module_id, title, content, content_migrated, key_takeaways, order_index, estimated_minutes, status, tags, resources, videos) VALUES
+INSERT INTO learning_lessons (id, module_id, title, content, key_takeaways, order_index, estimated_minutes, status, tags, resources, videos) VALUES
 ('22222222-2222-2222-2222-222222222200',
  'c1000001-0000-0000-0000-000000000001',
  'Welcome to Starr Surveying',
@@ -703,7 +703,6 @@ INSERT INTO learning_lessons (id, module_id, title, content, content_migrated, k
 <p>Starr Surveying is committed to providing accurate, professional land surveying services. Our team uses the latest technology — including Trimble instruments, GNSS receivers, and CAD software — to deliver high-quality results. We believe in continuous learning and professional development, which is why we built this platform for our team.</p>
 
 <p><strong>Let''s get started!</strong></p>',
- TRUE,
  ARRAY[
    'The Learning Hub covers fundamentals, equipment, Texas law, field procedures, and exam prep',
    'Use flashcards with spaced repetition to master surveying terminology',

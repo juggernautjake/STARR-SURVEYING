@@ -7,6 +7,9 @@
 
 BEGIN;
 
+-- Ensure content_migrated column exists (may not be part of original schema)
+ALTER TABLE learning_lessons ADD COLUMN IF NOT EXISTS content_migrated BOOLEAN DEFAULT FALSE;
+
 -- ---------------------------------------------------------------------------
 -- Welcome lesson  (22222222-2222-2222-2222-222222222200)
 -- Converted from legacy HTML to structured lesson blocks
