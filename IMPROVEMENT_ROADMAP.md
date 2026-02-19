@@ -213,47 +213,52 @@ Students should NOT see:
 
 ---
 
-## Phase 6: Content Conversion — Core Curriculum
+## Phase 6: Content Conversion — ACC Academic Courses (COMPLETED)
 
-**Goal**: Convert the main curriculum and FS prep seed files to block format.
+**Goal**: Convert all ACC course HTML content to structured lesson blocks.
 
-### Files to Convert
-1. `supabase_seed_curriculum.sql` — Primary learning modules
-2. `supabase_seed_fs_prep.sql` — FS exam prep content
-3. `supabase_seed_drone_surveying.sql` — Drone surveying
+### What Was Done
+- Surveyed all 24 seed files; found 12 files with actual HTML lesson content (all ACC courses)
+- Core curriculum files (`supabase_seed_curriculum.sql`, `supabase_seed_fs_prep.sql`, `supabase_seed_drone_surveying.sql`) contain structural/metadata only — no HTML to convert
+- Created `scripts/convert-seed-files.ts` — automated SQL seed file parser that:
+  1. Reads SQL seed files directly (no DB connection needed)
+  2. Extracts HTML content from UPDATE statements (handles two SQL patterns)
+  3. Parses HTML into structured blocks using `node-html-parser`
+  4. Generates companion SQL files with `INSERT INTO lesson_blocks`
 
-### Conversion Strategy
-For each lesson in these files:
-1. Parse HTML content into blocks (h2→text, p→text, table→table, callout patterns→callout)
-2. Identify special elements (images, videos, quizzes) and convert to proper block types
-3. Generate new seed SQL with `INSERT INTO lesson_blocks`
-4. Test rendering in lesson viewer
-5. Mark lesson as `content_migrated = true`
+### Conversion Results — 475 Total Blocks
 
-### Estimated Effort: 2-3 sessions
+| File | Lesson ID | Blocks | Block Types |
+|------|-----------|--------|-------------|
+| `acc_content_1335_wk1` | acc02b01-... | 27 | text:24, table:3 |
+| `acc_content_1335_wk2` | acc02b02-... | 26 | text:22, table:4 |
+| `acc_content_1335_wk3` | acc02b03-... | 35 | text:30, table:5 |
+| `acc_content_1335_wk4` | acc02b04-... | 30 | text:26, table:4 |
+| `acc_content_1335_wk5` | acc02b05-... | 21 | text:18, table:3 |
+| `acc_content_1341_wk0` | acc03b00-... | 9 | text:7, table:2 |
+| `acc_content_1341_wk1` | acc03b01-... | 15 | text:11, callout:4 |
+| `acc_content_1341_wk2` | acc03b02-... | 35 | text:18, divider:8, table:2, callout:7 |
+| `acc_content_1341_wk3` | acc03b03-... | 72 | text:35, divider:6, image:22, callout:7, table:2 |
+| `acc_content_1341_wk4` | acc03b04-... | 58 | text:35, image:12, callout:3, divider:6, table:2 |
+| `acc_content_1341_wk5` | acc03b05-... | 74 | text:38, image:22, callout:5, divider:7, table:2 |
+| `acc_content_1341_wk6` | acc03b06-... | 73 | text:32, image:18, callout:6, divider:10, table:7 |
+
+### Generated Files
+- `scripts/converted/` — 12 individual block SQL files + `_all_blocks.sql` combined
+- Block types detected: text, table, callout (formula/note/example/tip/danger/warning/info), image, divider, video, embed
+
+### Next Steps
+- Run `supabase_migration_content_migrated.sql` to add tracking column
+- Run `scripts/converted/_all_blocks.sql` against the database
+- Quiz content (`wk5_quiz.sql`, `wk6_quiz.sql`) can be addressed separately
 
 ---
 
-## Phase 7: Content Conversion — ACC Academic Courses
-
-**Goal**: Convert all ACC course content to block format.
-
-### Files to Convert
-- ACC 1335: `supabase_seed_acc_content_1335_wk1.sql` through `wk5.sql` (5 files)
-- ACC 1341: `supabase_seed_acc_content_1341_wk0.sql` through `wk6.sql` (7 files)
-- ACC Quizzes: `wk5_quiz.sql`, `wk6_quiz.sql` (2 files)
-- ACC Courses: `supabase_seed_acc_courses.sql`, `supabase_seed_acc_final_exams.sql`
-
-### Special Considerations
-- ACC content is heavily table-based (grade breakdowns, schedules)
-- Quiz content needs to map to quiz blocks
-- Week-by-week structure should maintain proper ordering
-
-### Estimated Effort: 2-3 sessions
+## Phase 7: Content Conversion — Survey Courses & Remaining
 
 ---
 
-## Phase 8: Content Conversion — Survey Courses & Remaining
+## Phase 7: Content Conversion — Survey Courses & Remaining
 
 **Goal**: Convert survey course content and finalize all remaining seed files.
 
@@ -263,9 +268,11 @@ For each lesson in these files:
 - `supabase_seed_srvy2343.sql` — GPS & GIS
 - `supabase_seed_srvy2344.sql` — Legal Descriptions
 - `supabase_seed_article_survey_chain.sql` — Survey chain articles
+- ACC Quizzes: `wk5_quiz.sql`, `wk6_quiz.sql` (quiz block mapping)
 
 ### Tasks
-- Convert all remaining content to block format
+- Convert any remaining content with HTML to block format
+- Map quiz content to quiz block types
 - Run full validation across all converted content
 - Remove `learning_lessons.content` fallback (or mark as deprecated)
 - Update documentation
@@ -274,7 +281,7 @@ For each lesson in these files:
 
 ---
 
-## Phase 9: Polish & Enhancement
+## Phase 8: Polish & Enhancement
 
 **Goal**: Final refinements after all core work is complete.
 
@@ -299,12 +306,11 @@ For each lesson in these files:
 | 3 | Teacher Role | COMPLETED | — |
 | 4 | External User Registration | COMPLETED | — |
 | 5 | DB Rebuild Foundation | COMPLETED | — |
-| 6 | Core Curriculum Conversion | Next Up | 2-3 sessions |
-| 7 | ACC Course Conversion | Planned | 2-3 sessions |
-| 8 | Survey & Remaining Conversion | Planned | 1-2 sessions |
-| 9 | Polish & Enhancement | Planned | Ongoing |
+| 6 | ACC Course Conversion (475 blocks) | COMPLETED | — |
+| 7 | Survey & Remaining Conversion | Next Up | 1-2 sessions |
+| 8 | Polish & Enhancement | Planned | Ongoing |
 
-**Total estimated: 9-14 sessions** (excluding Phase 9)
+**Total estimated: 7-10 sessions** (excluding Phase 8)
 
 ---
 
