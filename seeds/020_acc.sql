@@ -1812,15 +1812,6 @@ UPDATE learning_lessons SET
 
 title = 'Week 1: Distance Measurement — Chaining & Tape Corrections',
 
-key_takeaways = ARRAY[
-  'Describe proper chain/tape measurement procedure including correct tension and forward/back measurement',
-  'Apply the temperature correction formula Ct = 0.00000645 × (TF − 68) × L',
-  'Apply the tension correction formula Cp = (P − Ps) × L / (A × E)',
-  'Apply the sag correction formula Cs = −w² × L³ / (24 × P²)',
-  'Determine the sign of each correction and explain its physical cause',
-  'Compute corrected distances by combining all applicable corrections'
-],
-
 content = '
 <h2>Week 1: Distance Measurement — Chaining &amp; Tape Corrections</h2>
 
@@ -1989,17 +1980,6 @@ WHERE id = 'acc03b01-0000-0000-0000-000000000001';
 UPDATE learning_lessons SET
 
 title = 'Week 2: Compass Surveying, DD/DMS Conversions & Chaining Review',
-
-key_takeaways = ARRAY[
-  'Identify the three main types of surveying compasses and their appropriate field uses',
-  'Express directions using both bearing (N/S angle E/W) and azimuth (0°–360°) notation',
-  'Convert bearings to azimuths and azimuths to bearings for all four quadrants',
-  'Determine the back bearing or back azimuth of any given line',
-  'Define magnetic declination and apply it to convert between magnetic and true bearings',
-  'Convert angles from decimal degrees (DD) to degrees-minutes-seconds (DMS) and vice versa',
-  'Describe the features and field use of the SUUNTO KB-14/360 hand-held compass',
-  'Recall the three chaining correction formulas (Ct, Cp, Cs) from Week 1 and their sign conventions'
-],
 
 estimated_minutes = 45,
 
@@ -2257,17 +2237,6 @@ WHERE id = 'acc03b02-0000-0000-0000-000000000001';
 UPDATE learning_lessons SET
 
 title = 'Week 3: Magnetic Declination Review, Smartphone Compass Apps, Field Notekeeping & Trade Magazines',
-
-key_takeaways = ARRAY[
-  'Solve multi-step magnetic declination problems using DMS arithmetic with borrowing',
-  'Apply secular variation rates to update historical declination values to the present',
-  'Describe the features and field uses of the Hunter Pro Compass and Theodolite smartphone apps',
-  'Explain why field notes are legal documents and list the consequences of improper notekeeping',
-  'Identify the essential components of a properly maintained field book (title page, TOC, legend, sketches)',
-  'Draw standard survey symbols for traverse points, buildings, vegetation, and utilities',
-  'Demonstrate proper page numbering, date/weather headers, and proportional field sketches',
-  'Identify major survey trade publications and describe the professional development resources they offer'
-],
 
 estimated_minutes = 50,
 
@@ -2671,19 +2640,6 @@ UPDATE learning_lessons SET
 
 title = 'Week 4: Instrument Care, Tripod Best Practices & Maintenance Schedules',
 
-key_takeaways = ARRAY[
-  'Demonstrate proper procedures for transporting surveying instruments between setups and in vehicles',
-  'Explain why an empty instrument case must remain closed and the consequences of leaving it open',
-  'Describe the correct method for attaching an instrument to a tripod and the proper grip technique',
-  'List the rules for lens care and explain why optical coatings require special cleaning materials',
-  'Apply environmental protection procedures for rain, humidity, temperature extremes, and salt air',
-  'Calculate instrument acclimation time using the temperature-difference rule of thumb',
-  'Set up a tripod with proper leg spread, firm penetration, and a horizontal head',
-  'Identify the items on a minimum maintenance schedule and their required frequencies',
-  'Describe the peg test procedure for level instruments and explain when it must be performed',
-  'Explain the optical plummet check procedure and interpret its results'
-],
-
 estimated_minutes = 45,
 
 content = '
@@ -3013,19 +2969,6 @@ WHERE id = 'acc03b04-0000-0000-0000-000000000001';
 UPDATE learning_lessons SET
 
 title = 'Week 5: Instrument Leveling & Setup Over a Point',
-
-key_takeaways = ARRAY[
-  'Explain the left thumb rule and demonstrate its use for centering a level bubble',
-  'Describe why leveling screws should be turned equally and in opposite directions',
-  'Define indexing the screws and explain why instruments should be stored with screws indexed',
-  'Distinguish between the circular (bull''s-eye) bubble and the plate (tubular) bubble',
-  'Perform the complete procedure for leveling a three-screw instrument',
-  'Interpret the 180-degree verification check and identify when a plate bubble needs adjustment',
-  'Compare and contrast optical plummets and laser plummets',
-  'Identify the components and function of a tribrach',
-  'Execute the 10-step procedure for setting up an instrument over a known point',
-  'Explain why the tribrach must not be rotated when sliding to center over a point'
-],
 
 estimated_minutes = 45,
 
@@ -3371,19 +3314,6 @@ WHERE id = 'acc03b05-0000-0000-0000-000000000001';
 UPDATE learning_lessons SET
 
 title = 'Week 6: Types of Angles & Angle Measurement',
-
-key_takeaways = ARRAY[
-  'Define and distinguish horizontal, interior, deflection, and vertical angles',
-  'Explain how the horizontal circle measures angles independent of vertical sighting',
-  'Perform DMS (degrees-minutes-seconds) addition and subtraction with borrowing',
-  'Describe the procedure for zeroing the instrument on a backsight and reading an angle to a foresight',
-  'Define face left (direct) and face right (reverse) telescope positions',
-  'Explain what plunging the telescope means and why measurements are taken on both faces',
-  'List the systematic instrument errors eliminated by averaging direct and reverse readings',
-  'Execute the 5-step European method for turning a set of angles',
-  'Compute the mean angle from direct and reverse readings when the angle is less than 180 degrees',
-  'Compute the mean angle from direct and reverse readings when the angle is greater than 180 degrees, including the 360-degree correction'
-],
 
 estimated_minutes = 50,
 
