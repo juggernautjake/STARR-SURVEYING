@@ -467,7 +467,7 @@ export default function ErrorLogPage() {
             <li>Delete individual reports</li>
             <li>Pagination for large datasets</li>
           </ul>
-          <p style={{ margin: '0 0 0.5rem' }}><strong>Database:</strong> Uses <code>error_reports</code> table — run <code>supabase_migration_error_reports.sql</code></p>
+          <p style={{ margin: '0 0 0.5rem' }}><strong>Database:</strong> Uses <code>error_reports</code> table (created by database migrations)</p>
         </div>
         <pre style={{ background: '#1F2937', color: '#E5E7EB', padding: '1rem', borderRadius: '6px', fontSize: '0.75rem', overflow: 'auto', marginTop: '0.75rem' }}>{`CONTINUATION PROMPT:
 Improve the error log viewer at /admin/error-log/page.tsx.

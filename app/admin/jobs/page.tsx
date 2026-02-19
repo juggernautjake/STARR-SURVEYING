@@ -204,9 +204,9 @@ export default function AllJobsPage() {
         <div className="msg-setup-guide__section">
           <h3>Database Setup</h3>
           <p className="msg-setup-guide__text">
-            Run <code>supabase_schema_jobs.sql</code> in your Supabase SQL Editor to create all 12 tables:
-            jobs, job_tags, job_team, job_equipment, job_files, job_research, job_stages_history,
-            job_time_entries, job_payments, job_field_data, job_checklists, equipment_inventory.
+            Job management tables (jobs, job_tags, job_team, job_equipment, job_files, job_research, job_stages_history,
+            job_time_entries, job_payments, job_field_data, job_checklists, equipment_inventory) are created by
+            database migrations. To re-seed data, run <code>./seeds/run_all.sh</code>.
           </p>
         </div>
 
