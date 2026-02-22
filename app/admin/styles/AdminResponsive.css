@@ -765,6 +765,13 @@
   .research-element-panel__notes { font-size: 0.78rem; min-height: 50px; }
   .research-element-panel__actions { padding: 0.5rem 0.85rem; flex-wrap: wrap; }
   .research-element-panel__action-btn { font-size: 0.72rem; padding: 0.28rem 0.55rem; }
+  .research-element-panel__edited-banner { padding: 0.5rem 0.75rem; }
+  .research-element-panel__edited-info { font-size: 0.68rem; }
+  .research-element-panel__revert-btn { font-size: 0.68rem; padding: 0.25rem 0.55rem; }
+  .research-element-panel__source-hint { font-size: 0.65rem; }
+  .research-element-panel__source { padding: 0.45rem 0.6rem; }
+  .research-element-panel__source-doc { font-size: 0.72rem; }
+  .research-element-panel__source-action { font-size: 0.65rem; }
 
   /* Tools sidebar: compact vertical strip */
   .research-tools {
@@ -1229,6 +1236,8 @@
   .research-drawing__list-item { min-height: 44px; }
   .research-drawing__view-btn { min-height: 36px; display: inline-flex; align-items: center; }
   .research-tools__settings-toggle { min-height: 36px; }
+  .research-element-panel__revert-btn { min-height: 36px; display: inline-flex; align-items: center; }
+  .research-element-panel__source--clickable { min-height: 44px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

@@ -46,6 +46,7 @@ interface DrawingCanvasProps {
   toolSettings: ToolSettings;
   onElementClick: (element: DrawingElement) => void;
   onElementModified?: (elementId: string, changes: Partial<DrawingElement>) => void;
+  onRevertElement?: (elementId: string) => void;
   annotations: UserAnnotation[];
   onAnnotationsChange: (annotations: UserAnnotation[]) => void;
   zoom?: number;
@@ -64,6 +65,7 @@ export default function DrawingCanvas({
   toolSettings,
   onElementClick,
   onElementModified,
+  onRevertElement,
   annotations,
   onAnnotationsChange,
   zoom: externalZoom,
@@ -720,11 +722,18 @@ export default function DrawingCanvas({
           navigator.clipboard?.writeText(text);
           break;
         }
+        case 'revert_to_original':
+          if (element.user_modified && onRevertElement) {
+            if (window.confirm('Revert this element to its original AI-generated state? Your edits will be lost.')) {
+              onRevertElement(element.id);
+            }
+          }
+          break;
       }
     }
 
     setContextMenu(null);
-  }, [contextMenu, annotations, elements, onElementClick, onElementModified]);
+  }, [contextMenu, annotations, elements, onElementClick, onElementModified, onRevertElement]);
 
   // ── Keyboard Shortcuts ────────────────────────────────────────────────
 

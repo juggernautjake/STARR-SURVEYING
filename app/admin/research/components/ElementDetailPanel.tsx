@@ -22,6 +22,7 @@ interface ElementDetailPanelProps {
   onUpdateNotes?: (elementId: string, notes: string) => void;
   onStyleChange?: (elementId: string, style: Partial<ElementStyle>) => void;
   onViewSource?: (documentId: string, excerpt?: string) => void;
+  onRevertElement?: (elementId: string) => void;
 }
 
 export default function ElementDetailPanel({
@@ -32,6 +33,7 @@ export default function ElementDetailPanel({
   onUpdateNotes,
   onStyleChange,
   onViewSource,
+  onRevertElement,
 }: ElementDetailPanelProps) {
   const [notes, setNotes] = useState(element.user_notes || '');
   const [showFactors, setShowFactors] = useState(false);
@@ -55,7 +57,7 @@ export default function ElementDetailPanel({
           <div className="research-element-panel__type">
             {element.element_type} | Layer: {element.layer}
             {element.user_modified && (
-              <span className="research-element-panel__modified"> (modified)</span>
+              <span className="research-element-panel__edited-badge">*edited</span>
             )}
           </div>
         </div>
@@ -67,6 +69,28 @@ export default function ElementDetailPanel({
           &times;
         </button>
       </div>
+
+      {/* Edited banner with revert option */}
+      {element.user_modified && (
+        <div className="research-element-panel__edited-banner">
+          <div className="research-element-panel__edited-info">
+            <span className="research-element-panel__edited-icon">*</span>
+            <span>This element has been manually edited. Its position, style, or attributes differ from the AI-generated original.</span>
+          </div>
+          {onRevertElement && (
+            <button
+              className="research-element-panel__revert-btn"
+              onClick={() => {
+                if (window.confirm('Revert this element to its original AI-generated state? Your edits will be lost.')) {
+                  onRevertElement(element.id);
+                }
+              }}
+            >
+              Revert to Original
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Confidence score */}
       <div className="research-element-panel__confidence">
@@ -216,12 +240,29 @@ export default function ElementDetailPanel({
           <h4 className="research-element-panel__section-title">
             Sources ({element.source_references.length})
           </h4>
+          <p className="research-element-panel__source-hint">
+            Click a source to view the original document with the relevant section highlighted.
+          </p>
           {element.source_references.map((ref, idx) => (
-            <div key={idx} className="research-element-panel__source">
+            <div
+              key={idx}
+              className={`research-element-panel__source ${onViewSource ? 'research-element-panel__source--clickable' : ''}`}
+              onClick={() => onViewSource?.(ref.document_id, ref.excerpt)}
+              role={onViewSource ? 'button' : undefined}
+              tabIndex={onViewSource ? 0 : undefined}
+              onKeyDown={e => { if (onViewSource && e.key === 'Enter') onViewSource(ref.document_id, ref.excerpt); }}
+            >
               <div className="research-element-panel__source-info">
+                <span className="research-element-panel__source-icon">
+                  {ref.document_label?.match(/\.(pdf|PDF)/) ? '📄' :
+                   ref.document_label?.match(/\.(png|jpg|jpeg|tif|tiff)/i) ? '🖼' :
+                   ref.document_label?.match(/http/i) ? '🔗' : '📋'}
+                </span>
                 <span className="research-element-panel__source-doc">
                   {ref.document_label || 'Document'}
                 </span>
+              </div>
+              <div className="research-element-panel__source-meta">
                 {ref.page && (
                   <span className="research-element-panel__source-page">
                     Page {ref.page}
@@ -239,12 +280,9 @@ export default function ElementDetailPanel({
                 </div>
               )}
               {onViewSource && (
-                <button
-                  className="research-element-panel__source-btn"
-                  onClick={() => onViewSource(ref.document_id, ref.excerpt)}
-                >
-                  View source
-                </button>
+                <span className="research-element-panel__source-action">
+                  View in document &rarr;
+                </span>
               )}
             </div>
           ))}

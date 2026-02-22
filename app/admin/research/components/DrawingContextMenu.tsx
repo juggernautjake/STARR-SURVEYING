@@ -35,7 +35,8 @@ export type ContextMenuAction =
   | 'view_source'      // View source document
   | 'add_note'         // Add user note
   | 'copy_coords'      // Copy coordinate info
-  | 'measure_from';    // Start measure from this point
+  | 'measure_from'     // Start measure from this point
+  | 'revert_to_original';  // Revert modified element to original AI-generated state
 
 interface MenuSection {
   label?: string;
@@ -115,6 +116,9 @@ export default function DrawingContextMenu({
       {element && (
         <div className="research-context-menu__header">
           {element.feature_class.replace(/_/g, ' ')} — {element.element_type}
+          {element.user_modified && (
+            <span className="research-context-menu__edited-badge"> *edited</span>
+          )}
         </div>
       )}
       {!element && (
@@ -248,6 +252,11 @@ function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boo
     controlItems.push({ action: 'unlock', label: 'Unlock', icon: '🔓' });
   } else {
     controlItems.push({ action: 'lock', label: 'Lock', icon: '🔒' });
+  }
+
+  // Revert to original for modified AI-generated elements
+  if (element.user_modified && !isUserAnnotation) {
+    controlItems.push({ action: 'revert_to_original', label: 'Revert to Original', icon: '↩' });
   }
 
   // Delete for user annotations

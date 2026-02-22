@@ -1,6 +1,6 @@
 // app/admin/research/[projectId]/page.tsx — Research project hub
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
@@ -67,6 +67,8 @@ export default function ResearchProjectPage() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [originalElements, setOriginalElements] = useState<DrawingElement[]>([]);
   const [originalAnnotations, setOriginalAnnotations] = useState<UserAnnotation[]>([]);
+  // Per-element original state map for individual revert
+  const originalElementsMap = useRef<Map<string, DrawingElement>>(new Map());
   const [showSaveDialog, setShowSaveDialog] = useState<'save' | 'export' | null>(null);
 
   const userRole = (session?.user as any)?.role || 'employee';
@@ -221,8 +223,13 @@ export default function ResearchProjectPage() {
         setActiveDrawing(data.drawing);
         const elements = data.elements || [];
         setDrawingElements(elements);
-        // Store original state for reset
+        // Store original state for reset (both array and per-element map)
         setOriginalElements(elements);
+        const map = new Map<string, DrawingElement>();
+        for (const el of elements) {
+          map.set(el.id, JSON.parse(JSON.stringify(el)));
+        }
+        originalElementsMap.current = map;
         setOriginalAnnotations([]);
         setAnnotations([]);
         setAnnotationHistory([]);
@@ -326,6 +333,26 @@ export default function ResearchProjectPage() {
     const tracked = isStructural ? { ...updates, user_modified: true } : updates;
     await handleElementUpdate(elementId, tracked);
     setHasUnsavedChanges(true);
+  }
+
+  // Revert a single element to its original AI-generated state
+  async function handleRevertElement(elementId: string) {
+    const original = originalElementsMap.current.get(elementId);
+    if (!original) return;
+    // Restore the original geometry, style, attributes, and clear user_modified
+    const revertUpdates: Record<string, unknown> = {
+      geometry: original.geometry,
+      svg_path: original.svg_path,
+      style: original.style,
+      attributes: original.attributes,
+      user_modified: false,
+    };
+    await handleElementUpdate(elementId, revertUpdates);
+    setHasUnsavedChanges(true);
+    // Update selected element if it's the one being reverted
+    if (selectedElement?.id === elementId) {
+      setSelectedElement(prev => prev ? { ...prev, ...revertUpdates, user_modified: false } as DrawingElement : null);
+    }
   }
 
   // Save to database
@@ -837,6 +864,7 @@ export default function ResearchProjectPage() {
                       toolSettings={toolSettings}
                       onElementClick={(el) => setSelectedElement(el)}
                       onElementModified={(id, changes) => handleTrackedElementUpdate(id, changes)}
+                      onRevertElement={handleRevertElement}
                       annotations={annotations}
                       onAnnotationsChange={handleAnnotationsChangeTracked}
                       zoom={canvasZoom}
@@ -865,6 +893,7 @@ export default function ResearchProjectPage() {
                         setViewerHighlight(excerpt);
                       }
                     }}
+                    onRevertElement={handleRevertElement}
                   />
                 )}
               </div>
