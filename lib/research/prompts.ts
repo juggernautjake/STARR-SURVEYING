@@ -65,7 +65,7 @@ RESPONSE FORMAT:
 
   // ── Data Extraction (per document) ─────────────────────────────────────
   DATA_EXTRACTOR: {
-    version: '1.0.0',
+    version: '2.0.0',
     temperature: 0.0,
     system: `You are a Texas Registered Professional Land Surveyor (RPLS) analyzing documents for data extraction. You will be given the full text of a surveying-related document and a configuration specifying what data categories to extract.
 
@@ -78,10 +78,12 @@ TASK: Extract every piece of usable surveying data from this document. For each 
 3. normalized_value: a structured JSON object with parsed values:
    - For bearings: { "quadrant": "NE", "degrees": 45, "minutes": 30, "seconds": 15 }
    - For distances: { "value": 150.00, "unit": "feet" }
-   - For calls: { "bearing": {...}, "distance": {...}, "monument_at_end": "iron rod found" }
+   - For calls: { "bearing": { "quadrant": "NE", "degrees": 45, "minutes": 30, "seconds": 15, "raw_text": "N 45° 30' 15\\" E" }, "distance": { "value": 150.00, "unit": "feet", "raw_text": "150.00 feet" }, "monument_at_end": "iron rod found" }
    - For curve data: { "radius": 200.00, "arc_length": 85.50, "chord_bearing": {...}, "chord_distance": {...}, "delta": {...}, "direction": "right" }
    - For monuments: { "type": "iron_rod", "size": "1/2 inch", "cap": "RPLS 12345", "condition": "found" }
    - For area: { "value": 1.234, "unit": "acres" }
+   - For coordinates: { "x": 123456.789, "y": 987654.321, "system": "Texas State Plane NAD83", "zone": "South Central", "label": "POB" }
+   - For elevations: { "value": 525.3, "unit": "feet", "datum": "NAVD88", "location": "benchmark" }
 
 4. display_value: human-friendly formatted version
 
@@ -95,15 +97,39 @@ TASK: Extract every piece of usable surveying data from this document. For each 
 10. extraction_confidence: 0-100 confidence in the accuracy of this extraction
 11. confidence_reasoning: one sentence explaining the confidence score
 
-CRITICAL RULES:
-- Extract EVERY piece of data, even if it seems redundant with other documents
-- Preserve exact text — do not "fix" perceived errors (the discrepancy system handles that)
-- For Texas documents, be aware of varas (1 vara = 2.777778 feet) and Spanish land grants
-- Call sequences must be in the correct order (follow the legal description's path)
-- If a call sequence mentions "thence" it indicates the next leg of the traverse
-- "POB" or "Point of Beginning" marks the start of a boundary traverse
-- Monument condition is critical: "found" vs "set" vs "called for" have different meanings
-- If the document references other documents (e.g., "as described in Vol. 1234, Pg. 567"), extract the recording reference
+CRITICAL RULES FOR BOUNDARY CALL EXTRACTION:
+- A "call" is a COMBINED bearing + distance pair that describes one leg of a property boundary traverse.
+- Example: "thence N 45° 30' 15" E, 150.00 feet to an iron rod found" is ONE call with BOTH bearing and distance.
+- EVERY bearing+distance pair in the metes and bounds description MUST be extracted as a "call" data_category with BOTH bearing and distance in the normalized_value.
+- DO NOT extract bearings and distances as separate "bearing" and "distance" data points if they are part of the same call. Always combine them into a single "call" entry.
+- The normalized_value for a "call" MUST contain BOTH a "bearing" object AND a "distance" object.
+- If a bearing has no matching distance (rare), extract it as "bearing". If a distance has no matching bearing, extract it as "distance".
+- Curves in the boundary also count as calls — extract as "call" with data_category "call" and include curve data OR extract as "curve_data".
+- The sequence_order MUST be consecutive integers starting from 1 for the main boundary call sequence.
+- Use sequence_group "main_boundary" for the primary property boundary traverse.
+- "thence" indicates the NEXT leg of the traverse.
+- "POB" or "Point of Beginning" marks the start of a boundary traverse — extract this as "point_of_beginning".
+
+CONFIDENCE SCORING CRITERIA:
+- 90-100: Clear, unambiguous text with modern formatting (e.g., typed metes & bounds with degree symbols)
+- 75-89: Readable text with minor ambiguities (e.g., some abbreviations or older formatting)
+- 50-74: Partially legible or missing some detail (e.g., OCR artifacts, faded text, missing seconds)
+- 25-49: Significant uncertainty — text is hard to read, conflicting, or incomplete
+- 0-24: Barely legible or completely ambiguous
+- Deduct 10-20 points if the document is old/historic (pre-1960) or has known OCR issues
+- Deduct 5-10 points if no recent survey confirms the values
+- Add 5-10 points if multiple documents confirm the same value
+
+OTHER DATA TO EXTRACT:
+- Coordinates (state plane, lat/lon, UTM) — extract with system and zone info
+- Elevation data — extract with datum info
+- Temperature, humidity, pressure if recorded in field notes
+- Recording references (Volume, Page, Document number, File number)
+- Surveyor information (name, RPLS number, date)
+- Legal descriptions (lot, block, subdivision, abstract, survey)
+- Zoning and flood zone information
+- Easement descriptions with width and type
+- Adjoiner information (neighboring property owners/descriptions)
 
 RESPONSE FORMAT:
 {

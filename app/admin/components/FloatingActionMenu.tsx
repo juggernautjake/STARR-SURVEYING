@@ -1,4 +1,4 @@
-// app/admin/components/FloatingActionMenu.tsx — Accordion wrapper for FAB buttons
+// app/admin/components/FloatingActionMenu.tsx — Collapsible green toolbar for FAB buttons
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -9,15 +9,13 @@ interface FloatingActionMenuProps {
 
 /**
  * Wraps the three floating action buttons (Messages, Flag an Issue, Fieldbook)
- * in an accordion-style container. When collapsed, shows a small toggle arrow.
- * When expanded, reveals the three buttons with a smooth slide animation.
+ * in a green pill-shaped container with a white collapse/expand arrow.
+ * The arrow sits on the left and toggles the menu open/closed.
  */
 export default function FloatingActionMenu({ children }: FloatingActionMenuProps) {
   const [expanded, setExpanded] = useState(true);
-  // Track if any child panel is open (if so, always show buttons)
   const [hasOpenPanel, setHasOpenPanel] = useState(false);
 
-  // Watch for open panels: if any FAB panel (fb, discussion-panel, messenger-panel) is visible
   const checkOpenPanels = useCallback(() => {
     const panels = document.querySelectorAll('.fb, .discussion-panel, .messenger-panel');
     const anyOpen = Array.from(panels).some(p => {
@@ -38,25 +36,25 @@ export default function FloatingActionMenu({ children }: FloatingActionMenuProps
 
   return (
     <div className={`fab-menu ${isVisible ? 'fab-menu--expanded' : 'fab-menu--collapsed'}`}>
-      {/* Toggle button */}
+      {/* Toggle arrow — left side of the green bar */}
       <button
-        className={`fab-menu__toggle ${isVisible ? 'fab-menu__toggle--expanded' : ''}`}
+        className="fab-menu__toggle"
         onClick={() => setExpanded(prev => !prev)}
         aria-label={isVisible ? 'Collapse quick actions' : 'Expand quick actions'}
         title={isVisible ? 'Collapse' : 'Quick Actions'}
       >
         <svg
           className="fab-menu__toggle-icon"
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
           <path
-            d={isVisible ? 'M10 3L5 8L10 13' : 'M6 3L11 8L6 13'}
+            d={isVisible ? 'M9 2L4 7L9 12' : 'M5 2L10 7L5 12'}
             stroke="currentColor"
-            strokeWidth="2"
+            strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"
           />

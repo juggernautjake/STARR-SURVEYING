@@ -50,11 +50,11 @@ const DEFAULT_EXTRACT_CONFIG: Record<string, boolean> = {
   surveyor_info: true,
   legal_description: true,
   lot_block_subdivision: true,
-  coordinates: false,
-  elevations: false,
-  zoning: false,
-  flood_zone: false,
-  utilities: false,
+  coordinates: true,
+  elevations: true,
+  zoning: true,
+  flood_zone: true,
+  utilities: true,
 };
 
 // ── Main Analysis Pipeline ──────────────────────────────────────────────────

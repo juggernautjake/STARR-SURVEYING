@@ -2,6 +2,7 @@
 // GET — Drawing detail (with elements) or SVG rendering (?format=svg)
 // PATCH — Save drawing state (annotations, preferences, name) or update element
 // POST — Actions: compare, export
+// DELETE — Archive (soft-delete) or permanently delete a drawing
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -245,3 +246,58 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   return NextResponse.json({ error: `Unknown action: ${action}. Use 'compare' or 'export'.` }, { status: 400 });
 }, { routeName: 'research/drawings/actions' });
+
+/* DELETE — Archive (soft-delete) or permanently delete a drawing */
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { projectId, drawingId } = extractIds(req);
+  if (!projectId || !drawingId) {
+    return NextResponse.json({ error: 'Project ID and Drawing ID required' }, { status: 400 });
+  }
+
+  // Verify drawing exists and belongs to project
+  const { data: drawing, error: fetchErr } = await supabaseAdmin
+    .from('rendered_drawings')
+    .select('id, research_project_id')
+    .eq('id', drawingId)
+    .eq('research_project_id', projectId)
+    .single();
+
+  if (fetchErr || !drawing) {
+    return NextResponse.json({ error: 'Drawing not found' }, { status: 404 });
+  }
+
+  const permanent = req.nextUrl.searchParams.get('permanent') === 'true';
+
+  if (permanent) {
+    // Hard delete: remove elements first, then drawing
+    await supabaseAdmin
+      .from('drawing_elements')
+      .delete()
+      .eq('drawing_id', drawingId);
+
+    const { error } = await supabaseAdmin
+      .from('rendered_drawings')
+      .delete()
+      .eq('id', drawingId);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    return NextResponse.json({ success: true, action: 'deleted' });
+  }
+
+  // Soft delete: set archived_at timestamp
+  const { error } = await supabaseAdmin
+    .from('rendered_drawings')
+    .update({
+      archived_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', drawingId);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ success: true, action: 'archived' });
+}, { routeName: 'research/drawings/delete' });
