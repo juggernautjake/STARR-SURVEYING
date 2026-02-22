@@ -155,6 +155,11 @@
   .research-search__group-header { padding: 0.65rem 1rem; }
   .research-search__result { padding: 0.75rem 1rem; }
   .research-search__import-bar { padding: 0.75rem 1rem; }
+  .research-drawing__controls { flex-direction: column; }
+  .research-drawing__workspace { flex-direction: column; }
+  .research-element-panel { width: 100%; max-height: none; border-left: none; border-top: 1px solid #E5E7EB; }
+  .research-drawing__view-modes { flex-wrap: wrap; }
+  .research-canvas { min-height: 350px; }
 
   /* ── Payroll ── */
   .payroll-summary-cards { grid-template-columns: repeat(2, 1fr); }

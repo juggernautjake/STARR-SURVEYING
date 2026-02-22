@@ -10,7 +10,9 @@ import PropertySearchPanel from '../components/PropertySearchPanel';
 import DataPointsPanel from '../components/DataPointsPanel';
 import DiscrepancyPanel from '../components/DiscrepancyPanel';
 import SourceDocumentViewer from '../components/SourceDocumentViewer';
-import type { ResearchProject, ResearchDocument, WorkflowStep } from '@/types/research';
+import DrawingCanvas from '../components/DrawingCanvas';
+import ElementDetailPanel from '../components/ElementDetailPanel';
+import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep } from '@/types/research';
 import { WORKFLOW_STEPS } from '@/types/research';
 
 export default function ResearchProjectPage() {
@@ -38,6 +40,15 @@ export default function ResearchProjectPage() {
   const [reviewTab, setReviewTab] = useState<'data' | 'discrepancies'>('data');
   const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
+
+  // Drawing state
+  const [drawings, setDrawings] = useState<(RenderedDrawing & { element_count: number })[]>([]);
+  const [activeDrawing, setActiveDrawing] = useState<RenderedDrawing | null>(null);
+  const [drawingElements, setDrawingElements] = useState<DrawingElement[]>([]);
+  const [drawingSvg, setDrawingSvg] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('standard');
+  const [selectedElement, setSelectedElement] = useState<DrawingElement | null>(null);
+  const [generatingDrawing, setGeneratingDrawing] = useState(false);
 
   const userRole = (session?.user as any)?.role || 'employee';
 
@@ -171,6 +182,80 @@ export default function ResearchProjectPage() {
 
     setAnalysisStarting(false);
   }
+
+  // Drawing functions
+  const loadDrawings = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/drawings`);
+      if (res.ok) {
+        const data = await res.json();
+        setDrawings(data.drawings || []);
+      }
+    } catch { /* ignore */ }
+  }, [projectId]);
+
+  const loadDrawingDetail = useCallback(async (drawingId: string) => {
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setActiveDrawing(data.drawing);
+        setDrawingElements(data.elements || []);
+        // Generate SVG client-side via API
+        const svgRes = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}/svg?viewMode=${viewMode}`);
+        if (svgRes.ok) {
+          const svgData = await svgRes.json();
+          setDrawingSvg(svgData.svg || '');
+        }
+      }
+    } catch { /* ignore */ }
+  }, [projectId, viewMode]);
+
+  async function handleGenerateDrawing() {
+    if (generatingDrawing) return;
+    setGeneratingDrawing(true);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/drawings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await loadDrawings();
+        await loadDrawingDetail(data.drawing_id);
+        loadProject();
+      } else {
+        const err = await res.json();
+        reportPageError(new Error(err.error || 'Failed to generate drawing'), { element: 'generate drawing' });
+      }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'generate drawing' });
+    }
+    setGeneratingDrawing(false);
+  }
+
+  async function handleElementUpdate(elementId: string, updates: Record<string, unknown>) {
+    if (!activeDrawing) return;
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ element_id: elementId, updates }),
+      });
+      if (res.ok) {
+        // Refresh elements
+        await loadDrawingDetail(activeDrawing.id);
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Load drawings when entering drawing step
+  useEffect(() => {
+    if (project?.status === 'drawing' || project?.status === 'verifying' || project?.status === 'complete') {
+      loadDrawings();
+    }
+  }, [project?.status, loadDrawings]);
 
   function getNextStep(): { key: WorkflowStep; label: string } | null {
     if (!project) return null;
@@ -422,7 +507,119 @@ export default function ResearchProjectPage() {
         </div>
       )}
 
-      {(project.status === 'drawing' || project.status === 'verifying' || project.status === 'complete') && (
+      {project.status === 'drawing' && (
+        <div className="research-drawing">
+          {/* Drawing controls */}
+          <div className="research-drawing__controls">
+            <div className="research-drawing__controls-left">
+              <h2 className="research-drawing__title">Plat Drawing</h2>
+              {!activeDrawing && drawings.length === 0 && (
+                <button
+                  className="research-page__new-btn"
+                  onClick={handleGenerateDrawing}
+                  disabled={generatingDrawing}
+                >
+                  {generatingDrawing ? 'Generating...' : 'Generate Drawing'}
+                </button>
+              )}
+              {drawings.length > 0 && !activeDrawing && (
+                <div className="research-drawing__list">
+                  {drawings.map(d => (
+                    <button
+                      key={d.id}
+                      className="research-drawing__list-item"
+                      onClick={() => loadDrawingDetail(d.id)}
+                    >
+                      <span>{d.name}</span>
+                      <span className="research-drawing__list-meta">
+                        {d.element_count} elements | {d.overall_confidence ? `${Math.round(d.overall_confidence)}%` : '--'}
+                      </span>
+                    </button>
+                  ))}
+                  <button
+                    className="research-drawing__list-item research-drawing__list-item--new"
+                    onClick={handleGenerateDrawing}
+                    disabled={generatingDrawing}
+                  >
+                    {generatingDrawing ? 'Generating...' : '+ New Drawing Version'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {activeDrawing && (
+              <div className="research-drawing__controls-right">
+                {/* View mode selector */}
+                <div className="research-drawing__view-modes">
+                  {(['standard', 'feature', 'confidence', 'discrepancy'] as ViewMode[]).map(mode => (
+                    <button
+                      key={mode}
+                      className={`research-drawing__view-btn ${viewMode === mode ? 'research-drawing__view-btn--active' : ''}`}
+                      onClick={() => {
+                        setViewMode(mode);
+                        if (activeDrawing) loadDrawingDetail(activeDrawing.id);
+                      }}
+                    >
+                      {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  className="research-drawing__back-btn"
+                  onClick={() => { setActiveDrawing(null); setDrawingElements([]); setDrawingSvg(''); setSelectedElement(null); }}
+                >
+                  &larr; Drawing List
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Canvas + Detail Panel */}
+          {activeDrawing && drawingSvg && (
+            <div className="research-drawing__workspace">
+              <div className={`research-drawing__canvas-wrap ${selectedElement ? 'research-drawing__canvas-wrap--with-panel' : ''}`}>
+                <DrawingCanvas
+                  drawing={activeDrawing}
+                  elements={drawingElements}
+                  viewMode={viewMode}
+                  svgContent={drawingSvg}
+                  onElementClick={(el) => setSelectedElement(el)}
+                />
+              </div>
+
+              {selectedElement && (
+                <ElementDetailPanel
+                  element={selectedElement}
+                  onClose={() => setSelectedElement(null)}
+                  onToggleVisibility={(id, vis) => handleElementUpdate(id, { visible: vis })}
+                  onToggleLock={(id, lock) => handleElementUpdate(id, { locked: lock })}
+                  onUpdateNotes={(id, notes) => handleElementUpdate(id, { user_notes: notes })}
+                  onViewSource={(docId, excerpt) => {
+                    const doc = documents.find(d => d.id === docId);
+                    if (doc) {
+                      setViewerDoc(doc);
+                      setViewerHighlight(excerpt);
+                    }
+                  }}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Drawing info */}
+          {activeDrawing && (
+            <div className="research-drawing__info">
+              <span>{activeDrawing.name} (v{activeDrawing.version})</span>
+              {activeDrawing.comparison_notes && (
+                <span className="research-drawing__info-notes">{activeDrawing.comparison_notes}</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {(project.status === 'verifying' || project.status === 'complete') && (
         <div className="research-page__empty">
           <div className="research-page__empty-icon">&#128679;</div>
           <div className="research-page__empty-title">Coming Soon</div>
