@@ -78,10 +78,11 @@ export async function analyzeProject(
   const extractCategories = config?.extractCategories || DEFAULT_EXTRACT_CONFIG;
 
   // Update project status to analyzing
+  const analysisStartedAt = new Date().toISOString();
   await supabaseAdmin.from('research_projects').update({
     status: 'analyzing',
     analysis_metadata: {
-      started_at: new Date().toISOString(),
+      started_at: analysisStartedAt,
       extract_config: extractCategories,
     },
     updated_at: new Date().toISOString(),
@@ -190,7 +191,7 @@ export async function analyzeProject(
     await supabaseAdmin.from('research_projects').update({
       status: 'review',
       analysis_metadata: {
-        started_at: new Date().toISOString(),
+        started_at: analysisStartedAt,
         completed_at: new Date().toISOString(),
         extract_config: extractCategories,
         data_point_count: allDataPoints.length,

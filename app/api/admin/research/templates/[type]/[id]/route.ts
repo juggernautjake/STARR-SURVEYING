@@ -54,7 +54,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   const body = await req.json();
   const allowed: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
-  if (body.name !== undefined) allowed.name = body.name.trim();
+  if (body.name !== undefined) allowed.name = (body.name || '').trim();
   if (body.description !== undefined) allowed.description = body.description?.trim() || null;
 
   // If marking as default, unset other defaults first

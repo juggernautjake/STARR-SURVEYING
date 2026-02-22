@@ -41,6 +41,20 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   const allowedFields = ['resolution_status', 'resolution_notes', 'resolved_value', 'severity'];
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
+  // Validate enum fields before accepting
+  if (body.resolution_status !== undefined) {
+    const validStatuses = ['open', 'reviewing', 'resolved', 'accepted', 'deferred'];
+    if (!validStatuses.includes(body.resolution_status)) {
+      return NextResponse.json({ error: `Invalid resolution_status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 });
+    }
+  }
+  if (body.severity !== undefined) {
+    const validSeverities = ['info', 'unclear', 'uncertain', 'discrepancy', 'contradiction', 'error'];
+    if (!validSeverities.includes(body.severity)) {
+      return NextResponse.json({ error: `Invalid severity. Must be one of: ${validSeverities.join(', ')}` }, { status: 400 });
+    }
+  }
+
   for (const field of allowedFields) {
     if (body[field] !== undefined) {
       updates[field] = body[field];

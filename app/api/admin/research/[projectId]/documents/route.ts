@@ -71,6 +71,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
     // Upload to Supabase Storage
     let storageUrl: string | null = null;
+    let uploadedStoragePath: string | null = null;
     try {
       const { error: uploadError } = await supabaseAdmin.storage
         .from('research-documents')
@@ -80,9 +81,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         });
 
       if (uploadError) {
-        // Storage bucket might not exist yet — still create the DB record
+        // Storage bucket might not exist yet — still create the DB record but without storage_path
         console.warn(`[Upload] Storage upload failed for ${file.name}:`, uploadError.message);
       } else {
+        uploadedStoragePath = storagePath;
         const { data: urlData } = supabaseAdmin.storage
           .from('research-documents')
           .getPublicUrl(storagePath);
@@ -92,7 +94,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       console.warn(`[Upload] Storage error for ${file.name}:`, err);
     }
 
-    // Create database record
+    // Create database record — only set storage_path if upload succeeded
     const { data: doc, error: dbError } = await supabaseAdmin
       .from('research_documents')
       .insert({
@@ -101,7 +103,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         original_filename: file.name,
         file_type: ext,
         file_size_bytes: file.size,
-        storage_path: storagePath,
+        storage_path: uploadedStoragePath,
         storage_url: storageUrl,
         document_type: documentType || null,
         document_label: documentLabel || file.name,
@@ -177,19 +179,27 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const projectId = req.nextUrl.pathname.split('/research/')[1]?.split('/')[0];
   const { searchParams } = new URL(req.url);
   const docId = searchParams.get('id');
   if (!docId) return NextResponse.json({ error: 'Document id is required' }, { status: 400 });
 
-  // Get the document to find its storage path
+  // Get the document — verify it belongs to this project
   const { data: doc } = await supabaseAdmin
     .from('research_documents')
-    .select('storage_path')
+    .select('storage_path, research_project_id')
     .eq('id', docId)
     .single();
 
+  if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+
+  // Enforce project ownership
+  if (projectId && doc.research_project_id !== projectId) {
+    return NextResponse.json({ error: 'Document does not belong to this project' }, { status: 403 });
+  }
+
   // Delete from storage
-  if (doc?.storage_path) {
+  if (doc.storage_path) {
     await supabaseAdmin.storage
       .from('research-documents')
       .remove([doc.storage_path])

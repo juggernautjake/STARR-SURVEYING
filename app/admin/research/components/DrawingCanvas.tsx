@@ -739,7 +739,9 @@ export default function DrawingCanvas({
         case 'copy_coords': {
           const attrs = element.attributes as Record<string, any>;
           const text = JSON.stringify(attrs.coordinates || attrs.start_point || attrs.center || {}, null, 2);
-          navigator.clipboard?.writeText(text);
+          navigator.clipboard?.writeText(text).catch(() => {
+            // Clipboard access may be denied in non-secure contexts
+          });
           break;
         }
         case 'revert_to_original':
