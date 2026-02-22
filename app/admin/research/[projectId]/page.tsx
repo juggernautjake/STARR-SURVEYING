@@ -10,10 +10,11 @@ import PropertySearchPanel from '../components/PropertySearchPanel';
 import DataPointsPanel from '../components/DataPointsPanel';
 import DiscrepancyPanel from '../components/DiscrepancyPanel';
 import SourceDocumentViewer from '../components/SourceDocumentViewer';
-import DrawingCanvas from '../components/DrawingCanvas';
+import DrawingCanvas, { type UserAnnotation } from '../components/DrawingCanvas';
 import ElementDetailPanel from '../components/ElementDetailPanel';
 import DrawingViewToolbar from '../components/DrawingViewToolbar';
 import DrawingPreferencesPanel, { DEFAULT_PREFERENCES, type DrawingPreferences } from '../components/DrawingPreferencesPanel';
+import DrawingToolsSidebar, { DEFAULT_TOOL_SETTINGS, type DrawingTool, type ToolSettings } from '../components/DrawingToolsSidebar';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep } from '@/types/research';
 import { WORKFLOW_STEPS } from '@/types/research';
 
@@ -54,6 +55,13 @@ export default function ResearchProjectPage() {
   const [drawingPrefs, setDrawingPrefs] = useState<DrawingPreferences>(DEFAULT_PREFERENCES);
   const [showPrefsPanel, setShowPrefsPanel] = useState(false);
   const [canvasZoom, setCanvasZoom] = useState(1);
+
+  // Drawing tools state
+  const [activeTool, setActiveTool] = useState<DrawingTool>('select');
+  const [toolSettings, setToolSettings] = useState<ToolSettings>(DEFAULT_TOOL_SETTINGS);
+  const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
+  const [annotationHistory, setAnnotationHistory] = useState<UserAnnotation[][]>([]);
+  const [annotationFuture, setAnnotationFuture] = useState<UserAnnotation[][]>([]);
 
   const userRole = (session?.user as any)?.role || 'employee';
 
@@ -265,6 +273,55 @@ export default function ResearchProjectPage() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  // Annotation undo/redo
+  function handleAnnotationsChange(newAnnotations: UserAnnotation[]) {
+    setAnnotationHistory(prev => [...prev, annotations]);
+    setAnnotationFuture([]);
+    setAnnotations(newAnnotations);
+  }
+
+  function handleUndo() {
+    if (annotationHistory.length === 0) return;
+    const prev = annotationHistory[annotationHistory.length - 1];
+    setAnnotationFuture(f => [...f, annotations]);
+    setAnnotations(prev);
+    setAnnotationHistory(h => h.slice(0, -1));
+  }
+
+  function handleRedo() {
+    if (annotationFuture.length === 0) return;
+    const next = annotationFuture[annotationFuture.length - 1];
+    setAnnotationHistory(h => [...h, annotations]);
+    setAnnotations(next);
+    setAnnotationFuture(f => f.slice(0, -1));
+  }
+
+  // Keyboard shortcuts for drawing tools + undo/redo
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (!activeDrawing) return;
+
+      // Undo/Redo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); return; }
+
+      // Tool shortcuts (single letter, no modifiers)
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const shortcutMap: Record<string, DrawingTool> = {
+        v: 'select', h: 'pan', l: 'line', p: 'polyline', r: 'rectangle',
+        c: 'circle', f: 'freehand', t: 'text_type', w: 'text_write',
+        a: 'callout', d: 'dimension', s: 'symbol', i: 'image',
+        m: 'measure', e: 'eraser',
+      };
+      const tool = shortcutMap[e.key.toLowerCase()];
+      if (tool) setActiveTool(tool);
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeDrawing, handleUndo, handleRedo]);
 
   // Load drawings when entering drawing step
   useEffect(() => {
@@ -599,8 +656,20 @@ export default function ResearchProjectPage() {
                 overallConfidence={activeDrawing.overall_confidence}
               />
 
-              {/* Main workspace: canvas + side panels */}
+              {/* Main workspace: tools + canvas + side panels */}
               <div className="research-drawing__workspace">
+                {/* Tools sidebar (left) */}
+                <DrawingToolsSidebar
+                  activeTool={activeTool}
+                  onToolChange={setActiveTool}
+                  settings={toolSettings}
+                  onSettingsChange={setToolSettings}
+                  onUndo={handleUndo}
+                  onRedo={handleRedo}
+                  canUndo={annotationHistory.length > 0}
+                  canRedo={annotationFuture.length > 0}
+                />
+
                 {/* Preferences panel (slides in from left) */}
                 {showPrefsPanel && (
                   <DrawingPreferencesPanel
@@ -620,8 +689,12 @@ export default function ResearchProjectPage() {
                       viewMode={viewMode}
                       svgContent={drawingSvg}
                       preferences={drawingPrefs}
+                      activeTool={activeTool}
+                      toolSettings={toolSettings}
                       onElementClick={(el) => setSelectedElement(el)}
                       onElementModified={(id, changes) => handleElementUpdate(id, changes)}
+                      annotations={annotations}
+                      onAnnotationsChange={handleAnnotationsChange}
                       zoom={canvasZoom}
                       onZoomChange={setCanvasZoom}
                     />
