@@ -7,21 +7,23 @@ import Tooltip from './Tooltip';
 // ── Tool Types ──────────────────────────────────────────────────────────────
 
 export type DrawingTool =
-  | 'select'         // Default pointer / selection tool
-  | 'pan'            // Pan / hand tool
-  | 'line'           // Straight line
-  | 'polyline'       // Multi-segment line
-  | 'rectangle'      // Rectangle
-  | 'circle'         // Circle / ellipse
-  | 'freehand'       // Freehand draw
-  | 'text_type'      // Type text (click to place)
-  | 'text_write'     // Handwrite text (freehand)
-  | 'image'          // Place image from file
-  | 'symbol'         // Place surveying symbol
-  | 'dimension'      // Dimension line (distance/bearing)
-  | 'callout'        // Callout / leader line
-  | 'eraser'         // Erase user annotations
-  | 'measure';       // Measure distance on drawing
+  | 'select'             // Default pointer / selection tool
+  | 'pan'                // Pan / hand tool
+  | 'vertex_edit'        // Edit vertices / control points
+  | 'coordinate_entry'   // CAD-style bearing/distance entry
+  | 'line'               // Straight line
+  | 'polyline'           // Multi-segment line
+  | 'rectangle'          // Rectangle
+  | 'circle'             // Circle / ellipse
+  | 'freehand'           // Freehand draw
+  | 'text_type'          // Type text (click to place)
+  | 'text_write'         // Handwrite text (freehand)
+  | 'image'              // Place image from file
+  | 'symbol'             // Place surveying symbol
+  | 'dimension'          // Dimension line (distance/bearing)
+  | 'callout'            // Callout / leader line
+  | 'eraser'             // Erase user annotations
+  | 'measure';           // Measure distance on drawing
 
 export type SymbolType =
   // Monuments & Survey Markers
@@ -121,6 +123,13 @@ const TOOL_GROUPS = [
     tools: [
       { key: 'select' as DrawingTool, label: 'Select', icon: '↖', shortcut: 'V', tip: 'Click to select elements or annotations. Drag empty space to pan.' },
       { key: 'pan' as DrawingTool, label: 'Pan', icon: '✋', shortcut: 'H', tip: 'Click and drag to pan around the drawing. Also works with middle-click or Alt+click.' },
+    ],
+  },
+  {
+    label: 'CAD',
+    tools: [
+      { key: 'vertex_edit' as DrawingTool, label: 'Edit Vertices', icon: '◇', shortcut: 'G', tip: 'Edit individual vertices. Click a vertex handle to edit its coordinates, bearing, or distance.' },
+      { key: 'coordinate_entry' as DrawingTool, label: 'Coord Entry', icon: '⌖', shortcut: 'K', tip: 'Open the coordinate entry panel. Type bearings, distances, azimuths, or coordinates to draw precisely.' },
     ],
   },
   {

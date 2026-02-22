@@ -52,6 +52,14 @@ interface DrawingCanvasProps {
   onAnnotationsChange: (annotations: UserAnnotation[]) => void;
   zoom?: number;
   onZoomChange?: (zoom: number) => void;
+  /** Show draggable vertex handles on boundary elements */
+  showVertexHandles?: boolean;
+  /** Called when a vertex handle is clicked for editing */
+  onVertexClick?: (elementId: string, vertexIndex: number, x: number, y: number) => void;
+  /** Called to request zoom-to-fit from external controls */
+  zoomToFitSignal?: number;
+  /** Expose cursor position for coordinate entry panel */
+  onCursorPositionChange?: (pos: { x: number; y: number } | null) => void;
 }
 
 // ── Main Component ──────────────────────────────────────────────────────────
@@ -71,6 +79,10 @@ export default function DrawingCanvas({
   onAnnotationsChange,
   zoom: externalZoom,
   onZoomChange,
+  showVertexHandles,
+  onVertexClick,
+  zoomToFitSignal,
+  onCursorPositionChange,
 }: DrawingCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<SVGSVGElement>(null);
@@ -154,6 +166,49 @@ export default function DrawingCanvas({
     setZoom(clampedZoom);
     setPan({ x: panX, y: panY });
   }, [drawing.id, svgContent]); // Re-fit when drawing changes
+
+  // Zoom-to-fit on external signal (toolbar button)
+  useEffect(() => {
+    if (!zoomToFitSignal || !containerRef.current) return;
+    const container = containerRef.current;
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    if (cw === 0 || ch === 0) return;
+    const sw = drawing.canvas_config?.width || 1200;
+    const sh = drawing.canvas_config?.height || 800;
+    const fitZoom = Math.min((cw * 0.95) / sw, (ch * 0.95) / sh);
+    const clampedZoom = Math.max(0.1, Math.min(10, fitZoom));
+    setZoom(clampedZoom);
+    setPan({ x: (cw - sw * clampedZoom) / 2, y: (ch - sh * clampedZoom) / 2 });
+  }, [zoomToFitSignal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Expose cursor position to parent
+  useEffect(() => {
+    onCursorPositionChange?.(cursorCoords);
+  }, [cursorCoords, onCursorPositionChange]);
+
+  // Compute vertex handle positions from boundary line elements
+  const vertexHandles = useMemo(() => {
+    if (!showVertexHandles) return [];
+    const handles: { elementId: string; vertexIndex: number; x: number; y: number }[] = [];
+    const seen = new Set<string>();
+    for (const el of elements) {
+      if (el.element_type !== 'line' || !el.visible) continue;
+      const geom = el.geometry as { type: string; start?: [number, number]; end?: [number, number] };
+      if (geom.type !== 'line' || !geom.start || !geom.end) continue;
+      const startKey = `${geom.start[0].toFixed(1)},${geom.start[1].toFixed(1)}`;
+      const endKey = `${geom.end[0].toFixed(1)},${geom.end[1].toFixed(1)}`;
+      if (!seen.has(startKey)) {
+        seen.add(startKey);
+        handles.push({ elementId: el.id, vertexIndex: 0, x: geom.start[0], y: geom.start[1] });
+      }
+      if (!seen.has(endKey)) {
+        seen.add(endKey);
+        handles.push({ elementId: el.id, vertexIndex: 1, x: geom.end[0], y: geom.end[1] });
+      }
+    }
+    return handles;
+  }, [elements, showVertexHandles]);
 
   // Build element lookup map
   const elementMap = useMemo(() => {
@@ -932,6 +987,39 @@ export default function DrawingCanvas({
               >
                 {computeDistance(measureStart, measureEnd).toFixed(2)} ft
               </text>
+            </g>
+          )}
+
+          {/* Vertex handles for CAD editing */}
+          {vertexHandles.length > 0 && (
+            <g className="research-canvas__vertex-handles">
+              {vertexHandles.map((vh, i) => {
+                const handleSize = Math.max(4, 6 / zoom);
+                return (
+                  <g key={`vh-${i}`}>
+                    {/* Outer ring — visible at all zooms */}
+                    <circle
+                      cx={vh.x} cy={vh.y}
+                      r={handleSize}
+                      fill="#FFFFFF"
+                      stroke="#2563EB"
+                      strokeWidth={Math.max(1, 2 / zoom)}
+                      style={{ cursor: 'pointer' }}
+                      onClick={e => {
+                        e.stopPropagation();
+                        onVertexClick?.(vh.elementId, vh.vertexIndex, vh.x, vh.y);
+                      }}
+                    />
+                    {/* Inner dot */}
+                    <circle
+                      cx={vh.x} cy={vh.y}
+                      r={handleSize * 0.4}
+                      fill="#2563EB"
+                      style={{ cursor: 'pointer', pointerEvents: 'none' }}
+                    />
+                  </g>
+                );
+              })}
             </g>
           )}
         </svg>

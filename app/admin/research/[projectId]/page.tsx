@@ -12,6 +12,8 @@ import DiscrepancyPanel from '../components/DiscrepancyPanel';
 import SourceDocumentViewer from '../components/SourceDocumentViewer';
 import DrawingCanvas, { type UserAnnotation } from '../components/DrawingCanvas';
 import AnalysisSummary from '../components/AnalysisSummary';
+import CoordinateEntryPanel, { type TraverseVertex } from '../components/CoordinateEntryPanel';
+import VertexEditPanel, { type VertexData } from '../components/VertexEditPanel';
 import ElementDetailPanel from '../components/ElementDetailPanel';
 import DrawingViewToolbar from '../components/DrawingViewToolbar';
 import DrawingPreferencesPanel, { DEFAULT_PREFERENCES, type DrawingPreferences } from '../components/DrawingPreferencesPanel';
@@ -75,6 +77,13 @@ export default function ResearchProjectPage() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [originalElements, setOriginalElements] = useState<DrawingElement[]>([]);
   const [originalAnnotations, setOriginalAnnotations] = useState<UserAnnotation[]>([]);
+
+  // CAD editing state
+  const [showCoordEntry, setShowCoordEntry] = useState(false);
+  const [coordVertices, setCoordVertices] = useState<TraverseVertex[]>([]);
+  const [selectedVertexData, setSelectedVertexData] = useState<VertexData | null>(null);
+  const [zoomToFitSignal, setZoomToFitSignal] = useState(0);
+  const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number } | null>(null);
   // Per-element original state map for individual revert
   const originalElementsMap = useRef<Map<string, DrawingElement>>(new Map());
   const [showSaveDialog, setShowSaveDialog] = useState<'save' | 'export' | null>(null);
@@ -482,6 +491,193 @@ export default function ResearchProjectPage() {
     }
   }
 
+  // ── CAD Editing Handlers ─────────────────────────────────────────────────
+
+  // When tool changes, open/close coord entry panel and show/hide vertex handles
+  function handleToolChange(tool: DrawingTool) {
+    setActiveTool(tool);
+    if (tool === 'coordinate_entry') {
+      setShowCoordEntry(true);
+    }
+    if (tool !== 'vertex_edit') {
+      setSelectedVertexData(null);
+    }
+  }
+
+  // Add a traverse leg from bearing/distance entry
+  function handleAddLeg(leg: { azimuth: number; distance: number; bearing: string }) {
+    const last = coordVertices.length > 0 ? coordVertices[coordVertices.length - 1] : { x: 0, y: 0 };
+    const rad = (leg.azimuth * Math.PI) / 180;
+    const newX = last.x + leg.distance * Math.sin(rad);
+    const newY = last.y + leg.distance * Math.cos(rad);
+    const vertex: TraverseVertex = {
+      id: `tv-${Date.now()}-${coordVertices.length}`,
+      x: newX,
+      y: newY,
+      bearing: leg.bearing,
+      azimuth: leg.azimuth,
+      distance: leg.distance,
+      label: `P${coordVertices.length + 1}`,
+    };
+    setCoordVertices(prev => [...prev, vertex]);
+    setHasUnsavedChanges(true);
+  }
+
+  // Add a point by coordinates
+  function handleAddPoint(x: number, y: number) {
+    const vertex: TraverseVertex = {
+      id: `tv-${Date.now()}-${coordVertices.length}`,
+      x,
+      y,
+      label: `P${coordVertices.length + 1}`,
+    };
+    setCoordVertices(prev => [...prev, vertex]);
+    setHasUnsavedChanges(true);
+  }
+
+  // Close traverse: add a closing leg back to the first vertex
+  function handleCloseTraverse() {
+    if (coordVertices.length < 3) return;
+    const first = coordVertices[0];
+    const last = coordVertices[coordVertices.length - 1];
+    const dx = first.x - last.x;
+    const dy = first.y - last.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 0.01) return; // Already closed
+    const azimuth = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+    handleAddLeg({ azimuth, distance: dist, bearing: azimuthToBearingSimple(azimuth) });
+  }
+
+  // Delete a coord vertex by index
+  function handleDeleteCoordVertex(index: number) {
+    setCoordVertices(prev => prev.filter((_, i) => i !== index));
+  }
+
+  // Vertex click handler from canvas (for vertex editing)
+  function handleVertexClick(elementId: string, vertexIndex: number, x: number, y: number) {
+    const element = drawingElements.find(el => el.id === elementId);
+    if (!element) return;
+    const attrs = element.attributes as Record<string, unknown> | null;
+    setSelectedVertexData({
+      elementId,
+      vertexIndex,
+      x,
+      y,
+      element,
+      bearing: attrs?.bearing as string | undefined,
+      distance: attrs?.distance as number | undefined,
+      azimuth: attrs?.azimuth as number | undefined,
+    });
+  }
+
+  // Update vertex position/bearing and persist
+  function handleUpdateVertex(elementId: string, vertexIndex: number, updates: {
+    x?: number; y?: number; bearing?: string; azimuth?: number; distance?: number;
+  }) {
+    const element = drawingElements.find(el => el.id === elementId);
+    if (!element) return;
+    const geom = { ...(element.geometry as Record<string, unknown>) };
+
+    if (updates.x !== undefined && updates.y !== undefined) {
+      // Direct coordinate update
+      if (geom.type === 'line') {
+        if (vertexIndex === 0) {
+          geom.start = { x: updates.x, y: updates.y };
+        } else {
+          geom.end = { x: updates.x, y: updates.y };
+        }
+      } else if (geom.type === 'point') {
+        geom.position = { x: updates.x, y: updates.y };
+      }
+    } else if (updates.azimuth !== undefined && updates.distance !== undefined) {
+      // Bearing/distance: compute new end point from start
+      if (geom.type === 'line') {
+        const start = geom.start as { x: number; y: number };
+        const rad = (updates.azimuth * Math.PI) / 180;
+        const newEnd = {
+          x: start.x + updates.distance * Math.sin(rad),
+          y: start.y + updates.distance * Math.cos(rad),
+        };
+        geom.end = newEnd;
+      }
+    }
+
+    // Regenerate svg_path for lines
+    let svgPath = element.svg_path;
+    if (geom.type === 'line') {
+      const s = geom.start as { x: number; y: number };
+      const e = geom.end as { x: number; y: number };
+      svgPath = `M ${s.x} ${s.y} L ${e.x} ${e.y}`;
+    }
+
+    const newAttrs = {
+      ...(element.attributes as Record<string, unknown> || {}),
+      ...(updates.bearing ? { bearing: updates.bearing } : {}),
+      ...(updates.azimuth !== undefined ? { azimuth: updates.azimuth } : {}),
+      ...(updates.distance !== undefined ? { distance: updates.distance } : {}),
+    };
+
+    handleTrackedElementUpdate(elementId, { geometry: geom, svg_path: svgPath, attributes: newAttrs });
+
+    // Update local vertex data
+    if (selectedVertexData && selectedVertexData.elementId === elementId) {
+      const updatedEl = { ...element, geometry: geom, svg_path: svgPath, attributes: newAttrs };
+      setSelectedVertexData({
+        ...selectedVertexData,
+        x: updates.x ?? selectedVertexData.x,
+        y: updates.y ?? selectedVertexData.y,
+        bearing: updates.bearing ?? selectedVertexData.bearing,
+        azimuth: updates.azimuth ?? selectedVertexData.azimuth,
+        distance: updates.distance ?? selectedVertexData.distance,
+        element: updatedEl as DrawingElement,
+      });
+    }
+  }
+
+  // Navigate between vertices (for VertexEditPanel prev/next)
+  function handleNavigateVertex(direction: 'prev' | 'next') {
+    if (!selectedVertexData) return;
+    // Build list of all boundary line vertices
+    const boundaryLines = drawingElements.filter(
+      el => el.element_type === 'line' && (el.feature_class === 'property_boundary' || el.feature_class === 'lot_line')
+    );
+    const allVertices: { elementId: string; vertexIndex: number; x: number; y: number }[] = [];
+    for (const el of boundaryLines) {
+      const geom = el.geometry as { type: string; start?: { x: number; y: number }; end?: { x: number; y: number } };
+      if (geom.start) allVertices.push({ elementId: el.id, vertexIndex: 0, x: geom.start.x, y: geom.start.y });
+      if (geom.end) allVertices.push({ elementId: el.id, vertexIndex: 1, x: geom.end.x, y: geom.end.y });
+    }
+    const currentIdx = allVertices.findIndex(
+      v => v.elementId === selectedVertexData.elementId && v.vertexIndex === selectedVertexData.vertexIndex
+    );
+    if (currentIdx === -1) return;
+    const nextIdx = direction === 'next'
+      ? (currentIdx + 1) % allVertices.length
+      : (currentIdx - 1 + allVertices.length) % allVertices.length;
+    const next = allVertices[nextIdx];
+    handleVertexClick(next.elementId, next.vertexIndex, next.x, next.y);
+  }
+
+  // Zoom to fit handler
+  function handleZoomToFit() {
+    setZoomToFitSignal(prev => prev + 1);
+  }
+
+  // Simple azimuth to bearing string conversion
+  function azimuthToBearingSimple(az: number): string {
+    const a = ((az % 360) + 360) % 360;
+    let ns: string, ew: string, angle: number;
+    if (a <= 90) { ns = 'N'; ew = 'E'; angle = a; }
+    else if (a <= 180) { ns = 'S'; ew = 'E'; angle = 180 - a; }
+    else if (a <= 270) { ns = 'S'; ew = 'W'; angle = a - 180; }
+    else { ns = 'N'; ew = 'W'; angle = 360 - a; }
+    const deg = Math.floor(angle);
+    const md = (angle - deg) * 60;
+    const min = Math.floor(md);
+    const sec = Math.round((md - min) * 60);
+    return `${ns} ${deg}\u00B0 ${min}' ${sec}" ${ew}`;
+  }
+
   // Save to database
   async function handleSaveToDb(name?: string) {
     if (!activeDrawing) return;
@@ -732,10 +928,10 @@ export default function ResearchProjectPage() {
         v: 'select', h: 'pan', l: 'line', p: 'polyline', r: 'rectangle',
         c: 'circle', f: 'freehand', t: 'text_type', w: 'text_write',
         a: 'callout', d: 'dimension', s: 'symbol', i: 'image',
-        m: 'measure', e: 'eraser',
+        m: 'measure', e: 'eraser', g: 'vertex_edit', k: 'coordinate_entry',
       };
       const tool = shortcutMap[e.key.toLowerCase()];
-      if (tool) setActiveTool(tool);
+      if (tool) handleToolChange(tool);
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -1240,6 +1436,7 @@ export default function ResearchProjectPage() {
                 onZoomIn={() => setCanvasZoom(prev => Math.min(10, prev * 1.3))}
                 onZoomOut={() => setCanvasZoom(prev => Math.max(0.1, prev / 1.3))}
                 onZoomReset={() => setCanvasZoom(1)}
+                onZoomToFit={handleZoomToFit}
                 elementCount={drawingElements.length}
                 visibleCount={drawingElements.filter(e => e.visible).length}
                 modifiedCount={drawingElements.filter(e => e.user_modified).length}
@@ -1255,7 +1452,7 @@ export default function ResearchProjectPage() {
                 {/* Tools sidebar (left) */}
                 <DrawingToolsSidebar
                   activeTool={activeTool}
-                  onToolChange={setActiveTool}
+                  onToolChange={handleToolChange}
                   settings={toolSettings}
                   onSettingsChange={setToolSettings}
                   onUndo={handleUndo}
@@ -1272,6 +1469,36 @@ export default function ResearchProjectPage() {
                     onChange={setDrawingPrefs}
                     onClose={() => setShowPrefsPanel(false)}
                     onReset={() => setDrawingPrefs(DEFAULT_PREFERENCES)}
+                  />
+                )}
+
+                {/* Coordinate Entry Panel (CAD input) */}
+                {showCoordEntry && (
+                  <CoordinateEntryPanel
+                    isOpen={showCoordEntry}
+                    onClose={() => { setShowCoordEntry(false); if (activeTool === 'coordinate_entry') setActiveTool('select'); }}
+                    onAddLeg={handleAddLeg}
+                    onAddPoint={handleAddPoint}
+                    onCloseTraverse={handleCloseTraverse}
+                    vertices={coordVertices}
+                    onSelectVertex={(idx) => {
+                      const v = coordVertices[idx];
+                      if (v) setCursorPosition({ x: v.x, y: v.y });
+                    }}
+                    onDeleteVertex={handleDeleteCoordVertex}
+                    cursorPosition={cursorPosition}
+                  />
+                )}
+
+                {/* Vertex Edit Panel */}
+                {selectedVertexData && activeTool === 'vertex_edit' && (
+                  <VertexEditPanel
+                    vertex={selectedVertexData}
+                    onClose={() => setSelectedVertexData(null)}
+                    onUpdateVertex={handleUpdateVertex}
+                    onNavigateVertex={handleNavigateVertex}
+                    canNavigatePrev={true}
+                    canNavigateNext={true}
                   />
                 )}
 
@@ -1293,6 +1520,10 @@ export default function ResearchProjectPage() {
                       onAnnotationsChange={handleAnnotationsChangeTracked}
                       zoom={canvasZoom}
                       onZoomChange={setCanvasZoom}
+                      showVertexHandles={activeTool === 'vertex_edit'}
+                      onVertexClick={handleVertexClick}
+                      zoomToFitSignal={zoomToFitSignal}
+                      onCursorPositionChange={setCursorPosition}
                     />
                   ) : (
                     <div className="research-canvas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>

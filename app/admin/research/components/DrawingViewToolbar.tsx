@@ -26,6 +26,7 @@ interface DrawingViewToolbarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomReset: () => void;
+  onZoomToFit?: () => void;
   elementCount: number;
   visibleCount: number;
   modifiedCount: number;
@@ -70,6 +71,7 @@ export default function DrawingViewToolbar({
   onZoomIn,
   onZoomOut,
   onZoomReset,
+  onZoomToFit,
   elementCount,
   visibleCount,
   modifiedCount,
@@ -161,8 +163,11 @@ export default function DrawingViewToolbar({
           <Tooltip text="Zoom in — make the drawing larger" enabled={tips} position="bottom">
             <button className="research-toolbar__icon-btn" onClick={onZoomIn} aria-label="Zoom in">+</button>
           </Tooltip>
-          <Tooltip text="Reset zoom to fit the entire drawing in view" enabled={tips} position="bottom">
-            <button className="research-toolbar__icon-btn research-toolbar__icon-btn--text" onClick={onZoomReset} aria-label="Reset zoom">Fit</button>
+          <Tooltip text="Fit entire drawing in the viewport" enabled={tips} position="bottom">
+            <button className="research-toolbar__icon-btn research-toolbar__icon-btn--text" onClick={onZoomToFit || onZoomReset} aria-label="Zoom to fit">Fit</button>
+          </Tooltip>
+          <Tooltip text="Reset zoom to 100%" enabled={tips} position="bottom">
+            <button className="research-toolbar__icon-btn research-toolbar__icon-btn--text" onClick={onZoomReset} aria-label="Reset zoom">1:1</button>
           </Tooltip>
         </div>
       </div>

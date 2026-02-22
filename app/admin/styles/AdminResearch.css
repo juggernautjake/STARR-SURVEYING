@@ -4767,3 +4767,493 @@
   color: #111827;
   margin: 0;
 }
+
+/* ============================================================================
+   Coordinate Entry Panel — CAD-style bearing/distance/coordinate input
+   ============================================================================ */
+
+.coord-entry {
+  width: 280px;
+  min-width: 260px;
+  max-width: 320px;
+  background: #FFFFFF;
+  border-right: 1px solid #E5E7EB;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+  font-size: 0.82rem;
+}
+
+.coord-entry__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0.75rem 0.5rem;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.coord-entry__title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0;
+}
+
+.coord-entry__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: #9CA3AF;
+  padding: 0;
+  line-height: 1;
+}
+.coord-entry__close:hover { color: #374151; }
+
+.coord-entry__tabs {
+  display: flex;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.coord-entry__tab {
+  flex: 1;
+  padding: 0.5rem 0.25rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: #6B7280;
+  text-align: center;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.coord-entry__tab:hover { color: #374151; background: #F9FAFB; }
+.coord-entry__tab--active {
+  color: #2563EB;
+  border-bottom-color: #2563EB;
+  font-weight: 600;
+}
+
+.coord-entry__fields {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.coord-entry__field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.coord-entry__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.coord-entry__input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.coord-entry__input:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.coord-entry__add-btn {
+  padding: 0.45rem 0.75rem;
+  background: #2563EB;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.coord-entry__add-btn:hover { background: #1D4ED8; }
+.coord-entry__add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.coord-entry__cursor {
+  padding: 0.4rem 0.75rem;
+  background: #F9FAFB;
+  border-top: 1px solid #F3F4F6;
+  font-size: 0.72rem;
+  color: #9CA3AF;
+  font-family: monospace;
+}
+
+.coord-entry__divider {
+  border: none;
+  border-top: 1px solid #E5E7EB;
+  margin: 0;
+}
+
+.coord-entry__traverse {
+  padding: 0.5rem 0.75rem;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.coord-entry__traverse-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 0.35rem;
+}
+
+.coord-entry__vertex-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.coord-entry__vertex-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: monospace;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.coord-entry__vertex-item:hover { background: #F3F4F6; }
+
+.coord-entry__vertex-label {
+  font-weight: 600;
+  color: #374151;
+  min-width: 24px;
+}
+
+.coord-entry__vertex-coords {
+  flex: 1;
+  color: #6B7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coord-entry__vertex-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #D1D5DB;
+  font-size: 0.9rem;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.coord-entry__vertex-delete:hover { color: #EF4444; }
+
+.coord-entry__close-traverse {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: #059669;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.15s;
+}
+.coord-entry__close-traverse:hover { background: #047857; }
+.coord-entry__close-traverse:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.coord-entry__empty {
+  color: #9CA3AF;
+  font-size: 0.78rem;
+  text-align: center;
+  padding: 1rem 0.5rem;
+}
+
+/* ============================================================================
+   Vertex Edit Panel — Edit individual vertex coordinates/bearings/distances
+   ============================================================================ */
+
+.vertex-edit {
+  width: 280px;
+  min-width: 260px;
+  max-width: 320px;
+  background: #FFFFFF;
+  border-right: 1px solid #E5E7EB;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+  font-size: 0.82rem;
+}
+
+.vertex-edit__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0.75rem;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.vertex-edit__title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0;
+}
+
+.vertex-edit__subtitle {
+  display: block;
+  font-size: 0.72rem;
+  color: #9CA3AF;
+  margin-top: 0.15rem;
+}
+
+.vertex-edit__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.3rem;
+  color: #9CA3AF;
+  padding: 0;
+  line-height: 1;
+}
+.vertex-edit__close:hover { color: #374151; }
+
+.vertex-edit__nav {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.vertex-edit__nav-btn {
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: #374151;
+  transition: all 0.15s;
+}
+.vertex-edit__nav-btn:hover:not(:disabled) { background: #E5E7EB; }
+.vertex-edit__nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.vertex-edit__tabs {
+  display: flex;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.vertex-edit__tab {
+  flex: 1;
+  padding: 0.5rem 0.5rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: #6B7280;
+  text-align: center;
+  transition: all 0.15s;
+}
+.vertex-edit__tab:hover { color: #374151; background: #F9FAFB; }
+.vertex-edit__tab--active {
+  color: #2563EB;
+  border-bottom-color: #2563EB;
+  font-weight: 600;
+}
+
+.vertex-edit__fields {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.vertex-edit__field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.vertex-edit__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.vertex-edit__input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.vertex-edit__input:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.vertex-edit__apply {
+  padding: 0.45rem 0.75rem;
+  background: #2563EB;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.vertex-edit__apply:hover { background: #1D4ED8; }
+
+.vertex-edit__error {
+  padding: 0.4rem 0.75rem;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 6px;
+  color: #DC2626;
+  font-size: 0.78rem;
+  margin: 0 0.75rem;
+}
+
+.vertex-edit__info {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid #F3F4F6;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.vertex-edit__info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.vertex-edit__info-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #9CA3AF;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.vertex-edit__info-value {
+  font-size: 0.78rem;
+  color: #374151;
+  text-align: right;
+}
+
+.vertex-edit__info-value--small {
+  font-size: 0.72rem;
+  color: #6B7280;
+  line-height: 1.4;
+}
+
+.vertex-edit__hint {
+  padding: 0.4rem 0.75rem;
+  background: #F9FAFB;
+  border-top: 1px solid #F3F4F6;
+  font-size: 0.72rem;
+  color: #9CA3AF;
+  text-align: center;
+}
+
+/* ============================================================================
+   Drawing Workspace Responsive Layout
+   ============================================================================ */
+
+/* Make drawing workspace responsive */
+.research-drawing__workspace {
+  display: flex;
+  flex: 1;
+  min-height: 500px;
+  max-height: calc(100vh - 280px);
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+}
+
+.research-drawing__canvas-wrap {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.research-drawing__canvas-wrap--with-panel {
+  /* Slightly less space when detail panel is open */
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .coord-entry,
+  .vertex-edit {
+    width: 240px;
+    min-width: 220px;
+  }
+}
+
+@media (max-width: 900px) {
+  .research-drawing__workspace {
+    flex-direction: column;
+    max-height: none;
+  }
+
+  .coord-entry,
+  .vertex-edit {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid #E5E7EB;
+  }
+
+  .research-toolbar {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .research-toolbar__group--stats {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .research-toolbar__group-label {
+    display: none;
+  }
+
+  .research-toolbar__mode-btn,
+  .research-toolbar__layer-btn {
+    padding: 0.3rem 0.4rem;
+    font-size: 0.68rem;
+  }
+
+  .coord-entry,
+  .vertex-edit {
+    font-size: 0.78rem;
+  }
+}
