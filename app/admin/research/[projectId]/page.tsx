@@ -18,6 +18,7 @@ import DrawingToolsSidebar, { DEFAULT_TOOL_SETTINGS, type DrawingTool, type Tool
 import DrawingSaveDialog from '../components/DrawingSaveDialog';
 import VerificationPanel from '../components/VerificationPanel';
 import ExportPanel from '../components/ExportPanel';
+import TemplateManager from '../components/TemplateManager';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS } from '@/types/research';
 
@@ -34,6 +35,7 @@ export default function ResearchProjectPage() {
   const [stats, setStats] = useState({ document_count: 0, data_point_count: 0, discrepancy_count: 0, resolved_count: 0 });
 
   // Analysis state
+  const [selectedAnalysisTemplate, setSelectedAnalysisTemplate] = useState<string | null>(null);
   const [analysisStarting, setAnalysisStarting] = useState(false);
   const [analysisStatus, setAnalysisStatus] = useState<{
     documentsTotal: number;
@@ -820,6 +822,15 @@ export default function ResearchProjectPage() {
               </span>
             </div>
           </div>
+
+          {/* Analysis template selector */}
+          <TemplateManager
+            type="analysis"
+            selectedId={selectedAnalysisTemplate}
+            onSelect={setSelectedAnalysisTemplate}
+            showUITooltips={showUITooltips}
+            compact
+          />
 
           <div className="research-configure__actions">
             <button
