@@ -1267,6 +1267,7 @@
 
 /* Scroll-stability: promote FABs to GPU layer so they don't jitter
    when mobile Safari shows/hides the address bar */
+.fab-menu,
 .fieldbook-fab-wrap,
 .discussion-fab-wrap,
 .messenger-fab-wrap {
@@ -1276,38 +1277,47 @@
   backface-visibility: hidden;
 }
 
-/* Desktop base is defined in individual CSS files and is correct:
-   48px buttons, 12px gaps, bottom 1.5rem, right 1.5rem/+60/+120 */
+/* FABs inside the accordion menu use static positioning (flow inside menu) */
+/* When NOT inside the menu, they keep their fixed position */
 
-/* 599px: 44px buttons, 12px gaps — individual files handle this.
-   Override here to guarantee all three share the same bottom. */
+/* 599px: shrink buttons, adjust menu position */
 @media (max-width: 599px) {
-  .fieldbook-fab-wrap { bottom: 1rem; right: 1rem; }
-  .fieldbook-fab { width: 44px; height: 44px; font-size: 1.15rem; }
-  .discussion-fab-wrap { bottom: 1rem; right: calc(1rem + 56px); }
-  .discussion-fab { width: 44px; height: 44px; font-size: 1.1rem; }
-  .messenger-fab-wrap { bottom: 1rem; right: calc(1rem + 112px); }
-  .messenger-fab { width: 44px; height: 44px; font-size: 1.1rem; }
+  .fab-menu { bottom: 1rem; right: 1rem; gap: 0.4rem; }
+  .fab-menu__toggle { width: 28px; height: 28px; }
+  .fab-menu .fieldbook-fab { width: 44px; height: 44px; font-size: 1.15rem; }
+  .fab-menu .discussion-fab { width: 44px; height: 44px; font-size: 1.1rem; }
+  .fab-menu .messenger-fab { width: 44px; height: 44px; font-size: 1.1rem; }
+  .fab-menu__buttons { gap: 0.4rem; }
+  .fab-menu--expanded .fab-menu__buttons { max-width: 200px; }
+  /* Fallback for non-menu contexts */
+  .fieldbook-fab-wrap:not(.fab-menu .fieldbook-fab-wrap) { bottom: 1rem; right: 1rem; }
+  .discussion-fab-wrap:not(.fab-menu .discussion-fab-wrap) { bottom: 1rem; right: calc(1rem + 56px); }
+  .messenger-fab-wrap:not(.fab-menu .messenger-fab-wrap) { bottom: 1rem; right: calc(1rem + 112px); }
 }
 
-/* 480px: 40px buttons, 8px gaps */
+/* 480px: smaller buttons */
 @media (max-width: 480px) {
-  .fieldbook-fab-wrap { bottom: 0.75rem; right: 0.75rem; }
-  .fieldbook-fab { width: 40px; height: 40px; font-size: 1rem; }
-  .discussion-fab-wrap { bottom: 0.75rem; right: calc(0.75rem + 48px); }
-  .discussion-fab { width: 40px; height: 40px; font-size: 1rem; }
-  .messenger-fab-wrap { bottom: 0.75rem; right: calc(0.75rem + 96px); }
-  .messenger-fab { width: 40px; height: 40px; font-size: 1rem; }
+  .fab-menu { bottom: 0.75rem; right: 0.75rem; gap: 0.3rem; }
+  .fab-menu__toggle { width: 26px; height: 26px; }
+  .fab-menu .fieldbook-fab { width: 40px; height: 40px; font-size: 1rem; }
+  .fab-menu .discussion-fab { width: 40px; height: 40px; font-size: 1rem; }
+  .fab-menu .messenger-fab { width: 40px; height: 40px; font-size: 1rem; }
+  .fab-menu__buttons { gap: 0.3rem; }
+  .fab-menu--expanded .fab-menu__buttons { max-width: 170px; }
+  /* Fallback for non-menu contexts */
+  .fieldbook-fab-wrap:not(.fab-menu .fieldbook-fab-wrap) { bottom: 0.75rem; right: 0.75rem; }
+  .discussion-fab-wrap:not(.fab-menu .discussion-fab-wrap) { bottom: 0.75rem; right: calc(0.75rem + 48px); }
+  .messenger-fab-wrap:not(.fab-menu .messenger-fab-wrap) { bottom: 0.75rem; right: calc(0.75rem + 96px); }
 }
 
-/* 380px: 36px buttons, 6px gaps */
+/* 380px: even smaller */
 @media (max-width: 380px) {
-  .fieldbook-fab-wrap { bottom: 0.75rem; right: 0.75rem; }
-  .fieldbook-fab { width: 36px; height: 36px; font-size: 0.9rem; border-radius: 10px; }
-  .discussion-fab-wrap { bottom: 0.75rem; right: calc(0.75rem + 42px); }
-  .discussion-fab { width: 36px; height: 36px; font-size: 0.9rem; border-radius: 10px; }
-  .messenger-fab-wrap { bottom: 0.75rem; right: calc(0.75rem + 84px); }
-  .messenger-fab { width: 36px; height: 36px; font-size: 0.9rem; border-radius: 10px; }
+  .fab-menu { bottom: 0.75rem; right: 0.75rem; gap: 0.25rem; }
+  .fab-menu__toggle { width: 24px; height: 24px; }
+  .fab-menu .fieldbook-fab { width: 36px; height: 36px; font-size: 0.9rem; border-radius: 10px; }
+  .fab-menu .discussion-fab { width: 36px; height: 36px; font-size: 0.9rem; border-radius: 10px; }
+  .fab-menu .messenger-fab { width: 36px; height: 36px; font-size: 0.9rem; border-radius: 10px; }
+  .fab-menu--expanded .fab-menu__buttons { max-width: 140px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1991,7 +2001,8 @@
   .admin-sidebar { padding-bottom: env(safe-area-inset-bottom); }
   .admin-sidebar__nav { padding-bottom: calc(4rem + env(safe-area-inset-bottom)); }
   .admin-sidebar__footer { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
-  /* All three FABs share the same safe-area offset */
+  /* FAB menu shares the same safe-area offset */
+  .fab-menu { bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
   .fieldbook-fab-wrap,
   .discussion-fab-wrap,
   .messenger-fab-wrap { bottom: calc(1.5rem + env(safe-area-inset-bottom)); }

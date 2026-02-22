@@ -9,6 +9,7 @@ import AdminTopBar from './AdminTopBar';
 import Fieldbook from './Fieldbook';
 import DiscussionThreadButton from './DiscussionThreadButton';
 import FloatingMessenger from './FloatingMessenger';
+import FloatingActionMenu from './FloatingActionMenu';
 import ErrorProvider from './error/ErrorProvider';
 import ErrorBoundary from './error/ErrorBoundary';
 import { ToastProvider } from './Toast';
@@ -148,9 +149,11 @@ function Inner({ children }: { children: React.ReactNode }) {
             </ErrorBoundary>
           </div>
         </div>
-        <FloatingMessenger />
-        <DiscussionThreadButton />
-        <Fieldbook />
+        <FloatingActionMenu>
+          <FloatingMessenger />
+          <DiscussionThreadButton />
+          <Fieldbook />
+        </FloatingActionMenu>
       </div>
     </ToastProvider>
     </ErrorProvider>

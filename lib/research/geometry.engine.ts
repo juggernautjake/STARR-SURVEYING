@@ -363,10 +363,11 @@ export function buildElementsFromAnalysis(
     const midY = (geom.start[1] + geom.end[1]) / 2;
 
     // Calculate label offset perpendicular to line direction
+    // Use a small fraction of line length for the offset (scales naturally with transform)
     const dx = geom.end[0] - geom.start[0];
     const dy = geom.end[1] - geom.start[1];
     const len = Math.sqrt(dx * dx + dy * dy);
-    const offsetDist = config.label_config.font_size * 1.5;
+    const offsetDist = Math.max(2, len * 0.06);
     const perpX = len > 0 ? -(dy / len) * offsetDist : 0;
     const perpY = len > 0 ? (dx / len) * offsetDist : offsetDist;
 
@@ -479,7 +480,7 @@ export function buildElementsFromAnalysis(
       feature_class: 'annotation',
       geometry: {
         type: 'label',
-        position: [pobPt.x, pobPt.y - 15],
+        position: [pobPt.x, pobPt.y + 15],  // Offset below POB point (Y-up in survey space; transform will flip)
         anchor: 'middle',
       },
       attributes: {
