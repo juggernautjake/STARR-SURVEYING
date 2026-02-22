@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import './styles/globals.css';
 import LayoutShell from './components/LayoutShell';
@@ -113,15 +113,16 @@ export const metadata: Metadata = {
     google: 'BzjvCsBBacqPdyOHtrz2OQtAYeNrktNiLPfsEf7H1no',
   },
   
-  // Theme color for mobile browsers (your brand red)
-  themeColor: '#BD1218',
-  
   // App name
   applicationName: 'Starr Surveying',
   
   // Additional meta for better SEO
   category: 'Business',
   classification: 'Land Surveying Services',
+};
+
+export const viewport: Viewport = {
+  themeColor: '#BD1218',
 };
 
 // ============================================================================
