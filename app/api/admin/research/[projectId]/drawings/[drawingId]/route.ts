@@ -1,6 +1,6 @@
 // app/api/admin/research/[projectId]/drawings/[drawingId]/route.ts
 // GET — Drawing detail (with elements) or SVG rendering (?format=svg)
-// PATCH — Update element properties
+// PATCH — Save drawing state (annotations, preferences, name) or update element
 // POST — Actions: compare, export
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
@@ -70,7 +70,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   });
 }, { routeName: 'research/drawings/detail' });
 
-/* PATCH — Update element properties (user modifications) */
+/* PATCH — Save drawing state or update individual element */
 export const PATCH = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -80,19 +80,36 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Project ID and Drawing ID required' }, { status: 400 });
   }
 
-  const body = await req.json() as {
-    element_id: string;
-    updates: {
-      visible?: boolean;
-      locked?: boolean;
-      user_notes?: string;
-      style?: Record<string, unknown>;
-      geometry?: Record<string, unknown>;
-    };
-  };
+  const body = await req.json();
 
+  // ── Drawing-level save (annotations, preferences, name) ───────────────
+  if (body.save) {
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (body.annotations !== undefined) updateData.user_annotations = body.annotations;
+    if (body.preferences !== undefined) updateData.user_preferences = body.preferences;
+    if (body.name) updateData.name = body.name;
+
+    const { data: updated, error } = await supabaseAdmin
+      .from('rendered_drawings')
+      .update(updateData)
+      .eq('id', drawingId)
+      .eq('research_project_id', projectId)
+      .select('id, name, updated_at')
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ drawing: updated });
+  }
+
+  // ── Element-level update ──────────────────────────────────────────────
   if (!body.element_id) {
-    return NextResponse.json({ error: 'element_id required' }, { status: 400 });
+    return NextResponse.json({ error: 'element_id or save flag required' }, { status: 400 });
   }
 
   // Verify element belongs to this drawing
@@ -107,16 +124,17 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Element not found' }, { status: 404 });
   }
 
+  const updates = body.updates || {};
   const updateData: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
 
-  if (body.updates.visible !== undefined) updateData.visible = body.updates.visible;
-  if (body.updates.locked !== undefined) updateData.locked = body.updates.locked;
-  if (body.updates.user_notes !== undefined) updateData.user_notes = body.updates.user_notes;
-  if (body.updates.style) updateData.style = body.updates.style;
-  if (body.updates.geometry) {
-    updateData.geometry = body.updates.geometry;
+  if (updates.visible !== undefined) updateData.visible = updates.visible;
+  if (updates.locked !== undefined) updateData.locked = updates.locked;
+  if (updates.user_notes !== undefined) updateData.user_notes = updates.user_notes;
+  if (updates.style) updateData.style = updates.style;
+  if (updates.geometry) {
+    updateData.geometry = updates.geometry;
     updateData.user_modified = true;
   }
 
@@ -132,7 +150,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   }
 
   return NextResponse.json({ element: updated });
-}, { routeName: 'research/drawings/update-element' });
+}, { routeName: 'research/drawings/update' });
 
 /* POST — Drawing actions: compare or export */
 export const POST = withErrorHandler(async (req: NextRequest) => {

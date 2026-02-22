@@ -233,6 +233,8 @@ export interface RenderedDrawing {
   overall_confidence?: number | null;
   confidence_breakdown?: Record<string, number> | null;
   comparison_notes?: string | null;
+  user_annotations?: Record<string, unknown>[] | null;
+  user_preferences?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }

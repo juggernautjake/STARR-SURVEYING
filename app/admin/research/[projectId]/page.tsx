@@ -98,7 +98,7 @@ export default function ResearchProjectPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [lastExport, setLastExport] = useState<{ format: string; filename: string } | null>(null);
 
-  const userRole = (session?.user as any)?.role || 'employee';
+  const userRole = session?.user?.role || 'employee';
 
   if (sessionStatus === 'authenticated' && userRole !== 'admin') {
     router.replace('/admin/dashboard');
@@ -259,10 +259,16 @@ export default function ResearchProjectPage() {
           map.set(el.id, JSON.parse(JSON.stringify(el)));
         }
         originalElementsMap.current = map;
-        setOriginalAnnotations([]);
-        setAnnotations([]);
+        // Restore saved annotations from server, if any
+        const savedAnnotations = data.drawing.user_annotations || [];
+        setOriginalAnnotations(savedAnnotations);
+        setAnnotations(savedAnnotations);
         setAnnotationHistory([]);
         setAnnotationFuture([]);
+        // Restore saved preferences from server, if any
+        if (data.drawing.user_preferences) {
+          setDrawingPrefs({ ...DEFAULT_PREFERENCES, ...data.drawing.user_preferences });
+        }
         setHasUnsavedChanges(false);
         setLastSavedAt(data.drawing.updated_at || null);
         // Generate SVG client-side via API

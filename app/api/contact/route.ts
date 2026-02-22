@@ -1033,18 +1033,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Check if Resend is configured
     if (!RESEND_API_KEY || RESEND_API_KEY === 'your_resend_api_key') {
-      // Development mode - log everything
-      console.log('='.repeat(70));
-      console.log('DEV MODE - Emails would be sent:');
-      console.log('='.repeat(70));
-      console.log('Reference:', referenceNumber);
-      console.log('\n--- BUSINESS EMAIL ---');
-      console.log('To:', EMAIL_RECIPIENTS.join(', '));
-      console.log('Subject:', businessSubject);
-      console.log('\n--- CUSTOMER CONFIRMATION ---');
-      console.log('To:', data.email);
-      console.log('Subject:', customerSubject);
-      console.log('='.repeat(70));
+      // Development mode - log summary only
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[DEV] Contact form received (ref: ${referenceNumber}) from ${data.email}`);
+      }
 
       return NextResponse.json(
         {
@@ -1082,10 +1074,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Check results
     const [businessEmail, customerEmail] = emailResults;
     
-    console.log(`[${referenceNumber}] Results:`, {
-      business: businessEmail.status === 'fulfilled' ? businessEmail.value : 'failed',
-      customer: customerEmail.status === 'fulfilled' ? customerEmail.value : 'failed',
-    });
+    if (businessEmail.status === 'rejected' || customerEmail.status === 'rejected') {
+      console.error(`[${referenceNumber}] Email send failure:`, {
+        business: businessEmail.status,
+        customer: customerEmail.status,
+      });
+    }
 
     // Return success if at least business email sent
     if (businessEmail.status === 'fulfilled' && businessEmail.value) {

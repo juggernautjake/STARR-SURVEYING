@@ -37,7 +37,7 @@ export default function ResearchListPage() {
     state: 'TX',
   });
 
-  const userRole = (session?.user as any)?.role || 'employee';
+  const userRole = session?.user?.role || 'employee';
 
   // Admin-only guard
   if (sessionStatus === 'authenticated' && userRole !== 'admin') {
