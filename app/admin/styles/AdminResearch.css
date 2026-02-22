@@ -1,0 +1,445 @@
+/* ============================================================================
+   AdminResearch.css — Property Research feature styles
+   BEM methodology matching existing admin CSS patterns
+   ============================================================================ */
+
+/* ── Project List Page ────────────────────────────────────────────────────── */
+
+.research-page {
+  padding: 0;
+}
+
+.research-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.research-page__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0;
+}
+
+.research-page__actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.research-page__new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  background: #2563EB;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.research-page__new-btn:hover {
+  background: #1D4ED8;
+}
+
+/* ── Controls (Search + Filters) ──────────────────────────────────────────── */
+
+.research-page__controls {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.research-page__search {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.research-page__search-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.research-page__search-input:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.research-page__search-btn {
+  padding: 0.5rem 0.85rem;
+  background: #F3F4F6;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background 0.15s;
+}
+
+.research-page__search-btn:hover {
+  background: #E5E7EB;
+}
+
+.research-page__status-filters {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.research-page__status-chip {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 20px;
+  background: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.research-page__status-chip:hover {
+  background: #F3F4F6;
+}
+
+.research-page__status-chip--active {
+  background: #2563EB;
+  color: #fff;
+  border-color: #2563EB;
+}
+
+/* ── Project Cards ────────────────────────────────────────────────────────── */
+
+.research-page__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1rem;
+}
+
+.research-card {
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.research-card:hover {
+  border-color: #2563EB;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+}
+
+.research-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.research-card__name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1F2937;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.research-card__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.research-card__status--upload    { background: #DBEAFE; color: #1E40AF; }
+.research-card__status--configure { background: #E0E7FF; color: #3730A3; }
+.research-card__status--analyzing { background: #FEF3C7; color: #92400E; }
+.research-card__status--review    { background: #FED7AA; color: #9A3412; }
+.research-card__status--drawing   { background: #D1FAE5; color: #065F46; }
+.research-card__status--verifying { background: #CFFAFE; color: #155E75; }
+.research-card__status--complete  { background: #D1FAE5; color: #065F46; }
+
+.research-card__address {
+  font-size: 0.85rem;
+  color: #6B7280;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.research-card__meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: #9CA3AF;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.research-card__meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.research-card__date {
+  font-size: 0.75rem;
+  color: #9CA3AF;
+  margin-top: 0.5rem;
+}
+
+/* ── Empty State ──────────────────────────────────────────────────────────── */
+
+.research-page__empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6B7280;
+}
+
+.research-page__empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.research-page__empty-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.research-page__empty-text {
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Loading Skeleton ─────────────────────────────────────────────────────── */
+
+.research-card--skeleton {
+  pointer-events: none;
+}
+
+.research-card__skeleton-line {
+  height: 14px;
+  background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+  background-size: 200% 100%;
+  animation: research-shimmer 1.5s infinite;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.research-card__skeleton-line--short { width: 40%; }
+.research-card__skeleton-line--medium { width: 70%; }
+.research-card__skeleton-line--long { width: 90%; }
+
+@keyframes research-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Create Project Modal ─────────────────────────────────────────────────── */
+
+.research-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.research-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 520px;
+  padding: 1.75rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.research-modal__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0 0 1.25rem 0;
+}
+
+.research-modal__field {
+  margin-bottom: 1rem;
+}
+
+.research-modal__label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.35rem;
+}
+
+.research-modal__input,
+.research-modal__textarea,
+.research-modal__select {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.research-modal__input:focus,
+.research-modal__textarea:focus,
+.research-modal__select:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.research-modal__textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+.research-modal__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.research-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.research-modal__cancel {
+  padding: 0.55rem 1rem;
+  background: #F3F4F6;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.research-modal__cancel:hover {
+  background: #E5E7EB;
+}
+
+.research-modal__submit {
+  padding: 0.55rem 1.25rem;
+  background: #2563EB;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.research-modal__submit:hover {
+  background: #1D4ED8;
+}
+
+.research-modal__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Workflow Stepper ─────────────────────────────────────────────────────── */
+
+.research-workflow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+}
+
+.research-workflow__step {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: #9CA3AF;
+  position: relative;
+}
+
+.research-workflow__step--done {
+  color: #059669;
+}
+
+.research-workflow__step--active {
+  color: #2563EB;
+  font-weight: 600;
+}
+
+.research-workflow__step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 2px solid #D1D5DB;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.research-workflow__step--done .research-workflow__step-num {
+  background: #059669;
+  border-color: #059669;
+  color: #fff;
+}
+
+.research-workflow__step--active .research-workflow__step-num {
+  background: #2563EB;
+  border-color: #2563EB;
+  color: #fff;
+}
+
+.research-workflow__connector {
+  width: 24px;
+  height: 2px;
+  background: #D1D5DB;
+  flex-shrink: 0;
+}
+
+.research-workflow__connector--done {
+  background: #059669;
+}

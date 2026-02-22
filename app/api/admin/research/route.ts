@@ -1,0 +1,161 @@
+// app/api/admin/research/route.ts — Research Projects CRUD
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
+import { supabaseAdmin } from '@/lib/supabase';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
+
+/* GET — List all research projects (with optional filters) */
+export const GET = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  const status = searchParams.get('status');
+  const search = searchParams.get('search');
+  const archived = searchParams.get('archived') === 'true';
+  const limit = parseInt(searchParams.get('limit') || '50');
+  const offset = parseInt(searchParams.get('offset') || '0');
+
+  // Single project fetch
+  if (id) {
+    const { data: project, error } = await supabaseAdmin
+      .from('research_projects')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 404 });
+
+    // Fetch counts in parallel
+    const [docsRes, pointsRes, discRes] = await Promise.all([
+      supabaseAdmin.from('research_documents').select('id', { count: 'exact' }).eq('research_project_id', id),
+      supabaseAdmin.from('extracted_data_points').select('id', { count: 'exact' }).eq('research_project_id', id),
+      supabaseAdmin.from('discrepancies').select('id, resolution_status', { count: 'exact' }).eq('research_project_id', id),
+    ]);
+
+    const resolvedCount = (discRes.data || []).filter(
+      (d: { resolution_status: string }) => d.resolution_status === 'resolved' || d.resolution_status === 'accepted'
+    ).length;
+
+    return NextResponse.json({
+      project: {
+        ...project,
+        document_count: docsRes.count || 0,
+        data_point_count: pointsRes.count || 0,
+        discrepancy_count: discRes.count || 0,
+        resolved_count: resolvedCount,
+      },
+    });
+  }
+
+  // List projects
+  let query = supabaseAdmin
+    .from('research_projects')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (archived) {
+    query = query.not('archived_at', 'is', null);
+  } else {
+    query = query.is('archived_at', null);
+  }
+
+  if (status && status !== 'all') query = query.eq('status', status);
+  if (search) query = query.or(`name.ilike.%${search}%,property_address.ilike.%${search}%,county.ilike.%${search}%`);
+
+  const { data, error, count } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ projects: data || [], total: count || 0 });
+}, { routeName: 'research' });
+
+/* POST — Create a new research project */
+export const POST = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = await req.json();
+  const { name, description, property_address, county, state, job_id } = body;
+
+  if (!name || !name.trim()) {
+    return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('research_projects')
+    .insert({
+      created_by: session.user.email,
+      name: name.trim(),
+      description: description?.trim() || null,
+      property_address: property_address?.trim() || null,
+      county: county?.trim() || null,
+      state: state?.trim() || 'TX',
+      job_id: job_id || null,
+      status: 'upload',
+    })
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ project: data }, { status: 201 });
+}, { routeName: 'research' });
+
+/* PATCH — Update a research project */
+export const PATCH = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = await req.json();
+  const { id, ...updates } = body;
+
+  if (!id) return NextResponse.json({ error: 'Project id is required' }, { status: 400 });
+
+  // Only allow updating specific fields
+  const allowed: Record<string, unknown> = {};
+  if (updates.name !== undefined) allowed.name = updates.name.trim();
+  if (updates.description !== undefined) allowed.description = updates.description?.trim() || null;
+  if (updates.property_address !== undefined) allowed.property_address = updates.property_address?.trim() || null;
+  if (updates.county !== undefined) allowed.county = updates.county?.trim() || null;
+  if (updates.state !== undefined) allowed.state = updates.state?.trim() || 'TX';
+  if (updates.status !== undefined) allowed.status = updates.status;
+  if (updates.analysis_template_id !== undefined) allowed.analysis_template_id = updates.analysis_template_id;
+  if (updates.analysis_filters !== undefined) allowed.analysis_filters = updates.analysis_filters;
+
+  allowed.updated_at = new Date().toISOString();
+
+  if (updates.status === 'complete') {
+    allowed.completed_at = new Date().toISOString();
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('research_projects')
+    .update(allowed)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ project: data });
+}, { routeName: 'research' });
+
+/* DELETE — Soft-delete (archive) a research project */
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  if (!id) return NextResponse.json({ error: 'Project id is required' }, { status: 400 });
+
+  const { error } = await supabaseAdmin
+    .from('research_projects')
+    .update({ archived_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq('id', id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ success: true });
+}, { routeName: 'research' });
