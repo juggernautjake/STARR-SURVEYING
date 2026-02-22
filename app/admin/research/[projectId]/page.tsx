@@ -6,8 +6,11 @@ import { useRouter, useParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import WorkflowStepper from '../components/WorkflowStepper';
 import DocumentUploadPanel from '../components/DocumentUploadPanel';
-import type { ResearchProject, ResearchDocument, WorkflowStep, AnalysisTemplate } from '@/types/research';
-import { WORKFLOW_STEPS, SEVERITY_CONFIG } from '@/types/research';
+import DataPointsPanel from '../components/DataPointsPanel';
+import DiscrepancyPanel from '../components/DiscrepancyPanel';
+import SourceDocumentViewer from '../components/SourceDocumentViewer';
+import type { ResearchProject, ResearchDocument, WorkflowStep } from '@/types/research';
+import { WORKFLOW_STEPS } from '@/types/research';
 
 export default function ResearchProjectPage() {
   const { data: session, status: sessionStatus } = useSession();
@@ -29,6 +32,11 @@ export default function ResearchProjectPage() {
     dataPointCount: number;
     discrepancyCount: number;
   } | null>(null);
+
+  // Review state
+  const [reviewTab, setReviewTab] = useState<'data' | 'discrepancies'>('data');
+  const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
+  const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
 
   const userRole = (session?.user as any)?.role || 'employee';
 
@@ -356,7 +364,56 @@ export default function ResearchProjectPage() {
         </div>
       )}
 
-      {(project.status === 'review' || project.status === 'drawing' || project.status === 'verifying' || project.status === 'complete') && (
+      {project.status === 'review' && (
+        <div className="research-review">
+          {/* Review tabs */}
+          <div className="research-review__tabs">
+            <button
+              className={`research-review__tab ${reviewTab === 'data' ? 'research-review__tab--active' : ''}`}
+              onClick={() => setReviewTab('data')}
+            >
+              Extracted Data
+            </button>
+            <button
+              className={`research-review__tab ${reviewTab === 'discrepancies' ? 'research-review__tab--active' : ''}`}
+              onClick={() => setReviewTab('discrepancies')}
+            >
+              Discrepancies
+              {stats.discrepancy_count > 0 && (
+                <span className="research-review__tab-badge">{stats.discrepancy_count}</span>
+              )}
+            </button>
+          </div>
+
+          {/* Tab content */}
+          {reviewTab === 'data' && (
+            <DataPointsPanel
+              projectId={projectId}
+              onViewSource={(docId, excerpt) => {
+                const doc = documents.find(d => d.id === docId);
+                if (doc) {
+                  setViewerDoc(doc);
+                  setViewerHighlight(excerpt);
+                }
+              }}
+            />
+          )}
+          {reviewTab === 'discrepancies' && (
+            <DiscrepancyPanel
+              projectId={projectId}
+              onCountChange={(total, resolved) => {
+                setStats(prev => ({
+                  ...prev,
+                  discrepancy_count: total,
+                  resolved_count: resolved,
+                }));
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {(project.status === 'drawing' || project.status === 'verifying' || project.status === 'complete') && (
         <div className="research-page__empty">
           <div className="research-page__empty-icon">&#128679;</div>
           <div className="research-page__empty-title">Coming Soon</div>
@@ -402,6 +459,15 @@ export default function ResearchProjectPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Source document viewer modal */}
+      {viewerDoc && (
+        <SourceDocumentViewer
+          document={viewerDoc}
+          highlightText={viewerHighlight}
+          onClose={() => { setViewerDoc(null); setViewerHighlight(undefined); }}
+        />
       )}
     </div>
   );
