@@ -29,6 +29,7 @@ import '../styles/AdminDiscussions.css';
 import '../styles/AdminMyNotes.css';
 import '../styles/AdminArticle.css';
 import '../styles/AdminUsers.css';
+import '../styles/AdminResearch.css';
 import '../styles/AdminResponsive.css';
 
 const PAGE_TITLES: Record<string, string> = {
@@ -83,6 +84,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/hours-approval': 'Hours Approval',
   '/admin/discussions': 'Discussion Threads',
   '/admin/learn/fieldbook': 'My Fieldbook',
+  '/admin/research': 'Property Research',
+  '/admin/research/new': 'New Research Project',
 };
 
 function getTitle(p: string): string {
@@ -101,6 +104,7 @@ function getTitle(p: string): string {
   if (p.startsWith('/admin/jobs/') && !PAGE_TITLES[p]) return 'Job Detail';
   if (p.startsWith('/admin/payroll/') && !PAGE_TITLES[p]) return 'Employee Pay Detail';
   if (p.startsWith('/admin/discussions/') && !PAGE_TITLES[p]) return 'Discussion Thread';
+  if (p.startsWith('/admin/research/') && !PAGE_TITLES[p]) return 'Research Project';
   return 'Admin';
 }
 

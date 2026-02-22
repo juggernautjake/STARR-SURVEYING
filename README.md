@@ -14,7 +14,7 @@ Professional land surveying website built with Next.js 14, TypeScript, React 18,
 
 ## Tech Stack
 
-- **Framework**: Next.js 14.0.4
+- **Framework**: Next.js 14.2.35
 - **Language**: TypeScript 5.3.3
 - **Frontend**: React 18.2.0, Tailwind CSS 3.3.6
 - **Database**: Supabase (PostgreSQL)

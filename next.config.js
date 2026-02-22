@@ -8,6 +8,14 @@ const nextConfig = {
   typescript: {
     tsconfigPath: './tsconfig.json',
   },
+  // File upload limits for research document processing (Phase 2)
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '50mb',
+    },
+  },
+  // Note: Per-route body size limits are configured via route segment config
+  // exports in individual API route files (e.g., export const maxDuration = 60)
 }
 
 module.exports = nextConfig

@@ -17,6 +17,7 @@ const ADMIN_ONLY_ROUTES = [
   '/admin/error-log',
   '/admin/notes',           // Company Notes
   '/admin/rewards/admin',   // Manage Rewards
+  '/admin/research',        // Property Research
 ];
 
 const TEACHER_ROUTES = [

@@ -81,6 +81,9 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       { href: '/admin/leads', label: 'Leads', icon: '📨', roles: ['admin'], internalOnly: true },
       { href: '/admin/hours-approval', label: 'Hours Approval', icon: '✅', roles: ['admin'], internalOnly: true },
     ]},
+    { label: 'Research', items: [
+      { href: '/admin/research', label: 'Property Research', icon: '🔬', roles: ['admin'], internalOnly: true },
+    ]},
     { label: 'Rewards & Pay', items: [
       { href: '/admin/rewards', label: 'Rewards & Store', icon: '🏆', internalOnly: true },
       { href: '/admin/pay-progression', label: 'Pay Progression', icon: '📈', internalOnly: true },
@@ -141,6 +144,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
     if (href === '/admin/jobs') return pathname === '/admin/jobs';
     if (href === '/admin/messages') return pathname === '/admin/messages';
     if (href === '/admin/rewards') return pathname === '/admin/rewards';
+    if (href === '/admin/research') return pathname === '/admin/research' || pathname.startsWith('/admin/research/');
     return pathname.startsWith(href);
   };
 
