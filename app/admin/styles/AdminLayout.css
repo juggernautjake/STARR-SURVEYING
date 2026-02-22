@@ -70,15 +70,15 @@
 .admin-topbar__left { display:flex; align-items:center; gap:1rem; }
 .admin-topbar__hamburger { display:none; align-items:center; justify-content:center; width:36px; height:36px; background:none; border:2px solid #E5E7EB; border-radius:6px; color:#4B5563; font-size:1.25rem; cursor:pointer; }
 .admin-topbar__hamburger:hover { border-color:#1D3095; color:#1D3095; }
-.admin-topbar__title { font-family:'Sora',sans-serif; font-size:1.15rem; font-weight:600; color:#0F1419; }
-.admin-topbar__right { display:flex; align-items:center; gap:.75rem; }
+.admin-topbar__title { font-family:'Sora',sans-serif; font-size:1.15rem; font-weight:600; color:#0F1419; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.admin-topbar__right { display:flex; align-items:center; gap:.75rem; min-width:0; flex-shrink:1; }
 .admin-topbar__role-badge { display:inline-flex; align-items:center; padding:.25rem .65rem; border-radius:20px; font-family:'Inter',sans-serif; font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
 .admin-topbar__role-badge--admin { background:#FEF2F2; color:#BD1218; border:1px solid #FECACA; }
 .admin-topbar__role-badge--employee { background:#EFF6FF; color:#1D3095; border:1px solid #BFDBFE; }
 .admin-topbar__signout { display:inline-flex; align-items:center; gap:.4rem; padding:.4rem .85rem; font-family:'Inter',sans-serif; font-size:.8rem; font-weight:600; color:#6B7280; background:#F8F9FA; border:1px solid #E5E7EB; border-radius:6px; cursor:pointer; text-decoration:none; }
 .admin-topbar__signout:hover { background:#FEF2F2; color:#BD1218; border-color:#BD1218; }
-.admin-topbar__username { font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; color:#374151; }
-.admin-topbar__xp { display:inline-flex; align-items:center; gap:.25rem; padding:.3rem .65rem; background:#F8F9FA; border:1px solid #E5E7EB; border-radius:20px; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:700; text-decoration:none; cursor:pointer; transition:all .15s; position:relative; }
+.admin-topbar__username { font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px; }
+.admin-topbar__xp { display:inline-flex; align-items:center; gap:.25rem; padding:.3rem .65rem; background:#F8F9FA; border:1px solid #E5E7EB; border-radius:20px; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:700; text-decoration:none; cursor:pointer; transition:all .15s; position:relative; white-space:nowrap; flex-shrink:0; }
 .admin-topbar__xp:hover { background:#EFF6FF; border-color:#1D3095; box-shadow:0 2px 8px rgba(29,48,149,.15); }
 .admin-topbar__xp:hover::after { content:'Click to spend reward points!'; position:absolute; top:calc(100% + 6px); left:50%; transform:translateX(-50%); background:#0F1419; color:#FFF; padding:.35rem .65rem; border-radius:6px; font-size:.68rem; font-weight:500; white-space:nowrap; z-index:50; pointer-events:none; box-shadow:0 2px 8px rgba(0,0,0,.15); }
 .admin-topbar__xp:hover::before { content:''; position:absolute; top:calc(100% + 2px); left:50%; transform:translateX(-50%); border:4px solid transparent; border-bottom-color:#0F1419; z-index:50; pointer-events:none; }
@@ -153,7 +153,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   FLOATING ACTION MENU — Accordion wrapper for FAB buttons
+   FLOATING ACTION MENU — Green pill bar with collapse arrow
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .fab-menu {
@@ -162,46 +162,58 @@
   right: 1.5rem;
   z-index: 90;
   display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
+  align-items: center;
+  background: #10B981;
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.35), 0 2px 8px rgba(0,0,0,.12);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0;
+  overflow: visible;
 }
 
-/* Toggle button (always visible) */
+/* Toggle arrow — left side of the green bar */
 .fab-menu__toggle {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #374151;
+  width: 36px;
+  height: 48px;
+  border-radius: 14px 0 0 14px;
+  background: transparent;
   color: #FFF;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,.2);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s ease;
   flex-shrink: 0;
   z-index: 91;
-  opacity: 0.7;
+  opacity: 0.85;
+  padding: 0;
 }
 .fab-menu__toggle:hover {
   opacity: 1;
-  background: #1F2937;
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  background: rgba(255,255,255,.15);
 }
 .fab-menu__toggle-icon {
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Collapsed state toggle gets full rounding */
+.fab-menu--collapsed .fab-menu__toggle {
+  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+}
+
 /* Buttons container */
 .fab-menu__buttons {
   display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.35rem;
   overflow: hidden;
+  padding-right: 0.5rem;
   transition: max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 0.25s ease;
+              opacity 0.25s ease,
+              padding 0.35s ease;
 }
 
 /* Expanded state */
@@ -215,6 +227,13 @@
   max-width: 0;
   opacity: 0;
   pointer-events: none;
+  padding-right: 0;
+}
+
+/* Collapsed: shrink pill to just the arrow */
+.fab-menu--collapsed {
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3), 0 2px 6px rgba(0,0,0,.1);
 }
 
 /* Override child FAB positions: they now flow inside the menu instead of fixed positioning */
@@ -226,6 +245,35 @@
   right: auto !important;
   z-index: auto !important;
   transform: none !important;
+}
+
+/* Inside the green bar, FAB buttons get a subtler look */
+.fab-menu .fieldbook-fab,
+.fab-menu .discussion-fab,
+.fab-menu .messenger-fab {
+  background: rgba(255,255,255,.2);
+  box-shadow: 0 1px 4px rgba(0,0,0,.1);
+  border: 1px solid rgba(255,255,255,.25);
+}
+.fab-menu .fieldbook-fab:hover,
+.fab-menu .discussion-fab:hover,
+.fab-menu .messenger-fab:hover {
+  background: rgba(255,255,255,.35);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0,0,0,.15);
+}
+
+/* Tooltip colors updated to match green bar */
+.fab-menu .fieldbook-fab-tooltip,
+.fab-menu .discussion-fab-tooltip,
+.fab-menu .messenger-fab-tooltip {
+  background: #065F46;
+  color: #FFF;
+}
+.fab-menu .fieldbook-fab-tooltip::after,
+.fab-menu .discussion-fab-tooltip::after,
+.fab-menu .messenger-fab-tooltip::after {
+  border-top-color: #065F46;
 }
 
 /* FAB button — rightmost in the bottom-right toolbar row */
