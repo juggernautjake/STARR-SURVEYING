@@ -328,6 +328,44 @@ export interface SourceReference {
 
 export type ViewMode = 'standard' | 'feature' | 'confidence' | 'discrepancy' | 'custom';
 
+// ── Property Search ─────────────────────────────────────────────────────────
+
+export type SearchSource =
+  | 'county_cad'       // County Appraisal District
+  | 'county_clerk'     // County Clerk records
+  | 'fema'             // FEMA flood zone
+  | 'tnris'            // Texas Natural Resources Information System
+  | 'txdot'            // TxDOT right-of-way maps
+  | 'usgs';            // USGS topo/elevation
+
+export interface PropertySearchResult {
+  id: string;
+  source: SearchSource;
+  source_name: string;
+  title: string;
+  url: string;
+  document_type: DocumentType;
+  relevance: number;
+  description: string;
+  has_cost: boolean;
+  cost_note?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface PropertySearchRequest {
+  address?: string;
+  county?: string;
+  parcel_id?: string;
+  owner_name?: string;
+  legal_description?: string;
+}
+
+export interface PropertySearchResponse {
+  results: PropertySearchResult[];
+  sources_searched: { source: SearchSource; name: string; status: 'success' | 'error' | 'no_results'; message?: string }[];
+  total: number;
+}
+
 // ── API Request/Response Types ───────────────────────────────────────────────
 
 export interface CreateResearchProjectRequest {

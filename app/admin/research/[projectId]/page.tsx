@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import WorkflowStepper from '../components/WorkflowStepper';
 import DocumentUploadPanel from '../components/DocumentUploadPanel';
+import PropertySearchPanel from '../components/PropertySearchPanel';
 import DataPointsPanel from '../components/DataPointsPanel';
 import DiscrepancyPanel from '../components/DiscrepancyPanel';
 import SourceDocumentViewer from '../components/SourceDocumentViewer';
@@ -287,11 +288,19 @@ export default function ResearchProjectPage() {
 
       {/* Step content */}
       {project.status === 'upload' && (
-        <DocumentUploadPanel
-          projectId={projectId}
-          documents={documents}
-          onDocumentsChanged={() => { loadDocuments(); loadProject(); }}
-        />
+        <>
+          <DocumentUploadPanel
+            projectId={projectId}
+            documents={documents}
+            onDocumentsChanged={() => { loadDocuments(); loadProject(); }}
+          />
+          <PropertySearchPanel
+            projectId={projectId}
+            defaultAddress={project.property_address || ''}
+            defaultCounty={project.county || ''}
+            onImported={() => { loadDocuments(); loadProject(); }}
+          />
+        </>
       )}
 
       {project.status === 'configure' && (
