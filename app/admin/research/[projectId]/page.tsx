@@ -103,6 +103,11 @@ export default function ResearchProjectPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [lastExport, setLastExport] = useState<{ format: string; filename: string } | null>(null);
 
+  // Project editing state
+  const [showEditProject, setShowEditProject] = useState(false);
+  const [editProjectData, setEditProjectData] = useState({ name: '', description: '', property_address: '', county: '', state: '' });
+  const [savingProject, setSavingProject] = useState(false);
+
   const userRole = session?.user?.role || 'employee';
 
   if (sessionStatus === 'authenticated' && userRole !== 'admin') {
@@ -203,6 +208,57 @@ export default function ResearchProjectPage() {
     const interval = setInterval(pollStatus, 4000);
     return () => clearInterval(interval);
   }, [project?.status, projectId, loadProject, loadDocuments]);
+
+  // ── Project Editing ──────────────────────────────────────────────────────
+  function openEditProject() {
+    if (!project) return;
+    setEditProjectData({
+      name: project.name,
+      description: project.description || '',
+      property_address: project.property_address || '',
+      county: project.county || '',
+      state: project.state || 'TX',
+    });
+    setShowEditProject(true);
+  }
+
+  async function handleSaveProject(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editProjectData.name.trim() || savingProject) return;
+    setSavingProject(true);
+    try {
+      const res = await fetch('/api/admin/research', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: projectId, ...editProjectData }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProject(data.project);
+        setShowEditProject(false);
+        showToast('Project details updated', 'success');
+      } else {
+        showToast('Failed to update project details', 'error');
+      }
+    } catch {
+      showToast('Unable to save. Check your connection and try again.', 'error');
+    }
+    setSavingProject(false);
+  }
+
+  async function handleArchiveProject() {
+    if (!window.confirm('Archive this project? It will be hidden from the project list but can be recovered later.')) return;
+    try {
+      const res = await fetch(`/api/admin/research?id=${projectId}`, { method: 'DELETE' });
+      if (res.ok) {
+        router.push('/admin/research');
+      } else {
+        showToast('Failed to archive project', 'error');
+      }
+    } catch {
+      showToast('Unable to archive. Check your connection and try again.', 'error');
+    }
+  }
 
   async function handleStatusUpdate(newStatus: WorkflowStep) {
     try {
@@ -838,6 +894,27 @@ export default function ResearchProjectPage() {
               {project.state && `, ${project.state}`}
             </div>
           )}
+          {project.description && (
+            <div style={{ color: '#9CA3AF', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+              {project.description}
+            </div>
+          )}
+        </div>
+        <div className="research-page__actions" style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            onClick={openEditProject}
+            style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: '#374151' }}
+            aria-label="Edit project details"
+          >
+            Edit Details
+          </button>
+          <button
+            onClick={handleArchiveProject}
+            style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: '#DC2626' }}
+            aria-label="Archive project"
+          >
+            Archive
+          </button>
         </div>
       </div>
 
@@ -1365,6 +1442,83 @@ export default function ResearchProjectPage() {
           highlightText={viewerHighlight}
           onClose={() => { setViewerDoc(null); setViewerHighlight(undefined); }}
         />
+      )}
+
+      {/* Edit Project Modal */}
+      {showEditProject && (
+        <div className="research-modal-overlay" onClick={() => setShowEditProject(false)}>
+          <div className="research-modal" onClick={e => e.stopPropagation()}>
+            <h2 className="research-modal__title">Edit Project Details</h2>
+            <form onSubmit={handleSaveProject}>
+              <div className="research-modal__field">
+                <label className="research-modal__label" htmlFor="edit-project-name">Project Name *</label>
+                <input
+                  id="edit-project-name"
+                  className="research-modal__input"
+                  type="text"
+                  value={editProjectData.name}
+                  onChange={e => setEditProjectData(p => ({ ...p, name: e.target.value }))}
+                  autoFocus
+                  required
+                />
+              </div>
+              <div className="research-modal__field">
+                <label className="research-modal__label" htmlFor="edit-project-address">Property Address</label>
+                <input
+                  id="edit-project-address"
+                  className="research-modal__input"
+                  type="text"
+                  value={editProjectData.property_address}
+                  onChange={e => setEditProjectData(p => ({ ...p, property_address: e.target.value }))}
+                />
+              </div>
+              <div className="research-modal__row">
+                <div className="research-modal__field">
+                  <label className="research-modal__label" htmlFor="edit-project-county">County</label>
+                  <input
+                    id="edit-project-county"
+                    className="research-modal__input"
+                    type="text"
+                    value={editProjectData.county}
+                    onChange={e => setEditProjectData(p => ({ ...p, county: e.target.value }))}
+                  />
+                </div>
+                <div className="research-modal__field">
+                  <label className="research-modal__label" htmlFor="edit-project-state">State</label>
+                  <input
+                    id="edit-project-state"
+                    className="research-modal__input"
+                    type="text"
+                    value={editProjectData.state}
+                    onChange={e => setEditProjectData(p => ({ ...p, state: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="research-modal__field">
+                <label className="research-modal__label" htmlFor="edit-project-desc">Description</label>
+                <textarea
+                  id="edit-project-desc"
+                  className="research-modal__textarea"
+                  value={editProjectData.description}
+                  onChange={e => setEditProjectData(p => ({ ...p, description: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+              <div className="research-modal__actions">
+                <button type="button" className="research-modal__cancel" onClick={() => setShowEditProject(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="research-modal__submit"
+                  disabled={!editProjectData.name.trim() || savingProject}
+                >
+                  {savingProject ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Toast notification */}
