@@ -67,8 +67,23 @@ export default function SourceDocumentViewer({ document: doc, highlightText, onC
     }
   }, [text, highlightText]);
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="research-viewer-overlay" onClick={onClose}>
+    <div
+      className="research-viewer-overlay"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={doc.document_label || doc.original_filename || 'Document Viewer'}
+    >
       <div className="research-viewer" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="research-viewer__header">

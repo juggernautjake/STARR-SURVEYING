@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import type { RenderedDrawing, DrawingElement, ViewMode } from '@/types/research';
 import type { DrawingPreferences } from './DrawingPreferencesPanel';
 import type { DrawingTool, ToolSettings } from './DrawingToolsSidebar';
@@ -144,6 +145,12 @@ export default function DrawingCanvas({
     [annotations],
   );
 
+  // Sanitize SVG content to prevent XSS from injected scripts/event handlers
+  const sanitizedSvgContent = useMemo(
+    () => DOMPurify.sanitize(svgContent, { USE_PROFILES: { svg: true, svgFilters: true } }),
+    [svgContent],
+  );
+
   // ── Coordinate Helpers ──────────────────────────────────────────────────
 
   /** Convert client (screen) coords to SVG drawing coords */
@@ -196,7 +203,8 @@ export default function DrawingCanvas({
           y: e.clientY - rect.top,
           value: '',
         });
-        setTimeout(() => textInputRef.current?.focus(), 50);
+        // Use requestAnimationFrame instead of setTimeout to avoid memory leak
+        requestAnimationFrame(() => textInputRef.current?.focus());
       }
       return;
     }
@@ -836,7 +844,7 @@ export default function DrawingCanvas({
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: '0 0',
           }}
-          dangerouslySetInnerHTML={{ __html: svgContent }}
+          dangerouslySetInnerHTML={{ __html: sanitizedSvgContent }}
         />
 
         {/* Annotation overlay SVG — same transform */}
