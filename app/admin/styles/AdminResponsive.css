@@ -1772,6 +1772,56 @@
   }
 }
 
+/* ── Verify & Export Responsive ─────────────────────────────────────── */
+@media (max-width: 599px) {
+  .research-verify__score-row {
+    flex-direction: column;
+    text-align: center;
+  }
+  .research-verify__score-circle {
+    width: 80px;
+    height: 80px;
+  }
+  .research-verify__score-number {
+    font-size: 1.5rem;
+  }
+  .research-verify__math-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+  .research-verify__math-label {
+    width: auto;
+  }
+  .research-verify__actions {
+    flex-direction: column;
+  }
+  .research-verify__action-btn {
+    width: 100%;
+    text-align: center;
+  }
+  .research-export__formats {
+    grid-template-columns: 1fr 1fr;
+  }
+  .research-export__summary {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .research-export__view-modes {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .research-export__formats {
+    grid-template-columns: 1fr;
+  }
+  .research-verify__bar-label {
+    width: 70px;
+    font-size: 0.7rem;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SAFE AREA — Support for iPhone notch / bottom bar
    ═══════════════════════════════════════════════════════════════════════════ */

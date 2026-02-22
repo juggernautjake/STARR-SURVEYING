@@ -16,7 +16,9 @@ import DrawingViewToolbar from '../components/DrawingViewToolbar';
 import DrawingPreferencesPanel, { DEFAULT_PREFERENCES, type DrawingPreferences } from '../components/DrawingPreferencesPanel';
 import DrawingToolsSidebar, { DEFAULT_TOOL_SETTINGS, type DrawingTool, type ToolSettings } from '../components/DrawingToolsSidebar';
 import DrawingSaveDialog from '../components/DrawingSaveDialog';
-import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep } from '@/types/research';
+import VerificationPanel from '../components/VerificationPanel';
+import ExportPanel from '../components/ExportPanel';
+import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS } from '@/types/research';
 
 export default function ResearchProjectPage() {
@@ -85,6 +87,14 @@ export default function ResearchProjectPage() {
 
   // Loading states for async operations
   const [savingDrawing, setSavingDrawing] = useState(false);
+
+  // Verification state
+  const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // Export state
+  const [isExporting, setIsExporting] = useState(false);
+  const [lastExport, setLastExport] = useState<{ format: string; filename: string } | null>(null);
 
   const userRole = (session?.user as any)?.role || 'employee';
 
@@ -483,6 +493,99 @@ export default function ResearchProjectPage() {
     setAnnotationFuture([]);
     setHasUnsavedChanges(false);
     setSelectedElement(null);
+  }
+
+  // ── Verification Handlers ─────────────────────────────────────────────────
+  async function handleRunVerification() {
+    if (!activeDrawing) {
+      showToast('No active drawing to verify. Generate or select a drawing first.', 'error');
+      return;
+    }
+    setIsVerifying(true);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}/compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Verification failed');
+      }
+      const data = await res.json();
+      setComparisonResult(data.comparison);
+      showToast('Verification complete', 'success');
+      // Reload project to get updated status
+      loadProject();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Verification failed', 'error');
+    } finally {
+      setIsVerifying(false);
+    }
+  }
+
+  function handleAdvanceToExport() {
+    // Update project status to complete
+    fetch(`/api/admin/research?id=${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'complete' }),
+    }).then(() => loadProject()).catch(() => {});
+  }
+
+  async function handleExportDrawing(format: ExportFormat, exportViewMode: ViewMode) {
+    if (!activeDrawing) return;
+    setIsExporting(true);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format, viewMode: exportViewMode, showTitleBlock: true }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Export failed');
+      }
+      const data = await res.json();
+      if (data.export?.blob_data) {
+        // Decode base64 and trigger download
+        const binaryStr = atob(data.export.blob_data);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+        const mimeTypes: Record<string, string> = {
+          svg: 'image/svg+xml',
+          json: 'application/json',
+          png: 'image/png',
+          pdf: 'application/pdf',
+        };
+        const blob = new Blob([bytes], { type: mimeTypes[format] || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.export.filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        setLastExport({ format, filename: data.export.filename });
+        showToast(`Exported ${data.export.filename}`, 'success');
+      }
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Export failed', 'error');
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  function handleMarkComplete() {
+    if (!window.confirm('Mark this research project as complete?')) return;
+    fetch(`/api/admin/research?id=${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'complete' }),
+    }).then(() => {
+      showToast('Project marked as complete', 'success');
+      loadProject();
+    }).catch(() => {
+      showToast('Failed to update project status', 'error');
+    });
   }
 
   // Keyboard shortcuts for drawing tools + undo/redo
@@ -1011,14 +1114,32 @@ export default function ResearchProjectPage() {
         </div>
       )}
 
-      {(project.status === 'verifying' || project.status === 'complete') && (
-        <div className="research-page__empty">
-          <div className="research-page__empty-icon">&#128679;</div>
-          <div className="research-page__empty-title">Coming Soon</div>
-          <div className="research-page__empty-text">
-            The {project.status} step will be implemented in upcoming phases.
-          </div>
-        </div>
+      {/* Step 6: Verify */}
+      {project.status === 'verifying' && (
+        <VerificationPanel
+          comparison={comparisonResult}
+          isVerifying={isVerifying}
+          onRunVerification={handleRunVerification}
+          onReVerify={handleRunVerification}
+          onAdvanceToExport={handleAdvanceToExport}
+          drawingName={activeDrawing?.name || 'Drawing'}
+          showUITooltips={showUITooltips}
+        />
+      )}
+
+      {/* Step 7: Export / Complete */}
+      {project.status === 'complete' && (
+        <ExportPanel
+          projectId={projectId}
+          drawingId={activeDrawing?.id || ''}
+          drawingName={activeDrawing?.name || 'Drawing'}
+          comparison={comparisonResult}
+          onExport={handleExportDrawing}
+          onMarkComplete={handleMarkComplete}
+          isExporting={isExporting}
+          lastExport={lastExport}
+          showUITooltips={showUITooltips}
+        />
       )}
 
       {/* Document list (shown on all steps for reference) */}

@@ -366,6 +366,53 @@ export interface PropertySearchResponse {
   total: number;
 }
 
+// ── Verification & Comparison ────────────────────────────────────────────────
+
+export interface PersistingIssue {
+  severity: DiscrepancySeverity;
+  title: string;
+  description: string;
+  recommendation: string;
+}
+
+export interface ComparisonResult {
+  overall_confidence: number;
+  confidence_breakdown: {
+    boundary_accuracy: number;
+    monument_accuracy: number;
+    easement_accuracy: number;
+    area_accuracy: number;
+    closure_quality: number;
+  };
+  persisting_issues: PersistingIssue[];
+  comparison_notes: string;
+  math_checks: MathCheckSummary;
+  ran_at: string;
+}
+
+export interface MathCheckSummary {
+  closure_precision: number | null;
+  closure_misclosure_ft: number | null;
+  area_computed_acres: number | null;
+  area_stated_acres: number | null;
+  area_difference_acres: number | null;
+  calls_verified: number;
+  calls_total: number;
+  continuity_ok: boolean;
+}
+
+// ── Export ───────────────────────────────────────────────────────────────────
+
+export type ExportFormat = 'svg' | 'json' | 'png' | 'pdf' | 'dxf';
+
+export interface ExportResult {
+  format: ExportFormat;
+  filename: string;
+  url?: string;
+  blob_data?: string; // base64-encoded for client-side downloads
+  size_bytes: number;
+}
+
 // ── API Request/Response Types ───────────────────────────────────────────────
 
 export interface CreateResearchProjectRequest {
