@@ -43,8 +43,8 @@ export async function createDrawing(
     config?: Partial<DrawingConfig>;
   } = {}
 ): Promise<{ drawingId: string; elementCount: number }> {
-  // 1. Load project data
-  const [dataPointsResult, discrepanciesResult, templateResult] = await Promise.all([
+  // 1. Load project data (data points, discrepancies, template, and documents for context)
+  const [dataPointsResult, discrepanciesResult, templateResult, documentsResult] = await Promise.all([
     supabaseAdmin
       .from('extracted_data_points')
       .select('*')
@@ -58,11 +58,22 @@ export async function createDrawing(
     options.drawingTemplateId
       ? supabaseAdmin.from('drawing_templates').select('*').eq('id', options.drawingTemplateId).single()
       : supabaseAdmin.from('drawing_templates').select('*').eq('is_default', true).limit(1).single(),
+    supabaseAdmin
+      .from('research_documents')
+      .select('id, document_type, recorded_date, ocr_confidence, source_type')
+      .eq('research_project_id', projectId),
   ]);
 
   const dataPoints: ExtractedDataPoint[] = dataPointsResult.data || [];
   const discrepancies: Discrepancy[] = discrepanciesResult.data || [];
   const template = templateResult.data;
+
+  // Build document metadata lookup for confidence scoring
+  type DocMeta = { document_type: string | null; recorded_date: string | null; ocr_confidence: number | null; source_type: string };
+  const docMetaMap = new Map<string, DocMeta>();
+  for (const doc of (documentsResult.data || []) as DocMeta[]) {
+    docMetaMap.set((doc as unknown as { id: string }).id, doc);
+  }
 
   // 2. Extract NormalizedCall sequence from call data points
   const calls = buildCallSequence(dataPoints);
@@ -86,15 +97,23 @@ export async function createDrawing(
     drawingConfig
   );
 
-  // 5. Update confidence scores with closure data
+  // 5. Update confidence scores with closure data AND document metadata
   const closurePrecision = traverseResult.closure.precision_ratio;
   for (const el of elements) {
     const relatedDps = dataPoints.filter(dp => el.data_point_ids.includes(dp.id));
     const relatedDisc = discrepancies.filter(d => el.discrepancy_ids.includes(d.id));
 
+    // Gather document metadata for the data points backing this element
+    const relatedDocIds = new Set(relatedDps.map(dp => dp.document_id));
+    const relatedDocs = [...relatedDocIds].map(id => docMetaMap.get(id)).filter(Boolean) as DocMeta[];
+
     el.confidence_factors = computeConfidenceFactors(relatedDps, relatedDisc, {
       closurePrecision,
       multiDocumentMatch: hasMultiDocumentMatch(relatedDps),
+      documentTypes: relatedDocs.map(d => d.document_type),
+      documentDates: relatedDocs.map(d => d.recorded_date),
+      ocrConfidences: relatedDocs.map(d => d.ocr_confidence),
+      sourceTypes: relatedDocs.map(d => d.source_type),
     });
     el.confidence_score = computeElementConfidence(el.confidence_factors);
   }
@@ -265,38 +284,145 @@ export async function createDrawing(
 
 /**
  * Build NormalizedCall array from extracted data points.
- * Looks for 'call' category data points with normalized_value containing
- * bearing/distance or curve data.
+ *
+ * Strategy:
+ * 1. First, look for 'call' category data points (combined bearing+distance)
+ * 2. If none found, try to synthesize calls by pairing 'bearing' + 'distance'
+ *    data points that share the same sequence_order
+ * 3. If still none, try pairing bearings and distances in order
  */
 function buildCallSequence(dataPoints: ExtractedDataPoint[]): NormalizedCall[] {
+  // Strategy 1: Look for explicit 'call' data points
   const callDps = dataPoints
     .filter(dp => dp.data_category === 'call' && dp.normalized_value)
     .sort((a, b) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0));
 
-  const calls: NormalizedCall[] = [];
+  if (callDps.length > 0) {
+    const calls: NormalizedCall[] = [];
+    for (const dp of callDps) {
+      const nv = dp.normalized_value as Record<string, unknown>;
 
-  for (const dp of callDps) {
-    const nv = dp.normalized_value as Record<string, unknown>;
+      if (nv.curve) {
+        calls.push({
+          type: 'curve',
+          curve: nv.curve as NormalizedCall['curve'],
+        });
+      } else if (nv.bearing && nv.distance) {
+        calls.push({
+          type: 'line',
+          bearing: nv.bearing as NormalizedCall['bearing'],
+          distance: nv.distance as NormalizedCall['distance'],
+          monument_at_end: nv.monument_at_end as NormalizedCall['monument_at_end'],
+          to_description: nv.to_description as string | undefined,
+        });
+      } else {
+        // Call data point missing bearing or distance — try to normalize from raw_value
+        const call = tryNormalizeCallFromRaw(dp);
+        if (call) calls.push(call);
+      }
+    }
+    if (calls.length > 0) return calls;
+  }
 
-    if (nv.curve) {
-      // Curve call
-      calls.push({
-        type: 'curve',
-        curve: nv.curve as NormalizedCall['curve'],
-      });
-    } else {
-      // Line call
-      calls.push({
+  // Strategy 2: Synthesize from separate bearing + distance data points by sequence_order
+  console.log('[Drawing Service] No call data points found. Attempting to synthesize from bearings + distances.');
+  const bearingDps = dataPoints
+    .filter(dp => dp.data_category === 'bearing' && dp.normalized_value)
+    .sort((a, b) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0));
+  const distanceDps = dataPoints
+    .filter(dp => dp.data_category === 'distance' && dp.normalized_value)
+    .sort((a, b) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0));
+
+  if (bearingDps.length > 0 && distanceDps.length > 0) {
+    // Try matching by sequence_order first
+    const matchedByOrder: NormalizedCall[] = [];
+    const usedDistances = new Set<number>();
+
+    for (const bdp of bearingDps) {
+      const matchingDist = distanceDps.findIndex((ddp, idx) =>
+        !usedDistances.has(idx) && ddp.sequence_order === bdp.sequence_order && ddp.sequence_order != null
+      );
+      if (matchingDist >= 0) {
+        usedDistances.add(matchingDist);
+        const bearing = bdp.normalized_value as unknown as NormalizedCall['bearing'];
+        const distance = distanceDps[matchingDist].normalized_value as unknown as NormalizedCall['distance'];
+        matchedByOrder.push({
+          type: 'line',
+          bearing,
+          distance,
+        });
+      }
+    }
+
+    if (matchedByOrder.length > 0) return matchedByOrder;
+
+    // Strategy 3: Pair bearings and distances in order (1:1)
+    const count = Math.min(bearingDps.length, distanceDps.length);
+    const pairedCalls: NormalizedCall[] = [];
+    for (let i = 0; i < count; i++) {
+      const bearing = bearingDps[i].normalized_value as unknown as NormalizedCall['bearing'];
+      const distance = distanceDps[i].normalized_value as unknown as NormalizedCall['distance'];
+      pairedCalls.push({
         type: 'line',
-        bearing: nv.bearing as NormalizedCall['bearing'],
-        distance: nv.distance as NormalizedCall['distance'],
-        monument_at_end: nv.monument_at_end as NormalizedCall['monument_at_end'],
-        to_description: nv.to_description as string | undefined,
+        bearing,
+        distance,
       });
+    }
+    if (pairedCalls.length > 0) {
+      console.log(`[Drawing Service] Synthesized ${pairedCalls.length} calls from paired bearings + distances.`);
+      return pairedCalls;
     }
   }
 
-  return calls;
+  console.warn('[Drawing Service] No call sequence could be built. Drawing will have template elements only.');
+  return [];
+}
+
+/**
+ * Try to parse a NormalizedCall from a call data point's raw_value
+ * when the normalized_value is incomplete.
+ */
+function tryNormalizeCallFromRaw(dp: ExtractedDataPoint): NormalizedCall | null {
+  try {
+    const raw = dp.raw_value || '';
+    // Try to find bearing pattern: N/S dd° mm' ss" E/W
+    const bearingMatch = raw.match(/([NS])\s*(\d+)\s*[°\s\-]+\s*(\d+)\s*['\s\-]+\s*(\d+(?:\.\d+)?)\s*["″]?\s*([EW])/i);
+    // Try to find distance pattern
+    const distMatch = raw.match(/(\d+(?:\.\d+)?)\s*(feet|foot|ft|'|varas|chains|meters)/i);
+
+    if (!bearingMatch || !distMatch) return null;
+
+    const ns = bearingMatch[1].toUpperCase();
+    const degrees = parseInt(bearingMatch[2], 10);
+    const minutes = parseInt(bearingMatch[3], 10);
+    const seconds = parseFloat(bearingMatch[4]);
+    const ew = bearingMatch[5].toUpperCase();
+    const quadrant = `${ns}${ew}` as 'NE' | 'NW' | 'SE' | 'SW';
+    const decimal_degrees = degrees + minutes / 60 + seconds / 3600;
+    let azimuth: number;
+    switch (quadrant) {
+      case 'NE': azimuth = decimal_degrees; break;
+      case 'SE': azimuth = 180 - decimal_degrees; break;
+      case 'SW': azimuth = 180 + decimal_degrees; break;
+      case 'NW': azimuth = 360 - decimal_degrees; break;
+    }
+
+    const distValue = parseFloat(distMatch[1]);
+    const distUnit = distMatch[2].toLowerCase();
+    let valueFeet = distValue;
+    let unit: 'feet' | 'meters' | 'chains' | 'varas' | 'rods' = 'feet';
+    if (['meters', 'm'].includes(distUnit)) { unit = 'meters'; valueFeet = distValue * 3.28084; }
+    else if (['chains', 'ch'].includes(distUnit)) { unit = 'chains'; valueFeet = distValue * 66; }
+    else if (['varas', 'vara'].includes(distUnit)) { unit = 'varas'; valueFeet = distValue * 2.777778; }
+
+    return {
+      type: 'line',
+      bearing: { quadrant, degrees, minutes, seconds, decimal_degrees, azimuth, raw_text: bearingMatch[0] },
+      distance: { value: distValue, unit, value_in_feet: valueFeet, raw_text: distMatch[0] },
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ── Multi-Document Match Check ───────────────────────────────────────────────

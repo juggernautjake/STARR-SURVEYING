@@ -1958,14 +1958,15 @@
   background: #EFF6FF;
 }
 
-/* Workspace layout */
+/* Workspace layout — constrained so it doesn't take up the entire window */
 .research-drawing__workspace {
   display: flex;
   gap: 0;
   border: 1px solid #E5E7EB;
   border-radius: 12px;
   overflow: hidden;
-  min-height: 500px;
+  min-height: 400px;
+  max-height: min(680px, calc(100vh - 320px));
   position: relative;
   background: #F9FAFB;
 }
@@ -5183,12 +5184,12 @@
    Drawing Workspace Responsive Layout
    ============================================================================ */
 
-/* Make drawing workspace responsive */
+/* Make drawing workspace responsive — do NOT take up the entire window on desktop */
 .research-drawing__workspace {
   display: flex;
   flex: 1;
-  min-height: 500px;
-  max-height: calc(100vh - 280px);
+  min-height: 400px;
+  max-height: min(680px, calc(100vh - 320px));
   border: 1px solid #E5E7EB;
   border-radius: 8px;
   overflow: hidden;
