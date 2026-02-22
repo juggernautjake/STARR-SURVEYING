@@ -266,7 +266,7 @@ export default function ResearchProjectPage() {
         setHasUnsavedChanges(false);
         setLastSavedAt(data.drawing.updated_at || null);
         // Generate SVG client-side via API
-        const svgRes = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}/svg?viewMode=${viewMode}`);
+        const svgRes = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}?format=svg&viewMode=${viewMode}`);
         if (svgRes.ok) {
           const svgData = await svgRes.json();
           setDrawingSvg(svgData.svg || '');
@@ -505,9 +505,10 @@ export default function ResearchProjectPage() {
     }
     setIsVerifying(true);
     try {
-      const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}/compare`, {
+      const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'compare' }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -533,10 +534,10 @@ export default function ResearchProjectPage() {
     if (!activeDrawing) return;
     setIsExporting(true);
     try {
-      const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}/export`, {
+      const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format, viewMode: exportViewMode, showTitleBlock: true }),
+        body: JSON.stringify({ action: 'export', format, viewMode: exportViewMode, showTitleBlock: true }),
       });
       if (!res.ok) {
         const err = await res.json();
