@@ -130,7 +130,7 @@ function renderElement(
   interactive: boolean
 ): string {
   const dataAttrs = interactive
-    ? ` data-element-id="${element.id}" data-feature="${element.feature_class}" data-confidence="${element.confidence_score}" role="button" tabindex="0"`
+    ? ` data-element-id="${escapeXml(String(element.id))}" data-feature="${escapeXml(String(element.feature_class))}" data-confidence="${escapeXml(String(element.confidence_score ?? ''))}" role="button" tabindex="0"`
     : '';
 
   const geom = element.geometry;

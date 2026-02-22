@@ -335,9 +335,13 @@ export default function ResearchProjectPage() {
     URL.revokeObjectURL(url);
   }
 
-  // Annotation undo/redo
+  // Annotation undo/redo (capped at 50 history entries to prevent memory growth)
+  const MAX_UNDO_HISTORY = 50;
   function handleAnnotationsChange(newAnnotations: UserAnnotation[]) {
-    setAnnotationHistory(prev => [...prev, annotations]);
+    setAnnotationHistory(prev => {
+      const next = [...prev, annotations];
+      return next.length > MAX_UNDO_HISTORY ? next.slice(-MAX_UNDO_HISTORY) : next;
+    });
     setAnnotationFuture([]);
     setAnnotations(newAnnotations);
   }
@@ -597,19 +601,35 @@ export default function ResearchProjectPage() {
     }
   }
 
-  // Keyboard shortcuts for drawing tools + undo/redo
+  // Keyboard shortcuts for drawing tools + undo/redo + save
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const el = e.target as HTMLElement;
+      const tag = el?.tagName;
+      const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable;
       if (!activeDrawing) return;
 
-      // Undo/Redo
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); return; }
+      // Ctrl/Cmd shortcuts (work even in inputs)
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 's') { e.preventDefault(); setShowSaveDialog('save'); return; }
+        if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
+        if (e.key === 'z' && e.shiftKey) { e.preventDefault(); handleRedo(); return; }
+        if (e.key === 'Z') { e.preventDefault(); handleRedo(); return; }
+        return;
+      }
+
+      // Don't handle single-key shortcuts in text inputs
+      if (isEditable) return;
+
+      // Escape: deselect element and annotation, cancel current tool
+      if (e.key === 'Escape') {
+        setSelectedElement(null);
+        setActiveTool('select');
+        return;
+      }
 
       // Tool shortcuts (single letter, no modifiers)
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.altKey) return;
       const shortcutMap: Record<string, DrawingTool> = {
         v: 'select', h: 'pan', l: 'line', p: 'polyline', r: 'rectangle',
         c: 'circle', f: 'freehand', t: 'text_type', w: 'text_write',
@@ -636,38 +656,60 @@ export default function ResearchProjectPage() {
   }, [hasUnsavedChanges]);
 
   // ── Auto-save: save drawing state every 60 seconds if unsaved changes ───
+  // Use refs for values read inside the interval to avoid stale closures
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoSaveFailCountRef = useRef(0);
+  const annotationsRef = useRef(annotations);
+  const drawingPrefsRef = useRef(drawingPrefs);
+  const drawingElementsRef = useRef(drawingElements);
+  const hasUnsavedRef = useRef(hasUnsavedChanges);
+  annotationsRef.current = annotations;
+  drawingPrefsRef.current = drawingPrefs;
+  drawingElementsRef.current = drawingElements;
+  hasUnsavedRef.current = hasUnsavedChanges;
+
   useEffect(() => {
     if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
     if (!activeDrawing || !hasUnsavedChanges) return;
 
     autoSaveTimerRef.current = setInterval(async () => {
-      if (!activeDrawing || !hasUnsavedChanges) return;
+      if (!hasUnsavedRef.current) return;
       try {
-        const payload: Record<string, unknown> = {
-          annotations,
-          preferences: drawingPrefs,
-        };
         const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ save: true, ...payload }),
+          body: JSON.stringify({
+            save: true,
+            annotations: annotationsRef.current,
+            preferences: drawingPrefsRef.current,
+          }),
         });
         if (res.ok) {
+          autoSaveFailCountRef.current = 0;
           setLastSavedAt(new Date().toISOString());
           setHasUnsavedChanges(false);
-          setOriginalElements([...drawingElements]);
-          setOriginalAnnotations([...annotations]);
+          setOriginalElements([...drawingElementsRef.current]);
+          setOriginalAnnotations([...annotationsRef.current]);
+        } else {
+          autoSaveFailCountRef.current++;
+          if (autoSaveFailCountRef.current >= 3) {
+            showToast('Auto-save is failing repeatedly. Save manually to avoid losing work.', 'error');
+            autoSaveFailCountRef.current = 0; // Reset so we don't spam
+          }
         }
       } catch {
-        // Auto-save failure is non-critical; user still has the beforeunload guard
+        autoSaveFailCountRef.current++;
+        if (autoSaveFailCountRef.current >= 3) {
+          showToast('Auto-save is failing. Check your connection and save manually.', 'error');
+          autoSaveFailCountRef.current = 0;
+        }
       }
     }, 60000);
 
     return () => {
       if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
     };
-  }, [activeDrawing, hasUnsavedChanges, annotations, drawingPrefs, projectId, drawingElements]);
+  }, [activeDrawing, hasUnsavedChanges, projectId]);
 
   // Load drawings when entering drawing/verify/export steps; auto-select first drawing
   useEffect(() => {

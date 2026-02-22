@@ -1,7 +1,7 @@
 // app/admin/research/components/DrawingSaveDialog.tsx — Save/export drawing dialog
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface DrawingSaveDialogProps {
   isOpen: boolean;
@@ -20,31 +20,50 @@ export default function DrawingSaveDialog({
 }: DrawingSaveDialogProps) {
   const [name, setName] = useState(currentName);
 
+  // Sync internal state when currentName prop changes (e.g., switching drawings)
+  useEffect(() => {
+    setName(currentName);
+  }, [currentName]);
+
   if (!isOpen) return null;
 
+  const isValid = name.trim().length > 0;
+
   return (
-    <div className="research-save-dialog__overlay" onClick={onCancel}>
+    <div
+      className="research-save-dialog__overlay"
+      onClick={onCancel}
+      onKeyDown={e => { if (e.key === 'Escape') onCancel(); }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={mode === 'save' ? 'Save Drawing' : 'Export Drawing'}
+    >
       <div className="research-save-dialog" onClick={e => e.stopPropagation()}>
         <h3 className="research-save-dialog__title">
           {mode === 'save' ? 'Save Drawing' : 'Export Drawing'}
         </h3>
 
         <div className="research-save-dialog__field">
-          <label className="research-save-dialog__label">
+          <label className="research-save-dialog__label" htmlFor="drawing-name-input">
             {mode === 'save' ? 'Drawing Name' : 'File Name'}
           </label>
           <input
+            id="drawing-name-input"
             type="text"
             className="research-save-dialog__input"
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="Enter a name..."
             autoFocus
+            aria-label={mode === 'save' ? 'Drawing name' : 'File name'}
             onKeyDown={e => {
-              if (e.key === 'Enter' && name.trim()) onSave(name.trim());
+              if (e.key === 'Enter' && isValid) onSave(name.trim());
               if (e.key === 'Escape') onCancel();
             }}
           />
+          {!isValid && name.length > 0 && (
+            <p className="research-save-dialog__error">Name cannot be blank</p>
+          )}
         </div>
 
         {mode === 'save' && (
@@ -67,8 +86,8 @@ export default function DrawingSaveDialog({
           </button>
           <button
             className="research-save-dialog__save-btn"
-            onClick={() => name.trim() && onSave(name.trim())}
-            disabled={!name.trim()}
+            onClick={() => isValid && onSave(name.trim())}
+            disabled={!isValid}
           >
             {mode === 'save' ? 'Save' : 'Export'}
           </button>

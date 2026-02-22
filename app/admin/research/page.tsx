@@ -1,6 +1,6 @@
 // app/admin/research/page.tsx — Property Research project list
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
@@ -24,6 +24,7 @@ export default function ResearchListPage() {
 
   const [projects, setProjects] = useState<ResearchProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -45,10 +46,19 @@ export default function ResearchListPage() {
     return null;
   }
 
-  useEffect(() => { loadProjects(); }, [statusFilter]);
+  // Debounced search: auto-reload 400ms after typing stops
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      loadProjects();
+    }, 400);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [search, statusFilter]);
 
   async function loadProjects() {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.set('status', statusFilter);
@@ -58,8 +68,11 @@ export default function ResearchListPage() {
         const data = await res.json();
         setProjects(data.projects || []);
         setTotal(data.total || 0);
+      } else {
+        setLoadError('Failed to load projects. Please try again.');
       }
     } catch (err) {
+      setLoadError('Unable to connect. Check your internet connection.');
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load projects' });
     }
     setLoading(false);
@@ -102,6 +115,10 @@ export default function ResearchListPage() {
 
   if (!session?.user) return null;
 
+  // Determine empty state message
+  const hasActiveSearch = search.trim().length > 0;
+  const hasActiveFilter = statusFilter !== 'all';
+
   return (
     <>
       <div className="research-page">
@@ -125,7 +142,17 @@ export default function ResearchListPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
-            <button type="submit" className="research-page__search-btn">Search</button>
+            {search && (
+              <button
+                type="button"
+                className="research-page__search-clear"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', padding: '0 0.5rem', fontSize: '1.1rem' }}
+              >
+                &times;
+              </button>
+            )}
           </form>
           <div className="research-page__status-filters">
             {['all', 'upload', 'configure', 'analyzing', 'review', 'drawing', 'verifying', 'complete'].map(s => (
@@ -153,17 +180,46 @@ export default function ResearchListPage() {
           </div>
         )}
 
-        {/* Empty state */}
-        {!loading && projects.length === 0 && (
+        {/* Error state */}
+        {!loading && loadError && (
           <div className="research-page__empty">
-            <div className="research-page__empty-icon">🔬</div>
-            <div className="research-page__empty-title">No research projects yet</div>
-            <div className="research-page__empty-text">
-              Create your first AI-powered property research project to analyze deeds, plats, and survey documents.
-            </div>
-            <button className="research-page__new-btn" onClick={() => setShowCreate(true)}>
-              + New Research Project
+            <div className="research-page__empty-title" style={{ color: '#DC2626' }}>{loadError}</div>
+            <button className="research-page__new-btn" onClick={loadProjects} style={{ marginTop: '1rem' }}>
+              Retry
             </button>
+          </div>
+        )}
+
+        {/* Empty state — contextual messaging */}
+        {!loading && !loadError && projects.length === 0 && (
+          <div className="research-page__empty">
+            {hasActiveSearch || hasActiveFilter ? (
+              <>
+                <div className="research-page__empty-title">No matching projects</div>
+                <div className="research-page__empty-text">
+                  {hasActiveSearch && <>No projects match &ldquo;{search}&rdquo;. </>}
+                  {hasActiveFilter && <>Try changing the status filter or </>}
+                  {!hasActiveFilter && <>Try a different search term or </>}
+                  <button
+                    style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 'inherit' }}
+                    onClick={() => { setSearch(''); setStatusFilter('all'); }}
+                  >
+                    clear all filters
+                  </button>.
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="research-page__empty-icon">&#128300;</div>
+                <div className="research-page__empty-title">No research projects yet</div>
+                <div className="research-page__empty-text">
+                  Create your first AI-powered property research project to analyze deeds, plats, and survey documents.
+                </div>
+                <button className="research-page__new-btn" onClick={() => setShowCreate(true)}>
+                  + New Research Project
+                </button>
+              </>
+            )}
           </div>
         )}
 
