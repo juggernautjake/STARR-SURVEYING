@@ -1727,7 +1727,7 @@
   .activity__filters select { min-height: 44px; }
 }
 
-/* ── Toast & Coords Responsive ─────────────────────────────────────────── */
+/* ── Toast, Coords, & Tooltip Responsive ──────────────────────────────── */
 @media (max-width: 599px) {
   .research-toast {
     max-width: calc(100vw - 2rem);
@@ -1743,6 +1743,11 @@
     font-size: 0.68rem;
     padding: 0.2rem 0.35rem;
   }
+  .research-tip {
+    max-width: 220px;
+    font-size: 0.68rem;
+    padding: 5px 8px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1753,6 +1758,17 @@
   }
   .research-canvas__coords {
     display: none;
+  }
+  .research-tip {
+    max-width: 180px;
+    font-size: 0.65rem;
+  }
+}
+
+/* Hide custom tooltips on touch-only devices since hover doesn't work well */
+@media (hover: none) and (pointer: coarse) {
+  .research-tip {
+    display: none !important;
   }
 }
 

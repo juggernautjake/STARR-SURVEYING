@@ -3857,3 +3857,102 @@
 .research-tools__search-input::placeholder {
   color: #9CA3AF;
 }
+
+/* ── Custom Tooltip System ─────────────────────────────────────────────── */
+
+.research-tip-wrap {
+  display: inline-flex;
+  position: relative;
+}
+
+.research-tip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  max-width: 300px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 450;
+  line-height: 1.4;
+  color: #F9FAFB;
+  background: #1F2937;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  animation: research-tip-in 0.15s ease-out;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+@keyframes research-tip-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Position transforms — shift the tooltip so the arrow points at the trigger */
+.research-tip--top {
+  transform: translate(-50%, -100%);
+}
+
+.research-tip--bottom {
+  transform: translate(-50%, 0);
+}
+
+.research-tip--left {
+  transform: translate(-100%, -50%);
+}
+
+.research-tip--right {
+  transform: translate(0, -50%);
+}
+
+/* Arrow indicators */
+.research-tip--top::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 4px 4px 0;
+  border-style: solid;
+  border-color: #1F2937 transparent transparent;
+}
+
+.research-tip--bottom::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  margin-left: -4px;
+  border-width: 0 4px 4px;
+  border-style: solid;
+  border-color: transparent transparent #1F2937;
+}
+
+.research-tip--left::after {
+  content: '';
+  position: absolute;
+  right: -4px;
+  top: 50%;
+  margin-top: -4px;
+  border-width: 4px 0 4px 4px;
+  border-style: solid;
+  border-color: transparent transparent transparent #1F2937;
+}
+
+.research-tip--right::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  margin-top: -4px;
+  border-width: 4px 4px 4px 0;
+  border-style: solid;
+  border-color: transparent #1F2937 transparent transparent;
+}
+
+/* Tooltip toggle button active state */
+.research-toolbar__icon-btn--active {
+  background: #EFF6FF !important;
+  color: #2563EB !important;
+  border-color: #BFDBFE !important;
+}

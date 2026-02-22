@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import Tooltip from './Tooltip';
 
 // ── Tool Types ──────────────────────────────────────────────────────────────
 
@@ -118,41 +119,41 @@ const TOOL_GROUPS = [
   {
     label: 'Selection',
     tools: [
-      { key: 'select' as DrawingTool, label: 'Select', icon: '↖', shortcut: 'V' },
-      { key: 'pan' as DrawingTool, label: 'Pan', icon: '✋', shortcut: 'H' },
+      { key: 'select' as DrawingTool, label: 'Select', icon: '↖', shortcut: 'V', tip: 'Click to select elements or annotations. Drag empty space to pan.' },
+      { key: 'pan' as DrawingTool, label: 'Pan', icon: '✋', shortcut: 'H', tip: 'Click and drag to pan around the drawing. Also works with middle-click or Alt+click.' },
     ],
   },
   {
     label: 'Draw',
     tools: [
-      { key: 'line' as DrawingTool, label: 'Line', icon: '╱', shortcut: 'L' },
-      { key: 'polyline' as DrawingTool, label: 'Polyline', icon: '⟋', shortcut: 'P' },
-      { key: 'rectangle' as DrawingTool, label: 'Rectangle', icon: '▭', shortcut: 'R' },
-      { key: 'circle' as DrawingTool, label: 'Circle', icon: '○', shortcut: 'C' },
-      { key: 'freehand' as DrawingTool, label: 'Freehand', icon: '✎', shortcut: 'F' },
+      { key: 'line' as DrawingTool, label: 'Line', icon: '╱', shortcut: 'L', tip: 'Draw a straight line. Click start point, drag to end point.' },
+      { key: 'polyline' as DrawingTool, label: 'Polyline', icon: '⟋', shortcut: 'P', tip: 'Draw connected line segments. Click to add points, double-click to finish.' },
+      { key: 'rectangle' as DrawingTool, label: 'Rectangle', icon: '▭', shortcut: 'R', tip: 'Draw a rectangle. Click one corner, drag to the opposite corner.' },
+      { key: 'circle' as DrawingTool, label: 'Circle', icon: '○', shortcut: 'C', tip: 'Draw a circle/ellipse. Click center, drag to set radius.' },
+      { key: 'freehand' as DrawingTool, label: 'Freehand', icon: '✎', shortcut: 'F', tip: 'Draw freehand lines. Click and drag to draw freely.' },
     ],
   },
   {
     label: 'Annotate',
     tools: [
-      { key: 'text_type' as DrawingTool, label: 'Type Text', icon: 'T', shortcut: 'T' },
-      { key: 'text_write' as DrawingTool, label: 'Handwrite', icon: '✍', shortcut: 'W' },
-      { key: 'callout' as DrawingTool, label: 'Callout', icon: '💬', shortcut: 'A' },
-      { key: 'dimension' as DrawingTool, label: 'Dimension', icon: '↔', shortcut: 'D' },
+      { key: 'text_type' as DrawingTool, label: 'Type Text', icon: 'T', shortcut: 'T', tip: 'Place typed text on the drawing. Click to position, type your text, press Enter to confirm.' },
+      { key: 'text_write' as DrawingTool, label: 'Handwrite', icon: '✍', shortcut: 'W', tip: 'Draw freehand handwriting on the canvas.' },
+      { key: 'callout' as DrawingTool, label: 'Callout', icon: '💬', shortcut: 'A', tip: 'Add a callout with a leader line pointing to a feature. Click the target, drag to place the label.' },
+      { key: 'dimension' as DrawingTool, label: 'Dimension', icon: '↔', shortcut: 'D', tip: 'Add a dimension line showing distance between two points.' },
     ],
   },
   {
     label: 'Place',
     tools: [
-      { key: 'symbol' as DrawingTool, label: 'Symbol', icon: '⊕', shortcut: 'S' },
-      { key: 'image' as DrawingTool, label: 'Image', icon: '🖼', shortcut: 'I' },
+      { key: 'symbol' as DrawingTool, label: 'Symbol', icon: '⊕', shortcut: 'S', tip: 'Place a surveying symbol (monument, utility, etc.). Choose the type below, then click to place.' },
+      { key: 'image' as DrawingTool, label: 'Image', icon: '🖼', shortcut: 'I', tip: 'Upload and place an image on the drawing from your device.' },
     ],
   },
   {
     label: 'Utility',
     tools: [
-      { key: 'measure' as DrawingTool, label: 'Measure', icon: '📏', shortcut: 'M' },
-      { key: 'eraser' as DrawingTool, label: 'Eraser', icon: '⌫', shortcut: 'E' },
+      { key: 'measure' as DrawingTool, label: 'Measure', icon: '📏', shortcut: 'M', tip: 'Measure distance between two points on the drawing. Click start, then click end.' },
+      { key: 'eraser' as DrawingTool, label: 'Eraser', icon: '⌫', shortcut: 'E', tip: 'Erase user annotations. Click on any annotation you added to delete it.' },
     ],
   },
 ];
@@ -273,6 +274,7 @@ interface DrawingToolsSidebarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  showUITooltips?: boolean;
 }
 
 export default function DrawingToolsSidebar({
@@ -284,6 +286,7 @@ export default function DrawingToolsSidebar({
   onRedo,
   canUndo,
   canRedo,
+  showUITooltips = true,
 }: DrawingToolsSidebarProps) {
   const [expandedSettings, setExpandedSettings] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
@@ -303,24 +306,26 @@ export default function DrawingToolsSidebar({
     <div className="research-tools">
       {/* Undo/Redo */}
       <div className="research-tools__undo-redo">
-        <button
-          className="research-tools__undo-btn"
-          onClick={onUndo}
-          disabled={!canUndo}
-          title="Undo (Ctrl+Z)"
-          aria-label="Undo"
-        >
-          ↩
-        </button>
-        <button
-          className="research-tools__undo-btn"
-          onClick={onRedo}
-          disabled={!canRedo}
-          title="Redo (Ctrl+Shift+Z)"
-          aria-label="Redo"
-        >
-          ↪
-        </button>
+        <Tooltip text="Undo last action (Ctrl+Z)" enabled={showUITooltips} position="right">
+          <button
+            className="research-tools__undo-btn"
+            onClick={onUndo}
+            disabled={!canUndo}
+            aria-label="Undo"
+          >
+            ↩
+          </button>
+        </Tooltip>
+        <Tooltip text="Redo last undone action (Ctrl+Shift+Z)" enabled={showUITooltips} position="right">
+          <button
+            className="research-tools__undo-btn"
+            onClick={onRedo}
+            disabled={!canRedo}
+            aria-label="Redo"
+          >
+            ↪
+          </button>
+        </Tooltip>
       </div>
 
       {/* Tool groups */}
@@ -329,15 +334,16 @@ export default function DrawingToolsSidebar({
           <div className="research-tools__group-label">{group.label}</div>
           <div className="research-tools__group-btns">
             {group.tools.map(tool => (
-              <button
-                key={tool.key}
-                className={`research-tools__btn ${activeTool === tool.key ? 'research-tools__btn--active' : ''}`}
-                onClick={() => onToolChange(tool.key)}
-                title={`${tool.label} (${tool.shortcut})`}
-              >
-                <span className="research-tools__btn-icon">{tool.icon}</span>
-                <span className="research-tools__btn-label">{tool.label}</span>
-              </button>
+              <Tooltip key={tool.key} text={`${tool.tip} (${tool.shortcut})`} enabled={showUITooltips} position="right">
+                <button
+                  className={`research-tools__btn ${activeTool === tool.key ? 'research-tools__btn--active' : ''}`}
+                  onClick={() => onToolChange(tool.key)}
+                  aria-label={tool.label}
+                >
+                  <span className="research-tools__btn-icon">{tool.icon}</span>
+                  <span className="research-tools__btn-label">{tool.label}</span>
+                </button>
+              </Tooltip>
             ))}
           </div>
         </div>
@@ -346,12 +352,14 @@ export default function DrawingToolsSidebar({
       {/* Quick tool settings */}
       {(showStroke || showFill || showTextSettings || showSymbolSettings) && (
         <div className="research-tools__settings">
-          <button
-            className="research-tools__settings-toggle"
-            onClick={() => setExpandedSettings(!expandedSettings)}
-          >
-            {expandedSettings ? '▾' : '▸'} Tool Settings
-          </button>
+          <Tooltip text="Expand to customize stroke color, width, pattern, and other options for the active tool" enabled={showUITooltips} position="right">
+            <button
+              className="research-tools__settings-toggle"
+              onClick={() => setExpandedSettings(!expandedSettings)}
+            >
+              {expandedSettings ? '▾' : '▸'} Tool Settings
+            </button>
+          </Tooltip>
 
           {expandedSettings && (
             <div className="research-tools__settings-body">

@@ -71,6 +71,9 @@ export default function ResearchProjectPage() {
   const originalElementsMap = useRef<Map<string, DrawingElement>>(new Map());
   const [showSaveDialog, setShowSaveDialog] = useState<'save' | 'export' | null>(null);
 
+  // UI tooltip toggle — user can turn descriptive tooltips on/off
+  const [showUITooltips, setShowUITooltips] = useState(true);
+
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -901,6 +904,8 @@ export default function ResearchProjectPage() {
                 overallConfidence={activeDrawing.overall_confidence}
                 hasUnsavedChanges={hasUnsavedChanges}
                 lastSavedAt={lastSavedAt}
+                showUITooltips={showUITooltips}
+                onToggleUITooltips={() => setShowUITooltips(prev => !prev)}
               />
 
               {/* Main workspace: tools + canvas + side panels */}
@@ -915,6 +920,7 @@ export default function ResearchProjectPage() {
                   onRedo={handleRedo}
                   canUndo={annotationHistory.length > 0}
                   canRedo={annotationFuture.length > 0}
+                  showUITooltips={showUITooltips}
                 />
 
                 {/* Preferences panel (slides in from left) */}
@@ -970,6 +976,7 @@ export default function ResearchProjectPage() {
                       }
                     }}
                     onRevertElement={handleRevertElement}
+                    showUITooltips={showUITooltips}
                   />
                 )}
               </div>

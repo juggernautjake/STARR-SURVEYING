@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import type { ViewMode, FeatureClass } from '@/types/research';
+import Tooltip from './Tooltip';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,12 +165,16 @@ export default function DrawingPreferencesPanel({
       <div className="research-prefs__header">
         <h3 className="research-prefs__title">Drawing Preferences</h3>
         <div className="research-prefs__header-actions">
-          <button className="research-prefs__reset-btn" onClick={onReset}>
-            Reset Defaults
-          </button>
-          <button className="research-prefs__close-btn" onClick={onClose}>
-            &times;
-          </button>
+          <Tooltip text="Reset all preferences back to factory defaults" position="bottom">
+            <button className="research-prefs__reset-btn" onClick={onReset}>
+              Reset Defaults
+            </button>
+          </Tooltip>
+          <Tooltip text="Close the preferences panel" position="bottom">
+            <button className="research-prefs__close-btn" onClick={onClose}>
+              &times;
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -214,10 +219,12 @@ export default function DrawingPreferencesPanel({
               <input type="checkbox" checked={preferences.showLegend} onChange={e => update({ showLegend: e.target.checked })} />
               <span>Feature Legend</span>
             </label>
-            <label className="research-prefs__toggle">
-              <input type="checkbox" checked={preferences.showConfidenceBar} onChange={e => update({ showConfidenceBar: e.target.checked })} />
-              <span>Confidence Color Bar</span>
-            </label>
+            <Tooltip text="Show a color legend indicating what confidence score ranges each color represents" position="right">
+              <label className="research-prefs__toggle">
+                <input type="checkbox" checked={preferences.showConfidenceBar} onChange={e => update({ showConfidenceBar: e.target.checked })} />
+                <span>Confidence Color Bar</span>
+              </label>
+            </Tooltip>
 
             <div className="research-prefs__group-title" style={{ marginTop: '1rem' }}>Grid</div>
             <label className="research-prefs__toggle">
@@ -251,22 +258,26 @@ export default function DrawingPreferencesPanel({
             </div>
 
             <div className="research-prefs__group-title" style={{ marginTop: '1rem' }}>Confidence</div>
-            <div className="research-prefs__slider-row">
-              <span className="research-prefs__slider-label">Min. confidence threshold</span>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                value={preferences.confidenceThreshold}
-                onChange={e => update({ confidenceThreshold: Number(e.target.value) })}
-              />
-              <span className="research-prefs__slider-value">{preferences.confidenceThreshold}%</span>
-            </div>
-            <label className="research-prefs__toggle">
-              <input type="checkbox" checked={preferences.fadeByConfidence} onChange={e => update({ fadeByConfidence: e.target.checked })} />
-              <span>Fade low-confidence elements</span>
-            </label>
+            <Tooltip text="Hide elements with confidence scores below this threshold — useful for filtering out uncertain data" position="right">
+              <div className="research-prefs__slider-row">
+                <span className="research-prefs__slider-label">Min. confidence threshold</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={preferences.confidenceThreshold}
+                  onChange={e => update({ confidenceThreshold: Number(e.target.value) })}
+                />
+                <span className="research-prefs__slider-value">{preferences.confidenceThreshold}%</span>
+              </div>
+            </Tooltip>
+            <Tooltip text="Make low-confidence elements semi-transparent so you can still see them but clearly distinguish them from high-confidence data" position="right">
+              <label className="research-prefs__toggle">
+                <input type="checkbox" checked={preferences.fadeByConfidence} onChange={e => update({ fadeByConfidence: e.target.checked })} />
+                <span>Fade low-confidence elements</span>
+              </label>
+            </Tooltip>
           </div>
         )}
 
@@ -461,18 +472,24 @@ export default function DrawingPreferencesPanel({
           <div className="research-prefs__section">
             <div className="research-prefs__group-title">Interaction Settings</div>
 
-            <label className="research-prefs__toggle">
-              <input type="checkbox" checked={preferences.showTooltips} onChange={e => update({ showTooltips: e.target.checked })} />
-              <span>Show Tooltips on Hover</span>
-            </label>
-            <label className="research-prefs__toggle">
-              <input type="checkbox" checked={preferences.highlightOnHover} onChange={e => update({ highlightOnHover: e.target.checked })} />
-              <span>Highlight Elements on Hover</span>
-            </label>
-            <label className="research-prefs__toggle">
-              <input type="checkbox" checked={preferences.snapToGrid} onChange={e => update({ snapToGrid: e.target.checked })} />
-              <span>Snap to Grid (when editing)</span>
-            </label>
+            <Tooltip text="Show small info popups when you hover over drawing elements on the canvas (feature name, confidence, coordinates)" position="right">
+              <label className="research-prefs__toggle">
+                <input type="checkbox" checked={preferences.showTooltips} onChange={e => update({ showTooltips: e.target.checked })} />
+                <span>Show Canvas Tooltips on Hover</span>
+              </label>
+            </Tooltip>
+            <Tooltip text="Visually highlight drawing elements when your cursor moves over them with a glow effect" position="right">
+              <label className="research-prefs__toggle">
+                <input type="checkbox" checked={preferences.highlightOnHover} onChange={e => update({ highlightOnHover: e.target.checked })} />
+                <span>Highlight Elements on Hover</span>
+              </label>
+            </Tooltip>
+            <Tooltip text="When drawing or moving annotations, snap them to the nearest grid intersection for precise alignment" position="right">
+              <label className="research-prefs__toggle">
+                <input type="checkbox" checked={preferences.snapToGrid} onChange={e => update({ snapToGrid: e.target.checked })} />
+                <span>Snap to Grid (when editing)</span>
+              </label>
+            </Tooltip>
           </div>
         )}
       </div>
