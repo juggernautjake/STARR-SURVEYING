@@ -526,12 +526,7 @@ export default function ResearchProjectPage() {
   }
 
   function handleAdvanceToExport() {
-    // Update project status to complete
-    fetch(`/api/admin/research?id=${projectId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'complete' }),
-    }).then(() => loadProject()).catch(() => {});
+    handleStatusUpdate('complete');
   }
 
   async function handleExportDrawing(format: ExportFormat, exportViewMode: ViewMode) {
@@ -576,18 +571,23 @@ export default function ResearchProjectPage() {
     }
   }
 
-  function handleMarkComplete() {
+  async function handleMarkComplete() {
     if (!window.confirm('Mark this research project as complete?')) return;
-    fetch(`/api/admin/research?id=${projectId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'complete' }),
-    }).then(() => {
-      showToast('Project marked as complete', 'success');
-      loadProject();
-    }).catch(() => {
+    try {
+      const res = await fetch('/api/admin/research', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: projectId, status: 'complete' }),
+      });
+      if (res.ok) {
+        showToast('Project marked as complete', 'success');
+        loadProject();
+      } else {
+        showToast('Failed to update project status', 'error');
+      }
+    } catch {
       showToast('Failed to update project status', 'error');
-    });
+    }
   }
 
   // Keyboard shortcuts for drawing tools + undo/redo
@@ -662,12 +662,26 @@ export default function ResearchProjectPage() {
     };
   }, [activeDrawing, hasUnsavedChanges, annotations, drawingPrefs, projectId, drawingElements]);
 
-  // Load drawings when entering drawing step
+  // Load drawings when entering drawing/verify/export steps; auto-select first drawing
   useEffect(() => {
     if (project?.status === 'drawing' || project?.status === 'verifying' || project?.status === 'complete') {
-      loadDrawings();
+      loadDrawings().then(async () => {
+        // For verify and export steps, auto-load the first drawing if none is active
+        if ((project?.status === 'verifying' || project?.status === 'complete') && !activeDrawing) {
+          try {
+            const res = await fetch(`/api/admin/research/${projectId}/drawings`);
+            if (res.ok) {
+              const data = await res.json();
+              const drawingList = data.drawings || [];
+              if (drawingList.length > 0) {
+                loadDrawingDetail(drawingList[0].id);
+              }
+            }
+          } catch { /* non-critical */ }
+        }
+      });
     }
-  }, [project?.status, loadDrawings]);
+  }, [project?.status, loadDrawings, projectId]);
 
   function getNextStep(): { key: WorkflowStep; label: string } | null {
     if (!project) return null;
@@ -1127,30 +1141,50 @@ export default function ResearchProjectPage() {
 
       {/* Step 6: Verify */}
       {project.status === 'verifying' && (
-        <VerificationPanel
-          comparison={comparisonResult}
-          isVerifying={isVerifying}
-          onRunVerification={handleRunVerification}
-          onReVerify={handleRunVerification}
-          onAdvanceToExport={handleAdvanceToExport}
-          drawingName={activeDrawing?.name || 'Drawing'}
-          showUITooltips={showUITooltips}
-        />
+        <>
+          {!activeDrawing && (
+            <div className="research-verify__loading-drawings">
+              <p style={{ color: '#6B7280', fontSize: '0.85rem', textAlign: 'center', padding: '2rem 1rem' }}>
+                Loading drawing for verification...
+              </p>
+            </div>
+          )}
+          {activeDrawing && (
+            <VerificationPanel
+              comparison={comparisonResult}
+              isVerifying={isVerifying}
+              onRunVerification={handleRunVerification}
+              onReVerify={handleRunVerification}
+              onAdvanceToExport={handleAdvanceToExport}
+              drawingName={activeDrawing.name}
+              showUITooltips={showUITooltips}
+            />
+          )}
+        </>
       )}
 
       {/* Step 7: Export / Complete */}
       {project.status === 'complete' && (
-        <ExportPanel
-          projectId={projectId}
-          drawingId={activeDrawing?.id || ''}
-          drawingName={activeDrawing?.name || 'Drawing'}
-          comparison={comparisonResult}
-          onExport={handleExportDrawing}
-          onMarkComplete={handleMarkComplete}
-          isExporting={isExporting}
-          lastExport={lastExport}
-          showUITooltips={showUITooltips}
-        />
+        <>
+          {!activeDrawing && (
+            <div style={{ color: '#6B7280', fontSize: '0.85rem', textAlign: 'center', padding: '2rem 1rem' }}>
+              Loading drawing for export...
+            </div>
+          )}
+          {activeDrawing && (
+            <ExportPanel
+              projectId={projectId}
+              drawingId={activeDrawing.id}
+              drawingName={activeDrawing.name}
+              comparison={comparisonResult}
+              onExport={handleExportDrawing}
+              onMarkComplete={handleMarkComplete}
+              isExporting={isExporting}
+              lastExport={lastExport}
+              showUITooltips={showUITooltips}
+            />
+          )}
+        </>
       )}
 
       {/* Document list (shown on all steps for reference) */}
