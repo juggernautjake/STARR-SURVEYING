@@ -171,6 +171,8 @@
   .research-tools__btn-icon { font-size: 0.85rem; }
   .research-tools__btn-label { font-size: 0.45rem; }
   .research-context-menu { min-width: 180px; }
+  .research-toolbar__dropdown { min-width: 200px; }
+  .research-save-dialog { width: 380px; }
 
   /* ── Payroll ── */
   .payroll-summary-cards { grid-template-columns: repeat(2, 1fr); }
@@ -663,6 +665,10 @@
   .research-context-menu { min-width: 160px; font-size: 0.72rem; }
   .research-context-menu__item { padding: 0.35rem 0.6rem; font-size: 0.72rem; }
   .research-canvas__text-input { width: 160px; }
+  .research-toolbar__dropdown { min-width: 180px; }
+  .research-toolbar__dropdown-item { padding: 0.45rem 0.65rem; font-size: 0.75rem; }
+  .research-save-dialog { width: calc(100vw - 2rem); padding: 1.25rem; border-radius: 12px; }
+  .research-save-dialog__title { font-size: 1rem; }
   .research-disc-panel__status-btn { font-size: 0.78rem; padding: 0.35rem 0.65rem; }
   .research-viewer { width: 96%; max-height: 90vh; border-radius: 10px; }
   .research-viewer__header { padding: 0.85rem 1rem; }

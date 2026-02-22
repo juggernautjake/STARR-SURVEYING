@@ -298,18 +298,47 @@ function getElementStyle(element: DrawingElement, viewMode: ViewMode): ElementSt
 
   switch (viewMode) {
     case 'confidence': {
+      // User-modified elements: purple to clearly show tampering
+      if (element.user_modified) {
+        return {
+          ...baseStyle,
+          stroke: '#7C3AED', // purple
+          strokeWidth: baseStyle.strokeWidth + 0.5,
+          fill: element.style.fill !== 'none' ? '#7C3AED' : 'none',
+          opacity: 1,
+        };
+      }
       // Color based on confidence score
       const color = getConfidenceColor(element.confidence_score);
+      // Stroke width scales with confidence — higher confidence = thicker
+      const widthBoost = element.confidence_score >= 90 ? 0.5
+        : element.confidence_score < 40 ? -0.25 : 0;
+      // Opacity varies: low confidence elements appear more transparent
+      const confOpacity = element.confidence_score >= 75 ? 1
+        : element.confidence_score >= 55 ? 0.85
+        : element.confidence_score >= 35 ? 0.65
+        : 0.45;
       return {
         ...baseStyle,
         stroke: color,
+        strokeWidth: Math.max(0.5, baseStyle.strokeWidth + widthBoost),
         fill: element.style.fill !== 'none' ? color : 'none',
+        opacity: confOpacity,
       };
     }
 
     case 'discrepancy': {
       // Highlight elements with discrepancies
       const hasDisc = element.discrepancy_ids.length > 0;
+      // Also highlight user-modified elements in discrepancy view
+      if (element.user_modified && !hasDisc) {
+        return {
+          ...baseStyle,
+          stroke: '#7C3AED',
+          strokeWidth: baseStyle.strokeWidth + 0.5,
+          opacity: 0.8,
+        };
+      }
       if (hasDisc) {
         return {
           ...baseStyle,
@@ -472,6 +501,11 @@ function renderConfidenceBar(canvasWidth: number, canvasHeight: number): string 
   svg += `<text x="0" y="${barHeight + 20}" font-size="7" font-family="Arial" fill="#6B7280">0%</text>`;
   svg += `<text x="${barWidth / 2}" y="${barHeight + 20}" font-size="7" font-family="Arial" fill="#6B7280" text-anchor="middle">50%</text>`;
   svg += `<text x="${barWidth}" y="${barHeight + 20}" font-size="7" font-family="Arial" fill="#6B7280" text-anchor="end">100%</text>`;
+
+  // User-modified indicator
+  svg += `<rect x="0" y="${barHeight + 26}" width="12" height="8" rx="1" fill="#7C3AED"/>`;
+  svg += `<text x="16" y="${barHeight + 33}" font-size="7" font-family="Arial" fill="#6B7280">= User Modified</text>`;
+
   svg += '</g>';
 
   return svg;

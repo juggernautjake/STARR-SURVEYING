@@ -1218,86 +1218,333 @@ function renderDrawPreview(tool: DrawingTool, points: { x: number; y: number }[]
 
 function renderSymbolSvg(ann: UserAnnotation): JSX.Element {
   const { x, y } = ann.points[0];
-  const size = ann.symbolSize || 8;
+  const s = ann.symbolSize || 8;
+  const r = s / 2;
   const stroke = ann.style.stroke;
   const fill = ann.style.fill === 'none' ? stroke : ann.style.fill;
 
+  // Helper for labeled circle symbols
+  const labeledCircle = (label: string, bgColor?: string) => (
+    <g>
+      <circle cx={x} cy={y} r={r} fill={bgColor || 'none'} stroke={stroke} strokeWidth={1.2} />
+      <text x={x} y={y + s * 0.15} textAnchor="middle" fontSize={s * 0.5} fill={bgColor ? '#FFF' : stroke} fontWeight="bold">{label}</text>
+    </g>
+  );
+
+  // Helper for X mark
+  const xMark = () => (
+    <g>
+      <line x1={x - r * 0.7} y1={y - r * 0.7} x2={x + r * 0.7} y2={y + r * 0.7} stroke={stroke} strokeWidth={1.5} />
+      <line x1={x + r * 0.7} y1={y - r * 0.7} x2={x - r * 0.7} y2={y + r * 0.7} stroke={stroke} strokeWidth={1.5} />
+    </g>
+  );
+
+  // Helper for crosshair inside circle
+  const crosshairCircle = () => (
+    <g>
+      <circle cx={x} cy={y} r={r} fill="none" stroke={stroke} strokeWidth={1.2} />
+      <line x1={x - r} y1={y} x2={x + r} y2={y} stroke={stroke} strokeWidth={0.8} />
+      <line x1={x} y1={y - r} x2={x} y2={y + r} stroke={stroke} strokeWidth={0.8} />
+    </g>
+  );
+
   switch (ann.symbolType) {
+    // ── Monuments ──
     case 'iron_rod':
     case 'iron_pipe':
     case 'rebar':
-      return <circle cx={x} cy={y} r={size / 2} fill={fill} stroke={stroke} strokeWidth={1} />;
-
+      return <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={1} />;
     case 'concrete_monument':
-      return <rect x={x - size / 2} y={y - size / 2} width={size} height={size} fill={fill} stroke={stroke} strokeWidth={1} />;
-
+      return <rect x={x - r} y={y - r} width={s} height={s} fill={fill} stroke={stroke} strokeWidth={1} />;
     case 'nail':
     case 'pk_nail':
-      return (
-        <polygon
-          points={`${x},${y - size / 2} ${x + size / 2},${y + size / 2} ${x - size / 2},${y + size / 2}`}
-          fill={fill} stroke={stroke} strokeWidth={1}
-        />
-      );
-
-    case 'utility_pole':
+    case 'mag_nail':
+      return <polygon points={`${x},${y - r} ${x + r},${y + r} ${x - r},${y + r}`} fill={fill} stroke={stroke} strokeWidth={1} />;
+    case 'cap':
       return (
         <g>
-          <circle cx={x} cy={y} r={size / 2} fill="none" stroke={stroke} strokeWidth={1.5} />
-          <line x1={x - size / 2} y1={y} x2={x + size / 2} y2={y} stroke={stroke} strokeWidth={1} />
-          <line x1={x} y1={y - size / 2} x2={x} y2={y + size / 2} stroke={stroke} strokeWidth={1} />
+          <circle cx={x} cy={y} r={r} fill="none" stroke={stroke} strokeWidth={1.5} />
+          <circle cx={x} cy={y} r={r * 0.4} fill={fill} stroke={stroke} strokeWidth={0.8} />
         </g>
       );
-
-    case 'manhole':
-      return (
-        <g>
-          <circle cx={x} cy={y} r={size / 2} fill="none" stroke={stroke} strokeWidth={1.5} />
-          <text x={x} y={y + size * 0.15} textAnchor="middle" fontSize={size * 0.6} fill={stroke}>MH</text>
-        </g>
-      );
-
-    case 'fire_hydrant':
-      return (
-        <g>
-          <circle cx={x} cy={y} r={size / 2} fill="#FF0000" stroke={stroke} strokeWidth={1} />
-          <text x={x} y={y + size * 0.15} textAnchor="middle" fontSize={size * 0.5} fill="#FFF">FH</text>
-        </g>
-      );
-
-    case 'tree':
-      return (
-        <g>
-          <circle cx={x} cy={y} r={size / 2} fill="#228B22" stroke="#006400" strokeWidth={1} opacity={0.7} />
-        </g>
-      );
-
-    case 'fence_post':
-      return (
-        <g>
-          <line x1={x - size / 3} y1={y - size / 3} x2={x + size / 3} y2={y + size / 3} stroke={stroke} strokeWidth={1.5} />
-          <line x1={x + size / 3} y1={y - size / 3} x2={x - size / 3} y2={y + size / 3} stroke={stroke} strokeWidth={1.5} />
-        </g>
-      );
-
-    case 'north_arrow':
-      return (
-        <g>
-          <polygon points={`${x},${y - size} ${x - size / 3},${y + size / 3} ${x + size / 3},${y + size / 3}`} fill={stroke} />
-          <text x={x} y={y - size - 3} textAnchor="middle" fontSize={size * 0.7} fill={stroke} fontWeight="bold">N</text>
-        </g>
-      );
-
     case 'benchmark':
       return (
         <g>
-          <polygon points={`${x},${y - size / 2} ${x + size / 2},${y + size / 2} ${x - size / 2},${y + size / 2}`} fill="none" stroke={stroke} strokeWidth={1.5} />
-          <circle cx={x} cy={y + size / 6} r={size / 5} fill={stroke} />
+          <polygon points={`${x},${y - r} ${x + r},${y + r} ${x - r},${y + r}`} fill="none" stroke={stroke} strokeWidth={1.5} />
+          <circle cx={x} cy={y + s / 6} r={s / 5} fill={stroke} />
+        </g>
+      );
+
+    // ── Fencing ──
+    case 'fence_post':
+      return xMark();
+    case 'fence_corner':
+      return (
+        <g>
+          {xMark()}
+          <circle cx={x} cy={y} r={r * 1.3} fill="none" stroke={stroke} strokeWidth={0.8} />
+        </g>
+      );
+    case 'gate':
+      return (
+        <g>
+          <line x1={x - s} y1={y} x2={x - r * 0.4} y2={y} stroke={stroke} strokeWidth={1.5} />
+          <line x1={x + r * 0.4} y1={y} x2={x + s} y2={y} stroke={stroke} strokeWidth={1.5} />
+          <path d={`M ${x - r * 0.4} ${y} A ${r * 0.8} ${r * 0.8} 0 0 1 ${x + r * 0.4} ${y}`} fill="none" stroke={stroke} strokeWidth={1} />
+        </g>
+      );
+
+    // ── Underground Utilities ──
+    case 'manhole':
+      return labeledCircle('MH');
+    case 'cleanout':
+      return labeledCircle('CO');
+    case 'water_valve':
+      return labeledCircle('WV', '#2563EB');
+    case 'water_meter':
+      return labeledCircle('WM', '#3B82F6');
+    case 'gas_valve':
+      return labeledCircle('GV', '#F59E0B');
+    case 'gas_meter':
+      return labeledCircle('GM', '#D97706');
+    case 'electric_meter':
+      return labeledCircle('EM', '#EF4444');
+    case 'junction_box':
+      return (
+        <g>
+          <rect x={x - r} y={y - r} width={s} height={s} fill="none" stroke={stroke} strokeWidth={1.2} />
+          <text x={x} y={y + s * 0.15} textAnchor="middle" fontSize={s * 0.45} fill={stroke} fontWeight="bold">JB</text>
+        </g>
+      );
+    case 'storm_drain':
+      return (
+        <g>
+          <rect x={x - r} y={y - r * 0.7} width={s} height={s * 0.7} fill="none" stroke={stroke} strokeWidth={1.2} />
+          <line x1={x - r * 0.6} y1={y} x2={x + r * 0.6} y2={y} stroke={stroke} strokeWidth={0.8} />
+          <line x1={x - r * 0.6} y1={y + r * 0.25} x2={x + r * 0.6} y2={y + r * 0.25} stroke={stroke} strokeWidth={0.8} />
+        </g>
+      );
+    case 'catch_basin':
+      return (
+        <g>
+          <rect x={x - r} y={y - r} width={s} height={s} fill="none" stroke={stroke} strokeWidth={1.2} />
+          <line x1={x - r} y1={y - r} x2={x + r} y2={y + r} stroke={stroke} strokeWidth={0.8} />
+          <line x1={x + r} y1={y - r} x2={x - r} y2={y + r} stroke={stroke} strokeWidth={0.8} />
+        </g>
+      );
+    case 'septic_tank':
+      return (
+        <g>
+          <ellipse cx={x} cy={y} rx={r * 1.2} ry={r * 0.8} fill="none" stroke={stroke} strokeWidth={1.2} />
+          <text x={x} y={y + s * 0.15} textAnchor="middle" fontSize={s * 0.4} fill={stroke}>ST</text>
+        </g>
+      );
+
+    // ── Above Ground Utilities ──
+    case 'utility_pole':
+    case 'power_pole':
+      return crosshairCircle();
+    case 'fire_hydrant':
+      return labeledCircle('FH', '#EF4444');
+    case 'light_pole':
+      return (
+        <g>
+          <circle cx={x} cy={y} r={r * 0.6} fill={stroke} stroke={stroke} strokeWidth={0.5} />
+          <line x1={x} y1={y - r * 0.6} x2={x} y2={y - s} stroke={stroke} strokeWidth={1} />
+          <line x1={x - r * 0.5} y1={y - s} x2={x + r * 0.5} y2={y - s} stroke={stroke} strokeWidth={1} />
+        </g>
+      );
+    case 'transformer':
+      return (
+        <g>
+          <rect x={x - r} y={y - r} width={s} height={s} fill="#F59E0B" stroke={stroke} strokeWidth={1} opacity={0.7} />
+          <text x={x} y={y + s * 0.15} textAnchor="middle" fontSize={s * 0.5} fill="#000" fontWeight="bold">T</text>
+        </g>
+      );
+    case 'guy_wire':
+      return (
+        <g>
+          <circle cx={x} cy={y} r={r * 0.4} fill={stroke} />
+          <line x1={x} y1={y - r * 0.4} x2={x} y2={y - s} stroke={stroke} strokeWidth={0.8} strokeDasharray="2,2" />
+        </g>
+      );
+    case 'telephone_pedestal':
+      return labeledCircle('TP');
+    case 'cable_pedestal':
+      return labeledCircle('CP');
+
+    // ── Improvements ──
+    case 'building_corner':
+      return (
+        <g>
+          <line x1={x} y1={y - r} x2={x} y2={y} stroke={stroke} strokeWidth={1.5} />
+          <line x1={x} y1={y} x2={x + r} y2={y} stroke={stroke} strokeWidth={1.5} />
+          <circle cx={x} cy={y} r={1.5} fill={stroke} />
+        </g>
+      );
+    case 'shed':
+      return (
+        <g>
+          <rect x={x - r} y={y - r * 0.7} width={s} height={s * 0.7} fill="none" stroke={stroke} strokeWidth={1} strokeDasharray="3,2" />
+          <text x={x} y={y + s * 0.1} textAnchor="middle" fontSize={s * 0.4} fill={stroke}>SHED</text>
+        </g>
+      );
+    case 'pool':
+      return (
+        <g>
+          <ellipse cx={x} cy={y} rx={r * 1.3} ry={r * 0.9} fill="#BFDBFE" fillOpacity={0.4} stroke="#2563EB" strokeWidth={1} />
+          <text x={x} y={y + s * 0.15} textAnchor="middle" fontSize={s * 0.4} fill="#2563EB">POOL</text>
+        </g>
+      );
+    case 'deck':
+      return (
+        <g>
+          <rect x={x - r} y={y - r * 0.7} width={s} height={s * 0.7} fill="#DDD6B0" fillOpacity={0.3} stroke="#8B7355" strokeWidth={1} />
+          <line x1={x - r} y1={y - r * 0.2} x2={x + r} y2={y - r * 0.2} stroke="#8B7355" strokeWidth={0.5} />
+          <line x1={x - r} y1={y + r * 0.2} x2={x + r} y2={y + r * 0.2} stroke="#8B7355" strokeWidth={0.5} />
+        </g>
+      );
+    case 'patio':
+      return (
+        <g>
+          <rect x={x - r} y={y - r * 0.7} width={s} height={s * 0.7} fill="#D1D5DB" fillOpacity={0.3} stroke="#6B7280" strokeWidth={1} />
+          <text x={x} y={y + s * 0.1} textAnchor="middle" fontSize={s * 0.35} fill="#6B7280">PATIO</text>
+        </g>
+      );
+    case 'driveway':
+      return (
+        <g>
+          <rect x={x - r} y={y - r * 0.5} width={s} height={s * 0.5} fill="#D1D5DB" fillOpacity={0.4} stroke="#9CA3AF" strokeWidth={1} />
+        </g>
+      );
+    case 'sidewalk':
+      return (
+        <g>
+          <rect x={x - s * 0.7} y={y - r * 0.3} width={s * 1.4} height={s * 0.3} fill="none" stroke="#9CA3AF" strokeWidth={1} />
+        </g>
+      );
+    case 'retaining_wall':
+      return (
+        <g>
+          <line x1={x - s} y1={y} x2={x + s} y2={y} stroke={stroke} strokeWidth={2} />
+          <line x1={x - s * 0.7} y1={y} x2={x - s * 0.7} y2={y + r * 0.5} stroke={stroke} strokeWidth={1} />
+          <line x1={x} y1={y} x2={x} y2={y + r * 0.5} stroke={stroke} strokeWidth={1} />
+          <line x1={x + s * 0.7} y1={y} x2={x + s * 0.7} y2={y + r * 0.5} stroke={stroke} strokeWidth={1} />
+        </g>
+      );
+    case 'sign':
+      return (
+        <g>
+          <line x1={x} y1={y} x2={x} y2={y - s} stroke={stroke} strokeWidth={1} />
+          <rect x={x - r * 0.7} y={y - s - r * 0.6} width={s * 0.7} height={r * 0.6} fill="none" stroke={stroke} strokeWidth={1} />
+        </g>
+      );
+    case 'mailbox':
+      return (
+        <g>
+          <line x1={x} y1={y} x2={x} y2={y - r} stroke={stroke} strokeWidth={1} />
+          <rect x={x - r * 0.5} y={y - s * 0.9} width={s * 0.5} height={r * 0.5} rx={1} fill={stroke} opacity={0.6} />
+        </g>
+      );
+    case 'ac_unit':
+      return (
+        <g>
+          <rect x={x - r} y={y - r} width={s} height={s} fill="none" stroke={stroke} strokeWidth={1} />
+          <text x={x} y={y + s * 0.15} textAnchor="middle" fontSize={s * 0.4} fill={stroke}>AC</text>
+        </g>
+      );
+
+    // ── Natural ──
+    case 'tree':
+      return <circle cx={x} cy={y} r={r} fill="#228B22" stroke="#006400" strokeWidth={1} opacity={0.7} />;
+    case 'tree_line':
+      return (
+        <g>
+          <circle cx={x - r * 0.6} cy={y} r={r * 0.5} fill="#228B22" stroke="#006400" strokeWidth={0.8} opacity={0.6} />
+          <circle cx={x} cy={y - r * 0.3} r={r * 0.5} fill="#228B22" stroke="#006400" strokeWidth={0.8} opacity={0.6} />
+          <circle cx={x + r * 0.6} cy={y} r={r * 0.5} fill="#228B22" stroke="#006400" strokeWidth={0.8} opacity={0.6} />
+        </g>
+      );
+    case 'shrub':
+      return <circle cx={x} cy={y} r={r * 0.6} fill="#90EE90" stroke="#228B22" strokeWidth={0.8} opacity={0.7} />;
+    case 'stump':
+      return (
+        <g>
+          <circle cx={x} cy={y} r={r * 0.6} fill="none" stroke="#8B4513" strokeWidth={1.2} />
+          <line x1={x - r * 0.3} y1={y - r * 0.3} x2={x + r * 0.3} y2={y + r * 0.3} stroke="#8B4513" strokeWidth={0.8} />
+          <line x1={x + r * 0.3} y1={y - r * 0.3} x2={x - r * 0.3} y2={y + r * 0.3} stroke="#8B4513" strokeWidth={0.8} />
+        </g>
+      );
+    case 'pond':
+      return <ellipse cx={x} cy={y} rx={r * 1.3} ry={r} fill="#BFDBFE" fillOpacity={0.5} stroke="#2563EB" strokeWidth={0.8} />;
+    case 'creek':
+      return (
+        <path
+          d={`M ${x - s} ${y} Q ${x - r} ${y - r * 0.5} ${x} ${y} Q ${x + r} ${y + r * 0.5} ${x + s} ${y}`}
+          fill="none" stroke="#2563EB" strokeWidth={1.2}
+        />
+      );
+    case 'swale':
+      return (
+        <path
+          d={`M ${x - s} ${y - r * 0.3} L ${x} ${y + r * 0.3} L ${x + s} ${y - r * 0.3}`}
+          fill="none" stroke="#059669" strokeWidth={1} strokeDasharray="4,2"
+        />
+      );
+    case 'culvert':
+      return (
+        <g>
+          <circle cx={x} cy={y} r={r * 0.7} fill="none" stroke={stroke} strokeWidth={1.5} />
+          <line x1={x - s} y1={y} x2={x - r * 0.7} y2={y} stroke={stroke} strokeWidth={1} />
+          <line x1={x + r * 0.7} y1={y} x2={x + s} y2={y} stroke={stroke} strokeWidth={1} />
+        </g>
+      );
+
+    // ── Reference ──
+    case 'north_arrow':
+      return (
+        <g>
+          <polygon points={`${x},${y - s} ${x - r * 0.6},${y + r * 0.6} ${x + r * 0.6},${y + r * 0.6}`} fill={stroke} />
+          <text x={x} y={y - s - 3} textAnchor="middle" fontSize={s * 0.7} fill={stroke} fontWeight="bold">N</text>
+        </g>
+      );
+    case 'reference_point':
+      return (
+        <g>
+          <circle cx={x} cy={y} r={r} fill="none" stroke={stroke} strokeWidth={1.2} />
+          <circle cx={x} cy={y} r={r * 0.3} fill={stroke} />
+          <line x1={x - s} y1={y} x2={x - r} y2={y} stroke={stroke} strokeWidth={0.8} />
+          <line x1={x + r} y1={y} x2={x + s} y2={y} stroke={stroke} strokeWidth={0.8} />
+          <line x1={x} y1={y - s} x2={x} y2={y - r} stroke={stroke} strokeWidth={0.8} />
+          <line x1={x} y1={y + r} x2={x} y2={y + s} stroke={stroke} strokeWidth={0.8} />
+        </g>
+      );
+    case 'tie_point':
+      return (
+        <g>
+          <circle cx={x} cy={y} r={r * 0.4} fill={stroke} />
+          <circle cx={x} cy={y} r={r} fill="none" stroke={stroke} strokeWidth={0.8} strokeDasharray="2,2" />
+        </g>
+      );
+    case 'spot_elevation':
+      return (
+        <g>
+          <line x1={x - r * 0.5} y1={y + r * 0.5} x2={x + r * 0.5} y2={y + r * 0.5} stroke={stroke} strokeWidth={1} />
+          <line x1={x} y1={y + r * 0.5} x2={x} y2={y - r * 0.2} stroke={stroke} strokeWidth={1} />
+          <circle cx={x} cy={y - r * 0.2} r={1} fill={stroke} />
+        </g>
+      );
+    case 'contour_label':
+      return (
+        <g>
+          <line x1={x - s} y1={y} x2={x + s} y2={y} stroke={stroke} strokeWidth={0.8} />
+          <rect x={x - r * 0.8} y={y - r * 0.5} width={s * 0.8} height={s * 0.5} fill="#FFF" stroke="none" />
+          <text x={x} y={y + s * 0.1} textAnchor="middle" fontSize={s * 0.45} fill={stroke}>EL</text>
         </g>
       );
 
     default:
-      return <circle cx={x} cy={y} r={size / 2} fill={fill} stroke={stroke} strokeWidth={1} />;
+      return <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={1} />;
   }
 }
 

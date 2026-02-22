@@ -23,19 +23,70 @@ export type DrawingTool =
   | 'measure';       // Measure distance on drawing
 
 export type SymbolType =
+  // Monuments & Survey Markers
   | 'iron_rod'
   | 'iron_pipe'
   | 'concrete_monument'
   | 'nail'
   | 'pk_nail'
   | 'rebar'
+  | 'mag_nail'
+  | 'cap'
+  | 'benchmark'
+  // Fencing & Boundaries
   | 'fence_post'
+  | 'fence_corner'
+  | 'gate'
+  // Utilities — Underground
   | 'utility_pole'
   | 'manhole'
+  | 'cleanout'
+  | 'water_valve'
+  | 'water_meter'
+  | 'gas_valve'
+  | 'gas_meter'
+  | 'electric_meter'
+  | 'junction_box'
+  | 'storm_drain'
+  | 'catch_basin'
+  | 'septic_tank'
+  // Utilities — Above Ground
   | 'fire_hydrant'
+  | 'light_pole'
+  | 'power_pole'
+  | 'transformer'
+  | 'guy_wire'
+  | 'telephone_pedestal'
+  | 'cable_pedestal'
+  // Buildings & Improvements
+  | 'building_corner'
+  | 'shed'
+  | 'pool'
+  | 'deck'
+  | 'patio'
+  | 'driveway'
+  | 'sidewalk'
+  | 'retaining_wall'
+  | 'sign'
+  | 'mailbox'
+  | 'ac_unit'
+  // Vegetation & Natural
   | 'tree'
+  | 'tree_line'
+  | 'shrub'
+  | 'stump'
+  // Topographic
+  | 'spot_elevation'
+  | 'contour_label'
+  // Drainage & Water
+  | 'pond'
+  | 'creek'
+  | 'swale'
+  | 'culvert'
+  // Directional & Reference
   | 'north_arrow'
-  | 'benchmark';
+  | 'reference_point'
+  | 'tie_point';
 
 export interface ToolSettings {
   strokeColor: string;
@@ -106,21 +157,101 @@ const TOOL_GROUPS = [
   },
 ];
 
-const SYMBOL_OPTIONS: { key: SymbolType; label: string }[] = [
-  { key: 'iron_rod', label: 'Iron Rod' },
-  { key: 'iron_pipe', label: 'Iron Pipe' },
-  { key: 'concrete_monument', label: 'Concrete Mon.' },
-  { key: 'nail', label: 'Nail' },
-  { key: 'pk_nail', label: 'PK Nail' },
-  { key: 'rebar', label: 'Rebar' },
-  { key: 'fence_post', label: 'Fence Post' },
-  { key: 'utility_pole', label: 'Utility Pole' },
-  { key: 'manhole', label: 'Manhole' },
-  { key: 'fire_hydrant', label: 'Fire Hydrant' },
-  { key: 'tree', label: 'Tree' },
-  { key: 'north_arrow', label: 'North Arrow' },
-  { key: 'benchmark', label: 'Benchmark' },
+const SYMBOL_CATEGORIES: { label: string; items: { key: SymbolType; label: string }[] }[] = [
+  {
+    label: 'Monuments',
+    items: [
+      { key: 'iron_rod', label: 'Iron Rod' },
+      { key: 'iron_pipe', label: 'Iron Pipe' },
+      { key: 'concrete_monument', label: 'Concrete Mon.' },
+      { key: 'rebar', label: 'Rebar' },
+      { key: 'nail', label: 'Nail' },
+      { key: 'pk_nail', label: 'PK Nail' },
+      { key: 'mag_nail', label: 'Mag Nail' },
+      { key: 'cap', label: 'Cap' },
+      { key: 'benchmark', label: 'Benchmark' },
+    ],
+  },
+  {
+    label: 'Fencing',
+    items: [
+      { key: 'fence_post', label: 'Fence Post' },
+      { key: 'fence_corner', label: 'Fence Corner' },
+      { key: 'gate', label: 'Gate' },
+    ],
+  },
+  {
+    label: 'Underground Utils',
+    items: [
+      { key: 'manhole', label: 'Manhole' },
+      { key: 'cleanout', label: 'Cleanout' },
+      { key: 'water_valve', label: 'Water Valve' },
+      { key: 'water_meter', label: 'Water Meter' },
+      { key: 'gas_valve', label: 'Gas Valve' },
+      { key: 'gas_meter', label: 'Gas Meter' },
+      { key: 'electric_meter', label: 'Electric Meter' },
+      { key: 'junction_box', label: 'Junction Box' },
+      { key: 'storm_drain', label: 'Storm Drain' },
+      { key: 'catch_basin', label: 'Catch Basin' },
+      { key: 'septic_tank', label: 'Septic Tank' },
+    ],
+  },
+  {
+    label: 'Above Ground',
+    items: [
+      { key: 'utility_pole', label: 'Utility Pole' },
+      { key: 'fire_hydrant', label: 'Fire Hydrant' },
+      { key: 'light_pole', label: 'Light Pole' },
+      { key: 'power_pole', label: 'Power Pole' },
+      { key: 'transformer', label: 'Transformer' },
+      { key: 'guy_wire', label: 'Guy Wire' },
+      { key: 'telephone_pedestal', label: 'Telephone Ped.' },
+      { key: 'cable_pedestal', label: 'Cable Ped.' },
+    ],
+  },
+  {
+    label: 'Improvements',
+    items: [
+      { key: 'building_corner', label: 'Building Corner' },
+      { key: 'shed', label: 'Shed' },
+      { key: 'pool', label: 'Pool' },
+      { key: 'deck', label: 'Deck' },
+      { key: 'patio', label: 'Patio' },
+      { key: 'driveway', label: 'Driveway' },
+      { key: 'sidewalk', label: 'Sidewalk' },
+      { key: 'retaining_wall', label: 'Retaining Wall' },
+      { key: 'sign', label: 'Sign' },
+      { key: 'mailbox', label: 'Mailbox' },
+      { key: 'ac_unit', label: 'A/C Unit' },
+    ],
+  },
+  {
+    label: 'Natural',
+    items: [
+      { key: 'tree', label: 'Tree' },
+      { key: 'tree_line', label: 'Tree Line' },
+      { key: 'shrub', label: 'Shrub' },
+      { key: 'stump', label: 'Stump' },
+      { key: 'pond', label: 'Pond' },
+      { key: 'creek', label: 'Creek' },
+      { key: 'swale', label: 'Swale' },
+      { key: 'culvert', label: 'Culvert' },
+    ],
+  },
+  {
+    label: 'Reference',
+    items: [
+      { key: 'north_arrow', label: 'North Arrow' },
+      { key: 'reference_point', label: 'Reference Point' },
+      { key: 'tie_point', label: 'Tie Point' },
+      { key: 'spot_elevation', label: 'Spot Elevation' },
+      { key: 'contour_label', label: 'Contour Label' },
+    ],
+  },
 ];
+
+// Flat list for quick lookup
+const SYMBOL_OPTIONS = SYMBOL_CATEGORIES.flatMap(cat => cat.items);
 
 const DASH_PRESETS = [
   { label: 'Solid', value: '' },
@@ -334,8 +465,12 @@ export default function DrawingToolsSidebar({
                       onChange={e => updateSetting('symbolType', e.target.value as SymbolType)}
                       className="research-tools__select"
                     >
-                      {SYMBOL_OPTIONS.map(s => (
-                        <option key={s.key} value={s.key}>{s.label}</option>
+                      {SYMBOL_CATEGORIES.map(cat => (
+                        <optgroup key={cat.label} label={cat.label}>
+                          {cat.items.map(s => (
+                            <option key={s.key} value={s.key}>{s.label}</option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </div>

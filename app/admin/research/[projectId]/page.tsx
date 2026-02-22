@@ -15,6 +15,7 @@ import ElementDetailPanel from '../components/ElementDetailPanel';
 import DrawingViewToolbar from '../components/DrawingViewToolbar';
 import DrawingPreferencesPanel, { DEFAULT_PREFERENCES, type DrawingPreferences } from '../components/DrawingPreferencesPanel';
 import DrawingToolsSidebar, { DEFAULT_TOOL_SETTINGS, type DrawingTool, type ToolSettings } from '../components/DrawingToolsSidebar';
+import DrawingSaveDialog from '../components/DrawingSaveDialog';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep } from '@/types/research';
 import { WORKFLOW_STEPS } from '@/types/research';
 
@@ -62,6 +63,11 @@ export default function ResearchProjectPage() {
   const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
   const [annotationHistory, setAnnotationHistory] = useState<UserAnnotation[][]>([]);
   const [annotationFuture, setAnnotationFuture] = useState<UserAnnotation[][]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [originalElements, setOriginalElements] = useState<DrawingElement[]>([]);
+  const [originalAnnotations, setOriginalAnnotations] = useState<UserAnnotation[]>([]);
+  const [showSaveDialog, setShowSaveDialog] = useState<'save' | 'export' | null>(null);
 
   const userRole = (session?.user as any)?.role || 'employee';
 
@@ -213,7 +219,16 @@ export default function ResearchProjectPage() {
       if (res.ok) {
         const data = await res.json();
         setActiveDrawing(data.drawing);
-        setDrawingElements(data.elements || []);
+        const elements = data.elements || [];
+        setDrawingElements(elements);
+        // Store original state for reset
+        setOriginalElements(elements);
+        setOriginalAnnotations([]);
+        setAnnotations([]);
+        setAnnotationHistory([]);
+        setAnnotationFuture([]);
+        setHasUnsavedChanges(false);
+        setLastSavedAt(data.drawing.updated_at || null);
         // Generate SVG client-side via API
         const svgRes = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}/svg?viewMode=${viewMode}`);
         if (svgRes.ok) {
@@ -295,6 +310,124 @@ export default function ResearchProjectPage() {
     setAnnotationHistory(h => [...h, annotations]);
     setAnnotations(next);
     setAnnotationFuture(f => f.slice(0, -1));
+  }
+
+  // Track unsaved changes whenever annotations or elements change
+  function handleAnnotationsChangeTracked(newAnnotations: UserAnnotation[]) {
+    handleAnnotationsChange(newAnnotations);
+    setHasUnsavedChanges(true);
+  }
+
+  // Mark element modifications as user-modified and track unsaved state
+  async function handleTrackedElementUpdate(elementId: string, updates: Record<string, unknown>) {
+    // If position/geometry/style changes, mark as user_modified
+    const structuralKeys = ['geometry', 'svg_path', 'style', 'attributes'];
+    const isStructural = Object.keys(updates).some(k => structuralKeys.includes(k));
+    const tracked = isStructural ? { ...updates, user_modified: true } : updates;
+    await handleElementUpdate(elementId, tracked);
+    setHasUnsavedChanges(true);
+  }
+
+  // Save to database
+  async function handleSaveToDb(name?: string) {
+    if (!activeDrawing) return;
+    try {
+      const payload: Record<string, unknown> = {
+        annotations,
+        preferences: drawingPrefs,
+      };
+      if (name) payload.name = name;
+
+      const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ save: true, ...payload }),
+      });
+      if (res.ok) {
+        setLastSavedAt(new Date().toISOString());
+        setHasUnsavedChanges(false);
+        setOriginalElements([...drawingElements]);
+        setOriginalAnnotations([...annotations]);
+        if (name) {
+          setActiveDrawing({ ...activeDrawing, name });
+          loadDrawings();
+        }
+      }
+    } catch { /* ignore */ }
+    setShowSaveDialog(null);
+  }
+
+  // Export drawing as JSON file
+  function handleExportJson(fileName?: string) {
+    if (!activeDrawing) return;
+    const exportData = {
+      version: '1.0',
+      exported_at: new Date().toISOString(),
+      drawing: {
+        id: activeDrawing.id,
+        name: activeDrawing.name,
+        version: activeDrawing.version,
+        canvas_config: activeDrawing.canvas_config,
+        title_block: activeDrawing.title_block,
+        overall_confidence: activeDrawing.overall_confidence,
+      },
+      elements: drawingElements.map(el => ({
+        id: el.id,
+        element_type: el.element_type,
+        feature_class: el.feature_class,
+        geometry: el.geometry,
+        svg_path: el.svg_path,
+        attributes: el.attributes,
+        style: el.style,
+        layer: el.layer,
+        z_index: el.z_index,
+        visible: el.visible,
+        locked: el.locked,
+        confidence_score: el.confidence_score,
+        confidence_factors: el.confidence_factors,
+        source_references: el.source_references,
+        user_modified: el.user_modified,
+        user_notes: el.user_notes,
+      })),
+      annotations,
+      preferences: drawingPrefs,
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${fileName || activeDrawing.name || 'drawing'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowSaveDialog(null);
+  }
+
+  // Reset to original (regenerated) version
+  function handleResetOriginal() {
+    if (!window.confirm('This will discard ALL changes and reset the drawing to its original generated version. Continue?')) return;
+    if (originalElements.length > 0) {
+      setDrawingElements(originalElements);
+    }
+    setAnnotations([]);
+    setAnnotationHistory([]);
+    setAnnotationFuture([]);
+    setHasUnsavedChanges(true);
+    setSelectedElement(null);
+  }
+
+  // Reset to last saved version
+  function handleResetLastSaved() {
+    if (!lastSavedAt) return;
+    if (!window.confirm('Revert to the last saved version? Unsaved changes will be lost.')) return;
+    if (activeDrawing) {
+      loadDrawingDetail(activeDrawing.id);
+    }
+    setAnnotations(originalAnnotations);
+    setAnnotationHistory([]);
+    setAnnotationFuture([]);
+    setHasUnsavedChanges(false);
+    setSelectedElement(null);
   }
 
   // Keyboard shortcuts for drawing tools + undo/redo
@@ -647,13 +780,24 @@ export default function ResearchProjectPage() {
                 onPreferencesChange={setDrawingPrefs}
                 onOpenSettings={() => setShowPrefsPanel(!showPrefsPanel)}
                 onExportSvg={handleExportSvg}
+                onExportJson={() => setShowSaveDialog('export')}
+                onSaveToDb={() => setShowSaveDialog('save')}
+                onResetOriginal={handleResetOriginal}
+                onResetLastSaved={handleResetLastSaved}
+                onUndo={handleUndo}
+                onRedo={handleRedo}
+                canUndo={annotationHistory.length > 0}
+                canRedo={annotationFuture.length > 0}
                 zoom={canvasZoom}
                 onZoomIn={() => setCanvasZoom(prev => Math.min(10, prev * 1.3))}
                 onZoomOut={() => setCanvasZoom(prev => Math.max(0.1, prev / 1.3))}
                 onZoomReset={() => setCanvasZoom(1)}
                 elementCount={drawingElements.length}
                 visibleCount={drawingElements.filter(e => e.visible).length}
+                modifiedCount={drawingElements.filter(e => e.user_modified).length}
                 overallConfidence={activeDrawing.overall_confidence}
+                hasUnsavedChanges={hasUnsavedChanges}
+                lastSavedAt={lastSavedAt}
               />
 
               {/* Main workspace: tools + canvas + side panels */}
@@ -692,9 +836,9 @@ export default function ResearchProjectPage() {
                       activeTool={activeTool}
                       toolSettings={toolSettings}
                       onElementClick={(el) => setSelectedElement(el)}
-                      onElementModified={(id, changes) => handleElementUpdate(id, changes)}
+                      onElementModified={(id, changes) => handleTrackedElementUpdate(id, changes)}
                       annotations={annotations}
-                      onAnnotationsChange={handleAnnotationsChange}
+                      onAnnotationsChange={handleAnnotationsChangeTracked}
                       zoom={canvasZoom}
                       onZoomChange={setCanvasZoom}
                     />
@@ -710,10 +854,10 @@ export default function ResearchProjectPage() {
                   <ElementDetailPanel
                     element={selectedElement}
                     onClose={() => setSelectedElement(null)}
-                    onToggleVisibility={(id, vis) => handleElementUpdate(id, { visible: vis })}
-                    onToggleLock={(id, lock) => handleElementUpdate(id, { locked: lock })}
-                    onUpdateNotes={(id, notes) => handleElementUpdate(id, { user_notes: notes })}
-                    onStyleChange={(id, style) => handleElementUpdate(id, { style: { ...selectedElement.style, ...style } })}
+                    onToggleVisibility={(id, vis) => handleTrackedElementUpdate(id, { visible: vis })}
+                    onToggleLock={(id, lock) => handleTrackedElementUpdate(id, { locked: lock })}
+                    onUpdateNotes={(id, notes) => handleTrackedElementUpdate(id, { user_notes: notes })}
+                    onStyleChange={(id, style) => handleTrackedElementUpdate(id, { style: { ...selectedElement.style, ...style } })}
                     onViewSource={(docId, excerpt) => {
                       const doc = documents.find(d => d.id === docId);
                       if (doc) {
@@ -728,10 +872,28 @@ export default function ResearchProjectPage() {
               {/* Drawing info footer */}
               <div className="research-drawing__info">
                 <span>{activeDrawing.name} (v{activeDrawing.version})</span>
+                {hasUnsavedChanges && (
+                  <span className="research-drawing__info-unsaved">Unsaved changes</span>
+                )}
+                {lastSavedAt && !hasUnsavedChanges && (
+                  <span className="research-drawing__info-saved">Saved {new Date(lastSavedAt).toLocaleTimeString()}</span>
+                )}
                 {activeDrawing.comparison_notes && (
                   <span className="research-drawing__info-notes">{activeDrawing.comparison_notes}</span>
                 )}
               </div>
+
+              {/* Save/Export dialog */}
+              <DrawingSaveDialog
+                isOpen={showSaveDialog !== null}
+                mode={showSaveDialog || 'save'}
+                currentName={activeDrawing.name}
+                onSave={(name) => {
+                  if (showSaveDialog === 'save') handleSaveToDb(name);
+                  else handleExportJson(name);
+                }}
+                onCancel={() => setShowSaveDialog(null)}
+              />
             </>
           )}
         </div>

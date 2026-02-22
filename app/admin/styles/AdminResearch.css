@@ -3326,3 +3326,234 @@
   gap: 0.5rem;
   min-height: 500px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Toolbar Dropdowns (Save / Reset)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.research-toolbar__dropdown-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.research-toolbar__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 500;
+  min-width: 220px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  animation: research-ctx-in 0.12s ease-out;
+}
+
+.research-toolbar__dropdown-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.55rem 0.85rem;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.research-toolbar__dropdown-item:hover {
+  background: #F3F4F6;
+}
+
+.research-toolbar__dropdown-item--danger {
+  color: #EF4444;
+}
+
+.research-toolbar__dropdown-item--danger:hover {
+  background: #FEF2F2;
+}
+
+.research-toolbar__dropdown-hint {
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: #9CA3AF;
+}
+
+/* Primary save button (when unsaved) */
+.research-toolbar__action-btn--primary {
+  background: #2563EB;
+  color: #FFFFFF;
+  border-color: #2563EB;
+}
+
+.research-toolbar__action-btn--primary:hover {
+  background: #1D4ED8;
+  border-color: #1D4ED8;
+  color: #FFFFFF;
+}
+
+/* Undo/redo disabled state */
+.research-toolbar__icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.research-toolbar__icon-btn:disabled:hover {
+  background: transparent;
+}
+
+/* Modified count badge */
+.research-toolbar__stat--modified {
+  color: #7C3AED;
+  font-weight: 600;
+}
+
+/* Unsaved indicator */
+.research-toolbar__stat--unsaved {
+  color: #F59E0B;
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Save / Export Dialog
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.research-save-dialog__overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: research-save-fade-in 0.15s ease-out;
+}
+
+@keyframes research-save-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.research-save-dialog {
+  width: 400px;
+  max-width: calc(100vw - 2rem);
+  background: #FFFFFF;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  padding: 1.5rem;
+  animation: research-save-scale-in 0.15s ease-out;
+}
+
+@keyframes research-save-scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.research-save-dialog__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0 0 1rem;
+}
+
+.research-save-dialog__field {
+  margin-bottom: 0.75rem;
+}
+
+.research-save-dialog__label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.35rem;
+}
+
+.research-save-dialog__input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: #1F2937;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.research-save-dialog__input:focus {
+  outline: none;
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.research-save-dialog__hint {
+  font-size: 0.75rem;
+  color: #6B7280;
+  margin: 0 0 1rem;
+  line-height: 1.4;
+}
+
+.research-save-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.research-save-dialog__cancel-btn {
+  padding: 0.45rem 0.85rem;
+  border: 1px solid #D1D5DB;
+  background: #FFFFFF;
+  color: #374151;
+  font-size: 0.82rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.research-save-dialog__cancel-btn:hover {
+  background: #F3F4F6;
+}
+
+.research-save-dialog__save-btn {
+  padding: 0.45rem 1rem;
+  border: none;
+  background: #2563EB;
+  color: #FFFFFF;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.research-save-dialog__save-btn:hover {
+  background: #1D4ED8;
+}
+
+.research-save-dialog__save-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── Drawing info footer enhancements ────────────────────────────────────── */
+
+.research-drawing__info-unsaved {
+  color: #F59E0B;
+  font-weight: 600;
+  font-size: 0.78rem;
+  margin-left: 0.75rem;
+}
+
+.research-drawing__info-saved {
+  color: #059669;
+  font-size: 0.75rem;
+  margin-left: 0.75rem;
+}
