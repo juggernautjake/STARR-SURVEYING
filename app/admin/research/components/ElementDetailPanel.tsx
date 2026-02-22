@@ -2,8 +2,17 @@
 'use client';
 
 import { useState } from 'react';
-import type { DrawingElement, ConfidenceFactors } from '@/types/research';
+import type { DrawingElement, ConfidenceFactors, ElementStyle } from '@/types/research';
 import { getConfidenceColor, getConfidenceLevel, CONFIDENCE_WEIGHTS } from '@/lib/research/confidence';
+
+const DASH_PRESETS = [
+  { label: 'Solid', value: '' },
+  { label: 'Dashed', value: '10,5' },
+  { label: 'Dotted', value: '3,3' },
+  { label: 'Dash-Dot', value: '10,5,3,5' },
+  { label: 'Long Dash', value: '15,5' },
+  { label: 'Center', value: '15,5,5,5' },
+];
 
 interface ElementDetailPanelProps {
   element: DrawingElement;
@@ -11,6 +20,7 @@ interface ElementDetailPanelProps {
   onToggleVisibility?: (elementId: string, visible: boolean) => void;
   onToggleLock?: (elementId: string, locked: boolean) => void;
   onUpdateNotes?: (elementId: string, notes: string) => void;
+  onStyleChange?: (elementId: string, style: Partial<ElementStyle>) => void;
   onViewSource?: (documentId: string, excerpt?: string) => void;
 }
 
@@ -20,10 +30,12 @@ export default function ElementDetailPanel({
   onToggleVisibility,
   onToggleLock,
   onUpdateNotes,
+  onStyleChange,
   onViewSource,
 }: ElementDetailPanelProps) {
   const [notes, setNotes] = useState(element.user_notes || '');
   const [showFactors, setShowFactors] = useState(false);
+  const [showStyleEditor, setShowStyleEditor] = useState(false);
 
   const attrs = element.attributes as Record<string, unknown>;
   const confidenceLevel = getConfidenceLevel(element.confidence_score);
@@ -96,6 +108,80 @@ export default function ElementDetailPanel({
           </div>
         )}
       </div>
+
+      {/* Style Editor */}
+      {onStyleChange && (
+        <div className="research-element-panel__section">
+          <button
+            className="research-element-panel__factors-toggle"
+            onClick={() => setShowStyleEditor(!showStyleEditor)}
+            style={{ fontWeight: 600 }}
+          >
+            {showStyleEditor ? '▾' : '▸'} Edit Style
+          </button>
+
+          {showStyleEditor && (
+            <div className="research-element-panel__style-editor">
+              <div className="research-element-panel__style-row">
+                <label>Stroke Color</label>
+                <input
+                  type="color"
+                  value={element.style.stroke}
+                  onChange={e => onStyleChange(element.id, { stroke: e.target.value })}
+                  className="research-prefs__color-input"
+                />
+              </div>
+              <div className="research-element-panel__style-row">
+                <label>Stroke Width</label>
+                <input
+                  type="number"
+                  min="0.25"
+                  max="10"
+                  step="0.25"
+                  value={element.style.strokeWidth}
+                  onChange={e => onStyleChange(element.id, { strokeWidth: Number(e.target.value) })}
+                  className="research-prefs__num-input"
+                />
+              </div>
+              <div className="research-element-panel__style-row">
+                <label>Line Pattern</label>
+                <select
+                  value={element.style.strokeDasharray || ''}
+                  onChange={e => onStyleChange(element.id, { strokeDasharray: e.target.value })}
+                  className="research-prefs__select"
+                >
+                  {DASH_PRESETS.map(p => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+              {element.style.fill && element.style.fill !== 'none' && (
+                <div className="research-element-panel__style-row">
+                  <label>Fill Color</label>
+                  <input
+                    type="color"
+                    value={element.style.fill}
+                    onChange={e => onStyleChange(element.id, { fill: e.target.value })}
+                    className="research-prefs__color-input"
+                  />
+                </div>
+              )}
+              <div className="research-element-panel__style-row">
+                <label>Opacity</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={element.style.opacity}
+                  onChange={e => onStyleChange(element.id, { opacity: Number(e.target.value) })}
+                />
+                <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{element.style.opacity}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Attributes */}
       <div className="research-element-panel__section">

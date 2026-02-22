@@ -3,14 +3,18 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import type { RenderedDrawing, DrawingElement, ViewMode } from '@/types/research';
+import type { DrawingPreferences } from './DrawingPreferencesPanel';
 
 interface DrawingCanvasProps {
   drawing: RenderedDrawing;
   elements: DrawingElement[];
   viewMode: ViewMode;
   svgContent: string;
+  preferences?: Partial<DrawingPreferences>;
   onElementClick: (element: DrawingElement) => void;
   onElementModified?: (elementId: string, changes: Partial<DrawingElement>) => void;
+  zoom?: number;
+  onZoomChange?: (zoom: number) => void;
 }
 
 export default function DrawingCanvas({
@@ -18,16 +22,35 @@ export default function DrawingCanvas({
   elements,
   viewMode,
   svgContent,
+  preferences,
   onElementClick,
   onElementModified,
+  zoom: externalZoom,
+  onZoomChange,
 }: DrawingCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [zoom, setZoom] = useState(1);
+  const [internalZoom, setInternalZoom] = useState(1);
+  const zoom = externalZoom ?? internalZoom;
+  const setZoom = useCallback((val: number | ((prev: number) => number)) => {
+    const newVal = typeof val === 'function' ? val(zoom) : val;
+    const clamped = Math.max(0.1, Math.min(10, newVal));
+    setInternalZoom(clamped);
+    onZoomChange?.(clamped);
+  }, [zoom, onZoomChange]);
+
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number } | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  // Touch zoom state
+  const [touchStartDist, setTouchStartDist] = useState<number | null>(null);
+  const [touchStartZoom, setTouchStartZoom] = useState(1);
+
+  const showTooltips = preferences?.showTooltips !== false;
+  const highlightOnHover = preferences?.highlightOnHover !== false;
 
   // Build element lookup map
   const elementMap = useMemo(() => {
@@ -38,8 +61,14 @@ export default function DrawingCanvas({
     return map;
   }, [elements]);
 
-  // Handle element click
+  // Handle element click — only fire if mouse didn't move (wasn't a pan)
   const handleSvgClick = useCallback((e: React.MouseEvent) => {
+    if (dragStartPos) {
+      const dx = Math.abs(e.clientX - dragStartPos.x);
+      const dy = Math.abs(e.clientY - dragStartPos.y);
+      if (dx > 5 || dy > 5) return; // was a drag, not a click
+    }
+
     const target = e.target as SVGElement;
     const elId = target.getAttribute('data-element-id')
       || target.closest('[data-element-id]')?.getAttribute('data-element-id');
@@ -50,52 +79,115 @@ export default function DrawingCanvas({
         onElementClick(element);
       }
     }
-  }, [elementMap, onElementClick]);
+  }, [elementMap, onElementClick, dragStartPos]);
 
-  // Handle hover for tooltips
+  // Handle hover for tooltips and highlighting
   const handleSvgMouseMove = useCallback((e: React.MouseEvent) => {
+    if (isPanning) return; // don't update tooltips while panning
+
     const target = e.target as SVGElement;
     const elId = target.getAttribute('data-element-id')
       || target.closest('[data-element-id]')?.getAttribute('data-element-id');
 
     if (elId && elId !== hoveredId) {
       setHoveredId(elId);
-      const element = elementMap.get(elId);
-      if (element) {
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (rect) {
-          setTooltip({
-            x: e.clientX - rect.left + 10,
-            y: e.clientY - rect.top - 30,
-            text: getTooltipText(element),
-          });
+
+      // Highlight effect
+      if (highlightOnHover) {
+        const prevHighlighted = containerRef.current?.querySelector('[data-highlighted="true"]');
+        if (prevHighlighted) {
+          prevHighlighted.removeAttribute('data-highlighted');
+          (prevHighlighted as SVGElement).style.filter = '';
+        }
+        const currentEl = containerRef.current?.querySelector(`[data-element-id="${elId}"]`);
+        if (currentEl) {
+          currentEl.setAttribute('data-highlighted', 'true');
+          (currentEl as SVGElement).style.filter = 'brightness(1.3) drop-shadow(0 0 3px rgba(37, 99, 235, 0.5))';
         }
       }
-    } else if (!elId) {
+
+      // Tooltip
+      if (showTooltips) {
+        const element = elementMap.get(elId);
+        if (element) {
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (rect) {
+            setTooltip({
+              x: e.clientX - rect.left + 12,
+              y: e.clientY - rect.top - 35,
+              text: getTooltipText(element),
+            });
+          }
+        }
+      }
+    } else if (!elId && hoveredId) {
+      // Clear highlight
+      if (highlightOnHover) {
+        const prevHighlighted = containerRef.current?.querySelector('[data-highlighted="true"]');
+        if (prevHighlighted) {
+          prevHighlighted.removeAttribute('data-highlighted');
+          (prevHighlighted as SVGElement).style.filter = '';
+        }
+      }
       setHoveredId(null);
       setTooltip(null);
     }
-  }, [elementMap, hoveredId]);
+  }, [elementMap, hoveredId, isPanning, showTooltips, highlightOnHover]);
 
   const handleSvgMouseLeave = useCallback(() => {
+    if (highlightOnHover) {
+      const prevHighlighted = containerRef.current?.querySelector('[data-highlighted="true"]');
+      if (prevHighlighted) {
+        prevHighlighted.removeAttribute('data-highlighted');
+        (prevHighlighted as SVGElement).style.filter = '';
+      }
+    }
     setHoveredId(null);
     setTooltip(null);
-  }, []);
+  }, [highlightOnHover]);
 
-  // Zoom with scroll
+  // Zoom with scroll — zoom towards cursor position
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    setZoom(prev => Math.max(0.1, Math.min(10, prev * delta)));
-  }, []);
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
 
-  // Pan with mouse drag
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    const newZoom = Math.max(0.1, Math.min(10, zoom * delta));
+
+    // Adjust pan to zoom towards cursor
+    const scale = newZoom / zoom;
+    setPan(prev => ({
+      x: mouseX - scale * (mouseX - prev.x),
+      y: mouseY - scale * (mouseY - prev.y),
+    }));
+
+    setZoom(newZoom);
+  }, [zoom, setZoom]);
+
+  // Pan with any mouse drag on empty space, or middle-click/Alt+click anywhere
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
-      // Middle-click or Alt+click for panning
+    setDragStartPos({ x: e.clientX, y: e.clientY });
+
+    // Middle-click or Alt+click or right-click — always pan
+    if (e.button === 1 || e.altKey || e.button === 2) {
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
       e.preventDefault();
+      return;
+    }
+
+    // Left click — check if on empty space (not on an element)
+    const target = e.target as SVGElement;
+    const elId = target.getAttribute('data-element-id')
+      || target.closest('[data-element-id]')?.getAttribute('data-element-id');
+
+    if (!elId) {
+      // Clicking empty space — start panning
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
     }
   }, [pan]);
 
@@ -107,15 +199,58 @@ export default function DrawingCanvas({
 
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
+    setDragStartPos(null);
+  }, []);
+
+  // Touch support: pinch-to-zoom and drag-to-pan
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      // Pinch start
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      setTouchStartDist(Math.sqrt(dx * dx + dy * dy));
+      setTouchStartZoom(zoom);
+    } else if (e.touches.length === 1) {
+      // Pan start
+      setIsPanning(true);
+      setPanStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
+    }
+  }, [zoom, pan]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchStartDist) {
+      // Pinch zoom
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const scale = dist / touchStartDist;
+      setZoom(Math.max(0.1, Math.min(10, touchStartZoom * scale)));
+    } else if (e.touches.length === 1 && isPanning) {
+      // Pan
+      setPan({ x: e.touches[0].clientX - panStart.x, y: e.touches[0].clientY - panStart.y });
+    }
+  }, [isPanning, panStart, touchStartDist, touchStartZoom, setZoom]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsPanning(false);
+    setTouchStartDist(null);
+  }, []);
+
+  // Prevent context menu on canvas (right-click is for panning)
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
   }, []);
 
   // Keyboard zoom controls
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Don't capture if user is typing in an input
+      if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
+
       if (e.key === '+' || e.key === '=') {
-        setZoom(prev => Math.min(10, prev * 1.2));
+        setZoom(prev => prev * 1.2);
       } else if (e.key === '-') {
-        setZoom(prev => Math.max(0.1, prev / 1.2));
+        setZoom(prev => prev / 1.2);
       } else if (e.key === '0') {
         setZoom(1);
         setPan({ x: 0, y: 0 });
@@ -124,63 +259,10 @@ export default function DrawingCanvas({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Fit to view
-  const handleFitToView = useCallback(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, []);
+  }, [setZoom]);
 
   return (
     <div className="research-canvas">
-      {/* Toolbar */}
-      <div className="research-canvas__toolbar">
-        <div className="research-canvas__toolbar-group">
-          <button
-            className="research-canvas__tool-btn"
-            onClick={() => setZoom(prev => Math.min(10, prev * 1.3))}
-            title="Zoom In (+)"
-          >
-            +
-          </button>
-          <span className="research-canvas__zoom-label">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            className="research-canvas__tool-btn"
-            onClick={() => setZoom(prev => Math.max(0.1, prev / 1.3))}
-            title="Zoom Out (-)"
-          >
-            -
-          </button>
-          <button
-            className="research-canvas__tool-btn"
-            onClick={handleFitToView}
-            title="Fit to View (0)"
-          >
-            Fit
-          </button>
-        </div>
-
-        <div className="research-canvas__toolbar-group">
-          <span className="research-canvas__info">
-            {elements.filter(e => e.visible).length} elements
-          </span>
-          {drawing.overall_confidence !== null && (
-            <span className="research-canvas__info">
-              {Math.round(drawing.overall_confidence)}% confidence
-            </span>
-          )}
-        </div>
-
-        <div className="research-canvas__toolbar-group">
-          <span className="research-canvas__hint">
-            Alt+drag to pan, scroll to zoom
-          </span>
-        </div>
-      </div>
-
       {/* Canvas area */}
       <div
         ref={containerRef}
@@ -190,12 +272,16 @@ export default function DrawingCanvas({
         onMouseMove={(e) => { handleMouseMove(e); handleSvgMouseMove(e); }}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => { handleMouseUp(); handleSvgMouseLeave(); }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onContextMenu={handleContextMenu}
       >
         <div
           className="research-canvas__svg-container"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transformOrigin: 'center center',
+            transformOrigin: '0 0',
           }}
           onClick={handleSvgClick}
           dangerouslySetInnerHTML={{ __html: svgContent }}

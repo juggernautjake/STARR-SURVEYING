@@ -12,6 +12,8 @@ import DiscrepancyPanel from '../components/DiscrepancyPanel';
 import SourceDocumentViewer from '../components/SourceDocumentViewer';
 import DrawingCanvas from '../components/DrawingCanvas';
 import ElementDetailPanel from '../components/ElementDetailPanel';
+import DrawingViewToolbar from '../components/DrawingViewToolbar';
+import DrawingPreferencesPanel, { DEFAULT_PREFERENCES, type DrawingPreferences } from '../components/DrawingPreferencesPanel';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep } from '@/types/research';
 import { WORKFLOW_STEPS } from '@/types/research';
 
@@ -49,6 +51,9 @@ export default function ResearchProjectPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('standard');
   const [selectedElement, setSelectedElement] = useState<DrawingElement | null>(null);
   const [generatingDrawing, setGeneratingDrawing] = useState(false);
+  const [drawingPrefs, setDrawingPrefs] = useState<DrawingPreferences>(DEFAULT_PREFERENCES);
+  const [showPrefsPanel, setShowPrefsPanel] = useState(false);
+  const [canvasZoom, setCanvasZoom] = useState(1);
 
   const userRole = (session?.user as any)?.role || 'employee';
 
@@ -248,6 +253,17 @@ export default function ResearchProjectPage() {
         await loadDrawingDetail(activeDrawing.id);
       }
     } catch { /* ignore */ }
+  }
+
+  function handleExportSvg() {
+    if (!drawingSvg) return;
+    const blob = new Blob([drawingSvg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${activeDrawing?.name || 'drawing'}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // Load drawings when entering drawing step
@@ -509,112 +525,141 @@ export default function ResearchProjectPage() {
 
       {project.status === 'drawing' && (
         <div className="research-drawing">
-          {/* Drawing controls */}
-          <div className="research-drawing__controls">
-            <div className="research-drawing__controls-left">
-              <h2 className="research-drawing__title">Plat Drawing</h2>
-              {!activeDrawing && drawings.length === 0 && (
-                <button
-                  className="research-page__new-btn"
-                  onClick={handleGenerateDrawing}
-                  disabled={generatingDrawing}
-                >
-                  {generatingDrawing ? 'Generating...' : 'Generate Drawing'}
-                </button>
-              )}
-              {drawings.length > 0 && !activeDrawing && (
-                <div className="research-drawing__list">
-                  {drawings.map(d => (
-                    <button
-                      key={d.id}
-                      className="research-drawing__list-item"
-                      onClick={() => loadDrawingDetail(d.id)}
-                    >
-                      <span>{d.name}</span>
-                      <span className="research-drawing__list-meta">
-                        {d.element_count} elements | {d.overall_confidence ? `${Math.round(d.overall_confidence)}%` : '--'}
-                      </span>
-                    </button>
-                  ))}
+          {/* Drawing list (when no active drawing) */}
+          {!activeDrawing && (
+            <div className="research-drawing__controls">
+              <div className="research-drawing__controls-left">
+                <h2 className="research-drawing__title">Plat Drawing</h2>
+                {drawings.length === 0 && (
                   <button
-                    className="research-drawing__list-item research-drawing__list-item--new"
+                    className="research-page__new-btn"
                     onClick={handleGenerateDrawing}
                     disabled={generatingDrawing}
                   >
-                    {generatingDrawing ? 'Generating...' : '+ New Drawing Version'}
+                    {generatingDrawing ? 'Generating...' : 'Generate Drawing'}
                   </button>
-                </div>
-              )}
-            </div>
-
-            {activeDrawing && (
-              <div className="research-drawing__controls-right">
-                {/* View mode selector */}
-                <div className="research-drawing__view-modes">
-                  {(['standard', 'feature', 'confidence', 'discrepancy'] as ViewMode[]).map(mode => (
-                    <button
-                      key={mode}
-                      className={`research-drawing__view-btn ${viewMode === mode ? 'research-drawing__view-btn--active' : ''}`}
-                      onClick={() => {
-                        setViewMode(mode);
-                        if (activeDrawing) loadDrawingDetail(activeDrawing.id);
-                      }}
-                    >
-                      {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  className="research-drawing__back-btn"
-                  onClick={() => { setActiveDrawing(null); setDrawingElements([]); setDrawingSvg(''); setSelectedElement(null); }}
-                >
-                  &larr; Drawing List
-                </button>
+                )}
               </div>
-            )}
-          </div>
-
-          {/* Canvas + Detail Panel */}
-          {activeDrawing && drawingSvg && (
-            <div className="research-drawing__workspace">
-              <div className={`research-drawing__canvas-wrap ${selectedElement ? 'research-drawing__canvas-wrap--with-panel' : ''}`}>
-                <DrawingCanvas
-                  drawing={activeDrawing}
-                  elements={drawingElements}
-                  viewMode={viewMode}
-                  svgContent={drawingSvg}
-                  onElementClick={(el) => setSelectedElement(el)}
-                />
-              </div>
-
-              {selectedElement && (
-                <ElementDetailPanel
-                  element={selectedElement}
-                  onClose={() => setSelectedElement(null)}
-                  onToggleVisibility={(id, vis) => handleElementUpdate(id, { visible: vis })}
-                  onToggleLock={(id, lock) => handleElementUpdate(id, { locked: lock })}
-                  onUpdateNotes={(id, notes) => handleElementUpdate(id, { user_notes: notes })}
-                  onViewSource={(docId, excerpt) => {
-                    const doc = documents.find(d => d.id === docId);
-                    if (doc) {
-                      setViewerDoc(doc);
-                      setViewerHighlight(excerpt);
-                    }
-                  }}
-                />
-              )}
             </div>
           )}
 
-          {/* Drawing info */}
-          {activeDrawing && (
-            <div className="research-drawing__info">
-              <span>{activeDrawing.name} (v{activeDrawing.version})</span>
-              {activeDrawing.comparison_notes && (
-                <span className="research-drawing__info-notes">{activeDrawing.comparison_notes}</span>
-              )}
+          {drawings.length > 0 && !activeDrawing && (
+            <div className="research-drawing__list">
+              {drawings.map(d => (
+                <button
+                  key={d.id}
+                  className="research-drawing__list-item"
+                  onClick={() => loadDrawingDetail(d.id)}
+                >
+                  <span>{d.name}</span>
+                  <span className="research-drawing__list-meta">
+                    {d.element_count} elements | {d.overall_confidence ? `${Math.round(d.overall_confidence)}%` : '--'}
+                  </span>
+                </button>
+              ))}
+              <button
+                className="research-drawing__list-item research-drawing__list-item--new"
+                onClick={handleGenerateDrawing}
+                disabled={generatingDrawing}
+              >
+                {generatingDrawing ? 'Generating...' : '+ New Drawing Version'}
+              </button>
             </div>
+          )}
+
+          {/* Active drawing: toolbar + canvas + panels */}
+          {activeDrawing && (
+            <>
+              {/* Back button */}
+              <button
+                className="research-drawing__back-btn"
+                onClick={() => { setActiveDrawing(null); setDrawingElements([]); setDrawingSvg(''); setSelectedElement(null); setShowPrefsPanel(false); }}
+                style={{ marginBottom: '0.5rem' }}
+              >
+                &larr; Back to Drawing List
+              </button>
+
+              {/* View toolbar */}
+              <DrawingViewToolbar
+                viewMode={viewMode}
+                onViewModeChange={(mode) => {
+                  setViewMode(mode);
+                  if (activeDrawing) loadDrawingDetail(activeDrawing.id);
+                }}
+                preferences={drawingPrefs}
+                onPreferencesChange={setDrawingPrefs}
+                onOpenSettings={() => setShowPrefsPanel(!showPrefsPanel)}
+                onExportSvg={handleExportSvg}
+                zoom={canvasZoom}
+                onZoomIn={() => setCanvasZoom(prev => Math.min(10, prev * 1.3))}
+                onZoomOut={() => setCanvasZoom(prev => Math.max(0.1, prev / 1.3))}
+                onZoomReset={() => setCanvasZoom(1)}
+                elementCount={drawingElements.length}
+                visibleCount={drawingElements.filter(e => e.visible).length}
+                overallConfidence={activeDrawing.overall_confidence}
+              />
+
+              {/* Main workspace: canvas + side panels */}
+              <div className="research-drawing__workspace">
+                {/* Preferences panel (slides in from left) */}
+                {showPrefsPanel && (
+                  <DrawingPreferencesPanel
+                    preferences={drawingPrefs}
+                    onChange={setDrawingPrefs}
+                    onClose={() => setShowPrefsPanel(false)}
+                    onReset={() => setDrawingPrefs(DEFAULT_PREFERENCES)}
+                  />
+                )}
+
+                {/* Canvas */}
+                <div className={`research-drawing__canvas-wrap ${selectedElement ? 'research-drawing__canvas-wrap--with-panel' : ''}`}>
+                  {drawingSvg ? (
+                    <DrawingCanvas
+                      drawing={activeDrawing}
+                      elements={drawingElements}
+                      viewMode={viewMode}
+                      svgContent={drawingSvg}
+                      preferences={drawingPrefs}
+                      onElementClick={(el) => setSelectedElement(el)}
+                      onElementModified={(id, changes) => handleElementUpdate(id, changes)}
+                      zoom={canvasZoom}
+                      onZoomChange={setCanvasZoom}
+                    />
+                  ) : (
+                    <div className="research-canvas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
+                      <div style={{ color: '#9CA3AF', fontSize: '0.88rem' }}>Loading drawing...</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Element detail panel (right side) */}
+                {selectedElement && (
+                  <ElementDetailPanel
+                    element={selectedElement}
+                    onClose={() => setSelectedElement(null)}
+                    onToggleVisibility={(id, vis) => handleElementUpdate(id, { visible: vis })}
+                    onToggleLock={(id, lock) => handleElementUpdate(id, { locked: lock })}
+                    onUpdateNotes={(id, notes) => handleElementUpdate(id, { user_notes: notes })}
+                    onStyleChange={(id, style) => handleElementUpdate(id, { style: { ...selectedElement.style, ...style } })}
+                    onViewSource={(docId, excerpt) => {
+                      const doc = documents.find(d => d.id === docId);
+                      if (doc) {
+                        setViewerDoc(doc);
+                        setViewerHighlight(excerpt);
+                      }
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Drawing info footer */}
+              <div className="research-drawing__info">
+                <span>{activeDrawing.name} (v{activeDrawing.version})</span>
+                {activeDrawing.comparison_notes && (
+                  <span className="research-drawing__info-notes">{activeDrawing.comparison_notes}</span>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}
