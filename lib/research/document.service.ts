@@ -154,11 +154,12 @@ async function extractFromPdf(buffer: Buffer): Promise<ExtractionResult> {
 
 async function extractFromImage(buffer: Buffer, fileType: string): Promise<ExtractionResult> {
   const base64 = buffer.toString('base64');
-  const mediaType = fileType === 'png' ? 'image/png'
+  const mediaType: 'image/png' | 'image/jpeg' | 'image/webp' =
+    fileType === 'png' ? 'image/png'
     : fileType === 'webp' ? 'image/webp'
     : 'image/jpeg';
 
-  const result = await callVision(base64, mediaType as any);
+  const result = await callVision(base64, mediaType);
   const data = result.response as {
     full_text?: string;
     regions?: { text: string; bbox: unknown; confidence: number }[];

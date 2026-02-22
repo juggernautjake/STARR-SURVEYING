@@ -714,16 +714,16 @@ export default function DrawingCanvas({
           onElementClick(element);
           break;
         case 'hide':
-          onElementModified?.(element.id, { visible: false } as any);
+          onElementModified?.(element.id, { visible: false } as Partial<DrawingElement>);
           break;
         case 'show':
-          onElementModified?.(element.id, { visible: true } as any);
+          onElementModified?.(element.id, { visible: true } as Partial<DrawingElement>);
           break;
         case 'lock':
-          onElementModified?.(element.id, { locked: true } as any);
+          onElementModified?.(element.id, { locked: true } as Partial<DrawingElement>);
           break;
         case 'unlock':
-          onElementModified?.(element.id, { locked: false } as any);
+          onElementModified?.(element.id, { locked: false } as Partial<DrawingElement>);
           break;
         case 'edit_style':
           onElementClick(element); // opens detail panel with style editor
