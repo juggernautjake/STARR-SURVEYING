@@ -443,3 +443,196 @@
 .research-workflow__connector--done {
   background: #059669;
 }
+
+/* ── Project Hub Stats ────────────────────────────────────────────────────── */
+
+.research-hub__stats {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.research-hub__stat {
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 0.85rem 1.25rem;
+  min-width: 100px;
+  text-align: center;
+}
+
+.research-hub__stat-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1F2937;
+}
+
+.research-hub__stat-label {
+  font-size: 0.75rem;
+  color: #9CA3AF;
+  margin-top: 0.15rem;
+}
+
+/* ── Upload Panel ─────────────────────────────────────────────────────────── */
+
+.research-upload {
+  margin-top: 0.5rem;
+}
+
+.research-upload__dropzone {
+  border: 2px dashed #D1D5DB;
+  border-radius: 12px;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #FAFAFA;
+}
+
+.research-upload__dropzone:hover {
+  border-color: #2563EB;
+  background: #EFF6FF;
+}
+
+.research-upload__dropzone--active {
+  border-color: #2563EB;
+  background: #DBEAFE;
+}
+
+.research-upload__dropzone--uploading {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.research-upload__dropzone-icon {
+  font-size: 2rem;
+  color: #9CA3AF;
+  margin-bottom: 0.5rem;
+}
+
+.research-upload__dropzone-text {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.3rem;
+}
+
+.research-upload__dropzone-hint {
+  font-size: 0.8rem;
+  color: #9CA3AF;
+}
+
+.research-upload__actions {
+  margin: 0.75rem 0;
+}
+
+.research-upload__manual-btn {
+  background: none;
+  border: none;
+  color: #2563EB;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.research-upload__manual-btn:hover {
+  text-decoration: underline;
+}
+
+.research-upload__manual-form {
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+/* ── Document List ────────────────────────────────────────────────────────── */
+
+.research-upload__list {
+  margin-top: 1.5rem;
+}
+
+.research-upload__list-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 0.75rem 0;
+}
+
+.research-upload__doc {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  transition: border-color 0.15s;
+}
+
+.research-upload__doc:hover {
+  border-color: #D1D5DB;
+}
+
+.research-upload__doc-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.research-upload__doc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.research-upload__doc-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1F2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.research-upload__doc-meta {
+  display: flex;
+  gap: 0.6rem;
+  font-size: 0.75rem;
+  color: #9CA3AF;
+  margin-top: 0.2rem;
+  flex-wrap: wrap;
+}
+
+.research-upload__doc-meta span::after {
+  content: '\00b7';
+  margin-left: 0.6rem;
+  color: #D1D5DB;
+}
+
+.research-upload__doc-meta span:last-child::after {
+  display: none;
+}
+
+.research-upload__doc-error {
+  font-size: 0.75rem;
+  color: #EF4444;
+  margin-top: 0.2rem;
+}
+
+.research-upload__doc-delete {
+  background: none;
+  border: none;
+  color: #9CA3AF;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.research-upload__doc-delete:hover {
+  color: #EF4444;
+}
