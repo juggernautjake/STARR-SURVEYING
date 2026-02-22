@@ -152,6 +152,82 @@
    FIELDBOOK — Two-Page Notebook Component
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   FLOATING ACTION MENU — Accordion wrapper for FAB buttons
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.fab-menu {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+/* Toggle button (always visible) */
+.fab-menu__toggle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #374151;
+  color: #FFF;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  z-index: 91;
+  opacity: 0.7;
+}
+.fab-menu__toggle:hover {
+  opacity: 1;
+  background: #1F2937;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+}
+.fab-menu__toggle-icon {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Buttons container */
+.fab-menu__buttons {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  overflow: hidden;
+  transition: max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease;
+}
+
+/* Expanded state */
+.fab-menu--expanded .fab-menu__buttons {
+  max-width: 250px;
+  opacity: 1;
+}
+
+/* Collapsed state */
+.fab-menu--collapsed .fab-menu__buttons {
+  max-width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Override child FAB positions: they now flow inside the menu instead of fixed positioning */
+.fab-menu .fieldbook-fab-wrap,
+.fab-menu .discussion-fab-wrap,
+.fab-menu .messenger-fab-wrap {
+  position: static !important;
+  bottom: auto !important;
+  right: auto !important;
+  z-index: auto !important;
+  transform: none !important;
+}
+
 /* FAB button — rightmost in the bottom-right toolbar row */
 .fieldbook-fab-wrap { position:fixed; bottom:1.5rem; right:1.5rem; z-index:90; display:flex; flex-direction:column; align-items:center; }
 .fieldbook-fab { width:48px; height:48px; border-radius:12px; background:#BD1218; color:#FFF; border:none; font-size:1.3rem; cursor:pointer; box-shadow:0 4px 16px rgba(189,18,24,.35); transition:all .2s; display:flex; align-items:center; justify-content:center; position:relative; z-index:2; }

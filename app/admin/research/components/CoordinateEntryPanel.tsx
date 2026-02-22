@@ -167,11 +167,12 @@ export default function CoordinateEntryPanel({
 
   const handleAddAzimuthDistance = useCallback(() => {
     setError(null);
-    const az = parseFloat(azimuthInput);
-    if (isNaN(az) || az < 0 || az >= 360) {
-      setError('Azimuth must be 0-359.999');
+    let az = parseFloat(azimuthInput);
+    if (isNaN(az) || az < 0 || az > 360) {
+      setError('Azimuth must be 0-360');
       return;
     }
+    if (az === 360) az = 0; // Normalize 360 to due north
     const dist = parseFloat(distanceInput);
     if (isNaN(dist) || dist <= 0) {
       setError('Distance must be a positive number');

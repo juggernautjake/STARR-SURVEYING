@@ -90,18 +90,17 @@ export default function AnalysisSummary({ projectId, stats }: AnalysisSummaryPro
 
   if (loading) return null;
 
+  const hasData = summary.callCount > 0 || summary.monumentCount > 0 || stats.data_point_count > 0;
+
   return (
-    <div style={{
-      background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '0.5rem',
-      padding: '1rem 1.25rem', marginBottom: '1rem',
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: expanded ? '0.75rem' : 0 }}>
-        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#166534' }}>
+    <div className="research-analysis-summary">
+      <div className="research-analysis-summary__header">
+        <h3 className="research-analysis-summary__title">
           Analysis Results Summary
         </h3>
         <button
           onClick={() => setExpanded(!expanded)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', fontSize: '0.85rem' }}
+          className="research-analysis-summary__toggle"
         >
           {expanded ? 'Collapse' : 'Expand'}
         </button>
@@ -109,8 +108,14 @@ export default function AnalysisSummary({ projectId, stats }: AnalysisSummaryPro
 
       {expanded && (
         <>
+          {!hasData && (
+            <div className="research-analysis-summary__empty">
+              No boundary calls or monuments were extracted. The analysis may need different document types.
+            </div>
+          )}
+
           {/* Quick stats row */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+          <div className="research-analysis-summary__chips">
             <StatChip label="Boundary Calls" value={summary.callCount} />
             <StatChip label="Monuments" value={summary.monumentCount} />
             <StatChip label="Curves" value={summary.curveCount} />
@@ -125,35 +130,32 @@ export default function AnalysisSummary({ projectId, stats }: AnalysisSummaryPro
 
           {/* POB */}
           {summary.pobDescription && (
-            <div style={{ marginBottom: '0.75rem', fontSize: '0.85rem', color: '#374151' }}>
+            <div className="research-analysis-summary__pob">
               <strong>Point of Beginning:</strong> {summary.pobDescription}
             </div>
           )}
 
           {/* Boundary calls table */}
           {summary.calls.length > 0 && (
-            <div style={{ marginBottom: '0.75rem' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#374151', marginBottom: '0.25rem' }}>
+            <div className="research-analysis-summary__section">
+              <div className="research-analysis-summary__section-title">
                 Boundary Call Sequence ({summary.calls.length} calls)
               </div>
-              <div style={{
-                background: '#FFFFFF', border: '1px solid #D1D5DB', borderRadius: '0.375rem',
-                maxHeight: 200, overflowY: 'auto', fontSize: '0.82rem',
-              }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <div className="research-analysis-summary__table-wrap">
+                <table className="research-analysis-summary__table">
                   <thead>
-                    <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
-                      <th style={{ padding: '0.35rem 0.5rem', textAlign: 'left', fontWeight: 600, color: '#6B7280' }}>#</th>
-                      <th style={{ padding: '0.35rem 0.5rem', textAlign: 'left', fontWeight: 600, color: '#6B7280' }}>Bearing</th>
-                      <th style={{ padding: '0.35rem 0.5rem', textAlign: 'left', fontWeight: 600, color: '#6B7280' }}>Distance</th>
+                    <tr>
+                      <th>#</th>
+                      <th>Bearing</th>
+                      <th>Distance</th>
                     </tr>
                   </thead>
                   <tbody>
                     {summary.calls.map((call, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                        <td style={{ padding: '0.3rem 0.5rem', color: '#9CA3AF' }}>{call.seq}</td>
-                        <td style={{ padding: '0.3rem 0.5rem', fontFamily: 'monospace' }}>{call.bearing || '—'}</td>
-                        <td style={{ padding: '0.3rem 0.5rem', fontFamily: 'monospace' }}>{call.distance || '—'}</td>
+                      <tr key={i}>
+                        <td style={{ color: '#9CA3AF' }}>{call.seq}</td>
+                        <td style={{ fontFamily: 'monospace' }}>{call.bearing || '\u2014'}</td>
+                        <td style={{ fontFamily: 'monospace' }}>{call.distance || '\u2014'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -164,7 +166,7 @@ export default function AnalysisSummary({ projectId, stats }: AnalysisSummaryPro
 
           {/* Monuments list */}
           {summary.monuments.length > 0 && (
-            <div style={{ fontSize: '0.85rem', color: '#374151' }}>
+            <div className="research-analysis-summary__monuments">
               <strong>Monuments:</strong>{' '}
               {summary.monuments.map((m, i) => (
                 <span key={i}>

@@ -126,7 +126,7 @@ export async function createDrawing(
   }
 
   // Transform all element coordinates from survey space to canvas pixel space
-  transformElements(elements, surveyToCanvas, scaleVal, canvasWidth);
+  transformElements(elements, surveyToCanvas);
 
   // Map scale: 1 inch (on screen) = N feet
   const displayScale = Math.round(1 / scaleVal * 96); // 96 DPI assumption
@@ -446,15 +446,7 @@ export async function listDrawings(
 function transformElements(
   elements: DrawingElementInput[],
   surveyToCanvas: (x: number, y: number) => [number, number],
-  scaleVal: number,
-  canvasWidth: number
 ): void {
-  // Scale factor for strokes/fonts: make lines visible at auto-fit zoom.
-  // Canvas is 3600px wide; typical viewer is ~1000px, so auto-fit zoom ≈ 0.28.
-  // A 2px SVG stroke at that zoom = 0.56px on screen → too thin.
-  // Multiply strokes by ~3 so they appear ~2px on screen.
-  const strokeScale = Math.max(1, canvasWidth / 1200);
-
   for (const el of elements) {
     const geom = el.geometry as Record<string, unknown>;
 
@@ -483,16 +475,7 @@ function transformElements(
         break;
       }
     }
-
-    // Scale style values for visibility at auto-fit zoom
-    if (el.style) {
-      const s = el.style as Record<string, unknown>;
-      if (typeof s.strokeWidth === 'number') {
-        s.strokeWidth = Math.round((s.strokeWidth as number) * strokeScale * 10) / 10;
-      }
-      if (typeof s.fontSize === 'number') {
-        s.fontSize = Math.round((s.fontSize as number) * strokeScale);
-      }
-    }
+    // Note: styles are created fresh from drawingConfig in createDrawing(),
+    // so no style scaling is needed here.
   }
 }
