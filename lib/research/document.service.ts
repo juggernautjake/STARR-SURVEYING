@@ -124,7 +124,8 @@ async function extractText(doc: ResearchDocument): Promise<ExtractionResult> {
 async function extractFromPdf(buffer: Buffer): Promise<ExtractionResult> {
   try {
     // Dynamic import — pdf-parse is an optional dependency
-    const pdfParse = (await import('pdf-parse')).default;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = (await import('pdf-parse')).default as unknown as (buf: Buffer) => Promise<{ text: string; numpages: number }>;
     const result = await pdfParse(buffer);
 
     // If we got meaningful text, use it

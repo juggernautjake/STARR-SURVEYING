@@ -368,7 +368,7 @@ export async function listDrawings(
   if (error || !drawings) return [];
 
   // Get element counts
-  const drawingIds = drawings.map(d => d.id);
+  const drawingIds = (drawings as RenderedDrawing[]).map(d => d.id);
   const results: (RenderedDrawing & { element_count: number })[] = [];
 
   for (const drawing of drawings) {

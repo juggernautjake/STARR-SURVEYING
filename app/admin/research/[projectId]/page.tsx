@@ -901,7 +901,7 @@ export default function ResearchProjectPage() {
                 elementCount={drawingElements.length}
                 visibleCount={drawingElements.filter(e => e.visible).length}
                 modifiedCount={drawingElements.filter(e => e.user_modified).length}
-                overallConfidence={activeDrawing.overall_confidence}
+                overallConfidence={activeDrawing.overall_confidence ?? null}
                 hasUnsavedChanges={hasUnsavedChanges}
                 lastSavedAt={lastSavedAt}
                 showUITooltips={showUITooltips}

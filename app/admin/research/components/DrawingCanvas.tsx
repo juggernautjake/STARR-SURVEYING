@@ -793,8 +793,8 @@ export default function DrawingCanvas({
   // ── Render ────────────────────────────────────────────────────────────
 
   // SVG overlay dimensions (match the drawing SVG viewBox)
-  const svgWidth = drawing.svg_width || 1200;
-  const svgHeight = drawing.svg_height || 800;
+  const svgWidth = drawing.canvas_config?.width || 1200;
+  const svgHeight = drawing.canvas_config?.height || 800;
 
   return (
     <div className="research-canvas">

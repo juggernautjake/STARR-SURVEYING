@@ -608,7 +608,7 @@ export async function getAnalysisStatus(projectId: string): Promise<{
     supabaseAdmin.from('discrepancies').select('id', { count: 'exact', head: true }).eq('research_project_id', projectId),
   ]);
 
-  const docs = docsRes.data || [];
+  const docs: { processing_status: string }[] = docsRes.data || [];
   const analyzed = docs.filter(d => d.processing_status === 'analyzed').length;
 
   return {

@@ -37,7 +37,7 @@ export default function DiscrepancyCard({ discrepancy: d, onResolve }: Discrepan
     d.affects_boundary && 'Boundary',
     d.affects_area && 'Area',
     d.affects_closure && 'Closure',
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
 
   return (
     <div className={`research-disc ${isResolved ? 'research-disc--resolved' : ''}`}>
