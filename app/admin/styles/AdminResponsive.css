@@ -126,6 +126,15 @@
   .job-detail__tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 0; }
   .job-detail__tab { white-space: nowrap; padding: 0.5rem 0.65rem; font-size: 0.8rem; }
 
+  /* ── Research ── */
+  .research-page__header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+  .research-page__grid { grid-template-columns: 1fr; }
+  .research-page__controls { flex-direction: column; align-items: stretch; }
+  .research-page__search { min-width: 0; }
+  .research-modal__row { grid-template-columns: 1fr; }
+  .research-hub__stats { gap: 0.75rem; }
+  .research-hub__stat { min-width: 80px; }
+
   /* ── Payroll ── */
   .payroll-summary-cards { grid-template-columns: repeat(2, 1fr); }
   .payroll-balance__overview { grid-template-columns: 1fr; }
@@ -533,6 +542,33 @@
   /* ── Notifications dropdown ── */
   .notif-bell__dropdown { width: calc(100vw - 1.5rem); right: -60px; max-height: 400px; }
 
+  /* ── Research ── */
+  .research-page__title { font-size: 1.25rem; }
+  .research-modal { width: 96%; padding: 1.25rem; border-radius: 12px; }
+  .research-modal__title { font-size: 1.1rem; }
+  .research-page__status-filters { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+  .research-page__status-chip { flex-shrink: 0; font-size: 0.75rem; padding: 0.3rem 0.65rem; }
+  .research-page__new-btn { font-size: 0.82rem; padding: 0.45rem 0.95rem; }
+  .research-card { padding: 1rem; }
+  .research-card__name { font-size: 0.92rem; }
+  .research-upload__dropzone { padding: 1.75rem 1rem; }
+  .research-upload__dropzone-icon { font-size: 1.5rem; }
+  .research-upload__dropzone-text { font-size: 0.88rem; }
+  .research-upload__manual-form { padding: 1rem; }
+  .research-hub__stat { padding: 0.65rem 0.85rem; min-width: 70px; }
+  .research-hub__stat-value { font-size: 1.1rem; }
+  .research-hub__stat-label { font-size: 0.7rem; }
+  .research-page__empty { padding: 2rem 0.75rem; }
+  .research-page__empty-icon { font-size: 2.25rem; }
+  .research-page__empty-title { font-size: 1rem; }
+  .research-page__empty-text { font-size: 0.82rem; }
+  .research-workflow__step { font-size: 0.72rem; padding: 0.3rem 0.5rem; }
+  .research-workflow__step-num { width: 20px; height: 20px; font-size: 0.65rem; }
+  .research-workflow__connector { width: 16px; }
+  .research-upload__doc-name { font-size: 0.82rem; }
+  .research-upload__doc-meta { font-size: 0.7rem; }
+  .research-modal__actions { flex-wrap: wrap; }
+
   /* ── Empty state ── */
   .admin-empty { padding: 2rem 1rem; }
   .admin-empty__icon { font-size: 2rem; }
@@ -607,6 +643,19 @@
   .mynotes-notebook__vis-toggle { font-size: 0.68rem; padding: 0.15rem 0.4rem; }
   .mynotes-notebook__vis-badge { font-size: 0.62rem; }
 
+  /* ── Research ── */
+  .research-page__title { font-size: 1.1rem; }
+  .research-card { padding: 0.85rem; border-radius: 10px; }
+  .research-card__meta { font-size: 0.72rem; gap: 0.6rem; }
+  .research-hub__stat { padding: 0.5rem 0.65rem; }
+  .research-hub__stat-value { font-size: 1rem; }
+  .research-upload__dropzone { padding: 1.25rem 0.75rem; }
+  .research-upload__dropzone-text { font-size: 0.82rem; }
+  .research-upload__dropzone-hint { font-size: 0.72rem; }
+  .research-page__status-chip { font-size: 0.7rem; padding: 0.25rem 0.55rem; }
+  .research-workflow__step { font-size: 0.68rem; padding: 0.25rem 0.35rem; }
+  .research-workflow__connector { width: 12px; }
+
   /* ── Schedule (under construction) ── */
   .sched__month-label { font-size: 0.92rem; }
   .sched__nav-btn { width: 32px; height: 32px; font-size: 0.88rem; }
@@ -625,6 +674,13 @@
   .rewards__hero-amount { font-size: 1.35rem; }
   .hiw__pay-paths { grid-template-columns: 1fr; }
   .pay-prog__current-grid { grid-template-columns: 1fr; }
+
+  /* ── Research ── */
+  .research-hub__stats { flex-direction: column; }
+  .research-hub__stat { min-width: 0; }
+  .research-card__status { font-size: 0.62rem; padding: 0.15rem 0.45rem; }
+  .research-workflow__step { font-size: 0.62rem; }
+  .research-page__new-btn { width: 100%; justify-content: center; }
 
   /* ── My Notes ── */
   .mynotes__tabs { gap: 0; }
@@ -656,6 +712,16 @@
   .tl-tabs__btn { min-height: 44px; }
   .job-detail__tab { min-height: 44px; }
   .tl-day-btn { min-height: 44px; min-width: 44px; }
+  .research-page__new-btn { min-height: 44px; }
+  .research-page__status-chip { min-height: 36px; display: inline-flex; align-items: center; }
+  .research-page__search-btn { min-height: 44px; }
+  .research-page__search-input { min-height: 44px; }
+  .research-modal__cancel { min-height: 44px; }
+  .research-modal__submit { min-height: 44px; }
+  .research-modal__input { min-height: 44px; }
+  .research-modal__select { min-height: 44px; }
+  .research-upload__doc-delete { min-height: 36px; min-width: 36px; display: inline-flex; align-items: center; justify-content: center; }
+  .research-upload__manual-btn { min-height: 44px; display: inline-flex; align-items: center; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -743,7 +809,11 @@
   .sched__form-field input,
   .sched__form-field select,
   .sched__form-field textarea,
-  .msg-settings__select {
+  .msg-settings__select,
+  .research-page__search-input,
+  .research-modal__input,
+  .research-modal__textarea,
+  .research-modal__select {
     font-size: 16px !important;
   }
 }
@@ -970,6 +1040,9 @@
   .profile-page__avatar { width: 52px !important; height: 52px !important; font-size: 1rem !important; }
   .profile-page__stats { gap: 1rem !important; }
 
+  /* Research — override inline styles on project hub */
+  .research-page__grid { grid-template-columns: 1fr !important; }
+
   /* Lesson builder — inline style overrides for blocks */
   .lesson-builder__block-content table { display: block !important; overflow-x: auto !important; }
   .lesson-builder__slideshow-images { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)) !important; }
@@ -1037,6 +1110,9 @@
   .quiz-results__score { font-size: 2rem !important; }
   .quiz-results__actions { flex-direction: column !important; align-items: stretch !important; gap: 0.5rem !important; }
   .quiz-results__actions .admin-btn { text-align: center !important; justify-content: center !important; }
+
+  /* Research — override inline max-width on skeleton loader */
+  .research-card--skeleton { max-width: 100% !important; }
 
   /* Flashcard create form — hints stack vertically on mobile */
   .fc-bank__grid [style*="display: flex"][style*="flex-wrap: wrap"] { flex-direction: column !important; }
