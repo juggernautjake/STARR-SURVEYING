@@ -1446,7 +1446,14 @@ export default function ResearchProjectPage() {
 
       {/* Edit Project Modal */}
       {showEditProject && (
-        <div className="research-modal-overlay" onClick={() => setShowEditProject(false)}>
+        <div
+          className="research-modal-overlay"
+          onClick={() => setShowEditProject(false)}
+          onKeyDown={e => { if (e.key === 'Escape') setShowEditProject(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit Project Details"
+        >
           <div className="research-modal" onClick={e => e.stopPropagation()}>
             <h2 className="research-modal__title">Edit Project Details</h2>
             <form onSubmit={handleSaveProject}>

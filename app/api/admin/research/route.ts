@@ -62,7 +62,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   if (status && status !== 'all') query = query.eq('status', status);
-  if (search) query = query.or(`name.ilike.%${search}%,property_address.ilike.%${search}%,county.ilike.%${search}%`);
+  if (search) {
+    // Sanitize search input: escape special PostgREST characters to prevent filter injection
+    const sanitized = search.replace(/[%_\\(),."']/g, '');
+    if (sanitized) {
+      query = query.or(`name.ilike.%${sanitized}%,property_address.ilike.%${sanitized}%,county.ilike.%${sanitized}%`);
+    }
+  }
 
   const { data, error, count } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -114,12 +120,18 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
 
   // Only allow updating specific fields
   const allowed: Record<string, unknown> = {};
-  if (updates.name !== undefined) allowed.name = updates.name.trim();
+  if (updates.name !== undefined) allowed.name = (updates.name || '').trim();
   if (updates.description !== undefined) allowed.description = updates.description?.trim() || null;
   if (updates.property_address !== undefined) allowed.property_address = updates.property_address?.trim() || null;
   if (updates.county !== undefined) allowed.county = updates.county?.trim() || null;
   if (updates.state !== undefined) allowed.state = updates.state?.trim() || 'TX';
-  if (updates.status !== undefined) allowed.status = updates.status;
+  if (updates.status !== undefined) {
+    const validStatuses = ['upload', 'configure', 'analyzing', 'review', 'drawing', 'verifying', 'complete'];
+    if (!validStatuses.includes(updates.status)) {
+      return NextResponse.json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 });
+    }
+    allowed.status = updates.status;
+  }
   if (updates.analysis_template_id !== undefined) allowed.analysis_template_id = updates.analysis_template_id;
   if (updates.analysis_filters !== undefined) allowed.analysis_filters = updates.analysis_filters;
 

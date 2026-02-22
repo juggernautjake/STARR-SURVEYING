@@ -268,7 +268,14 @@ export default function TemplateManager({
 
       {/* Create Form Modal */}
       {showCreate && (
-        <div className="research-templates__modal-overlay" onClick={() => setShowCreate(false)}>
+        <div
+          className="research-templates__modal-overlay"
+          onClick={() => setShowCreate(false)}
+          onKeyDown={e => { if (e.key === 'Escape') setShowCreate(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`New ${type === 'analysis' ? 'Analysis' : 'Drawing'} Template`}
+        >
           <div className="research-templates__modal" onClick={e => e.stopPropagation()}>
             <h4 className="research-templates__modal-title">
               New {type === 'analysis' ? 'Analysis' : 'Drawing'} Template

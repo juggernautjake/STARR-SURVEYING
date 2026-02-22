@@ -22,8 +22,10 @@ export default function DiscrepancyPanel({ projectId, onCountChange }: Discrepan
   const [loading, setLoading] = useState(true);
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [error, setError] = useState<string | null>(null);
 
   const loadDiscrepancies = useCallback(async () => {
+    setError(null);
     try {
       let url = `/api/admin/research/${projectId}/discrepancies`;
       const params: string[] = [];
@@ -37,8 +39,12 @@ export default function DiscrepancyPanel({ projectId, onCountChange }: Discrepan
         setDiscrepancies(data.discrepancies || []);
         setSummary(data.summary || { total: 0, by_severity: {}, open_count: 0, resolved_count: 0 });
         onCountChange?.(data.summary?.total || 0, data.summary?.resolved_count || 0);
+      } else {
+        setError('Failed to load discrepancies. Please try again.');
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError('Unable to connect. Check your internet connection.');
+    }
     setLoading(false);
   }, [projectId, filterSeverity, filterStatus, onCountChange]);
 
@@ -47,6 +53,7 @@ export default function DiscrepancyPanel({ projectId, onCountChange }: Discrepan
   }, [loadDiscrepancies]);
 
   async function handleResolve(discrepancyId: string, status: ResolutionStatus, notes: string) {
+    setError(null);
     try {
       const res = await fetch(`/api/admin/research/${projectId}/discrepancies/${discrepancyId}`, {
         method: 'PATCH',
@@ -55,8 +62,13 @@ export default function DiscrepancyPanel({ projectId, onCountChange }: Discrepan
       });
       if (res.ok) {
         await loadDiscrepancies();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Failed to update discrepancy. Please try again.');
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError('Unable to save changes. Check your internet connection.');
+    }
   }
 
   // Severity order for display (most severe first)
@@ -81,6 +93,14 @@ export default function DiscrepancyPanel({ projectId, onCountChange }: Discrepan
 
   return (
     <div className="research-disc-panel">
+      {/* Error banner */}
+      {error && (
+        <div className="research-disc-panel__error" style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+          {error}
+          <button onClick={() => setError(null)} style={{ float: 'right', background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontWeight: 'bold' }}>&times;</button>
+        </div>
+      )}
+
       {/* Summary bar */}
       <div className="research-disc-panel__summary">
         <span className="research-disc-panel__summary-total">
