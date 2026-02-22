@@ -1,9 +1,11 @@
 # AI Property Research & Plat Drawing Renderer — Implementation Plan
 
-**Starr Software · Starr Compass Feature Module**
-**Version 3.0 · February 2026**
+**Starr Surveying · Admin Dashboard Feature Module**
+**Version 3.1 · February 2026**
 
 > This document is the complete, step-by-step implementation plan for the AI-powered property research analysis and plat drawing renderer feature. It is written for use as a Claude Code instruction document. Each phase is self-contained and can be built independently. Work through them in order — each phase depends on the ones before it.
+>
+> **Important:** This plan has been adapted to match the actual STARR-SURVEYING codebase architecture — a single Next.js 14 app (not a monorepo) using Supabase/PostgreSQL, NextAuth, Tailwind CSS, and the Anthropic SDK.
 
 ---
 
@@ -30,63 +32,113 @@
 
 ## Architecture Overview
 
-### Where This Feature Lives in the Monorepo
+### Where This Feature Lives in the Codebase
 
-This feature is a **Starr Compass** module. It follows the existing monorepo conventions exactly.
+This feature follows the existing STARR-SURVEYING conventions — a single Next.js 14 App Router project with Supabase, NextAuth, and Tailwind CSS.
 
 ```
-starr-software/
-├── apps/web/
-│   └── app/
-│       └── compass/
-│           └── research/              ← NEW: all research UI pages
-│               ├── page.tsx           ← project list
-│               ├── new/page.tsx       ← create new research project
-│               └── [projectId]/
-│                   ├── page.tsx       ← project hub (7-step workflow)
-│                   ├── upload/page.tsx
-│                   ├── configure/page.tsx
-│                   ├── analyze/page.tsx
-│                   ├── review/page.tsx
-│                   ├── draw/page.tsx
-│                   ├── verify/page.tsx
-│                   └── export/page.tsx
-├── packages/api/src/
-│   └── routes/
-│       └── research.ts               ← NEW: all REST endpoints
-│   └── services/
-│       └── research/                  ← NEW: business logic
-│           ├── analysis.service.ts
-│           ├── document.service.ts
-│           ├── drawing.service.ts
-│           ├── comparison.service.ts
-│           ├── search.service.ts
-│           └── ai-client.ts          ← Claude API wrapper with parameterized prompts
-├── packages/database/
-│   └── migrations/
-│       └── 012_research_tables.sql   ← NEW: all research tables
-├── packages/shared/
-│   └── types/
-│       └── research.ts               ← NEW: shared TypeScript interfaces
-├── packages/ui/
-│   └── components/
-│       └── research/                  ← NEW: shared research UI components
+STARR-SURVEYING/
+├── app/
+│   └── admin/
+│       └── research/                      ← NEW: all research UI pages
+│           ├── page.tsx                   ← project list
+│           ├── new/page.tsx               ← create new research project
+│           ├── components/                ← research-specific components
+│           │   ├── SourceDocumentViewer.tsx
+│           │   ├── DrawingCanvas.tsx
+│           │   ├── DrawingViewToolbar.tsx
+│           │   ├── ElementDetailPanel.tsx
+│           │   ├── DiscrepancyCard.tsx
+│           │   └── WorkflowStepper.tsx
+│           └── [projectId]/
+│               ├── page.tsx               ← project hub (7-step workflow)
+│               ├── upload/page.tsx
+│               ├── configure/page.tsx
+│               ├── analyze/page.tsx
+│               ├── review/page.tsx
+│               ├── draw/page.tsx
+│               ├── verify/page.tsx
+│               └── export/page.tsx
+│   └── api/
+│       └── admin/
+│           └── research/                  ← NEW: Next.js Route Handlers
+│               ├── route.ts              ← GET (list) + POST (create) projects
+│               ├── [projectId]/
+│               │   ├── route.ts          ← GET + PATCH + DELETE project
+│               │   ├── documents/
+│               │   │   ├── route.ts      ← GET (list) + POST (upload) documents
+│               │   │   ├── manual/route.ts ← POST manual entry
+│               │   │   └── [docId]/
+│               │   │       ├── route.ts  ← GET + DELETE document
+│               │   │       └── content/route.ts ← GET extracted text / signed URL
+│               │   ├── search/
+│               │   │   ├── route.ts      ← POST property search
+│               │   │   └── import/route.ts ← POST import selected results
+│               │   ├── analyze/
+│               │   │   ├── route.ts      ← POST start analysis
+│               │   │   └── status/route.ts ← GET analysis progress
+│               │   ├── data-points/
+│               │   │   ├── route.ts      ← GET all extracted data points
+│               │   │   └── [dpId]/route.ts ← GET single data point
+│               │   ├── discrepancies/
+│               │   │   ├── route.ts      ← GET all discrepancies
+│               │   │   └── [dId]/route.ts ← PATCH resolve discrepancy
+│               │   └── drawings/
+│               │       ├── route.ts      ← POST (render) + GET (list) drawings
+│               │       └── [drawingId]/
+│               │           ├── route.ts  ← GET drawing metadata
+│               │           ├── elements/
+│               │           │   ├── route.ts ← GET all elements
+│               │           │   └── [eId]/route.ts ← PATCH update element
+│               │           ├── svg/route.ts ← GET rendered SVG
+│               │           ├── compare/route.ts ← POST run comparison
+│               │           └── export/route.ts ← POST export to format
+│               └── templates/
+│                   ├── analysis/route.ts  ← GET + POST analysis templates
+│                   ├── drawing/route.ts   ← GET + POST drawing templates
+│                   └── [type]/[id]/route.ts ← PATCH + DELETE template
+├── lib/
+│   └── research/                          ← NEW: business logic & services
+│       ├── analysis.service.ts
+│       ├── document.service.ts
+│       ├── drawing.service.ts
+│       ├── comparison.service.ts
+│       ├── search.service.ts
+│       ├── geometry.engine.ts             ← bearing/distance → coordinate math
+│       ├── normalization.ts               ← deterministic data normalization
+│       ├── svg.renderer.ts                ← SVG generation engine
+│       ├── prompts.ts                     ← versioned AI system prompts
+│       └── ai-client.ts                   ← Claude API wrapper
+├── types/
+│   └── research.ts                        ← NEW: TypeScript interfaces
+├── seeds/
+│   └── 090_research_tables.sql            ← NEW: all research tables + seed data
 ```
+
+**Conventions this follows from the existing codebase:**
+- UI pages under `app/admin/` (matches `app/admin/jobs/`, `app/admin/learn/`, etc.)
+- API routes under `app/api/admin/` (matches `app/api/admin/jobs/`, `app/api/admin/learn/`, etc.)
+- Business logic in `lib/` (matches `lib/auth.ts`, `lib/problemEngine.ts`, etc.)
+- Types in `types/` (matches `types/index.ts`, `types/next-auth.d.ts`)
+- Database seeds in `seeds/` with numeric prefix ordering
+- Auth via `auth()` from `@/lib/auth` + `withErrorHandler()` from `@/lib/apiErrorHandler`
+- Supabase client via `supabaseAdmin` from `@/lib/supabase`
 
 ### Tech Stack for This Feature
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| Frontend | Next.js 14 App Router, React, Tailwind | UI pages and components |
+| Frontend | Next.js 14 App Router, React 18, Tailwind CSS | UI pages and components |
 | Canvas | Fabric.js | Interactive drawing editor |
 | SVG Renderer | Custom TypeScript engine | Geometry → SVG conversion |
-| AI | Claude API (claude-sonnet-4-20250514) | Document analysis, data extraction, confidence scoring |
+| AI | `@anthropic-ai/sdk` (^0.74.0, already installed) | Document analysis, data extraction, confidence scoring |
 | PDF Processing | pdf-parse + sharp | Text extraction from PDFs, image processing |
 | OCR | Claude Vision API | Reading scanned documents and plat drawings |
-| Database | PostgreSQL | All project, document, element, and drawing data |
-| File Storage | AWS S3 | Uploaded documents and rendered drawings |
+| Database | Supabase (PostgreSQL) | All project, document, element, and drawing data |
+| File Storage | Supabase Storage or AWS S3 | Uploaded documents and rendered drawings |
 | Export | jspdf + dxf-writer | PDF and DXF export of rendered drawings |
-| API | Express REST | All backend endpoints |
+| API | Next.js Route Handlers (`app/api/`) | All backend endpoints |
+| Auth | NextAuth v5 (already configured) | Session management, role-based access |
 
 ### Data Flow Summary
 
@@ -129,9 +181,11 @@ Export
 
 ## Phase 1: Database Schema
 
-**Migration file:** `packages/database/migrations/012_research_tables.sql`
+**Seed file:** `seeds/090_research_tables.sql`
 
-**Prerequisite:** Existing tables from migrations 001-011 (organizations, users, projects, documents, etc.)
+**Prerequisite:** Existing tables from seeds 000-080 (`registered_users`, `jobs`, `learning_modules`, etc.)
+
+> **Note on multi-tenancy:** The current STARR-SURVEYING app is single-tenant (one company). The schema below includes `organization_id` columns as UUID placeholders for future white-label/multi-tenant support (Phase 14). For now, use a hardcoded default org UUID or simply leave these nullable. The `created_by` column references the `registered_users` table which is the actual user table in this codebase. The `users(id)` references in SQL below should be read as `registered_users(id)` — adjust the FK target when implementing.
 
 ### 1.1 research_projects
 
@@ -712,13 +766,14 @@ CREATE INDEX idx_drawing_templates_org ON drawing_templates(organization_id);
 
 ### 1.9 Phase 1 Deliverables Checklist
 
-- [ ] Migration `012_research_tables.sql` created and runs cleanly
+- [ ] Seed file `seeds/090_research_tables.sql` created and runs cleanly in Supabase
 - [ ] All 8 tables created with correct foreign keys and indexes
-- [ ] TypeScript row types added to `packages/shared/types/research.ts`
-- [ ] Zod validation schemas added to `packages/shared/schemas/research.ts`
+- [ ] FK references adapted: `users(id)` → `registered_users(id)`, `organization_id` nullable for single-tenant
+- [ ] TypeScript row types added to `types/research.ts`
+- [ ] Zod validation schemas added to `types/research.schemas.ts` (optional — can defer to Phase 11)
 - [ ] Seed data: 3 system analysis templates (Full Survey, Boundary Only, Deed Research)
 - [ ] Seed data: 2 system drawing templates (Standard B&W, Professional Color)
-- [ ] `pnpm db:migrate` succeeds in dev, staging, and CI environments
+- [ ] SQL runs successfully via Supabase SQL Editor or `psql`
 
 ---
 
@@ -726,9 +781,11 @@ CREATE INDEX idx_drawing_templates_org ON drawing_templates(organization_id);
 
 ### 2.1 Upload API Endpoint
 
-**File:** `packages/api/src/routes/research.ts` (partial — upload section)
+**File:** `app/api/admin/research/[projectId]/documents/route.ts`
 
-The upload endpoint accepts multipart form data, stores files in S3, creates `research_documents` records, and triggers the processing pipeline.
+The upload endpoint accepts multipart form data, stores files in Supabase Storage (or S3), creates `research_documents` records, and triggers the processing pipeline.
+
+> **Auth pattern:** All API routes follow the existing pattern from the codebase — wrap with `withErrorHandler()` from `@/lib/apiErrorHandler`, check session with `auth()` from `@/lib/auth`, and use `supabaseAdmin` from `@/lib/supabase` for database queries. See `app/api/admin/learn/ai-grade/route.ts` for the reference implementation.
 
 ```
 POST /api/research/:projectId/documents
@@ -752,7 +809,7 @@ Processing happens asynchronously after upload. The pipeline has three stages:
 **Stage 1: Text Extraction**
 
 ```typescript
-// packages/api/src/services/research/document.service.ts
+// lib/research/document.service.ts
 
 async function extractText(document: ResearchDocument): Promise<string> {
     switch (document.file_type) {
@@ -934,7 +991,7 @@ This is the core value of the feature. The AI reads all processed documents and 
 ### 4.1 Analysis Orchestration
 
 ```typescript
-// packages/api/src/services/research/analysis.service.ts
+// lib/research/analysis.service.ts
 
 async function analyzeProject(projectId: string, config: AnalysisConfig): Promise<AnalysisResult> {
     // 1. Load all processed documents
@@ -993,7 +1050,7 @@ async function extractFromDocument(doc: ResearchDocument, config: AnalysisConfig
 All extracted values are converted to a machine-readable normalized form so the drawing renderer can use them. This is a code function, NOT an AI call — it must be deterministic.
 
 ```typescript
-// packages/api/src/services/research/normalization.ts
+// lib/research/normalization.ts
 
 interface NormalizedBearing {
     quadrant: 'NE' | 'NW' | 'SE' | 'SW';
@@ -1154,7 +1211,7 @@ function detectMathDiscrepancies(dataPoints: NormalizedDataPoint[]): Discrepancy
 
 ### 5.1 Results Page Layout
 
-The review page (`/compass/research/[projectId]/review`) displays:
+The review page (`/admin/research/[projectId]/review`) displays:
 
 1. **Data summary cards** — grouped by category (Boundary Calls, Monuments, Easements, etc.)
 2. **Each data point** has:
@@ -1206,7 +1263,7 @@ Each discrepancy card shows:
 When the user clicks "View in Deed" or the info-button hyperlink:
 
 ```typescript
-// apps/web/app/compass/research/[projectId]/components/SourceDocumentViewer.tsx
+// app/admin/research/components/SourceDocumentViewer.tsx
 
 interface SourceDocumentViewerProps {
     documentId: string;
@@ -1239,7 +1296,7 @@ interface SourceDocumentViewerProps {
 The geometry engine converts surveying calls (bearing + distance) into screen coordinates. This is pure math — no AI involved. It must be deterministic.
 
 ```typescript
-// packages/api/src/services/research/geometry.engine.ts
+// lib/research/geometry.engine.ts
 
 interface Point2D { x: number; y: number; }
 
@@ -1516,7 +1573,7 @@ async function generateElementReports(
 The SVG renderer converts `drawing_elements` into a complete SVG document. This runs both server-side (for export) and client-side (for display).
 
 ```typescript
-// packages/api/src/services/research/svg.renderer.ts
+// lib/research/svg.renderer.ts
 
 function renderDrawingSVG(
     drawing: RenderedDrawing,
@@ -1598,7 +1655,7 @@ function renderElement(element: DrawingElement, style: ElementStyle, viewMode: V
 The client-side canvas uses Fabric.js for interactive editing:
 
 ```typescript
-// apps/web/app/compass/research/[projectId]/components/DrawingCanvas.tsx
+// app/admin/research/components/DrawingCanvas.tsx
 
 interface DrawingCanvasProps {
     drawing: RenderedDrawing;
@@ -1693,7 +1750,7 @@ type ViewMode = 'standard' | 'feature' | 'confidence' | 'discrepancy' | 'custom'
 ### 8.2 View Mode Toolbar
 
 ```typescript
-// apps/web/app/compass/research/[projectId]/components/DrawingViewToolbar.tsx
+// app/admin/research/components/DrawingViewToolbar.tsx
 
 // Renders as a horizontal toolbar above the canvas:
 // [Standard] [Feature ▼] [Confidence] [Discrepancy] [Custom ▼]
@@ -1714,7 +1771,7 @@ type ViewMode = 'standard' | 'feature' | 'confidence' | 'discrepancy' | 'custom'
 When the user clicks any element on the canvas:
 
 ```typescript
-// apps/web/app/compass/research/[projectId]/components/ElementDetailPanel.tsx
+// app/admin/research/components/ElementDetailPanel.tsx
 
 // Slides in from the right side. Shows:
 //
@@ -1909,7 +1966,7 @@ Step 7: Export      → Export to SVG/PNG/PDF/DXF, save to project documents
 ### 10.2 Project Hub Page
 
 ```
-/compass/research/[projectId]
+/admin/research/[projectId]
 
 ┌──────────────────────────────────────────────────────────────────┐
 │  Property Research: 1234 Main St, Belton, TX                     │
@@ -1930,34 +1987,41 @@ Step 7: Export      → Export to SVG/PNG/PDF/DXF, save to project documents
 
 ### 10.3 Sidebar Integration
 
-Add to the Compass sidebar navigation:
+Add to the admin sidebar navigation (same pattern as existing `/admin/jobs`, `/admin/learn` entries):
 
 ```typescript
-// Under the Compass product nav
+// In the admin sidebar component, add alongside existing nav items like Jobs, Learn, etc.
 {
     label: 'Property Research',
-    icon: SearchIcon,
-    href: '/compass/research',
-    requiredModule: 'compass_research',  // feature module gate
+    icon: SearchIcon,  // or MagnifyingGlassIcon from heroicons
+    href: '/admin/research',
     children: [
-        { label: 'All Projects', href: '/compass/research' },
-        { label: 'New Research', href: '/compass/research/new' },
-        { label: 'Templates', href: '/compass/research/templates' }
+        { label: 'All Projects', href: '/admin/research' },
+        { label: 'New Research', href: '/admin/research/new' },
+        { label: 'Templates', href: '/admin/research/templates' }
     ]
 }
 ```
 
+Also add to `middleware.ts` ADMIN_ONLY_ROUTES (admin-only access for now):
+```typescript
+const ADMIN_ONLY_ROUTES = [
+  // ... existing routes ...
+  '/admin/research',        // Property Research
+];
+```
+
 ### 10.4 Phase 10 Deliverables Checklist
 
-- [ ] Project list page at `/compass/research` with search, filter, sort
+- [ ] Project list page at `/admin/research` with search, filter, sort
 - [ ] New project creation page with name, address, description fields
 - [ ] Project hub page with 7-step workflow visualization
-- [ ] Each step has its own page under `/compass/research/[projectId]/[step]`
+- [ ] Each step has its own page under `/admin/research/[projectId]/[step]`
 - [ ] Workflow state tracked in `research_projects.status`
 - [ ] Back navigation allowed to any completed step
 - [ ] Step completion validation (can't skip to Draw without Analyze)
-- [ ] Sidebar navigation added under Compass product
-- [ ] Feature module gate: `compass_research` module required
+- [ ] Sidebar navigation added to admin dashboard (matching existing Jobs/Learn pattern)
+- [ ] Route added to `ADMIN_ONLY_ROUTES` in `middleware.ts`
 
 ---
 
@@ -1965,7 +2029,23 @@ Add to the Compass sidebar navigation:
 
 ### 11.1 Complete Route List
 
-All routes are in `packages/api/src/routes/research.ts` and follow existing Express patterns.
+All routes use Next.js Route Handlers under `app/api/admin/research/` and follow the existing patterns in the codebase (see `app/api/admin/jobs/route.ts`, `app/api/admin/learn/ai-grade/route.ts` for reference).
+
+**Pattern for every route:**
+```typescript
+import { auth } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { supabaseAdmin } from '@/lib/supabase';
+
+export const POST = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  // ... route logic using supabaseAdmin
+}, { routeName: 'research/...' });
+```
 
 **Projects**
 ```
@@ -2030,13 +2110,14 @@ DELETE /api/research/templates/:type/:id         → Delete template
 
 ### 11.2 Phase 11 Deliverables Checklist
 
-- [ ] All 25+ endpoints implemented with proper auth and RBAC
-- [ ] Request validation with Zod schemas
-- [ ] Pagination on list endpoints (cursor-based, matching existing API pattern)
-- [ ] Error responses follow existing `{ error: string, code: string }` format
+- [ ] All 25+ endpoints implemented as Next.js Route Handlers with `withErrorHandler()` wrapper
+- [ ] Auth check via `auth()` on every endpoint, role check via `isAdmin()` from `@/lib/auth`
+- [ ] Request validation with Zod schemas (or inline validation matching existing API patterns)
+- [ ] Pagination on list endpoints (offset-based, matching existing `?page=1&limit=20` pattern)
+- [ ] Error responses follow existing `{ error: string }` format
 - [ ] Rate limiting on analysis and search endpoints
-- [ ] File upload size limits enforced
-- [ ] All endpoints gated by `compass_research` feature module
+- [ ] File upload size limits enforced via Next.js config (`next.config.js`)
+- [ ] Route added to `ADMIN_ONLY_ROUTES` in `middleware.ts`
 
 ---
 
@@ -2143,7 +2224,7 @@ function renderToDxf(drawing: RenderedDrawing, elements: DrawingElement[]): Buff
 All prompts live in one file with version numbers:
 
 ```typescript
-// packages/api/src/services/research/prompts.ts
+// lib/research/prompts.ts
 
 export const PROMPTS = {
     // Version all prompts — when you change a prompt, increment the version
@@ -2351,7 +2432,7 @@ RESPOND WITH:
 All AI calls go through a single wrapper that enforces consistency:
 
 ```typescript
-// packages/api/src/services/research/ai-client.ts
+// lib/research/ai-client.ts
 
 interface AICallOptions {
     promptKey: keyof typeof PROMPTS;
@@ -2373,7 +2454,7 @@ async function callAI(options: AICallOptions): Promise<AICallResult> {
     const startTime = Date.now();
     
     const response = await anthropicClient.messages.create({
-        model: 'claude-sonnet-4-20250514',       // LOCKED — do not change without testing
+        model: 'claude-sonnet-4-5-20250929',       // LOCKED — do not change without testing
         max_tokens: options.maxTokens || 8192,
         temperature: options.overrideTemperature ?? prompt.temperature,
         system: prompt.system,
@@ -2386,7 +2467,7 @@ async function callAI(options: AICallOptions): Promise<AICallResult> {
     await logAICall({
         promptKey: options.promptKey,
         promptVersion: prompt.version,
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5-20250929',
         tokensUsed: { input: response.usage.input_tokens, output: response.usage.output_tokens },
         latencyMs: Date.now() - startTime,
         success: true
@@ -2395,7 +2476,7 @@ async function callAI(options: AICallOptions): Promise<AICallResult> {
     return {
         response: result,
         promptVersion: prompt.version,
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-5-20250929',
         tokensUsed: { input: response.usage.input_tokens, output: response.usage.output_tokens },
         latencyMs: Date.now() - startTime
     };
@@ -2408,7 +2489,7 @@ async function callAI(options: AICallOptions): Promise<AICallResult> {
 |-----------|---------------|
 | **Same input → same extraction** | Temperature 0.0 for all extraction/analysis prompts |
 | **Prompt versioning** | Every prompt has a version string; logged with every AI call |
-| **Model pinned** | `claude-sonnet-4-20250514` hardcoded; model changes require full regression testing |
+| **Model pinned** | `claude-sonnet-4-5-20250929` hardcoded; model changes require full regression testing |
 | **Normalization is code, not AI** | Bearing/distance/curve parsing is deterministic TypeScript — AI extracts raw text, code normalizes it |
 | **Discrepancy thresholds are code** | Tolerance values (5 arc-seconds, 0.05 feet, etc.) are constants in code, not in prompts |
 | **Reproducible analysis** | Each research project stores the prompt versions used; re-running analysis with the same prompts produces the same results |
@@ -2434,7 +2515,7 @@ async function callAI(options: AICallOptions): Promise<AICallResult> {
 To sell this as a standalone product to other surveying firms, civil engineering firms, and education institutions:
 
 ```typescript
-// packages/shared/config/white-label.ts
+// lib/research/white-label.config.ts
 
 interface WhiteLabelConfig {
     // Branding
@@ -2518,36 +2599,39 @@ interface EducationConfig extends WhiteLabelConfig {
 
 ### 15.1 New Dependencies
 
-Add to `packages/api/package.json`:
+Add to `package.json` (the single project-level package.json):
 ```json
 {
-    "pdf-parse": "^1.1.1",
-    "sharp": "^0.33.0",
-    "mammoth": "^1.8.0",
-    "dxf-writer": "^2.0.0",
-    "jspdf": "^2.5.1",
-    "@anthropic-ai/sdk": "^0.30.0"
+    "dependencies": {
+        "pdf-parse": "^1.1.1",
+        "sharp": "^0.33.0",
+        "mammoth": "^1.8.0",
+        "dxf-writer": "^2.0.0",
+        "jspdf": "^2.5.1",
+        "fabric": "^6.0.0"
+    }
 }
 ```
 
-Add to `apps/web/package.json`:
-```json
-{
-    "fabric": "^6.0.0"
-}
-```
+> **Note:** `@anthropic-ai/sdk` is already installed at `^0.74.0` — do NOT downgrade it. The existing `app/api/admin/learn/ai-grade/route.ts` already uses this SDK successfully.
 
 ### 15.2 Environment Variables
 
-Add to `.env.example`:
+Add to `.env.example` (which already exists in the project root):
 ```env
-# AI Property Research
-ANTHROPIC_API_KEY=sk-ant-...
-RESEARCH_AI_MODEL=claude-sonnet-4-20250514
+# AI Property Research (Phase 2+)
+# ANTHROPIC_API_KEY is already defined in .env.example — reuse it
+RESEARCH_AI_MODEL=claude-sonnet-4-5-20250929
 RESEARCH_MAX_FILE_SIZE_MB=50
 RESEARCH_MAX_PROJECT_STORAGE_MB=500
-RESEARCH_S3_BUCKET=starr-research-documents
-RESEARCH_S3_REGION=us-east-1
+
+# File Storage — use Supabase Storage or S3
+# If using Supabase Storage, no extra env vars needed (uses NEXT_PUBLIC_SUPABASE_URL)
+# If using S3:
+# RESEARCH_S3_BUCKET=starr-research-documents
+# RESEARCH_S3_REGION=us-east-1
+# AWS_ACCESS_KEY_ID=...
+# AWS_SECRET_ACCESS_KEY=...
 
 # Property Search APIs (Phase 3)
 TNRIS_API_KEY=...
@@ -2599,7 +2683,7 @@ Priority 5 (Scale):
 
 ## Appendix A: TypeScript Interfaces
 
-These go in `packages/shared/types/research.ts`:
+These go in `types/research.ts` (alongside existing `types/index.ts` and `types/next-auth.d.ts`):
 
 ```typescript
 // Core project types
@@ -2646,15 +2730,19 @@ export interface ExportDrawingRequest { format: 'svg' | 'png' | 'pdf' | 'dxf'; v
 
 ---
 
-## Appendix B: Feature Module Registration
+## Appendix B: Middleware & Route Protection
 
-Register the new feature module so it can be gated per organization:
+Add research routes to the existing middleware role protection in `middleware.ts`:
 
-```sql
--- Add to seed data or as a migration
-INSERT INTO feature_modules (key, name, description, product) VALUES
-('compass_research', 'Property Research & Analysis', 'AI-powered property research with document analysis, data extraction, discrepancy detection, and plat drawing rendering', 'compass');
+```typescript
+// In middleware.ts — add to ADMIN_ONLY_ROUTES array
+const ADMIN_ONLY_ROUTES = [
+  // ... existing routes ...
+  '/admin/research',
+];
 ```
+
+> **Note:** The existing codebase does not have a `feature_modules` table or feature-gating system. For Phase 14 (white-label), we may introduce one. For now, route protection via `middleware.ts` + `auth()` role checks is sufficient and consistent with the rest of the app.
 
 ---
 
