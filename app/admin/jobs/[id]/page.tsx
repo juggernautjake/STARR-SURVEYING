@@ -17,6 +17,7 @@ import JobTimeTracker from '../../components/jobs/JobTimeTracker';
 import FieldWorkView from '../../components/jobs/FieldWorkView';
 import type { FieldPoint, JobContext } from '../../components/jobs/FieldWorkView';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
+import Tooltip from '../../research/components/Tooltip';
 
 interface Job {
   id: string;
@@ -55,12 +56,12 @@ interface Job {
 }
 
 const TABS = [
-  { key: 'overview', label: 'Overview', icon: '📋' },
-  { key: 'research', label: 'Research', icon: '🔍' },
-  { key: 'fieldwork', label: 'Field Work', icon: '🏗️' },
-  { key: 'files', label: 'Files', icon: '📁' },
-  { key: 'financial', label: 'Financial', icon: '💰' },
-  { key: 'messages', label: 'Messages', icon: '💬' },
+  { key: 'overview', label: 'Overview', icon: '📋', tip: 'Job summary with property details, client information, team assignments, equipment, and stage checklists. This is your central dashboard for the job.' },
+  { key: 'research', label: 'Research', icon: '🔍', tip: 'Deed records, plat maps, previous surveys, legal descriptions, and other research documents organized by category. Upload and manage all background research for this job.' },
+  { key: 'fieldwork', label: 'Field Work', icon: '🏗️', tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
+  { key: 'files', label: 'Files', icon: '📁', tip: 'All uploaded files for this job — drawings, documents, images, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
+  { key: 'financial', label: 'Financial', icon: '💰', tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
+  { key: 'messages', label: 'Messages', icon: '💬', tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
 ];
 
 export default function JobDetailPage() {
@@ -317,22 +318,30 @@ export default function JobDetailPage() {
 
         {/* Quick stats */}
         <div className="job-detail__stats">
-          <div className="job-detail__stat">
-            <span className="job-detail__stat-value">{job.team.length}</span>
-            <span className="job-detail__stat-label">Team</span>
-          </div>
-          <div className="job-detail__stat">
-            <span className="job-detail__stat-value">{job.file_count}</span>
-            <span className="job-detail__stat-label">Files</span>
-          </div>
-          <div className="job-detail__stat">
-            <span className="job-detail__stat-value">{job.total_hours}h</span>
-            <span className="job-detail__stat-label">Time</span>
-          </div>
-          <div className="job-detail__stat">
-            <span className="job-detail__stat-value">${(job.quote_amount || 0).toLocaleString()}</span>
-            <span className="job-detail__stat-label">Quote</span>
-          </div>
+          <Tooltip text="Number of team members currently assigned to this job, including the lead RPLS, field crew, and office staff." position="bottom">
+            <div className="job-detail__stat">
+              <span className="job-detail__stat-value">{job.team.length}</span>
+              <span className="job-detail__stat-label">Team</span>
+            </div>
+          </Tooltip>
+          <Tooltip text="Total number of files uploaded to this job, including documents, drawings, field data, images, and CAD files." position="bottom">
+            <div className="job-detail__stat">
+              <span className="job-detail__stat-value">{job.file_count}</span>
+              <span className="job-detail__stat-label">Files</span>
+            </div>
+          </Tooltip>
+          <Tooltip text="Total hours logged by all team members on this job across all work types (field work, office, travel, etc.)." position="bottom">
+            <div className="job-detail__stat">
+              <span className="job-detail__stat-value">{job.total_hours}h</span>
+              <span className="job-detail__stat-label">Time</span>
+            </div>
+          </Tooltip>
+          <Tooltip text="The quoted price for this survey job. View the Financial tab for payment details, invoicing, and profitability analysis." position="bottom">
+            <div className="job-detail__stat">
+              <span className="job-detail__stat-value">${(job.quote_amount || 0).toLocaleString()}</span>
+              <span className="job-detail__stat-label">Quote</span>
+            </div>
+          </Tooltip>
         </div>
 
         {/* Tags */}
@@ -356,14 +365,15 @@ export default function JobDetailPage() {
       {/* Tabs */}
       <div className="job-detail__tabs">
         {TABS.map(tab => (
-          <button
-            key={tab.key}
-            className={`job-detail__tab ${activeTab === tab.key ? 'job-detail__tab--active' : ''}`}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            <span className="job-detail__tab-icon">{tab.icon}</span>
-            {tab.label}
-          </button>
+          <Tooltip key={tab.key} text={tab.tip} position="bottom" delay={600}>
+            <button
+              className={`job-detail__tab ${activeTab === tab.key ? 'job-detail__tab--active' : ''}`}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              <span className="job-detail__tab-icon">{tab.icon}</span>
+              {tab.label}
+            </button>
+          </Tooltip>
         ))}
       </div>
 

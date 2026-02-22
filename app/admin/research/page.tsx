@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
 import type { ResearchProject, WorkflowStep } from '@/types/research';
 import { WORKFLOW_STEPS } from '@/types/research';
+import Tooltip from './components/Tooltip';
+import AddressAutocomplete from '../components/AddressAutocomplete';
 
 const STATUS_LABELS: Record<WorkflowStep, string> = {
   upload: 'Upload',
@@ -155,14 +157,24 @@ export default function ResearchListPage() {
             )}
           </form>
           <div className="research-page__status-filters">
-            {['all', 'upload', 'configure', 'analyzing', 'review', 'drawing', 'verifying', 'complete'].map(s => (
-              <button
-                key={s}
-                className={`research-page__status-chip ${statusFilter === s ? 'research-page__status-chip--active' : ''}`}
-                onClick={() => setStatusFilter(s)}
-              >
-                {s === 'all' ? 'All' : STATUS_LABELS[s as WorkflowStep]}
-              </button>
+            {[
+              { key: 'all', tip: 'Show all research projects regardless of their current workflow stage.' },
+              { key: 'upload', tip: 'Projects in the document upload phase. Deed records, plats, and other source documents are being added for AI analysis.' },
+              { key: 'configure', tip: 'Projects being configured for analysis. Select which data categories to extract and choose an analysis template.' },
+              { key: 'analyzing', tip: 'Projects currently being analyzed by AI. Documents are being processed to extract bearings, distances, monuments, and other survey data.' },
+              { key: 'review', tip: 'Projects with completed analysis ready for review. Extracted data points and discrepancies between documents can be inspected and verified.' },
+              { key: 'drawing', tip: 'Projects in the drawing generation phase. AI is creating survey plat drawings from the extracted data with proper geometry and annotations.' },
+              { key: 'verifying', tip: 'Projects where the AI-generated drawing is being compared against source documents to verify accuracy and flag any discrepancies.' },
+              { key: 'complete', tip: 'Completed research projects. All documents have been analyzed, drawings generated, and verification completed.' },
+            ].map(s => (
+              <Tooltip key={s.key} text={s.tip} position="bottom" delay={500}>
+                <button
+                  className={`research-page__status-chip ${statusFilter === s.key ? 'research-page__status-chip--active' : ''}`}
+                  onClick={() => setStatusFilter(s.key)}
+                >
+                  {s.key === 'all' ? 'All' : STATUS_LABELS[s.key as WorkflowStep]}
+                </button>
+              </Tooltip>
             ))}
           </div>
         </div>
@@ -272,12 +284,26 @@ export default function ResearchListPage() {
 
       {/* Create Project Modal */}
       {showCreate && (
-        <div className="research-modal-overlay" onClick={() => setShowCreate(false)}>
+        <div
+          className="research-modal-overlay"
+          onClick={() => setShowCreate(false)}
+          onKeyDown={e => { if (e.key === 'Escape') setShowCreate(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="New Research Project"
+        >
           <div className="research-modal" onClick={e => e.stopPropagation()}>
             <h2 className="research-modal__title">New Research Project</h2>
             <form onSubmit={handleCreate}>
               <div className="research-modal__field">
-                <label className="research-modal__label">Project Name *</label>
+                <label className="research-modal__label">
+                  <span className="job-form__label-row">
+                    Project Name *
+                    <Tooltip text="A descriptive name for this research project. Usually matches the survey job name (e.g., 'Smith Property Boundary Survey'). This name appears in the project list and all exported reports." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
                 <input
                   className="research-modal__input"
                   type="text"
@@ -289,18 +315,38 @@ export default function ResearchListPage() {
                 />
               </div>
               <div className="research-modal__field">
-                <label className="research-modal__label">Property Address</label>
-                <input
-                  className="research-modal__input"
-                  type="text"
-                  placeholder="1234 Main St, Belton, TX 76513"
+                <label className="research-modal__label">
+                  <span className="job-form__label-row">
+                    Property Address
+                    <Tooltip text="Start typing to see address suggestions. Selecting an address will auto-fill the county and state fields. The address is used by the AI to search county records and identify relevant documents." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
+                <AddressAutocomplete
                   value={newProject.property_address}
-                  onChange={e => setNewProject(p => ({ ...p, property_address: e.target.value }))}
+                  onChange={val => setNewProject(p => ({ ...p, property_address: val }))}
+                  onSelect={details => setNewProject(p => ({
+                    ...p,
+                    property_address: details.address ? `${details.address}, ${details.city}, ${details.state} ${details.zip}`.trim() : p.property_address,
+                    county: details.county || p.county,
+                    state: details.state || p.state,
+                  }))}
+                  className="research-modal__input"
+                  placeholder="Start typing an address..."
+                  biasTexas={true}
                 />
               </div>
               <div className="research-modal__row">
                 <div className="research-modal__field">
-                  <label className="research-modal__label">County</label>
+                  <label className="research-modal__label">
+                    <span className="job-form__label-row">
+                      County
+                      <Tooltip text="The county where the property is located. This is critical — AI-powered property search uses the county to look up deed records, plat maps, and appraisal data from county-specific databases." position="right">
+                        <span className="job-form__info-icon">?</span>
+                      </Tooltip>
+                    </span>
+                  </label>
                   <input
                     className="research-modal__input"
                     type="text"
@@ -321,7 +367,14 @@ export default function ResearchListPage() {
                 </div>
               </div>
               <div className="research-modal__field">
-                <label className="research-modal__label">Description</label>
+                <label className="research-modal__label">
+                  <span className="job-form__label-row">
+                    Description
+                    <Tooltip text="Optional notes about the scope of this research project. Include any specific documents to look for, known issues, or areas of concern. This context helps guide the AI analysis." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
                 <textarea
                   className="research-modal__textarea"
                   placeholder="Brief description of the research project..."

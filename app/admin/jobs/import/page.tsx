@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import { SURVEY_TYPES } from '../../components/jobs/JobCard';
+import Tooltip from '../../research/components/Tooltip';
 
 interface LegacyJob {
   name: string;
@@ -292,15 +293,21 @@ export default function ImportJobsPage() {
 
         {/* Mode toggle */}
         <div className="job-import__modes">
-          <button className={`job-import__mode ${mode === 'single' ? 'job-import__mode--active' : ''}`} onClick={() => setMode('single')}>
-            Single Entry
-          </button>
-          <button className={`job-import__mode ${mode === 'bulk' ? 'job-import__mode--active' : ''}`} onClick={() => setMode('bulk')}>
-            Bulk CSV Upload
-          </button>
-          <button className={`job-import__mode ${mode === 'files' ? 'job-import__mode--active' : ''}`} onClick={() => setMode('files')}>
-            Upload Files
-          </button>
+          <Tooltip text="Manually enter a single legacy job with all its details. Best for importing individual historical surveys one at a time with full control over each field." position="bottom">
+            <button className={`job-import__mode ${mode === 'single' ? 'job-import__mode--active' : ''}`} onClick={() => setMode('single')}>
+              Single Entry
+            </button>
+          </Tooltip>
+          <Tooltip text="Upload a CSV spreadsheet to import multiple legacy jobs at once. Download the template first to see the expected column format. Preview rows before confirming the import." position="bottom">
+            <button className={`job-import__mode ${mode === 'bulk' ? 'job-import__mode--active' : ''}`} onClick={() => setMode('bulk')}>
+              Bulk CSV Upload
+            </button>
+          </Tooltip>
+          <Tooltip text="Attach documents, drawings, images, CAD files, and other files to an existing job. Supports all file types including PDFs, Word docs, DWG/DXF, Trimble data files, and more." position="bottom">
+            <button className={`job-import__mode ${mode === 'files' ? 'job-import__mode--active' : ''}`} onClick={() => setMode('files')}>
+              Upload Files
+            </button>
+          </Tooltip>
         </div>
 
         {/* Results banner */}
@@ -327,11 +334,25 @@ export default function ImportJobsPage() {
               <h3 className="job-form__section-title">Legacy Job Details</h3>
               <div className="job-form__grid">
                 <div className="job-form__field">
-                  <label className="job-form__label">Job Name *</label>
+                  <label className="job-form__label">
+                    <span className="job-form__label-row">
+                      Job Name *
+                      <Tooltip text="The name of the historical survey job as it was known in the previous system. Use the original project name for consistency when referencing old records." position="right">
+                        <span className="job-form__info-icon">?</span>
+                      </Tooltip>
+                    </span>
+                  </label>
                   <input className="job-form__input" value={form.name} onChange={e => updateField('name', e.target.value)} required />
                 </div>
                 <div className="job-form__field">
-                  <label className="job-form__label">Job Number</label>
+                  <label className="job-form__label">
+                    <span className="job-form__label-row">
+                      Job Number
+                      <Tooltip text="The original job number from your previous system or paper records (e.g., '2020-0042'). This is preserved for reference alongside the new auto-generated job number." position="right">
+                        <span className="job-form__info-icon">?</span>
+                      </Tooltip>
+                    </span>
+                  </label>
                   <input className="job-form__input" value={form.job_number} onChange={e => updateField('job_number', e.target.value)} placeholder="e.g., 2020-0042" />
                 </div>
                 <div className="job-form__field">
@@ -341,7 +362,14 @@ export default function ImportJobsPage() {
                   </select>
                 </div>
                 <div className="job-form__field">
-                  <label className="job-form__label">Status</label>
+                  <label className="job-form__label">
+                    <span className="job-form__label-row">
+                      Status
+                      <Tooltip text="The final status of this legacy job. 'Completed' means the survey was finished and delivered. 'Delivered' means the deliverables were sent to the client. 'Cancelled' means the job was cancelled before completion." position="right">
+                        <span className="job-form__info-icon">?</span>
+                      </Tooltip>
+                    </span>
+                  </label>
                   <select className="job-form__select" value={form.stage} onChange={e => updateField('stage', e.target.value)}>
                     <option value="completed">Completed</option>
                     <option value="delivered">Delivered</option>
@@ -369,11 +397,25 @@ export default function ImportJobsPage() {
                   <input className="job-form__input" value={form.client_name} onChange={e => updateField('client_name', e.target.value)} />
                 </div>
                 <div className="job-form__field">
-                  <label className="job-form__label">Date Received</label>
+                  <label className="job-form__label">
+                    <span className="job-form__label-row">
+                      Date Received
+                      <Tooltip text="The date the original survey request was received from the client. This preserves the historical timeline for reporting and reference purposes." position="right">
+                        <span className="job-form__info-icon">?</span>
+                      </Tooltip>
+                    </span>
+                  </label>
                   <input className="job-form__input" type="date" value={form.date_received} onChange={e => updateField('date_received', e.target.value)} />
                 </div>
                 <div className="job-form__field">
-                  <label className="job-form__label">Date Delivered</label>
+                  <label className="job-form__label">
+                    <span className="job-form__label-row">
+                      Date Delivered
+                      <Tooltip text="The date the final survey deliverables (plat, description, report) were sent to the client. Used for historical record-keeping and calculating turnaround times." position="right">
+                        <span className="job-form__info-icon">?</span>
+                      </Tooltip>
+                    </span>
+                  </label>
                   <input className="job-form__input" type="date" value={form.date_delivered} onChange={e => updateField('date_delivered', e.target.value)} />
                 </div>
                 <div className="job-form__field job-form__field--full">
@@ -496,7 +538,14 @@ export default function ImportJobsPage() {
               </p>
 
               <div className="job-form__field" style={{ maxWidth: '400px', marginBottom: '1rem' }}>
-                <label className="job-form__label">Job ID or Job Number *</label>
+                <label className="job-form__label">
+                  <span className="job-form__label-row">
+                    Job ID or Job Number *
+                    <Tooltip text="Enter the unique job ID (UUID) or the job number (e.g., '2024-0015') of the existing job you want to attach files to. You can find this on the job detail page or in the job list." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
                 <input
                   className="job-form__input"
                   value={fileJobId}

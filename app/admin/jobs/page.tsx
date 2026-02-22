@@ -7,6 +7,19 @@ import { usePageError } from '../hooks/usePageError';
 import Link from 'next/link';
 import UnderConstruction from '../components/messaging/UnderConstruction';
 import JobCard, { STAGE_CONFIG, SURVEY_TYPES } from '../components/jobs/JobCard';
+import Tooltip from '../research/components/Tooltip';
+
+const STAGE_TOOLTIPS: Record<string, string> = {
+  quote: 'Jobs in the quoting phase. The client has made an inquiry and a price estimate is being prepared. Includes site assessment, scope review, and fee calculation.',
+  research: 'Jobs in the research phase. Deed records, plat maps, previous surveys, and property history are being gathered and reviewed from county records and other sources.',
+  fieldwork: 'Jobs where the field crew is actively collecting data. Includes GPS observations, total station measurements, monument searches, and property corner staking.',
+  drawing: 'Jobs where the survey plat or map is being drafted in CAD. The field data is being processed and the final drawing is being prepared for the RPLS to review and sign.',
+  legal: 'Jobs in legal review. The survey plat and legal description are being reviewed by the RPLS for accuracy before signing and sealing. May include title company coordination.',
+  delivery: 'Jobs ready for delivery. The signed and sealed survey is being prepared for handoff to the client, title company, or other stakeholders.',
+  completed: 'Completed jobs. All deliverables have been sent and the job is closed. Available for reference and historical research.',
+  cancelled: 'Cancelled jobs. The survey was cancelled before completion, either by the client or due to other circumstances.',
+  on_hold: 'Jobs temporarily on hold. Work has paused due to client request, weather, access issues, or pending information. Will resume when the hold is lifted.',
+};
 
 interface Job {
   id: string;
@@ -91,28 +104,33 @@ export default function AllJobsPage() {
             <span className="jobs-page__count">{total} total</span>
           </div>
           <div className="jobs-page__header-actions">
-            <Link href="/admin/jobs/import" className="jobs-page__btn jobs-page__btn--secondary">
-              Import Legacy Jobs
-            </Link>
-            <Link href="/admin/jobs/new" className="jobs-page__btn jobs-page__btn--primary">
-              + New Job
-            </Link>
+            <Tooltip text="Import historical surveys from a previous system. Supports single entry, bulk CSV upload, and file attachments for existing jobs." position="bottom">
+              <Link href="/admin/jobs/import" className="jobs-page__btn jobs-page__btn--secondary">
+                Import Legacy Jobs
+              </Link>
+            </Tooltip>
+            <Tooltip text="Create a new survey job from scratch. Fill in property details, client information, and assignment to start the quote-to-delivery workflow." position="bottom">
+              <Link href="/admin/jobs/new" className="jobs-page__btn jobs-page__btn--primary">
+                + New Job
+              </Link>
+            </Tooltip>
           </div>
         </div>
 
         {/* Stage pipeline overview */}
         <div className="jobs-page__pipeline">
           {Object.entries(STAGE_CONFIG).filter(([k]) => !['cancelled', 'on_hold'].includes(k)).map(([key, config]) => (
-            <button
-              key={key}
-              className={`jobs-page__pipeline-stage ${stageFilter === key ? 'jobs-page__pipeline-stage--active' : ''}`}
-              onClick={() => setStageFilter(stageFilter === key ? 'all' : key)}
-              style={{ '--stage-color': config.color } as React.CSSProperties}
-            >
-              <span className="jobs-page__pipeline-icon">{config.icon}</span>
-              <span className="jobs-page__pipeline-label">{config.label}</span>
-              <span className="jobs-page__pipeline-count">{stageCounts[key] || 0}</span>
-            </button>
+            <Tooltip key={key} text={STAGE_TOOLTIPS[key] || ''} position="bottom" delay={500}>
+              <button
+                className={`jobs-page__pipeline-stage ${stageFilter === key ? 'jobs-page__pipeline-stage--active' : ''}`}
+                onClick={() => setStageFilter(stageFilter === key ? 'all' : key)}
+                style={{ '--stage-color': config.color } as React.CSSProperties}
+              >
+                <span className="jobs-page__pipeline-icon">{config.icon}</span>
+                <span className="jobs-page__pipeline-label">{config.label}</span>
+                <span className="jobs-page__pipeline-count">{stageCounts[key] || 0}</span>
+              </button>
+            </Tooltip>
           ))}
         </div>
 
