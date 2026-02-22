@@ -540,6 +540,7 @@ export async function listDrawings(
     .from('rendered_drawings')
     .select('*')
     .eq('research_project_id', projectId)
+    .is('archived_at', null)
     .order('version', { ascending: false });
 
   if (error || !drawings) return [];

@@ -400,6 +400,38 @@ export default function ResearchProjectPage() {
     setGeneratingDrawing(false);
   }
 
+  async function handleArchiveDrawing(drawingId: string, drawingName: string) {
+    if (!window.confirm(`Archive "${drawingName}"? It will be hidden from the list but can be recovered.`)) return;
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast(`"${drawingName}" archived`, 'success');
+        await loadDrawings();
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed to archive drawing' }));
+        showToast(err.error || 'Failed to archive drawing');
+      }
+    } catch {
+      showToast('Unable to archive drawing. Check your connection.');
+    }
+  }
+
+  async function handleDeleteDrawing(drawingId: string, drawingName: string) {
+    if (!window.confirm(`Permanently delete "${drawingName}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}?permanent=true`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast(`"${drawingName}" deleted`, 'success');
+        await loadDrawings();
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed to delete drawing' }));
+        showToast(err.error || 'Failed to delete drawing');
+      }
+    } catch {
+      showToast('Unable to delete drawing. Check your connection.');
+    }
+  }
+
   async function handleElementUpdate(elementId: string, updates: Record<string, unknown>) {
     if (!activeDrawing) return;
     try {
@@ -1375,16 +1407,33 @@ export default function ResearchProjectPage() {
           {drawings.length > 0 && !activeDrawing && (
             <div className="research-drawing__list">
               {drawings.map(d => (
-                <button
-                  key={d.id}
-                  className="research-drawing__list-item"
-                  onClick={() => loadDrawingDetail(d.id)}
-                >
-                  <span>{d.name}</span>
-                  <span className="research-drawing__list-meta">
-                    {d.element_count} elements | {d.overall_confidence ? `${Math.round(d.overall_confidence)}%` : '--'}
-                  </span>
-                </button>
+                <div key={d.id} className="research-drawing__list-row">
+                  <button
+                    className="research-drawing__list-item"
+                    onClick={() => loadDrawingDetail(d.id)}
+                  >
+                    <span>{d.name}</span>
+                    <span className="research-drawing__list-meta">
+                      v{d.version} | {d.element_count} elements | {d.overall_confidence ? `${Math.round(d.overall_confidence)}% confidence` : '--'}
+                    </span>
+                  </button>
+                  <div className="research-drawing__list-actions">
+                    <button
+                      className="research-drawing__action-btn research-drawing__action-btn--archive"
+                      onClick={() => handleArchiveDrawing(d.id, d.name)}
+                      title="Archive drawing"
+                    >
+                      Archive
+                    </button>
+                    <button
+                      className="research-drawing__action-btn research-drawing__action-btn--delete"
+                      onClick={() => handleDeleteDrawing(d.id, d.name)}
+                      title="Permanently delete drawing"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
               ))}
               <button
                 className="research-drawing__list-item research-drawing__list-item--new"

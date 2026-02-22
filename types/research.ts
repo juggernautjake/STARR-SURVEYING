@@ -237,6 +237,7 @@ export interface RenderedDrawing {
   user_preferences?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+  archived_at?: string | null;
 }
 
 export interface CanvasConfig {

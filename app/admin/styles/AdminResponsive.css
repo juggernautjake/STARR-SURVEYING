@@ -815,6 +815,9 @@
   .research-drawing__back-btn { font-size: 0.75rem; padding: 0.32rem 0.65rem; border-radius: 6px; }
   .research-drawing__list-item { padding: 0.5rem 0.75rem; font-size: 0.82rem; border-radius: 6px; }
   .research-drawing__list-meta { font-size: 0.72rem; }
+  .research-drawing__list-row { flex-direction: column; align-items: stretch; gap: 0.3rem; }
+  .research-drawing__list-actions { justify-content: flex-end; }
+  .research-drawing__action-btn { font-size: 0.7rem; padding: 0.3rem 0.55rem; }
   .research-drawing__title { font-size: 1rem; }
 
   /* Drawing info footer */
@@ -1234,6 +1237,7 @@
   .research-save-dialog__input { min-height: 44px; }
   .research-drawing__back-btn { min-height: 40px; display: inline-flex; align-items: center; }
   .research-drawing__list-item { min-height: 44px; }
+  .research-drawing__action-btn { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
   .research-drawing__view-btn { min-height: 36px; display: inline-flex; align-items: center; }
   .research-tools__settings-toggle { min-height: 36px; }
   .research-element-panel__revert-btn { min-height: 36px; display: inline-flex; align-items: center; }

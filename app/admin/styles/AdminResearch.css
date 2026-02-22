@@ -1906,6 +1906,59 @@
   color: #9CA3AF;
 }
 
+/* Drawing list row: item + action buttons side by side */
+.research-drawing__list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.research-drawing__list-row .research-drawing__list-item {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Archive / Delete action buttons */
+.research-drawing__list-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+.research-drawing__action-btn {
+  padding: 0.35rem 0.65rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: #FFF;
+  color: #6B7280;
+  white-space: nowrap;
+}
+.research-drawing__action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+.research-drawing__action-btn--archive {
+  color: #D97706;
+  border-color: #FDE68A;
+}
+.research-drawing__action-btn--archive:hover {
+  background: #FFFBEB;
+  border-color: #D97706;
+  color: #92400E;
+}
+.research-drawing__action-btn--delete {
+  color: #EF4444;
+  border-color: #FECACA;
+}
+.research-drawing__action-btn--delete:hover {
+  background: #FEF2F2;
+  border-color: #EF4444;
+  color: #B91C1C;
+}
+
 /* View mode buttons */
 .research-drawing__view-modes {
   display: flex;
