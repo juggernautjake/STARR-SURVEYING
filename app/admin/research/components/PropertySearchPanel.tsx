@@ -127,8 +127,12 @@ export default function PropertySearchPanel({
         setImportResult({ count: data.imported });
         setSelected(new Set());
         onImported?.();
+      } else {
+        setSearchError('Failed to import selected documents. Please try again.');
       }
-    } catch { /* ignore */ }
+    } catch {
+      setSearchError('Import failed. Check your internet connection and try again.');
+    }
 
     setImporting(false);
   }

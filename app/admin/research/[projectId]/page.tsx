@@ -42,7 +42,10 @@ export default function ResearchProjectPage() {
     documentsAnalyzed: number;
     dataPointCount: number;
     discrepancyCount: number;
+    error?: string;
+    errorCategory?: string;
   } | null>(null);
+  const [analysisError, setAnalysisError] = useState<{ message: string; category: string } | null>(null);
 
   // Review state
   const [reviewTab, setReviewTab] = useState<'data' | 'discrepancies'>('data');
@@ -84,7 +87,9 @@ export default function ResearchProjectPage() {
   function showToast(message: string, type: 'error' | 'success' | 'info' = 'error') {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ message, type });
-    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+    // Longer display for errors (may contain actionable info) and info messages
+    const duration = type === 'success' ? 4000 : message.length > 80 ? 10000 : 6000;
+    toastTimerRef.current = setTimeout(() => setToast(null), duration);
   }
 
   // Loading states for async operations
@@ -175,9 +180,18 @@ export default function ResearchProjectPage() {
             documentsAnalyzed: data.documentsAnalyzed,
             dataPointCount: data.dataPointCount,
             discrepancyCount: data.discrepancyCount,
+            error: data.error,
+            errorCategory: data.errorCategory,
           });
-          // If analysis completed, reload the project
-          if (data.status !== 'analyzing') {
+          // If analysis failed (project went back to configure), capture the error
+          if (data.status === 'configure' && data.error) {
+            setAnalysisError({ message: data.error, category: data.errorCategory || 'unknown' });
+            loadProject();
+            loadDocuments();
+          }
+          // If analysis completed successfully
+          else if (data.status !== 'analyzing') {
+            setAnalysisError(null);
             loadProject();
             loadDocuments();
           }
@@ -209,6 +223,7 @@ export default function ResearchProjectPage() {
   async function handleStartAnalysis() {
     if (analysisStarting) return;
     setAnalysisStarting(true);
+    setAnalysisError(null);
 
     try {
       const res = await fetch(`/api/admin/research/${projectId}/analyze`, {
@@ -221,11 +236,18 @@ export default function ResearchProjectPage() {
         // Reload project to get "analyzing" status
         await loadProject();
       } else {
-        const err = await res.json();
-        reportPageError(new Error(err.error || 'Failed to start analysis'), { element: 'start analysis' });
+        const err = await res.json().catch(() => ({ error: 'Failed to start analysis' }));
+        // Show the error in the analysis error banner
+        setAnalysisError({
+          message: err.error || 'Failed to start analysis. Please try again.',
+          category: err.errorCategory || 'unknown',
+        });
       }
-    } catch (err) {
-      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'start analysis' });
+    } catch {
+      setAnalysisError({
+        message: 'Unable to connect to the server. Please check your internet connection and try again.',
+        category: 'connectivity',
+      });
     }
 
     setAnalysisStarting(false);
@@ -298,11 +320,16 @@ export default function ResearchProjectPage() {
         await loadDrawingDetail(data.drawing_id);
         loadProject();
       } else {
-        const err = await res.json();
-        reportPageError(new Error(err.error || 'Failed to generate drawing'), { element: 'generate drawing' });
+        const err = await res.json().catch(() => ({ error: 'Failed to generate drawing' }));
+        // Surface AI-specific errors with more user-friendly detail
+        if (err.errorCategory) {
+          showToast(`Drawing generation failed: ${err.error}`, 'error');
+        } else {
+          showToast(err.error || 'Failed to generate drawing. Please try again.', 'error');
+        }
       }
-    } catch (err) {
-      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'generate drawing' });
+    } catch {
+      showToast('Unable to connect. Check your internet connection and try again.', 'error');
     }
     setGeneratingDrawing(false);
   }
@@ -521,16 +548,30 @@ export default function ResearchProjectPage() {
         body: JSON.stringify({ action: 'compare' }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Verification failed');
+        const err = await res.json().catch(() => ({ error: 'Verification failed' }));
+        // Show AI-specific error with more detail
+        const errorMsg = err.errorCategory
+          ? `Verification issue: ${err.error}`
+          : (err.error || 'Verification failed');
+        showToast(errorMsg, 'error');
+        setIsVerifying(false);
+        return;
       }
       const data = await res.json();
       setComparisonResult(data.comparison);
-      showToast('Verification complete', 'success');
-      // Reload project to get updated status
+      // Check if the comparison includes AI unavailability notice
+      const aiUnavailable = data.comparison?.persisting_issues?.some(
+        (i: { title?: string }) => i.title?.includes('AI comparison unavailable')
+      );
+      showToast(
+        aiUnavailable
+          ? 'Verification complete (mathematical checks only — AI comparison was unavailable)'
+          : 'Verification complete',
+        aiUnavailable ? 'info' : 'success'
+      );
       loadProject();
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Verification failed', 'error');
+    } catch {
+      showToast('Unable to connect for verification. Check your internet connection and try again.', 'error');
     } finally {
       setIsVerifying(false);
     }
@@ -646,14 +687,14 @@ export default function ResearchProjectPage() {
   // ── Beforeunload: warn user about unsaved changes ──────────────────────
   useEffect(() => {
     function handleBeforeUnload(e: BeforeUnloadEvent) {
-      if (hasUnsavedChanges) {
+      if (hasUnsavedChanges || project?.status === 'analyzing') {
         e.preventDefault();
         e.returnValue = '';
       }
     }
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges]);
+  }, [hasUnsavedChanges, project?.status]);
 
   // ── Auto-save: save drawing state every 60 seconds if unsaved changes ───
   // Use refs for values read inside the interval to avoid stale closures
@@ -895,14 +936,57 @@ export default function ResearchProjectPage() {
             compact
           />
 
+          {/* Analysis error display — shown when a previous analysis attempt failed */}
+          {analysisError && (
+            <div style={{
+              background: analysisError.category === 'usage_exhausted' ? '#FFFBEB' : '#FEF2F2',
+              border: `1px solid ${analysisError.category === 'usage_exhausted' ? '#FDE68A' : '#FECACA'}`,
+              borderRadius: '0.5rem', padding: '1rem 1.25rem', marginBottom: '1rem',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>
+                  {analysisError.category === 'usage_exhausted' ? '⚠' :
+                   analysisError.category === 'authentication' ? '🔑' :
+                   analysisError.category === 'connectivity' ? '🌐' :
+                   analysisError.category === 'rate_limited' ? '⏳' :
+                   analysisError.category === 'timeout' ? '⏱' : '⚠'}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.25rem',
+                    color: analysisError.category === 'usage_exhausted' ? '#92400E' : '#991B1B',
+                  }}>
+                    {analysisError.category === 'usage_exhausted' ? 'AI Usage Limit Reached' :
+                     analysisError.category === 'authentication' ? 'AI Authentication Failed' :
+                     analysisError.category === 'connectivity' ? 'Connection Issue' :
+                     analysisError.category === 'rate_limited' ? 'AI Service Temporarily Unavailable' :
+                     analysisError.category === 'timeout' ? 'AI Request Timed Out' :
+                     analysisError.category === 'overloaded' ? 'AI Service Overloaded' :
+                     'Analysis Failed'}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#4B5563', lineHeight: 1.5 }}>
+                    {analysisError.message}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setAnalysisError(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: '1.1rem', padding: 0, lineHeight: 1 }}
+                  aria-label="Dismiss"
+                >
+                  &times;
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="research-configure__actions">
             <button
               className="research-page__new-btn"
-              onClick={handleStartAnalysis}
+              onClick={() => { setAnalysisError(null); handleStartAnalysis(); }}
               disabled={analysisStarting || extractedDocs.length === 0}
               style={(analysisStarting || extractedDocs.length === 0) ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
             >
-              {analysisStarting ? 'Starting...' : 'Run AI Analysis'}
+              {analysisStarting ? 'Starting...' : analysisError ? 'Retry AI Analysis' : 'Run AI Analysis'}
             </button>
             {extractedDocs.length === 0 && (
               <span style={{ color: '#EF4444', fontSize: '0.8rem', marginLeft: '0.75rem' }}>

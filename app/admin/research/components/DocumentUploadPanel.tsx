@@ -11,6 +11,15 @@ interface DocumentUploadPanelProps {
   onDocumentsChanged: () => void;
 }
 
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+const ACCEPTED_EXTENSIONS = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.docx', '.txt', '.webp']);
+const ACCEPTED_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/png', 'image/jpeg', 'image/tiff', 'image/webp',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+]);
+
 const PROCESSING_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   pending:    { label: 'Pending', color: '#9CA3AF' },
   extracting: { label: 'Extracting...', color: '#F59E0B' },
@@ -20,8 +29,45 @@ const PROCESSING_STATUS_LABELS: Record<string, { label: string; color: string }>
   error:      { label: 'Error', color: '#EF4444' },
 };
 
+function formatFileSize(bytes: number | null): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getFileExtension(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot >= 0 ? name.slice(dot).toLowerCase() : '';
+}
+
+function validateFiles(files: File[]): { valid: File[]; errors: string[] } {
+  const valid: File[] = [];
+  const errors: string[] = [];
+
+  for (const file of files) {
+    const ext = getFileExtension(file.name);
+    if (!ACCEPTED_EXTENSIONS.has(ext) && !ACCEPTED_MIME_TYPES.has(file.type)) {
+      errors.push(`"${file.name}" — unsupported file type (${ext || file.type || 'unknown'})`);
+      continue;
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      errors.push(`"${file.name}" — file too large (${formatFileSize(file.size)}, max 50 MB)`);
+      continue;
+    }
+    if (file.size === 0) {
+      errors.push(`"${file.name}" — file is empty`);
+      continue;
+    }
+    valid.push(file);
+  }
+
+  return { valid, errors };
+}
+
 export default function DocumentUploadPanel({ projectId, documents, onDocumentsChanged }: DocumentUploadPanelProps) {
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [showManual, setShowManual] = useState(false);
   const [manualEntry, setManualEntry] = useState({
@@ -31,14 +77,25 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
     recording_info: '',
   });
   const [submittingManual, setSubmittingManual] = useState(false);
+  const [manualError, setManualError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleFileUpload(files: FileList | File[]) {
     if (!files.length || uploading) return;
+
+    setUploadError(null);
+
+    // Client-side validation
+    const { valid, errors } = validateFiles(Array.from(files));
+    if (errors.length > 0) {
+      setUploadError(errors.join('\n'));
+    }
+    if (valid.length === 0) return;
+
     setUploading(true);
 
     const formData = new FormData();
-    for (const file of Array.from(files)) {
+    for (const file of valid) {
       formData.append('file', file);
     }
 
@@ -50,11 +107,11 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
       if (res.ok) {
         onDocumentsChanged();
       } else {
-        const err = await res.json();
-        console.error('Upload error:', err);
+        const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+        setUploadError(err.error || 'Upload failed. Please try again.');
       }
-    } catch (err) {
-      console.error('Upload failed:', err);
+    } catch {
+      setUploadError('Upload failed. Check your internet connection and try again.');
     }
 
     setUploading(false);
@@ -73,6 +130,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
     e.preventDefault();
     if (!manualEntry.content.trim() || submittingManual) return;
     setSubmittingManual(true);
+    setManualError(null);
 
     try {
       const res = await fetch(`/api/admin/research/${projectId}/documents/manual`, {
@@ -84,28 +142,43 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
         setManualEntry({ document_type: '', document_label: '', content: '', recording_info: '' });
         setShowManual(false);
         onDocumentsChanged();
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed to save' }));
+        setManualError(err.error || 'Failed to save manual entry. Please try again.');
       }
-    } catch (err) {
-      console.error('Manual entry failed:', err);
+    } catch {
+      setManualError('Failed to save. Check your internet connection and try again.');
     }
     setSubmittingManual(false);
+  }
+
+  async function handleReprocessDocument(docId: string) {
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/documents?id=${docId}&action=reprocess`, {
+        method: 'PATCH',
+      });
+      if (res.ok) {
+        onDocumentsChanged();
+      } else {
+        setUploadError('Failed to reprocess document. Please try again.');
+      }
+    } catch {
+      setUploadError('Failed to reprocess. Check your connection and try again.');
+    }
   }
 
   async function handleDeleteDocument(docId: string) {
     if (!confirm('Remove this document from the project?')) return;
     try {
-      await fetch(`/api/admin/research/${projectId}/documents?id=${docId}`, { method: 'DELETE' });
-      onDocumentsChanged();
-    } catch (err) {
-      console.error('Delete failed:', err);
+      const res = await fetch(`/api/admin/research/${projectId}/documents?id=${docId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setUploadError('Failed to delete document. Please try again.');
+      } else {
+        onDocumentsChanged();
+      }
+    } catch {
+      setUploadError('Failed to delete document. Check your connection and try again.');
     }
-  }
-
-  function formatSize(bytes: number | null): string {
-    if (!bytes) return '';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   return (
@@ -140,6 +213,29 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
           PDF, PNG, JPG, TIFF, DOCX, TXT — up to 50 MB each
         </div>
       </div>
+
+      {/* Upload error display */}
+      {uploadError && (
+        <div
+          className="research-upload__error"
+          style={{
+            background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '0.5rem',
+            padding: '0.75rem 1rem', marginTop: '0.75rem', color: '#DC2626', fontSize: '0.85rem',
+            whiteSpace: 'pre-line',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span>{uploadError}</span>
+            <button
+              onClick={() => setUploadError(null)}
+              style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: '1.1rem', padding: '0 0 0 0.5rem', lineHeight: 1 }}
+              aria-label="Dismiss error"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Manual entry toggle */}
       <div className="research-upload__actions">
@@ -200,6 +296,11 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
               required
             />
           </div>
+          {manualError && (
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.5rem 0.75rem', color: '#DC2626', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+              {manualError}
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
             <button type="button" className="research-modal__cancel" onClick={() => setShowManual(false)}>
               Cancel
@@ -236,12 +337,25 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
                   </div>
                   <div className="research-upload__doc-meta">
                     {typeInfo && <span>{typeInfo.label}</span>}
-                    {doc.file_size_bytes ? <span>{formatSize(doc.file_size_bytes)}</span> : null}
+                    {doc.file_size_bytes ? <span>{formatFileSize(doc.file_size_bytes)}</span> : null}
                     {doc.page_count ? <span>{doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span> : null}
                     <span style={{ color: status.color, fontWeight: 600 }}>{status.label}</span>
                   </div>
                   {doc.processing_error && (
-                    <div className="research-upload__doc-error">{doc.processing_error}</div>
+                    <div className="research-upload__doc-error">
+                      {doc.processing_error}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleReprocessDocument(doc.id); }}
+                        style={{
+                          display: 'inline-block', marginLeft: '0.5rem',
+                          background: 'none', border: '1px solid #DC2626', borderRadius: '0.25rem',
+                          color: '#DC2626', cursor: 'pointer', padding: '0.15rem 0.5rem',
+                          fontSize: '0.75rem', fontWeight: 600,
+                        }}
+                      >
+                        Retry
+                      </button>
+                    </div>
                   )}
                 </div>
                 <button

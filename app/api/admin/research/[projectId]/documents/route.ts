@@ -133,6 +133,45 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }, { status: 201 });
 }, { routeName: 'research/documents' });
 
+/* PATCH — Reprocess a document that previously failed */
+export const PATCH = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const docId = searchParams.get('id');
+  const action = searchParams.get('action');
+
+  if (!docId) return NextResponse.json({ error: 'Document id is required' }, { status: 400 });
+
+  if (action === 'reprocess') {
+    // Verify document exists and is in an error or extractable state
+    const { data: doc } = await supabaseAdmin
+      .from('research_documents')
+      .select('id, processing_status')
+      .eq('id', docId)
+      .single();
+
+    if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+
+    // Reset the document status to pending and clear the error
+    await supabaseAdmin.from('research_documents').update({
+      processing_status: 'pending',
+      processing_error: null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', docId);
+
+    // Re-trigger processing in the background
+    processDocument(docId).catch(err => {
+      console.error(`[Reprocess] Background processing failed for ${docId}:`, err);
+    });
+
+    return NextResponse.json({ success: true, message: 'Document reprocessing started' });
+  }
+
+  return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+}, { routeName: 'research/documents/reprocess' });
+
 /* DELETE — Remove a document from the project */
 export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();

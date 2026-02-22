@@ -1,7 +1,7 @@
 // lib/research/document.service.ts — Document processing pipeline
 // Handles text extraction, OCR, document classification, and processing state.
 import { supabaseAdmin } from '@/lib/supabase';
-import { callAI, callVision } from './ai-client';
+import { callAI, callVision, AIServiceError } from './ai-client';
 import type { ResearchDocument, DocumentType } from '@/types/research';
 
 // ── Processing Pipeline ──────────────────────────────────────────────────────
@@ -55,11 +55,13 @@ export async function processDocument(documentId: string): Promise<void> {
     await updateDocumentStatus(documentId, 'extracted');
 
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[Document Processing] Error processing ${documentId}:`, message);
+    const isAIError = err instanceof AIServiceError;
+    const userMessage = isAIError ? err.userMessage : (err instanceof Error ? err.message : String(err));
+    const technicalMessage = err instanceof Error ? err.message : String(err);
+    console.error(`[Document Processing] Error processing ${documentId} [${isAIError ? err.category : 'unknown'}]:`, technicalMessage);
     await supabaseAdmin.from('research_documents').update({
       processing_status: 'error',
-      processing_error: message.slice(0, 2000),
+      processing_error: userMessage.slice(0, 2000),
       updated_at: new Date().toISOString(),
     }).eq('id', documentId);
   }

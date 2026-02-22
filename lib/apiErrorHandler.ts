@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { AIServiceError } from '@/lib/research/ai-client';
 
 /**
  * Wraps an API route handler with comprehensive error handling.
@@ -47,6 +48,18 @@ export function withErrorHandler(
           occurred_at: new Date().toISOString(),
         }).catch(() => {}); // Silently fail if DB logging fails
       } catch { /* ignore logging failures */ }
+
+      // For AI service errors, return the user-friendly message and category
+      if (err instanceof AIServiceError) {
+        return NextResponse.json(
+          {
+            error: err.userMessage,
+            errorCategory: err.category,
+            timestamp: new Date().toISOString(),
+          },
+          { status: err.statusCode || 502 }
+        );
+      }
 
       return NextResponse.json(
         {

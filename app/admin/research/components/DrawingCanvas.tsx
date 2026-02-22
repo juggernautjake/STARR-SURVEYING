@@ -138,6 +138,12 @@ export default function DrawingCanvas({
     return map;
   }, [elements]);
 
+  // Memoize sorted annotations to avoid re-sorting on every render
+  const sortedAnnotations = useMemo(
+    () => [...annotations].sort((a, b) => a.zIndex - b.zIndex),
+    [annotations],
+  );
+
   // ── Coordinate Helpers ──────────────────────────────────────────────────
 
   /** Convert client (screen) coords to SVG drawing coords */
@@ -846,9 +852,7 @@ export default function DrawingCanvas({
           }}
         >
           {/* Rendered annotations */}
-          {annotations
-            .sort((a, b) => a.zIndex - b.zIndex)
-            .map(ann => (
+          {sortedAnnotations.map(ann => (
               <g
                 key={ann.id}
                 data-annotation-id={ann.id}

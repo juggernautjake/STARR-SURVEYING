@@ -3,7 +3,7 @@
 // an overall confidence score and list of persisting issues.
 
 import { supabaseAdmin } from '@/lib/supabase';
-import { callAI } from './ai-client';
+import { callAI, AIServiceError } from './ai-client';
 import { computeElementConfidence } from './confidence';
 import type {
   DrawingElement,
@@ -306,17 +306,25 @@ async function runAIComparison(
       persisting_issues: Array.isArray(resp?.persisting_issues) ? resp.persisting_issues : [],
       notes: typeof resp?.notes === 'string' ? resp.notes : 'Comparison completed.',
     };
-  } catch {
-    // If AI call fails, return neutral defaults
+  } catch (err) {
+    // Produce a specific fallback message depending on what went wrong
+    const isAIError = err instanceof AIServiceError;
+    const reasonDetail = isAIError ? err.userMessage : 'An unexpected error occurred.';
+    const category = isAIError ? err.category : 'unknown';
+
     return {
       confidence_assessment: 70,
       persisting_issues: [{
         severity: 'info',
-        title: 'AI comparison unavailable',
-        description: 'The AI semantic comparison could not be completed. Mathematical checks were still performed.',
-        recommendation: 'Review the mathematical check results manually.',
+        title: `AI comparison unavailable (${category === 'rate_limited' ? 'rate limited' : category === 'usage_exhausted' ? 'usage limit reached' : category === 'connectivity' ? 'connection issue' : category === 'timeout' ? 'request timed out' : 'service error'})`,
+        description: `The AI semantic comparison could not be completed. ${reasonDetail} Mathematical checks were still performed and results below are based on those checks only.`,
+        recommendation: category === 'usage_exhausted'
+          ? 'Check your Anthropic API billing and usage limits, then re-run verification.'
+          : category === 'authentication'
+          ? 'Verify the AI API key configuration with your administrator.'
+          : 'Try running verification again in a few minutes. If the issue persists, mathematical checks alone may suffice.',
       }],
-      notes: 'AI comparison was unavailable. Results are based on mathematical checks only.',
+      notes: `AI comparison unavailable (${category}). Results are based on mathematical checks only.`,
     };
   }
 }

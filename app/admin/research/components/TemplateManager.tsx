@@ -121,9 +121,11 @@ export default function TemplateManager({
       if (res.ok) {
         setTemplates(prev => prev.filter(t => t.id !== id));
         if (selectedId === id) onSelect(null);
+      } else {
+        setError('Failed to delete template. Please try again.');
       }
     } catch {
-      // Silently fail
+      setError('Failed to delete template. Check your connection and try again.');
     }
   }
 

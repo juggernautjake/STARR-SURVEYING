@@ -166,7 +166,14 @@ export default function DrawingPreferencesPanel({
         <h3 className="research-prefs__title">Drawing Preferences</h3>
         <div className="research-prefs__header-actions">
           <Tooltip text="Reset all preferences back to factory defaults" position="bottom">
-            <button className="research-prefs__reset-btn" onClick={onReset}>
+            <button
+              className="research-prefs__reset-btn"
+              onClick={() => {
+                if (window.confirm('Reset all drawing preferences to factory defaults? Your custom styles, layer settings, and interaction preferences will be lost.')) {
+                  onReset();
+                }
+              }}
+            >
               Reset Defaults
             </button>
           </Tooltip>

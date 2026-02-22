@@ -1,7 +1,7 @@
 // lib/research/analysis.service.ts — AI Analysis Engine orchestration
 // Coordinates per-document extraction, cross-referencing, normalization, and discrepancy detection.
 import { supabaseAdmin } from '@/lib/supabase';
-import { callAI } from './ai-client';
+import { callAI, AIServiceError } from './ai-client';
 import {
   normalizeBearing,
   normalizeDistance,
@@ -120,12 +120,19 @@ export async function analyzeProject(
           updated_at: new Date().toISOString(),
         }).eq('id', doc.id);
       } catch (err) {
-        console.error(`[Analysis] Extraction failed for doc ${doc.id}:`, err);
+        const isAIError = err instanceof AIServiceError;
+        const userMsg = isAIError ? err.userMessage : (err instanceof Error ? err.message : String(err));
+        console.error(`[Analysis] Extraction failed for doc ${doc.id} [${isAIError ? err.category : 'unknown'}]:`, err instanceof Error ? err.message : err);
         await supabaseAdmin.from('research_documents').update({
           processing_status: 'error',
-          processing_error: `Analysis extraction failed: ${err instanceof Error ? err.message : String(err)}`,
+          processing_error: `Analysis extraction failed: ${userMsg}`,
           updated_at: new Date().toISOString(),
         }).eq('id', doc.id);
+
+        // If this is a non-transient AI error (auth, usage exhausted), abort the entire pipeline
+        if (isAIError && (err.category === 'authentication' || err.category === 'usage_exhausted')) {
+          throw err;
+        }
       }
     }
 
@@ -200,13 +207,19 @@ export async function analyzeProject(
 
   } catch (err) {
     // On failure, set project back to configure so user can retry
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error(`[Analysis] Pipeline failed for project ${projectId}:`, errorMsg);
+    const isAIError = err instanceof AIServiceError;
+    const errorMsg = isAIError ? err.userMessage : (err instanceof Error ? err.message : String(err));
+    const errorCategory = isAIError ? err.category : 'unknown';
+    const technicalMsg = err instanceof Error ? err.message : String(err);
+
+    console.error(`[Analysis] Pipeline failed for project ${projectId} [${errorCategory}]:`, technicalMsg);
 
     await supabaseAdmin.from('research_projects').update({
       status: 'configure',
       analysis_metadata: {
         error: errorMsg,
+        error_category: errorCategory,
+        technical_error: technicalMsg,
         failed_at: new Date().toISOString(),
       },
       updated_at: new Date().toISOString(),
@@ -600,6 +613,8 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   documentsAnalyzed: number;
   dataPointCount: number;
   discrepancyCount: number;
+  error?: string;
+  errorCategory?: string;
 }> {
   const [projectRes, docsRes, dpRes, discRes] = await Promise.all([
     supabaseAdmin.from('research_projects').select('status, analysis_metadata').eq('id', projectId).single(),
@@ -611,11 +626,15 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   const docs: { processing_status: string }[] = docsRes.data || [];
   const analyzed = docs.filter(d => d.processing_status === 'analyzed').length;
 
+  const metadata = projectRes.data?.analysis_metadata as Record<string, unknown> | null;
+
   return {
     status: projectRes.data?.status || 'unknown',
     documentsTotal: docs.length,
     documentsAnalyzed: analyzed,
     dataPointCount: dpRes.count || 0,
     discrepancyCount: discRes.count || 0,
+    ...(metadata?.error ? { error: String(metadata.error) } : {}),
+    ...(metadata?.error_category ? { errorCategory: String(metadata.error_category) } : {}),
   };
 }

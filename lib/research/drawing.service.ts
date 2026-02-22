@@ -1,7 +1,7 @@
 // lib/research/drawing.service.ts — Drawing creation and element management
 // Orchestrates: traverse computation → element building → confidence scoring → AI reports → DB save
 import { supabaseAdmin } from '@/lib/supabase';
-import { callAI } from './ai-client';
+import { callAI, AIServiceError } from './ai-client';
 import type {
   ExtractedDataPoint,
   Discrepancy,
@@ -318,8 +318,21 @@ async function generateElementReports(
         });
       }
     } catch (err) {
-      console.error('[Drawing Service] Error generating element reports:', err);
-      // Non-fatal — elements still get created without reports
+      const isAIError = err instanceof AIServiceError;
+      console.error(`[Drawing Service] Element report generation failed [${isAIError ? err.category : 'unknown'}]:`, err instanceof Error ? err.message : err);
+      // Non-fatal — elements still get created without AI reports
+      // Mark elements with a note that reports were unavailable
+      for (const el of chunk) {
+        if (!el.ai_report) {
+          el.ai_report = isAIError
+            ? `AI report unavailable: ${err.userMessage}`
+            : 'AI report generation failed. Element data is still available for manual review.';
+        }
+      }
+      // If this is auth/usage, don't keep trying remaining chunks
+      if (isAIError && (err.category === 'authentication' || err.category === 'usage_exhausted')) {
+        break;
+      }
     }
   }
 }
