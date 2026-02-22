@@ -132,6 +132,29 @@ export default function DrawingCanvas({
   const showTooltips = preferences?.showTooltips !== false;
   const highlightOnHover = preferences?.highlightOnHover !== false;
 
+  // Auto-fit drawing in viewport on initial load
+  useEffect(() => {
+    if (!svgContent || !containerRef.current) return;
+    const container = containerRef.current;
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    if (cw === 0 || ch === 0) return;
+
+    const sw = drawing.canvas_config?.width || 1200;
+    const sh = drawing.canvas_config?.height || 800;
+
+    // Fit drawing inside container with 5% padding
+    const fitZoom = Math.min((cw * 0.95) / sw, (ch * 0.95) / sh);
+    const clampedZoom = Math.max(0.1, Math.min(10, fitZoom));
+
+    // Center the drawing
+    const panX = (cw - sw * clampedZoom) / 2;
+    const panY = (ch - sh * clampedZoom) / 2;
+
+    setZoom(clampedZoom);
+    setPan({ x: panX, y: panY });
+  }, [drawing.id, svgContent]); // Re-fit when drawing changes
+
   // Build element lookup map
   const elementMap = useMemo(() => {
     const map = new Map<string, DrawingElement>();
@@ -540,9 +563,14 @@ export default function DrawingCanvas({
     setTooltip(null);
   }, [highlightOnHover]);
 
-  // Zoom with scroll
+  // Zoom with Ctrl+scroll only — regular scroll passes through for page scrolling
   const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (!e.ctrlKey && !e.metaKey) {
+      // Regular scroll — let it propagate for page scrolling
+      return;
+    }
     e.preventDefault();
+    e.stopPropagation();
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
 

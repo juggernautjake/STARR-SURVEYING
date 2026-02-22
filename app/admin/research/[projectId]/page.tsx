@@ -11,6 +11,7 @@ import DataPointsPanel from '../components/DataPointsPanel';
 import DiscrepancyPanel from '../components/DiscrepancyPanel';
 import SourceDocumentViewer from '../components/SourceDocumentViewer';
 import DrawingCanvas, { type UserAnnotation } from '../components/DrawingCanvas';
+import AnalysisSummary from '../components/AnalysisSummary';
 import ElementDetailPanel from '../components/ElementDetailPanel';
 import DrawingViewToolbar from '../components/DrawingViewToolbar';
 import DrawingPreferencesPanel, { DEFAULT_PREFERENCES, type DrawingPreferences } from '../components/DrawingPreferencesPanel';
@@ -1105,6 +1106,9 @@ export default function ResearchProjectPage() {
 
       {project.status === 'review' && (
         <div className="research-review">
+          {/* Analysis Summary Card */}
+          <AnalysisSummary projectId={projectId} stats={stats} />
+
           {/* Review tabs */}
           <div className="research-review__tabs">
             <button

@@ -102,18 +102,40 @@ export async function createDrawing(
   // 6. Generate AI reports (batch)
   await generateElementReports(elements, dataPoints, discrepancies);
 
-  // 7. Compute canvas configuration
-  const bbox = computeBoundingBox(traverseResult.points);
+  // 7. Compute canvas configuration and transform coordinates
   const canvasWidth = 3600;
   const canvasHeight = 2400;
-  const scale = computeScale(traverseResult.points, canvasWidth, canvasHeight);
+  const margin = 200; // generous margin for labels, title block, north arrow
+  const bbox = computeBoundingBox(traverseResult.points, 0);
+  const scaleVal = computeScale(traverseResult.points, canvasWidth, canvasHeight, margin);
 
+  // Compute transform from survey feet to canvas pixels
+  const fittedW = bbox.width * scaleVal;
+  const fittedH = bbox.height * scaleVal;
+  const offsetX = (canvasWidth - fittedW) / 2;
+  const offsetY = (canvasHeight - fittedH) / 2;
+
+  // Survey coord (x_s, y_s) → canvas pixel (px, py):
+  //   px = offsetX + (x_s - bbox.minX) * scaleVal
+  //   py = offsetY + (bbox.maxY - y_s) * scaleVal   (flip Y: north=up → SVG y-down)
+  function surveyToCanvas(x: number, y: number): [number, number] {
+    return [
+      offsetX + (x - bbox.minX) * scaleVal,
+      offsetY + (bbox.maxY - y) * scaleVal,
+    ];
+  }
+
+  // Transform all element coordinates from survey space to canvas pixel space
+  transformElements(elements, surveyToCanvas, scaleVal, canvasWidth);
+
+  // Map scale: 1 inch (on screen) = N feet
+  const displayScale = Math.round(1 / scaleVal * 96); // 96 DPI assumption
   const canvasConfig: CanvasConfig = {
     width: canvasWidth,
     height: canvasHeight,
-    scale: Math.round(1 / scale),
+    scale: displayScale > 0 ? displayScale : Math.round(1 / scaleVal),
     units: 'feet',
-    origin: [Math.round(-bbox.minX * scale + 100), Math.round(bbox.maxY * scale + 100)],
+    origin: [Math.round(offsetX), Math.round(offsetY)],
     background: '#FFFFFF',
   };
 
@@ -149,23 +171,39 @@ export async function createDrawing(
 
   const drawingId = drawing.id;
 
-  // 10. Save all elements
-  const elementRows = elements.map((el, idx) => ({
+  // 10. Save all elements — scale strokes for canvas visibility
+  const strokeScale = Math.max(1, canvasWidth / 1200);
+  const elementRows = elements.map((el, idx) => {
+    const featureStyle = drawingConfig.feature_styles[el.feature_class];
+    const baseStrokeWidth = featureStyle?.strokeWidth || 1;
+    const baseFontSize = featureStyle?.fontSize || drawingConfig.label_config.font_size || 10;
+
+    return {
     drawing_id: drawingId,
     element_type: el.element_type,
     feature_class: el.feature_class,
     geometry: el.geometry,
     svg_path: el.svg_path || null,
     attributes: el.attributes,
-    style: el.feature_class in drawingConfig.feature_styles
+    style: featureStyle
       ? {
-          stroke: drawingConfig.feature_styles[el.feature_class]?.stroke || '#000000',
-          strokeWidth: drawingConfig.feature_styles[el.feature_class]?.strokeWidth || 1,
-          strokeDasharray: drawingConfig.feature_styles[el.feature_class]?.dasharray || '',
-          fill: drawingConfig.feature_styles[el.feature_class]?.fill || 'none',
+          stroke: featureStyle.stroke || '#000000',
+          strokeWidth: Math.round(baseStrokeWidth * strokeScale * 10) / 10,
+          strokeDasharray: featureStyle.dasharray
+            ? featureStyle.dasharray.split(',').map(v => String(Math.round(parseFloat(v) * strokeScale))).join(',')
+            : '',
+          fill: featureStyle.fill || 'none',
           opacity: 1,
+          fontSize: Math.round(baseFontSize * strokeScale),
         }
-      : { stroke: '#000000', strokeWidth: 1, strokeDasharray: '', fill: 'none', opacity: 1 },
+      : {
+          stroke: '#000000',
+          strokeWidth: Math.round(1 * strokeScale * 10) / 10,
+          strokeDasharray: '',
+          fill: 'none',
+          opacity: 1,
+          fontSize: Math.round(10 * strokeScale),
+        },
     layer: el.layer,
     z_index: el.z_index,
     visible: el.visible,
@@ -178,7 +216,7 @@ export async function createDrawing(
     discrepancy_ids: el.discrepancy_ids,
     user_modified: false,
     user_notes: null,
-  }));
+  };});
 
   // Insert in batches of 50
   for (let i = 0; i < elementRows.length; i += 50) {
@@ -397,4 +435,64 @@ export async function listDrawings(
   }
 
   return results;
+}
+
+// ── Coordinate Transformation ────────────────────────────────────────────────
+
+/**
+ * Transform all element coordinates from survey space (feet) to canvas pixel space.
+ * Also scales stroke widths and font sizes proportionally.
+ */
+function transformElements(
+  elements: DrawingElementInput[],
+  surveyToCanvas: (x: number, y: number) => [number, number],
+  scaleVal: number,
+  canvasWidth: number
+): void {
+  // Scale factor for strokes/fonts: make lines visible at auto-fit zoom.
+  // Canvas is 3600px wide; typical viewer is ~1000px, so auto-fit zoom ≈ 0.28.
+  // A 2px SVG stroke at that zoom = 0.56px on screen → too thin.
+  // Multiply strokes by ~3 so they appear ~2px on screen.
+  const strokeScale = Math.max(1, canvasWidth / 1200);
+
+  for (const el of elements) {
+    const geom = el.geometry as Record<string, unknown>;
+
+    switch (geom.type) {
+      case 'line': {
+        const g = geom as { type: 'line'; start: [number, number]; end: [number, number] };
+        g.start = surveyToCanvas(g.start[0], g.start[1]);
+        g.end = surveyToCanvas(g.end[0], g.end[1]);
+        // Regenerate svg_path with transformed coords
+        el.svg_path = `M ${g.start[0].toFixed(1)} ${g.start[1].toFixed(1)} L ${g.end[0].toFixed(1)} ${g.end[1].toFixed(1)}`;
+        break;
+      }
+      case 'point': {
+        const g = geom as { type: 'point'; position: [number, number] };
+        g.position = surveyToCanvas(g.position[0], g.position[1]);
+        break;
+      }
+      case 'label': {
+        const g = geom as { type: 'label'; position: [number, number]; anchor: string };
+        g.position = surveyToCanvas(g.position[0], g.position[1]);
+        break;
+      }
+      case 'polygon': {
+        const g = geom as { type: 'polygon'; points: [number, number][] };
+        g.points = g.points.map(p => surveyToCanvas(p[0], p[1]));
+        break;
+      }
+    }
+
+    // Scale style values for visibility at auto-fit zoom
+    if (el.style) {
+      const s = el.style as Record<string, unknown>;
+      if (typeof s.strokeWidth === 'number') {
+        s.strokeWidth = Math.round((s.strokeWidth as number) * strokeScale * 10) / 10;
+      }
+      if (typeof s.fontSize === 'number') {
+        s.fontSize = Math.round((s.fontSize as number) * strokeScale);
+      }
+    }
+  }
 }
