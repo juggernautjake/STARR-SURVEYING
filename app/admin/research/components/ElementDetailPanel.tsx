@@ -63,7 +63,10 @@ export default function ElementDetailPanel({
         </div>
         <button
           className="research-element-panel__close"
-          onClick={onClose}
+          onClick={() => {
+            if (notes !== (element.user_notes || '') && !window.confirm('You have unsaved notes. Close anyway?')) return;
+            onClose();
+          }}
           aria-label="Close panel"
         >
           &times;

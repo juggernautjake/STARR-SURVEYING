@@ -1727,6 +1727,35 @@
   .activity__filters select { min-height: 44px; }
 }
 
+/* ── Toast & Coords Responsive ─────────────────────────────────────────── */
+@media (max-width: 599px) {
+  .research-toast {
+    max-width: calc(100vw - 2rem);
+    bottom: 1rem;
+    font-size: 0.78rem;
+    padding: 0.5rem 0.75rem;
+  }
+  .research-canvas__coords {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+  }
+  .research-tools__search-input {
+    font-size: 0.68rem;
+    padding: 0.2rem 0.35rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .research-toast {
+    max-width: calc(100vw - 1.5rem);
+    bottom: 0.75rem;
+    font-size: 0.75rem;
+  }
+  .research-canvas__coords {
+    display: none;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SAFE AREA — Support for iPhone notch / bottom bar
    ═══════════════════════════════════════════════════════════════════════════ */

@@ -14,6 +14,7 @@ interface DrawingViewToolbarProps {
   onExportSvg: () => void;
   onExportJson: () => void;
   onSaveToDb: () => void;
+  isSaving?: boolean;
   onResetOriginal: () => void;
   onResetLastSaved: () => void;
   onUndo: () => void;
@@ -55,6 +56,7 @@ export default function DrawingViewToolbar({
   onExportSvg,
   onExportJson,
   onSaveToDb,
+  isSaving,
   onResetOriginal,
   onResetLastSaved,
   onUndo,
@@ -89,6 +91,7 @@ export default function DrawingViewToolbar({
           onClick={onUndo}
           disabled={!canUndo}
           title="Undo (Ctrl+Z)"
+          aria-label="Undo"
         >
           ↩
         </button>
@@ -97,6 +100,7 @@ export default function DrawingViewToolbar({
           onClick={onRedo}
           disabled={!canRedo}
           title="Redo (Ctrl+Shift+Z)"
+          aria-label="Redo"
         >
           ↪
         </button>
@@ -140,10 +144,10 @@ export default function DrawingViewToolbar({
       <div className="research-toolbar__group">
         <span className="research-toolbar__group-label">Zoom</span>
         <div className="research-toolbar__btn-group">
-          <button className="research-toolbar__icon-btn" onClick={onZoomOut} title="Zoom Out">-</button>
+          <button className="research-toolbar__icon-btn" onClick={onZoomOut} title="Zoom Out" aria-label="Zoom out">-</button>
           <span className="research-toolbar__zoom-value">{Math.round(zoom * 100)}%</span>
-          <button className="research-toolbar__icon-btn" onClick={onZoomIn} title="Zoom In">+</button>
-          <button className="research-toolbar__icon-btn research-toolbar__icon-btn--text" onClick={onZoomReset} title="Reset View">Fit</button>
+          <button className="research-toolbar__icon-btn" onClick={onZoomIn} title="Zoom In" aria-label="Zoom in">+</button>
+          <button className="research-toolbar__icon-btn research-toolbar__icon-btn--text" onClick={onZoomReset} title="Reset View" aria-label="Reset zoom">Fit</button>
         </div>
       </div>
 
@@ -171,7 +175,7 @@ export default function DrawingViewToolbar({
 
       {/* Actions */}
       <div className="research-toolbar__group">
-        <button className="research-toolbar__action-btn" onClick={onOpenSettings} title="Drawing Preferences">
+        <button className="research-toolbar__action-btn" onClick={onOpenSettings} title="Drawing Preferences" aria-label="Drawing preferences">
           Settings
         </button>
 
@@ -181,8 +185,10 @@ export default function DrawingViewToolbar({
             className={`research-toolbar__action-btn ${hasUnsavedChanges ? 'research-toolbar__action-btn--primary' : ''}`}
             onClick={() => { setShowExportMenu(!showExportMenu); setShowResetMenu(false); }}
             title="Save & Export"
+            disabled={isSaving}
+            aria-label="Save and export options"
           >
-            Save
+            {isSaving ? 'Saving...' : 'Save'}
           </button>
           {showExportMenu && (
             <div className="research-toolbar__dropdown">
@@ -217,6 +223,7 @@ export default function DrawingViewToolbar({
             className="research-toolbar__action-btn"
             onClick={() => { setShowResetMenu(!showResetMenu); setShowExportMenu(false); }}
             title="Reset drawing"
+            aria-label="Reset drawing options"
           >
             Reset
           </button>

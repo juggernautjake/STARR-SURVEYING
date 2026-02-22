@@ -286,6 +286,7 @@ export default function DrawingToolsSidebar({
   canRedo,
 }: DrawingToolsSidebarProps) {
   const [expandedSettings, setExpandedSettings] = useState(false);
+  const [symbolSearch, setSymbolSearch] = useState('');
 
   function updateSetting<K extends keyof ToolSettings>(key: K, value: ToolSettings[K]) {
     onSettingsChange({ ...settings, [key]: value });
@@ -307,6 +308,7 @@ export default function DrawingToolsSidebar({
           onClick={onUndo}
           disabled={!canUndo}
           title="Undo (Ctrl+Z)"
+          aria-label="Undo"
         >
           ↩
         </button>
@@ -315,6 +317,7 @@ export default function DrawingToolsSidebar({
           onClick={onRedo}
           disabled={!canRedo}
           title="Redo (Ctrl+Shift+Z)"
+          aria-label="Redo"
         >
           ↪
         </button>
@@ -455,23 +458,39 @@ export default function DrawingToolsSidebar({
                 </>
               )}
 
-              {/* Symbol settings */}
+              {/* Symbol settings with search */}
               {showSymbolSettings && (
                 <>
                   <div className="research-tools__setting-row">
                     <label>Symbol</label>
+                    <input
+                      type="text"
+                      className="research-tools__search-input"
+                      placeholder="Search symbols..."
+                      value={symbolSearch}
+                      onChange={e => setSymbolSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="research-tools__setting-row">
                     <select
                       value={settings.symbolType}
                       onChange={e => updateSetting('symbolType', e.target.value as SymbolType)}
                       className="research-tools__select"
+                      size={6}
                     >
-                      {SYMBOL_CATEGORIES.map(cat => (
-                        <optgroup key={cat.label} label={cat.label}>
-                          {cat.items.map(s => (
-                            <option key={s.key} value={s.key}>{s.label}</option>
-                          ))}
-                        </optgroup>
-                      ))}
+                      {SYMBOL_CATEGORIES.map(cat => {
+                        const filtered = cat.items.filter(s =>
+                          !symbolSearch || s.label.toLowerCase().includes(symbolSearch.toLowerCase())
+                        );
+                        if (filtered.length === 0) return null;
+                        return (
+                          <optgroup key={cat.label} label={cat.label}>
+                            {filtered.map(s => (
+                              <option key={s.key} value={s.key}>{s.label}</option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
                     </select>
                   </div>
                   <div className="research-tools__setting-row">

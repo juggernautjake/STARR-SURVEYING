@@ -125,6 +125,9 @@ export default function DrawingCanvas({
   const [measureStart, setMeasureStart] = useState<{ x: number; y: number } | null>(null);
   const [measureEnd, setMeasureEnd] = useState<{ x: number; y: number } | null>(null);
 
+  // Cursor coordinate display
+  const [cursorCoords, setCursorCoords] = useState<{ x: number; y: number } | null>(null);
+
   const showTooltips = preferences?.showTooltips !== false;
   const highlightOnHover = preferences?.highlightOnHover !== false;
 
@@ -587,6 +590,9 @@ export default function DrawingCanvas({
   }, [pan, activeTool, handleDrawStart]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    // Always track cursor coords for coordinate display
+    setCursorCoords(clientToSvg(e.clientX, e.clientY));
+
     if (isPanning) {
       setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y });
       return;
@@ -596,7 +602,7 @@ export default function DrawingCanvas({
       return;
     }
     handleSvgMouseMove(e);
-  }, [isPanning, panStart, isDrawing, handleDrawMove, handleSvgMouseMove]);
+  }, [isPanning, panStart, isDrawing, handleDrawMove, handleSvgMouseMove, clientToSvg]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
@@ -809,7 +815,7 @@ export default function DrawingCanvas({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => { setIsPanning(false); setDragStartPos(null); handleSvgMouseLeave(); }}
+        onMouseLeave={() => { setIsPanning(false); setDragStartPos(null); handleSvgMouseLeave(); setCursorCoords(null); }}
         onClick={handleElementClick}
         onDoubleClick={handleDoubleClick}
         onTouchStart={handleTouchStart}
@@ -941,6 +947,13 @@ export default function DrawingCanvas({
             onAction={handleContextMenuAction}
             onClose={() => setContextMenu(null)}
           />
+        )}
+
+        {/* Coordinate display */}
+        {cursorCoords && (
+          <div className="research-canvas__coords" aria-live="off">
+            X: {cursorCoords.x.toFixed(1)} &nbsp; Y: {cursorCoords.y.toFixed(1)}
+          </div>
         )}
       </div>
     </div>

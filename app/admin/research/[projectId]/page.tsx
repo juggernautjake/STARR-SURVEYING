@@ -71,6 +71,18 @@ export default function ResearchProjectPage() {
   const originalElementsMap = useRef<Map<string, DrawingElement>>(new Map());
   const [showSaveDialog, setShowSaveDialog] = useState<'save' | 'export' | null>(null);
 
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function showToast(message: string, type: 'error' | 'success' | 'info' = 'error') {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, type });
+    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+  }
+
+  // Loading states for async operations
+  const [savingDrawing, setSavingDrawing] = useState(false);
+
   const userRole = (session?.user as any)?.role || 'employee';
 
   if (sessionStatus === 'authenticated' && userRole !== 'admin') {
@@ -155,7 +167,7 @@ export default function ResearchProjectPage() {
             loadDocuments();
           }
         }
-      } catch { /* ignore polling errors */ }
+      } catch { /* polling errors are non-critical */ }
     }
 
     pollStatus();
@@ -212,7 +224,9 @@ export default function ResearchProjectPage() {
         const data = await res.json();
         setDrawings(data.drawings || []);
       }
-    } catch { /* ignore */ }
+    } catch {
+      showToast('Failed to load drawings. Please try again.');
+    }
   }, [projectId]);
 
   const loadDrawingDetail = useCallback(async (drawingId: string) => {
@@ -243,7 +257,9 @@ export default function ResearchProjectPage() {
           setDrawingSvg(svgData.svg || '');
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      showToast('Failed to load drawing details. Please try again.');
+    }
   }, [projectId, viewMode]);
 
   async function handleGenerateDrawing() {
@@ -282,7 +298,9 @@ export default function ResearchProjectPage() {
         // Refresh elements
         await loadDrawingDetail(activeDrawing.id);
       }
-    } catch { /* ignore */ }
+    } catch {
+      showToast('Failed to update element. Please try again.');
+    }
   }
 
   function handleExportSvg() {
@@ -358,6 +376,7 @@ export default function ResearchProjectPage() {
   // Save to database
   async function handleSaveToDb(name?: string) {
     if (!activeDrawing) return;
+    setSavingDrawing(true);
     try {
       const payload: Record<string, unknown> = {
         annotations,
@@ -375,12 +394,18 @@ export default function ResearchProjectPage() {
         setHasUnsavedChanges(false);
         setOriginalElements([...drawingElements]);
         setOriginalAnnotations([...annotations]);
+        showToast('Drawing saved successfully.', 'success');
         if (name) {
           setActiveDrawing({ ...activeDrawing, name });
           loadDrawings();
         }
+      } else {
+        showToast('Failed to save drawing. Please try again.');
       }
-    } catch { /* ignore */ }
+    } catch {
+      showToast('Failed to save drawing. Check your connection and try again.');
+    }
+    setSavingDrawing(false);
     setShowSaveDialog(null);
   }
 
@@ -482,6 +507,52 @@ export default function ResearchProjectPage() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeDrawing, handleUndo, handleRedo]);
+
+  // ── Beforeunload: warn user about unsaved changes ──────────────────────
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // ── Auto-save: save drawing state every 60 seconds if unsaved changes ───
+  const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
+    if (!activeDrawing || !hasUnsavedChanges) return;
+
+    autoSaveTimerRef.current = setInterval(async () => {
+      if (!activeDrawing || !hasUnsavedChanges) return;
+      try {
+        const payload: Record<string, unknown> = {
+          annotations,
+          preferences: drawingPrefs,
+        };
+        const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ save: true, ...payload }),
+        });
+        if (res.ok) {
+          setLastSavedAt(new Date().toISOString());
+          setHasUnsavedChanges(false);
+          setOriginalElements([...drawingElements]);
+          setOriginalAnnotations([...annotations]);
+        }
+      } catch {
+        // Auto-save failure is non-critical; user still has the beforeunload guard
+      }
+    }, 60000);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
+    };
+  }, [activeDrawing, hasUnsavedChanges, annotations, drawingPrefs, projectId, drawingElements]);
 
   // Load drawings when entering drawing step
   useEffect(() => {
@@ -790,7 +861,11 @@ export default function ResearchProjectPage() {
               {/* Back button */}
               <button
                 className="research-drawing__back-btn"
-                onClick={() => { setActiveDrawing(null); setDrawingElements([]); setDrawingSvg(''); setSelectedElement(null); setShowPrefsPanel(false); }}
+                onClick={() => {
+                  if (hasUnsavedChanges && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+                  setActiveDrawing(null); setDrawingElements([]); setDrawingSvg(''); setSelectedElement(null); setShowPrefsPanel(false);
+                  setCanvasZoom(1); setHasUnsavedChanges(false);
+                }}
                 style={{ marginBottom: '0.5rem' }}
               >
                 &larr; Back to Drawing List
@@ -809,6 +884,7 @@ export default function ResearchProjectPage() {
                 onExportSvg={handleExportSvg}
                 onExportJson={() => setShowSaveDialog('export')}
                 onSaveToDb={() => setShowSaveDialog('save')}
+                isSaving={savingDrawing}
                 onResetOriginal={handleResetOriginal}
                 onResetLastSaved={handleResetLastSaved}
                 onUndo={handleUndo}
@@ -983,6 +1059,21 @@ export default function ResearchProjectPage() {
           highlightText={viewerHighlight}
           onClose={() => { setViewerDoc(null); setViewerHighlight(undefined); }}
         />
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div
+          className={`research-toast research-toast--${toast.type}`}
+          role="alert"
+          onClick={() => setToast(null)}
+        >
+          <span className="research-toast__icon">
+            {toast.type === 'error' ? '!' : toast.type === 'success' ? '\u2713' : 'i'}
+          </span>
+          <span className="research-toast__message">{toast.message}</span>
+          <button className="research-toast__close" onClick={() => setToast(null)} aria-label="Dismiss">&times;</button>
+        </div>
       )}
     </div>
   );
