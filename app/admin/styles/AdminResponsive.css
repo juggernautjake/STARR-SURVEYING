@@ -134,6 +134,7 @@
   .research-modal__row { grid-template-columns: 1fr; }
   .research-hub__stats { gap: 0.75rem; }
   .research-hub__stat { min-width: 80px; }
+  .research-configure__summary { flex-direction: column; gap: 0.75rem; }
 
   /* ── Payroll ── */
   .payroll-summary-cards { grid-template-columns: repeat(2, 1fr); }
@@ -568,6 +569,16 @@
   .research-upload__doc-name { font-size: 0.82rem; }
   .research-upload__doc-meta { font-size: 0.7rem; }
   .research-modal__actions { flex-wrap: wrap; }
+  .research-configure { padding: 1rem; }
+  .research-configure__title { font-size: 1rem; }
+  .research-configure__desc { font-size: 0.82rem; }
+  .research-configure__summary { padding: 0.75rem; }
+  .research-configure__summary-item { font-size: 0.8rem; }
+  .research-configure__actions { flex-direction: column; align-items: stretch; }
+  .research-configure__actions .research-page__new-btn { width: 100%; justify-content: center; text-align: center; }
+  .research-analyzing { padding: 1.75rem 1rem; }
+  .research-analyzing__title { font-size: 1rem; }
+  .research-analyzing__text { font-size: 0.82rem; }
 
   /* ── Empty state ── */
   .admin-empty { padding: 2rem 1rem; }
@@ -655,6 +666,10 @@
   .research-page__status-chip { font-size: 0.7rem; padding: 0.25rem 0.55rem; }
   .research-workflow__step { font-size: 0.68rem; padding: 0.25rem 0.35rem; }
   .research-workflow__connector { width: 12px; }
+  .research-configure { padding: 0.85rem; border-radius: 10px; }
+  .research-configure__summary { padding: 0.65rem; gap: 0.5rem; }
+  .research-analyzing { padding: 1.25rem 0.75rem; border-radius: 10px; }
+  .research-analyzing__spinner { width: 32px; height: 32px; }
 
   /* ── Schedule (under construction) ── */
   .sched__month-label { font-size: 0.92rem; }

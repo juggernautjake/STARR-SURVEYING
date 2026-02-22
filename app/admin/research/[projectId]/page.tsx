@@ -6,8 +6,8 @@ import { useRouter, useParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import WorkflowStepper from '../components/WorkflowStepper';
 import DocumentUploadPanel from '../components/DocumentUploadPanel';
-import type { ResearchProject, ResearchDocument, WorkflowStep } from '@/types/research';
-import { WORKFLOW_STEPS } from '@/types/research';
+import type { ResearchProject, ResearchDocument, WorkflowStep, AnalysisTemplate } from '@/types/research';
+import { WORKFLOW_STEPS, SEVERITY_CONFIG } from '@/types/research';
 
 export default function ResearchProjectPage() {
   const { data: session, status: sessionStatus } = useSession();
@@ -20,6 +20,15 @@ export default function ResearchProjectPage() {
   const [documents, setDocuments] = useState<ResearchDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ document_count: 0, data_point_count: 0, discrepancy_count: 0, resolved_count: 0 });
+
+  // Analysis state
+  const [analysisStarting, setAnalysisStarting] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState<{
+    documentsTotal: number;
+    documentsAnalyzed: number;
+    dataPointCount: number;
+    discrepancyCount: number;
+  } | null>(null);
 
   const userRole = (session?.user as any)?.role || 'employee';
 
@@ -81,6 +90,38 @@ export default function ResearchProjectPage() {
     return () => clearInterval(interval);
   }, [documents, loadDocuments]);
 
+  // Poll for analysis progress when analyzing
+  useEffect(() => {
+    if (project?.status !== 'analyzing') {
+      setAnalysisStatus(null);
+      return;
+    }
+
+    async function pollStatus() {
+      try {
+        const res = await fetch(`/api/admin/research/${projectId}/analyze`);
+        if (res.ok) {
+          const data = await res.json();
+          setAnalysisStatus({
+            documentsTotal: data.documentsTotal,
+            documentsAnalyzed: data.documentsAnalyzed,
+            dataPointCount: data.dataPointCount,
+            discrepancyCount: data.discrepancyCount,
+          });
+          // If analysis completed, reload the project
+          if (data.status !== 'analyzing') {
+            loadProject();
+            loadDocuments();
+          }
+        }
+      } catch { /* ignore polling errors */ }
+    }
+
+    pollStatus();
+    const interval = setInterval(pollStatus, 4000);
+    return () => clearInterval(interval);
+  }, [project?.status, projectId, loadProject, loadDocuments]);
+
   async function handleStatusUpdate(newStatus: WorkflowStep) {
     try {
       const res = await fetch('/api/admin/research', {
@@ -95,6 +136,31 @@ export default function ResearchProjectPage() {
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'update status' });
     }
+  }
+
+  async function handleStartAnalysis() {
+    if (analysisStarting) return;
+    setAnalysisStarting(true);
+
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      if (res.ok) {
+        // Reload project to get "analyzing" status
+        await loadProject();
+      } else {
+        const err = await res.json();
+        reportPageError(new Error(err.error || 'Failed to start analysis'), { element: 'start analysis' });
+      }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'start analysis' });
+    }
+
+    setAnalysisStarting(false);
   }
 
   function getNextStep(): { key: WorkflowStep; label: string } | null {
@@ -112,7 +178,7 @@ export default function ResearchProjectPage() {
       case 'upload':
         return documents.length > 0 && documents.some(d => d.processing_status === 'extracted' || d.processing_status === 'analyzed');
       case 'configure':
-        return true; // Can always proceed from configure
+        return false; // Must use "Run Analysis" button instead
       case 'review':
         return true;
       case 'drawing':
@@ -137,6 +203,7 @@ export default function ResearchProjectPage() {
   if (!project) return null;
 
   const nextStep = getNextStep();
+  const extractedDocs = documents.filter(d => d.processing_status === 'extracted' || d.processing_status === 'analyzed');
 
   return (
     <div className="research-page">
@@ -191,8 +258,8 @@ export default function ResearchProjectPage() {
         </div>
       </div>
 
-      {/* Advance button */}
-      {nextStep && (
+      {/* Advance button (for non-configure steps) */}
+      {nextStep && project.status !== 'configure' && project.status !== 'analyzing' && (
         <div style={{ margin: '1.25rem 0' }}>
           <button
             className="research-page__new-btn"
@@ -220,24 +287,72 @@ export default function ResearchProjectPage() {
       )}
 
       {project.status === 'configure' && (
-        <div className="research-page__empty">
-          <div className="research-page__empty-icon">&#9881;</div>
-          <div className="research-page__empty-title">Configure Analysis</div>
-          <div className="research-page__empty-text">
-            Select an analysis template or customize which data categories to extract.
-            This step will be implemented in the next phase.
+        <div className="research-configure">
+          <div className="research-configure__header">
+            <h2 className="research-configure__title">Configure &amp; Run Analysis</h2>
+            <p className="research-configure__desc">
+              The AI will analyze {extractedDocs.length} document{extractedDocs.length !== 1 ? 's' : ''} and extract
+              surveying data including bearings, distances, monuments, curve data, legal descriptions, and more.
+            </p>
+          </div>
+
+          <div className="research-configure__summary">
+            <div className="research-configure__summary-item">
+              <span className="research-configure__summary-label">Documents ready:</span>
+              <span className="research-configure__summary-value">{extractedDocs.length}</span>
+            </div>
+            <div className="research-configure__summary-item">
+              <span className="research-configure__summary-label">Document types:</span>
+              <span className="research-configure__summary-value">
+                {[...new Set(extractedDocs.map(d => d.document_type).filter(Boolean))].join(', ').replace(/_/g, ' ') || 'Various'}
+              </span>
+            </div>
+          </div>
+
+          <div className="research-configure__actions">
+            <button
+              className="research-page__new-btn"
+              onClick={handleStartAnalysis}
+              disabled={analysisStarting || extractedDocs.length === 0}
+              style={(analysisStarting || extractedDocs.length === 0) ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            >
+              {analysisStarting ? 'Starting...' : 'Run AI Analysis'}
+            </button>
+            {extractedDocs.length === 0 && (
+              <span style={{ color: '#EF4444', fontSize: '0.8rem', marginLeft: '0.75rem' }}>
+                No extracted documents available. Go back to Upload to add documents.
+              </span>
+            )}
           </div>
         </div>
       )}
 
       {project.status === 'analyzing' && (
-        <div className="research-page__empty">
-          <div className="research-page__empty-icon" style={{ fontSize: '2rem' }}>...</div>
-          <div className="research-page__empty-title">AI Analysis in Progress</div>
-          <div className="research-page__empty-text">
+        <div className="research-analyzing">
+          <div className="research-analyzing__spinner" />
+          <div className="research-analyzing__title">AI Analysis in Progress</div>
+          <div className="research-analyzing__text">
             The AI is processing your documents and extracting surveying data.
             This may take a few minutes depending on the number and size of documents.
           </div>
+          {analysisStatus && (
+            <div className="research-analyzing__progress">
+              <div className="research-analyzing__progress-bar">
+                <div
+                  className="research-analyzing__progress-fill"
+                  style={{
+                    width: analysisStatus.documentsTotal > 0
+                      ? `${(analysisStatus.documentsAnalyzed / analysisStatus.documentsTotal) * 100}%`
+                      : '0%'
+                  }}
+                />
+              </div>
+              <div className="research-analyzing__progress-text">
+                {analysisStatus.documentsAnalyzed} of {analysisStatus.documentsTotal} documents analyzed
+                {analysisStatus.dataPointCount > 0 && ` — ${analysisStatus.dataPointCount} data points extracted`}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -269,6 +384,19 @@ export default function ResearchProjectPage() {
                 <div className="research-upload__doc-meta">
                   {doc.document_type && <span>{doc.document_type.replace(/_/g, ' ')}</span>}
                   {doc.extracted_text_method && <span>{doc.extracted_text_method}</span>}
+                  <span style={{
+                    color: doc.processing_status === 'analyzed' ? '#059669'
+                      : doc.processing_status === 'analyzing' ? '#F59E0B'
+                      : doc.processing_status === 'error' ? '#EF4444'
+                      : '#9CA3AF',
+                    fontWeight: 600,
+                  }}>
+                    {doc.processing_status === 'analyzed' ? 'Analyzed'
+                      : doc.processing_status === 'analyzing' ? 'Analyzing...'
+                      : doc.processing_status === 'extracted' ? 'Extracted'
+                      : doc.processing_status === 'error' ? 'Error'
+                      : doc.processing_status}
+                  </span>
                 </div>
               </div>
             </div>
