@@ -22,6 +22,13 @@
   /* Only rotate the right-arrow (→) to point down; down-arrows (↓) stay as-is */
   .hiw__edu-arrow--right { transform: rotate(90deg); }
   .hiw__edu-arrow--down { transform: none; }
+
+  /* ── Research Drawing — Tablet ── */
+  .research-element-panel { width: 300px; min-width: 260px; }
+  .research-toolbar__group-label { font-size: 0.6rem; }
+  .research-toolbar__stat { font-size: 0.7rem; }
+  .research-prefs { width: 320px; }
+  .research-tools { max-height: calc(100vh - 220px); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -155,24 +162,58 @@
   .research-search__group-header { padding: 0.65rem 1rem; }
   .research-search__result { padding: 0.75rem 1rem; }
   .research-search__import-bar { padding: 0.75rem 1rem; }
-  .research-drawing__controls { flex-direction: column; }
-  .research-drawing__workspace { flex-direction: column; }
-  .research-element-panel { width: 100%; max-height: none; border-left: none; border-top: 1px solid #E5E7EB; }
+
+  /* ── Research Drawing — Tablet ── */
+  .research-drawing__controls { flex-direction: column; gap: 0.75rem; }
+  .research-drawing__controls-left { width: 100%; }
+  .research-drawing__controls-right { width: 100%; justify-content: flex-start; }
+  .research-drawing__workspace { min-height: 420px; }
   .research-drawing__view-modes { flex-wrap: wrap; }
+  .research-drawing__back-btn { font-size: 0.78rem; padding: 0.35rem 0.75rem; }
+  .research-drawing__list-item { padding: 0.55rem 0.85rem; font-size: 0.85rem; }
+
+  /* Canvas & element panel */
   .research-canvas { min-height: 350px; }
-  .research-toolbar { flex-wrap: wrap; gap: 0.5rem; }
-  .research-toolbar__group--stats { margin-left: 0; }
+  .research-element-panel { width: 300px; min-width: 260px; max-height: none; }
+
+  /* Toolbar: wrap gracefully, keep groups together */
+  .research-toolbar { padding: 0.45rem 0.65rem; gap: 0.5rem; }
+  .research-toolbar__group--stats { margin-left: 0; width: 100%; justify-content: flex-start; padding-top: 0.25rem; border-top: 1px solid #F3F4F6; }
   .research-toolbar__group-label { display: none; }
+  .research-toolbar__mode-btn { padding: 0.28rem 0.45rem; font-size: 0.7rem; }
+  .research-toolbar__layer-btn { padding: 0.28rem 0.45rem; font-size: 0.7rem; }
+  .research-toolbar__action-btn { padding: 0.3rem 0.6rem; font-size: 0.72rem; }
+  .research-toolbar__icon-btn { width: 26px; height: 26px; font-size: 0.8rem; }
+  .research-toolbar__zoom-value { font-size: 0.68rem; min-width: 36px; }
+  .research-toolbar__stat { font-size: 0.7rem; }
+  .research-toolbar__dropdown { min-width: 210px; }
+  .research-toolbar__dropdown-item { padding: 0.5rem 0.75rem; font-size: 0.78rem; }
+
+  /* Preferences panel */
   .research-prefs { width: 300px; max-height: calc(100vh - 160px); }
   .research-prefs__style-controls { flex-direction: column; }
   .research-prefs__style-field input[type="range"] { width: 100%; }
+  .research-prefs__tab { font-size: 0.68rem; padding: 0.45rem 0.3rem; }
+  .research-prefs__toggle { font-size: 0.78rem; }
+
+  /* Tools sidebar */
   .research-tools { width: 48px; padding: 0.35rem 0.25rem; }
   .research-tools__btn { width: 36px; height: 32px; }
   .research-tools__btn-icon { font-size: 0.85rem; }
-  .research-tools__btn-label { font-size: 0.45rem; }
+  .research-tools__btn-label { font-size: 0.42rem; }
+  .research-tools__undo-btn { width: 20px; height: 20px; font-size: 0.7rem; }
+
+  /* Context menu, dropdown, dialog */
   .research-context-menu { min-width: 180px; }
-  .research-toolbar__dropdown { min-width: 200px; }
-  .research-save-dialog { width: 380px; }
+  .research-save-dialog { width: 400px; }
+  .research-save-dialog__input { font-size: 0.85rem; }
+  .research-save-dialog__cancel-btn { padding: 0.4rem 0.75rem; }
+  .research-save-dialog__save-btn { padding: 0.4rem 0.85rem; }
+
+  /* Drawing info footer */
+  .research-drawing__info { font-size: 0.78rem; gap: 0.5rem; }
+  .research-drawing__info-unsaved { font-size: 0.75rem; }
+  .research-drawing__info-saved { font-size: 0.72rem; }
 
   /* ── Payroll ── */
   .payroll-summary-cards { grid-template-columns: repeat(2, 1fr); }
@@ -645,30 +686,135 @@
   .research-disc__resolve-save { font-size: 0.78rem; padding: 0.4rem 0.85rem; }
   .research-disc-panel__summary { font-size: 0.82rem; padding: 0.65rem 0.85rem; }
   .research-disc-panel__filter { font-size: 0.75rem; padding: 0.3rem 0.65rem; }
-  .research-toolbar { padding: 0.4rem 0.5rem; gap: 0.35rem; }
-  .research-toolbar__mode-btn { font-size: 0.68rem; padding: 0.25rem 0.4rem; }
-  .research-toolbar__layer-btn { font-size: 0.68rem; padding: 0.25rem 0.4rem; }
-  .research-toolbar__action-btn { font-size: 0.68rem; padding: 0.25rem 0.5rem; }
-  .research-toolbar__zoom-value { font-size: 0.65rem; min-width: 34px; }
-  .research-toolbar__stat { font-size: 0.68rem; }
-  .research-prefs { width: 100%; max-width: 100vw; border-radius: 0; max-height: 60vh; }
-  .research-prefs__tab { font-size: 0.65rem; padding: 0.4rem 0.25rem; }
+  /* ── Research Drawing — Mobile ── */
+
+  /* Toolbar: compact, horizontally scrollable groups */
+  .research-toolbar {
+    padding: 0.35rem 0.5rem;
+    gap: 0.3rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .research-toolbar__group { gap: 0.25rem; flex-shrink: 0; }
+  .research-toolbar__group--stats {
+    margin-left: 0;
+    width: 100%;
+    flex-shrink: 1;
+    padding-top: 0.2rem;
+    border-top: 1px solid #F3F4F6;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .research-toolbar__btn-group { border-radius: 5px; }
+  .research-toolbar__mode-btn { font-size: 0.65rem; padding: 0.22rem 0.35rem; }
+  .research-toolbar__layer-btn { font-size: 0.65rem; padding: 0.22rem 0.35rem; }
+  .research-toolbar__action-btn { font-size: 0.7rem; padding: 0.28rem 0.55rem; border-radius: 5px; }
+  .research-toolbar__icon-btn { width: 24px; height: 24px; font-size: 0.75rem; }
+  .research-toolbar__icon-btn--text { padding: 0 0.35rem; font-size: 0.65rem; }
+  .research-toolbar__zoom-value { font-size: 0.62rem; min-width: 30px; padding: 0 0.2rem; }
+  .research-toolbar__stat { font-size: 0.65rem; }
+  .research-toolbar__stat + .research-toolbar__stat { margin-left: 0.3rem; padding-left: 0.3rem; }
+
+  /* Toolbar dropdowns */
+  .research-toolbar__dropdown { min-width: 200px; right: auto; left: 0; }
+  .research-toolbar__dropdown-item { padding: 0.5rem 0.7rem; font-size: 0.78rem; }
+  .research-toolbar__dropdown-hint { font-size: 0.65rem; }
+
+  /* Preferences panel: slide-in overlay */
+  .research-prefs {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 85vw;
+    max-width: 320px;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+    z-index: 600;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+  }
+  .research-prefs__tab { font-size: 0.68rem; padding: 0.45rem 0.3rem; }
+  .research-prefs__body { padding: 0.6rem 0.75rem 1rem; }
   .research-prefs__style-row { padding: 0.5rem; }
   .research-prefs__style-label { font-size: 0.72rem; }
-  .research-element-panel__style-editor { padding: 0.5rem; }
+  .research-prefs__toggle { font-size: 0.78rem; padding: 0.35rem 0; }
+  .research-prefs__group-title { font-size: 0.7rem; }
+  .research-prefs__slider-label { font-size: 0.72rem; }
+  .research-prefs__color-row { font-size: 0.78rem; }
+
+  /* Element panel: bottom drawer on mobile */
+  .research-element-panel {
+    width: 100%;
+    max-height: 45vh;
+    min-width: 0;
+    border-left: none;
+    border-top: 1px solid #E5E7EB;
+    border-radius: 0;
+  }
+  .research-element-panel__header { padding: 0.75rem 0.85rem; }
+  .research-element-panel__title { font-size: 0.92rem; }
+  .research-element-panel__section { padding: 0.65rem 0.85rem; }
+  .research-element-panel__section-title { font-size: 0.78rem; }
+  .research-element-panel__style-editor { padding: 0.5rem; gap: 0.5rem; }
   .research-element-panel__style-row label { flex: 0 0 70px; font-size: 0.7rem; }
-  .research-tools { width: 42px; }
-  .research-tools__btn { width: 32px; height: 28px; }
+  .research-element-panel__attr { font-size: 0.75rem; }
+  .research-element-panel__attr-value { max-width: 150px; }
+  .research-element-panel__confidence { padding: 0.65rem 0.85rem; }
+  .research-element-panel__notes { font-size: 0.78rem; min-height: 50px; }
+  .research-element-panel__actions { padding: 0.5rem 0.85rem; flex-wrap: wrap; }
+  .research-element-panel__action-btn { font-size: 0.72rem; padding: 0.28rem 0.55rem; }
+
+  /* Tools sidebar: compact vertical strip */
+  .research-tools {
+    width: 42px;
+    padding: 0.3rem 0.2rem;
+    border-radius: 8px;
+    max-height: calc(100vh - 280px);
+  }
+  .research-tools__btn { width: 32px; height: 28px; border-radius: 5px; }
+  .research-tools__btn-icon { font-size: 0.82rem; }
   .research-tools__btn-label { display: none; }
   .research-tools__group-label { display: none; }
   .research-tools__settings { display: none; }
-  .research-context-menu { min-width: 160px; font-size: 0.72rem; }
-  .research-context-menu__item { padding: 0.35rem 0.6rem; font-size: 0.72rem; }
-  .research-canvas__text-input { width: 160px; }
-  .research-toolbar__dropdown { min-width: 180px; }
-  .research-toolbar__dropdown-item { padding: 0.45rem 0.65rem; font-size: 0.75rem; }
-  .research-save-dialog { width: calc(100vw - 2rem); padding: 1.25rem; border-radius: 12px; }
-  .research-save-dialog__title { font-size: 1rem; }
+  .research-tools__undo-redo { gap: 0.15rem; padding-bottom: 0.3rem; }
+  .research-tools__undo-btn { width: 18px; height: 18px; font-size: 0.65rem; }
+
+  /* Canvas */
+  .research-canvas { min-height: 280px; }
+  .research-canvas__text-input { width: 180px; min-height: 26px; font-size: 11px; }
+  .research-canvas__text-input-wrap { min-width: 100px; }
+  .research-canvas__tooltip { font-size: 0.68rem; padding: 0.25rem 0.5rem; }
+
+  /* Context menu */
+  .research-context-menu { min-width: 170px; max-width: 250px; border-radius: 8px; }
+  .research-context-menu__item { padding: 0.4rem 0.65rem; font-size: 0.75rem; }
+  .research-context-menu__header { font-size: 0.68rem; padding: 0.4rem 0.65rem; }
+  .research-context-menu__section-label { font-size: 0.58rem; padding: 0.2rem 0.65rem 0.1rem; }
+  .research-context-menu__icon { width: 16px; font-size: 0.78rem; }
+
+  /* Save dialog: centered, nearly full width */
+  .research-save-dialog { width: calc(100vw - 2rem); max-width: 380px; padding: 1.25rem; border-radius: 12px; }
+  .research-save-dialog__title { font-size: 1rem; margin-bottom: 0.75rem; }
+  .research-save-dialog__label { font-size: 0.75rem; }
+  .research-save-dialog__input { font-size: 0.85rem; padding: 0.5rem 0.65rem; }
+  .research-save-dialog__hint { font-size: 0.72rem; }
+  .research-save-dialog__cancel-btn { font-size: 0.78rem; padding: 0.4rem 0.75rem; }
+  .research-save-dialog__save-btn { font-size: 0.78rem; padding: 0.4rem 0.85rem; }
+
+  /* Workspace layout: still flex row but tighter */
+  .research-drawing__workspace { min-height: 320px; gap: 0; border-radius: 10px; }
+  .research-drawing__back-btn { font-size: 0.75rem; padding: 0.32rem 0.65rem; border-radius: 6px; }
+  .research-drawing__list-item { padding: 0.5rem 0.75rem; font-size: 0.82rem; border-radius: 6px; }
+  .research-drawing__list-meta { font-size: 0.72rem; }
+  .research-drawing__title { font-size: 1rem; }
+
+  /* Drawing info footer */
+  .research-drawing__info { font-size: 0.75rem; gap: 0.4rem; padding: 0.4rem 0.15rem; }
+  .research-drawing__info-unsaved { font-size: 0.72rem; margin-left: 0.4rem; }
+  .research-drawing__info-saved { font-size: 0.7rem; margin-left: 0.4rem; }
+  .research-drawing__info-notes { font-size: 0.72rem; }
   .research-disc-panel__status-btn { font-size: 0.78rem; padding: 0.35rem 0.65rem; }
   .research-viewer { width: 96%; max-height: 90vh; border-radius: 10px; }
   .research-viewer__header { padding: 0.85rem 1rem; }
@@ -816,6 +962,129 @@
   .research-search__sources { flex-direction: column; gap: 0.3rem; }
   .research-search__relevance-bar { width: 45px; }
 
+  /* ── Research Drawing — Small Mobile ── */
+
+  /* Workspace: vertical column layout */
+  .research-drawing__workspace { flex-direction: column; min-height: 260px; border-radius: 8px; }
+
+  /* Tools: horizontal bottom strip inside workspace */
+  .research-tools {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.15rem;
+    padding: 0.3rem 0.35rem;
+    max-height: none;
+    border-radius: 0 0 8px 8px;
+    order: 2;
+    border-top: 1px solid #E5E7EB;
+    border-bottom: none;
+  }
+  .research-tools__undo-redo {
+    flex-direction: row;
+    border-bottom: none;
+    border-right: 1px solid #E5E7EB;
+    padding: 0 0.3rem 0 0;
+    margin-right: 0.15rem;
+  }
+  .research-tools__group {
+    flex-direction: row;
+    gap: 0.1rem;
+  }
+  .research-tools__group-btns {
+    flex-direction: row;
+    gap: 0.1rem;
+  }
+  .research-tools__btn { width: 28px; height: 26px; }
+  .research-tools__btn-icon { font-size: 0.78rem; }
+  .research-tools__undo-btn { width: 18px; height: 18px; font-size: 0.6rem; }
+
+  /* Canvas: fills remaining space */
+  .research-canvas { min-height: 240px; order: 1; }
+  .research-canvas__text-input { width: 140px; font-size: 10px; }
+
+  /* Element panel: full width bottom drawer */
+  .research-element-panel {
+    width: 100%;
+    max-height: 40vh;
+    min-width: 0;
+    border-left: none;
+    border-top: 1px solid #E5E7EB;
+    order: 3;
+  }
+  .research-element-panel__header { padding: 0.6rem 0.75rem; }
+  .research-element-panel__title { font-size: 0.88rem; }
+  .research-element-panel__type { font-size: 0.7rem; }
+  .research-element-panel__close { width: 26px; height: 26px; font-size: 1rem; }
+  .research-element-panel__confidence { padding: 0.55rem 0.75rem; }
+  .research-element-panel__section { padding: 0.55rem 0.75rem; }
+  .research-element-panel__attr { font-size: 0.72rem; }
+  .research-element-panel__attr-value { max-width: 120px; }
+  .research-element-panel__report { font-size: 0.78rem; padding: 0.5rem 0.65rem; }
+  .research-element-panel__source { padding: 0.4rem 0.5rem; }
+  .research-element-panel__source-info { font-size: 0.7rem; }
+
+  /* Toolbar: very compact, scrollable */
+  .research-toolbar {
+    padding: 0.3rem 0.4rem;
+    gap: 0.25rem;
+    border-radius: 7px;
+    margin-bottom: 0.4rem;
+  }
+  .research-toolbar__mode-btn { font-size: 0.6rem; padding: 0.2rem 0.3rem; }
+  .research-toolbar__layer-btn { font-size: 0.6rem; padding: 0.2rem 0.3rem; }
+  .research-toolbar__action-btn { font-size: 0.65rem; padding: 0.22rem 0.45rem; }
+  .research-toolbar__icon-btn { width: 22px; height: 22px; font-size: 0.7rem; }
+  .research-toolbar__zoom-value { font-size: 0.6rem; min-width: 28px; }
+  .research-toolbar__stat { font-size: 0.6rem; }
+  .research-toolbar__stat + .research-toolbar__stat { margin-left: 0.2rem; padding-left: 0.2rem; }
+
+  /* Toolbar dropdowns: full width */
+  .research-toolbar__dropdown { min-width: 180px; }
+  .research-toolbar__dropdown-item { padding: 0.45rem 0.6rem; font-size: 0.75rem; }
+
+  /* Preferences: full screen overlay */
+  .research-prefs {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    z-index: 600;
+    box-shadow: none;
+  }
+  .research-prefs__header { padding: 0.65rem 0.85rem; }
+  .research-prefs__title { font-size: 0.85rem; }
+  .research-prefs__tab { font-size: 0.62rem; padding: 0.4rem 0.2rem; }
+
+  /* Save dialog: nearly full width */
+  .research-save-dialog { width: calc(100vw - 1.5rem); padding: 1rem; border-radius: 10px; }
+  .research-save-dialog__title { font-size: 0.95rem; }
+  .research-save-dialog__actions { gap: 0.4rem; }
+  .research-save-dialog__cancel-btn { font-size: 0.75rem; padding: 0.38rem 0.65rem; }
+  .research-save-dialog__save-btn { font-size: 0.75rem; padding: 0.38rem 0.75rem; }
+
+  /* Context menu */
+  .research-context-menu { min-width: 160px; max-width: 220px; }
+  .research-context-menu__item { padding: 0.38rem 0.55rem; font-size: 0.72rem; }
+
+  /* Back button and drawing list */
+  .research-drawing__back-btn { font-size: 0.72rem; padding: 0.3rem 0.55rem; }
+  .research-drawing__title { font-size: 0.95rem; }
+  .research-drawing__list-item { font-size: 0.78rem; padding: 0.45rem 0.65rem; }
+  .research-drawing__list-meta { font-size: 0.68rem; }
+  .research-drawing__view-btn { font-size: 0.72rem; padding: 0.3rem 0.55rem; }
+
+  /* Drawing info footer */
+  .research-drawing__info { font-size: 0.72rem; gap: 0.35rem; flex-direction: column; align-items: flex-start; }
+  .research-drawing__info-unsaved { margin-left: 0; font-size: 0.7rem; }
+  .research-drawing__info-saved { margin-left: 0; font-size: 0.68rem; }
+  .research-drawing__info-notes { font-size: 0.68rem; }
+
   /* ── Schedule (under construction) ── */
   .sched__month-label { font-size: 0.92rem; }
   .sched__nav-btn { width: 32px; height: 32px; font-size: 0.88rem; }
@@ -850,6 +1119,33 @@
   .research-viewer__close { width: 28px; height: 28px; font-size: 1rem; }
   .research-search__result-top { flex-wrap: wrap; }
   .research-search__select-controls { flex-direction: column; gap: 0.25rem; }
+
+  /* ── Research Drawing — Extra Small ── */
+  .research-toolbar { padding: 0.25rem 0.35rem; gap: 0.2rem; border-radius: 6px; }
+  .research-toolbar__mode-btn { font-size: 0.55rem; padding: 0.18rem 0.25rem; }
+  .research-toolbar__layer-btn { font-size: 0.55rem; padding: 0.18rem 0.25rem; }
+  .research-toolbar__action-btn { font-size: 0.6rem; padding: 0.2rem 0.35rem; }
+  .research-toolbar__icon-btn { width: 20px; height: 20px; font-size: 0.65rem; }
+  .research-toolbar__stat { font-size: 0.55rem; }
+  .research-toolbar__group--stats { gap: 0.2rem; }
+  .research-toolbar__dropdown { min-width: 160px; }
+  .research-toolbar__dropdown-item { font-size: 0.72rem; padding: 0.4rem 0.55rem; }
+  .research-toolbar__dropdown-hint { font-size: 0.6rem; }
+  .research-tools__btn { width: 26px; height: 24px; }
+  .research-tools__btn-icon { font-size: 0.72rem; }
+  .research-canvas { min-height: 200px; }
+  .research-drawing__workspace { min-height: 220px; }
+  .research-drawing__back-btn { font-size: 0.68rem; padding: 0.25rem 0.45rem; }
+  .research-drawing__title { font-size: 0.88rem; }
+  .research-drawing__info { font-size: 0.68rem; }
+  .research-element-panel__header { padding: 0.5rem 0.65rem; }
+  .research-element-panel__title { font-size: 0.82rem; }
+  .research-element-panel__section { padding: 0.45rem 0.65rem; }
+  .research-save-dialog { width: calc(100vw - 1rem); padding: 0.85rem; }
+  .research-save-dialog__title { font-size: 0.88rem; }
+  .research-save-dialog__input { font-size: 0.82rem; padding: 0.45rem 0.55rem; }
+  .research-context-menu { min-width: 140px; }
+  .research-context-menu__item { font-size: 0.68rem; padding: 0.32rem 0.45rem; }
 
   /* ── My Notes ── */
   .mynotes__tabs { gap: 0; }
@@ -907,6 +1203,32 @@
   .research-search__select-btn { min-height: 36px; display: inline-flex; align-items: center; }
   .research-search__result-link { min-height: 36px; display: inline-flex; align-items: center; }
   .research-search__advanced-toggle { min-height: 36px; display: inline-flex; align-items: center; }
+
+  /* ── Drawing touch targets ── */
+  .research-toolbar__mode-btn { min-height: 32px; display: inline-flex; align-items: center; }
+  .research-toolbar__layer-btn { min-height: 32px; display: inline-flex; align-items: center; }
+  .research-toolbar__icon-btn { min-height: 32px; min-width: 32px; display: inline-flex; align-items: center; justify-content: center; }
+  .research-toolbar__action-btn { min-height: 36px; display: inline-flex; align-items: center; }
+  .research-toolbar__dropdown-item { min-height: 44px; display: flex; align-items: center; }
+  .research-tools__btn { min-height: 36px; min-width: 36px; }
+  .research-tools__undo-btn { min-height: 28px; min-width: 28px; }
+  .research-prefs__toggle { min-height: 40px; }
+  .research-prefs__tab { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+  .research-prefs__reset-btn { min-height: 36px; display: inline-flex; align-items: center; }
+  .research-prefs__close-btn { min-height: 36px; min-width: 36px; }
+  .research-context-menu__item { min-height: 40px; display: flex; align-items: center; }
+  .research-element-panel__close { min-height: 36px; min-width: 36px; }
+  .research-element-panel__action-btn { min-height: 36px; display: inline-flex; align-items: center; }
+  .research-element-panel__factors-toggle { min-height: 36px; display: inline-flex; align-items: center; }
+  .research-element-panel__source-btn { min-height: 36px; display: inline-flex; align-items: center; }
+  .research-element-panel__save-btn { min-height: 36px; display: inline-flex; align-items: center; }
+  .research-save-dialog__cancel-btn { min-height: 44px; display: inline-flex; align-items: center; }
+  .research-save-dialog__save-btn { min-height: 44px; display: inline-flex; align-items: center; }
+  .research-save-dialog__input { min-height: 44px; }
+  .research-drawing__back-btn { min-height: 40px; display: inline-flex; align-items: center; }
+  .research-drawing__list-item { min-height: 44px; }
+  .research-drawing__view-btn { min-height: 36px; display: inline-flex; align-items: center; }
+  .research-tools__settings-toggle { min-height: 36px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1000,7 +1322,14 @@
   .research-modal__textarea,
   .research-modal__select,
   .research-disc__resolve-notes,
-  .research-search__input {
+  .research-search__input,
+  .research-save-dialog__input,
+  .research-canvas__text-input,
+  .research-element-panel__notes,
+  .research-prefs__num-input,
+  .research-prefs__select,
+  .research-tools__num-input,
+  .research-tools__select {
     font-size: 16px !important;
   }
 }

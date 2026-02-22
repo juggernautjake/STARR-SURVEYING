@@ -1837,7 +1837,7 @@
 .research-drawing__controls {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 1rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
@@ -1876,24 +1876,29 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.65rem 1rem;
+  padding: 0.7rem 1rem;
   background: #FFFFFF;
   border: 1px solid #E5E7EB;
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.88rem;
+  font-weight: 500;
   color: #1F2937;
   transition: all 0.15s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .research-drawing__list-item:hover {
   border-color: #2563EB;
   background: #EFF6FF;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.08);
+  transform: translateY(-1px);
 }
 
 .research-drawing__list-item--new {
   color: #2563EB;
   border-style: dashed;
+  background: #FAFBFF;
 }
 
 .research-drawing__list-meta {
@@ -1933,18 +1938,24 @@
 }
 
 .research-drawing__back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   background: none;
   border: 1px solid #D1D5DB;
   color: #6B7280;
-  font-size: 0.78rem;
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
   cursor: pointer;
+  transition: all 0.15s;
 }
 
 .research-drawing__back-btn:hover {
   border-color: #2563EB;
   color: #2563EB;
+  background: #EFF6FF;
 }
 
 /* Workspace layout */
@@ -1955,6 +1966,8 @@
   border-radius: 12px;
   overflow: hidden;
   min-height: 500px;
+  position: relative;
+  background: #F9FAFB;
 }
 
 .research-drawing__canvas-wrap {
@@ -1968,11 +1981,12 @@
 
 .research-drawing__info {
   margin-top: 0.75rem;
-  padding: 0.5rem 0;
+  padding: 0.5rem 0.25rem;
   font-size: 0.82rem;
   color: #6B7280;
   display: flex;
-  gap: 1rem;
+  align-items: center;
+  gap: 0.75rem;
   flex-wrap: wrap;
 }
 
@@ -2095,6 +2109,8 @@
   border-left: 1px solid #E5E7EB;
   overflow-y: auto;
   max-height: 600px;
+  flex-shrink: 0;
+  transition: width 0.2s ease;
 }
 
 .research-element-panel__header {
@@ -2468,7 +2484,9 @@
   border-radius: 10px;
   margin-bottom: 0.75rem;
   flex-wrap: wrap;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  position: relative;
+  z-index: 50;
 }
 
 .research-toolbar__group {
@@ -2497,6 +2515,7 @@
   border: 1px solid #D1D5DB;
   border-radius: 6px;
   overflow: hidden;
+  background: #FFFFFF;
 }
 
 /* View mode buttons */
@@ -2617,16 +2636,17 @@
 
 /* Action buttons */
 .research-toolbar__action-btn {
-  padding: 0.3rem 0.7rem;
+  padding: 0.35rem 0.75rem;
   border: 1px solid #D1D5DB;
   background: #FFFFFF;
   color: #374151;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
+  line-height: 1.3;
 }
 
 .research-toolbar__action-btn:hover {
@@ -3052,10 +3072,12 @@
   background: #EFF6FF;
   border-color: #2563EB;
   color: #2563EB;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
 }
 
 .research-tools__btn--active:hover {
   background: #DBEAFE;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.3);
 }
 
 .research-tools__btn-icon {
@@ -3320,12 +3342,7 @@
 }
 
 /* ── Drawing workspace layout with tools sidebar ─────────────────────────── */
-
-.research-drawing__workspace {
-  display: flex;
-  gap: 0.5rem;
-  min-height: 500px;
-}
+/* (base workspace styles are set above; tools sidebar adds a small gap) */
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Toolbar Dropdowns (Save / Reset)
@@ -3338,16 +3355,21 @@
 
 .research-toolbar__dropdown {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   right: 0;
   z-index: 500;
   min-width: 220px;
   background: #FFFFFF;
   border: 1px solid #E5E7EB;
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
   overflow: hidden;
-  animation: research-ctx-in 0.12s ease-out;
+  animation: research-dropdown-in 0.15s ease-out;
+}
+
+@keyframes research-dropdown-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .research-toolbar__dropdown-item {
@@ -3389,12 +3411,14 @@
   background: #2563EB;
   color: #FFFFFF;
   border-color: #2563EB;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
 }
 
 .research-toolbar__action-btn--primary:hover {
   background: #1D4ED8;
   border-color: #1D4ED8;
   color: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
 }
 
 /* Undo/redo disabled state */
@@ -3411,12 +3435,26 @@
 .research-toolbar__stat--modified {
   color: #7C3AED;
   font-weight: 600;
+  background: #F5F3FF;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid #EDE9FE;
 }
 
 /* Unsaved indicator */
 .research-toolbar__stat--unsaved {
-  color: #F59E0B;
+  color: #D97706;
   font-weight: 600;
+  background: #FFFBEB;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid #FEF3C7;
+  animation: research-pulse-subtle 2s ease-in-out infinite;
+}
+
+@keyframes research-pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3431,9 +3469,12 @@
   bottom: 0;
   z-index: 2000;
   background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 1rem;
   animation: research-save-fade-in 0.15s ease-out;
 }
 
@@ -3546,14 +3587,22 @@
 /* ── Drawing info footer enhancements ────────────────────────────────────── */
 
 .research-drawing__info-unsaved {
-  color: #F59E0B;
+  color: #D97706;
   font-weight: 600;
   font-size: 0.78rem;
-  margin-left: 0.75rem;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  background: #FFFBEB;
+  border-radius: 4px;
+  border: 1px solid #FEF3C7;
 }
 
 .research-drawing__info-saved {
   color: #059669;
   font-size: 0.75rem;
-  margin-left: 0.75rem;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  background: #ECFDF5;
+  border-radius: 4px;
+  border: 1px solid #D1FAE5;
 }
