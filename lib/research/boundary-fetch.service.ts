@@ -684,6 +684,47 @@ async function geocodeWithNominatim(
   }
 }
 
+// ── Census Bureau Geocoder (Method 7c) ────────────────────────────────────────
+// Free, no API key required, highly reliable for US street addresses.
+// Used as a parallel fallback alongside Nominatim.
+
+interface CensusGeocodeResult {
+  result?: {
+    addressMatches?: Array<{
+      matchedAddress?: string;
+      coordinates?: { x?: number; y?: number };
+    }>;
+  };
+}
+
+async function geocodeWithCensus(
+  address: string,
+  steps: string[],
+): Promise<{ lat: number; lon: number } | null> {
+  const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress` +
+    `?address=${encodeURIComponent(address)}&benchmark=Public_AR_Current&format=json`;
+  steps.push(`[Method 7c] Census Bureau geocoding: "${address}"`);
+  try {
+    const res = await fetchWithTimeout(url, {
+      headers: {
+        'User-Agent': 'STARR-Surveying/1.0 (Texas land survey; contact@starrsurveying.com)',
+        'Accept': 'application/json',
+      },
+    });
+    if (!res.ok) { steps.push(`[Method 7c] Census geocoder HTTP ${res.status}`); return null; }
+    const data = await res.json() as CensusGeocodeResult;
+    const match = data?.result?.addressMatches?.[0];
+    const lat = match?.coordinates?.y;
+    const lon = match?.coordinates?.x;
+    if (!lat || !lon) { steps.push('[Method 7c] Census geocoder: no match.'); return null; }
+    steps.push(`[Method 7c] Census geocoded: ${lat.toFixed(5)}, ${lon.toFixed(5)} (${match?.matchedAddress ?? ''})`);
+    return { lat, lon };
+  } catch (err) {
+    steps.push(`[Method 7c] Census geocoder error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
 async function queryArcGisParcelByPoint(
   lat: number,
   lon: number,
@@ -701,7 +742,7 @@ async function queryArcGisParcelByPoint(
     `?geometry=${encodeURIComponent(geom)}` +
     `&geometryType=esriGeometryPoint` +
     `&inSR=4326` +
-    `&spatialRel=esriSpatialRelContains` +
+    `&spatialRel=esriSpatialRelIntersects` +
     `&outFields=${encodeURIComponent([config.propIdField, ...config.addressFields].join(','))}` +
     `&returnGeometry=false&f=json`;
 
@@ -789,6 +830,287 @@ async function resolvePropertyIdWithAI(
   return null;
 }
 
+// ── ATTOM Data Solutions API (Method 4c) ─────────────────────────────────────
+// Covers all US properties. Requires ATTOM_API_KEY env var.
+// https://api.gateway.attomdata.com
+
+interface AttomProperty {
+  identifier?: { attomId?: number; fips?: string; apn?: string };
+  lot?: { lotnum?: string };
+  summary?: { legalDescription?: string; propclass?: string };
+  address?: { oneLine?: string };
+}
+
+async function searchAttomData(
+  req: BoundaryFetchRequest,
+  steps: string[],
+): Promise<{ propId: string | null; legalDesc?: string }> {
+  const apiKey = process.env.ATTOM_API_KEY;
+  if (!apiKey || !req.address) return { propId: null };
+
+  const parts = req.address.split(',');
+  const street = parts[0]?.trim() ?? req.address;
+  const cityState = parts.slice(1).join(',').trim() ||
+    (req.county ? `${req.county} County, TX` : 'TX');
+
+  steps.push(`[ATTOM] Querying ATTOM Data API: "${street}, ${cityState}"`);
+  const url = `https://api.gateway.attomdata.com/propertyapi/v1.0.0/property/basicprofile` +
+    `?address1=${encodeURIComponent(street)}&address2=${encodeURIComponent(cityState)}`;
+  try {
+    const res = await fetchWithTimeout(url, {
+      headers: { 'Accept': 'application/json', 'apikey': apiKey },
+    });
+    if (!res.ok) { steps.push(`[ATTOM] HTTP ${res.status}`); return { propId: null }; }
+    const data = await res.json() as { property?: AttomProperty[] };
+    const prop = data?.property?.[0];
+    if (!prop) { steps.push('[ATTOM] No property found.'); return { propId: null }; }
+    const apn = prop.identifier?.apn ?? prop.lot?.lotnum ?? null;
+    const legalDesc = prop.summary?.legalDescription ?? undefined;
+    if (apn) steps.push(`[ATTOM] Found APN: ${apn} for "${prop.address?.oneLine ?? req.address}"`);
+    return { propId: apn ? String(apn) : null, legalDesc };
+  } catch (err) {
+    steps.push(`[ATTOM] Error: ${err instanceof Error ? err.message : String(err)}`);
+    return { propId: null };
+  }
+}
+
+// ── Regrid Parcel API (Method 4d) ─────────────────────────────────────────────
+// Nationwide parcel data. Requires REGRID_TOKEN env var (free tier available).
+// https://regrid.com/api
+
+interface RegridParcel {
+  parcelnumb?: string;
+  parcelnumb_no_formatting?: string;
+  owner?: string;
+  saddno?: string; saddstr?: string; scity?: string; state2?: string;
+  legaldesc?: string;
+  ll_gisacre?: number;
+  [key: string]: unknown;
+}
+
+async function searchRegridApi(
+  req: BoundaryFetchRequest,
+  steps: string[],
+): Promise<{ propId: string | null; legalDesc?: string }> {
+  const token = process.env.REGRID_TOKEN;
+  if (!token || !req.address) return { propId: null };
+
+  steps.push(`[Regrid] Querying Regrid Parcel API: "${req.address}"`);
+  const url = `https://app.regrid.com/api/v2/parcels/search` +
+    `?query=${encodeURIComponent(req.address)}&token=${token}&limit=1&return_custom=false`;
+  try {
+    const res = await fetchWithTimeout(url, {
+      headers: { 'Accept': 'application/json', ...makeFetchHeaders() },
+    });
+    if (!res.ok) { steps.push(`[Regrid] HTTP ${res.status}`); return { propId: null }; }
+    const data = await res.json() as { parcels?: { features?: Array<{ properties?: RegridParcel }> } };
+    const parcel = data?.parcels?.features?.[0]?.properties;
+    if (!parcel) { steps.push('[Regrid] No parcel found.'); return { propId: null }; }
+    const parcelNum = parcel.parcelnumb ?? parcel.parcelnumb_no_formatting ?? null;
+    if (parcelNum) steps.push(`[Regrid] Found parcel: ${parcelNum}`);
+    return { propId: parcelNum ? String(parcelNum) : null, legalDesc: parcel.legaldesc ?? undefined };
+  } catch (err) {
+    steps.push(`[Regrid] Error: ${err instanceof Error ? err.message : String(err)}`);
+    return { propId: null };
+  }
+}
+
+// ── Tavily Search API (Method 9) ──────────────────────────────────────────────
+// Returns full web content — far more reliable than HTML scraping.
+// Requires TAVILY_API_KEY env var (free tier: 1000 req/month at tavily.com).
+// Falls back to county CAD URL pattern guessing if no API key is configured.
+
+interface TavilyResult { title?: string; url?: string; content?: string }
+interface TavilyResponse { answer?: string; results?: TavilyResult[] }
+
+/** Try common Texas CAD URL patterns for the county when no search API key is available. */
+async function tryCountyCadPatterns(
+  req: BoundaryFetchRequest,
+  countyKey: string,
+  steps: string[],
+): Promise<string | null> {
+  if (!countyKey || !req.address) return null;
+  const patterns = [
+    `https://${countyKey}cad.org/search/?q=${encodeURIComponent(req.address)}`,
+    `https://www.${countyKey}cad.net/search/?q=${encodeURIComponent(req.address)}`,
+    `https://esearch.${countyKey}cad.org/Property/GetSearchResults?q=${encodeURIComponent(req.address)}&type=address&resultLimit=5`,
+  ];
+  for (const url of patterns) {
+    steps.push(`[Method 9b] Trying county CAD URL pattern: ${url}`);
+    try {
+      const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
+      if (!res.ok) continue;
+      const ct = res.headers.get('content-type') ?? '';
+      if (ct.includes('application/json')) {
+        const hits = extractEsearchHits(await res.json());
+        const raw = hits[0]?.prop_id ?? hits[0]?.PropertyId ?? hits[0]?.AccountNum;
+        if (raw) { steps.push(`[Method 9b] Pattern matched property ID: ${raw}`); return String(raw); }
+      }
+    } catch { /* try next */ }
+  }
+  return null;
+}
+
+async function tavilySearchPropertyId(
+  req: BoundaryFetchRequest,
+  countyKey: string,
+  steps: string[],
+): Promise<string | null> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) return tryCountyCadPatterns(req, countyKey, steps);
+
+  const queryParts: string[] = [];
+  if (req.address) queryParts.push(`"${req.address}"`);
+  queryParts.push(`${req.county ?? countyKey} County Texas property appraisal district parcel record`);
+  const query = queryParts.join(' ');
+  steps.push(`[Method 9] Tavily web search: "${query}"`);
+
+  try {
+    const res = await fetchWithTimeout('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey, query, search_depth: 'advanced',
+        include_answer: true, include_raw_content: false, max_results: 5,
+      }),
+    });
+    if (!res.ok) { steps.push(`[Method 9] Tavily HTTP ${res.status}`); return null; }
+    const data = await res.json() as TavilyResponse;
+
+    const contents: string[] = [];
+    if (data.answer) contents.push(`Search Answer: ${data.answer}`);
+    for (const r of (data.results ?? []).slice(0, 3)) {
+      if (r.content) contents.push(`[${r.url ?? ''}]\n${r.content.substring(0, 1500)}`);
+    }
+    if (!contents.length) { steps.push('[Method 9] Tavily returned no content.'); return null; }
+
+    const result = await callAI({
+      promptKey: 'PROPERTY_RESEARCHER',
+      userContent:
+        `Extract the Texas CAD property ID or parcel number from these web search results.\n` +
+        `Address: ${req.address ?? '(unknown)'}\nCounty: ${req.county ?? countyKey}\n\n` +
+        `SEARCH RESULTS:\n${contents.join('\n\n---\n\n')}\n\n` +
+        `Return JSON: { "property_id": "string or null", "confidence": 0-100, "evidence": "one sentence" }`,
+      maxTokens: 512, maxRetries: 1, timeoutMs: 30_000,
+    });
+    const aiData = result.response as { property_id?: string | null; confidence?: number; evidence?: string };
+    if (aiData?.property_id?.trim()) {
+      steps.push(`[Method 9] AI found property ID: ${aiData.property_id} (confidence: ${aiData.confidence ?? '?'}%) — ${aiData.evidence ?? ''}`);
+      return aiData.property_id.trim();
+    }
+    steps.push('[Method 9] Search did not yield a property ID.');
+    return null;
+  } catch (err) {
+    steps.push(`[Method 9] Tavily error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// ── Traverse Closure Check ────────────────────────────────────────────────────
+
+import type { ClosureCheckResult } from '@/types/research';
+
+/** Parse a quadrant bearing string to a clockwise azimuth in decimal degrees. */
+function parseBearingToAzimuth(bearing: string): number | null {
+  const m = bearing.trim().match(
+    /^([NS])\s*(\d+(?:\.\d+)?)[°\s]+(\d+(?:\.\d+)?)?['\s]*(\d+(?:\.\d+)?)?"?\s*([EW])$/i,
+  );
+  if (!m) return null;
+  const [, ns, deg, min, sec, ew] = m;
+  const decimal = Number(deg) + (Number(min ?? 0) / 60) + (Number(sec ?? 0) / 3600);
+  if (decimal > 90) return null; // invalid bearing angle
+  const NS = ns.toUpperCase(), EW = ew.toUpperCase();
+  if (NS === 'N' && EW === 'E') return decimal;
+  if (NS === 'S' && EW === 'E') return 180 - decimal;
+  if (NS === 'S' && EW === 'W') return 180 + decimal;
+  return 360 - decimal; // NW
+}
+
+/** Convert a distance to feet from its stated unit. */
+function toFeet(distance: number, unit: string): number {
+  const u = (unit ?? 'feet').toLowerCase().trim();
+  if (u === 'vara' || u === 'varas')  return distance * (100 / 36); // 1 vara = 33.333… in = 2.7778 ft
+  if (u === 'chain' || u === 'chains') return distance * 66;
+  if (u === 'link'  || u === 'links')  return distance * 0.66;
+  if (u === 'rod'   || u === 'rods')   return distance * 16.5;
+  if (u === 'meter' || u === 'meters' || u === 'm') return distance * 3.28084;
+  return distance; // feet (default)
+}
+
+/**
+ * Mathematical traverse closure check.
+ * Traverses all line calls, sums ΔX/ΔY, computes closure error and area.
+ */
+function runClosureCheck(
+  calls: ParsedBoundaryCall[],
+  statedAcreage?: number,
+): ClosureCheckResult {
+  const usable = calls.filter(
+    c => c.type === 'line' && c.bearing && c.distance != null && c.distance > 0,
+  );
+
+  if (usable.length < 3) {
+    return {
+      checked: false, closes: false, closure_error_ft: null, closure_precision: null,
+      area_computed_acres: null, total_traverse_ft: null, calls_used: usable.length,
+      quality: 'unchecked',
+      warning: `Need ≥3 usable line calls for closure check; got ${usable.length}.`,
+    };
+  }
+
+  let sumDX = 0, sumDY = 0, totalFt = 0;
+  const pts: [number, number][] = [[0, 0]];
+
+  for (const c of usable) {
+    const az = parseBearingToAzimuth(c.bearing!);
+    if (az === null) continue;
+    const dist = toFeet(c.distance!, c.distance_unit ?? 'feet');
+    const rad = (az * Math.PI) / 180;
+    const dX = dist * Math.sin(rad);
+    const dY = dist * Math.cos(rad);
+    sumDX += dX; sumDY += dY; totalFt += dist;
+    pts.push([pts[pts.length - 1][0] + dX, pts[pts.length - 1][1] + dY]);
+  }
+
+  const errorFt = Math.sqrt(sumDX ** 2 + sumDY ** 2);
+  const precision = totalFt > 0 && errorFt > 0 ? Math.round(totalFt / errorFt) : null;
+
+  // Shoelace formula for area
+  let area = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    area += pts[i][0] * pts[i + 1][1] - pts[i + 1][0] * pts[i][1];
+  }
+  const areaAcres = Math.abs(area) / 2 / 43560;
+
+  let quality: ClosureCheckResult['quality'];
+  if (!precision)                  quality = 'unchecked';
+  else if (precision >= 10_000)    quality = 'excellent';
+  else if (precision >= 5_000)     quality = 'good';
+  else if (precision >= 1_000)     quality = 'marginal';
+  else                             quality = 'poor';
+
+  const closes = precision !== null && precision >= 1_000;
+  let warning: string | undefined;
+  if (!closes && precision !== null) {
+    warning = `Traverse does not close — error: ${errorFt.toFixed(3)} ft (1:${precision.toLocaleString()}).`;
+    if (statedAcreage && areaAcres > 0) {
+      const diff = Math.abs(areaAcres - statedAcreage);
+      if (diff > statedAcreage * 0.05) {
+        warning += ` Computed area ${areaAcres.toFixed(3)} ac differs from stated ${statedAcreage} ac by ${diff.toFixed(3)} ac.`;
+      }
+    }
+  }
+
+  return {
+    checked: true, closes,
+    closure_error_ft: Math.round(errorFt * 1000) / 1000,
+    closure_precision: precision ? `1:${precision.toLocaleString()}` : null,
+    area_computed_acres: Math.round(areaAcres * 10000) / 10000,
+    total_traverse_ft: Math.round(totalFt * 100) / 100,
+    calls_used: usable.length, quality, warning,
+  };
+}
+
 // ── Property ID Resolution Orchestrator ───────────────────────────────────────
 //
 // Runs all resolution methods in priority order and returns on first success.
@@ -837,6 +1159,25 @@ async function resolvePropertyId(
     if (idFromAcct) return idFromAcct;
   }
 
+  // ── Method 4c: ATTOM Data API (all US properties) ─────────────────────────
+  if (process.env.ATTOM_API_KEY) {
+    const { propId: attomId, legalDesc: attomLegal } = await searchAttomData(req, steps);
+    if (attomId) {
+      // Cache the legal description if ATTOM returned one, so fetchBoundaryCalls can use it
+      if (attomLegal) (req as BoundaryFetchRequest & { _attomLegalDesc?: string })._attomLegalDesc = attomLegal;
+      return attomId;
+    }
+  }
+
+  // ── Method 4d: Regrid Parcel API (nationwide parcel data) ─────────────────
+  if (process.env.REGRID_TOKEN) {
+    const { propId: regridId, legalDesc: regridLegal } = await searchRegridApi(req, steps);
+    if (regridId) {
+      if (regridLegal) (req as BoundaryFetchRequest & { _regridLegalDesc?: string })._regridLegalDesc = regridLegal;
+      return regridId;
+    }
+  }
+
   // ── Method 5: eSearch CAD portal HTTP query ────────────────────────────────
   const esearchId = await searchEsearchPortal(req, countyKey, steps);
   if (esearchId) return esearchId;
@@ -846,18 +1187,28 @@ async function resolvePropertyId(
   if (arcGisId) return arcGisId;
 
   // ── Method 7: Geocode address → coordinate-based parcel lookup ────────────
+  // Runs Nominatim and Census Bureau geocoders in parallel; uses whichever returns first.
   if (req.address) {
-    const coords = await geocodeWithNominatim(req.address, steps);
+    steps.push('[Method 7] Running Nominatim + Census geocoders in parallel…');
+    const [nominatimCoords, censusCoords] = await Promise.all([
+      geocodeWithNominatim(req.address, steps),
+      geocodeWithCensus(req.address, steps),
+    ]);
+    const coords = nominatimCoords ?? censusCoords;
     if (coords) {
       const pointId = await queryArcGisParcelByPoint(coords.lat, coords.lon, countyKey, steps);
       if (pointId) return pointId;
     }
-    // Also try address variants through Nominatim if the original geocode failed
+    // Try address variants if both geocoders failed
     if (!coords) {
       for (const variant of generateAddressVariants(req.address).slice(1, 3)) {
-        const varCoords = await geocodeWithNominatim(variant, steps);
-        if (varCoords) {
-          const varPointId = await queryArcGisParcelByPoint(varCoords.lat, varCoords.lon, countyKey, steps);
+        const [vNom, vCen] = await Promise.all([
+          geocodeWithNominatim(variant, steps),
+          geocodeWithCensus(variant, steps),
+        ]);
+        const vCoords = vNom ?? vCen;
+        if (vCoords) {
+          const varPointId = await queryArcGisParcelByPoint(vCoords.lat, vCoords.lon, countyKey, steps);
           if (varPointId) return varPointId;
           break;
         }
@@ -865,16 +1216,22 @@ async function resolvePropertyId(
     }
   }
 
-  // ── Method 8: AI-assisted resolution (last resort) ────────────────────────
+  // ── Method 8: AI-assisted resolution ──────────────────────────────────────
   const aiId = await resolvePropertyIdWithAI(req, countyKey, steps);
   if (aiId) return aiId;
 
-  steps.push('All 8 property ID resolution methods exhausted — could not determine property ID.');
+  // ── Method 9: Web search engine + AI page analysis (brute force) ──────────
+  const searchId = await tavilySearchPropertyId(req, countyKey, steps);
+  if (searchId) return searchId;
+
+  steps.push('All property ID resolution methods exhausted — could not determine property ID.');
   return null;
 }
 
 interface AIBoundaryResponse {
   point_of_beginning?: string;
+  description_type?: string;
+  datum?: string;
   calls?: Array<{
     sequence: number;
     type?: string;
@@ -888,11 +1245,21 @@ interface AIBoundaryResponse {
     chord_bearing?: string | null;
     chord_distance?: number | null;
     curve_direction?: string | null;
+    monument_at_end?: string | null;
+    confidence?: number | null;
     raw_text?: string;
   }>;
   stated_acreage?: number | null;
   call_count?: number;
   notes?: string;
+  references?: Array<{
+    type?: string;
+    volume?: string;
+    page?: string;
+    instrument?: string;
+    county?: string;
+    description?: string;
+  }>;
 }
 
 async function extractBoundaryCallsWithAI(
@@ -930,6 +1297,7 @@ async function extractBoundaryCallsWithAI(
       curve_direction: (c.curve_direction === 'left' || c.curve_direction === 'right')
         ? c.curve_direction
         : undefined,
+      confidence: typeof c.confidence === 'number' ? c.confidence : null,
       raw_text: c.raw_text ?? undefined,
     }));
 
@@ -1066,6 +1434,16 @@ export async function fetchBoundaryCalls(
     ? mapTrueAutoToPropertyDetails(propDetail!, cadConfig.name, cadConfig.cid, propId ?? '')
     : { legal_description: legalDesc };
 
+  const statedAcreage = acreage ?? (property as PropertyDetails).acreage;
+  const closureCheck = calls.length >= 3 ? runClosureCheck(calls, statedAcreage) : undefined;
+  if (closureCheck) {
+    steps.push(
+      `Closure check: ${closureCheck.quality.toUpperCase()} — ` +
+      `error ${closureCheck.closure_error_ft ?? '?'} ft (${closureCheck.closure_precision ?? 'n/a'}) — ` +
+      `computed area ${closureCheck.area_computed_acres ?? '?'} acres.`,
+    );
+  }
+
   return {
     success: calls.length > 0,
     source_name: sourceName,
@@ -1076,7 +1454,8 @@ export async function fetchBoundaryCalls(
     point_of_beginning: pob,
     boundary_calls: calls,
     call_count: calls.length,
-    stated_acreage: acreage ?? (property as PropertyDetails).acreage,
+    stated_acreage: statedAcreage,
+    closure_check: closureCheck,
     cad_property_url: cadPropertyUrl,
     deed_search_url: deedSearchUrl,
     error: calls.length === 0
