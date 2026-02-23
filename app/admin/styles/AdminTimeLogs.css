@@ -360,6 +360,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 .tl-advances-header h3 { margin: 0; font-size: 1.1rem; color: #1F2937; }
 .tl-advance-form {
@@ -421,6 +423,8 @@
   padding: 0.6rem 0;
   border-bottom: 2px solid #1D3095;
   margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 .tl-employee-group__email {
   font-weight: 700;
