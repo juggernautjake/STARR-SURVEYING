@@ -182,8 +182,8 @@ async function trueAutoFetchDetail(
 
 function mapTrueAutoToPropertyDetails(
   detail: TrueAutoPropDetail,
-  cadName: string,
-  cid: number,
+  _cadName: string,
+  _cid: number,
   propId: string,
 ): PropertyDetails {
   const situsAddr = [detail.situs_num, detail.situs_street, detail.situs_city, detail.situs_state]
@@ -226,7 +226,6 @@ function mapTrueAutoToPropertyDetails(
     deed_reference: deedRef || undefined,
     property_id: propId,
   };
-  void cadName; // used by caller for source_name
 }
 
 // ── AI Boundary Call Extraction ───────────────────────────────────────────────

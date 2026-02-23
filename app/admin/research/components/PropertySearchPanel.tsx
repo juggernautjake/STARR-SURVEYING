@@ -23,6 +23,7 @@ const SOURCE_LABELS: Record<SearchSource, { label: string; icon: string }> = {
   texas_glo:       { label: 'Texas GLO', icon: '📜' },
   texas_rrc:       { label: 'Texas Railroad Commission', icon: '⛽' },
   city_records:    { label: 'City Records', icon: '🏙️' },
+  texas_file:      { label: 'TexasFile Deed Search', icon: '📋' },
 };
 
 export default function PropertySearchPanel({
