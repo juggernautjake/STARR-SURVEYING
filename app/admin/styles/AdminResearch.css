@@ -55,6 +55,7 @@
 .research-page__controls {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 0.5rem;
   margin-bottom: 1.25rem;
 }
