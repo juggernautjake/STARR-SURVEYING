@@ -6955,6 +6955,11 @@
   margin-bottom: 1.25rem;
 }
 
+.research-boundary__id-banner--fallback {
+  background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+  border-color: #3B82F6;
+}
+
 .research-boundary__id-banner-left {
   display: flex;
   align-items: center;
@@ -6969,6 +6974,11 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #065F46;
+}
+
+.research-boundary__id-banner-hint {
+  color: #9CA3AF;
+  font-size: 0.82rem;
 }
 
 .research-boundary__id-value {

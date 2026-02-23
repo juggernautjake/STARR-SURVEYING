@@ -491,6 +491,9 @@ export interface BoundaryFetchResult {
   deed_search_url?: string;
   /** Step-by-step log of what was searched/found during retrieval */
   search_steps: string[];
+  /** Geocoded coordinates for this property obtained during lookup */
+  geocoded_lat?: number;
+  geocoded_lon?: number;
 }
 
 // ── Deep Document Analysis ────────────────────────────────────────────────────
