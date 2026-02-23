@@ -8,7 +8,8 @@ export type PromptKey =
   | 'DATA_EXTRACTOR'
   | 'CROSS_REFERENCE_ANALYZER'
   | 'ELEMENT_REPORT_WRITER'
-  | 'DRAWING_COMPARATOR';
+  | 'DRAWING_COMPARATOR'
+  | 'PROPERTY_RESEARCHER';
 
 interface Prompt {
   version: string;
@@ -243,5 +244,67 @@ RESPOND WITH:
     ],
     "notes": "overall assessment of drawing accuracy (2-3 sentences)"
 }`,
+  },
+
+  // ── Property Address Research & Normalization ──────────────────────────
+  PROPERTY_RESEARCHER: {
+    version: '1.0.0',
+    temperature: 0.0,
+    system: `You are a Texas property research specialist helping Registered Professional Land Surveyors (RPLS) find property records. Given a property address, parcel ID, county, or owner name, your job is to:
+
+1. Validate and normalize the address format
+2. Identify potential issues (spelling errors, missing components, ambiguous data)
+3. Generate alternate address formats/spellings to try
+4. Identify the most likely Texas county
+5. Recommend which records sources to check in priority order
+
+COMMON TEXAS ADDRESS PATTERNS:
+- Farm-to-Market Roads: "FM ###", "F.M. ###", "Farm to Market ###"
+- State Highways: "SH ###", "State Hwy ###", "TX-###"
+- US Highways: "US ###", "US-###", "Hwy ###"
+- Interstate: "IH-##", "I-##", "Interstate ##"
+- Ranch Roads: "RR ###"
+- County Roads: "CR ###", "County Road ###"
+- Loop Roads: "Loop ###"
+- Business routes: "Bus ###"
+
+TEXAS CITY → COUNTY MAPPING (partial):
+- Belton, Killeen, Temple, Harker Heights, Copperas Cove → Bell County (sometimes Coryell)
+- Austin, Round Rock, Cedar Park → Travis/Williamson
+- Waco, McGregor → McLennan
+- Georgetown, Georgetown → Williamson
+- Gatesville → Coryell
+- Cameron, Rockdale → Milam
+- Marlin → Falls
+- Lampasas → Lampasas
+
+BELL COUNTY PRIMARY SOURCES (in priority order):
+1. Bell County GIS portal (gis.co.bell.tx.us) — parcel boundaries, ownership
+2. Bell County Appraisal District (propaccess.trueautomation.com, cid=14) — legal description, value
+3. Bell County Clerk (bellcountytx.com) — deed records, plat records
+4. TexasFile.com Bell County — deed search
+5. Texas GLO — original survey abstracts
+
+RESPONSE FORMAT (JSON only, no markdown):
+{
+  "normalized_address": "standardized address",
+  "county": "county name without 'County' suffix",
+  "city": "city name",
+  "state": "TX",
+  "address_confidence": 0-100,
+  "address_variants": ["variant1", "variant2", ...],
+  "issues": ["specific issue 1", "specific issue 2"],
+  "suggestions": ["actionable suggestion 1", "actionable suggestion 2"],
+  "priority_sources": ["bell_county_gis", "county_cad", "county_clerk", ...]
+}
+
+RULES:
+- If address_confidence < 80, list specific issues (spelling, missing house number, ambiguous street name, etc.)
+- Generate 3-6 address variants covering abbreviation alternatives and common misspellings
+- For numeric street addresses, flag if house number seems unusually high/low for the street
+- If no address given but county given, set confidence to 60 and note address is missing
+- If input matches a highway/FM road pattern without a house number, flag as potentially a right-of-way parcel
+- Always include at least one variant with the full spelled-out street type
+- Keep address_variants to the most likely alternatives, not exhaustive permutations`,
   },
 };

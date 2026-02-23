@@ -13,12 +13,16 @@ interface PropertySearchPanelProps {
 }
 
 const SOURCE_LABELS: Record<SearchSource, { label: string; icon: string }> = {
-  county_cad:    { label: 'County Appraisal District', icon: '🏛️' },
-  county_clerk:  { label: 'County Clerk', icon: '📁' },
-  fema:          { label: 'FEMA Flood Maps', icon: '🌊' },
-  tnris:         { label: 'TNRIS', icon: '🗺️' },
-  txdot:         { label: 'TxDOT', icon: '🛣️' },
-  usgs:          { label: 'USGS', icon: '🏔️' },
+  county_cad:      { label: 'County Appraisal District', icon: '🏛️' },
+  county_clerk:    { label: 'County Clerk / Deed Search', icon: '📁' },
+  fema:            { label: 'FEMA Flood Maps', icon: '🌊' },
+  tnris:           { label: 'TNRIS', icon: '🗺️' },
+  txdot:           { label: 'TxDOT ROW', icon: '🛣️' },
+  usgs:            { label: 'USGS National Map', icon: '🏔️' },
+  bell_county_gis: { label: 'Bell County GIS', icon: '📍' },
+  texas_glo:       { label: 'Texas GLO', icon: '📜' },
+  texas_rrc:       { label: 'Texas Railroad Commission', icon: '⛽' },
+  city_records:    { label: 'City Records', icon: '🏙️' },
 };
 
 export default function PropertySearchPanel({
@@ -41,6 +45,7 @@ export default function PropertySearchPanel({
   const [importResult, setImportResult] = useState<{ count: number } | null>(null);
 
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showAddressIssues, setShowAddressIssues] = useState(true);
 
   async function handleSearch() {
     if (searching) return;
@@ -54,6 +59,7 @@ export default function PropertySearchPanel({
     setSearchResponse(null);
     setSelected(new Set());
     setImportResult(null);
+    setShowAddressIssues(true);
 
     try {
       const res = await fetch(`/api/admin/research/${projectId}/search`, {
@@ -82,7 +88,7 @@ export default function PropertySearchPanel({
   }
 
   function toggleResult(id: string) {
-    setSelected(prev => {
+    setSelected((prev: Set<string>) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -92,8 +98,8 @@ export default function PropertySearchPanel({
 
   function selectAll() {
     if (!searchResponse) return;
-    const freeResults = searchResponse.results.filter(r => !r.has_cost);
-    setSelected(new Set(freeResults.map(r => r.id)));
+    const freeResults = searchResponse.results.filter((r: PropertySearchResult) => !r.has_cost);
+    setSelected(new Set(freeResults.map((r: PropertySearchResult) => r.id)));
   }
 
   function deselectAll() {
@@ -104,14 +110,14 @@ export default function PropertySearchPanel({
     if (importing || selected.size === 0 || !searchResponse) return;
     setImporting(true);
 
-    const selectedResults = searchResponse.results.filter(r => selected.has(r.id));
+    const selectedResults = searchResponse.results.filter((r: PropertySearchResult) => selected.has(r.id));
 
     try {
       const res = await fetch(`/api/admin/research/${projectId}/search`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          results: selectedResults.map(r => ({
+          results: selectedResults.map((r: PropertySearchResult) => ({
             source: r.source,
             source_name: r.source_name,
             title: r.title,
@@ -162,12 +168,15 @@ export default function PropertySearchPanel({
     }
   }
 
+  const hasAddressIssues = searchResponse?.address_issues && searchResponse.address_issues.length > 0;
+  const specificCount = searchResponse?.results.filter((r: PropertySearchResult) => r.is_property_specific).length || 0;
+
   return (
     <div className="research-search">
       <div className="research-search__header">
         <h3 className="research-search__title">Property Record Search</h3>
         <p className="research-search__desc">
-          Search Texas public records for property documents. Results link to free public sources — some county clerk records may have per-page fees.
+          Search Texas public records for property documents. The AI will analyze your address, identify potential issues, and search all relevant sources — Bell County GIS, county CAD, deed records, Texas GLO abstracts, FEMA, and more.
         </p>
       </div>
 
@@ -252,7 +261,7 @@ export default function PropertySearchPanel({
             onClick={handleSearch}
             disabled={searching}
           >
-            {searching ? 'Searching...' : 'Search Public Records'}
+            {searching ? 'Searching all sources...' : 'Search Public Records'}
           </button>
         </div>
       </div>
@@ -260,7 +269,60 @@ export default function PropertySearchPanel({
       {/* Search results */}
       {searchResponse && (
         <div className="research-search__results">
-          {/* Source status */}
+
+          {/* Address normalization alert */}
+          {hasAddressIssues && showAddressIssues && (
+            <div className="research-search__address-alert">
+              <div className="research-search__address-alert-header">
+                <span>⚠️ Address Review</span>
+                {searchResponse.address_normalized && (
+                  <span className="research-search__address-normalized">
+                    Normalized: <strong>{searchResponse.address_normalized}</strong>
+                  </span>
+                )}
+                <button
+                  className="research-search__address-alert-dismiss"
+                  onClick={() => setShowAddressIssues(false)}
+                  type="button"
+                  aria-label="Dismiss address alert"
+                >✕</button>
+              </div>
+              <ul className="research-search__address-issues">
+                {searchResponse.address_issues?.map((issue, i) => (
+                  <li key={i} className="research-search__address-issue">⚠ {issue}</li>
+                ))}
+              </ul>
+              {searchResponse.address_suggestions && searchResponse.address_suggestions.length > 0 && (
+                <div className="research-search__address-suggestions">
+                  <strong>Suggestions:</strong>
+                  <ul>
+                    {searchResponse.address_suggestions.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {searchResponse.address_variants && searchResponse.address_variants.length > 0 && (
+                <div className="research-search__address-variants">
+                  <strong>Try these address variants:</strong>
+                  <div className="research-search__variant-list">
+                    {searchResponse.address_variants.map((v, i) => (
+                      <button
+                        key={i}
+                        className="research-search__variant-btn"
+                        onClick={() => { setAddress(v); setShowAddressIssues(false); }}
+                        type="button"
+                      >
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Source status chips */}
           <div className="research-search__sources">
             {searchResponse.sources_searched.map(s => {
               const info = SOURCE_LABELS[s.source] || { label: s.name, icon: '📎' };
@@ -284,6 +346,11 @@ export default function PropertySearchPanel({
             <div className="research-search__results-header">
               <span className="research-search__results-count">
                 {searchResponse.total} result{searchResponse.total !== 1 ? 's' : ''} found
+                {specificCount > 0 && (
+                  <span className="research-search__specific-count">
+                    {' '}— {specificCount} property-specific
+                  </span>
+                )}
               </span>
               <div className="research-search__select-controls">
                 <button
@@ -340,6 +407,11 @@ export default function PropertySearchPanel({
                             <span className="research-search__result-type">
                               {docTypeInfo.icon} {docTypeInfo.label}
                             </span>
+                            {r.is_property_specific && (
+                              <span className="research-search__result-specific" title="This link is specifically targeted to your property">
+                                ✅ Property-specific
+                              </span>
+                            )}
                             {r.has_cost && (
                               <span className="research-search__result-cost" title={r.cost_note}>
                                 $ May have fees
@@ -373,7 +445,17 @@ export default function PropertySearchPanel({
 
           {searchResponse.results.length === 0 && (
             <div className="research-search__empty">
-              No results found. Try a different address or county.
+              No results found. Try a different address, county, or parcel ID.
+              {searchResponse.address_variants && searchResponse.address_variants.length > 0 && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  Try one of these address variants:
+                  <div className="research-search__variant-list" style={{ marginTop: '0.25rem' }}>
+                    {searchResponse.address_variants.map((v, i) => (
+                      <button key={i} className="research-search__variant-btn" onClick={() => setAddress(v)} type="button">{v}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

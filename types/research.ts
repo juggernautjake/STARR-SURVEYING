@@ -342,7 +342,11 @@ export type SearchSource =
   | 'fema'             // FEMA flood zone
   | 'tnris'            // Texas Natural Resources Information System
   | 'txdot'            // TxDOT right-of-way maps
-  | 'usgs';            // USGS topo/elevation
+  | 'usgs'             // USGS topo/elevation
+  | 'bell_county_gis'  // Bell County GIS portal
+  | 'texas_glo'        // Texas General Land Office (abstract surveys)
+  | 'texas_rrc'        // Texas Railroad Commission (oil/gas infrastructure)
+  | 'city_records';    // City permit/plat portals
 
 export interface PropertySearchResult {
   id: string;
@@ -355,6 +359,8 @@ export interface PropertySearchResult {
   description: string;
   has_cost: boolean;
   cost_note?: string;
+  /** True when the URL or content is specifically about THIS property (not a generic portal link) */
+  is_property_specific?: boolean;
   metadata?: Record<string, unknown>;
 }
 
@@ -370,6 +376,14 @@ export interface PropertySearchResponse {
   results: PropertySearchResult[];
   sources_searched: { source: SearchSource; name: string; status: 'success' | 'error' | 'no_results'; message?: string }[];
   total: number;
+  /** AI-normalized address, if normalization was run */
+  address_normalized?: string;
+  /** Alternate address formats/spellings the AI identified */
+  address_variants?: string[];
+  /** Potential address issues the AI flagged (spelling, missing components, etc.) */
+  address_issues?: string[];
+  /** Actionable suggestions for the researcher */
+  address_suggestions?: string[];
 }
 
 // ── Verification & Comparison ────────────────────────────────────────────────

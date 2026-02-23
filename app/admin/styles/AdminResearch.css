@@ -1832,6 +1832,109 @@
   border-top: 1px solid #A7F3D0;
 }
 
+/* Address normalization alert */
+.research-search__address-alert {
+  margin: 0.75rem 1.5rem 0;
+  padding: 0.75rem 1rem;
+  background: #FFFBEB;
+  border: 1px solid #FCD34D;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.research-search__address-alert-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 600;
+  color: #92400E;
+  margin-bottom: 0.5rem;
+}
+
+.research-search__address-normalized {
+  color: #065F46;
+  font-weight: 400;
+  flex: 1;
+}
+
+.research-search__address-alert-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9CA3AF;
+  padding: 0 0.25rem;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.research-search__address-alert-dismiss:hover {
+  color: #374151;
+}
+
+.research-search__address-issues {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.5rem;
+  color: #92400E;
+}
+
+.research-search__address-issue {
+  padding: 0.125rem 0;
+}
+
+.research-search__address-suggestions {
+  color: #1F2937;
+  margin-bottom: 0.5rem;
+}
+
+.research-search__address-suggestions ul {
+  margin: 0.25rem 0 0 1rem;
+  padding: 0;
+}
+
+.research-search__address-variants {
+  color: #1F2937;
+}
+
+.research-search__variant-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+}
+
+.research-search__variant-btn {
+  background: #EFF6FF;
+  border: 1px solid #93C5FD;
+  border-radius: 4px;
+  color: #1D4ED8;
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.6rem;
+  white-space: nowrap;
+}
+
+.research-search__variant-btn:hover {
+  background: #DBEAFE;
+}
+
+/* Property-specific badge */
+.research-search__result-specific {
+  background: #ECFDF5;
+  color: #059669;
+  border: 1px solid #A7F3D0;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+}
+
+/* "N property-specific" count in header */
+.research-search__specific-count {
+  color: #059669;
+  font-weight: 600;
+}
+
 /* ── Drawing Step ──────────────────────────────────────────────────────── */
 
 .research-drawing__controls {

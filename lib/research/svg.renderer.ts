@@ -207,18 +207,18 @@ function renderElement(
   switch (element.element_type) {
     case 'line': {
       const g = geom as { type: 'line'; start: [number, number]; end: [number, number] };
-      return `<line${dataAttrs} x1="${g.start[0]}" y1="${g.start[1]}" x2="${g.end[0]}" y2="${g.end[1]}" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" stroke-dasharray="${style.strokeDasharray || ''}" opacity="${style.opacity}"/>`;
+      return `<line${dataAttrs} x1="${g.start[0]}" y1="${g.start[1]}" x2="${g.end[0]}" y2="${g.end[1]}" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" stroke-dasharray="${style.strokeDasharray || ''}" opacity="${style.opacity}" vector-effect="non-scaling-stroke"/>`;
     }
 
     case 'curve': {
       if (!element.svg_path) return '';
-      return `<path${dataAttrs} d="${element.svg_path}" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" stroke-dasharray="${style.strokeDasharray || ''}" fill="none" opacity="${style.opacity}"/>`;
+      return `<path${dataAttrs} d="${element.svg_path}" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" stroke-dasharray="${style.strokeDasharray || ''}" fill="none" opacity="${style.opacity}" vector-effect="non-scaling-stroke"/>`;
     }
 
     case 'polyline': {
       const g = geom as { type: 'polygon'; points: [number, number][] };
       const pts = g.points.map(p => `${p[0]},${p[1]}`).join(' ');
-      return `<polyline${dataAttrs} points="${pts}" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" fill="none" opacity="${style.opacity}"/>`;
+      return `<polyline${dataAttrs} points="${pts}" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" fill="none" opacity="${style.opacity}" vector-effect="non-scaling-stroke"/>`;
     }
 
     case 'polygon': {
@@ -230,7 +230,7 @@ function renderElement(
       const fill = fp && fp !== 'solid'
         ? `url(#${getFillPatternId(fp, element.feature_class)})`
         : (style.fill || 'none');
-      return `<polygon${dataAttrs} points="${pts}" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" fill="${fill}" opacity="${style.opacity}"/>`;
+      return `<polygon${dataAttrs} points="${pts}" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" fill="${fill}" opacity="${style.opacity}" vector-effect="non-scaling-stroke"/>`;
     }
 
     case 'point': {
@@ -257,7 +257,7 @@ function renderElement(
       const text = escapeXml(String((element.attributes as Record<string, unknown>).text || ''));
 
       return `<g${dataAttrs}>` +
-        `<line x1="${g.start[0]}" y1="${g.start[1]}" x2="${g.end[0]}" y2="${g.end[1]}" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" marker-end="url(#arrow)"/>` +
+        `<line x1="${g.start[0]}" y1="${g.start[1]}" x2="${g.end[0]}" y2="${g.end[1]}" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" marker-end="url(#arrow)" vector-effect="non-scaling-stroke"/>` +
         `<text x="${midX}" y="${midY - 4}" font-size="${style.fontSize || 7}" font-family="${style.fontFamily || 'Arial'}" fill="${style.stroke}" text-anchor="middle">${text}</text>` +
         `</g>`;
     }
@@ -272,7 +272,7 @@ function renderElement(
       const g = geom as { type: 'polygon'; points: [number, number][] };
       const pts = g.points.map(p => `${p[0]},${p[1]}`).join(' ');
       const pattern = (element.attributes as Record<string, unknown>).pattern as string || 'hatch-diagonal';
-      return `<polygon${dataAttrs} points="${pts}" fill="url(#${pattern})" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" opacity="${style.opacity}"/>`;
+      return `<polygon${dataAttrs} points="${pts}" fill="url(#${pattern})" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" opacity="${style.opacity}" vector-effect="non-scaling-stroke"/>`;
     }
 
     case 'callout': {
@@ -332,8 +332,8 @@ function renderMonumentSymbol(
   // Add crosshair for "found" monuments
   let crosshair = '';
   if (condition === 'found') {
-    crosshair = `<line x1="${x - size - crosshairExtra}" y1="${y}" x2="${x + size + crosshairExtra}" y2="${y}" stroke="${style.stroke}" stroke-width="${crosshairStroke}"/>` +
-      `<line x1="${x}" y1="${y - size - crosshairExtra}" x2="${x}" y2="${y + size + crosshairExtra}" stroke="${style.stroke}" stroke-width="${crosshairStroke}"/>`;
+    crosshair = `<line x1="${x - size - crosshairExtra}" y1="${y}" x2="${x + size + crosshairExtra}" y2="${y}" stroke="${style.stroke}" stroke-width="${crosshairStroke}" vector-effect="non-scaling-stroke"/>` +
+      `<line x1="${x}" y1="${y - size - crosshairExtra}" x2="${x}" y2="${y + size + crosshairExtra}" stroke="${style.stroke}" stroke-width="${crosshairStroke}" vector-effect="non-scaling-stroke"/>`;
   }
 
   // Monument label — scale font size with symbol
