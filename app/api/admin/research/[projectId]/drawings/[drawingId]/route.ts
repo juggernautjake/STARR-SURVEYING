@@ -136,6 +136,10 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   if (updates.locked !== undefined) updateData.locked = updates.locked;
   if (updates.user_notes !== undefined) updateData.user_notes = updates.user_notes;
   if (updates.style) updateData.style = updates.style;
+  if (updates.attributes) {
+    updateData.attributes = updates.attributes;
+    updateData.user_modified = true;
+  }
   if (updates.geometry) {
     updateData.geometry = updates.geometry;
     updateData.user_modified = true;

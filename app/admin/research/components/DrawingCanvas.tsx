@@ -167,6 +167,15 @@ export default function DrawingCanvas({
     startPoints: { x: number; y: number }[];
   } | null>(null);
 
+  // Drag-to-move base SVG label element state
+  const [draggingLabelEl, setDraggingLabelEl] = useState<{
+    id: string;
+    startMouse: { x: number; y: number };
+    startPos: [number, number];
+    rotation: number;
+  } | null>(null);
+  const [labelDragPos, setLabelDragPos] = useState<{ x: number; y: number } | null>(null);
+
   // Resize annotation state (corner/edge handles)
   const [resizingAnnotation, setResizingAnnotation] = useState<{
     id: string;
@@ -296,25 +305,44 @@ export default function DrawingCanvas({
   // The injected <style> block uses [data-feature="X"] CSS attribute selectors so
   // changing any featureStyle preference instantly updates the drawing without a server fetch.
   // The injected <defs> block adds fill-pattern instances using the user's chosen fill color.
+  // Both child selectors (for grouped elements like monuments) and direct element selectors
+  // (for line/path/polygon elements that carry data-feature themselves) are included.
   const sanitizedSvgContent = useMemo(() => {
     if (!svgContent) return '';
 
     const featureStyles = preferences?.featureStyles || {};
 
-    // Build CSS overrides for each feature class
+    // Build CSS overrides for each feature class.
+    // We need BOTH child selectors (e.g. [data-feature="X"] line) for grouped elements like
+    // monuments, AND direct element selectors (e.g. line[data-feature="X"]) for line/path
+    // elements where data-feature is on the element itself (not a parent group).
     const cssRules = Object.entries(featureStyles).map(([fc, s]) => {
       const fill = s.fillPattern && s.fillPattern !== 'solid'
         ? `url(#pref-fp-${fc})`
         : (s.fill && s.fill !== 'none' ? s.fill : 'none');
+      const strokeProps = `stroke:${s.stroke};stroke-width:${s.strokeWidth};stroke-dasharray:${s.dasharray || 'none'};opacity:${s.opacity}`;
+      const fillProps = `stroke:${s.stroke};stroke-width:${s.strokeWidth};fill:${fill};opacity:${s.opacity}`;
       return (
-        `[data-feature="${fc}"] line,[data-feature="${fc}"] polyline,[data-feature="${fc}"] path{` +
-          `stroke:${s.stroke};stroke-width:${s.strokeWidth};stroke-dasharray:${s.dasharray || 'none'};opacity:${s.opacity}` +
-        `}` +
-        `[data-feature="${fc}"] polygon,[data-feature="${fc}"] rect,[data-feature="${fc}"] circle{` +
-          `stroke:${s.stroke};stroke-width:${s.strokeWidth};fill:${fill};opacity:${s.opacity}` +
-        `}`
+        // Child selectors (for grouped SVG elements)
+        `[data-feature="${fc}"] line,[data-feature="${fc}"] polyline,[data-feature="${fc}"] path{${strokeProps}}` +
+        `[data-feature="${fc}"] polygon,[data-feature="${fc}"] rect,[data-feature="${fc}"] circle{${fillProps}}` +
+        // Direct element selectors (for elements that have data-feature on themselves)
+        `line[data-feature="${fc}"],polyline[data-feature="${fc}"],path[data-feature="${fc}"]{${strokeProps}}` +
+        `polygon[data-feature="${fc}"],rect[data-feature="${fc}"],circle[data-feature="${fc}"]{${fillProps}}`
       );
     }).join('');
+
+    // Label font and visibility preferences.
+    // This SVG has no viewBox (width/height are explicit pixel dimensions), so 1 CSS px = 1 SVG user
+    // unit. Using 'px' units here is equivalent to the unitless SVG presentation attribute values.
+    const labelFs = preferences?.labelFontSize || 8;
+    const labelFf = preferences?.labelFontFamily || 'Arial';
+    const labelCss = (
+      `text[data-feature],[data-feature] text{font-size:${labelFs}px;font-family:${labelFf}}` +
+      (preferences?.showBearingLabels === false ? `[data-label-type="bearing"]{display:none}` : '') +
+      (preferences?.showDistanceLabels === false ? `[data-label-type="distance"]{display:none}` : '') +
+      (preferences?.showMonumentLabels === false ? `.monument{display:none}` : '')
+    );
 
     // Build fill-pattern defs for each feature that has a non-solid fill pattern
     const patternDefs = Object.entries(featureStyles).map(([fc, s]) => {
@@ -339,7 +367,7 @@ export default function DrawingCanvas({
     // Inject overrides right after the opening <svg ...> tag
     const enhanced = svgContent.replace(
       /(<svg\b[^>]*>)/i,
-      `$1<defs>${patternDefs}</defs><style>${cssRules}</style>`
+      `$1<defs>${patternDefs}</defs><style>${cssRules}${labelCss}</style>`
     );
 
     return DOMPurify.sanitize(enhanced, {
@@ -348,7 +376,8 @@ export default function DrawingCanvas({
       ADD_TAGS: ['style', 'pattern', 'defs'],
       ADD_ATTR: ['patternUnits', 'patternTransform', 'stop-color', 'stop-opacity'],
     });
-  }, [svgContent, preferences?.featureStyles]);
+  }, [svgContent, preferences?.featureStyles, preferences?.labelFontSize, preferences?.labelFontFamily,
+      preferences?.showBearingLabels, preferences?.showDistanceLabels, preferences?.showMonumentLabels]);
 
   // ── Coordinate Helpers ──────────────────────────────────────────────────
 
@@ -1062,16 +1091,45 @@ export default function DrawingCanvas({
         }
       }
 
+      // Start dragging a label drawing element (makes labels grabbable)
+      // Selection is handled by the click handler after mouseUp — just init drag here.
+      if (elId && onElementModified) {
+        const el = elementMap.get(elId);
+        if (el && el.element_type === 'label' && !el.locked) {
+          const geom = el.geometry as { type: 'label'; position: [number, number]; anchor: string };
+          const svgPt = clientToSvg(e.clientX, e.clientY);
+          const rotation = (el.attributes as Record<string, unknown>).rotation as number || 0;
+          setDraggingLabelEl({
+            id: elId,
+            startMouse: svgPt,
+            startPos: [geom.position[0], geom.position[1]],
+            rotation,
+          });
+          setLabelDragPos({ x: geom.position[0], y: geom.position[1] });
+          // Don't call onElementClick here — the click handler fires on mouseUp if no drag
+          return;
+        }
+      }
+
       if (!elId && !annId) {
         setIsPanning(true);
         setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
       }
     }
-  }, [pan, activeTool, handleDrawStart, selectedAnnotationId, annotations, clientToSvg]);
+  }, [pan, activeTool, handleDrawStart, selectedAnnotationId, annotations, clientToSvg, elementMap, onElementModified]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     // Always track cursor coords for coordinate display
     setCursorCoords(clientToSvg(e.clientX, e.clientY));
+
+    // Drag-to-move label drawing element
+    if (draggingLabelEl) {
+      const svgPt = clientToSvg(e.clientX, e.clientY);
+      const newX = draggingLabelEl.startPos[0] + (svgPt.x - draggingLabelEl.startMouse.x);
+      const newY = draggingLabelEl.startPos[1] + (svgPt.y - draggingLabelEl.startMouse.y);
+      setLabelDragPos({ x: newX, y: newY });
+      return;
+    }
 
     // Drag-to-move annotation
     if (draggingAnnotation) {
@@ -1127,9 +1185,22 @@ export default function DrawingCanvas({
       return;
     }
     handleSvgMouseMove(e);
-  }, [isPanning, panStart, isDrawing, handleDrawMove, handleSvgMouseMove, clientToSvg, clampPan, zoom, draggingAnnotation, resizingAnnotation, annotations]);
+  }, [isPanning, panStart, isDrawing, handleDrawMove, handleSvgMouseMove, clientToSvg, clampPan, zoom, draggingAnnotation, resizingAnnotation, annotations, draggingLabelEl]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    // End label element drag — commit new position via onElementModified
+    if (draggingLabelEl && labelDragPos) {
+      const el = elementMap.get(draggingLabelEl.id);
+      if (el && onElementModified) {
+        const oldGeom = el.geometry as { type: 'label'; position: [number, number]; anchor: string };
+        const newGeom = { ...oldGeom, position: [labelDragPos.x, labelDragPos.y] as [number, number] };
+        onElementModified(draggingLabelEl.id, { geometry: newGeom } as Partial<DrawingElement>);
+      }
+      setDraggingLabelEl(null);
+      setLabelDragPos(null);
+      setDragStartPos(null);
+      return;
+    }
     // End annotation drag — commit final state to history
     if (draggingAnnotation) {
       // Push the current (final) annotations state through the history-tracked callback
@@ -1168,7 +1239,7 @@ export default function DrawingCanvas({
       return;
     }
     setDragStartPos(null);
-  }, [isPanning, isDrawing, activeTool, handleDrawEnd, dragStartPos, currentPoints, draggingAnnotation, resizingAnnotation, annotations, onAnnotationsChange]);
+  }, [isPanning, isDrawing, activeTool, handleDrawEnd, dragStartPos, currentPoints, draggingAnnotation, resizingAnnotation, annotations, onAnnotationsChange, draggingLabelEl, labelDragPos, elementMap, onElementModified]);
 
   // Touch support
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -1395,10 +1466,11 @@ export default function DrawingCanvas({
   // ── Cursor ──────────────────────────────────────────────────────────────
 
   function getCursor(): string {
+    if (draggingLabelEl) return 'grabbing';
     if (isPanning) return 'grabbing';
     switch (activeTool) {
       case 'pan': return 'grab';
-      case 'select': return 'default';
+      case 'select': return hoveredId && elementMap.get(hoveredId)?.element_type === 'label' ? 'grab' : 'default';
       case 'eraser': return 'not-allowed';
       case 'text_type': return 'text';
       case 'measure': return 'crosshair';
@@ -1432,7 +1504,7 @@ export default function DrawingCanvas({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => { setIsPanning(false); setDragStartPos(null); handleSvgMouseLeave(); setCursorCoords(null); }}
+        onMouseLeave={() => { setIsPanning(false); setDragStartPos(null); setDraggingLabelEl(null); setLabelDragPos(null); handleSvgMouseLeave(); setCursorCoords(null); }}
         onClick={(e) => { handleRapidClick(e); handleElementClick(e); }}
         onDoubleClick={handleDoubleClick}
         onTouchStart={handleTouchStart}
@@ -1573,6 +1645,45 @@ export default function DrawingCanvas({
               />
             </g>
           )}
+          {/* Label element drag ghost — shows where the label will be placed */}
+          {draggingLabelEl && labelDragPos && (() => {
+            const el = elements.find(e => e.id === draggingLabelEl.id);
+            if (!el || el.element_type !== 'label') return null;
+            const attrs = el.attributes as Record<string, unknown>;
+            const text = String(attrs.text || '');
+            const fs = (el.style as { fontSize?: number }).fontSize || 8;
+            const ff = (el.style as { fontFamily?: string }).fontFamily || 'Arial';
+            const rot = draggingLabelEl.rotation;
+            return (
+              <g pointerEvents="none" opacity={0.75}>
+                {/* Ghost bounding box — width is approximated using avg char width (0.6×fs)
+                    since proportional font metrics aren't available in SVG without DOM measurement */}
+                <rect
+                  x={labelDragPos.x - text.length * fs * 0.3}
+                  y={labelDragPos.y - fs}
+                  width={text.length * fs * 0.6}
+                  height={fs * 1.4}
+                  fill="#EFF6FF"
+                  stroke="#2563EB"
+                  strokeWidth={1 / zoom}
+                  strokeDasharray={`${4 / zoom},${2 / zoom}`}
+                  rx={2}
+                />
+                <text
+                  x={labelDragPos.x}
+                  y={labelDragPos.y}
+                  fontSize={fs}
+                  fontFamily={ff}
+                  fill={el.style.stroke}
+                  textAnchor="middle"
+                  transform={rot !== 0 ? `rotate(${rot}, ${labelDragPos.x}, ${labelDragPos.y})` : undefined}
+                >
+                  {text}
+                </text>
+              </g>
+            );
+          })()}
+
           {/* Close-shape indicator: green dot at start point when drawing polyline near start */}
           {activeTool === 'polyline' && isDrawing && currentPoints.length >= 3 && (() => {
             const start = currentPoints[0];

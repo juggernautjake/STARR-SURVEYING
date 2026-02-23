@@ -306,6 +306,7 @@ export interface ElementStyle {
   opacity: number;
   fontSize?: number;
   fontFamily?: string;
+  rotation?: number;     // label rotation in degrees — stored in element.attributes on save, but included here so the UI can pass it through onStyleChange for routing
 }
 
 // ── Confidence ───────────────────────────────────────────────────────────────

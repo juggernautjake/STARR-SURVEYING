@@ -15,6 +15,8 @@ const DASH_PRESETS = [
   { label: 'Center', value: '15,5,5,5' },
 ];
 
+const FONT_OPTIONS = ['Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana', 'Tahoma'];
+
 // Tooltip descriptions for confidence factors
 const FACTOR_TIPS: Record<string, string> = {
   'Source Quality': 'How reliable is the original document? Higher-resolution scans and official records score better.',
@@ -240,6 +242,63 @@ export default function ElementDetailPanel({
                 />
                 <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{element.style.opacity}</span>
               </div>
+
+              {/* Font controls for label elements */}
+              {element.element_type === 'label' && (
+                <>
+                  <div className="research-element-panel__style-row">
+                    <Tooltip text="Font size for this label (in drawing units)" enabled={tips} position="left">
+                      <label>Font Size</label>
+                    </Tooltip>
+                    <input
+                      type="number"
+                      min="4"
+                      max="60"
+                      step="1"
+                      value={(element.style as ElementStyle & { fontSize?: number }).fontSize || 8}
+                      onChange={e => onStyleChange(element.id, { fontSize: Number(e.target.value) } as Partial<ElementStyle>)}
+                      className="research-prefs__num-input"
+                    />
+                  </div>
+                  <div className="research-element-panel__style-row">
+                    <Tooltip text="Font family for this label" enabled={tips} position="left">
+                      <label>Font Family</label>
+                    </Tooltip>
+                    <select
+                      value={(element.style as ElementStyle & { fontFamily?: string }).fontFamily || 'Arial'}
+                      onChange={e => onStyleChange(element.id, { fontFamily: e.target.value } as Partial<ElementStyle>)}
+                      className="research-prefs__select"
+                    >
+                      {FONT_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
+                    </select>
+                  </div>
+                  <div className="research-element-panel__style-row">
+                    <Tooltip text="Text color for this label" enabled={tips} position="left">
+                      <label>Text Color</label>
+                    </Tooltip>
+                    <input
+                      type="color"
+                      value={element.style.stroke || '#000000'}
+                      onChange={e => onStyleChange(element.id, { stroke: e.target.value })}
+                      className="research-prefs__color-input"
+                    />
+                  </div>
+                  <div className="research-element-panel__style-row">
+                    <Tooltip text="Rotation angle for this label in degrees (positive = clockwise)" enabled={tips} position="left">
+                      <label>Rotation°</label>
+                    </Tooltip>
+                    <input
+                      type="number"
+                      min="-180"
+                      max="180"
+                      step="1"
+                      value={(attrs.rotation as number) || 0}
+                      onChange={e => onStyleChange(element.id, { rotation: Number(e.target.value) } as Partial<ElementStyle>)}
+                      className="research-prefs__num-input"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

@@ -243,8 +243,10 @@ function renderElement(
       const text = escapeXml(String((element.attributes as Record<string, unknown>).text || ''));
       const textAnchor = g.anchor === 'end' ? 'end' : g.anchor === 'start' ? 'start' : 'middle';
       const transform = rotation !== 0 ? ` transform="rotate(${rotation}, ${g.position[0]}, ${g.position[1]})"` : '';
+      const labelType = (element.attributes as Record<string, unknown>).label_type as string || '';
+      const labelTypeAttr = labelType ? ` data-label-type="${escapeXml(labelType)}"` : '';
 
-      return `<text${dataAttrs} x="${g.position[0]}" y="${g.position[1]}" font-size="${style.fontSize || 8}" font-family="${style.fontFamily || 'Arial'}" fill="${style.stroke}" text-anchor="${textAnchor}"${transform}>${text}</text>`;
+      return `<text${dataAttrs}${labelTypeAttr} x="${g.position[0]}" y="${g.position[1]}" font-size="${style.fontSize || 8}" font-family="${style.fontFamily || 'Arial'}" fill="${style.stroke}" text-anchor="${textAnchor}"${transform}>${text}</text>`;
     }
 
     case 'dimension': {
