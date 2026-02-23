@@ -491,6 +491,64 @@ const TEXAS_CLERK_CONFIGS: Record<string, ClerkConfig> = {
   fayette:    { name: 'Fayette County Clerk',    url: 'https://www.co.fayette.tx.us/departments/county-clerk/' },
 };
 
+// ── publicsearch.us County Clerk Online Records Portal ───────────────────────
+// Many Texas counties use the Tyler Technologies / Kofile publicsearch.us platform
+// for online access to recorded instruments (deeds, plats, easements, liens).
+// Once the CAD property ID is known, a full-text search on this platform returns
+// every recorded instrument that mentions it — the single most powerful deed lookup.
+//
+// Deed search URL: https://{subdomain}/results?search=index,fullText&q={propertyId}
+
+const PUBLICSEARCH_BY_COUNTY: Record<string, string> = {
+  bell:       'bell.tx.publicsearch.us',
+  coryell:    'coryell.tx.publicsearch.us',
+  mclennan:   'mclennan.tx.publicsearch.us',
+  falls:      'falls.tx.publicsearch.us',
+  milam:      'milam.tx.publicsearch.us',
+  lampasas:   'lampasas.tx.publicsearch.us',
+  travis:     'travis.tx.publicsearch.us',
+  williamson: 'williamson.tx.publicsearch.us',
+  bastrop:    'bastrop.tx.publicsearch.us',
+  hays:       'hays.tx.publicsearch.us',
+  brazos:     'brazos.tx.publicsearch.us',
+  burleson:   'burleson.tx.publicsearch.us',
+  robertson:  'robertson.tx.publicsearch.us',
+  lee:        'lee.tx.publicsearch.us',
+  burnet:     'burnet.tx.publicsearch.us',
+  llano:      'llano.tx.publicsearch.us',
+  hill:       'hill.tx.publicsearch.us',
+  limestone:  'limestone.tx.publicsearch.us',
+  bosque:     'bosque.tx.publicsearch.us',
+  hamilton:   'hamilton.tx.publicsearch.us',
+  leon:       'leon.tx.publicsearch.us',
+  blanco:     'blanco.tx.publicsearch.us',
+  caldwell:   'caldwell.tx.publicsearch.us',
+  comal:      'comal.tx.publicsearch.us',
+  guadalupe:  'guadalupe.tx.publicsearch.us',
+  brown:      'brown.tx.publicsearch.us',
+  comanche:   'comanche.tx.publicsearch.us',
+  erath:      'erath.tx.publicsearch.us',
+  hood:       'hood.tx.publicsearch.us',
+  johnson:    'johnson.tx.publicsearch.us',
+  ellis:      'ellis.tx.publicsearch.us',
+  grimes:     'grimes.tx.publicsearch.us',
+  washington: 'washington.tx.publicsearch.us',
+  fayette:    'fayette.tx.publicsearch.us',
+};
+
+/** Build the deed-search URL for the county clerk publicsearch.us portal. */
+function buildPublicsearchUrl(countyKey: string, propertyId?: string, ownerName?: string): string | null {
+  const subdomain = PUBLICSEARCH_BY_COUNTY[countyKey];
+  if (!subdomain) return null;
+  if (propertyId) {
+    return `https://${subdomain}/results?search=index,fullText&q=${encodeURIComponent(propertyId)}`;
+  }
+  if (ownerName) {
+    return `https://${subdomain}/results?search=index,fullText&q=${encodeURIComponent(ownerName)}`;
+  }
+  return `https://${subdomain}/`;
+}
+
 // ── Bell County GIS (primary source for Bell County jobs) ────────────────────
 
 async function searchBellCountyGIS(
@@ -508,6 +566,7 @@ async function searchBellCountyGIS(
 
   const hasParcelId = !!req.parcel_id;
   const hasAddress = !!req.address;
+  const currentYear = new Date().getFullYear();
 
   // Bell CAD config from the shared configs table — avoids hardcoding the CID here.
   const bellConfig = TEXAS_CAD_CONFIGS['bell'];
@@ -517,9 +576,65 @@ async function searchBellCountyGIS(
     ? `https://propaccess.trueautomation.com/clientdb/?cid=${bellConfig.trueautoId}&prop_id=${encodeURIComponent(req.parcel_id)}`
     : bellCadBaseUrl;
 
+  // Bell CAD esearch direct property view — the highest-value link when property ID is known
+  const bellEsearchPropertyUrl = req.parcel_id
+    ? `https://esearch.bellcad.org/Property/View/${encodeURIComponent(req.parcel_id)}?year=${currentYear}`
+    : null;
+
+  // publicsearch.us deed search pre-loaded with property ID
+  const bellPublicsearchUrl = buildPublicsearchUrl('bell', req.parcel_id, req.owner_name);
+
   const results: PropertySearchResult[] = [];
 
-  // Bell CAD e-search portal — primary URL (opens directly to the property search)
+  // Bell CAD esearch direct property view — top result when property ID is known
+  if (bellEsearchPropertyUrl) {
+    results.push({
+      id: generateResultId('bell_county_gis', 10),
+      source: 'bell_county_gis',
+      source_name: 'Bell CAD e-Search — Direct Property View',
+      title: `Bell CAD Property ${req.parcel_id} — Direct View (${currentYear})`,
+      url: bellEsearchPropertyUrl,
+      document_type: 'appraisal_record',
+      relevance: 1.00,
+      is_property_specific: true,
+      description: [
+        `Direct link to Bell CAD e-Search for Property ID ${req.parcel_id} (tax year ${currentYear}).`,
+        ` Shows the full property record: legal description, owner details, acreage, improvement schedule, deed volume/page reference, and value history.`,
+        ` This is the authoritative source for the legal description needed to draw the survey.`,
+      ].join(''),
+      has_cost: false,
+      metadata: { platform: 'esearch', prop_id: req.parcel_id, year: currentYear },
+    });
+  }
+
+  // Bell County Clerk publicsearch.us deed search — pre-loaded with property ID
+  if (bellPublicsearchUrl) {
+    results.push({
+      id: generateResultId('bell_county_gis', 11),
+      source: 'bell_county_gis',
+      source_name: 'Bell County Clerk — Online Deed Search',
+      title: hasParcelId
+        ? `Bell County Deed Search — Property ID ${req.parcel_id}`
+        : `Bell County Deed Search${req.owner_name ? ` — ${req.owner_name}` : ''}`,
+      url: bellPublicsearchUrl,
+      document_type: 'deed',
+      relevance: scoreRelevance(hasParcelId ? 0.99 : 0.88, { hasParcelId, hasAddress }),
+      is_property_specific: hasParcelId || !!req.owner_name || hasAddress,
+      description: [
+        hasParcelId
+          ? `Bell County Clerk online records searched by Property ID ${req.parcel_id} — returns every recorded instrument (deeds, plats, easements, liens) that references this property.`
+          : `Bell County Clerk online deed and instrument search.`,
+        ` Full-text OCR search finds deeds, warranty deeds, plats, and easements even when recorded before digital indexing.`,
+        hasParcelId ? ` Typical results include 2–5 deeds with the full metes-and-bounds legal description required for the survey.` : '',
+        ` Powered by the Tyler Technologies publicsearch.us platform.`,
+      ].join(''),
+      has_cost: false,
+      cost_note: 'Viewing is free online; certified copies are $1/page + $5 fee.',
+      metadata: { platform: 'publicsearch', prop_id: req.parcel_id, county: 'Bell' },
+    });
+  }
+
+  // Bell CAD e-search portal — general search entry point
   results.push({
     id: generateResultId('bell_county_gis', 0),
     source: 'bell_county_gis',
@@ -530,11 +645,11 @@ async function searchBellCountyGIS(
     relevance: scoreRelevance(0.95, { hasParcelId, hasAddress }),
     is_property_specific: hasAddress || hasParcelId,
     description: [
-      `Bell County CAD official e-search portal — enter address or property ID to retrieve the legal description, owner, acreage, improvement schedule, and deed references.`,
+      `Bell County CAD official e-search portal — search by address, property ID, or owner name to retrieve the legal description, acreage, improvement schedule, and deed references.`,
       req.address ? ` Search for: "${req.address}".` : '',
       req.parcel_id ? ` Enter Property ID: ${req.parcel_id}.` : '',
       req.owner_name ? ` Or search by owner name: "${req.owner_name}".` : '',
-      ` The legal description contains the metes-and-bounds calls required for the survey.`,
+      ` The legal description on this page contains the metes-and-bounds calls required for the survey.`,
     ].join(''),
     has_cost: false,
     metadata: { platform: 'esearch', search_address: req.address, search_parcel: req.parcel_id },
@@ -545,14 +660,14 @@ async function searchBellCountyGIS(
     results.push({
       id: generateResultId('bell_county_gis', 1),
       source: 'bell_county_gis',
-      source_name: 'Bell County CAD — Direct Property Record',
-      title: `Bell CAD Property Record — ID ${req.parcel_id}`,
+      source_name: 'Bell County CAD — TrueAutomation Record',
+      title: `Bell CAD Property Record — ID ${req.parcel_id} (TrueAutomation)`,
       url: bellCadDirectUrl,
       document_type: 'appraisal_record',
-      relevance: 0.97,
+      relevance: 0.96,
       is_property_specific: true,
       description: [
-        `Direct link to Bell County CAD property record for Property ID ${req.parcel_id}.`,
+        `TrueAutomation direct link to Bell County CAD property record for Property ID ${req.parcel_id}.`,
         ` Opens the full property detail: owner, legal description, acreage, deed volume/page, and value history.`,
       ].join(''),
       has_cost: false,
@@ -580,7 +695,7 @@ async function searchBellCountyGIS(
     metadata: { search_address: req.address, parcel_id: req.parcel_id, county: 'Bell' },
   });
 
-  // Bell County Clerk
+  // Bell County Clerk general page (kept as fallback / reference)
   results.push({
     id: generateResultId('bell_county_gis', 3),
     source: 'bell_county_gis',
@@ -588,14 +703,13 @@ async function searchBellCountyGIS(
     title: 'Bell County Clerk — Deed & Plat Records',
     url: 'https://www.bellcountytx.com/county-clerk/real-estate-records/',
     document_type: 'deed',
-    relevance: scoreRelevance(0.89, { hasAddress }),
+    relevance: scoreRelevance(0.80, { hasAddress }),
     is_property_specific: hasAddress || !!req.owner_name,
     description: [
-      `Bell County Clerk real estate records — warranty deeds, plats, easements, and liens.`,
-      req.address ? ` Search by property address or grantor/grantee name.` : '',
+      `Bell County Clerk real estate records main page — warranty deeds, plats, easements, and liens.`,
+      ` Use the online deed search link on this page (bell.tx.publicsearch.us) to search by property ID or owner name.`,
       req.owner_name ? ` Search by grantor/grantee: "${req.owner_name}".` : '',
       ` Plats show subdivision lot lines, dimensions, bearings, and surveyor certifications.`,
-      ` Authoritative source for recorded metes-and-bounds descriptions in Bell County.`,
     ].join(''),
     has_cost: true,
     cost_note: 'Online viewing is free; certified copies are $1/page + $5 certification fee.',
@@ -707,14 +821,45 @@ async function searchCountyClerk(
   const clerk = TEXAS_CLERK_CONFIGS[countyKey] || TEXAS_CLERK_CONFIGS[county.toLowerCase()];
   const hasAddress = !!req.address;
   const hasOwner = !!req.owner_name;
+  const hasParcelId = !!req.parcel_id;
 
   const clerkName = clerk?.name || `${county} County Clerk`;
   const clerkUrl = clerk?.url || `https://comptroller.texas.gov/taxes/property-tax/county-directory/`;
 
-  const hasSpecificQuery = hasAddress || !!req.parcel_id || hasOwner;
+  const hasSpecificQuery = hasAddress || hasParcelId || hasOwner;
   const results: PropertySearchResult[] = [];
 
-  // Deed records
+  // publicsearch.us — pre-loaded with property ID (top result when property ID is known)
+  const publicsearchUrl = buildPublicsearchUrl(countyKey, req.parcel_id, req.owner_name);
+  if (publicsearchUrl) {
+    results.push({
+      id: generateResultId('county_clerk', 2),
+      source: 'county_clerk',
+      source_name: `${clerkName} — Online Records (publicsearch.us)`,
+      title: hasParcelId
+        ? `${county} County Deed Search — Property ID ${req.parcel_id}`
+        : hasOwner
+          ? `${county} County Deed Search — ${req.owner_name}`
+          : `${county} County Deed Search (publicsearch.us)`,
+      url: publicsearchUrl,
+      document_type: 'deed',
+      relevance: scoreRelevance(hasParcelId ? 0.98 : hasOwner ? 0.90 : 0.85, { hasParcelId, hasAddress }),
+      is_property_specific: hasSpecificQuery,
+      description: [
+        hasParcelId
+          ? `${clerkName} online deed search pre-loaded with Property ID ${req.parcel_id} — returns every recorded instrument (deeds, plats, easements, liens) referencing this property.`
+          : `${clerkName} online deed and instrument search via the publicsearch.us platform.`,
+        ` Full-text OCR search (search type: index + full text) finds deeds and legal descriptions even in older scanned documents.`,
+        hasParcelId ? ` Expected results: 2–5 deeds containing the metes-and-bounds legal description.` : '',
+        hasOwner ? ` Searching by grantor/grantee name: "${req.owner_name}".` : '',
+      ].join(''),
+      has_cost: false,
+      cost_note: 'Online viewing is free; certified copies available from the county clerk.',
+      metadata: { record_type: 'deed', county, platform: 'publicsearch', prop_id: req.parcel_id },
+    });
+  }
+
+  // Deed records via county clerk homepage
   results.push({
     id: generateResultId('county_clerk', 0),
     source: 'county_clerk',

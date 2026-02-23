@@ -48,12 +48,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     address: body.address ?? project.property_address ?? undefined,
     county:  body.county  ?? project.county          ?? undefined,
     parcel_id: body.parcel_id ?? project.parcel_id   ?? undefined,
+    owner_name: body.owner_name ?? undefined,
     state:   body.state   ?? project.state           ?? 'TX',
   };
 
-  if (!fetchReq.address && !fetchReq.parcel_id) {
+  if (!fetchReq.address && !fetchReq.parcel_id && !fetchReq.owner_name) {
     return NextResponse.json(
-      { error: 'At least one of address or parcel_id is required' },
+      { error: 'At least one of address, parcel_id, or owner_name is required' },
       { status: 400 },
     );
   }
