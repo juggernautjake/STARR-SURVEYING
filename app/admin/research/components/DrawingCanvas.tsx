@@ -306,10 +306,42 @@ export default function DrawingCanvas({
       return;
     }
 
+    // Polyline: if already drawing, add a new point instead of resetting
+    if (activeTool === 'polyline' && isDrawing && currentPoints.length > 0) {
+      setCurrentPoints(prev => [...prev, svgPt]);
+      return;
+    }
+
+    // Click-click mode: if already drawing a line/shape tool, the second click
+    // places the endpoint and finalizes the annotation.
+    const CLICK_CLICK_TOOLS = ['line', 'dimension', 'callout', 'rectangle', 'circle'];
+    if (CLICK_CLICK_TOOLS.includes(activeTool) && isDrawing && currentPoints.length >= 1) {
+      const pts = [currentPoints[0], svgPt];
+      const ann: UserAnnotation = {
+        id: generateId(),
+        type: activeTool as UserAnnotation['type'],
+        points: pts,
+        style: {
+          stroke: toolSettings.strokeColor,
+          strokeWidth: toolSettings.strokeWidth,
+          strokeDasharray: toolSettings.dashPattern,
+          fill: activeTool === 'rectangle' || activeTool === 'circle' ? toolSettings.fillColor : 'none',
+          opacity: toolSettings.opacity,
+        },
+        zIndex: getMaxZIndex() + 1,
+      };
+      if (activeTool === 'callout') { ann.type = 'callout'; ann.text = 'Note'; ann.style.fontSize = toolSettings.fontSize; ann.style.fontFamily = toolSettings.fontFamily; }
+      if (activeTool === 'dimension') { ann.type = 'dimension'; ann.style.fontSize = toolSettings.fontSize; ann.style.fontFamily = toolSettings.fontFamily; }
+      addAnnotation(ann);
+      setIsDrawing(false);
+      setCurrentPoints([]);
+      return;
+    }
+
     // Start drawing
     setIsDrawing(true);
     setCurrentPoints([svgPt]);
-  }, [activeTool, clientToSvg, measureStart]);
+  }, [activeTool, clientToSvg, measureStart, isDrawing, currentPoints, toolSettings, annotations]);
 
   const handleDrawMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawing) {
@@ -617,66 +649,28 @@ export default function DrawingCanvas({
     return { x: clampedX, y: clampedY };
   }, [drawing.canvas_config]);
 
-  // ── Double-click to zoom in, triple-click to zoom out ──
-  // Track rapid clicks for triple-click detection
+  // ── Double-click / triple-click zoom ──
+  // Uses native e.detail (1=single, 2=double, 3=triple) — no manual click counter needed.
+  // Track rapid clicks for triple-click detection as a fallback.
   const clickCountRef = useRef(0);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Called on every single click to count rapid clicks for triple-click zoom-out
   const handleRapidClick = useCallback((e: React.MouseEvent) => {
-    if (!['select', 'pan'].includes(activeTool)) return;
     clickCountRef.current += 1;
     if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-    clickTimerRef.current = setTimeout(() => {
-      clickCountRef.current = 0;
-    }, 500);
-  }, [activeTool]);
+    clickTimerRef.current = setTimeout(() => { clickCountRef.current = 0; }, 600);
+  }, []);
 
-  // Zoom in on double-click at click position
-  const handleZoomIn = useCallback((e: React.MouseEvent) => {
-    if (!['select', 'pan'].includes(activeTool)) return;
-
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    // If this is the 3rd+ click in a rapid sequence, zoom OUT instead
-    if (clickCountRef.current >= 3) {
-      const zoomFactor = 0.5;
-      const newZoom = Math.max(0.1, zoom * zoomFactor);
-      const scale = newZoom / zoom;
-      const newPan = clampPan(
-        mouseX - scale * (mouseX - pan.x),
-        mouseY - scale * (mouseY - pan.y),
-        newZoom
-      );
-      setZoom(newZoom);
-      setPan(newPan);
-      clickCountRef.current = 0;
-      return;
-    }
-
-    // Standard double-click: zoom IN
-    const zoomFactor = 1.5;
-    const newZoom = Math.min(10, zoom * zoomFactor);
-    const scale = newZoom / zoom;
-    const newPan = clampPan(
-      mouseX - scale * (mouseX - pan.x),
-      mouseY - scale * (mouseY - pan.y),
-      newZoom
-    );
-    setZoom(newZoom);
-    setPan(newPan);
-  }, [activeTool, zoom, pan, setZoom, clampPan]);
-
-  // Double-click to finish polyline OR zoom in at click position
+  // Double-click: finish polyline, OR zoom in. Triple-click: zoom out.
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    // Finish polyline on double-click
     if (activeTool === 'polyline' && isDrawing && currentPoints.length >= 2) {
+      // Remove the last duplicate point added by the second click of the double-click
+      const points = currentPoints.slice(0, -1).length >= 2 ? currentPoints.slice(0, -1) : currentPoints;
       const newAnnotation: UserAnnotation = {
         id: generateId(),
         type: 'polyline',
-        points: currentPoints,
+        points,
         style: {
           stroke: toolSettings.strokeColor,
           strokeWidth: toolSettings.strokeWidth,
@@ -692,9 +686,35 @@ export default function DrawingCanvas({
       return;
     }
 
-    // Zoom in (or out on triple-click)
-    handleZoomIn(e);
-  }, [activeTool, isDrawing, currentPoints, toolSettings, annotations, handleZoomIn]);
+    // Only zoom on select/pan tools
+    if (!['select', 'pan'].includes(activeTool)) return;
+
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Use clickCountRef for triple-click detection (e.detail >= 3 also works but
+    // some browsers cap detail at 2 for dblclick events)
+    const isTriple = clickCountRef.current >= 3;
+
+    if (isTriple) {
+      // Triple-click: zoom OUT
+      const newZoom = Math.max(0.1, zoom * 0.5);
+      const scale = newZoom / zoom;
+      const newPan = clampPan(mouseX - scale * (mouseX - pan.x), mouseY - scale * (mouseY - pan.y), newZoom);
+      setZoom(newZoom);
+      setPan(newPan);
+      clickCountRef.current = 0;
+    } else {
+      // Double-click: zoom IN
+      const newZoom = Math.min(10, zoom * 1.5);
+      const scale = newZoom / zoom;
+      const newPan = clampPan(mouseX - scale * (mouseX - pan.x), mouseY - scale * (mouseY - pan.y), newZoom);
+      setZoom(newZoom);
+      setPan(newPan);
+    }
+  }, [activeTool, isDrawing, currentPoints, toolSettings, annotations, zoom, pan, setZoom, clampPan]);
 
   // Mouse down — pan or draw
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -763,12 +783,24 @@ export default function DrawingCanvas({
       return;
     }
     if (isDrawing && activeTool !== 'polyline') {
+      // Click-move-click mode for line-based tools: if the user barely dragged,
+      // keep drawing active so they can click again to place the endpoint.
+      const CLICK_CLICK_TOOLS = ['line', 'dimension', 'callout', 'rectangle', 'circle'];
+      if (CLICK_CLICK_TOOLS.includes(activeTool) && dragStartPos) {
+        const dx = Math.abs(e.clientX - dragStartPos.x);
+        const dy = Math.abs(e.clientY - dragStartPos.y);
+        if (dx < 5 && dy < 5 && currentPoints.length <= 1) {
+          // Tiny drag — switch to click-click mode: keep drawing, wait for next mouseDown
+          setDragStartPos(null);
+          return;
+        }
+      }
       handleDrawEnd();
       setDragStartPos(null);
       return;
     }
     setDragStartPos(null);
-  }, [isPanning, isDrawing, activeTool, handleDrawEnd]);
+  }, [isPanning, isDrawing, activeTool, handleDrawEnd, dragStartPos, currentPoints]);
 
   // Touch support
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
