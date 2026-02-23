@@ -125,6 +125,8 @@
 
   /* ── Jobs ── */
   .jobs-page__header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+  .jobs-page__controls { flex-direction: column; align-items: stretch; }
+  .jobs-page__search-form { width: 100%; }
   .jobs-page__grid { grid-template-columns: 1fr; }
   .job-form__grid { grid-template-columns: 1fr; }
   .job-detail__overview-grid { grid-template-columns: 1fr; }
@@ -136,7 +138,7 @@
   /* ── Research ── */
   .research-page__header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
   .research-page__grid { grid-template-columns: 1fr; }
-  .research-page__controls { flex-direction: column; align-items: stretch; }
+  .research-page__controls { flex-direction: column; }
   .research-page__search { min-width: 0; }
   .research-modal__row { grid-template-columns: 1fr; }
   .research-hub__stats { gap: 0.75rem; }

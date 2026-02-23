@@ -998,11 +998,6 @@
     gap: 0.5rem;
   }
   
-  /* Hide last 2 why cards on very small screens */
-  .about-why__card:nth-child(n+5) {
-    display: none;
-  }
-  
   .about-why__card {
     padding: 0.75rem;
     display: flex;

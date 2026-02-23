@@ -25,7 +25,7 @@
 .emp-manage__rate-card { background: #fff; border: 1px solid #E5E7EB; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
 .emp-manage__rate-card h3 { margin: 0 0 0.75rem; font-size: 0.95rem; color: #374151; }
 .emp-manage__rate-rows { display: flex; flex-direction: column; gap: 0.35rem; }
-.emp-manage__rate-row { display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0; font-size: 0.85rem; color: #4B5563; }
+.emp-manage__rate-row { display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0; font-size: 0.85rem; color: #4B5563; flex-wrap: wrap; gap: 0.25rem; }
 .emp-manage__rate-row span:last-child { font-family: monospace; font-weight: 500; color: #059669; }
 .emp-manage__rate-row--total { border-top: 2px solid #1D3095; margin-top: 0.25rem; padding-top: 0.5rem; font-weight: 700; color: #1F2937; }
 .emp-manage__rate-row--total span:last-child { color: #1D3095; font-size: 1rem; }
@@ -38,7 +38,7 @@
 
 /* ── Section ── */
 .emp-manage__section { margin-bottom: 1.5rem; }
-.emp-manage__section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+.emp-manage__section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
 .emp-manage__section-header h3 { margin: 0; font-size: 1rem; font-weight: 600; color: #1F2937; }
 .emp-manage__section h3 { margin: 0 0 0.75rem; font-size: 1rem; font-weight: 600; color: #1F2937; }
 
@@ -86,7 +86,7 @@
 /* ── History Items ── */
 .emp-manage__history-item { padding: 0.75rem; border-bottom: 1px solid #F3F4F6; }
 .emp-manage__history-item:last-child { border-bottom: none; }
-.emp-manage__history-main { display: flex; justify-content: space-between; align-items: center; }
+.emp-manage__history-main { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.25rem; }
 .emp-manage__history-title { font-weight: 600; font-size: 0.88rem; color: #1F2937; }
 .emp-manage__history-impact { font-family: monospace; font-size: 0.82rem; font-weight: 600; }
 .emp-manage__history-impact--pos { color: #059669; }
@@ -104,7 +104,7 @@
 /* ── Change Log ── */
 .emp-manage__changelog { display: flex; flex-direction: column; gap: 0.5rem; }
 .emp-manage__change-item { background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; padding: 0.75rem; }
-.emp-manage__change-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem; }
+.emp-manage__change-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem; flex-wrap: wrap; gap: 0.25rem; }
 .emp-manage__change-type { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; padding: 0.1rem 0.4rem; border-radius: 4px; background: #F3F4F6; color: #6B7280; }
 .emp-manage__change-type--pay_raise { background: #D1FAE5; color: #065F46; }
 .emp-manage__change-type--role_change { background: #EBF0FF; color: #1D3095; }
