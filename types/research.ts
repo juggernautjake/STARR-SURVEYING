@@ -306,6 +306,7 @@ export interface ElementStyle {
   opacity: number;
   fontSize?: number;
   fontFamily?: string;
+  rotation?: number;     // label rotation in degrees — stored in element.attributes on save, but included here so the UI can pass it through onStyleChange for routing
 }
 
 // ── Confidence ───────────────────────────────────────────────────────────────
@@ -341,7 +342,11 @@ export type SearchSource =
   | 'fema'             // FEMA flood zone
   | 'tnris'            // Texas Natural Resources Information System
   | 'txdot'            // TxDOT right-of-way maps
-  | 'usgs';            // USGS topo/elevation
+  | 'usgs'             // USGS topo/elevation
+  | 'bell_county_gis'  // Bell County GIS portal
+  | 'texas_glo'        // Texas General Land Office (abstract surveys)
+  | 'texas_rrc'        // Texas Railroad Commission (oil/gas infrastructure)
+  | 'city_records';    // City permit/plat portals
 
 export interface PropertySearchResult {
   id: string;
@@ -354,6 +359,10 @@ export interface PropertySearchResult {
   description: string;
   has_cost: boolean;
   cost_note?: string;
+  /** True when the URL or content is specifically about THIS property (not a generic portal link) */
+  is_property_specific?: boolean;
+  /** Static map image URL safe to embed in <img> directly (USGS public service) */
+  preview_image_url?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -369,6 +378,19 @@ export interface PropertySearchResponse {
   results: PropertySearchResult[];
   sources_searched: { source: SearchSource; name: string; status: 'success' | 'error' | 'no_results'; message?: string }[];
   total: number;
+  /** AI-normalized address, if normalization was run */
+  address_normalized?: string;
+  /** Alternate address formats/spellings the AI identified */
+  address_variants?: string[];
+  /** Potential address issues the AI flagged (spelling, missing components, etc.) */
+  address_issues?: string[];
+  /** Actionable suggestions for the researcher */
+  address_suggestions?: string[];
+  /** Geocoded coordinates for the address (null if geocoding failed or no address given) */
+  geocoded_lat?: number | null;
+  geocoded_lon?: number | null;
+  /** Static satellite map preview URL for the geocoded location */
+  location_preview_url?: string | null;
 }
 
 // ── Verification & Comparison ────────────────────────────────────────────────

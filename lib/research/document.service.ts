@@ -102,12 +102,12 @@ async function extractText(doc: ResearchDocument): Promise<ExtractionResult> {
     case 'jpg':
     case 'jpeg':
     case 'webp':
-      return await extractFromImage(fileBuffer, fileType);
+      return await extractFromImage(fileBuffer, fileType, doc.document_type);
 
     case 'tiff':
     case 'tif':
       // TIFF needs conversion before OCR — treat as image
-      return await extractFromImage(fileBuffer, 'png');
+      return await extractFromImage(fileBuffer, 'png', doc.document_type);
 
     case 'txt':
       return {
@@ -152,14 +152,44 @@ async function extractFromPdf(buffer: Buffer): Promise<ExtractionResult> {
   }
 }
 
-async function extractFromImage(buffer: Buffer, fileType: string): Promise<ExtractionResult> {
+async function extractFromImage(buffer: Buffer, fileType: string, documentType?: string | null): Promise<ExtractionResult> {
   const base64 = buffer.toString('base64');
   const mediaType: 'image/png' | 'image/jpeg' | 'image/webp' =
     fileType === 'png' ? 'image/png'
     : fileType === 'webp' ? 'image/webp'
     : 'image/jpeg';
 
-  const result = await callVision(base64, mediaType);
+  // Use specialized prompt for aerial/topo imagery to extract surveying-relevant features
+  const isAerialOrTopo = documentType === 'aerial_photo' || documentType === 'topo_map';
+  const promptKey = isAerialOrTopo ? 'AERIAL_IMAGE_ANALYZER' : 'OCR_EXTRACTOR';
+
+  const result = await callVision(base64, mediaType, promptKey);
+
+  if (isAerialOrTopo) {
+    // Aerial/topo: the response is structured JSON describing visual features
+    const data = result.response as {
+      coverage_description?: string;
+      surveying_notes?: string;
+      boundary_features?: unknown[];
+      structures?: unknown[];
+      overall_confidence?: number;
+    };
+
+    // Convert structured JSON to a textual description for the data extraction pipeline
+    const text = [
+      data?.coverage_description ? `COVERAGE: ${data.coverage_description}` : '',
+      data?.surveying_notes ? `\nSURVEYING NOTES: ${data.surveying_notes}` : '',
+      result.raw ? `\n\nFULL ANALYSIS:\n${result.raw}` : '',
+    ].filter(Boolean).join('');
+
+    return {
+      text: text || result.raw || '',
+      method: 'aerial-vision-analysis',
+      ocrConfidence: data?.overall_confidence,
+    };
+  }
+
+  // Standard OCR path
   const data = result.response as {
     full_text?: string;
     regions?: { text: string; bbox: unknown; confidence: number }[];

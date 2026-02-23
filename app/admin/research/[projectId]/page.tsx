@@ -1718,7 +1718,20 @@ export default function ResearchProjectPage() {
                     onToggleVisibility={(id, vis) => handleTrackedElementUpdate(id, { visible: vis })}
                     onToggleLock={(id, lock) => handleTrackedElementUpdate(id, { locked: lock })}
                     onUpdateNotes={(id, notes) => handleTrackedElementUpdate(id, { user_notes: notes })}
-                    onStyleChange={(id, style) => handleTrackedElementUpdate(id, { style: { ...selectedElement.style, ...style } })}
+                    onStyleChange={(id, style) => {
+                      // rotation is stored in element.attributes, not element.style
+                      if ('rotation' in style) {
+                        const { rotation, ...styleWithoutRotation } = style as Record<string, unknown>;
+                        const updates: Record<string, unknown> = {};
+                        if (Object.keys(styleWithoutRotation).length > 0) {
+                          updates.style = { ...selectedElement.style, ...styleWithoutRotation };
+                        }
+                        updates.attributes = { ...selectedElement.attributes, rotation };
+                        handleTrackedElementUpdate(id, updates);
+                      } else {
+                        handleTrackedElementUpdate(id, { style: { ...selectedElement.style, ...style } });
+                      }
+                    }}
                     onViewSource={(docId, excerpt) => {
                       const doc = documents.find(d => d.id === docId);
                       if (doc) {
