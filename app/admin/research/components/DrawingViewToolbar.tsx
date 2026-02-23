@@ -35,6 +35,8 @@ interface DrawingViewToolbarProps {
   lastSavedAt: string | null;
   showUITooltips?: boolean;
   onToggleUITooltips?: () => void;
+  autoSaveOnChange?: boolean;
+  onToggleAutoSaveOnChange?: () => void;
 }
 
 const VIEW_MODES: { key: ViewMode; label: string; desc: string; tip: string }[] = [
@@ -80,6 +82,8 @@ export default function DrawingViewToolbar({
   lastSavedAt,
   showUITooltips = true,
   onToggleUITooltips,
+  autoSaveOnChange,
+  onToggleAutoSaveOnChange,
 }: DrawingViewToolbarProps) {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showResetMenu, setShowResetMenu] = useState(false);
@@ -281,6 +285,20 @@ export default function DrawingViewToolbar({
             </div>
           )}
         </div>
+
+        {/* Auto-save on change toggle */}
+        {onToggleAutoSaveOnChange && (
+          <Tooltip text={autoSaveOnChange ? 'Auto-save on every change is ON — saves immediately after each edit' : 'Enable auto-save on every change — saves immediately after each edit'} enabled={tips} position="bottom">
+            <button
+              className={`research-toolbar__icon-btn research-toolbar__icon-btn--text ${autoSaveOnChange ? 'research-toolbar__icon-btn--active' : ''}`}
+              onClick={onToggleAutoSaveOnChange}
+              aria-label={autoSaveOnChange ? 'Disable auto-save on change' : 'Enable auto-save on change'}
+              style={autoSaveOnChange ? { color: '#10B981' } : undefined}
+            >
+              {autoSaveOnChange ? 'Auto' : 'Auto'}
+            </button>
+          </Tooltip>
+        )}
 
         {/* Tooltip toggle */}
         {onToggleUITooltips && (

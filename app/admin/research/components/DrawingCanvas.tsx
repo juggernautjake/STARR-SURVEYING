@@ -52,6 +52,8 @@ interface DrawingCanvasProps {
   onRevertElement?: (elementId: string) => void;
   annotations: UserAnnotation[];
   onAnnotationsChange: (annotations: UserAnnotation[]) => void;
+  /** Silent update that skips undo/redo history — used during drag/resize intermediate moves */
+  onAnnotationsSilentChange?: (annotations: UserAnnotation[]) => void;
   zoom?: number;
   onZoomChange?: (zoom: number) => void;
   /** Show draggable vertex handles on boundary elements */
@@ -80,6 +82,7 @@ export default function DrawingCanvas({
   onRevertElement,
   annotations,
   onAnnotationsChange,
+  onAnnotationsSilentChange,
   zoom: externalZoom,
   onZoomChange,
   showVertexHandles,
@@ -117,6 +120,23 @@ export default function DrawingCanvas({
   const [currentPoints, setCurrentPoints] = useState<{ x: number; y: number }[]>([]);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
 
+  // Drag-to-move annotation state
+  const [draggingAnnotation, setDraggingAnnotation] = useState<{
+    id: string;
+    startMouse: { x: number; y: number };
+    startPoints: { x: number; y: number }[];
+  } | null>(null);
+
+  // Resize annotation state (corner/edge handles)
+  const [resizingAnnotation, setResizingAnnotation] = useState<{
+    id: string;
+    handle: string;
+    startMouse: { x: number; y: number };
+    startBounds: { x: number; y: number; w: number; h: number };
+    startImageW?: number;
+    startImageH?: number;
+  } | null>(null);
+
   // Text input overlay state
   const [textInput, setTextInput] = useState<{ x: number; y: number; value: string } | null>(null);
   const textInputRef = useRef<HTMLTextAreaElement>(null);
@@ -127,14 +147,6 @@ export default function DrawingCanvas({
     y: number;
     element: DrawingElement | null;
     annotationId: string | null;
-  } | null>(null);
-
-  // Resize handles state
-  const [resizing, setResizing] = useState<{
-    annotationId: string;
-    handle: string;  // e.g. 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
-    startMouse: { x: number; y: number };
-    startBounds: { x: number; y: number; w: number; h: number };
   } | null>(null);
 
   // Measurement state
@@ -252,6 +264,12 @@ export default function DrawingCanvas({
 
   function updateAnnotation(id: string, changes: Partial<UserAnnotation>) {
     onAnnotationsChange(annotations.map(a => a.id === id ? { ...a, ...changes } : a));
+  }
+
+  /** Update annotation without pushing to undo history — used during drag/resize intermediate moves */
+  function updateAnnotationSilent(id: string, changes: Partial<UserAnnotation>) {
+    const updated = annotations.map(a => a.id === id ? { ...a, ...changes } : a);
+    (onAnnotationsSilentChange || onAnnotationsChange)(updated);
   }
 
   function deleteAnnotation(id: string) {
@@ -757,24 +775,103 @@ export default function DrawingCanvas({
       return;
     }
 
-    // Select tool — pan on empty space
+    // Select tool — drag annotation, resize handle, or pan on empty space
     if (activeTool === 'select') {
       const target = e.target as SVGElement;
+
+      // Check if clicking on a resize handle
+      const handleType = target.getAttribute('data-resize-handle');
+      if (handleType && selectedAnnotationId) {
+        const ann = annotations.find(a => a.id === selectedAnnotationId);
+        if (ann) {
+          const bounds = getAnnotationBounds(ann);
+          if (bounds) {
+            setResizingAnnotation({
+              id: selectedAnnotationId,
+              handle: handleType,
+              startMouse: clientToSvg(e.clientX, e.clientY),
+              startBounds: bounds,
+              startImageW: ann.imageWidth,
+              startImageH: ann.imageHeight,
+            });
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+
       const elId = target.getAttribute('data-element-id')
         || target.closest('[data-element-id]')?.getAttribute('data-element-id');
       const annId = target.getAttribute('data-annotation-id')
         || target.closest('[data-annotation-id]')?.getAttribute('data-annotation-id');
+
+      // Start dragging the selected annotation
+      if (annId && annId === selectedAnnotationId) {
+        const ann = annotations.find(a => a.id === annId);
+        if (ann) {
+          setDraggingAnnotation({
+            id: annId,
+            startMouse: clientToSvg(e.clientX, e.clientY),
+            startPoints: ann.points.map(p => ({ ...p })),
+          });
+          e.preventDefault();
+          return;
+        }
+      }
 
       if (!elId && !annId) {
         setIsPanning(true);
         setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
       }
     }
-  }, [pan, activeTool, handleDrawStart]);
+  }, [pan, activeTool, handleDrawStart, selectedAnnotationId, annotations, clientToSvg]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     // Always track cursor coords for coordinate display
     setCursorCoords(clientToSvg(e.clientX, e.clientY));
+
+    // Drag-to-move annotation
+    if (draggingAnnotation) {
+      const svgPt = clientToSvg(e.clientX, e.clientY);
+      const dx = svgPt.x - draggingAnnotation.startMouse.x;
+      const dy = svgPt.y - draggingAnnotation.startMouse.y;
+      const newPoints = draggingAnnotation.startPoints.map(p => ({ x: p.x + dx, y: p.y + dy }));
+      updateAnnotationSilent(draggingAnnotation.id, { points: newPoints });
+      return;
+    }
+
+    // Resize annotation via handles
+    if (resizingAnnotation) {
+      const svgPt = clientToSvg(e.clientX, e.clientY);
+      const dx = svgPt.x - resizingAnnotation.startMouse.x;
+      const dy = svgPt.y - resizingAnnotation.startMouse.y;
+      const { startBounds, handle, id } = resizingAnnotation;
+      const ann = annotations.find(a => a.id === id);
+      if (!ann) return;
+
+      // Compute new bounding box based on which handle is dragged
+      let nx = startBounds.x, ny = startBounds.y, nw = startBounds.w, nh = startBounds.h;
+      if (handle.includes('e')) nw = Math.max(10, startBounds.w + dx);
+      if (handle.includes('w')) { nx = startBounds.x + dx; nw = Math.max(10, startBounds.w - dx); }
+      if (handle.includes('s')) nh = Math.max(10, startBounds.h + dy);
+      if (handle.includes('n')) { ny = startBounds.y + dy; nh = Math.max(10, startBounds.h - dy); }
+
+      if (ann.type === 'image') {
+        // For images: update center position and dimensions
+        const centerX = nx + nw / 2;
+        const centerY = ny + nh / 2;
+        updateAnnotationSilent(id, { points: [{ x: centerX, y: centerY }], imageWidth: nw, imageHeight: nh });
+      } else {
+        // For shapes: scale points to fit new bounding box
+        const ob = startBounds;
+        if (ob.w > 0 && ob.h > 0 && ann.points.length >= 2) {
+          const newP0 = { x: nx, y: ny };
+          const newP1 = { x: nx + nw, y: ny + nh };
+          updateAnnotationSilent(id, { points: [newP0, newP1] });
+        }
+      }
+      return;
+    }
 
     if (isPanning) {
       const rawX = e.clientX - panStart.x;
@@ -787,9 +884,24 @@ export default function DrawingCanvas({
       return;
     }
     handleSvgMouseMove(e);
-  }, [isPanning, panStart, isDrawing, handleDrawMove, handleSvgMouseMove, clientToSvg, clampPan, zoom]);
+  }, [isPanning, panStart, isDrawing, handleDrawMove, handleSvgMouseMove, clientToSvg, clampPan, zoom, draggingAnnotation, resizingAnnotation, annotations]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    // End annotation drag — commit final state to history
+    if (draggingAnnotation) {
+      // Push the current (final) annotations state through the history-tracked callback
+      onAnnotationsChange(annotations);
+      setDraggingAnnotation(null);
+      setDragStartPos(null);
+      return;
+    }
+    // End annotation resize — commit final state to history
+    if (resizingAnnotation) {
+      onAnnotationsChange(annotations);
+      setResizingAnnotation(null);
+      setDragStartPos(null);
+      return;
+    }
     if (isPanning) {
       setIsPanning(false);
       setDragStartPos(null);
@@ -813,7 +925,7 @@ export default function DrawingCanvas({
       return;
     }
     setDragStartPos(null);
-  }, [isPanning, isDrawing, activeTool, handleDrawEnd, dragStartPos, currentPoints]);
+  }, [isPanning, isDrawing, activeTool, handleDrawEnd, dragStartPos, currentPoints, draggingAnnotation, resizingAnnotation, annotations, onAnnotationsChange]);
 
   // Touch support
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -1379,6 +1491,7 @@ function renderSelectionHandles(ann: UserAnnotation): JSX.Element {
       ].map(h => (
         <rect
           key={h.handle}
+          data-resize-handle={h.handle}
           x={h.cx - handleSize / 2}
           y={h.cy - handleSize / 2}
           width={handleSize}

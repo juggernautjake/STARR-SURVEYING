@@ -91,6 +91,9 @@ export default function ResearchProjectPage() {
   // UI tooltip toggle — user can turn descriptive tooltips on/off
   const [showUITooltips, setShowUITooltips] = useState(true);
 
+  // Auto-save on change: instantly save after every annotation edit
+  const [autoSaveOnChange, setAutoSaveOnChange] = useState(false);
+
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -495,6 +498,12 @@ export default function ResearchProjectPage() {
     setAnnotationHistory(h => [...h, annotations]);
     setAnnotations(next);
     setAnnotationFuture(f => f.slice(0, -1));
+  }
+
+  /** Silent update: sets annotations without pushing undo history (used during drag/resize) */
+  function handleAnnotationsSilentChange(newAnnotations: UserAnnotation[]) {
+    setAnnotations(newAnnotations);
+    setHasUnsavedChanges(true);
   }
 
   // Track unsaved changes whenever annotations or elements change
@@ -1051,6 +1060,39 @@ export default function ResearchProjectPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDrawing?.id, projectId]);
 
+  // ── Auto-save on change: debounced save 2s after every annotation change ──
+  const autoSaveOnChangeRef = useRef(autoSaveOnChange);
+  autoSaveOnChangeRef.current = autoSaveOnChange;
+  const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!autoSaveOnChangeRef.current || !hasUnsavedRef.current || !activeDrawingIdRef.current) return;
+    // Debounce to avoid saving on every intermediate keystroke/move
+    if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
+    autoSaveDebounceRef.current = setTimeout(async () => {
+      if (!autoSaveOnChangeRef.current || !hasUnsavedRef.current || !activeDrawingIdRef.current) return;
+      try {
+        const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawingIdRef.current}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            save: true,
+            annotations: annotationsRef.current,
+            preferences: drawingPrefsRef.current,
+          }),
+        });
+        if (res.ok) {
+          setLastSavedAt(new Date().toISOString());
+          setHasUnsavedChanges(false);
+        }
+      } catch { /* silent — the 60s auto-save will catch up */ }
+    }, 2000);
+    return () => {
+      if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [annotations, drawingPrefs, projectId]);
+
   // ── Re-fetch SVG when display preferences change (title block, north arrow, etc.) ──
   const displayPrefKey = `${drawingPrefs.showTitleBlock}-${drawingPrefs.showNorthArrow}-${drawingPrefs.showScaleBar}-${drawingPrefs.showLegend}-${drawingPrefs.showConfidenceBar}`;
   const prevDisplayPrefRef = useRef(displayPrefKey);
@@ -1533,6 +1575,8 @@ export default function ResearchProjectPage() {
                 lastSavedAt={lastSavedAt}
                 showUITooltips={showUITooltips}
                 onToggleUITooltips={() => setShowUITooltips(prev => !prev)}
+                autoSaveOnChange={autoSaveOnChange}
+                onToggleAutoSaveOnChange={() => setAutoSaveOnChange(prev => !prev)}
               />
 
               {/* Main workspace: tools + canvas + side panels */}
@@ -1607,6 +1651,7 @@ export default function ResearchProjectPage() {
                       onRevertElement={handleRevertElement}
                       annotations={annotations}
                       onAnnotationsChange={handleAnnotationsChangeTracked}
+                      onAnnotationsSilentChange={handleAnnotationsSilentChange}
                       zoom={canvasZoom}
                       onZoomChange={setCanvasZoom}
                       showVertexHandles={activeTool === 'vertex_edit'}
