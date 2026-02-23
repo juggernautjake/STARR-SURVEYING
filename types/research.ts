@@ -421,6 +421,30 @@ export interface ParsedBoundaryCall {
   curve_direction?: 'left' | 'right';
   /** Raw text excerpt this call was parsed from */
   raw_text?: string;
+  /** AI confidence in accuracy of this call (0–1). Null if not assessed. */
+  confidence?: number | null;
+}
+
+/** Result of a mathematical traverse closure check */
+export interface ClosureCheckResult {
+  /** Whether the check was actually run (false if calls had insufficient data) */
+  checked: boolean;
+  /** True if the traverse closes within tolerance */
+  closes: boolean;
+  /** Linear closure error in feet (distance from end point back to POB) */
+  closure_error_ft: number | null;
+  /** Precision ratio expressed as "1:N" (e.g. "1:25000") — null if error is 0 */
+  closure_precision: string | null;
+  /** Area computed from traverse coordinates via shoelace formula (acres) */
+  area_computed_acres: number | null;
+  /** Total perimeter of the traverse in feet */
+  total_traverse_ft: number | null;
+  /** Number of calls included in the check */
+  calls_used: number;
+  /** Human-readable quality assessment */
+  quality: 'excellent' | 'good' | 'marginal' | 'poor' | 'unchecked';
+  /** Warning or explanation if the check failed or produced unexpected results */
+  warning?: string;
 }
 
 /** Property record data returned from a county appraisal district */
@@ -452,6 +476,14 @@ export interface BoundaryFetchResult {
   boundary_calls?: ParsedBoundaryCall[];
   call_count?: number;
   stated_acreage?: number;
+  /** Description type parsed from the legal description (metes_and_bounds / lot_block / hybrid) */
+  description_type?: string;
+  /** Horizontal datum referenced in the legal description (NAD83 / NAD27 / unknown) */
+  datum?: string;
+  /** Deed references (chain-of-title links) found within the legal description */
+  deed_references?: Array<{ type: string; volume?: string; page?: string; instrument?: string; county?: string; description?: string }>;
+  /** Mathematical traverse closure check result */
+  closure_check?: ClosureCheckResult;
   error?: string;
   /** Direct link to this property on the county CAD e-search portal (e.g. esearch.bellcad.org/Property/View/{id}) */
   cad_property_url?: string;
