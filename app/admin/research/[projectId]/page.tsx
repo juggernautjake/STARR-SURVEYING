@@ -982,26 +982,29 @@ export default function ResearchProjectPage() {
   }, [hasUnsavedChanges, project?.status]);
 
   // ── Auto-save: save drawing state every 60 seconds if unsaved changes ───
-  // Use refs for values read inside the interval to avoid stale closures
+  // Use refs for ALL values read inside the interval to avoid stale closures.
+  // Only use activeDrawing?.id as dep so the interval stays stable between edits.
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSaveFailCountRef = useRef(0);
   const annotationsRef = useRef(annotations);
   const drawingPrefsRef = useRef(drawingPrefs);
   const drawingElementsRef = useRef(drawingElements);
   const hasUnsavedRef = useRef(hasUnsavedChanges);
+  const activeDrawingIdRef = useRef(activeDrawing?.id);
   annotationsRef.current = annotations;
   drawingPrefsRef.current = drawingPrefs;
   drawingElementsRef.current = drawingElements;
   hasUnsavedRef.current = hasUnsavedChanges;
+  activeDrawingIdRef.current = activeDrawing?.id;
 
   useEffect(() => {
     if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
-    if (!activeDrawing || !hasUnsavedChanges) return;
+    if (!activeDrawing?.id) return;
 
     autoSaveTimerRef.current = setInterval(async () => {
-      if (!hasUnsavedRef.current) return;
+      if (!hasUnsavedRef.current || !activeDrawingIdRef.current) return;
       try {
-        const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}`, {
+        const res = await fetch(`/api/admin/research/${projectId}/drawings/${activeDrawingIdRef.current}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1020,7 +1023,7 @@ export default function ResearchProjectPage() {
           autoSaveFailCountRef.current++;
           if (autoSaveFailCountRef.current >= 3) {
             showToast('Auto-save is failing repeatedly. Save manually to avoid losing work.', 'error');
-            autoSaveFailCountRef.current = 0; // Reset so we don't spam
+            autoSaveFailCountRef.current = 0;
           }
         }
       } catch {
@@ -1035,7 +1038,8 @@ export default function ResearchProjectPage() {
     return () => {
       if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
     };
-  }, [activeDrawing, hasUnsavedChanges, projectId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDrawing?.id, projectId]);
 
   // Load drawings when entering drawing/verify/export steps; auto-select first drawing
   useEffect(() => {
