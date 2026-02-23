@@ -39,6 +39,118 @@ const TRUEAUTO_BY_COUNTY: Record<string, TrueAutoConfig> = {
 const TRUEAUTO_BASE = 'https://propaccess.trueautomation.com/clientdb/api/v1/app';
 const FETCH_TIMEOUT_MS = 30_000;
 
+// ── esearch CAD Portal Config ─────────────────────────────────────────────────
+// Harris Govern / Tyler Technologies eSearch portals used by several Texas CADs.
+// These expose an HTTP search API in addition to the TrueAutomation JSON API.
+
+interface EsearchConfig {
+  /** Base URL of the eSearch portal (no trailing slash) */
+  baseUrl: string;
+  /** Display name */
+  name: string;
+}
+
+const ESEARCH_BY_COUNTY: Record<string, EsearchConfig> = {
+  bell:       { baseUrl: 'https://esearch.bellcad.org',  name: 'Bell CAD e-Search' },
+  hays:       { baseUrl: 'https://esearch.hayscad.com',  name: 'Hays CAD e-Search' },
+  williamson: { baseUrl: 'https://esearch.wcad.org',      name: 'Williamson CAD e-Search' },
+};
+
+// ── Bell County GIS ArcGIS REST Config ───────────────────────────────────────
+// Bell County publishes parcel data via an ArcGIS REST feature service.
+// The PROP_ID field in this layer maps directly to the Bell CAD property ID.
+
+interface ArcGisConfig {
+  /** Full URL to the FeatureServer or MapServer layer endpoint (no trailing slash) */
+  layerUrl: string;
+  /** Field name that holds the CAD property ID */
+  propIdField: string;
+  /** Fields to try for situs address matching — ordered by preference */
+  addressFields: string[];
+  /** Display name */
+  name: string;
+}
+
+const ARCGIS_BY_COUNTY: Record<string, ArcGisConfig> = {
+  bell: {
+    layerUrl: 'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/MapServer/0',
+    propIdField: 'PROP_ID',
+    addressFields: ['SITUS_ADDRESS', 'SITUS_ADDR', 'ADDRESS', 'FULL_ADDRESS'],
+    name: 'Bell County GIS Parcel Layer',
+  },
+};
+
+// ── publicsearch.us County Clerk Portal Config ────────────────────────────────
+// Many Texas counties use the Tyler Technologies / Kofile publicsearch.us platform
+// for online access to recorded deeds, plats, and instruments.
+// Deed search URL: https://{subdomain}/results?search=index,fullText&q={propertyId}
+
+const PUBLICSEARCH_BY_COUNTY: Record<string, string> = {
+  bell:       'bell.tx.publicsearch.us',
+  coryell:    'coryell.tx.publicsearch.us',
+  mclennan:   'mclennan.tx.publicsearch.us',
+  falls:      'falls.tx.publicsearch.us',
+  milam:      'milam.tx.publicsearch.us',
+  lampasas:   'lampasas.tx.publicsearch.us',
+  travis:     'travis.tx.publicsearch.us',
+  williamson: 'williamson.tx.publicsearch.us',
+  bastrop:    'bastrop.tx.publicsearch.us',
+  hays:       'hays.tx.publicsearch.us',
+  brazos:     'brazos.tx.publicsearch.us',
+  burleson:   'burleson.tx.publicsearch.us',
+  robertson:  'robertson.tx.publicsearch.us',
+  lee:        'lee.tx.publicsearch.us',
+  burnet:     'burnet.tx.publicsearch.us',
+  llano:      'llano.tx.publicsearch.us',
+  hill:       'hill.tx.publicsearch.us',
+  limestone:  'limestone.tx.publicsearch.us',
+  bosque:     'bosque.tx.publicsearch.us',
+  hamilton:   'hamilton.tx.publicsearch.us',
+  leon:       'leon.tx.publicsearch.us',
+  blanco:     'blanco.tx.publicsearch.us',
+  caldwell:   'caldwell.tx.publicsearch.us',
+  comal:      'comal.tx.publicsearch.us',
+  guadalupe:  'guadalupe.tx.publicsearch.us',
+  brown:      'brown.tx.publicsearch.us',
+  comanche:   'comanche.tx.publicsearch.us',
+  erath:      'erath.tx.publicsearch.us',
+  hood:       'hood.tx.publicsearch.us',
+  johnson:    'johnson.tx.publicsearch.us',
+  ellis:      'ellis.tx.publicsearch.us',
+  grimes:     'grimes.tx.publicsearch.us',
+  washington: 'washington.tx.publicsearch.us',
+  fayette:    'fayette.tx.publicsearch.us',
+};
+
+// ── URL Builders ──────────────────────────────────────────────────────────────
+
+/**
+ * Build the direct CAD property view URL.
+ * For Bell County: esearch.bellcad.org/Property/View/{id}?year={year}
+ * For TrueAutomation counties: propaccess.trueautomation.com/clientdb/?cid={cid}&prop_id={id}
+ */
+function buildCadPropertyUrl(countyKey: string, propId: string, cadConfig?: TrueAutoConfig): string | undefined {
+  const esearch = ESEARCH_BY_COUNTY[countyKey];
+  if (esearch) {
+    const year = new Date().getFullYear();
+    return `${esearch.baseUrl}/Property/View/${encodeURIComponent(propId)}?year=${year}`;
+  }
+  if (cadConfig) {
+    return `https://propaccess.trueautomation.com/clientdb/?cid=${cadConfig.cid}&prop_id=${encodeURIComponent(propId)}`;
+  }
+  return undefined;
+}
+
+/**
+ * Build the county clerk deed-search URL pre-loaded with the property ID.
+ * Uses the publicsearch.us platform where available.
+ */
+function buildDeedSearchUrl(countyKey: string, propId: string): string | undefined {
+  const subdomain = PUBLICSEARCH_BY_COUNTY[countyKey];
+  if (!subdomain) return undefined;
+  return `https://${subdomain}/results?search=index,fullText&q=${encodeURIComponent(propId)}`;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function normalizeCountyKey(county?: string | null): string {
@@ -81,6 +193,76 @@ async function fetchWithTimeout(url: string, options?: RequestInit): Promise<Res
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ── Address Variant Generator ─────────────────────────────────────────────────
+//
+// Generates up to 6 alternate address formats to maximize the chance of a
+// successful lookup when the original address string doesn't match the CAD record.
+// Returns the original address first, followed by progressively simplified variants.
+
+const STREET_ABBR_EXPANSIONS: [RegExp, string][] = [
+  [/\bST\b/,    'STREET'],
+  [/\bAVE\b/,   'AVENUE'],
+  [/\bDR\b/,    'DRIVE'],
+  [/\bBLVD\b/,  'BOULEVARD'],
+  [/\bRD\b/,    'ROAD'],
+  [/\bLN\b/,    'LANE'],
+  [/\bCT\b/,    'COURT'],
+  [/\bPL\b/,    'PLACE'],
+  [/\bTRL\b/,   'TRAIL'],
+  [/\bPKWY\b/,  'PARKWAY'],
+  [/\bHWY\b/,   'HIGHWAY'],
+  [/\bFWY\b/,   'FREEWAY'],
+  [/\bCIR\b/,   'CIRCLE'],
+  [/\bSQ\b/,    'SQUARE'],
+];
+
+function generateAddressVariants(address: string): string[] {
+  const seen = new Set<string>();
+  const variants: string[] = [];
+
+  function add(v: string) {
+    const normalized = v.trim().replace(/\s+/g, ' ');
+    if (normalized && !seen.has(normalized.toUpperCase())) {
+      seen.add(normalized.toUpperCase());
+      variants.push(normalized);
+    }
+  }
+
+  add(address); // Original always first
+
+  const upper = address.toUpperCase().trim();
+
+  // Variant: strip unit/suite/apt designators
+  const noUnit = upper
+    .replace(/\b(STE|SUITE|APT|UNIT|BLDG|BUILDING|FLOOR|FL|RM|ROOM|#)\s*[\w-]+\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  add(noUnit);
+
+  // Variant: street number + street name only (drop city, state, ZIP)
+  const streetOnly = upper.split(',')[0]?.trim() ?? '';
+  add(streetOnly);
+  const streetOnlyNoUnit = noUnit.split(',')[0]?.trim() ?? '';
+  add(streetOnlyNoUnit);
+
+  // Variant: expand common street-type abbreviation
+  for (const [abbr, full] of STREET_ABBR_EXPANSIONS) {
+    if (abbr.test(upper)) {
+      add(upper.replace(abbr, full));
+      // Also try the street-only form with the expansion
+      add(streetOnly.replace(abbr, full));
+      break; // only expand the first match to avoid explosion
+    }
+  }
+
+  // Variant: drop directional prefix after number (e.g., "2512 S 5TH ST" → "2512 5TH ST")
+  const noDir = upper.replace(/^(\d+)\s+[NSEW]\s+/, '$1 ');
+  add(noDir);
+  add(noDir.split(',')[0]?.trim() ?? '');
+
+  return variants.slice(0, 6);
 }
 
 // ── TrueAutomation API ─────────────────────────────────────────────────────────
@@ -171,7 +353,7 @@ async function trueAutoFetchDetail(
       return null;
     }
     const data = await res.json() as { data?: TrueAutoPropDetail } | TrueAutoPropDetail;
-    const detail: TrueAutoPropDetail = ('data' in data && data.data) ? data.data : (data as TrueAutoPropDetail);
+    const detail = (('data' in data && data.data) ? data.data : data) as TrueAutoPropDetail;
     steps.push(`Retrieved property data for ${detail.owner_name ?? 'unknown owner'}`);
     return detail;
   } catch (err) {
@@ -228,7 +410,468 @@ function mapTrueAutoToPropertyDetails(
   };
 }
 
-// ── AI Boundary Call Extraction ───────────────────────────────────────────────
+// ── Additional TrueAutomation Search Methods ──────────────────────────────────
+
+/** Method 3: TrueAutomation owner-name search */
+async function trueAutoSearchByOwner(
+  cid: number,
+  ownerName: string,
+  steps: string[],
+): Promise<string | null> {
+  const url = `${TRUEAUTO_BASE}/search/owner?cid=${cid}&q=${encodeURIComponent(ownerName)}`;
+  steps.push(`[Method 3] TrueAutomation owner search (cid=${cid}): "${ownerName}"`);
+  try {
+    const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
+    if (!res.ok) { steps.push(`Owner search returned HTTP ${res.status}`); return null; }
+    const data = await res.json() as { data?: TrueAutoSearchHit[] } | TrueAutoSearchHit[];
+    const hits: TrueAutoSearchHit[] = Array.isArray(data) ? data : (data?.data ?? []);
+    if (hits.length === 0) { steps.push('No properties found for this owner name.'); return null; }
+    const propId = String(hits[0].prop_id ?? '');
+    steps.push(`[Method 3] Found property ID ${propId} for owner "${hits[0].owner_name ?? ownerName}"`);
+    return propId || null;
+  } catch (err) {
+    steps.push(`[Method 3] Owner search error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+/** Method 4a: TrueAutomation geographic-ID search */
+async function trueAutoSearchByGeoId(
+  cid: number,
+  geoId: string,
+  steps: string[],
+): Promise<string | null> {
+  const url = `${TRUEAUTO_BASE}/search/geoid?cid=${cid}&q=${encodeURIComponent(geoId)}`;
+  steps.push(`[Method 4a] TrueAutomation geo-ID search (cid=${cid}): "${geoId}"`);
+  try {
+    const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
+    if (!res.ok) { steps.push(`Geo-ID search returned HTTP ${res.status}`); return null; }
+    const data = await res.json() as { data?: TrueAutoSearchHit[] } | TrueAutoSearchHit[];
+    const hits: TrueAutoSearchHit[] = Array.isArray(data) ? data : (data?.data ?? []);
+    if (hits.length === 0) { steps.push('No properties found for this geographic ID.'); return null; }
+    const propId = String(hits[0].prop_id ?? '');
+    steps.push(`[Method 4a] Found property ID ${propId} for geo-ID "${geoId}"`);
+    return propId || null;
+  } catch (err) {
+    steps.push(`[Method 4a] Geo-ID search error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+/** Method 4b: TrueAutomation account-number search (direct prop_id lookup) */
+async function trueAutoSearchByAccount(
+  cid: number,
+  account: string,
+  steps: string[],
+): Promise<string | null> {
+  const url = `${TRUEAUTO_BASE}/search/account?cid=${cid}&q=${encodeURIComponent(account)}`;
+  steps.push(`[Method 4b] TrueAutomation account search (cid=${cid}): "${account}"`);
+  try {
+    const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
+    if (!res.ok) { steps.push(`Account search returned HTTP ${res.status}`); return null; }
+    const data = await res.json() as { data?: TrueAutoSearchHit[] } | TrueAutoSearchHit[];
+    const hits: TrueAutoSearchHit[] = Array.isArray(data) ? data : (data?.data ?? []);
+    if (hits.length === 0) { steps.push('No properties found for this account number.'); return null; }
+    const propId = String(hits[0].prop_id ?? '');
+    steps.push(`[Method 4b] Found property ID ${propId} for account "${account}"`);
+    return propId || null;
+  } catch (err) {
+    steps.push(`[Method 4b] Account search error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// ── Method 5: eSearch CAD Portal HTTP Query ───────────────────────────────────
+//
+// The Harris Govern / Tyler Technologies eSearch CAD portals (esearch.bellcad.org,
+// esearch.hayscad.com, esearch.wcad.org) expose a search endpoint. We try several
+// known API patterns for these portals since the exact path varies by version.
+
+interface EsearchHit {
+  prop_id?: string | number;
+  PropertyId?: string | number;
+  propertyId?: string | number;
+  Id?: string | number;
+  id?: string | number;
+  AccountNum?: string;
+  SitusAddress?: string;
+  OwnerName?: string;
+  [key: string]: unknown;
+}
+
+/** Extract an array of hit objects from any of the eSearch portal's known response envelopes. */
+function extractEsearchHits(data: unknown): EsearchHit[] {
+  if (Array.isArray(data)) return data as EsearchHit[];
+  const d = data as Record<string, unknown>;
+  if (Array.isArray(d?.Results)) return d.Results as EsearchHit[];
+  if (Array.isArray(d?.data))    return d.data    as EsearchHit[];
+  return [];
+}
+
+async function searchEsearchPortal(
+  req: BoundaryFetchRequest,
+  countyKey: string,
+  steps: string[],
+): Promise<string | null> {
+  const config = ESEARCH_BY_COUNTY[countyKey];
+  if (!config) return null;
+
+  const queries: Array<{ label: string; q: string; type: string }> = [];
+  if (req.address)    queries.push({ label: 'address',    q: req.address,    type: 'address' });
+  if (req.owner_name) queries.push({ label: 'owner name', q: req.owner_name, type: 'owner'   });
+  if (req.parcel_id)  queries.push({ label: 'account',    q: req.parcel_id,  type: 'account'  });
+  if (queries.length === 0) return null;
+
+  // Try multiple known eSearch endpoint patterns in parallel per query
+  for (const { label, q, type } of queries) {
+    steps.push(`[Method 5] Querying ${config.name} for ${label}: "${q}"`);
+
+    // Endpoint candidates — different platform versions use different paths
+    const year = new Date().getFullYear();
+    const endpoints = [
+      `${config.baseUrl}/Property/GetSearchResults?q=${encodeURIComponent(q)}&type=${type}&year=${year}&resultLimit=10`,
+      `${config.baseUrl}/api/v1/properties/search?q=${encodeURIComponent(q)}&searchType=${type}`,
+      `${config.baseUrl}/Search/GetSearchData?searchValue=${encodeURIComponent(q)}&searchType=${type}&year=${year}`,
+      `${config.baseUrl}/Property/QuickSearch?q=${encodeURIComponent(q)}&type=${type}`,
+    ];
+
+    for (const url of endpoints) {
+      try {
+        const res = await fetchWithTimeout(url, {
+          headers: { ...makeFetchHeaders(), 'Accept': 'application/json' },
+        });
+        if (!res.ok) continue;
+
+        const contentType = res.headers.get('content-type') ?? '';
+        if (!contentType.includes('application/json')) continue;
+
+        const hits = extractEsearchHits(await res.json());
+        if (hits.length === 0) continue;
+
+        // Extract property ID from any common field name
+        const raw = hits[0].prop_id ?? hits[0].PropertyId ?? hits[0].propertyId
+          ?? hits[0].Id ?? hits[0].id ?? hits[0].AccountNum;
+        const propId = raw != null ? String(raw) : '';
+        if (propId) {
+          steps.push(`[Method 5] ${config.name} returned property ID: ${propId}`);
+          return propId;
+        }
+      } catch {
+        // Silently try next endpoint
+      }
+    }
+  }
+
+  steps.push(`[Method 5] ${config.name} did not return a property ID.`);
+  return null;
+}
+
+// ── Method 6: ArcGIS REST Parcel Feature Query ────────────────────────────────
+//
+// Query the county's public ArcGIS parcel layer by address string.
+// The PROP_ID attribute in this layer is the CAD property ID.
+
+interface ArcGisFeature {
+  attributes?: Record<string, unknown>;
+}
+
+interface ArcGisQueryResponse {
+  features?: ArcGisFeature[];
+  error?: { message?: string };
+}
+
+async function searchArcGisParcel(
+  req: BoundaryFetchRequest,
+  countyKey: string,
+  steps: string[],
+): Promise<string | null> {
+  const config = ARCGIS_BY_COUNTY[countyKey];
+  if (!config) return null;
+  if (!req.address && !req.owner_name) return null;
+
+  steps.push(`[Method 6] Querying ${config.name} for property ID`);
+
+  // Try each address-field name the layer might use.
+  // Sanitize the street string: keep only alphanumeric, spaces, hyphens, and periods.
+  // This prevents any SQL injection via the address field before it is interpolated
+  // into the ArcGIS WHERE clause (field names are from the trusted config object).
+  const queries: string[] = [];
+  if (req.address) {
+    const streetOnly = (req.address.split(',')[0] ?? req.address).trim();
+    const safe = streetOnly.replace(/[^A-Za-z0-9 .#-]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (safe) {
+      for (const field of config.addressFields) {
+        queries.push(`UPPER(${field}) LIKE UPPER('${safe.replace(/'/g, "''")}%')`);
+      }
+    }
+  }
+  if (queries.length === 0) return null;
+
+  for (const whereClause of queries) {
+    const url =
+      `${config.layerUrl}/query` +
+      `?where=${encodeURIComponent(whereClause)}` +
+      `&outFields=${encodeURIComponent([config.propIdField, ...config.addressFields, 'OWNER_NAME', 'OWN_NAME'].join(','))}` +
+      `&returnGeometry=false&resultRecordCount=5&f=json`;
+
+    try {
+      const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
+      if (!res.ok) { steps.push(`[Method 6] ArcGIS query returned HTTP ${res.status}`); continue; }
+
+      const data = await res.json() as ArcGisQueryResponse;
+      if (data.error) { steps.push(`[Method 6] ArcGIS error: ${data.error.message ?? 'unknown'}`); continue; }
+
+      const features = data.features ?? [];
+      if (features.length === 0) continue;
+
+      const attrs = features[0].attributes ?? {};
+      const rawId = attrs[config.propIdField];
+      const propId = rawId != null ? String(rawId).trim() : '';
+
+      if (propId) {
+        const addrAttr = config.addressFields.map(f => attrs[f]).find(v => v != null);
+        steps.push(`[Method 6] ArcGIS parcel layer found property ID ${propId}${addrAttr ? ` at "${addrAttr}"` : ''}`);
+        return propId;
+      }
+    } catch (err) {
+      steps.push(`[Method 6] ArcGIS query error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  return null;
+}
+
+// ── Method 7: Geocoding + Coordinate-Based Parcel Lookup ─────────────────────
+//
+// Step 7a: Geocode the address using Nominatim (free, no key required).
+// Step 7b: Query the county parcel layer with the resulting lat/lon point.
+
+interface NominatimResult {
+  lat?: string;
+  lon?: string;
+  display_name?: string;
+}
+
+async function geocodeWithNominatim(
+  address: string,
+  steps: string[],
+): Promise<{ lat: number; lon: number } | null> {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&countrycodes=us&addressdetails=0`;
+  steps.push(`[Method 7a] Geocoding address via Nominatim: "${address}"`);
+  try {
+    const res = await fetchWithTimeout(url, {
+      headers: {
+        // Nominatim usage policy requires a descriptive User-Agent and contact info
+        'User-Agent': 'STARR-Surveying/1.0 (Texas land survey research tool; contact@starrsurveying.com)',
+        'Referer': 'https://starrsurveying.com',
+        'Accept': 'application/json',
+      },
+    });
+    if (!res.ok) { steps.push(`[Method 7a] Nominatim returned HTTP ${res.status}`); return null; }
+    const data = await res.json() as NominatimResult[];
+    if (!Array.isArray(data) || data.length === 0) {
+      steps.push('[Method 7a] Nominatim returned no results for this address.');
+      return null;
+    }
+    const lat = parseFloat(data[0].lat ?? '');
+    const lon = parseFloat(data[0].lon ?? '');
+    if (isNaN(lat) || isNaN(lon)) return null;
+    steps.push(`[Method 7a] Geocoded to ${lat.toFixed(5)}, ${lon.toFixed(5)} (${data[0].display_name ?? ''})`);
+    return { lat, lon };
+  } catch (err) {
+    steps.push(`[Method 7a] Geocoding error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+async function queryArcGisParcelByPoint(
+  lat: number,
+  lon: number,
+  countyKey: string,
+  steps: string[],
+): Promise<string | null> {
+  const config = ARCGIS_BY_COUNTY[countyKey];
+  if (!config) return null;
+
+  steps.push(`[Method 7b] Querying ${config.name} at ${lat.toFixed(5)}, ${lon.toFixed(5)}`);
+
+  const geom = JSON.stringify({ x: lon, y: lat, spatialReference: { wkid: 4326 } });
+  const url =
+    `${config.layerUrl}/query` +
+    `?geometry=${encodeURIComponent(geom)}` +
+    `&geometryType=esriGeometryPoint` +
+    `&inSR=4326` +
+    `&spatialRel=esriSpatialRelContains` +
+    `&outFields=${encodeURIComponent([config.propIdField, ...config.addressFields].join(','))}` +
+    `&returnGeometry=false&f=json`;
+
+  try {
+    const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
+    if (!res.ok) { steps.push(`[Method 7b] ArcGIS point query returned HTTP ${res.status}`); return null; }
+    const data = await res.json() as ArcGisQueryResponse;
+    if (data.error || !data.features?.length) return null;
+    const attrs = data.features[0].attributes ?? {};
+    const rawId = attrs[config.propIdField];
+    const propId = rawId != null ? String(rawId).trim() : '';
+    if (propId) {
+      steps.push(`[Method 7b] Coordinate query found property ID: ${propId}`);
+      return propId;
+    }
+    return null;
+  } catch (err) {
+    steps.push(`[Method 7b] ArcGIS point query error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// ── Method 8: AI-Assisted Property ID Resolution ─────────────────────────────
+//
+// Last resort: ask the AI to reason about the available information and suggest
+// the most likely property ID. The AI can cross-reference address patterns with
+// known CAD ID formats and infer from partial information.
+
+interface AIPropertyIdResponse {
+  property_id?: string | null;
+  confidence?: number;
+  reasoning?: string;
+  suggested_search_steps?: string[];
+}
+
+async function resolvePropertyIdWithAI(
+  req: BoundaryFetchRequest,
+  countyKey: string,
+  steps: string[],
+): Promise<string | null> {
+  steps.push('[Method 8] Attempting AI-assisted property ID resolution…');
+
+  const context: string[] = [];
+  if (req.address)    context.push(`Address: ${req.address}`);
+  if (req.owner_name) context.push(`Owner Name: ${req.owner_name}`);
+  if (req.county)     context.push(`County: ${req.county}`);
+  if (req.parcel_id)  context.push(`Partial ID hint: ${req.parcel_id}`);
+  context.push(`County key: ${countyKey}`);
+
+  try {
+    const result = await callAI({
+      promptKey: 'PROPERTY_RESEARCHER',
+      userContent:
+        `All automated property ID lookup methods have failed for this property. ` +
+        `Based on the following information, can you determine or infer the Texas CAD property ID?\n\n` +
+        context.join('\n') +
+        `\n\nReturn JSON: { "property_id": "string or null", "confidence": 0-100, "reasoning": "...", "suggested_search_steps": ["..."] }`,
+      maxTokens: 512,
+      maxRetries: 1,
+      timeoutMs: 30_000,
+    });
+
+    const data = result.response as AIPropertyIdResponse;
+    if (data?.property_id && typeof data.property_id === 'string' && data.property_id.trim()) {
+      const propId = data.property_id.trim();
+      steps.push(
+        `[Method 8] AI suggested property ID: ${propId} ` +
+        `(confidence ${data.confidence ?? '?'}%) — ${data.reasoning ?? ''}`,
+      );
+      if (data.suggested_search_steps?.length) {
+        for (const s of data.suggested_search_steps) steps.push(`[Method 8] AI tip: ${s}`);
+      }
+      return propId;
+    }
+
+    if (data?.suggested_search_steps?.length) {
+      steps.push('[Method 8] AI could not determine property ID but suggests:');
+      for (const s of data.suggested_search_steps) steps.push(`  • ${s}`);
+    } else {
+      steps.push('[Method 8] AI was unable to determine the property ID from available information.');
+    }
+  } catch (err) {
+    steps.push(`[Method 8] AI resolution error: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return null;
+}
+
+// ── Property ID Resolution Orchestrator ───────────────────────────────────────
+//
+// Runs all resolution methods in priority order and returns on first success.
+// Methods run sequentially so that each failure's step-log entry is captured before
+// the next method is tried. Parallel execution would obscure which method succeeded.
+
+async function resolvePropertyId(
+  req: BoundaryFetchRequest,
+  countyKey: string,
+  cadConfig: TrueAutoConfig | undefined,
+  steps: string[],
+): Promise<string | null> {
+  // ── Method 1: TrueAutomation address search ────────────────────────────────
+  if (cadConfig && req.address) {
+    steps.push('[Method 1] TrueAutomation address search (primary)');
+    const id = await trueAutoSearchByAddress(cadConfig.cid, req.address, steps);
+    if (id) return id;
+  }
+
+  // ── Method 2: TrueAutomation address variants ──────────────────────────────
+  // Try alternate address formats in case the original didn't match.
+  if (cadConfig && req.address) {
+    const variants = generateAddressVariants(req.address).slice(1); // skip original (tried in Method 1)
+    if (variants.length > 0) {
+      steps.push(`[Method 2] Trying ${variants.length} address variant(s) on TrueAutomation`);
+      for (const variant of variants) {
+        const id = await trueAutoSearchByAddress(cadConfig.cid, variant, steps);
+        if (id) return id;
+      }
+    }
+  }
+
+  // ── Method 3: TrueAutomation owner-name search ────────────────────────────
+  if (cadConfig && req.owner_name) {
+    const id = await trueAutoSearchByOwner(cadConfig.cid, req.owner_name, steps);
+    if (id) return id;
+  }
+
+  // ── Method 4a/4b: TrueAutomation geo-id / account search ─────────────────
+  // The parcel_id field may hold a GIS geographic ID or a CAD account number
+  // rather than the TrueAutomation prop_id. Try both dedicated endpoints.
+  if (cadConfig && req.parcel_id) {
+    const idFromGeo = await trueAutoSearchByGeoId(cadConfig.cid, req.parcel_id, steps);
+    if (idFromGeo) return idFromGeo;
+    const idFromAcct = await trueAutoSearchByAccount(cadConfig.cid, req.parcel_id, steps);
+    if (idFromAcct) return idFromAcct;
+  }
+
+  // ── Method 5: eSearch CAD portal HTTP query ────────────────────────────────
+  const esearchId = await searchEsearchPortal(req, countyKey, steps);
+  if (esearchId) return esearchId;
+
+  // ── Method 6: ArcGIS REST parcel feature query by address ─────────────────
+  const arcGisId = await searchArcGisParcel(req, countyKey, steps);
+  if (arcGisId) return arcGisId;
+
+  // ── Method 7: Geocode address → coordinate-based parcel lookup ────────────
+  if (req.address) {
+    const coords = await geocodeWithNominatim(req.address, steps);
+    if (coords) {
+      const pointId = await queryArcGisParcelByPoint(coords.lat, coords.lon, countyKey, steps);
+      if (pointId) return pointId;
+    }
+    // Also try address variants through Nominatim if the original geocode failed
+    if (!coords) {
+      for (const variant of generateAddressVariants(req.address).slice(1, 3)) {
+        const varCoords = await geocodeWithNominatim(variant, steps);
+        if (varCoords) {
+          const varPointId = await queryArcGisParcelByPoint(varCoords.lat, varCoords.lon, countyKey, steps);
+          if (varPointId) return varPointId;
+          break;
+        }
+      }
+    }
+  }
+
+  // ── Method 8: AI-assisted resolution (last resort) ────────────────────────
+  const aiId = await resolvePropertyIdWithAI(req, countyKey, steps);
+  if (aiId) return aiId;
+
+  steps.push('All 8 property ID resolution methods exhausted — could not determine property ID.');
+  return null;
+}
 
 interface AIBoundaryResponse {
   point_of_beginning?: string;
@@ -313,12 +956,20 @@ async function extractBoundaryCallsWithAI(
 /**
  * Fetch boundary calls for a property from the county appraisal district.
  *
- * Strategy:
- *  1. Determine the county key and look up the TrueAutomation CID.
- *  2. If a parcel_id is provided, use it directly; otherwise search by address.
- *  3. Fetch full property detail from TrueAutomation.
- *  4. Run AI to parse the metes-and-bounds calls from the legal description.
- *  5. Return structured result including calls, property info, and a search log.
+ * Property ID resolution uses 8 methods in cascade (short-circuits on first success):
+ *  1. TrueAutomation address search (primary — fastest for supported counties)
+ *  2. TrueAutomation address variants (alternate formats / abbreviation expansions)
+ *  3. TrueAutomation owner-name search
+ *  4. TrueAutomation geo-ID / account-number search
+ *  5. County eSearch CAD portal HTTP query (Bell/Hays/Williamson CAD portals)
+ *  6. ArcGIS REST parcel feature-layer query by address string
+ *  7. Nominatim geocoding + ArcGIS point-in-polygon parcel lookup
+ *  8. AI-assisted property ID inference (last resort)
+ *
+ * Once the property ID is found:
+ *  - Retrieves full property detail and legal description from TrueAutomation
+ *  - Runs AI to parse metes-and-bounds boundary calls
+ *  - Returns structured result with direct CAD URL, deed-search URL, and step log
  */
 export async function fetchBoundaryCalls(
   req: BoundaryFetchRequest,
@@ -329,7 +980,9 @@ export async function fetchBoundaryCalls(
   const countyKey = normalizeCountyKey(countyRaw);
 
   steps.push(
-    `Starting boundary call retrieval for: ${req.address ?? '(no address)'}${countyKey ? `, ${countyKey} county` : ''}${req.parcel_id ? `, parcel_id=${req.parcel_id}` : ''}`,
+    `Starting boundary call retrieval for: ${req.address ?? '(no address)'}` +
+    `${countyKey ? `, ${countyKey} county` : ''}` +
+    `${req.parcel_id ? `, parcel_id=${req.parcel_id}` : ''}`,
   );
 
   // ── Step 1: Resolve TrueAutomation CID ────────────────────────────────────
@@ -338,36 +991,45 @@ export async function fetchBoundaryCalls(
     const known = Object.keys(TRUEAUTO_BY_COUNTY).join(', ');
     steps.push(
       `County "${countyRaw || '(unknown)'}" is not in the TrueAutomation integration list. ` +
-      `Supported counties: ${known}. Falling back to AI analysis of any provided address.`,
+      `Supported counties: ${known}. Will still attempt eSearch, ArcGIS, geocoding, and AI methods.`,
     );
   }
 
-  let propId = req.parcel_id ?? null;
-  let propDetail: TrueAutoPropDetail | null = null;
+  // ── Step 2: Resolve property ID via all available methods ─────────────────
+  let propId: string | null = req.parcel_id ?? null;
 
-  // ── Step 2: Look up property ID if not provided ────────────────────────────
-  if (cadConfig && !propId && req.address) {
-    propId = await trueAutoSearchByAddress(cadConfig.cid, req.address, steps);
+  if (!propId) {
+    propId = await resolvePropertyId(req, countyKey, cadConfig, steps);
+  } else {
+    steps.push(`Using provided property ID: ${propId}`);
   }
 
-  // ── Step 3: Fetch property details ────────────────────────────────────────
+  // ── Step 3: Fetch property details from TrueAutomation ────────────────────
+  let propDetail: TrueAutoPropDetail | null = null;
   if (cadConfig && propId) {
     propDetail = await trueAutoFetchDetail(cadConfig.cid, propId, steps);
   }
 
-  // ── Step 4: Build source URL ───────────────────────────────────────────────
+  // ── Step 4: Build output URLs ──────────────────────────────────────────────
+  // source_url   → TrueAutomation direct property record
+  // cad_property_url → CAD esearch direct property view (preferred for Bell County)
+  // deed_search_url  → county clerk publicsearch.us with property ID pre-filled
   const sourceUrl = cadConfig && propId
     ? `https://propaccess.trueautomation.com/clientdb/?cid=${cadConfig.cid}&prop_id=${encodeURIComponent(propId)}`
     : cadConfig
       ? `https://propaccess.trueautomation.com/clientdb/?cid=${cadConfig.cid}`
       : undefined;
 
+  const cadPropertyUrl = propId ? buildCadPropertyUrl(countyKey, propId, cadConfig) : undefined;
+  const deedSearchUrl  = propId ? buildDeedSearchUrl(countyKey, propId) : undefined;
+
+  if (cadPropertyUrl) steps.push(`CAD property URL: ${cadPropertyUrl}`);
+  if (deedSearchUrl)  steps.push(`Deed search URL (county clerk): ${deedSearchUrl}`);
+
   const sourceName = cadConfig?.name ?? 'Texas County Appraisal District';
 
   // ── Step 5: Extract legal description ─────────────────────────────────────
-  const legalDesc = propDetail?.legal_desc
-    ? String(propDetail.legal_desc)
-    : undefined;
+  const legalDesc = propDetail?.legal_desc ? String(propDetail.legal_desc) : undefined;
 
   if (!legalDesc) {
     if (propDetail) {
@@ -375,7 +1037,7 @@ export async function fetchBoundaryCalls(
     } else if (propId) {
       steps.push('Could not retrieve property details from the appraisal district.');
     } else {
-      steps.push('No property found. Try providing a parcel ID for a more targeted search.');
+      steps.push('No property found. Provide a parcel ID, owner name, or a more specific address.');
     }
 
     const property = propDetail && cadConfig
@@ -388,6 +1050,8 @@ export async function fetchBoundaryCalls(
       source_url: sourceUrl,
       property_id: propId ?? undefined,
       property,
+      cad_property_url: cadPropertyUrl,
+      deed_search_url: deedSearchUrl,
       error: 'No legal description available to parse boundary calls.',
       search_steps: steps,
     };
@@ -413,6 +1077,8 @@ export async function fetchBoundaryCalls(
     boundary_calls: calls,
     call_count: calls.length,
     stated_acreage: acreage ?? (property as PropertyDetails).acreage,
+    cad_property_url: cadPropertyUrl,
+    deed_search_url: deedSearchUrl,
     error: calls.length === 0
       ? 'Legal description was found but no metes-and-bounds calls could be extracted.'
       : undefined,

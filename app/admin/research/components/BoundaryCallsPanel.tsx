@@ -19,20 +19,22 @@ export default function BoundaryCallsPanel({
   defaultParcelId,
   onImported,
 }: BoundaryCallsPanelProps) {
-  const [address, setAddress]   = useState(defaultAddress  || '');
-  const [county, setCounty]     = useState(defaultCounty   || '');
-  const [parcelId, setParcelId] = useState(defaultParcelId || '');
+  const [address, setAddress]     = useState(defaultAddress  || '');
+  const [county, setCounty]       = useState(defaultCounty   || '');
+  const [parcelId, setParcelId]   = useState(defaultParcelId || '');
+  const [ownerName, setOwnerName] = useState('');
 
   const [fetching, setFetching]   = useState(false);
   const [result,   setResult]     = useState<BoundaryFetchResult | null>(null);
   const [error,    setError]      = useState('');
   const [stepLog,  setStepLog]    = useState<string[]>([]);
   const [showLog,  setShowLog]    = useState(false);
+  const [copied,   setCopied]     = useState(false);
 
   async function handleFetch() {
     if (fetching) return;
-    if (!address.trim() && !parcelId.trim()) {
-      setError('Enter a property address or parcel/property ID to search.');
+    if (!address.trim() && !parcelId.trim() && !ownerName.trim()) {
+      setError('Enter a property address, parcel/property ID, or owner name to search.');
       return;
     }
 
@@ -40,15 +42,17 @@ export default function BoundaryCallsPanel({
     setError('');
     setResult(null);
     setStepLog([]);
+    setCopied(false);
 
     try {
       const res = await fetch(`/api/admin/research/${projectId}/boundary-calls`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          address:   address.trim()   || undefined,
-          county:    county.trim()    || undefined,
-          parcel_id: parcelId.trim()  || undefined,
+          address:    address.trim()    || undefined,
+          county:     county.trim()     || undefined,
+          parcel_id:  parcelId.trim()   || undefined,
+          owner_name: ownerName.trim()  || undefined,
         }),
       });
 
@@ -133,12 +137,26 @@ export default function BoundaryCallsPanel({
               id="bc-parcel"
               className="research-search__input"
               type="text"
-              placeholder="e.g. 47234 or R-12345"
+              placeholder="e.g. 29079 or R-12345"
               value={parcelId}
               onChange={e => setParcelId(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleFetch()}
             />
           </div>
+        </div>
+        <div className="research-boundary__field">
+          <label className="research-boundary__label" htmlFor="bc-owner">
+            Owner Name <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(optional — improves lookup)</span>
+          </label>
+          <input
+            id="bc-owner"
+            className="research-search__input"
+            type="text"
+            placeholder="e.g. SMITH, JOHN or IQBAL, ANSAR"
+            value={ownerName}
+            onChange={e => setOwnerName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleFetch()}
+          />
         </div>
 
         {error && <div className="research-search__error">{error}</div>}
@@ -180,6 +198,66 @@ export default function BoundaryCallsPanel({
       {/* Results */}
       {result && (
         <div className="research-boundary__results">
+
+          {/* ── Property ID Unlock Banner ────────────────────────────────────── */}
+          {result.property_id && (
+            <div className="research-boundary__id-banner">
+              <div className="research-boundary__id-banner-left">
+                <span className="research-boundary__id-label">🔑 Property ID</span>
+                <span className="research-boundary__id-value" id="bc-prop-id-display">{result.property_id}</span>
+                <button
+                  type="button"
+                  className="research-boundary__id-copy"
+                  title="Copy property ID to clipboard"
+                  onClick={() => {
+                    navigator.clipboard.writeText(result.property_id!)
+                      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
+                      .catch(() => {
+                        // Fallback: select the ID text if clipboard API is unavailable
+                        const el = document.getElementById('bc-prop-id-display');
+                        if (el) {
+                          const range = document.createRange();
+                          range.selectNode(el);
+                          window.getSelection()?.removeAllRanges();
+                          window.getSelection()?.addRange(range);
+                        }
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      });
+                  }}
+                >
+                  {copied ? '✓ Copied' : 'Copy'}
+                </button>
+              </div>
+              <div className="research-boundary__id-links">
+                {result.cad_property_url && (
+                  <a
+                    href={result.cad_property_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="research-boundary__id-link research-boundary__id-link--cad"
+                    title="Open property record on the county CAD e-search portal"
+                  >
+                    🏛️ View on CAD e-Search ↗
+                  </a>
+                )}
+                {result.deed_search_url && (
+                  <a
+                    href={result.deed_search_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="research-boundary__id-link research-boundary__id-link--deeds"
+                    title="Search county clerk deed records by this property ID"
+                  >
+                    📜 Search Deeds by ID ↗
+                  </a>
+                )}
+              </div>
+              <p className="research-boundary__id-tip">
+                Use <strong>Search Deeds by ID</strong> to find every recorded deed and plat for this property on the county clerk portal. Select <em>Search Index + Full Text</em> for best results.
+              </p>
+            </div>
+          )}
 
           {/* Source + property header */}
           <div className="research-boundary__source">

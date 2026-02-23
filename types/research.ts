@@ -400,6 +400,7 @@ export interface BoundaryFetchRequest {
   address?: string;
   county?: string;
   parcel_id?: string;
+  owner_name?: string;
   state?: string;
 }
 
@@ -452,6 +453,10 @@ export interface BoundaryFetchResult {
   call_count?: number;
   stated_acreage?: number;
   error?: string;
+  /** Direct link to this property on the county CAD e-search portal (e.g. esearch.bellcad.org/Property/View/{id}) */
+  cad_property_url?: string;
+  /** County clerk deed-search URL pre-loaded with this property ID (e.g. bell.tx.publicsearch.us) */
+  deed_search_url?: string;
   /** Step-by-step log of what was searched/found during retrieval */
   search_steps: string[];
 }

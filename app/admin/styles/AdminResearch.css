@@ -6944,3 +6944,91 @@
   font-size: 0.82rem;
   color: #1D4ED8;
 }
+
+/* ── Boundary Calls: Property ID Unlock Banner ───────────────────────────── */
+
+.research-boundary__id-banner {
+  background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+  border: 2px solid #059669;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.research-boundary__id-banner-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.research-boundary__id-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #065F46;
+}
+
+.research-boundary__id-value {
+  font-family: 'Courier New', monospace;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #047857;
+  background: #fff;
+  border: 1.5px solid #6EE7B7;
+  border-radius: 6px;
+  padding: 0.1rem 0.6rem;
+  letter-spacing: 0.06em;
+}
+
+.research-boundary__id-copy {
+  background: #059669;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.research-boundary__id-copy:hover { background: #047857; }
+
+.research-boundary__id-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.research-boundary__id-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.research-boundary__id-link:hover { opacity: 0.85; text-decoration: none; }
+
+.research-boundary__id-link--cad {
+  background: #1E40AF;
+  color: #fff;
+}
+
+.research-boundary__id-link--deeds {
+  background: #7C3AED;
+  color: #fff;
+}
+
+.research-boundary__id-tip {
+  margin: 0;
+  font-size: 0.76rem;
+  color: #065F46;
+  line-height: 1.5;
+}
