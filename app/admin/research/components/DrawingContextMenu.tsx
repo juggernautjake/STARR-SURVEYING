@@ -15,6 +15,8 @@ export type ContextMenuAction =
   | 'move'             // Enter move mode
   | 'rotate'           // Enter rotate mode
   | 'duplicate'        // Duplicate element
+  | 'copy'             // Copy to clipboard
+  | 'paste'            // Paste from clipboard
   | 'delete'           // Delete / hide user annotation
   | 'send_to_front'    // Bring to front of z-order
   | 'send_to_back'     // Send to back of z-order
@@ -22,6 +24,10 @@ export type ContextMenuAction =
   | 'unlock'           // Unlock element
   | 'hide'             // Hide element
   | 'show'             // Show element
+  | 'hide_layer'       // Hide the layer this element is on
+  | 'lock_layer'       // Lock the layer this element is on
+  | 'toggle_fill'      // Toggle fill on/off (polyline/freehand)
+  | 'close_shape'      // Toggle polyline closed/open
   | 'edit_text'        // Edit text content (text elements only)
   | 'change_font_size' // Change text font size
   | 'change_font'      // Change font family
@@ -44,6 +50,8 @@ interface MenuSection {
     action: ContextMenuAction;
     label: string;
     icon?: string;
+    /** Keyboard shortcut hint displayed on the right side of the item */
+    shortcut?: string;
     disabled?: boolean;
     danger?: boolean;
   }[];
@@ -56,6 +64,8 @@ interface DrawingContextMenuProps {
   y: number;
   element: DrawingElement | null;
   isUserAnnotation: boolean;  // whether this is a user-created annotation
+  /** annotation type for context-sensitive options (polyline, freehand, etc.) */
+  annotationType?: string;
   onAction: (action: ContextMenuAction, element: DrawingElement | null) => void;
   onClose: () => void;
 }
@@ -65,6 +75,7 @@ export default function DrawingContextMenu({
   y,
   element,
   isUserAnnotation,
+  annotationType,
   onAction,
   onClose,
 }: DrawingContextMenuProps) {
@@ -103,7 +114,7 @@ export default function DrawingContextMenu({
   }, [x, y]);
 
   // Build menu sections based on element type
-  const sections = buildMenuSections(element, isUserAnnotation);
+  const sections = buildMenuSections(element, isUserAnnotation, annotationType);
 
   return (
     <div
@@ -144,9 +155,11 @@ export default function DrawingContextMenu({
               }}
               disabled={item.disabled}
               role="menuitem"
+              title={item.disabled ? 'Locked — unlock first' : undefined}
             >
               {item.icon && <span className="research-context-menu__icon">{item.icon}</span>}
-              <span>{item.label}</span>
+              <span className="research-context-menu__label">{item.label}</span>
+              {item.shortcut && <kbd className="research-context-menu__shortcut">{item.shortcut}</kbd>}
             </button>
           ))}
         </div>
@@ -157,14 +170,15 @@ export default function DrawingContextMenu({
 
 // ── Build menu sections ─────────────────────────────────────────────────────
 
-function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boolean): MenuSection[] {
+function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boolean, annotationType?: string): MenuSection[] {
   // No element clicked — canvas context menu
   if (!element) {
     return [
       {
         items: [
+          { action: 'paste', label: 'Paste', icon: '📋', shortcut: 'Ctrl+V' },
           { action: 'measure_from', label: 'Measure Distance', icon: '📏' },
-          { action: 'copy_coords', label: 'Copy Coordinates', icon: '📋' },
+          { action: 'copy_coords', label: 'Copy Coordinates', icon: '📍' },
         ],
       },
     ];
@@ -174,6 +188,20 @@ function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boo
   const isText = element.element_type === 'label' || element.element_type === 'callout';
   const isSymbol = element.element_type === 'symbol' || element.element_type === 'point';
   const isLocked = element.locked;
+  const isPolylineOrFreehand = annotationType === 'polyline' || annotationType === 'freehand';
+
+  // Edit section — always available for user annotations
+  if (isUserAnnotation) {
+    const editItems: MenuSection['items'] = [
+      { action: 'copy', label: 'Copy', icon: '⎘', shortcut: 'Ctrl+C' },
+      { action: 'duplicate', label: 'Duplicate', icon: '⧉', shortcut: 'Ctrl+D' },
+    ];
+    if (isPolylineOrFreehand) {
+      editItems.push({ action: 'toggle_fill', label: 'Toggle Fill', icon: '⬛' });
+      editItems.push({ action: 'close_shape', label: 'Toggle Closed', icon: '⬡' });
+    }
+    sections.push({ label: 'Edit', items: editItems });
+  }
 
   // Style section — always available for elements
   const styleItems: MenuSection['items'] = [
@@ -209,7 +237,6 @@ function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boo
     { action: 'move', label: 'Move', icon: '✥', disabled: isLocked },
     { action: 'resize', label: 'Resize', icon: '⤡', disabled: isLocked },
     { action: 'rotate', label: 'Rotate', icon: '↻', disabled: isLocked },
-    { action: 'duplicate', label: 'Duplicate', icon: '⧉' },
     { action: 'send_to_front', label: 'Bring to Front', icon: '⬆' },
     { action: 'send_to_back', label: 'Send to Back', icon: '⬇' },
   ];
@@ -231,7 +258,7 @@ function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boo
   const infoItems: MenuSection['items'] = [
     { action: 'view_details', label: 'View Details', icon: 'ℹ' },
     { action: 'add_note', label: 'Add Note', icon: '📝' },
-    { action: 'copy_coords', label: 'Copy Coordinates', icon: '📋' },
+    { action: 'copy_coords', label: 'Copy Coordinates', icon: '📍' },
   ];
 
   if (element.source_references?.length > 0) {
@@ -254,6 +281,10 @@ function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boo
     controlItems.push({ action: 'lock', label: 'Lock', icon: '🔒' });
   }
 
+  // Layer actions
+  controlItems.push({ action: 'hide_layer', label: 'Hide This Layer', icon: '🗂' });
+  controlItems.push({ action: 'lock_layer', label: 'Lock This Layer', icon: '🗂' });
+
   // Revert to original for modified AI-generated elements
   if (element.user_modified && !isUserAnnotation) {
     controlItems.push({ action: 'revert_to_original', label: 'Revert to Original', icon: '↩' });
@@ -261,7 +292,7 @@ function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boo
 
   // Delete for user annotations
   if (isUserAnnotation) {
-    controlItems.push({ action: 'delete', label: 'Delete', icon: '🗑', danger: true });
+    controlItems.push({ action: 'delete', label: 'Delete', icon: '🗑', shortcut: 'Del', danger: true });
   }
 
   sections.push({ items: controlItems });

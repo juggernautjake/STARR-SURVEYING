@@ -128,31 +128,42 @@ export async function createDrawing(
   const bbox = computeBoundingBox(traverseResult.points, 0);
   const scaleVal = computeScale(traverseResult.points, canvasWidth, canvasHeight, margin);
 
+  // Guard: ensure scale is finite and positive
+  const safeScale = isFinite(scaleVal) && scaleVal > 0 ? scaleVal : 1;
+
   // Compute transform from survey feet to canvas pixels
-  const fittedW = bbox.width * scaleVal;
-  const fittedH = bbox.height * scaleVal;
+  const fittedW = bbox.width * safeScale;
+  const fittedH = bbox.height * safeScale;
   const offsetX = (canvasWidth - fittedW) / 2;
   const offsetY = (canvasHeight - fittedH) / 2;
 
   // Survey coord (x_s, y_s) → canvas pixel (px, py):
-  //   px = offsetX + (x_s - bbox.minX) * scaleVal
-  //   py = offsetY + (bbox.maxY - y_s) * scaleVal   (flip Y: north=up → SVG y-down)
+  //   px = offsetX + (x_s - bbox.minX) * safeScale
+  //   py = offsetY + (bbox.maxY - y_s) * safeScale   (flip Y: north=up → SVG y-down)
+  let warnedNaN = false;
   function surveyToCanvas(x: number, y: number): [number, number] {
+    const px = offsetX + (x - bbox.minX) * safeScale;
+    const py = offsetY + (bbox.maxY - y) * safeScale;
+    if ((!isFinite(px) || !isFinite(py)) && !warnedNaN) {
+      console.warn('[Drawing Service] surveyToCanvas produced non-finite value', { x, y, px, py, safeScale, bbox });
+      warnedNaN = true;
+    }
     return [
-      offsetX + (x - bbox.minX) * scaleVal,
-      offsetY + (bbox.maxY - y) * scaleVal,
+      isFinite(px) ? Math.round(px * 10) / 10 : canvasWidth / 2,
+      isFinite(py) ? Math.round(py * 10) / 10 : canvasHeight / 2,
     ];
   }
 
   // Transform all element coordinates from survey space to canvas pixel space
   transformElements(elements, surveyToCanvas);
 
-  // Map scale: 1 inch (on screen) = N feet
-  const displayScale = Math.round(1 / scaleVal * 96); // 96 DPI assumption
+  // Map scale: 1 inch (on screen) = N feet (96 DPI assumption)
+  const rawDisplayScale = safeScale > 0 ? Math.round((1 / safeScale) * 96) : 100;
+  const displayScale = rawDisplayScale > 0 && isFinite(rawDisplayScale) ? rawDisplayScale : 100;
   const canvasConfig: CanvasConfig = {
     width: canvasWidth,
     height: canvasHeight,
-    scale: displayScale > 0 ? displayScale : Math.round(1 / scaleVal),
+    scale: displayScale,
     units: 'feet',
     origin: [Math.round(offsetX), Math.round(offsetY)],
     background: '#FFFFFF',
@@ -192,10 +203,14 @@ export async function createDrawing(
 
   // 10. Save all elements — scale strokes for canvas visibility
   const strokeScale = Math.max(1, canvasWidth / 1200);
-  const elementRows = elements.map((el, idx) => {
-    const featureStyle = drawingConfig.feature_styles[el.feature_class];
-    const baseStrokeWidth = featureStyle?.strokeWidth || 1;
+  const elementRows = elements.map((el) => {
+    const featureStyle = drawingConfig.feature_styles[el.feature_class]
+      || (el.layer === 'boundary_fill' ? drawingConfig.feature_styles['boundary_fill'] : null);
+    const baseStrokeWidth = featureStyle?.strokeWidth ?? 1;
     const baseFontSize = featureStyle?.fontSize || drawingConfig.label_config.font_size || 10;
+
+    // boundary_fill polygon gets a fixed light semi-transparent fill, not scaled stroke
+    const isBoundaryFill = el.layer === 'boundary_fill';
 
     return {
     drawing_id: drawingId,
@@ -207,13 +222,14 @@ export async function createDrawing(
     style: featureStyle
       ? {
           stroke: featureStyle.stroke || '#000000',
-          strokeWidth: Math.round(baseStrokeWidth * strokeScale * 10) / 10,
+          strokeWidth: isBoundaryFill ? 0 : Math.round(baseStrokeWidth * strokeScale * 10) / 10,
           strokeDasharray: featureStyle.dasharray
             ? featureStyle.dasharray.split(',').map(v => String(Math.round(parseFloat(v) * strokeScale))).join(',')
             : '',
           fill: featureStyle.fill || 'none',
-          opacity: 1,
+          opacity: isBoundaryFill ? 0.15 : 1,
           fontSize: Math.round(baseFontSize * strokeScale),
+          fontFamily: drawingConfig.label_config.font_family,
         }
       : {
           stroke: '#000000',
@@ -222,6 +238,7 @@ export async function createDrawing(
           fill: 'none',
           opacity: 1,
           fontSize: Math.round(10 * strokeScale),
+          fontFamily: drawingConfig.label_config.font_family,
         },
     layer: el.layer,
     z_index: el.z_index,
@@ -266,13 +283,37 @@ export async function createDrawing(
     );
   }
 
+  // Compute max extent of traverse for scale note
+  const pts = traverseResult.points;
+  let maxDist = 0;
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      const dx = pts[j].x - pts[i].x;
+      const dy = pts[j].y - pts[i].y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > maxDist) maxDist = d;
+    }
+  }
+  const extentNote = maxDist > 0 ? ` Max extent: ${maxDist.toFixed(1)} ft (${(maxDist / 5280).toFixed(3)} mi).` : '';
+
+  const closureRatio = Math.round(traverseResult.closure.precision_ratio);
+  const misclosureFt = traverseResult.closure.misclosure_ft.toFixed(3);
+  const areaAcres = traverseResult.area_acres.toFixed(4);
+  const areaSqFt = Math.round(traverseResult.area_sq_ft).toLocaleString();
+  const comparisonNotes = [
+    `Traverse closure: 1:${closureRatio} (${misclosureFt} ft misclosure).`,
+    `Area: ${areaAcres} acres (${areaSqFt} sq ft).`,
+    extentNote.trim(),
+    `${elements.length} elements generated.`,
+  ].filter(Boolean).join(' ');
+
   await supabaseAdmin
     .from('rendered_drawings')
     .update({
       status: 'rendered',
       overall_confidence: overallConfidence,
       confidence_breakdown: confidenceBreakdown,
-      comparison_notes: `Traverse closure: 1:${Math.round(traverseResult.closure.precision_ratio)} (${traverseResult.closure.misclosure_ft.toFixed(3)} ft misclosure). Area: ${traverseResult.area_acres.toFixed(4)} acres (${Math.round(traverseResult.area_sq_ft).toLocaleString()} sq ft). ${elements.length} elements generated.`,
+      comparison_notes: comparisonNotes,
       updated_at: new Date().toISOString(),
     })
     .eq('id', drawingId);

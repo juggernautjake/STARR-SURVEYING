@@ -158,19 +158,19 @@ export default function DrawingViewToolbar({
       <div className="research-toolbar__group">
         <span className="research-toolbar__group-label">Zoom</span>
         <div className="research-toolbar__btn-group">
-          <Tooltip text="Zoom out — make the drawing smaller" enabled={tips} position="bottom">
-            <button className="research-toolbar__icon-btn" onClick={onZoomOut} aria-label="Zoom out">-</button>
+          <Tooltip text="Zoom out — make the drawing smaller" shortcut="-" enabled={tips} position="bottom">
+            <button className="research-toolbar__icon-btn" onClick={onZoomOut} aria-label="Zoom out">−</button>
           </Tooltip>
-          <Tooltip text={`Current zoom level: ${Math.round(zoom * 100)}%. Scroll wheel also zooms.`} enabled={tips} position="bottom">
+          <Tooltip text={`Current zoom: ${Math.round(zoom * 100)}%. Use scroll wheel or pinch to zoom.`} enabled={tips} position="bottom">
             <span className="research-toolbar__zoom-value">{Math.round(zoom * 100)}%</span>
           </Tooltip>
-          <Tooltip text="Zoom in — make the drawing larger" enabled={tips} position="bottom">
+          <Tooltip text="Zoom in — make the drawing larger" shortcut="+" enabled={tips} position="bottom">
             <button className="research-toolbar__icon-btn" onClick={onZoomIn} aria-label="Zoom in">+</button>
           </Tooltip>
-          <Tooltip text="Fit entire drawing in the viewport" enabled={tips} position="bottom">
+          <Tooltip text="Fit the entire drawing inside the viewport" shortcut="F" enabled={tips} position="bottom">
             <button className="research-toolbar__icon-btn research-toolbar__icon-btn--text" onClick={onZoomToFit || onZoomReset} aria-label="Zoom to fit">Fit</button>
           </Tooltip>
-          <Tooltip text="Reset zoom to 100%" enabled={tips} position="bottom">
+          <Tooltip text="Reset zoom to 100%" shortcut="0" enabled={tips} position="bottom">
             <button className="research-toolbar__icon-btn research-toolbar__icon-btn--text" onClick={onZoomReset} aria-label="Reset zoom">1:1</button>
           </Tooltip>
         </div>
@@ -198,8 +198,9 @@ export default function DrawingViewToolbar({
           </Tooltip>
         )}
         {hasUnsavedChanges && (
-          <Tooltip text="You have unsaved changes. Click Save to persist your work. Auto-save runs every 60 seconds." enabled={tips} position="bottom">
+          <Tooltip text="Unsaved changes — click Save ▸ Save to Project to persist, or auto-save will run on the next timer tick." enabled={tips} position="bottom">
             <span className="research-toolbar__stat research-toolbar__stat--unsaved">
+              <span className="research-toolbar__unsaved-dot" aria-hidden="true" />
               Unsaved
             </span>
           </Tooltip>
@@ -288,14 +289,13 @@ export default function DrawingViewToolbar({
 
         {/* Auto-save on change toggle */}
         {onToggleAutoSaveOnChange && (
-          <Tooltip text={autoSaveOnChange ? 'Auto-save on every change is ON — saves immediately after each edit' : 'Enable auto-save on every change — saves immediately after each edit'} enabled={tips} position="bottom">
+          <Tooltip text={autoSaveOnChange ? 'Auto-save ON — drawing saves automatically after every change' : 'Auto-save OFF — click to enable automatic saves after each change'} enabled={tips} position="bottom">
             <button
               className={`research-toolbar__icon-btn research-toolbar__icon-btn--text ${autoSaveOnChange ? 'research-toolbar__icon-btn--active' : ''}`}
               onClick={onToggleAutoSaveOnChange}
               aria-label={autoSaveOnChange ? 'Disable auto-save on change' : 'Enable auto-save on change'}
-              style={autoSaveOnChange ? { color: '#10B981' } : undefined}
             >
-              {autoSaveOnChange ? 'Auto' : 'Auto'}
+              {autoSaveOnChange ? '⟳ Auto' : '⟳ Auto'}
             </button>
           </Tooltip>
         )}

@@ -1,8 +1,23 @@
 // app/admin/research/components/DrawingToolsSidebar.tsx — Drawing & annotation tools sidebar
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Tooltip from './Tooltip';
+
+// ── Quick color palette ─────────────────────────────────────────────────────
+
+const QUICK_COLORS = [
+  '#000000', // Black
+  '#374151', // Dark gray
+  '#EF4444', // Red
+  '#F97316', // Orange
+  '#EAB308', // Yellow
+  '#22C55E', // Green
+  '#3B82F6', // Blue
+  '#8B5CF6', // Purple
+  '#92400E', // Brown
+  '#FFFFFF', // White
+];
 
 // ── Tool Types ──────────────────────────────────────────────────────────────
 
@@ -26,7 +41,7 @@ export type DrawingTool =
   | 'measure';           // Measure distance on drawing
 
 export type SymbolType =
-  // Monuments & Survey Markers
+  // Monuments & Survey Markers — standard
   | 'iron_rod'
   | 'iron_pipe'
   | 'concrete_monument'
@@ -36,6 +51,14 @@ export type SymbolType =
   | 'mag_nail'
   | 'cap'
   | 'benchmark'
+  // Monuments — sized variants (1/2", 5/8", 3/4", 1")
+  | 'iron_rod_half'        // 1/2" iron rod
+  | 'iron_rod_five_eighth' // 5/8" iron rod (most common in US)
+  | 'iron_rod_three_quarter' // 3/4" iron rod
+  | 'iron_rod_one_inch'    // 1" iron rod
+  | 'iron_pipe_half'
+  | 'iron_pipe_three_quarter'
+  | 'iron_pipe_one_inch'
   // Fencing & Boundaries
   | 'fence_post'
   | 'fence_corner'
@@ -53,6 +76,13 @@ export type SymbolType =
   | 'storm_drain'
   | 'catch_basin'
   | 'septic_tank'
+  // Utilities — Underground Lines (used as point symbols on drawings)
+  | 'water_line'
+  | 'sewer_line'
+  | 'gas_line'
+  | 'electric_line'
+  | 'telecom_line'
+  | 'fiber_line'
   // Utilities — Above Ground
   | 'fire_hydrant'
   | 'light_pole'
@@ -101,6 +131,8 @@ export interface ToolSettings {
   dashPattern: string;
   symbolType: SymbolType;
   symbolSize: number;
+  /** Snap mode: off = no snapping; hover = snap after 4s hover; auto = auto snap within radius */
+  snapMode: 'off' | 'hover' | 'auto';
 }
 
 export const DEFAULT_TOOL_SETTINGS: ToolSettings = {
@@ -113,6 +145,7 @@ export const DEFAULT_TOOL_SETTINGS: ToolSettings = {
   dashPattern: '',
   symbolType: 'iron_rod',
   symbolSize: 8,
+  snapMode: 'off',
 };
 
 // ── Tool Definitions ────────────────────────────────────────────────────────
@@ -169,7 +202,7 @@ const TOOL_GROUPS = [
 
 const SYMBOL_CATEGORIES: { label: string; items: { key: SymbolType; label: string }[] }[] = [
   {
-    label: 'Monuments',
+    label: 'Monuments — Standard',
     items: [
       { key: 'iron_rod', label: 'Iron Rod' },
       { key: 'iron_pipe', label: 'Iron Pipe' },
@@ -180,6 +213,18 @@ const SYMBOL_CATEGORIES: { label: string; items: { key: SymbolType; label: strin
       { key: 'mag_nail', label: 'Mag Nail' },
       { key: 'cap', label: 'Cap' },
       { key: 'benchmark', label: 'Benchmark' },
+    ],
+  },
+  {
+    label: 'Monuments — Iron Rod Sizes',
+    items: [
+      { key: 'iron_rod_half', label: '1/2" Rod' },
+      { key: 'iron_rod_five_eighth', label: '5/8" Rod' },
+      { key: 'iron_rod_three_quarter', label: '3/4" Rod' },
+      { key: 'iron_rod_one_inch', label: '1" Rod' },
+      { key: 'iron_pipe_half', label: '1/2" Pipe' },
+      { key: 'iron_pipe_three_quarter', label: '3/4" Pipe' },
+      { key: 'iron_pipe_one_inch', label: '1" Pipe' },
     ],
   },
   {
@@ -204,6 +249,17 @@ const SYMBOL_CATEGORIES: { label: string; items: { key: SymbolType; label: strin
       { key: 'storm_drain', label: 'Storm Drain' },
       { key: 'catch_basin', label: 'Catch Basin' },
       { key: 'septic_tank', label: 'Septic Tank' },
+    ],
+  },
+  {
+    label: 'Underground Lines',
+    items: [
+      { key: 'water_line', label: 'Water Line' },
+      { key: 'sewer_line', label: 'Sewer Line' },
+      { key: 'gas_line', label: 'Gas Line' },
+      { key: 'electric_line', label: 'Electric Line' },
+      { key: 'telecom_line', label: 'Telecom Line' },
+      { key: 'fiber_line', label: 'Fiber Line' },
     ],
   },
   {
@@ -300,16 +356,40 @@ export default function DrawingToolsSidebar({
   const [expandedSettings, setExpandedSettings] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
 
+  // Auto-expand settings when switching to a tool that has configurable options
+  const TOOLS_WITHOUT_SETTINGS = ['select', 'pan', 'eraser', 'measure', 'image'] as const;
+  const SNAP_HOVER_SECONDS = 4;
+
+  useEffect(() => {
+    const hasSettings = !(TOOLS_WITHOUT_SETTINGS as readonly string[]).includes(activeTool);
+    if (hasSettings) setExpandedSettings(true);
+  }, [activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function updateSetting<K extends keyof ToolSettings>(key: K, value: ToolSettings[K]) {
     onSettingsChange({ ...settings, [key]: value });
   }
 
   // Determine which quick settings to show based on active tool
-  const showStroke = !['select', 'pan', 'eraser', 'measure', 'image'].includes(activeTool);
-  const showFill = ['rectangle', 'circle'].includes(activeTool);
+  const showStroke = !(TOOLS_WITHOUT_SETTINGS as readonly string[]).includes(activeTool);
+  const showFill = ['rectangle', 'circle', 'polyline', 'freehand'].includes(activeTool);
   const showTextSettings = ['text_type', 'text_write', 'callout', 'dimension'].includes(activeTool);
   const showSymbolSettings = activeTool === 'symbol';
   const showDash = ['line', 'polyline', 'rectangle', 'circle', 'dimension'].includes(activeTool);
+  // Show snap settings for any drawing tool
+  const showSnap = !(TOOLS_WITHOUT_SETTINGS as readonly string[]).includes(activeTool);
+
+  // Pre-normalize colors to avoid repeated .toLowerCase() calls in render
+  const strokeColorNorm = settings.strokeColor.toLowerCase();
+  const fillColorNorm = settings.fillColor.toLowerCase();
+
+  // Helper: whether a color needs a visible border for contrast on white backgrounds
+  const needsBorder = (hex: string) => hex.toUpperCase() === '#FFFFFF';
+
+  // Memoize symbol count so the filter doesn't re-run on every keystroke elsewhere
+  const filteredSymbolCount = useMemo(
+    () => SYMBOL_OPTIONS.filter(s => !symbolSearch || s.label.toLowerCase().includes(symbolSearch.toLowerCase())).length,
+    [symbolSearch],
+  );
 
   return (
     <div className="research-tools">
@@ -343,14 +423,15 @@ export default function DrawingToolsSidebar({
           <div className="research-tools__group-label">{group.label}</div>
           <div className="research-tools__group-btns">
             {group.tools.map(tool => (
-              <Tooltip key={tool.key} text={`${tool.tip} (${tool.shortcut})`} enabled={showUITooltips} position="right">
+              <Tooltip key={tool.key} text={tool.tip} shortcut={tool.shortcut} enabled={showUITooltips} position="right" delay={300}>
                 <button
                   className={`research-tools__btn ${activeTool === tool.key ? 'research-tools__btn--active' : ''}`}
                   onClick={() => onToolChange(tool.key)}
-                  aria-label={tool.label}
+                  aria-label={`${tool.label} (${tool.shortcut})`}
                 >
                   <span className="research-tools__btn-icon">{tool.icon}</span>
                   <span className="research-tools__btn-label">{tool.label}</span>
+                  <kbd className="research-tools__btn-shortcut">{tool.shortcut}</kbd>
                 </button>
               </Tooltip>
             ))}
@@ -359,14 +440,18 @@ export default function DrawingToolsSidebar({
       ))}
 
       {/* Quick tool settings */}
-      {(showStroke || showFill || showTextSettings || showSymbolSettings) && (
-        <div className="research-tools__settings">
-          <Tooltip text="Expand to customize stroke color, width, pattern, and other options for the active tool" enabled={showUITooltips} position="right">
-            <button
-              className="research-tools__settings-toggle"
-              onClick={() => setExpandedSettings(!expandedSettings)}
-            >
-              {expandedSettings ? '▾' : '▸'} Tool Settings
+        {(showStroke || showFill || showTextSettings || showSymbolSettings || showSnap) && (
+          <div className="research-tools__settings">
+            <Tooltip text="Customize stroke, fill, pattern, and other options for the active tool" enabled={showUITooltips} position="right" delay={300}>
+              <button
+                className="research-tools__settings-toggle"
+                onClick={() => setExpandedSettings(!expandedSettings)}
+                aria-expanded={expandedSettings}
+              >
+                <span>{expandedSettings ? '▾' : '▸'} Tool Settings</span>
+                {showStroke && (
+                  <span className="research-tools__settings-preview" style={{ background: settings.strokeColor }} title={`Current color: ${settings.strokeColor}`} />
+                )}
             </button>
           </Tooltip>
 
@@ -374,15 +459,31 @@ export default function DrawingToolsSidebar({
             <div className="research-tools__settings-body">
               {/* Stroke color */}
               {showStroke && (
-                <div className="research-tools__setting-row">
-                  <label>Color</label>
-                  <input
-                    type="color"
-                    value={settings.strokeColor}
-                    onChange={e => updateSetting('strokeColor', e.target.value)}
-                    className="research-tools__color-input"
-                  />
-                </div>
+                <>
+                  <div className="research-tools__setting-row">
+                    <label>Color</label>
+                    <input
+                      type="color"
+                      value={settings.strokeColor}
+                      onChange={e => updateSetting('strokeColor', e.target.value)}
+                      className="research-tools__color-input"
+                      title="Pick a custom stroke color"
+                    />
+                    <span className="research-tools__setting-value" style={{ fontFamily: 'monospace' }}>{settings.strokeColor}</span>
+                  </div>
+                  <div className="research-tools__quick-colors">
+                    {QUICK_COLORS.map(c => (
+                      <Tooltip key={c} text={needsBorder(c) ? 'White' : c} position="top" delay={200}>
+                        <button
+                          className={`research-tools__quick-color ${strokeColorNorm === c.toLowerCase() ? 'research-tools__quick-color--active' : ''}`}
+                          style={{ background: c, border: needsBorder(c) ? '1px solid #D1D5DB' : undefined }}
+                          onClick={() => updateSetting('strokeColor', c)}
+                          aria-label={`Set stroke color to ${c}`}
+                        />
+                      </Tooltip>
+                    ))}
+                  </div>
+                </>
               )}
 
               {/* Stroke width */}
@@ -397,7 +498,7 @@ export default function DrawingToolsSidebar({
                     value={settings.strokeWidth}
                     onChange={e => updateSetting('strokeWidth', Number(e.target.value))}
                   />
-                  <span className="research-tools__setting-value">{settings.strokeWidth}</span>
+                  <span className="research-tools__setting-value">{settings.strokeWidth}px</span>
                 </div>
               )}
 
@@ -419,15 +520,42 @@ export default function DrawingToolsSidebar({
 
               {/* Fill color */}
               {showFill && (
-                <div className="research-tools__setting-row">
-                  <label>Fill</label>
-                  <input
-                    type="color"
-                    value={settings.fillColor === 'none' ? '#ffffff' : settings.fillColor}
-                    onChange={e => updateSetting('fillColor', e.target.value)}
-                    className="research-tools__color-input"
-                  />
-                </div>
+                <>
+                  <div className="research-tools__setting-row">
+                    <label>Fill</label>
+                    <input
+                      type="color"
+                      value={settings.fillColor === 'none' ? '#ffffff' : settings.fillColor}
+                      onChange={e => updateSetting('fillColor', e.target.value)}
+                      className="research-tools__color-input"
+                      title="Pick a fill color"
+                    />
+                    <Tooltip text="No fill — shape outline only" position="top" delay={200}>
+                      <button
+                        className={`research-tools__no-fill-btn ${settings.fillColor === 'none' ? 'research-tools__no-fill-btn--active' : ''}`}
+                        onClick={() => updateSetting('fillColor', settings.fillColor === 'none' ? '#3B82F6' : 'none')}
+                        aria-label="Toggle no fill"
+                        title="Toggle none / filled"
+                      >
+                        ∅
+                      </button>
+                    </Tooltip>
+                  </div>
+                  {settings.fillColor !== 'none' && (
+                    <div className="research-tools__quick-colors">
+                      {QUICK_COLORS.map(c => (
+                        <Tooltip key={c} text={needsBorder(c) ? 'White' : c} position="top" delay={200}>
+                          <button
+                            className={`research-tools__quick-color ${fillColorNorm === c.toLowerCase() ? 'research-tools__quick-color--active' : ''}`}
+                            style={{ background: c, border: needsBorder(c) ? '1px solid #D1D5DB' : undefined }}
+                            onClick={() => updateSetting('fillColor', c)}
+                            aria-label={`Set fill color to ${c}`}
+                          />
+                        </Tooltip>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Opacity */}
@@ -442,7 +570,7 @@ export default function DrawingToolsSidebar({
                     value={settings.opacity}
                     onChange={e => updateSetting('opacity', Number(e.target.value))}
                   />
-                  <span className="research-tools__setting-value">{settings.opacity}</span>
+                  <span className="research-tools__setting-value">{Math.round(settings.opacity * 100)}%</span>
                 </div>
               )}
 
@@ -459,6 +587,7 @@ export default function DrawingToolsSidebar({
                       onChange={e => updateSetting('fontSize', Number(e.target.value))}
                       className="research-tools__num-input"
                     />
+                    <span className="research-tools__setting-value">pt</span>
                   </div>
                   <div className="research-tools__setting-row">
                     <label>Font</label>
@@ -483,17 +612,19 @@ export default function DrawingToolsSidebar({
                     <input
                       type="text"
                       className="research-tools__search-input"
-                      placeholder="Search symbols..."
+                      placeholder="Search symbols…"
                       value={symbolSearch}
                       onChange={e => setSymbolSearch(e.target.value)}
+                      aria-label="Search symbols"
                     />
                   </div>
-                  <div className="research-tools__setting-row">
+                  <div className="research-tools__setting-row research-tools__setting-row--column">
                     <select
                       value={settings.symbolType}
                       onChange={e => updateSetting('symbolType', e.target.value as SymbolType)}
-                      className="research-tools__select"
-                      size={6}
+                      className="research-tools__select research-tools__select--symbol"
+                      size={7}
+                      aria-label="Choose symbol type"
                     >
                       {SYMBOL_CATEGORIES.map(cat => {
                         const filtered = cat.items.filter(s =>
@@ -509,6 +640,9 @@ export default function DrawingToolsSidebar({
                         );
                       })}
                     </select>
+                    <p className="research-tools__symbol-hint">
+                      Click to select · {filteredSymbolCount} available
+                    </p>
                   </div>
                   <div className="research-tools__setting-row">
                     <label>Size</label>
@@ -522,6 +656,32 @@ export default function DrawingToolsSidebar({
                     />
                     <span className="research-tools__setting-value">{settings.symbolSize}px</span>
                   </div>
+                </>
+              )}
+
+              {/* Snap mode */}
+              {showSnap && (
+                <>
+                  <div className="research-tools__setting-row">
+                    <label>Snap</label>
+                    <select
+                      value={settings.snapMode}
+                      onChange={e => updateSetting('snapMode', e.target.value as 'off' | 'hover' | 'auto')}
+                      className="research-tools__select"
+                      aria-label="Snap mode"
+                    >
+                      <option value="off">Off</option>
+                      <option value="hover">Hover ({SNAP_HOVER_SECONDS}s)</option>
+                      <option value="auto">Auto</option>
+                    </select>
+                  </div>
+                  {settings.snapMode !== 'off' && (
+                    <p className="research-tools__snap-desc">
+                      {settings.snapMode === 'hover'
+                        ? `🟡 Hover over a point for ${SNAP_HOVER_SECONDS} seconds — it turns green when locked. Then click to connect.`
+                        : '🟢 Cursor auto-snaps to the nearest node (endpoint, midpoint, or line) within the snap radius.'}
+                    </p>
+                  )}
                 </>
               )}
             </div>

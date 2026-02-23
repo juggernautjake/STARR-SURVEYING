@@ -12,6 +12,8 @@ import DiscrepancyPanel from '../components/DiscrepancyPanel';
 import SourceDocumentViewer from '../components/SourceDocumentViewer';
 import DrawingCanvas, { type UserAnnotation } from '../components/DrawingCanvas';
 import AnalysisSummary from '../components/AnalysisSummary';
+import BriefingPanel from '../components/BriefingPanel';
+import AnnotationLayerPanel, { type AnnotationLayer, createDefaultLayer } from '../components/AnnotationLayerPanel';
 import CoordinateEntryPanel, { type TraverseVertex } from '../components/CoordinateEntryPanel';
 import VertexEditPanel, { type VertexData } from '../components/VertexEditPanel';
 import ElementDetailPanel from '../components/ElementDetailPanel';
@@ -52,6 +54,7 @@ export default function ResearchProjectPage() {
 
   // Review state
   const [reviewTab, setReviewTab] = useState<'data' | 'discrepancies'>('data');
+  const [showBriefing, setShowBriefing] = useState(true);
   const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
 
@@ -77,6 +80,10 @@ export default function ResearchProjectPage() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [originalElements, setOriginalElements] = useState<DrawingElement[]>([]);
   const [originalAnnotations, setOriginalAnnotations] = useState<UserAnnotation[]>([]);
+
+  // Annotation layers
+  const [annotationLayers, setAnnotationLayers] = useState<AnnotationLayer[]>([createDefaultLayer(0)]);
+  const [activeLayerId, setActiveLayerId] = useState<string>(annotationLayers[0]?.id ?? '');
 
   // CAD editing state
   const [showCoordEntry, setShowCoordEntry] = useState(false);
@@ -1415,6 +1422,21 @@ export default function ResearchProjectPage() {
 
       {project.status === 'review' && (
         <div className="research-review">
+          {/* Survey Briefing */}
+          {showBriefing ? (
+            <BriefingPanel
+              projectId={projectId}
+              onClose={() => setShowBriefing(false)}
+            />
+          ) : (
+            <button
+              onClick={() => setShowBriefing(true)}
+              style={{ marginBottom: '1rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '0.375rem', padding: '0.4rem 0.85rem', cursor: 'pointer', fontSize: '0.85rem', color: '#1D4ED8' }}
+            >
+              📋 Show Survey Briefing
+            </button>
+          )}
+
           {/* Analysis Summary Card */}
           <AnalysisSummary projectId={projectId} stats={stats} />
 
@@ -1469,20 +1491,25 @@ export default function ResearchProjectPage() {
         <div className="research-drawing">
           {/* Drawing list (when no active drawing) */}
           {!activeDrawing && (
-            <div className="research-drawing__controls">
-              <div className="research-drawing__controls-left">
-                <h2 className="research-drawing__title">Plat Drawing</h2>
-                {drawings.length === 0 && (
-                  <button
-                    className="research-page__new-btn"
-                    onClick={handleGenerateDrawing}
-                    disabled={generatingDrawing}
-                  >
-                    {generatingDrawing ? 'Generating...' : 'Generate Drawing'}
-                  </button>
-                )}
+            <>
+              <div className="research-drawing__controls">
+                <div className="research-drawing__controls-left">
+                  <h2 className="research-drawing__title">Plat Drawing</h2>
+                  {drawings.length === 0 && (
+                    <button
+                      className="research-page__new-btn"
+                      onClick={handleGenerateDrawing}
+                      disabled={generatingDrawing}
+                    >
+                      {generatingDrawing ? 'Generating...' : 'Generate Drawing'}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+
+              {/* Survey briefing in drawing step */}
+              <BriefingPanel projectId={projectId} />
+            </>
           )}
 
           {drawings.length > 0 && !activeDrawing && (
@@ -1594,6 +1621,21 @@ export default function ResearchProjectPage() {
                   showUITooltips={showUITooltips}
                 />
 
+                {/* Annotation layer panel (below tools) */}
+                <AnnotationLayerPanel
+                  layers={annotationLayers}
+                  activeLayerId={activeLayerId}
+                  onLayersChange={setAnnotationLayers}
+                  onActiveLayerChange={setActiveLayerId}
+                  annotationCountByLayer={
+                    annotations.reduce<Record<string, number>>((acc, ann) => {
+                      const lid = ann.layerId || annotationLayers[0]?.id || '';
+                      acc[lid] = (acc[lid] || 0) + 1;
+                      return acc;
+                    }, {})
+                  }
+                />
+
                 {/* Preferences panel (slides in from left) */}
                 {showPrefsPanel && (
                   <DrawingPreferencesPanel
@@ -1658,6 +1700,8 @@ export default function ResearchProjectPage() {
                       onVertexClick={handleVertexClick}
                       zoomToFitSignal={zoomToFitSignal}
                       onCursorPositionChange={setCursorPosition}
+                      snapMode={toolSettings.snapMode}
+                      activeLayerId={activeLayerId}
                     />
                   ) : (
                     <div className="research-canvas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>

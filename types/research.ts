@@ -301,6 +301,8 @@ export interface ElementStyle {
   strokeWidth: number;
   strokeDasharray?: string;
   fill?: string;
+  fillPattern?: string;  // 'solid' | 'hatch-ne30' | 'hatch-nw30' | 'dots-5' | 'dots-10' | 'dots-25' | 'dots-50' | 'dots-75'
+  fillColor?: string;    // explicit fill color separate from stroke color
   opacity: number;
   fontSize?: number;
   fontFamily?: string;

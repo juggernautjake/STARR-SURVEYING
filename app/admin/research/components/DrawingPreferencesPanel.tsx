@@ -35,6 +35,8 @@ export interface DrawingPreferences {
     strokeWidth: number;
     dasharray: string;
     fill: string;
+    fillPattern: string;  // 'solid' | 'hatch-ne30' | 'hatch-nw30' | 'dots-5' | 'dots-10' | 'dots-25' | 'dots-50' | 'dots-75'
+    fillColor: string;    // explicit fill color for patterns
     opacity: number;
   }>;
 
@@ -80,16 +82,16 @@ export const DEFAULT_PREFERENCES: DrawingPreferences = {
   },
 
   featureStyles: {
-    property_boundary: { stroke: '#000000', strokeWidth: 2, dasharray: '', fill: 'none', opacity: 1 },
-    easement:          { stroke: '#CC0000', strokeWidth: 1.5, dasharray: '10,5', fill: 'none', opacity: 1 },
-    setback:           { stroke: '#0066CC', strokeWidth: 1, dasharray: '5,5', fill: 'none', opacity: 1 },
-    right_of_way:      { stroke: '#666666', strokeWidth: 1.5, dasharray: '15,5,5,5', fill: 'none', opacity: 1 },
-    road:              { stroke: '#8B4513', strokeWidth: 2, dasharray: '', fill: '#F5DEB3', opacity: 1 },
-    building:          { stroke: '#333333', strokeWidth: 1.5, dasharray: '', fill: '#B0C4DE', opacity: 1 },
-    fence:             { stroke: '#228B22', strokeWidth: 1, dasharray: '4,4', fill: 'none', opacity: 1 },
-    utility:           { stroke: '#FF8C00', strokeWidth: 1, dasharray: '8,3,2,3', fill: 'none', opacity: 1 },
-    monument:          { stroke: '#CC0000', strokeWidth: 1.5, dasharray: '', fill: '#CC0000', opacity: 1 },
-    annotation:        { stroke: '#000000', strokeWidth: 0.5, dasharray: '', fill: 'none', opacity: 1 },
+    property_boundary: { stroke: '#000000', strokeWidth: 2, dasharray: '', fill: 'none', fillPattern: 'solid', fillColor: '#E8F4FD', opacity: 1 },
+    easement:          { stroke: '#CC0000', strokeWidth: 1.5, dasharray: '10,5', fill: 'none', fillPattern: 'solid', fillColor: '#FEE2E2', opacity: 1 },
+    setback:           { stroke: '#0066CC', strokeWidth: 1, dasharray: '5,5', fill: 'none', fillPattern: 'solid', fillColor: '#DBEAFE', opacity: 1 },
+    right_of_way:      { stroke: '#666666', strokeWidth: 1.5, dasharray: '15,5,5,5', fill: 'none', fillPattern: 'solid', fillColor: '#E5E7EB', opacity: 1 },
+    road:              { stroke: '#8B4513', strokeWidth: 2, dasharray: '', fill: '#F5DEB3', fillPattern: 'solid', fillColor: '#F5DEB3', opacity: 1 },
+    building:          { stroke: '#333333', strokeWidth: 1.5, dasharray: '', fill: '#B0C4DE', fillPattern: 'solid', fillColor: '#B0C4DE', opacity: 1 },
+    fence:             { stroke: '#228B22', strokeWidth: 1, dasharray: '4,4', fill: 'none', fillPattern: 'solid', fillColor: '#D1FAE5', opacity: 1 },
+    utility:           { stroke: '#FF8C00', strokeWidth: 1, dasharray: '8,3,2,3', fill: 'none', fillPattern: 'solid', fillColor: '#FEF3C7', opacity: 1 },
+    monument:          { stroke: '#CC0000', strokeWidth: 1.5, dasharray: '', fill: '#CC0000', fillPattern: 'solid', fillColor: '#CC0000', opacity: 1 },
+    annotation:        { stroke: '#000000', strokeWidth: 0.5, dasharray: '', fill: 'none', fillPattern: 'solid', fillColor: '#F9FAFB', opacity: 1 },
   },
 
   monumentStyle: 'standard',
@@ -118,6 +120,9 @@ const FEATURE_LABELS: Record<string, string> = {
   annotation: 'Annotation/Label',
 };
 
+/** Fallback fill color used when featureStyles.fillColor is absent or 'none' */
+const DEFAULT_FILL_COLOR = '#E8F4FD';
+
 const DASH_PRESETS = [
   { label: 'Solid', value: '' },
   { label: 'Dashed', value: '10,5' },
@@ -125,6 +130,17 @@ const DASH_PRESETS = [
   { label: 'Dash-Dot', value: '10,5,3,5' },
   { label: 'Long Dash', value: '15,5' },
   { label: 'Center', value: '15,5,5,5' },
+];
+
+const FILL_PATTERN_PRESETS = [
+  { label: 'Solid Color', value: 'solid' },
+  { label: 'Hatch NE 30°', value: 'hatch-ne30' },
+  { label: 'Hatch NW 30°', value: 'hatch-nw30' },
+  { label: 'Dots 5%', value: 'dots-5' },
+  { label: 'Dots 10%', value: 'dots-10' },
+  { label: 'Dots 25%', value: 'dots-25' },
+  { label: 'Dots 50%', value: 'dots-50' },
+  { label: 'Dots 75%', value: 'dots-75' },
 ];
 
 const FONT_OPTIONS = ['Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Georgia'];
@@ -293,7 +309,7 @@ export default function DrawingPreferencesPanel({
           <div className="research-prefs__section">
             <div className="research-prefs__group-title">Feature Class Styles</div>
             <p className="research-prefs__hint-text">
-              Customize the color, weight, pattern, and fill for each feature type.
+              Customize the color, weight, pattern, and fill for each feature type. Changes apply instantly.
             </p>
 
             {Object.entries(preferences.featureStyles).map(([feature, style]) => (
@@ -302,12 +318,19 @@ export default function DrawingPreferencesPanel({
                   <span className="research-prefs__style-label">
                     {FEATURE_LABELS[feature] || feature.replace(/_/g, ' ')}
                   </span>
-                  {/* Preview swatch */}
-                  <svg width="50" height="12" className="research-prefs__style-preview">
-                    <line
-                      x1="2" y1="6" x2="48" y2="6"
+                  {/* Live preview swatch — shows line + fill */}
+                  <svg width="60" height="20" className="research-prefs__style-preview">
+                    <rect
+                      x="2" y="2" width="26" height="16"
+                      fill={style.fillPattern !== 'solid' ? style.fillColor : style.fill === 'none' ? 'transparent' : style.fill}
                       stroke={style.stroke}
-                      strokeWidth={Math.min(style.strokeWidth, 4)}
+                      strokeWidth={Math.min(style.strokeWidth, 3)}
+                      opacity={style.opacity}
+                    />
+                    <line
+                      x1="32" y1="10" x2="58" y2="10"
+                      stroke={style.stroke}
+                      strokeWidth={Math.min(style.strokeWidth, 3)}
                       strokeDasharray={style.dasharray}
                       opacity={style.opacity}
                     />
@@ -322,6 +345,7 @@ export default function DrawingPreferencesPanel({
                       value={style.stroke}
                       onChange={e => updateFeatureStyle(feature, 'stroke', e.target.value)}
                       className="research-prefs__color-input"
+                      title="Stroke / line color"
                     />
                   </div>
                   <div className="research-prefs__style-field">
@@ -337,7 +361,7 @@ export default function DrawingPreferencesPanel({
                     />
                   </div>
                   <div className="research-prefs__style-field">
-                    <label>Pattern</label>
+                    <label>Line Pattern</label>
                     <select
                       value={style.dasharray}
                       onChange={e => updateFeatureStyle(feature, 'dasharray', e.target.value)}
@@ -349,23 +373,47 @@ export default function DrawingPreferencesPanel({
                     </select>
                   </div>
                   <div className="research-prefs__style-field">
-                    <label>Fill</label>
-                    <input
-                      type="color"
-                      value={style.fill === 'none' ? '#ffffff' : style.fill}
-                      onChange={e => updateFeatureStyle(feature, 'fill', e.target.value)}
-                      className="research-prefs__color-input"
-                    />
+                    <label>Fill Pattern</label>
+                    <select
+                      value={style.fillPattern ?? 'solid'}
+                      onChange={e => updateFeatureStyle(feature, 'fillPattern', e.target.value)}
+                      className="research-prefs__select"
+                    >
+                      {FILL_PATTERN_PRESETS.map(p => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="research-prefs__style-field">
-                    <label>Opacity</label>
+                    <label>Fill Color</label>
+                    <input
+                      type="color"
+                      value={style.fillColor && style.fillColor !== 'none' ? style.fillColor : DEFAULT_FILL_COLOR}
+                      onChange={e => updateFeatureStyle(feature, 'fillColor', e.target.value)}
+                      className="research-prefs__color-input"
+                      title="Fill / pattern color"
+                    />
+                    {style.fillPattern === 'solid' && (
+                      <label className="research-prefs__toggle" style={{ marginLeft: '0.4rem', fontSize: '0.7rem', gap: '0.25rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={style.fill !== 'none'}
+                          onChange={e => updateFeatureStyle(feature, 'fill', e.target.checked ? style.fillColor : 'none')}
+                        />
+                        <span>Apply</span>
+                      </label>
+                    )}
+                  </div>
+                  <div className="research-prefs__style-field" style={{ minWidth: '100%' }}>
+                    <label>Opacity: {Math.round(style.opacity * 100)}%</label>
                     <input
                       type="range"
                       min="0"
                       max="1"
-                      step="0.1"
+                      step="0.05"
                       value={style.opacity}
                       onChange={e => updateFeatureStyle(feature, 'opacity', Number(e.target.value))}
+                      style={{ width: '100%' }}
                     />
                   </div>
                 </div>
