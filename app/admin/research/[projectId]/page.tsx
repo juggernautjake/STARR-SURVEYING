@@ -360,7 +360,16 @@ export default function ResearchProjectPage() {
         setHasUnsavedChanges(false);
         setLastSavedAt(data.drawing.updated_at || null);
         // Generate SVG client-side via API
-        const svgRes = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}?format=svg&viewMode=${viewMode}`);
+        const svgParams = new URLSearchParams({
+          format: 'svg',
+          viewMode,
+          titleBlock: String(drawingPrefs.showTitleBlock),
+          northArrow: String(drawingPrefs.showNorthArrow),
+          scaleBar: String(drawingPrefs.showScaleBar),
+          legend: String(drawingPrefs.showLegend),
+          confidenceBar: String(drawingPrefs.showConfidenceBar),
+        });
+        const svgRes = await fetch(`/api/admin/research/${projectId}/drawings/${drawingId}?${svgParams}`);
         if (svgRes.ok) {
           const svgData = await svgRes.json();
           setDrawingSvg(svgData.svg || '');
@@ -369,6 +378,7 @@ export default function ResearchProjectPage() {
     } catch {
       showToast('Failed to load drawing details. Please try again.');
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, viewMode]);
 
   async function handleGenerateDrawing() {
@@ -1041,6 +1051,31 @@ export default function ResearchProjectPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDrawing?.id, projectId]);
 
+  // ── Re-fetch SVG when display preferences change (title block, north arrow, etc.) ──
+  const displayPrefKey = `${drawingPrefs.showTitleBlock}-${drawingPrefs.showNorthArrow}-${drawingPrefs.showScaleBar}-${drawingPrefs.showLegend}-${drawingPrefs.showConfidenceBar}`;
+  const prevDisplayPrefRef = useRef(displayPrefKey);
+  useEffect(() => {
+    if (prevDisplayPrefRef.current === displayPrefKey) return; // skip initial
+    prevDisplayPrefRef.current = displayPrefKey;
+    if (!activeDrawing?.id) return;
+    // Re-fetch SVG with updated display toggles
+    const svgParams = new URLSearchParams({
+      format: 'svg',
+      viewMode,
+      titleBlock: String(drawingPrefs.showTitleBlock),
+      northArrow: String(drawingPrefs.showNorthArrow),
+      scaleBar: String(drawingPrefs.showScaleBar),
+      legend: String(drawingPrefs.showLegend),
+      confidenceBar: String(drawingPrefs.showConfidenceBar),
+    });
+    fetch(`/api/admin/research/${projectId}/drawings/${activeDrawing.id}?${svgParams}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.svg) setDrawingSvg(data.svg); })
+      .catch(() => { /* non-critical */ });
+    setHasUnsavedChanges(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayPrefKey]);
+
   // Load drawings when entering drawing/verify/export steps; auto-select first drawing
   useEffect(() => {
     if (project?.status === 'drawing' || project?.status === 'verifying' || project?.status === 'complete') {
@@ -1566,6 +1601,7 @@ export default function ResearchProjectPage() {
                       preferences={drawingPrefs}
                       activeTool={activeTool}
                       toolSettings={toolSettings}
+                      onToolChange={handleToolChange}
                       onElementClick={(el) => setSelectedElement(el)}
                       onElementModified={(id, changes) => handleTrackedElementUpdate(id, changes)}
                       onRevertElement={handleRevertElement}

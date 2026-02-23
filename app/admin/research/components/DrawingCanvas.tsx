@@ -45,6 +45,8 @@ interface DrawingCanvasProps {
   preferences?: Partial<DrawingPreferences>;
   activeTool: DrawingTool;
   toolSettings: ToolSettings;
+  /** Called to switch the active tool (e.g. reverting to 'select' after a one-shot tool) */
+  onToolChange?: (tool: DrawingTool) => void;
   onElementClick: (element: DrawingElement) => void;
   onElementModified?: (elementId: string, changes: Partial<DrawingElement>) => void;
   onRevertElement?: (elementId: string) => void;
@@ -72,6 +74,7 @@ export default function DrawingCanvas({
   preferences,
   activeTool,
   toolSettings,
+  onToolChange,
   onElementClick,
   onElementModified,
   onRevertElement,
@@ -422,7 +425,13 @@ export default function DrawingCanvas({
 
     setIsDrawing(false);
     setCurrentPoints([]);
-  }, [isDrawing, currentPoints, activeTool, toolSettings, annotations]);
+
+    // One-shot tools: revert to select cursor after placement
+    const ONE_SHOT_TOOLS = ['symbol'];
+    if (ONE_SHOT_TOOLS.includes(activeTool)) {
+      onToolChange?.('select');
+    }
+  }, [isDrawing, currentPoints, activeTool, toolSettings, annotations, onToolChange]);
 
   // Click to add polyline point
   const handlePolylineClick = useCallback((e: React.MouseEvent) => {
@@ -463,7 +472,9 @@ export default function DrawingCanvas({
 
     addAnnotation(newAnnotation);
     setTextInput(null);
-  }, [textInput, clientToSvg, toolSettings, annotations]);
+    // Text placement is one-shot — revert to select
+    onToolChange?.('select');
+  }, [textInput, clientToSvg, toolSettings, annotations, onToolChange]);
 
   // ── Tool: Image Placement ─────────────────────────────────────────────
 
@@ -501,13 +512,15 @@ export default function DrawingCanvas({
           zIndex: getMaxZIndex() + 1,
         };
         addAnnotation(newAnnotation);
+        // Image is a one-shot tool — revert to select cursor
+        onToolChange?.('select');
       };
       img.src = dataUrl;
     };
     reader.readAsDataURL(file);
     // Reset input so same file can be re-uploaded
     e.target.value = '';
-  }, [clientToSvg, zoom, toolSettings, annotations]);
+  }, [clientToSvg, zoom, toolSettings, annotations, onToolChange]);
 
   // ── Tool: Eraser ──────────────────────────────────────────────────────
 
