@@ -2145,15 +2145,59 @@
 
 .research-canvas__tooltip {
   position: absolute;
-  padding: 0.3rem 0.6rem;
-  background: #1F2937;
-  color: #FFFFFF;
-  font-size: 0.72rem;
-  border-radius: 4px;
+  padding: 0;
+  background: transparent;
   pointer-events: none;
-  white-space: nowrap;
   z-index: 100;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  max-width: 320px;
+  /* Fade in to indicate the 2-second delay just elapsed */
+  animation: tooltip-fadein 0.2s ease-in;
+}
+
+@keyframes tooltip-fadein {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.research-canvas__tooltip-card {
+  background: #1F2937;
+  color: #F9FAFB;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  min-width: 180px;
+}
+
+.research-canvas__tooltip-title {
+  background: #111827;
+  color: #F3F4F6;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid #374151;
+}
+
+.research-canvas__tooltip-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.68rem;
+}
+
+.research-canvas__tooltip-label {
+  color: #9CA3AF;
+  padding: 0.18rem 0.5rem;
+  white-space: nowrap;
+  vertical-align: top;
+  width: 40%;
+}
+
+.research-canvas__tooltip-value {
+  color: #E5E7EB;
+  padding: 0.18rem 0.5rem 0.18rem 0;
+  word-break: break-word;
+  max-width: 180px;
 }
 
 /* ── Element Detail Panel ──────────────────────────────────────────────── */

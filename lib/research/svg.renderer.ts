@@ -52,8 +52,9 @@ export function renderDrawingSVG(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="background:${drawing.canvas_config.background || '#FFFFFF'}">`
   );
 
-  // Defs: patterns, markers, gradients
+  // Defs: standard patterns + dynamic fill pattern instances
   parts.push(renderDefs(viewMode));
+  parts.push(`<defs>${renderFillPatternDefs(elements)}</defs>`);
 
   // Render elements sorted by z_index
   const sorted = [...elements].sort((a, b) => a.z_index - b.z_index);
@@ -91,6 +92,74 @@ export function renderDrawingSVG(
 
   parts.push('</svg>');
   return parts.join('\n');
+}
+
+// ── Fill Pattern IDs ─────────────────────────────────────────────────────────
+
+/**
+ * Returns the SVG pattern ID for a given fillPattern key and feature class.
+ * Each feature class gets its own uniquely-colored pattern instance.
+ */
+export function getFillPatternId(fillPattern: string, featureClass: string): string {
+  const safe = featureClass.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `fp-${fillPattern}-${safe}`;
+}
+
+/**
+ * Generate SVG <pattern> defs for fill patterns used by elements in this drawing.
+ * Called once per render; patterns are keyed by (fillPattern, fillColor) combos.
+ */
+function renderFillPatternDefs(elements: DrawingElement[]): string {
+  const seen = new Set<string>();
+  const defs: string[] = [];
+
+  for (const el of elements) {
+    const fp = (el.style as ElementStyle & { fillPattern?: string; fillColor?: string }).fillPattern;
+    if (!fp || fp === 'solid') continue;
+    const color = (el.style as ElementStyle & { fillColor?: string }).fillColor || el.style.stroke || '#000000';
+    const key = `${fp}::${color}::${el.feature_class}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const id = getFillPatternId(fp, el.feature_class);
+    const esc = escapeXml(color);
+
+    switch (fp) {
+      case 'hatch-ne30': {
+        // Diagonal lines at ~30° NE (northeast)
+        defs.push(
+          `<pattern id="${id}" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(30)">` +
+          `<line x1="0" y1="0" x2="0" y2="10" stroke="${esc}" stroke-width="1"/>` +
+          `</pattern>`
+        );
+        break;
+      }
+      case 'hatch-nw30': {
+        // Diagonal lines at ~30° NW (northwest) = rotate(-30) = rotate(150)
+        defs.push(
+          `<pattern id="${id}" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(150)">` +
+          `<line x1="0" y1="0" x2="0" y2="10" stroke="${esc}" stroke-width="1"/>` +
+          `</pattern>`
+        );
+        break;
+      }
+      case 'dots-5': defs.push(renderDotPattern(id, esc, 14, 1.0)); break;
+      case 'dots-10': defs.push(renderDotPattern(id, esc, 10, 1.2)); break;
+      case 'dots-25': defs.push(renderDotPattern(id, esc, 8, 1.6)); break;
+      case 'dots-50': defs.push(renderDotPattern(id, esc, 6, 2.0)); break;
+      case 'dots-75': defs.push(renderDotPattern(id, esc, 5, 2.8)); break;
+    }
+  }
+
+  return defs.join('\n');
+}
+
+function renderDotPattern(id: string, color: string, spacing: number, radius: number): string {
+  return (
+    `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${spacing}" height="${spacing}">` +
+    `<circle cx="${spacing / 2}" cy="${spacing / 2}" r="${radius}" fill="${color}"/>` +
+    `</pattern>`
+  );
 }
 
 // ── SVG Defs ─────────────────────────────────────────────────────────────────
@@ -155,7 +224,12 @@ function renderElement(
     case 'polygon': {
       const g = geom as { type: 'polygon'; points: [number, number][] };
       const pts = g.points.map(p => `${p[0]},${p[1]}`).join(' ');
-      const fill = style.fill || 'none';
+      // Resolve fill: pattern takes precedence over flat color.
+      // getFillPatternId() already sanitizes the feature class, so no escapeXml needed.
+      const fp = (style as ElementStyle & { fillPattern?: string }).fillPattern;
+      const fill = fp && fp !== 'solid'
+        ? `url(#${getFillPatternId(fp, element.feature_class)})`
+        : (style.fill || 'none');
       return `<polygon${dataAttrs} points="${pts}" stroke="${style.stroke}" stroke-width="${style.strokeWidth}" fill="${fill}" opacity="${style.opacity}"/>`;
     }
 
