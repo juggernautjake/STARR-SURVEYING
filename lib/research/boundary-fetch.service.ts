@@ -143,12 +143,25 @@ function buildCadPropertyUrl(countyKey: string, propId: string, cadConfig?: True
 
 /**
  * Build the county clerk deed-search URL pre-loaded with the property ID.
+ * Falls back to an address-based search when no property ID is available.
  * Uses the publicsearch.us platform where available.
  */
 function buildDeedSearchUrl(countyKey: string, propId: string): string | undefined {
   const subdomain = PUBLICSEARCH_BY_COUNTY[countyKey];
   if (!subdomain) return undefined;
   return `https://${subdomain}/results?search=index,fullText&q=${encodeURIComponent(propId)}`;
+}
+
+/**
+ * Build a county clerk deed-search URL using an address query (no property ID needed).
+ * Useful when property ID resolution fails but the county clerk portal is known.
+ */
+function buildDeedSearchUrlByAddress(countyKey: string, address: string): string | undefined {
+  const subdomain = PUBLICSEARCH_BY_COUNTY[countyKey];
+  if (!subdomain || !address.trim()) return undefined;
+  // Use just the street number + name for best results in the clerk search
+  const stripped = address.split(',')[0].trim();
+  return `https://${subdomain}/results?search=index,fullText&q=${encodeURIComponent(stripped)}`;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1382,7 +1395,9 @@ export async function fetchBoundaryCalls(
       : undefined;
 
   const cadPropertyUrl = propId ? buildCadPropertyUrl(countyKey, propId, cadConfig) : undefined;
-  const deedSearchUrl  = propId ? buildDeedSearchUrl(countyKey, propId) : undefined;
+  const deedSearchUrl  = propId
+    ? buildDeedSearchUrl(countyKey, propId)
+    : (req.address ? buildDeedSearchUrlByAddress(countyKey, req.address) : undefined);
 
   if (cadPropertyUrl) steps.push(`CAD property URL: ${cadPropertyUrl}`);
   if (deedSearchUrl)  steps.push(`Deed search URL (county clerk): ${deedSearchUrl}`);

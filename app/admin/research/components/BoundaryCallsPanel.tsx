@@ -200,7 +200,7 @@ export default function BoundaryCallsPanel({
         <div className="research-boundary__results">
 
           {/* ── Property ID Unlock Banner ────────────────────────────────────── */}
-          {result.property_id && (
+          {result.property_id ? (
             <div className="research-boundary__id-banner">
               <div className="research-boundary__id-banner-left">
                 <span className="research-boundary__id-label">🔑 Property ID</span>
@@ -255,6 +255,39 @@ export default function BoundaryCallsPanel({
               </div>
               <p className="research-boundary__id-tip">
                 Use <strong>Search Deeds by ID</strong> to find every recorded deed and plat for this property on the county clerk portal. Select <em>Search Index + Full Text</em> for best results.
+              </p>
+            </div>
+          ) : result.deed_search_url && (
+            /* No property ID found — still offer an address-based deed search */
+            <div className="research-boundary__id-banner research-boundary__id-banner--fallback">
+              <div className="research-boundary__id-banner-left">
+                <span className="research-boundary__id-label">📜 Deed &amp; Record Search</span>
+                <span className="research-boundary__id-banner-hint">Property ID not found — search by address instead</span>
+              </div>
+              <div className="research-boundary__id-links">
+                {result.source_url && (
+                  <a
+                    href={result.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="research-boundary__id-link research-boundary__id-link--cad"
+                    title="Open the county CAD portal to search manually"
+                  >
+                    🏛️ Search CAD Manually ↗
+                  </a>
+                )}
+                <a
+                  href={result.deed_search_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="research-boundary__id-link research-boundary__id-link--deeds"
+                  title="Search county clerk records by street address"
+                >
+                  📜 Search Deeds by Address ↗
+                </a>
+              </div>
+              <p className="research-boundary__id-tip">
+                The automatic property lookup did not return a match. Use <strong>Search Deeds by Address</strong> to open the county clerk portal pre-loaded with this address — you can browse recorded deeds, plats, and instruments directly and upload them above for AI analysis.
               </p>
             </div>
           )}

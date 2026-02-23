@@ -99,8 +99,7 @@ export default function PropertySearchPanel({
 
   function selectAll() {
     if (!searchResponse) return;
-    const freeResults = searchResponse.results.filter((r: PropertySearchResult) => !r.has_cost);
-    setSelected(new Set(freeResults.map((r: PropertySearchResult) => r.id)));
+    setSelected(new Set(searchResponse.results.map((r: PropertySearchResult) => r.id)));
   }
 
   function deselectAll() {
@@ -388,7 +387,7 @@ export default function PropertySearchPanel({
                   onClick={selectAll}
                   type="button"
                 >
-                  Select all free
+                  Select all
                 </button>
                 <button
                   className="research-search__select-btn"
