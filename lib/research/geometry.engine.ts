@@ -471,7 +471,7 @@ export function buildElementsFromAnalysis(
 
   // 5. Point of Beginning label
   const pobDataPoints = dataPoints.filter(dp => dp.data_category === 'point_of_beginning');
-  if (pobDataPoints.length > 0 && points.length > 0) {
+  if (points.length > 0) {
     const pobDp = pobDataPoints[0];
     const pobPt = points[0];
 
@@ -486,19 +486,71 @@ export function buildElementsFromAnalysis(
       attributes: {
         text: 'P.O.B.',
         label_type: 'pob',
-        description: pobDp.display_value || pobDp.raw_value,
+        description: pobDp ? (pobDp.display_value || pobDp.raw_value) : 'Point of Beginning',
       },
       layer: 'labels',
       z_index: 35,
       visible: true,
       locked: false,
-      confidence_score: pobDp.extraction_confidence ?? 0,
+      confidence_score: pobDp?.extraction_confidence ?? 80,
       confidence_factors: computeDefaultConfidenceFactors(pobDp, []),
-      source_references: buildSourceReferences(pobDp),
-      data_point_ids: [pobDp.id],
+      source_references: pobDp ? buildSourceReferences(pobDp) : [],
+      data_point_ids: pobDp ? [pobDp.id] : [],
       discrepancy_ids: [],
       user_modified: false,
     });
+  }
+
+  // 6. Coordinate labels at traverse vertices (station points)
+  //    Show point number and (x, y) offset from POB so users can see the coordinate grid
+  if (points.length > 1 && config.label_config.show_monuments) {
+    // Only label corners that don't already have a monument symbol
+    const monumentedIndices = new Set<number>();
+    for (const mon of dataPoints.filter(dp => dp.data_category === 'monument')) {
+      if (mon.sequence_order !== undefined && mon.sequence_order !== null) {
+        monumentedIndices.add(mon.sequence_order);
+      }
+    }
+
+    for (let i = 1; i < points.length; i++) {
+      // Skip last point if it closes back to POB (within 1 ft)
+      const pt = points[i];
+      const pobPt = points[0];
+      const isClosure = i === points.length - 1 &&
+        Math.abs(pt.x - pobPt.x) < 1 && Math.abs(pt.y - pobPt.y) < 1;
+      if (isClosure) continue;
+
+      // Offset the label to the upper-right of the point
+      const offsetX = 8;
+      const offsetY = -12;
+
+      elements.push({
+        element_type: 'label',
+        feature_class: 'annotation',
+        geometry: {
+          type: 'label',
+          position: [pt.x + offsetX, pt.y + offsetY],
+          anchor: 'start',
+        },
+        attributes: {
+          text: `P${i} (${pt.x >= 0 ? '+' : ''}${pt.x.toFixed(1)}, ${pt.y >= 0 ? '+' : ''}${pt.y.toFixed(1)})`,
+          label_type: 'coordinate',
+          point_index: i,
+          coord_x: pt.x,
+          coord_y: pt.y,
+        },
+        layer: 'coordinates',
+        z_index: 25,
+        visible: true,
+        locked: false,
+        confidence_score: 100,
+        confidence_factors: computeDefaultConfidenceFactors(undefined, []),
+        source_references: [],
+        data_point_ids: [],
+        discrepancy_ids: [],
+        user_modified: false,
+      });
+    }
   }
 
   return elements;
@@ -590,7 +642,7 @@ export function computeBoundingBox(
   padding: number = 50
 ): { minX: number; minY: number; maxX: number; maxY: number; width: number; height: number } {
   if (points.length === 0) {
-    return { minX: 0, minY: 0, maxX: 100, maxY: 100, width: 100, height: 100 };
+    return { minX: -padding, minY: -padding, maxX: padding, maxY: padding, width: 2 * padding || 100, height: 2 * padding || 100 };
   }
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -607,6 +659,21 @@ export function computeBoundingBox(
   maxX += padding;
   maxY += padding;
 
+  // Ensure minimum dimensions to avoid division-by-zero during scale computation
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const minDim = padding > 0 ? padding * 2 : 100;
+  if (width < minDim) {
+    const cx = (minX + maxX) / 2;
+    minX = cx - minDim / 2;
+    maxX = cx + minDim / 2;
+  }
+  if (height < minDim) {
+    const cy = (minY + maxY) / 2;
+    minY = cy - minDim / 2;
+    maxY = cy + minDim / 2;
+  }
+
   return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
 }
 
@@ -620,11 +687,16 @@ export function computeScale(
   margin: number = 100
 ): number {
   const bbox = computeBoundingBox(points, 0);
-  const availableWidth = canvasWidth - 2 * margin;
-  const availableHeight = canvasHeight - 2 * margin;
+  const availableWidth = Math.max(1, canvasWidth - 2 * margin);
+  const availableHeight = Math.max(1, canvasHeight - 2 * margin);
+
+  // Guard against degenerate bbox
+  if (bbox.width <= 0 || bbox.height <= 0) return 1;
 
   const scaleX = availableWidth / bbox.width;
   const scaleY = availableHeight / bbox.height;
 
-  return Math.min(scaleX, scaleY);
+  const scale = Math.min(scaleX, scaleY);
+  // Clamp to a finite, positive value
+  return isFinite(scale) && scale > 0 ? scale : 1;
 }

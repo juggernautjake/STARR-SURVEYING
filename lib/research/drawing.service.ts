@@ -128,31 +128,38 @@ export async function createDrawing(
   const bbox = computeBoundingBox(traverseResult.points, 0);
   const scaleVal = computeScale(traverseResult.points, canvasWidth, canvasHeight, margin);
 
+  // Guard: ensure scale is finite and positive
+  const safeScale = isFinite(scaleVal) && scaleVal > 0 ? scaleVal : 1;
+
   // Compute transform from survey feet to canvas pixels
-  const fittedW = bbox.width * scaleVal;
-  const fittedH = bbox.height * scaleVal;
+  const fittedW = bbox.width * safeScale;
+  const fittedH = bbox.height * safeScale;
   const offsetX = (canvasWidth - fittedW) / 2;
   const offsetY = (canvasHeight - fittedH) / 2;
 
   // Survey coord (x_s, y_s) → canvas pixel (px, py):
-  //   px = offsetX + (x_s - bbox.minX) * scaleVal
-  //   py = offsetY + (bbox.maxY - y_s) * scaleVal   (flip Y: north=up → SVG y-down)
+  //   px = offsetX + (x_s - bbox.minX) * safeScale
+  //   py = offsetY + (bbox.maxY - y_s) * safeScale   (flip Y: north=up → SVG y-down)
   function surveyToCanvas(x: number, y: number): [number, number] {
+    const px = offsetX + (x - bbox.minX) * safeScale;
+    const py = offsetY + (bbox.maxY - y) * safeScale;
+    // Guard against NaN/Infinity
     return [
-      offsetX + (x - bbox.minX) * scaleVal,
-      offsetY + (bbox.maxY - y) * scaleVal,
+      isFinite(px) ? Math.round(px * 10) / 10 : canvasWidth / 2,
+      isFinite(py) ? Math.round(py * 10) / 10 : canvasHeight / 2,
     ];
   }
 
   // Transform all element coordinates from survey space to canvas pixel space
   transformElements(elements, surveyToCanvas);
 
-  // Map scale: 1 inch (on screen) = N feet
-  const displayScale = Math.round(1 / scaleVal * 96); // 96 DPI assumption
+  // Map scale: 1 inch (on screen) = N feet (96 DPI assumption)
+  const rawDisplayScale = safeScale > 0 ? Math.round((1 / safeScale) * 96) : 100;
+  const displayScale = rawDisplayScale > 0 && isFinite(rawDisplayScale) ? rawDisplayScale : 100;
   const canvasConfig: CanvasConfig = {
     width: canvasWidth,
     height: canvasHeight,
-    scale: displayScale > 0 ? displayScale : Math.round(1 / scaleVal),
+    scale: displayScale,
     units: 'feet',
     origin: [Math.round(offsetX), Math.round(offsetY)],
     background: '#FFFFFF',
@@ -266,13 +273,26 @@ export async function createDrawing(
     );
   }
 
+  // Compute max extent of traverse for scale note
+  const pts = traverseResult.points;
+  let maxDist = 0;
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      const dx = pts[j].x - pts[i].x;
+      const dy = pts[j].y - pts[i].y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > maxDist) maxDist = d;
+    }
+  }
+  const extentNote = maxDist > 0 ? ` Max extent: ${maxDist.toFixed(1)} ft (${(maxDist / 5280).toFixed(3)} mi).` : '';
+
   await supabaseAdmin
     .from('rendered_drawings')
     .update({
       status: 'rendered',
       overall_confidence: overallConfidence,
       confidence_breakdown: confidenceBreakdown,
-      comparison_notes: `Traverse closure: 1:${Math.round(traverseResult.closure.precision_ratio)} (${traverseResult.closure.misclosure_ft.toFixed(3)} ft misclosure). Area: ${traverseResult.area_acres.toFixed(4)} acres (${Math.round(traverseResult.area_sq_ft).toLocaleString()} sq ft). ${elements.length} elements generated.`,
+      comparison_notes: `Traverse closure: 1:${Math.round(traverseResult.closure.precision_ratio)} (${traverseResult.closure.misclosure_ft.toFixed(3)} ft misclosure). Area: ${traverseResult.area_acres.toFixed(4)} acres (${Math.round(traverseResult.area_sq_ft).toLocaleString()} sq ft).${extentNote} ${elements.length} elements generated.`,
       updated_at: new Date().toISOString(),
     })
     .eq('id', drawingId);
