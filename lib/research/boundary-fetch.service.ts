@@ -1161,21 +1161,14 @@ async function resolvePropertyId(
 
   // ── Method 4c: ATTOM Data API (all US properties) ─────────────────────────
   if (process.env.ATTOM_API_KEY) {
-    const { propId: attomId, legalDesc: attomLegal } = await searchAttomData(req, steps);
-    if (attomId) {
-      // Cache the legal description if ATTOM returned one, so fetchBoundaryCalls can use it
-      if (attomLegal) (req as BoundaryFetchRequest & { _attomLegalDesc?: string })._attomLegalDesc = attomLegal;
-      return attomId;
-    }
+    const { propId: attomId } = await searchAttomData(req, steps);
+    if (attomId) return attomId;
   }
 
   // ── Method 4d: Regrid Parcel API (nationwide parcel data) ─────────────────
   if (process.env.REGRID_TOKEN) {
-    const { propId: regridId, legalDesc: regridLegal } = await searchRegridApi(req, steps);
-    if (regridId) {
-      if (regridLegal) (req as BoundaryFetchRequest & { _regridLegalDesc?: string })._regridLegalDesc = regridLegal;
-      return regridId;
-    }
+    const { propId: regridId } = await searchRegridApi(req, steps);
+    if (regridId) return regridId;
   }
 
   // ── Method 5: eSearch CAD portal HTTP query ────────────────────────────────
@@ -1397,7 +1390,20 @@ export async function fetchBoundaryCalls(
   const sourceName = cadConfig?.name ?? 'Texas County Appraisal District';
 
   // ── Step 5: Extract legal description ─────────────────────────────────────
-  const legalDesc = propDetail?.legal_desc ? String(propDetail.legal_desc) : undefined;
+  let legalDesc = propDetail?.legal_desc ? String(propDetail.legal_desc) : undefined;
+
+  // If TrueAutomation didn't return a legal description, try ATTOM and Regrid directly.
+  // These APIs return the legal description directly from their property records.
+  if (!legalDesc && process.env.ATTOM_API_KEY && req.address) {
+    steps.push('TrueAutomation had no legal description — trying ATTOM Data API…');
+    const { legalDesc: attomLegal } = await searchAttomData(req, steps);
+    if (attomLegal) { legalDesc = attomLegal; steps.push('Legal description obtained from ATTOM Data.'); }
+  }
+  if (!legalDesc && process.env.REGRID_TOKEN && req.address) {
+    steps.push('Trying Regrid Parcel API for legal description…');
+    const { legalDesc: regridLegal } = await searchRegridApi(req, steps);
+    if (regridLegal) { legalDesc = regridLegal; steps.push('Legal description obtained from Regrid.'); }
+  }
 
   if (!legalDesc) {
     if (propDetail) {

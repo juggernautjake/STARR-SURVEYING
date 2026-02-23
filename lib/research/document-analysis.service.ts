@@ -230,7 +230,7 @@ export function buildBoundaryFetchText(result: Awaited<ReturnType<typeof fetchBo
     parts.push('LEGAL DESCRIPTION:');
     parts.push(result.legal_description);
   }
-  return parts.filter(s => s !== undefined).join('\n');
+  return parts.filter(Boolean).join('\n');
 }
 
 // ── Main Entry Point ──────────────────────────────────────────────────────────

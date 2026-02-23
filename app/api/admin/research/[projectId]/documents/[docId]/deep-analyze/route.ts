@@ -108,14 +108,6 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         textToAnalyze = buildBoundaryFetchText(fetchResult);
         fetchMethod = 'boundary-fetch-pipeline';
 
-        // Persist the real content back to the document so future analyses are instant
-        await supabaseAdmin.from('research_documents').update({
-          extracted_text: textToAnalyze,
-          extracted_text_method: fetchMethod,
-          processing_status: 'extracted',
-          updated_at: new Date().toISOString(),
-        }).eq('id', docId);
-
         // If we found the parcel ID and the project doesn't have one yet, save it
         if (fetchResult.property_id && !project.parcel_id) {
           await supabaseAdmin
@@ -124,19 +116,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
             .eq('id', projectId);
         }
       } else if (fetchResult.property) {
-        // Even without a legal description, we may have owner/acreage/deed-ref data worth analyzing
+        // Even without a legal description, owner/acreage/deed-ref is worth analyzing
         textToAnalyze = buildBoundaryFetchText(fetchResult);
         fetchMethod = 'boundary-fetch-partial';
-        await supabaseAdmin.from('research_documents').update({
-          extracted_text: textToAnalyze,
-          extracted_text_method: fetchMethod,
-          updated_at: new Date().toISOString(),
-        }).eq('id', docId);
       }
     }
 
-    // Update db with freshly fetched content when source fetch succeeded
-    if (fetchMethod !== (doc.extracted_text_method ?? 'stored') && doc.source_url && textToAnalyze.length > 150) {
+    // Persist freshly fetched content to DB so future deep-analyzes are instant
+    if (fetchMethod !== (doc.extracted_text_method ?? 'stored') && textToAnalyze.length > 150) {
       await supabaseAdmin.from('research_documents').update({
         extracted_text: textToAnalyze,
         extracted_text_method: fetchMethod,
