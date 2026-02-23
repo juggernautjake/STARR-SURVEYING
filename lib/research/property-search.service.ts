@@ -549,6 +549,19 @@ function buildPublicsearchUrl(countyKey: string, propertyId?: string, ownerName?
   return `https://${subdomain}/`;
 }
 
+/** Build a publicsearch.us URL to search by grantor/grantee (owner) name */
+function buildPublicsearchGrantorUrl(countyKey: string, ownerName: string): string | null {
+  const subdomain = PUBLICSEARCH_BY_COUNTY[countyKey];
+  if (!subdomain || !ownerName.trim()) return null;
+  return `https://${subdomain}/results?search=GBGranteeGrantor&q=${encodeURIComponent(ownerName.trim())}`;
+}
+
+/** Build a Bell CAD eSearch address pre-filled URL */
+function buildBellCadSearchUrl(query: string, type: 'address' | 'owner' | 'account'): string {
+  const year = new Date().getFullYear();
+  return `https://esearch.bellcad.org/Property/Search?type=${type}&value=${encodeURIComponent(query)}&year=${year}`;
+}
+
 // ── Bell County GIS (primary source for Bell County jobs) ────────────────────
 
 async function searchBellCountyGIS(
@@ -716,6 +729,62 @@ async function searchBellCountyGIS(
     metadata: { record_type: 'deed_and_plat', county: 'Bell' },
   });
 
+  // Bell CAD eSearch pre-filled address search link (deep link directly into the search box)
+  if (req.address) {
+    const streetOnly = req.address.split(',')[0].replace(/\./g, '').trim();
+    results.push({
+      id: generateResultId('bell_county_gis', 12),
+      source: 'bell_county_gis',
+      source_name: 'Bell CAD e-Search — Address Pre-filled',
+      title: `Bell CAD e-Search: "${streetOnly}"`,
+      url: buildBellCadSearchUrl(streetOnly, 'address'),
+      document_type: 'appraisal_record',
+      relevance: scoreRelevance(0.93, { hasAddress: true }),
+      is_property_specific: true,
+      description: `Bell CAD e-Search portal with the address "${streetOnly}" pre-loaded — click Search to retrieve the property record directly. Contains the legal description, deed volume/page, and ownership history.`,
+      has_cost: false,
+      metadata: { platform: 'esearch', search_type: 'address', query: streetOnly },
+    });
+  }
+
+  // Bell CAD eSearch owner-name search (when owner name is known)
+  if (req.owner_name) {
+    results.push({
+      id: generateResultId('bell_county_gis', 13),
+      source: 'bell_county_gis',
+      source_name: 'Bell CAD e-Search — Owner Name Pre-filled',
+      title: `Bell CAD e-Search by Owner: "${req.owner_name}"`,
+      url: buildBellCadSearchUrl(req.owner_name, 'owner'),
+      document_type: 'appraisal_record',
+      relevance: scoreRelevance(0.94, { hasParcelId: false, hasAddress: !!req.address }),
+      is_property_specific: true,
+      description: `Bell CAD e-Search portal with owner name "${req.owner_name}" pre-loaded. Returns all properties owned by this name — look for the matching address to get the property ID and legal description.`,
+      has_cost: false,
+      metadata: { platform: 'esearch', search_type: 'owner', query: req.owner_name },
+    });
+  }
+
+  // Bell County Clerk grantor/grantee deed search (when owner name is known)
+  if (req.owner_name) {
+    const grantorUrl = buildPublicsearchGrantorUrl('bell', req.owner_name);
+    if (grantorUrl) {
+      results.push({
+        id: generateResultId('bell_county_gis', 14),
+        source: 'bell_county_gis',
+        source_name: 'Bell County Clerk — Grantor/Grantee Deed Search',
+        title: `Bell County Deed Search by Grantor/Grantee: "${req.owner_name}"`,
+        url: grantorUrl,
+        document_type: 'deed',
+        relevance: scoreRelevance(0.96, { hasParcelId: !!req.parcel_id, hasAddress: !!req.address }),
+        is_property_specific: true,
+        description: `Bell County Clerk online records searched by grantor/grantee name "${req.owner_name}" — returns every deed, warranty deed, quit claim deed, and instrument where this name appears as grantor OR grantee. Directly surfaces chain-of-title deeds with full legal descriptions.`,
+        has_cost: false,
+        cost_note: 'Online viewing is free; certified copies available from the county clerk.',
+        metadata: { platform: 'publicsearch', search_type: 'grantor_grantee', query: req.owner_name, county: 'Bell' },
+      });
+    }
+  }
+
   return {
     results,
     source: { source: 'bell_county_gis', name: 'Bell County GIS', status: 'success' },
@@ -857,6 +926,32 @@ async function searchCountyClerk(
       cost_note: 'Online viewing is free; certified copies available from the county clerk.',
       metadata: { record_type: 'deed', county, platform: 'publicsearch', prop_id: req.parcel_id },
     });
+  }
+
+  // publicsearch.us grantor/grantee search — searches by owner name as grantor OR grantee
+  if (req.owner_name) {
+    const grantorUrl = buildPublicsearchGrantorUrl(countyKey, req.owner_name);
+    if (grantorUrl) {
+      results.push({
+        id: generateResultId('county_clerk', 3),
+        source: 'county_clerk',
+        source_name: `${clerkName} — Grantor/Grantee Search`,
+        title: hasParcelId
+          ? `${county} County Deed Search — Grantor/Grantee: ${req.owner_name}`
+          : `${county} County Deed Search by Owner: ${req.owner_name}`,
+        url: grantorUrl,
+        document_type: 'deed',
+        relevance: scoreRelevance(0.95, { hasParcelId, hasAddress }),
+        is_property_specific: true,
+        description: [
+          `${clerkName} records searched by grantor/grantee name "${req.owner_name}" — finds every instrument (deeds, mortgages, easements) where this name appears as grantor or grantee.`,
+          ` Especially useful when the property ID is unknown — trace the chain of title by name to find all recorded deeds with legal descriptions.`,
+        ].join(''),
+        has_cost: false,
+        cost_note: 'Online viewing is free; certified copies available from the county clerk.',
+        metadata: { record_type: 'deed', county, platform: 'publicsearch', search_type: 'grantor_grantee' },
+      });
+    }
   }
 
   // Deed records via county clerk homepage
@@ -1127,8 +1222,10 @@ async function searchUSGS(req: PropertySearchRequest): Promise<ProviderResult> {
     };
   }
 
-  const addressParam = encodeURIComponent(req.address);
-  const usgsViewerUrl = `https://ngmdb.usgs.gov/topoview/viewer/#14/${addressParam}`;
+  // NOTE: USGS TopoView uses #zoom/lat/lon, not an address string.
+  // We build a fallback search URL now; the search route will patch it with actual
+  // geocoded coordinates after parallel geocoding completes.
+  const usgsViewerUrl = `https://ngmdb.usgs.gov/topoview/viewer/#14/31.0698/-97.3536`;
 
   return {
     results: [

@@ -63,6 +63,8 @@ const ESEARCH_BY_COUNTY: Record<string, EsearchConfig> = {
 interface ArcGisConfig {
   /** Full URL to the FeatureServer or MapServer layer endpoint (no trailing slash) */
   layerUrl: string;
+  /** Alternate layer URLs to try when the primary fails */
+  fallbackLayerUrls?: string[];
   /** Field name that holds the CAD property ID */
   propIdField: string;
   /** Fields to try for situs address matching — ordered by preference */
@@ -74,8 +76,16 @@ interface ArcGisConfig {
 const ARCGIS_BY_COUNTY: Record<string, ArcGisConfig> = {
   bell: {
     layerUrl: 'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/MapServer/0',
+    fallbackLayerUrls: [
+      'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/FeatureServer/0',
+      'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/MapServer/1',
+      'https://gis.co.bell.tx.us/arcgis/rest/services/BellCounty_Parcels/FeatureServer/0',
+      'https://gis.co.bell.tx.us/arcgis/rest/services/Property/MapServer/0',
+      // National Esri parcel fallback (publicly accessible Living Atlas layer)
+      'https://services2.arcgis.com/FiaFA0dzneJZiblf/arcgis/rest/services/ParcelPublicView/FeatureServer/0',
+    ],
     propIdField: 'PROP_ID',
-    addressFields: ['SITUS_ADDRESS', 'SITUS_ADDR', 'ADDRESS', 'FULL_ADDRESS'],
+    addressFields: ['SITUS_ADDRESS', 'SITUS_ADDR', 'ADDRESS', 'FULL_ADDRESS', 'SITE_ADDR', 'SITEADDRESS'],
     name: 'Bell County GIS Parcel Layer',
   },
 };
@@ -208,6 +218,29 @@ async function fetchWithTimeout(url: string, options?: RequestInit): Promise<Res
   }
 }
 
+// ── Address Normalization Helpers ─────────────────────────────────────────────
+
+/**
+ * Strip city/state/ZIP suffix and remove periods from abbreviations.
+ * "2512 S. 5th Street Temple, Texas 76504" → "2512 S 5th Street"
+ */
+function normalizeStreetAddress(address: string): string {
+  return address
+    .split(',')[0]         // drop city, state, ZIP (everything after first comma)
+    .replace(/\./g, '')    // remove periods (S. → S, St. → St)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Ordinal number → word lookup used for address variants */
+const ORDINAL_WORDS: Record<number, string> = {
+  1: 'FIRST', 2: 'SECOND', 3: 'THIRD', 4: 'FOURTH', 5: 'FIFTH',
+  6: 'SIXTH', 7: 'SEVENTH', 8: 'EIGHTH', 9: 'NINTH', 10: 'TENTH',
+  11: 'ELEVENTH', 12: 'TWELFTH', 13: 'THIRTEENTH', 14: 'FOURTEENTH',
+  15: 'FIFTEENTH', 16: 'SIXTEENTH', 17: 'SEVENTEENTH', 18: 'EIGHTEENTH',
+  19: 'NINETEENTH', 20: 'TWENTIETH',
+};
+
 // ── Address Variant Generator ─────────────────────────────────────────────────
 //
 // Generates up to 6 alternate address formats to maximize the chance of a
@@ -275,7 +308,21 @@ function generateAddressVariants(address: string): string[] {
   add(noDir);
   add(noDir.split(',')[0]?.trim() ?? '');
 
-  return variants.slice(0, 6);
+  // Variant: no-periods, street-only (critical for TrueAutomation which rejects "S.")
+  const noPeriods = upper.replace(/\./g, '').replace(/\s+/g, ' ').trim();
+  add(noPeriods);
+  add(noPeriods.split(',')[0]?.trim() ?? '');
+
+  // Variant: ordinal number → word form (e.g., "5TH" → "FIFTH")
+  const ordReplaced = streetOnly.replace(/\b(\d{1,2})(ST|ND|RD|TH)\b/gi, (_m, n) => {
+    return ORDINAL_WORDS[Number(n)] ?? _m;
+  });
+  if (ordReplaced !== streetOnly) {
+    add(ordReplaced);
+    add(ordReplaced.replace(/^(\d+)\s+[NSEW]\s+/i, '$1 ').trim());
+  }
+
+  return variants.slice(0, 10);
 }
 
 // ── TrueAutomation API ─────────────────────────────────────────────────────────
@@ -533,6 +580,25 @@ async function searchEsearchPortal(
   if (req.address)    queries.push({ label: 'address',    q: req.address,    type: 'address' });
   if (req.owner_name) queries.push({ label: 'owner name', q: req.owner_name, type: 'owner'   });
   if (req.parcel_id)  queries.push({ label: 'account',    q: req.parcel_id,  type: 'account'  });
+
+  // Add stripped address variants: strip city/state and remove periods
+  if (req.address) {
+    const streetOnly = normalizeStreetAddress(req.address);
+    if (streetOnly.toUpperCase() !== (req.address.toUpperCase())) {
+      queries.push({ label: 'normalized street-only address', q: streetOnly, type: 'address' });
+    }
+    // Without directional prefix (e.g., "2512 S 5TH ST" → "2512 5TH ST")
+    const noDir = streetOnly.replace(/^(\d+)\s+[NSEW]\s+/i, '$1 ').trim();
+    if (noDir !== streetOnly) {
+      queries.push({ label: 'no-directional address', q: noDir, type: 'address' });
+    }
+    // House number only (wide match — filter by street on client)
+    const houseNum = streetOnly.match(/^(\d+)/)?.[1];
+    if (houseNum) {
+      queries.push({ label: 'house-number-only', q: houseNum, type: 'address' });
+    }
+  }
+
   if (queries.length === 0) return null;
 
   // Try multiple known eSearch endpoint patterns in parallel per query
@@ -620,34 +686,38 @@ async function searchArcGisParcel(
   }
   if (queries.length === 0) return null;
 
+  const allLayerUrls = [config.layerUrl, ...(config.fallbackLayerUrls ?? [])];
+
   for (const whereClause of queries) {
-    const url =
-      `${config.layerUrl}/query` +
-      `?where=${encodeURIComponent(whereClause)}` +
-      `&outFields=${encodeURIComponent([config.propIdField, ...config.addressFields, 'OWNER_NAME', 'OWN_NAME'].join(','))}` +
-      `&returnGeometry=false&resultRecordCount=5&f=json`;
+    for (const layerUrl of allLayerUrls) {
+      const url =
+        `${layerUrl}/query` +
+        `?where=${encodeURIComponent(whereClause)}` +
+        `&outFields=${encodeURIComponent([config.propIdField, ...config.addressFields, 'OWNER_NAME', 'OWN_NAME'].join(','))}` +
+        `&returnGeometry=false&resultRecordCount=5&f=json`;
 
-    try {
-      const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
-      if (!res.ok) { steps.push(`[Method 6] ArcGIS query returned HTTP ${res.status}`); continue; }
+      try {
+        const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
+        if (!res.ok) { steps.push(`[Method 6] ArcGIS ${layerUrl} returned HTTP ${res.status}`); continue; }
 
-      const data = await res.json() as ArcGisQueryResponse;
-      if (data.error) { steps.push(`[Method 6] ArcGIS error: ${data.error.message ?? 'unknown'}`); continue; }
+        const data = await res.json() as ArcGisQueryResponse;
+        if (data.error) { steps.push(`[Method 6] ArcGIS error at ${layerUrl}: ${data.error.message ?? 'unknown'}`); continue; }
 
-      const features = data.features ?? [];
-      if (features.length === 0) continue;
+        const features = data.features ?? [];
+        if (features.length === 0) { steps.push(`[Method 6] ${layerUrl}: no matching features.`); continue; }
 
-      const attrs = features[0].attributes ?? {};
-      const rawId = attrs[config.propIdField];
-      const propId = rawId != null ? String(rawId).trim() : '';
+        const attrs = features[0].attributes ?? {};
+        const rawId = attrs[config.propIdField];
+        const propId = rawId != null ? String(rawId).trim() : '';
 
-      if (propId) {
-        const addrAttr = config.addressFields.map(f => attrs[f]).find(v => v != null);
-        steps.push(`[Method 6] ArcGIS parcel layer found property ID ${propId}${addrAttr ? ` at "${addrAttr}"` : ''}`);
-        return propId;
+        if (propId) {
+          const addrAttr = config.addressFields.map(f => attrs[f]).find(v => v != null);
+          steps.push(`[Method 6] ArcGIS parcel layer found property ID ${propId}${addrAttr ? ` at "${addrAttr}"` : ''} (layer: ${layerUrl})`);
+          return propId;
+        }
+      } catch (err) {
+        steps.push(`[Method 6] ArcGIS query error at ${layerUrl}: ${err instanceof Error ? err.message : String(err)}`);
       }
-    } catch (err) {
-      steps.push(`[Method 6] ArcGIS query error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -774,6 +844,279 @@ async function queryArcGisParcelByPoint(
     return null;
   } catch (err) {
     steps.push(`[Method 7b] ArcGIS point query error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// ── Method 7d: Nominatim Structured Geocoding ─────────────────────────────────
+// Sends street, city, and state as separate parameters — more reliable than a
+// single-line query for addresses that Nominatim's parser might mis-tokenize.
+
+async function geocodeWithNominatimStructured(
+  address: string,
+  steps: string[],
+): Promise<{ lat: number; lon: number } | null> {
+  const parts = address.split(',').map(p => p.trim());
+  const street = normalizeStreetAddress(parts[0] || address);
+  const cityRaw = parts[1]?.replace(/\s+\w{2}\s*\d{5}.*$/, '').trim() || '';
+  const city = cityRaw.replace(/\s+TX$/i, '').trim();
+
+  const url = `https://nominatim.openstreetmap.org/search` +
+    `?street=${encodeURIComponent(street)}&city=${encodeURIComponent(city)}` +
+    `&state=Texas&country=us&format=json&limit=3&addressdetails=0`;
+
+  steps.push(`[Method 7d] Nominatim structured query: street="${street}" city="${city}"`);
+  try {
+    const res = await fetchWithTimeout(url, {
+      headers: {
+        'User-Agent': 'STARR-Surveying/1.0 (Texas land survey; contact@starrsurveying.com)',
+        'Accept': 'application/json',
+      },
+    });
+    if (!res.ok) { steps.push(`[Method 7d] HTTP ${res.status}`); return null; }
+    const data = await res.json() as NominatimResult[];
+    if (!Array.isArray(data) || data.length === 0) {
+      steps.push('[Method 7d] Nominatim structured: no results.');
+      return null;
+    }
+    const lat = parseFloat(data[0].lat ?? '');
+    const lon = parseFloat(data[0].lon ?? '');
+    if (isNaN(lat) || isNaN(lon)) return null;
+    steps.push(`[Method 7d] Structured geocode: ${lat.toFixed(5)}, ${lon.toFixed(5)} (${data[0].display_name ?? ''})`);
+    return { lat, lon };
+  } catch (err) {
+    steps.push(`[Method 7d] Error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// ── Method 7e: Google Maps Geocoding API ──────────────────────────────────────
+// Requires GOOGLE_MAPS_API_KEY environment variable.
+// Often the most accurate geocoder for US street addresses.
+
+async function geocodeWithGoogle(
+  address: string,
+  steps: string[],
+): Promise<{ lat: number; lon: number } | null> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    steps.push('[Method 7e] Google Geocoding skipped — GOOGLE_MAPS_API_KEY not configured.');
+    return null;
+  }
+  steps.push(`[Method 7e] Google Maps Geocoding: "${address}"`);
+  const url = `https://maps.googleapis.com/maps/api/geocode/json` +
+    `?address=${encodeURIComponent(address)}&components=country:US|administrative_area:TX&key=${apiKey}`;
+  try {
+    const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
+    if (!res.ok) { steps.push(`[Method 7e] HTTP ${res.status}`); return null; }
+    const data = await res.json() as {
+      status: string;
+      results?: Array<{ geometry?: { location?: { lat: number; lng: number } }; formatted_address?: string }>;
+    };
+    if (data.status !== 'OK' || !data.results?.length) {
+      steps.push(`[Method 7e] Google Geocoding status: ${data.status}`);
+      return null;
+    }
+    const loc = data.results[0].geometry?.location;
+    if (!loc) return null;
+    steps.push(`[Method 7e] Google geocoded: ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)} (${data.results[0].formatted_address ?? ''})`);
+    return { lat: loc.lat, lon: loc.lng };
+  } catch (err) {
+    steps.push(`[Method 7e] Error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// ── Method 7f: MapBox Geocoding API ──────────────────────────────────────────
+// Requires MAPBOX_ACCESS_TOKEN environment variable.
+// Uses a proximity hint centered on Central Texas for better local precision.
+
+async function geocodeWithMapBox(
+  address: string,
+  steps: string[],
+): Promise<{ lat: number; lon: number } | null> {
+  const token = process.env.MAPBOX_ACCESS_TOKEN;
+  if (!token) {
+    steps.push('[Method 7f] MapBox Geocoding skipped — MAPBOX_ACCESS_TOKEN not configured.');
+    return null;
+  }
+  steps.push(`[Method 7f] MapBox Geocoding: "${address}"`);
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json` +
+    `?country=us&proximity=-97.35,31.07&types=address&limit=1&access_token=${token}`;
+  try {
+    const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
+    if (!res.ok) { steps.push(`[Method 7f] HTTP ${res.status}`); return null; }
+    const data = await res.json() as { features?: Array<{ center?: [number, number]; place_name?: string }> };
+    const feat = data?.features?.[0];
+    if (!feat?.center) { steps.push('[Method 7f] MapBox: no results.'); return null; }
+    const [lon, lat] = feat.center;
+    steps.push(`[Method 7f] MapBox geocoded: ${lat.toFixed(5)}, ${lon.toFixed(5)} (${feat.place_name ?? ''})`);
+    return { lat, lon };
+  } catch (err) {
+    steps.push(`[Method 7f] Error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// ── Method 10: OpenStreetMap Overpass API ─────────────────────────────────────
+// Free, no API key. Queries the OSM graph for nodes/ways matching address tags
+// within a county bounding box. Useful when geocoders fail on non-standard addresses.
+
+interface OverpassResponse {
+  elements?: Array<{
+    type: string;
+    lat?: number;
+    lon?: number;
+    center?: { lat: number; lon: number };
+    tags?: Record<string, string>;
+  }>;
+}
+
+async function geocodeWithOverpass(
+  address: string,
+  countyKey: string,
+  steps: string[],
+): Promise<{ lat: number; lon: number } | null> {
+  const streetPart = normalizeStreetAddress(address);
+  const houseNum = streetPart.match(/^(\d+)/)?.[1] ?? '';
+  // Strip house number and leading directional to get the street name core
+  const streetName = streetPart
+    .replace(/^\d+\s+/, '')
+    .replace(/^[NSEW]\s+/i, '')
+    .replace(/\s+(ST|AVE|DR|RD|BLVD|LN|CT|PL|TRL|WAY|PKWY|HWY)\s*$/i, '')
+    .trim();
+
+  if (!houseNum || !streetName) {
+    steps.push('[Method 10] Overpass: could not parse address components; skipping.');
+    return null;
+  }
+
+  // Approximate bounding boxes per county
+  const COUNTY_BBOX: Record<string, string> = {
+    bell:      '30.85,-97.75,31.40,-97.05',
+    coryell:   '31.05,-97.98,31.60,-97.45',
+    mclennan:  '31.35,-97.43,31.82,-96.89',
+    falls:     '31.05,-96.98,31.45,-96.60',
+    milam:     '30.65,-97.25,31.10,-96.65',
+    lampasas:  '30.85,-98.45,31.30,-97.85',
+  };
+  const bbox = COUNTY_BBOX[countyKey] ?? '30.0,-98.5,31.5,-96.5';
+
+  const query = `[out:json][timeout:15];(\n` +
+    `  node["addr:housenumber"="${houseNum}"]["addr:street"~"${streetName}",i](${bbox});\n` +
+    `  way["addr:housenumber"="${houseNum}"]["addr:street"~"${streetName}",i](${bbox});\n` +
+    `);out center 1;`;
+
+  steps.push(`[Method 10] OpenStreetMap Overpass: housenumber="${houseNum}", street~"${streetName}" in bbox ${bbox}`);
+  try {
+    const res = await fetchWithTimeout('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...makeFetchHeaders() },
+      body: `data=${encodeURIComponent(query)}`,
+    });
+    if (!res.ok) { steps.push(`[Method 10] Overpass HTTP ${res.status}`); return null; }
+    const data = await res.json() as OverpassResponse;
+    const el = data?.elements?.[0];
+    if (!el) { steps.push('[Method 10] Overpass: no matching address nodes found.'); return null; }
+    const lat = el.lat ?? el.center?.lat;
+    const lon = el.lon ?? el.center?.lon;
+    if (!lat || !lon) { steps.push('[Method 10] Overpass: element found but no coordinates.'); return null; }
+    steps.push(`[Method 10] Overpass geocoded: ${lat.toFixed(5)}, ${lon.toFixed(5)} (tags: ${JSON.stringify(el.tags ?? {})})`);
+    return { lat, lon };
+  } catch (err) {
+    steps.push(`[Method 10] Overpass error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// ── Method 11: TrueAutomation broad street-name search ───────────────────────
+// Searches by street name only (no house number), then filters results client-side
+// by house number. Handles cases where the full address string is rejected by TA.
+
+async function trueAutoSearchByStreetName(
+  cid: number,
+  address: string,
+  steps: string[],
+): Promise<string | null> {
+  const streetPart = normalizeStreetAddress(address);
+  const houseNum = streetPart.match(/^(\d+)/)?.[1] ?? '';
+  // Street name: remove number + directional prefix, keep street type
+  const streetName = streetPart.replace(/^\d+\s+[NSEW]?\s*/i, '').trim();
+
+  if (!streetName) {
+    steps.push('[Method 11] TrueAuto broad search: could not extract street name.');
+    return null;
+  }
+
+  steps.push(`[Method 11] TrueAutomation broad street search (cid=${cid}): "${streetName}"`);
+  const url = `${TRUEAUTO_BASE}/search/address?cid=${cid}&q=${encodeURIComponent(streetName)}`;
+  try {
+    const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
+    if (!res.ok) { steps.push(`[Method 11] HTTP ${res.status}`); return null; }
+    const data = await res.json() as { data?: TrueAutoSearchHit[] } | TrueAutoSearchHit[];
+    const hits: TrueAutoSearchHit[] = Array.isArray(data) ? data : (data?.data ?? []);
+
+    if (hits.length === 0) {
+      steps.push(`[Method 11] No properties found on street "${streetName}".`);
+      return null;
+    }
+
+    steps.push(`[Method 11] Found ${hits.length} properties on "${streetName}" — scanning for house number "${houseNum}".`);
+
+    if (houseNum) {
+      const match = hits.find(h => String(h.situs_num ?? '').trim() === houseNum);
+      if (match) {
+        const propId = String(match.prop_id ?? '');
+        steps.push(`[Method 11] Matched house number ${houseNum}: property ID ${propId} (${match.situs_num} ${match.situs_street})`);
+        return propId || null;
+      }
+      steps.push(`[Method 11] No exact match for house number ${houseNum} among ${hits.length} results.`);
+    }
+    return null;
+  } catch (err) {
+    steps.push(`[Method 11] Error: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// ── Method 12: Esri ArcGIS Online National Parcel Service ────────────────────
+// Fallback for any county when county-specific ArcGIS fails.
+// Uses the publicly accessible national parcel dataset hosted on ArcGIS Online.
+
+const NATIONAL_PARCEL_LAYER = 'https://services2.arcgis.com/FiaFA0dzneJZiblf/arcgis/rest/services/ParcelPublicView/FeatureServer/0';
+
+async function queryNationalParcelByPoint(
+  lat: number,
+  lon: number,
+  steps: string[],
+): Promise<string | null> {
+  steps.push(`[Method 12] Esri national parcel service point query at ${lat.toFixed(5)}, ${lon.toFixed(5)}`);
+  const geom = JSON.stringify({ x: lon, y: lat, spatialReference: { wkid: 4326 } });
+  const url =
+    `${NATIONAL_PARCEL_LAYER}/query` +
+    `?geometry=${encodeURIComponent(geom)}` +
+    `&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects` +
+    `&outFields=APN,PARCELNUMB,PARCEL_ID,PROP_ID,OWNER,SITEADDRESS,ADDR_NUMBER,ADDR_STREETNAME` +
+    `&returnGeometry=false&f=json`;
+  try {
+    const res = await fetchWithTimeout(url, { headers: makeFetchHeaders() });
+    if (!res.ok) { steps.push(`[Method 12] National parcel HTTP ${res.status}`); return null; }
+    const data = await res.json() as ArcGisQueryResponse;
+    if (data.error) { steps.push(`[Method 12] National parcel error: ${data.error.message ?? 'unknown'}`); return null; }
+    const features = data.features ?? [];
+    if (!features.length) { steps.push('[Method 12] National parcel: no parcel at these coordinates.'); return null; }
+    const attrs = features[0].attributes ?? {};
+    // Try common parcel ID field names
+    const raw = attrs['APN'] ?? attrs['PARCELNUMB'] ?? attrs['PARCEL_ID'] ?? attrs['PROP_ID'];
+    const propId = raw != null ? String(raw).trim() : '';
+    if (propId) {
+      steps.push(`[Method 12] National parcel found ID: ${propId} (address: ${attrs['SITEADDRESS'] ?? attrs['ADDR_NUMBER'] ?? '?'})`);
+      return propId;
+    }
+    steps.push('[Method 12] National parcel: feature found but no ID field populated.');
+    return null;
+  } catch (err) {
+    steps.push(`[Method 12] Error: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }
@@ -1135,12 +1478,23 @@ async function resolvePropertyId(
   countyKey: string,
   cadConfig: TrueAutoConfig | undefined,
   steps: string[],
+  out?: { lat?: number; lon?: number },
 ): Promise<string | null> {
   // ── Method 1: TrueAutomation address search ────────────────────────────────
+  // Use a normalized (no-periods, street-only) address as primary — TrueAutomation
+  // rejects city/state suffixes and dotted abbreviations like "S." more reliably.
   if (cadConfig && req.address) {
     steps.push('[Method 1] TrueAutomation address search (primary)');
-    const id = await trueAutoSearchByAddress(cadConfig.cid, req.address, steps);
+    const normalized = normalizeStreetAddress(req.address);
+    const normalizedChanged = normalized !== req.address.split(',')[0].replace(/\./g, '').replace(/\s+/g, ' ').trim();
+    if (normalizedChanged) steps.push(`[Method 1] Cleaned address for TrueAutomation: "${normalized}"`);
+    const id = await trueAutoSearchByAddress(cadConfig.cid, normalized, steps);
     if (id) return id;
+    // Also try with the original address in case the normalized version lost useful info
+    if (normalizedChanged) {
+      const id2 = await trueAutoSearchByAddress(cadConfig.cid, req.address, steps);
+      if (id2) return id2;
+    }
   }
 
   // ── Method 2: TrueAutomation address variants ──────────────────────────────
@@ -1193,29 +1547,49 @@ async function resolvePropertyId(
   if (arcGisId) return arcGisId;
 
   // ── Method 7: Geocode address → coordinate-based parcel lookup ────────────
-  // Runs Nominatim and Census Bureau geocoders in parallel; uses whichever returns first.
+  // Runs Nominatim, Census Bureau, Nominatim structured, Google, and MapBox in
+  // parallel for maximum coverage. Whichever returns coordinates first is used
+  // for the ArcGIS point-in-polygon parcel lookup.
   if (req.address) {
-    steps.push('[Method 7] Running Nominatim + Census geocoders in parallel…');
-    const [nominatimCoords, censusCoords] = await Promise.all([
+    steps.push('[Method 7] Running geocoders in parallel (Nominatim, Census, structured, Google, MapBox)…');
+    const [nominatimCoords, censusCoords, structuredCoords, googleCoords, mapBoxCoords] = await Promise.all([
       geocodeWithNominatim(req.address, steps),
       geocodeWithCensus(req.address, steps),
+      geocodeWithNominatimStructured(req.address, steps),
+      geocodeWithGoogle(req.address, steps),
+      geocodeWithMapBox(req.address, steps),
     ]);
-    const coords = nominatimCoords ?? censusCoords;
+
+    const coords = nominatimCoords ?? censusCoords ?? structuredCoords ?? googleCoords ?? mapBoxCoords;
+
     if (coords) {
+      // Save coordinates for the caller to surface in the result
+      if (out) { out.lat = coords.lat; out.lon = coords.lon; }
+
+      // Method 7b: County-specific ArcGIS parcel layer (point in polygon)
       const pointId = await queryArcGisParcelByPoint(coords.lat, coords.lon, countyKey, steps);
       if (pointId) return pointId;
+
+      // Method 12: National parcel fallback when county-specific layer fails
+      const nationalId = await queryNationalParcelByPoint(coords.lat, coords.lon, steps);
+      if (nationalId) return nationalId;
     }
-    // Try address variants if both geocoders failed
+
+    // Try address variants if all geocoders failed
     if (!coords) {
-      for (const variant of generateAddressVariants(req.address).slice(1, 3)) {
+      steps.push('[Method 7] All geocoders failed — trying address variants for geocoding.');
+      for (const variant of generateAddressVariants(req.address).slice(1, 4)) {
         const [vNom, vCen] = await Promise.all([
           geocodeWithNominatim(variant, steps),
           geocodeWithCensus(variant, steps),
         ]);
         const vCoords = vNom ?? vCen;
         if (vCoords) {
+          if (out && !out.lat) { out.lat = vCoords.lat; out.lon = vCoords.lon; }
           const varPointId = await queryArcGisParcelByPoint(vCoords.lat, vCoords.lon, countyKey, steps);
           if (varPointId) return varPointId;
+          const varNatId = await queryNationalParcelByPoint(vCoords.lat, vCoords.lon, steps);
+          if (varNatId) return varNatId;
           break;
         }
       }
@@ -1229,6 +1603,24 @@ async function resolvePropertyId(
   // ── Method 9: Web search engine + AI page analysis (brute force) ──────────
   const searchId = await tavilySearchPropertyId(req, countyKey, steps);
   if (searchId) return searchId;
+
+  // ── Method 10: OpenStreetMap Overpass API ──────────────────────────────────
+  if (req.address) {
+    const overpassCoords = await geocodeWithOverpass(req.address, countyKey, steps);
+    if (overpassCoords) {
+      if (out && !out.lat) { out.lat = overpassCoords.lat; out.lon = overpassCoords.lon; }
+      const ovPointId = await queryArcGisParcelByPoint(overpassCoords.lat, overpassCoords.lon, countyKey, steps);
+      if (ovPointId) return ovPointId;
+      const ovNatId = await queryNationalParcelByPoint(overpassCoords.lat, overpassCoords.lon, steps);
+      if (ovNatId) return ovNatId;
+    }
+  }
+
+  // ── Method 11: TrueAutomation broad street-name search ────────────────────
+  if (cadConfig && req.address) {
+    const streetId = await trueAutoSearchByStreetName(cadConfig.cid, req.address, steps);
+    if (streetId) return streetId;
+  }
 
   steps.push('All property ID resolution methods exhausted — could not determine property ID.');
   return null;
@@ -1371,9 +1763,10 @@ export async function fetchBoundaryCalls(
 
   // ── Step 2: Resolve property ID via all available methods ─────────────────
   let propId: string | null = req.parcel_id ?? null;
+  const geocodedOut: { lat?: number; lon?: number } = {};
 
   if (!propId) {
-    propId = await resolvePropertyId(req, countyKey, cadConfig, steps);
+    propId = await resolvePropertyId(req, countyKey, cadConfig, steps, geocodedOut);
   } else {
     steps.push(`Using provided property ID: ${propId}`);
   }
@@ -1441,6 +1834,8 @@ export async function fetchBoundaryCalls(
       property,
       cad_property_url: cadPropertyUrl,
       deed_search_url: deedSearchUrl,
+      geocoded_lat: geocodedOut.lat,
+      geocoded_lon: geocodedOut.lon,
       error: 'No legal description available to parse boundary calls.',
       search_steps: steps,
     };
@@ -1479,6 +1874,8 @@ export async function fetchBoundaryCalls(
     closure_check: closureCheck,
     cad_property_url: cadPropertyUrl,
     deed_search_url: deedSearchUrl,
+    geocoded_lat: geocodedOut.lat,
+    geocoded_lon: geocodedOut.lon,
     error: calls.length === 0
       ? 'Legal description was found but no metes-and-bounds calls could be extracted.'
       : undefined,

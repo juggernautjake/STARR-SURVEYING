@@ -59,6 +59,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     results.geocoded_lat = geo.lat;
     results.geocoded_lon = geo.lon;
     results.location_preview_url = buildPreviewUrl(geo.lat, geo.lon);
+
+    // Patch USGS TopoView URLs — replace placeholder lat/lon with actual geocoded coordinates
+    for (const r of results.results) {
+      if (r.source === 'usgs' && r.url.includes('ngmdb.usgs.gov/topoview')) {
+        r.url = `https://ngmdb.usgs.gov/topoview/viewer/#14/${geo.lat.toFixed(5)}/${geo.lon.toFixed(5)}`;
+        r.description = r.description.replace(/geocoded location/i, `${geo.lat.toFixed(5)}, ${geo.lon.toFixed(5)}`);
+      }
+    }
   }
 
   return NextResponse.json(results);
