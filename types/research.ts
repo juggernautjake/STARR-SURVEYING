@@ -346,7 +346,8 @@ export type SearchSource =
   | 'bell_county_gis'  // Bell County GIS portal
   | 'texas_glo'        // Texas General Land Office (abstract surveys)
   | 'texas_rrc'        // Texas Railroad Commission (oil/gas infrastructure)
-  | 'city_records';    // City permit/plat portals
+  | 'city_records'     // City permit/plat portals
+  | 'texas_file';      // TexasFile deed/instrument search
 
 export interface PropertySearchResult {
   id: string;
@@ -391,6 +392,68 @@ export interface PropertySearchResponse {
   geocoded_lon?: number | null;
   /** Static satellite map preview URL for the geocoded location */
   location_preview_url?: string | null;
+}
+
+// ── Boundary Calls Fetch ─────────────────────────────────────────────────────
+
+export interface BoundaryFetchRequest {
+  address?: string;
+  county?: string;
+  parcel_id?: string;
+  state?: string;
+}
+
+/** One leg of a metes-and-bounds traverse */
+export interface ParsedBoundaryCall {
+  sequence: number;
+  type: 'line' | 'curve';
+  /** Formatted bearing string, e.g. "N 45°30'00\" E" */
+  bearing?: string;
+  distance?: number;
+  distance_unit?: string;
+  // Curve data
+  radius?: number;
+  arc_length?: number;
+  delta_angle?: string;
+  chord_bearing?: string;
+  chord_distance?: number;
+  curve_direction?: 'left' | 'right';
+  /** Raw text excerpt this call was parsed from */
+  raw_text?: string;
+}
+
+/** Property record data returned from a county appraisal district */
+export interface PropertyDetails {
+  owner_name?: string;
+  mailing_address?: string;
+  property_address?: string;
+  legal_description?: string;
+  acreage?: number;
+  land_value?: number;
+  improvement_value?: number;
+  total_value?: number;
+  land_use?: string;
+  abstract?: string;
+  subdivision?: string;
+  lot_block?: string;
+  deed_reference?: string;
+  property_id?: string;
+}
+
+export interface BoundaryFetchResult {
+  success: boolean;
+  source_name: string;
+  source_url?: string;
+  property_id?: string;
+  property?: PropertyDetails;
+  legal_description?: string;
+  point_of_beginning?: string;
+  boundary_calls?: ParsedBoundaryCall[];
+  call_count?: number;
+  stated_acreage?: number;
+  error?: string;
+  /** Step-by-step log of what was searched/found during retrieval */
+  search_steps: string[];
 }
 
 // ── Verification & Comparison ────────────────────────────────────────────────
