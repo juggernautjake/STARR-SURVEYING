@@ -164,18 +164,18 @@
   display: flex;
   align-items: center;
   background: #10B981;
-  border-radius: 14px;
+  border-radius: 16px;
   box-shadow: 0 4px 20px rgba(16, 185, 129, 0.35), 0 2px 8px rgba(0,0,0,.12);
   transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 0;
+  padding: 5px 0;
   overflow: visible;
 }
 
 /* Toggle arrow — left side of the green bar */
 .fab-menu__toggle {
   width: 36px;
-  height: 48px;
-  border-radius: 14px 0 0 14px;
+  height: 56px;
+  border-radius: 16px 0 0 16px;
   background: transparent;
   color: #FFF;
   border: none;
@@ -199,9 +199,9 @@
 
 /* Collapsed state toggle gets full rounding */
 .fab-menu--collapsed .fab-menu__toggle {
-  border-radius: 14px;
-  width: 40px;
-  height: 40px;
+  border-radius: 16px;
+  width: 42px;
+  height: 42px;
 }
 
 /* Buttons container */
@@ -232,7 +232,7 @@
 
 /* Collapsed: shrink pill to just the arrow */
 .fab-menu--collapsed {
-  border-radius: 14px;
+  border-radius: 16px;
   box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3), 0 2px 6px rgba(0,0,0,.1);
 }
 
@@ -247,20 +247,36 @@
   transform: none !important;
 }
 
-/* Inside the green bar, FAB buttons get a subtler look */
-.fab-menu .fieldbook-fab,
-.fab-menu .discussion-fab,
-.fab-menu .messenger-fab {
-  background: rgba(255,255,255,.2);
-  box-shadow: 0 1px 4px rgba(0,0,0,.1);
-  border: 1px solid rgba(255,255,255,.25);
+/* Inside the green bar, FABs keep their original colors with a subtle border */
+.fab-menu .fieldbook-fab {
+  background: #BD1218;
+  box-shadow: 0 2px 8px rgba(189, 18, 24, 0.35);
+  border: 1px solid rgba(255,255,255,.3);
 }
-.fab-menu .fieldbook-fab:hover,
-.fab-menu .discussion-fab:hover,
-.fab-menu .messenger-fab:hover {
-  background: rgba(255,255,255,.35);
+.fab-menu .fieldbook-fab:hover {
+  background: #9A0F14;
   transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(0,0,0,.15);
+  box-shadow: 0 4px 12px rgba(189, 18, 24, 0.45);
+}
+.fab-menu .discussion-fab {
+  background: #F59E0B;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+  border: 1px solid rgba(255,255,255,.3);
+}
+.fab-menu .discussion-fab:hover {
+  background: #D97706;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.45);
+}
+.fab-menu .messenger-fab {
+  background: #1D3095;
+  box-shadow: 0 2px 8px rgba(29, 48, 149, 0.35);
+  border: 1px solid rgba(255,255,255,.3);
+}
+.fab-menu .messenger-fab:hover {
+  background: #152050;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(29, 48, 149, 0.45);
 }
 
 /* Tooltip colors updated to match green bar */

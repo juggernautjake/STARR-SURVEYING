@@ -45,11 +45,15 @@ interface DrawingCanvasProps {
   preferences?: Partial<DrawingPreferences>;
   activeTool: DrawingTool;
   toolSettings: ToolSettings;
+  /** Called to switch the active tool (e.g. reverting to 'select' after a one-shot tool) */
+  onToolChange?: (tool: DrawingTool) => void;
   onElementClick: (element: DrawingElement) => void;
   onElementModified?: (elementId: string, changes: Partial<DrawingElement>) => void;
   onRevertElement?: (elementId: string) => void;
   annotations: UserAnnotation[];
   onAnnotationsChange: (annotations: UserAnnotation[]) => void;
+  /** Silent update that skips undo/redo history — used during drag/resize intermediate moves */
+  onAnnotationsSilentChange?: (annotations: UserAnnotation[]) => void;
   zoom?: number;
   onZoomChange?: (zoom: number) => void;
   /** Show draggable vertex handles on boundary elements */
@@ -72,11 +76,13 @@ export default function DrawingCanvas({
   preferences,
   activeTool,
   toolSettings,
+  onToolChange,
   onElementClick,
   onElementModified,
   onRevertElement,
   annotations,
   onAnnotationsChange,
+  onAnnotationsSilentChange,
   zoom: externalZoom,
   onZoomChange,
   showVertexHandles,
@@ -114,6 +120,23 @@ export default function DrawingCanvas({
   const [currentPoints, setCurrentPoints] = useState<{ x: number; y: number }[]>([]);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
 
+  // Drag-to-move annotation state
+  const [draggingAnnotation, setDraggingAnnotation] = useState<{
+    id: string;
+    startMouse: { x: number; y: number };
+    startPoints: { x: number; y: number }[];
+  } | null>(null);
+
+  // Resize annotation state (corner/edge handles)
+  const [resizingAnnotation, setResizingAnnotation] = useState<{
+    id: string;
+    handle: string;
+    startMouse: { x: number; y: number };
+    startBounds: { x: number; y: number; w: number; h: number };
+    startImageW?: number;
+    startImageH?: number;
+  } | null>(null);
+
   // Text input overlay state
   const [textInput, setTextInput] = useState<{ x: number; y: number; value: string } | null>(null);
   const textInputRef = useRef<HTMLTextAreaElement>(null);
@@ -124,14 +147,6 @@ export default function DrawingCanvas({
     y: number;
     element: DrawingElement | null;
     annotationId: string | null;
-  } | null>(null);
-
-  // Resize handles state
-  const [resizing, setResizing] = useState<{
-    annotationId: string;
-    handle: string;  // e.g. 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
-    startMouse: { x: number; y: number };
-    startBounds: { x: number; y: number; w: number; h: number };
   } | null>(null);
 
   // Measurement state
@@ -251,6 +266,12 @@ export default function DrawingCanvas({
     onAnnotationsChange(annotations.map(a => a.id === id ? { ...a, ...changes } : a));
   }
 
+  /** Update annotation without pushing to undo history — used during drag/resize intermediate moves */
+  function updateAnnotationSilent(id: string, changes: Partial<UserAnnotation>) {
+    const updated = annotations.map(a => a.id === id ? { ...a, ...changes } : a);
+    (onAnnotationsSilentChange || onAnnotationsChange)(updated);
+  }
+
   function deleteAnnotation(id: string) {
     onAnnotationsChange(annotations.filter(a => a.id !== id));
     if (selectedAnnotationId === id) setSelectedAnnotationId(null);
@@ -306,10 +327,42 @@ export default function DrawingCanvas({
       return;
     }
 
+    // Polyline: if already drawing, add a new point instead of resetting
+    if (activeTool === 'polyline' && isDrawing && currentPoints.length > 0) {
+      setCurrentPoints(prev => [...prev, svgPt]);
+      return;
+    }
+
+    // Click-click mode: if already drawing a line/shape tool, the second click
+    // places the endpoint and finalizes the annotation.
+    const CLICK_CLICK_TOOLS = ['line', 'dimension', 'callout', 'rectangle', 'circle'];
+    if (CLICK_CLICK_TOOLS.includes(activeTool) && isDrawing && currentPoints.length >= 1) {
+      const pts = [currentPoints[0], svgPt];
+      const ann: UserAnnotation = {
+        id: generateId(),
+        type: activeTool as UserAnnotation['type'],
+        points: pts,
+        style: {
+          stroke: toolSettings.strokeColor,
+          strokeWidth: toolSettings.strokeWidth,
+          strokeDasharray: toolSettings.dashPattern,
+          fill: activeTool === 'rectangle' || activeTool === 'circle' ? toolSettings.fillColor : 'none',
+          opacity: toolSettings.opacity,
+        },
+        zIndex: getMaxZIndex() + 1,
+      };
+      if (activeTool === 'callout') { ann.type = 'callout'; ann.text = 'Note'; ann.style.fontSize = toolSettings.fontSize; ann.style.fontFamily = toolSettings.fontFamily; }
+      if (activeTool === 'dimension') { ann.type = 'dimension'; ann.style.fontSize = toolSettings.fontSize; ann.style.fontFamily = toolSettings.fontFamily; }
+      addAnnotation(ann);
+      setIsDrawing(false);
+      setCurrentPoints([]);
+      return;
+    }
+
     // Start drawing
     setIsDrawing(true);
     setCurrentPoints([svgPt]);
-  }, [activeTool, clientToSvg, measureStart]);
+  }, [activeTool, clientToSvg, measureStart, isDrawing, currentPoints, toolSettings, annotations]);
 
   const handleDrawMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawing) {
@@ -390,7 +443,13 @@ export default function DrawingCanvas({
 
     setIsDrawing(false);
     setCurrentPoints([]);
-  }, [isDrawing, currentPoints, activeTool, toolSettings, annotations]);
+
+    // One-shot tools: revert to select cursor after placement
+    const ONE_SHOT_TOOLS = ['symbol'];
+    if (ONE_SHOT_TOOLS.includes(activeTool)) {
+      onToolChange?.('select');
+    }
+  }, [isDrawing, currentPoints, activeTool, toolSettings, annotations, onToolChange]);
 
   // Click to add polyline point
   const handlePolylineClick = useCallback((e: React.MouseEvent) => {
@@ -431,7 +490,9 @@ export default function DrawingCanvas({
 
     addAnnotation(newAnnotation);
     setTextInput(null);
-  }, [textInput, clientToSvg, toolSettings, annotations]);
+    // Text placement is one-shot — revert to select
+    onToolChange?.('select');
+  }, [textInput, clientToSvg, toolSettings, annotations, onToolChange]);
 
   // ── Tool: Image Placement ─────────────────────────────────────────────
 
@@ -469,13 +530,15 @@ export default function DrawingCanvas({
           zIndex: getMaxZIndex() + 1,
         };
         addAnnotation(newAnnotation);
+        // Image is a one-shot tool — revert to select cursor
+        onToolChange?.('select');
       };
       img.src = dataUrl;
     };
     reader.readAsDataURL(file);
     // Reset input so same file can be re-uploaded
     e.target.value = '';
-  }, [clientToSvg, zoom, toolSettings, annotations]);
+  }, [clientToSvg, zoom, toolSettings, annotations, onToolChange]);
 
   // ── Tool: Eraser ──────────────────────────────────────────────────────
 
@@ -617,66 +680,28 @@ export default function DrawingCanvas({
     return { x: clampedX, y: clampedY };
   }, [drawing.canvas_config]);
 
-  // ── Double-click to zoom in, triple-click to zoom out ──
-  // Track rapid clicks for triple-click detection
+  // ── Double-click / triple-click zoom ──
+  // Uses native e.detail (1=single, 2=double, 3=triple) — no manual click counter needed.
+  // Track rapid clicks for triple-click detection as a fallback.
   const clickCountRef = useRef(0);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Called on every single click to count rapid clicks for triple-click zoom-out
   const handleRapidClick = useCallback((e: React.MouseEvent) => {
-    if (!['select', 'pan'].includes(activeTool)) return;
     clickCountRef.current += 1;
     if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-    clickTimerRef.current = setTimeout(() => {
-      clickCountRef.current = 0;
-    }, 500);
-  }, [activeTool]);
+    clickTimerRef.current = setTimeout(() => { clickCountRef.current = 0; }, 600);
+  }, []);
 
-  // Zoom in on double-click at click position
-  const handleZoomIn = useCallback((e: React.MouseEvent) => {
-    if (!['select', 'pan'].includes(activeTool)) return;
-
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    // If this is the 3rd+ click in a rapid sequence, zoom OUT instead
-    if (clickCountRef.current >= 3) {
-      const zoomFactor = 0.5;
-      const newZoom = Math.max(0.1, zoom * zoomFactor);
-      const scale = newZoom / zoom;
-      const newPan = clampPan(
-        mouseX - scale * (mouseX - pan.x),
-        mouseY - scale * (mouseY - pan.y),
-        newZoom
-      );
-      setZoom(newZoom);
-      setPan(newPan);
-      clickCountRef.current = 0;
-      return;
-    }
-
-    // Standard double-click: zoom IN
-    const zoomFactor = 1.5;
-    const newZoom = Math.min(10, zoom * zoomFactor);
-    const scale = newZoom / zoom;
-    const newPan = clampPan(
-      mouseX - scale * (mouseX - pan.x),
-      mouseY - scale * (mouseY - pan.y),
-      newZoom
-    );
-    setZoom(newZoom);
-    setPan(newPan);
-  }, [activeTool, zoom, pan, setZoom, clampPan]);
-
-  // Double-click to finish polyline OR zoom in at click position
+  // Double-click: finish polyline, OR zoom in. Triple-click: zoom out.
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    // Finish polyline on double-click
     if (activeTool === 'polyline' && isDrawing && currentPoints.length >= 2) {
+      // Remove the last duplicate point added by the second click of the double-click
+      const points = currentPoints.slice(0, -1).length >= 2 ? currentPoints.slice(0, -1) : currentPoints;
       const newAnnotation: UserAnnotation = {
         id: generateId(),
         type: 'polyline',
-        points: currentPoints,
+        points,
         style: {
           stroke: toolSettings.strokeColor,
           strokeWidth: toolSettings.strokeWidth,
@@ -692,9 +717,35 @@ export default function DrawingCanvas({
       return;
     }
 
-    // Zoom in (or out on triple-click)
-    handleZoomIn(e);
-  }, [activeTool, isDrawing, currentPoints, toolSettings, annotations, handleZoomIn]);
+    // Only zoom on select/pan tools
+    if (!['select', 'pan'].includes(activeTool)) return;
+
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Use clickCountRef for triple-click detection (e.detail >= 3 also works but
+    // some browsers cap detail at 2 for dblclick events)
+    const isTriple = clickCountRef.current >= 3;
+
+    if (isTriple) {
+      // Triple-click: zoom OUT
+      const newZoom = Math.max(0.1, zoom * 0.5);
+      const scale = newZoom / zoom;
+      const newPan = clampPan(mouseX - scale * (mouseX - pan.x), mouseY - scale * (mouseY - pan.y), newZoom);
+      setZoom(newZoom);
+      setPan(newPan);
+      clickCountRef.current = 0;
+    } else {
+      // Double-click: zoom IN
+      const newZoom = Math.min(10, zoom * 1.5);
+      const scale = newZoom / zoom;
+      const newPan = clampPan(mouseX - scale * (mouseX - pan.x), mouseY - scale * (mouseY - pan.y), newZoom);
+      setZoom(newZoom);
+      setPan(newPan);
+    }
+  }, [activeTool, isDrawing, currentPoints, toolSettings, annotations, zoom, pan, setZoom, clampPan]);
 
   // Mouse down — pan or draw
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -724,24 +775,103 @@ export default function DrawingCanvas({
       return;
     }
 
-    // Select tool — pan on empty space
+    // Select tool — drag annotation, resize handle, or pan on empty space
     if (activeTool === 'select') {
       const target = e.target as SVGElement;
+
+      // Check if clicking on a resize handle
+      const handleType = target.getAttribute('data-resize-handle');
+      if (handleType && selectedAnnotationId) {
+        const ann = annotations.find(a => a.id === selectedAnnotationId);
+        if (ann) {
+          const bounds = getAnnotationBounds(ann);
+          if (bounds) {
+            setResizingAnnotation({
+              id: selectedAnnotationId,
+              handle: handleType,
+              startMouse: clientToSvg(e.clientX, e.clientY),
+              startBounds: bounds,
+              startImageW: ann.imageWidth,
+              startImageH: ann.imageHeight,
+            });
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+
       const elId = target.getAttribute('data-element-id')
         || target.closest('[data-element-id]')?.getAttribute('data-element-id');
       const annId = target.getAttribute('data-annotation-id')
         || target.closest('[data-annotation-id]')?.getAttribute('data-annotation-id');
+
+      // Start dragging the selected annotation
+      if (annId && annId === selectedAnnotationId) {
+        const ann = annotations.find(a => a.id === annId);
+        if (ann) {
+          setDraggingAnnotation({
+            id: annId,
+            startMouse: clientToSvg(e.clientX, e.clientY),
+            startPoints: ann.points.map(p => ({ ...p })),
+          });
+          e.preventDefault();
+          return;
+        }
+      }
 
       if (!elId && !annId) {
         setIsPanning(true);
         setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
       }
     }
-  }, [pan, activeTool, handleDrawStart]);
+  }, [pan, activeTool, handleDrawStart, selectedAnnotationId, annotations, clientToSvg]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     // Always track cursor coords for coordinate display
     setCursorCoords(clientToSvg(e.clientX, e.clientY));
+
+    // Drag-to-move annotation
+    if (draggingAnnotation) {
+      const svgPt = clientToSvg(e.clientX, e.clientY);
+      const dx = svgPt.x - draggingAnnotation.startMouse.x;
+      const dy = svgPt.y - draggingAnnotation.startMouse.y;
+      const newPoints = draggingAnnotation.startPoints.map(p => ({ x: p.x + dx, y: p.y + dy }));
+      updateAnnotationSilent(draggingAnnotation.id, { points: newPoints });
+      return;
+    }
+
+    // Resize annotation via handles
+    if (resizingAnnotation) {
+      const svgPt = clientToSvg(e.clientX, e.clientY);
+      const dx = svgPt.x - resizingAnnotation.startMouse.x;
+      const dy = svgPt.y - resizingAnnotation.startMouse.y;
+      const { startBounds, handle, id } = resizingAnnotation;
+      const ann = annotations.find(a => a.id === id);
+      if (!ann) return;
+
+      // Compute new bounding box based on which handle is dragged
+      let nx = startBounds.x, ny = startBounds.y, nw = startBounds.w, nh = startBounds.h;
+      if (handle.includes('e')) nw = Math.max(10, startBounds.w + dx);
+      if (handle.includes('w')) { nx = startBounds.x + dx; nw = Math.max(10, startBounds.w - dx); }
+      if (handle.includes('s')) nh = Math.max(10, startBounds.h + dy);
+      if (handle.includes('n')) { ny = startBounds.y + dy; nh = Math.max(10, startBounds.h - dy); }
+
+      if (ann.type === 'image') {
+        // For images: update center position and dimensions
+        const centerX = nx + nw / 2;
+        const centerY = ny + nh / 2;
+        updateAnnotationSilent(id, { points: [{ x: centerX, y: centerY }], imageWidth: nw, imageHeight: nh });
+      } else {
+        // For shapes: scale points to fit new bounding box
+        const ob = startBounds;
+        if (ob.w > 0 && ob.h > 0 && ann.points.length >= 2) {
+          const newP0 = { x: nx, y: ny };
+          const newP1 = { x: nx + nw, y: ny + nh };
+          updateAnnotationSilent(id, { points: [newP0, newP1] });
+        }
+      }
+      return;
+    }
 
     if (isPanning) {
       const rawX = e.clientX - panStart.x;
@@ -754,21 +884,48 @@ export default function DrawingCanvas({
       return;
     }
     handleSvgMouseMove(e);
-  }, [isPanning, panStart, isDrawing, handleDrawMove, handleSvgMouseMove, clientToSvg, clampPan, zoom]);
+  }, [isPanning, panStart, isDrawing, handleDrawMove, handleSvgMouseMove, clientToSvg, clampPan, zoom, draggingAnnotation, resizingAnnotation, annotations]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    // End annotation drag — commit final state to history
+    if (draggingAnnotation) {
+      // Push the current (final) annotations state through the history-tracked callback
+      onAnnotationsChange(annotations);
+      setDraggingAnnotation(null);
+      setDragStartPos(null);
+      return;
+    }
+    // End annotation resize — commit final state to history
+    if (resizingAnnotation) {
+      onAnnotationsChange(annotations);
+      setResizingAnnotation(null);
+      setDragStartPos(null);
+      return;
+    }
     if (isPanning) {
       setIsPanning(false);
       setDragStartPos(null);
       return;
     }
     if (isDrawing && activeTool !== 'polyline') {
+      // Click-move-click mode for line-based tools: if the user barely dragged,
+      // keep drawing active so they can click again to place the endpoint.
+      const CLICK_CLICK_TOOLS = ['line', 'dimension', 'callout', 'rectangle', 'circle'];
+      if (CLICK_CLICK_TOOLS.includes(activeTool) && dragStartPos) {
+        const dx = Math.abs(e.clientX - dragStartPos.x);
+        const dy = Math.abs(e.clientY - dragStartPos.y);
+        if (dx < 5 && dy < 5 && currentPoints.length <= 1) {
+          // Tiny drag — switch to click-click mode: keep drawing, wait for next mouseDown
+          setDragStartPos(null);
+          return;
+        }
+      }
       handleDrawEnd();
       setDragStartPos(null);
       return;
     }
     setDragStartPos(null);
-  }, [isPanning, isDrawing, activeTool, handleDrawEnd]);
+  }, [isPanning, isDrawing, activeTool, handleDrawEnd, dragStartPos, currentPoints, draggingAnnotation, resizingAnnotation, annotations, onAnnotationsChange]);
 
   // Touch support
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -1334,6 +1491,7 @@ function renderSelectionHandles(ann: UserAnnotation): JSX.Element {
       ].map(h => (
         <rect
           key={h.handle}
+          data-resize-handle={h.handle}
           x={h.cx - handleSize / 2}
           y={h.cy - handleSize / 2}
           width={handleSize}

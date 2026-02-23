@@ -48,13 +48,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (format === 'svg') {
     const viewMode = (req.nextUrl.searchParams.get('viewMode') || 'standard') as ViewMode;
     const showTitleBlock = req.nextUrl.searchParams.get('titleBlock') !== 'false';
-    const showLegend = viewMode === 'feature';
-    const showConfidenceBar = viewMode === 'confidence';
+    const showNorthArrow = req.nextUrl.searchParams.get('northArrow') !== 'false';
+    const showScaleBar = req.nextUrl.searchParams.get('scaleBar') !== 'false';
+    const showLegend = req.nextUrl.searchParams.get('legend') === 'true' || viewMode === 'feature';
+    const showConfidenceBar = req.nextUrl.searchParams.get('confidenceBar') === 'true' || viewMode === 'confidence';
 
     const svg = renderDrawingSVG(result.drawing, result.elements, viewMode, {
       showTitleBlock,
-      showNorthArrow: true,
-      showScaleBar: true,
+      showNorthArrow,
+      showScaleBar,
       showLegend,
       showConfidenceBar,
       interactive: true,
