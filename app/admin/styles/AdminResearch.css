@@ -6886,3 +6886,61 @@
 .layer-panel__row:active {
   cursor: grabbing;
 }
+
+/* ── Property Search: Location Map Preview ───────────────────────────────── */
+
+.research-search__map-preview {
+  margin: 0.75rem 0 0;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #F9FAFB;
+}
+
+.research-search__map-preview-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #F3F4F6;
+  border-bottom: 1px solid #E5E7EB;
+  font-size: 0.78rem;
+}
+
+.research-search__map-preview-label {
+  font-weight: 600;
+  color: #374151;
+}
+
+.research-search__map-preview-coords {
+  font-family: 'Courier New', monospace;
+  font-size: 0.74rem;
+  color: #6B7280;
+}
+
+.research-search__map-preview-note {
+  color: #6B7280;
+  font-style: italic;
+  flex: 1 1 100%;
+  font-size: 0.72rem;
+}
+
+.research-search__map-img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* ── Import success: map note ────────────────────────────────────────────── */
+
+.research-search__import-success p {
+  margin: 0 0 0.25rem;
+}
+
+.research-search__import-map-note {
+  font-size: 0.82rem;
+  color: #1D4ED8;
+}

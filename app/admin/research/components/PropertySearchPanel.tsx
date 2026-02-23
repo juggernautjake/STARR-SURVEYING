@@ -42,7 +42,7 @@ export default function PropertySearchPanel({
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ count: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ count: number; mapNote?: string } | null>(null);
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showAddressIssues, setShowAddressIssues] = useState(true);
@@ -125,12 +125,17 @@ export default function PropertySearchPanel({
             document_type: r.document_type,
             description: r.description,
           })),
+          // Pass address so the route can trigger satellite/topo image capture
+          address: address.trim() || undefined,
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        setImportResult({ count: data.imported });
+        const mapNote = data.map_images_queued
+          ? ' Satellite and topo map images are being captured in the background and will appear in Documents.'
+          : '';
+        setImportResult({ count: data.imported, mapNote });
         setSelected(new Set());
         onImported?.();
       } else {
@@ -341,6 +346,30 @@ export default function PropertySearchPanel({
             })}
           </div>
 
+          {/* Location map preview — satellite thumbnail from USGS (no API key) */}
+          {searchResponse.location_preview_url && (
+            <div className="research-search__map-preview">
+              <div className="research-search__map-preview-header">
+                <span className="research-search__map-preview-label">📍 Geocoded Location Preview</span>
+                {searchResponse.geocoded_lat && searchResponse.geocoded_lon && (
+                  <span className="research-search__map-preview-coords">
+                    {searchResponse.geocoded_lat.toFixed(5)}, {searchResponse.geocoded_lon.toFixed(5)}
+                  </span>
+                )}
+                <span className="research-search__map-preview-note">
+                  USGS satellite imagery — importing will also save full-resolution satellite &amp; topo images as project documents for AI analysis
+                </span>
+              </div>
+              <img
+                className="research-search__map-img"
+                src={searchResponse.location_preview_url}
+                alt="Satellite view of geocoded property location"
+                loading="lazy"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            </div>
+          )}
+
           {/* Results header with select controls */}
           {searchResponse.results.length > 0 && (
             <div className="research-search__results-header">
@@ -478,7 +507,10 @@ export default function PropertySearchPanel({
           {/* Import success */}
           {importResult && (
             <div className="research-search__import-success">
-              Successfully imported {importResult.count} document{importResult.count !== 1 ? 's' : ''} into your project.
+              <p>✅ Successfully imported {importResult.count} document{importResult.count !== 1 ? 's' : ''} into your project.</p>
+              {importResult.mapNote && (
+                <p className="research-search__import-map-note">🛰️ {importResult.mapNote}</p>
+              )}
             </div>
           )}
         </div>

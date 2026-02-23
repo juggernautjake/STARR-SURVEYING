@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { searchPropertyRecords } from '@/lib/research/property-search.service';
-import { processDocument } from '@/lib/research/document.service';
+import { geocodeAddress, buildPreviewUrl, captureLocationImages } from '@/lib/research/map-image.service';
 import type { PropertySearchRequest } from '@/types/research';
 
 function extractProjectId(req: NextRequest): string | null {
@@ -48,7 +48,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }, { status: 400 });
   }
 
-  const results = await searchPropertyRecords(searchReq);
+  // Run property search + geocoding in parallel (geocoding is non-fatal)
+  const [results, geo] = await Promise.all([
+    searchPropertyRecords(searchReq),
+    searchReq.address ? geocodeAddress(searchReq.address) : Promise.resolve(null),
+  ]);
+
+  // Attach geocoded location and preview URL to the response
+  if (geo) {
+    results.geocoded_lat = geo.lat;
+    results.geocoded_lon = geo.lon;
+    results.location_preview_url = buildPreviewUrl(geo.lat, geo.lon);
+  }
 
   return NextResponse.json(results);
 }, { routeName: 'research/search' });
@@ -64,7 +75,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   // Verify project exists
   const { data: project, error: projError } = await supabaseAdmin
     .from('research_projects')
-    .select('id, status')
+    .select('id, status, property_address')
     .eq('id', projectId)
     .single();
 
@@ -81,6 +92,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
       document_type: string;
       description: string;
     }[];
+    address?: string;
   };
 
   if (!body.results?.length) {
@@ -121,6 +133,23 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
+  // Fire-and-forget: capture satellite + topo map images for the address.
+  // These run async — we don't wait for them to avoid blocking the response.
+  const addressToCapture = body.address || project.property_address;
+  if (addressToCapture) {
+    // Deliberately not awaited — runs in background and stores images as project documents
+    captureLocationImages(projectId, addressToCapture).then(imageResult => {
+      if (imageResult.documentIds.length > 0) {
+        console.info(
+          `[Search Import] Stored ${imageResult.documentIds.length} map image(s) for project ${projectId}`,
+          imageResult.geocoded ? `at ${imageResult.geocoded.lat.toFixed(4)}, ${imageResult.geocoded.lon.toFixed(4)}` : '(geocoding failed)'
+        );
+      }
+    }).catch(err => {
+      console.warn('[Search Import] Map image capture failed (non-fatal):', err instanceof Error ? err.message : err);
+    });
+  }
+
   // Update project document count
   const { count } = await supabaseAdmin
     .from('research_documents')
@@ -131,5 +160,6 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     imported: imported.length,
     document_ids: imported,
     total_documents: count || 0,
+    map_images_queued: !!addressToCapture,
   });
 }, { routeName: 'research/search/import' });

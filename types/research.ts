@@ -361,6 +361,8 @@ export interface PropertySearchResult {
   cost_note?: string;
   /** True when the URL or content is specifically about THIS property (not a generic portal link) */
   is_property_specific?: boolean;
+  /** Static map image URL safe to embed in <img> directly (USGS public service) */
+  preview_image_url?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -384,6 +386,11 @@ export interface PropertySearchResponse {
   address_issues?: string[];
   /** Actionable suggestions for the researcher */
   address_suggestions?: string[];
+  /** Geocoded coordinates for the address (null if geocoding failed or no address given) */
+  geocoded_lat?: number | null;
+  geocoded_lon?: number | null;
+  /** Static satellite map preview URL for the geocoded location */
+  location_preview_url?: string | null;
 }
 
 // ── Verification & Comparison ────────────────────────────────────────────────
