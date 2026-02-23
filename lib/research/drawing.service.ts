@@ -140,10 +140,14 @@ export async function createDrawing(
   // Survey coord (x_s, y_s) → canvas pixel (px, py):
   //   px = offsetX + (x_s - bbox.minX) * safeScale
   //   py = offsetY + (bbox.maxY - y_s) * safeScale   (flip Y: north=up → SVG y-down)
+  let warnedNaN = false;
   function surveyToCanvas(x: number, y: number): [number, number] {
     const px = offsetX + (x - bbox.minX) * safeScale;
     const py = offsetY + (bbox.maxY - y) * safeScale;
-    // Guard against NaN/Infinity
+    if ((!isFinite(px) || !isFinite(py)) && !warnedNaN) {
+      console.warn('[Drawing Service] surveyToCanvas produced non-finite value', { x, y, px, py, safeScale, bbox });
+      warnedNaN = true;
+    }
     return [
       isFinite(px) ? Math.round(px * 10) / 10 : canvasWidth / 2,
       isFinite(py) ? Math.round(py * 10) / 10 : canvasHeight / 2,
@@ -286,13 +290,24 @@ export async function createDrawing(
   }
   const extentNote = maxDist > 0 ? ` Max extent: ${maxDist.toFixed(1)} ft (${(maxDist / 5280).toFixed(3)} mi).` : '';
 
+  const closureRatio = Math.round(traverseResult.closure.precision_ratio);
+  const misclosureFt = traverseResult.closure.misclosure_ft.toFixed(3);
+  const areaAcres = traverseResult.area_acres.toFixed(4);
+  const areaSqFt = Math.round(traverseResult.area_sq_ft).toLocaleString();
+  const comparisonNotes = [
+    `Traverse closure: 1:${closureRatio} (${misclosureFt} ft misclosure).`,
+    `Area: ${areaAcres} acres (${areaSqFt} sq ft).`,
+    extentNote.trim(),
+    `${elements.length} elements generated.`,
+  ].filter(Boolean).join(' ');
+
   await supabaseAdmin
     .from('rendered_drawings')
     .update({
       status: 'rendered',
       overall_confidence: overallConfidence,
       confidence_breakdown: confidenceBreakdown,
-      comparison_notes: `Traverse closure: 1:${Math.round(traverseResult.closure.precision_ratio)} (${traverseResult.closure.misclosure_ft.toFixed(3)} ft misclosure). Area: ${traverseResult.area_acres.toFixed(4)} acres (${Math.round(traverseResult.area_sq_ft).toLocaleString()} sq ft).${extentNote} ${elements.length} elements generated.`,
+      comparison_notes: comparisonNotes,
       updated_at: new Date().toISOString(),
     })
     .eq('id', drawingId);

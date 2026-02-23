@@ -2127,6 +2127,10 @@
   cursor: grabbing;
 }
 
+/* The SVG container MUST be absolute-positioned (not flex or 100%x100%) so that
+ * CSS does NOT pre-scale the SVG before the JavaScript pan/zoom transform is applied.
+ * Without this, CSS would shrink the SVG to fit the container and then the JS transform
+ * would apply a second scale, resulting in the drawing appearing too small to see. */
 .research-canvas__svg-container {
   position: absolute;
   top: 0;

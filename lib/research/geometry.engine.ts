@@ -533,7 +533,7 @@ export function buildElementsFromAnalysis(
           anchor: 'start',
         },
         attributes: {
-          text: `P${i} (${pt.x >= 0 ? '+' : ''}${pt.x.toFixed(1)}, ${pt.y >= 0 ? '+' : ''}${pt.y.toFixed(1)})`,
+          text: `P${i} (${formatCoordinate(pt.x)}, ${formatCoordinate(pt.y)})`,
           label_type: 'coordinate',
           point_index: i,
           coord_x: pt.x,
@@ -567,6 +567,17 @@ function buildSourceReferences(dp: ExtractedDataPoint): SourceReference[] {
     excerpt: dp.source_text_excerpt ?? dp.raw_value.substring(0, 200),
     bounding_box: dp.source_bounding_box ?? undefined,
   }];
+}
+
+// ── Coordinate Formatting ────────────────────────────────────────────────────
+
+/**
+ * Format a survey coordinate value with sign for display on drawings.
+ * Positive values show '+', negative values show '-'.
+ */
+function formatCoordinate(value: number): string {
+  const sign = value >= 0 ? '+' : '';
+  return `${sign}${value.toFixed(1)}`;
 }
 
 // ── Discrepancy Lookup ───────────────────────────────────────────────────────

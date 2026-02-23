@@ -93,7 +93,7 @@ const MONUMENT_TYPE_ICONS: Record<string, string> = {
 };
 
 function monumentIcon(type: string): string {
-  const key = Object.keys(MONUMENT_TYPE_ICONS).find(k => type.toLowerCase().includes(k.replace('_', ' ').split('_')[0]));
+  const key = Object.keys(MONUMENT_TYPE_ICONS).find(k => type.toLowerCase().includes(k.split('_')[0]));
   return key ? MONUMENT_TYPE_ICONS[key] : '◇';
 }
 
