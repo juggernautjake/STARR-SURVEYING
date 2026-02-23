@@ -346,7 +346,8 @@ export type SearchSource =
   | 'bell_county_gis'  // Bell County GIS portal
   | 'texas_glo'        // Texas General Land Office (abstract surveys)
   | 'texas_rrc'        // Texas Railroad Commission (oil/gas infrastructure)
-  | 'city_records';    // City permit/plat portals
+  | 'city_records'     // City permit/plat portals
+  | 'texas_file';      // TexasFile deed/instrument search
 
 export interface PropertySearchResult {
   id: string;
@@ -391,6 +392,210 @@ export interface PropertySearchResponse {
   geocoded_lon?: number | null;
   /** Static satellite map preview URL for the geocoded location */
   location_preview_url?: string | null;
+}
+
+// ── Boundary Calls Fetch ─────────────────────────────────────────────────────
+
+export interface BoundaryFetchRequest {
+  address?: string;
+  county?: string;
+  parcel_id?: string;
+  state?: string;
+}
+
+/** One leg of a metes-and-bounds traverse */
+export interface ParsedBoundaryCall {
+  sequence: number;
+  type: 'line' | 'curve';
+  /** Formatted bearing string, e.g. "N 45°30'00\" E" */
+  bearing?: string;
+  distance?: number;
+  distance_unit?: string;
+  // Curve data
+  radius?: number;
+  arc_length?: number;
+  delta_angle?: string;
+  chord_bearing?: string;
+  chord_distance?: number;
+  curve_direction?: 'left' | 'right';
+  /** Raw text excerpt this call was parsed from */
+  raw_text?: string;
+}
+
+/** Property record data returned from a county appraisal district */
+export interface PropertyDetails {
+  owner_name?: string;
+  mailing_address?: string;
+  property_address?: string;
+  legal_description?: string;
+  acreage?: number;
+  land_value?: number;
+  improvement_value?: number;
+  total_value?: number;
+  land_use?: string;
+  abstract?: string;
+  subdivision?: string;
+  lot_block?: string;
+  deed_reference?: string;
+  property_id?: string;
+}
+
+export interface BoundaryFetchResult {
+  success: boolean;
+  source_name: string;
+  source_url?: string;
+  property_id?: string;
+  property?: PropertyDetails;
+  legal_description?: string;
+  point_of_beginning?: string;
+  boundary_calls?: ParsedBoundaryCall[];
+  call_count?: number;
+  stated_acreage?: number;
+  error?: string;
+  /** Step-by-step log of what was searched/found during retrieval */
+  search_steps: string[];
+}
+
+// ── Deep Document Analysis ────────────────────────────────────────────────────
+
+export interface DeepAnalysisCall {
+  sequence: number;
+  type: 'line' | 'curve';
+  bearing?: string | null;
+  distance?: number | null;
+  distance_unit?: string;
+  monument_at_end?: string | null;
+  monument_condition?: string | null;
+  adjoiner?: string | null;
+  raw_text?: string;
+  // Curve fields
+  radius?: number | null;
+  arc_length?: number | null;
+  delta_angle?: string | null;
+  chord_bearing?: string | null;
+  chord_distance?: number | null;
+  curve_direction?: string | null;
+}
+
+export interface DeepAnalysisEasement {
+  type: string;
+  width_ft?: number | null;
+  description?: string;
+  grantee?: string | null;
+  location?: string | null;
+  instrument?: string | null;
+}
+
+export interface DeepAnalysisLot {
+  lot: string;
+  block?: string | null;
+  frontage_ft?: number | null;
+  depth_ft?: number | null;
+  area_sqft?: number | null;
+  area_acres?: number | null;
+  irregular?: boolean;
+}
+
+/** Result of AI deep-analysis on a legal description document */
+export interface LegalDescriptionAnalysis {
+  document_type?: string;
+  identification?: {
+    survey_name?: string | null;
+    abstract_number?: string | null;
+    county?: string | null;
+    state?: string | null;
+    city?: string | null;
+    grantor?: string | null;
+    grantee?: string | null;
+    instrument_number?: string | null;
+    recording_date?: string | null;
+    volume?: string | null;
+    page?: string | null;
+  };
+  tract?: {
+    type?: string | null;
+    stated_acreage?: number | null;
+    stated_sqft?: number | null;
+    lot?: string | null;
+    block?: string | null;
+    subdivision_name?: string | null;
+    plat_reference?: string | null;
+  };
+  point_of_beginning?: {
+    description?: string | null;
+    monument_type?: string | null;
+    monument_condition?: string | null;
+    reference_point?: string | null;
+  };
+  calls?: DeepAnalysisCall[];
+  closure?: string | null;
+  monuments?: Array<{ description: string; location?: string | null; condition?: string | null }>;
+  adjoiners?: Array<{ description: string; direction?: string | null; deed_reference?: string | null }>;
+  easements?: DeepAnalysisEasement[];
+  setbacks?: Array<{ type: string; distance_ft?: number | null; description?: string | null }>;
+  rights_of_way?: Array<{ road_name?: string | null; width_ft?: number | null; taking_line?: string | null }>;
+  deed_references?: Array<{ volume?: string | null; page?: string | null; instrument?: string | null; county?: string | null; description?: string | null }>;
+  surveyor_info?: {
+    company?: string | null;
+    rpls_name?: string | null;
+    rpls_number?: string | null;
+    survey_date?: string | null;
+  };
+  exceptions_reservations?: string[];
+  notes?: string | null;
+  completeness_score?: number;
+}
+
+/** Result of AI deep-analysis on a plat document */
+export interface PlatAnalysis {
+  plat_type?: string;
+  name?: string | null;
+  replat_of?: string | null;
+  county?: string | null;
+  city?: string | null;
+  state?: string | null;
+  instrument_number?: string | null;
+  volume?: string | null;
+  page?: string | null;
+  recording_date?: string | null;
+  scale?: string | null;
+  surveyor?: {
+    company?: string | null;
+    rpls_name?: string | null;
+    rpls_number?: string | null;
+    survey_date?: string | null;
+  };
+  total_area_acres?: number | null;
+  row_dedication_acres?: number | null;
+  net_area_acres?: number | null;
+  lots?: DeepAnalysisLot[];
+  blocks?: Array<{ block: string; lot_count?: number | null }>;
+  perimeter_calls?: DeepAnalysisCall[];
+  streets?: Array<{ name?: string | null; row_width_ft?: number | null; pavement_width_ft?: number | null; type?: string | null }>;
+  easements?: DeepAnalysisEasement[];
+  building_setback_lines?: {
+    front_ft?: number | null;
+    side_ft?: number | null;
+    rear_ft?: number | null;
+    corner_side_ft?: number | null;
+    notes?: string | null;
+  };
+  monuments?: Array<{ type?: string | null; description?: string | null }>;
+  flood_zone?: { zone?: string | null; firm_panel?: string | null; firm_date?: string | null };
+  restrictions?: string[];
+  certificates?: string[];
+  notes?: string | null;
+  completeness_score?: number;
+}
+
+export interface DeepDocumentAnalysis {
+  document_id: string;
+  document_type: DocumentType;
+  analysis_type: 'legal_description' | 'plat' | 'unsupported';
+  legal_description?: LegalDescriptionAnalysis;
+  plat?: PlatAnalysis;
+  analyzed_at: string;
+  error?: string;
 }
 
 // ── Verification & Comparison ────────────────────────────────────────────────

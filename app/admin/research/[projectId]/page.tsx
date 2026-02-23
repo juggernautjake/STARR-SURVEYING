@@ -7,6 +7,8 @@ import { usePageError } from '../../hooks/usePageError';
 import WorkflowStepper from '../components/WorkflowStepper';
 import DocumentUploadPanel from '../components/DocumentUploadPanel';
 import PropertySearchPanel from '../components/PropertySearchPanel';
+import BoundaryCallsPanel from '../components/BoundaryCallsPanel';
+import DocumentDeepAnalysisPanel from '../components/DocumentDeepAnalysisPanel';
 import DataPointsPanel from '../components/DataPointsPanel';
 import DiscrepancyPanel from '../components/DiscrepancyPanel';
 import SourceDocumentViewer from '../components/SourceDocumentViewer';
@@ -1289,6 +1291,13 @@ export default function ResearchProjectPage() {
             documents={documents}
             onDocumentsChanged={() => { loadDocuments(); loadProject(); }}
           />
+          <BoundaryCallsPanel
+            projectId={projectId}
+            defaultAddress={project.property_address || ''}
+            defaultCounty={project.county || ''}
+            defaultParcelId={project.parcel_id || ''}
+            onImported={() => { loadDocuments(); loadProject(); }}
+          />
           <PropertySearchPanel
             projectId={projectId}
             defaultAddress={project.property_address || ''}
@@ -1439,6 +1448,12 @@ export default function ResearchProjectPage() {
 
           {/* Analysis Summary Card */}
           <AnalysisSummary projectId={projectId} stats={stats} />
+
+          {/* Deep Document Analysis — AI review of legal descriptions and plats */}
+          <DocumentDeepAnalysisPanel
+            projectId={projectId}
+            documents={documents}
+          />
 
           {/* Review tabs */}
           <div className="research-review__tabs">

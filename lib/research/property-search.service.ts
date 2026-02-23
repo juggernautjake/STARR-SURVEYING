@@ -370,68 +370,76 @@ interface ProviderResult {
 
 interface CADConfig {
   name: string;
+  /** Portal homepage — always opens to a working page */
   searchUrl: string;
-  platform: 'trueautomation' | 'generic';
+  platform: 'trueautomation' | 'esearch' | 'generic';
   trueautoId?: number;
+  /** County-specific e-search portal (overrides searchUrl as primary link) */
+  esearchUrl?: string;
 }
+
+// ── Texas Comptroller CAD directory — reliable fallback for any TX county ──
+const COMPTROLLER_DIR = 'https://comptroller.texas.gov/taxes/property-tax/county-directory/';
 
 const TEXAS_CAD_CONFIGS: Record<string, CADConfig> = {
   // ── Core service area ──
-  bell:       { name: 'Bell County Appraisal District',       searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=14', platform: 'trueautomation', trueautoId: 14 },
-  coryell:    { name: 'Coryell County Appraisal District',    searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=18', platform: 'trueautomation', trueautoId: 18 },
-  mclennan:   { name: 'McLennan County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=25', platform: 'trueautomation', trueautoId: 25 },
-  falls:      { name: 'Falls County Appraisal District',      searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=20', platform: 'trueautomation', trueautoId: 20 },
-  milam:      { name: 'Milam County Appraisal District',      searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=26', platform: 'trueautomation', trueautoId: 26 },
-  lampasas:   { name: 'Lampasas County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=23', platform: 'trueautomation', trueautoId: 23 },
+  // Bell County uses their own e-search portal (esearch.bellcad.org) as primary.
+  // TrueAutomation (cid=14) still works and is kept for direct prop_id links.
+  bell:        { name: 'Bell County Appraisal District',       searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=14', platform: 'trueautomation', trueautoId: 14, esearchUrl: 'https://esearch.bellcad.org/' },
+  coryell:     { name: 'Coryell County Appraisal District',    searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=18', platform: 'trueautomation', trueautoId: 18 },
+  mclennan:    { name: 'McLennan County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=25', platform: 'trueautomation', trueautoId: 25, esearchUrl: 'https://mclennan-cad.org/property-search/' },
+  falls:       { name: 'Falls County Appraisal District',      searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=20', platform: 'trueautomation', trueautoId: 20 },
+  milam:       { name: 'Milam County Appraisal District',      searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=26', platform: 'trueautomation', trueautoId: 26 },
+  lampasas:    { name: 'Lampasas County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=23', platform: 'trueautomation', trueautoId: 23 },
   // ── Austin metro ──
-  travis:     { name: 'Travis County Appraisal District',     searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=13', platform: 'trueautomation', trueautoId: 13 },
-  williamson: { name: 'Williamson County Appraisal District', searchUrl: 'https://search.wcad.org',                                 platform: 'generic' },
-  bastrop:    { name: 'Bastrop County Appraisal District',    searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=2',  platform: 'trueautomation', trueautoId: 2 },
-  hays:       { name: 'Hays County Appraisal District',       searchUrl: 'https://hayscad.com/property-search',                   platform: 'generic' },
+  travis:      { name: 'Travis County Appraisal District',     searchUrl: 'https://traviscad.org/property-search/',                 platform: 'generic' },
+  williamson:  { name: 'Williamson County Appraisal District', searchUrl: 'https://esearch.wcad.org/',                              platform: 'esearch' },
+  bastrop:     { name: 'Bastrop County Appraisal District',    searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=2',  platform: 'trueautomation', trueautoId: 2 },
+  hays:        { name: 'Hays County Appraisal District',       searchUrl: 'https://esearch.hayscad.com/',                          platform: 'esearch' },
   // ── Brazos Valley ──
-  brazos:     { name: 'Brazos County Appraisal District',     searchUrl: 'https://brazoscad.org',                                  platform: 'generic' },
-  burleson:   { name: 'Burleson County Appraisal District',   searchUrl: 'https://burlesoncad.org',                                platform: 'generic' },
-  robertson:  { name: 'Robertson County Appraisal District',  searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=29', platform: 'trueautomation', trueautoId: 29 },
-  lee:        { name: 'Lee County Appraisal District',        searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=24', platform: 'trueautomation', trueautoId: 24 },
+  brazos:      { name: 'Brazos County Appraisal District',     searchUrl: 'https://brazoscad.org/',                                 platform: 'generic' },
+  burleson:    { name: 'Burleson County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=7',  platform: 'trueautomation', trueautoId: 7 },
+  robertson:   { name: 'Robertson County Appraisal District',  searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=29', platform: 'trueautomation', trueautoId: 29 },
+  lee:         { name: 'Lee County Appraisal District',        searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=24', platform: 'trueautomation', trueautoId: 24 },
   // ── Central Texas / Hill Country ──
-  burnet:     { name: 'Burnet County Appraisal District',     searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=8',  platform: 'trueautomation', trueautoId: 8 },
-  llano:      { name: 'Llano County Appraisal District',      searchUrl: 'https://llano-cad.org',                                  platform: 'generic' },
-  san_saba:   { name: 'San Saba County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=30', platform: 'trueautomation', trueautoId: 30 },
-  hamilton:   { name: 'Hamilton County Appraisal District',   searchUrl: 'https://hamiltoncad.com',                                platform: 'generic' },
-  bosque:     { name: 'Bosque County Appraisal District',     searchUrl: 'https://bosquecad.org',                                  platform: 'generic' },
-  hill:       { name: 'Hill County Appraisal District',       searchUrl: 'https://hillcad.org',                                    platform: 'generic' },
-  limestone:  { name: 'Limestone County Appraisal District',  searchUrl: 'https://limestonecad.org',                               platform: 'generic' },
-  freestone:  { name: 'Freestone County Appraisal District',  searchUrl: 'https://freestonecad.org',                               platform: 'generic' },
-  leon:       { name: 'Leon County Appraisal District',       searchUrl: 'https://leoncad.org',                                    platform: 'generic' },
-  blanco:     { name: 'Blanco County Appraisal District',     searchUrl: 'https://blancocad.com',                                  platform: 'generic' },
-  gillespie:  { name: 'Gillespie County Appraisal District',  searchUrl: 'https://gillespiecad.com',                               platform: 'generic' },
+  burnet:      { name: 'Burnet County Appraisal District',     searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=8',  platform: 'trueautomation', trueautoId: 8 },
+  llano:       { name: 'Llano County Appraisal District',      searchUrl: 'https://llanocad.org/',                                  platform: 'generic' },
+  san_saba:    { name: 'San Saba County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=30', platform: 'trueautomation', trueautoId: 30 },
+  hamilton:    { name: 'Hamilton County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=22', platform: 'trueautomation', trueautoId: 22 },
+  bosque:      { name: 'Bosque County Appraisal District',     searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=5',  platform: 'trueautomation', trueautoId: 5 },
+  hill:        { name: 'Hill County Appraisal District',       searchUrl: 'https://hillcad.net/',                                   platform: 'generic' },
+  limestone:   { name: 'Limestone County Appraisal District',  searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=82', platform: 'trueautomation', trueautoId: 82 },
+  freestone:   { name: 'Freestone County Appraisal District',  searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=81', platform: 'trueautomation', trueautoId: 81 },
+  leon:        { name: 'Leon County Appraisal District',       searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=83', platform: 'trueautomation', trueautoId: 83 },
+  blanco:      { name: 'Blanco County Appraisal District',     searchUrl: 'https://blancocad.org/',                                 platform: 'generic' },
+  gillespie:   { name: 'Gillespie County Appraisal District',  searchUrl: 'https://gillespiecad.org/',                              platform: 'generic' },
   // ── South / Southwest ──
-  caldwell:   { name: 'Caldwell County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=9',  platform: 'trueautomation', trueautoId: 9 },
-  guadalupe:  { name: 'Guadalupe County Appraisal District',  searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=94', platform: 'trueautomation', trueautoId: 94 },
-  comal:      { name: 'Comal County Appraisal District',      searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=46', platform: 'trueautomation', trueautoId: 46 },
+  caldwell:    { name: 'Caldwell County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=9',  platform: 'trueautomation', trueautoId: 9 },
+  guadalupe:   { name: 'Guadalupe County Appraisal District',  searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=94', platform: 'trueautomation', trueautoId: 94 },
+  comal:       { name: 'Comal County Appraisal District',      searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=46', platform: 'trueautomation', trueautoId: 46 },
   // ── West ──
-  brown:      { name: 'Brown County Appraisal District',      searchUrl: 'https://browncad.org',                                   platform: 'generic' },
-  comanche:   { name: 'Comanche County Appraisal District',   searchUrl: 'https://comanchecad.org',                                platform: 'generic' },
-  erath:      { name: 'Erath County Appraisal District',      searchUrl: 'https://erathcad.org',                                   platform: 'generic' },
-  hamilton_co: { name: 'Hamilton County Appraisal District',  searchUrl: 'https://hamiltoncad.com',                                platform: 'generic' },
-  mills:      { name: 'Mills County Appraisal District',      searchUrl: 'https://millscad.org',                                   platform: 'generic' },
-  mcculloch:  { name: 'McCulloch County Appraisal District',  searchUrl: 'https://mccullochcad.com',                               platform: 'generic' },
-  mason:      { name: 'Mason County Appraisal District',      searchUrl: 'https://masoncad.com',                                   platform: 'generic' },
-  coleman:    { name: 'Coleman County Appraisal District',    searchUrl: 'https://colemancad.org',                                 platform: 'generic' },
+  brown:       { name: 'Brown County Appraisal District',      searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=6',  platform: 'trueautomation', trueautoId: 6 },
+  comanche:    { name: 'Comanche County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=17', platform: 'trueautomation', trueautoId: 17 },
+  erath:       { name: 'Erath County Appraisal District',      searchUrl: 'https://erathcad.org/',                                  platform: 'generic' },
+  hamilton_co: { name: 'Hamilton County Appraisal District',   searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=22', platform: 'trueautomation', trueautoId: 22 },
+  mills:       { name: 'Mills County Appraisal District',      searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=27', platform: 'trueautomation', trueautoId: 27 },
+  mcculloch:   { name: 'McCulloch County Appraisal District',  searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=85', platform: 'trueautomation', trueautoId: 85 },
+  mason:       { name: 'Mason County Appraisal District',      searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=84', platform: 'trueautomation', trueautoId: 84 },
+  coleman:     { name: 'Coleman County Appraisal District',    searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=16', platform: 'trueautomation', trueautoId: 16 },
   // ── North / DFW fringe ──
-  hood:       { name: 'Hood County Appraisal District',       searchUrl: 'https://hoodcad.net',                                    platform: 'generic' },
-  somervell:  { name: 'Somervell County Appraisal District',  searchUrl: 'https://somervellcad.org',                               platform: 'generic' },
-  johnson:    { name: 'Johnson County Appraisal District',    searchUrl: 'https://johnsoncad.com',                                 platform: 'generic' },
-  ellis:      { name: 'Ellis County Appraisal District',      searchUrl: 'https://elliscad.net',                                   platform: 'generic' },
-  navarro:    { name: 'Navarro County Appraisal District',    searchUrl: 'https://navarrocad.com',                                 platform: 'generic' },
+  hood:        { name: 'Hood County Appraisal District',       searchUrl: 'https://hoodcad.net/',                                   platform: 'generic' },
+  somervell:   { name: 'Somervell County Appraisal District',  searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=31', platform: 'trueautomation', trueautoId: 31 },
+  johnson:     { name: 'Johnson County Appraisal District',    searchUrl: 'https://johnsoncad.com/',                                platform: 'generic' },
+  ellis:       { name: 'Ellis County Appraisal District',      searchUrl: 'https://elliscad.org/',                                  platform: 'generic' },
+  navarro:     { name: 'Navarro County Appraisal District',    searchUrl: 'https://navarrocad.org/',                                platform: 'generic' },
   // ── East ──
-  anderson:   { name: 'Anderson County Appraisal District',   searchUrl: 'https://andersoncad.org',                                platform: 'generic' },
-  henderson:  { name: 'Henderson County Appraisal District',  searchUrl: 'https://hendersoncad.org',                               platform: 'generic' },
+  anderson:    { name: 'Anderson County Appraisal District',   searchUrl: 'https://andersoncad.org/',                               platform: 'generic' },
+  henderson:   { name: 'Henderson County Appraisal District',  searchUrl: 'https://hendersoncad.org/',                              platform: 'generic' },
   // ── Southeast ──
-  grimes:     { name: 'Grimes County Appraisal District',     searchUrl: 'https://grimescad.org',                                  platform: 'generic' },
-  washington: { name: 'Washington County Appraisal District', searchUrl: 'https://washingtoncad.org',                              platform: 'generic' },
-  fayette:    { name: 'Fayette County Appraisal District',    searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=21', platform: 'trueautomation', trueautoId: 21 },
-  austin_co:  { name: 'Austin County Appraisal District',     searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=1',  platform: 'trueautomation', trueautoId: 1 },
+  grimes:      { name: 'Grimes County Appraisal District',     searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=62', platform: 'trueautomation', trueautoId: 62 },
+  washington:  { name: 'Washington County Appraisal District', searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=35', platform: 'trueautomation', trueautoId: 35 },
+  fayette:     { name: 'Fayette County Appraisal District',    searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=21', platform: 'trueautomation', trueautoId: 21 },
+  austin_co:   { name: 'Austin County Appraisal District',     searchUrl: 'https://propaccess.trueautomation.com/clientdb/?cid=1',  platform: 'trueautomation', trueautoId: 1 },
 };
 
 // ── County Clerk Records ─────────────────────────────────────────────────────
@@ -442,45 +450,45 @@ interface ClerkConfig {
 }
 
 const TEXAS_CLERK_CONFIGS: Record<string, ClerkConfig> = {
-  bell:       { name: 'Bell County Clerk',       url: 'https://bellcountytx.com/county_clerk/real_estate_records.php' },
+  bell:       { name: 'Bell County Clerk',       url: 'https://www.bellcountytx.com/county-clerk/real-estate-records/' },
   coryell:    { name: 'Coryell County Clerk',    url: 'https://www.coryellcounty.org/page/coryell.County.Clerk' },
-  mclennan:   { name: 'McLennan County Clerk',   url: 'https://co.mclennan.tx.us/123/County-Clerk' },
-  falls:      { name: 'Falls County Clerk',      url: 'https://www.co.falls.tx.us/' },
-  milam:      { name: 'Milam County Clerk',      url: 'https://www.co.milam.tx.us/department/?fdd=65' },
+  mclennan:   { name: 'McLennan County Clerk',   url: 'https://www.co.mclennan.tx.us/123/County-Clerk' },
+  falls:      { name: 'Falls County Clerk',      url: 'https://www.co.falls.tx.us/county-clerk/' },
+  milam:      { name: 'Milam County Clerk',      url: 'https://www.co.milam.tx.us/departments/county-clerk/' },
   lampasas:   { name: 'Lampasas County Clerk',   url: 'https://www.co.lampasas.tx.us/departments/county-clerk/' },
   travis:     { name: 'Travis County Clerk',     url: 'https://countyclerk.traviscountytx.gov/recording/real-property-records.html' },
   williamson: { name: 'Williamson County Clerk', url: 'https://judicialrecords.wilco.org/PublicAccess/default.aspx' },
-  bastrop:    { name: 'Bastrop County Clerk',    url: 'https://bastropcountytexas.gov/departments/county-clerk' },
+  bastrop:    { name: 'Bastrop County Clerk',    url: 'https://bastropcountytexas.gov/departments/county-clerk/' },
   hays:       { name: 'Hays County Clerk',       url: 'https://www.hayscountytx.com/departments/county-clerk/' },
-  brazos:     { name: 'Brazos County Clerk',     url: 'https://www.brazoscountytx.gov/departments/countyclerk' },
-  burleson:   { name: 'Burleson County Clerk',   url: 'https://www.burlesoncountytexas.us/countyclerk' },
-  robertson:  { name: 'Robertson County Clerk',  url: 'https://www.co.robertson.tx.us/county_clerk' },
-  lee:        { name: 'Lee County Clerk',        url: 'https://www.co.lee.tx.us/county-clerk' },
-  burnet:     { name: 'Burnet County Clerk',     url: 'https://www.burnetcountytexas.org/county-clerk' },
-  llano:      { name: 'Llano County Clerk',      url: 'https://www.co.llano.tx.us/county-clerk' },
-  hill:       { name: 'Hill County Clerk',       url: 'https://www.co.hill.tx.us/county-clerk' },
-  limestone:  { name: 'Limestone County Clerk',  url: 'https://www.co.limestone.tx.us/county-clerk' },
-  bosque:     { name: 'Bosque County Clerk',     url: 'https://www.co.bosque.tx.us/county-clerk' },
-  hamilton:   { name: 'Hamilton County Clerk',   url: 'https://www.hamiltoncountytx.org/county-clerk' },
-  freestone:  { name: 'Freestone County Clerk',  url: 'https://www.co.freestone.tx.us/county-clerk' },
-  leon:       { name: 'Leon County Clerk',       url: 'https://www.co.leon.tx.us/county-clerk' },
-  blanco:     { name: 'Blanco County Clerk',     url: 'https://www.blancocountytx.gov/county-clerk' },
-  caldwell:   { name: 'Caldwell County Clerk',   url: 'https://www.co.caldwell.tx.us/county-clerk' },
-  comal:      { name: 'Comal County Clerk',      url: 'https://www.co.comal.tx.us/county_clerk' },
-  guadalupe:  { name: 'Guadalupe County Clerk',  url: 'https://www.guadalupecounty.org/county-clerk' },
-  brown:      { name: 'Brown County Clerk',      url: 'https://www.co.brown.tx.us/county-clerk' },
-  comanche:   { name: 'Comanche County Clerk',   url: 'https://www.co.comanche.tx.us/county-clerk' },
-  erath:      { name: 'Erath County Clerk',      url: 'https://www.co.erath.tx.us/county-clerk' },
-  hood:       { name: 'Hood County Clerk',       url: 'https://www.co.hood.tx.us/county-clerk' },
-  somervell:  { name: 'Somervell County Clerk',  url: 'https://www.co.somervell.tx.us/county-clerk' },
-  johnson:    { name: 'Johnson County Clerk',    url: 'https://www.johnsoncountytx.org/county-clerk' },
-  ellis:      { name: 'Ellis County Clerk',      url: 'https://www.co.ellis.tx.us/county-clerk' },
-  navarro:    { name: 'Navarro County Clerk',    url: 'https://www.co.navarro.tx.us/county-clerk' },
-  anderson:   { name: 'Anderson County Clerk',   url: 'https://www.co.anderson.tx.us/county-clerk' },
-  henderson:  { name: 'Henderson County Clerk',  url: 'https://www.co.henderson.tx.us/county-clerk' },
-  grimes:     { name: 'Grimes County Clerk',     url: 'https://www.co.grimes.tx.us/county-clerk' },
-  washington: { name: 'Washington County Clerk', url: 'https://www.co.washington.tx.us/county-clerk' },
-  fayette:    { name: 'Fayette County Clerk',    url: 'https://www.co.fayette.tx.us/county-clerk' },
+  brazos:     { name: 'Brazos County Clerk',     url: 'https://www.brazoscountytx.gov/departments/countyclerk/' },
+  burleson:   { name: 'Burleson County Clerk',   url: 'https://www.burlesoncountytexas.us/county-clerk/' },
+  robertson:  { name: 'Robertson County Clerk',  url: 'https://www.co.robertson.tx.us/departments/county-clerk/' },
+  lee:        { name: 'Lee County Clerk',        url: 'https://www.co.lee.tx.us/departments/county-clerk/' },
+  burnet:     { name: 'Burnet County Clerk',     url: 'https://www.burnetcountytexas.org/county-clerk/' },
+  llano:      { name: 'Llano County Clerk',      url: 'https://www.co.llano.tx.us/county-clerk/' },
+  hill:       { name: 'Hill County Clerk',       url: 'https://www.co.hill.tx.us/departments/county-clerk/' },
+  limestone:  { name: 'Limestone County Clerk',  url: 'https://www.co.limestone.tx.us/departments/county-clerk/' },
+  bosque:     { name: 'Bosque County Clerk',     url: 'https://www.co.bosque.tx.us/county-clerk/' },
+  hamilton:   { name: 'Hamilton County Clerk',   url: 'https://www.hamiltoncountytx.org/departments/county-clerk/' },
+  freestone:  { name: 'Freestone County Clerk',  url: 'https://www.co.freestone.tx.us/departments/county-clerk/' },
+  leon:       { name: 'Leon County Clerk',       url: 'https://www.co.leon.tx.us/departments/county-clerk/' },
+  blanco:     { name: 'Blanco County Clerk',     url: 'https://www.blancocountytx.gov/county-clerk/' },
+  caldwell:   { name: 'Caldwell County Clerk',   url: 'https://www.co.caldwell.tx.us/departments/county-clerk/' },
+  comal:      { name: 'Comal County Clerk',      url: 'https://www.co.comal.tx.us/departments/county-clerk/' },
+  guadalupe:  { name: 'Guadalupe County Clerk',  url: 'https://www.guadalupecounty.org/departments/county-clerk/' },
+  brown:      { name: 'Brown County Clerk',      url: 'https://www.co.brown.tx.us/departments/county-clerk/' },
+  comanche:   { name: 'Comanche County Clerk',   url: 'https://www.co.comanche.tx.us/departments/county-clerk/' },
+  erath:      { name: 'Erath County Clerk',      url: 'https://www.co.erath.tx.us/departments/county-clerk/' },
+  hood:       { name: 'Hood County Clerk',       url: 'https://www.co.hood.tx.us/departments/county-clerk/' },
+  somervell:  { name: 'Somervell County Clerk',  url: 'https://www.co.somervell.tx.us/departments/county-clerk/' },
+  johnson:    { name: 'Johnson County Clerk',    url: 'https://www.johnsoncountytx.org/departments/county-clerk/' },
+  ellis:      { name: 'Ellis County Clerk',      url: 'https://www.co.ellis.tx.us/departments/county-clerk/' },
+  navarro:    { name: 'Navarro County Clerk',    url: 'https://www.co.navarro.tx.us/departments/county-clerk/' },
+  anderson:   { name: 'Anderson County Clerk',   url: 'https://www.co.anderson.tx.us/departments/county-clerk/' },
+  henderson:  { name: 'Henderson County Clerk',  url: 'https://www.co.henderson.tx.us/departments/county-clerk/' },
+  grimes:     { name: 'Grimes County Clerk',     url: 'https://www.co.grimes.tx.us/departments/county-clerk/' },
+  washington: { name: 'Washington County Clerk', url: 'https://www.co.washington.tx.us/departments/county-clerk/' },
+  fayette:    { name: 'Fayette County Clerk',    url: 'https://www.co.fayette.tx.us/departments/county-clerk/' },
 };
 
 // ── Bell County GIS (primary source for Bell County jobs) ────────────────────
@@ -501,62 +509,84 @@ async function searchBellCountyGIS(
   const hasParcelId = !!req.parcel_id;
   const hasAddress = !!req.address;
 
-  const cadSearchUrl = req.parcel_id
-    ? `https://propaccess.trueautomation.com/clientdb/?cid=14&prop_id=${encodeURIComponent(req.parcel_id)}`
-    : req.address
-    ? `https://propaccess.trueautomation.com/clientdb/?cid=14&saddr=${encodeURIComponent(req.address)}`
-    : 'https://propaccess.trueautomation.com/clientdb/?cid=14';
+  // Bell CAD config from the shared configs table — avoids hardcoding the CID here.
+  const bellConfig = TEXAS_CAD_CONFIGS['bell'];
+  const bellCadEsearchUrl = bellConfig?.esearchUrl ?? 'https://esearch.bellcad.org/';
+  const bellCadBaseUrl = bellConfig?.searchUrl ?? 'https://propaccess.trueautomation.com/clientdb/?cid=14';
+  const bellCadDirectUrl = req.parcel_id && bellConfig?.trueautoId
+    ? `https://propaccess.trueautomation.com/clientdb/?cid=${bellConfig.trueautoId}&prop_id=${encodeURIComponent(req.parcel_id)}`
+    : bellCadBaseUrl;
 
   const results: PropertySearchResult[] = [];
 
-  // GIS Parcel Viewer
+  // Bell CAD e-search portal — primary URL (opens directly to the property search)
   results.push({
     id: generateResultId('bell_county_gis', 0),
     source: 'bell_county_gis',
-    source_name: 'Bell County GIS',
-    title: 'Bell County GIS Parcel Viewer',
-    url: 'https://gis.co.bell.tx.us/',
-    document_type: 'plat',
-    relevance: scoreRelevance(0.88, { hasParcelId, hasAddress }),
+    source_name: 'Bell County Appraisal District (CAD)',
+    title: 'Bell CAD e-Search — Property & Legal Description',
+    url: bellCadEsearchUrl,
+    document_type: 'appraisal_record',
+    relevance: scoreRelevance(0.95, { hasParcelId, hasAddress }),
     is_property_specific: hasAddress || hasParcelId,
     description: [
-      `Bell County GIS portal — search parcel boundaries, ownership data, and geographic features.`,
-      req.address ? ` Use the search bar to look up: "${req.address}".` : '',
-      req.parcel_id ? ` Filter by Property ID: ${req.parcel_id}.` : '',
-      ` Click any parcel to see the owner name, legal description, and deed reference.`,
+      `Bell County CAD official e-search portal — enter address or property ID to retrieve the legal description, owner, acreage, improvement schedule, and deed references.`,
+      req.address ? ` Search for: "${req.address}".` : '',
+      req.parcel_id ? ` Enter Property ID: ${req.parcel_id}.` : '',
+      req.owner_name ? ` Or search by owner name: "${req.owner_name}".` : '',
+      ` The legal description contains the metes-and-bounds calls required for the survey.`,
+    ].join(''),
+    has_cost: false,
+    metadata: { platform: 'esearch', search_address: req.address, search_parcel: req.parcel_id },
+  });
+
+  // TrueAutomation direct-property link — only shown when a prop_id is available
+  if (hasParcelId) {
+    results.push({
+      id: generateResultId('bell_county_gis', 1),
+      source: 'bell_county_gis',
+      source_name: 'Bell County CAD — Direct Property Record',
+      title: `Bell CAD Property Record — ID ${req.parcel_id}`,
+      url: bellCadDirectUrl,
+      document_type: 'appraisal_record',
+      relevance: 0.97,
+      is_property_specific: true,
+      description: [
+        `Direct link to Bell County CAD property record for Property ID ${req.parcel_id}.`,
+        ` Opens the full property detail: owner, legal description, acreage, deed volume/page, and value history.`,
+      ].join(''),
+      has_cost: false,
+      metadata: { platform: 'trueautomation', prop_id: req.parcel_id },
+    });
+  }
+
+  // Bell County GIS Parcel Viewer
+  results.push({
+    id: generateResultId('bell_county_gis', 2),
+    source: 'bell_county_gis',
+    source_name: 'Bell County GIS',
+    title: 'Bell County GIS Parcel Viewer',
+    url: 'https://gis.co.bell.tx.us/BellCounty/',
+    document_type: 'plat',
+    relevance: scoreRelevance(0.85, { hasParcelId, hasAddress }),
+    is_property_specific: hasAddress || hasParcelId,
+    description: [
+      `Bell County GIS interactive map — search parcel boundaries, ownership, and geographic features.`,
+      req.address ? ` Search by address: "${req.address}".` : '',
+      req.parcel_id ? ` Or filter by Property ID: ${req.parcel_id}.` : '',
+      ` Click any parcel to see the owner, legal description, and deed reference.`,
     ].join(''),
     has_cost: false,
     metadata: { search_address: req.address, parcel_id: req.parcel_id, county: 'Bell' },
   });
 
-  // Bell CAD
-  results.push({
-    id: generateResultId('bell_county_gis', 1),
-    source: 'bell_county_gis',
-    source_name: 'Bell County Appraisal District (CAD)',
-    title: 'Bell County CAD — Property & Legal Description',
-    url: cadSearchUrl,
-    document_type: 'appraisal_record',
-    relevance: scoreRelevance(0.92, { hasParcelId, hasAddress }),
-    is_property_specific: hasAddress || hasParcelId,
-    description: [
-      `Bell County Appraisal District property record — official legal description, improvement schedule, land value, and chain of title.`,
-      req.parcel_id ? ` Pre-loaded with Property ID: ${req.parcel_id}.` : '',
-      req.address ? ` Pre-loaded with Address: "${req.address}". Click on the matching property.` : '',
-      req.owner_name ? ` Also search by Owner Name: "${req.owner_name}".` : '',
-      ` The legal description on this record contains the metes-and-bounds calls needed for the survey drawing.`,
-    ].join(''),
-    has_cost: false,
-    metadata: { platform: 'trueautomation', search_address: req.address, search_parcel: req.parcel_id },
-  });
-
   // Bell County Clerk
   results.push({
-    id: generateResultId('bell_county_gis', 2),
+    id: generateResultId('bell_county_gis', 3),
     source: 'bell_county_gis',
     source_name: 'Bell County Clerk — Real Estate Records',
     title: 'Bell County Clerk — Deed & Plat Records',
-    url: 'https://bellcountytx.com/county_clerk/real_estate_records.php',
+    url: 'https://www.bellcountytx.com/county-clerk/real-estate-records/',
     document_type: 'deed',
     relevance: scoreRelevance(0.89, { hasAddress }),
     is_property_specific: hasAddress || !!req.owner_name,
@@ -598,19 +628,19 @@ async function searchCountyCAD(
   const hasAddress = !!req.address;
 
   if (!cad) {
-    // County is outside our configured service area — point to Texas Comptroller
+    // County is outside our configured service area — point to Texas Comptroller directory
     const results: PropertySearchResult[] = [];
     if (county) {
       results.push({
         id: generateResultId('county_cad', 0),
         source: 'county_cad',
         source_name: `${county} County Appraisal District`,
-        title: `${county} County CAD — Property Search`,
-        url: `https://comptroller.texas.gov/taxes/property-tax/county-directory/v/propertytax.comptroller.texas.gov/View.php`,
+        title: `${county} County CAD — Texas Comptroller Directory`,
+        url: COMPTROLLER_DIR,
         document_type: 'appraisal_record',
         relevance: 0.50,
         is_property_specific: false,
-        description: `Find the ${county} County Appraisal District website via the Texas Comptroller county directory. Once there, search by address or parcel ID for the legal description and deed references.`,
+        description: `Find the ${county} County Appraisal District website via the Texas Comptroller county directory. Select "${county}" county to get the direct link to their CAD search portal, then search by address or parcel ID for the legal description and deed references.`,
         has_cost: false,
       });
     }
@@ -620,29 +650,37 @@ async function searchCountyCAD(
     };
   }
 
-  // Build most targeted URL
-  const cadUrl = (cad.platform === 'trueautomation' && cad.trueautoId)
-    ? (req.address
-      ? `https://propaccess.trueautomation.com/clientdb/?cid=${cad.trueautoId}&saddr=${encodeURIComponent(req.address)}`
-      : `https://propaccess.trueautomation.com/clientdb/?cid=${cad.trueautoId}`)
-    : cad.searchUrl;
+  // Build most targeted URL:
+  // - If a parcel_id is provided and county uses TrueAutomation, link directly to the property record.
+  // - Otherwise use the e-search portal (if available) or the CAD homepage.
+  // NOTE: TrueAutomation does NOT support address pre-fill via URL — users must type in address.
+  let cadUrl: string;
+  if (cad.platform === 'trueautomation' && cad.trueautoId && req.parcel_id) {
+    cadUrl = `https://propaccess.trueautomation.com/clientdb/?cid=${cad.trueautoId}&prop_id=${encodeURIComponent(req.parcel_id)}`;
+  } else if (cad.esearchUrl) {
+    cadUrl = cad.esearchUrl;
+  } else {
+    cadUrl = cad.searchUrl;
+  }
 
   const results: PropertySearchResult[] = [
     {
       id: generateResultId('county_cad', 0),
       source: 'county_cad',
       source_name: cad.name,
-      title: `${county} County CAD — Property Detail`,
+      title: req.parcel_id
+        ? `${county} County CAD — Property ID ${req.parcel_id}`
+        : `${county} County CAD — Property Search`,
       url: cadUrl,
       document_type: 'appraisal_record',
-      relevance: scoreRelevance(0.89, { hasParcelId, hasAddress }),
+      relevance: scoreRelevance(req.parcel_id ? 0.95 : 0.89, { hasParcelId, hasAddress }),
       is_property_specific: hasAddress || hasParcelId,
       description: [
         `Official legal description, improvement data, land value, and ownership history from ${cad.name}.`,
-        req.address ? ` Search by address: "${req.address}".` : '',
-        req.parcel_id ? ` Or by Property ID: ${req.parcel_id}.` : '',
-        req.owner_name ? ` Or by owner name: "${req.owner_name}".` : '',
-        ` The legal description here contains the metes-and-bounds calls needed for the survey drawing.`,
+        req.parcel_id ? ` Direct link to Property ID ${req.parcel_id}.` : '',
+        !req.parcel_id && req.address ? ` Enter address "${req.address}" in the search box.` : '',
+        req.owner_name ? ` Or search by owner name: "${req.owner_name}".` : '',
+        ` The legal description contains the metes-and-bounds calls needed for the survey drawing.`,
       ].join(''),
       has_cost: false,
       metadata: { platform: cad.platform, county, search_address: req.address, search_parcel: req.parcel_id },
@@ -741,14 +779,17 @@ async function searchTexasGLO(
   }
 
   const countyParam = encodeURIComponent(county);
+  // GLO archives viewer with county filter — lands at a map/list of original grants for the county
   const gloGrantUrl = `https://s3.glo.texas.gov/glo/history/archives/land-grants/index.cfm?county=${countyParam}`;
+  // GLO Clarity portal for spatial search of land grants
+  const gloClarityUrl = `https://clarity.texas.gov/web/app.jsp#Viewer?app=72018e7c5beb4a7fb13dc9c0f6804b71`;
 
   return {
     results: [
       {
         id: generateResultId('texas_glo', 0),
         source: 'texas_glo',
-        source_name: 'Texas General Land Office',
+        source_name: 'Texas General Land Office — Land Grants Archive',
         title: `Texas GLO — Original Survey Abstracts (${county} County)`,
         url: gloGrantUrl,
         document_type: 'survey',
@@ -762,6 +803,19 @@ async function searchTexasGLO(
         ].join(''),
         has_cost: false,
         metadata: { data_type: 'land_grants', county },
+      },
+      {
+        id: generateResultId('texas_glo', 1),
+        source: 'texas_glo',
+        source_name: 'Texas GLO Clarity — Spatial Land Grant Viewer',
+        title: `Texas GLO Clarity — Interactive Land Grant Map`,
+        url: gloClarityUrl,
+        document_type: 'survey',
+        relevance: scoreRelevance(0.70, { hasAddress: !!req.address }),
+        is_property_specific: !!county,
+        description: `Texas GLO Clarity spatial viewer — search original land grant boundaries on an interactive map. Zoom to ${county} County to see original survey abstract boundaries overlaid on modern parcels.`,
+        has_cost: false,
+        metadata: { data_type: 'land_grants_gis', county },
       },
     ],
     source: { source: 'texas_glo', name: 'Texas General Land Office', status: 'success' },
@@ -777,19 +831,22 @@ async function searchTexasFile(
   if (!county) {
     return {
       results: [],
-      source: { source: 'county_clerk', name: 'TexasFile', status: 'no_results', message: 'County required' },
+      source: { source: 'texas_file', name: 'TexasFile', status: 'no_results', message: 'County required' },
     };
   }
 
-  const countySlug = county.toLowerCase().replace(/\s+/g, '-');
-  const texasFileUrl = `https://www.texasfile.com/texas/${countySlug}-county/deed-records/`;
+  // TexasFile county search URL — search by county, then filter by grantor/grantee name or document type.
+  const countyEncoded = encodeURIComponent(county);
+  const texasFileUrl = req.owner_name
+    ? `https://www.texasfile.com/search/?county=${countyEncoded}&name=${encodeURIComponent(req.owner_name)}&type=deed`
+    : `https://www.texasfile.com/search/?county=${countyEncoded}&type=deed`;
   const hasSpecificQuery = !!(req.address || req.parcel_id || req.owner_name);
 
   return {
     results: [
       {
-        id: generateResultId('county_clerk', 0),
-        source: 'county_clerk',
+        id: generateResultId('texas_file', 0),
+        source: 'texas_file',
         source_name: `TexasFile — ${county} County Deed Search`,
         title: `TexasFile Deed Search — ${county} County`,
         url: texasFileUrl,
@@ -797,17 +854,17 @@ async function searchTexasFile(
         relevance: scoreRelevance(0.78, { hasAddress: !!req.address }),
         is_property_specific: hasSpecificQuery,
         description: [
-          `TexasFile.com — commercial Texas deed search with county clerk record access.`,
-          ` ${county} County deed records searchable by grantor, grantee, document type, and date range.`,
-          req.owner_name ? ` Search for owner: "${req.owner_name}" as grantor or grantee.` : '',
-          ` Quickly trace the chain of title and find deed volume/page references for county clerk lookup.`,
+          `TexasFile.com — Texas deed search with county clerk record access for ${county} County.`,
+          ` Search by grantor/grantee name, document type, and date range to trace chain of title.`,
+          req.owner_name ? ` Pre-filtered by owner name: "${req.owner_name}".` : '',
+          ` Find deed volume/page references for certified copies from the county clerk.`,
         ].join(''),
         has_cost: true,
-        cost_note: 'Basic searches free; full document images may require a TexasFile subscription.',
+        cost_note: 'Basic searches free; full document images require a TexasFile subscription.',
         metadata: { data_type: 'deed_search', county },
       },
     ],
-    source: { source: 'county_clerk', name: `TexasFile — ${county}`, status: 'success' },
+    source: { source: 'texas_file', name: `TexasFile — ${county}`, status: 'success' },
   };
 }
 
