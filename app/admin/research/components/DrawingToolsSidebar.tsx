@@ -26,7 +26,7 @@ export type DrawingTool =
   | 'measure';           // Measure distance on drawing
 
 export type SymbolType =
-  // Monuments & Survey Markers
+  // Monuments & Survey Markers — standard
   | 'iron_rod'
   | 'iron_pipe'
   | 'concrete_monument'
@@ -36,6 +36,14 @@ export type SymbolType =
   | 'mag_nail'
   | 'cap'
   | 'benchmark'
+  // Monuments — sized variants (1/2", 5/8", 3/4", 1")
+  | 'iron_rod_half'        // 1/2" iron rod
+  | 'iron_rod_five_eighth' // 5/8" iron rod (most common in US)
+  | 'iron_rod_three_quarter' // 3/4" iron rod
+  | 'iron_rod_one_inch'    // 1" iron rod
+  | 'iron_pipe_half'
+  | 'iron_pipe_three_quarter'
+  | 'iron_pipe_one_inch'
   // Fencing & Boundaries
   | 'fence_post'
   | 'fence_corner'
@@ -53,6 +61,13 @@ export type SymbolType =
   | 'storm_drain'
   | 'catch_basin'
   | 'septic_tank'
+  // Utilities — Underground Lines (used as point symbols on drawings)
+  | 'water_line'
+  | 'sewer_line'
+  | 'gas_line'
+  | 'electric_line'
+  | 'telecom_line'
+  | 'fiber_line'
   // Utilities — Above Ground
   | 'fire_hydrant'
   | 'light_pole'
@@ -101,6 +116,8 @@ export interface ToolSettings {
   dashPattern: string;
   symbolType: SymbolType;
   symbolSize: number;
+  /** Snap mode: off = no snapping; hover = snap after 4s hover; auto = auto snap within radius */
+  snapMode: 'off' | 'hover' | 'auto';
 }
 
 export const DEFAULT_TOOL_SETTINGS: ToolSettings = {
@@ -113,6 +130,7 @@ export const DEFAULT_TOOL_SETTINGS: ToolSettings = {
   dashPattern: '',
   symbolType: 'iron_rod',
   symbolSize: 8,
+  snapMode: 'off',
 };
 
 // ── Tool Definitions ────────────────────────────────────────────────────────
@@ -169,7 +187,7 @@ const TOOL_GROUPS = [
 
 const SYMBOL_CATEGORIES: { label: string; items: { key: SymbolType; label: string }[] }[] = [
   {
-    label: 'Monuments',
+    label: 'Monuments — Standard',
     items: [
       { key: 'iron_rod', label: 'Iron Rod' },
       { key: 'iron_pipe', label: 'Iron Pipe' },
@@ -180,6 +198,18 @@ const SYMBOL_CATEGORIES: { label: string; items: { key: SymbolType; label: strin
       { key: 'mag_nail', label: 'Mag Nail' },
       { key: 'cap', label: 'Cap' },
       { key: 'benchmark', label: 'Benchmark' },
+    ],
+  },
+  {
+    label: 'Monuments — Iron Rod Sizes',
+    items: [
+      { key: 'iron_rod_half', label: '1/2" Rod' },
+      { key: 'iron_rod_five_eighth', label: '5/8" Rod' },
+      { key: 'iron_rod_three_quarter', label: '3/4" Rod' },
+      { key: 'iron_rod_one_inch', label: '1" Rod' },
+      { key: 'iron_pipe_half', label: '1/2" Pipe' },
+      { key: 'iron_pipe_three_quarter', label: '3/4" Pipe' },
+      { key: 'iron_pipe_one_inch', label: '1" Pipe' },
     ],
   },
   {
@@ -204,6 +234,17 @@ const SYMBOL_CATEGORIES: { label: string; items: { key: SymbolType; label: strin
       { key: 'storm_drain', label: 'Storm Drain' },
       { key: 'catch_basin', label: 'Catch Basin' },
       { key: 'septic_tank', label: 'Septic Tank' },
+    ],
+  },
+  {
+    label: 'Underground Lines',
+    items: [
+      { key: 'water_line', label: 'Water Line' },
+      { key: 'sewer_line', label: 'Sewer Line' },
+      { key: 'gas_line', label: 'Gas Line' },
+      { key: 'electric_line', label: 'Electric Line' },
+      { key: 'telecom_line', label: 'Telecom Line' },
+      { key: 'fiber_line', label: 'Fiber Line' },
     ],
   },
   {
@@ -306,10 +347,12 @@ export default function DrawingToolsSidebar({
 
   // Determine which quick settings to show based on active tool
   const showStroke = !['select', 'pan', 'eraser', 'measure', 'image'].includes(activeTool);
-  const showFill = ['rectangle', 'circle'].includes(activeTool);
+  const showFill = ['rectangle', 'circle', 'polyline', 'freehand'].includes(activeTool);
   const showTextSettings = ['text_type', 'text_write', 'callout', 'dimension'].includes(activeTool);
   const showSymbolSettings = activeTool === 'symbol';
   const showDash = ['line', 'polyline', 'rectangle', 'circle', 'dimension'].includes(activeTool);
+  // Show snap settings for any drawing tool
+  const showSnap = !['select', 'pan', 'eraser', 'measure', 'image'].includes(activeTool);
 
   return (
     <div className="research-tools">
@@ -359,14 +402,14 @@ export default function DrawingToolsSidebar({
       ))}
 
       {/* Quick tool settings */}
-      {(showStroke || showFill || showTextSettings || showSymbolSettings) && (
-        <div className="research-tools__settings">
-          <Tooltip text="Expand to customize stroke color, width, pattern, and other options for the active tool" enabled={showUITooltips} position="right">
-            <button
-              className="research-tools__settings-toggle"
-              onClick={() => setExpandedSettings(!expandedSettings)}
-            >
-              {expandedSettings ? '▾' : '▸'} Tool Settings
+        {(showStroke || showFill || showTextSettings || showSymbolSettings || showSnap) && (
+          <div className="research-tools__settings">
+            <Tooltip text="Expand to customize stroke color, width, pattern, and other options for the active tool" enabled={showUITooltips} position="right">
+              <button
+                className="research-tools__settings-toggle"
+                onClick={() => setExpandedSettings(!expandedSettings)}
+              >
+                {expandedSettings ? '▾' : '▸'} Tool Settings
             </button>
           </Tooltip>
 
@@ -523,6 +566,22 @@ export default function DrawingToolsSidebar({
                     <span className="research-tools__setting-value">{settings.symbolSize}px</span>
                   </div>
                 </>
+              )}
+
+              {/* Snap mode */}
+              {showSnap && (
+                <div className="research-tools__setting-row">
+                  <label title="Off: no snapping. Hover: hover 4s to snap. Auto: auto-snap within radius.">Snap</label>
+                  <select
+                    value={settings.snapMode}
+                    onChange={e => updateSetting('snapMode', e.target.value as 'off' | 'hover' | 'auto')}
+                    className="research-tools__select"
+                  >
+                    <option value="off">Off</option>
+                    <option value="hover">Hover (4s)</option>
+                    <option value="auto">Auto</option>
+                  </select>
+                </div>
               )}
             </div>
           )}

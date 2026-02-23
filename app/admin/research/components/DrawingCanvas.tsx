@@ -33,7 +33,28 @@ export interface UserAnnotation {
   symbolSize?: number;
   rotation?: number;
   zIndex: number;
+  /** Layer this annotation belongs to */
+  layerId?: string;
+  /** Whether the shape is treated as closed (connects last pt → first pt) */
+  isClosed?: boolean;
 }
+
+// ── Snap System Types ────────────────────────────────────────────────────────
+
+/** A snappable node: endpoint, midpoint, or arbitrary point on line */
+interface SnapNode {
+  x: number;
+  y: number;
+  kind: 'endpoint' | 'midpoint' | 'on_line' | 'symbol_center';
+  annotationId?: string;
+}
+
+// Snap pixel radius (screen pixels). Distance in SVG units = SNAP_PX / zoom.
+const SNAP_PX = 16;
+// Snap-on-hover delay in milliseconds (4 seconds)
+const SNAP_HOVER_DELAY_MS = 4000;
+// Offset applied to pasted/duplicated annotations so they don't sit exactly on top of the original
+const PASTE_OFFSET = 20;
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -64,6 +85,10 @@ interface DrawingCanvasProps {
   zoomToFitSignal?: number;
   /** Expose cursor position for coordinate entry panel */
   onCursorPositionChange?: (pos: { x: number; y: number } | null) => void;
+  /** Active annotation layer id — new annotations are placed on this layer */
+  activeLayerId?: string;
+  /** Snap mode: off = no snap; hover = snap after 4s hover; auto = snap within radius */
+  snapMode?: 'off' | 'hover' | 'auto';
 }
 
 // ── Main Component ──────────────────────────────────────────────────────────
@@ -89,6 +114,8 @@ export default function DrawingCanvas({
   onVertexClick,
   zoomToFitSignal,
   onCursorPositionChange,
+  activeLayerId,
+  snapMode = 'off',
 }: DrawingCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<SVGSVGElement>(null);
@@ -112,6 +139,17 @@ export default function DrawingCanvas({
   // Tooltip now stores the hovered element and screen position; it is shown after a 2-second delay
   const [tooltip, setTooltip] = useState<{ x: number; y: number; element: DrawingElement } | null>(null);
   const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Snap state ─────────────────────────────────────────────────────────
+  /** Current snapped point while drawing (null if no snap) */
+  const [snapPoint, setSnapPoint] = useState<SnapNode | null>(null);
+  /** For hover-mode: countdown timer ref */
+  const snapHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Hover-snapped candidate (will auto-connect after delay) */
+  const [snapCandidate, setSnapCandidate] = useState<SnapNode | null>(null);
+
+  // ── Clipboard ────────────────────────────────────────────────────────────
+  const [clipboard, setClipboard] = useState<UserAnnotation[]>([]);
 
   // Touch zoom state
   const [touchStartDist, setTouchStartDist] = useState<number | null>(null);
@@ -149,6 +187,7 @@ export default function DrawingCanvas({
     y: number;
     element: DrawingElement | null;
     annotationId: string | null;
+    annotationType?: string;
   } | null>(null);
 
   // Measurement state
@@ -323,10 +362,70 @@ export default function DrawingCanvas({
     };
   }, [pan, zoom]);
 
+  // ── Snap Helpers ─────────────────────────────────────────────────────────
+
+  /**
+   * Build all snap nodes from existing annotations (endpoints, midpoints, symbol centers).
+   * Also adds a "snap along line" node for the closest point on each line segment.
+   */
+  const buildSnapNodes = useCallback((cursor: { x: number; y: number }): SnapNode[] => {
+    const nodes: SnapNode[] = [];
+    for (const ann of annotations) {
+      if (ann.type === 'symbol' && ann.points.length > 0) {
+        nodes.push({ x: ann.points[0].x, y: ann.points[0].y, kind: 'symbol_center', annotationId: ann.id });
+      } else if ((ann.type === 'line' || ann.type === 'polyline') && ann.points.length >= 2) {
+        // Endpoints
+        nodes.push({ x: ann.points[0].x, y: ann.points[0].y, kind: 'endpoint', annotationId: ann.id });
+        nodes.push({ x: ann.points[ann.points.length - 1].x, y: ann.points[ann.points.length - 1].y, kind: 'endpoint', annotationId: ann.id });
+        // Midpoints + closest-point-on-segment
+        for (let i = 0; i < ann.points.length - 1; i++) {
+          const a = ann.points[i], b = ann.points[i + 1];
+          const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          nodes.push({ x: mx, y: my, kind: 'midpoint', annotationId: ann.id });
+          // Closest point on segment to cursor
+          const cp = closestPointOnSegment(cursor, a, b);
+          nodes.push({ x: cp.x, y: cp.y, kind: 'on_line', annotationId: ann.id });
+        }
+      } else if (ann.type !== 'text' && ann.type !== 'image' && ann.points.length > 0) {
+        // Rectangle, circle, etc. — add corners
+        for (const p of ann.points) nodes.push({ x: p.x, y: p.y, kind: 'endpoint', annotationId: ann.id });
+      }
+    }
+    return nodes;
+  }, [annotations]);
+
+  /**
+   * Find the closest snap node within SNAP_PX/zoom SVG units.
+   * Returns null if nothing is close enough.
+   */
+  const findSnapPoint = useCallback((cursor: { x: number; y: number }): SnapNode | null => {
+    if (snapMode === 'off') return null;
+    const radius = SNAP_PX / zoom;
+    const nodes = buildSnapNodes(cursor);
+    let closest: SnapNode | null = null;
+    let closestDist = radius;
+    for (const n of nodes) {
+      const d = Math.hypot(n.x - cursor.x, n.y - cursor.y);
+      if (d < closestDist) { closestDist = d; closest = n; }
+    }
+    return closest;
+  }, [snapMode, zoom, buildSnapNodes]);
+
+  /** Apply snap: if auto-mode, return snapped point; otherwise return original */
+  const applySnap = useCallback((pt: { x: number; y: number }): { x: number; y: number } => {
+    if (snapMode !== 'auto') return pt;
+    const s = findSnapPoint(pt);
+    if (s) { setSnapPoint(s); return { x: s.x, y: s.y }; }
+    setSnapPoint(null);
+    return pt;
+  }, [snapMode, findSnapPoint]);
+
   // ── Annotation Helpers ──────────────────────────────────────────────────
 
   function addAnnotation(annotation: UserAnnotation) {
-    onAnnotationsChange([...annotations, annotation]);
+    // Attach active layer if not already set
+    const withLayer = activeLayerId ? { ...annotation, layerId: annotation.layerId ?? activeLayerId } : annotation;
+    onAnnotationsChange([...annotations, withLayer]);
   }
 
   function updateAnnotation(id: string, changes: Partial<UserAnnotation>) {
@@ -352,13 +451,36 @@ export default function DrawingCanvas({
     return annotations.reduce((max, a) => Math.max(max, a.zIndex), 0);
   }
 
+  // Copy selected annotation to clipboard
+  function copyAnnotation(id: string | null) {
+    if (!id) return;
+    const ann = annotations.find(a => a.id === id);
+    if (ann) setClipboard([ann]);
+  }
+
+  // Paste clipboard contents with a small offset
+  function pasteAnnotations() {
+    if (clipboard.length === 0) return;
+    const pasted = clipboard.map(ann => ({
+      ...ann,
+      id: generateId(),
+      points: ann.points.map(p => ({ x: p.x + PASTE_OFFSET, y: p.y + PASTE_OFFSET })),
+      zIndex: getMaxZIndex() + 1,
+    }));
+    const newAnnotations = [...annotations, ...pasted];
+    onAnnotationsChange(newAnnotations);
+    // Select last pasted
+    setSelectedAnnotationId(pasted[pasted.length - 1].id);
+  }
+
   // ── Tool: Freehand / Line / Shape Drawing ───────────────────────────────
 
   const handleDrawStart = useCallback((e: React.MouseEvent) => {
     if (activeTool === 'select' || activeTool === 'pan' || activeTool === 'eraser') return;
     if (e.button !== 0) return; // left click only
 
-    const svgPt = clientToSvg(e.clientX, e.clientY);
+    const rawPt = clientToSvg(e.clientX, e.clientY);
+    const svgPt = applySnap(rawPt);
 
     // Text tools: place text input overlay
     if (activeTool === 'text_type') {
@@ -394,8 +516,35 @@ export default function DrawingCanvas({
       return;
     }
 
-    // Polyline: if already drawing, add a new point instead of resetting
+    // Polyline: if already drawing, add a new point instead of resetting.
+    // Check if the user clicked near the starting point to close the shape.
     if (activeTool === 'polyline' && isDrawing && currentPoints.length > 0) {
+      const start = currentPoints[0];
+      const distToStart = Math.hypot(svgPt.x - start.x, svgPt.y - start.y);
+      const closeRadius = SNAP_PX / zoom;
+      if (currentPoints.length >= 3 && distToStart < closeRadius) {
+        // Close the polyline — use starting point as final point, mark as closed
+        const finalPts = [...currentPoints.slice(0, -1)]; // drop the preview point
+        const ann: UserAnnotation = {
+          id: generateId(),
+          type: 'polyline',
+          points: finalPts,
+          isClosed: true,
+          style: {
+            stroke: toolSettings.strokeColor,
+            strokeWidth: toolSettings.strokeWidth,
+            strokeDasharray: toolSettings.dashPattern,
+            fill: toolSettings.fillColor !== 'none' ? toolSettings.fillColor : 'none',
+            opacity: toolSettings.opacity,
+          },
+          zIndex: getMaxZIndex() + 1,
+        };
+        addAnnotation(ann);
+        setIsDrawing(false);
+        setCurrentPoints([]);
+        setSnapPoint(null);
+        return;
+      }
       setCurrentPoints(prev => [...prev, svgPt]);
       return;
     }
@@ -423,13 +572,14 @@ export default function DrawingCanvas({
       addAnnotation(ann);
       setIsDrawing(false);
       setCurrentPoints([]);
+      setSnapPoint(null);
       return;
     }
 
     // Start drawing
     setIsDrawing(true);
     setCurrentPoints([svgPt]);
-  }, [activeTool, clientToSvg, measureStart, isDrawing, currentPoints, toolSettings, annotations]);
+  }, [activeTool, clientToSvg, applySnap, measureStart, isDrawing, currentPoints, toolSettings, annotations, zoom]);
 
   const handleDrawMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawing) {
@@ -437,10 +587,30 @@ export default function DrawingCanvas({
       if (activeTool === 'measure' && measureStart) {
         setMeasureEnd(clientToSvg(e.clientX, e.clientY));
       }
+
+      // Handle hover-snap candidate tracking (when not yet drawing)
+      if (snapMode === 'hover' && !isDrawing) {
+        const rawPt = clientToSvg(e.clientX, e.clientY);
+        const candidate = findSnapPoint(rawPt);
+        if (candidate) {
+          if (!snapCandidate || Math.hypot(candidate.x - snapCandidate.x, candidate.y - snapCandidate.y) > 1) {
+            setSnapCandidate(candidate);
+            if (snapHoverTimerRef.current) clearTimeout(snapHoverTimerRef.current);
+            snapHoverTimerRef.current = setTimeout(() => {
+              setSnapPoint(candidate);
+            }, SNAP_HOVER_DELAY_MS);
+          }
+        } else {
+          setSnapCandidate(null);
+          if (snapHoverTimerRef.current) clearTimeout(snapHoverTimerRef.current);
+          setSnapPoint(null);
+        }
+      }
       return;
     }
 
-    const svgPt = clientToSvg(e.clientX, e.clientY);
+    const rawPt = clientToSvg(e.clientX, e.clientY);
+    const svgPt = applySnap(rawPt);
 
     if (activeTool === 'freehand' || activeTool === 'text_write') {
       // Add points continuously for freehand
@@ -457,7 +627,7 @@ export default function DrawingCanvas({
         return updated;
       });
     }
-  }, [isDrawing, activeTool, clientToSvg, measureStart]);
+  }, [isDrawing, activeTool, clientToSvg, applySnap, measureStart, snapMode, findSnapPoint, snapCandidate]);
 
   const handleDrawEnd = useCallback(() => {
     if (!isDrawing || currentPoints.length < 1) {
@@ -510,6 +680,7 @@ export default function DrawingCanvas({
 
     setIsDrawing(false);
     setCurrentPoints([]);
+    setSnapPoint(null);
 
     // One-shot tools: revert to select cursor after placement
     const ONE_SHOT_TOOLS = ['symbol'];
@@ -777,7 +948,7 @@ export default function DrawingCanvas({
           stroke: toolSettings.strokeColor,
           strokeWidth: toolSettings.strokeWidth,
           strokeDasharray: toolSettings.dashPattern,
-          fill: 'none',
+          fill: toolSettings.fillColor !== 'none' ? toolSettings.fillColor : 'none',
           opacity: toolSettings.opacity,
         },
         zIndex: getMaxZIndex() + 1,
@@ -785,6 +956,7 @@ export default function DrawingCanvas({
       addAnnotation(newAnnotation);
       setIsDrawing(false);
       setCurrentPoints([]);
+      setSnapPoint(null);
       return;
     }
 
@@ -1046,12 +1218,14 @@ export default function DrawingCanvas({
     if (!rect) return;
 
     const element = elId ? elementMap.get(elId) ?? null : null;
+    const ann = annId ? annotations.find(a => a.id === annId) : null;
 
     setContextMenu({
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
       element,
       annotationId: annId || null,
+      annotationType: ann?.type,
     });
   }, [elementMap]);
 
@@ -1059,6 +1233,7 @@ export default function DrawingCanvas({
     // Handle actions on annotations
     if (contextMenu?.annotationId) {
       const annId = contextMenu.annotationId;
+      const ann = annotations.find(a => a.id === annId);
       switch (action) {
         case 'delete':
           deleteAnnotation(annId);
@@ -1070,17 +1245,39 @@ export default function DrawingCanvas({
           updateAnnotation(annId, { zIndex: 0 });
           break;
         case 'duplicate': {
-          const orig = annotations.find(a => a.id === annId);
-          if (orig) {
+          if (ann) {
             addAnnotation({
-              ...orig,
+              ...ann,
               id: generateId(),
-              points: orig.points.map(p => ({ x: p.x + 15, y: p.y + 15 })),
+              points: ann.points.map(p => ({ x: p.x + PASTE_OFFSET, y: p.y + PASTE_OFFSET })),
               zIndex: getMaxZIndex() + 1,
             });
           }
           break;
         }
+        case 'copy':
+          copyAnnotation(annId);
+          break;
+        case 'paste':
+          pasteAnnotations();
+          break;
+        case 'toggle_fill': {
+          if (ann) {
+            const hasFill = ann.style.fill && ann.style.fill !== 'none';
+            updateAnnotation(annId, { style: { ...ann.style, fill: hasFill ? 'none' : (ann.style.stroke || '#000000') } });
+          }
+          break;
+        }
+        case 'close_shape': {
+          if (ann && ann.type === 'polyline' && ann.points.length >= 3) {
+            updateAnnotation(annId, { isClosed: !ann.isClosed });
+          }
+          break;
+        }
+        case 'hide_layer':
+        case 'lock_layer':
+          // Layer actions bubble up — handled by parent
+          break;
       }
     }
 
@@ -1106,7 +1303,7 @@ export default function DrawingCanvas({
           onElementClick(element); // opens detail panel with style editor
           break;
         case 'copy_coords': {
-          const attrs = element.attributes as Record<string, any>;
+          const attrs = element.attributes as Record<string, unknown>;
           const text = JSON.stringify(attrs.coordinates || attrs.start_point || attrs.center || {}, null, 2);
           navigator.clipboard?.writeText(text).catch(() => {
             // Clipboard access may be denied in non-secure contexts
@@ -1123,8 +1320,13 @@ export default function DrawingCanvas({
       }
     }
 
+    // Canvas-wide actions (no element selected)
+    if (!element && !contextMenu?.annotationId) {
+      if (action === 'paste') pasteAnnotations();
+    }
+
     setContextMenu(null);
-  }, [contextMenu, annotations, elements, onElementClick, onElementModified, onRevertElement]);
+  }, [contextMenu, annotations, elements, onElementClick, onElementModified, onRevertElement, clipboard]);
 
   // ── Keyboard Shortcuts ────────────────────────────────────────────────
 
@@ -1154,6 +1356,25 @@ export default function DrawingCanvas({
         deleteAnnotation(selectedAnnotationId);
       }
 
+      // Copy / paste
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        copyAnnotation(selectedAnnotationId);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        pasteAnnotations();
+      }
+
+      // Duplicate with Ctrl+D
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault();
+        if (selectedAnnotationId) {
+          const ann = annotations.find(a => a.id === selectedAnnotationId);
+          if (ann) {
+            addAnnotation({ ...ann, id: generateId(), points: ann.points.map(p => ({ x: p.x + PASTE_OFFSET, y: p.y + PASTE_OFFSET })), zIndex: getMaxZIndex() + 1 });
+          }
+        }
+      }
+
       // Escape to cancel drawing or deselect
       if (e.key === 'Escape') {
         setIsDrawing(false);
@@ -1163,6 +1384,7 @@ export default function DrawingCanvas({
         setTextInput(null);
         setMeasureStart(null);
         setMeasureEnd(null);
+        setSnapPoint(null);
       }
     }
 
@@ -1318,6 +1540,55 @@ export default function DrawingCanvas({
               })}
             </g>
           )}
+
+          {/* ── Snap indicators ────────────────────────────────────────── */}
+          {/* Active snap point — green crosshair + animated ring */}
+          {snapPoint && (
+            <g className="research-canvas__snap-indicator" pointerEvents="none">
+              <circle
+                cx={snapPoint.x} cy={snapPoint.y}
+                r={SNAP_PX * 0.8 / zoom}
+                fill="none"
+                stroke="#16A34A"
+                strokeWidth={1.5 / zoom}
+                strokeDasharray={`${3 / zoom},${2 / zoom}`}
+              />
+              <line x1={snapPoint.x - SNAP_PX * 0.6 / zoom} y1={snapPoint.y} x2={snapPoint.x + SNAP_PX * 0.6 / zoom} y2={snapPoint.y} stroke="#16A34A" strokeWidth={1 / zoom} />
+              <line x1={snapPoint.x} y1={snapPoint.y - SNAP_PX * 0.6 / zoom} x2={snapPoint.x} y2={snapPoint.y + SNAP_PX * 0.6 / zoom} stroke="#16A34A" strokeWidth={1 / zoom} />
+              {snapPoint.kind === 'midpoint' && (
+                <rect x={snapPoint.x - SNAP_PX * 0.25 / zoom} y={snapPoint.y - SNAP_PX * 0.25 / zoom} width={SNAP_PX * 0.5 / zoom} height={SNAP_PX * 0.5 / zoom} fill="#16A34A" opacity={0.6} />
+              )}
+            </g>
+          )}
+          {/* Hover-snap candidate — amber pulsing ring with countdown */}
+          {snapCandidate && snapMode === 'hover' && !snapPoint && (
+            <g className="research-canvas__snap-candidate" pointerEvents="none">
+              <circle
+                cx={snapCandidate.x} cy={snapCandidate.y}
+                r={SNAP_PX * 1.2 / zoom}
+                fill="none"
+                stroke="#F59E0B"
+                strokeWidth={1.5 / zoom}
+                opacity={0.7}
+              />
+            </g>
+          )}
+          {/* Close-shape indicator: green dot at start point when drawing polyline near start */}
+          {activeTool === 'polyline' && isDrawing && currentPoints.length >= 3 && (() => {
+            const start = currentPoints[0];
+            const last = currentPoints[currentPoints.length - 1];
+            const d = Math.hypot(last.x - start.x, last.y - start.y);
+            const closeR = SNAP_PX / zoom;
+            if (d < closeR * 2) {
+              return (
+                <g pointerEvents="none">
+                  <circle cx={start.x} cy={start.y} r={closeR} fill="#16A34A" fillOpacity={0.25} stroke="#16A34A" strokeWidth={1.5 / zoom} />
+                  <text x={start.x} y={start.y - closeR - 2 / zoom} textAnchor="middle" fill="#16A34A" fontSize={Math.max(8, 8 / zoom)}>close</text>
+                </g>
+              );
+            }
+            return null;
+          })()}
         </svg>
 
         {/* 2-second hover tooltip — rich element info card */}
@@ -1371,6 +1642,7 @@ export default function DrawingCanvas({
             y={contextMenu.y}
             element={contextMenu.element}
             isUserAnnotation={!!contextMenu.annotationId}
+            annotationType={contextMenu.annotationType}
             onAction={handleContextMenuAction}
             onClose={() => setContextMenu(null)}
           />
@@ -1407,6 +1679,18 @@ function renderAnnotation(ann: UserAnnotation): JSX.Element | null {
 
     case 'polyline':
       if (ann.points.length < 2) return null;
+      // If the polyline is closed, render as a polygon so fill stays inside the shape
+      if (ann.isClosed) {
+        return (
+          <polygon
+            points={ann.points.map(p => `${p.x},${p.y}`).join(' ')}
+            stroke={s.stroke} strokeWidth={s.strokeWidth}
+            strokeDasharray={s.strokeDasharray || undefined}
+            fill={s.fill && s.fill !== 'none' ? s.fill : 'none'}
+            fillRule="evenodd"
+          />
+        );
+      }
       return (
         <polyline
           points={ann.points.map(p => `${p.x},${p.y}`).join(' ')}
@@ -1420,10 +1704,10 @@ function renderAnnotation(ann: UserAnnotation): JSX.Element | null {
       if (ann.points.length < 2) return null;
       return (
         <path
-          d={pointsToPath(ann.points)}
+          d={pointsToPath(ann.points) + (ann.isClosed ? ' Z' : '')}
           stroke={s.stroke} strokeWidth={s.strokeWidth}
           strokeLinecap="round" strokeLinejoin="round"
-          fill="none"
+          fill={ann.isClosed && s.fill && s.fill !== 'none' ? s.fill : 'none'}
         />
       );
 
@@ -1699,11 +1983,74 @@ function renderSymbolSvg(ann: UserAnnotation): JSX.Element {
   );
 
   switch (ann.symbolType) {
-    // ── Monuments ──
+    // ── Monuments — standard ──
     case 'iron_rod':
     case 'iron_pipe':
     case 'rebar':
       return <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={1} />;
+
+    // ── Monuments — sized iron rod variants (different outer ring + inner dot) ──
+    case 'iron_rod_half':
+      // 1/2" — small single circle
+      return (
+        <g>
+          <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={1} />
+          <text x={x} y={y + r + s * 0.55} textAnchor="middle" fontSize={s * 0.55} fill={stroke} fontWeight="bold">½″</text>
+        </g>
+      );
+    case 'iron_rod_five_eighth':
+      // 5/8" — double circle (most common US rod)
+      return (
+        <g>
+          <circle cx={x} cy={y} r={r * 1.25} fill="none" stroke={stroke} strokeWidth={0.8} />
+          <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={1} />
+          <text x={x} y={y + r * 1.25 + s * 0.55} textAnchor="middle" fontSize={s * 0.55} fill={stroke} fontWeight="bold">⅝″</text>
+        </g>
+      );
+    case 'iron_rod_three_quarter':
+      // 3/4" — larger solid circle
+      return (
+        <g>
+          <circle cx={x} cy={y} r={r * 1.15} fill={fill} stroke={stroke} strokeWidth={1} />
+          <text x={x} y={y + r * 1.15 + s * 0.55} textAnchor="middle" fontSize={s * 0.55} fill={stroke} fontWeight="bold">¾″</text>
+        </g>
+      );
+    case 'iron_rod_one_inch':
+      // 1" — large circle with cross
+      return (
+        <g>
+          <circle cx={x} cy={y} r={r * 1.3} fill={fill} stroke={stroke} strokeWidth={1.2} />
+          <line x1={x - r * 0.7} y1={y} x2={x + r * 0.7} y2={y} stroke={stroke} strokeWidth={0.6} />
+          <line x1={x} y1={y - r * 0.7} x2={x} y2={y + r * 0.7} stroke={stroke} strokeWidth={0.6} />
+          <text x={x} y={y + r * 1.3 + s * 0.55} textAnchor="middle" fontSize={s * 0.55} fill={stroke} fontWeight="bold">1″</text>
+        </g>
+      );
+    // ── Iron pipe sizes ──
+    case 'iron_pipe_half':
+      return (
+        <g>
+          <rect x={x - r * 0.7} y={y - r * 0.7} width={r * 1.4} height={r * 1.4} fill="none" stroke={stroke} strokeWidth={1} />
+          <circle cx={x} cy={y} r={r * 0.4} fill={fill} />
+          <text x={x} y={y + r + s * 0.55} textAnchor="middle" fontSize={s * 0.55} fill={stroke} fontWeight="bold">½P</text>
+        </g>
+      );
+    case 'iron_pipe_three_quarter':
+      return (
+        <g>
+          <rect x={x - r} y={y - r} width={s} height={s} fill="none" stroke={stroke} strokeWidth={1} />
+          <circle cx={x} cy={y} r={r * 0.4} fill={fill} />
+          <text x={x} y={y + r + s * 0.55} textAnchor="middle" fontSize={s * 0.55} fill={stroke} fontWeight="bold">¾P</text>
+        </g>
+      );
+    case 'iron_pipe_one_inch':
+      return (
+        <g>
+          <rect x={x - r * 1.2} y={y - r * 1.2} width={r * 2.4} height={r * 2.4} fill="none" stroke={stroke} strokeWidth={1.2} />
+          <circle cx={x} cy={y} r={r * 0.45} fill={fill} />
+          <text x={x} y={y + r * 1.2 + s * 0.55} textAnchor="middle" fontSize={s * 0.55} fill={stroke} fontWeight="bold">1″P</text>
+        </g>
+      );
+
     case 'concrete_monument':
       return <rect x={x - r} y={y - r} width={s} height={s} fill={fill} stroke={stroke} strokeWidth={1} />;
     case 'nail':
@@ -1789,6 +2136,20 @@ function renderSymbolSvg(ann: UserAnnotation): JSX.Element {
           <text x={x} y={y + s * 0.15} textAnchor="middle" fontSize={s * 0.4} fill={stroke}>ST</text>
         </g>
       );
+
+    // ── Underground Line Marker Symbols ──
+    case 'water_line':
+      return labeledCircle('W', '#3B82F6');
+    case 'sewer_line':
+      return labeledCircle('SS', '#78716C');
+    case 'gas_line':
+      return labeledCircle('G', '#F59E0B');
+    case 'electric_line':
+      return labeledCircle('E', '#EF4444');
+    case 'telecom_line':
+      return labeledCircle('T', '#8B5CF6');
+    case 'fiber_line':
+      return labeledCircle('F', '#10B981');
 
     // ── Above Ground Utilities ──
     case 'utility_pole':
@@ -2058,6 +2419,22 @@ function computeDistance(a: { x: number; y: number }, b: { x: number; y: number 
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   return Math.sqrt(dx * dx + dy * dy);
+}
+
+/**
+ * Return the closest point on segment [a,b] to point p.
+ * Used by the snap system for "snap along line" behaviour.
+ */
+function closestPointOnSegment(
+  p: { x: number; y: number },
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): { x: number; y: number } {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return { x: a.x, y: a.y };
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
+  return { x: a.x + t * dx, y: a.y + t * dy };
 }
 
 function getAnnotationBounds(ann: UserAnnotation): { x: number; y: number; w: number; h: number } | null {

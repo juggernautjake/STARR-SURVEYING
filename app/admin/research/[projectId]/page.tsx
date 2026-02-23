@@ -13,6 +13,7 @@ import SourceDocumentViewer from '../components/SourceDocumentViewer';
 import DrawingCanvas, { type UserAnnotation } from '../components/DrawingCanvas';
 import AnalysisSummary from '../components/AnalysisSummary';
 import BriefingPanel from '../components/BriefingPanel';
+import AnnotationLayerPanel, { type AnnotationLayer, createDefaultLayer } from '../components/AnnotationLayerPanel';
 import CoordinateEntryPanel, { type TraverseVertex } from '../components/CoordinateEntryPanel';
 import VertexEditPanel, { type VertexData } from '../components/VertexEditPanel';
 import ElementDetailPanel from '../components/ElementDetailPanel';
@@ -79,6 +80,10 @@ export default function ResearchProjectPage() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [originalElements, setOriginalElements] = useState<DrawingElement[]>([]);
   const [originalAnnotations, setOriginalAnnotations] = useState<UserAnnotation[]>([]);
+
+  // Annotation layers
+  const [annotationLayers, setAnnotationLayers] = useState<AnnotationLayer[]>([createDefaultLayer(0)]);
+  const [activeLayerId, setActiveLayerId] = useState<string>(annotationLayers[0]?.id ?? '');
 
   // CAD editing state
   const [showCoordEntry, setShowCoordEntry] = useState(false);
@@ -1616,6 +1621,21 @@ export default function ResearchProjectPage() {
                   showUITooltips={showUITooltips}
                 />
 
+                {/* Annotation layer panel (below tools) */}
+                <AnnotationLayerPanel
+                  layers={annotationLayers}
+                  activeLayerId={activeLayerId}
+                  onLayersChange={setAnnotationLayers}
+                  onActiveLayerChange={setActiveLayerId}
+                  annotationCountByLayer={
+                    annotations.reduce<Record<string, number>>((acc, ann) => {
+                      const lid = ann.layerId || annotationLayers[0]?.id || '';
+                      acc[lid] = (acc[lid] || 0) + 1;
+                      return acc;
+                    }, {})
+                  }
+                />
+
                 {/* Preferences panel (slides in from left) */}
                 {showPrefsPanel && (
                   <DrawingPreferencesPanel
@@ -1680,6 +1700,8 @@ export default function ResearchProjectPage() {
                       onVertexClick={handleVertexClick}
                       zoomToFitSignal={zoomToFitSignal}
                       onCursorPositionChange={setCursorPosition}
+                      snapMode={toolSettings.snapMode}
+                      activeLayerId={activeLayerId}
                     />
                   ) : (
                     <div className="research-canvas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
