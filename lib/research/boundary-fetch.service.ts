@@ -239,6 +239,15 @@ const ORDINAL_WORDS: Record<number, string> = {
   11: 'ELEVENTH', 12: 'TWELFTH', 13: 'THIRTEENTH', 14: 'FOURTEENTH',
   15: 'FIFTEENTH', 16: 'SIXTEENTH', 17: 'SEVENTEENTH', 18: 'EIGHTEENTH',
   19: 'NINETEENTH', 20: 'TWENTIETH',
+  21: 'TWENTY-FIRST', 22: 'TWENTY-SECOND', 23: 'TWENTY-THIRD', 24: 'TWENTY-FOURTH',
+  25: 'TWENTY-FIFTH', 26: 'TWENTY-SIXTH', 27: 'TWENTY-SEVENTH', 28: 'TWENTY-EIGHTH',
+  29: 'TWENTY-NINTH', 30: 'THIRTIETH',
+  31: 'THIRTY-FIRST', 32: 'THIRTY-SECOND', 33: 'THIRTY-THIRD', 34: 'THIRTY-FOURTH',
+  35: 'THIRTY-FIFTH', 36: 'THIRTY-SIXTH', 37: 'THIRTY-SEVENTH', 38: 'THIRTY-EIGHTH',
+  39: 'THIRTY-NINTH', 40: 'FORTIETH',
+  41: 'FORTY-FIRST', 42: 'FORTY-SECOND', 43: 'FORTY-THIRD', 44: 'FORTY-FOURTH',
+  45: 'FORTY-FIFTH', 46: 'FORTY-SIXTH', 47: 'FORTY-SEVENTH', 48: 'FORTY-EIGHTH',
+  49: 'FORTY-NINTH', 50: 'FIFTIETH',
 };
 
 // ── Address Variant Generator ─────────────────────────────────────────────────
@@ -991,6 +1000,16 @@ async function geocodeWithOverpass(
     return null;
   }
 
+  // Sanitize: only allow alphanumeric, spaces, hyphens, and apostrophes in query strings
+  // to prevent Overpass query injection from user-supplied address data.
+  const safeHouseNum = houseNum.replace(/[^0-9]/g, '');
+  const safeStreetName = streetName.replace(/[^A-Za-z0-9 '-]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  if (!safeHouseNum || !safeStreetName) {
+    steps.push('[Method 10] Overpass: address sanitization removed all content; skipping.');
+    return null;
+  }
+
   // Approximate bounding boxes per county
   const COUNTY_BBOX: Record<string, string> = {
     bell:      '30.85,-97.75,31.40,-97.05',
@@ -1003,11 +1022,11 @@ async function geocodeWithOverpass(
   const bbox = COUNTY_BBOX[countyKey] ?? '30.0,-98.5,31.5,-96.5';
 
   const query = `[out:json][timeout:15];(\n` +
-    `  node["addr:housenumber"="${houseNum}"]["addr:street"~"${streetName}",i](${bbox});\n` +
-    `  way["addr:housenumber"="${houseNum}"]["addr:street"~"${streetName}",i](${bbox});\n` +
+    `  node["addr:housenumber"="${safeHouseNum}"]["addr:street"~"${safeStreetName}",i](${bbox});\n` +
+    `  way["addr:housenumber"="${safeHouseNum}"]["addr:street"~"${safeStreetName}",i](${bbox});\n` +
     `);out center 1;`;
 
-  steps.push(`[Method 10] OpenStreetMap Overpass: housenumber="${houseNum}", street~"${streetName}" in bbox ${bbox}`);
+  steps.push(`[Method 10] OpenStreetMap Overpass: housenumber="${safeHouseNum}", street~"${safeStreetName}" in bbox ${bbox}`);
   try {
     const res = await fetchWithTimeout('https://overpass-api.de/api/interpreter', {
       method: 'POST',
@@ -1486,7 +1505,8 @@ async function resolvePropertyId(
   if (cadConfig && req.address) {
     steps.push('[Method 1] TrueAutomation address search (primary)');
     const normalized = normalizeStreetAddress(req.address);
-    const normalizedChanged = normalized !== req.address.split(',')[0].replace(/\./g, '').replace(/\s+/g, ' ').trim();
+    const normalizedChanged = normalized !== normalizeStreetAddress(req.address.split(',')[0]) ||
+      normalized !== req.address.trim();
     if (normalizedChanged) steps.push(`[Method 1] Cleaned address for TrueAutomation: "${normalized}"`);
     const id = await trueAutoSearchByAddress(cadConfig.cid, normalized, steps);
     if (id) return id;

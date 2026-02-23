@@ -13,6 +13,11 @@ import { callAI } from './ai-client';
 // ── Rate Limiting & Cache ────────────────────────────────────────────────────
 
 const searchCache = new Map<string, { results: PropertySearchResponse; timestamp: number }>();
+
+// Default Central Texas coordinates used as a placeholder until real geocoding is applied.
+// These are the approximate center of Temple, TX (Bell County seat of service area).
+const CENTRAL_TEXAS_DEFAULT_LAT = 31.0698;
+const CENTRAL_TEXAS_DEFAULT_LON = -97.3536;
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 function getCacheKey(req: PropertySearchRequest): string {
@@ -1225,7 +1230,7 @@ async function searchUSGS(req: PropertySearchRequest): Promise<ProviderResult> {
   // NOTE: USGS TopoView uses #zoom/lat/lon, not an address string.
   // We build a fallback search URL now; the search route will patch it with actual
   // geocoded coordinates after parallel geocoding completes.
-  const usgsViewerUrl = `https://ngmdb.usgs.gov/topoview/viewer/#14/31.0698/-97.3536`;
+  const usgsViewerUrl = `https://ngmdb.usgs.gov/topoview/viewer/#14/${CENTRAL_TEXAS_DEFAULT_LAT}/${CENTRAL_TEXAS_DEFAULT_LON}`;
 
   return {
     results: [
