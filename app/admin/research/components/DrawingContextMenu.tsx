@@ -50,6 +50,8 @@ interface MenuSection {
     action: ContextMenuAction;
     label: string;
     icon?: string;
+    /** Keyboard shortcut hint displayed on the right side of the item */
+    shortcut?: string;
     disabled?: boolean;
     danger?: boolean;
   }[];
@@ -153,9 +155,11 @@ export default function DrawingContextMenu({
               }}
               disabled={item.disabled}
               role="menuitem"
+              title={item.disabled ? 'Locked — unlock first' : undefined}
             >
               {item.icon && <span className="research-context-menu__icon">{item.icon}</span>}
-              <span>{item.label}</span>
+              <span className="research-context-menu__label">{item.label}</span>
+              {item.shortcut && <kbd className="research-context-menu__shortcut">{item.shortcut}</kbd>}
             </button>
           ))}
         </div>
@@ -172,9 +176,9 @@ function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boo
     return [
       {
         items: [
-          { action: 'paste', label: 'Paste', icon: '📋' },
+          { action: 'paste', label: 'Paste', icon: '📋', shortcut: 'Ctrl+V' },
           { action: 'measure_from', label: 'Measure Distance', icon: '📏' },
-          { action: 'copy_coords', label: 'Copy Coordinates', icon: '📋' },
+          { action: 'copy_coords', label: 'Copy Coordinates', icon: '📍' },
         ],
       },
     ];
@@ -189,8 +193,8 @@ function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boo
   // Edit section — always available for user annotations
   if (isUserAnnotation) {
     const editItems: MenuSection['items'] = [
-      { action: 'copy', label: 'Copy', icon: '⎘' },
-      { action: 'duplicate', label: 'Duplicate', icon: '⧉' },
+      { action: 'copy', label: 'Copy', icon: '⎘', shortcut: 'Ctrl+C' },
+      { action: 'duplicate', label: 'Duplicate', icon: '⧉', shortcut: 'Ctrl+D' },
     ];
     if (isPolylineOrFreehand) {
       editItems.push({ action: 'toggle_fill', label: 'Toggle Fill', icon: '⬛' });
@@ -254,7 +258,7 @@ function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boo
   const infoItems: MenuSection['items'] = [
     { action: 'view_details', label: 'View Details', icon: 'ℹ' },
     { action: 'add_note', label: 'Add Note', icon: '📝' },
-    { action: 'copy_coords', label: 'Copy Coordinates', icon: '📋' },
+    { action: 'copy_coords', label: 'Copy Coordinates', icon: '📍' },
   ];
 
   if (element.source_references?.length > 0) {
@@ -288,7 +292,7 @@ function buildMenuSections(element: DrawingElement | null, isUserAnnotation: boo
 
   // Delete for user annotations
   if (isUserAnnotation) {
-    controlItems.push({ action: 'delete', label: 'Delete', icon: '🗑', danger: true });
+    controlItems.push({ action: 'delete', label: 'Delete', icon: '🗑', shortcut: 'Del', danger: true });
   }
 
   sections.push({ items: controlItems });

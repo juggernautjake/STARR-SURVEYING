@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Tooltip from './Tooltip';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,9 +114,11 @@ export default function AnnotationLayerPanel({
     <div className="layer-panel">
       <div className="layer-panel__header">
         <span className="layer-panel__title">Layers</span>
-        <button className="layer-panel__add-btn" onClick={addLayer} title="Add new layer">
-          + Add
-        </button>
+        <Tooltip text="Add a new annotation layer. Each layer can be toggled, locked, and colored independently." position="right" delay={300}>
+          <button className="layer-panel__add-btn" onClick={addLayer} aria-label="Add new layer">
+            + Add
+          </button>
+        </Tooltip>
       </div>
 
       <div className="layer-panel__list">
@@ -165,44 +168,52 @@ export default function AnnotationLayerPanel({
               {/* Controls */}
               <div className="layer-panel__controls" onClick={e => e.stopPropagation()}>
                 {/* Visibility toggle */}
-                <button
-                  className={`layer-panel__btn ${!layer.visible ? 'layer-panel__btn--off' : ''}`}
-                  onClick={() => updateLayer(layer.id, { visible: !layer.visible })}
-                  title={layer.visible ? 'Hide layer' : 'Show layer'}
-                >
-                  {layer.visible ? '👁' : '🚫'}
-                </button>
+                <Tooltip text={layer.visible ? 'Hide layer — annotations on this layer will be invisible' : 'Show layer — make this layer visible'} position="right" delay={400}>
+                  <button
+                    className={`layer-panel__btn ${!layer.visible ? 'layer-panel__btn--off' : ''}`}
+                    onClick={() => updateLayer(layer.id, { visible: !layer.visible })}
+                    aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
+                  >
+                    {layer.visible ? '👁' : '🚫'}
+                  </button>
+                </Tooltip>
 
                 {/* Lock toggle */}
-                <button
-                  className={`layer-panel__btn ${layer.locked ? 'layer-panel__btn--locked' : ''}`}
-                  onClick={() => updateLayer(layer.id, { locked: !layer.locked })}
-                  title={layer.locked ? 'Unlock layer' : 'Lock layer'}
-                >
-                  {layer.locked ? '🔒' : '🔓'}
-                </button>
+                <Tooltip text={layer.locked ? 'Locked — click to unlock so annotations can be edited' : 'Unlocked — click to lock so annotations cannot be moved or edited'} position="right" delay={400}>
+                  <button
+                    className={`layer-panel__btn ${layer.locked ? 'layer-panel__btn--locked' : ''}`}
+                    onClick={() => updateLayer(layer.id, { locked: !layer.locked })}
+                    aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'}
+                  >
+                    {layer.locked ? '🔒' : '🔓'}
+                  </button>
+                </Tooltip>
 
                 {/* Color change */}
-                <input
-                  type="color"
-                  value={layer.color}
-                  className="layer-panel__color-input"
-                  title="Change layer color"
-                  onChange={e => updateLayer(layer.id, { color: e.target.value })}
-                />
+                <Tooltip text="Change the accent color for this layer (used for the color dot and row highlight)" position="right" delay={400}>
+                  <input
+                    type="color"
+                    value={layer.color}
+                    className="layer-panel__color-input"
+                    aria-label="Layer color"
+                    onChange={e => updateLayer(layer.id, { color: e.target.value })}
+                  />
+                </Tooltip>
 
                 {/* Delete */}
-                <button
-                  className="layer-panel__btn layer-panel__btn--delete"
-                  onClick={() => {
-                    if (count > 0 && !window.confirm(`Delete "${layer.name}"? It has ${count} annotation(s).`)) return;
-                    deleteLayer(layer.id);
-                  }}
-                  title="Delete layer"
-                  disabled={layers.length <= 1}
-                >
-                  ×
-                </button>
+                <Tooltip text={layers.length <= 1 ? 'Cannot delete the only layer' : count > 0 ? `Delete layer — ${count} annotation(s) will also be removed` : 'Delete this empty layer'} position="right" delay={400}>
+                  <button
+                    className="layer-panel__btn layer-panel__btn--delete"
+                    onClick={() => {
+                      if (count > 0 && !window.confirm(`Delete "${layer.name}"? It has ${count} annotation(s).`)) return;
+                      deleteLayer(layer.id);
+                    }}
+                    aria-label="Delete layer"
+                    disabled={layers.length <= 1}
+                  >
+                    ×
+                  </button>
+                </Tooltip>
               </div>
             </div>
           );
@@ -210,7 +221,7 @@ export default function AnnotationLayerPanel({
       </div>
 
       <div className="layer-panel__hint">
-        Drag rows to reorder. Active layer receives new annotations.
+        💡 Click a row to set active layer · Double-click name to rename · Drag to reorder
       </div>
     </div>
   );

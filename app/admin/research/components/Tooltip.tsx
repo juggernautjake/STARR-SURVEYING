@@ -8,6 +8,10 @@ interface TooltipProps {
   enabled?: boolean;
   position?: 'top' | 'bottom' | 'left' | 'right';
   delay?: number;
+  /** Optional keyboard shortcut badge shown at the end of the tooltip */
+  shortcut?: string;
+  /** Override the default 300px max-width */
+  maxWidth?: number;
   children: React.ReactNode;
 }
 
@@ -16,6 +20,8 @@ export default function Tooltip({
   enabled = true,
   position = 'top',
   delay = 400,
+  shortcut,
+  maxWidth,
   children,
 }: TooltipProps) {
   const [visible, setVisible] = useState(false);
@@ -89,10 +95,11 @@ export default function Tooltip({
         <div
           ref={tipRef}
           className={`research-tip research-tip--${position}`}
-          style={{ left: coords.x, top: coords.y }}
+          style={{ left: coords.x, top: coords.y, maxWidth }}
           role="tooltip"
         >
           {text}
+          {shortcut && <kbd className="research-tip__shortcut">{shortcut}</kbd>}
         </div>
       )}
     </span>
