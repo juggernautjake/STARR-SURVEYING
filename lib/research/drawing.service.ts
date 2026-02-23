@@ -203,10 +203,14 @@ export async function createDrawing(
 
   // 10. Save all elements — scale strokes for canvas visibility
   const strokeScale = Math.max(1, canvasWidth / 1200);
-  const elementRows = elements.map((el, idx) => {
-    const featureStyle = drawingConfig.feature_styles[el.feature_class];
-    const baseStrokeWidth = featureStyle?.strokeWidth || 1;
+  const elementRows = elements.map((el) => {
+    const featureStyle = drawingConfig.feature_styles[el.feature_class]
+      || (el.layer === 'boundary_fill' ? drawingConfig.feature_styles['boundary_fill'] : null);
+    const baseStrokeWidth = featureStyle?.strokeWidth ?? 1;
     const baseFontSize = featureStyle?.fontSize || drawingConfig.label_config.font_size || 10;
+
+    // boundary_fill polygon gets a fixed light semi-transparent fill, not scaled stroke
+    const isBoundaryFill = el.layer === 'boundary_fill';
 
     return {
     drawing_id: drawingId,
@@ -218,13 +222,14 @@ export async function createDrawing(
     style: featureStyle
       ? {
           stroke: featureStyle.stroke || '#000000',
-          strokeWidth: Math.round(baseStrokeWidth * strokeScale * 10) / 10,
+          strokeWidth: isBoundaryFill ? 0 : Math.round(baseStrokeWidth * strokeScale * 10) / 10,
           strokeDasharray: featureStyle.dasharray
             ? featureStyle.dasharray.split(',').map(v => String(Math.round(parseFloat(v) * strokeScale))).join(',')
             : '',
           fill: featureStyle.fill || 'none',
-          opacity: 1,
+          opacity: isBoundaryFill ? 0.15 : 1,
           fontSize: Math.round(baseFontSize * strokeScale),
+          fontFamily: drawingConfig.label_config.font_family,
         }
       : {
           stroke: '#000000',
@@ -233,6 +238,7 @@ export async function createDrawing(
           fill: 'none',
           opacity: 1,
           fontSize: Math.round(10 * strokeScale),
+          fontFamily: drawingConfig.label_config.font_family,
         },
     layer: el.layer,
     z_index: el.z_index,

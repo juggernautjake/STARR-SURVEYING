@@ -79,6 +79,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   zoning: 'Zoning',
   flood_zone: 'Flood Zone',
   annotation: 'Note',
+  other: 'Other',
 };
 
 const MONUMENT_TYPE_ICONS: Record<string, string> = {

@@ -159,27 +159,39 @@ export default function DrawingCanvas({
   const showTooltips = preferences?.showTooltips !== false;
   const highlightOnHover = preferences?.highlightOnHover !== false;
 
-  // Auto-fit drawing in viewport on initial load
+  // Auto-fit drawing in viewport on initial load.
+  // Uses a short retry so the container has time to lay out before measuring.
   useEffect(() => {
-    if (!svgContent || !containerRef.current) return;
-    const container = containerRef.current;
-    const cw = container.clientWidth;
-    const ch = container.clientHeight;
-    if (cw === 0 || ch === 0) return;
+    if (!svgContent) return;
 
-    const sw = drawing.canvas_config?.width || 1200;
-    const sh = drawing.canvas_config?.height || 800;
+    function doFit(): boolean {
+      const container = containerRef.current;
+      if (!container) return false;
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+      if (cw === 0 || ch === 0) return false;
 
-    // Fit drawing inside container with 5% padding
-    const fitZoom = Math.min((cw * 0.90) / sw, (ch * 0.90) / sh);
-    const clampedZoom = Math.max(0.1, Math.min(10, fitZoom));
+      const sw = drawing.canvas_config?.width || 1200;
+      const sh = drawing.canvas_config?.height || 800;
 
-    // Center the drawing
-    const panX = (cw - sw * clampedZoom) / 2;
-    const panY = (ch - sh * clampedZoom) / 2;
+      // Fit drawing inside container with 10% padding on each axis
+      const fitZoom = Math.min((cw * 0.90) / sw, (ch * 0.90) / sh);
+      const clampedZoom = Math.max(0.1, Math.min(10, fitZoom));
 
-    setZoom(clampedZoom);
-    setPan({ x: panX, y: panY });
+      // Center the drawing
+      const panX = (cw - sw * clampedZoom) / 2;
+      const panY = (ch - sh * clampedZoom) / 2;
+
+      setZoom(clampedZoom);
+      setPan({ x: panX, y: panY });
+      return true;
+    }
+
+    // Try immediately, then retry after layout completes
+    if (!doFit()) {
+      const t = setTimeout(doFit, 150);
+      return () => clearTimeout(t);
+    }
   }, [drawing.id, svgContent]); // Re-fit when drawing changes
 
   // Zoom-to-fit on external signal (toolbar button)

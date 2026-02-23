@@ -107,6 +107,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   });
 
   // ── Section 4: Improvements, utilities, fences ────────────────────────
+  // Capture utility_info, annotation, and 'other' categories (which can include
+  // improvements, fences, buildings, and other field observations)
   const utilityDPs = dataPoints.filter(dp => dp.data_category === 'utility_info');
   const utilities = utilityDPs.map(dp => ({
     description: dp.display_value || dp.raw_value,
@@ -114,7 +116,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }));
 
   const otherConsiderations = dataPoints
-    .filter(dp => ['setback', 'right_of_way', 'zoning', 'flood_zone', 'annotation'].includes(dp.data_category))
+    .filter(dp => ['setback', 'right_of_way', 'zoning', 'flood_zone', 'annotation', 'other'].includes(dp.data_category))
     .map(dp => ({
       category: dp.data_category,
       description: dp.display_value || dp.raw_value,
