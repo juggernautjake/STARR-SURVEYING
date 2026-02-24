@@ -174,6 +174,18 @@ async function storeScreenshotAsDocument(
   } catch { /* non-fatal */ }
 
   try {
+    // Skip if a document with the same source_url and label already exists
+    const { data: existing } = await supabaseAdmin
+      .from('research_documents')
+      .select('id')
+      .eq('research_project_id', projectId)
+      .eq('source_url', sourceUrl)
+      .eq('document_label', label)
+      .maybeSingle();
+    if (existing) return existing.id;
+  } catch { /* non-fatal — proceed with insert */ }
+
+  try {
     const { data: doc, error } = await supabaseAdmin
       .from('research_documents')
       .insert({
@@ -213,6 +225,17 @@ async function storeHttpFetchedDocument(
   sourceUrl: string,
   textContent: string,
 ): Promise<string | null> {
+  try {
+    const { data: existing } = await supabaseAdmin
+      .from('research_documents')
+      .select('id')
+      .eq('research_project_id', projectId)
+      .eq('source_url', sourceUrl)
+      .eq('extracted_text_method', 'http_fetch')
+      .maybeSingle();
+    if (existing) return existing.id;
+  } catch { /* non-fatal */ }
+
   try {
     const { data: doc, error } = await supabaseAdmin
       .from('research_documents')
@@ -350,6 +373,7 @@ async function httpPropertyResearch(req: BrowserScrapeRequest): Promise<BrowserS
           if (raw != null) {
             propertyId = String(raw).trim();
             steps.push(`[HTTP] ✓ Found property ID: ${propertyId} via ${url}`);
+            steps.push(`[PROPERTY ID FOUND] ✓ CAD property ID: ${propertyId}`);
             break outer;
           }
         } catch (endpointErr) {
@@ -390,6 +414,7 @@ async function httpPropertyResearch(req: BrowserScrapeRequest): Promise<BrowserS
             if (ids.length > 0) {
               propertyId = ids[0];
               steps.push(`[HTTP] ✓ Keyword search found ${ids.length} result(s) — using property ID: ${propertyId}`);
+              steps.push(`[PROPERTY ID FOUND] ✓ CAD property ID: ${propertyId}`);
               break;
             }
           } catch (kwErr) {
@@ -436,10 +461,19 @@ async function httpPropertyResearch(req: BrowserScrapeRequest): Promise<BrowserS
         // Terminators: PROPERTY, OWNER, VALUE, IMPROVEMENT, LAND, DEED are common
         // next-section labels on eSearch property detail pages.
         if (!legalDescription) {
-          const ldMatch = text.match(/LEGAL\s+DESCRIPTION[:\s]+([^]+?)(?:\s{2,}|\d\.\s|(?:PROPERTY|OWNER|VALUE|IMPROVEMENT|LAND|DEED)\s)/i);
-          if (ldMatch?.[1]?.trim() && ldMatch[1].trim().length > 10) {
-            legalDescription = ldMatch[1].trim().substring(0, MAX_LEGAL_DESCRIPTION_LENGTH);
-            steps.push(`[HTTP] Extracted legal description (${legalDescription.length} chars)`);
+          // Try multiple patterns for different CAD system formats
+          const ldPatterns = [
+            /LEGAL\s+DESCRIPTION[:\s]+([A-Z0-9][^\n]{19,}(?:\n[^\n]{10,}){0,5})/i,
+            /LEGAL\s+DESC(?:RIPTION)?\s*[:\s]+(.{20,})(?=\s{2,}|\b(?:PROPERTY|OWNER|VALUE|IMPROVEMENT|LAND|DEED\s+VOL|GEO\s+ID|YEAR\s+BUILT)\b)/i,
+          ];
+          for (const pat of ldPatterns) {
+            const ldMatch = text.match(pat);
+            const ldCapture = ldMatch?.[1]?.trim();
+            if (ldCapture && ldCapture.length > 10) {
+              legalDescription = ldCapture.substring(0, MAX_LEGAL_DESCRIPTION_LENGTH);
+              steps.push(`[HTTP] Extracted legal description (${legalDescription.length} chars): "${legalDescription.substring(0, 80)}${legalDescription.length > 80 ? '…' : ''}"`);
+              break;
+            }
           }
         }
         // Extract owner name — "OWNER:" or "OWNER NAME:" label

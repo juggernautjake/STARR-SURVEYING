@@ -3,7 +3,7 @@
 // DATA_EXTRACTOR pipeline captures. Designed for survey-quality comprehension.
 
 import { callAI } from './ai-client';
-import { fetchBoundaryCalls } from './boundary-fetch.service';
+import { fetchBoundaryCalls, stripStreetTypeSuffix, extractPropertyIdsFromEsearchHtml } from './boundary-fetch.service';
 import type {
   DeepDocumentAnalysis,
   LegalDescriptionAnalysis,
@@ -124,7 +124,26 @@ export async function fetchSourceContent(
   // ── TrueAutomation JSON API ───────────────────────────────────────────────
   if (host.includes('trueautomation.com')) {
     const cid = parsedUrl.searchParams.get('cid');
-    const propId = parsedUrl.searchParams.get('prop_id') ?? opts.propertyId;
+    let propId = parsedUrl.searchParams.get('prop_id') ?? opts.propertyId;
+
+    // If no prop_id, try address-based search to resolve it
+    if (cid && !propId && opts.address) {
+      const streetOnly = opts.address.split(',')[0].replace(/\./g, '').trim();
+      try {
+        const searchRes = await fetch(
+          `https://propaccess.trueautomation.com/clientdb/api/v1/app/search/address?cid=${cid}&q=${encodeURIComponent(streetOnly)}`,
+          { signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS), headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' } },
+        );
+        if (searchRes.ok) {
+          const searchData = await searchRes.json() as Record<string, unknown>;
+          const hits = Array.isArray(searchData) ? searchData : ((searchData?.data ?? []) as unknown[]);
+          if (Array.isArray(hits) && hits.length > 0) {
+            propId = String((hits[0] as Record<string, unknown>).prop_id ?? '');
+          }
+        }
+      } catch { /* fall through */ }
+    }
+
     if (cid && propId) {
       try {
         const apiUrl = `https://propaccess.trueautomation.com/clientdb/api/v1/app/properties` +
@@ -166,6 +185,44 @@ export async function fetchSourceContent(
         if (text.length > 200) return { text: text.substring(0, 25000), method: 'esearch-html' };
       }
     } catch { /* fall through */ }
+  }
+
+  // ── eSearch CAD address/account search URL → resolve property ID + fetch view ──
+  if (host.includes('esearch.') && parsedUrl.pathname.toLowerCase().includes('/property/search')) {
+    const searchVal = parsedUrl.searchParams.get('value') ?? parsedUrl.searchParams.get('q') ?? '';
+    const year = parsedUrl.searchParams.get('year') ?? String(new Date().getFullYear());
+    if (searchVal) {
+      const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
+      // Try keyword HTML search first (most reliable for address queries)
+      const streetOnly = searchVal.split(',')[0].replace(/\./g, '').trim().toUpperCase();
+      const houseMatch = streetOnly.match(/^(\d+)\s+(.+)$/);
+      if (houseMatch) {
+        const houseNum = houseMatch[1];
+        const streetName = stripStreetTypeSuffix(houseMatch[2].trim());
+        const keywords = `StreetNumber:${houseNum} StreetName:${streetName} `;
+        try {
+          const kwRes = await fetch(`${baseUrl}/search/result?keywords=${encodeURIComponent(keywords)}`, {
+            signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
+            headers: { 'Accept': 'text/html', 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
+          });
+          if (kwRes.ok) {
+            const kwHtml = await kwRes.text();
+            const ids = extractPropertyIdsFromEsearchHtml(kwHtml);
+            if (ids.length > 0) {
+              const viewUrl = `${baseUrl}/Property/View/${ids[0]}?year=${year}`;
+              const viewRes = await fetch(viewUrl, {
+                signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
+                headers: { 'Accept': 'text/html', 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
+              });
+              if (viewRes.ok) {
+                const viewText = stripHtmlToText(await viewRes.text());
+                if (viewText.length > 200) return { text: viewText.substring(0, 25000), method: 'esearch-view-from-search' };
+              }
+            }
+          }
+        } catch { /* fall through */ }
+      }
+    }
   }
 
   // ── publicsearch.us instruments API ──────────────────────────────────────

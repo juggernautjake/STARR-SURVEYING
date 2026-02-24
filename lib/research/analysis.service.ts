@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { callAI, callVision, AIServiceError } from './ai-client';
 import { fetchSourceContent } from './document-analysis.service';
+import { fetchBoundaryCalls } from './boundary-fetch.service';
 import {
   normalizeBearing,
   normalizeDistance,
@@ -277,6 +278,9 @@ async function followChainOfTitle(
       volume?: string | null;
       page?: string | null;
       instrument?: string | null;
+      cabinet?: string | null;
+      slide?: string | null;
+      type?: string | null;
     } | null;
     if (!norm) continue;
 
@@ -290,6 +294,15 @@ async function followChainOfTitle(
       // Many clerk portals accept "vol-page" as a free-text search
       query    = `${norm.volume.trim()}-${norm.page.trim()}`;
       refLabel = `Vol. ${norm.volume.trim()}, Pg. ${norm.page.trim()}`;
+    } else {
+      // Cabinet/Slide plat references — search by "Cabinet X Slide Y"
+      const cabMatch = (dp.raw_value ?? '').match(
+        /[Cc]ab(?:inet)?\.?\s*([A-Z0-9]+)[,\s]+[Ss]l(?:i(?:de)?)?\.?\s*([0-9A-Z]+)/,
+      );
+      if (cabMatch) {
+        query    = `Cabinet ${cabMatch[1]} Slide ${cabMatch[2]}`;
+        refLabel = `Plat Cabinet ${cabMatch[1]}, Slide ${cabMatch[2]}`;
+      }
     }
     if (!query || !refLabel) continue;
 
@@ -507,7 +520,7 @@ export async function analyzeProject(
     // Load the project's county key for chain-of-title following (Layer 2E)
     const { data: projectRow } = await supabaseAdmin
       .from('research_projects')
-      .select('county')
+      .select('county, property_address, parcel_id')
       .eq('id', projectId)
       .single();
     const countyKey = (projectRow?.county ?? '')
@@ -541,6 +554,105 @@ export async function analyzeProject(
       addLog('info', `Resume mode: skipping ${skippedCount} already-analyzed document(s) — processing ${documents.length} remaining`);
     } else {
       addLog('info', `Found ${documents.length} document(s) to analyze`);
+    }
+
+    // ── Pre-analysis: Auto-fetch property data from county CAD ─────────────────────────────
+    // If the project has no document containing a rich legal description or
+    // appraisal record from the CAD (>300 chars, sourced from property_search),
+    // call fetchBoundaryCalls to retrieve the property record automatically.
+    // This ensures boundary data is always available for analysis even when
+    // the boundary-calls route was never manually triggered.
+    const hasRichCadDoc = allDocuments.some((d: { source_type: string; document_type: string | null; extracted_text: string | null }) =>
+      d.source_type === 'property_search' &&
+      (d.document_type === 'legal_description' || d.document_type === 'appraisal_record') &&
+      (d.extracted_text ?? '').length > 300,
+    );
+
+    if (!hasRichCadDoc && projectRow?.property_address && countyKey) {
+      addLog('info', '[Prefetch] No CAD property document found — auto-fetching from county records…');
+      type ProjectRowFull = { county: string; property_address: string | null; parcel_id: string | null };
+      const projectRowFull = projectRow as ProjectRowFull;
+      try {
+        const prefetchResult = await fetchBoundaryCalls({
+          address: projectRow.property_address,
+          county: countyKey,
+          parcel_id: projectRowFull.parcel_id ?? undefined,
+        });
+
+        if (prefetchResult.property_id) {
+          addLog('info', `[PROPERTY ID FOUND] ✓ CAD property ID: ${prefetchResult.property_id}`, prefetchResult.source_name);
+          // Save property ID to project if not already set
+          if (!projectRowFull.parcel_id) {
+            await supabaseAdmin.from('research_projects').update({
+              parcel_id: prefetchResult.property_id,
+              updated_at: new Date().toISOString(),
+            }).eq('id', projectId);
+          }
+        }
+
+        const hasPrefetchData = prefetchResult.property || prefetchResult.legal_description;
+        if (hasPrefetchData) {
+          const textParts: string[] = [];
+          if (prefetchResult.property?.owner_name)      textParts.push(`Owner: ${prefetchResult.property.owner_name}`);
+          if (prefetchResult.property?.property_address) textParts.push(`Address: ${prefetchResult.property.property_address}`);
+          if (prefetchResult.property?.acreage != null)  textParts.push(`Acreage: ${prefetchResult.property.acreage} acres`);
+          if (prefetchResult.property?.deed_reference)   textParts.push(`Deed Reference: ${prefetchResult.property.deed_reference}`);
+          if (prefetchResult.property?.abstract)         textParts.push(`Abstract: ${prefetchResult.property.abstract}`);
+          if (prefetchResult.property?.subdivision)      textParts.push(`Subdivision: ${prefetchResult.property.subdivision}`);
+          if (prefetchResult.property?.lot_block)        textParts.push(`Lot/Block: ${prefetchResult.property.lot_block}`);
+          if (prefetchResult.property?.property_id)      textParts.push(`Property ID: ${prefetchResult.property.property_id}`);
+          if (prefetchResult.legal_description) {
+            textParts.push('', 'LEGAL DESCRIPTION:', prefetchResult.legal_description);
+          }
+          const prefetchText = textParts.filter(Boolean).join('\n');
+
+          if (prefetchText.length > 100) {
+            const prefetchLabel = prefetchResult.property?.owner_name
+              ? `CAD Property Data — ${prefetchResult.property.owner_name}`
+              : `CAD Property Data — ${projectRow.property_address}`;
+
+            // Check for existing document to avoid duplicates
+            const { data: existingPrefetch } = await supabaseAdmin
+              .from('research_documents')
+              .select('id')
+              .eq('research_project_id', projectId)
+              .eq('document_label', prefetchLabel)
+              .eq('source_type', 'property_search')
+              .maybeSingle();
+
+            if (!existingPrefetch) {
+              const { data: newPrefetchDoc } = await supabaseAdmin.from('research_documents').insert({
+                research_project_id: projectId,
+                source_type: 'property_search',
+                document_type: prefetchResult.legal_description ? 'legal_description' : 'appraisal_record',
+                document_label: prefetchLabel,
+                source_url: prefetchResult.source_url ?? null,
+                file_type: 'txt',
+                processing_status: 'extracted',
+                extracted_text: prefetchText.substring(0, 40_000),
+                extracted_text_method: 'trueautomation-api',
+                recording_info: prefetchResult.property?.deed_reference ?? null,
+              }).select('*').single();
+
+              if (newPrefetchDoc) {
+                allDocuments.push(newPrefetchDoc as ResearchDocument);
+                if (!resumeMode || (newPrefetchDoc as { processing_status: string }).processing_status !== 'analyzed') {
+                  documents.push(newPrefetchDoc as ResearchDocument);
+                }
+                addLog('success', `[Prefetch] Stored CAD data document — "${prefetchLabel}" (${prefetchText.length} chars)`);
+              }
+            } else {
+              addLog('info', `[Prefetch] CAD data document already exists — skipping`);
+            }
+          }
+        } else {
+          addLog('warn', '[Prefetch] County CAD returned no property data', prefetchResult.error ?? 'Unknown reason');
+        }
+      } catch (prefetchErr) {
+        addLog('warn', '[Prefetch] Auto-fetch failed (non-fatal)', prefetchErr instanceof Error ? prefetchErr.message : String(prefetchErr));
+      }
+    } else if (projectRow?.property_address && !countyKey) {
+      addLog('info', '[Prefetch] Skipping CAD prefetch — county not identified');
     }
 
     // Helper: race a promise against a recurring abort check so that a long-running

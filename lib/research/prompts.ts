@@ -125,6 +125,26 @@ CONFIDENCE SCORING CRITERIA:
 - Deduct 5-10 points if no recent survey confirms the values
 - Add 5-10 points if multiple documents confirm the same value
 
+CRITICAL RULES FOR LEGAL DESCRIPTION EXTRACTION:
+- DO NOT extract a plain street address (e.g., "3424 Waggoner Dr, Belton, TX 76513") as a "legal_description" data point. A street address is NOT a legal description.
+- A valid "legal_description" data point MUST contain at least ONE of:
+  a. LOT/BLOCK language: "Lot X, Block Y" or "LT X BLK Y [Subdivision Name]"
+  b. Metes-and-bounds language: "thence", a quadrant bearing (N 45° E), or distance calls
+  c. Abstract/survey language: "Abstract No.", "A-###", "[Surveyor] Survey"
+  d. Section/Township/Range language
+- When a LOT/BLOCK description is found, ALSO extract:
+  1. data_category "lot_block" — lot number, block, subdivision name
+  2. data_category "recording_reference" with normalized_value.type = "plat" — the plat Cabinet/Slide or Volume/Page reference
+  3. data_category "subdivision_name" — the subdivision name alone
+
+CRITICAL RULES FOR RECORDING REFERENCE EXTRACTION:
+- Extract EVERY Volume/Page, Cabinet/Slide, and Instrument Number in the document.
+- For deed references: normalized_value = { "type": "deed", "volume": "X", "page": "Y" }
+- For plat/map references: normalized_value = { "type": "plat", "cabinet": "A", "slide": "123" }
+- Cabinet/Slide patterns: "Cabinet A, Slide 123", "Cab. A, Sld. 123", "CAB A SLD 123", "Map Cabinet B, Slide 45"
+- Volume/Page patterns: "Volume 1234, Page 567", "Vol. 1234, Pg. 567", "Bk. 1234, Pg. 567"
+- Instrument patterns: "Instrument No. 2023-001234", "Doc. No. 2023-001234", "File No. 12345"
+
 OTHER DATA TO EXTRACT:
 - Coordinates (state plane, lat/lon, UTM) — extract with system and zone info
 - Elevation data — extract with datum info
@@ -431,6 +451,9 @@ CONFIDENCE SCORING (per call, 0.0–1.0):
 DEED REFERENCES (chain-of-title):
 - When the description says "as described in Volume X, Page Y" or "per Instrument #...", capture it in the references array.
 - type: "volume_page" | "instrument" | "plat" | "prior_deed" | "other"
+- For LOT/BLOCK descriptions, extract the plat recording reference (Cabinet/Slide) in the references array with type "plat"
+- Include the subdivision name in the "survey_name" field when description_type is "lot_block"
+- Even when no metes-and-bounds calls exist, still populate "references", "stated_acreage", "county", and "notes"
 
 SEQUENCE:
 - sequence starts at 1 (first call after POB).

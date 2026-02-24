@@ -169,6 +169,20 @@ async function storeImageAsDocument(
   const storagePath = `${projectId}/map-images/${filename}`;
 
   try {
+    // Skip if an image with the same label already exists for this project
+    const { data: existingImage } = await supabaseAdmin
+      .from('research_documents')
+      .select('id')
+      .eq('research_project_id', projectId)
+      .eq('document_label', label)
+      .eq('source_type', 'property_search')
+      .maybeSingle();
+    if (existingImage) {
+      return existingImage.id;
+    }
+  } catch { /* non-fatal — proceed with insert */ }
+
+  try {
     // Upload to Supabase Storage
     const { error: uploadError } = await supabaseAdmin.storage
       .from('research-documents')

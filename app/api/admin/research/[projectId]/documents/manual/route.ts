@@ -29,6 +29,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Content must be at least 10 characters' }, { status: 400 });
   }
 
+  // Skip if manual entry with identical content already exists in this project
+  const contentSize = Buffer.byteLength(content, 'utf-8');
+  const { data: existingManual } = await supabaseAdmin
+    .from('research_documents')
+    .select('id')
+    .eq('research_project_id', projectId)
+    .eq('source_type', 'manual_entry')
+    .eq('file_size_bytes', contentSize)
+    .maybeSingle();
+  if (existingManual) {
+    return NextResponse.json({ document: existingManual }, { status: 200 });
+  }
+
   // Create document record with text already populated
   const { data: doc, error } = await supabaseAdmin
     .from('research_documents')

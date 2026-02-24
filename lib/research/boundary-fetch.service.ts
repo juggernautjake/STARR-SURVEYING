@@ -1858,8 +1858,11 @@ export async function fetchBoundaryCalls(
 
   if (!propId) {
     propId = await resolvePropertyId(req, countyKey, cadConfig, steps, geocodedOut);
+    if (propId) {
+      steps.push(`[PROPERTY ID FOUND] ✓ Resolved CAD property ID: ${propId} (via automated lookup)`);
+    }
   } else {
-    steps.push(`Using provided property ID: ${propId}`);
+    steps.push(`[PROPERTY ID] Using provided property ID: ${propId}`);
   }
 
   // ── Step 2b: Verify retrieved property matches the requested address ───────
@@ -1937,6 +1940,77 @@ export async function fetchBoundaryCalls(
     steps.push('Trying Regrid Parcel API for legal description…');
     const { legalDesc: regridLegal } = await searchRegridApi(req, steps);
     if (regridLegal) { legalDesc = regridLegal; steps.push('Legal description obtained from Regrid.'); }
+  }
+
+  // ── Step 5b: Fetch eSearch property view HTML for richer legal description ──
+  // The TrueAutomation JSON API often returns abbreviated lot/block descriptions.
+  // The eSearch property view HTML page shows the CAD's full text including the
+  // plat Cabinet/Slide recording reference needed to look up the subdivision plat.
+  if (propId) {
+    const esearchConf = ESEARCH_BY_COUNTY[countyKey];
+    if (esearchConf) {
+      const hasMetesAndBounds = !!legalDesc &&
+        (/\bthence\b/i.test(legalDesc) || /[NS]\s*\d+[°\s]/i.test(legalDesc));
+      if (!legalDesc || !hasMetesAndBounds) {
+        const year = new Date().getFullYear();
+        const viewUrl = `${esearchConf.baseUrl}/Property/View/${encodeURIComponent(propId)}?year=${year}`;
+        steps.push(`[Step 5b] Fetching property view HTML: ${viewUrl}`);
+        try {
+          const viewRes = await fetchWithTimeout(viewUrl, {
+            headers: { ...makeFetchHeaders(), Accept: 'text/html' },
+          });
+          if (viewRes.ok) {
+            const html = await viewRes.text();
+            const pageText = html
+              .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+              .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/\s{2,}/g, ' ')
+              .trim();
+
+            if (pageText.length > 200) {
+              // Extract legal description using multiple patterns
+              const ldPatterns = [
+                /[Ll]egal\s+[Dd]esc(?:ription)?\s*[:\s]+([A-Z0-9][A-Z0-9\s,./#()\-]{19,2000}?)(?=\s{2,}|\b(?:OWNER|SITUS|MARKET|DEED\s+VOL|GEO\s+ID|YEAR\s+BUILT|LAND\s+USE|EXEMPTION|STATE\s+CODE|TOTAL\s+VALUE)\b)/i,
+                /[Ll]egal\s+[Dd]esc(?:ription)?\s*[:\n]+(.{20,}(?:\n.{10,}){0,5})/,
+              ];
+              for (const pat of ldPatterns) {
+                const m = pageText.match(pat);
+                const mCapture = m?.[1]?.trim();
+                if (mCapture && mCapture.length > 20) {
+                  const extracted = mCapture;
+                  if (!legalDesc || extracted.length > legalDesc.length) {
+                    legalDesc = extracted;
+                    steps.push(`[Step 5b] Legal description from eSearch HTML (${legalDesc.length} chars): "${legalDesc.substring(0, 120)}${legalDesc.length > 120 ? '…' : ''}"`);
+                  }
+                  break;
+                }
+              }
+
+              // If still no legal desc, store the full page text so the AI can find what it needs
+              if (!legalDesc && pageText.length > 300) {
+                legalDesc = pageText.substring(0, 6000);
+                steps.push(`[Step 5b] Using eSearch page text (${pageText.length} chars) as legal description source`);
+              }
+
+              // Also try to extract deed reference if not already known
+              if (!propDetail?.deed_vol) {
+                const deedVolMatch = pageText.match(/[Dd]eed\s+[Vv]ol(?:ume)?\s*[:\s]+(\w+)[\s\S]{1,40}?[Dd]eed\s+[Pp](?:age|g)\.?\s*[:\s]+(\w+)/);
+                if (deedVolMatch && propDetail) {
+                  (propDetail as Record<string, unknown>).deed_vol = deedVolMatch[1];
+                  (propDetail as Record<string, unknown>).deed_pg  = deedVolMatch[2];
+                  steps.push(`[Step 5b] Deed reference from eSearch HTML: Vol. ${deedVolMatch[1]}, Pg. ${deedVolMatch[2]}`);
+                }
+              }
+            }
+          } else {
+            steps.push(`[Step 5b] eSearch view returned HTTP ${viewRes.status}`);
+          }
+        } catch (err) {
+          steps.push(`[Step 5b] eSearch view fetch error: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
   }
 
   if (!legalDesc) {

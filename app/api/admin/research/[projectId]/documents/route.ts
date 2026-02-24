@@ -64,6 +64,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    // Skip if an identical file (same name + size) already exists in this project
+    const { data: existingFile } = await supabaseAdmin
+      .from('research_documents')
+      .select('id, document_label')
+      .eq('research_project_id', projectId)
+      .eq('original_filename', file.name)
+      .eq('file_size_bytes', file.size)
+      .maybeSingle();
+    if (existingFile) {
+      results.push({ document: existingFile });
+      continue;
+    }
+
     // Generate storage path
     const timestamp = Date.now();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
