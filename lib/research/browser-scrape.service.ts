@@ -105,12 +105,45 @@ let playwrightAvailable: boolean | null = null;
 async function getPlaywright() {
   if (playwrightAvailable === false) return null;
   try {
-    const pw = await import('playwright');
+    // Try playwright first (bundled with browser binaries for local dev);
+    // fall back to playwright-core (no bundled browser, relies on @sparticuz/chromium
+    // or a PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH env var on the host).
+    const pw = await import('playwright').catch(() => import('playwright-core'));
     playwrightAvailable = true;
     return pw;
   } catch {
     playwrightAvailable = false;
     return null;
+  }
+}
+
+/**
+ * Resolve the Chromium launch configuration.
+ *
+ * In serverless environments (Vercel Pro, AWS Lambda) the standard Playwright
+ * browser binary is not available.  @sparticuz/chromium ships a Lambda-compatible
+ * Chromium build (~55 MB compressed) that works within Vercel Pro's 250 MB limit.
+ *
+ * Local development: @sparticuz/chromium falls back gracefully so the standard
+ * Playwright-bundled browser is used instead.
+ */
+async function getChromiumLaunchOptions(): Promise<{
+  executablePath?: string;
+  args: string[];
+  headless: boolean;
+}> {
+  const baseArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'];
+  try {
+    const chromium = (await import('@sparticuz/chromium')).default;
+    return {
+      executablePath: await chromium.executablePath(),
+      args: [...chromium.args, ...baseArgs],
+      headless: true,
+    };
+  } catch {
+    // @sparticuz/chromium not available or not on a serverless platform —
+    // let Playwright use its own bundled browser (local dev, self-hosted servers).
+    return { args: baseArgs, headless: true };
   }
 }
 
@@ -190,7 +223,7 @@ async function storeHttpFetchedDocument(
         source_url: sourceUrl,
         file_type: 'html',
         processing_status: 'extracted',
-        extracted_text: textContent.substring(0, 40000),
+        extracted_text: textContent.substring(0, 40_000), // matches DB column limit used across all document storage helpers
         extracted_text_method: 'http_fetch',
         recording_info: `HTTP-fetched from ${sourceUrl}`,
       })
@@ -224,6 +257,9 @@ const ESEARCH_HTTP_CONFIG: Record<string, { baseUrl: string; name: string; publi
   williamson: { baseUrl: 'https://esearch.wcad.org',      name: 'Williamson CAD e-Search',   publicsearchSubdomain: 'williamson.tx.publicsearch.us'  },
 };
 
+// Per-request timeout for HTTP fallback fetches.
+// Three requests are made sequentially (search → detail → deed), each capped at 30 s,
+// keeping total time well within the Vercel function maxDuration of 60 s.
 const HTTP_FETCH_TIMEOUT_MS = 30_000;
 
 async function httpFetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
@@ -312,7 +348,9 @@ async function httpPropertyResearch(req: BrowserScrapeRequest): Promise<BrowserS
             steps.push(`[HTTP] ✓ Found property ID: ${propertyId} via ${url}`);
             break outer;
           }
-        } catch { /* try next endpoint */ }
+        } catch (endpointErr) {
+          steps.push(`[HTTP] Endpoint ${url} failed: ${endpointErr instanceof Error ? endpointErr.message : String(endpointErr)}`);
+        }
       }
     }
 
@@ -348,15 +386,18 @@ async function httpPropertyResearch(req: BrowserScrapeRequest): Promise<BrowserS
         );
         if (docId) documentIds.push(docId);
 
-        // Match "LEGAL DESCRIPTION: ..." up to the next section heading or blank line
+        // Match "LEGAL DESCRIPTION: ..." up to the next section heading (double-space,
+        // numbered list, or a known CAD field label) or end of text.
+        // Terminators: PROPERTY, OWNER, VALUE, IMPROVEMENT, LAND, DEED are common
+        // next-section labels on eSearch property detail pages.
         if (!legalDescription) {
           const ldMatch = text.match(/LEGAL\s+DESCRIPTION[:\s]+([^]+?)(?:\s{2,}|\d\.\s|(?:PROPERTY|OWNER|VALUE|IMPROVEMENT|LAND|DEED)\s)/i);
           if (ldMatch?.[1]?.trim() && ldMatch[1].trim().length > 10) {
-            legalDescription = ldMatch[1].trim().substring(0, 2000);
+            legalDescription = ldMatch[1].trim().substring(0, 2_000); // 2000 chars covers the longest Texas legal descriptions
             steps.push(`[HTTP] Extracted legal description (${legalDescription.length} chars)`);
           }
         }
-        // Extract owner name
+        // Extract owner name — "OWNER:" or "OWNER NAME:" label
         if (!ownerName) {
           const ownerMatch = text.match(/(?:^|\s)OWNER(?:\s+NAME)?[:\s]+(.+?)(?:\s{2,}|$)/im);
           if (ownerMatch?.[1]?.trim()) {
@@ -364,7 +405,7 @@ async function httpPropertyResearch(req: BrowserScrapeRequest): Promise<BrowserS
             steps.push(`[HTTP] Owner: ${ownerName}`);
           }
         }
-        // Extract deed reference
+        // Extract deed reference — "DEED VOL/VOLUME/BK/BOOK" or "Instrument No/Number/#"
         if (!deedReference) {
           const drMatch = text.match(/(?:DEED\s+(?:VOL|VOLUME|BK|BOOK)|instrument\s*(?:no|number|#))[.:\s]+(.+?)(?:\s{2,}|$)/im);
           if (drMatch?.[1]?.trim()) {
@@ -948,10 +989,8 @@ export async function runBrowserPropertyResearch(
   const allDocumentIds: string[] = [];
 
   try {
-    browser = await pw.chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    });
+    const launchOptions = await getChromiumLaunchOptions();
+    browser = await pw.chromium.launch(launchOptions);
 
     let propertyId: string | null = req.knownPropertyId ?? null;
 
