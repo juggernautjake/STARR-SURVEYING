@@ -1796,35 +1796,35 @@ export async function fetchBoundaryCalls(
   // When a property ID was resolved automatically, cross-check that the retrieved
   // situs address actually corresponds to the address we were asked about.
   // A mismatch usually means the CAD system returned a nearby or unrelated parcel.
-  if (propId && req.address) {
+  // Store the detail here so Step 3 can reuse it without a second API call.
+  let verifiedPropDetail: TrueAutoPropDetail | null = null;
+  if (propId && req.address && cadConfig) {
     const requestedStreet = (req.address.split(',')[0] ?? '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
     const requestedNum = requestedStreet.match(/^\d+/)?.[0] ?? '';
 
-    // Quick pre-check using TrueAutomation detail (only for counties with cadConfig)
-    if (cadConfig) {
-      const verifyDetail = await trueAutoFetchDetail(cadConfig.cid, propId, steps);
-      if (verifyDetail) {
-        const situsNum = String(verifyDetail.situs_num ?? '').trim();
-        const situsStreet = String(verifyDetail.situs_street ?? '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-        const situsAddr = `${situsNum} ${situsStreet}`.trim();
+    const verifyDetail = await trueAutoFetchDetail(cadConfig.cid, propId, steps);
+    if (verifyDetail) {
+      const situsNum = String(verifyDetail.situs_num ?? '').trim();
+      const situsStreet = String(verifyDetail.situs_street ?? '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+      const situsAddr = `${situsNum} ${situsStreet}`.trim();
 
-        // If the house number is available and doesn't match, this is likely the wrong parcel
-        if (requestedNum && situsNum && situsNum !== requestedNum) {
-          steps.push(
-            `[Verify] ⚠️ Property ID ${propId} has situs address "${situsAddr}" but requested "${requestedStreet}". ` +
-            `House number mismatch (${situsNum} ≠ ${requestedNum}) — discarding and retrying without this ID.`,
-          );
-          propId = null;
-        } else {
-          steps.push(`[Verify] ✓ Property ID ${propId} confirmed: situs address "${situsAddr}" matches "${requestedStreet}".`);
-        }
+      // If the house number is available and doesn't match, this is likely the wrong parcel
+      if (requestedNum && situsNum && situsNum !== requestedNum) {
+        steps.push(
+          `[Verify] ⚠️ Property ID ${propId} has situs address "${situsAddr}" but requested "${requestedStreet}". ` +
+          `House number mismatch (${situsNum} ≠ ${requestedNum}) — discarding and retrying without this ID.`,
+        );
+        propId = null;
+      } else {
+        steps.push(`[Verify] ✓ Property ID ${propId} confirmed: situs address "${situsAddr}" matches "${requestedStreet}".`);
+        verifiedPropDetail = verifyDetail; // cache for Step 3
       }
     }
   }
 
   // ── Step 3: Fetch property details from TrueAutomation ────────────────────
-  let propDetail: TrueAutoPropDetail | null = null;
-  if (cadConfig && propId) {
+  let propDetail: TrueAutoPropDetail | null = verifiedPropDetail; // reuse if already fetched
+  if (!propDetail && cadConfig && propId) {
     propDetail = await trueAutoFetchDetail(cadConfig.cid, propId, steps);
   }
 
