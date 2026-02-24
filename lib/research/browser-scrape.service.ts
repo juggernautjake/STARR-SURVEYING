@@ -17,6 +17,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { callAI, callVision } from './ai-client';
+import { stripStreetTypeSuffix, extractPropertyIdsFromEsearchHtml } from './boundary-fetch.service';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -353,6 +354,47 @@ async function httpPropertyResearch(req: BrowserScrapeRequest): Promise<BrowserS
           }
         } catch (endpointErr) {
           steps.push(`[HTTP] Endpoint ${url} failed: ${endpointErr instanceof Error ? endpointErr.message : String(endpointErr)}`);
+        }
+      }
+    }
+
+    // ── Step 1b: StreetNumber / StreetName keyword search (HTML endpoint) ────
+    // Many Tyler-Technologies eSearch portals support keyword-style searches at
+    // /search/result?keywords=StreetNumber:X%20StreetName:Y that return an HTML
+    // page.  Removing the street-type suffix (Dr, Drive, Rd …) from the street
+    // name greatly improves recall (e.g. "Waggoner" vs "Waggoner Dr").
+    if (!propertyId && req.address) {
+      const streetOnly = req.address.split(',')[0].replace(/\./g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+      const houseNumMatch = streetOnly.match(/^(\d+)\s+(.+)$/);
+      if (houseNumMatch) {
+        const houseNum = houseNumMatch[1];
+        const fullStreetName = houseNumMatch[2].trim();
+        const baseStreetName = stripStreetTypeSuffix(fullStreetName);
+
+        const streetNameCandidates = [baseStreetName];
+        if (baseStreetName !== fullStreetName) streetNameCandidates.push(fullStreetName);
+
+        for (const streetName of streetNameCandidates) {
+          // Trailing space after the street name matches the portal's expected keyword format
+          // (confirmed working URL: keywords=StreetNumber:3424%20StreetName:Waggoner%20).
+          const keywords = `StreetNumber:${houseNum} StreetName:${streetName} `;
+          const url = `${config.baseUrl}/search/result?keywords=${encodeURIComponent(keywords)}`;
+          steps.push(`[HTTP] Querying ${config.name} via keyword search: "${keywords.trim()}"`);
+          try {
+            const res = await httpFetchWithTimeout(url, {
+              headers: { ...defaultHeaders, Accept: 'text/html,application/xhtml+xml,*/*' },
+            });
+            if (!res.ok) continue;
+            const html = await res.text();
+            const ids = extractPropertyIdsFromEsearchHtml(html);
+            if (ids.length > 0) {
+              propertyId = ids[0];
+              steps.push(`[HTTP] ✓ Keyword search found ${ids.length} result(s) — using property ID: ${propertyId}`);
+              break;
+            }
+          } catch (kwErr) {
+            steps.push(`[HTTP] Keyword search failed: ${kwErr instanceof Error ? kwErr.message : String(kwErr)}`);
+          }
         }
       }
     }
