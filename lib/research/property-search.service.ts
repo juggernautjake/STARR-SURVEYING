@@ -455,7 +455,7 @@ interface ClerkConfig {
 }
 
 const TEXAS_CLERK_CONFIGS: Record<string, ClerkConfig> = {
-  bell:       { name: 'Bell County Clerk',       url: 'https://www.bellcountytx.com/county-clerk/real-estate-records/' },
+  bell:       { name: 'Bell County Clerk',       url: 'https://www.bellcountytx.com/county_government/county_clerk/recorded_searches.php' },
   coryell:    { name: 'Coryell County Clerk',    url: 'https://www.coryellcounty.org/page/coryell.County.Clerk' },
   mclennan:   { name: 'McLennan County Clerk',   url: 'https://www.co.mclennan.tx.us/123/County-Clerk' },
   falls:      { name: 'Falls County Clerk',      url: 'https://www.co.falls.tx.us/county-clerk/' },
@@ -698,13 +698,13 @@ async function searchBellCountyGIS(
     id: generateResultId('bell_county_gis', 2),
     source: 'bell_county_gis',
     source_name: 'Bell County GIS',
-    title: 'Bell County GIS Parcel Viewer',
-    url: 'https://gis.co.bell.tx.us/BellCounty/',
+    title: 'Bell County GIS Parcel Viewer (BIS Client)',
+    url: 'https://gis.bisclient.com/bellcad/',
     document_type: 'plat',
     relevance: scoreRelevance(0.85, { hasParcelId, hasAddress }),
     is_property_specific: hasAddress || hasParcelId,
     description: [
-      `Bell County GIS interactive map — search parcel boundaries, ownership, and geographic features.`,
+      `Bell County CAD GIS interactive parcel map — search parcel boundaries, ownership, and geographic features.`,
       req.address ? ` Search by address: "${req.address}".` : '',
       req.parcel_id ? ` Or filter by Property ID: ${req.parcel_id}.` : '',
       ` Click any parcel to see the owner, legal description, and deed reference.`,
@@ -719,18 +719,19 @@ async function searchBellCountyGIS(
     source: 'bell_county_gis',
     source_name: 'Bell County Clerk — Real Estate Records',
     title: 'Bell County Clerk — Deed & Plat Records',
-    url: 'https://www.bellcountytx.com/county-clerk/real-estate-records/',
+    url: 'https://www.bellcountytx.com/county_government/county_clerk/recorded_searches.php',
     document_type: 'deed',
     relevance: scoreRelevance(0.80, { hasAddress }),
     is_property_specific: hasAddress || !!req.owner_name,
     description: [
-      `Bell County Clerk real estate records main page — warranty deeds, plats, easements, and liens.`,
+      `Bell County Clerk recorded searches page — warranty deeds, plats, easements, and liens.`,
       ` Use the online deed search link on this page (bell.tx.publicsearch.us) to search by property ID or owner name.`,
       req.owner_name ? ` Search by grantor/grantee: "${req.owner_name}".` : '',
       ` Plats show subdivision lot lines, dimensions, bearings, and surveyor certifications.`,
+      ` Federal Tax Liens: $10.00 per name searched (out-of-state checks not accepted).`,
     ].join(''),
     has_cost: true,
-    cost_note: 'Online viewing is free; certified copies are $1/page + $5 certification fee.',
+    cost_note: 'Online viewing is free; certified copies are $1/page + $5 certification fee. Federal Tax Lien search: $10/name.',
     metadata: { record_type: 'deed_and_plat', county: 'Bell' },
   });
 

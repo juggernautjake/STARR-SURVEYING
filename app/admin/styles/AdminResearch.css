@@ -7,6 +7,26 @@
 
 .research-page {
   padding: 0;
+  /* Add bottom padding to prevent FAB menu from obscuring action buttons */
+  padding-bottom: 5rem;
+}
+
+/* Back navigation button — used at the top of each step to return to the previous step */
+.research-back-btn {
+  background: none;
+  border: none;
+  color: #6B7280;
+  cursor: pointer;
+  font-size: 0.82rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  transition: color 0.15s ease;
+}
+.research-back-btn:hover {
+  color: #374151;
 }
 
 .research-page__header {
@@ -405,6 +425,17 @@
 .research-workflow__step--active {
   color: #2563EB;
   font-weight: 600;
+}
+
+/* Revertable (done) step — shows a subtle hover to indicate it's clickable */
+.research-workflow__step--revertable {
+  transition: opacity 0.15s ease;
+}
+.research-workflow__step--revertable:hover {
+  opacity: 0.75;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: #059669;
 }
 
 .research-workflow__step-num {

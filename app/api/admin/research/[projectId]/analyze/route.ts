@@ -71,3 +71,31 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const status = await getAnalysisStatus(projectId);
   return NextResponse.json(status);
 }, { routeName: 'research/analyze/status' });
+
+/* DELETE — Request abort of a running analysis */
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
+  const session = await auth();
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const projectId = extractProjectId(req);
+  if (!projectId) return NextResponse.json({ error: 'Project ID required' }, { status: 400 });
+
+  const { data: project } = await supabaseAdmin
+    .from('research_projects')
+    .select('id, status, analysis_metadata')
+    .eq('id', projectId)
+    .single();
+
+  if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+  if (project.status !== 'analyzing') {
+    return NextResponse.json({ error: 'No analysis in progress' }, { status: 409 });
+  }
+
+  const metadata = (project.analysis_metadata as Record<string, unknown>) || {};
+  await supabaseAdmin.from('research_projects').update({
+    analysis_metadata: { ...metadata, abort_requested: true, abort_requested_at: new Date().toISOString() },
+    updated_at: new Date().toISOString(),
+  }).eq('id', projectId);
+
+  return NextResponse.json({ message: 'Abort requested — analysis will stop after the current document.' });
+}, { routeName: 'research/analyze/abort' });
