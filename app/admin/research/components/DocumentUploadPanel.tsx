@@ -168,7 +168,12 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
   }
 
   async function handleDeleteDocument(docId: string) {
-    if (!confirm('Remove this document from the project?')) return;
+    const doc = documents.find(d => d.id === docId);
+    let confirmMsg = `Remove "${doc?.original_filename || 'this document'}" from the project?`;
+    if (doc?.processing_status === 'analyzed' || doc?.processing_status === 'extracted') {
+      confirmMsg += '\n\nNote: any data points previously extracted from this document will remain in the project until you re-run the analysis.';
+    }
+    if (!confirm(confirmMsg)) return;
     try {
       const res = await fetch(`/api/admin/research/${projectId}/documents?id=${docId}`, { method: 'DELETE' });
       if (!res.ok) {

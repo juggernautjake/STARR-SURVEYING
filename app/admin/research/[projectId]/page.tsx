@@ -320,10 +320,6 @@ export default function ResearchProjectPage() {
       return;
     }
 
-    // Define what data is affected and the confirmation message for each target
-    const PRE_ANALYSIS_STEPS: WorkflowStep[] = ['upload', 'configure'];
-    const clearAnalysisData = PRE_ANALYSIS_STEPS.includes(targetStep);
-
     const stepLabels: Record<WorkflowStep, string> = {
       upload: 'Upload',
       configure: 'Configure',
@@ -334,11 +330,27 @@ export default function ResearchProjectPage() {
       complete: 'Export',
     };
 
+    // Only clear analysis data when actually going to a pre-analysis step AND
+    // there is existing analysis data worth clearing.
+    const PRE_ANALYSIS_STEPS: WorkflowStep[] = ['upload', 'configure'];
+    const hasAnalysisData = stats.data_point_count > 0;
+    const clearAnalysisData = PRE_ANALYSIS_STEPS.includes(targetStep) && hasAnalysisData;
+
+    // Build a step-specific, accurate confirmation message
     let message = `Go back to the ${stepLabels[targetStep]} step?`;
-    if (clearAnalysisData) {
-      message += '\n\nAll previously extracted data points and discrepancies will be cleared so the next analysis starts fresh. Your uploaded documents will be kept.';
+    if (PRE_ANALYSIS_STEPS.includes(targetStep)) {
+      if (hasAnalysisData) {
+        message += `\n\nThis will permanently delete ${stats.data_point_count} extracted data point${stats.data_point_count !== 1 ? 's' : ''}`;
+        if (stats.discrepancy_count > 0) {
+          message += ` and ${stats.discrepancy_count} discrepancy${stats.discrepancy_count !== 1 ? 'ies' : ''}`;
+        }
+        message += ' so the next analysis starts fresh. Your uploaded documents will be kept.';
+      } else {
+        // No analysis data exists — going back is non-destructive
+        message += '\n\nNo analysis data exists yet, so nothing will be deleted.';
+      }
     } else if (targetStep === 'review') {
-      message += '\n\nAll extracted data points and drawings will remain intact. You can re-run analysis from the Configure step if needed.';
+      message += '\n\nAll extracted data points and drawings will remain intact.';
     } else if (targetStep === 'drawing') {
       message += '\n\nYour drawings and extracted data will remain intact.';
     } else if (targetStep === 'verifying') {
@@ -406,6 +418,17 @@ export default function ResearchProjectPage() {
 
   async function handleStartAnalysis() {
     if (analysisStarting) return;
+
+    // Warn when existing analysis results will be overwritten
+    if (stats.data_point_count > 0) {
+      let confirmMsg = `Re-run AI Analysis?\n\nThis will permanently replace your existing ${stats.data_point_count} data point${stats.data_point_count !== 1 ? 's' : ''}`;
+      if (stats.discrepancy_count > 0) {
+        confirmMsg += ` and ${stats.discrepancy_count} discrepancy${stats.discrepancy_count !== 1 ? 'ies' : ''}`;
+      }
+      confirmMsg += ' with a fresh analysis. Any manual notes or resolutions on the current data will be lost.';
+      if (!window.confirm(confirmMsg)) return;
+    }
+
     setAnalysisStarting(true);
     setAnalysisError(null);
 
