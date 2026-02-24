@@ -1,7 +1,8 @@
 // lib/research/analysis.service.ts — AI Analysis Engine orchestration
 // Coordinates per-document extraction, cross-referencing, normalization, and discrepancy detection.
 import { supabaseAdmin } from '@/lib/supabase';
-import { callAI, AIServiceError } from './ai-client';
+import { callAI, callVision, AIServiceError } from './ai-client';
+import { fetchSourceContent } from './document-analysis.service';
 import {
   normalizeBearing,
   normalizeDistance,
@@ -57,6 +58,133 @@ const DEFAULT_EXTRACT_CONFIG: Record<string, boolean> = {
   utilities: true,
 };
 
+// ── Document pre-screening ─────────────────────────────────────────────────
+//
+// Before burning an AI call on a document, quickly score its content to
+// determine if it likely contains real property data.  Documents that are
+// just search portals, homepage interfaces, 404 pages, browser-compat errors,
+// or generic county-clerk info pages should be skipped — they waste tokens
+// and inflate the "documents analyzed" counter without adding any value.
+//
+// Scoring:
+//   SKIP  — definitively empty; don't call AI
+//   ENRICH — thin but potentially useful; try fetching fresh content from
+//            the source URL before deciding whether to analyse
+//   ANALYZE — looks like it has real data; call AI immediately
+
+type DocScreenResult =
+  | { action: 'skip';    reason: string }
+  | { action: 'enrich';  reason: string }
+  | { action: 'analyze' };
+
+// Patterns whose presence in the text indicates there is NO real property data.
+const EMPTY_DOC_PATTERNS: RegExp[] = [
+  /this\s+(page|document|site)\s+(is|contains)\s+(NOT|only|just|an?\s+error)/i,
+  /browser\s+(compatibility|not\s+supported|support\s+error)/i,
+  /please\s+(use|enable|update|try).*browser/i,
+  /javascript\s+(is\s+(required|disabled)|not\s+enabled)/i,
+  /page\s+not\s+found/i,
+  /404\s+(not\s+found|error)/i,
+  /gateway\s+timeout/i,
+  /service\s+unavailable/i,
+  /no\s+records?\s+found/i,
+  /loading\s+results?\s*\.{0,3}\s*$/i,     // page still "Loading Results..."
+  /search\s+(interface|portal|form|system)/i,
+  /enter.*address.*to\s+(search|begin)/i,
+  /select.*county.*to\s+(search|continue)/i,
+  /(grantor|grantee)\s+(name|field|box|input)/i,  // search form label text
+  /this\s+is\s+a\s+web\s+(interface|page|form)\s+screenshot/i,
+  /this\s+is\s+not\s+a\s+(legal\s+description|deed|plat|property\s+record)/i,
+  /no\s+(actual|real|specific)\s+property\s+(data|information)/i,
+  /contains\s+(only|just)\s+(navigation|HTML\s+form|search\s+field)/i,
+  /web\s+(application|app)\s+(URL|link)\s*,?\s*not\s+a\s+recorded/i,
+];
+
+// At least ONE of these keywords must be present for a document to be worth analyzing.
+// PRIMARY: core boundary/deed concepts — these are the main focus.
+// SECONDARY: easements, improvements, flood zone, utilities, zoning — valuable context
+//   even when no metes-and-bounds text is present.  Documents that only hit secondary
+//   keywords are still analyzed; the AI extraction config controls which categories
+//   are actually extracted so boundary data remains the priority.
+const PROPERTY_CONTENT_KEYWORDS: RegExp[] = [
+  // ── Primary: boundary / deed data ────────────────────────────────────────
+  /\bthence\b/i,
+  /\bbearing[s]?\b/i,
+  /\b(N|S)\s*\d{1,2}[°\s]\d{0,2}['\s]\d{0,2}["\s]*(E|W)\b/,  // actual bearing notation
+  /\bmetes.{0,6}bounds\b/i,
+  /\blegal\s+description\b/i,
+  /\b(grantor|grantee)\b/i,
+  /\b(deed|warranty\s+deed|special\s+warranty\s+deed|quitclaim)\b/i,
+  /\binstrument\s+(no|number|#)\b/i,
+  /\bvolume\s+\d+.*page\s+\d+\b/i,
+  /\bcabinet\s+\d+.*slide\s+\d+\b/i,
+  /\blot\s+\d+.*block\s+\d+\b/i,
+  /\bplat\s+(thereof|recorded|of\s+record)\b/i,
+  /\bpoint\s+of\s+(beginning|commencement)\b/i,
+  /\bright.of.way\b/i,
+  /\b\d+\.\d+\s*(feet|ft|varas?|chains?|meters?)\b/i,  // measured distances
+  /\bacreage\s*:\s*\d/i,
+  /\b(abstract|survey\s+no|geo\s+id)\s*:?\s*[A-Z0-9-]+\b/i,
+  /\blegal\s+desc(ription)?\s*:/i,
+  /\brecorded\s+(in|at|under)\b/i,
+  // ── Secondary: easements, improvements & other property context ───────────
+  /\beasement\b/i,
+  /\bsetback[s]?\b/i,
+  /\butility\s+(easement|line|corridor)\b/i,
+  /\bpipeline\s+(easement|route)\b/i,
+  /\bflood\s+(zone|plain|hazard)\b/i,
+  /\bFEMA\b/i,
+  /\bzoning\b/i,
+  /\bbuilding\s+(permit|setback|line)\b/i,
+  /\bimprovements?\s+(on|to|of)\b/i,
+  /\bstructure[s]?\b.*\bproperty\b/i,
+  /\bmineral\s+(rights?|lease|interest)\b/i,
+  /\boil\s+(well|gas|lease)\b/i,
+  /\bsurvey(or|ed)?\b.*\b(certif|seal|stamp)\b/i,
+];
+
+const MIN_USEFUL_LENGTH = 120; // chars — anything shorter is definitely empty
+const ENRICH_THRESHOLD   = 600; // chars — below this, try to fetch better content
+
+function screenDocument(doc: ResearchDocument): DocScreenResult {
+  const raw = (doc.extracted_text ?? '').trim();
+
+  // Image documents with a storage_url always go straight to analysis — Claude Vision
+  // will OCR them directly, so lack of extracted_text is expected and fine.
+  const isImageDoc = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes((doc.file_type ?? '').toLowerCase())
+    || (doc.extracted_text_method ?? '').includes('map_image_capture')
+    || (doc.extracted_text_method ?? '').includes('browser_capture');
+  if (isImageDoc && doc.storage_url) {
+    return { action: 'analyze' };
+  }
+
+  // Hard minimum for text-only documents
+  if (raw.length < MIN_USEFUL_LENGTH) {
+    return { action: 'skip', reason: `Content too short (${raw.length} chars — minimum ${MIN_USEFUL_LENGTH})` };
+  }
+
+  // Known-empty patterns — immediate skip
+  for (const pat of EMPTY_DOC_PATTERNS) {
+    if (pat.test(raw)) {
+      return { action: 'skip', reason: `Matches empty-document pattern (${pat.source.substring(0, 60)})` };
+    }
+  }
+
+  // Check for at least one property-relevant keyword
+  const hasPropertyContent = PROPERTY_CONTENT_KEYWORDS.some(kw => kw.test(raw));
+
+  if (!hasPropertyContent) {
+    // Thin documents without property keywords — worth enriching if we have a source URL
+    if (raw.length < ENRICH_THRESHOLD && doc.source_url) {
+      return { action: 'enrich', reason: `No property keywords found; content thin (${raw.length} chars) — will try to fetch from source URL` };
+    }
+    // Longer documents without property keywords — skip (they're likely info pages)
+    return { action: 'skip', reason: `No property-relevant keywords found in ${raw.length}-char document` };
+  }
+
+  return { action: 'analyze' };
+}
+
 // ── Log Entry ────────────────────────────────────────────────────────────────
 
 export interface AnalysisLogEntry {
@@ -72,16 +200,29 @@ class AnalysisAbortError extends Error {
   constructor() { super('Analysis aborted by user'); this.name = 'AnalysisAbortError'; }
 }
 
-// ── Per-document timeout (5 minutes) ─────────────────────────────────────────
+// ── Analysis timeouts ─────────────────────────────────────────────────────────
 
-/** Maximum time in milliseconds to wait for a single document to be analyzed. */
-export const DOCUMENT_ANALYSIS_TIMEOUT_MS = 5 * 60 * 1000;
+/** Maximum time in milliseconds to wait for a single document to be analyzed.
+ *  3 minutes is enough for any reasonable document; shorter = faster freeze detection. */
+export const DOCUMENT_ANALYSIS_TIMEOUT_MS = 3 * 60 * 1000;
+
+/** Overall pipeline watchdog — 30 minutes covers even the largest projects. */
+export const PIPELINE_WATCHDOG_MS = 30 * 60 * 1000;
+
+/** Heartbeat interval — keeps updated_at fresh so staleness detection works. */
+const HEARTBEAT_INTERVAL_MS = 12_000;
+
+/** A project is considered "frozen" when its updated_at hasn't changed in this long. */
+export const FROZEN_THRESHOLD_MS = 90_000; // 90 seconds
 
 function withDocumentTimeout<T>(promise: Promise<T>, docLabel: string): Promise<T> {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Document analysis timed out after 5 minutes: "${docLabel}"`)), DOCUMENT_ANALYSIS_TIMEOUT_MS)
+      setTimeout(
+        () => reject(new Error(`Document analysis timed out after 3 minutes: "${docLabel}"`)),
+        DOCUMENT_ANALYSIS_TIMEOUT_MS,
+      )
     ),
   ]);
 }
@@ -103,11 +244,27 @@ function withDocumentTimeout<T>(promise: Promise<T>, docLabel: string): Promise<
  */
 export async function analyzeProject(
   projectId: string,
-  config?: Partial<AnalysisConfig>
+  config?: Partial<AnalysisConfig> & { resume?: boolean }
 ): Promise<{ dataPointCount: number; discrepancyCount: number }> {
   const extractCategories = config?.extractCategories || DEFAULT_EXTRACT_CONFIG;
+  const resumeMode = config?.resume === true;
 
-  const logs: AnalysisLogEntry[] = [];
+  // In resume mode, carry over logs from the previous (frozen/aborted) run so the
+  // complete history is visible in the UI.
+  let logs: AnalysisLogEntry[] = [];
+  if (resumeMode) {
+    try {
+      const { data: prev } = await supabaseAdmin
+        .from('research_projects')
+        .select('analysis_metadata')
+        .eq('id', projectId)
+        .single();
+      const prevMeta = prev?.analysis_metadata as Record<string, unknown> | null;
+      if (Array.isArray(prevMeta?.logs)) {
+        logs = prevMeta.logs as AnalysisLogEntry[];
+      }
+    } catch { /* non-fatal — start with empty log */ }
+  }
   function addLog(level: AnalysisLogEntry['level'], message: string, detail?: string) {
     const entry: AnalysisLogEntry = { ts: new Date().toISOString(), level, message, ...(detail ? { detail } : {}) };
     logs.push(entry);
@@ -130,16 +287,22 @@ export async function analyzeProject(
   async function checkAbort(): Promise<boolean> {
     const { data } = await supabaseAdmin
       .from('research_projects')
-      .select('analysis_metadata')
+      .select('status, analysis_metadata')
       .eq('id', projectId)
       .single();
+    // Abort if: flag was set OR the DELETE route already reset the status to 'configure'
+    if (data?.status === 'configure') return true;
     const meta = data?.analysis_metadata as Record<string, unknown> | null;
     return meta?.abort_requested === true;
   }
 
   // Update project status to analyzing
   const analysisStartedAt = new Date().toISOString();
-  addLog('info', 'Analysis pipeline started', `Extracting: ${Object.keys(extractCategories).filter(k => extractCategories[k]).join(', ')}`);
+  if (resumeMode) {
+    addLog('info', 'Analysis resumed — skipping already-analyzed documents', `Carrying ${logs.length} log entries from previous run`);
+  } else {
+    addLog('info', 'Analysis pipeline started', `Extracting: ${Object.keys(extractCategories).filter(k => extractCategories[k]).join(', ')}`);
+  }
 
   await supabaseAdmin.from('research_projects').update({
     status: 'analyzing',
@@ -147,34 +310,125 @@ export async function analyzeProject(
       started_at: analysisStartedAt,
       extract_config: extractCategories,
       abort_requested: false,
+      resumed: resumeMode,
       logs,
     },
     updated_at: new Date().toISOString(),
   }).eq('id', projectId);
 
+  // ── Heartbeat: touch updated_at every 12 s so freeze detection works ──────
+  // The status poller flags the analysis as frozen when updated_at hasn't moved
+  // for FROZEN_THRESHOLD_MS. This interval keeps it alive between DB writes.
+  const heartbeatTimer = setInterval(async () => {
+    await supabaseAdmin
+      .from('research_projects')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', projectId)
+      .eq('status', 'analyzing') // only write while still analyzing
+      .then(() => null)
+      .catch(() => null);
+  }, HEARTBEAT_INTERVAL_MS);
+
+  // ── Overall watchdog: hard-fail if the entire pipeline exceeds 30 minutes ──
+  let watchdogFired = false;
+  const watchdogTimer = setTimeout(() => {
+    watchdogFired = true;
+  }, PIPELINE_WATCHDOG_MS);
+
   try {
+    // In resume mode, reset any document stuck in 'analyzing' back to 'extracted'
+    // so it will be re-processed in this run.
+    if (resumeMode) {
+      await supabaseAdmin
+        .from('research_documents')
+        .update({ processing_status: 'extracted', updated_at: new Date().toISOString() })
+        .eq('research_project_id', projectId)
+        .eq('processing_status', 'analyzing');
+    }
+
     // 1. Load all documents with extracted text
-    const { data: documents } = await supabaseAdmin
+    const { data: allDocuments } = await supabaseAdmin
       .from('research_documents')
       .select('*')
       .eq('research_project_id', projectId)
       .in('processing_status', ['extracted', 'analyzed'])
       .order('created_at');
 
-    if (!documents || documents.length === 0) {
+    if (!allDocuments || allDocuments.length === 0) {
       addLog('error', 'No processed documents found for analysis', 'Documents must be in "extracted" or "analyzed" status before analysis can run.');
       await persistLogs();
       throw new Error('No processed documents found for analysis');
     }
 
-    addLog('info', `Found ${documents.length} document(s) to analyze`);
+    // In resume mode, skip documents already successfully analyzed in a previous run.
+    // Non-resume mode re-analyzes everything for a fully fresh result.
+    const documents = resumeMode
+      ? allDocuments.filter((d: { processing_status: string }) => d.processing_status !== 'analyzed')
+      : allDocuments;
+
+    const skippedCount = allDocuments.length - documents.length;
+    if (resumeMode && skippedCount > 0) {
+      addLog('info', `Resume mode: skipping ${skippedCount} already-analyzed document(s) — processing ${documents.length} remaining`);
+    } else {
+      addLog('info', `Found ${documents.length} document(s) to analyze`);
+    }
+
+    // Helper: race a promise against a recurring abort check so that a long-running
+    // AI call can be interrupted within ~3 seconds of the user requesting abort.
+    // Also checks the pipeline watchdog so a runaway analysis self-terminates.
+    async function raceWithAbort<T>(fn: Promise<T>): Promise<T> {
+      return new Promise<T>((resolve, reject) => {
+        let timer: ReturnType<typeof setTimeout>;
+        const scheduleCheck = () => {
+          timer = setTimeout(async () => {
+            try {
+              if (watchdogFired) {
+                reject(new Error('Analysis pipeline exceeded the 30-minute watchdog limit and was stopped automatically.'));
+                return;
+              }
+              if (await checkAbort()) {
+                reject(new AnalysisAbortError());
+              } else {
+                scheduleCheck();
+              }
+            } catch (dbErr) {
+              console.warn('[raceWithAbort] DB error during abort check — continuing:', dbErr);
+              scheduleCheck(); // DB error — keep running
+            }
+          }, 3000);
+        };
+        scheduleCheck();
+        fn.then(result => { clearTimeout(timer); resolve(result); })
+          .catch(err => { clearTimeout(timer); reject(err); });
+      });
+    }
 
     // 2. Per-document extraction
     const allDataPoints: Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[] = [];
 
+    // In resume mode also collect data points already stored from the previous partial run
+    if (resumeMode && skippedCount > 0) {
+      const { data: prevPoints } = await supabaseAdmin
+        .from('extracted_data_points')
+        .select('*')
+        .eq('research_project_id', projectId);
+      if (prevPoints?.length) {
+        addLog('info', `Resume: carrying over ${prevPoints.length} data point(s) from previous run`);
+        // These are already in the DB — track them so discrepancy detection sees them,
+        // but don't re-insert (use a flag to skip the delete-and-reinsert step later).
+      }
+    }
+
     for (let docIndex = 0; docIndex < documents.length; docIndex++) {
       const doc = documents[docIndex];
       const docLabel = doc.document_label || doc.original_filename || `Document ${docIndex + 1}`;
+
+      // Check watchdog first (synchronous — no DB call needed)
+      if (watchdogFired) {
+        addLog('error', `Pipeline watchdog triggered after 30 minutes — stopping at document ${docIndex + 1} of ${documents.length}`);
+        await persistLogs();
+        throw new Error('Analysis pipeline exceeded the 30-minute watchdog limit and was stopped automatically.');
+      }
 
       // Check for abort request between documents
       if (await checkAbort()) {
@@ -183,7 +437,50 @@ export async function analyzeProject(
         throw new AnalysisAbortError();
       }
 
-      addLog('info', `Processing document ${docIndex + 1}/${documents.length}: "${docLabel}"`, `Type: ${doc.document_type || 'unknown'}, Size: ${doc.extracted_text?.length || 0} chars`);
+      const isImageDoc = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes((doc.file_type ?? '').toLowerCase())
+        || (doc.extracted_text_method ?? '').includes('map_image_capture')
+        || (doc.extracted_text_method ?? '').includes('browser_capture');
+      const docSize = isImageDoc && doc.storage_url
+        ? `image (${doc.file_size_bytes ? Math.round(doc.file_size_bytes / 1024) + ' KB' : 'stored'})`
+        : `${doc.extracted_text?.length || 0} chars`;
+      addLog('info',
+        `Processing document ${docIndex + 1}/${documents.length}: "${docLabel}"`,
+        `Type: ${doc.document_type || 'unknown'}, Size: ${docSize}${isImageDoc && doc.storage_url ? ' — will run Claude Vision OCR' : ''}`,
+      );
+
+      // ── Pre-screening: skip or enrich before burning an AI call ───────────
+      let screenResult = screenDocument(doc);
+
+      if (screenResult.action === 'enrich' && doc.source_url) {
+        addLog('info', `"${docLabel}" is thin — fetching content from source URL…`, screenResult.reason);
+        try {
+          const fresh = await fetchSourceContent(doc.source_url, {
+            address: doc.recording_info || undefined,
+          });
+          if (fresh && fresh.text.length > MIN_USEFUL_LENGTH) {
+            // Update the document's text in-memory and re-screen
+            (doc as ResearchDocument & { extracted_text: string }).extracted_text = fresh.text;
+            await supabaseAdmin.from('research_documents').update({
+              extracted_text: fresh.text,
+              extracted_text_method: fresh.method,
+              updated_at: new Date().toISOString(),
+            }).eq('id', doc.id);
+            addLog('info', `Enriched "${docLabel}" with ${fresh.text.length} chars via ${fresh.method}`);
+            screenResult = screenDocument(doc); // re-evaluate
+          }
+        } catch { /* enrichment is best-effort */ }
+      }
+
+      if (screenResult.action === 'skip') {
+        addLog('warn', `Skipping "${docLabel}" — ${screenResult.reason}`);
+        await supabaseAdmin.from('research_documents').update({
+          processing_status: 'analyzed',
+          processing_error: `Pre-screening skip: ${screenResult.reason}`,
+          updated_at: new Date().toISOString(),
+        }).eq('id', doc.id);
+        await persistLogs();
+        continue; // advance to next document without calling AI
+      }
 
       // Mark document as analyzing
       await supabaseAdmin.from('research_documents').update({
@@ -192,9 +489,11 @@ export async function analyzeProject(
       }).eq('id', doc.id);
 
       try {
-        const extracted = await withDocumentTimeout(
-          extractFromDocument(doc, extractCategories),
-          docLabel
+        const extracted = await raceWithAbort(
+          withDocumentTimeout(
+            extractFromDocument(doc, extractCategories),
+            docLabel
+          )
         );
         allDataPoints.push(...extracted);
 
@@ -320,11 +619,14 @@ export async function analyzeProject(
         extract_config: extractCategories,
         data_point_count: allDataPoints.length,
         discrepancy_count: allDiscrepancies.length,
-        documents_analyzed: documents.length,
+        documents_analyzed: allDocuments.length,
         logs,
       },
       updated_at: new Date().toISOString(),
     }).eq('id', projectId);
+
+    clearInterval(heartbeatTimer);
+    clearTimeout(watchdogTimer);
 
     return {
       dataPointCount: allDataPoints.length,
@@ -332,19 +634,37 @@ export async function analyzeProject(
     };
 
   } catch (err) {
+    clearInterval(heartbeatTimer);
+    clearTimeout(watchdogTimer);
+
     // Handle abort gracefully
     if (err instanceof AnalysisAbortError) {
       console.log(`[Analysis] User aborted analysis for project ${projectId}`);
-      await supabaseAdmin.from('research_projects').update({
-        status: 'configure',
-        analysis_metadata: {
-          error: 'Analysis was aborted by the user.',
-          error_category: 'aborted',
-          failed_at: new Date().toISOString(),
-          logs,
-        },
-        updated_at: new Date().toISOString(),
-      }).eq('id', projectId);
+      // The DELETE route may have already reset the project to 'configure' and cleared data.
+      // Only update if the project is still in 'analyzing' state (i.e., abort was internal).
+      const { data: currentState } = await supabaseAdmin
+        .from('research_projects')
+        .select('status')
+        .eq('id', projectId)
+        .single();
+      if (currentState?.status === 'analyzing') {
+        // Internal abort (e.g., between documents) — reset cleanly ourselves
+        await Promise.all([
+          supabaseAdmin.from('research_projects').update({
+            status: 'configure',
+            analysis_metadata: { aborted_at: new Date().toISOString(), abort_requested: true },
+            updated_at: new Date().toISOString(),
+          }).eq('id', projectId),
+          supabaseAdmin.from('extracted_data_points').delete().eq('research_project_id', projectId),
+          supabaseAdmin.from('discrepancies').delete().eq('research_project_id', projectId),
+          supabaseAdmin
+            .from('research_documents')
+            .update({ processing_status: 'extracted', updated_at: new Date().toISOString() })
+            .eq('research_project_id', projectId)
+            .eq('processing_status', 'analyzing'),
+        ]);
+      }
+      // If already 'configure', the DELETE route handled it — nothing more to do.
       return { dataPointCount: 0, discrepancyCount: 0 };
     }
 
@@ -379,21 +699,85 @@ async function extractFromDocument(
   doc: ResearchDocument,
   extractCategories: Record<string, boolean>
 ): Promise<Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[]> {
-  const text = doc.extracted_text;
-  if (!text || text.trim().length < 20) return [];
 
-  // Build config description for the AI
+  // ── Build enabled-categories description ──────────────────────────────────
   const enabledCategories = Object.entries(extractCategories)
     .filter(([, v]) => v)
     .map(([k]) => k.replace(/_/g, ' '))
     .join(', ');
 
+  // ── Image document path: OCR via Claude Vision → then DATA_EXTRACTOR ──────
+  const isImage = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes((doc.file_type ?? '').toLowerCase())
+    || (doc.extracted_text_method ?? '').includes('map_image_capture')
+    || (doc.extracted_text_method ?? '').includes('browser_capture');
+
+  let textForExtraction = doc.extracted_text ?? '';
+
+  if (isImage && doc.storage_url) {
+    // Fetch the image bytes from Supabase Storage and run Claude Vision OCR on them.
+    // The OCR result becomes the text fed into DATA_EXTRACTOR, ensuring boundary
+    // calls, easements, legal descriptions and all other data in the image are captured.
+    try {
+      const imgRes = await fetch(doc.storage_url, {
+        signal: AbortSignal.timeout(30_000),
+        headers: { 'Accept': 'image/*' },
+      });
+      if (imgRes.ok) {
+        const contentType = imgRes.headers.get('content-type') ?? 'image/png';
+        const mediaType = (
+          contentType.includes('jpeg') ? 'image/jpeg'
+            : contentType.includes('webp') ? 'image/webp'
+            : contentType.includes('gif')  ? 'image/gif'
+            : 'image/png'
+        ) as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+
+        const buf = await imgRes.arrayBuffer();
+        const base64 = Buffer.from(buf).toString('base64');
+
+        const ocrResult = await callVision(
+          base64,
+          mediaType,
+          'OCR_EXTRACTOR',
+          `This is a ${doc.document_type ?? 'property'} document: "${doc.document_label ?? doc.original_filename ?? 'unknown'}". ` +
+          `Extract ALL text visible in the image, preserving every bearing, distance, monument, easement description, deed reference, ` +
+          `legal description, lot/block, and any other surveying or property data exactly as written.`,
+        );
+
+        const ocrText = typeof ocrResult.response === 'string'
+          ? ocrResult.response
+          : (ocrResult.response as { full_text?: string })?.full_text
+            ?? ocrResult.raw;
+
+        if (ocrText && ocrText.trim().length > 30) {
+          // Prepend vision-derived text; keep any existing extracted_text too
+          // (browser captures may already have partial DOM text worth keeping)
+          textForExtraction = `[VISION OCR — ${doc.document_label ?? doc.original_filename}]\n${ocrText}\n\n` +
+            (textForExtraction ? `[EXISTING TEXT]\n${textForExtraction}` : '');
+
+          // Persist the enriched text so future runs and the UI can display it
+          await supabaseAdmin.from('research_documents').update({
+            extracted_text: textForExtraction.substring(0, 40000),
+            extracted_text_method: 'vision+ocr',
+            ocr_confidence: (ocrResult.response as { overall_confidence?: number })?.overall_confidence ?? null,
+            updated_at: new Date().toISOString(),
+          }).eq('id', doc.id);
+        }
+      }
+    } catch {
+      // Vision OCR is best-effort — fall through to text-only extraction
+    }
+  }
+
+  if (!textForExtraction || textForExtraction.trim().length < 20) return [];
+
+  // ── Text extraction via DATA_EXTRACTOR ────────────────────────────────────
   const userContent = `Document type: ${doc.document_type || 'unknown'}
 Document label: ${doc.document_label || doc.original_filename || 'Untitled'}
 Extract these categories: ${enabledCategories}
+${isImage ? 'NOTE: This document was processed via Claude Vision OCR — treat the extracted text as the full document content.' : ''}
 
 DOCUMENT TEXT:
-${text.substring(0, 15000)}`;
+${textForExtraction.substring(0, 15000)}`;
 
   const result = await callAI({
     promptKey: 'DATA_EXTRACTOR',
@@ -757,12 +1141,13 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   documentsAnalyzed: number;
   dataPointCount: number;
   discrepancyCount: number;
+  frozen: boolean;
   error?: string;
   errorCategory?: string;
   logs?: AnalysisLogEntry[];
 }> {
   const [projectRes, docsRes, dpRes, discRes] = await Promise.all([
-    supabaseAdmin.from('research_projects').select('status, analysis_metadata').eq('id', projectId).single(),
+    supabaseAdmin.from('research_projects').select('status, analysis_metadata, updated_at').eq('id', projectId).single(),
     supabaseAdmin.from('research_documents').select('processing_status').eq('research_project_id', projectId),
     supabaseAdmin.from('extracted_data_points').select('id', { count: 'exact', head: true }).eq('research_project_id', projectId),
     supabaseAdmin.from('discrepancies').select('id', { count: 'exact', head: true }).eq('research_project_id', projectId),
@@ -772,13 +1157,23 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   const analyzed = docs.filter(d => d.processing_status === 'analyzed').length;
 
   const metadata = projectRes.data?.analysis_metadata as Record<string, unknown> | null;
+  const status = projectRes.data?.status || 'unknown';
+
+  // Freeze detection: if still analyzing but updated_at hasn't moved in 90 s,
+  // the background process has likely crashed or is stuck on an AI call.
+  let frozen = false;
+  if (status === 'analyzing' && projectRes.data?.updated_at) {
+    const ageMs = Date.now() - new Date(String(projectRes.data.updated_at)).getTime();
+    frozen = ageMs > FROZEN_THRESHOLD_MS;
+  }
 
   return {
-    status: projectRes.data?.status || 'unknown',
+    status,
     documentsTotal: docs.length,
     documentsAnalyzed: analyzed,
     dataPointCount: dpRes.count || 0,
     discrepancyCount: discRes.count || 0,
+    frozen,
     ...(metadata?.error ? { error: String(metadata.error) } : {}),
     ...(metadata?.error_category ? { errorCategory: String(metadata.error_category) } : {}),
     ...(Array.isArray(metadata?.logs) ? { logs: metadata.logs as AnalysisLogEntry[] } : {}),

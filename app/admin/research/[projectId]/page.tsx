@@ -50,15 +50,17 @@ export default function ResearchProjectPage() {
     documentsAnalyzed: number;
     dataPointCount: number;
     discrepancyCount: number;
+    frozen: boolean;
     error?: string;
     errorCategory?: string;
     logs?: Array<{ ts: string; level: string; message: string; detail?: string }>;
   } | null>(null);
+  const [analysisResuming, setAnalysisResuming] = useState(false);
   const [analysisError, setAnalysisError] = useState<{ message: string; category: string } | null>(null);
   const [showAnalysisLogs, setShowAnalysisLogs] = useState(false);
 
   // Review state
-  const [reviewTab, setReviewTab] = useState<'data' | 'discrepancies'>('data');
+  const [reviewTab, setReviewTab] = useState<'data' | 'discrepancies' | 'ai_logs'>('data');
   const [showBriefing, setShowBriefing] = useState(true);
   const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
@@ -210,6 +212,7 @@ export default function ResearchProjectPage() {
             documentsAnalyzed: data.documentsAnalyzed,
             dataPointCount: data.dataPointCount,
             discrepancyCount: data.discrepancyCount,
+            frozen: data.frozen ?? false,
             error: data.error,
             errorCategory: data.errorCategory,
             logs: data.logs,
@@ -237,7 +240,7 @@ export default function ResearchProjectPage() {
     }
 
     pollStatus();
-    const interval = setInterval(pollStatus, 4000);
+    const interval = setInterval(pollStatus, 2000); // poll every 2 s for responsive log/progress updates
     return () => clearInterval(interval);
   }, [project?.status, projectId, loadProject, loadDocuments]);
 
@@ -443,9 +446,9 @@ export default function ResearchProjectPage() {
         // Immediately reflect the analyzing state locally — don't wait for the DB round-trip.
         // analyzeProject() runs async in the background and may take a moment to update the DB,
         // so setting the local state now ensures the spinner and progress UI appear right away.
+        // Do NOT call loadProject() here — it races with the DB update and may flip the status
+        // back to 'configure' before analyzeProject() has committed it, killing the polling loop.
         setProject(prev => prev ? { ...prev, status: 'analyzing' } : prev);
-        // Kick off a background refresh to sync any other project data once the DB catches up
-        loadProject();
       } else {
         const err = await res.json().catch(() => ({ error: 'Failed to start analysis' }));
         // Show the error in the analysis error banner
@@ -466,20 +469,51 @@ export default function ResearchProjectPage() {
 
   async function handleAbortAnalysis() {
     if (analysisAborting) return;
-    if (!window.confirm('Abort analysis? The process will stop after the current document finishes. Any data extracted so far will be lost.')) return;
     setAnalysisAborting(true);
     try {
       const res = await fetch(`/api/admin/research/${projectId}/analyze`, { method: 'DELETE' });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Failed to request abort' }));
-        showToast(err.error || 'Failed to request abort', 'error');
+      if (res.ok) {
+        // Immediately reset UI — don't wait for the next poll.
+        // The server has already cleared all partial data and set status back to configure.
+        setProject(prev => prev ? { ...prev, status: 'configure' } : prev);
+        setAnalysisStatus(null);
+        setAnalysisError(null);
+        setStats(prev => ({ ...prev, data_point_count: 0, discrepancy_count: 0, resolved_count: 0 }));
+        setAnalysisAborting(false);
+        // Reload documents so their statuses reflect the reset (analyzing → extracted)
+        loadDocuments();
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed to abort' }));
+        showToast(err.error || 'Failed to abort analysis', 'error');
         setAnalysisAborting(false);
       }
-      // State will update via polling when the analysis service detects abort_requested
     } catch {
       showToast('Unable to connect. Check your internet connection.', 'error');
       setAnalysisAborting(false);
     }
+  }
+
+  async function handleResumeAnalysis() {
+    if (analysisResuming) return;
+    setAnalysisResuming(true);
+    setAnalysisError(null);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resume: true }),
+      });
+      if (res.ok) {
+        // The project status stays 'analyzing' — just reset the frozen state in local UI
+        setAnalysisStatus(prev => prev ? { ...prev, frozen: false } : prev);
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed to resume' }));
+        showToast(err.error || 'Failed to resume analysis', 'error');
+      }
+    } catch {
+      showToast('Unable to connect. Check your internet connection.', 'error');
+    }
+    setAnalysisResuming(false);
   }
 
   // Drawing functions
@@ -1569,12 +1603,42 @@ export default function ResearchProjectPage() {
 
       {project.status === 'analyzing' && (
         <div className="research-analyzing">
-          <div className="research-analyzing__spinner" />
-          <div className="research-analyzing__title">AI Analysis in Progress</div>
+          {/* Freeze detection banner */}
+          {analysisStatus?.frozen ? (
+            <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '0.5rem', padding: '0.75rem 1rem', marginBottom: '1rem', maxWidth: 520, textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, color: '#92400E', marginBottom: '0.25rem' }}>⚠️ Analysis Appears Frozen</div>
+              <div style={{ fontSize: '0.82rem', color: '#78350F', marginBottom: '0.6rem' }}>
+                The analyzer hasn't reported progress in over 90 seconds. It may be stuck on a difficult
+                document. You can resume from where it left off, or abort and start fresh.
+              </div>
+              <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={handleResumeAnalysis}
+                  disabled={analysisResuming}
+                  style={{ background: '#D97706', border: 'none', borderRadius: '0.375rem', padding: '0.4rem 1rem', cursor: analysisResuming ? 'not-allowed' : 'pointer', fontSize: '0.85rem', color: '#fff', fontWeight: 600, opacity: analysisResuming ? 0.6 : 1 }}
+                >
+                  {analysisResuming ? 'Resuming…' : '▶ Resume Analysis'}
+                </button>
+                <button
+                  onClick={handleAbortAnalysis}
+                  disabled={analysisAborting}
+                  style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.4rem 1rem', cursor: analysisAborting ? 'not-allowed' : 'pointer', fontSize: '0.85rem', color: '#DC2626', opacity: analysisAborting ? 0.6 : 1 }}
+                >
+                  {analysisAborting ? 'Aborting…' : '⏹ Abort & Reset'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="research-analyzing__spinner" />
+          )}
+          <div className="research-analyzing__title">
+            {analysisStatus?.frozen ? 'Analysis Paused / Frozen' : 'AI Analysis in Progress'}
+          </div>
           <div className="research-analyzing__text">
             The AI is processing your documents and extracting surveying data.
             This may take a few minutes depending on the number and size of documents.
-            Each document has a 5-minute timeout — if one gets stuck it will be skipped automatically.
+            Each document has a 3-minute timeout — if one gets stuck it will be skipped automatically.
+            The pipeline has a 30-minute overall watchdog and will self-terminate if it exceeds that limit.
           </div>
           {analysisStatus && (
             <div className="research-analyzing__progress">
@@ -1584,7 +1648,8 @@ export default function ResearchProjectPage() {
                   style={{
                     width: analysisStatus.documentsTotal > 0
                       ? `${(analysisStatus.documentsAnalyzed / analysisStatus.documentsTotal) * 100}%`
-                      : '0%'
+                      : '0%',
+                    background: analysisStatus.frozen ? '#F59E0B' : undefined,
                   }}
                 />
               </div>
@@ -1600,21 +1665,23 @@ export default function ResearchProjectPage() {
               {analysisStatus.logs[analysisStatus.logs.length - 1].message}
             </div>
           )}
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setShowAnalysisLogs(true)}
-              style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}
-            >
-              📋 View AI Logs
-            </button>
-            <button
-              onClick={handleAbortAnalysis}
-              disabled={analysisAborting}
-              style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: analysisAborting ? 'not-allowed' : 'pointer', fontSize: '0.8rem', color: '#DC2626', opacity: analysisAborting ? 0.6 : 1 }}
-            >
-              {analysisAborting ? 'Abort requested…' : '⏹ Abort Analysis'}
-            </button>
-          </div>
+          {!analysisStatus?.frozen && (
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setShowAnalysisLogs(true)}
+                style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}
+              >
+                📋 View AI Logs
+              </button>
+              <button
+                onClick={handleAbortAnalysis}
+                disabled={analysisAborting}
+                style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: analysisAborting ? 'not-allowed' : 'pointer', fontSize: '0.8rem', color: '#DC2626', opacity: analysisAborting ? 0.6 : 1 }}
+              >
+                {analysisAborting ? 'Aborting…' : '⏹ Abort & Reset'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1625,29 +1692,19 @@ export default function ResearchProjectPage() {
             &larr; Back to Configure / Re-run Analysis
           </button>
 
-          {/* Survey Briefing + AI Logs buttons */}
+          {/* Survey Briefing panel (collapsible) */}
           {showBriefing ? (
             <BriefingPanel
               projectId={projectId}
               onClose={() => setShowBriefing(false)}
             />
           ) : (
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <button
-                onClick={() => setShowBriefing(true)}
-                style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '0.375rem', padding: '0.4rem 0.85rem', cursor: 'pointer', fontSize: '0.85rem', color: '#1D4ED8' }}
-              >
-                📋 Show Survey Briefing
-              </button>
-              {project.analysis_metadata && Array.isArray((project.analysis_metadata as Record<string, unknown>).logs) && (
-                <button
-                  onClick={() => setShowAnalysisLogs(true)}
-                  style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.4rem 0.85rem', cursor: 'pointer', fontSize: '0.85rem', color: '#374151' }}
-                >
-                  🔍 View AI Logs
-                </button>
-              )}
-            </div>
+            <button
+              onClick={() => setShowBriefing(true)}
+              style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '0.375rem', padding: '0.4rem 0.85rem', cursor: 'pointer', fontSize: '0.85rem', color: '#1D4ED8', marginBottom: '1rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              📋 Show Survey Briefing
+            </button>
           )}
 
           {/* Analysis Summary Card */}
@@ -1659,7 +1716,7 @@ export default function ResearchProjectPage() {
             documents={documents}
           />
 
-          {/* Review tabs */}
+          {/* Review tabs — Extracted Data · Discrepancies · AI Logs */}
           <div className="research-review__tabs">
             <button
               className={`research-review__tab ${reviewTab === 'data' ? 'research-review__tab--active' : ''}`}
@@ -1675,6 +1732,12 @@ export default function ResearchProjectPage() {
               {stats.discrepancy_count > 0 && (
                 <span className="research-review__tab-badge">{stats.discrepancy_count}</span>
               )}
+            </button>
+            <button
+              className={`research-review__tab ${reviewTab === 'ai_logs' ? 'research-review__tab--active' : ''}`}
+              onClick={() => setReviewTab('ai_logs')}
+            >
+              🔍 AI Logs
             </button>
           </div>
 
@@ -1703,6 +1766,34 @@ export default function ResearchProjectPage() {
               }}
             />
           )}
+          {reviewTab === 'ai_logs' && (() => {
+            const logs = (project.analysis_metadata as Record<string, unknown> | null)?.logs as
+              Array<{ ts: string; level: string; message: string; detail?: string }> | undefined;
+            return (
+              <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', lineHeight: 1.6, background: '#F8FAFC', border: '1px solid #E5E7EB', borderRadius: '0.5rem', padding: '0.75rem', maxHeight: '60vh', overflowY: 'auto' }}>
+                {!logs || logs.length === 0 ? (
+                  <div style={{ color: '#9CA3AF', textAlign: 'center', padding: '2rem' }}>
+                    No analysis logs available. Run AI Analysis to generate logs.
+                  </div>
+                ) : (
+                  logs.map((entry, i) => {
+                    const levelColor = entry.level === 'error' ? '#EF4444' : entry.level === 'warn' ? '#F59E0B' : entry.level === 'success' ? '#059669' : '#374151';
+                    const levelBg = entry.level === 'error' ? '#FEF2F2' : entry.level === 'warn' ? '#FFFBEB' : entry.level === 'success' ? '#F0FDF4' : 'transparent';
+                    return (
+                      <div key={i} style={{ padding: '0.2rem 0.4rem', borderRadius: '0.2rem', background: levelBg, marginBottom: '0.15rem' }}>
+                        <span style={{ color: '#9CA3AF' }}>{new Date(entry.ts).toLocaleTimeString()}</span>
+                        {' '}
+                        <span style={{ color: levelColor, fontWeight: 600 }}>[{entry.level.toUpperCase()}]</span>
+                        {' '}
+                        <span style={{ color: '#374151' }}>{entry.message}</span>
+                        {entry.detail && <span style={{ color: '#6B7280' }}> — {entry.detail}</span>}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 

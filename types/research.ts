@@ -494,6 +494,52 @@ export interface BoundaryFetchResult {
   /** Geocoded coordinates for this property obtained during lookup */
   geocoded_lat?: number;
   geocoded_lon?: number;
+  /**
+   * Structured acquisition log — records exactly what was found, which method
+   * found it, and where the source document came from.  Used for the log panel
+   * and for auditing the research pipeline.
+   */
+  acquisition_log?: AcquisitionLogEntry[];
+  /**
+   * Boundary calls formatted and ready for the drawing engine.
+   * Each call is in the same shape as `NormalizedCall` so it can be fed
+   * directly into `computeTraverse` / `buildElementsFromAnalysis`.
+   */
+  drawing_ready?: DrawingReadyCall[];
+}
+
+/** One structured entry in the property-research acquisition log */
+export interface AcquisitionLogEntry {
+  /** ISO timestamp */
+  ts: string;
+  /** What category of data was acquired */
+  category: 'property_id' | 'legal_description' | 'deed_reference' | 'boundary_call' | 'document' | 'error' | 'info';
+  /** Human-readable description of what was found */
+  message: string;
+  /** The specific method/source that produced the result */
+  method?: string;
+  /** The URL or endpoint that was queried */
+  source_url?: string;
+  /** The actual value found (property ID, deed vol/page, etc.) */
+  value?: string;
+}
+
+/** A single boundary call ready for direct ingestion by the drawing engine */
+export interface DrawingReadyCall {
+  sequence: number;
+  type: 'line' | 'curve';
+  bearing?: string;
+  bearing_degrees?: number;       // decimal azimuth for geometry engine
+  distance_ft?: number;            // always in feet
+  radius_ft?: number;
+  arc_length_ft?: number;
+  delta_angle?: string;
+  chord_bearing?: string;
+  chord_distance_ft?: number;
+  curve_direction?: 'left' | 'right';
+  monument_at_end?: string;
+  raw_text?: string;
+  confidence?: number | null;
 }
 
 // ── Deep Document Analysis ────────────────────────────────────────────────────

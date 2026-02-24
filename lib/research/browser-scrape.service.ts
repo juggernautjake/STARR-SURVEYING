@@ -1,0 +1,789 @@
+// lib/research/browser-scrape.service.ts
+//
+// Active browser-automation research for county property records.
+//
+// Uses Playwright (headless Chromium) to:
+//   1. Navigate to county CAD e-search portals
+//   2. Try every address variant in the search box and submit
+//   3. Wait for results, take a screenshot, extract property ID from DOM + AI vision
+//   4. Navigate to the property detail page and screenshot it
+//   5. Open the county clerk deed search (publicsearch.us) with the property ID
+//   6. Screenshot each deed document page
+//   7. Use Claude vision to extract legal description, boundary calls, and easements
+//   8. Store all screenshots as research_documents for the project
+//
+// Graceful degradation: if Playwright or a Chromium binary is not available the
+// service returns null without throwing, so the caller can fall back to other methods.
+
+import { supabaseAdmin } from '@/lib/supabase';
+import { callAI, callVision } from './ai-client';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface BrowserScrapeRequest {
+  projectId: string;
+  address: string;
+  addressVariants: string[];
+  countyKey: string;
+  /** Already-known property ID — skip CAD search and go straight to deed search */
+  knownPropertyId?: string;
+}
+
+export interface BrowserScrapeResult {
+  propertyId: string | null;
+  legalDescription: string | null;
+  ownerName: string | null;
+  deedReference: string | null;
+  /** IDs of research_documents rows created for screenshots */
+  documentIds: string[];
+  steps: string[];
+}
+
+// ── County configuration ──────────────────────────────────────────────────────
+
+interface CountyBrowserConfig {
+  name: string;
+  cadSearchUrl: string;
+  /** CSS selector for the search input on the CAD portal */
+  cadSearchInputSelector: string;
+  /** CSS selector for the submit button */
+  cadSearchSubmitSelector: string;
+  /** CSS selector for a result row (to know results loaded) */
+  cadResultRowSelector: string;
+  /** CSS selector(s) for extracting the property ID from the result row */
+  cadPropertyIdSelectors: string[];
+  /** URL pattern for the property detail page once prop ID is known: {id} is replaced */
+  cadDetailUrl?: string;
+  /** publicsearch.us subdomain */
+  publicsearchSubdomain?: string;
+}
+
+const COUNTY_BROWSER_CONFIGS: Record<string, CountyBrowserConfig> = {
+  bell: {
+    name: 'Bell County Appraisal District',
+    cadSearchUrl: 'https://esearch.bellcad.org/Property/Search',
+    cadSearchInputSelector: 'input[id="Property_SearchValue"], input[name="SearchValue"], input[placeholder*="address" i], input[placeholder*="search" i]',
+    cadSearchSubmitSelector: 'button[type="submit"], input[type="submit"], button:has-text("Search"), .search-btn',
+    cadResultRowSelector: '.search-results tr:not(:first-child), .result-row, tr.property-row, table tbody tr',
+    cadPropertyIdSelectors: [
+      'td[data-label*="property" i]',
+      'td[data-label*="id" i]',
+      'td:first-child a',
+      'td:first-child',
+      '[data-prop-id]',
+      '.property-id',
+    ],
+    cadDetailUrl: 'https://esearch.bellcad.org/Property/View/{id}',
+    publicsearchSubdomain: 'bell.tx.publicsearch.us',
+  },
+  williamson: {
+    name: 'Williamson County Appraisal District',
+    cadSearchUrl: 'https://esearch.wcad.org/Property/Search',
+    cadSearchInputSelector: 'input[id="Property_SearchValue"], input[name="SearchValue"], input[placeholder*="address" i]',
+    cadSearchSubmitSelector: 'button[type="submit"], .search-btn',
+    cadResultRowSelector: '.search-results tr:not(:first-child), table tbody tr',
+    cadPropertyIdSelectors: ['td:first-child a', 'td:first-child', '[data-prop-id]'],
+    cadDetailUrl: 'https://esearch.wcad.org/Property/View/{id}',
+    publicsearchSubdomain: 'williamson.tx.publicsearch.us',
+  },
+  hays: {
+    name: 'Hays County Appraisal District',
+    cadSearchUrl: 'https://esearch.hayscad.com/Property/Search',
+    cadSearchInputSelector: 'input[id="Property_SearchValue"], input[name="SearchValue"], input[placeholder*="address" i]',
+    cadSearchSubmitSelector: 'button[type="submit"], .search-btn',
+    cadResultRowSelector: '.search-results tr:not(:first-child), table tbody tr',
+    cadPropertyIdSelectors: ['td:first-child a', 'td:first-child'],
+    cadDetailUrl: 'https://esearch.hayscad.com/Property/View/{id}',
+    publicsearchSubdomain: 'hays.tx.publicsearch.us',
+  },
+};
+
+// ── Playwright type imports (lazy — only used at runtime) ─────────────────────
+
+let playwrightAvailable: boolean | null = null;
+
+async function getPlaywright() {
+  if (playwrightAvailable === false) return null;
+  try {
+    const pw = await import('playwright');
+    playwrightAvailable = true;
+    return pw;
+  } catch {
+    playwrightAvailable = false;
+    return null;
+  }
+}
+
+// ── Screenshot storage ────────────────────────────────────────────────────────
+
+async function storeScreenshotAsDocument(
+  projectId: string,
+  screenshotBuffer: Buffer,
+  label: string,
+  documentType: string,
+  sourceUrl: string,
+  extractedText: string,
+): Promise<string | null> {
+  const filename = `browser_capture_${Date.now()}.png`;
+  const storagePath = `${projectId}/browser-captures/${filename}`;
+
+  let storageUrl: string | null = null;
+  try {
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from('research-documents')
+      .upload(storagePath, screenshotBuffer, { contentType: 'image/png', upsert: false });
+
+    if (!uploadError) {
+      const { data } = supabaseAdmin.storage.from('research-documents').getPublicUrl(storagePath);
+      storageUrl = data?.publicUrl ?? null;
+    }
+  } catch { /* non-fatal */ }
+
+  try {
+    const { data: doc, error } = await supabaseAdmin
+      .from('research_documents')
+      .insert({
+        research_project_id: projectId,
+        source_type: 'property_search',
+        document_type: documentType,
+        document_label: label,
+        source_url: sourceUrl,
+        original_filename: filename,
+        file_type: 'png',
+        file_size_bytes: screenshotBuffer.byteLength,
+        storage_path: storageUrl ? storagePath : null,
+        storage_url: storageUrl,
+        processing_status: 'extracted',
+        extracted_text: extractedText,
+        extracted_text_method: 'browser_capture',
+        recording_info: `Browser-captured from ${sourceUrl}`,
+      })
+      .select('id')
+      .single();
+
+    if (error || !doc) return null;
+    return doc.id;
+  } catch { return null; }
+}
+
+// ── AI vision extraction ──────────────────────────────────────────────────────
+
+/**
+ * Run Claude Vision on a screenshot buffer.
+ *
+ * Pass 1 — OCR_EXTRACTOR: extract all raw text from the image precisely.
+ * Pass 2 — DATA_EXTRACTOR: extract structured data points (boundary calls,
+ *   easements, legal description, recording references, property ID, etc.)
+ *   from the OCR'd text.
+ *
+ * Returns the structured extraction text so callers can parse it, and also
+ * returns the raw OCR text for storage.
+ */
+async function extractFromScreenshot(
+  screenshotBuffer: Buffer,
+  context: string,   // e.g. document label / page description
+  steps: string[],
+): Promise<{ structured: string | null; ocrText: string | null }> {
+  try {
+    const base64 = screenshotBuffer.toString('base64');
+
+    // Pass 1: OCR — get all text out of the image
+    const ocrResult = await callVision(
+      base64,
+      'image/png',
+      'OCR_EXTRACTOR',
+      `Extract ALL text from this screenshot of a county property record page. Context: ${context}. ` +
+      `Preserve every bearing, distance, deed reference, instrument number, property ID, legal description, ` +
+      `lot/block, easement description, and any other property data exactly as written.`,
+    );
+    const ocrText = typeof ocrResult.response === 'string'
+      ? ocrResult.response
+      : (ocrResult.response as { full_text?: string })?.full_text ?? ocrResult.raw;
+
+    if (!ocrText || ocrText.trim().length < 20) {
+      steps.push(`[Vision] OCR returned no text for: ${context}`);
+      return { structured: null, ocrText: null };
+    }
+    steps.push(`[Vision] OCR complete for "${context}" — ${ocrText.length} chars extracted`);
+
+    // Pass 2: DATA_EXTRACTOR — structured extraction from the OCR text
+    const extractResult = await callAI({
+      promptKey: 'DATA_EXTRACTOR',
+      userContent:
+        `Document label: ${context}\n` +
+        `Document type: county property record / deed / plat screenshot\n` +
+        `Extract these categories: bearings distances, monuments, curve data, point of beginning, ` +
+        `easements, setbacks, right of way, legal description, lot block subdivision, recording references, ` +
+        `deed references, coordinates, elevations, flood zone, utilities, surveyor info\n\n` +
+        `DOCUMENT TEXT (from Vision OCR):\n${ocrText.substring(0, 15000)}`,
+      maxTokens: 4096,
+      maxRetries: 1,
+      timeoutMs: 90_000,
+    });
+
+    const structured = typeof extractResult.response === 'string'
+      ? extractResult.response
+      : JSON.stringify(extractResult.response);
+
+    steps.push(`[Vision] Structured extraction complete for "${context}"`);
+    return { structured, ocrText };
+  } catch (err) {
+    steps.push(`[Vision] Error processing "${context}": ${err instanceof Error ? err.message : String(err)}`);
+    return { structured: null, ocrText: null };
+  }
+}
+
+// ── Property ID extraction via DOM + vision ───────────────────────────────────
+
+/**
+ * Try to extract a property ID from a page via DOM selectors first (fast),
+ * then fall back to Claude vision analysis of a screenshot.
+ */
+async function extractPropertyIdFromPage(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  page: any,
+  config: CountyBrowserConfig,
+  screenshot: Buffer,
+  steps: string[],
+): Promise<string | null> {
+  // DOM approach — try each selector
+  for (const selector of config.cadPropertyIdSelectors) {
+    try {
+      const el = await page.$(selector);
+      if (el) {
+        // Check for href (linked property ID)
+        const href = await el.getAttribute('href').catch(() => null);
+        if (href) {
+          // Extract numeric/alphanumeric ID from URL path
+          const match = href.match(/\/(\d+)(?:[/?]|$)/);
+          if (match) {
+            steps.push(`[Browser] Found property ID ${match[1]} from DOM link: ${selector}`);
+            return match[1];
+          }
+        }
+        // Check data attributes
+        const dataPropId = await el.getAttribute('data-prop-id').catch(() => null);
+        if (dataPropId?.trim()) {
+          steps.push(`[Browser] Found property ID ${dataPropId} from data-prop-id: ${selector}`);
+          return dataPropId.trim();
+        }
+        // Read inner text
+        const text = (await el.innerText().catch(() => '')) as string;
+        const numMatch = text.trim().match(/^\d{4,10}$/);
+        if (numMatch) {
+          steps.push(`[Browser] Found property ID ${numMatch[0]} from text in: ${selector}`);
+          return numMatch[0];
+        }
+      }
+    } catch { /* selector not found — try next */ }
+  }
+
+  // Vision fallback — ask Claude to read the screenshot
+  steps.push('[Browser] DOM extraction failed — asking Claude vision to identify property ID…');
+  const visionResult = await extractFromScreenshot(
+    screenshot,
+    'CAD search results page — looking for property/parcel ID number',
+    steps,
+  );
+
+  const visionText = visionResult.ocrText ?? visionResult.structured ?? '';
+  if (visionText) {
+    // Look for a standalone 5–12 digit number (property IDs are numeric)
+    const numMatch = visionText.match(/\b(\d{5,12})\b/);
+    if (numMatch) {
+      steps.push(`[Browser/Vision] Extracted property ID from OCR: ${numMatch[1]}`);
+      return numMatch[1];
+    }
+  }
+  steps.push('[Browser] Could not extract property ID from results.');
+  return null;
+}
+
+// ── Bell CAD eSearch: search + extract property ID ───────────────────────────
+
+async function searchCadPortal(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  browser: any,
+  config: CountyBrowserConfig,
+  variants: string[],
+  projectId: string,
+  steps: string[],
+): Promise<{ propertyId: string | null; documentIds: string[] }> {
+  const documentIds: string[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let context: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let page: any;
+
+  try {
+    context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      viewport: { width: 1280, height: 900 },
+    });
+    page = await context.newPage();
+
+    for (const variant of variants) {
+      steps.push(`[Browser] Trying CAD search for address variant: "${variant}"`);
+
+      try {
+        await page.goto(config.cadSearchUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+      } catch {
+        // networkidle may time out on SPAs — proceed anyway
+        await page.goto(config.cadSearchUrl, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+      }
+
+      // Wait for the search input to appear
+      let inputEl = null;
+      for (const sel of config.cadSearchInputSelector.split(',').map(s => s.trim())) {
+        try {
+          await page.waitForSelector(sel, { timeout: 8_000 });
+          inputEl = await page.$(sel);
+          if (inputEl) break;
+        } catch { /* try next selector */ }
+      }
+
+      if (!inputEl) {
+        steps.push('[Browser] Search input not found — taking diagnostic screenshot');
+        const shot = await page.screenshot({ type: 'png', fullPage: false }) as Buffer;
+        const diagId = await storeScreenshotAsDocument(
+          projectId, shot, `CAD Portal — Page Load (${variant})`, 'other',
+          config.cadSearchUrl, `Could not find search input. Page title: ${await page.title()}`,
+        );
+        if (diagId) documentIds.push(diagId);
+        continue;
+      }
+
+      // Clear and type the address variant
+      await inputEl.click({ clickCount: 3 });
+      await inputEl.fill(variant);
+      await page.waitForTimeout(500);
+
+      // Select search type = address if a dropdown exists
+      try {
+        // Harris-Govern eSearch uses a type selector
+        const typeSelect = await page.$('select[id*="Type"], select[name*="Type"], #searchType, select[name="type"]');
+        if (typeSelect) {
+          await typeSelect.selectOption({ label: 'Address' }).catch(() =>
+            typeSelect.selectOption({ value: 'address' }).catch(() => {})
+          );
+        }
+      } catch { /* no type selector — proceed */ }
+
+      // Submit the search
+      let submitted = false;
+      for (const sel of config.cadSearchSubmitSelector.split(',').map(s => s.trim())) {
+        try {
+          const btn = await page.$(sel);
+          if (btn) {
+            await btn.click();
+            submitted = true;
+            break;
+          }
+        } catch { /* try next */ }
+      }
+      if (!submitted) {
+        // Fall back to Enter key
+        await inputEl.press('Enter');
+      }
+
+      // Wait for results to load
+      let resultsLoaded = false;
+      for (const sel of config.cadResultRowSelector.split(',').map(s => s.trim())) {
+        try {
+          await page.waitForSelector(sel, { timeout: 15_000 });
+          resultsLoaded = true;
+          break;
+        } catch { /* try next */ }
+      }
+
+      // Take a screenshot of the results (whether or not they loaded)
+      const screenshot = await page.screenshot({ type: 'png', fullPage: true }) as Buffer;
+      const pageTitle = await page.title().catch(() => 'CAD Search Results');
+      const pageText = await page.innerText('body').catch(() => '') as string;
+
+      // Store the screenshot as a document
+      const docLabel = `CAD Search — "${variant}" (${config.name})`;
+      const docId = await storeScreenshotAsDocument(
+        projectId, screenshot, docLabel, 'appraisal_record',
+        `${config.cadSearchUrl}?q=${encodeURIComponent(variant)}`,
+        `Search variant: "${variant}"\nPage: ${pageTitle}\n\n${pageText.substring(0, 3000)}`,
+      );
+      if (docId) documentIds.push(docId);
+
+      if (!resultsLoaded) {
+        steps.push(`[Browser] No results loaded for "${variant}" — continuing to next variant`);
+        continue;
+      }
+
+      // Extract property ID
+      const propertyId = await extractPropertyIdFromPage(page, config, screenshot, steps);
+      if (propertyId) {
+        steps.push(`[Browser] ✓ Found property ID: ${propertyId} for variant "${variant}"`);
+
+        // If we have a detail URL template, capture the property detail page too
+        if (config.cadDetailUrl) {
+          const detailUrl = config.cadDetailUrl.replace('{id}', encodeURIComponent(propertyId));
+          try {
+            await page.goto(detailUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+            const detailShot = await page.screenshot({ type: 'png', fullPage: true }) as Buffer;
+            const detailText = await page.innerText('body').catch(() => '') as string;
+            const detailId = await storeScreenshotAsDocument(
+              projectId, detailShot,
+              `CAD Property Detail — ID ${propertyId} (${config.name})`,
+              'appraisal_record', detailUrl,
+              `Property ID: ${propertyId}\n\n${detailText.substring(0, 8000)}`,
+            );
+            if (detailId) documentIds.push(detailId);
+            steps.push(`[Browser] Captured and stored property detail page for ID ${propertyId}`);
+          } catch (err) {
+            steps.push(`[Browser] Could not load property detail page: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+
+        await context.close().catch(() => {});
+        return { propertyId, documentIds };
+      }
+    }
+  } catch (err) {
+    steps.push(`[Browser] CAD portal search error: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    await context?.close().catch(() => {});
+  }
+
+  return { propertyId: null, documentIds };
+}
+
+// ── publicsearch.us deed search ───────────────────────────────────────────────
+
+async function fetchDeedDocuments(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  browser: any,
+  subdomain: string,
+  propertyId: string,
+  projectId: string,
+  steps: string[],
+): Promise<{ legalDescription: string | null; deedReference: string | null; ownerName: string | null; documentIds: string[] }> {
+  const documentIds: string[] = [];
+  const searchUrl = `https://${subdomain}/results?search=index,fullText&q=${encodeURIComponent(propertyId)}`;
+  steps.push(`[Browser] Searching deed records: ${searchUrl}`);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let context: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let page: any;
+  let legalDescription: string | null = null;
+  let deedReference: string | null = null;
+  let ownerName: string | null = null;
+
+  try {
+    context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      viewport: { width: 1280, height: 900 },
+    });
+    page = await context.newPage();
+
+    // Navigate to search results
+    try {
+      await page.goto(searchUrl, { waitUntil: 'networkidle', timeout: 45_000 });
+    } catch {
+      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    }
+
+    // Wait for results or a "no results" message
+    await page.waitForTimeout(3_000);
+
+    // Screenshot the results list
+    const resultsShot = await page.screenshot({ type: 'png', fullPage: true }) as Buffer;
+    const resultsText = await page.innerText('body').catch(() => '') as string;
+
+    const resultsDocId = await storeScreenshotAsDocument(
+      projectId, resultsShot,
+      `Deed Search Results — ID ${propertyId}`,
+      'deed', searchUrl,
+      `Property ID: ${propertyId}\nSearch URL: ${searchUrl}\n\n${resultsText.substring(0, 4000)}`,
+    );
+    if (resultsDocId) documentIds.push(resultsDocId);
+
+    // Try to find deed document links (result items)
+    const resultLinks = await page.$$('a[href*="/document/"], .result-item a, .search-result a, tr.result a').catch(() => []) as unknown[];
+    steps.push(`[Browser] Found ${(resultLinks as unknown[]).length} deed document link(s) in results`);
+
+    // Open up to 5 deed documents and screenshot each page
+    const maxDocs = Math.min((resultLinks as unknown[]).length, 5);
+    for (let i = 0; i < maxDocs; i++) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const link = (resultLinks as any[])[i];
+        const href = await link.getAttribute('href') as string | null;
+        const linkText = await link.innerText().catch(() => `Deed Document ${i + 1}`) as string;
+
+        if (!href) continue;
+        const docUrl = href.startsWith('http') ? href : `https://${subdomain}${href}`;
+        steps.push(`[Browser] Opening deed document: ${linkText} → ${docUrl}`);
+
+        const docPage = await context.newPage();
+        try {
+          await docPage.goto(docUrl, { waitUntil: 'networkidle', timeout: 45_000 });
+        } catch {
+          await docPage.goto(docUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        }
+        await docPage.waitForTimeout(2_000);
+
+        // Get total page count if there's a pagination indicator
+        let pageCount = 1;
+        try {
+          const pageCountEl = await docPage.$('.page-count, [data-total-pages], .total-pages');
+          if (pageCountEl) {
+            const pcText = await pageCountEl.innerText() as string;
+            const pcNum = parseInt(pcText.replace(/\D/g, ''), 10);
+            if (!isNaN(pcNum) && pcNum > 0) pageCount = Math.min(pcNum, 10); // cap at 10 pages
+          }
+        } catch { /* no pagination indicator */ }
+
+        steps.push(`[Browser] Deed document has ${pageCount} page(s)`);
+
+        const pageTexts: string[] = [];
+        for (let p = 1; p <= pageCount; p++) {
+          if (p > 1) {
+            // Navigate to next page
+            try {
+              const nextBtn = await docPage.$('[aria-label="Next page"], .next-page, button:has-text("Next"), a:has-text("Next")');
+              if (nextBtn) {
+                await nextBtn.click();
+                await docPage.waitForTimeout(2_000);
+              }
+            } catch { break; }
+          }
+
+          // Screenshot at a readable resolution for OCR
+          const pageShot = await docPage.screenshot({ type: 'png', fullPage: false }) as Buffer;
+          const pageText = await docPage.innerText('body').catch(() => '') as string;
+          pageTexts.push(pageText.substring(0, 6000));
+
+          const pageDocId = await storeScreenshotAsDocument(
+            projectId, pageShot,
+            `${linkText || `Deed Document ${i + 1}`} — Page ${p}`,
+            'deed', docUrl,
+            `Document: ${linkText}\nPage: ${p} of ${pageCount}\nURL: ${docUrl}\n\n${pageText.substring(0, 6000)}`,
+          );
+          if (pageDocId) documentIds.push(pageDocId);
+        }
+
+        // Use AI to extract legal description and deed reference from the combined page text
+        const combinedText = pageTexts.join('\n\n---PAGE BREAK---\n\n');
+        if (combinedText.trim().length > 100) {
+          const firstPageShot = await docPage.screenshot({ type: 'png', fullPage: true }) as Buffer;
+          const docContext = `Deed document ${i + 1} — ${linkText || 'county clerk record'} — ${docUrl}`;
+          const visionResult = await extractFromScreenshot(firstPageShot, docContext, steps);
+
+          const visionText = visionResult.structured ?? visionResult.ocrText ?? '';
+          if (visionText) {
+            steps.push(`[Browser/Vision] Extracted deed data from document ${i + 1}`);
+            // Store both the structured extraction and the raw OCR text
+            if (documentIds.length > 0) {
+              const lastDocId = documentIds[documentIds.length - 1];
+              const storedText =
+                (visionResult.structured ? `STRUCTURED EXTRACTION:\n${visionResult.structured}\n\n` : '') +
+                (visionResult.ocrText    ? `OCR TEXT:\n${visionResult.ocrText}\n\n` : '') +
+                `RAW DOM TEXT:\n${combinedText.substring(0, 6000)}`;
+              await supabaseAdmin.from('research_documents').update({
+                extracted_text: storedText.substring(0, 40000),
+                extracted_text_method: 'browser_capture+vision',
+                updated_at: new Date().toISOString(),
+              }).eq('id', lastDocId);
+            }
+
+            // Parse legal description from OCR text (plain-text patterns)
+            const searchText = visionResult.ocrText ?? visionText;
+            if (!legalDescription) {
+              const ldMatch = searchText.match(/LEGAL DESCRIPTION[:\s]+([^]*?)(?:\n\n|\d\.|GRANTOR|GRANTEE|RECORDING|DATE|$)/i);
+              if (ldMatch?.[1]?.trim() && ldMatch[1].trim().toLowerCase() !== 'not found') {
+                legalDescription = ldMatch[1].trim();
+                steps.push(`[Browser] Extracted legal description (${legalDescription.length} chars)`);
+              }
+            }
+            // Parse deed reference
+            if (!deedReference) {
+              const drMatch = searchText.match(/(?:RECORDING REFERENCE|instrument\s*(?:no|number|#)|volume\s*\d+.*?page\s*\d+)[:\s]+(.+?)(?:\n|$)/i);
+              if (drMatch?.[1]?.trim() && drMatch[1].trim().toLowerCase() !== 'not found') {
+                deedReference = drMatch[1].trim();
+                steps.push(`[Browser] Deed reference: ${deedReference}`);
+              }
+            }
+            // Parse owner/grantee
+            if (!ownerName) {
+              const owMatch = searchText.match(/GRANTEE[:\s]+(.+?)(?:\n|$)/i);
+              if (owMatch?.[1]?.trim() && owMatch[1].trim().toLowerCase() !== 'not found') {
+                ownerName = owMatch[1].trim();
+                steps.push(`[Browser] Owner/Grantee: ${ownerName}`);
+              }
+            }
+          }
+        }
+
+        await docPage.close().catch(() => {});
+      } catch (err) {
+        steps.push(`[Browser] Error opening deed doc ${i + 1}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    if (maxDocs === 0) {
+      // No document links found — try to extract data from the results page directly
+      steps.push('[Browser] No individual document links found — extracting from results page via vision');
+      const visionResult = await extractFromScreenshot(
+        resultsShot,
+        `County clerk record search results page — property ID: ${propertyId ?? 'unknown'}`,
+        steps,
+      );
+      if (visionResult.structured || visionResult.ocrText) {
+        steps.push('[Browser/Vision] Extracted information from results page');
+        const stored =
+          (visionResult.structured ? `STRUCTURED EXTRACTION:\n${visionResult.structured}\n\n` : '') +
+          (visionResult.ocrText    ? `OCR TEXT:\n${visionResult.ocrText}\n\n` : '') +
+          `RAW DOM TEXT:\n${resultsText.substring(0, 4000)}`;
+        await supabaseAdmin.from('research_documents').update({
+          extracted_text: stored.substring(0, 40000),
+          extracted_text_method: 'browser_capture+vision',
+          updated_at: new Date().toISOString(),
+        }).eq('id', resultsDocId ?? '');
+      }
+    }
+  } catch (err) {
+    steps.push(`[Browser] Deed search error: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    await context?.close().catch(() => {});
+  }
+
+  return { legalDescription, deedReference, ownerName, documentIds };
+}
+
+// ── Main entry point ──────────────────────────────────────────────────────────
+
+/**
+ * Run an active browser-based property research session.
+ *
+ * Launches headless Chromium to:
+ *  1. Search the county CAD e-search portal with multiple address variants
+ *  2. Screenshot every results/detail page and store as research documents
+ *  3. Use Claude vision to extract the property ID if DOM extraction fails
+ *  4. Search publicsearch.us by property ID to retrieve deed documents
+ *  5. Screenshot each deed page (with slight zoom for readability)
+ *  6. Extract legal description, deed reference, and owner name via AI vision
+ *
+ * Returns null if Playwright is not available (graceful degradation).
+ */
+export async function runBrowserPropertyResearch(
+  req: BrowserScrapeRequest,
+): Promise<BrowserScrapeResult | null> {
+  const steps: string[] = [];
+  const pw = await getPlaywright();
+  if (!pw) {
+    steps.push('[Browser] Playwright not available — skipping browser automation method');
+    return null;
+  }
+
+  const config = COUNTY_BROWSER_CONFIGS[req.countyKey];
+  if (!config) {
+    steps.push(`[Browser] No browser config for county "${req.countyKey}" — skipping`);
+    return null;
+  }
+
+  steps.push(`[Browser] Starting browser research for "${req.address}" (${config.name})`);
+
+  let browser = null;
+  const allDocumentIds: string[] = [];
+
+  try {
+    browser = await pw.chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
+
+    let propertyId: string | null = req.knownPropertyId ?? null;
+
+    // Step 1: Search CAD portal to find property ID (if not already known)
+    if (!propertyId) {
+      const cadResult = await searchCadPortal(
+        browser, config, req.addressVariants, req.projectId, steps,
+      );
+      propertyId = cadResult.propertyId;
+      allDocumentIds.push(...cadResult.documentIds);
+    } else {
+      steps.push(`[Browser] Using known property ID: ${propertyId} — skipping CAD portal search`);
+
+      // Still capture the property detail page
+      if (config.cadDetailUrl) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let context: any;
+        try {
+          context = await browser.newContext({
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            viewport: { width: 1280, height: 900 },
+          });
+          const page = await context.newPage();
+          const detailUrl = config.cadDetailUrl.replace('{id}', encodeURIComponent(propertyId));
+          await page.goto(detailUrl, { waitUntil: 'networkidle', timeout: 30_000 }).catch(() =>
+            page.goto(detailUrl, { waitUntil: 'domcontentloaded', timeout: 20_000 })
+          );
+          const detailShot = await page.screenshot({ type: 'png', fullPage: true }) as Buffer;
+          const detailText = await page.innerText('body').catch(() => '') as string;
+          const detailDocId = await storeScreenshotAsDocument(
+            req.projectId, detailShot,
+            `CAD Property Detail — ID ${propertyId} (${config.name})`,
+            'appraisal_record', detailUrl,
+            `Property ID: ${propertyId}\n\n${detailText.substring(0, 8000)}`,
+          );
+          if (detailDocId) allDocumentIds.push(detailDocId);
+          steps.push(`[Browser] Captured property detail page for ID ${propertyId}`);
+        } catch (err) {
+          steps.push(`[Browser] Detail page error: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          await context?.close().catch(() => {});
+        }
+      }
+    }
+
+    if (!propertyId) {
+      steps.push('[Browser] Could not find property ID from CAD portal — attempting deed search by address');
+    }
+
+    // Step 2: Search deed records
+    let legalDescription: string | null = null;
+    let deedReference: string | null = null;
+    let ownerName: string | null = null;
+
+    if (config.publicsearchSubdomain) {
+      const deedResult = await fetchDeedDocuments(
+        browser,
+        config.publicsearchSubdomain,
+        propertyId ?? req.address, // fall back to address if no ID
+        req.projectId,
+        steps,
+      );
+      legalDescription = deedResult.legalDescription;
+      deedReference = deedResult.deedReference;
+      ownerName = deedResult.ownerName;
+      allDocumentIds.push(...deedResult.documentIds);
+    }
+
+    steps.push(
+      `[Browser] Research complete — ${allDocumentIds.length} document(s) captured, ` +
+      `property ID: ${propertyId ?? 'not found'}, ` +
+      `legal desc: ${legalDescription ? `${legalDescription.length} chars` : 'not found'}`,
+    );
+
+    return {
+      propertyId,
+      legalDescription,
+      ownerName,
+      deedReference,
+      documentIds: allDocumentIds,
+      steps,
+    };
+  } catch (err) {
+    steps.push(`[Browser] Fatal error: ${err instanceof Error ? err.message : String(err)}`);
+    return { propertyId: null, legalDescription: null, ownerName: null, deedReference: null, documentIds: allDocumentIds, steps };
+  } finally {
+    await browser?.close().catch(() => {});
+  }
+}

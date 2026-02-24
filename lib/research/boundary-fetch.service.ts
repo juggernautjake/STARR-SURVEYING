@@ -166,12 +166,13 @@ function buildDeedSearchUrl(countyKey: string, propId: string): string | undefin
  * Build a county clerk deed-search URL using an address query (no property ID needed).
  * Useful when property ID resolution fails but the county clerk portal is known.
  */
-function buildDeedSearchUrlByAddress(countyKey: string, address: string): string | undefined {
+function buildDeedSearchUrlByAddress(countyKey: string, _address: string): string | undefined {
   const subdomain = PUBLICSEARCH_BY_COUNTY[countyKey];
-  if (!subdomain || !address.trim()) return undefined;
-  // Use just the street number + name for best results in the clerk search
-  const stripped = address.split(',')[0].trim();
-  return `https://${subdomain}/results?search=index,fullText&q=${encodeURIComponent(stripped)}`;
+  if (!subdomain) return undefined;
+  // _address is kept in the signature for API compatibility; the address-based full-text search
+  // in the publicsearch.us SPA does not reliably load results without a property ID.
+  // Return the portal homepage so the researcher can search manually once a property ID is known.
+  return `https://${subdomain}/`;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -273,7 +274,7 @@ const STREET_ABBR_EXPANSIONS: [RegExp, string][] = [
   [/\bSQ\b/,    'SQUARE'],
 ];
 
-function generateAddressVariants(address: string): string[] {
+export function generateAddressVariants(address: string): string[] {
   const seen = new Set<string>();
   const variants: string[] = [];
 
@@ -1791,9 +1792,39 @@ export async function fetchBoundaryCalls(
     steps.push(`Using provided property ID: ${propId}`);
   }
 
+  // ── Step 2b: Verify retrieved property matches the requested address ───────
+  // When a property ID was resolved automatically, cross-check that the retrieved
+  // situs address actually corresponds to the address we were asked about.
+  // A mismatch usually means the CAD system returned a nearby or unrelated parcel.
+  // Store the detail here so Step 3 can reuse it without a second API call.
+  let verifiedPropDetail: TrueAutoPropDetail | null = null;
+  if (propId && req.address && cadConfig) {
+    const requestedStreet = (req.address.split(',')[0] ?? '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    const requestedNum = requestedStreet.match(/^\d+/)?.[0] ?? '';
+
+    const verifyDetail = await trueAutoFetchDetail(cadConfig.cid, propId, steps);
+    if (verifyDetail) {
+      const situsNum = String(verifyDetail.situs_num ?? '').trim();
+      const situsStreet = String(verifyDetail.situs_street ?? '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+      const situsAddr = `${situsNum} ${situsStreet}`.trim();
+
+      // If the house number is available and doesn't match, this is likely the wrong parcel
+      if (requestedNum && situsNum && situsNum !== requestedNum) {
+        steps.push(
+          `[Verify] ⚠️ Property ID ${propId} has situs address "${situsAddr}" but requested "${requestedStreet}". ` +
+          `House number mismatch (${situsNum} ≠ ${requestedNum}) — discarding and retrying without this ID.`,
+        );
+        propId = null;
+      } else {
+        steps.push(`[Verify] ✓ Property ID ${propId} confirmed: situs address "${situsAddr}" matches "${requestedStreet}".`);
+        verifiedPropDetail = verifyDetail; // cache for Step 3
+      }
+    }
+  }
+
   // ── Step 3: Fetch property details from TrueAutomation ────────────────────
-  let propDetail: TrueAutoPropDetail | null = null;
-  if (cadConfig && propId) {
+  let propDetail: TrueAutoPropDetail | null = verifiedPropDetail; // reuse if already fetched
+  if (!propDetail && cadConfig && propId) {
     propDetail = await trueAutoFetchDetail(cadConfig.cid, propId, steps);
   }
 
@@ -1801,11 +1832,16 @@ export async function fetchBoundaryCalls(
   // source_url   → TrueAutomation direct property record
   // cad_property_url → CAD esearch direct property view (preferred for Bell County)
   // deed_search_url  → county clerk publicsearch.us with property ID pre-filled
+  // For counties with an eSearch portal (e.g. Bell CAD), prefer that over TrueAutomation
+  // because the raw TrueAutomation base URL (no prop_id) returns a 504 Gateway Timeout.
+  const esearchFallback = ESEARCH_BY_COUNTY[countyKey];
   const sourceUrl = cadConfig && propId
     ? `https://propaccess.trueautomation.com/clientdb/?cid=${cadConfig.cid}&prop_id=${encodeURIComponent(propId)}`
-    : cadConfig
-      ? `https://propaccess.trueautomation.com/clientdb/?cid=${cadConfig.cid}`
-      : undefined;
+    : esearchFallback
+      ? `${esearchFallback.baseUrl}/`
+      : cadConfig
+        ? `https://propaccess.trueautomation.com/clientdb/?cid=${cadConfig.cid}`
+        : undefined;
 
   const cadPropertyUrl = propId ? buildCadPropertyUrl(countyKey, propId, cadConfig) : undefined;
   const deedSearchUrl  = propId
