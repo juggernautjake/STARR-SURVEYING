@@ -322,7 +322,7 @@ export async function fetchSourceContent(
   }
 
   // ── Bell County GIS / BIS Client parcel viewer ────────────────────────
-  if (host.includes('bisclient.com') || host.includes('gis.bisclient.com')) {
+  if (host === 'bisclient.com' || host.endsWith('.bisclient.com')) {
     // Try their ArcGIS REST API for parcel attributes
     const parcelId = parsedUrl.searchParams.get('parcel') ?? parsedUrl.searchParams.get('id')
       ?? parsedUrl.searchParams.get('prop_id') ?? opts.propertyId;
