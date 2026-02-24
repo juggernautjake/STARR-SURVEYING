@@ -233,6 +233,34 @@ function normalizeStreetAddress(address: string): string {
     .trim();
 }
 
+/** Regex matching trailing street-type words that eSearch portals often omit. */
+const STREET_TYPE_RE = /\s+(?:DR(?:IVE)?|RD|ROAD|ST(?:REET)?|AVE(?:NUE)?|BLVD|BOULEVARD|LN|LANE|CT|COURT|PL(?:ACE)?|PKWY|PARKWAY|HWY|HIGHWAY|FWY|FREEWAY|CIR(?:CLE)?|SQ(?:UARE)?|WAY|TRL|TRAIL|CV|COVE|LOOP|PASS|RUN|EXPY)\.?$/i;
+
+/**
+ * Strip trailing street-type word from a street name so that
+ * "Waggoner Dr" → "Waggoner" and "5th Street" → "5th".
+ * Improves recall on eSearch portals that index the base name only.
+ */
+export function stripStreetTypeSuffix(name: string): string {
+  return name.replace(STREET_TYPE_RE, '').trim();
+}
+
+/**
+ * Extract CAD property IDs from an eSearch portal HTML page by scanning
+ * all `/Property/View/{id}` hyperlinks in the markup.
+ * Returns IDs in the order they appear, de-duplicated.
+ */
+export function extractPropertyIdsFromEsearchHtml(html: string): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const re = /\/Property\/View\/(\d+)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    if (!seen.has(m[1])) { seen.add(m[1]); ids.push(m[1]); }
+  }
+  return ids;
+}
+
 /** Ordinal number → word lookup used for address variants */
 const ORDINAL_WORDS: Record<number, string> = {
   1: 'FIRST', 2: 'SECOND', 3: 'THIRD', 4: 'FOURTH', 5: 'FIFTH',
@@ -647,6 +675,48 @@ async function searchEsearchPortal(
         }
       } catch {
         // Silently try next endpoint
+      }
+    }
+  }
+
+  // ── Method 5b: StreetNumber / StreetName keyword search (HTML endpoint) ────
+  // Bell CAD and other Tyler-Technologies eSearch portals expose a keyword-based
+  // search at /search/result?keywords=StreetNumber:X%20StreetName:Y that returns
+  // an HTML page.  Stripping the street-type suffix (Dr, Drive, Rd …) from the
+  // street name significantly improves recall — e.g. "Waggoner" returns results
+  // where "Waggoner Dr" returns none.
+  if (req.address) {
+    const streetOnly = normalizeStreetAddress(req.address).toUpperCase();
+    const houseNumMatch = streetOnly.match(/^(\d+)\s+(.+)$/);
+    if (houseNumMatch) {
+      const houseNum = houseNumMatch[1];
+      const fullStreetName = houseNumMatch[2].trim();
+      const baseStreetName = stripStreetTypeSuffix(fullStreetName);
+
+      // Try base-name first (most permissive), then full name as a fallback
+      const streetNameCandidates = [baseStreetName];
+      if (baseStreetName !== fullStreetName) streetNameCandidates.push(fullStreetName);
+
+      for (const streetName of streetNameCandidates) {
+        // Trailing space after the street name matches the portal's expected keyword format
+        // (confirmed working URL: keywords=StreetNumber:3424%20StreetName:Waggoner%20).
+        const keywords = `StreetNumber:${houseNum} StreetName:${streetName} `;
+        const url = `${config.baseUrl}/search/result?keywords=${encodeURIComponent(keywords)}`;
+        steps.push(`[Method 5] Querying ${config.name} via keyword search: "${keywords.trim()}"`);
+        try {
+          const res = await fetchWithTimeout(url, {
+            headers: { ...makeFetchHeaders(), 'Accept': 'text/html,application/xhtml+xml,*/*' },
+          });
+          if (!res.ok) continue;
+          const html = await res.text();
+          const ids = extractPropertyIdsFromEsearchHtml(html);
+          if (ids.length > 0) {
+            steps.push(`[Method 5] ${config.name} keyword search found ${ids.length} result(s) — using property ID: ${ids[0]}`);
+            return ids[0];
+          }
+        } catch {
+          // Try next candidate
+        }
       }
     }
   }
