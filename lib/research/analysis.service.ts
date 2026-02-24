@@ -184,7 +184,8 @@ export async function analyzeProject(
               } else {
                 scheduleCheck();
               }
-            } catch {
+            } catch (dbErr) {
+              console.warn('[raceWithAbort] DB error during abort check — continuing:', dbErr);
               scheduleCheck(); // DB error — keep running
             }
           }, 3000);
