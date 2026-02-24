@@ -3,7 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { callAI, callVision, AIServiceError } from './ai-client';
 import { fetchSourceContent } from './document-analysis.service';
-import { fetchBoundaryCalls } from './boundary-fetch.service';
+import { fetchBoundaryCalls, extractPublicsearchItems } from './boundary-fetch.service';
 import {
   normalizeBearing,
   normalizeDistance,
@@ -367,11 +367,7 @@ async function followChainOfTitle(
             const ct = apiRes.headers.get('content-type') ?? '';
             if (!ct.includes('json')) continue;
             const data = await apiRes.json() as unknown;
-            const items = Array.isArray(data) ? data as Array<Record<string, unknown>>
-              : Array.isArray((data as Record<string, unknown>)?.instruments) ? (data as Record<string, unknown>).instruments as Array<Record<string, unknown>>
-              : Array.isArray((data as Record<string, unknown>)?.results)     ? (data as Record<string, unknown>).results     as Array<Record<string, unknown>>
-              : Array.isArray((data as Record<string, unknown>)?.data)        ? (data as Record<string, unknown>).data        as Array<Record<string, unknown>>
-              : [];
+            const items = extractPublicsearchItems(data);
             if (items.length > 0) {
               const lines: string[] = [`Chain-of-title search results (JSON API) for: ${query}`, ''];
               for (const inst of items.slice(0, 10)) {

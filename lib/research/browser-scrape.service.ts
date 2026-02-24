@@ -17,7 +17,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { callAI, callVision } from './ai-client';
-import { stripStreetTypeSuffix, extractPropertyIdsFromEsearchHtml } from './boundary-fetch.service';
+import { stripStreetTypeSuffix, extractPropertyIdsFromEsearchHtml, extractPublicsearchItems } from './boundary-fetch.service';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -351,11 +351,7 @@ async function fetchPublicsearchInstruments(
       const ct = res.headers.get('content-type') ?? '';
       if (!ct.includes('json')) { steps.push(`[PublicSearch] Non-JSON response`); continue; }
       const data = await res.json() as unknown;
-      const items = Array.isArray(data) ? data as Array<Record<string, unknown>>
-        : Array.isArray((data as Record<string, unknown>)?.instruments) ? (data as Record<string, unknown>).instruments as Array<Record<string, unknown>>
-        : Array.isArray((data as Record<string, unknown>)?.results)     ? (data as Record<string, unknown>).results     as Array<Record<string, unknown>>
-        : Array.isArray((data as Record<string, unknown>)?.data)        ? (data as Record<string, unknown>).data        as Array<Record<string, unknown>>
-        : [];
+      const items = extractPublicsearchItems(data);
       if (items.length > 0) {
         instruments = items;
         steps.push(`[PublicSearch] ✓ Found ${instruments.length} instrument(s) via ${ep}`);
@@ -394,7 +390,7 @@ async function fetchPublicsearchInstruments(
     lines.push('');
 
     // Capture deed reference from first warrant-deed-type instrument
-    if (!deedReference && (vol || pg) && /deed|warranty|warranty deed/i.test(type || desc)) {
+    if (!deedReference && (vol || pg) && /deed|warranty/i.test(type || desc)) {
       deedReference = [vol && `Vol. ${vol}`, pg && `Pg. ${pg}`].filter(Boolean).join(', ');
     }
     if (!ownerName && grantees) ownerName = grantees.trim().split('\n')[0].trim().substring(0, 200);

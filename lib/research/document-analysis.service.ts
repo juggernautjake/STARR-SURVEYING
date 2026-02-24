@@ -3,7 +3,7 @@
 // DATA_EXTRACTOR pipeline captures. Designed for survey-quality comprehension.
 
 import { callAI } from './ai-client';
-import { fetchBoundaryCalls, stripStreetTypeSuffix, extractPropertyIdsFromEsearchHtml } from './boundary-fetch.service';
+import { fetchBoundaryCalls, stripStreetTypeSuffix, extractPropertyIdsFromEsearchHtml, extractPublicsearchItems } from './boundary-fetch.service';
 import type {
   DeepDocumentAnalysis,
   LegalDescriptionAnalysis,
@@ -259,11 +259,7 @@ export async function fetchSourceContent(
         if (!ct.includes('json')) continue;
         const data = await res.json() as Record<string, unknown>;
         // Handle various response shapes
-        const items = Array.isArray(data) ? data
-          : Array.isArray((data as Record<string, unknown>).instruments) ? (data as Record<string, unknown>).instruments as Array<Record<string, unknown>>
-          : Array.isArray((data as Record<string, unknown>).results)     ? (data as Record<string, unknown>).results     as Array<Record<string, unknown>>
-          : Array.isArray((data as Record<string, unknown>).data)        ? (data as Record<string, unknown>).data        as Array<Record<string, unknown>>
-          : [];
+        const items = extractPublicsearchItems(data);
         if (items.length > 0) { instruments = items; instrumentsEndpoint = ep; break; }
       } catch { /* try next */ }
     }
@@ -332,6 +328,8 @@ export async function fetchSourceContent(
         'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/FeatureServer/0',
       ]) {
         try {
+          // ArcGIS REST API does not support parameterized queries; input is sanitized
+          // to alphanumeric + safe punctuation only before use in the WHERE clause.
           const safe = parcelId.replace(/[^A-Za-z0-9 .#-]/g, '').trim();
           const where = `PROP_ID='${safe}' OR PARCEL_ID='${safe}'`;
           const url = `${layerUrl}/query?where=${encodeURIComponent(where)}&outFields=*&returnGeometry=false&f=json`;

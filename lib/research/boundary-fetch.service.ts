@@ -302,6 +302,19 @@ const STREET_ABBR_EXPANSIONS: [RegExp, string][] = [
   [/\bSQ\b/,    'SQUARE'],
 ];
 
+/**
+ * Extract an instrument array from any known publicsearch.us API response envelope.
+ * Tyler Technologies uses several envelope shapes across their product versions.
+ */
+export function extractPublicsearchItems(data: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(data)) return data as Array<Record<string, unknown>>;
+  const d = data as Record<string, unknown>;
+  if (Array.isArray(d?.instruments)) return d.instruments as Array<Record<string, unknown>>;
+  if (Array.isArray(d?.results))     return d.results     as Array<Record<string, unknown>>;
+  if (Array.isArray(d?.data))        return d.data        as Array<Record<string, unknown>>;
+  return [];
+}
+
 export function generateAddressVariants(address: string): string[] {
   const seen = new Set<string>();
   const variants: string[] = [];
@@ -1967,7 +1980,7 @@ export async function fetchBoundaryCalls(
             const pageText = html
               .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
               .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-              .replace(/<\/?(dt|dd|th|td|tr|li|p|div|section|h[1-6])\b[^>]*>/gi, ' \n')
+              .replace(/<\/?(dt|dd|th|td|tr|li|p|div|section|h[1-6])\b[^>]*>/gi, '\n')
               .replace(/<[^>]+>/g, ' ')
               .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
               .replace(/[ \t]+/g, ' ')
