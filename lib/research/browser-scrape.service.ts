@@ -166,6 +166,260 @@ async function storeScreenshotAsDocument(
   } catch { return null; }
 }
 
+// ── HTTP-fetched document storage ────────────────────────────────────────────
+
+/**
+ * Store plain-text content fetched via HTTP as a research_document row.
+ * Used by the HTTP GET fallback path when Playwright is not available.
+ */
+async function storeHttpFetchedDocument(
+  projectId: string,
+  label: string,
+  documentType: string,
+  sourceUrl: string,
+  textContent: string,
+): Promise<string | null> {
+  try {
+    const { data: doc, error } = await supabaseAdmin
+      .from('research_documents')
+      .insert({
+        research_project_id: projectId,
+        source_type: 'property_search',
+        document_type: documentType,
+        document_label: label,
+        source_url: sourceUrl,
+        file_type: 'html',
+        processing_status: 'extracted',
+        extracted_text: textContent.substring(0, 40000),
+        extracted_text_method: 'http_fetch',
+        recording_info: `HTTP-fetched from ${sourceUrl}`,
+      })
+      .select('id')
+      .single();
+
+    if (error || !doc) return null;
+    return doc.id;
+  } catch { return null; }
+}
+
+/** Strip HTML tags and collapse whitespace to extract readable text from an HTML response. */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// ── HTTP GET fallback: property research without Playwright ───────────────────
+
+/**
+ * eSearch portal base URLs for counties that expose a JSON search API.
+ * Mirrors the COUNTY_BROWSER_CONFIGS for HTTP-only access.
+ */
+const ESEARCH_HTTP_CONFIG: Record<string, { baseUrl: string; name: string; publicsearchSubdomain?: string }> = {
+  bell:       { baseUrl: 'https://esearch.bellcad.org',  name: 'Bell CAD e-Search',         publicsearchSubdomain: 'bell.tx.publicsearch.us'        },
+  hays:       { baseUrl: 'https://esearch.hayscad.com',  name: 'Hays CAD e-Search',         publicsearchSubdomain: 'hays.tx.publicsearch.us'        },
+  williamson: { baseUrl: 'https://esearch.wcad.org',      name: 'Williamson CAD e-Search',   publicsearchSubdomain: 'williamson.tx.publicsearch.us'  },
+};
+
+const HTTP_FETCH_TIMEOUT_MS = 30_000;
+
+async function httpFetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HTTP_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Extract an array of hit objects from any known eSearch portal JSON response envelope. */
+function extractHttpSearchHits(data: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(data)) return data as Array<Record<string, unknown>>;
+  const d = data as Record<string, unknown>;
+  if (Array.isArray(d?.Results)) return d.Results as Array<Record<string, unknown>>;
+  if (Array.isArray(d?.data))    return d.data    as Array<Record<string, unknown>>;
+  return [];
+}
+
+/**
+ * Fallback property research using plain HTTP GET requests to the county eSearch
+ * portal JSON API and detail page.  Called when Playwright is not installed or the
+ * Chromium binary is not present on the server.
+ *
+ * Steps:
+ *  1. Try every address variant against the eSearch JSON search endpoint.
+ *  2. Once a property ID is found, fetch the property detail HTML page.
+ *  3. Parse the HTML for legal description, owner name, and deed reference.
+ *  4. Optionally fetch the publicsearch.us deed results page.
+ *  5. Store each fetched page as a research_document row.
+ */
+async function httpPropertyResearch(req: BrowserScrapeRequest): Promise<BrowserScrapeResult> {
+  const steps: string[] = ['[HTTP] Playwright not available — using HTTP GET fallback to CAD eSearch portal'];
+  const documentIds: string[] = [];
+
+  const config = ESEARCH_HTTP_CONFIG[req.countyKey];
+  if (!config) {
+    steps.push(`[HTTP] No HTTP eSearch config for county "${req.countyKey}" — cannot proceed`);
+    return { propertyId: null, legalDescription: null, ownerName: null, deedReference: null, documentIds, steps };
+  }
+
+  const defaultHeaders = {
+    'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)',
+    'Accept': 'application/json, text/html, */*',
+  };
+
+  let propertyId: string | null = req.knownPropertyId ?? null;
+  let legalDescription: string | null = null;
+  let ownerName: string | null = null;
+  let deedReference: string | null = null;
+
+  // ── Step 1: Resolve property ID via eSearch JSON API ──────────────────────
+  if (!propertyId) {
+    const year = new Date().getFullYear();
+
+    outer: for (const variant of req.addressVariants) {
+      steps.push(`[HTTP] Querying ${config.name} for address variant: "${variant}"`);
+
+      const endpoints = [
+        `${config.baseUrl}/Property/GetSearchResults?q=${encodeURIComponent(variant)}&type=address&year=${year}&resultLimit=10`,
+        `${config.baseUrl}/api/v1/properties/search?q=${encodeURIComponent(variant)}&searchType=address`,
+        `${config.baseUrl}/Search/GetSearchData?searchValue=${encodeURIComponent(variant)}&searchType=address&year=${year}`,
+        `${config.baseUrl}/Property/QuickSearch?q=${encodeURIComponent(variant)}&type=address`,
+      ];
+
+      for (const url of endpoints) {
+        try {
+          const res = await httpFetchWithTimeout(url, {
+            headers: { ...defaultHeaders, Accept: 'application/json' },
+          });
+          if (!res.ok) continue;
+          const ct = res.headers.get('content-type') ?? '';
+          if (!ct.includes('application/json')) continue;
+
+          const data: unknown = await res.json();
+          const hits = extractHttpSearchHits(data);
+
+          if (hits.length === 0) continue;
+
+          const raw = hits[0].prop_id ?? hits[0].PropertyId ?? hits[0].propertyId
+            ?? hits[0].Id ?? hits[0].id ?? hits[0].AccountNum;
+          if (raw != null) {
+            propertyId = String(raw).trim();
+            steps.push(`[HTTP] ✓ Found property ID: ${propertyId} via ${url}`);
+            break outer;
+          }
+        } catch { /* try next endpoint */ }
+      }
+    }
+
+    if (!propertyId) {
+      steps.push(`[HTTP] eSearch did not return a property ID for any address variant.`);
+    }
+  } else {
+    steps.push(`[HTTP] Using known property ID: ${propertyId} — skipping CAD search`);
+  }
+
+  // ── Step 2: Fetch property detail page via HTTP ────────────────────────────
+  if (propertyId) {
+    const year = new Date().getFullYear();
+    const detailUrl = `${config.baseUrl}/Property/View/${encodeURIComponent(propertyId)}?year=${year}`;
+    steps.push(`[HTTP] Fetching property detail page: ${detailUrl}`);
+
+    try {
+      const res = await httpFetchWithTimeout(detailUrl, {
+        headers: { ...defaultHeaders, Accept: 'text/html' },
+      });
+
+      if (res.ok) {
+        const html = await res.text();
+        const text = stripHtml(html);
+        steps.push(`[HTTP] Property detail page fetched (${text.length} chars)`);
+
+        const docId = await storeHttpFetchedDocument(
+          req.projectId,
+          `CAD Property Detail — ID ${propertyId} (${config.name})`,
+          'appraisal_record',
+          detailUrl,
+          text,
+        );
+        if (docId) documentIds.push(docId);
+
+        // Match "LEGAL DESCRIPTION: ..." up to the next section heading or blank line
+        if (!legalDescription) {
+          const ldMatch = text.match(/LEGAL\s+DESCRIPTION[:\s]+([^]+?)(?:\s{2,}|\d\.\s|(?:PROPERTY|OWNER|VALUE|IMPROVEMENT|LAND|DEED)\s)/i);
+          if (ldMatch?.[1]?.trim() && ldMatch[1].trim().length > 10) {
+            legalDescription = ldMatch[1].trim().substring(0, 2000);
+            steps.push(`[HTTP] Extracted legal description (${legalDescription.length} chars)`);
+          }
+        }
+        // Extract owner name
+        if (!ownerName) {
+          const ownerMatch = text.match(/(?:^|\s)OWNER(?:\s+NAME)?[:\s]+(.+?)(?:\s{2,}|$)/im);
+          if (ownerMatch?.[1]?.trim()) {
+            ownerName = ownerMatch[1].trim().substring(0, 200);
+            steps.push(`[HTTP] Owner: ${ownerName}`);
+          }
+        }
+        // Extract deed reference
+        if (!deedReference) {
+          const drMatch = text.match(/(?:DEED\s+(?:VOL|VOLUME|BK|BOOK)|instrument\s*(?:no|number|#))[.:\s]+(.+?)(?:\s{2,}|$)/im);
+          if (drMatch?.[1]?.trim()) {
+            deedReference = drMatch[1].trim().substring(0, 200);
+            steps.push(`[HTTP] Deed reference: ${deedReference}`);
+          }
+        }
+      } else {
+        steps.push(`[HTTP] Property detail page returned HTTP ${res.status}`);
+      }
+    } catch (err) {
+      steps.push(`[HTTP] Detail page error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ── Step 3: Fetch deed search results via HTTP ─────────────────────────────
+  if (propertyId && config.publicsearchSubdomain) {
+    const deedSearchUrl = `https://${config.publicsearchSubdomain}/results?search=index,fullText&q=${encodeURIComponent(propertyId)}`;
+    steps.push(`[HTTP] Fetching deed search results: ${deedSearchUrl}`);
+
+    try {
+      const res = await httpFetchWithTimeout(deedSearchUrl, {
+        headers: { ...defaultHeaders, Accept: 'text/html' },
+      });
+
+      if (res.ok) {
+        const html = await res.text();
+        const text = stripHtml(html);
+        steps.push(`[HTTP] Deed search results fetched (${text.length} chars)`);
+
+        const docId = await storeHttpFetchedDocument(
+          req.projectId,
+          `Deed Search Results — ID ${propertyId}`,
+          'deed',
+          deedSearchUrl,
+          text,
+        );
+        if (docId) documentIds.push(docId);
+      } else {
+        steps.push(`[HTTP] Deed search returned HTTP ${res.status}`);
+      }
+    } catch (err) {
+      steps.push(`[HTTP] Deed search error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  steps.push(
+    `[HTTP] Research complete — ${documentIds.length} document(s) stored, ` +
+    `property ID: ${propertyId ?? 'not found'}, ` +
+    `legal desc: ${legalDescription ? `${legalDescription.length} chars` : 'not found'}`,
+  );
+
+  return { propertyId, legalDescription, ownerName, deedReference, documentIds, steps };
+}
+
 // ── AI vision extraction ──────────────────────────────────────────────────────
 
 /**
@@ -678,14 +932,14 @@ export async function runBrowserPropertyResearch(
   const steps: string[] = [];
   const pw = await getPlaywright();
   if (!pw) {
-    steps.push('[Browser] Playwright not available — skipping browser automation method');
-    return null;
+    // Playwright binary is not installed — fall back to plain HTTP GET requests
+    return httpPropertyResearch(req);
   }
 
   const config = COUNTY_BROWSER_CONFIGS[req.countyKey];
   if (!config) {
-    steps.push(`[Browser] No browser config for county "${req.countyKey}" — skipping`);
-    return null;
+    steps.push(`[Browser] No browser config for county "${req.countyKey}" — falling back to HTTP`);
+    return httpPropertyResearch(req);
   }
 
   steps.push(`[Browser] Starting browser research for "${req.address}" (${config.name})`);
