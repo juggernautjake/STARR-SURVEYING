@@ -308,6 +308,102 @@ export default function ResearchProjectPage() {
     }
   }
 
+  // ── Revert to a previous workflow step ────────────────────────────────────
+  // Maps each revert-target step to a description of consequences so the
+  // confirmation dialog can be specific and informative.
+  async function handleRevertToStep(targetStep: WorkflowStep) {
+    if (!project) return;
+
+    // Guard: can't navigate while an analysis is running
+    if (project.status === 'analyzing') {
+      showToast('Please abort the running analysis before going back.', 'error');
+      return;
+    }
+
+    // Define what data is affected and the confirmation message for each target
+    const PRE_ANALYSIS_STEPS: WorkflowStep[] = ['upload', 'configure'];
+    const clearAnalysisData = PRE_ANALYSIS_STEPS.includes(targetStep);
+
+    const stepLabels: Record<WorkflowStep, string> = {
+      upload: 'Upload',
+      configure: 'Configure',
+      analyzing: 'Analyze',
+      review: 'Review',
+      drawing: 'Draw',
+      verifying: 'Verify',
+      complete: 'Export',
+    };
+
+    let message = `Go back to the ${stepLabels[targetStep]} step?`;
+    if (clearAnalysisData) {
+      message += '\n\nAll previously extracted data points and discrepancies will be cleared so the next analysis starts fresh. Your uploaded documents will be kept.';
+    } else if (targetStep === 'review') {
+      message += '\n\nAll extracted data points and drawings will remain intact. You can re-run analysis from the Configure step if needed.';
+    } else if (targetStep === 'drawing') {
+      message += '\n\nYour drawings and extracted data will remain intact.';
+    } else if (targetStep === 'verifying') {
+      message += '\n\nYour drawings and extracted data will remain intact.';
+    }
+
+    if (!window.confirm(message)) return;
+
+    try {
+      const res = await fetch('/api/admin/research', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: projectId,
+          status: targetStep,
+          ...(clearAnalysisData ? { clear_analysis_data: true } : {}),
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setProject(data.project);
+
+        // Reset local UI state that is no longer relevant for the target step
+        if (clearAnalysisData) {
+          // Clear all analysis-derived state
+          setAnalysisError(null);
+          setAnalysisStatus(null);
+          setComparisonResult(null);
+          setActiveDrawing(null);
+          setDrawingElements([]);
+          setDrawingSvg('');
+          setSelectedElement(null);
+          setAnnotations([]);
+          setAnnotationHistory([]);
+          setAnnotationFuture([]);
+          setHasUnsavedChanges(false);
+          // Immediately zero out the analysis-derived stats; server will confirm on reload
+          setStats(prev => ({ ...prev, data_point_count: 0, discrepancy_count: 0, resolved_count: 0 }));
+          // Refresh from server to pick up updated doc statuses
+          loadDocuments();
+          loadProject();
+        } else if (targetStep === 'review') {
+          // Going back from drawing/verifying/complete to review
+          setActiveDrawing(null);
+          setDrawingElements([]);
+          setDrawingSvg('');
+          setSelectedElement(null);
+          setComparisonResult(null);
+        } else if (targetStep === 'drawing') {
+          // Going back from verifying/complete to drawing
+          setComparisonResult(null);
+          // Drawings are still loaded; user can continue from list
+        }
+
+        showToast(`Returned to ${stepLabels[targetStep]} step`, 'success');
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed to update status' }));
+        showToast(err.error || 'Failed to go back. Please try again.', 'error');
+      }
+    } catch {
+      showToast('Unable to connect. Check your internet connection and try again.', 'error');
+    }
+  }
+
   async function handleStartAnalysis() {
     if (analysisStarting) return;
     setAnalysisStarting(true);
@@ -1269,8 +1365,11 @@ export default function ResearchProjectPage() {
         </div>
       </div>
 
-      {/* Workflow stepper */}
-      <WorkflowStepper currentStatus={project.status} />
+      {/* Workflow stepper — clicking a completed step reverts the project to that step */}
+      <WorkflowStepper
+        currentStatus={project.status}
+        onStepClick={project.status !== 'analyzing' ? handleRevertToStep : undefined}
+      />
 
       {/* Quick stats */}
       <div className="research-hub__stats">
@@ -1348,6 +1447,11 @@ export default function ResearchProjectPage() {
               surveying data including bearings, distances, monuments, curve data, legal descriptions, and more.
             </p>
           </div>
+
+          {/* Back to Upload */}
+          <button className="research-back-btn" onClick={() => handleRevertToStep('upload')}>
+            &larr; Back to Upload &amp; Documents
+          </button>
 
           <div className="research-configure__summary">
             <div className="research-configure__summary-item">
@@ -1493,6 +1597,11 @@ export default function ResearchProjectPage() {
 
       {project.status === 'review' && (
         <div className="research-review">
+          {/* Back to Configure / re-run analysis */}
+          <button className="research-back-btn" onClick={() => handleRevertToStep('configure')}>
+            &larr; Back to Configure / Re-run Analysis
+          </button>
+
           {/* Survey Briefing + AI Logs buttons */}
           {showBriefing ? (
             <BriefingPanel
@@ -1592,6 +1701,10 @@ export default function ResearchProjectPage() {
                     </button>
                   )}
                 </div>
+                {/* Back to Review */}
+                <button className="research-back-btn" onClick={() => handleRevertToStep('review')} style={{ marginBottom: 0, alignSelf: 'center' }}>
+                  &larr; Back to Review
+                </button>
               </div>
 
               {/* Survey briefing in drawing step */}
@@ -1865,6 +1978,10 @@ export default function ResearchProjectPage() {
       {/* Step 6: Verify */}
       {project.status === 'verifying' && (
         <>
+          {/* Back to Drawing */}
+          <button className="research-back-btn" onClick={() => handleRevertToStep('drawing')}>
+            &larr; Back to Drawing
+          </button>
           {!activeDrawing && (
             <div className="research-verify__loading-drawings">
               <p style={{ color: '#6B7280', fontSize: '0.85rem', textAlign: 'center', padding: '2rem 1rem' }}>
@@ -1889,6 +2006,10 @@ export default function ResearchProjectPage() {
       {/* Step 7: Export / Complete */}
       {project.status === 'complete' && (
         <>
+          {/* Back to Verify */}
+          <button className="research-back-btn" onClick={() => handleRevertToStep('verifying')}>
+            &larr; Back to Verify
+          </button>
           {!activeDrawing && (
             <div style={{ color: '#6B7280', fontSize: '0.85rem', textAlign: 'center', padding: '2rem 1rem' }}>
               Loading drawing for export...

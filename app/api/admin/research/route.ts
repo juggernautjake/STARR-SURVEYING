@@ -114,7 +114,7 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { id, ...updates } = body;
+  const { id, clear_analysis_data, ...updates } = body;
 
   if (!id) return NextResponse.json({ error: 'Project id is required' }, { status: 400 });
 
@@ -139,6 +139,22 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
 
   if (updates.status === 'complete') {
     allowed.completed_at = new Date().toISOString();
+  }
+
+  // When reverting to a pre-analysis step the caller can request clearing extracted data
+  if (clear_analysis_data) {
+    allowed.analysis_metadata = {};
+    await Promise.all([
+      supabaseAdmin.from('extracted_data_points').delete().eq('research_project_id', id),
+      supabaseAdmin.from('discrepancies').delete().eq('research_project_id', id),
+      // Reset document processing_status from 'analyzed'/'analyzing' back to 'extracted'
+      // so they are available for re-analysis without requiring re-upload.
+      supabaseAdmin
+        .from('research_documents')
+        .update({ processing_status: 'extracted', processing_error: null, updated_at: new Date().toISOString() })
+        .eq('research_project_id', id)
+        .in('processing_status', ['analyzed', 'analyzing']),
+    ]);
   }
 
   const { data, error } = await supabaseAdmin

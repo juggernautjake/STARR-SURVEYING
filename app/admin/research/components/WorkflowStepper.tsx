@@ -17,7 +17,8 @@ export default function WorkflowStepper({ currentStatus, onStepClick }: Workflow
       {WORKFLOW_STEPS.map((step, i) => {
         const isDone = i < currentIndex;
         const isActive = i === currentIndex;
-        const isClickable = isDone && onStepClick;
+        // 'analyzing' is a transient state — not a stable revert target
+        const isRevertable = isDone && onStepClick && step.key !== 'analyzing';
 
         return (
           <div key={step.key} style={{ display: 'flex', alignItems: 'center' }}>
@@ -25,9 +26,10 @@ export default function WorkflowStepper({ currentStatus, onStepClick }: Workflow
               <div className={`research-workflow__connector ${isDone ? 'research-workflow__connector--done' : ''}`} />
             )}
             <div
-              className={`research-workflow__step ${isDone ? 'research-workflow__step--done' : ''} ${isActive ? 'research-workflow__step--active' : ''}`}
-              onClick={() => isClickable && onStepClick(step.key)}
-              style={{ cursor: isClickable ? 'pointer' : 'default' }}
+              className={`research-workflow__step ${isDone ? 'research-workflow__step--done' : ''} ${isActive ? 'research-workflow__step--active' : ''} ${isRevertable ? 'research-workflow__step--revertable' : ''}`}
+              onClick={() => isRevertable && onStepClick(step.key)}
+              title={isRevertable ? `Go back to ${step.label}` : undefined}
+              style={{ cursor: isRevertable ? 'pointer' : 'default' }}
             >
               <span className="research-workflow__step-num">
                 {isDone ? '✓' : step.number}
