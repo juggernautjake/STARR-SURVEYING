@@ -1,7 +1,7 @@
 // lib/research/analysis.service.ts — AI Analysis Engine orchestration
 // Coordinates per-document extraction, cross-referencing, normalization, and discrepancy detection.
 import { supabaseAdmin } from '@/lib/supabase';
-import { callAI, AIServiceError } from './ai-client';
+import { callAI, callVision, AIServiceError } from './ai-client';
 import { fetchSourceContent } from './document-analysis.service';
 import {
   normalizeBearing,
@@ -101,8 +101,13 @@ const EMPTY_DOC_PATTERNS: RegExp[] = [
 ];
 
 // At least ONE of these keywords must be present for a document to be worth analyzing.
-// These are the core concepts that appear in real surveying/deed documents.
+// PRIMARY: core boundary/deed concepts — these are the main focus.
+// SECONDARY: easements, improvements, flood zone, utilities, zoning — valuable context
+//   even when no metes-and-bounds text is present.  Documents that only hit secondary
+//   keywords are still analyzed; the AI extraction config controls which categories
+//   are actually extracted so boundary data remains the priority.
 const PROPERTY_CONTENT_KEYWORDS: RegExp[] = [
+  // ── Primary: boundary / deed data ────────────────────────────────────────
   /\bthence\b/i,
   /\bbearing[s]?\b/i,
   /\b(N|S)\s*\d{1,2}[°\s]\d{0,2}['\s]\d{0,2}["\s]*(E|W)\b/,  // actual bearing notation
@@ -116,12 +121,26 @@ const PROPERTY_CONTENT_KEYWORDS: RegExp[] = [
   /\blot\s+\d+.*block\s+\d+\b/i,
   /\bplat\s+(thereof|recorded|of\s+record)\b/i,
   /\bpoint\s+of\s+(beginning|commencement)\b/i,
-  /\b(easement|right.of.way|setback)\b/i,
+  /\bright.of.way\b/i,
   /\b\d+\.\d+\s*(feet|ft|varas?|chains?|meters?)\b/i,  // measured distances
   /\bacreage\s*:\s*\d/i,
   /\b(abstract|survey\s+no|geo\s+id)\s*:?\s*[A-Z0-9-]+\b/i,
   /\blegal\s+desc(ription)?\s*:/i,
   /\brecorded\s+(in|at|under)\b/i,
+  // ── Secondary: easements, improvements & other property context ───────────
+  /\beasement\b/i,
+  /\bsetback[s]?\b/i,
+  /\butility\s+(easement|line|corridor)\b/i,
+  /\bpipeline\s+(easement|route)\b/i,
+  /\bflood\s+(zone|plain|hazard)\b/i,
+  /\bFEMA\b/i,
+  /\bzoning\b/i,
+  /\bbuilding\s+(permit|setback|line)\b/i,
+  /\bimprovements?\s+(on|to|of)\b/i,
+  /\bstructure[s]?\b.*\bproperty\b/i,
+  /\bmineral\s+(rights?|lease|interest)\b/i,
+  /\boil\s+(well|gas|lease)\b/i,
+  /\bsurvey(or|ed)?\b.*\b(certif|seal|stamp)\b/i,
 ];
 
 const MIN_USEFUL_LENGTH = 120; // chars — anything shorter is definitely empty
@@ -130,7 +149,16 @@ const ENRICH_THRESHOLD   = 600; // chars — below this, try to fetch better con
 function screenDocument(doc: ResearchDocument): DocScreenResult {
   const raw = (doc.extracted_text ?? '').trim();
 
-  // Hard minimum
+  // Image documents with a storage_url always go straight to analysis — Claude Vision
+  // will OCR them directly, so lack of extracted_text is expected and fine.
+  const isImageDoc = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes((doc.file_type ?? '').toLowerCase())
+    || (doc.extracted_text_method ?? '').includes('map_image_capture')
+    || (doc.extracted_text_method ?? '').includes('browser_capture');
+  if (isImageDoc && doc.storage_url) {
+    return { action: 'analyze' };
+  }
+
+  // Hard minimum for text-only documents
   if (raw.length < MIN_USEFUL_LENGTH) {
     return { action: 'skip', reason: `Content too short (${raw.length} chars — minimum ${MIN_USEFUL_LENGTH})` };
   }
@@ -409,7 +437,16 @@ export async function analyzeProject(
         throw new AnalysisAbortError();
       }
 
-      addLog('info', `Processing document ${docIndex + 1}/${documents.length}: "${docLabel}"`, `Type: ${doc.document_type || 'unknown'}, Size: ${doc.extracted_text?.length || 0} chars`);
+      const isImageDoc = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes((doc.file_type ?? '').toLowerCase())
+        || (doc.extracted_text_method ?? '').includes('map_image_capture')
+        || (doc.extracted_text_method ?? '').includes('browser_capture');
+      const docSize = isImageDoc && doc.storage_url
+        ? `image (${doc.file_size_bytes ? Math.round(doc.file_size_bytes / 1024) + ' KB' : 'stored'})`
+        : `${doc.extracted_text?.length || 0} chars`;
+      addLog('info',
+        `Processing document ${docIndex + 1}/${documents.length}: "${docLabel}"`,
+        `Type: ${doc.document_type || 'unknown'}, Size: ${docSize}${isImageDoc && doc.storage_url ? ' — will run Claude Vision OCR' : ''}`,
+      );
 
       // ── Pre-screening: skip or enrich before burning an AI call ───────────
       let screenResult = screenDocument(doc);
@@ -662,21 +699,85 @@ async function extractFromDocument(
   doc: ResearchDocument,
   extractCategories: Record<string, boolean>
 ): Promise<Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[]> {
-  const text = doc.extracted_text;
-  if (!text || text.trim().length < 20) return [];
 
-  // Build config description for the AI
+  // ── Build enabled-categories description ──────────────────────────────────
   const enabledCategories = Object.entries(extractCategories)
     .filter(([, v]) => v)
     .map(([k]) => k.replace(/_/g, ' '))
     .join(', ');
 
+  // ── Image document path: OCR via Claude Vision → then DATA_EXTRACTOR ──────
+  const isImage = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes((doc.file_type ?? '').toLowerCase())
+    || (doc.extracted_text_method ?? '').includes('map_image_capture')
+    || (doc.extracted_text_method ?? '').includes('browser_capture');
+
+  let textForExtraction = doc.extracted_text ?? '';
+
+  if (isImage && doc.storage_url) {
+    // Fetch the image bytes from Supabase Storage and run Claude Vision OCR on them.
+    // The OCR result becomes the text fed into DATA_EXTRACTOR, ensuring boundary
+    // calls, easements, legal descriptions and all other data in the image are captured.
+    try {
+      const imgRes = await fetch(doc.storage_url, {
+        signal: AbortSignal.timeout(30_000),
+        headers: { 'Accept': 'image/*' },
+      });
+      if (imgRes.ok) {
+        const contentType = imgRes.headers.get('content-type') ?? 'image/png';
+        const mediaType = (
+          contentType.includes('jpeg') ? 'image/jpeg'
+            : contentType.includes('webp') ? 'image/webp'
+            : contentType.includes('gif')  ? 'image/gif'
+            : 'image/png'
+        ) as 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
+
+        const buf = await imgRes.arrayBuffer();
+        const base64 = Buffer.from(buf).toString('base64');
+
+        const ocrResult = await callVision(
+          base64,
+          mediaType,
+          'OCR_EXTRACTOR',
+          `This is a ${doc.document_type ?? 'property'} document: "${doc.document_label ?? doc.original_filename ?? 'unknown'}". ` +
+          `Extract ALL text visible in the image, preserving every bearing, distance, monument, easement description, deed reference, ` +
+          `legal description, lot/block, and any other surveying or property data exactly as written.`,
+        );
+
+        const ocrText = typeof ocrResult.response === 'string'
+          ? ocrResult.response
+          : (ocrResult.response as { full_text?: string })?.full_text
+            ?? ocrResult.raw;
+
+        if (ocrText && ocrText.trim().length > 30) {
+          // Prepend vision-derived text; keep any existing extracted_text too
+          // (browser captures may already have partial DOM text worth keeping)
+          textForExtraction = `[VISION OCR — ${doc.document_label ?? doc.original_filename}]\n${ocrText}\n\n` +
+            (textForExtraction ? `[EXISTING TEXT]\n${textForExtraction}` : '');
+
+          // Persist the enriched text so future runs and the UI can display it
+          await supabaseAdmin.from('research_documents').update({
+            extracted_text: textForExtraction.substring(0, 40000),
+            extracted_text_method: 'vision+ocr',
+            ocr_confidence: (ocrResult.response as { overall_confidence?: number })?.overall_confidence ?? null,
+            updated_at: new Date().toISOString(),
+          }).eq('id', doc.id);
+        }
+      }
+    } catch {
+      // Vision OCR is best-effort — fall through to text-only extraction
+    }
+  }
+
+  if (!textForExtraction || textForExtraction.trim().length < 20) return [];
+
+  // ── Text extraction via DATA_EXTRACTOR ────────────────────────────────────
   const userContent = `Document type: ${doc.document_type || 'unknown'}
 Document label: ${doc.document_label || doc.original_filename || 'Untitled'}
 Extract these categories: ${enabledCategories}
+${isImage ? 'NOTE: This document was processed via Claude Vision OCR — treat the extracted text as the full document content.' : ''}
 
 DOCUMENT TEXT:
-${text.substring(0, 15000)}`;
+${textForExtraction.substring(0, 15000)}`;
 
   const result = await callAI({
     promptKey: 'DATA_EXTRACTOR',

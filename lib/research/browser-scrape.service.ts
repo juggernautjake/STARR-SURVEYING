@@ -16,7 +16,7 @@
 // service returns null without throwing, so the caller can fall back to other methods.
 
 import { supabaseAdmin } from '@/lib/supabase';
-import { callAI } from './ai-client';
+import { callAI, callVision } from './ai-client';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -169,33 +169,67 @@ async function storeScreenshotAsDocument(
 // ── AI vision extraction ──────────────────────────────────────────────────────
 
 /**
- * Send a screenshot buffer to Claude vision and ask it to extract specific data.
- * Returns structured text output; caller parses as needed.
+ * Run Claude Vision on a screenshot buffer.
+ *
+ * Pass 1 — OCR_EXTRACTOR: extract all raw text from the image precisely.
+ * Pass 2 — DATA_EXTRACTOR: extract structured data points (boundary calls,
+ *   easements, legal description, recording references, property ID, etc.)
+ *   from the OCR'd text.
+ *
+ * Returns the structured extraction text so callers can parse it, and also
+ * returns the raw OCR text for storage.
  */
 async function extractFromScreenshot(
   screenshotBuffer: Buffer,
-  prompt: string,
+  context: string,   // e.g. document label / page description
   steps: string[],
-): Promise<string | null> {
+): Promise<{ structured: string | null; ocrText: string | null }> {
   try {
     const base64 = screenshotBuffer.toString('base64');
-    const result = await callAI({
-      promptKey: 'PROPERTY_RESEARCHER',
-      userContent: [
-        {
-          type: 'image',
-          source: { type: 'base64', media_type: 'image/png', data: base64 },
-        },
-        { type: 'text', text: prompt },
-      ] as unknown as string,
-      maxTokens: 2048,
+
+    // Pass 1: OCR — get all text out of the image
+    const ocrResult = await callVision(
+      base64,
+      'image/png',
+      'OCR_EXTRACTOR',
+      `Extract ALL text from this screenshot of a county property record page. Context: ${context}. ` +
+      `Preserve every bearing, distance, deed reference, instrument number, property ID, legal description, ` +
+      `lot/block, easement description, and any other property data exactly as written.`,
+    );
+    const ocrText = typeof ocrResult.response === 'string'
+      ? ocrResult.response
+      : (ocrResult.response as { full_text?: string })?.full_text ?? ocrResult.raw;
+
+    if (!ocrText || ocrText.trim().length < 20) {
+      steps.push(`[Vision] OCR returned no text for: ${context}`);
+      return { structured: null, ocrText: null };
+    }
+    steps.push(`[Vision] OCR complete for "${context}" — ${ocrText.length} chars extracted`);
+
+    // Pass 2: DATA_EXTRACTOR — structured extraction from the OCR text
+    const extractResult = await callAI({
+      promptKey: 'DATA_EXTRACTOR',
+      userContent:
+        `Document label: ${context}\n` +
+        `Document type: county property record / deed / plat screenshot\n` +
+        `Extract these categories: bearings distances, monuments, curve data, point of beginning, ` +
+        `easements, setbacks, right of way, legal description, lot block subdivision, recording references, ` +
+        `deed references, coordinates, elevations, flood zone, utilities, surveyor info\n\n` +
+        `DOCUMENT TEXT (from Vision OCR):\n${ocrText.substring(0, 15000)}`,
+      maxTokens: 4096,
       maxRetries: 1,
-      timeoutMs: 60_000,
+      timeoutMs: 90_000,
     });
-    return typeof result.response === 'string' ? result.response : JSON.stringify(result.response);
+
+    const structured = typeof extractResult.response === 'string'
+      ? extractResult.response
+      : JSON.stringify(extractResult.response);
+
+    steps.push(`[Vision] Structured extraction complete for "${context}"`);
+    return { structured, ocrText };
   } catch (err) {
-    steps.push(`[Vision] Error: ${err instanceof Error ? err.message : String(err)}`);
-    return null;
+    steps.push(`[Vision] Error processing "${context}": ${err instanceof Error ? err.message : String(err)}`);
+    return { structured: null, ocrText: null };
   }
 }
 
@@ -248,22 +282,16 @@ async function extractPropertyIdFromPage(
   steps.push('[Browser] DOM extraction failed — asking Claude vision to identify property ID…');
   const visionResult = await extractFromScreenshot(
     screenshot,
-    `Look at this screenshot of a county appraisal district search results page.
-Find the property/parcel ID number (also called account number, property ID, or prop ID).
-It is usually a 5–10 digit number in the first column of the results table.
-Return ONLY the property ID number and nothing else. If you cannot find one, return the word "none".`,
+    'CAD search results page — looking for property/parcel ID number',
     steps,
   );
 
-  if (visionResult && /^\d{4,12}$/.test(visionResult.trim())) {
-    steps.push(`[Browser/Vision] Extracted property ID: ${visionResult.trim()}`);
-    return visionResult.trim();
-  }
-  if (visionResult && visionResult.toLowerCase() !== 'none') {
-    // Try to find a number in the response
-    const numMatch = visionResult.match(/\b(\d{5,12})\b/);
+  const visionText = visionResult.ocrText ?? visionResult.structured ?? '';
+  if (visionText) {
+    // Look for a standalone 5–12 digit number (property IDs are numeric)
+    const numMatch = visionText.match(/\b(\d{5,12})\b/);
     if (numMatch) {
-      steps.push(`[Browser/Vision] Extracted property ID from vision response: ${numMatch[1]}`);
+      steps.push(`[Browser/Vision] Extracted property ID from OCR: ${numMatch[1]}`);
       return numMatch[1];
     }
   }
@@ -545,36 +573,30 @@ async function fetchDeedDocuments(
         const combinedText = pageTexts.join('\n\n---PAGE BREAK---\n\n');
         if (combinedText.trim().length > 100) {
           const firstPageShot = await docPage.screenshot({ type: 'png', fullPage: true }) as Buffer;
-          const visionResult = await extractFromScreenshot(
-            firstPageShot,
-            `This is a deed or property record document from a Texas county clerk.
-Extract the following information:
-1. LEGAL DESCRIPTION (the full metes-and-bounds text or lot/block description)
-2. GRANTOR name (seller)
-3. GRANTEE name (buyer/current owner)
-4. RECORDING REFERENCE (volume, page, or instrument number)
-5. DATE of recording
+          const docContext = `Deed document ${i + 1} — ${linkText || 'county clerk record'} — ${docUrl}`;
+          const visionResult = await extractFromScreenshot(firstPageShot, docContext, steps);
 
-Return your answer as plain text with clear section headers.
-If information is not visible, write "Not found" for that section.`,
-            steps,
-          );
-
-          if (visionResult) {
+          const visionText = visionResult.structured ?? visionResult.ocrText ?? '';
+          if (visionText) {
             steps.push(`[Browser/Vision] Extracted deed data from document ${i + 1}`);
-            // Update the last document's extracted_text with the AI extraction
+            // Store both the structured extraction and the raw OCR text
             if (documentIds.length > 0) {
               const lastDocId = documentIds[documentIds.length - 1];
+              const storedText =
+                (visionResult.structured ? `STRUCTURED EXTRACTION:\n${visionResult.structured}\n\n` : '') +
+                (visionResult.ocrText    ? `OCR TEXT:\n${visionResult.ocrText}\n\n` : '') +
+                `RAW DOM TEXT:\n${combinedText.substring(0, 6000)}`;
               await supabaseAdmin.from('research_documents').update({
-                extracted_text: `AI EXTRACTION:\n${visionResult}\n\n---RAW TEXT---\n${combinedText.substring(0, 6000)}`,
+                extracted_text: storedText.substring(0, 40000),
                 extracted_text_method: 'browser_capture+vision',
                 updated_at: new Date().toISOString(),
               }).eq('id', lastDocId);
             }
 
-            // Parse legal description
+            // Parse legal description from OCR text (plain-text patterns)
+            const searchText = visionResult.ocrText ?? visionText;
             if (!legalDescription) {
-              const ldMatch = visionResult.match(/LEGAL DESCRIPTION[:\s]+([^]*?)(?:\n\n|\d\.|GRANTOR|GRANTEE|RECORDING|DATE|$)/i);
+              const ldMatch = searchText.match(/LEGAL DESCRIPTION[:\s]+([^]*?)(?:\n\n|\d\.|GRANTOR|GRANTEE|RECORDING|DATE|$)/i);
               if (ldMatch?.[1]?.trim() && ldMatch[1].trim().toLowerCase() !== 'not found') {
                 legalDescription = ldMatch[1].trim();
                 steps.push(`[Browser] Extracted legal description (${legalDescription.length} chars)`);
@@ -582,16 +604,18 @@ If information is not visible, write "Not found" for that section.`,
             }
             // Parse deed reference
             if (!deedReference) {
-              const drMatch = visionResult.match(/RECORDING REFERENCE[:\s]+(.+?)(?:\n|$)/i);
+              const drMatch = searchText.match(/(?:RECORDING REFERENCE|instrument\s*(?:no|number|#)|volume\s*\d+.*?page\s*\d+)[:\s]+(.+?)(?:\n|$)/i);
               if (drMatch?.[1]?.trim() && drMatch[1].trim().toLowerCase() !== 'not found') {
                 deedReference = drMatch[1].trim();
+                steps.push(`[Browser] Deed reference: ${deedReference}`);
               }
             }
             // Parse owner/grantee
             if (!ownerName) {
-              const owMatch = visionResult.match(/GRANTEE[:\s]+(.+?)(?:\n|$)/i);
+              const owMatch = searchText.match(/GRANTEE[:\s]+(.+?)(?:\n|$)/i);
               if (owMatch?.[1]?.trim() && owMatch[1].trim().toLowerCase() !== 'not found') {
                 ownerName = owMatch[1].trim();
+                steps.push(`[Browser] Owner/Grantee: ${ownerName}`);
               }
             }
           }
@@ -608,16 +632,17 @@ If information is not visible, write "Not found" for that section.`,
       steps.push('[Browser] No individual document links found — extracting from results page via vision');
       const visionResult = await extractFromScreenshot(
         resultsShot,
-        `This is a screenshot of a county clerk record search results page.
-List all document titles, recording dates, and any visible property information.
-If you see property IDs, legal descriptions, or deed references, extract them.
-Return your answer as plain text.`,
+        `County clerk record search results page — property ID: ${propertyId ?? 'unknown'}`,
         steps,
       );
-      if (visionResult) {
+      if (visionResult.structured || visionResult.ocrText) {
         steps.push('[Browser/Vision] Extracted information from results page');
+        const stored =
+          (visionResult.structured ? `STRUCTURED EXTRACTION:\n${visionResult.structured}\n\n` : '') +
+          (visionResult.ocrText    ? `OCR TEXT:\n${visionResult.ocrText}\n\n` : '') +
+          `RAW DOM TEXT:\n${resultsText.substring(0, 4000)}`;
         await supabaseAdmin.from('research_documents').update({
-          extracted_text: `AI EXTRACTION FROM RESULTS:\n${visionResult}\n\nRAW TEXT:\n${resultsText.substring(0, 4000)}`,
+          extracted_text: stored.substring(0, 40000),
           extracted_text_method: 'browser_capture+vision',
           updated_at: new Date().toISOString(),
         }).eq('id', resultsDocId ?? '');
