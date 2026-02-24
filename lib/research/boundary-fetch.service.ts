@@ -1969,9 +1969,12 @@ export async function fetchBoundaryCalls(
               .trim();
 
             if (pageText.length > 200) {
-              // Extract legal description using multiple patterns
+              // Matches "Legal Desc(ription): <content>" up to the next CAD section heading.
+              // The lookahead stops at double-spaces or known Bell CAD field labels.
+              const ESEARCH_LEGAL_DESC_PATTERN =
+                /[Ll]egal\s+[Dd]esc(?:ription)?\s*[:\s]+([A-Z0-9][A-Z0-9\s,./#()\-]{19,2000}?)(?=\s{2,}|\b(?:OWNER|SITUS|MARKET|DEED\s+VOL|GEO\s+ID|YEAR\s+BUILT|LAND\s+USE|EXEMPTION|STATE\s+CODE|TOTAL\s+VALUE)\b)/i;
               const ldPatterns = [
-                /[Ll]egal\s+[Dd]esc(?:ription)?\s*[:\s]+([A-Z0-9][A-Z0-9\s,./#()\-]{19,2000}?)(?=\s{2,}|\b(?:OWNER|SITUS|MARKET|DEED\s+VOL|GEO\s+ID|YEAR\s+BUILT|LAND\s+USE|EXEMPTION|STATE\s+CODE|TOTAL\s+VALUE)\b)/i,
+                ESEARCH_LEGAL_DESC_PATTERN,
                 /[Ll]egal\s+[Dd]esc(?:ription)?\s*[:\n]+(.{20,}(?:\n.{10,}){0,5})/,
               ];
               for (const pat of ldPatterns) {

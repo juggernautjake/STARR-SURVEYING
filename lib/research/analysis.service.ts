@@ -562,7 +562,7 @@ export async function analyzeProject(
     // call fetchBoundaryCalls to retrieve the property record automatically.
     // This ensures boundary data is always available for analysis even when
     // the boundary-calls route was never manually triggered.
-    const hasRichCadDoc = allDocuments.some((d: { source_type: string; document_type: string | null; extracted_text: string | null }) =>
+    const hasRichCadDoc = allDocuments.some((d: ResearchDocument) =>
       d.source_type === 'property_search' &&
       (d.document_type === 'legal_description' || d.document_type === 'appraisal_record') &&
       (d.extracted_text ?? '').length > 300,

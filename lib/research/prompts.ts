@@ -126,7 +126,7 @@ CONFIDENCE SCORING CRITERIA:
 - Add 5-10 points if multiple documents confirm the same value
 
 CRITICAL RULES FOR LEGAL DESCRIPTION EXTRACTION:
-- DO NOT extract a plain street address (e.g., "3424 Waggoner Dr, Belton, TX 76513") as a "legal_description" data point. A street address is NOT a legal description.
+- DO NOT extract a plain street address (e.g., "123 Main St, Anytown, TX 75001") as a "legal_description" data point. A street address is NOT a legal description.
 - A valid "legal_description" data point MUST contain at least ONE of:
   a. LOT/BLOCK language: "Lot X, Block Y" or "LT X BLK Y [Subdivision Name]"
   b. Metes-and-bounds language: "thence", a quadrant bearing (N 45° E), or distance calls
