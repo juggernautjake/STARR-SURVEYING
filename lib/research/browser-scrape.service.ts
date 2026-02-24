@@ -309,6 +309,196 @@ function extractHttpSearchHits(data: unknown): Array<Record<string, unknown>> {
 }
 
 /**
+ * Fetch instrument list and first instrument detail from a publicsearch.us portal.
+ * Tyler Tech's SPA loads data from their JSON REST API — the HTML shell is empty.
+ *
+ * Returns plain text suitable for storage as a research document, plus the raw
+ * instrument list for further processing.
+ */
+async function fetchPublicsearchInstruments(
+  subdomain: string,
+  query: string,
+  projectId: string,
+  steps: string[],
+): Promise<{ documentIds: string[]; legalDescription: string | null; deedReference: string | null; ownerName: string | null }> {
+  const origin = `https://${subdomain}`;
+  const documentIds: string[] = [];
+  let legalDescription: string | null = null;
+  let deedReference: string | null = null;
+  let ownerName: string | null = null;
+
+  const hdrs: Record<string, string> = {
+    'Accept': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Referer': origin + '/',
+    'Origin': origin,
+  };
+
+  // ── Step A: Fetch instrument list ────────────────────────────────────────
+  const searchEps = [
+    `${origin}/api/instruments?searchText=${encodeURIComponent(query)}&pageSize=20`,
+    `${origin}/api/v1/instruments?q=${encodeURIComponent(query)}&pageSize=20`,
+    `${origin}/api/instruments?q=${encodeURIComponent(query)}&limit=20`,
+    `${origin}/api/instruments?propertyId=${encodeURIComponent(query)}&pageSize=20`,
+  ];
+
+  let instruments: Array<Record<string, unknown>> = [];
+  for (const ep of searchEps) {
+    try {
+      steps.push(`[PublicSearch] Trying API: ${ep}`);
+      const res = await httpFetchWithTimeout(ep, { headers: hdrs });
+      if (!res.ok) { steps.push(`[PublicSearch] HTTP ${res.status}`); continue; }
+      const ct = res.headers.get('content-type') ?? '';
+      if (!ct.includes('json')) { steps.push(`[PublicSearch] Non-JSON response`); continue; }
+      const data = await res.json() as unknown;
+      const items = Array.isArray(data) ? data as Array<Record<string, unknown>>
+        : Array.isArray((data as Record<string, unknown>)?.instruments) ? (data as Record<string, unknown>).instruments as Array<Record<string, unknown>>
+        : Array.isArray((data as Record<string, unknown>)?.results)     ? (data as Record<string, unknown>).results     as Array<Record<string, unknown>>
+        : Array.isArray((data as Record<string, unknown>)?.data)        ? (data as Record<string, unknown>).data        as Array<Record<string, unknown>>
+        : [];
+      if (items.length > 0) {
+        instruments = items;
+        steps.push(`[PublicSearch] ✓ Found ${instruments.length} instrument(s) via ${ep}`);
+        break;
+      } else {
+        steps.push(`[PublicSearch] API returned 0 instruments`);
+      }
+    } catch (err) {
+      steps.push(`[PublicSearch] API error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  if (instruments.length === 0) {
+    steps.push(`[PublicSearch] No instruments found for query: "${query}"`);
+    return { documentIds, legalDescription, deedReference, ownerName };
+  }
+
+  // Build summary text from instrument list
+  const lines: string[] = [`County Clerk Instruments for: ${query}`, ''];
+  for (const inst of instruments.slice(0, 15)) {
+    const id       = String(inst.id ?? inst.instrumentId ?? inst.InstrumentId ?? '');
+    const type     = String(inst.type ?? inst.instrumentType ?? inst.InstrumentType ?? '');
+    const desc     = String(inst.description ?? inst.Description ?? '');
+    const date     = String(inst.recordedDate ?? inst.instrumentDate ?? inst.Date ?? '');
+    const vol      = String(inst.volume ?? inst.Volume ?? '');
+    const pg       = String(inst.page ?? inst.Page ?? '');
+    const grantors = String(inst.grantors ?? inst.Grantors ?? '');
+    const grantees = String(inst.grantees ?? inst.Grantees ?? '');
+    lines.push(`Instrument ID: ${id}`);
+    if (type)      lines.push(`  Type: ${type}`);
+    if (desc)      lines.push(`  Description: ${desc}`);
+    if (date)      lines.push(`  Recorded: ${date}`);
+    if (vol || pg) lines.push(`  Volume: ${vol}, Page: ${pg}`);
+    if (grantors)  lines.push(`  Grantors: ${grantors}`);
+    if (grantees)  lines.push(`  Grantees: ${grantees}`);
+    lines.push('');
+
+    // Capture deed reference from first warrant-deed-type instrument
+    if (!deedReference && (vol || pg) && /deed|warranty|warranty deed/i.test(type || desc)) {
+      deedReference = [vol && `Vol. ${vol}`, pg && `Pg. ${pg}`].filter(Boolean).join(', ');
+    }
+    if (!ownerName && grantees) ownerName = grantees.trim().split('\n')[0].trim().substring(0, 200);
+  }
+
+  const summaryText = lines.join('\n');
+  const summaryDocId = await storeHttpFetchedDocument(
+    projectId,
+    `County Clerk Instruments — ${query}`,
+    'deed',
+    `${origin}/results?search=index,fullText&q=${encodeURIComponent(query)}`,
+    summaryText.substring(0, 40_000),
+  );
+  if (summaryDocId) documentIds.push(summaryDocId);
+
+  // ── Step B: Fetch the most relevant instrument's full detail + pages ────
+  // Prioritize warranty deeds and special warranty deeds over other types.
+  const ranked = [...instruments].sort((a, b) => {
+    const aType = String(a.type ?? a.instrumentType ?? '').toLowerCase();
+    const bType = String(b.type ?? b.instrumentType ?? '').toLowerCase();
+    const score = (t: string) => t.includes('warranty deed') ? 2 : t.includes('deed') ? 1 : 0;
+    return score(bType) - score(aType);
+  });
+
+  for (const inst of ranked.slice(0, 3)) {
+    const instId = String(inst.id ?? inst.instrumentId ?? inst.InstrumentId ?? '');
+    if (!instId) continue;
+
+    // Fetch instrument detail
+    for (const detailEp of [
+      `${origin}/api/instruments/${instId}`,
+      `${origin}/api/v1/instruments/${instId}`,
+    ]) {
+      try {
+        const res = await httpFetchWithTimeout(detailEp, { headers: hdrs });
+        if (!res.ok) continue;
+        const ct = res.headers.get('content-type') ?? '';
+        if (!ct.includes('json')) continue;
+        const detail = await res.json() as Record<string, unknown>;
+        const detailText = `Instrument Detail (ID: ${instId}):\n${JSON.stringify(detail, null, 2)}`;
+
+        // Try to find total page count
+        const pageCount = Number(detail.pageCount ?? detail.numberOfPages ?? detail.pages ?? 1);
+
+        // Try to fetch page images — Tyler Tech provides images for each page
+        const pageTexts: string[] = [];
+        const pagesToFetch = Math.min(pageCount || 1, 8); // cap at 8 pages
+        for (let p = 1; p <= pagesToFetch; p++) {
+          const pageEps = [
+            `${origin}/api/instruments/${instId}/pages/${p}`,
+            `${origin}/api/pages?instrumentId=${instId}&pageNumber=${p}`,
+            `${origin}/api/instruments/${instId}/page/${p}`,
+          ];
+          let pageText: string | null = null;
+          for (const pageEp of pageEps) {
+            try {
+              const pageRes = await httpFetchWithTimeout(pageEp, { headers: hdrs });
+              if (!pageRes.ok) continue;
+              const pageCt = pageRes.headers.get('content-type') ?? '';
+              if (pageCt.includes('json')) {
+                const pageData = await pageRes.json() as Record<string, unknown>;
+                pageText = JSON.stringify(pageData);
+                break;
+              }
+            } catch { /* try next */ }
+          }
+          if (pageText) pageTexts.push(pageText);
+        }
+
+        const fullText = [
+          detailText,
+          pageTexts.length > 0 ? `\n\nPage Data:\n${pageTexts.join('\n')}` : '',
+        ].join('').substring(0, 40_000);
+
+        const docId = await storeHttpFetchedDocument(
+          projectId,
+          `Deed Document — Instrument ${instId}`,
+          'deed',
+          `${origin}/api/instruments/${instId}`,
+          fullText,
+        );
+        if (docId) {
+          documentIds.push(docId);
+          steps.push(`[PublicSearch] ✓ Stored instrument ${instId} (${fullText.length} chars)`);
+        }
+
+        // Try to extract legal description from instrument detail fields
+        const ld = String(detail.legalDescription ?? detail.LegalDescription ?? detail.legal_description ?? '');
+        if (ld && ld.length > 20 && !legalDescription) {
+          legalDescription = ld;
+          steps.push(`[PublicSearch] Legal description from instrument detail: "${ld.substring(0, 80)}…"`);
+        }
+        break; // got detail for this instrument
+      } catch (err) {
+        steps.push(`[PublicSearch] Detail fetch error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  }
+
+  steps.push(`[PublicSearch] Stored ${documentIds.length} instrument document(s)`);
+  return { documentIds, legalDescription, deedReference, ownerName };
+}
+
+/**
  * Fallback property research using plain HTTP GET requests to the county eSearch
  * portal JSON API and detail page.  Called when Playwright is not installed or the
  * Chromium binary is not present on the server.
@@ -500,35 +690,22 @@ async function httpPropertyResearch(req: BrowserScrapeRequest): Promise<BrowserS
     }
   }
 
-  // ── Step 3: Fetch deed search results via HTTP ─────────────────────────────
+  // ── Step 3: Fetch deed documents via publicsearch.us JSON API ─────────────
+  // Tyler Technologies' publicsearch.us is a React SPA. The HTML shell page is
+  // nearly empty — all deed data comes from their REST JSON API. We probe their
+  // known API patterns to get the instrument list and individual deed details.
   if (propertyId && config.publicsearchSubdomain) {
-    const deedSearchUrl = `https://${config.publicsearchSubdomain}/results?search=index,fullText&q=${encodeURIComponent(propertyId)}`;
-    steps.push(`[HTTP] Fetching deed search results: ${deedSearchUrl}`);
-
-    try {
-      const res = await httpFetchWithTimeout(deedSearchUrl, {
-        headers: { ...defaultHeaders, Accept: 'text/html' },
-      });
-
-      if (res.ok) {
-        const html = await res.text();
-        const text = stripHtml(html);
-        steps.push(`[HTTP] Deed search results fetched (${text.length} chars)`);
-
-        const docId = await storeHttpFetchedDocument(
-          req.projectId,
-          `Deed Search Results — ID ${propertyId}`,
-          'deed',
-          deedSearchUrl,
-          text,
-        );
-        if (docId) documentIds.push(docId);
-      } else {
-        steps.push(`[HTTP] Deed search returned HTTP ${res.status}`);
-      }
-    } catch (err) {
-      steps.push(`[HTTP] Deed search error: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    steps.push(`[HTTP] Fetching deed instruments from publicsearch.us API…`);
+    const psResult = await fetchPublicsearchInstruments(
+      config.publicsearchSubdomain,
+      propertyId,
+      req.projectId,
+      steps,
+    );
+    documentIds.push(...psResult.documentIds);
+    if (!legalDescription && psResult.legalDescription) legalDescription = psResult.legalDescription;
+    if (!deedReference   && psResult.deedReference)   deedReference   = psResult.deedReference;
+    if (!ownerName       && psResult.ownerName)       ownerName       = psResult.ownerName;
   }
 
   steps.push(
@@ -999,6 +1176,16 @@ async function fetchDeedDocuments(
       } catch (err) {
         steps.push(`[Browser] Error opening deed doc ${i + 1}: ${err instanceof Error ? err.message : String(err)}`);
       }
+    }
+
+    // ── API fallback: if no document links, try the JSON API ────────────────
+    if (maxDocs === 0 && propertyId) {
+      steps.push('[Browser] No document links found — attempting publicsearch.us JSON API as fallback');
+      const apiResult = await fetchPublicsearchInstruments(subdomain, propertyId, projectId, steps);
+      documentIds.push(...apiResult.documentIds);
+      if (!legalDescription && apiResult.legalDescription) legalDescription = apiResult.legalDescription;
+      if (!deedReference   && apiResult.deedReference)   deedReference   = apiResult.deedReference;
+      if (!ownerName       && apiResult.ownerName)       ownerName       = apiResult.ownerName;
     }
 
     if (maxDocs === 0) {

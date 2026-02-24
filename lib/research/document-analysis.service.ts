@@ -225,25 +225,126 @@ export async function fetchSourceContent(
     }
   }
 
-  // ── publicsearch.us instruments API ──────────────────────────────────────
+  // ── publicsearch.us instruments API ─────────────────────────────────────
+  // Tyler Technologies React SPA — the HTML page is nearly empty (JS-rendered).
+  // All data comes from their JSON REST API. We probe several known endpoint
+  // patterns and return the richest result found.
   if (host.includes('publicsearch.us')) {
-    const q = parsedUrl.searchParams.get('q') ?? opts.propertyId;
-    if (q) {
-      const origin = parsedUrl.origin;
-      for (const ep of [
-        `${origin}/api/instruments?searchText=${encodeURIComponent(q)}&pageSize=5`,
-        `${origin}/api/documents?search=${encodeURIComponent(q)}&limit=5`,
-        `${origin}/instruments?search=index,fullText&q=${encodeURIComponent(q)}`,
+    const q = parsedUrl.searchParams.get('q') ?? opts.propertyId ?? '';
+    const origin = parsedUrl.origin;
+    const hdrs = {
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Referer': origin + '/',
+      'Origin': origin,
+    };
+
+    // ── Step A: Fetch instrument list ──────────────────────────────────────
+    // Tyler Tech uses several API versions; try all known patterns.
+    const searchEndpoints = q ? [
+      `${origin}/api/instruments?searchText=${encodeURIComponent(q)}&pageSize=20`,
+      `${origin}/api/v1/instruments?q=${encodeURIComponent(q)}&pageSize=20`,
+      `${origin}/api/instruments?q=${encodeURIComponent(q)}&limit=20`,
+      `${origin}/api/instruments?propertyId=${encodeURIComponent(q)}&pageSize=20`,
+      `${origin}/api/search?q=${encodeURIComponent(q)}&type=instruments&pageSize=20`,
+    ] : [];
+
+    let instruments: Array<Record<string, unknown>> = [];
+    let instrumentsEndpoint = '';
+    for (const ep of searchEndpoints) {
+      try {
+        const res = await fetch(ep, { signal: AbortSignal.timeout(12_000), headers: hdrs });
+        if (!res.ok) continue;
+        const ct = res.headers.get('content-type') ?? '';
+        if (!ct.includes('json')) continue;
+        const data = await res.json() as Record<string, unknown>;
+        // Handle various response shapes
+        const items = Array.isArray(data) ? data
+          : Array.isArray((data as Record<string, unknown>).instruments) ? (data as Record<string, unknown>).instruments as Array<Record<string, unknown>>
+          : Array.isArray((data as Record<string, unknown>).results)     ? (data as Record<string, unknown>).results     as Array<Record<string, unknown>>
+          : Array.isArray((data as Record<string, unknown>).data)        ? (data as Record<string, unknown>).data        as Array<Record<string, unknown>>
+          : [];
+        if (items.length > 0) { instruments = items; instrumentsEndpoint = ep; break; }
+      } catch { /* try next */ }
+    }
+
+    if (instruments.length === 0 && q) {
+      // No JSON API worked — return whatever we can from the HTML shell
+      // (it at least contains the query URL for display purposes)
+      return null;
+    }
+
+    if (instruments.length > 0) {
+      // ── Step B: Build a rich text block from instrument metadata ────────
+      const lines: string[] = [`publicsearch.us instrument search results for: ${q}`, ''];
+      for (const inst of instruments.slice(0, 10)) {
+        const id   = inst.id ?? inst.instrumentId ?? inst.InstrumentId ?? '';
+        const type = inst.type ?? inst.instrumentType ?? inst.InstrumentType ?? '';
+        const desc = inst.description ?? inst.Description ?? inst.grantors ?? '';
+        const date = inst.recordedDate ?? inst.instrumentDate ?? inst.Date ?? '';
+        const vol  = inst.volume ?? inst.Volume ?? '';
+        const pg   = inst.page ?? inst.Page ?? '';
+        const grantors   = inst.grantors   ?? inst.Grantors   ?? '';
+        const grantees   = inst.grantees   ?? inst.Grantees   ?? '';
+        lines.push(`Instrument ID: ${id}`);
+        if (type)     lines.push(`  Type: ${type}`);
+        if (desc)     lines.push(`  Description: ${desc}`);
+        if (date)     lines.push(`  Recorded: ${date}`);
+        if (vol || pg) lines.push(`  Volume: ${vol}, Page: ${pg}`);
+        if (grantors)  lines.push(`  Grantors: ${grantors}`);
+        if (grantees)  lines.push(`  Grantees: ${grantees}`);
+        lines.push('');
+      }
+
+      // ── Step C: Fetch the first deed instrument's full details ───────────
+      const firstId = instruments[0]?.id ?? instruments[0]?.instrumentId;
+      if (firstId) {
+        for (const detailEp of [
+          `${origin}/api/instruments/${firstId}`,
+          `${origin}/api/v1/instruments/${firstId}`,
+        ]) {
+          try {
+            const res = await fetch(detailEp, { signal: AbortSignal.timeout(10_000), headers: hdrs });
+            if (!res.ok) continue;
+            const ct = res.headers.get('content-type') ?? '';
+            if (!ct.includes('json')) continue;
+            const detail = await res.json() as Record<string, unknown>;
+            lines.push('--- First Instrument Detail ---');
+            lines.push(JSON.stringify(detail, null, 2).substring(0, 8000));
+            break;
+          } catch { /* try next */ }
+        }
+      }
+
+      const text = lines.join('\n').substring(0, 25000);
+      if (text.length > 100) return { text, method: `publicsearch-api:${instrumentsEndpoint}` };
+    }
+  }
+
+  // ── Bell County GIS / BIS Client parcel viewer ────────────────────────
+  if (host.includes('bisclient.com') || host.includes('gis.bisclient.com')) {
+    // Try their ArcGIS REST API for parcel attributes
+    const parcelId = parsedUrl.searchParams.get('parcel') ?? parsedUrl.searchParams.get('id')
+      ?? parsedUrl.searchParams.get('prop_id') ?? opts.propertyId;
+    if (parcelId) {
+      for (const layerUrl of [
+        'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/MapServer/0',
+        'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/FeatureServer/0',
       ]) {
         try {
-          const res = await fetch(ep, {
-            signal: AbortSignal.timeout(15_000),
-            headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
-          });
+          const safe = parcelId.replace(/[^A-Za-z0-9 .#-]/g, '').trim();
+          const where = `PROP_ID='${safe}' OR PARCEL_ID='${safe}'`;
+          const url = `${layerUrl}/query?where=${encodeURIComponent(where)}&outFields=*&returnGeometry=false&f=json`;
+          const res = await fetch(url, { signal: AbortSignal.timeout(12_000),
+            headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' } });
           if (!res.ok) continue;
-          if (!(res.headers.get('content-type') ?? '').includes('application/json')) continue;
-          const text = JSON.stringify(await res.json(), null, 2).substring(0, 25000);
-          if (text.length > 50) return { text, method: 'publicsearch-api' };
+          const json = await res.json() as Record<string, unknown>;
+          const features = (json as { features?: Array<{ attributes?: Record<string, unknown> }> }).features;
+          if (features && features.length > 0) {
+            const attrs = features[0].attributes ?? {};
+            const lines = Object.entries(attrs).filter(([, v]) => v != null && String(v).trim()).map(([k, v]) => `${k}: ${v}`);
+            if (lines.length > 3) return { text: lines.join('\n').substring(0, 25000), method: 'arcgis-parcel-attrs' };
+          }
         } catch { /* try next */ }
       }
     }

@@ -1961,21 +1961,31 @@ export async function fetchBoundaryCalls(
           });
           if (viewRes.ok) {
             const html = await viewRes.text();
+            // Extract text from HTML — preserve some structure by converting
+            // common block elements to newlines (dl/dt/dd structure is important
+            // for Bell CAD eSearch which uses definition lists for property data)
             const pageText = html
               .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
               .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+              .replace(/<\/?(dt|dd|th|td|tr|li|p|div|section|h[1-6])\b[^>]*>/gi, ' \n')
               .replace(/<[^>]+>/g, ' ')
-              .replace(/\s{2,}/g, ' ')
+              .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+              .replace(/[ \t]+/g, ' ')
+              .replace(/\n{3,}/g, '\n\n')
               .trim();
 
             if (pageText.length > 200) {
-              // Matches "Legal Desc(ription): <content>" up to the next CAD section heading.
-              // The lookahead stops at double-spaces or known Bell CAD field labels.
-              const ESEARCH_LEGAL_DESC_PATTERN =
-                /[Ll]egal\s+[Dd]esc(?:ription)?\s*[:\s]+([A-Z0-9][A-Z0-9\s,./#()\-]{19,2000}?)(?=\s{2,}|\b(?:OWNER|SITUS|MARKET|DEED\s+VOL|GEO\s+ID|YEAR\s+BUILT|LAND\s+USE|EXEMPTION|STATE\s+CODE|TOTAL\s+VALUE)\b)/i;
+              // Patterns for "Legal Description" section on Bell CAD eSearch property detail pages.
+              // Bell CAD eSearch (Tyler Technologies ASP.NET MVC) uses a dl/dt/dd structure:
+              //   <dt>Legal Description</dt><dd>LT 1 BLK 1 BELTON HEIGHTS AMENDED 2ND ADDITION CAB A SLD 45 PLAT RECORDS</dd>
+              // After HTML stripping this becomes: "Legal Description LT 1 BLK 1 ..."
               const ldPatterns = [
-                ESEARCH_LEGAL_DESC_PATTERN,
-                /[Ll]egal\s+[Dd]esc(?:ription)?\s*[:\n]+(.{20,}(?:\n.{10,}){0,5})/,
+                // Pattern 1: "Legal Description" label followed by content, stopping at next known field
+                /[Ll]egal\s+[Dd]esc(?:ription)?\s*([A-Z0-9][A-Z0-9\s,./#()\-]{9,2000}?)(?=\s{2,}|\b(?:OWNER|SITUS|MARKET VALUE|DEED\s+VOL|GEO\s+ID|YEAR\s+BUILT|LAND\s+USE|EXEMPTION|STATE\s+CODE|TOTAL\s+VALUE|APPRAISED|TAXABLE)\b)/i,
+                // Pattern 2: colon-separated
+                /[Ll]egal\s+[Dd]esc(?:ription)?\s*:\s*(.{10,2000}?)(?=\s{2,}|\b(?:OWNER|SITUS|MARKET|DEED\s+VOL)\b)/i,
+                // Pattern 3: generous fallback — take anything after the label up to a double newline
+                /[Ll]egal\s+[Dd]esc(?:ription)?[\s:]+(.{10,})/i,
               ];
               for (const pat of ldPatterns) {
                 const m = pageText.match(pat);
@@ -1996,13 +2006,40 @@ export async function fetchBoundaryCalls(
                 steps.push(`[Step 5b] Using eSearch page text (${pageText.length} chars) as legal description source`);
               }
 
-              // Also try to extract deed reference if not already known
-              if (!propDetail?.deed_vol) {
-                const deedVolMatch = pageText.match(/[Dd]eed\s+[Vv]ol(?:ume)?\s*[:\s]+(\w+)[\s\S]{1,40}?[Dd]eed\s+[Pp](?:age|g)\.?\s*[:\s]+(\w+)/);
-                if (deedVolMatch && propDetail) {
-                  (propDetail as Record<string, unknown>).deed_vol = deedVolMatch[1];
-                  (propDetail as Record<string, unknown>).deed_pg  = deedVolMatch[2];
-                  steps.push(`[Step 5b] Deed reference from eSearch HTML: Vol. ${deedVolMatch[1]}, Pg. ${deedVolMatch[2]}`);
+              // Also try to extract deed reference and other key fields from the page
+              if (propDetail) {
+                if (!propDetail.deed_vol) {
+                  const deedVolMatch = pageText.match(/[Dd]eed\s+[Vv]ol(?:ume)?\s*[:\s]+(\w+)[^\n]{0,40}?[Dd]eed\s+[Pp](?:age|g)\.?\s*[:\s]+(\w+)/);
+                  if (deedVolMatch) {
+                    (propDetail as Record<string, unknown>).deed_vol = deedVolMatch[1];
+                    (propDetail as Record<string, unknown>).deed_pg  = deedVolMatch[2];
+                    steps.push(`[Step 5b] Deed reference from eSearch HTML: Vol. ${deedVolMatch[1]}, Pg. ${deedVolMatch[2]}`);
+                  }
+                }
+                // Also look for Cabinet/Slide plat reference in the legal desc text
+                if (legalDesc) {
+                  const cabMatch = legalDesc.match(/[Cc]ab(?:inet)?\.?\s*([A-Z0-9]+)[,\s]+[Ss]l(?:i(?:de)?)?\.?\s*([0-9A-Z]+)/);
+                  if (cabMatch) {
+                    (propDetail as Record<string, unknown>).plat_cabinet = cabMatch[1];
+                    (propDetail as Record<string, unknown>).plat_slide   = cabMatch[2];
+                    steps.push(`[Step 5b] Plat reference from legal desc: Cabinet ${cabMatch[1]}, Slide ${cabMatch[2]}`);
+                  }
+                }
+                // Extract owner name if not already known
+                if (!propDetail.owner_name) {
+                  const ownerMatch = pageText.match(/[Oo]wner(?:\s+[Nn]ame)?\s*\n?\s*([A-Z][A-Z\s,.'&-]{2,80}?)(?=\n)/);
+                  if (ownerMatch?.[1]?.trim()) {
+                    (propDetail as Record<string, unknown>).owner_name = ownerMatch[1].trim();
+                    steps.push(`[Step 5b] Owner from eSearch HTML: ${ownerMatch[1].trim()}`);
+                  }
+                }
+                // Extract geo_id / GEO ID (Bell CAD uses this as an alternate parcel key)
+                if (!propDetail.geo_id) {
+                  const geoMatch = pageText.match(/[Gg]eo(?:\s+[Ii][Dd])?\s*\n?\s*([A-Z0-9][A-Z0-9-]{2,40}?)(?=\n|\s{2})/);
+                  if (geoMatch?.[1]?.trim()) {
+                    (propDetail as Record<string, unknown>).geo_id = geoMatch[1].trim();
+                    steps.push(`[Step 5b] Geo ID from eSearch HTML: ${geoMatch[1].trim()}`);
+                  }
                 }
               }
             }

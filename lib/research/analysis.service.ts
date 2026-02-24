@@ -128,6 +128,10 @@ const PROPERTY_CONTENT_KEYWORDS: RegExp[] = [
   /\b(abstract|survey\s+no|geo\s+id)\s*:?\s*[A-Z0-9-]+\b/i,
   /\blegal\s+desc(ription)?\s*:/i,
   /\brecorded\s+(in|at|under)\b/i,
+  /\bproperty\s+id\s*:/i,
+  /\bCAD\s+(property|parcel|record)\b/i,
+  /\binstrument\s+(id|list|detail|no\.?)\b/i,
+  /\bgrantor[s]?\b.*\bgrantee[s]?\b/is,
   // ── Secondary: easements, improvements & other property context ───────────
   /\beasement\b/i,
   /\bsetback[s]?\b/i,
@@ -145,7 +149,7 @@ const PROPERTY_CONTENT_KEYWORDS: RegExp[] = [
 ];
 
 const MIN_USEFUL_LENGTH = 120; // chars — anything shorter is definitely empty
-const ENRICH_THRESHOLD   = 600; // chars — below this, try to fetch better content
+const ENRICH_THRESHOLD   = 1500; // chars — below this, try to fetch better content
 
 function screenDocument(doc: ResearchDocument): DocScreenResult {
   const raw = (doc.extracted_text ?? '').trim();
@@ -325,17 +329,82 @@ async function followChainOfTitle(
         clearTimeout(timer);
       }
 
-      if (!res.ok) { addLog('warn', `[Chain] ${refLabel}: HTTP ${res.status}`); continue; }
+      if (!res.ok) { addLog('warn', `[Chain] ${refLabel}: HTML search HTTP ${res.status} — trying JSON API`); }
 
-      const html = await res.text();
-      const text = html
+      const html = res.ok ? await res.text() : '';
+      let text = html
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
         .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
 
-      if (text.length < 100) { addLog('warn', `[Chain] ${refLabel}: response was empty`); continue; }
+      // publicsearch.us is a React SPA — the HTML shell may be empty.
+      // Fall back to the JSON REST API which is the real data source.
+      if (text.length < 200) {
+        const origin = `https://${subdomain}`;
+        const apiHeaders = {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Referer': origin + '/',
+          'Origin': origin,
+        };
+        const apiEndpoints = [
+          `${origin}/api/instruments?searchText=${encodeURIComponent(query)}&pageSize=20`,
+          `${origin}/api/v1/instruments?q=${encodeURIComponent(query)}&pageSize=20`,
+          `${origin}/api/instruments?q=${encodeURIComponent(query)}&limit=20`,
+        ];
+        for (const apiEp of apiEndpoints) {
+          try {
+            const apiController = new AbortController();
+            const apiTimer = setTimeout(() => apiController.abort(), 20_000);
+            let apiRes: Response;
+            try {
+              apiRes = await fetch(apiEp, { headers: apiHeaders, signal: apiController.signal });
+            } finally { clearTimeout(apiTimer); }
+
+            if (!apiRes.ok) continue;
+            const ct = apiRes.headers.get('content-type') ?? '';
+            if (!ct.includes('json')) continue;
+            const data = await apiRes.json() as unknown;
+            const items = Array.isArray(data) ? data as Array<Record<string, unknown>>
+              : Array.isArray((data as Record<string, unknown>)?.instruments) ? (data as Record<string, unknown>).instruments as Array<Record<string, unknown>>
+              : Array.isArray((data as Record<string, unknown>)?.results)     ? (data as Record<string, unknown>).results     as Array<Record<string, unknown>>
+              : Array.isArray((data as Record<string, unknown>)?.data)        ? (data as Record<string, unknown>).data        as Array<Record<string, unknown>>
+              : [];
+            if (items.length > 0) {
+              const lines: string[] = [`Chain-of-title search results (JSON API) for: ${query}`, ''];
+              for (const inst of items.slice(0, 10)) {
+                const iId   = String(inst.id ?? inst.instrumentId ?? '');
+                const iType = String(inst.type ?? inst.instrumentType ?? '');
+                const iDate = String(inst.recordedDate ?? inst.instrumentDate ?? '');
+                const iVol  = String(inst.volume ?? inst.Volume ?? '');
+                const iPg   = String(inst.page ?? inst.Page ?? '');
+                const iGr   = String(inst.grantors ?? inst.Grantors ?? '');
+                const iGe   = String(inst.grantees ?? inst.Grantees ?? '');
+                const iDesc = String(inst.description ?? inst.Description ?? '');
+                lines.push(`Instrument ID: ${iId}`);
+                if (iType) lines.push(`  Type: ${iType}`);
+                if (iDesc) lines.push(`  Description: ${iDesc}`);
+                if (iDate) lines.push(`  Recorded: ${iDate}`);
+                if (iVol || iPg) lines.push(`  Volume: ${iVol}, Page: ${iPg}`);
+                if (iGr) lines.push(`  Grantors: ${iGr}`);
+                if (iGe) lines.push(`  Grantees: ${iGe}`);
+                lines.push('');
+              }
+              text = lines.join('\n');
+              addLog('info', `[Chain] ${refLabel}: retrieved ${items.length} instrument(s) from JSON API`);
+              break;
+            }
+          } catch { /* try next endpoint */ }
+        }
+      }
+
+      if (text.length < 100) { addLog('warn', `[Chain] ${refLabel}: response was empty (both HTML and JSON API)`); continue; }
+
+      // Detect whether the fetched content is JSON (from the REST API) or HTML
+      const chainFileType = text.trimStart().startsWith('{') || text.trimStart().startsWith('[') ? 'json' : 'html';
+      const chainExtractedMethod = chainFileType === 'json' ? 'publicsearch-api' : 'http_fetch';
 
       // Store as a new research_document
       const { data: newDoc } = await supabaseAdmin
@@ -346,10 +415,10 @@ async function followChainOfTitle(
           document_type: 'deed',
           document_label: `Chain of Title — ${refLabel}`,
           source_url: searchUrl,
-          file_type: 'html',
+          file_type: chainFileType,
           processing_status: 'extracted',
-          extracted_text: text.substring(0, 40_000), // research_documents.extracted_text column limit
-          extracted_text_method: 'http_fetch',
+          extracted_text: text.substring(0, 40_000),
+          extracted_text_method: chainExtractedMethod,
           recording_info: `Chain-of-title reference: ${refLabel}`,
         })
         .select('id, created_at, updated_at')
@@ -366,10 +435,10 @@ async function followChainOfTitle(
         document_type: 'deed',
         document_label: `Chain of Title — ${refLabel}`,
         source_url: searchUrl,
-        file_type: 'html',
+        file_type: chainFileType,
         processing_status: 'extracted',
         extracted_text: text,
-        extracted_text_method: 'http_fetch',
+        extracted_text_method: chainExtractedMethod,
         recording_info: `Chain-of-title reference: ${refLabel}`,
         created_at: newDoc.created_at,
         updated_at: newDoc.updated_at,
