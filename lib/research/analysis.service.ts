@@ -57,6 +57,35 @@ const DEFAULT_EXTRACT_CONFIG: Record<string, boolean> = {
   utilities: true,
 };
 
+// ── Log Entry ────────────────────────────────────────────────────────────────
+
+export interface AnalysisLogEntry {
+  ts: string;
+  level: 'info' | 'warn' | 'error' | 'success';
+  message: string;
+  detail?: string;
+}
+
+// ── Abort Error ───────────────────────────────────────────────────────────────
+
+class AnalysisAbortError extends Error {
+  constructor() { super('Analysis aborted by user'); this.name = 'AnalysisAbortError'; }
+}
+
+// ── Per-document timeout (5 minutes) ─────────────────────────────────────────
+
+/** Maximum time in milliseconds to wait for a single document to be analyzed. */
+export const DOCUMENT_ANALYSIS_TIMEOUT_MS = 5 * 60 * 1000;
+
+function withDocumentTimeout<T>(promise: Promise<T>, docLabel: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Document analysis timed out after 5 minutes: "${docLabel}"`)), DOCUMENT_ANALYSIS_TIMEOUT_MS)
+    ),
+  ]);
+}
+
 // ── Main Analysis Pipeline ──────────────────────────────────────────────────
 
 /**
@@ -65,11 +94,12 @@ const DEFAULT_EXTRACT_CONFIG: Record<string, boolean> = {
  *
  * Steps:
  * 1. Load all extracted documents
- * 2. Per-document AI extraction
+ * 2. Per-document AI extraction (with 5-min timeout + abort checks)
  * 3. Normalize extracted values
  * 4. Cross-reference analysis
  * 5. Mathematical discrepancy detection
  * 6. Store all results
+ * 7. Save analysis log to project metadata
  */
 export async function analyzeProject(
   projectId: string,
@@ -77,13 +107,47 @@ export async function analyzeProject(
 ): Promise<{ dataPointCount: number; discrepancyCount: number }> {
   const extractCategories = config?.extractCategories || DEFAULT_EXTRACT_CONFIG;
 
+  const logs: AnalysisLogEntry[] = [];
+  function addLog(level: AnalysisLogEntry['level'], message: string, detail?: string) {
+    const entry: AnalysisLogEntry = { ts: new Date().toISOString(), level, message, ...(detail ? { detail } : {}) };
+    logs.push(entry);
+    console[level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log'](`[Analysis][${level.toUpperCase()}] ${message}${detail ? ` — ${detail}` : ''}`);
+  }
+
+  async function persistLogs(extraMeta?: Record<string, unknown>) {
+    const { data: current } = await supabaseAdmin
+      .from('research_projects')
+      .select('analysis_metadata')
+      .eq('id', projectId)
+      .single();
+    const existing = (current?.analysis_metadata as Record<string, unknown>) || {};
+    await supabaseAdmin.from('research_projects').update({
+      analysis_metadata: { ...existing, ...extraMeta, logs },
+      updated_at: new Date().toISOString(),
+    }).eq('id', projectId);
+  }
+
+  async function checkAbort(): Promise<boolean> {
+    const { data } = await supabaseAdmin
+      .from('research_projects')
+      .select('analysis_metadata')
+      .eq('id', projectId)
+      .single();
+    const meta = data?.analysis_metadata as Record<string, unknown> | null;
+    return meta?.abort_requested === true;
+  }
+
   // Update project status to analyzing
   const analysisStartedAt = new Date().toISOString();
+  addLog('info', 'Analysis pipeline started', `Extracting: ${Object.keys(extractCategories).filter(k => extractCategories[k]).join(', ')}`);
+
   await supabaseAdmin.from('research_projects').update({
     status: 'analyzing',
     analysis_metadata: {
       started_at: analysisStartedAt,
       extract_config: extractCategories,
+      abort_requested: false,
+      logs,
     },
     updated_at: new Date().toISOString(),
   }).eq('id', projectId);
@@ -98,13 +162,29 @@ export async function analyzeProject(
       .order('created_at');
 
     if (!documents || documents.length === 0) {
+      addLog('error', 'No processed documents found for analysis', 'Documents must be in "extracted" or "analyzed" status before analysis can run.');
+      await persistLogs();
       throw new Error('No processed documents found for analysis');
     }
+
+    addLog('info', `Found ${documents.length} document(s) to analyze`);
 
     // 2. Per-document extraction
     const allDataPoints: Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[] = [];
 
-    for (const doc of documents) {
+    for (let docIndex = 0; docIndex < documents.length; docIndex++) {
+      const doc = documents[docIndex];
+      const docLabel = doc.document_label || doc.original_filename || `Document ${docIndex + 1}`;
+
+      // Check for abort request between documents
+      if (await checkAbort()) {
+        addLog('warn', `Analysis aborted by user after ${docIndex} of ${documents.length} documents`);
+        await persistLogs({ abort_completed: true, aborted_at: new Date().toISOString() });
+        throw new AnalysisAbortError();
+      }
+
+      addLog('info', `Processing document ${docIndex + 1}/${documents.length}: "${docLabel}"`, `Type: ${doc.document_type || 'unknown'}, Size: ${doc.extracted_text?.length || 0} chars`);
+
       // Mark document as analyzing
       await supabaseAdmin.from('research_documents').update({
         processing_status: 'analyzing',
@@ -112,39 +192,67 @@ export async function analyzeProject(
       }).eq('id', doc.id);
 
       try {
-        const extracted = await extractFromDocument(doc, extractCategories);
+        const extracted = await withDocumentTimeout(
+          extractFromDocument(doc, extractCategories),
+          docLabel
+        );
         allDataPoints.push(...extracted);
+
+        addLog('success', `Extracted ${extracted.length} data points from "${docLabel}"`);
 
         // Mark document as analyzed
         await supabaseAdmin.from('research_documents').update({
           processing_status: 'analyzed',
           updated_at: new Date().toISOString(),
         }).eq('id', doc.id);
+
+        // Persist logs incrementally so status polling can show them
+        await persistLogs();
       } catch (err) {
+        const isTimeout = err instanceof Error && err.message.includes('timed out');
         const isAIError = err instanceof AIServiceError;
         const userMsg = isAIError ? err.userMessage : (err instanceof Error ? err.message : String(err));
-        console.error(`[Analysis] Extraction failed for doc ${doc.id} [${isAIError ? err.category : 'unknown'}]:`, err instanceof Error ? err.message : err);
+
+        addLog('error', `Failed to analyze "${docLabel}"`, userMsg);
+
         await supabaseAdmin.from('research_documents').update({
           processing_status: 'error',
           processing_error: `Analysis extraction failed: ${userMsg}`,
           updated_at: new Date().toISOString(),
         }).eq('id', doc.id);
 
+        if (isTimeout) {
+          addLog('warn', `Document "${docLabel}" was skipped due to timeout — continuing with remaining documents`);
+          await persistLogs();
+          // Timeouts are non-fatal — skip this document and continue
+          continue;
+        }
+
         // If this is a non-transient AI error (auth, usage exhausted), abort the entire pipeline
         if (isAIError && (err.category === 'authentication' || err.category === 'usage_exhausted')) {
+          addLog('error', `Fatal AI error [${err.category}] — stopping analysis`, err.userMessage);
+          await persistLogs();
           throw err;
         }
+
+        addLog('warn', `Document "${docLabel}" had an error but analysis will continue with remaining documents`);
+        await persistLogs();
       }
     }
 
+    addLog('info', `Document extraction complete — ${allDataPoints.length} total data points from ${documents.length} document(s)`);
+
     // 3. Attempt normalization on extracted values
+    let normalizedCount = 0;
     for (const dp of allDataPoints) {
       try {
         dp.normalized_value = attemptNormalization(dp.data_category, dp.raw_value, dp.normalized_value);
+        normalizedCount++;
       } catch {
         // Normalization failure is non-fatal — keep the raw values
       }
     }
+    addLog('info', `Normalized ${normalizedCount} data points`);
 
     // 4. Store extracted data points
     if (allDataPoints.length > 0) {
@@ -159,6 +267,9 @@ export async function analyzeProject(
         const batch = allDataPoints.slice(i, i + 50);
         await supabaseAdmin.from('extracted_data_points').insert(batch);
       }
+      addLog('success', `Saved ${allDataPoints.length} data points to database`);
+    } else {
+      addLog('warn', 'No data points were extracted from any document');
     }
 
     // 5. Cross-reference analysis (if we have data from multiple documents)
@@ -166,11 +277,20 @@ export async function analyzeProject(
     let aiDiscrepancies: Omit<Discrepancy, 'id' | 'created_at' | 'updated_at'>[] = [];
 
     if (uniqueDocIds.size > 1 && allDataPoints.length > 0) {
-      aiDiscrepancies = await crossReferenceAnalysis(projectId, allDataPoints, documents);
+      addLog('info', `Running cross-reference analysis across ${uniqueDocIds.size} documents`);
+      try {
+        aiDiscrepancies = await crossReferenceAnalysis(projectId, allDataPoints, documents);
+        addLog('info', `Cross-reference analysis found ${aiDiscrepancies.length} discrepanc${aiDiscrepancies.length === 1 ? 'y' : 'ies'}`);
+      } catch (err) {
+        addLog('warn', 'Cross-reference analysis failed — continuing without it', err instanceof Error ? err.message : String(err));
+      }
+    } else {
+      addLog('info', 'Skipping cross-reference analysis (requires data from 2+ documents)');
     }
 
     // 6. Mathematical discrepancy detection
     const mathDiscrepancies = detectMathDiscrepancies(projectId, allDataPoints);
+    addLog('info', `Mathematical checks found ${mathDiscrepancies.length} discrepanc${mathDiscrepancies.length === 1 ? 'y' : 'ies'}`);
 
     // 7. Store discrepancies
     const allDiscrepancies = [...aiDiscrepancies, ...mathDiscrepancies];
@@ -185,18 +305,23 @@ export async function analyzeProject(
         const batch = allDiscrepancies.slice(i, i + 50);
         await supabaseAdmin.from('discrepancies').insert(batch);
       }
+      addLog('success', `Saved ${allDiscrepancies.length} discrepancies to database`);
     }
+
+    const completedAt = new Date().toISOString();
+    addLog('success', `Analysis complete — ${allDataPoints.length} data points, ${allDiscrepancies.length} discrepancies`, `Duration: ${Math.round((new Date(completedAt).getTime() - new Date(analysisStartedAt).getTime()) / 1000)}s`);
 
     // 8. Update project status to review
     await supabaseAdmin.from('research_projects').update({
       status: 'review',
       analysis_metadata: {
         started_at: analysisStartedAt,
-        completed_at: new Date().toISOString(),
+        completed_at: completedAt,
         extract_config: extractCategories,
         data_point_count: allDataPoints.length,
         discrepancy_count: allDiscrepancies.length,
         documents_analyzed: documents.length,
+        logs,
       },
       updated_at: new Date().toISOString(),
     }).eq('id', projectId);
@@ -207,12 +332,29 @@ export async function analyzeProject(
     };
 
   } catch (err) {
+    // Handle abort gracefully
+    if (err instanceof AnalysisAbortError) {
+      console.log(`[Analysis] User aborted analysis for project ${projectId}`);
+      await supabaseAdmin.from('research_projects').update({
+        status: 'configure',
+        analysis_metadata: {
+          error: 'Analysis was aborted by the user.',
+          error_category: 'aborted',
+          failed_at: new Date().toISOString(),
+          logs,
+        },
+        updated_at: new Date().toISOString(),
+      }).eq('id', projectId);
+      return { dataPointCount: 0, discrepancyCount: 0 };
+    }
+
     // On failure, set project back to configure so user can retry
     const isAIError = err instanceof AIServiceError;
     const errorMsg = isAIError ? err.userMessage : (err instanceof Error ? err.message : String(err));
     const errorCategory = isAIError ? err.category : 'unknown';
     const technicalMsg = err instanceof Error ? err.message : String(err);
 
+    addLog('error', `Analysis pipeline failed [${errorCategory}]`, technicalMsg);
     console.error(`[Analysis] Pipeline failed for project ${projectId} [${errorCategory}]:`, technicalMsg);
 
     await supabaseAdmin.from('research_projects').update({
@@ -222,6 +364,7 @@ export async function analyzeProject(
         error_category: errorCategory,
         technical_error: technicalMsg,
         failed_at: new Date().toISOString(),
+        logs,
       },
       updated_at: new Date().toISOString(),
     }).eq('id', projectId);
@@ -616,6 +759,7 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   discrepancyCount: number;
   error?: string;
   errorCategory?: string;
+  logs?: AnalysisLogEntry[];
 }> {
   const [projectRes, docsRes, dpRes, discRes] = await Promise.all([
     supabaseAdmin.from('research_projects').select('status, analysis_metadata').eq('id', projectId).single(),
@@ -637,5 +781,6 @@ export async function getAnalysisStatus(projectId: string): Promise<{
     discrepancyCount: discRes.count || 0,
     ...(metadata?.error ? { error: String(metadata.error) } : {}),
     ...(metadata?.error_category ? { errorCategory: String(metadata.error_category) } : {}),
+    ...(Array.isArray(metadata?.logs) ? { logs: metadata.logs as AnalysisLogEntry[] } : {}),
   };
 }

@@ -7,6 +7,8 @@
 
 .research-page {
   padding: 0;
+  /* Add bottom padding to prevent FAB menu from obscuring action buttons */
+  padding-bottom: 5rem;
 }
 
 .research-page__header {

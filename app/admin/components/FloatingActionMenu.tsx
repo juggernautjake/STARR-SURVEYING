@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
+const FAB_STORAGE_KEY = 'fab-menu-expanded';
+
 interface FloatingActionMenuProps {
   children: React.ReactNode;
 }
@@ -11,10 +13,19 @@ interface FloatingActionMenuProps {
  * Wraps the three floating action buttons (Messages, Flag an Issue, Fieldbook)
  * in a green pill-shaped container with a white collapse/expand arrow.
  * The arrow sits on the left and toggles the menu open/closed.
+ * State persists across page reloads via localStorage.
  */
 export default function FloatingActionMenu({ children }: FloatingActionMenuProps) {
   const [expanded, setExpanded] = useState(true);
   const [hasOpenPanel, setHasOpenPanel] = useState(false);
+
+  // Load persisted expanded state on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(FAB_STORAGE_KEY);
+      if (stored !== null) setExpanded(stored === 'true');
+    } catch { /* localStorage unavailable — use default */ }
+  }, []);
 
   const checkOpenPanels = useCallback(() => {
     const panels = document.querySelectorAll('.fb, .discussion-panel, .messenger-panel');
@@ -34,12 +45,20 @@ export default function FloatingActionMenu({ children }: FloatingActionMenuProps
 
   const isVisible = expanded || hasOpenPanel;
 
+  function handleToggle() {
+    const newValue = !expanded;
+    setExpanded(newValue);
+    try {
+      localStorage.setItem(FAB_STORAGE_KEY, String(newValue));
+    } catch { /* localStorage unavailable */ }
+  }
+
   return (
     <div className={`fab-menu ${isVisible ? 'fab-menu--expanded' : 'fab-menu--collapsed'}`}>
       {/* Toggle arrow — left side of the green bar */}
       <button
         className="fab-menu__toggle"
-        onClick={() => setExpanded(prev => !prev)}
+        onClick={handleToggle}
         aria-label={isVisible ? 'Collapse quick actions' : 'Expand quick actions'}
         title={isVisible ? 'Collapse' : 'Quick Actions'}
       >

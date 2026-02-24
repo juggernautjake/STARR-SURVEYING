@@ -44,6 +44,7 @@ export default function ResearchProjectPage() {
   // Analysis state
   const [selectedAnalysisTemplate, setSelectedAnalysisTemplate] = useState<string | null>(null);
   const [analysisStarting, setAnalysisStarting] = useState(false);
+  const [analysisAborting, setAnalysisAborting] = useState(false);
   const [analysisStatus, setAnalysisStatus] = useState<{
     documentsTotal: number;
     documentsAnalyzed: number;
@@ -51,8 +52,10 @@ export default function ResearchProjectPage() {
     discrepancyCount: number;
     error?: string;
     errorCategory?: string;
+    logs?: Array<{ ts: string; level: string; message: string; detail?: string }>;
   } | null>(null);
   const [analysisError, setAnalysisError] = useState<{ message: string; category: string } | null>(null);
+  const [showAnalysisLogs, setShowAnalysisLogs] = useState(false);
 
   // Review state
   const [reviewTab, setReviewTab] = useState<'data' | 'discrepancies'>('data');
@@ -209,16 +212,23 @@ export default function ResearchProjectPage() {
             discrepancyCount: data.discrepancyCount,
             error: data.error,
             errorCategory: data.errorCategory,
+            logs: data.logs,
           });
-          // If analysis failed (project went back to configure), capture the error
-          if (data.status === 'configure' && data.error) {
-            setAnalysisError({ message: data.error, category: data.errorCategory || 'unknown' });
+          // If analysis failed or was aborted (project went back to configure), capture the error
+          if (data.status === 'configure') {
+            if (data.errorCategory === 'aborted') {
+              setAnalysisError({ message: 'Analysis was aborted.', category: 'aborted' });
+            } else if (data.error) {
+              setAnalysisError({ message: data.error, category: data.errorCategory || 'unknown' });
+            }
+            setAnalysisAborting(false);
             loadProject();
             loadDocuments();
           }
           // If analysis completed successfully
           else if (data.status !== 'analyzing') {
             setAnalysisError(null);
+            setAnalysisAborting(false);
             loadProject();
             loadDocuments();
           }
@@ -311,8 +321,12 @@ export default function ResearchProjectPage() {
       });
 
       if (res.ok) {
-        // Reload project to get "analyzing" status
-        await loadProject();
+        // Immediately reflect the analyzing state locally — don't wait for the DB round-trip.
+        // analyzeProject() runs async in the background and may take a moment to update the DB,
+        // so setting the local state now ensures the spinner and progress UI appear right away.
+        setProject(prev => prev ? { ...prev, status: 'analyzing' } : prev);
+        // Kick off a background refresh to sync any other project data once the DB catches up
+        loadProject();
       } else {
         const err = await res.json().catch(() => ({ error: 'Failed to start analysis' }));
         // Show the error in the analysis error banner
@@ -329,6 +343,24 @@ export default function ResearchProjectPage() {
     }
 
     setAnalysisStarting(false);
+  }
+
+  async function handleAbortAnalysis() {
+    if (analysisAborting) return;
+    if (!window.confirm('Abort analysis? The process will stop after the current document finishes. Any data extracted so far will be lost.')) return;
+    setAnalysisAborting(true);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/analyze`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to request abort' }));
+        showToast(err.error || 'Failed to request abort', 'error');
+        setAnalysisAborting(false);
+      }
+      // State will update via polling when the analysis service detects abort_requested
+    } catch {
+      showToast('Unable to connect. Check your internet connection.', 'error');
+      setAnalysisAborting(false);
+    }
   }
 
   // Drawing functions
@@ -1391,6 +1423,14 @@ export default function ResearchProjectPage() {
             >
               {analysisStarting ? 'Starting...' : analysisError ? 'Retry AI Analysis' : 'Run AI Analysis'}
             </button>
+            {project.analysis_metadata && Array.isArray((project.analysis_metadata as Record<string, unknown>).logs) && (
+              <button
+                onClick={() => setShowAnalysisLogs(true)}
+                style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: '#374151', marginLeft: '0.5rem' }}
+              >
+                📋 View AI Logs
+              </button>
+            )}
             {extractedDocs.length === 0 && (
               <span style={{ color: '#EF4444', fontSize: '0.8rem', marginLeft: '0.75rem' }}>
                 No extracted documents available. Go back to Upload to add documents.
@@ -1407,6 +1447,7 @@ export default function ResearchProjectPage() {
           <div className="research-analyzing__text">
             The AI is processing your documents and extracting surveying data.
             This may take a few minutes depending on the number and size of documents.
+            Each document has a 5-minute timeout — if one gets stuck it will be skipped automatically.
           </div>
           {analysisStatus && (
             <div className="research-analyzing__progress">
@@ -1426,24 +1467,55 @@ export default function ResearchProjectPage() {
               </div>
             </div>
           )}
+          {/* Last log message */}
+          {analysisStatus?.logs && analysisStatus.logs.length > 0 && (
+            <div style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: '0.75rem', fontFamily: 'monospace', maxWidth: 480, textAlign: 'center' }}>
+              {analysisStatus.logs[analysisStatus.logs.length - 1].message}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setShowAnalysisLogs(true)}
+              style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}
+            >
+              📋 View AI Logs
+            </button>
+            <button
+              onClick={handleAbortAnalysis}
+              disabled={analysisAborting}
+              style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: analysisAborting ? 'not-allowed' : 'pointer', fontSize: '0.8rem', color: '#DC2626', opacity: analysisAborting ? 0.6 : 1 }}
+            >
+              {analysisAborting ? 'Abort requested…' : '⏹ Abort Analysis'}
+            </button>
+          </div>
         </div>
       )}
 
       {project.status === 'review' && (
         <div className="research-review">
-          {/* Survey Briefing */}
+          {/* Survey Briefing + AI Logs buttons */}
           {showBriefing ? (
             <BriefingPanel
               projectId={projectId}
               onClose={() => setShowBriefing(false)}
             />
           ) : (
-            <button
-              onClick={() => setShowBriefing(true)}
-              style={{ marginBottom: '1rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '0.375rem', padding: '0.4rem 0.85rem', cursor: 'pointer', fontSize: '0.85rem', color: '#1D4ED8' }}
-            >
-              📋 Show Survey Briefing
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                onClick={() => setShowBriefing(true)}
+                style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '0.375rem', padding: '0.4rem 0.85rem', cursor: 'pointer', fontSize: '0.85rem', color: '#1D4ED8' }}
+              >
+                📋 Show Survey Briefing
+              </button>
+              {project.analysis_metadata && Array.isArray((project.analysis_metadata as Record<string, unknown>).logs) && (
+                <button
+                  onClick={() => setShowAnalysisLogs(true)}
+                  style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.4rem 0.85rem', cursor: 'pointer', fontSize: '0.85rem', color: '#374151' }}
+                >
+                  🔍 View AI Logs
+                </button>
+              )}
+            </div>
           )}
 
           {/* Analysis Summary Card */}
@@ -1965,6 +2037,56 @@ export default function ResearchProjectPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AI Analysis Logs Modal */}
+      {showAnalysisLogs && (
+        <div
+          className="research-modal-overlay"
+          onClick={() => setShowAnalysisLogs(false)}
+          onKeyDown={e => { if (e.key === 'Escape') setShowAnalysisLogs(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="AI Analysis Logs"
+        >
+          <div
+            className="research-modal"
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: 700, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 className="research-modal__title" style={{ marginBottom: 0 }}>AI Analysis Logs</h2>
+              <button
+                onClick={() => setShowAnalysisLogs(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: '1.25rem', padding: 0, lineHeight: 1 }}
+                aria-label="Close logs"
+              >&times;</button>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1, fontFamily: 'monospace', fontSize: '0.78rem', lineHeight: 1.6, background: '#F8FAFC', borderRadius: '0.375rem', padding: '0.75rem' }}>
+              {(() => {
+                const logs = (project?.analysis_metadata as Record<string, unknown> | null)?.logs as Array<{ ts: string; level: string; message: string; detail?: string }> | undefined
+                  || analysisStatus?.logs;
+                if (!logs || logs.length === 0) {
+                  return <div style={{ color: '#9CA3AF', textAlign: 'center', padding: '1rem' }}>No log entries available.</div>;
+                }
+                return logs.map((entry, i) => {
+                  const levelColor = entry.level === 'error' ? '#EF4444' : entry.level === 'warn' ? '#F59E0B' : entry.level === 'success' ? '#059669' : '#374151';
+                  const levelBg = entry.level === 'error' ? '#FEF2F2' : entry.level === 'warn' ? '#FFFBEB' : entry.level === 'success' ? '#F0FDF4' : 'transparent';
+                  return (
+                    <div key={i} style={{ padding: '0.2rem 0.4rem', borderRadius: '0.2rem', background: levelBg, marginBottom: '0.15rem' }}>
+                      <span style={{ color: '#9CA3AF' }}>{new Date(entry.ts).toLocaleTimeString()}</span>
+                      {' '}
+                      <span style={{ color: levelColor, fontWeight: 600 }}>[{entry.level.toUpperCase()}]</span>
+                      {' '}
+                      <span style={{ color: '#374151' }}>{entry.message}</span>
+                      {entry.detail && <span style={{ color: '#6B7280' }}> — {entry.detail}</span>}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
           </div>
         </div>
       )}
