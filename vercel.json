@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "app/api/admin/research/[projectId]/browser-fetch/route.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    },
+    "app/api/admin/research/[projectId]/analyze/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

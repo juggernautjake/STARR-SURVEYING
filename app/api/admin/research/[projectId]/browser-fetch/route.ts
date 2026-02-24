@@ -76,8 +76,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!result) {
     return NextResponse.json(
       {
-        error: 'Browser automation is not available on this server. Ensure Playwright is installed and a Chromium browser is accessible.',
-        steps: ['[Browser] Playwright not available'],
+        error: 'Property research could not be completed. Check server logs for details.',
+        steps: ['Research returned no result'],
       },
       { status: 503 },
     );
