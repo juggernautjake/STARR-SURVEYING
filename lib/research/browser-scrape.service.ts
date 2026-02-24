@@ -223,7 +223,7 @@ async function storeHttpFetchedDocument(
         source_url: sourceUrl,
         file_type: 'html',
         processing_status: 'extracted',
-        extracted_text: textContent.substring(0, 40_000), // matches DB column limit used across all document storage helpers
+        extracted_text: textContent.substring(0, 40_000), // research_documents.extracted_text column limit
         extracted_text_method: 'http_fetch',
         recording_info: `HTTP-fetched from ${sourceUrl}`,
       })
@@ -261,6 +261,9 @@ const ESEARCH_HTTP_CONFIG: Record<string, { baseUrl: string; name: string; publi
 // Three requests are made sequentially (search → detail → deed), each capped at 30 s,
 // keeping total time well within the Vercel function maxDuration of 60 s.
 const HTTP_FETCH_TIMEOUT_MS = 30_000;
+
+/** Maximum characters to store for a legal description (covers the longest Texas legal descs). */
+const MAX_LEGAL_DESCRIPTION_LENGTH = 2_000;
 
 async function httpFetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
   const controller = new AbortController();
@@ -393,7 +396,7 @@ async function httpPropertyResearch(req: BrowserScrapeRequest): Promise<BrowserS
         if (!legalDescription) {
           const ldMatch = text.match(/LEGAL\s+DESCRIPTION[:\s]+([^]+?)(?:\s{2,}|\d\.\s|(?:PROPERTY|OWNER|VALUE|IMPROVEMENT|LAND|DEED)\s)/i);
           if (ldMatch?.[1]?.trim() && ldMatch[1].trim().length > 10) {
-            legalDescription = ldMatch[1].trim().substring(0, 2_000); // 2000 chars covers the longest Texas legal descriptions
+            legalDescription = ldMatch[1].trim().substring(0, MAX_LEGAL_DESCRIPTION_LENGTH);
             steps.push(`[HTTP] Extracted legal description (${legalDescription.length} chars)`);
           }
         }

@@ -227,6 +227,164 @@ function withDocumentTimeout<T>(promise: Promise<T>, docLabel: string): Promise<
   ]);
 }
 
+// ── Chain-of-Title Following ────────────────────────────────────────────────
+//
+// After main extraction, scan the `recording_references` data points for
+// Volume/Page and Instrument references that point to prior deeds.  Fetch each
+// referenced document from the county clerk's publicsearch.us portal via HTTP,
+// store it as a new research_document, and extract data points from it.
+//
+// This implements Layer 2E from the pipeline plan — max depth 5 documents so
+// circular references can never create an infinite loop.
+
+const PUBLICSEARCH_SUBDOMAINS: Record<string, string> = {
+  bell:       'bell.tx.publicsearch.us',
+  williamson: 'williamson.tx.publicsearch.us',
+  hays:       'hays.tx.publicsearch.us',
+  coryell:    'coryell.tx.publicsearch.us',
+  travis:     'travis.tx.publicsearch.us',
+};
+
+const CHAIN_MAX_DOCS = 5; // max referenced documents to follow per analysis run
+
+async function followChainOfTitle(
+  projectId: string,
+  countyKey: string,
+  dataPoints: Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[],
+  existingDocuments: ResearchDocument[],
+  extractCategories: Record<string, boolean>,
+  addLog: (level: AnalysisLogEntry['level'], message: string, detail?: string) => void,
+): Promise<Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[]> {
+  const subdomain = PUBLICSEARCH_SUBDOMAINS[countyKey];
+  if (!subdomain) return []; // county not supported for HTTP deed lookup
+
+  // Collect recording_reference data points with a volume/page or instrument number
+  const refPoints = dataPoints.filter(dp => dp.data_category === 'recording_reference');
+  if (refPoints.length === 0) return [];
+
+  // Build a set of already-covered source URLs to avoid re-fetching
+  const coveredUrls = new Set<string>(
+    existingDocuments.map(d => d.source_url ?? '').filter(Boolean),
+  );
+
+  const newDataPoints: Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[] = [];
+  let chainDocsAdded = 0;
+
+  for (const dp of refPoints) {
+    if (chainDocsAdded >= CHAIN_MAX_DOCS) break;
+
+    const norm = dp.normalized_value as {
+      volume?: string | null;
+      page?: string | null;
+      instrument?: string | null;
+    } | null;
+    if (!norm) continue;
+
+    // Build a search query — prefer instrument number, fall back to vol-page
+    let query: string | null = null;
+    let refLabel: string | null = null;
+    if (norm.instrument?.trim()) {
+      query    = norm.instrument.trim();
+      refLabel = `Instrument ${query}`;
+    } else if (norm.volume?.trim() && norm.page?.trim()) {
+      // Many clerk portals accept "vol-page" as a free-text search
+      query    = `${norm.volume.trim()}-${norm.page.trim()}`;
+      refLabel = `Vol. ${norm.volume.trim()}, Pg. ${norm.page.trim()}`;
+    }
+    if (!query || !refLabel) continue;
+
+    const searchUrl = `https://${subdomain}/results?search=index,fullText&q=${encodeURIComponent(query)}`;
+    if (coveredUrls.has(searchUrl)) continue;
+    coveredUrls.add(searchUrl);
+
+    addLog('info', `[Chain] Following deed reference: ${refLabel}`, searchUrl);
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 30_000);
+      let res: Response;
+      try {
+        res = await fetch(searchUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)', 'Accept': 'text/html' },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+
+      if (!res.ok) { addLog('warn', `[Chain] ${refLabel}: HTTP ${res.status}`); continue; }
+
+      const html = await res.text();
+      const text = html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (text.length < 100) { addLog('warn', `[Chain] ${refLabel}: response was empty`); continue; }
+
+      // Store as a new research_document
+      const { data: newDoc } = await supabaseAdmin
+        .from('research_documents')
+        .insert({
+          research_project_id: projectId,
+          source_type: 'property_search',
+          document_type: 'deed',
+          document_label: `Chain of Title — ${refLabel}`,
+          source_url: searchUrl,
+          file_type: 'html',
+          processing_status: 'extracted',
+          extracted_text: text.substring(0, 40_000), // research_documents.extracted_text column limit
+          extracted_text_method: 'http_fetch',
+          recording_info: `Chain-of-title reference: ${refLabel}`,
+        })
+        .select('id, created_at, updated_at')
+        .single();
+
+      if (!newDoc?.id) { addLog('warn', `[Chain] ${refLabel}: failed to store document`); continue; }
+      chainDocsAdded++;
+
+      // Extract data points from the fetched document
+      const fullDoc: ResearchDocument = {
+        id: newDoc.id,
+        research_project_id: projectId,
+        source_type: 'property_search',
+        document_type: 'deed',
+        document_label: `Chain of Title — ${refLabel}`,
+        source_url: searchUrl,
+        file_type: 'html',
+        processing_status: 'extracted',
+        extracted_text: text,
+        extracted_text_method: 'http_fetch',
+        recording_info: `Chain-of-title reference: ${refLabel}`,
+        created_at: newDoc.created_at,
+        updated_at: newDoc.updated_at,
+      };
+
+      const extracted = await extractFromDocument(fullDoc, extractCategories);
+      newDataPoints.push(...extracted);
+
+      await supabaseAdmin.from('research_documents').update({
+        processing_status: 'analyzed',
+        updated_at: new Date().toISOString(),
+      }).eq('id', newDoc.id);
+
+      addLog('success', `[Chain] ${refLabel}: extracted ${extracted.length} data points`);
+    } catch (err) {
+      addLog('warn',
+        `[Chain] Error following ${refLabel}`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  if (chainDocsAdded > 0) {
+    addLog('info', `[Chain] Followed ${chainDocsAdded} chain-of-title reference(s)`);
+  }
+  return newDataPoints;
+}
+
 // ── Main Analysis Pipeline ──────────────────────────────────────────────────
 
 /**
@@ -345,6 +503,18 @@ export async function analyzeProject(
         .eq('research_project_id', projectId)
         .eq('processing_status', 'analyzing');
     }
+
+    // Load the project's county key for chain-of-title following (Layer 2E)
+    const { data: projectRow } = await supabaseAdmin
+      .from('research_projects')
+      .select('county')
+      .eq('id', projectId)
+      .single();
+    const countyKey = (projectRow?.county ?? '')
+      .toLowerCase()
+      .replace(/\s+county\s*$/i, '')
+      .replace(/\s+/g, '_')
+      .trim();
 
     // 1. Load all documents with extracted text
     const { data: allDocuments } = await supabaseAdmin
@@ -569,6 +739,21 @@ export async function analyzeProject(
       addLog('success', `Saved ${allDataPoints.length} data points to database`);
     } else {
       addLog('warn', 'No data points were extracted from any document');
+    }
+
+    // 4b. Chain-of-title: follow Volume/Page and Instrument references (Layer 2E)
+    if (countyKey) {
+      const chainPoints = await followChainOfTitle(
+        projectId, countyKey, allDataPoints, allDocuments as ResearchDocument[],
+        extractCategories, addLog,
+      );
+      if (chainPoints.length > 0) {
+        allDataPoints.push(...chainPoints);
+        for (let i = 0; i < chainPoints.length; i += 50) {
+          await supabaseAdmin.from('extracted_data_points').insert(chainPoints.slice(i, i + 50));
+        }
+        addLog('success', `Chain-of-title: stored ${chainPoints.length} additional data points`);
+      }
     }
 
     // 5. Cross-reference analysis (if we have data from multiple documents)

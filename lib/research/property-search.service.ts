@@ -791,6 +791,65 @@ async function searchBellCountyGIS(
     }
   }
 
+  // Bell CAD Map Search — visual GIS parcel boundary viewer with property ID lookup
+  results.push({
+    id: generateResultId('bell_county_gis', 20),
+    source: 'bell_county_gis',
+    source_name: 'Bell CAD — GIS Map Search',
+    title: 'Bell CAD Map Search — Parcel Boundaries (TrueAutomation)',
+    url: hasParcelId
+      ? `https://propaccess.trueautomation.com/mapSearch/?cid=66&prop_id=${encodeURIComponent(req.parcel_id!)}`
+      : 'https://propaccess.trueautomation.com/mapSearch/?cid=66',
+    document_type: 'plat',
+    relevance: scoreRelevance(0.82, { hasParcelId, hasAddress }),
+    is_property_specific: hasParcelId,
+    description: [
+      `TrueAutomation GIS map search for Bell CAD — displays parcel boundaries overlaid on aerial imagery.`,
+      hasParcelId ? ` Loads directly to Property ID ${req.parcel_id}.` : ` Click a parcel on the map or search by address to identify the property.`,
+      ` Useful for confirming parcel shape and verifying boundary calls against the mapped outline.`,
+    ].join(''),
+    has_cost: false,
+    metadata: { platform: 'trueautomation_map', cid: 66, prop_id: req.parcel_id },
+  });
+
+  // CourthouseDirect — scanned historical deed images and indexes for Bell County
+  results.push({
+    id: generateResultId('bell_county_gis', 21),
+    source: 'bell_county_gis',
+    source_name: 'CourthouseDirect — Bell County',
+    title: 'CourthouseDirect — Bell County Deed & Plat Records',
+    url: req.address
+      ? `https://www.courthousedirect.com/PropertySearch/Texas/Bell?address=${encodeURIComponent(req.address.split(',')[0].trim())}`
+      : 'https://www.courthousedirect.com/PropertySearch/Texas/Bell',
+    document_type: 'deed',
+    relevance: scoreRelevance(0.78, { hasAddress }),
+    is_property_specific: hasAddress,
+    description: [
+      `CourthouseDirect FileViewer for Bell County — scanned indexes and images of historical and current deeds, plats, and instruments.`,
+      ` Especially useful for chain-of-title research on older properties where deeds reference prior Volume/Page instruments.`,
+      req.address ? ` Search by address: "${req.address.split(',')[0].trim()}".` : '',
+      ` Covers recorded instruments from Bell County official public records.`,
+    ].join(''),
+    has_cost: true,
+    cost_note: 'Basic index searches free; document image downloads require a subscription.',
+    metadata: { platform: 'courthousedirect', county: 'Bell', state: 'Texas' },
+  });
+
+  // Bell CAD Data Portal — bulk appraisal roll export (useful when all search methods fail)
+  results.push({
+    id: generateResultId('bell_county_gis', 22),
+    source: 'bell_county_gis',
+    source_name: 'Bell CAD — Data Portal',
+    title: 'Bell CAD Data Portal — Bulk Property Data Export',
+    url: 'https://www.bellcad.org/data-portal/',
+    document_type: 'appraisal_record',
+    relevance: scoreRelevance(0.55, {}),
+    is_property_specific: false,
+    description: `Bell CAD Data Portal — download bulk appraisal roll data including legal descriptions, owner names, acreage, and property IDs for all Bell County parcels. Use as a last resort when the eSearch portal is unavailable or returns no results for the address.`,
+    has_cost: false,
+    metadata: { platform: 'bellcad_data', county: 'Bell' },
+  });
+
   return {
     results,
     source: { source: 'bell_county_gis', name: 'Bell County GIS', status: 'success' },
