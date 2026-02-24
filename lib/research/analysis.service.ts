@@ -130,9 +130,11 @@ export async function analyzeProject(
   async function checkAbort(): Promise<boolean> {
     const { data } = await supabaseAdmin
       .from('research_projects')
-      .select('analysis_metadata')
+      .select('status, analysis_metadata')
       .eq('id', projectId)
       .single();
+    // Abort if: flag was set OR the DELETE route already reset the status to 'configure'
+    if (data?.status === 'configure') return true;
     const meta = data?.analysis_metadata as Record<string, unknown> | null;
     return meta?.abort_requested === true;
   }
@@ -169,6 +171,30 @@ export async function analyzeProject(
 
     addLog('info', `Found ${documents.length} document(s) to analyze`);
 
+    // Helper: race a promise against a recurring abort check so that a long-running
+    // AI call can be interrupted within ~3 seconds of the user requesting abort.
+    async function raceWithAbort<T>(fn: Promise<T>): Promise<T> {
+      return new Promise<T>((resolve, reject) => {
+        let timer: ReturnType<typeof setTimeout>;
+        const scheduleCheck = () => {
+          timer = setTimeout(async () => {
+            try {
+              if (await checkAbort()) {
+                reject(new AnalysisAbortError());
+              } else {
+                scheduleCheck();
+              }
+            } catch {
+              scheduleCheck(); // DB error — keep running
+            }
+          }, 3000);
+        };
+        scheduleCheck();
+        fn.then(result => { clearTimeout(timer); resolve(result); })
+          .catch(err => { clearTimeout(timer); reject(err); });
+      });
+    }
+
     // 2. Per-document extraction
     const allDataPoints: Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[] = [];
 
@@ -192,9 +218,11 @@ export async function analyzeProject(
       }).eq('id', doc.id);
 
       try {
-        const extracted = await withDocumentTimeout(
-          extractFromDocument(doc, extractCategories),
-          docLabel
+        const extracted = await raceWithAbort(
+          withDocumentTimeout(
+            extractFromDocument(doc, extractCategories),
+            docLabel
+          )
         );
         allDataPoints.push(...extracted);
 
@@ -335,16 +363,31 @@ export async function analyzeProject(
     // Handle abort gracefully
     if (err instanceof AnalysisAbortError) {
       console.log(`[Analysis] User aborted analysis for project ${projectId}`);
-      await supabaseAdmin.from('research_projects').update({
-        status: 'configure',
-        analysis_metadata: {
-          error: 'Analysis was aborted by the user.',
-          error_category: 'aborted',
-          failed_at: new Date().toISOString(),
-          logs,
-        },
-        updated_at: new Date().toISOString(),
-      }).eq('id', projectId);
+      // The DELETE route may have already reset the project to 'configure' and cleared data.
+      // Only update if the project is still in 'analyzing' state (i.e., abort was internal).
+      const { data: currentState } = await supabaseAdmin
+        .from('research_projects')
+        .select('status')
+        .eq('id', projectId)
+        .single();
+      if (currentState?.status === 'analyzing') {
+        // Internal abort (e.g., between documents) — reset cleanly ourselves
+        await Promise.all([
+          supabaseAdmin.from('research_projects').update({
+            status: 'configure',
+            analysis_metadata: { aborted_at: new Date().toISOString(), abort_requested: true },
+            updated_at: new Date().toISOString(),
+          }).eq('id', projectId),
+          supabaseAdmin.from('extracted_data_points').delete().eq('research_project_id', projectId),
+          supabaseAdmin.from('discrepancies').delete().eq('research_project_id', projectId),
+          supabaseAdmin
+            .from('research_documents')
+            .update({ processing_status: 'extracted', updated_at: new Date().toISOString() })
+            .eq('research_project_id', projectId)
+            .eq('processing_status', 'analyzing'),
+        ]);
+      }
+      // If already 'configure', the DELETE route handled it — nothing more to do.
       return { dataPointCount: 0, discrepancyCount: 0 };
     }
 

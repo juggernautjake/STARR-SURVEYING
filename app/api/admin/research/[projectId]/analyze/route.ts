@@ -72,7 +72,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   return NextResponse.json(status);
 }, { routeName: 'research/analyze/status' });
 
-/* DELETE — Request abort of a running analysis */
+/* DELETE — Abort a running analysis and immediately reset to a clean state */
 export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -82,7 +82,7 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
 
   const { data: project } = await supabaseAdmin
     .from('research_projects')
-    .select('id, status, analysis_metadata')
+    .select('id, status')
     .eq('id', projectId)
     .single();
 
@@ -91,11 +91,34 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'No analysis in progress' }, { status: 409 });
   }
 
-  const metadata = (project.analysis_metadata as Record<string, unknown>) || {};
-  await supabaseAdmin.from('research_projects').update({
-    analysis_metadata: { ...metadata, abort_requested: true, abort_requested_at: new Date().toISOString() },
-    updated_at: new Date().toISOString(),
-  }).eq('id', projectId);
+  // Immediately reset the project to a clean configure state so the UI
+  // reflects the abort right away — no waiting for the background task to notice.
+  // Clear all partial data from this run so the next run starts completely fresh.
+  await Promise.all([
+    // 1. Reset project status and clear logs / partial metadata immediately
+    supabaseAdmin.from('research_projects').update({
+      status: 'configure',
+      analysis_metadata: { abort_requested: true, aborted_at: new Date().toISOString() },
+      updated_at: new Date().toISOString(),
+    }).eq('id', projectId),
 
-  return NextResponse.json({ message: 'Abort requested — analysis will stop after the current document.' });
+    // 2. Delete any data points extracted during this (now aborted) run
+    supabaseAdmin.from('extracted_data_points').delete().eq('research_project_id', projectId),
+
+    // 3. Delete any discrepancies from this run
+    supabaseAdmin.from('discrepancies').delete().eq('research_project_id', projectId),
+
+    // 4. Reset all documents that were mid-analysis back to 'extracted' so they
+    //    will be re-processed when the user starts a new run
+    supabaseAdmin
+      .from('research_documents')
+      .update({ processing_status: 'extracted', updated_at: new Date().toISOString() })
+      .eq('research_project_id', projectId)
+      .eq('processing_status', 'analyzing'),
+  ]);
+
+  return NextResponse.json({
+    message: 'Analysis aborted. All partial results cleared. Ready for a fresh run.',
+    status: 'configure',
+  });
 }, { routeName: 'research/analyze/abort' });
