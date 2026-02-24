@@ -72,6 +72,54 @@ export default function BoundaryCallsPanel({
     setFetching(false);
   }
 
+  const [browserFetching, setBrowserFetching] = useState(false);
+  const [browserResult, setBrowserResult]     = useState<{
+    propertyId: string | null;
+    legalDescription: string | null;
+    ownerName: string | null;
+    deedReference: string | null;
+    documentCount: number;
+    steps: string[];
+  } | null>(null);
+  const [browserError,  setBrowserError]      = useState('');
+  const [showBrowserLog, setShowBrowserLog]   = useState(false);
+
+  async function handleBrowserFetch() {
+    if (browserFetching) return;
+    if (!address.trim() && !parcelId.trim()) {
+      setBrowserError('Enter a property address or parcel ID to run live browser research.');
+      return;
+    }
+
+    setBrowserFetching(true);
+    setBrowserError('');
+    setBrowserResult(null);
+
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/browser-fetch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          county:     county.trim()    || undefined,
+          propertyId: parcelId.trim()  || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setBrowserResult(data);
+        if (data.documentCount > 0) onImported?.();
+      } else {
+        const err = await res.json();
+        setBrowserError(err.error || 'Browser research failed. Make sure Playwright is installed on the server.');
+      }
+    } catch {
+      setBrowserError('Network error — please check your connection and try again.');
+    }
+
+    setBrowserFetching(false);
+  }
+
   function formatBearing(call: ParsedBoundaryCall): string {
     if (call.type === 'curve') {
       return call.chord_bearing ? `Chord: ${call.chord_bearing}` : '(curve)';
@@ -169,12 +217,68 @@ export default function BoundaryCallsPanel({
           >
             {fetching ? '⏳ Retrieving boundary data…' : '🔍 Fetch Boundary Calls'}
           </button>
-          {fetching && (
+          <button
+            style={{
+              marginLeft: '0.65rem',
+              background: browserFetching ? '#F3F4F6' : '#EFF6FF',
+              border: '1px solid #BFDBFE',
+              borderRadius: '0.375rem',
+              padding: '0.45rem 1rem',
+              cursor: browserFetching ? 'not-allowed' : 'pointer',
+              fontSize: '0.9rem',
+              color: '#1D4ED8',
+              fontWeight: 600,
+              opacity: browserFetching ? 0.6 : 1,
+            }}
+            onClick={handleBrowserFetch}
+            disabled={browserFetching}
+            title="Open a real browser, search the county CAD portal and deed records, and screenshot everything"
+          >
+            {browserFetching ? '🌐 Searching live websites…' : '🌐 Live Browser Search'}
+          </button>
+          {(fetching || browserFetching) && (
             <span style={{ color: '#6B7280', fontSize: '0.82rem', marginLeft: '0.75rem' }}>
-              Searching county CAD and parsing legal description — please wait up to 2–3 min
+              {browserFetching
+                ? 'Navigating county websites, filling forms, and screenshotting results — may take 1–3 min'
+                : 'Searching county CAD and parsing legal description — please wait up to 2–3 min'}
             </span>
           )}
         </div>
+
+        {browserError && (
+          <div className="research-search__error" style={{ marginTop: '0.5rem' }}>{browserError}</div>
+        )}
+
+        {/* Browser research result summary */}
+        {browserResult && (
+          <div style={{ marginTop: '0.75rem', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '0.5rem', padding: '0.75rem 1rem' }}>
+            <div style={{ fontWeight: 700, color: '#166534', marginBottom: '0.35rem' }}>🌐 Live Browser Research Complete</div>
+            <div style={{ fontSize: '0.85rem', color: '#166534' }}>
+              {browserResult.propertyId && <div>🔑 Property ID found: <strong>{browserResult.propertyId}</strong></div>}
+              {browserResult.ownerName   && <div>👤 Owner: {browserResult.ownerName}</div>}
+              {browserResult.deedReference && <div>📋 Deed reference: {browserResult.deedReference}</div>}
+              <div>📸 {browserResult.documentCount} screenshot document{browserResult.documentCount !== 1 ? 's' : ''} saved to project</div>
+              {browserResult.legalDescription && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <div style={{ fontWeight: 600 }}>Legal Description (extracted):</div>
+                  <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: '0.82rem', background: '#DCFCE7', padding: '0.5rem', borderRadius: '0.25rem', marginTop: '0.25rem', maxHeight: 200, overflowY: 'auto' }}>{browserResult.legalDescription}</pre>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              style={{ background: 'none', border: 'none', color: '#15803D', cursor: 'pointer', fontSize: '0.78rem', padding: 0, marginTop: '0.4rem' }}
+              onClick={() => setShowBrowserLog(v => !v)}
+            >
+              {showBrowserLog ? '▾ Hide' : '▸ Show'} browser search log ({browserResult.steps.length} steps)
+            </button>
+            {showBrowserLog && (
+              <ol style={{ margin: '0.4rem 0 0 1.2rem', padding: 0, fontSize: '0.75rem', color: '#374151' }}>
+                {browserResult.steps.map((s, i) => <li key={i} style={{ marginBottom: '0.15rem' }}>{s}</li>)}
+              </ol>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Step log toggle */}
