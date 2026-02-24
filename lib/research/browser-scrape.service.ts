@@ -45,6 +45,14 @@ export interface BrowserScrapeResult {
 interface CountyBrowserConfig {
   name: string;
   cadSearchUrl: string;
+  /**
+   * Optional pre-filled search URL template.  When present, the browser navigates
+   * directly to this URL (with {query} replaced by the address variant and {year}
+   * by the current year) instead of trying to fill in the search form.  This is
+   * more reliable on Tyler Technologies / Harris-Govern eSearch portals that accept
+   * query params at load time.
+   */
+  cadPrefilledSearchUrlTemplate?: string;
   /** CSS selector for the search input on the CAD portal */
   cadSearchInputSelector: string;
   /** CSS selector for the submit button */
@@ -63,7 +71,19 @@ const COUNTY_BROWSER_CONFIGS: Record<string, CountyBrowserConfig> = {
   bell: {
     name: 'Bell County Appraisal District',
     cadSearchUrl: 'https://esearch.bellcad.org/Property/Search',
-    cadSearchInputSelector: 'input[id="Property_SearchValue"], input[name="SearchValue"], input[placeholder*="address" i], input[placeholder*="search" i]',
+    // Tyler Tech eSearch portals accept ?type=address&value=…&year=… and auto-submit
+    cadPrefilledSearchUrlTemplate: 'https://esearch.bellcad.org/Property/Search?type=address&value={query}&year={year}',
+    cadSearchInputSelector: [
+      'input[id="Property_SearchValue"]',
+      'input[name="SearchValue"]',
+      'input#searchValue',
+      'input[id="searchValue"]',
+      'input[name="searchValue"]',
+      'input[type="search"]',
+      'input[placeholder*="address" i]',
+      'input[placeholder*="search" i]',
+      'input[type="text"]',
+    ].join(', '),
     cadSearchSubmitSelector: 'button[type="submit"], input[type="submit"], button:has-text("Search"), .search-btn',
     cadResultRowSelector: '.search-results tr:not(:first-child), .result-row, tr.property-row, table tbody tr',
     cadPropertyIdSelectors: [
@@ -80,7 +100,8 @@ const COUNTY_BROWSER_CONFIGS: Record<string, CountyBrowserConfig> = {
   williamson: {
     name: 'Williamson County Appraisal District',
     cadSearchUrl: 'https://esearch.wcad.org/Property/Search',
-    cadSearchInputSelector: 'input[id="Property_SearchValue"], input[name="SearchValue"], input[placeholder*="address" i]',
+    cadPrefilledSearchUrlTemplate: 'https://esearch.wcad.org/Property/Search?type=address&value={query}&year={year}',
+    cadSearchInputSelector: 'input[id="Property_SearchValue"], input[name="SearchValue"], input#searchValue, input[type="search"], input[placeholder*="address" i]',
     cadSearchSubmitSelector: 'button[type="submit"], .search-btn',
     cadResultRowSelector: '.search-results tr:not(:first-child), table tbody tr',
     cadPropertyIdSelectors: ['td:first-child a', 'td:first-child', '[data-prop-id]'],
@@ -90,7 +111,8 @@ const COUNTY_BROWSER_CONFIGS: Record<string, CountyBrowserConfig> = {
   hays: {
     name: 'Hays County Appraisal District',
     cadSearchUrl: 'https://esearch.hayscad.com/Property/Search',
-    cadSearchInputSelector: 'input[id="Property_SearchValue"], input[name="SearchValue"], input[placeholder*="address" i]',
+    cadPrefilledSearchUrlTemplate: 'https://esearch.hayscad.com/Property/Search?type=address&value={query}&year={year}',
+    cadSearchInputSelector: 'input[id="Property_SearchValue"], input[name="SearchValue"], input#searchValue, input[type="search"], input[placeholder*="address" i]',
     cadSearchSubmitSelector: 'button[type="submit"], .search-btn',
     cadResultRowSelector: '.search-results tr:not(:first-child), table tbody tr',
     cadPropertyIdSelectors: ['td:first-child a', 'td:first-child'],
@@ -871,6 +893,81 @@ async function searchCadPortal(
     for (const variant of variants) {
       steps.push(`[Browser] Trying CAD search for address variant: "${variant}"`);
 
+      // ── Approach A: Pre-filled URL (eSearch portals that accept query params) ─────
+      // Tyler Tech / Harris-Govern portals accept ?type=address&value=…&year=… and
+      // auto-submit the search, so we can skip form interaction entirely.
+      let navigatedWithPrefill = false;
+      if (config.cadPrefilledSearchUrlTemplate) {
+        const year = new Date().getFullYear();
+        const prefilledUrl = config.cadPrefilledSearchUrlTemplate
+          .replace('{query}', encodeURIComponent(variant))
+          .replace('{year}', String(year));
+        steps.push(`[Browser] Navigating to pre-filled search URL: ${prefilledUrl}`);
+        try {
+          await page.goto(prefilledUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+        } catch (err) {
+          steps.push(`[Browser] Pre-filled URL networkidle timed out (${err instanceof Error ? err.message : String(err)}) — retrying with domcontentloaded`);
+          await page.goto(prefilledUrl, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+        }
+        // Wait a moment for client-side rendering
+        await page.waitForTimeout(3_000);
+
+        // Check whether results loaded via the pre-filled URL
+        for (const sel of config.cadResultRowSelector.split(',').map(s => s.trim())) {
+          try {
+            await page.waitForSelector(sel, { timeout: 8_000 });
+            navigatedWithPrefill = true;
+            steps.push('[Browser] Pre-filled URL returned search results');
+            break;
+          } catch { /* try next result selector */ }
+        }
+
+        if (navigatedWithPrefill) {
+          const screenshot = await page.screenshot({ type: 'png', fullPage: true }) as Buffer;
+          const pageTitle = await page.title().catch(() => 'CAD Search Results');
+          const pageText = await page.innerText('body').catch(() => '') as string;
+          const docId = await storeScreenshotAsDocument(
+            projectId, screenshot,
+            `CAD Search — "${variant}" (${config.name})`,
+            'appraisal_record',
+            prefilledUrl,
+            `Search variant: "${variant}"\nPage: ${pageTitle}\n\n${pageText.substring(0, 3000)}`,
+          );
+          if (docId) documentIds.push(docId);
+
+          const propertyId = await extractPropertyIdFromPage(page, config, screenshot, steps);
+          if (propertyId) {
+            steps.push(`[Browser] ✓ Found property ID: ${propertyId} via pre-filled URL`);
+            if (config.cadDetailUrl) {
+              const detailUrl = config.cadDetailUrl.replace('{id}', encodeURIComponent(propertyId));
+              try {
+                await page.goto(detailUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+                const detailShot = await page.screenshot({ type: 'png', fullPage: true }) as Buffer;
+                const detailText = await page.innerText('body').catch(() => '') as string;
+                const detailId = await storeScreenshotAsDocument(
+                  projectId, detailShot,
+                  `CAD Property Detail — ID ${propertyId} (${config.name})`,
+                  'appraisal_record', detailUrl,
+                  `Property ID: ${propertyId}\n\n${detailText.substring(0, 8000)}`,
+                );
+                if (detailId) documentIds.push(detailId);
+                steps.push(`[Browser] Captured property detail page for ID ${propertyId}`);
+              } catch (err) {
+                steps.push(`[Browser] Could not load property detail page: ${err instanceof Error ? err.message : String(err)}`);
+              }
+            }
+            await context.close().catch(() => {});
+            return { propertyId, documentIds };
+          }
+          // Pre-filled URL loaded a results page but no ID found — try next variant
+          continue;
+        }
+
+        // Pre-filled URL didn't load results — fall through to form-fill approach
+        steps.push('[Browser] Pre-filled URL did not return results — falling back to form-fill');
+      }
+
+      // ── Approach B: Navigate to search page and fill in the form ─────────────
       try {
         await page.goto(config.cadSearchUrl, { waitUntil: 'networkidle', timeout: 30_000 });
       } catch {
