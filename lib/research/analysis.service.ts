@@ -2,6 +2,7 @@
 // Coordinates per-document extraction, cross-referencing, normalization, and discrepancy detection.
 import { supabaseAdmin } from '@/lib/supabase';
 import { callAI, AIServiceError } from './ai-client';
+import { fetchSourceContent } from './document-analysis.service';
 import {
   normalizeBearing,
   normalizeDistance,
@@ -56,6 +57,105 @@ const DEFAULT_EXTRACT_CONFIG: Record<string, boolean> = {
   flood_zone: true,
   utilities: true,
 };
+
+// ── Document pre-screening ─────────────────────────────────────────────────
+//
+// Before burning an AI call on a document, quickly score its content to
+// determine if it likely contains real property data.  Documents that are
+// just search portals, homepage interfaces, 404 pages, browser-compat errors,
+// or generic county-clerk info pages should be skipped — they waste tokens
+// and inflate the "documents analyzed" counter without adding any value.
+//
+// Scoring:
+//   SKIP  — definitively empty; don't call AI
+//   ENRICH — thin but potentially useful; try fetching fresh content from
+//            the source URL before deciding whether to analyse
+//   ANALYZE — looks like it has real data; call AI immediately
+
+type DocScreenResult =
+  | { action: 'skip';    reason: string }
+  | { action: 'enrich';  reason: string }
+  | { action: 'analyze' };
+
+// Patterns whose presence in the text indicates there is NO real property data.
+const EMPTY_DOC_PATTERNS: RegExp[] = [
+  /this\s+(page|document|site)\s+(is|contains)\s+(NOT|only|just|an?\s+error)/i,
+  /browser\s+(compatibility|not\s+supported|support\s+error)/i,
+  /please\s+(use|enable|update|try).*browser/i,
+  /javascript\s+(is\s+(required|disabled)|not\s+enabled)/i,
+  /page\s+not\s+found/i,
+  /404\s+(not\s+found|error)/i,
+  /gateway\s+timeout/i,
+  /service\s+unavailable/i,
+  /no\s+records?\s+found/i,
+  /loading\s+results?\s*\.{0,3}\s*$/i,     // page still "Loading Results..."
+  /search\s+(interface|portal|form|system)/i,
+  /enter.*address.*to\s+(search|begin)/i,
+  /select.*county.*to\s+(search|continue)/i,
+  /(grantor|grantee)\s+(name|field|box|input)/i,  // search form label text
+  /this\s+is\s+a\s+web\s+(interface|page|form)\s+screenshot/i,
+  /this\s+is\s+not\s+a\s+(legal\s+description|deed|plat|property\s+record)/i,
+  /no\s+(actual|real|specific)\s+property\s+(data|information)/i,
+  /contains\s+(only|just)\s+(navigation|HTML\s+form|search\s+field)/i,
+  /web\s+(application|app)\s+(URL|link)\s*,?\s*not\s+a\s+recorded/i,
+];
+
+// At least ONE of these keywords must be present for a document to be worth analyzing.
+// These are the core concepts that appear in real surveying/deed documents.
+const PROPERTY_CONTENT_KEYWORDS: RegExp[] = [
+  /\bthence\b/i,
+  /\bbearing[s]?\b/i,
+  /\b(N|S)\s*\d{1,2}[°\s]\d{0,2}['\s]\d{0,2}["\s]*(E|W)\b/,  // actual bearing notation
+  /\bmetes.{0,6}bounds\b/i,
+  /\blegal\s+description\b/i,
+  /\b(grantor|grantee)\b/i,
+  /\b(deed|warranty\s+deed|special\s+warranty\s+deed|quitclaim)\b/i,
+  /\binstrument\s+(no|number|#)\b/i,
+  /\bvolume\s+\d+.*page\s+\d+\b/i,
+  /\bcabinet\s+\d+.*slide\s+\d+\b/i,
+  /\blot\s+\d+.*block\s+\d+\b/i,
+  /\bplat\s+(thereof|recorded|of\s+record)\b/i,
+  /\bpoint\s+of\s+(beginning|commencement)\b/i,
+  /\b(easement|right.of.way|setback)\b/i,
+  /\b\d+\.\d+\s*(feet|ft|varas?|chains?|meters?)\b/i,  // measured distances
+  /\bacreage\s*:\s*\d/i,
+  /\b(abstract|survey\s+no|geo\s+id)\s*:?\s*[A-Z0-9-]+\b/i,
+  /\blegal\s+desc(ription)?\s*:/i,
+  /\brecorded\s+(in|at|under)\b/i,
+];
+
+const MIN_USEFUL_LENGTH = 120; // chars — anything shorter is definitely empty
+const ENRICH_THRESHOLD   = 600; // chars — below this, try to fetch better content
+
+function screenDocument(doc: ResearchDocument): DocScreenResult {
+  const raw = (doc.extracted_text ?? '').trim();
+
+  // Hard minimum
+  if (raw.length < MIN_USEFUL_LENGTH) {
+    return { action: 'skip', reason: `Content too short (${raw.length} chars — minimum ${MIN_USEFUL_LENGTH})` };
+  }
+
+  // Known-empty patterns — immediate skip
+  for (const pat of EMPTY_DOC_PATTERNS) {
+    if (pat.test(raw)) {
+      return { action: 'skip', reason: `Matches empty-document pattern (${pat.source.substring(0, 60)})` };
+    }
+  }
+
+  // Check for at least one property-relevant keyword
+  const hasPropertyContent = PROPERTY_CONTENT_KEYWORDS.some(kw => kw.test(raw));
+
+  if (!hasPropertyContent) {
+    // Thin documents without property keywords — worth enriching if we have a source URL
+    if (raw.length < ENRICH_THRESHOLD && doc.source_url) {
+      return { action: 'enrich', reason: `No property keywords found; content thin (${raw.length} chars) — will try to fetch from source URL` };
+    }
+    // Longer documents without property keywords — skip (they're likely info pages)
+    return { action: 'skip', reason: `No property-relevant keywords found in ${raw.length}-char document` };
+  }
+
+  return { action: 'analyze' };
+}
 
 // ── Log Entry ────────────────────────────────────────────────────────────────
 
@@ -310,6 +410,40 @@ export async function analyzeProject(
       }
 
       addLog('info', `Processing document ${docIndex + 1}/${documents.length}: "${docLabel}"`, `Type: ${doc.document_type || 'unknown'}, Size: ${doc.extracted_text?.length || 0} chars`);
+
+      // ── Pre-screening: skip or enrich before burning an AI call ───────────
+      let screenResult = screenDocument(doc);
+
+      if (screenResult.action === 'enrich' && doc.source_url) {
+        addLog('info', `"${docLabel}" is thin — fetching content from source URL…`, screenResult.reason);
+        try {
+          const fresh = await fetchSourceContent(doc.source_url, {
+            address: doc.recording_info || undefined,
+          });
+          if (fresh && fresh.text.length > MIN_USEFUL_LENGTH) {
+            // Update the document's text in-memory and re-screen
+            (doc as ResearchDocument & { extracted_text: string }).extracted_text = fresh.text;
+            await supabaseAdmin.from('research_documents').update({
+              extracted_text: fresh.text,
+              extracted_text_method: fresh.method,
+              updated_at: new Date().toISOString(),
+            }).eq('id', doc.id);
+            addLog('info', `Enriched "${docLabel}" with ${fresh.text.length} chars via ${fresh.method}`);
+            screenResult = screenDocument(doc); // re-evaluate
+          }
+        } catch { /* enrichment is best-effort */ }
+      }
+
+      if (screenResult.action === 'skip') {
+        addLog('warn', `Skipping "${docLabel}" — ${screenResult.reason}`);
+        await supabaseAdmin.from('research_documents').update({
+          processing_status: 'analyzed',
+          processing_error: `Pre-screening skip: ${screenResult.reason}`,
+          updated_at: new Date().toISOString(),
+        }).eq('id', doc.id);
+        await persistLogs();
+        continue; // advance to next document without calling AI
+      }
 
       // Mark document as analyzing
       await supabaseAdmin.from('research_documents').update({
