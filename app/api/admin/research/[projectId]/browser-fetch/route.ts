@@ -23,6 +23,9 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { runBrowserPropertyResearch } from '@/lib/research/browser-scrape.service';
 import { generateAddressVariants } from '@/lib/research/boundary-fetch.service';
 
+// Allow up to 300 seconds for browser automation + AI vision calls (Vercel Pro max).
+export const maxDuration = 300;
+
 function extractProjectId(req: NextRequest): string | null {
   const parts = req.nextUrl.pathname.split('/research/')[1]?.split('/');
   return parts?.[0] ?? null;

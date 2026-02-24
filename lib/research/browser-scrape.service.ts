@@ -282,8 +282,7 @@ const ESEARCH_HTTP_CONFIG: Record<string, { baseUrl: string; name: string; publi
 };
 
 // Per-request timeout for HTTP fallback fetches.
-// Three requests are made sequentially (search → detail → deed), each capped at 30 s,
-// keeping total time well within the Vercel function maxDuration of 60 s.
+// Three requests are made sequentially (search → detail → deed), each capped at 30 s.
 const HTTP_FETCH_TIMEOUT_MS = 30_000;
 
 /** Maximum characters to store for a legal description (covers the longest Texas legal descs). */
