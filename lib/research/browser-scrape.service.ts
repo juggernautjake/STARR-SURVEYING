@@ -527,9 +527,7 @@ async function fetchDeedDocuments(
             } catch { break; }
           }
 
-          // Screenshot at a zoom level readable enough for OCR
-          await docPage.evaluate(() => { (document.body.style as CSSStyleDeclaration & { zoom?: string }).zoom = '1.2'; }).catch(() => {});
-          // Use Playwright's device scale factor instead of CSS zoom for cross-browser safety
+          // Screenshot at a readable resolution for OCR
           const pageShot = await docPage.screenshot({ type: 'png', fullPage: false }) as Buffer;
           const pageText = await docPage.innerText('body').catch(() => '') as string;
           pageTexts.push(pageText.substring(0, 6000));

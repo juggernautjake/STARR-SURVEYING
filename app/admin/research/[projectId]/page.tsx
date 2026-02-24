@@ -50,10 +50,12 @@ export default function ResearchProjectPage() {
     documentsAnalyzed: number;
     dataPointCount: number;
     discrepancyCount: number;
+    frozen: boolean;
     error?: string;
     errorCategory?: string;
     logs?: Array<{ ts: string; level: string; message: string; detail?: string }>;
   } | null>(null);
+  const [analysisResuming, setAnalysisResuming] = useState(false);
   const [analysisError, setAnalysisError] = useState<{ message: string; category: string } | null>(null);
   const [showAnalysisLogs, setShowAnalysisLogs] = useState(false);
 
@@ -210,6 +212,7 @@ export default function ResearchProjectPage() {
             documentsAnalyzed: data.documentsAnalyzed,
             dataPointCount: data.dataPointCount,
             discrepancyCount: data.discrepancyCount,
+            frozen: data.frozen ?? false,
             error: data.error,
             errorCategory: data.errorCategory,
             logs: data.logs,
@@ -488,6 +491,29 @@ export default function ResearchProjectPage() {
       showToast('Unable to connect. Check your internet connection.', 'error');
       setAnalysisAborting(false);
     }
+  }
+
+  async function handleResumeAnalysis() {
+    if (analysisResuming) return;
+    setAnalysisResuming(true);
+    setAnalysisError(null);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resume: true }),
+      });
+      if (res.ok) {
+        // The project status stays 'analyzing' — just reset the frozen state in local UI
+        setAnalysisStatus(prev => prev ? { ...prev, frozen: false } : prev);
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed to resume' }));
+        showToast(err.error || 'Failed to resume analysis', 'error');
+      }
+    } catch {
+      showToast('Unable to connect. Check your internet connection.', 'error');
+    }
+    setAnalysisResuming(false);
   }
 
   // Drawing functions
@@ -1577,12 +1603,42 @@ export default function ResearchProjectPage() {
 
       {project.status === 'analyzing' && (
         <div className="research-analyzing">
-          <div className="research-analyzing__spinner" />
-          <div className="research-analyzing__title">AI Analysis in Progress</div>
+          {/* Freeze detection banner */}
+          {analysisStatus?.frozen ? (
+            <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '0.5rem', padding: '0.75rem 1rem', marginBottom: '1rem', maxWidth: 520, textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, color: '#92400E', marginBottom: '0.25rem' }}>⚠️ Analysis Appears Frozen</div>
+              <div style={{ fontSize: '0.82rem', color: '#78350F', marginBottom: '0.6rem' }}>
+                The analyzer hasn't reported progress in over 90 seconds. It may be stuck on a difficult
+                document. You can resume from where it left off, or abort and start fresh.
+              </div>
+              <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={handleResumeAnalysis}
+                  disabled={analysisResuming}
+                  style={{ background: '#D97706', border: 'none', borderRadius: '0.375rem', padding: '0.4rem 1rem', cursor: analysisResuming ? 'not-allowed' : 'pointer', fontSize: '0.85rem', color: '#fff', fontWeight: 600, opacity: analysisResuming ? 0.6 : 1 }}
+                >
+                  {analysisResuming ? 'Resuming…' : '▶ Resume Analysis'}
+                </button>
+                <button
+                  onClick={handleAbortAnalysis}
+                  disabled={analysisAborting}
+                  style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.4rem 1rem', cursor: analysisAborting ? 'not-allowed' : 'pointer', fontSize: '0.85rem', color: '#DC2626', opacity: analysisAborting ? 0.6 : 1 }}
+                >
+                  {analysisAborting ? 'Aborting…' : '⏹ Abort & Reset'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="research-analyzing__spinner" />
+          )}
+          <div className="research-analyzing__title">
+            {analysisStatus?.frozen ? 'Analysis Paused / Frozen' : 'AI Analysis in Progress'}
+          </div>
           <div className="research-analyzing__text">
             The AI is processing your documents and extracting surveying data.
             This may take a few minutes depending on the number and size of documents.
-            Each document has a 5-minute timeout — if one gets stuck it will be skipped automatically.
+            Each document has a 3-minute timeout — if one gets stuck it will be skipped automatically.
+            The pipeline has a 30-minute overall watchdog and will self-terminate if it exceeds that limit.
           </div>
           {analysisStatus && (
             <div className="research-analyzing__progress">
@@ -1592,7 +1648,8 @@ export default function ResearchProjectPage() {
                   style={{
                     width: analysisStatus.documentsTotal > 0
                       ? `${(analysisStatus.documentsAnalyzed / analysisStatus.documentsTotal) * 100}%`
-                      : '0%'
+                      : '0%',
+                    background: analysisStatus.frozen ? '#F59E0B' : undefined,
                   }}
                 />
               </div>
@@ -1608,21 +1665,23 @@ export default function ResearchProjectPage() {
               {analysisStatus.logs[analysisStatus.logs.length - 1].message}
             </div>
           )}
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setShowAnalysisLogs(true)}
-              style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}
-            >
-              📋 View AI Logs
-            </button>
-            <button
-              onClick={handleAbortAnalysis}
-              disabled={analysisAborting}
-              style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: analysisAborting ? 'not-allowed' : 'pointer', fontSize: '0.8rem', color: '#DC2626', opacity: analysisAborting ? 0.6 : 1 }}
-            >
-              {analysisAborting ? 'Aborting…' : '⏹ Abort & Reset'}
-            </button>
-          </div>
+          {!analysisStatus?.frozen && (
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setShowAnalysisLogs(true)}
+                style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}
+              >
+                📋 View AI Logs
+              </button>
+              <button
+                onClick={handleAbortAnalysis}
+                disabled={analysisAborting}
+                style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: analysisAborting ? 'not-allowed' : 'pointer', fontSize: '0.8rem', color: '#DC2626', opacity: analysisAborting ? 0.6 : 1 }}
+              >
+                {analysisAborting ? 'Aborting…' : '⏹ Abort & Reset'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

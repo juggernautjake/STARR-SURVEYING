@@ -167,8 +167,11 @@ function buildDeedSearchUrl(countyKey: string, propId: string): string | undefin
  * Useful when property ID resolution fails but the county clerk portal is known.
  */
 function buildDeedSearchUrlByAddress(countyKey: string, _address: string): string | undefined {
+  const subdomain = PUBLICSEARCH_BY_COUNTY[countyKey];
+  if (!subdomain) return undefined;
   // _address is kept in the signature for API compatibility; the address-based full-text search
   // in the publicsearch.us SPA does not reliably load results without a property ID.
+  // Return the portal homepage so the researcher can search manually once a property ID is known.
   return `https://${subdomain}/`;
 }
 

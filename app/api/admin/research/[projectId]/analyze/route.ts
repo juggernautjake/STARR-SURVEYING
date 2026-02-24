@@ -27,25 +27,36 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
-  if (project.status === 'analyzing') {
-    return NextResponse.json({ error: 'Analysis already in progress' }, { status: 409 });
-  }
-
-  if (project.status !== 'configure' && project.status !== 'review') {
-    return NextResponse.json({
-      error: `Cannot start analysis from "${project.status}" status. Project must be in "configure" or "review" step.`
-    }, { status: 400 });
-  }
-
-  // Parse optional config from body
-  let config: { extractCategories?: Record<string, boolean> } | undefined;
+  // Parse optional config from body early so we can check resume mode for the status check below
+  let config: { extractCategories?: Record<string, boolean>; resume?: boolean } | undefined;
   try {
-    const body = await req.json();
-    if (body.extractCategories) {
-      config = { extractCategories: body.extractCategories };
+    const body = await req.json() as { extractCategories?: Record<string, boolean>; resume?: boolean };
+    if (body.extractCategories || body.resume) {
+      config = {};
+      if (body.extractCategories) config.extractCategories = body.extractCategories;
+      if (body.resume) config.resume = true;
     }
   } catch {
     // No body or invalid JSON — use defaults
+  }
+
+  const isResume = config?.resume === true;
+
+  if (project.status === 'analyzing' && !isResume) {
+    return NextResponse.json({ error: 'Analysis already in progress' }, { status: 409 });
+  }
+
+  // Resume is only valid from 'analyzing' (frozen run) status
+  if (isResume && project.status !== 'analyzing') {
+    return NextResponse.json({
+      error: `Cannot resume from "${project.status}" status — resume is only valid when a previous analysis appears frozen.`,
+    }, { status: 400 });
+  }
+
+  if (!isResume && project.status !== 'configure' && project.status !== 'review') {
+    return NextResponse.json({
+      error: `Cannot start analysis from "${project.status}" status. Project must be in "configure" or "review" step.`
+    }, { status: 400 });
   }
 
   // Start analysis asynchronously

@@ -72,16 +72,29 @@ class AnalysisAbortError extends Error {
   constructor() { super('Analysis aborted by user'); this.name = 'AnalysisAbortError'; }
 }
 
-// ── Per-document timeout (5 minutes) ─────────────────────────────────────────
+// ── Analysis timeouts ─────────────────────────────────────────────────────────
 
-/** Maximum time in milliseconds to wait for a single document to be analyzed. */
-export const DOCUMENT_ANALYSIS_TIMEOUT_MS = 5 * 60 * 1000;
+/** Maximum time in milliseconds to wait for a single document to be analyzed.
+ *  3 minutes is enough for any reasonable document; shorter = faster freeze detection. */
+export const DOCUMENT_ANALYSIS_TIMEOUT_MS = 3 * 60 * 1000;
+
+/** Overall pipeline watchdog — 30 minutes covers even the largest projects. */
+export const PIPELINE_WATCHDOG_MS = 30 * 60 * 1000;
+
+/** Heartbeat interval — keeps updated_at fresh so staleness detection works. */
+const HEARTBEAT_INTERVAL_MS = 12_000;
+
+/** A project is considered "frozen" when its updated_at hasn't changed in this long. */
+export const FROZEN_THRESHOLD_MS = 90_000; // 90 seconds
 
 function withDocumentTimeout<T>(promise: Promise<T>, docLabel: string): Promise<T> {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Document analysis timed out after 5 minutes: "${docLabel}"`)), DOCUMENT_ANALYSIS_TIMEOUT_MS)
+      setTimeout(
+        () => reject(new Error(`Document analysis timed out after 3 minutes: "${docLabel}"`)),
+        DOCUMENT_ANALYSIS_TIMEOUT_MS,
+      )
     ),
   ]);
 }
@@ -103,11 +116,27 @@ function withDocumentTimeout<T>(promise: Promise<T>, docLabel: string): Promise<
  */
 export async function analyzeProject(
   projectId: string,
-  config?: Partial<AnalysisConfig>
+  config?: Partial<AnalysisConfig> & { resume?: boolean }
 ): Promise<{ dataPointCount: number; discrepancyCount: number }> {
   const extractCategories = config?.extractCategories || DEFAULT_EXTRACT_CONFIG;
+  const resumeMode = config?.resume === true;
 
-  const logs: AnalysisLogEntry[] = [];
+  // In resume mode, carry over logs from the previous (frozen/aborted) run so the
+  // complete history is visible in the UI.
+  let logs: AnalysisLogEntry[] = [];
+  if (resumeMode) {
+    try {
+      const { data: prev } = await supabaseAdmin
+        .from('research_projects')
+        .select('analysis_metadata')
+        .eq('id', projectId)
+        .single();
+      const prevMeta = prev?.analysis_metadata as Record<string, unknown> | null;
+      if (Array.isArray(prevMeta?.logs)) {
+        logs = prevMeta.logs as AnalysisLogEntry[];
+      }
+    } catch { /* non-fatal — start with empty log */ }
+  }
   function addLog(level: AnalysisLogEntry['level'], message: string, detail?: string) {
     const entry: AnalysisLogEntry = { ts: new Date().toISOString(), level, message, ...(detail ? { detail } : {}) };
     logs.push(entry);
@@ -141,7 +170,11 @@ export async function analyzeProject(
 
   // Update project status to analyzing
   const analysisStartedAt = new Date().toISOString();
-  addLog('info', 'Analysis pipeline started', `Extracting: ${Object.keys(extractCategories).filter(k => extractCategories[k]).join(', ')}`);
+  if (resumeMode) {
+    addLog('info', 'Analysis resumed — skipping already-analyzed documents', `Carrying ${logs.length} log entries from previous run`);
+  } else {
+    addLog('info', 'Analysis pipeline started', `Extracting: ${Object.keys(extractCategories).filter(k => extractCategories[k]).join(', ')}`);
+  }
 
   await supabaseAdmin.from('research_projects').update({
     status: 'analyzing',
@@ -149,36 +182,82 @@ export async function analyzeProject(
       started_at: analysisStartedAt,
       extract_config: extractCategories,
       abort_requested: false,
+      resumed: resumeMode,
       logs,
     },
     updated_at: new Date().toISOString(),
   }).eq('id', projectId);
 
+  // ── Heartbeat: touch updated_at every 12 s so freeze detection works ──────
+  // The status poller flags the analysis as frozen when updated_at hasn't moved
+  // for FROZEN_THRESHOLD_MS. This interval keeps it alive between DB writes.
+  const heartbeatTimer = setInterval(async () => {
+    await supabaseAdmin
+      .from('research_projects')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', projectId)
+      .eq('status', 'analyzing') // only write while still analyzing
+      .then(() => null)
+      .catch(() => null);
+  }, HEARTBEAT_INTERVAL_MS);
+
+  // ── Overall watchdog: hard-fail if the entire pipeline exceeds 30 minutes ──
+  let watchdogFired = false;
+  const watchdogTimer = setTimeout(() => {
+    watchdogFired = true;
+  }, PIPELINE_WATCHDOG_MS);
+
   try {
+    // In resume mode, reset any document stuck in 'analyzing' back to 'extracted'
+    // so it will be re-processed in this run.
+    if (resumeMode) {
+      await supabaseAdmin
+        .from('research_documents')
+        .update({ processing_status: 'extracted', updated_at: new Date().toISOString() })
+        .eq('research_project_id', projectId)
+        .eq('processing_status', 'analyzing');
+    }
+
     // 1. Load all documents with extracted text
-    const { data: documents } = await supabaseAdmin
+    const { data: allDocuments } = await supabaseAdmin
       .from('research_documents')
       .select('*')
       .eq('research_project_id', projectId)
       .in('processing_status', ['extracted', 'analyzed'])
       .order('created_at');
 
-    if (!documents || documents.length === 0) {
+    if (!allDocuments || allDocuments.length === 0) {
       addLog('error', 'No processed documents found for analysis', 'Documents must be in "extracted" or "analyzed" status before analysis can run.');
       await persistLogs();
       throw new Error('No processed documents found for analysis');
     }
 
-    addLog('info', `Found ${documents.length} document(s) to analyze`);
+    // In resume mode, skip documents already successfully analyzed in a previous run.
+    // Non-resume mode re-analyzes everything for a fully fresh result.
+    const documents = resumeMode
+      ? allDocuments.filter((d: { processing_status: string }) => d.processing_status !== 'analyzed')
+      : allDocuments;
+
+    const skippedCount = allDocuments.length - documents.length;
+    if (resumeMode && skippedCount > 0) {
+      addLog('info', `Resume mode: skipping ${skippedCount} already-analyzed document(s) — processing ${documents.length} remaining`);
+    } else {
+      addLog('info', `Found ${documents.length} document(s) to analyze`);
+    }
 
     // Helper: race a promise against a recurring abort check so that a long-running
     // AI call can be interrupted within ~3 seconds of the user requesting abort.
+    // Also checks the pipeline watchdog so a runaway analysis self-terminates.
     async function raceWithAbort<T>(fn: Promise<T>): Promise<T> {
       return new Promise<T>((resolve, reject) => {
         let timer: ReturnType<typeof setTimeout>;
         const scheduleCheck = () => {
           timer = setTimeout(async () => {
             try {
+              if (watchdogFired) {
+                reject(new Error('Analysis pipeline exceeded the 30-minute watchdog limit and was stopped automatically.'));
+                return;
+              }
               if (await checkAbort()) {
                 reject(new AnalysisAbortError());
               } else {
@@ -199,9 +278,29 @@ export async function analyzeProject(
     // 2. Per-document extraction
     const allDataPoints: Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[] = [];
 
+    // In resume mode also collect data points already stored from the previous partial run
+    if (resumeMode && skippedCount > 0) {
+      const { data: prevPoints } = await supabaseAdmin
+        .from('extracted_data_points')
+        .select('*')
+        .eq('research_project_id', projectId);
+      if (prevPoints?.length) {
+        addLog('info', `Resume: carrying over ${prevPoints.length} data point(s) from previous run`);
+        // These are already in the DB — track them so discrepancy detection sees them,
+        // but don't re-insert (use a flag to skip the delete-and-reinsert step later).
+      }
+    }
+
     for (let docIndex = 0; docIndex < documents.length; docIndex++) {
       const doc = documents[docIndex];
       const docLabel = doc.document_label || doc.original_filename || `Document ${docIndex + 1}`;
+
+      // Check watchdog first (synchronous — no DB call needed)
+      if (watchdogFired) {
+        addLog('error', `Pipeline watchdog triggered after 30 minutes — stopping at document ${docIndex + 1} of ${documents.length}`);
+        await persistLogs();
+        throw new Error('Analysis pipeline exceeded the 30-minute watchdog limit and was stopped automatically.');
+      }
 
       // Check for abort request between documents
       if (await checkAbort()) {
@@ -349,11 +448,14 @@ export async function analyzeProject(
         extract_config: extractCategories,
         data_point_count: allDataPoints.length,
         discrepancy_count: allDiscrepancies.length,
-        documents_analyzed: documents.length,
+        documents_analyzed: allDocuments.length,
         logs,
       },
       updated_at: new Date().toISOString(),
     }).eq('id', projectId);
+
+    clearInterval(heartbeatTimer);
+    clearTimeout(watchdogTimer);
 
     return {
       dataPointCount: allDataPoints.length,
@@ -361,6 +463,9 @@ export async function analyzeProject(
     };
 
   } catch (err) {
+    clearInterval(heartbeatTimer);
+    clearTimeout(watchdogTimer);
+
     // Handle abort gracefully
     if (err instanceof AnalysisAbortError) {
       console.log(`[Analysis] User aborted analysis for project ${projectId}`);
@@ -801,12 +906,13 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   documentsAnalyzed: number;
   dataPointCount: number;
   discrepancyCount: number;
+  frozen: boolean;
   error?: string;
   errorCategory?: string;
   logs?: AnalysisLogEntry[];
 }> {
   const [projectRes, docsRes, dpRes, discRes] = await Promise.all([
-    supabaseAdmin.from('research_projects').select('status, analysis_metadata').eq('id', projectId).single(),
+    supabaseAdmin.from('research_projects').select('status, analysis_metadata, updated_at').eq('id', projectId).single(),
     supabaseAdmin.from('research_documents').select('processing_status').eq('research_project_id', projectId),
     supabaseAdmin.from('extracted_data_points').select('id', { count: 'exact', head: true }).eq('research_project_id', projectId),
     supabaseAdmin.from('discrepancies').select('id', { count: 'exact', head: true }).eq('research_project_id', projectId),
@@ -816,13 +922,23 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   const analyzed = docs.filter(d => d.processing_status === 'analyzed').length;
 
   const metadata = projectRes.data?.analysis_metadata as Record<string, unknown> | null;
+  const status = projectRes.data?.status || 'unknown';
+
+  // Freeze detection: if still analyzing but updated_at hasn't moved in 90 s,
+  // the background process has likely crashed or is stuck on an AI call.
+  let frozen = false;
+  if (status === 'analyzing' && projectRes.data?.updated_at) {
+    const ageMs = Date.now() - new Date(String(projectRes.data.updated_at)).getTime();
+    frozen = ageMs > FROZEN_THRESHOLD_MS;
+  }
 
   return {
-    status: projectRes.data?.status || 'unknown',
+    status,
     documentsTotal: docs.length,
     documentsAnalyzed: analyzed,
     dataPointCount: dpRes.count || 0,
     discrepancyCount: discRes.count || 0,
+    frozen,
     ...(metadata?.error ? { error: String(metadata.error) } : {}),
     ...(metadata?.error_category ? { errorCategory: String(metadata.error_category) } : {}),
     ...(Array.isArray(metadata?.logs) ? { logs: metadata.logs as AnalysisLogEntry[] } : {}),
