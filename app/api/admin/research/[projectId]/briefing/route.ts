@@ -163,6 +163,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (project.property_address) {
     summaryLines.push(`Property: ${project.property_address}${project.county ? `, ${project.county} County` : ''}${project.state ? `, ${project.state}` : ''}.`);
   }
+  if (project.parcel_id) {
+    summaryLines.push(`CAD Property ID: ${project.parcel_id}.`);
+  }
 
   // Legal description / lot-block
   const legalSummary = legalRefs.filter(r => r.category === 'legal_description' || r.category === 'lot_block' || r.category === 'subdivision_name');
@@ -267,6 +270,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         data_point_count: dataPoints.length,
         document_count: docMap.size,
         generated_at: new Date().toISOString(),
+        property_id: project.parcel_id ?? null,
       },
     },
   });

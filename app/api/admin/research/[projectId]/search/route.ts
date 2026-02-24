@@ -110,6 +110,18 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   const imported: string[] = [];
 
   for (const result of body.results) {
+    // Skip if a document with the same source URL already exists
+    const { data: existingResult } = await supabaseAdmin
+      .from('research_documents')
+      .select('id')
+      .eq('research_project_id', projectId)
+      .eq('source_url', result.url)
+      .maybeSingle();
+    if (existingResult) {
+      imported.push(existingResult.id);
+      continue;
+    }
+
     // Create a research_documents row for each imported result
     const { data: doc, error: docError } = await supabaseAdmin
       .from('research_documents')

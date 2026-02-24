@@ -29,6 +29,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Content must be at least 10 characters' }, { status: 400 });
   }
 
+  // Skip if a manual entry with identical content already exists in this project
+  const trimmedContent = content.trim();
+  const { data: existingManual } = await supabaseAdmin
+    .from('research_documents')
+    .select('id')
+    .eq('research_project_id', projectId)
+    .eq('source_type', 'manual_entry')
+    .eq('extracted_text', trimmedContent)
+    .maybeSingle();
+  if (existingManual) {
+    return NextResponse.json({ document: existingManual }, { status: 200 });
+  }
+
   // Create document record with text already populated
   const { data: doc, error } = await supabaseAdmin
     .from('research_documents')
@@ -37,10 +50,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       source_type: 'manual_entry',
       original_filename: null,
       file_type: 'txt',
-      file_size_bytes: Buffer.byteLength(content, 'utf-8'),
+      file_size_bytes: Buffer.byteLength(trimmedContent, 'utf-8'),
       document_type: document_type || null,
       document_label: document_label || 'Manual Entry',
-      extracted_text: content.trim(),
+      extracted_text: trimmedContent,
       extracted_text_method: 'manual',
       processing_status: 'extracted',
       recording_info: recording_info || null,

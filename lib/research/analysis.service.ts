@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { callAI, callVision, AIServiceError } from './ai-client';
 import { fetchSourceContent } from './document-analysis.service';
+import { fetchBoundaryCalls, extractPublicsearchItems } from './boundary-fetch.service';
 import {
   normalizeBearing,
   normalizeDistance,
@@ -127,6 +128,10 @@ const PROPERTY_CONTENT_KEYWORDS: RegExp[] = [
   /\b(abstract|survey\s+no|geo\s+id)\s*:?\s*[A-Z0-9-]+\b/i,
   /\blegal\s+desc(ription)?\s*:/i,
   /\brecorded\s+(in|at|under)\b/i,
+  /\bproperty\s+id\s*:/i,
+  /\bCAD\s+(property|parcel|record)\b/i,
+  /\binstrument\s+(id|list|detail|no\.?)\b/i,
+  /\bgrantor[s]?\b.*\bgrantee[s]?\b/is,
   // ── Secondary: easements, improvements & other property context ───────────
   /\beasement\b/i,
   /\bsetback[s]?\b/i,
@@ -144,7 +149,7 @@ const PROPERTY_CONTENT_KEYWORDS: RegExp[] = [
 ];
 
 const MIN_USEFUL_LENGTH = 120; // chars — anything shorter is definitely empty
-const ENRICH_THRESHOLD   = 600; // chars — below this, try to fetch better content
+const ENRICH_THRESHOLD   = 1500; // chars — below this, try to fetch better content
 
 function screenDocument(doc: ResearchDocument): DocScreenResult {
   const raw = (doc.extracted_text ?? '').trim();
@@ -277,6 +282,9 @@ async function followChainOfTitle(
       volume?: string | null;
       page?: string | null;
       instrument?: string | null;
+      cabinet?: string | null;
+      slide?: string | null;
+      type?: string | null;
     } | null;
     if (!norm) continue;
 
@@ -290,6 +298,15 @@ async function followChainOfTitle(
       // Many clerk portals accept "vol-page" as a free-text search
       query    = `${norm.volume.trim()}-${norm.page.trim()}`;
       refLabel = `Vol. ${norm.volume.trim()}, Pg. ${norm.page.trim()}`;
+    } else {
+      // Cabinet/Slide plat references — search by "Cabinet X Slide Y"
+      const cabMatch = (dp.raw_value ?? '').match(
+        /[Cc]ab(?:inet)?\.?\s*([A-Z0-9]+)[,\s]+[Ss]l(?:i(?:de)?)?\.?\s*([0-9A-Z]+)/,
+      );
+      if (cabMatch) {
+        query    = `Cabinet ${cabMatch[1]} Slide ${cabMatch[2]}`;
+        refLabel = `Plat Cabinet ${cabMatch[1]}, Slide ${cabMatch[2]}`;
+      }
     }
     if (!query || !refLabel) continue;
 
@@ -312,17 +329,78 @@ async function followChainOfTitle(
         clearTimeout(timer);
       }
 
-      if (!res.ok) { addLog('warn', `[Chain] ${refLabel}: HTTP ${res.status}`); continue; }
+      if (!res.ok) { addLog('warn', `[Chain] ${refLabel}: HTML search HTTP ${res.status} — trying JSON API`); }
 
-      const html = await res.text();
-      const text = html
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      const html = res.ok ? await res.text() : '';
+      let text = html
+        .replace(/<script\b[\s\S]*?(?:<\/script>|$)/gi, '')
+        .replace(/<style\b[\s\S]*?(?:<\/style>|$)/gi, '')
         .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
 
-      if (text.length < 100) { addLog('warn', `[Chain] ${refLabel}: response was empty`); continue; }
+      // publicsearch.us is a React SPA — the HTML shell may be empty.
+      // Fall back to the JSON REST API which is the real data source.
+      if (text.length < 200) {
+        const origin = `https://${subdomain}`;
+        const apiHeaders = {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Referer': origin + '/',
+          'Origin': origin,
+        };
+        const apiEndpoints = [
+          `${origin}/api/instruments?searchText=${encodeURIComponent(query)}&pageSize=20`,
+          `${origin}/api/v1/instruments?q=${encodeURIComponent(query)}&pageSize=20`,
+          `${origin}/api/instruments?q=${encodeURIComponent(query)}&limit=20`,
+        ];
+        for (const apiEp of apiEndpoints) {
+          try {
+            const apiController = new AbortController();
+            const apiTimer = setTimeout(() => apiController.abort(), 20_000);
+            let apiRes: Response;
+            try {
+              apiRes = await fetch(apiEp, { headers: apiHeaders, signal: apiController.signal });
+            } finally { clearTimeout(apiTimer); }
+
+            if (!apiRes.ok) continue;
+            const ct = apiRes.headers.get('content-type') ?? '';
+            if (!ct.includes('json')) continue;
+            const data = await apiRes.json() as unknown;
+            const items = extractPublicsearchItems(data);
+            if (items.length > 0) {
+              const lines: string[] = [`Chain-of-title search results (JSON API) for: ${query}`, ''];
+              for (const inst of items.slice(0, 10)) {
+                const iId   = String(inst.id ?? inst.instrumentId ?? '');
+                const iType = String(inst.type ?? inst.instrumentType ?? '');
+                const iDate = String(inst.recordedDate ?? inst.instrumentDate ?? '');
+                const iVol  = String(inst.volume ?? inst.Volume ?? '');
+                const iPg   = String(inst.page ?? inst.Page ?? '');
+                const iGr   = String(inst.grantors ?? inst.Grantors ?? '');
+                const iGe   = String(inst.grantees ?? inst.Grantees ?? '');
+                const iDesc = String(inst.description ?? inst.Description ?? '');
+                lines.push(`Instrument ID: ${iId}`);
+                if (iType) lines.push(`  Type: ${iType}`);
+                if (iDesc) lines.push(`  Description: ${iDesc}`);
+                if (iDate) lines.push(`  Recorded: ${iDate}`);
+                if (iVol || iPg) lines.push(`  Volume: ${iVol}, Page: ${iPg}`);
+                if (iGr) lines.push(`  Grantors: ${iGr}`);
+                if (iGe) lines.push(`  Grantees: ${iGe}`);
+                lines.push('');
+              }
+              text = lines.join('\n');
+              addLog('info', `[Chain] ${refLabel}: retrieved ${items.length} instrument(s) from JSON API`);
+              break;
+            }
+          } catch { /* try next endpoint */ }
+        }
+      }
+
+      if (text.length < 100) { addLog('warn', `[Chain] ${refLabel}: response was empty (both HTML and JSON API)`); continue; }
+
+      // Detect whether the fetched content is JSON (from the REST API) or HTML
+      const chainFileType = text.trimStart().startsWith('{') || text.trimStart().startsWith('[') ? 'json' : 'html';
+      const chainExtractedMethod = chainFileType === 'json' ? 'publicsearch-api' : 'http_fetch';
 
       // Store as a new research_document
       const { data: newDoc } = await supabaseAdmin
@@ -333,10 +411,10 @@ async function followChainOfTitle(
           document_type: 'deed',
           document_label: `Chain of Title — ${refLabel}`,
           source_url: searchUrl,
-          file_type: 'html',
+          file_type: chainFileType,
           processing_status: 'extracted',
-          extracted_text: text.substring(0, 40_000), // research_documents.extracted_text column limit
-          extracted_text_method: 'http_fetch',
+          extracted_text: text.substring(0, 40_000),
+          extracted_text_method: chainExtractedMethod,
           recording_info: `Chain-of-title reference: ${refLabel}`,
         })
         .select('id, created_at, updated_at')
@@ -353,10 +431,10 @@ async function followChainOfTitle(
         document_type: 'deed',
         document_label: `Chain of Title — ${refLabel}`,
         source_url: searchUrl,
-        file_type: 'html',
+        file_type: chainFileType,
         processing_status: 'extracted',
         extracted_text: text,
-        extracted_text_method: 'http_fetch',
+        extracted_text_method: chainExtractedMethod,
         recording_info: `Chain-of-title reference: ${refLabel}`,
         created_at: newDoc.created_at,
         updated_at: newDoc.updated_at,
@@ -507,7 +585,7 @@ export async function analyzeProject(
     // Load the project's county key for chain-of-title following (Layer 2E)
     const { data: projectRow } = await supabaseAdmin
       .from('research_projects')
-      .select('county')
+      .select('county, property_address, parcel_id')
       .eq('id', projectId)
       .single();
     const countyKey = (projectRow?.county ?? '')
@@ -541,6 +619,105 @@ export async function analyzeProject(
       addLog('info', `Resume mode: skipping ${skippedCount} already-analyzed document(s) — processing ${documents.length} remaining`);
     } else {
       addLog('info', `Found ${documents.length} document(s) to analyze`);
+    }
+
+    // ── Pre-analysis: Auto-fetch property data from county CAD ─────────────────────────────
+    // If the project has no document containing a rich legal description or
+    // appraisal record from the CAD (>300 chars, sourced from property_search),
+    // call fetchBoundaryCalls to retrieve the property record automatically.
+    // This ensures boundary data is always available for analysis even when
+    // the boundary-calls route was never manually triggered.
+    const hasRichCadDoc = allDocuments.some((d: ResearchDocument) =>
+      d.source_type === 'property_search' &&
+      (d.document_type === 'legal_description' || d.document_type === 'appraisal_record') &&
+      (d.extracted_text ?? '').length > 300,
+    );
+
+    if (!hasRichCadDoc && projectRow?.property_address && countyKey) {
+      addLog('info', '[Prefetch] No CAD property document found — auto-fetching from county records…');
+      type ProjectRowFull = { county: string; property_address: string | null; parcel_id: string | null };
+      const projectRowFull = projectRow as ProjectRowFull;
+      try {
+        const prefetchResult = await fetchBoundaryCalls({
+          address: projectRow.property_address,
+          county: countyKey,
+          parcel_id: projectRowFull.parcel_id ?? undefined,
+        });
+
+        if (prefetchResult.property_id) {
+          addLog('info', `[PROPERTY ID FOUND] ✓ CAD property ID: ${prefetchResult.property_id}`, prefetchResult.source_name);
+          // Save property ID to project if not already set
+          if (!projectRowFull.parcel_id) {
+            await supabaseAdmin.from('research_projects').update({
+              parcel_id: prefetchResult.property_id,
+              updated_at: new Date().toISOString(),
+            }).eq('id', projectId);
+          }
+        }
+
+        const hasPrefetchData = prefetchResult.property || prefetchResult.legal_description;
+        if (hasPrefetchData) {
+          const textParts: string[] = [];
+          if (prefetchResult.property?.owner_name)      textParts.push(`Owner: ${prefetchResult.property.owner_name}`);
+          if (prefetchResult.property?.property_address) textParts.push(`Address: ${prefetchResult.property.property_address}`);
+          if (prefetchResult.property?.acreage != null)  textParts.push(`Acreage: ${prefetchResult.property.acreage} acres`);
+          if (prefetchResult.property?.deed_reference)   textParts.push(`Deed Reference: ${prefetchResult.property.deed_reference}`);
+          if (prefetchResult.property?.abstract)         textParts.push(`Abstract: ${prefetchResult.property.abstract}`);
+          if (prefetchResult.property?.subdivision)      textParts.push(`Subdivision: ${prefetchResult.property.subdivision}`);
+          if (prefetchResult.property?.lot_block)        textParts.push(`Lot/Block: ${prefetchResult.property.lot_block}`);
+          if (prefetchResult.property?.property_id)      textParts.push(`Property ID: ${prefetchResult.property.property_id}`);
+          if (prefetchResult.legal_description) {
+            textParts.push('', 'LEGAL DESCRIPTION:', prefetchResult.legal_description);
+          }
+          const prefetchText = textParts.filter(Boolean).join('\n');
+
+          if (prefetchText.length > 100) {
+            const prefetchLabel = prefetchResult.property?.owner_name
+              ? `CAD Property Data — ${prefetchResult.property.owner_name}`
+              : `CAD Property Data — ${projectRow.property_address}`;
+
+            // Check for existing document to avoid duplicates
+            const { data: existingPrefetch } = await supabaseAdmin
+              .from('research_documents')
+              .select('id')
+              .eq('research_project_id', projectId)
+              .eq('document_label', prefetchLabel)
+              .eq('source_type', 'property_search')
+              .maybeSingle();
+
+            if (!existingPrefetch) {
+              const { data: newPrefetchDoc } = await supabaseAdmin.from('research_documents').insert({
+                research_project_id: projectId,
+                source_type: 'property_search',
+                document_type: prefetchResult.legal_description ? 'legal_description' : 'appraisal_record',
+                document_label: prefetchLabel,
+                source_url: prefetchResult.source_url ?? null,
+                file_type: 'txt',
+                processing_status: 'extracted',
+                extracted_text: prefetchText.substring(0, 40_000),
+                extracted_text_method: 'trueautomation-api',
+                recording_info: prefetchResult.property?.deed_reference ?? null,
+              }).select('*').single();
+
+              if (newPrefetchDoc) {
+                allDocuments.push(newPrefetchDoc as ResearchDocument);
+                if (!resumeMode || (newPrefetchDoc as { processing_status: string }).processing_status !== 'analyzed') {
+                  documents.push(newPrefetchDoc as ResearchDocument);
+                }
+                addLog('success', `[Prefetch] Stored CAD data document — "${prefetchLabel}" (${prefetchText.length} chars)`);
+              }
+            } else {
+              addLog('info', `[Prefetch] CAD data document already exists — skipping`);
+            }
+          }
+        } else {
+          addLog('warn', '[Prefetch] County CAD returned no property data', prefetchResult.error ?? 'Unknown reason');
+        }
+      } catch (prefetchErr) {
+        addLog('warn', '[Prefetch] Auto-fetch failed (non-fatal)', prefetchErr instanceof Error ? prefetchErr.message : String(prefetchErr));
+      }
+    } else if (projectRow?.property_address && !countyKey) {
+      addLog('info', '[Prefetch] Skipping CAD prefetch — county not identified');
     }
 
     // Helper: race a promise against a recurring abort check so that a long-running

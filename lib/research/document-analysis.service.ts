@@ -3,7 +3,7 @@
 // DATA_EXTRACTOR pipeline captures. Designed for survey-quality comprehension.
 
 import { callAI } from './ai-client';
-import { fetchBoundaryCalls } from './boundary-fetch.service';
+import { fetchBoundaryCalls, stripStreetTypeSuffix, extractPropertyIdsFromEsearchHtml, extractPublicsearchItems } from './boundary-fetch.service';
 import type {
   DeepDocumentAnalysis,
   LegalDescriptionAnalysis,
@@ -124,7 +124,26 @@ export async function fetchSourceContent(
   // ── TrueAutomation JSON API ───────────────────────────────────────────────
   if (host.includes('trueautomation.com')) {
     const cid = parsedUrl.searchParams.get('cid');
-    const propId = parsedUrl.searchParams.get('prop_id') ?? opts.propertyId;
+    let propId = parsedUrl.searchParams.get('prop_id') ?? opts.propertyId;
+
+    // If no prop_id, try address-based search to resolve it
+    if (cid && !propId && opts.address) {
+      const streetOnly = opts.address.split(',')[0].replace(/\./g, '').trim();
+      try {
+        const searchRes = await fetch(
+          `https://propaccess.trueautomation.com/clientdb/api/v1/app/search/address?cid=${cid}&q=${encodeURIComponent(streetOnly)}`,
+          { signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS), headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' } },
+        );
+        if (searchRes.ok) {
+          const searchData = await searchRes.json() as Record<string, unknown>;
+          const hits = Array.isArray(searchData) ? searchData : ((searchData?.data ?? []) as unknown[]);
+          if (Array.isArray(hits) && hits.length > 0) {
+            propId = String((hits[0] as Record<string, unknown>).prop_id ?? '');
+          }
+        }
+      } catch { /* fall through */ }
+    }
+
     if (cid && propId) {
       try {
         const apiUrl = `https://propaccess.trueautomation.com/clientdb/api/v1/app/properties` +
@@ -168,25 +187,162 @@ export async function fetchSourceContent(
     } catch { /* fall through */ }
   }
 
-  // ── publicsearch.us instruments API ──────────────────────────────────────
+  // ── eSearch CAD address/account search URL → resolve property ID + fetch view ──
+  if (host.includes('esearch.') && parsedUrl.pathname.toLowerCase().includes('/property/search')) {
+    const searchVal = parsedUrl.searchParams.get('value') ?? parsedUrl.searchParams.get('q') ?? '';
+    const year = parsedUrl.searchParams.get('year') ?? String(new Date().getFullYear());
+    if (searchVal) {
+      const baseUrl = `${parsedUrl.protocol}//${parsedUrl.host}`;
+      // Try keyword HTML search first (most reliable for address queries)
+      const streetOnly = searchVal.split(',')[0].replace(/\./g, '').trim().toUpperCase();
+      const houseMatch = streetOnly.match(/^(\d+)\s+(.+)$/);
+      if (houseMatch) {
+        const houseNum = houseMatch[1];
+        const streetName = stripStreetTypeSuffix(houseMatch[2].trim());
+        const keywords = `StreetNumber:${houseNum} StreetName:${streetName} `;
+        try {
+          const kwRes = await fetch(`${baseUrl}/search/result?keywords=${encodeURIComponent(keywords)}`, {
+            signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
+            headers: { 'Accept': 'text/html', 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
+          });
+          if (kwRes.ok) {
+            const kwHtml = await kwRes.text();
+            const ids = extractPropertyIdsFromEsearchHtml(kwHtml);
+            if (ids.length > 0) {
+              const viewUrl = `${baseUrl}/Property/View/${ids[0]}?year=${year}`;
+              const viewRes = await fetch(viewUrl, {
+                signal: AbortSignal.timeout(SOURCE_FETCH_TIMEOUT_MS),
+                headers: { 'Accept': 'text/html', 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
+              });
+              if (viewRes.ok) {
+                const viewText = stripHtmlToText(await viewRes.text());
+                if (viewText.length > 200) return { text: viewText.substring(0, 25000), method: 'esearch-view-from-search' };
+              }
+            }
+          }
+        } catch { /* fall through */ }
+      }
+    }
+  }
+
+  // ── publicsearch.us instruments API ─────────────────────────────────────
+  // Tyler Technologies React SPA — the HTML page is nearly empty (JS-rendered).
+  // All data comes from their JSON REST API. We probe several known endpoint
+  // patterns and return the richest result found.
   if (host.includes('publicsearch.us')) {
-    const q = parsedUrl.searchParams.get('q') ?? opts.propertyId;
-    if (q) {
-      const origin = parsedUrl.origin;
-      for (const ep of [
-        `${origin}/api/instruments?searchText=${encodeURIComponent(q)}&pageSize=5`,
-        `${origin}/api/documents?search=${encodeURIComponent(q)}&limit=5`,
-        `${origin}/instruments?search=index,fullText&q=${encodeURIComponent(q)}`,
+    const q = parsedUrl.searchParams.get('q') ?? opts.propertyId ?? '';
+    const origin = parsedUrl.origin;
+    const hdrs = {
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Referer': origin + '/',
+      'Origin': origin,
+    };
+
+    // ── Step A: Fetch instrument list ──────────────────────────────────────
+    // Tyler Tech uses several API versions; try all known patterns.
+    const searchEndpoints = q ? [
+      `${origin}/api/instruments?searchText=${encodeURIComponent(q)}&pageSize=20`,
+      `${origin}/api/v1/instruments?q=${encodeURIComponent(q)}&pageSize=20`,
+      `${origin}/api/instruments?q=${encodeURIComponent(q)}&limit=20`,
+      `${origin}/api/instruments?propertyId=${encodeURIComponent(q)}&pageSize=20`,
+      `${origin}/api/search?q=${encodeURIComponent(q)}&type=instruments&pageSize=20`,
+    ] : [];
+
+    let instruments: Array<Record<string, unknown>> = [];
+    let instrumentsEndpoint = '';
+    for (const ep of searchEndpoints) {
+      try {
+        const res = await fetch(ep, { signal: AbortSignal.timeout(12_000), headers: hdrs });
+        if (!res.ok) continue;
+        const ct = res.headers.get('content-type') ?? '';
+        if (!ct.includes('json')) continue;
+        const data = await res.json() as Record<string, unknown>;
+        // Handle various response shapes
+        const items = extractPublicsearchItems(data);
+        if (items.length > 0) { instruments = items; instrumentsEndpoint = ep; break; }
+      } catch { /* try next */ }
+    }
+
+    if (instruments.length === 0 && q) {
+      // No JSON API worked — return whatever we can from the HTML shell
+      // (it at least contains the query URL for display purposes)
+      return null;
+    }
+
+    if (instruments.length > 0) {
+      // ── Step B: Build a rich text block from instrument metadata ────────
+      const lines: string[] = [`publicsearch.us instrument search results for: ${q}`, ''];
+      for (const inst of instruments.slice(0, 10)) {
+        const id   = inst.id ?? inst.instrumentId ?? inst.InstrumentId ?? '';
+        const type = inst.type ?? inst.instrumentType ?? inst.InstrumentType ?? '';
+        const desc = inst.description ?? inst.Description ?? inst.grantors ?? '';
+        const date = inst.recordedDate ?? inst.instrumentDate ?? inst.Date ?? '';
+        const vol  = inst.volume ?? inst.Volume ?? '';
+        const pg   = inst.page ?? inst.Page ?? '';
+        const grantors   = inst.grantors   ?? inst.Grantors   ?? '';
+        const grantees   = inst.grantees   ?? inst.Grantees   ?? '';
+        lines.push(`Instrument ID: ${id}`);
+        if (type)     lines.push(`  Type: ${type}`);
+        if (desc)     lines.push(`  Description: ${desc}`);
+        if (date)     lines.push(`  Recorded: ${date}`);
+        if (vol || pg) lines.push(`  Volume: ${vol}, Page: ${pg}`);
+        if (grantors)  lines.push(`  Grantors: ${grantors}`);
+        if (grantees)  lines.push(`  Grantees: ${grantees}`);
+        lines.push('');
+      }
+
+      // ── Step C: Fetch the first deed instrument's full details ───────────
+      const firstId = instruments[0]?.id ?? instruments[0]?.instrumentId;
+      if (firstId) {
+        for (const detailEp of [
+          `${origin}/api/instruments/${firstId}`,
+          `${origin}/api/v1/instruments/${firstId}`,
+        ]) {
+          try {
+            const res = await fetch(detailEp, { signal: AbortSignal.timeout(10_000), headers: hdrs });
+            if (!res.ok) continue;
+            const ct = res.headers.get('content-type') ?? '';
+            if (!ct.includes('json')) continue;
+            const detail = await res.json() as Record<string, unknown>;
+            lines.push('--- First Instrument Detail ---');
+            lines.push(JSON.stringify(detail, null, 2).substring(0, 8000));
+            break;
+          } catch { /* try next */ }
+        }
+      }
+
+      const text = lines.join('\n').substring(0, 25000);
+      if (text.length > 100) return { text, method: `publicsearch-api:${instrumentsEndpoint}` };
+    }
+  }
+
+  // ── Bell County GIS / BIS Client parcel viewer ────────────────────────
+  if (host === 'bisclient.com' || host.endsWith('.bisclient.com')) {
+    // Try their ArcGIS REST API for parcel attributes
+    const parcelId = parsedUrl.searchParams.get('parcel') ?? parsedUrl.searchParams.get('id')
+      ?? parsedUrl.searchParams.get('prop_id') ?? opts.propertyId;
+    if (parcelId) {
+      for (const layerUrl of [
+        'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/MapServer/0',
+        'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/FeatureServer/0',
       ]) {
         try {
-          const res = await fetch(ep, {
-            signal: AbortSignal.timeout(15_000),
-            headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' },
-          });
+          // ArcGIS REST API does not support parameterized queries; input is sanitized
+          // to alphanumeric + safe punctuation only before use in the WHERE clause.
+          const safe = parcelId.replace(/[^A-Za-z0-9 .#-]/g, '').trim();
+          const where = `PROP_ID='${safe}' OR PARCEL_ID='${safe}'`;
+          const url = `${layerUrl}/query?where=${encodeURIComponent(where)}&outFields=*&returnGeometry=false&f=json`;
+          const res = await fetch(url, { signal: AbortSignal.timeout(12_000),
+            headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)' } });
           if (!res.ok) continue;
-          if (!(res.headers.get('content-type') ?? '').includes('application/json')) continue;
-          const text = JSON.stringify(await res.json(), null, 2).substring(0, 25000);
-          if (text.length > 50) return { text, method: 'publicsearch-api' };
+          const json = await res.json() as Record<string, unknown>;
+          const features = (json as { features?: Array<{ attributes?: Record<string, unknown> }> }).features;
+          if (features && features.length > 0) {
+            const attrs = features[0].attributes ?? {};
+            const lines = Object.entries(attrs).filter(([, v]) => v != null && String(v).trim()).map(([k, v]) => `${k}: ${v}`);
+            if (lines.length > 3) return { text: lines.join('\n').substring(0, 25000), method: 'arcgis-parcel-attrs' };
+          }
         } catch { /* try next */ }
       }
     }
