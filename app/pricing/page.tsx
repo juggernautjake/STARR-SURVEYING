@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import GoogleAdsScript from '../components/GoogleAdsScript';
 
 // Import Pricing page styles
 import '../styles/Pricing.css';
@@ -60,6 +61,7 @@ export default function PricingPage() {
 
   return (
     <>
+      <GoogleAdsScript />
       {/* Hero Section */}
       <section className="pricing-hero">
         <div className="pricing-hero__container">

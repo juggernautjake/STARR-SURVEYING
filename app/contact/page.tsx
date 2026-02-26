@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, FormEvent, ChangeEvent } from 'react';
 import { OFFICE_ADDRESS, OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '../components/ServiceAreaMap';
 import { trackConversion } from '../utils/gtag';
+import GoogleAdsScript from '../components/GoogleAdsScript';
 
 // Import Contact page styles
 import '../styles/Contact.css';
@@ -188,6 +189,7 @@ export default function ContactPage(): React.ReactElement {
 
   return (
     <>
+      <GoogleAdsScript />
       {/* Hero Section */}
       <section className="contact-hero">
         <div className="contact-hero__container">
