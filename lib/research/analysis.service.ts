@@ -90,16 +90,20 @@ const EMPTY_DOC_PATTERNS: RegExp[] = [
   /service\s+unavailable/i,
   /no\s+records?\s+found/i,
   /loading\s+results?\s*\.{0,3}\s*$/i,     // page still "Loading Results..."
-  /search\s+(interface|portal|form|system)/i,
+  /this\s+is\s+a\s+search\s+(interface|portal|form|system)/i,  // "this is a search form" (not "e-Search portal")
   /enter.*address.*to\s+(search|begin)/i,
   /select.*county.*to\s+(search|continue)/i,
-  /(grantor|grantee)\s+(name|field|box|input)/i,  // search form label text
   /this\s+is\s+a\s+web\s+(interface|page|form)\s+screenshot/i,
   /this\s+is\s+not\s+a\s+(legal\s+description|deed|plat|property\s+record)/i,
   /no\s+(actual|real|specific)\s+property\s+(data|information)/i,
   /contains\s+(only|just)\s+(navigation|HTML\s+form|search\s+field)/i,
   /web\s+(application|app)\s+(URL|link)\s*,?\s*not\s+a\s+recorded/i,
 ];
+
+// Patterns that require a colon or bracket after the grantor/grantee phrase so that
+// form-field labels ("Grantor Name:") are still caught but plain descriptions
+// ("Search by grantor/grantee name, document type …") are not.
+const GRANTOR_GRANTEE_FORM_PATTERN = /(grantor|grantee)\s+(name|field|box|input)\s*[:\[]/i;
 
 // At least ONE of these keywords must be present for a document to be worth analyzing.
 // PRIMARY: core boundary/deed concepts — these are the main focus.
@@ -168,10 +172,21 @@ function screenDocument(doc: ResearchDocument): DocScreenResult {
     return { action: 'skip', reason: `Content too short (${raw.length} chars — minimum ${MIN_USEFUL_LENGTH})` };
   }
 
-  // Known-empty patterns — immediate skip
-  for (const pat of EMPTY_DOC_PATTERNS) {
-    if (pat.test(raw)) {
-      return { action: 'skip', reason: `Matches empty-document pattern (${pat.source.substring(0, 60)})` };
+  // Documents created by the property-search pipeline are synthetic reference links
+  // (URL + description text), not scraped web pages.  The empty-page patterns were
+  // designed for actual browser captures and do not apply here — skip that check.
+  const isPropertySearchDoc = doc.extracted_text_method === 'property_search';
+
+  if (!isPropertySearchDoc) {
+    // Known-empty patterns — immediate skip
+    for (const pat of EMPTY_DOC_PATTERNS) {
+      if (pat.test(raw)) {
+        return { action: 'skip', reason: `Matches empty-document pattern (${pat.source.substring(0, 60)})` };
+      }
+    }
+    // Tighter grantor/grantee form-label check (requires colon or bracket after the phrase)
+    if (GRANTOR_GRANTEE_FORM_PATTERN.test(raw)) {
+      return { action: 'skip', reason: `Matches grantor/grantee form-label pattern` };
     }
   }
 
