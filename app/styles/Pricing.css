@@ -26,7 +26,7 @@
    ============================================================================= */
 .pricing-hero {
   position: relative;
-  background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+  background: var(--gradient-hero);
   padding-top: 150px;
   padding-left: 2rem;
   padding-right: 2rem;
@@ -41,10 +41,10 @@
 
 .pricing-hero__card {
   background: #FFFFFF;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 2.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  border: 3px solid #1D3095;
+  border: 3px solid var(--brand-blue);
   text-align: center;
 }
 
@@ -52,20 +52,20 @@
   font-family: 'Sora', sans-serif;
   font-size: 2.25rem;
   font-weight: 700;
-  color: #0F1419;
+  color: var(--brand-dark);
   line-height: 1.15;
   margin-bottom: 1rem;
   letter-spacing: -0.02em;
 }
 
 .pricing-hero__title-accent {
-  color: #BD1218;
+  color: var(--brand-red);
 }
 
 .pricing-hero__subtitle {
   font-family: 'Inter', sans-serif;
   font-size: 1.05rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   line-height: 1.7;
   margin: 0;
   max-width: 550px;
@@ -127,7 +127,7 @@
    2.5. CALCULATOR HIGHLIGHT BANNER - NEW
    ============================================================================= */
 .pricing-calculator-highlight {
-  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  background: var(--gradient-green);
   padding: 1.5rem 2rem;
   overflow-x: hidden;
   position: relative;
@@ -159,7 +159,7 @@
 
 .pricing-calculator-highlight__badge {
   background: #FFFFFF;
-  color: #059669;
+  color: var(--brand-green-dark);
   font-family: 'Sora', sans-serif;
   font-size: 0.7rem;
   font-weight: 700;
@@ -210,7 +210,7 @@
 .pricing-calculator {
   padding: 1.5rem 2rem;
   background: #FFFFFF;
-  border-top: 4px solid #1D3095;
+  border-top: 4px solid var(--brand-blue);
   overflow-x: hidden;
 }
 
@@ -226,23 +226,23 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem 1.5rem;
-  background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
-  border: 3px solid #1D3095;
-  border-radius: 12px;
+  background: var(--gradient-blue);
+  border: 3px solid var(--brand-blue);
+  border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--transition-normal);
   font-family: inherit;
 }
 
 .pricing-calculator__toggle:hover {
-  background: linear-gradient(135deg, #2545b8 0%, #1D3095 100%);
+  background: linear-gradient(135deg, #2545b8 0%, var(--brand-blue) 100%);
   border-color: #2545b8;
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(29, 48, 149, 0.3);
 }
 
 .pricing-calculator__toggle--expanded {
-  border-radius: 12px 12px 0 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   border-bottom: none;
 }
 
@@ -284,7 +284,7 @@
 .pricing-calculator__toggle-arrow {
   font-size: 1.25rem;
   color: #FFFFFF;
-  transition: transform 0.3s ease;
+  transition: transform var(--transition-normal);
   flex-shrink: 0;
 }
 
@@ -297,10 +297,10 @@
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.4s ease-out;
-  background: #F8F9FA;
-  border: 3px solid #1D3095;
+  background: var(--brand-light);
+  border: 3px solid var(--brand-blue);
   border-top: none;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
 .pricing-calculator__content--expanded {
@@ -318,7 +318,7 @@
   color: #92400E;
   background: #FEF3C7;
   padding: 0.75rem 1rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border-left: 4px solid #F59E0B;
   margin-bottom: 1.5rem;
 }
@@ -328,7 +328,7 @@
   background: #FFFFFF;
   border-radius: 10px;
   padding: 1.5rem;
-  border: 2px solid #E5E7EB;
+  border: 2px solid var(--border-color);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.25rem;
@@ -348,7 +348,7 @@
   font-family: 'Sora', sans-serif;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #0F1419;
+  color: var(--brand-dark);
   margin-bottom: 0.5rem;
 }
 
@@ -358,18 +358,18 @@
   padding: 0.75rem 1rem;
   font-family: 'Inter', sans-serif;
   font-size: 0.9rem;
-  border: 2px solid #E5E7EB;
-  border-radius: 6px;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-sm);
   background: #FFFFFF;
-  color: #0F1419;
-  transition: border-color 0.2s ease;
+  color: var(--brand-dark);
+  transition: border-color var(--transition-fast);
   box-sizing: border-box;
 }
 
 .pricing-calculator__input:focus,
 .pricing-calculator__select:focus {
   outline: none;
-  border-color: #1D3095;
+  border-color: var(--brand-blue);
 }
 
 .pricing-calculator__input::placeholder {
@@ -388,21 +388,21 @@
   gap: 0.5rem;
   font-family: 'Inter', sans-serif;
   font-size: 0.85rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 0.5rem;
   border-radius: 4px;
-  transition: background-color 0.2s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .pricing-calculator__checkbox-label:hover {
-  background: #E5E7EB;
+  background: var(--border-color);
 }
 
 .pricing-calculator__checkbox-label input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #BD1218;
+  accent-color: var(--brand-red);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -410,7 +410,7 @@
 .pricing-calculator__checkbox-label--rush {
   background: #FEF3C7;
   border: 2px solid #F59E0B;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 0.75rem;
 }
 
@@ -432,23 +432,23 @@
   font-size: 0.95rem;
   font-weight: 600;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .pricing-calculator__btn--primary {
-  background: #BD1218;
+  background: var(--brand-red);
   color: #FFFFFF;
 }
 
 .pricing-calculator__btn--primary:hover {
-  background: #9A0F14;
+  background: var(--brand-red-dark);
 }
 
 .pricing-calculator__btn--secondary {
-  background: #E5E7EB;
-  color: #4B5563;
+  background: var(--border-color);
+  color: var(--text-secondary);
 }
 
 .pricing-calculator__btn--secondary:hover {
@@ -461,7 +461,7 @@
   padding: 1.5rem;
   background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
   border-radius: 10px;
-  border: 2px solid #10B981;
+  border: 2px solid var(--brand-green);
 }
 
 .pricing-calculator__result-title {
@@ -509,7 +509,7 @@
 
 .pricing-calculator__result-breakdown {
   background: rgba(255, 255, 255, 0.6);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 1rem;
   margin-bottom: 1rem;
 }
@@ -541,7 +541,7 @@
   color: #065F46;
   background: rgba(255, 255, 255, 0.7);
   padding: 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   margin-bottom: 1.25rem;
   line-height: 1.5;
 }
@@ -562,14 +562,14 @@
   font-size: 0.9rem;
   font-weight: 600;
   text-decoration: none;
-  border-radius: 6px;
-  background: #10B981;
+  border-radius: var(--radius-sm);
+  background: var(--brand-green);
   color: #FFFFFF;
-  transition: background-color 0.2s ease;
+  transition: background-color var(--transition-fast);
 }
 
 .pricing-calculator__result-btn:hover {
-  background: #059669;
+  background: var(--brand-green-dark);
 }
 
 .pricing-calculator__result-btn--secondary {
@@ -585,8 +585,8 @@
    ============================================================================= */
 .pricing-grid {
   padding: 3.5rem 2rem;
-  background: #F8F9FA;
-  border-top: 4px solid #BD1218;
+  background: var(--brand-light);
+  border-top: 4px solid var(--brand-red);
   overflow-x: hidden;
 }
 
@@ -604,14 +604,14 @@
   font-family: 'Sora', sans-serif;
   font-size: 2rem;
   font-weight: 700;
-  color: #0F1419;
+  color: var(--brand-dark);
   margin-bottom: 0.5rem;
 }
 
 .pricing-grid__subtitle {
   font-family: 'Inter', sans-serif;
   font-size: 1rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   max-width: 600px;
   margin: 0 auto;
 }
@@ -626,14 +626,14 @@
   margin-top: 1.5rem;
   padding: 1rem;
   background: #FFFFFF;
-  border-radius: 8px;
-  border-left: 4px solid #6B7280;
+  border-radius: var(--radius-md);
+  border-left: 4px solid var(--text-muted);
 }
 
 .pricing-grid__note p {
   font-family: 'Inter', sans-serif;
   font-size: 0.8rem;
-  color: #6B7280;
+  color: var(--text-muted);
   margin: 0;
   font-style: italic;
 }
@@ -643,18 +643,18 @@
   background: #FFFFFF;
   border-radius: 10px;
   padding: 1.5rem;
-  border: 2px solid #E5E7EB;
-  border-left: 5px solid #1D3095;
-  transition: all 0.2s ease;
+  border: 2px solid var(--border-color);
+  border-left: 5px solid var(--brand-blue);
+  transition: all var(--transition-fast);
   min-width: 0;
 }
 
 .pricing-card:nth-child(even) {
-  border-left-color: #BD1218;
+  border-left-color: var(--brand-red);
 }
 
 .pricing-card:hover {
-  border-color: #BD1218;
+  border-color: var(--brand-red);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
@@ -667,32 +667,32 @@
   font-family: 'Sora', sans-serif;
   font-size: 1.15rem;
   font-weight: 700;
-  color: #1D3095;
+  color: var(--brand-blue);
   margin-bottom: 0;
   word-wrap: break-word;
 }
 
 .pricing-card:nth-child(even) .pricing-card__title {
-  color: #BD1218;
+  color: var(--brand-red);
 }
 
 .pricing-card__price-box {
-  background: #F8F9FA;
-  border-radius: 8px;
+  background: var(--brand-light);
+  border-radius: var(--radius-md);
   padding: 1rem;
   margin-bottom: 0.75rem;
-  border-left: 4px solid #1D3095;
+  border-left: 4px solid var(--brand-blue);
 }
 
 .pricing-card:nth-child(even) .pricing-card__price-box {
-  border-left-color: #BD1218;
+  border-left-color: var(--brand-red);
 }
 
 .pricing-card__price {
   font-family: 'Sora', sans-serif;
   font-size: 1.75rem;
   font-weight: 700;
-  color: #0F1419;
+  color: var(--brand-dark);
   line-height: 1.2;
   margin-bottom: 0.15rem;
 }
@@ -700,7 +700,7 @@
 .pricing-card__price-label {
   font-family: 'Inter', sans-serif;
   font-size: 0.7rem;
-  color: #6B7280;
+  color: var(--text-muted);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -709,7 +709,7 @@
 .pricing-card__desc {
   font-family: 'Inter', sans-serif;
   font-size: 0.9rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin-bottom: 0.5rem;
   word-wrap: break-word;
@@ -718,7 +718,7 @@
 .pricing-card__turnaround {
   font-family: 'Inter', sans-serif;
   font-size: 0.8rem;
-  color: #6B7280;
+  color: var(--text-muted);
   font-weight: 600;
 }
 
@@ -728,7 +728,7 @@
 .pricing-factors {
   padding: 3.5rem 2rem;
   background: #FFFFFF;
-  border-top: 4px solid #1D3095;
+  border-top: 4px solid var(--brand-blue);
   overflow-x: hidden;
 }
 
@@ -741,7 +741,7 @@
   font-family: 'Sora', sans-serif;
   font-size: 1.75rem;
   font-weight: 700;
-  color: #0F1419;
+  color: var(--brand-dark);
   margin-bottom: 2rem;
   text-align: center;
 }
@@ -753,24 +753,24 @@
 }
 
 .pricing-factors__item {
-  background: #F8F9FA;
-  border-radius: 8px;
+  background: var(--brand-light);
+  border-radius: var(--radius-md);
   padding: 1.25rem;
-  border: 2px solid #E5E7EB;
-  border-left: 4px solid #1D3095;
+  border: 2px solid var(--border-color);
+  border-left: 4px solid var(--brand-blue);
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
   min-width: 0;
 }
 
 .pricing-factors__item:nth-child(even) {
-  border-left-color: #BD1218;
+  border-left-color: var(--brand-red);
 }
 
 .pricing-factors__item:hover {
-  border-color: #BD1218;
+  border-color: var(--brand-red);
   transform: translateY(-2px);
 }
 
@@ -788,7 +788,7 @@
   font-family: 'Sora', sans-serif;
   font-size: 0.95rem;
   font-weight: 600;
-  color: #0F1419;
+  color: var(--brand-dark);
   margin-bottom: 0.25rem;
   word-wrap: break-word;
 }
@@ -796,7 +796,7 @@
 .pricing-factors__item-desc {
   font-family: 'Inter', sans-serif;
   font-size: 0.85rem;
-  color: #6B7280;
+  color: var(--text-muted);
   line-height: 1.4;
   margin: 0;
   word-wrap: break-word;
@@ -807,8 +807,8 @@
    ============================================================================= */
 .pricing-volume {
   padding: 3rem 2rem;
-  background: #F8F9FA;
-  border-top: 4px solid #BD1218;
+  background: var(--brand-light);
+  border-top: 4px solid var(--brand-red);
   overflow-x: hidden;
 }
 
@@ -819,11 +819,11 @@
 
 .pricing-volume__card {
   background: #FFFFFF;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 2rem;
   text-align: center;
-  border: 2px solid #E5E7EB;
-  border-left: 5px solid #BD1218;
+  border: 2px solid var(--border-color);
+  border-left: 5px solid var(--brand-red);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
@@ -831,14 +831,14 @@
   font-family: 'Sora', sans-serif;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #BD1218;
+  color: var(--brand-red);
   margin-bottom: 0.5rem;
 }
 
 .pricing-volume__desc {
   font-family: 'Inter', sans-serif;
   font-size: 0.95rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   line-height: 1.6;
   margin-bottom: 1.25rem;
   max-width: 450px;
@@ -855,16 +855,16 @@
   font-size: 0.9rem;
   font-weight: 600;
   text-decoration: none;
-  border-radius: 6px;
-  background: #BD1218;
+  border-radius: var(--radius-sm);
+  background: var(--brand-red);
   color: #FFFFFF;
-  border: 2px solid #BD1218;
-  transition: all 0.2s ease;
+  border: 2px solid var(--brand-red);
+  transition: all var(--transition-fast);
 }
 
 .pricing-volume__btn:hover {
-  background: #9A0F14;
-  border-color: #9A0F14;
+  background: var(--brand-red-dark);
+  border-color: var(--brand-red-dark);
   transform: translateY(-2px);
 }
 
@@ -873,7 +873,7 @@
    ============================================================================= */
 .pricing-included {
   padding: 3.5rem 2rem;
-  background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
+  background: var(--gradient-blue);
   overflow-x: hidden;
 }
 
@@ -899,11 +899,11 @@
 
 .pricing-included__item {
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 1.25rem;
   text-align: center;
-  border-top: 4px solid #BD1218;
-  transition: all 0.2s ease;
+  border-top: 4px solid var(--brand-red);
+  transition: all var(--transition-fast);
   min-width: 0;
 }
 
@@ -946,7 +946,7 @@
    ============================================================================= */
 .pricing-cta {
   padding: 2.5rem 2rem;
-  background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+  background: var(--gradient-hero);
   overflow-x: hidden;
 }
 
@@ -990,18 +990,18 @@
   font-size: 0.9rem;
   font-weight: 600;
   text-decoration: none;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
 }
 
 .pricing-cta__btn--primary {
   background: #FFFFFF;
-  color: #BD1218;
+  color: var(--brand-red);
   border: 2px solid #FFFFFF;
 }
 
 .pricing-cta__btn--primary:hover {
-  background: #F8F9FA;
+  background: var(--brand-light);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
@@ -1014,7 +1014,7 @@
 
 .pricing-cta__btn--secondary:hover {
   background: #FFFFFF;
-  color: #1D3095;
+  color: var(--brand-blue);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
@@ -1025,7 +1025,7 @@
 .pricing-bottom-disclaimer {
   padding: 1.5rem 2rem;
   background: #F3F4F6;
-  border-top: 2px solid #E5E7EB;
+  border-top: 2px solid var(--border-color);
   overflow-x: hidden;
 }
 
@@ -1037,14 +1037,14 @@
 .pricing-bottom-disclaimer__text {
   font-family: 'Inter', sans-serif;
   font-size: 0.75rem;
-  color: #6B7280;
+  color: var(--text-muted);
   line-height: 1.7;
   margin: 0;
   text-align: center;
 }
 
 .pricing-bottom-disclaimer__text strong {
-  color: #4B5563;
+  color: var(--text-secondary);
 }
 
 /* =============================================================================
@@ -1823,7 +1823,7 @@
     grid-template-columns: 1fr;
     padding: 0.875rem;
     gap: 0.875rem;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
   }
   
   .pricing-calculator__label {
@@ -1869,7 +1869,7 @@
   .pricing-calculator__result {
     padding: 1rem;
     margin-top: 1rem;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
   }
   
   .pricing-calculator__result-title {
@@ -1953,7 +1953,7 @@
     grid-template-columns: 1fr auto;
     gap: 0.75rem;
     align-items: start;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     border-left-width: 4px;
   }
   
@@ -1984,10 +1984,10 @@
     margin-bottom: 0;
     min-width: 85px;
     text-align: center;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border-left-width: 3px;
   }
-  
+
   .pricing-card__price {
     font-size: 1rem;
     line-height: 1.1;
@@ -2027,10 +2027,10 @@
     text-align: left;
     padding: 0.75rem;
     gap: 0.75rem;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     border-left-width: 3px;
   }
-  
+
   .pricing-factors__item-icon {
     font-size: 1.15rem;
   }
@@ -2093,7 +2093,7 @@
     text-align: left;
     padding: 0.75rem;
     border-top: none;
-    border-left: 3px solid #BD1218;
+    border-left: 3px solid var(--brand-red);
   }
   
   .pricing-included__item-icon {

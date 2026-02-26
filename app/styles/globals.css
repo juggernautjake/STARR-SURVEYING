@@ -5,12 +5,50 @@
 @tailwind utilities;
 
 :root {
+  /* ── Brand Colors ── */
   --brand-red: #BD1218;
   --brand-blue: #1D3095;
-  --brand-green: #10B981;  /* Sea green */
+  --brand-green: #10B981;
   --brand-dark: #0F1419;
   --brand-light: #F8F9FA;
   --brand-gray: #6B7280;
+  --brand-white: #FFFFFF;
+
+  /* ── Hover / Dark Variants ── */
+  --brand-red-dark: #9A0F14;
+  --brand-blue-dark: #152050;
+  --brand-green-dark: #059669;
+
+  /* ── Text Colors ── */
+  --text-primary: #0F1419;
+  --text-secondary: #4B5563;
+  --text-muted: #6B7280;
+
+  /* ── Borders ── */
+  --border-color: #E5E7EB;
+
+  /* ── Border Radius ── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 1px 3px rgba(15, 20, 25, 0.05);
+  --shadow-md: 0 4px 12px rgba(15, 20, 25, 0.08);
+  --shadow-lg: 0 8px 24px rgba(15, 20, 25, 0.1);
+  --shadow-xl: 0 12px 32px rgba(15, 20, 25, 0.12);
+  --shadow-brand: 0 8px 32px rgba(189, 18, 24, 0.15);
+  --shadow-hero: 0 8px 32px rgba(0, 0, 0, 0.2);
+  --shadow-button: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  /* ── Transitions ── */
+  --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s ease;
+
+  /* ── Gradients ── */
+  --gradient-hero: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+  --gradient-blue: linear-gradient(135deg, #1D3095 0%, #152050 100%);
+  --gradient-green: linear-gradient(135deg, #10B981 0%, #059669 100%);
 }
 
 * {
@@ -68,7 +106,7 @@ h4 {
 p {
   font-size: 1rem;
   line-height: 1.8;
-  color: #4B5563;
+  color: var(--text-secondary);
   margin-bottom: 1rem;
 }
 
@@ -76,7 +114,7 @@ a {
   color: var(--brand-red);
   text-decoration: none;
   font-weight: 600;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
 }
 
 a:hover {
@@ -92,12 +130,12 @@ a:hover {
   font-size: 0.95rem;
   font-weight: 600;
   text-decoration: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   text-align: center;
   font-family: 'Sora', sans-serif;
   letter-spacing: 0.3px;
-  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
   border: none;
   position: relative;
   overflow: hidden;
@@ -110,8 +148,8 @@ a:hover {
 }
 
 .btn-primary:hover {
-  background: #9A0F14;
-  border-color: #9A0F14;
+  background: var(--brand-red-dark);
+  border-color: var(--brand-red-dark);
 }
 
 .btn-secondary {
@@ -121,8 +159,8 @@ a:hover {
 }
 
 .btn-secondary:hover {
-  background: #152050;
-  border-color: #152050;
+  background: var(--brand-blue-dark);
+  border-color: var(--brand-blue-dark);
 }
 
 .btn-outline {
@@ -139,7 +177,7 @@ a:hover {
 .btn-ghost {
   background: transparent;
   color: var(--brand-dark);
-  border: 2px solid #E5E7EB;
+  border: 2px solid var(--border-color);
 }
 
 .btn-ghost:hover {
@@ -151,11 +189,11 @@ a:hover {
 /* Cards */
 .card {
   background: white;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 2rem;
-  transition: border-color 0.2s ease;
-  border: 1px solid #E5E7EB;
-  box-shadow: 0 1px 3px rgba(15, 20, 25, 0.05);
+  transition: border-color var(--transition-fast);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
   position: relative;
 }
 
@@ -209,11 +247,11 @@ input, textarea, select {
   width: 100%;
   padding: 0.875rem 1rem;
   margin-bottom: 1.5rem;
-  border: 2px solid #E5E7EB;
-  border-radius: 8px;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
   font-family: 'Inter', inherit;
   font-size: 1rem;
-  transition: border-color 0.2s ease;
+  transition: border-color var(--transition-fast);
   background: white;
 }
 
@@ -238,7 +276,7 @@ label {
 /* Alerts */
 .alert {
   padding: 1.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin-bottom: 1.5rem;
   font-weight: 500;
   border-left: 4px solid transparent;
@@ -265,10 +303,10 @@ label {
 
 .feature-card {
   padding: 2.5rem 2rem;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: white;
-  border: 1px solid #E5E7EB;
-  transition: border-color 0.2s ease;
+  border: 1px solid var(--border-color);
+  transition: border-color var(--transition-fast);
 }
 
 .feature-card:hover {

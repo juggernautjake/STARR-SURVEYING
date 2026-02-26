@@ -2,11 +2,11 @@
   SERVICES PAGE STYLES - Matches Home/About Page Design EXACTLY
   
   COLOR SCHEME:
-  - Red: #BD1218
-  - Blue: #1D3095
-  - Dark Blue: #152050
+  - Red: var(--brand-red)
+  - Blue: var(--brand-blue)
+  - Dark Blue: var(--brand-blue-dark)
   - White: #FFFFFF
-  - Light Gray: #F8F9FA
+  - Light Gray: var(--brand-light)
   
   NOTE: All text uses SOLID colors, no gradients
   
@@ -24,7 +24,7 @@
    ============================================================================= */
 .services-hero {
   position: relative;
-  background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+  background: var(--gradient-hero);
   padding-top: 150px;
   padding-left: 2rem;
   padding-right: 2rem;
@@ -40,10 +40,10 @@
 
 .services-hero__card {
   background: #FFFFFF;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 2.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  border: 3px solid #1D3095;
+  border: 3px solid var(--brand-blue);
   text-align: center;
 }
 
@@ -51,20 +51,20 @@
   font-family: 'Sora', sans-serif;
   font-size: 2.25rem;
   font-weight: 700;
-  color: #0F1419;
+  color: var(--brand-dark);
   line-height: 1.15;
   margin-bottom: 1rem;
   letter-spacing: -0.02em;
 }
 
 .services-hero__title-accent {
-  color: #BD1218;
+  color: var(--brand-red);
 }
 
 .services-hero__subtitle {
   font-family: 'Inter', sans-serif;
   font-size: 1.05rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   line-height: 1.7;
   margin: 0;
   max-width: 600px;
@@ -78,7 +78,7 @@
 .services-grid {
   padding: 3.5rem 2rem;
   background: #FFFFFF;
-  border-top: 4px solid #1D3095;
+  border-top: 4px solid var(--brand-blue);
   overflow-x: hidden;
 }
 
@@ -96,14 +96,14 @@
   font-family: 'Sora', sans-serif;
   font-size: 2rem;
   font-weight: 700;
-  color: #0F1419;
+  color: var(--brand-dark);
   margin-bottom: 0.5rem;
 }
 
 .services-grid__subtitle {
   font-family: 'Inter', sans-serif;
   font-size: 1rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   max-width: 500px;
   margin: 0 auto;
 }
@@ -115,23 +115,23 @@
 }
 
 .services-grid__card {
-  background: #F8F9FA;
+  background: var(--brand-light);
   border-radius: 10px;
   padding: 1.25rem;
-  border: 2px solid #E5E7EB;
-  border-left: 5px solid #1D3095;
-  transition: all 0.2s ease;
+  border: 2px solid var(--border-color);
+  border-left: 5px solid var(--brand-blue);
+  transition: all var(--transition-fast);
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
 .services-grid__card:nth-child(even) {
-  border-left-color: #BD1218;
+  border-left-color: var(--brand-red);
 }
 
 .services-grid__card:hover {
-  border-color: #BD1218;
+  border-color: var(--brand-red);
   transform: translateY(-3px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
 }
@@ -151,7 +151,7 @@
   font-family: 'Sora', sans-serif;
   font-size: 1.05rem;
   font-weight: 600;
-  color: #0F1419;
+  color: var(--brand-dark);
   margin-bottom: 0.35rem;
   word-wrap: break-word;
 }
@@ -159,7 +159,7 @@
 .services-grid__card-desc {
   font-family: 'Inter', sans-serif;
   font-size: 0.9rem;
-  color: #6B7280;
+  color: var(--text-muted);
   line-height: 1.5;
   margin: 0;
   word-wrap: break-word;
@@ -170,8 +170,8 @@
    ============================================================================= */
 .services-details {
   padding: 3.5rem 2rem;
-  background: #F8F9FA;
-  border-top: 4px solid #BD1218;
+  background: var(--brand-light);
+  border-top: 4px solid var(--brand-red);
   overflow-x: hidden;
 }
 
@@ -184,7 +184,7 @@
   font-family: 'Sora', sans-serif;
   font-size: 2rem;
   font-weight: 700;
-  color: #0F1419;
+  color: var(--brand-dark);
   margin-bottom: 2rem;
   text-align: center;
 }
@@ -198,24 +198,24 @@
 /* Detail Card */
 .services-detail {
   background: #FFFFFF;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 1.75rem;
-  border: 2px solid #E5E7EB;
-  border-left: 5px solid #1D3095;
-  transition: all 0.2s ease;
+  border: 2px solid var(--border-color);
+  border-left: 5px solid var(--brand-blue);
+  transition: all var(--transition-fast);
 }
 
 .services-detail:hover {
-  border-color: #1D3095;
+  border-color: var(--brand-blue);
   box-shadow: 0 4px 12px rgba(29, 48, 149, 0.1);
 }
 
 .services-detail--red {
-  border-left-color: #BD1218;
+  border-left-color: var(--brand-red);
 }
 
 .services-detail--red:hover {
-  border-color: #BD1218;
+  border-color: var(--brand-red);
   box-shadow: 0 4px 12px rgba(189, 18, 24, 0.1);
 }
 
@@ -227,18 +227,18 @@
   font-family: 'Sora', sans-serif;
   font-size: 1.35rem;
   font-weight: 700;
-  color: #1D3095;
+  color: var(--brand-blue);
   margin-bottom: 0.25rem;
 }
 
 .services-detail--red .services-detail__title {
-  color: #BD1218;
+  color: var(--brand-red);
 }
 
 .services-detail__desc {
   font-family: 'Inter', sans-serif;
   font-size: 0.95rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   line-height: 1.7;
   margin-bottom: 1.25rem;
 }
@@ -256,11 +256,11 @@
   gap: 0.5rem;
   font-family: 'Inter', sans-serif;
   font-size: 0.9rem;
-  color: #4B5563;
+  color: var(--text-secondary);
 }
 
 .services-detail__feature-icon {
-  color: #1D3095;
+  color: var(--brand-blue);
   font-weight: bold;
   flex-shrink: 0;
   width: 18px;
@@ -274,17 +274,17 @@
 }
 
 .services-detail--red .services-detail__feature-icon {
-  color: #BD1218;
+  color: var(--brand-red);
   background: rgba(189, 18, 24, 0.1);
 }
 
 .services-detail__meta {
   font-family: 'Inter', sans-serif;
   font-size: 0.85rem;
-  color: #6B7280;
+  color: var(--text-muted);
   font-weight: 600;
   padding-top: 1rem;
-  border-top: 1px solid #E5E7EB;
+  border-top: 1px solid var(--border-color);
 }
 
 /* =============================================================================
@@ -292,7 +292,7 @@
    ============================================================================= */
 .services-process {
   padding: 3.5rem 2rem;
-  background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
+  background: var(--gradient-blue);
   overflow-x: hidden;
 }
 
@@ -318,11 +318,11 @@
 
 .services-process__step {
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 1.5rem;
   text-align: center;
-  border-top: 4px solid #BD1218;
-  transition: all 0.2s ease;
+  border-top: 4px solid var(--brand-red);
+  transition: all var(--transition-fast);
   min-width: 0;
 }
 
@@ -335,7 +335,7 @@
   font-family: 'Sora', sans-serif;
   font-size: 1.75rem;
   font-weight: 700;
-  color: #BD1218;
+  color: var(--brand-red);
   margin-bottom: 0.5rem;
   display: block;
 }
@@ -368,7 +368,7 @@
    ============================================================================= */
 .services-cta {
   padding: 2.5rem 2rem;
-  background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+  background: var(--gradient-hero);
   overflow-x: hidden;
 }
 
@@ -412,18 +412,18 @@
   font-size: 0.9rem;
   font-weight: 600;
   text-decoration: none;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
 }
 
 .services-cta__btn--primary {
   background: #FFFFFF;
-  color: #BD1218;
+  color: var(--brand-red);
   border: 2px solid #FFFFFF;
 }
 
 .services-cta__btn--primary:hover {
-  background: #F8F9FA;
+  background: var(--brand-light);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
@@ -436,7 +436,7 @@
 
 .services-cta__btn--secondary:hover {
   background: #FFFFFF;
-  color: #1D3095;
+  color: var(--brand-blue);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
@@ -699,14 +699,14 @@
     padding: 0.875rem;
     text-align: center;
     border-left: none;
-    border-top: 3px solid #1D3095;
+    border-top: 3px solid var(--brand-blue);
     flex-direction: column;
     align-items: center;
   }
   
   .services-grid__card:nth-child(even) {
     border-left: none;
-    border-top-color: #BD1218;
+    border-top-color: var(--brand-red);
   }
   
   .services-grid__card-icon {
@@ -868,12 +868,12 @@
     gap: 0.75rem;
     text-align: left;
     border-top: none;
-    border-left: 3px solid #1D3095;
+    border-left: 3px solid var(--brand-blue);
   }
   
   .services-grid__card:nth-child(even) {
     border-top: none;
-    border-left-color: #BD1218;
+    border-left-color: var(--brand-red);
   }
   
   .services-grid__card-icon {
@@ -969,7 +969,7 @@
     gap: 0.875rem;
     text-align: left;
     border-top: none;
-    border-left: 3px solid #BD1218;
+    border-left: 3px solid var(--brand-red);
   }
   
   .services-process__step-number {

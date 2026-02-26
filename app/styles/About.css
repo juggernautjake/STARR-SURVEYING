@@ -2,11 +2,11 @@
   ABOUT PAGE STYLES - Matches Home Page Design EXACTLY
   
   COLOR SCHEME:
-  - Red: #BD1218
-  - Blue: #1D3095
-  - Dark Blue: #152050
+  - Red: var(--brand-red)
+  - Blue: var(--brand-blue)
+  - Dark Blue: var(--brand-blue-dark)
   - White: #FFFFFF
-  - Light Gray: #F8F9FA
+  - Light Gray: var(--brand-light)
   
   NOTE: All text uses SOLID colors, no gradients
   
@@ -24,7 +24,7 @@
    ============================================================================= */
 .about-hero {
   position: relative;
-  background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+  background: var(--gradient-hero);
   padding-top: 150px;
   padding-left: 2rem;
   padding-right: 2rem;
@@ -40,10 +40,10 @@
 
 .about-hero__card {
   background: #FFFFFF;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 2.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  border: 3px solid #1D3095;
+  border: 3px solid var(--brand-blue);
   text-align: center;
 }
 
@@ -51,20 +51,20 @@
   font-family: 'Sora', sans-serif;
   font-size: 2.25rem;
   font-weight: 700;
-  color: #0F1419;
+  color: var(--brand-dark);
   line-height: 1.15;
   margin-bottom: 1rem;
   letter-spacing: -0.02em;
 }
 
 .about-hero__title-accent {
-  color: #BD1218;
+  color: var(--brand-red);
 }
 
 .about-hero__subtitle {
   font-family: 'Inter', sans-serif;
   font-size: 1.05rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   line-height: 1.7;
   margin: 0;
   max-width: 600px;
@@ -78,7 +78,7 @@
 .about-story {
   padding: 3.5rem 2rem;
   background: #FFFFFF;
-  border-top: 4px solid #1D3095;
+  border-top: 4px solid var(--brand-blue);
   overflow-x: hidden;
 }
 
@@ -99,14 +99,14 @@
   font-family: 'Sora', sans-serif;
   font-size: 2rem;
   font-weight: 700;
-  color: #0F1419;
+  color: var(--brand-dark);
   margin-bottom: 1.25rem;
 }
 
 .about-story__text {
   font-family: 'Inter', sans-serif;
   font-size: 1rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   line-height: 1.7;
   margin-bottom: 1rem;
 }
@@ -119,8 +119,8 @@
   font-family: 'Inter', sans-serif;
   font-size: 1.1rem;
   font-style: italic;
-  color: #0F1419;
-  border-left: 4px solid #BD1218;
+  color: var(--brand-dark);
+  border-left: 4px solid var(--brand-red);
   padding-left: 1.25rem;
   margin: 1.5rem 0 0.5rem;
   line-height: 1.5;
@@ -129,15 +129,15 @@
 .about-story__quote-source {
   font-family: 'Inter', sans-serif;
   font-size: 0.85rem;
-  color: #6B7280;
+  color: var(--text-muted);
   padding-left: 1.25rem;
   margin: 0;
 }
 
 /* Mission Card */
 .about-story__mission {
-  background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
-  border-radius: 12px;
+  background: var(--gradient-blue);
+  border-radius: var(--radius-lg);
   padding: 2rem;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
@@ -167,7 +167,7 @@
 
 .about-story__mission-icon {
   font-size: 1.25rem;
-  color: #BD1218;
+  color: var(--brand-red);
   flex-shrink: 0;
   margin-top: 0.1rem;
   width: 24px;
@@ -206,8 +206,8 @@
    ============================================================================= */
 .about-team {
   padding: 3.5rem 2rem;
-  background: #F8F9FA;
-  border-top: 4px solid #BD1218;
+  background: var(--brand-light);
+  border-top: 4px solid var(--brand-red);
   overflow-x: hidden;
 }
 
@@ -225,14 +225,14 @@
   font-family: 'Sora', sans-serif;
   font-size: 2rem;
   font-weight: 700;
-  color: #0F1419;
+  color: var(--brand-dark);
   margin-bottom: 0.5rem;
 }
 
 .about-team__subtitle {
   font-family: 'Inter', sans-serif;
   font-size: 1rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   max-width: 500px;
   margin: 0 auto;
 }
@@ -247,18 +247,18 @@
   background: #FFFFFF;
   border-radius: 10px;
   padding: 1.5rem;
-  border: 2px solid #E5E7EB;
-  border-left: 5px solid #1D3095;
-  transition: all 0.2s ease;
+  border: 2px solid var(--border-color);
+  border-left: 5px solid var(--brand-blue);
+  transition: all var(--transition-fast);
   min-width: 0;
 }
 
 .about-team__card:nth-child(even) {
-  border-left-color: #BD1218;
+  border-left-color: var(--brand-red);
 }
 
 .about-team__card:hover {
-  border-color: #BD1218;
+  border-color: var(--brand-red);
   transform: translateY(-3px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
 }
@@ -271,7 +271,7 @@
   font-family: 'Sora', sans-serif;
   font-size: 1.15rem;
   font-weight: 700;
-  color: #0F1419;
+  color: var(--brand-dark);
   margin-bottom: 0.2rem;
 }
 
@@ -279,21 +279,21 @@
   font-family: 'Sora', sans-serif;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #BD1218;
+  color: var(--brand-red);
   margin-bottom: 0.2rem;
 }
 
 .about-team__card-experience {
   font-family: 'Inter', sans-serif;
   font-size: 0.8rem;
-  color: #1D3095;
+  color: var(--brand-blue);
   font-weight: 600;
 }
 
 .about-team__card-desc {
   font-family: 'Inter', sans-serif;
   font-size: 0.9rem;
-  color: #4B5563;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin: 0;
 }
@@ -303,7 +303,7 @@
    ============================================================================= */
 .about-why {
   padding: 3.5rem 2rem;
-  background: linear-gradient(135deg, #1D3095 0%, #152050 100%);
+  background: var(--gradient-blue);
   overflow-x: hidden;
 }
 
@@ -329,10 +329,10 @@
 
 .about-why__card {
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 1.25rem;
-  border-left: 3px solid #BD1218;
-  transition: all 0.2s ease;
+  border-left: 3px solid var(--brand-red);
+  transition: all var(--transition-fast);
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -377,7 +377,7 @@
    ============================================================================= */
 .about-cta {
   padding: 2.5rem 2rem;
-  background: linear-gradient(135deg, #BD1218 20%, #1D3095 80%);
+  background: var(--gradient-hero);
   overflow-x: hidden;
 }
 
@@ -421,18 +421,18 @@
   font-size: 0.9rem;
   font-weight: 600;
   text-decoration: none;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
 }
 
 .about-cta__btn--primary {
   background: #FFFFFF;
-  color: #BD1218;
+  color: var(--brand-red);
   border: 2px solid #FFFFFF;
 }
 
 .about-cta__btn--primary:hover {
-  background: #F8F9FA;
+  background: var(--brand-light);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
@@ -445,7 +445,7 @@
 
 .about-cta__btn--secondary:hover {
   background: #FFFFFF;
-  color: #1D3095;
+  color: var(--brand-blue);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
@@ -800,7 +800,7 @@
     padding: 0.875rem;
     text-align: center;
     border-left: none;
-    border-top: 3px solid #BD1218;
+    border-top: 3px solid var(--brand-red);
     flex-direction: column;
     align-items: center;
   }
@@ -954,7 +954,7 @@
   
   .about-team__card {
     padding: 0.875rem;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     border-left-width: 4px;
     display: flex;
     flex-direction: row;
@@ -1004,7 +1004,7 @@
     flex-direction: row;
     align-items: flex-start;
     gap: 0.75rem;
-    border-left: 3px solid #BD1218;
+    border-left: 3px solid var(--brand-red);
     border-top: none;
     text-align: left;
   }
