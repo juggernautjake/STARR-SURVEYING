@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { useState, FormEvent, ChangeEvent } from 'react';
 import { getDirectionsUrl, OFFICE_ADDRESS } from './components/ServiceAreaMap';
 import { trackConversion } from './utils/gtag';
+import GoogleAdsScript from './components/GoogleAdsScript';
 
 // Import Home page styles
 import './styles/Home.css';
@@ -224,6 +225,7 @@ export default function HomePage(): React.ReactElement {
 
   return (
     <>
+      <GoogleAdsScript />
       {/* Hero Section - Gradient Background with COMBINED Card */}
       <section className="home-hero">
         <div className="home-hero__container">

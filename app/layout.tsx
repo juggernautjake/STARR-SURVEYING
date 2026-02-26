@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import Script from 'next/script';
 import './styles/globals.css';
 import LayoutShell from './components/LayoutShell';
 
@@ -144,20 +143,6 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body>
-        {/* Google tag (gtag.js) - Google Ads AW-17921491739 */}
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=AW-17921491739"
-          strategy="afterInteractive"
-        />
-        <Script id="google-ads-gtag" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'AW-17921491739');
-          `}
-        </Script>
-
         <LayoutShell>
           {children}
         </LayoutShell>
