@@ -1503,7 +1503,7 @@
     text-align: left;
     padding: 1rem;
     border-top: none;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
   }
   
   .service-area-coverage__card--red {
@@ -1591,14 +1591,14 @@ html, body {
   background: var(--brand-blue);
   color: #FFFFFF;
   border: 3px solid #FFFFFF;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-family: 'Sora', sans-serif;
   font-size: 0.875rem;
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   z-index: 10;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
 }
 
 .placeholder-map__directions-btn:hover {
@@ -1653,10 +1653,10 @@ html, body {
   background: var(--brand-blue);
   color: #FFFFFF;
   border: 3px solid var(--brand-red);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   box-shadow: 0 4px 15px rgba(29, 48, 149, 0.3);
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
 }
 
 .service-area-map__directions-btn:hover {
