@@ -25,11 +25,11 @@
    1. CSS VARIABLES - BASE VALUES (1920px - 2199px / Full HD+)
    ============================================================================= */
 :root {
-  /* Brand Colors */
-  --color-red: #BD1218;
-  --color-blue: #1D3095;
-  --color-green: #10B981;
-  --color-white: #FFFFFF;
+  /* Brand Colors - referencing globals.css tokens */
+  --color-red: var(--brand-red);
+  --color-blue: var(--brand-blue);
+  --color-green: var(--brand-green);
+  --color-white: var(--brand-white);
   
   /* Header Box */
   --header-box-height: 275px;
@@ -65,12 +65,12 @@
   /* Green Button (Quote/Pricing) */
   --green-btn-bg: var(--color-green);
   --green-btn-text: var(--color-white);
-  --green-btn-hover-bg: #059669;
+  --green-btn-hover-bg: var(--brand-green-dark);
   --green-btn-hover-text: var(--color-white);
   --green-btn-border: var(--color-white);
   
   /* Transitions */
-  --transition: 200ms ease;
+  --transition: var(--transition-fast);
 }
 
 /* =============================================================================
