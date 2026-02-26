@@ -17,8 +17,7 @@
 
 export const GA_ADS_ID = 'AW-17921491739';
 
-// ⚠️ REPLACE 'YOUR_LABEL_HERE' with your actual conversion label from Google Ads
-// Example: 'AbCdEfGhIjKlMn' (just the part after the slash)
+// Conversion label from Google Ads (the part after the slash in the event snippet)
 const CONVERSION_LABEL_SUFFIX = 'TYyMCIa-zvAbEJuG0eFC';
 
 export const CONVERSION_LABEL = `${GA_ADS_ID}/${CONVERSION_LABEL_SUFFIX}`;
