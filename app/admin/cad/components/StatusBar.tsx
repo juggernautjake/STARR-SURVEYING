@@ -10,6 +10,9 @@ const TOOL_LABELS: Record<string, string> = {
   DRAW_LINE: 'Line',
   DRAW_POLYLINE: 'Polyline',
   DRAW_POLYGON: 'Polygon',
+  DRAW_RECTANGLE: 'Rectangle',
+  DRAW_REGULAR_POLYGON: 'Reg.Polygon',
+  DRAW_CIRCLE: 'Circle',
   MOVE: 'Move',
   COPY: 'Copy',
   ROTATE: 'Rotate',
@@ -30,7 +33,7 @@ export default function StatusBar() {
   const activeLayer = doc.layers[activeLayerId];
   const { snapEnabled, gridVisible, drawingScale } = doc.settings;
   const selCount = selectionStore.selectionCount();
-  const { activeTool, drawingPoints, basePoint, rotateCenter } = toolStore.state;
+  const { activeTool, drawingPoints, basePoint, rotateCenter, orthoEnabled, polarEnabled, polarAngle, copyMode } = toolStore.state;
 
   // Express zoom as a percentage of 1px-per-world-unit baseline
   const zoomPct = Math.round(zoom * 100);
@@ -127,6 +130,30 @@ export default function StatusBar() {
       </button>
 
       <span className="text-gray-600">|</span>
+
+      {/* Ortho mode */}
+      {orthoEnabled && (
+        <>
+          <span className="text-blue-400 font-semibold shrink-0" title="Ortho mode active — cursor constrained to H/V axes (F8)">ORTHO</span>
+          <span className="text-gray-600">|</span>
+        </>
+      )}
+
+      {/* Polar tracking */}
+      {polarEnabled && !orthoEnabled && (
+        <>
+          <span className="text-indigo-400 font-semibold shrink-0" title={`Polar tracking active at ${polarAngle}° increments (F10)`}>POLAR {polarAngle}°</span>
+          <span className="text-gray-600">|</span>
+        </>
+      )}
+
+      {/* Copy mode */}
+      {copyMode && (
+        <>
+          <span className="text-green-400 font-semibold shrink-0" title="Copy mode: operations will keep the original">COPY</span>
+          <span className="text-gray-600">|</span>
+        </>
+      )}
 
       {/* Drawing scale */}
       <span className="text-gray-500 shrink-0" title="Drawing scale">

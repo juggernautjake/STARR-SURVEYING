@@ -33,6 +33,9 @@ const MAX_GRID_ITERATIONS = 500; // max grid lines per axis to prevent performan
 // Prevents duplicate zero-length segments on double-click.
 const MIN_SEGMENT_LENGTH_BASE = 0.001;
 
+// Number of vertices used to approximate a circle as a polygon
+const CIRCLE_VERTS = 64;
+
 // Grid scale multipliers — find smallest that puts lines >= MIN_PX_GRID apart
 const GRID_SCALE_MULTIPLIERS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
 
@@ -65,6 +68,7 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
   DRAW_POLYGON: 'crosshair',
   DRAW_RECTANGLE: 'crosshair',
   DRAW_REGULAR_POLYGON: 'crosshair',
+  DRAW_CIRCLE: 'crosshair',
   MOVE: 'move',
   COPY: 'copy',
   ROTATE: 'alias',
@@ -269,6 +273,12 @@ export default function CanvasViewport() {
     const baseMinor = baseMajor / doc.settings.gridMinorDivisions;
     const gridStyle = doc.settings.gridStyle;
 
+    // Use configurable colors (fall back to defaults if not set)
+    const majorColorHex = (doc.settings.gridMajorColor ?? '#c8c8c8').replace('#', '');
+    const minorColorHex = (doc.settings.gridMinorColor ?? '#e8e8e8').replace('#', '');
+    const majorColor = parseInt(majorColorHex, 16);
+    const minorColor = parseInt(minorColorHex, 16);
+
     // Auto-scale: find the smallest "nice" spacing that places lines >= MIN_PX apart
     const MIN_PX = gridStyle === 'DOTS' ? 5 : 8;
     let minorSpacing = baseMinor;
@@ -309,7 +319,7 @@ export default function CanvasViewport() {
         const { sy: syTop } = w2s(wx, wb.maxY);
         const { sy: syBot } = w2s(wx, wb.minY);
         const isMajorLine = isMajor(wx);
-        g.lineStyle(isMajorLine ? 0.5 : 0.25, isMajorLine ? 0xbbbbbb : 0xe0e0e0, 1);
+        g.lineStyle(isMajorLine ? 0.5 : 0.25, isMajorLine ? majorColor : minorColor, 1);
         g.moveTo(sx, syTop);
         g.lineTo(sx, syBot);
       }
@@ -319,7 +329,7 @@ export default function CanvasViewport() {
         const { sx: sxLeft } = w2s(wb.minX, wy);
         const { sx: sxRight } = w2s(wb.maxX, wy);
         const isMajorLine = isMajor(wy);
-        g.lineStyle(isMajorLine ? 0.5 : 0.25, isMajorLine ? 0xbbbbbb : 0xe0e0e0, 1);
+        g.lineStyle(isMajorLine ? 0.5 : 0.25, isMajorLine ? majorColor : minorColor, 1);
         g.moveTo(sxLeft, sy);
         g.lineTo(sxRight, sy);
       }
@@ -327,7 +337,7 @@ export default function CanvasViewport() {
       for (let wx = startX; wx <= endX; wx += spacing) {
         for (let wy = startY; wy <= endY; wy += spacing) {
           const major = isMajor(wx) && isMajor(wy);
-          const color = major ? 0xbbbbbb : 0xe0e0e0;
+          const color = major ? majorColor : minorColor;
           const { sx, sy } = w2s(wx, wy);
 
           if (gridStyle === 'DOTS') {
@@ -478,6 +488,10 @@ export default function CanvasViewport() {
 
     // Draw hover highlight (when SELECT tool active and not already selected)
     const hoveredId = hoveredIdRef.current;
+    const hoverColorHex = (drawingStore.document.settings.hoverColor ?? '#66aaff').replace('#', '');
+    const hoverColor = parseInt(hoverColorHex, 16);
+    const selColorHex = (drawingStore.document.settings.selectionColor ?? '#0088ff').replace('#', '');
+    const selColor = parseInt(selColorHex, 16);
     if (
       hoveredId &&
       !selectedIds.has(hoveredId) &&
@@ -486,7 +500,7 @@ export default function CanvasViewport() {
       const feature = drawingStore.getFeature(hoveredId);
       if (feature) {
         const geom = feature.geometry;
-        g.lineStyle(1.5, 0x66aaff, 0.6);
+        g.lineStyle(1.5, hoverColor, 0.6);
         switch (geom.type) {
           case 'POINT': {
             const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
@@ -532,9 +546,9 @@ export default function CanvasViewport() {
       const feature = drawingStore.getFeature(featureId);
       if (!feature) continue;
 
-      // Highlight: blue outline
+      // Highlight: selection color outline
       const geom = feature.geometry;
-      g.lineStyle(2, 0x0088ff, 1);
+      g.lineStyle(2, selColor, 1);
       switch (geom.type) {
         case 'POINT': {
           const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
@@ -574,7 +588,7 @@ export default function CanvasViewport() {
       }
 
       // Grip squares at vertices
-      g.lineStyle(1, 0x0088ff, 1);
+      g.lineStyle(1, selColor, 1);
       g.beginFill(0xffffff, 1);
       const gripPoints = getFeatureVertices(feature);
       for (const pt of gripPoints) {
@@ -659,6 +673,10 @@ export default function CanvasViewport() {
     const { drawingPoints, previewPoint } = toolState;
     const activeTool = toolState.activeTool;
 
+    // Configurable selection/hover colors (also used here for preview lines)
+    const selColorHex = (drawingStore.document.settings.selectionColor ?? '#0088ff').replace('#', '');
+    const selColor = parseInt(selColorHex, 16);
+
     if (!previewPoint) return;
 
     // For MOVE/COPY: show line from base point to cursor
@@ -670,7 +688,7 @@ export default function CanvasViewport() {
       const bp = toolState.basePoint;
       const { sx: bx, sy: by } = w2s(bp.x, bp.y);
       const { sx: x2, sy: y2 } = w2s(previewPoint.x, previewPoint.y);
-      g.lineStyle(1, 0x0088ff, 0.6);
+      g.lineStyle(1, selColor, 0.6);
       g.moveTo(bx, by);
       g.lineTo(x2, y2);
       return;
@@ -761,6 +779,30 @@ export default function CanvasViewport() {
           g.lineStyle(0.75, 0x666666, 0.5);
           g.moveTo(cx - 4, cy); g.lineTo(cx + 4, cy);
           g.moveTo(cx, cy - 4); g.lineTo(cx, cy + 4);
+        }
+        return;
+      }
+      // Circle preview
+      if (activeTool === 'DRAW_CIRCLE' && drawingPoints.length === 1 && previewPoint) {
+        const center = drawingPoints[0];
+        const radius = Math.hypot(previewPoint.x - center.x, previewPoint.y - center.y);
+        if (radius > 0) {
+          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
+            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
+            return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
+          });
+          g.lineStyle(1, 0x666666, 0.8);
+          g.moveTo(pts[0].sx, pts[0].sy);
+          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
+          g.closePath();
+          // Center crosshair + radius line
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          const { sx: rx, sy: ry } = w2s(previewPoint.x, previewPoint.y);
+          g.lineStyle(0.75, 0x666666, 0.5);
+          g.moveTo(cx - 5, cy); g.lineTo(cx + 5, cy);
+          g.moveTo(cx, cy - 5); g.lineTo(cx, cy + 5);
+          g.lineStyle(0.5, 0x888888, 0.4);
+          g.moveTo(cx, cy); g.lineTo(rx, ry);
         }
         return;
       }
@@ -986,6 +1028,45 @@ export default function CanvasViewport() {
   }
 
   // ─────────────────────────────────────────────
+  // Ortho / Polar constraint helper
+  // ─────────────────────────────────────────────
+  function applyConstraints(pt: Point2D): Point2D {
+    const ts = toolStore.state;
+    const { orthoEnabled, polarEnabled, polarAngle, drawingPoints, basePoint, rotateCenter } = ts;
+    if (!orthoEnabled && !polarEnabled) return pt;
+
+    // Reference point: last drawn point, or base point for move/rotate, or rotate center
+    const refPt = drawingPoints[drawingPoints.length - 1] ?? basePoint ?? rotateCenter;
+    if (!refPt) return pt;
+
+    const dx = pt.x - refPt.x;
+    const dy = pt.y - refPt.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) return pt;
+
+    if (orthoEnabled) {
+      // Snap to nearest 90° axis (horizontal/vertical)
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        return { x: pt.x, y: refPt.y }; // horizontal
+      } else {
+        return { x: refPt.x, y: pt.y }; // vertical
+      }
+    }
+
+    if (polarEnabled && polarAngle > 0) {
+      const rawDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+      const snappedDeg = Math.round(rawDeg / polarAngle) * polarAngle;
+      const snappedRad = (snappedDeg * Math.PI) / 180;
+      return {
+        x: refPt.x + dist * Math.cos(snappedRad),
+        y: refPt.y + dist * Math.sin(snappedRad),
+      };
+    }
+
+    return pt;
+  }
+
+  // ─────────────────────────────────────────────
   // Get snapped world position
   // ─────────────────────────────────────────────
   function getSnappedWorld(sx: number, sy: number): Point2D {
@@ -1003,11 +1084,12 @@ export default function CanvasViewport() {
         settings.gridMajorSpacing / settings.gridMinorDivisions,
       );
       snapResultRef.current = snap;
-      if (snap) return snap.point;
+      const snapped = snap ? snap.point : cursor;
+      return applyConstraints(snapped);
     } else {
       snapResultRef.current = null;
     }
-    return cursor;
+    return applyConstraints(cursor);
   }
 
   // ─────────────────────────────────────────────
@@ -1193,6 +1275,33 @@ export default function CanvasViewport() {
               layerId: drawingStore.activeLayerId,
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
               properties: { shapeType: 'REGULAR_POLYGON', sides: sides.toString() },
+            };
+            drawingStore.addFeature(feature);
+            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            toolStore.clearDrawingPoints();
+          }
+          break;
+        }
+
+        case 'DRAW_CIRCLE': {
+          if (toolState.drawingPoints.length === 0) {
+            toolStore.addDrawingPoint(worldPt); // center
+          } else {
+            const center = toolState.drawingPoints[0];
+            const radius = Math.hypot(worldPt.x - center.x, worldPt.y - center.y);
+            if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
+            // Approximate circle as 64-vertex polygon
+            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
+              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
+              return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
+            });
+            const feature: Feature = {
+              id: generateId(),
+              type: 'POLYGON',
+              geometry: { type: 'POLYGON', vertices },
+              layerId: drawingStore.activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              properties: { shapeType: 'CIRCLE', centerX: center.x.toString(), centerY: center.y.toString(), radius: radius.toString() },
             };
             drawingStore.addFeature(feature);
             undoStore.pushUndo(makeAddFeatureEntry(feature));
@@ -1635,9 +1744,9 @@ export default function CanvasViewport() {
         return;
       }
 
-      // Right-click during rectangle/regular-polygon drawing: cancel
+      // Right-click during rectangle/regular-polygon/circle drawing: cancel
       if (
-        (activeTool === 'DRAW_RECTANGLE' || activeTool === 'DRAW_REGULAR_POLYGON') &&
+        (activeTool === 'DRAW_RECTANGLE' || activeTool === 'DRAW_REGULAR_POLYGON' || activeTool === 'DRAW_CIRCLE') &&
         toolState.drawingPoints.length > 0
       ) {
         toolStore.clearDrawingPoints();

@@ -35,6 +35,7 @@ import {
   deleteSelection,
 } from '@/lib/cad/operations';
 import type { ToolType } from '@/lib/cad/types';
+import Tooltip from './Tooltip';
 
 // ─────────────────────────────────────────────
 // Tool group data
@@ -44,6 +45,8 @@ interface ToolVariantItem {
   /** If set, switches to this tool */
   tool?: ToolType;
   label: string;
+  /** Short description shown in the variant flyout */
+  description?: string;
   shortcut?: string;
   icon: React.ReactNode;
   /** If set, fires this instant action instead of switching tool */
@@ -55,6 +58,8 @@ interface ToolVariantItem {
 interface ToolGroupDef {
   mainTool: ToolType;
   label: string;
+  /** Short tooltip description for the toolbar button */
+  description: string;
   shortcut: string;
   icon: React.ReactNode;
   variants: ToolVariantItem[];
@@ -62,29 +67,31 @@ interface ToolGroupDef {
 
 // We define this as a factory function so the icons and actions can reference the stores at render time.
 function buildToolGroups(
-  toolStore: ReturnType<typeof useToolStore>,
-  viewportStore: ReturnType<typeof useViewportStore>,
-  drawingStore: ReturnType<typeof useDrawingStore>,
+  toolStore: { setTool: (t: ToolType) => void; state: { regularPolygonSides: number } },
+  viewportStore: { zoomAt: (x: number, y: number, f: number) => void; screenWidth: number; screenHeight: number },
 ): ToolGroupDef[] {
   return [
     {
       mainTool: 'SELECT',
       label: 'Select',
+      description: 'Select features by clicking or dragging a box. Shift+click to toggle. Right-click for more options.',
       shortcut: 'S',
       icon: <MousePointer2 size={16} />,
       variants: [
-        { tool: 'SELECT', label: 'Select (click / box)', shortcut: 'S', icon: <MousePointer2 size={14} /> },
+        { tool: 'SELECT', label: 'Select (click / box)', description: 'Click a feature to select it, or drag to draw a selection box. Shift+click to add/remove from selection.', shortcut: 'S', icon: <MousePointer2 size={14} /> },
       ],
     },
     {
       mainTool: 'PAN',
       label: 'Pan',
+      description: 'Click and drag to pan the view. Scroll wheel to zoom. Middle-mouse drag also pans.',
       shortcut: 'H',
       icon: <Hand size={16} />,
       variants: [
-        { tool: 'PAN', label: 'Pan', shortcut: 'H', icon: <Hand size={14} /> },
+        { tool: 'PAN', label: 'Pan', description: 'Click and drag to pan the canvas.', shortcut: 'H', icon: <Hand size={14} /> },
         {
           label: 'Zoom In',
+          description: 'Zoom in to the center of the canvas.',
           shortcut: 'Ctrl+=',
           icon: <ZoomIn size={14} />,
           action: () =>
@@ -96,6 +103,7 @@ function buildToolGroups(
         },
         {
           label: 'Zoom Out',
+          description: 'Zoom out from the center of the canvas.',
           shortcut: 'Ctrl+-',
           icon: <ZoomOut size={14} />,
           action: () =>
@@ -107,9 +115,9 @@ function buildToolGroups(
         },
         {
           label: 'Zoom Extents',
+          description: 'Fit all features in the canvas view.',
           shortcut: 'Z E',
           icon: <Maximize size={14} />,
-          belowSep: false,
           action: () => window.dispatchEvent(new CustomEvent('cad:zoomExtents')),
         },
       ],
@@ -117,24 +125,26 @@ function buildToolGroups(
     {
       mainTool: 'DRAW_POINT',
       label: 'Point',
+      description: 'Place a survey point at the clicked location. Points can be snapped to grid intersections.',
       shortcut: 'P',
       icon: <Circle size={16} />,
       variants: [
-        { tool: 'DRAW_POINT', label: 'Point', shortcut: 'P', icon: <Circle size={14} /> },
+        { tool: 'DRAW_POINT', label: 'Point', description: 'Click to place a point feature.', shortcut: 'P', icon: <Circle size={14} /> },
       ],
     },
     {
       mainTool: 'DRAW_LINE',
       label: 'Line',
+      description: 'Draw a single line segment. Click the start point, then the end point.',
       shortcut: 'L',
       icon: <Minus size={16} />,
       variants: [
-        { tool: 'DRAW_LINE', label: 'Line', shortcut: 'L', icon: <Minus size={14} /> },
+        { tool: 'DRAW_LINE', label: 'Line', description: 'Click start point, then end point to draw a line segment.', shortcut: 'L', icon: <Minus size={14} /> },
         {
           tool: 'DRAW_LINE',
           label: 'Construction Line',
+          description: 'Same as Line but placed on the Construction layer for reference geometry that won\'t be printed.',
           icon: <Slash size={14} />,
-          // Same tool but sets the shapeType property — handled in CanvasViewport
           action: () => toolStore.setTool('DRAW_LINE'),
         },
       ],
@@ -142,28 +152,39 @@ function buildToolGroups(
     {
       mainTool: 'DRAW_POLYLINE',
       label: 'Polyline',
+      description: 'Draw a multi-segment connected line. Each click adds a vertex. Right-click or double-click to finish.',
       shortcut: 'PL',
       icon: <Spline size={16} />,
       variants: [
-        { tool: 'DRAW_POLYLINE', label: 'Polyline (open)', shortcut: 'PL', icon: <Spline size={14} /> },
+        { tool: 'DRAW_POLYLINE', label: 'Polyline (open)', description: 'Multi-segment open polyline. Click each vertex, right-click or double-click to finish.', shortcut: 'PL', icon: <Spline size={14} /> },
       ],
     },
     {
       mainTool: 'DRAW_POLYGON',
       label: 'Polygon',
+      description: 'Draw a closed polygon shape. Right-click for more shape variants (Rectangle, Circle, Regular Polygon).',
       shortcut: 'PG',
       icon: <Pentagon size={16} />,
       variants: [
-        { tool: 'DRAW_POLYGON', label: 'Freeform Polygon', shortcut: 'PG', icon: <Pentagon size={14} /> },
+        { tool: 'DRAW_POLYGON', label: 'Freeform Polygon', description: 'Click vertices to define a freeform closed polygon. Double-click or Enter to close.', shortcut: 'PG', icon: <Pentagon size={14} /> },
         {
           tool: 'DRAW_RECTANGLE',
           label: 'Rectangle',
+          description: 'Click two opposite corners to draw an axis-aligned rectangle.',
           shortcut: 'RE',
           icon: <RectangleHorizontal size={14} />,
         },
         {
+          tool: 'DRAW_CIRCLE',
+          label: 'Circle',
+          description: 'Click the center, then click or type the radius to draw a circle (stored as a 64-vertex polygon approximation).',
+          shortcut: 'CI',
+          icon: <Circle size={14} />,
+        },
+        {
           tool: 'DRAW_REGULAR_POLYGON',
           label: 'Regular Polygon',
+          description: 'Click the center, then drag to set the radius and orientation. Use the Sides picker to control vertex count.',
           icon: <Hexagon size={14} />,
         },
       ],
@@ -171,12 +192,14 @@ function buildToolGroups(
     {
       mainTool: 'MOVE',
       label: 'Move',
+      description: 'Move selected features. Click base point, then destination. Enable "Copy Mode" in the options bar to keep the original.',
       shortcut: 'M',
       icon: <Move size={16} />,
       variants: [
-        { tool: 'MOVE', label: 'Move', shortcut: 'M', icon: <Move size={14} /> },
+        { tool: 'MOVE', label: 'Move', description: 'Click a base point, then click where to move the selection.', shortcut: 'M', icon: <Move size={14} /> },
         {
           label: 'Duplicate',
+          description: 'Instantly duplicate the selection, offset 10 units.',
           shortcut: 'Ctrl+D',
           icon: <Copy size={14} />,
           action: () => duplicateSelection(),
@@ -186,12 +209,14 @@ function buildToolGroups(
     {
       mainTool: 'COPY',
       label: 'Copy',
+      description: 'Copy selected features to a new location. Click base point, then destination. Click again for additional copies.',
       shortcut: 'CO',
       icon: <Copy size={16} />,
       variants: [
-        { tool: 'COPY', label: 'Copy (interactive)', shortcut: 'CO', icon: <Copy size={14} /> },
+        { tool: 'COPY', label: 'Copy (interactive)', description: 'Pick a base point, then place copies at each clicked location.', shortcut: 'CO', icon: <Copy size={14} /> },
         {
           label: 'Duplicate in-place',
+          description: 'Duplicate the selection offset by 10 units (same as Ctrl+D).',
           icon: <Copy size={14} />,
           action: () => duplicateSelection(),
         },
@@ -200,23 +225,26 @@ function buildToolGroups(
     {
       mainTool: 'ROTATE',
       label: 'Rotate',
+      description: 'Rotate selected features around a center point. Use the quick-rotate buttons in the options bar for common angles.',
       shortcut: 'RO',
       icon: <RotateCw size={16} />,
       variants: [
-        { tool: 'ROTATE', label: 'Rotate (interactive)', shortcut: 'RO', icon: <RotateCw size={14} /> },
+        { tool: 'ROTATE', label: 'Rotate (interactive)', description: 'Pick the rotation center, then type the angle in degrees.', shortcut: 'RO', icon: <RotateCw size={14} /> },
         {
           label: 'Rotate 90° CW',
+          description: 'Instantly rotate the selection 90° clockwise.',
           icon: <RotateCw size={14} />,
           action: () => rotateSelection(-90),
-          belowSep: false,
         },
         {
           label: 'Rotate 90° CCW',
+          description: 'Instantly rotate the selection 90° counter-clockwise.',
           icon: <RotateCcw size={14} />,
           action: () => rotateSelection(90),
         },
         {
           label: 'Rotate 180°',
+          description: 'Instantly rotate the selection 180°.',
           icon: <RotateCw size={14} />,
           action: () => rotateSelection(180),
         },
@@ -225,17 +253,20 @@ function buildToolGroups(
     {
       mainTool: 'MIRROR',
       label: 'Mirror',
+      description: 'Mirror/flip selected features. Click two points to define the mirror axis, or use instant Flip H/V variants.',
       shortcut: 'MI',
       icon: <FlipHorizontal2 size={16} />,
       variants: [
-        { tool: 'MIRROR', label: 'Mirror (pick line)', shortcut: 'MI', icon: <FlipHorizontal2 size={14} /> },
+        { tool: 'MIRROR', label: 'Mirror (pick line)', description: 'Click two points to define the mirror axis. The selection is reflected across that line.', shortcut: 'MI', icon: <FlipHorizontal2 size={14} /> },
         {
           label: 'Flip Horizontal',
+          description: 'Instantly mirror the selection horizontally across its own center.',
           icon: <FlipHorizontal2 size={14} />,
           action: () => flipSelectionHorizontal(),
         },
         {
           label: 'Flip Vertical',
+          description: 'Instantly mirror the selection vertically across its own center.',
           icon: <FlipVertical2 size={14} />,
           action: () => flipSelectionVertical(),
         },
@@ -244,12 +275,14 @@ function buildToolGroups(
     {
       mainTool: 'SCALE',
       label: 'Scale',
+      description: 'Scale selected features. Use quick-scale buttons in the options bar, or the interactive tool to pick a center.',
       shortcut: 'SC',
       icon: <Expand size={16} />,
       variants: [
-        { tool: 'SCALE', label: 'Scale (interactive)', shortcut: 'SC', icon: <Expand size={14} /> },
+        { tool: 'SCALE', label: 'Scale (interactive)', description: 'Pick a base point, then type the scale factor (e.g. 2 for double size).', shortcut: 'SC', icon: <Expand size={14} /> },
         {
           label: 'Scale by Factor…',
+          description: 'Instantly scale the selection by a factor you enter.',
           icon: <Expand size={14} />,
           action: () => {
             const input = window.prompt('Enter scale factor (e.g. 2 for double size):');
@@ -263,12 +296,14 @@ function buildToolGroups(
     {
       mainTool: 'ERASE',
       label: 'Erase',
+      description: 'Click features to erase them. Or select features first, then activate the erase tool to delete all at once.',
       shortcut: 'E',
       icon: <Eraser size={16} />,
       variants: [
-        { tool: 'ERASE', label: 'Erase (click)', shortcut: 'E', icon: <Eraser size={14} /> },
+        { tool: 'ERASE', label: 'Erase (click)', description: 'Click any feature to immediately delete it.', shortcut: 'E', icon: <Eraser size={14} /> },
         {
           label: 'Erase selected',
+          description: 'Delete all currently selected features at once.',
           icon: <Eraser size={14} />,
           action: () => deleteSelection(),
         },
@@ -312,7 +347,7 @@ function VariantFlyout({ group, activeTool, onSelect, onClose, anchorY }: Flyout
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
         ref={flyoutRef}
-        className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl py-1 min-w-[200px]"
+        className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl py-1 min-w-[260px] max-w-[340px]"
         style={{ left: flyoutLeft, top: Math.max(4, top) }}
       >
         {/* Group label header */}
@@ -325,20 +360,27 @@ function VariantFlyout({ group, activeTool, onSelect, onClose, anchorY }: Flyout
           return (
             <div key={idx}>
               <button
-                className={`w-full flex items-center justify-between px-3 py-1.5 text-left text-xs transition-colors gap-2
+                className={`w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors gap-2
                   ${isCurrent ? 'bg-blue-600/20 text-blue-300' : 'hover:bg-gray-700 text-gray-200'}`}
                 onClick={() => {
                   onSelect(v);
                   onClose();
                 }}
               >
-                <span className="flex items-center gap-2">
-                  <span className={`w-4 ${isCurrent ? 'text-blue-400' : 'text-gray-400'}`}>{v.icon}</span>
-                  {v.label}
-                  {isCurrent && <span className="text-[9px] text-blue-400 ml-1">●</span>}
+                <span className="flex flex-col items-start gap-0.5 min-w-0">
+                  <span className="flex items-center gap-2">
+                    <span className={`w-4 shrink-0 ${isCurrent ? 'text-blue-400' : 'text-gray-400'}`}>{v.icon}</span>
+                    <span className="font-medium">
+                      {v.label}
+                      {isCurrent && <span className="text-[9px] text-blue-400 ml-1.5">●</span>}
+                    </span>
+                  </span>
+                  {v.description && (
+                    <span className="text-[10px] text-gray-500 pl-6 leading-relaxed">{v.description}</span>
+                  )}
                 </span>
                 {v.shortcut && (
-                  <span className="text-gray-500 text-[10px] shrink-0 font-mono">{v.shortcut}</span>
+                  <span className="text-gray-500 text-[10px] shrink-0 font-mono ml-2">{v.shortcut}</span>
                 )}
               </button>
               {v.belowSep && <div className="my-1 border-t border-gray-700" />}
@@ -413,7 +455,7 @@ export default function ToolBar() {
 
   const [flyout, setFlyout] = useState<{ group: ToolGroupDef; anchorY: number } | null>(null);
 
-  const toolGroups = buildToolGroups(toolStore, viewportStore, drawingStore);
+  const toolGroups = buildToolGroups(toolStore, viewportStore);
 
   // Determine the displayed icon for a tool group (matches active variant)
   function getGroupIcon(group: ToolGroupDef): React.ReactNode {
@@ -449,32 +491,33 @@ export default function ToolBar() {
 
         return (
           <div key={group.mainTool} className="relative group">
-            <button
-              title={`${group.label} (${group.shortcut})${hasVariants ? ' — right-click for variants' : ''}`}
-              onClick={() => {
-                if (group.mainTool === 'DRAW_POLYGON' && !isActive) {
-                  toolStore.setTool(group.mainTool);
-                } else if (group.mainTool === 'PAN') {
-                  toolStore.setTool('PAN');
-                } else {
-                  toolStore.setTool(group.mainTool);
-                }
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                if (hasVariants) openFlyout(group, e.currentTarget);
-              }}
-              className={`w-9 h-9 flex items-center justify-center rounded transition-colors relative
-                ${isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`}
+            <Tooltip
+              label={`${group.label}${hasVariants ? ' ▸' : ''}`}
+              description={group.description}
+              shortcut={group.shortcut}
+              side="right"
+              delay={500}
             >
-              {getGroupIcon(group)}
-              {/* Small triangle indicator: top-right corner marks tools with variants */}
-              {hasVariants && (
-                <span className="absolute bottom-0.5 right-0.5 w-0 h-0 border-r-[5px] border-b-[5px] border-r-transparent border-b-current opacity-40" />
-              )}
-            </button>
+              <button
+                onClick={() => {
+                  toolStore.setTool(group.mainTool);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (hasVariants) openFlyout(group, e.currentTarget);
+                }}
+                className={`w-9 h-9 flex items-center justify-center rounded transition-colors relative
+                  ${isActive
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`}
+              >
+                {getGroupIcon(group)}
+                {/* Small triangle indicator: bottom-right corner marks tools with variants */}
+                {hasVariants && (
+                  <span className="absolute bottom-0.5 right-0.5 w-0 h-0 border-r-[5px] border-b-[5px] border-r-transparent border-b-current opacity-40" />
+                )}
+              </button>
+            </Tooltip>
           </div>
         );
       })}

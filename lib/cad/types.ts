@@ -54,6 +54,12 @@ export interface DrawingSettings {
   // Display
   backgroundColor: string; // Hex (default: "#FFFFFF")
 
+  // Display colors (UI customization)
+  selectionColor: string;  // Hex, default '#0088ff'
+  hoverColor: string;      // Hex, default '#66aaff'
+  gridMajorColor: string;  // Hex, default '#c8c8c8'
+  gridMinorColor: string;  // Hex, default '#e8e8e8'
+
   // Paper
   paperSize: 'LETTER' | 'TABLOID' | 'ARCH_C' | 'ARCH_D' | 'ARCH_E';
   paperOrientation: 'PORTRAIT' | 'LANDSCAPE';
@@ -136,6 +142,7 @@ export type ToolType =
   | 'DRAW_POLYGON'
   | 'DRAW_RECTANGLE'
   | 'DRAW_REGULAR_POLYGON'
+  | 'DRAW_CIRCLE'
   | 'MOVE'
   | 'COPY'
   | 'ROTATE'
@@ -163,6 +170,12 @@ export interface ToolState {
 
   // Regular polygon state
   regularPolygonSides: number; // 3–20, used by DRAW_REGULAR_POLYGON
+
+  // Drawing constraints
+  orthoEnabled: boolean;   // Constrain movement to H/V axes (F8)
+  polarEnabled: boolean;   // Polar angle tracking (F10)
+  polarAngle: number;      // Degrees per polar snap increment (e.g. 45)
+  copyMode: boolean;       // For MOVE/ROTATE/SCALE: keep original when true
 
   // Box select state
   boxStart: Point2D | null; // Screen coordinates

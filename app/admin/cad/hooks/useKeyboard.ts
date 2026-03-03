@@ -40,6 +40,7 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   'p l': 'tool.polyline',
   'p g': 'tool.polygon',
   'r e': 'tool.rectangle',
+  'c i': 'tool.circle',
   'c o': 'tool.copy',
   'r o': 'tool.rotate',
   'm i': 'tool.mirror',
@@ -50,6 +51,8 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   'ctrl+-': 'view.zoomOut',
   f3: 'snap.toggle',
   f7: 'snap.grid',
+  f8: 'snap.ortho',
+  f10: 'snap.polar',
   enter: 'tool.confirm',
 };
 
@@ -192,6 +195,15 @@ export function useKeyboard() {
       case 'tool.rectangle':
         toolStore.setTool('DRAW_RECTANGLE');
         break;
+      case 'tool.circle':
+        toolStore.setTool('DRAW_CIRCLE');
+        break;
+      case 'tool.polyline':
+        toolStore.setTool('DRAW_POLYLINE');
+        break;
+      case 'tool.polygon':
+        toolStore.setTool('DRAW_POLYGON');
+        break;
       case 'view.zoomExtents':
         zoomToExtents();
         break;
@@ -209,6 +221,12 @@ export function useKeyboard() {
         break;
       case 'snap.grid':
         drawingStore.updateSettings({ gridVisible: !drawingStore.document.settings.gridVisible });
+        break;
+      case 'snap.ortho':
+        toolStore.setOrthoEnabled(!toolStore.state.orthoEnabled);
+        break;
+      case 'snap.polar':
+        toolStore.setPolarEnabled(!toolStore.state.polarEnabled);
         break;
       case 'tool.confirm':
         confirmCurrentTool();

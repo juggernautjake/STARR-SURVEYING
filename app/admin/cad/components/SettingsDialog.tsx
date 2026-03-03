@@ -2,9 +2,10 @@
 // app/admin/cad/components/SettingsDialog.tsx — Drawing settings & preferences
 
 import { useState } from 'react';
-import { X, Grid, ZoomIn, Sliders } from 'lucide-react';
+import { X, Grid, ZoomIn, Sliders, Palette } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import type { SnapType } from '@/lib/cad/types';
+import Tooltip from './Tooltip';
 
 interface Props {
   onClose: () => void;
@@ -20,8 +21,38 @@ const ALL_SNAP_TYPES: { type: SnapType; label: string; description: string }[] =
   { type: 'GRID', label: 'Grid', description: 'Snaps to the nearest grid intersection' },
 ];
 
-const TABS = ['Display', 'Grid', 'Snap', 'Document'] as const;
+const TABS = ['Display', 'Grid', 'Appearance', 'Snap', 'Document'] as const;
 type Tab = typeof TABS[number];
+
+// ── Helper: color row with tooltip ───────────────────────────────────────────
+interface ColorRowProps {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  tooltip: string;
+  preview?: string; // extra preview text
+}
+function ColorRow({ label, value, onChange, tooltip, preview }: ColorRowProps) {
+  return (
+    <Tooltip label={label} description={tooltip} side="right" delay={400}>
+      <div className="flex items-center justify-between gap-2 py-1">
+        <span className="text-gray-400 text-xs">{label}</span>
+        <div className="flex items-center gap-2">
+          {preview && <span className="text-gray-500 text-[10px]">{preview}</span>}
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              className="w-8 h-7 rounded cursor-pointer bg-transparent border border-gray-600 outline-none"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+            />
+            <span className="text-gray-300 font-mono text-[10px] w-16">{value}</span>
+          </div>
+        </div>
+      </div>
+    </Tooltip>
+  );
+}
 
 export default function SettingsDialog({ onClose }: Props) {
   const drawingStore = useDrawingStore();
@@ -79,21 +110,10 @@ export default function SettingsDialog({ onClose }: Props) {
           {/* ── Display ─────────────────────────────────────────────────────── */}
           {activeTab === 'Display' && (
             <div className="space-y-3">
+              <p className="text-gray-500 text-[10px]">
+                Set document-level display options. For selection/grid colors, see the <strong className="text-gray-400">Appearance</strong> tab.
+              </p>
               <div>
-                <label className="block text-gray-400 mb-1">Background Color</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    className="w-8 h-8 rounded cursor-pointer bg-transparent border border-gray-600 outline-none"
-                    value={settings.backgroundColor}
-                    onChange={(e) => drawingStore.updateSettings({ backgroundColor: e.target.value })}
-                  />
-                  <span className="text-gray-300 font-mono">{settings.backgroundColor}</span>
-                </div>
-                <p className="text-gray-500 mt-1">Canvas background color. White (#FFFFFF) is standard for survey drawings.</p>
-              </div>
-
-              <div className="border-t border-gray-700 pt-3">
                 <label className="block text-gray-400 mb-1">Drawing Scale</label>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-400">1″ =</span>
@@ -184,6 +204,95 @@ export default function SettingsDialog({ onClose }: Props) {
                   }}
                 />
                 <p className="text-gray-500 mt-1">Number of minor grid subdivisions per major interval. 10 = 1/10th of major spacing.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Appearance ──────────────────────────────────────────────────── */}
+          {activeTab === 'Appearance' && (
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center gap-1.5 mb-3">
+                  <Palette size={12} className="text-blue-400" />
+                  <span className="text-white font-medium text-xs">Selection & Hover Colors</span>
+                </div>
+                <p className="text-gray-500 text-[10px] mb-3">
+                  These colors control how selected and hovered features are highlighted on the canvas.
+                  Changes take effect immediately.
+                </p>
+                <div className="space-y-0.5 bg-gray-750 rounded-lg p-2" style={{ background: '#1f2937' }}>
+                  <ColorRow
+                    label="Selection Color"
+                    value={settings.selectionColor ?? '#0088ff'}
+                    onChange={(v) => drawingStore.updateSettings({ selectionColor: v })}
+                    tooltip="The color used for the selection outline when features are selected. Also used for grip squares."
+                  />
+                  <ColorRow
+                    label="Hover Highlight"
+                    value={settings.hoverColor ?? '#66aaff'}
+                    onChange={(v) => drawingStore.updateSettings({ hoverColor: v })}
+                    tooltip="The color used when hovering over a feature with the Select tool, before clicking to select it."
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-gray-700 pt-3">
+                <div className="flex items-center gap-1.5 mb-3">
+                  <Grid size={12} className="text-blue-400" />
+                  <span className="text-white font-medium text-xs">Grid Colors</span>
+                </div>
+                <p className="text-gray-500 text-[10px] mb-3">
+                  Customize the color of major and minor grid lines/dots/crosshairs.
+                  Works best when contrasting with the canvas background color.
+                </p>
+                <div className="space-y-0.5 bg-gray-750 rounded-lg p-2" style={{ background: '#1f2937' }}>
+                  <ColorRow
+                    label="Major Grid"
+                    value={settings.gridMajorColor ?? '#c8c8c8'}
+                    onChange={(v) => drawingStore.updateSettings({ gridMajorColor: v })}
+                    tooltip="Color of the major (larger interval) grid lines or dots. Usually darker than the minor grid."
+                    preview="Primary"
+                  />
+                  <ColorRow
+                    label="Minor Grid"
+                    value={settings.gridMinorColor ?? '#e8e8e8'}
+                    onChange={(v) => drawingStore.updateSettings({ gridMinorColor: v })}
+                    tooltip="Color of the minor (subdivision) grid lines or dots. Usually lighter than the major grid."
+                    preview="Subdivision"
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-gray-700 pt-3">
+                <div className="text-white font-medium text-xs mb-2">Canvas Background</div>
+                <p className="text-gray-500 text-[10px] mb-2">
+                  The background color of the drawing canvas. White is standard for printed survey drawings.
+                </p>
+                <div className="bg-gray-750 rounded-lg p-2" style={{ background: '#1f2937' }}>
+                  <ColorRow
+                    label="Background"
+                    value={settings.backgroundColor}
+                    onChange={(v) => drawingStore.updateSettings({ backgroundColor: v })}
+                    tooltip="Canvas background color. White (#FFFFFF) is standard for survey drawings intended for printing."
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-gray-700 pt-3">
+                <button
+                  className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors underline"
+                  onClick={() => {
+                    drawingStore.updateSettings({
+                      selectionColor: '#0088ff',
+                      hoverColor: '#66aaff',
+                      gridMajorColor: '#c8c8c8',
+                      gridMinorColor: '#e8e8e8',
+                      backgroundColor: '#FFFFFF',
+                    });
+                  }}
+                >
+                  Reset appearance colors to defaults
+                </button>
               </div>
             </div>
           )}

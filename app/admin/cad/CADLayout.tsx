@@ -9,6 +9,7 @@ import LayerPanel from './components/LayerPanel';
 import PropertyPanel from './components/PropertyPanel';
 import CommandBar from './components/CommandBar';
 import StatusBar from './components/StatusBar';
+import ToolOptionsBar from './components/ToolOptionsBar';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import { useUIStore, useDrawingStore } from '@/lib/cad/store';
@@ -115,6 +116,9 @@ export default function CADLayout() {
 
       {/* Top menu bar */}
       <MenuBar />
+
+      {/* Contextual tool options strip */}
+      <ToolOptionsBar />
 
       {/* Main content area */}
       <div className="flex flex-1 min-h-0">

@@ -79,6 +79,10 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
       return drawingPointsCount === 0
         ? `Specify center of ${regularPolygonSides ?? 6}-sided polygon (right-click variant menu to change sides)`
         : `Specify radius / first vertex`;
+    case 'DRAW_CIRCLE':
+      return drawingPointsCount === 0
+        ? 'Specify circle center point'
+        : 'Specify radius (or type a distance in the command bar)';
     case 'MOVE':
       return basePoint == null ? 'Specify base point' : 'Specify destination point';
     case 'COPY':
