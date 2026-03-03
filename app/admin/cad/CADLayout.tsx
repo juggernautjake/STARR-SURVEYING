@@ -12,6 +12,8 @@ import StatusBar from './components/StatusBar';
 import ToolOptionsBar from './components/ToolOptionsBar';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
+import ImportDialog from './components/ImportDialog';
+import PointTablePanel from './components/PointTablePanel';
 import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -83,6 +85,8 @@ export default function CADLayout() {
     y: number;
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showPointTable, setShowPointTable] = useState(false);
   const [recoveryPayload, setRecoveryPayload] = useState<{
     savedAt: string;
     document: unknown;
@@ -203,7 +207,7 @@ export default function CADLayout() {
       )}
 
       {/* Top menu bar */}
-      <MenuBar />
+      <MenuBar onOpenImport={() => setShowImportDialog(true)} onTogglePointTable={() => setShowPointTable(p => !p)} />
 
       {/* Contextual tool options strip */}
       <ToolOptionsBar />
@@ -235,8 +239,16 @@ export default function CADLayout() {
         )}
       </div>
 
-      {/* Bottom area: command bar + status bar */}
+      {/* Bottom area: command bar + optional point table + status bar */}
       <CommandBar />
+      {showPointTable && (
+        <div className="h-48 border-t border-gray-700 shrink-0">
+          <PointTablePanel
+            codeDisplayMode={drawingStore.document.settings.codeDisplayMode ?? 'ALPHA'}
+            onCodeDisplayModeChange={(mode) => drawingStore.updateSettings({ codeDisplayMode: mode })}
+          />
+        </div>
+      )}
       <StatusBar />
 
       {/* Feature properties dialog (opened by double-clicking a feature) */}
@@ -251,6 +263,14 @@ export default function CADLayout() {
 
       {/* Settings dialog */}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+
+      {/* Import field data dialog */}
+      {showImportDialog && (
+        <ImportDialog
+          onClose={() => setShowImportDialog(false)}
+          onImportComplete={() => { setShowImportDialog(false); setShowPointTable(true); }}
+        />
+      )}
     </div>
   );
 }
