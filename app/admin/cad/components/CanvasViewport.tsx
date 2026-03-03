@@ -1592,10 +1592,38 @@ export default function CanvasViewport() {
             detail: { featureId: hit, x: e.clientX, y: e.clientY },
           }),
         );
+      } else if (activeTool === 'SELECT') {
+        // Double-click on empty canvas in SELECT mode → deselect all
+        selectionStore.deselectAll();
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore, drawingStore],
+    [toolStore, drawingStore, selectionStore],
+  );
+
+  // ─────────────────────────────────────────────
+  // Triple-click: select all features on same layer
+  // ─────────────────────────────────────────────
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (e.detail < 3) return; // Only handle triple-click
+      const toolState = toolStore.state;
+      if (toolState.activeTool !== 'SELECT') return;
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const hit = hitTest(sx, sy);
+      if (!hit) return;
+      const feature = drawingStore.getFeature(hit);
+      if (!feature) return;
+      const sameLayerIds = drawingStore
+        .getVisibleFeatures()
+        .filter((f) => f.layerId === feature.layerId)
+        .map((f) => f.id);
+      selectionStore.selectMultiple(sameLayerIds, 'REPLACE');
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [toolStore, drawingStore, selectionStore],
   );
 
   // ─────────────────────────────────────────────
@@ -1785,6 +1813,7 @@ export default function CanvasViewport() {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onWheel={handleWheel}
+        onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
       />
