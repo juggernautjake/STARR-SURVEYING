@@ -21,6 +21,7 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   paperSize: 'TABLOID',
   paperOrientation: 'LANDSCAPE',
   drawingScale: 50,
+  codeDisplayMode: 'ALPHA',
 };
 
 export const DEFAULT_FEATURE_STYLE: FeatureStyle = {

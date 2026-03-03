@@ -64,6 +64,7 @@ export interface DrawingSettings {
   paperSize: 'LETTER' | 'TABLOID' | 'ARCH_C' | 'ARCH_D' | 'ARCH_E';
   paperOrientation: 'PORTRAIT' | 'LANDSCAPE';
   drawingScale: number; // e.g., 50 for 1"=50'
+  codeDisplayMode: 'ALPHA' | 'NUMERIC';
 }
 
 // --- FEATURES ---
@@ -217,4 +218,147 @@ export interface CommandEntry {
 export interface ParsedCommand {
   type: 'COORDINATE' | 'DISTANCE' | 'ANGLE' | 'COMMAND' | 'UNKNOWN';
   value: unknown;
+}
+
+// ─── PHASE 2: SURVEY POINT DATA MODEL ───
+
+export type CodeSuffix = 'B' | 'E' | 'C' | 'A' | 'BA' | 'EA' | 'CA';
+
+export type MonumentAction = 'FOUND' | 'SET' | 'CALCULATED' | 'UNKNOWN';
+
+export type PointNameSuffix = 'FOUND' | 'SET' | 'CALCULATED' | 'NONE';
+
+export type CodeCategory =
+  | 'BOUNDARY_CONTROL'
+  | 'SURVEY_CONTROL'
+  | 'PROPERTY_LINES'
+  | 'STRUCTURES'
+  | 'FENCES'
+  | 'UTILITIES'
+  | 'VEGETATION'
+  | 'TOPOGRAPHY'
+  | 'TRANSPORTATION'
+  | 'CURVES'
+  | 'MISCELLANEOUS';
+
+export type LineSegmentType = 'STRAIGHT' | 'ARC' | 'SPLINE';
+
+export interface ParsedPointName {
+  baseNumber: number;
+  suffix: string;
+  normalizedSuffix: PointNameSuffix;
+  suffixVariant: string;
+  suffixConfidence: number;
+  isRecalc: boolean;
+  recalcSequence: number;
+}
+
+export interface ParsedPointCode {
+  rawCode: string;
+  baseCode: string;
+  isNumeric: boolean;
+  isAlpha: boolean;
+  suffix: CodeSuffix | null;
+  isValid: boolean;
+  isLineCode: boolean;
+  isAutoSpline: boolean;
+}
+
+export interface PointCodeDefinition {
+  alphaCode: string;
+  numericCode: string;
+  description: string;
+  category: CodeCategory;
+  subcategory: string;
+  connectType: 'POINT' | 'LINE';
+  isAutoSpline: boolean;
+  defaultSymbolId: string;
+  defaultLineTypeId: string;
+  defaultColor: string;
+  defaultLineWeight: number;
+  defaultLayerId: string;
+  defaultLabelFormat: string;
+  simplifiedCode: string;
+  simplifiedDescription: string;
+  collapses: boolean;
+  monumentAction: MonumentAction | null;
+  monumentSize: string | null;
+  monumentType: string | null;
+  isBuiltIn: boolean;
+  isNew: boolean;
+  notes: string;
+}
+
+export interface ValidationIssue {
+  type: ValidationIssueType;
+  severity: 'INFO' | 'WARNING' | 'ERROR';
+  pointId: string;
+  message: string;
+  autoFixable: boolean;
+  autoFixAction?: string;
+}
+
+export type ValidationIssueType =
+  | 'DUPLICATE_POINT_NUMBER'
+  | 'ZERO_COORDINATES'
+  | 'UNRECOGNIZED_CODE'
+  | 'AMBIGUOUS_CODE'
+  | 'MISSING_ELEVATION'
+  | 'COORDINATE_OUTLIER'
+  | 'DUPLICATE_COORDINATES'
+  | 'ORPHAN_END_SUFFIX'
+  | 'ORPHAN_BEGIN_SUFFIX'
+  | 'SINGLE_POINT_LINE'
+  | 'MIXED_CODES_IN_SEQUENCE'
+  | 'NAME_SUFFIX_AMBIGUOUS'
+  | 'CALC_WITHOUT_FIELD';
+
+export interface SurveyPoint {
+  id: string;
+  pointNumber: number;
+  pointName: string;
+  parsedName: ParsedPointName;
+  northing: number;
+  easting: number;
+  elevation: number | null;
+  rawCode: string;
+  parsedCode: ParsedPointCode;
+  resolvedAlphaCode: string;
+  resolvedNumericCode: string;
+  codeSuffix: CodeSuffix | null;
+  codeDefinition: PointCodeDefinition | null;
+  monumentAction: MonumentAction | null;
+  description: string;
+  rawRecord: string;
+  importSource: string;
+  layerId: string;
+  featureId: string;
+  lineStringIds: string[];
+  validationIssues: ValidationIssue[];
+  confidence: number;
+  isAccepted: boolean;
+}
+
+export interface LineString {
+  id: string;
+  codeBase: string;
+  pointIds: string[];
+  isClosed: boolean;
+  segments: LineSegmentType[];
+  featureId: string | null;
+}
+
+export interface PointGroup {
+  baseNumber: number;
+  allPoints: SurveyPoint[];
+  calculated: SurveyPoint[];
+  found: SurveyPoint | null;
+  set: SurveyPoint | null;
+  none: SurveyPoint[];
+  finalPoint: SurveyPoint;
+  finalSource: 'SET' | 'FOUND' | 'CALCULATED' | 'NONE';
+  calcSetDelta: number | null;
+  calcFoundDelta: number | null;
+  hasBothCalcAndField: boolean;
+  deltaWarning: boolean;
 }

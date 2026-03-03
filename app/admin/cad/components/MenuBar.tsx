@@ -31,7 +31,7 @@ interface MenuDef {
   items: MenuEntry[];
 }
 
-export default function MenuBar() {
+export default function MenuBar({ onOpenImport, onTogglePointTable }: { onOpenImport?: () => void; onTogglePointTable?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -133,6 +133,8 @@ export default function MenuBar() {
         { separator: true },
         { label: 'Save', shortcut: 'Ctrl+S', action: saveDocument },
         { label: 'Save As…', action: saveDocument },
+        { separator: true },
+        { label: 'Import…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
       ],
     },
     {
@@ -186,6 +188,11 @@ export default function MenuBar() {
         {
           label: uiStore.showPropertyPanel ? 'Hide Properties' : 'Show Properties',
           action: () => uiStore.togglePropertyPanel(),
+        },
+        { separator: true },
+        {
+          label: 'Toggle Point Table',
+          action: () => { onTogglePointTable?.(); setOpenMenu(null); },
         },
       ],
     },
