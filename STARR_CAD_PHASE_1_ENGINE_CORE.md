@@ -1400,38 +1400,92 @@ interface StarrFileV1 {
 
 ## 18. Keyboard Shortcuts
 
+Phase 1 implements a **fixed default** shortcut set. In Phase 8, all shortcuts become user-configurable via a Hotkey Registry. The Phase 1 implementation should use the same key serialization format so it slots into the registry without changes.
+
 ```typescript
-const PHASE_1_SHORTCUTS: Record<string, () => void> = {
-  // Global
-  'ctrl+z':       () => undoStore.undo(),
-  'ctrl+y':       () => undoStore.redo(),
-  'ctrl+shift+z': () => undoStore.redo(),
-  'ctrl+s':       () => saveCurrentDocument(),
-  'ctrl+o':       () => openFileDialog(),
-  'ctrl+n':       () => newDocument(),
-  'escape':       () => { toolStore.setTool('SELECT'); selectionStore.deselectAll(); },
-  'delete':       () => eraseSelected(),
-  'backspace':    () => eraseSelected(),
+// Phase 1 default bindings — these become the DEFAULT_BINDINGS in Phase 8's HotkeyStore
+const PHASE_1_SHORTCUTS: Record<string, string> = {
+  // key combo → actionId (matches Phase 8 registry IDs)
+  'ctrl+z':       'edit.undo',
+  'ctrl+y':       'edit.redo',
+  'ctrl+shift+z': 'edit.redo2',
+  'ctrl+s':       'file.save',
+  'ctrl+o':       'file.open',
+  'ctrl+n':       'file.new',
+  'escape':       'edit.deselect',
+  'delete':       'edit.delete',
+  'backspace':    'edit.delete',
 
   // Tools
-  's':            () => toolStore.setTool('SELECT'),
-  'l':            () => toolStore.setTool('DRAW_LINE'),
-  'm':            () => toolStore.setTool('MOVE'),
-  'e':            () => toolStore.setTool('ERASE'),
+  's':            'tool.select',
+  'h':            'tool.pan',
+  'l':            'tool.line',
+  'p':            'tool.point',
+  'm':            'tool.move',
+  'e':            'tool.erase',
 
   // Zoom
-  'z e':          () => zoomToExtents(),
-  'z s':          () => zoomToSelection(),
+  'z e':          'view.zoomExtents',
+  'z s':          'view.zoomSelection',
+  'ctrl+equal':   'view.zoomIn',
+  'ctrl+minus':   'view.zoomOut',
 
-  // Snap
-  'f3':           () => toggleSnap(),
+  // Snap / Grid
+  'f3':           'snap.toggle',
+  'f7':           'snap.grid',
 
-  // Enter: confirm current tool action (finish polyline, etc.)
-  'enter':        () => confirmCurrentTool(),
+  // Confirm
+  'enter':        'tool.confirm',
 };
 ```
 
-Multi-key shortcuts (e.g., "z then e"): Track last key pressed within 500ms window. If "z" was pressed <500ms ago and "e" is pressed, trigger "z e".
+**Phase 1 implementation note:** Wire the above map directly to the action handlers. Use the same `HotkeyEngine` class that Phase 8 will fully configure. This ensures no refactoring is needed in Phase 8 — Phase 8 only swaps the bindings map.
+
+Multi-key chords (e.g., "z then e"): Track last key pressed within 500ms. If "z" was pressed <500ms ago and "e" is pressed, trigger "z e". This is handled by `HotkeyEngine` (§18.1 below).
+
+### 18.1 Phase 1 Hotkey Implementation
+
+```typescript
+// apps/web/hooks/useKeyboard.ts
+
+import { HotkeyEngine } from '@starr-cad/hotkeys';
+
+export function useKeyboard() {
+  const engine = useRef<HotkeyEngine | null>(null);
+  const hotkeyStore = useHotkeyStore();
+
+  useEffect(() => {
+    // Build bindings map: key combo → actionId
+    const bindings = new Map(Object.entries(hotkeyStore.bindings));
+    engine.current = new HotkeyEngine(bindings);
+
+    // Register all action handlers
+    engine.current.register('edit.undo',          () => undoStore.undo());
+    engine.current.register('edit.redo',          () => undoStore.redo());
+    engine.current.register('edit.redo2',         () => undoStore.redo());
+    engine.current.register('file.save',          () => saveCurrentDocument());
+    engine.current.register('file.open',          () => openFileDialog());
+    engine.current.register('file.new',           () => newDocument());
+    engine.current.register('edit.deselect',      () => { toolStore.setTool('SELECT'); selectionStore.deselectAll(); });
+    engine.current.register('edit.delete',        () => eraseSelected());
+    engine.current.register('tool.select',        () => toolStore.setTool('SELECT'));
+    engine.current.register('tool.pan',           () => toolStore.setTool('PAN'));
+    engine.current.register('tool.line',          () => toolStore.setTool('DRAW_LINE'));
+    engine.current.register('tool.point',         () => toolStore.setTool('DRAW_POINT'));
+    engine.current.register('tool.move',          () => toolStore.setTool('MOVE'));
+    engine.current.register('tool.erase',         () => toolStore.setTool('ERASE'));
+    engine.current.register('view.zoomExtents',   () => zoomToExtents());
+    engine.current.register('view.zoomSelection', () => zoomToSelection());
+    engine.current.register('view.zoomIn',        () => zoomIn());
+    engine.current.register('view.zoomOut',       () => zoomOut());
+    engine.current.register('snap.toggle',        () => toggleSnap());
+    engine.current.register('snap.grid',          () => toggleGrid());
+    engine.current.register('tool.confirm',       () => confirmCurrentTool());
+
+    return () => engine.current?.dispose();
+  }, [hotkeyStore.bindings]);   // Re-register when bindings change (Phase 8 user customization)
+}
+```
 
 ---
 

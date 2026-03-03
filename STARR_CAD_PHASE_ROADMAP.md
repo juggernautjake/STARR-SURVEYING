@@ -1,17 +1,17 @@
-# STARR CAD — 7-Phase Implementation Roadmap
+# STARR CAD — 8-Phase Implementation Roadmap
 
-**Version:** 1.0 | **Date:** March 2026 | **Company:** Starr Surveying Company, Belton, TX
+**Version:** 2.0 | **Date:** March 2026 | **Company:** Starr Surveying Company, Belton, TX
 
-**Purpose:** This document defines the 7 development phases for Starr CAD. Each phase has its own standalone implementation spec. Phases are sequential — each builds on the previous. Work on a phase only after the prior phase's deliverables are complete and tested.
+**Purpose:** This document defines the 8 development phases for Starr CAD. Each phase has its own standalone implementation spec. Phases are sequential — each builds on the previous. Work on a phase only after the prior phase's deliverables are complete and tested.
 
 ---
 
 ## Phase Dependencies
 
 ```
-Phase 1 ──→ Phase 2 ──→ Phase 3 ──→ Phase 4 ──→ Phase 5 ──→ Phase 6 ──→ Phase 7
-Engine       Data In     Styling     Geometry    Labels/     AI Engine    Export &
-Core         & Codes     & Editors   Tools       Templates                Polish
+Phase 1 ──→ Phase 2 ──→ Phase 3 ──→ Phase 4 ──→ Phase 5 ──→ Phase 6 ──→ Phase 7 ──→ Phase 8
+Engine       Data In     Styling     Geometry    Labels/     AI Engine    Final        UX
+Core         & Codes     & Editors   Tools       Templates   & Preview    Delivery     Polish
 ```
 
 ---
@@ -172,57 +172,94 @@ Core         & Codes     & Editors   Tools       Templates                Polish
 
 ## Phase 6: AI Drawing Engine
 
-**Goal:** Import a field file + provide a deed, and the AI produces a review-ready drawing with confidence scores on every element. Point groups (calc/set/found) are automatically resolved. The review queue lets you accept, modify, or reject each AI decision individually.
+**Goal:** Import a field file + provide a deed, and the AI produces an accepted drawing ready for the full editor. The engine resolves field-shot dynamic offsets to true positions, enriches data from online sources (GIS parcels, FEMA flood zones, PLSS, elevation), runs a 5–10 minute deliberation period, generates confidence-gated clarifying questions, renders an interactive drawing preview with visual element confidence cards sorted by confidence (least to most), and provides per-element AI explanation popups with element-level chat. The user accepts the drawing to send it to Phase 7.
 
 **Key Deliverables:**
 
-- 6-stage AI pipeline (classify -> assemble -> reconcile -> place -> label -> score)
+- 6-stage AI pipeline (classify → assemble → reconcile → place → label → score)
 - Stage 1: Point classification (resolve codes, parse names, detect monument actions)
-- Stage 2: Feature assembly (build line strings, fit arcs from A-suffixed sequences, fit splines from auto-spline codes, detect unclosed boundaries)
-- Stage 3: Deed/record reconciliation (parse legal descriptions, trace record boundary, compare field vs record bearing/distance per call, flag discrepancies)
-- Stage 4: Intelligent placement (auto-select paper/scale/orientation, auto-label all features)
+- Stage 2: Feature assembly (line strings, arc fitting, splines, detect unclosed boundaries)
+- Stage 3: Deed/record reconciliation (parse legal descriptions, compare field vs record per call)
+- Stage 4: Intelligent placement (auto-select paper/scale/orientation)
 - Stage 5: Label optimization (collision-free label placement using simulated annealing)
 - Stage 6: Confidence scoring (5-tier system, per-element scoring with 6 weighted factors)
-- Point group intelligence (group calc/set/found by base number, resolve final point, compute deltas, report to review queue)
-- Calc-set-found relationship display (show all positions for a monument, highlight which was used, show delta distances)
-- AI review queue UI (tier-grouped list, click to zoom, accept/modify/reject per element, batch accept by tier)
-- AI prompt input (free-text instructions to guide the AI's decisions)
+- **Dynamic offset resolution** (detect field-shot offsets from code suffixes, descriptions, field notes, companion pairs; compute true monument positions)
+- **Online data enrichment** (county CAD parcel data, USGS PLSS, FEMA NFIP flood zones, TxDOT ROW, USGS elevation)
+- **AI deliberation period** (5–10 minutes of deep cross-referencing before drawing)
+- **Confidence-gated clarifying questions** (only generated when confidence < 70%; blocking + optional question categories; skipped when overall confidence ≥ 90%)
+- **Interactive drawing preview** (two-panel: drawing canvas left + element confidence cards right)
+- **Visual element confidence cards** (sorted least-confident-first by default; color-coded borders and bars; red/orange/yellow/yellow-green/green tiers)
+- **Per-element AI explanation popups** (why drawn this way, data used, assumptions, alternatives, confidence breakdown)
+- **Element-level chat** (ask questions about a specific element; AI can update element, group, or full drawing)
+- Point group intelligence (calc/set/found resolution with delta reporting)
+- AI review queue UI (tier-grouped list, accept/modify/reject per item, batch actions)
 - Claude API integration via DigitalOcean worker (unlimited processing time)
-- Deed PDF/image import for AI extraction (OCR -> text -> parse -> DeedData structure)
+- Deed PDF/image import for AI extraction (OCR → text → parse → DeedData)
 
-**Depends On:** Phase 5 (labels, templates, and print system exist for the AI to populate)
+**Depends On:** Phase 5 (labels, templates, print system for AI to populate)
 
-**Estimated Duration:** 8-10 weeks
+**Estimated Duration:** 10–13 weeks
 
 **Spec File:** `STARR_CAD_PHASE_6_AI_ENGINE.md`
 
 ---
 
-## Phase 7: File Export, Integration, Desktop App & Polish
+## Phase 7: Final Delivery — Editor Integration, RPLS Workflow & Export
 
-**Goal:** Get data out of Starr CAD in every format needed. Connect to the broader Starr Software ecosystem. Wrap in Electron for offline desktop use. Test with real survey jobs.
+**Goal:** Transform an AI-reviewed drawing into a sealed, legally valid survey deliverable. Load the accepted AI drawing into the full interactive editor. The AI generates the complete survey description. A built-in RPLS review workflow manages seal application and approval. The finished product is exported and delivered to the client. A desktop Electron wrapper and Starr platform integrations complete the phase.
 
 **Key Deliverables:**
 
-- DXF export (AutoCAD-compatible, with blocks for symbols, custom line types, layer mapping)
+- **Full editor integration** (load accepted AI drawing into the Phase 1–5 full interactive editor with AI sidebar)
+- **AI drawing assistant** (persistent chat in editor: layer changes, style changes, geometry instructions, questions)
+- **AI survey description generator** (legal description, survey notes, certification text, title block auto-fill from enrichment/drawing data)
+- **Drawing completeness checker** (16 automated checks: boundary closed, labels present, title block filled, tier-1 items resolved, etc.)
+- **RPLS review workflow** (submit → in-review → approve → seal state machine with review history)
+- **Digital seal system** (upload RPLS seal image; embed in PDF at seal placeholder; hash drawing at time of sealing)
+- **Client deliverable pipeline** (mark delivered, export ZIP, email client, upload to Starr portal)
+- DXF export (AutoCAD-compatible, all entity types, symbol blocks, custom line types)
 - DXF import (parse entities, layers, blocks into Starr CAD features)
-- PDF export (vector PDF, print-quality, all template elements included)
-- Simplified CSV export (dad-mode: collapse monument codes, preserve point names and B/E suffixes)
-- CSV/TXT export (full data with both alpha and numeric codes)
-- Starr platform integration points (Compass -> CAD project data, CAD -> Compass completed drawings, CAD -> Forge base layers, CAD -> Orbit boundary/utility maps)
-- Electron desktop wrapper (offline capability, local file system access, native menus)
-- Auto-save and crash recovery (.starr.autosave alongside main file)
-- Settings persistence (user preferences, import presets, code-to-style overrides saved between sessions)
-- Performance optimization (spatial indexing for snap/selection on large drawings, LOD rendering for dense point files)
-- Field reference sleeve cards (print-ready PDF for the wristband cards)
-- Real survey job testing (run 5+ actual Starr Surveying jobs through the full pipeline)
-- Bug fixing and UX polish based on real-world testing feedback
+- Final PDF export (sealed, vector, PDF/A-3 archival option)
+- GeoJSON export (WGS84 via proj4 coordinate conversion)
+- Simplified CSV export (dad-mode: collapsed codes, B/E suffixes) + full CSV
+- Electron desktop wrapper (offline capability, native file dialogs, auto-update)
+- Auto-save & crash recovery (.starr.autosave alongside main file, crash recovery dialog)
+- Starr platform integrations (Compass ↔ CAD data flow, CAD → Forge base layers, CAD → Orbit maps)
+- Settings persistence (company settings, user preferences, import presets saved between sessions)
+- Performance optimization (R-tree spatial indexing, LOD rendering, annotation culling)
+- Field reference sleeve cards (print-ready PDF for wristband cards)
+- Real survey job testing (5+ actual Starr Surveying jobs through the full pipeline)
 
-**Depends On:** Phase 6 (AI engine complete, all features functional)
+**Depends On:** Phase 6 (AI engine complete, user has accepted a drawing from the preview)
 
-**Estimated Duration:** 5-7 weeks
+**Estimated Duration:** 7–9 weeks
 
-**Spec File:** `STARR_CAD_PHASE_7_EXPORT_POLISH.md`
+**Spec File:** `STARR_CAD_PHASE_7_FINAL.md`
+
+---
+
+## Phase 8: UX Completeness — Controls, Hotkeys, Tooltips & Settings
+
+**Goal:** Every button, form, field, and function works exactly as expected. Controls are stylish and intuitive. Hotkeys are comprehensive and user-configurable with a dedicated binding page. The cursor changes dynamically per tool and snap state. Tooltips appear on 2–3 second hover and track the mouse. Every drawing element shows hover-details (bearing, length, point names). A robust settings section manages all preferences, templates, and tool defaults. Everything persists flawlessly.
+
+**Key Deliverables:**
+
+- **User-configurable hotkey registry** (40+ bindable actions, user can rebind any action)
+- **Hotkey binding settings page** (table with edit-binding modal, conflict detection + resolution, presets: Default / AutoCAD-like, reset all to defaults)
+- **Dynamic cursor system** (20+ cursor states per tool/snap/drag context: crosshair, draw, snap-type cursors, grab, rotate, scale, erase, AI chat, etc.)
+- **Tooltip system** (2–3 second hover delay, mouse-tracking, configurable delay/width, per-type toggles)
+- **Element hover-detail tooltips** (LINE: bearing + length + from/to names; ARC: R, Δ, L, CB; POINT: name, code, N/E)
+- **Bidirectional attribute ↔ canvas sync** (manual canvas edits → property panel updates in real-time; property panel edits → canvas re-renders immediately; all changes in undo stack with descriptive labels)
+- **Undo/Redo UI buttons** with descriptive action labels in tooltips (disabled state when stack empty)
+- **Comprehensive settings section** (General, Canvas, Display, Hotkeys, AI, Export, Company, Templates, Import Presets — all persisted to server + localStorage)
+- **Controls & navigation polish** (toolbar/panel style guide, form field conventions, confirmation dialogs on destructive actions, full keyboard navigation, command palette Ctrl+K)
+- **Phase 1–7 gap audit** (applies tooltips to all dialogs, fixes any missing bidirectional sync, adds missing confirmation dialogs, etc.)
+
+**Depends On:** Phase 7 (all features functional — Phase 8 polishes the full application)
+
+**Estimated Duration:** 4–6 weeks
+
+**Spec File:** `STARR_CAD_PHASE_8_UX_CONTROLS.md`
 
 ---
 
@@ -235,12 +272,13 @@ Core         & Codes     & Editors   Tools       Templates                Polish
 | 3 | Layer System, Symbols, Line Types & Editors | 5-7 wks | 15-21 wks |
 | 4 | Geometry Tools — Curves, Splines, Offsets & Survey Math | 7-9 wks | 22-30 wks |
 | 5 | Annotations, Dimensions, Templates & Print | 5-7 wks | 27-37 wks |
-| 6 | AI Drawing Engine | 8-10 wks | 35-47 wks |
-| 7 | File Export, Integration, Desktop App & Polish | 5-7 wks | 40-54 wks |
+| 6 | AI Drawing Engine | 10-13 wks | 37-50 wks |
+| 7 | Final Delivery — Editor Integration, RPLS Workflow & Export | 7-9 wks | 44-59 wks |
+| 8 | UX Completeness — Controls, Hotkeys, Tooltips & Settings | 4-6 wks | 48-65 wks |
 
-**Total estimated:** 40-54 weeks (10-13 months)
+**Total estimated:** 48–65 weeks (12–16 months)
 
-Part-time with AI assistance. Full-time effort could compress to 7-9 months.
+Part-time with AI assistance. Full-time effort could compress to 9–12 months.
 
 ---
 
@@ -248,13 +286,14 @@ Part-time with AI assistance. Full-time effort could compress to 7-9 months.
 
 Each phase has its own implementation spec file:
 
-- `STARR_CAD_PHASE_1_ENGINE_CORE.md` — Built out fully (see below)
-- `STARR_CAD_PHASE_2_DATA_CODES.md` — To be built when Phase 1 is complete
-- `STARR_CAD_PHASE_3_STYLING_EDITORS.md` — To be built when Phase 2 is complete
-- `STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md` — To be built when Phase 3 is complete
-- `STARR_CAD_PHASE_5_ANNOTATIONS_TEMPLATES.md` — To be built when Phase 4 is complete
-- `STARR_CAD_PHASE_6_AI_ENGINE.md` — To be built when Phase 5 is complete
-- `STARR_CAD_PHASE_7_EXPORT_POLISH.md` — To be built when Phase 6 is complete
+- `STARR_CAD_PHASE_1_ENGINE_CORE.md` — Built out fully
+- `STARR_CAD_PHASE_2_DATA_IMPORT.md` — Built out fully
+- `STARR_CAD_PHASE_3_STYLES_SYMBOLS.md` — Built out fully
+- `STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md` — Built out fully
+- `STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md` — Built out fully
+- `STARR_CAD_PHASE_6_AI_ENGINE.md` — Built out fully (v2.0: includes dynamic offsets, enrichment, deliberation, confidence cards, element chat)
+- `STARR_CAD_PHASE_7_FINAL.md` — Built out fully (editor integration, RPLS workflow, exports, Electron)
+- `STARR_CAD_PHASE_8_UX_CONTROLS.md` — Built out fully (hotkeys, cursors, tooltips, settings)
 
 When starting a Copilot or Claude Code session, open the spec file for your current phase. It contains every TypeScript interface, function signature, algorithm, UI layout, and acceptance test needed to implement that phase. The master spec (`STARR_CAD_IMPLEMENTATION.md`) remains the single source of truth for the full picture — the phase specs are focused extractions optimized for implementation.
 
