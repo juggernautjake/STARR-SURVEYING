@@ -1,17 +1,50 @@
 'use client';
 // app/admin/cad/components/PropertyPanel.tsx — Selected feature properties panel
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Feature } from '@/lib/cad/types';
 
-function toHex(value: string): string {
-  return value.startsWith('#') ? value : `#${value}`;
+// ── Inline editable coordinate input ────────────────────────────────────────
+function CoordInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const [local, setLocal] = useState(isNaN(value) ? '0.000' : value.toFixed(3));
+  useEffect(() => setLocal(isNaN(value) ? '0.000' : value.toFixed(3)), [value]);
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-gray-500 w-4 shrink-0 font-mono text-[10px]">{label}</span>
+      <input
+        className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-right outline-none font-mono text-[10px] min-w-0"
+        value={local}
+        onChange={(e) => {
+          setLocal(e.target.value);
+          const v = parseFloat(e.target.value);
+          if (!isNaN(v)) onChange(v);
+        }}
+        onBlur={() => {
+          const v = parseFloat(local);
+          const safe = isNaN(v) ? value : v;
+          setLocal(safe.toFixed(3));
+          onChange(safe);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+        }}
+      />
+    </div>
+  );
 }
 
-function formatCoord(n: number): string {
-  return n.toFixed(3);
+function toHex(value: string): string {
+  return value.startsWith('#') ? value : `#${value}`;
 }
 
 export default function PropertyPanel() {
@@ -66,6 +99,30 @@ export default function PropertyPanel() {
       timestamp: Date.now(),
       operations: [{ type: 'MODIFY_FEATURE', data: { id: single.id, before, after } }],
     });
+  }
+
+  // Real-time coordinate editing — updates canvas immediately (undo is recorded on blur in CoordInput)
+  function updateCoord(index: number, axis: 'x' | 'y', value: number) {
+    if (!single) return;
+    const before = drawingStore.getFeature(single.id)!;
+    const geom = { ...before.geometry };
+    switch (geom.type) {
+      case 'POINT':
+        geom.point = { ...(geom.point ?? { x: 0, y: 0 }), [axis]: value };
+        break;
+      case 'LINE':
+        if (index === 0) geom.start = { ...(geom.start ?? { x: 0, y: 0 }), [axis]: value };
+        else geom.end = { ...(geom.end ?? { x: 0, y: 0 }), [axis]: value };
+        break;
+      case 'POLYLINE':
+      case 'POLYGON': {
+        const verts = [...(geom.vertices ?? [])];
+        verts[index] = { ...verts[index], [axis]: value };
+        geom.vertices = verts;
+        break;
+      }
+    }
+    drawingStore.updateFeatureGeometry(single.id, geom);
   }
 
   const { document: doc } = drawingStore;
@@ -195,66 +252,74 @@ export default function PropertyPanel() {
           </div>
         </div>
 
-        {/* Geometry */}
+        {/* Geometry — editable coordinates update canvas in real time */}
         <div className="space-y-1 border-t border-gray-700 pt-2">
           <div className="text-gray-500 text-[10px] uppercase tracking-wider">Geometry</div>
           {geom.type === 'POINT' && geom.point && (
-            <div className="font-mono text-[10px] text-gray-300 space-y-0.5">
-              <div>X: {formatCoord(geom.point.x)}</div>
-              <div>Y: {formatCoord(geom.point.y)}</div>
+            <div className="space-y-1">
+              <CoordInput label="X" value={geom.point.x} onChange={(v) => updateCoord(0, 'x', v)} />
+              <CoordInput label="Y" value={geom.point.y} onChange={(v) => updateCoord(0, 'y', v)} />
             </div>
           )}
           {geom.type === 'LINE' && geom.start && geom.end && (
-            <div className="font-mono text-[10px] text-gray-300 space-y-0.5">
-              <div>Start: ({formatCoord(geom.start.x)}, {formatCoord(geom.start.y)})</div>
-              <div>End: ({formatCoord(geom.end.x)}, {formatCoord(geom.end.y)})</div>
-              <div>
-                Length:{' '}
-                {formatCoord(
-                  Math.sqrt(
-                    (geom.end.x - geom.start.x) ** 2 + (geom.end.y - geom.start.y) ** 2,
-                  ),
-                )}
-              </div>
-              <div>
-                Bearing:{' '}
-                {(
-                  (Math.atan2(geom.end.y - geom.start.y, geom.end.x - geom.start.x) * 180) /
-                  Math.PI
-                ).toFixed(2)}
-                °
+            <div className="space-y-1.5">
+              <div className="text-gray-500 text-[9px] uppercase">Start</div>
+              <CoordInput label="X" value={geom.start.x} onChange={(v) => updateCoord(0, 'x', v)} />
+              <CoordInput label="Y" value={geom.start.y} onChange={(v) => updateCoord(0, 'y', v)} />
+              <div className="text-gray-500 text-[9px] uppercase pt-0.5">End</div>
+              <CoordInput label="X" value={geom.end.x} onChange={(v) => updateCoord(1, 'x', v)} />
+              <CoordInput label="Y" value={geom.end.y} onChange={(v) => updateCoord(1, 'y', v)} />
+              <div className="font-mono text-[10px] text-gray-400 pt-0.5">
+                L: {Math.hypot(geom.end.x - geom.start.x, geom.end.y - geom.start.y).toFixed(3)}
+                &nbsp; ∠{((Math.atan2(geom.end.y - geom.start.y, geom.end.x - geom.start.x) * 180) / Math.PI).toFixed(2)}°
               </div>
             </div>
           )}
           {(geom.type === 'POLYLINE' || geom.type === 'POLYGON') && geom.vertices && (
-            <div className="font-mono text-[10px] text-gray-300 space-y-0.5">
-              <div>Vertices: {geom.vertices.length}</div>
+            <div className="space-y-1">
+              <div className="font-mono text-[10px] text-gray-400">
+                {geom.vertices.length} vertices
+              </div>
+              {geom.vertices.map((v, i) => (
+                <div key={i} className="space-y-0.5">
+                  <div className="text-gray-600 text-[9px]">V{i + 1}</div>
+                  <CoordInput label="X" value={v.x} onChange={(val) => updateCoord(i, 'x', val)} />
+                  <CoordInput label="Y" value={v.y} onChange={(val) => updateCoord(i, 'y', val)} />
+                </div>
+              ))}
               {geom.type === 'POLYLINE' && geom.vertices.length >= 2 && (
-                <div>
-                  Total Length:{' '}
-                  {formatCoord(
-                    geom.vertices.reduce((sum, v, i) => {
-                      if (i === 0) return 0;
-                      const prev = geom.vertices![i - 1];
-                      return sum + Math.sqrt((v.x - prev.x) ** 2 + (v.y - prev.y) ** 2);
-                    }, 0),
-                  )}
+                <div className="font-mono text-[10px] text-gray-400 pt-0.5">
+                  L: {geom.vertices.reduce((sum, v, i) => {
+                    if (i === 0) return 0;
+                    const p = geom.vertices![i - 1];
+                    return sum + Math.hypot(v.x - p.x, v.y - p.y);
+                  }, 0).toFixed(3)}
                 </div>
               )}
-              {geom.type === 'POLYGON' && (
-                <div>
-                  Perimeter:{' '}
-                  {formatCoord(
-                    geom.vertices.reduce((sum, v, i) => {
-                      const next = geom.vertices![(i + 1) % geom.vertices!.length];
-                      return sum + Math.sqrt((next.x - v.x) ** 2 + (next.y - v.y) ** 2);
-                    }, 0),
-                  )}
+              {geom.type === 'POLYGON' && geom.vertices.length >= 3 && (
+                <div className="font-mono text-[10px] text-gray-400 pt-0.5">
+                  P: {geom.vertices.reduce((sum, v, i) => {
+                    const n = geom.vertices![(i + 1) % geom.vertices!.length];
+                    return sum + Math.hypot(n.x - v.x, n.y - v.y);
+                  }, 0).toFixed(3)}
                 </div>
               )}
             </div>
           )}
         </div>
+
+        {/* Polyline group ID (shown for LINE segments that are part of a polyline chain) */}
+        {feature.type === 'LINE' && feature.properties.polylineGroupId && (
+          <div className="space-y-1 border-t border-gray-700 pt-2">
+            <div className="text-gray-500 text-[10px] uppercase tracking-wider">Polyline Group</div>
+            <div
+              className="font-mono text-[10px] text-blue-300 truncate"
+              title={String(feature.properties.polylineGroupId)}
+            >
+              {String(feature.properties.polylineGroupId).slice(0, 12)}…
+            </div>
+          </div>
+        )}
 
         {/* Layer info */}
         {layer && (

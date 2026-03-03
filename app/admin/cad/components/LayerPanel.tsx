@@ -32,6 +32,7 @@ export default function LayerPanel() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameRef = useRef<HTMLInputElement>(null);
+  const dragLayerIdRef = useRef<string | null>(null);
 
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
 
@@ -119,6 +120,28 @@ export default function LayerPanel() {
         {layers.map((layer) => (
           <div
             key={layer.id}
+            draggable
+            onDragStart={(e) => {
+              dragLayerIdRef.current = layer.id;
+              e.dataTransfer.effectAllowed = 'move';
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const fromId = dragLayerIdRef.current;
+              dragLayerIdRef.current = null;
+              if (!fromId || fromId === layer.id) return;
+              const order = [...doc.layerOrder];
+              const fromIdx = order.indexOf(fromId);
+              const toIdx = order.indexOf(layer.id);
+              if (fromIdx === -1 || toIdx === -1) return;
+              order.splice(fromIdx, 1);
+              order.splice(toIdx, 0, fromId);
+              store.reorderLayers(order);
+            }}
             className={`flex items-center gap-1 px-1 py-1 cursor-pointer hover:bg-gray-700 ${
               activeLayerId === layer.id ? 'bg-gray-700' : ''
             }`}

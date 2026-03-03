@@ -58,6 +58,13 @@ interface ContextMenuState {
   featureId: string | null;
 }
 
+// Drawing-mode mini-menu (right-click during DRAW_POLYGON)
+interface DrawingMenuState {
+  x: number;
+  y: number;
+  canClose: boolean; // true when >= 3 points collected
+}
+
 // ── Tool-specific CSS cursors ─────────────────────────────────────────────────
 const TOOL_CURSORS: Partial<Record<string, string>> = {
   SELECT: 'default',
@@ -122,6 +129,7 @@ export default function CanvasViewport() {
   const [cursorStyle, setCursorStyle] = useState('crosshair');
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [drawingMenu, setDrawingMenu] = useState<DrawingMenuState | null>(null);
 
   // Polyline group ID tracking — each new polyline drawing gets a fresh UUID
   const polylineGroupIdRef = useRef<string | null>(null);
@@ -1761,14 +1769,13 @@ export default function CanvasViewport() {
         return;
       }
 
-      // Right-click during polygon drawing: close & finish, or cancel
+      // Right-click during polygon drawing: show Close / Cancel mini-menu
       if (activeTool === 'DRAW_POLYGON') {
-        if (toolState.drawingPoints.length >= 3) {
-          finishFeature('POLYGON');
-        } else {
-          toolStore.clearDrawingPoints();
-          toolStore.setTool('SELECT');
-        }
+        setDrawingMenu({
+          x: e.clientX,
+          y: e.clientY,
+          canClose: toolState.drawingPoints.length >= 3,
+        });
         return;
       }
 
@@ -1843,6 +1850,47 @@ export default function CanvasViewport() {
           featureId={contextMenu.featureId}
           onClose={() => setContextMenu(null)}
         />
+      )}
+
+      {/* Drawing-mode mini-menu (shown on right-click during DRAW_POLYGON) */}
+      {drawingMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setDrawingMenu(null)} />
+          <div
+            className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-xl py-1 text-xs text-gray-200 min-w-[160px]"
+            style={{ top: drawingMenu.y, left: drawingMenu.x }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 py-1 text-[10px] text-gray-500 font-semibold uppercase tracking-wider border-b border-gray-700 mb-1">
+              Drawing Polygon
+            </div>
+            {drawingMenu.canClose ? (
+              <button
+                className="w-full text-left px-3 py-1.5 hover:bg-gray-700 text-green-400"
+                onClick={() => {
+                  setDrawingMenu(null);
+                  finishFeature('POLYGON');
+                }}
+              >
+                ✓ Close Polygon
+              </button>
+            ) : (
+              <div className="px-3 py-1.5 text-gray-500 italic">
+                Need ≥ 3 points to close
+              </div>
+            )}
+            <button
+              className="w-full text-left px-3 py-1.5 hover:bg-gray-700 text-red-400"
+              onClick={() => {
+                setDrawingMenu(null);
+                toolStore.clearDrawingPoints();
+                toolStore.setTool('SELECT');
+              }}
+            >
+              ✕ Cancel Drawing
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
