@@ -23,7 +23,7 @@ export function resolveMonumentVisuals(
 
   // Resolve by monument action
   const monumentType = codeDefinition.monumentType ?? 'Generic';
-  const sizeKey = (codeDefinition.monumentSize ?? '').replace(/"/g, '').replace(/\//g, '');
+  const sizeKey = (codeDefinition.monumentSize ?? '').replace(/["\/]/g, '');
 
   switch (monumentAction) {
     case 'FOUND':      return { symbolId: findSymbolForAction(monumentType, sizeKey, 'FOUND'), color: '#000000' };

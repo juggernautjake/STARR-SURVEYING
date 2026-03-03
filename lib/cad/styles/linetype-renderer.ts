@@ -106,7 +106,7 @@ function renderInlineSymbols(
 ): void {
   let intervalPx: number;
   if (config.intervalMode === 'SCALE_DEPENDENT') {
-    const scaleFactor = config.scaleReferenceScale / Math.max(drawingScale, 1);
+    const scaleFactor = config.scaleReferenceScale / Math.max(Math.abs(drawingScale), 1);
     const intervalFeet = config.scaleReferenceInterval * scaleFactor;
     intervalPx = intervalFeet * zoom;
   } else {
