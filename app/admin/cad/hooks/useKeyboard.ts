@@ -357,6 +357,9 @@ export function useKeyboard() {
         };
         useDrawingStore.getState().loadDocument(payload.document);
         useSelectionStore.getState().deselectAll();
+        useUndoStore.getState().clear();
+        // Zoom to the loaded drawing's content after a short delay to let the canvas render
+        setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
       } catch (err) {
         const msg = err instanceof SyntaxError
           ? 'Invalid file format — the file could not be parsed as JSON.'

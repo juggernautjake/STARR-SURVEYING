@@ -70,6 +70,9 @@ export default function MenuBar() {
         const payload = JSON.parse(text) as { document: DrawingDocument };
         drawingStore.loadDocument(payload.document);
         selectionStore.deselectAll();
+        undoStore.clear();
+        // Zoom to the loaded drawing's content after a short delay to let the canvas render
+        setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
       } catch {
         alert('Failed to load file. Make sure it is a valid .starr drawing.');
       }

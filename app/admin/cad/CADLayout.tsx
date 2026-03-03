@@ -12,7 +12,7 @@ import StatusBar from './components/StatusBar';
 import ToolOptionsBar from './components/ToolOptionsBar';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
-import { useUIStore, useDrawingStore } from '@/lib/cad/store';
+import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 
 // CanvasViewport requires browser APIs; load it client-side only
 const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
@@ -72,6 +72,8 @@ async function readAutosave(): Promise<{ savedAt: string; document: unknown } | 
 export default function CADLayout() {
   const { showLayerPanel, showPropertyPanel } = useUIStore();
   const drawingStore = useDrawingStore();
+  const selectionStore = useSelectionStore();
+  const undoStore = useUndoStore();
   const [autoSaveFailed, setAutoSaveFailed] = useState(false);
   const [featureDialog, setFeatureDialog] = useState<{
     featureId: string;
@@ -168,6 +170,8 @@ export default function CADLayout() {
                 onClick={() => {
                   const payload = recoveryPayload.document as Parameters<typeof drawingStore.loadDocument>[0];
                   drawingStore.loadDocument(payload);
+                  selectionStore.deselectAll();
+                  undoStore.clear();
                   setRecoveryPayload(null);
                   // Zoom to the recovered drawing's extents
                   setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
