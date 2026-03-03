@@ -1,7 +1,7 @@
 // lib/cad/codes/point-grouping.ts
 import type { SurveyPoint, PointGroup } from '../types';
 
-const DELTA_WARNING_THRESHOLD = 0.10;
+const DELTA_WARNING_THRESHOLD = 0.10; // feet
 
 function distance(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);

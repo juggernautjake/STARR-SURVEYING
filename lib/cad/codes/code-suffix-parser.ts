@@ -21,7 +21,7 @@ export function parseCodeWithSuffix(rawCode: string): ParsedPointCode {
         // Base code exists and suffix is valid
         return buildParsedCode(rawCode, base, suffix as CodeSuffix, def.connectType === 'LINE', def.isAutoSpline, true);
       }
-      // Base doesn't exist — the "suffix" is part of the code name (e.g., "CALE" might be a code)
+      // Base doesn't exist -- the "suffix" is part of the code name (e.g., "CALE" might be a code)
     }
   }
 

@@ -4,10 +4,10 @@ import { generateId } from '../types';
 import { lookupCode } from './code-lookup';
 
 const AUTO_SPLINE_CODES = new Set([
-  '632', '633', '634', '635', '630',
-  '370', '729', '357', '358', '753',
+  '630', '632', '633', '634',
+  '729', '357', '358',
   'TP06', 'TP07', 'TP08', 'TP09', 'TP10', 'TP11',
-  'VG07', 'VG08', 'FN11', 'FN14',
+  'VG07', 'VG08', 'FN11',
   'PL08', 'PL09',
 ]);
 
