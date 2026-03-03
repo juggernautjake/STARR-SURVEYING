@@ -8,6 +8,7 @@ import {
   useToolStore,
   useViewportStore,
   useUndoStore,
+  useUIStore,
 } from '@/lib/cad/store';
 import { computeBounds } from '@/lib/cad/geometry/bounds';
 import type { DrawingDocument } from '@/lib/cad/types';
@@ -30,11 +31,13 @@ interface MenuDef {
 
 export default function MenuBar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const toolStore = useToolStore();
   const viewportStore = useViewportStore();
   const undoStore = useUndoStore();
+  const uiStore = useUIStore();
 
   // ─── File I/O ───────────────────────────────
   function saveDocument() {
@@ -118,7 +121,7 @@ export default function MenuBar() {
     {
       label: 'View',
       items: [
-        { label: 'Zoom Extents', shortcut: 'ZE', action: zoomToExtents },
+        { label: 'Zoom Extents', shortcut: 'Z E', action: zoomToExtents },
         { separator: true },
         {
           label: drawingStore.document.settings.gridVisible ? 'Hide Grid' : 'Show Grid',
@@ -129,6 +132,11 @@ export default function MenuBar() {
           label: drawingStore.document.settings.snapEnabled ? 'Snap OFF' : 'Snap ON',
           shortcut: 'F3',
           action: () => drawingStore.updateSettings({ snapEnabled: !drawingStore.document.settings.snapEnabled }),
+        },
+        { separator: true },
+        {
+          label: uiStore.showLayerPanel ? 'Hide Layer Panel' : 'Show Layer Panel',
+          action: () => uiStore.toggleLayerPanel(),
         },
       ],
     },
@@ -150,8 +158,8 @@ export default function MenuBar() {
     {
       label: 'Help',
       items: [
-        { label: 'Keyboard Shortcuts', action: () => alert('See Section 18 of the Phase 1 spec.') },
-        { label: 'About Starr CAD', action: () => alert('Starr CAD — Phase 1\nBuilt for Starr Surveying Company') },
+        { label: 'Keyboard Shortcuts…', action: () => { setShowShortcuts(true); setOpenMenu(null); } },
+        { label: 'About Starr CAD', action: () => alert('Starr CAD — Phase 1\nBuilt for Starr Surveying Company\nVersion 1.0') },
       ],
     },
   ];
@@ -206,12 +214,73 @@ export default function MenuBar() {
         <span className="ml-2 text-yellow-400 text-[10px]">● unsaved</span>
       )}
 
+      {/* Document name */}
+      <span className="ml-auto mr-3 text-gray-400 text-xs truncate max-w-48">
+        {drawingStore.document.name}
+      </span>
+
       {/* Close overlay */}
       {openMenu && (
         <div
           className="fixed inset-0 z-40"
           onClick={() => setOpenMenu(null)}
         />
+      )}
+
+      {/* Keyboard Shortcuts modal */}
+      {showShortcuts && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowShortcuts(false)}>
+          <div
+            className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-6 max-w-lg w-full mx-4 text-xs text-gray-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-white">Keyboard Shortcuts</h2>
+              <button className="text-gray-400 hover:text-white text-lg leading-none" onClick={() => setShowShortcuts(false)}>✕</button>
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 max-h-96 overflow-y-auto">
+              {[
+                ['File', null],
+                ['New Drawing', 'Ctrl+N'],
+                ['Open…', 'Ctrl+O'],
+                ['Save', 'Ctrl+S'],
+                ['Edit', null],
+                ['Undo', 'Ctrl+Z'],
+                ['Redo', 'Ctrl+Y / Ctrl+Shift+Z'],
+                ['Select All', 'Ctrl+A'],
+                ['Delete Selection', 'Delete / Backspace'],
+                ['Cancel / Deselect', 'Escape'],
+                ['View', null],
+                ['Zoom Extents', 'Z then E'],
+                ['Zoom to Selection', 'Z then S'],
+                ['Zoom In', 'Ctrl+='],
+                ['Zoom Out', 'Ctrl+-'],
+                ['Toggle Snap', 'F3'],
+                ['Toggle Grid', 'F7'],
+                ['Tools', null],
+                ['Select', 'S'],
+                ['Pan', 'H (or Space+drag)'],
+                ['Point', 'P'],
+                ['Line', 'L'],
+                ['Move', 'M'],
+                ['Erase', 'E'],
+                ['Drawing', null],
+                ['Finish Polyline/Polygon', 'Enter or double-click'],
+              ].map(([label, shortcut], i) =>
+                shortcut === null ? (
+                  <div key={i} className="col-span-2 mt-2 pt-1 border-t border-gray-600 font-semibold text-gray-400 uppercase tracking-wider text-[10px]">
+                    {label}
+                  </div>
+                ) : (
+                  <div key={i} className="contents">
+                    <span className="text-gray-300">{label}</span>
+                    <span className="font-mono text-blue-300 text-right">{shortcut}</span>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

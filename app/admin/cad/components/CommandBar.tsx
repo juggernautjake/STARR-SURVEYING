@@ -46,7 +46,7 @@ function parseCommand(raw: string): ParsedCommand {
 // ─────────────────────────────────────────────
 // Tool prompt hints
 // ─────────────────────────────────────────────
-function getPromptHint(activeTool: string, drawingPointsCount: number): string {
+function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCenter?: unknown): string {
   switch (activeTool) {
     case 'SELECT':
       return 'Select objects or type a command';
@@ -67,7 +67,9 @@ function getPromptHint(activeTool: string, drawingPointsCount: number): string {
     case 'COPY':
       return 'Specify base point';
     case 'ROTATE':
-      return 'Specify rotation center, then type angle';
+      return rotateCenter == null
+        ? 'Specify rotation center'
+        : 'Type rotation angle in degrees, then press Enter';
     case 'MIRROR':
       return drawingPointsCount === 0 ? 'Specify first mirror line point' : 'Specify second mirror line point';
     case 'ERASE':
@@ -89,7 +91,7 @@ export default function CommandBar() {
   const uiStore = useUIStore();
 
   const toolState = toolStore.state;
-  const hint = getPromptHint(toolState.activeTool, toolState.drawingPoints.length);
+  const hint = getPromptHint(toolState.activeTool, toolState.drawingPoints.length, toolState.rotateCenter);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -254,7 +256,7 @@ export default function CommandBar() {
   function zoomToSelection() {
     const ids = Array.from(selectionStore.selectedIds);
     if (ids.length === 0) return zoomToExtents();
-    const features = ids.map((id) => drawingStore.getFeature(id)).filter(Boolean) as import('@/lib/cad/types').Feature[];
+    const features = ids.map((id) => drawingStore.getFeature(id)).filter(Boolean) as Feature[];
     if (features.length === 0) return;
     const bounds = features.reduce(
       (acc, f) => {

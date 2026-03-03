@@ -8,11 +8,16 @@ export default function StatusBar() {
   const viewportStore = useViewportStore();
   const selectionStore = useSelectionStore();
   const cursor = viewportStore.cursorWorld;
+  const zoom = viewportStore.zoom;
 
   const { document: doc, activeLayerId } = drawingStore;
   const activeLayer = doc.layers[activeLayerId];
   const { snapEnabled, gridVisible } = doc.settings;
   const selCount = selectionStore.selectionCount();
+
+  // Express zoom as a percentage of 1px-per-world-unit baseline
+  // e.g. at zoom=1: 1 screen px = 1 world unit (foot); at zoom=2: 200% means 1px = 0.5ft
+  const zoomPct = Math.round(zoom * 100);
 
   function toggleSnap() {
     drawingStore.updateSettings({ snapEnabled: !snapEnabled });
@@ -23,17 +28,24 @@ export default function StatusBar() {
   }
 
   return (
-    <div className="flex items-center bg-gray-900 border-t border-gray-700 px-3 py-0.5 text-xs text-gray-400 gap-4">
+    <div className="flex items-center bg-gray-900 border-t border-gray-700 px-3 py-0.5 text-xs text-gray-400 gap-4 overflow-hidden">
       {/* Coordinates */}
-      <span className="font-mono">
+      <span className="font-mono shrink-0">
         X: {cursor.x.toFixed(3)} &nbsp; Y: {cursor.y.toFixed(3)}
+      </span>
+
+      <span className="text-gray-600">|</span>
+
+      {/* Zoom level */}
+      <span className="font-mono shrink-0" title="Current zoom level">
+        {zoomPct}%
       </span>
 
       <span className="text-gray-600">|</span>
 
       {/* Active layer */}
       <button
-        className="hover:text-white transition-colors"
+        className="hover:text-white transition-colors shrink-0"
         title="Active layer"
         onClick={() => drawingStore.setActiveLayer(activeLayerId)}
       >
@@ -45,7 +57,7 @@ export default function StatusBar() {
       {/* Selection count */}
       {selCount > 0 && (
         <>
-          <span className="text-blue-400">{selCount} selected</span>
+          <span className="text-blue-400 shrink-0">{selCount} selected</span>
           <span className="text-gray-600">|</span>
         </>
       )}
@@ -53,7 +65,7 @@ export default function StatusBar() {
       {/* Snap toggle */}
       <button
         onClick={toggleSnap}
-        className={`hover:text-white transition-colors ${snapEnabled ? 'text-green-400' : 'text-gray-500'}`}
+        className={`hover:text-white transition-colors shrink-0 ${snapEnabled ? 'text-green-400' : 'text-gray-500'}`}
         title="Toggle snap (F3)"
       >
         Snap: {snapEnabled ? 'ON' : 'OFF'}
@@ -64,7 +76,7 @@ export default function StatusBar() {
       {/* Grid toggle */}
       <button
         onClick={toggleGrid}
-        className={`hover:text-white transition-colors ${gridVisible ? 'text-green-400' : 'text-gray-500'}`}
+        className={`hover:text-white transition-colors shrink-0 ${gridVisible ? 'text-green-400' : 'text-gray-500'}`}
         title="Toggle grid (F7)"
       >
         Grid: {gridVisible ? 'ON' : 'OFF'}

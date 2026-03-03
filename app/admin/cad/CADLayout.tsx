@@ -20,17 +20,42 @@ const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
   ),
 });
 
-const AUTOSAVE_KEY = 'starr-cad-autosave';
+const AUTOSAVE_DB = 'starr-cad';
+const AUTOSAVE_STORE = 'autosave';
+const AUTOSAVE_KEY = 'current';
 const AUTOSAVE_INTERVAL = 60_000;
+
+/** Open (or create) the IndexedDB autosave store */
+function openAutosaveDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(AUTOSAVE_DB, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(AUTOSAVE_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Write a value to the autosave store */
+async function writeAutosave(value: unknown): Promise<void> {
+  const db = await openAutosaveDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(AUTOSAVE_STORE, 'readwrite');
+    tx.objectStore(AUTOSAVE_STORE).put(value, AUTOSAVE_KEY);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
 
 export default function CADLayout() {
   const { showLayerPanel } = useUIStore();
   const drawingStore = useDrawingStore();
   const [autoSaveFailed, setAutoSaveFailed] = useState(false);
 
-  // Auto-save to localStorage every 60 seconds
+  // Auto-save to IndexedDB every 60 seconds
   useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       try {
         const payload = {
           version: '1.0',
@@ -38,10 +63,10 @@ export default function CADLayout() {
           savedAt: new Date().toISOString(),
           document: drawingStore.document,
         };
-        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(payload));
+        await writeAutosave(payload);
         setAutoSaveFailed(false);
       } catch {
-        // Storage quota exceeded or serialization error — warn user
+        // IndexedDB not available or quota exceeded — warn user
         setAutoSaveFailed(true);
       }
     }, AUTOSAVE_INTERVAL);
@@ -53,7 +78,7 @@ export default function CADLayout() {
       {/* Auto-save failure warning */}
       {autoSaveFailed && (
         <div className="bg-yellow-500 text-black text-xs px-3 py-1 flex justify-between items-center">
-          <span>⚠️ Auto-save failed (storage full). Please save manually with Ctrl+S.</span>
+          <span>⚠️ Auto-save failed. Please save manually with Ctrl+S.</span>
           <button onClick={() => setAutoSaveFailed(false)} className="ml-4 font-bold">✕</button>
         </div>
       )}
@@ -63,11 +88,12 @@ export default function CADLayout() {
 
       {/* Main content area */}
       <div className="flex flex-1 min-h-0">
-        {/* Left sidebar: tools + layer panel */}
+        {/* Left sidebar: tools */}
         <div className="flex flex-col bg-gray-800 border-r border-gray-700" style={{ width: 48 }}>
           <ToolBar />
         </div>
 
+        {/* Layer panel (toggleable) */}
         {showLayerPanel && (
           <div className="flex flex-col bg-gray-800 border-r border-gray-700 w-48">
             <LayerPanel />

@@ -22,6 +22,7 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   'ctrl+s': 'file.save',
   'ctrl+o': 'file.open',
   'ctrl+n': 'file.new',
+  'ctrl+a': 'edit.selectAll',
   escape: 'edit.deselect',
   delete: 'edit.delete',
   backspace: 'edit.delete',
@@ -31,6 +32,8 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   p: 'tool.point',
   m: 'tool.move',
   e: 'tool.erase',
+  'z e': 'view.zoomExtents',
+  'z s': 'view.zoomSelection',
   'ctrl+=': 'view.zoomIn',
   'ctrl+-': 'view.zoomOut',
   f3: 'snap.toggle',
@@ -127,6 +130,11 @@ export function useKeyboard() {
         selectionStore.deselectAll();
         toolStore.clearDrawingPoints();
         break;
+      case 'edit.selectAll': {
+        const allIds = drawingStore.getAllFeatures().map((f) => f.id);
+        selectionStore.selectMultiple(allIds, 'REPLACE');
+        break;
+      }
       case 'edit.delete':
         eraseSelected();
         break;

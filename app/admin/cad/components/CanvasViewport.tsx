@@ -85,6 +85,14 @@ export default function CanvasViewport() {
   // Keyboard shortcuts
   useKeyboard();
 
+  // Update cursor when active tool changes (PAN tool shows grab cursor)
+  const activeTool = toolStore.state.activeTool;
+  useEffect(() => {
+    if (!isPanningRef.current && !isSpaceDownRef.current) {
+      setCursorStyle(activeTool === 'PAN' ? 'grab' : 'crosshair');
+    }
+  }, [activeTool]);
+
   // ─────────────────────────────────────────────
   // Initialize PixiJS
   // ─────────────────────────────────────────────
@@ -794,6 +802,14 @@ export default function CanvasViewport() {
 
       const toolState = toolStore.state;
       const { activeTool } = toolState;
+
+      // PAN tool: left-click-drag pans the viewport
+      if (activeTool === 'PAN') {
+        isPanningRef.current = true;
+        setCursorStyle('grabbing');
+        return;
+      }
+
       const worldPt = getSnappedWorld(sx, sy);
 
       // Check grip first (when SELECT tool active and something selected)
@@ -1007,7 +1023,7 @@ export default function CanvasViewport() {
       if (e.button === 1 || (e.button === 0 && isMiddleMouseRef.current)) {
         isPanningRef.current = false;
         isMiddleMouseRef.current = false;
-        setCursorStyle(isSpaceDownRef.current ? 'grab' : 'crosshair');
+        setCursorStyle(isSpaceDownRef.current ? 'grab' : toolStore.state.activeTool === 'PAN' ? 'grab' : 'crosshair');
         return;
       }
 
@@ -1017,6 +1033,13 @@ export default function CanvasViewport() {
       const rect = canvasRef.current!.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
+
+      // PAN tool: stop panning
+      if (toolState.activeTool === 'PAN') {
+        isPanningRef.current = false;
+        setCursorStyle('grab');
+        return;
+      }
 
       // Commit grip drag
       if (gripDragRef.current && gripStartRef.current) {
