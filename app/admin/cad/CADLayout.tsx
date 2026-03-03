@@ -1,0 +1,122 @@
+'use client';
+// app/admin/cad/CADLayout.tsx — Main CAD editor UI shell
+
+import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+import MenuBar from './components/MenuBar';
+import ToolBar from './components/ToolBar';
+import LayerPanel from './components/LayerPanel';
+import PropertyPanel from './components/PropertyPanel';
+import CommandBar from './components/CommandBar';
+import StatusBar from './components/StatusBar';
+import { useUIStore, useDrawingStore } from '@/lib/cad/store';
+
+// CanvasViewport requires browser APIs; load it client-side only
+const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex-1 flex items-center justify-center bg-gray-100 text-gray-400">
+      Loading canvas…
+    </div>
+  ),
+});
+
+const AUTOSAVE_DB = 'starr-cad';
+const AUTOSAVE_STORE = 'autosave';
+const AUTOSAVE_KEY = 'current';
+const AUTOSAVE_INTERVAL = 60_000;
+
+/** Open (or create) the IndexedDB autosave store */
+function openAutosaveDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(AUTOSAVE_DB, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(AUTOSAVE_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Write a value to the autosave store */
+async function writeAutosave(value: unknown): Promise<void> {
+  const db = await openAutosaveDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(AUTOSAVE_STORE, 'readwrite');
+    tx.objectStore(AUTOSAVE_STORE).put(value, AUTOSAVE_KEY);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+export default function CADLayout() {
+  const { showLayerPanel, showPropertyPanel } = useUIStore();
+  const drawingStore = useDrawingStore();
+  const [autoSaveFailed, setAutoSaveFailed] = useState(false);
+
+  // Auto-save to IndexedDB every 60 seconds
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const payload = {
+          version: '1.0',
+          application: 'starr-cad',
+          savedAt: new Date().toISOString(),
+          document: drawingStore.document,
+        };
+        await writeAutosave(payload);
+        setAutoSaveFailed(false);
+      } catch {
+        // IndexedDB not available or quota exceeded — warn user
+        setAutoSaveFailed(true);
+      }
+    }, AUTOSAVE_INTERVAL);
+    return () => clearInterval(interval);
+  }, [drawingStore]);
+
+  return (
+    <div className="flex flex-col h-screen w-full overflow-hidden bg-white select-none">
+      {/* Auto-save failure warning */}
+      {autoSaveFailed && (
+        <div className="bg-yellow-500 text-black text-xs px-3 py-1 flex justify-between items-center">
+          <span>⚠️ Auto-save failed. Please save manually with Ctrl+S.</span>
+          <button onClick={() => setAutoSaveFailed(false)} className="ml-4 font-bold">✕</button>
+        </div>
+      )}
+
+      {/* Top menu bar */}
+      <MenuBar />
+
+      {/* Main content area */}
+      <div className="flex flex-1 min-h-0">
+        {/* Left sidebar: tools */}
+        <div className="flex flex-col bg-gray-800 border-r border-gray-700" style={{ width: 48 }}>
+          <ToolBar />
+        </div>
+
+        {/* Layer panel (toggleable) */}
+        {showLayerPanel && (
+          <div className="flex flex-col bg-gray-800 border-r border-gray-700 w-48">
+            <LayerPanel />
+          </div>
+        )}
+
+        {/* Canvas fills remaining space */}
+        <div className="flex-1 relative min-w-0">
+          <CanvasViewport />
+        </div>
+
+        {/* Right sidebar: property panel (toggleable) */}
+        {showPropertyPanel && (
+          <div className="flex flex-col bg-gray-800 border-l border-gray-700 w-48 flex-shrink-0">
+            <PropertyPanel />
+          </div>
+        )}
+      </div>
+
+      {/* Bottom area: command bar + status bar */}
+      <CommandBar />
+      <StatusBar />
+    </div>
+  );
+}
