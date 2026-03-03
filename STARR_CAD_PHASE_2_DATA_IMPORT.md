@@ -1791,4 +1791,444 @@ export function processImport(
 
 ---
 
-*Sections 14–22 to be added in subsequent updates.*
+## 14. Data Validation System
+
+> **Note:** Full validation rule implementations will be detailed in a subsequent update. The `validatePoints` function signature used by the Import Pipeline (Section 13) is:
+
+```typescript
+// packages/import/src/validation.ts
+
+import type { SurveyPoint, LineString, PointGroup, ValidationIssue, ValidationIssueType } from '@starr-cad/core';
+
+export function validatePoints(
+  points: SurveyPoint[],
+  lineStrings: LineString[],
+  pointGroups: Map<number, PointGroup>,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  // Rules applied (see Acceptance Tests §Validation for the full list):
+  //   DUPLICATE_POINT_NUMBER  — WARNING, autoFixable: false
+  //   ZERO_COORDINATES        — ERROR,   autoFixable: false
+  //   UNRECOGNIZED_CODE       — WARNING, autoFixable: false
+  //   COORDINATE_OUTLIER      — WARNING, autoFixable: false
+  //   SINGLE_POINT_LINE       — WARNING, autoFixable: false
+  //   NAME_SUFFIX_AMBIGUOUS   — INFO,    autoFixable: false (suffixConfidence < 0.7)
+  //   CALC_WITHOUT_FIELD      — INFO,    autoFixable: false
+  //   ORPHAN_END_SUFFIX       — WARNING, autoFixable: false
+  //   ORPHAN_BEGIN_SUFFIX     — WARNING, autoFixable: false
+  return issues;
+}
+```
+
+---
+
+## 15. Simplified Export & Code Collapse Map
+
+```typescript
+// packages/codes/src/collapse-map.ts
+
+import { MASTER_CODE_LIBRARY } from './code-library';
+
+// Build the collapse map: expandedNumeric → simplifiedNumeric
+const COLLAPSE_MAP = new Map<string, string>();
+
+for (const code of MASTER_CODE_LIBRARY) {
+  if (code.collapses && code.numericCode !== code.simplifiedCode) {
+    COLLAPSE_MAP.set(code.numericCode, code.simplifiedCode);
+  }
+}
+
+/** Get the simplified (dad-mode) code for a numeric code */
+export function getSimplifiedCode(numericCode: string): string {
+  return COLLAPSE_MAP.get(numericCode) ?? numericCode;
+}
+
+/** Check if a code will collapse in simplified export */
+export function willCollapse(numericCode: string): boolean {
+  return COLLAPSE_MAP.has(numericCode);
+}
+
+/** Get all collapse mappings (for UI display) */
+export function getCollapseTable(): { from: string; to: string; description: string }[] {
+  const result: { from: string; to: string; description: string }[] = [];
+  for (const code of MASTER_CODE_LIBRARY) {
+    if (code.collapses) {
+      result.push({
+        from: `${code.alphaCode}/${code.numericCode} (${code.description})`,
+        to: `${code.simplifiedCode} (${code.simplifiedDescription})`,
+        description: `${code.description} → ${code.simplifiedDescription}`,
+      });
+    }
+  }
+  return result;
+}
+
+// Codes that collapse (16 total):
+// 315 (3/8" IR Set) → 308     327 (3/8" IR Calc) → 308
+// 317 (1/2" IR Set) → 309     328 (1/2" IR Calc) → 309
+// 318 (5/8" IR Set) → 310     329 (5/8" IR Calc) → 310
+// 319 (3/4" IR Set) → 311     330 (3/4" IR Calc) → 311
+// 331 (IP Set) → 312          332 (IP Calc) → 312
+// 333 (CM Set) → 313          334 (CM Calc) → 313
+// 335 (C/D Set) → 314         336 (C/D Calc) → 314
+// 339 (PKN Set) → 338         345 (MN Set) → 340
+```
+
+---
+
+## 16. Code Display Toggle
+
+```typescript
+// A global preference stored in DrawingSettings (updated in Phase 2):
+
+// Add to DrawingSettings:
+export interface DrawingSettings {
+  // ... (Phase 1 fields)
+  codeDisplayMode: 'ALPHA' | 'NUMERIC';  // NEW
+}
+
+// Usage: wherever a code is displayed, check this setting:
+function getDisplayCode(point: SurveyPoint, mode: 'ALPHA' | 'NUMERIC'): string {
+  const base = mode === 'ALPHA' ? point.resolvedAlphaCode : point.resolvedNumericCode;
+  const suffix = point.codeSuffix ?? '';
+  return base + suffix;
+}
+```
+
+---
+
+## 17. State Management (New & Updated Stores)
+
+### 17.1 Point Store
+
+```typescript
+// packages/store/src/point-store.ts
+
+interface PointStore {
+  // State
+  points: Record<string, SurveyPoint>;
+  lineStrings: Record<string, LineString>;
+  pointGroups: Map<number, PointGroup>;
+  showAllGroupPositions: boolean;      // Toggle to see calc/set/found overlay
+
+  // Actions
+  importPoints: (result: ImportResult) => void;
+  addPoint: (point: SurveyPoint) => void;
+  removePoint: (pointId: string) => void;
+  updatePoint: (pointId: string, updates: Partial<SurveyPoint>) => void;
+  clearAllPoints: () => void;
+
+  // Queries
+  getPoint: (id: string) => SurveyPoint | undefined;
+  getPointByNumber: (num: number) => SurveyPoint | undefined;
+  getPointsByCode: (baseCode: string) => SurveyPoint[];
+  getPointsByLayer: (layerId: string) => SurveyPoint[];
+  getPointGroup: (baseNumber: number) => PointGroup | undefined;
+  getAllPoints: () => SurveyPoint[];
+  getPointCount: () => number;
+
+  // Sorting/filtering for point table
+  getSortedPoints: (sortBy: string, direction: 'asc' | 'desc', filter?: string) => SurveyPoint[];
+
+  // Toggle
+  setShowAllGroupPositions: (show: boolean) => void;
+}
+```
+
+### 17.2 Import Store
+
+```typescript
+// packages/store/src/import-store.ts
+
+interface ImportStore {
+  // Dialog state
+  isOpen: boolean;
+  step: 'FILE_SELECT' | 'COLUMN_MAPPING' | 'PREVIEW' | 'VALIDATION' | 'COMPLETE';
+
+  // File
+  file: File | null;
+  fileType: 'CSV' | 'TXT' | 'RW5' | 'JOBXML' | null;
+  rawText: string;
+
+  // Config
+  config: CSVImportConfig;
+  selectedPreset: ImportPreset | null;
+  customPresets: ImportPreset[];
+
+  // Preview
+  previewRows: ParsedImportRow[];
+  previewLimit: number;  // Show first N rows (default: 50)
+
+  // Results
+  importResult: ImportResult | null;
+
+  // Actions
+  openDialog: () => void;
+  closeDialog: () => void;
+  setFile: (file: File) => void;
+  setConfig: (config: Partial<CSVImportConfig>) => void;
+  selectPreset: (preset: ImportPreset) => void;
+  saveCustomPreset: (name: string) => void;
+  parsePreview: () => void;
+  executeImport: () => void;
+  nextStep: () => void;
+  prevStep: () => void;
+}
+```
+
+---
+
+## 18. Point Table Panel UI
+
+A dockable panel (bottom or side) showing all imported points in a sortable, filterable table.
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Points (234 total)   [Filter: ________]  [Code ▼ Alpha]  [Show Groups] │
+├─────┬─────────┬──────────┬──────────┬──────┬────────┬───────┬──────────┤
+│  #  │  Name   │ Northing │ Easting  │ Elev │  Code  │Action │ Issues   │
+├─────┼─────────┼──────────┼──────────┼──────┼────────┼───────┼──────────┤
+│   1 │ 1       │ 2145000  │  598000  │ 820  │ SC01   │  —    │          │
+│  20 │ 20calc  │ 2145123  │  598234  │ 815  │ BC02   │ CALC  │          │
+│  20 │ 20cald  │ 2145123  │  598234  │ 815  │ BC02   │ CALC² │          │
+│  20 │ 20set   │ 2145124  │  598235  │ 815  │ BC06   │ SET ★ │ Δ=0.05' │
+│  21 │ 21fnd   │ 2145200  │  598300  │ 818  │ BC02   │ FOUND │          │
+│  35 │ 35      │ 2145150  │  598180  │ 812  │ FN03B  │  —    │          │
+│  36 │ 36      │ 2145160  │  598190  │ 813  │ FN03   │  —    │          │
+│  37 │ 37      │ 2145170  │  598200  │ 814  │ FN03E  │  —    │          │
+│  50 │ 50      │ 2145000  │  598100  │  —   │ VG01   │  —    │ No elev  │
+└─────┴─────────┴──────────┴──────────┴──────┴────────┴───────┴──────────┘
+│ Click row to select on canvas │ Right-click for context menu            │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**Legend:**
+- Action column: `FOUND`, `SET`, `CALC`, `CALC²` (recalc), `—` (none)
+- `★` = final/drawn point in a group
+- `Δ` = calc-to-field delta distance
+- Issues: validation warnings shown as small colored badges
+
+**Features:**
+- Click column header to sort (ascending/descending toggle)
+- Type in filter box to search by name, code, or description
+- Click a row → selects that point on the canvas and zooms to it
+- Right-click → context menu: Edit Point, Change Code, Change Layer, Delete
+- "Code ▼" dropdown toggles between Alpha and Numeric code display
+- "Show Groups" toggle shows/hides the calc/set/found group relationships
+- Color coding: rows with validation errors highlighted in soft red/yellow
+- Point groups: rows belonging to the same base number get a left-border color stripe
+- `★` icon marks the "final" (drawn) point in each group
+
+---
+
+## 19. Import Dialog UI
+
+A multi-step wizard dialog:
+
+### Step 1: File Select
+- Drag-and-drop zone or file picker
+- Auto-detect file type from extension (`.csv`, `.txt`, `.rw5`, `.jxl`)
+- Show first 10 lines of raw file text
+- Preset selector dropdown (built-in + user-saved)
+
+### Step 2: Column Mapping *(CSV/TXT only — RW5 and JobXML skip this)*
+- Visual column mapper: shows the first 5 data rows as a table
+- Click a column header → assign it (Point Number, Northing, Easting, Elevation, Description)
+- Coordinate order toggle (N,E vs E,N)
+- Delimiter selector (comma, tab, space, pipe)
+- Header row toggle
+- Code extraction mode selector
+
+### Step 3: Preview
+- Shows first 50 parsed points in a mini table
+- Point Name, Coordinates, Code (resolved to alpha), Suffix, Action, Layer
+- Color-coded rows for issues (red = error, yellow = warning)
+- Stats summary: `"234 points parsed, 2 errors, 12 unrecognized codes"`
+
+### Step 4: Validation Report
+- Grouped by issue type
+- Expandable sections: `"3 duplicate point numbers"`, `"12 unrecognized codes"`, etc.
+- "Import Anyway" button (imports everything, issues become warnings)
+- "Fix and Re-import" button (goes back to adjust)
+
+### Step 5: Complete
+- Summary stats (final counts, point groups, line strings built, etc.)
+- "View Point Table" button
+- "Zoom to Imported Points" button
+
+---
+
+## 20. Canvas Rendering Updates
+
+Phase 2 updates the Phase 1 renderer to handle `SurveyPoint`s:
+
+- Each `SurveyPoint` creates a `POINT` Feature on the canvas (same as Phase 1)
+- Point rendering: still a simple cross/dot in Phase 2 (Phase 3 upgrades to symbols)
+- Point color: use code's `defaultColor` if available, else layer color
+- Line strings: create `POLYLINE` Features from each `LineString`'s points
+- Line string color: use code's `defaultColor`
+- Points in hidden layers (`layer.visible === false`) are not rendered
+- The code display toggle updates visible labels (just the code text near each point)
+- Point labels: small text showing the code (alpha or numeric) near each point
+
+---
+
+## 21. Acceptance Tests
+
+### Code System
+- [ ] All 134+ built-in codes load correctly
+- [ ] Alpha-to-numeric lookup works for every code
+- [ ] Numeric-to-alpha lookup works for every code
+- [ ] Code suffix parser correctly strips `B`, `E`, `C`, `A`, `BA`, `EA`, `CA`
+- [ ] Suffix parser doesn't strip letters that aren't suffixes (e.g., `"309"` stays `"309"`)
+- [ ] Code suffix parser validates the base code exists before accepting the suffix
+
+### Point Name Intelligence
+- [ ] `"20fnd"` → `baseNumber=20`, `FOUND`, `confidence=1.0`
+- [ ] `"20fne"` → `baseNumber=20`, `FOUND`, `confidence=0.95` (typo detected)
+- [ ] `"20set"` → `baseNumber=20`, `SET`, `confidence=1.0`
+- [ ] `"20ste"` → `baseNumber=20`, `SET`, `confidence=0.95` (typo detected)
+- [ ] `"20calc"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=0`
+- [ ] `"20cald"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=1`, `isRecalc=true`
+- [ ] `"20cale"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=2`, `isRecalc=true`
+- [ ] `"20calf"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=3`, `isRecalc=true`
+- [ ] `"100"` → `baseNumber=100`, `NONE` (no suffix)
+- [ ] `"20f"` → `baseNumber=20`, `FOUND`, `confidence=0.5` (low confidence flagged)
+
+### Point Grouping
+- [ ] Points `20calc`, `20cald`, `20set` group together under `baseNumber=20`
+- [ ] `SET` chosen as `finalPoint` when present
+- [ ] `FOUND` chosen when no `SET` exists
+- [ ] Latest recalc chosen when only `CALC`s exist
+- [ ] `calcSetDelta` computed correctly
+- [ ] `deltaWarning=true` when delta > `0.10'`
+- [ ] Points without matching base numbers are NOT grouped
+
+### CSV Import
+- [ ] Standard PNEZD CSV imports correctly
+- [ ] Tab-delimited file imports correctly
+- [ ] Files with headers detected and skipped
+- [ ] Column mapper correctly assigns columns
+- [ ] Coordinate order swap (EN vs NE) works
+- [ ] Code extracted from description field's first word
+- [ ] Import presets load and apply correctly
+- [ ] Custom preset can be saved and loaded
+
+### RW5 Import
+- [ ] `SP` records parsed correctly (`PN`, `N`, `E`, `EL`, description)
+- [ ] Non-SP records (`JB`, `MO`, `OC`) are skipped
+- [ ] Point name extracted from description
+- [ ] Code extracted from description
+
+### JobXML Import
+- [ ] Point elements parsed with `Name`, `Code`, `Grid` coordinates
+- [ ] Elevation parsed correctly
+- [ ] Missing elevation handled (`null`)
+
+### Auto-Connect
+- [ ] `"742B"` starts a new line string
+- [ ] `"742"` (no suffix) continues the line string
+- [ ] `"742E"` ends the line string
+- [ ] `"742C"` closes the line string
+- [ ] `"742BA"` starts with arc
+- [ ] `"742A"` continues as arc segment
+- [ ] `"742EA"` ends arc section
+- [ ] `"742CA"` closes with arc
+- [ ] Auto-spline codes (`632`, `634`, `729`, etc.) mark segments as `SPLINE`
+- [ ] Line strings create `POLYLINE` features on the canvas
+
+### Validation
+- [ ] Duplicate point numbers flagged as `WARNING`
+- [ ] Zero coordinates flagged as `ERROR`
+- [ ] Unrecognized codes flagged as `WARNING`
+- [ ] Coordinate outliers detected
+- [ ] Single-point line strings flagged
+- [ ] Low-confidence name suffixes flagged as `INFO`
+- [ ] Calc-only points (no set/found) flagged as `INFO`
+
+### Point Table
+- [ ] All imported points displayed in table
+- [ ] Sort by any column works
+- [ ] Filter by text works (searches name, code, description)
+- [ ] Click row → selects point on canvas
+- [ ] Code display toggle switches alpha ↔ numeric
+- [ ] Point groups shown with color-coded stripes
+- [ ] Final point marked with `★`
+
+### Simplified Export
+- [ ] Export with collapse ON: `317→309`, `328→309`, etc.
+- [ ] Export with collapse OFF: codes unchanged
+- [ ] Point names preserved exactly (fnd, set, calc stay)
+- [ ] B/E suffixes optionally preserved
+- [ ] Output matches expected CSV format
+
+---
+
+## 22. Build Order (Implementation Sequence)
+
+### Week 1: Code System Foundation
+1. Create `packages/codes` package with `tsconfig` and `package.json`
+2. Define all types in `packages/core/src/types.ts` (`SurveyPoint`, `PointCodeDefinition`, etc.)
+3. Build `code-library.ts` with all 134+ code definitions
+4. Build `code-lookup.ts` (alpha↔numeric bidirectional lookup, fuzzy matching)
+5. Build `code-suffix-parser.ts` (`B/E/A/BA/EA/CA` stripping)
+6. Write unit tests for lookup and suffix parsing (30+ test cases)
+
+### Week 2: Name Intelligence & Grouping
+1. Build `name-suffix-parser.ts` (fnd/set/calc fuzzy matching, recalc detection)
+2. Write unit tests for name parser (all patterns from acceptance tests above)
+3. Build `point-grouping.ts` (group by base number, resolve final, compute deltas)
+4. Write unit tests for grouping (calc+set, calc+found, calc-only, no-suffix, delta warnings)
+5. Build `auto-connect.ts` (line string builder from B/E suffixes)
+6. Build auto-spline designation
+7. Write unit tests for auto-connect (10+ scenarios)
+
+### Week 3: Import Parsers
+1. Create `packages/import` package
+2. Build `csv-parser.ts` with column mapping and preset system
+3. Build `rw5-parser.ts` (SP record parsing)
+4. Build `jobxml-parser.ts` (XML Point element parsing)
+5. Build `import-pipeline.ts` (unified: parse → classify → group → validate)
+6. Build `validation.ts` (all 8 validation rules)
+7. Write tests for each parser with sample data files
+8. Build `collapse-map.ts` for simplified export
+
+### Week 4: State & UI Integration
+1. Create `point-store.ts` in `packages/store`
+2. Create `import-store.ts` in `packages/store`
+3. Update `drawing-store.ts` to wire `SurveyPoint`s into Features
+4. Build `ImportDialog` component (5-step wizard)
+5. Build `ColumnMapper` component
+6. Build `ImportPreview` component
+7. Build `ValidationReport` component
+8. Wire Import button into toolbar
+
+### Week 5: Point Table & Canvas
+1. Build `PointTablePanel` component (sortable, filterable table)
+2. Build `PointGroupPanel` component (calc/set/found viewer)
+3. Add code display toggle to settings
+4. Update canvas renderer to color points by code's `defaultColor`
+5. Update canvas to render line strings as polylines from auto-connect
+6. Add point labels (code text near each point)
+7. Wire point table click → canvas selection + zoom
+
+### Week 6: Polish & Testing
+1. Build simplified export function
+2. Test import with real Starr Surveying field files
+3. Handle edge cases (empty files, single-point files, all-calc files)
+4. Run ALL acceptance tests from Section 21
+5. Fix any failures
+6. Performance test with 5,000+ point file
+7. Document any deviations from spec
+
+---
+
+### Copilot Session Template
+
+> I am building Starr CAD Phase 2 — Data Import & Point Code System. Phase 1 (CAD engine core with PixiJS canvas, selection, undo, snap, layers, file I/O) is complete. I am now adding field data import (CSV, RW5, JobXML), a 134-code dual-code library (alpha ↔ numeric), point name suffix intelligence that fuzzy-matches fnd/set/calc variants and detects recalculations (cald, cale, calf), point grouping that resolves calc/set/found relationships, and auto-connect logic that builds line strings from B/E suffixes. The full Phase 2 spec is in `STARR_CAD_PHASE_2_DATA_IMPORT.md`. All types are defined in Section 2. I am currently working on **[CURRENT TASK from Build Order]**.
+
+---
+
+*End of Phase 2 Specification*
+
+*Starr Surveying Company — Belton, Texas — March 2026*
