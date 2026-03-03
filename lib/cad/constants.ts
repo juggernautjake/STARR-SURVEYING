@@ -1,5 +1,8 @@
 // lib/cad/constants.ts — Default values for the Starr CAD engine
-import type { DrawingSettings, FeatureStyle, Layer, SnapType } from './types';
+import type { DrawingSettings, FeatureStyle, SnapType } from './types';
+import { PHASE3_DEFAULT_LAYERS } from './styles/default-layers';
+
+export { PHASE3_DEFAULT_LAYERS as DEFAULT_LAYERS };
 
 export const MIN_ZOOM = 0.001;
 export const MAX_ZOOM = 1000;
@@ -25,31 +28,18 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
 };
 
 export const DEFAULT_FEATURE_STYLE: FeatureStyle = {
-  color: '#000000',
-  lineWeight: 1,
+  color: null,
+  lineWeight: null,
   opacity: 1,
+  lineTypeId: null,
+  symbolId: null,
+  symbolSize: null,
+  symbolRotation: 0,
+  labelVisible: null,
+  labelFormat: null,
+  labelOffset: { x: 0, y: 0 },
+  isOverride: false,
 };
-
-export const DEFAULT_LAYERS: Omit<Layer, 'id'>[] = [
-  {
-    name: 'Layer 0',
-    visible: true,
-    locked: false,
-    color: '#000000',
-    lineWeight: 1,
-    opacity: 1,
-    isDefault: true,
-  },
-  {
-    name: 'Construction',
-    visible: true,
-    locked: false,
-    color: '#999999',
-    lineWeight: 0.5,
-    opacity: 0.5,
-    isDefault: true,
-  },
-];
 
 export const SNAP_INDICATOR_STYLES: Record<SnapType, { shape: string; color: string }> = {
   ENDPOINT: { shape: 'square', color: '#00FF00' },

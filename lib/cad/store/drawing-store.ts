@@ -2,12 +2,18 @@
 import { create } from 'zustand';
 import type { DrawingDocument, Feature, Layer, DrawingSettings } from '../types';
 import { generateId } from '../types';
-import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYERS, DEFAULT_FEATURE_STYLE } from '../constants';
+import { DEFAULT_DRAWING_SETTINGS } from '../constants';
+import { getDefaultLayersRecord, getDefaultLayerOrder, DEFAULT_LAYER_GROUPS } from '../styles/default-layers';
+import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
 
 function createDefaultDocument(): DrawingDocument {
-  const layer0Id = generateId();
-  const constructionId = generateId();
-  const [layer0Defaults, constructionDefaults] = DEFAULT_LAYERS;
+  const layers = getDefaultLayersRecord();
+  const layerOrder = getDefaultLayerOrder();
+
+  const layerGroups: Record<string, import('../styles/types').LayerGroup> = {};
+  for (const group of DEFAULT_LAYER_GROUPS) {
+    layerGroups[group.id] = group;
+  }
 
   return {
     id: generateId(),
@@ -16,11 +22,14 @@ function createDefaultDocument(): DrawingDocument {
     modified: new Date().toISOString(),
     author: '',
     features: {},
-    layers: {
-      [layer0Id]: { id: layer0Id, ...layer0Defaults },
-      [constructionId]: { id: constructionId, ...constructionDefaults },
-    },
-    layerOrder: [layer0Id, constructionId],
+    layers,
+    layerOrder,
+    layerGroups,
+    layerGroupOrder: DEFAULT_LAYER_GROUPS.map(g => g.id),
+    customSymbols: [],
+    customLineTypes: [],
+    codeStyleOverrides: {},
+    globalStyleConfig: { ...DEFAULT_GLOBAL_STYLE_CONFIG },
     settings: { ...DEFAULT_DRAWING_SETTINGS },
   };
 }
@@ -259,6 +268,6 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     if (layer) {
       return { color: layer.color, lineWeight: layer.lineWeight, opacity: layer.opacity };
     }
-    return { ...DEFAULT_FEATURE_STYLE };
+    return { color: '#000000', lineWeight: 0.25, opacity: 1 };
   },
 }));
