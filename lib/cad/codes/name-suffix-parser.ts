@@ -48,7 +48,11 @@ export function parsePointName(name: string): ParsedPointName {
       let isRecalc = false;
       if (pattern.recalcMode === 'dynamic') {
         const lastChar = suffixText.charAt(suffixText.length - 1).toLowerCase();
-        recalcSeq = lastChar.charCodeAt(0) - 'c'.charCodeAt(0);
+        const charCode = lastChar.charCodeAt(0);
+        // Only accept 'd' through 'z' as valid recalc sequence chars (c=0 is base calc, d=1, e=2...)
+        if (charCode >= 'c'.charCodeAt(0) && charCode <= 'z'.charCodeAt(0)) {
+          recalcSeq = charCode - 'c'.charCodeAt(0);
+        }
         isRecalc = true;
       }
 

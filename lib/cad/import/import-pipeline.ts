@@ -94,7 +94,7 @@ export function processImport(
       featureId: '',
       lineStringIds: [],
       validationIssues: [],
-      confidence: -1,
+      confidence: -1,   // -1 = "not yet scored"; Phase 6 AI engine populates this (0–100)
       isAccepted: true,
     };
 

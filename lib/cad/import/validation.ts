@@ -163,10 +163,15 @@ export function validatePoints(
   // Any still-open lines → orphan begin
   for (const [code, open] of openLinesByCode) {
     if (open) {
-      // Find the B/BA point
-      const beginPt = [...points].reverse().find(p =>
-        p.parsedCode.baseCode === code && (p.codeSuffix === 'B' || p.codeSuffix === 'BA')
-      );
+      // Find the last B/BA point for this code (iterate backward without copying)
+      let beginPt: SurveyPoint | undefined;
+      for (let i = points.length - 1; i >= 0; i--) {
+        const p = points[i];
+        if (p.parsedCode.baseCode === code && (p.codeSuffix === 'B' || p.codeSuffix === 'BA')) {
+          beginPt = p;
+          break;
+        }
+      }
       if (beginPt) {
         issues.push({
           type: 'ORPHAN_BEGIN_SUFFIX',

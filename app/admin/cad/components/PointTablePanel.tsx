@@ -17,6 +17,9 @@ import { usePointStore } from '@/lib/cad/store';
 import type { PointSortField } from '@/lib/cad/store';
 import type { SurveyPoint } from '@/lib/cad/types';
 
+/** Deterministic group stripe colors for calc/set/found visualization */
+const GROUP_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'] as const;
+
 interface PointTablePanelProps {
   codeDisplayMode: 'ALPHA' | 'NUMERIC';
   onCodeDisplayModeChange: (mode: 'ALPHA' | 'NUMERIC') => void;
@@ -91,8 +94,7 @@ export default function PointTablePanel({
   }
 
   function getGroupColor(baseNumber: number): string {
-    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
-    return colors[baseNumber % colors.length];
+    return GROUP_COLORS[baseNumber % GROUP_COLORS.length];
   }
 
   function isGroupFinal(pt: SurveyPoint): boolean {

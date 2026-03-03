@@ -497,6 +497,9 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
     const features: Feature[] = [];
     const operations: UndoOperation[] = [];
 
+    // Build a lookup map for O(1) point access by ID
+    const pointById = new Map(importResult.points.map(p => [p.id, p]));
+
     for (const pt of importResult.points) {
       const pointFeature: Feature = {
         id: generateId(),
@@ -522,7 +525,7 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
     for (const ls of importResult.lineStrings) {
       if (ls.pointIds.length < 2) continue;
       const pts = ls.pointIds
-        .map(id => importResult.points.find(p => p.id === id))
+        .map(id => pointById.get(id))
         .filter((p): p is (typeof importResult.points)[number] => p !== undefined);
       if (pts.length < 2) continue;
 
