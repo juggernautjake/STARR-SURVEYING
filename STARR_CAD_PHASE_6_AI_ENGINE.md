@@ -1,10 +1,10 @@
 # STARR CAD — Phase 6: AI Drawing Engine
 
-**Version:** 1.0 | **Date:** March 2026 | **Phase:** 6 of 7
+**Version:** 2.0 | **Date:** March 2026 | **Phase:** 6 of 8
 
-**Goal:** Import a field file + provide a deed, and the AI produces a review-ready drawing with confidence scores on every element. Point groups (calc/set/found) are automatically resolved. A 6-stage pipeline classifies points, assembles features, reconciles against deeds, places everything intelligently, optimizes labels, and scores confidence. The review queue lets you accept, modify, or reject each AI decision individually.
+**Goal:** Import a field file + provide a deed, and the AI produces a review-ready drawing with confidence scores on every element. Point groups (calc/set/found) are automatically resolved. A 6-stage pipeline classifies points, assembles features, reconciles against deeds, places everything intelligently, optimizes labels, and scores confidence. The engine resolves field-shot dynamic offsets to true positions, enriches data from online sources (GIS parcels, FEMA, PLSS), enters a 5–10 minute deliberation period, generates confidence-gated clarifying questions, renders an interactive drawing preview with visual confidence cards, and provides per-element AI explanation popups with element-level chat. The user accepts the drawing to send it to the Phase 7 full editor.
 
-**Duration:** 8–10 weeks | **Depends On:** Phase 5 (annotations, labels, templates, print system all exist for the AI to populate)
+**Duration:** 10–13 weeks | **Depends On:** Phase 5 (annotations, labels, templates, print system all exist for the AI to populate)
 
 ---
 
@@ -35,6 +35,11 @@
 23. [State Management Updates](#23-state-management-updates)
 24. [Acceptance Tests](#24-acceptance-tests)
 25. [Build Order (Implementation Sequence)](#25-build-order-implementation-sequence)
+26. [Dynamic Offset Resolution](#26-dynamic-offset-resolution)
+27. [Online Data Enrichment](#27-online-data-enrichment)
+28. [AI Deliberation Period & Confidence-Gated Clarifying Questions](#28-ai-deliberation-period--confidence-gated-clarifying-questions)
+29. [Interactive Drawing Preview & Confidence Element Cards](#29-interactive-drawing-preview--confidence-element-cards)
+30. [Per-Element AI Explanation & Element-Level Chat](#30-per-element-ai-explanation--element-level-chat)
 
 ---
 
@@ -1558,6 +1563,7 @@ export interface AIJobPayload {
   deedData:   DeedData | null;
   fieldNotes: string | null;
   userPrompt: string | null;
+  answers:    ClarifyingQuestion[];   // Answers from the question dialog (empty on first run)
 
   // Configuration
   templateId:        string | null;   // null = auto-select
@@ -1581,16 +1587,27 @@ export interface AIJobResult {
   placement:   PlacementConfig;
 
   // Intelligence
-  classified:     ClassificationResult[];
-  pointGroups:    PointGroup[];
-  reconciliation: ReconciliationResult | null;
-  reviewQueue:    AIReviewQueue;
-  scores:         Record<string, ConfidenceScore>; // Map serialized as Record
+  classified:       ClassificationResult[];
+  pointGroups:      PointGroup[];
+  reconciliation:   ReconciliationResult | null;
+  reviewQueue:      AIReviewQueue;
+  scores:           Record<string, ConfidenceScore>; // Map serialized as Record
+  explanations:     Record<string, ElementExplanation>; // featureId → explanation
+
+  // Offset resolution
+  offsetResolution: OffsetResolutionResult | null;
+
+  // Online enrichment
+  enrichmentData:   EnrichmentData | null;
+
+  // Deliberation
+  deliberationResult: DeliberationResult | null;
 
   // Metadata
   processingTimeMs: number;
   stageTimings:     Record<string, number>;
   warnings:         string[];
+  version:          number;         // Increments with each re-analyze
 }
 ```
 
@@ -1929,9 +1946,939 @@ interface AIStore {
 
 ---
 
+---
+
+## 26. Dynamic Offset Resolution
+
+### 26.1 Overview
+
+When a field crew cannot physically occupy a corner (e.g., the monument is in the middle of a road, under water, or behind a wall), they shoot an **offset point** nearby and record the offset distance and direction. The AI engine must detect these shots and compute the **true position** of the actual monument before drawing.
+
+### 26.2 Offset Encoding Formats
+
+Offsets are encoded in four places the parser must check:
+
+| Source | Example | Pattern |
+|--------|---------|---------|
+| Code suffix | `BC02_10R` | `_{distance}{direction}` appended to base code |
+| Point description | `"OFFSET 10' LT"` or `"10L BC02"` | Free-text, parsed with regex + Claude |
+| Field notes file | `"Pt 35: shot 5.5' to the right of iron rod"` | Attached notes, Claude-extracted |
+| Companion point pair | Pts 35 and 35off | Two points with matching base name, one flagged `off`/`offset` |
+
+Direction tokens:
+- `L` / `LT` / `LEFT` → perpendicular left of direction of travel
+- `R` / `RT` / `RIGHT` → perpendicular right
+- `FWD` / `F` → inline forward along bearing
+- `BCK` / `B` → inline backward
+- `{bearing}` e.g. `N45E 10.0` → absolute bearing + distance
+
+### 26.3 Data Model
+
+```typescript
+// packages/ai-engine/src/offset-resolver.ts
+
+export interface OffsetShot {
+  offsetPointId:  string;           // The physically shot point
+  truePointId:    string;           // Computed true position (new virtual point)
+  offsetDistance: number;           // Feet
+  offsetDirection: OffsetDirection;
+  resolutionMethod: 'SUFFIX' | 'DESCRIPTION' | 'FIELD_NOTES' | 'COMPANION_PAIR';
+  confidence: number;               // 0–100: how sure are we of the offset data?
+  requiresUserConfirmation: boolean; // true when confidence < 80
+}
+
+export type OffsetDirection =
+  | { type: 'PERPENDICULAR_LEFT' }
+  | { type: 'PERPENDICULAR_RIGHT' }
+  | { type: 'INLINE_FORWARD' }
+  | { type: 'INLINE_BACKWARD' }
+  | { type: 'BEARING'; bearingAzimuth: number };  // absolute direction
+
+export interface OffsetResolutionResult {
+  resolvedShots: OffsetShot[];
+  truePoints: SurveyPoint[];         // Virtual true-position points added to the dataset
+  ambiguousShots: OffsetShot[];      // Shots needing clarification from the user
+  unresolvedPointIds: string[];      // Points that look offset but couldn't be parsed
+}
+```
+
+### 26.4 Resolution Algorithm
+
+```typescript
+export function resolveOffsets(
+  points: SurveyPoint[],
+  fieldNotes: string | null,
+  claudeClient: ClaudeClient,
+): Promise<OffsetResolutionResult> {
+  // Step 1: Detect offset candidates from code suffixes
+  const suffixOffsets = detectSuffixOffsets(points);
+
+  // Step 2: Detect from point description text
+  const descOffsets = detectDescriptionOffsets(points);
+
+  // Step 3: Detect companion pairs (pt N and pt Noff)
+  const pairOffsets = detectCompanionPairs(points);
+
+  // Step 4: Claude-assisted detection from field notes
+  const noteOffsets = fieldNotes
+    ? await detectFieldNoteOffsets(fieldNotes, points, claudeClient)
+    : [];
+
+  const all = [...suffixOffsets, ...descOffsets, ...pairOffsets, ...noteOffsets];
+  const deduplicated = deduplicateOffsets(all);   // same point from multiple sources → merge
+
+  // Step 5: Compute true positions
+  const truePoints: SurveyPoint[] = [];
+  const ambiguous: OffsetShot[] = [];
+
+  for (const shot of deduplicated) {
+    const offsetPt = points.find(p => p.id === shot.offsetPointId)!;
+    const referenceBearing = computeReferenceBearing(offsetPt, points); // bearing of the line the offset is measured from
+
+    if (referenceBearing === null && shot.offsetDirection.type !== 'BEARING') {
+      shot.requiresUserConfirmation = true;
+      ambiguous.push(shot);
+      continue;
+    }
+
+    const truePos = applyOffset(offsetPt, shot.offsetDistance, shot.offsetDirection, referenceBearing);
+    const truePt: SurveyPoint = {
+      ...offsetPt,
+      id:       generateId(),
+      name:     offsetPt.name.replace(/off(set)?$/i, ''),
+      easting:  truePos.x,
+      northing: truePos.y,
+      properties: { ...offsetPt.properties, resolvedFromOffset: offsetPt.id },
+    };
+    truePoints.push(truePt);
+    shot.truePointId = truePt.id;
+  }
+
+  return {
+    resolvedShots: deduplicated.filter(s => !s.requiresUserConfirmation),
+    truePoints,
+    ambiguousShots: ambiguous,
+    unresolvedPointIds: detectUnresolvedOffsetIndicators(points, deduplicated),
+  };
+}
+```
+
+### 26.5 Perpendicular Offset Computation
+
+```typescript
+/**
+ * Apply a perpendicular left/right offset to a shot point.
+ * referenceBearing: azimuth of the survey line the offset is measured from.
+ * L = 90° CCW from bearing, R = 90° CW.
+ */
+function applyPerpendicularOffset(
+  pt: SurveyPoint,
+  distance: number,
+  side: 'LEFT' | 'RIGHT',
+  referenceBearing: number,   // azimuth degrees
+): Point2D {
+  const perpBearing = side === 'LEFT'
+    ? (referenceBearing - 90 + 360) % 360
+    : (referenceBearing + 90) % 360;
+  return applyBearingDistance(pt, distance, perpBearing);
+}
+
+function applyBearingDistance(pt: SurveyPoint, dist: number, az: number): Point2D {
+  const rad = az * Math.PI / 180;
+  return {
+    x: pt.easting  + dist * Math.sin(rad),
+    y: pt.northing + dist * Math.cos(rad),
+  };
+}
+```
+
+### 26.6 Integration into Stage 1 (Classification)
+
+Dynamic offset resolution runs **before** feature assembly (Stage 2). The resolved true-position points replace their offset counterparts in the working dataset. The original offset points are retained in the model with `isOffsetShot: true` and are rendered at 40% opacity in "show all" mode.
+
+Ambiguous offset shots (confidence < 80%) are added to the **Clarifying Questions** queue (§28).
+
+---
+
+## 27. Online Data Enrichment
+
+### 27.1 Overview
+
+Before the AI deliberation period, the engine queries publicly available data sources to enrich context for the drawing. This data informs deed reconciliation, flood zone notes, PLSS references, and ROW detection.
+
+### 27.2 Enrichment Sources
+
+| Source | Data Retrieved | API |
+|--------|---------------|-----|
+| County Appraisal District (Texas CADs) | Parcel polygon, owner, legal description excerpt, acreage | ESRI FeatureServer (county-specific) |
+| USGS National Map / BLM PLSS | Township, range, section, abstract | `https://geonames.usgs.gov` / `https://gis.blm.gov/arcgis/rest/services/Cadastral/BLM_Natl_PLSS_CadNSDI/` |
+| FEMA NFIP Flood Map Service | Flood zone designation, community panel number, effective date | `https://msc.fema.gov/arcgis/rest/services/` |
+| TxDOT / FHWA ROW | Right-of-way centerline, highway number | TxDOT Open Data Portal |
+| USGS 3DEP Elevation | Ground elevation at boundary corners | `https://epqs.nationalmap.gov/v1/json` |
+| Historic Aerial / Imagery | Cross-reference feature locations | Bing Maps Tile API (cached) |
+
+### 27.3 Data Model
+
+```typescript
+// packages/ai-engine/src/enrichment.ts
+
+export interface EnrichmentData {
+  parcel:    ParcelData | null;
+  plss:      PLSSData | null;
+  floodZone: FloodZoneData | null;
+  row:       ROWData | null;
+  elevation: ElevationData | null;
+  fetchedAt: string;               // ISO 8601
+  errors:    string[];             // Any source that failed (non-fatal)
+}
+
+export interface ParcelData {
+  apn:           string;           // Appraisal parcel number
+  ownerName:     string | null;
+  siteAddress:   string | null;
+  legalExcerpt:  string | null;    // First 300 chars of legal description from CAD
+  acreage:       number | null;
+  taxYear:       number;
+  sourceCounty:  string;
+  parcelPolygon: Point2D[] | null; // Boundary polygon from CAD (approximate)
+}
+
+export interface PLSSData {
+  state:     string;               // "TX"
+  pm:        string;               // Principal Meridian
+  township:  string;               // "T15S"
+  range:     string;               // "R16W"
+  section:   string;               // "Section 42"
+  abstract:  string | null;        // Texas abstract number, e.g. "A-1234"
+  survey:    string | null;        // Survey name, e.g. "James Smith Survey"
+}
+
+export interface FloodZoneData {
+  zone:          string;           // "X", "AE", "VE", "A", "0.2% Annual Chance"
+  communityPanel: string;          // e.g. "48027C0152E"
+  effectiveDate: string;           // e.g. "July 3, 2013"
+  letterOfMapChange: string | null;
+}
+
+export interface ROWData {
+  highways: {
+    name:         string;          // "US 190"
+    width:        number | null;   // Feet, null if unknown
+    centerlineNearby: boolean;
+  }[];
+}
+
+export interface ElevationData {
+  pointElevations: Record<string, number>; // pointId → elevation in feet NAVD 88
+}
+```
+
+### 27.4 Enrichment Engine
+
+```typescript
+export async function fetchEnrichmentData(
+  points: SurveyPoint[],
+  projectLatLon: Point2D,           // Approximate center for bounding box
+): Promise<EnrichmentData> {
+  const bbox = computeLatLonBBox(points);  // convert state-plane → lat/lon
+
+  const [parcel, plss, floodZone, row, elevation] = await Promise.allSettled([
+    fetchParcelData(bbox, projectLatLon),
+    fetchPLSSData(projectLatLon),
+    fetchFloodZoneData(bbox),
+    fetchROWData(bbox),
+    fetchElevationData(points),
+  ]);
+
+  return {
+    parcel:    parcel.status    === 'fulfilled' ? parcel.value    : null,
+    plss:      plss.status      === 'fulfilled' ? plss.value      : null,
+    floodZone: floodZone.status === 'fulfilled' ? floodZone.value : null,
+    row:       row.status       === 'fulfilled' ? row.value       : null,
+    elevation: elevation.status === 'fulfilled' ? elevation.value : null,
+    fetchedAt: new Date().toISOString(),
+    errors: [parcel, plss, floodZone, row, elevation]
+      .filter(r => r.status === 'rejected')
+      .map(r => (r as PromiseRejectedResult).reason?.message ?? 'Unknown error'),
+  };
+}
+```
+
+### 27.5 How Enrichment Data Is Used
+
+| Data | How Used |
+|------|---------|
+| `parcel.legalExcerpt` | Cross-reference against uploaded deed; flag if descriptions conflict |
+| `parcel.acreage` | Cross-check against computed area; flag if > 2% difference |
+| `plss` | Auto-fill title block PLSS fields (Township, Range, Section, Abstract, Survey) |
+| `floodZone` | Auto-select flood zone standard note; pre-fill panel number and effective date |
+| `row` | Suggest ROW layer assignment for points near highway; warn about encroachments |
+| `elevation` | Include ground elevation in point attributes; used in 3D export (Phase 7) |
+
+### 27.6 Coordinate Conversion (State Plane ↔ Geographic)
+
+```typescript
+// Uses proj4 library (already in package.json for Phase 4 coordinate system support)
+import proj4 from 'proj4';
+
+const TX_CENTRAL = '+proj=lcc +lat_1=31.88333333333333 +lat_2=30.11666666666667 '
+  + '+lat_0=29.66666666666667 +lon_0=-100.3333333333333 +x_0=699999.9999999999 '
+  + '+y_0=3000000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=us-ft +no_defs';
+
+export function statePlaneToLatLon(easting: number, northing: number): [number, number] {
+  return proj4(TX_CENTRAL, 'WGS84', [easting, northing]) as [number, number];
+}
+```
+
+---
+
+## 28. AI Deliberation Period & Confidence-Gated Clarifying Questions
+
+### 28.1 Overview
+
+After the 6-stage pipeline completes, the online enrichment is fetched, and dynamic offsets are resolved, the AI enters a **deliberation period** of 5–10 minutes before rendering the drawing. During this time it performs a deep holistic analysis and generates a set of clarifying questions that the user can answer to improve drawing quality.
+
+**Key rule:** If overall confidence is ≥ 90% AND there are no blocking anomalies, the AI skips the question dialog entirely and proceeds directly to the drawing preview. Questions are only generated when they can meaningfully change an outcome.
+
+### 28.2 Deliberation Activities
+
+```
+DELIBERATION CHECKLIST (runs sequentially)
+──────────────────────────────────────────
+1. Cross-reference field data with deed data
+   • Any legs with bearing diff > 2° or distance diff > 1' → flag for question
+   • POB monument found in field? If not → blocking question
+
+2. Cross-reference with parcel data
+   • Computed area vs CAD acreage: > 2% diff → question
+   • Parcel polygon centroid vs field data centroid: > 50' diff → question
+
+3. Validate offset resolution
+   • Any ambiguous offset shots → question per shot
+   • Multiple shots of same apparent point → question about which is final
+
+4. Code pattern analysis
+   • Points with unrecognized codes → question about intended feature
+   • Codes that appear to be typos (e.g., "BCC2" near "BC02" group) → question
+   • Codes that appear in wrong context (e.g., utility code among boundary codes) → question
+
+5. Feature completeness check
+   • Expected boundary polygon not closed → question
+   • Expected ROW line not present but ROW enrichment data shows highway → question
+   • Lone point with no matching start/end in any line → question about connection
+
+6. Feature attribute collection
+   • Fence lines: collect material (chain link/wood/wire/barbed wire/split rail) and condition
+   • Buildings: collect primary material (brick/frame/metal/concrete) and type (residential/commercial)
+   • Retaining walls: collect material and approximate height
+   • Water features: collect name if unnamed in deed
+
+7. Monument condition notes
+   • For each SET monument: collect cap information if not in description
+   • For FOUND monuments: condition (good/damaged/bent/disturbed)
+
+8. Coordinate system validation
+   • All points within expected geographic bounding box for county?
+   • Angular closure within expected tolerance?
+
+9. Final confidence assessment
+   • Compute overall job confidence (weighted average of all element scores)
+   • If overall ≥ 90% and no blocking questions → skip question dialog
+   • If overall < 90% or ≥ 1 blocking question → show question dialog
+```
+
+### 28.3 Clarifying Question Data Model
+
+```typescript
+// packages/ai-engine/src/deliberation.ts
+
+export type QuestionPriority = 'BLOCKING' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type QuestionCategory =
+  | 'CODE_AMBIGUITY'        // Why was this code used?
+  | 'POSSIBLE_TYPO'         // Looks like a typo in code or coordinate
+  | 'OFFSET_DISAMBIGUATION' // How to resolve an offset shot
+  | 'DUPLICATE_SHOT'        // Multiple shots of same point — which is final?
+  | 'MISSING_FEATURE'       // Expected feature not found
+  | 'DEED_DISCREPANCY'      // Field vs deed mismatch
+  | 'FEATURE_ATTRIBUTE'     // Material, condition, type of a feature
+  | 'MONUMENT_INFO'         // Cap info, condition of monument
+  | 'AREA_MISMATCH'         // Computed area vs deed/CAD area differs
+  | 'AREA_ENCLOSURE'        // Boundary appears not to close
+  | 'CONNECTION_AMBIGUITY'; // Should these points be connected?
+
+export interface ClarifyingQuestion {
+  id:           string;
+  priority:     QuestionPriority;
+  category:     QuestionCategory;
+  question:     string;           // Human-readable question text
+  aiReasoning:  string;           // Why the AI is asking this
+  relatedIds:   string[];         // featureIds, pointIds, or annotationIds involved
+  suggestedAnswer: string | null; // AI's best guess (pre-fills the answer)
+  answerType:   QuestionAnswerType;
+  options?:     string[];         // For SELECT type
+  userAnswer:   string | null;    // Set when user answers
+  skipped:      boolean;
+}
+
+export type QuestionAnswerType =
+  | 'TEXT'           // Free text
+  | 'SELECT'         // Pick from a list
+  | 'CONFIRM'        // Yes / No / Not Sure
+  | 'POINT_SELECT'   // Click a point on the mini-map
+  | 'NUMBER';        // Numeric input (e.g., offset distance)
+
+export interface DeliberationResult {
+  overallConfidence:  number;       // 0–100 weighted average
+  questionsGenerated: ClarifyingQuestion[];
+  blockingQuestions:  ClarifyingQuestion[];
+  optionalQuestions:  ClarifyingQuestion[];
+  shouldShowDialog:   boolean;      // false if confidence ≥ 90 and no blocking Qs
+  deliberationTimeMs: number;
+}
+```
+
+### 28.4 Question Dialog UI
+
+```
+┌─ AI Drawing Questions ──────────────────────────────── [Skip All Optional] ─┐
+│                                                                              │
+│  The AI has analyzed all data and has a few questions before drawing.        │
+│  Answering these will improve accuracy. Blocking questions (⛔) must be      │
+│  answered. Optional questions (💡) can be skipped.                           │
+│                                                                              │
+│  Overall Confidence: ████████████░░  78%                                     │
+│                                                                              │
+│ ──────────────── BLOCKING (2) ──────────────────────────────────────────── │
+│                                                                              │
+│  ⛔ 1 of 2 — DEED DISCREPANCY                                               │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │ The deed calls for a monument at the NE corner described as "a 5/8"   │ │
+│  │ iron rod found." No monument was found near point #8 (the closest      │ │
+│  │ boundary corner). Was the NE corner monument found in the field?        │ │
+│  │                                                                         │ │
+│  │ ○ Yes — it is point #8 (BC01 20fnd)                                    │ │
+│  │ ○ Yes — it is a different point: [__________]                           │ │
+│  │ ○ No — the monument was not found                                       │ │
+│  │ ○ Not sure                                                              │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│ ────────────────── OPTIONAL (5) ────────────────────────────────────────── │
+│                                                                              │
+│  💡 1 of 5 — FEATURE ATTRIBUTE                                              │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │ The fence along the south side (points 6–12, FN03) — what material?    │ │
+│  │ AI best guess: Chain Link (based on code FN03)                          │ │
+│  │                                                                         │ │
+│  │ [Chain Link ▾]   [Skip this question]                                  │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│  💡 2 of 5 — FEATURE ATTRIBUTE         ← next question preview             │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │ The building (points 30–38, BL01) — primary construction material?     │ │
+│  │ [Brick ▾]   [Skip this question]                                       │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+│                          [← Previous]  [Next →]  [Draw Now]                 │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**"Draw Now"** button is enabled once all blocking questions are answered. It proceeds to drawing even if optional questions remain unanswered.
+
+### 28.5 Applying Question Answers
+
+After the user completes the question dialog, the answers are fed back into the pipeline:
+
+```typescript
+export function applyAnswers(
+  result: AIJobResult,
+  answers: ClarifyingQuestion[],
+  points: SurveyPoint[],
+): AIJobPayload {
+  // Rebuild the payload with answer data injected
+  const updatedPrompt = buildAnswerPrompt(answers);
+  // Re-run stages 2–6 with the enriched understanding
+  return { ...existingPayload, userPrompt: updatedPrompt, answers };
+}
+```
+
+Stages 1 (classification) and 3 (deed reconciliation) re-run with answers applied. Confidence scores are recalculated. The updated result feeds into the drawing preview.
+
+---
+
+## 29. Interactive Drawing Preview & Confidence Element Cards
+
+### 29.1 Overview
+
+After deliberation (and optional clarifying questions), the AI renders a **drawing preview** in a full-screen two-panel layout. The user can review every element with its confidence score, chat with the AI about individual elements, and accept the drawing to load it into the Phase 7 full editor.
+
+### 29.2 Layout
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│  AI Drawing Preview                       [Re-analyze with Instructions]  [Help] │
+├────────────────────────────────────────────┬─────────────────────────────────────┤
+│                                            │  Sort: [Confidence ▾] [Search...]   │
+│                                            │                                     │
+│   DRAWING PREVIEW (interactive canvas)    │  ┌── Element #8 ──────── 38% ──────┐ │
+│                                            │  │ ██░░░░░░░░░░░░░░░░░░░░░░░░░░░  │ │
+│   [Zoom controls]  [Pan]  [Fit]            │  │ Boundary Curve (3 pts)          │ │
+│                                            │  │ ⚠ Bearing mismatch 245" from deed│ │
+│   Features are rendered with confidence    │  │ ⚠ Closure 1:3,200               │ │
+│   glow:                                    │  └─────────────────────────────────┘ │
+│   • Red  = tier 1/2 (< 60%)               │                                     │
+│   • Orange = tier 3 (60–79%)              │  ┌── Point #99 ─────────  12% ──────┐ │
+│   • Yellow-green = tier 4 (80–94%)        │  │ ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │ │
+│   • Green  = tier 5 (95–100%)             │  │ (Not placed — zero coordinates)  │ │
+│                                            │  └─────────────────────────────────┘ │
+│   Hover feature → highlight its card      │                                     │
+│   Click feature → open explanation popup  │  ┌── Boundary Curve ──── 45% ──────┐ │
+│                                            │  │ ████░░░░░░░░░░░░░░░░░░░░░░░░░  │ │
+│                                            │  │ NW Corner Arc (4 pts)           │ │
+│                                            │  └─────────────────────────────────┘ │
+│                                            │                                     │
+│                                            │  ┌── Monument #20 ────── 62% ──────┐ │
+│                                            │  │ ██████░░░░░░░░░░░░░░░░░░░░░░░  │ │
+│                                            │  │ Boundary Monument               │ │
+│                                            │  │ 20calc → 20set  Δ 0.32' ⚠       │ │
+│                                            │  └─────────────────────────────────┘ │
+│                                            │                                     │
+│                                            │  ┌── Fence S side ─────  87% ──────┐ │
+│                                            │  │ █████████████░░░░░░░░░░░░░░░░  │ │
+│                                            │  │ Chain Link (7 pts)              │ │
+│                                            │  └─────────────────────────────────┘ │
+│                                            │     ↕ scrollable                    │
+├────────────────────────────────────────────┴─────────────────────────────────────┤
+│  98 elements  •  12 need review  •  4 not placed      [Accept Drawing →]         │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 29.3 Element Card Component
+
+```
+┌── {Element Title} ──────────────── {Score}% ─────────────────┐
+│ ████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │  ← confidence bar
+│ {Category badge}  {Brief description}                         │
+│ {Flag icon} {Flag 1}   {Flag icon} {Flag 2}                   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+- **Border color** matches confidence tier: `#dc2626` (< 40), `#ea580c` (40–59), `#ca8a04` (60–79), `#65a30d` (80–94), `#16a34a` (95–100)
+- **Bar fill** uses a gradient from the tier color
+- **Sort order** default: least confident first (score ascending). User can change to: alphabetical, by category, by tier
+- Clicking a card opens the **Element Explanation Popup** (§30)
+- Hovering a card highlights the corresponding feature on the canvas with a pulsing ring
+
+### 29.4 Sort & Filter Controls
+
+```typescript
+export type CardSortOrder =
+  | 'CONFIDENCE_ASC'   // default — least confident first
+  | 'CONFIDENCE_DESC'  // most confident first
+  | 'ALPHA'            // alphabetical by title
+  | 'NUMERIC'          // by point number
+  | 'CATEGORY';        // grouped by category
+
+export type CardFilterMode =
+  | 'ALL'
+  | 'NEEDS_REVIEW'     // tiers 1–3
+  | 'ACCEPTED'         // tier 5 + user-accepted
+  | 'CATEGORY';        // filter by specific category
+```
+
+### 29.5 Accept Drawing Workflow
+
+```
+User clicks [Accept Drawing →]
+    │
+    ▼
+Confirmation dialog:
+  "12 elements still need review. Accept anyway and continue editing in the full editor?"
+  [Review First]  [Accept & Continue]
+    │
+    ▼ (Accept & Continue)
+  Current drawing state is snapshot as "AI Version 1"
+  Drawing is loaded into the Phase 7 full interactive editor
+  Review queue remains accessible in the editor sidebar
+  User can continue editing manually or via AI chat
+```
+
+### 29.6 Re-analyze Workflow
+
+```
+User types in "Re-analyze with Instructions" text area
+  e.g., "The fence on the north side should be wood privacy, not chain link"
+    │
+    ▼
+Stages 2–6 re-run with the instruction injected into the prompt
+Online enrichment is reused (not re-fetched)
+Deliberation period runs again (abbreviated: 1–2 min)
+New drawing preview replaces old one
+All cards refresh with new scores
+User can cycle through multiple re-analyzes until satisfied
+Each version is saved as "AI Version N" for comparison
+```
+
+### 29.7 Drawing Preview Canvas
+
+The preview canvas is a **read-only** instance of the Phase 1–5 rendering engine. It supports:
+- Pan (middle mouse or space+drag)
+- Zoom (scroll wheel)
+- Fit to extents button
+- Click to select and open explanation popup
+- Hover for element tooltip (bearing, length, point names — see Phase 8 §5)
+- All confidence glow overlays per tier
+- Dimmed display of rejected/unplaced elements
+
+The preview does **not** support editing. Editing happens only after the user accepts and loads into the full editor.
+
+---
+
+## 30. Per-Element AI Explanation & Element-Level Chat
+
+### 30.1 Overview
+
+Every element in the drawing preview has an AI-generated explanation documenting why it was drawn the way it was. The user can open a chat dialog for any element to ask questions, provide more information, or request changes. The AI can respond by updating that element, a group of related elements, or the full drawing.
+
+### 30.2 Element Explanation Data Model
+
+```typescript
+// packages/ai-engine/src/element-explanation.ts
+
+export interface ElementExplanation {
+  featureId:    string;
+  generatedAt:  string;              // ISO 8601
+
+  // Core explanation
+  summary:      string;              // 1-sentence summary, shown in card
+  reasoning:    string;              // Full paragraph: why drawn this way
+  dataUsed:     ExplanationDataRef[]; // Sources of data that influenced this
+  assumptions:  string[];            // List of assumptions made
+  alternatives: AlternativeOption[]; // Other interpretations considered + why rejected
+  confidenceBreakdown: ConfidenceFactorExplanation[]; // Human-readable per factor
+
+  // Chat history
+  chatHistory:  ElementChatMessage[];
+}
+
+export interface ExplanationDataRef {
+  type:    'FIELD_POINT' | 'DEED_CALL' | 'ENRICHMENT' | 'FIELD_NOTE' | 'USER_ANSWER';
+  label:   string;         // e.g. "Point #8 (BC01 20fnd)", "Deed call #3", "FEMA panel 48027C0152E"
+  value:   string;         // The actual data value
+  weight:  'HIGH' | 'MEDIUM' | 'LOW'; // How much this influenced the decision
+}
+
+export interface AlternativeOption {
+  description: string;     // What else was considered
+  whyRejected: string;     // Why the AI chose the current approach instead
+}
+
+export interface ConfidenceFactorExplanation {
+  factor:      keyof ConfidenceFactors;
+  score:       number;     // 0–1
+  explanation: string;     // e.g. "Code BC02 is unambiguous (1/2\" iron rod set)"
+}
+
+export interface ElementChatMessage {
+  id:        string;
+  role:      'USER' | 'AI';
+  content:   string;
+  timestamp: string;
+  action?:   ElementChatAction;  // Set when AI took an action in response
+}
+
+export interface ElementChatAction {
+  type:       'REDRAW_ELEMENT' | 'REDRAW_GROUP' | 'REDRAW_FULL' | 'UPDATE_ATTRIBUTE' | 'NO_ACTION';
+  description: string;
+  affectedIds: string[];         // featureIds that were changed
+}
+```
+
+### 30.3 Explanation Popup UI
+
+```
+┌─── Boundary Curve — NW Corner ─────────────────────── 45% ────────[✕]───┐
+│ ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │
+│                                                                          │
+│ ▼ Why I drew it this way                                                 │
+│   Three points (#14, #15, #16) were coded with arc suffix (A-suffix),    │
+│   indicating a curved feature. I applied Kasa circle fitting and found   │
+│   a radius of 25.3'. However, the deed calls for a 25' radius curve      │
+│   at this corner (Call #4), giving a 0.3' discrepancy. I used the        │
+│   field-measured positions as primary data.                              │
+│                                                                          │
+│ ▼ Data I used                           (weight)                         │
+│   🟢 Points #14, #15, #16 (arc suffix A)     HIGH                       │
+│   🟡 Deed Call #4 (R=25', L=39.27')          MEDIUM                     │
+│   ⚪ FEMA flood zone: Zone X                  LOW                        │
+│                                                                          │
+│ ▼ Assumptions I made                                                     │
+│   • Arc direction assumed CCW (counterclockwise) — based on point order  │
+│   • Using field-measured radius (25.3') rather than deed radius (25.0')  │
+│                                                                          │
+│ ▼ Alternatives I considered                                              │
+│   • Straight line through #14→#16: rejected because arc suffix present  │
+│   • Using deed radius (25.0'): would shift PT by 0.3'                   │
+│                                                                          │
+│ ▼ Confidence Breakdown                                                   │
+│   Code Clarity          ██████████  100%  Code A-suffix is unambiguous   │
+│   Coordinate Validity   ██████████  100%  All 3 points valid             │
+│   Deed/Record Match     █████░░░░░   50%  0.3' radius diff from deed     │
+│   Contextual Consistency██████░░░░   60%  No set/found pair for this arc │
+│   Closure Quality        ████░░░░░░   45%  Closure 1:3,200               │
+│   Curve Data Completeness████████░░   80%  Field arc data present        │
+│                                                                          │
+│ ──────────────────────────── Chat ──────────────────────────────────── │
+│                                                                          │
+│   [AI] I drew this as a 25.3' radius curve based on the 3 arc-coded     │
+│   field points. The deed calls for 25.0'. Would you like me to use       │
+│   the deed radius instead?                                               │
+│                                                                          │
+│   ┌──────────────────────────────────────────────────────────────┐       │
+│   │ Type your question or instruction...                          │       │
+│   └──────────────────────────────────────────────────────────────┘       │
+│   [Update This Element]  [Redraw This Group]  [Redraw Full Drawing]      │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### 30.4 Element Chat Backend
+
+When the user types a message in the element chat, the backend sends a focused context to Claude:
+
+```typescript
+export async function handleElementChat(
+  message:     string,
+  explanation: ElementExplanation,
+  feature:     Feature,
+  jobContext:  AIJobPayload,
+  claudeClient: ClaudeClient,
+): Promise<{ reply: string; action: ElementChatAction | null }> {
+  const systemPrompt = `You are an expert Texas land surveyor AI assistant. The user is reviewing
+a specific element on a survey drawing. Answer their question about this element or make the
+requested change. If a change is needed, output a JSON action block.
+
+ELEMENT CONTEXT:
+${JSON.stringify({ feature, explanation }, null, 2)}
+
+JOB CONTEXT (abbreviated):
+Points used: ${feature.pointIds?.map(id =>
+  jobContext.points.find(p => p.id === id)
+).filter(Boolean).map(p => `#${p!.name} (${p!.code})`).join(', ')}
+
+AVAILABLE ACTIONS:
+- REDRAW_ELEMENT: regenerate this single element with updated logic
+- REDRAW_GROUP: regenerate all elements on the same layer/category
+- REDRAW_FULL: re-run the full AI pipeline with the new instruction
+- UPDATE_ATTRIBUTE: change a non-geometric attribute (layer, label, material, condition)
+- NO_ACTION: just answer the question, no drawing changes needed`;
+
+  const response = await claudeClient.complete(systemPrompt, message);
+  return parseElementChatResponse(response);
+}
+```
+
+### 30.5 Group Chat
+
+The user can select **multiple cards** (Shift+click or Ctrl+click) to open a **group chat** that applies to all selected elements simultaneously. This is useful for:
+- "Change all these fence lines to wood privacy fence"
+- "All monuments on the west side — adjust them 0.5' west"
+- "Remove all utility shots from the drawing"
+
+### 30.6 Regeneration Levels
+
+| Button | What Happens |
+|--------|-------------|
+| **Update This Element** | Re-runs geometry computation for this feature only; all other elements unchanged |
+| **Redraw This Group** | Re-runs stages 2–6 for all features on the same layer/category as this element |
+| **Redraw Full Drawing** | Re-runs the full 6-stage pipeline with the chat instruction injected into the user prompt; all cards refresh |
+
+Each regeneration creates a new numbered version ("AI Version N") that the user can navigate back to if they don't like the result.
+
+### 30.7 Explanation Generation
+
+Explanations are generated as part of the AI pipeline result (Stage 6+). After confidence scoring:
+
+```typescript
+export async function generateExplanations(
+  features:       Feature[],
+  scores:         Map<string, ConfidenceScore>,
+  classified:     ClassificationResult[],
+  reconciliation: ReconciliationResult | null,
+  enrichment:     EnrichmentData | null,
+  claudeClient:   ClaudeClient,
+): Promise<Map<string, ElementExplanation>> {
+  const explanations = new Map<string, ElementExplanation>();
+
+  // For tier 5 (auto-accepted), generate a brief explanation without Claude
+  // For tiers 1–4, generate a full explanation using Claude
+  for (const feature of features) {
+    const score = scores.get(feature.id)!;
+    if (score.tier === 5) {
+      explanations.set(feature.id, buildAutoExplanation(feature, score, classified, reconciliation, enrichment));
+    } else {
+      const explanation = await buildClaudeExplanation(feature, score, classified, reconciliation, enrichment, claudeClient);
+      explanations.set(feature.id, explanation);
+    }
+  }
+
+  return explanations;
+}
+```
+
+---
+
+## Updated State Management (§23 additions)
+
+### New State in AIStore
+
+```typescript
+// Additions to AIStore interface (§23.1):
+
+interface AIStore {
+  // ... existing fields ...
+
+  // Offset resolution
+  offsetResolution:   OffsetResolutionResult | null;
+
+  // Online enrichment
+  enrichmentData:     EnrichmentData | null;
+  enrichmentLoading:  boolean;
+
+  // Deliberation
+  deliberationResult: DeliberationResult | null;
+  deliberationActive: boolean;
+  deliberationProgress: number;  // 0–100
+
+  // Clarifying questions
+  questions:          ClarifyingQuestion[];
+  questionDialogOpen: boolean;
+  currentQuestionIndex: number;
+  answerQuestion:     (id: string, answer: string) => void;
+  skipQuestion:       (id: string) => void;
+  submitAnswers:      () => Promise<void>;
+
+  // Drawing preview
+  previewMode:        boolean;
+  previewVersion:     number;      // Current AI version (1, 2, 3...)
+  cardSortOrder:      CardSortOrder;
+  cardFilterMode:     CardFilterMode;
+  cardFilterCategory: string | null;
+  hoveredCardId:      string | null;
+  setCardSort:        (order: CardSortOrder) => void;
+  setCardFilter:      (mode: CardFilterMode, category?: string) => void;
+  setHoveredCard:     (id: string | null) => void;
+
+  // Element explanations
+  explanations:       Map<string, ElementExplanation>;
+  activeExplanationId: string | null;
+  openExplanation:    (featureId: string) => void;
+  closeExplanation:   () => void;
+  sendElementChat:    (featureId: string, message: string) => Promise<void>;
+  regenerateElement:  (featureId: string, instruction: string) => Promise<void>;
+  regenerateGroup:    (featureId: string, instruction: string) => Promise<void>;
+
+  // Version history
+  versions:           AIJobResult[];  // All AI versions generated
+  currentVersion:     number;
+  restoreVersion:     (index: number) => void;
+
+  // Accept workflow
+  acceptDrawing:      () => void;     // Triggers Phase 7 full editor load
+}
+```
+
+## Updated Acceptance Tests (§24 additions)
+
+### Dynamic Offset Resolution
+- [ ] Offset in code suffix `BC02_10R` parsed: 10' right offset detected
+- [ ] Offset in point description `"10L BC02"` parsed correctly
+- [ ] Perpendicular left offset: true position is 90° CCW from bearing at correct distance
+- [ ] Perpendicular right offset: true position is 90° CW from bearing at correct distance
+- [ ] Companion pair (`35` + `35off`) detected and resolved
+- [ ] Ambiguous offset (no reference bearing available) → added to question queue
+- [ ] Offset shots rendered at 40% opacity in "show all" mode
+- [ ] True positions replace offset positions in all feature assembly
+
+### Online Data Enrichment
+- [ ] County parcel data fetched for test parcel in Bell County, TX
+- [ ] PLSS data (township, range, section, abstract) returned
+- [ ] FEMA flood zone data returned with panel number
+- [ ] Elevation data returned for boundary corner points
+- [ ] All enrichment sources failing gracefully (non-blocking — warnings added)
+- [ ] PLSS fields auto-populated in title block from enrichment
+
+### Deliberation & Clarifying Questions
+- [ ] Deliberation runs after stage 6 and before drawing preview
+- [ ] Deliberation generates no questions when overall confidence ≥ 90 and no blocking issues
+- [ ] Deed discrepancy (bearing off > 2°) generates blocking question
+- [ ] Unrecognized code generates optional question
+- [ ] Fence code → material question generated
+- [ ] Building code → material question generated
+- [ ] Duplicate shots → "which is final?" question generated
+- [ ] User answering blocking questions enables "Draw Now" button
+- [ ] Answers applied to pipeline re-run; scores improve after good answers
+- [ ] "Skip All Optional" dismisses all non-blocking questions
+
+### Drawing Preview & Confidence Cards
+- [ ] Two-panel layout renders (canvas left, cards right)
+- [ ] Cards sorted by confidence ascending by default (least confident first)
+- [ ] Card border color matches tier color correctly
+- [ ] Confidence bar fills correctly for each score
+- [ ] Hovering a card highlights the feature on the canvas
+- [ ] Clicking a card opens the element explanation popup
+- [ ] Sort controls change card order correctly (all 4 sort modes)
+- [ ] Search filters cards by text match on title/description
+- [ ] "Accept Drawing" opens confirmation dialog
+- [ ] Accepting creates a version snapshot and triggers Phase 7 editor load
+- [ ] Re-analyze re-runs pipeline and refreshes all cards
+
+### Per-Element Explanations & Chat
+- [ ] Every feature has a generated explanation
+- [ ] Tier 5 explanations are brief (no Claude call)
+- [ ] Tiers 1–4 explanations include full reasoning, data used, assumptions, alternatives
+- [ ] Confidence breakdown shows all 6 factors with human-readable text
+- [ ] Chat message sent → Claude responds within 30 seconds
+- [ ] "Update This Element" redraw affects only the selected feature
+- [ ] "Redraw This Group" redraw affects all features on same layer
+- [ ] "Redraw Full Drawing" re-runs full pipeline
+- [ ] Chat history persists within the session
+- [ ] Group chat (multi-select cards) works for batch instructions
+
+## Updated Build Order (§25 additions)
+
+### Week 11: Offset Resolution & Enrichment
+- Build `offset-resolver.ts` (detect offsets from all 4 sources)
+- Build `applyPerpendicularOffset`, `applyBearingDistance`
+- Build `fetchEnrichmentData` orchestrator
+- Implement each enrichment source API call (with test mocks)
+- Build `statePlaneToLatLon` coordinate converter
+- Write unit tests for offset detection and resolution
+- Test enrichment with real Bell County parcel
+
+### Week 12: Deliberation & Questions
+- Build `deliberation.ts` (all 9 deliberation checklist steps)
+- Build `ClarifyingQuestion` generation for each question category
+- Build question dialog UI component (`QuestionDialog.tsx`)
+- Build `applyAnswers` to inject answers back into pipeline
+- Wire deliberation into worker pipeline (after stage 6, before preview)
+- Test question generation with known ambiguous datasets
+
+### Week 13: Drawing Preview, Confidence Cards & Element Chat
+- Build `DrawingPreview.tsx` (two-panel layout with read-only canvas)
+- Build `ElementCard.tsx` (confidence bar, tier colors, click handler)
+- Build `ElementCardPanel.tsx` (scrollable list, sort/filter controls)
+- Build `ElementExplanationPopup.tsx` (full explanation + chat interface)
+- Build `generateExplanations` (auto for tier 5, Claude for tiers 1–4)
+- Build `handleElementChat` Claude integration
+- Wire "Accept Drawing" to trigger Phase 7 editor load
+- Wire version history (save/restore AI versions)
+- Run all new acceptance tests from §24 additions
+
+---
+
 ## Copilot Session Template
 
-> I am building Starr CAD Phase 6 — AI Drawing Engine. Phases 1–5 (CAD engine, data import, styling, geometry/math, annotations/print) are complete. I am now building the AI pipeline: 6-stage processing (classify points → assemble features → reconcile with deed → intelligent placement → optimize labels → confidence scoring), Kasa circle fitting for arc detection, Claude API integration for deed parsing, a DigitalOcean worker for unlimited processing time, a 5-tier confidence scoring system with 6 weighted factors, a review queue UI with per-item accept/modify/reject and batch actions, point group intelligence (calc/set/found resolution with delta reporting), and AI-assisted re-processing via user prompts. The spec is in `STARR_CAD_PHASE_6_AI_ENGINE.md`. I am currently working on **[CURRENT TASK from Build Order]**.
+> I am building Starr CAD Phase 6 — AI Drawing Engine. Phases 1–5 (CAD engine, data import, styling, geometry/math, annotations/print) are complete. I am now building the AI pipeline: 6-stage processing (classify points → assemble features → reconcile with deed → intelligent placement → optimize labels → confidence scoring), Kasa circle fitting for arc detection, Claude API integration for deed parsing, a DigitalOcean worker for unlimited processing time, a 5-tier confidence scoring system with 6 weighted factors, dynamic offset resolution (field offset shots → true positions), online data enrichment (county parcel/GIS, PLSS, FEMA, elevation), an AI deliberation period with confidence-gated clarifying questions, an interactive two-panel drawing preview with visual confidence element cards (sorted least-confident-first, color-coded borders and bars), per-element AI explanation popups with element-level chat (Update/Redraw Group/Redraw Full), a review queue UI with per-item accept/modify/reject and batch actions, point group intelligence (calc/set/found resolution with delta reporting), and AI-assisted re-processing via user prompts. The spec is in `STARR_CAD_PHASE_6_AI_ENGINE.md`. I am currently working on **[CURRENT TASK from Build Order]**.
 
 ---
 
