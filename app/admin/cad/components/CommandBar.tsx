@@ -55,14 +55,14 @@ function parseCommand(raw: string): ParsedCommand {
 // ─────────────────────────────────────────────
 // Tool prompt hints
 // ─────────────────────────────────────────────
-function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCenter?: unknown, basePoint?: unknown): string {
+function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCenter?: unknown, basePoint?: unknown, regularPolygonSides?: number): string {
   switch (activeTool) {
     case 'SELECT':
       return 'Select objects or type a command';
     case 'DRAW_POINT':
-      return 'Specify point location';
+      return 'Click to place point';
     case 'DRAW_LINE':
-      return drawingPointsCount === 0 ? 'Specify first point' : 'Specify endpoint';
+      return drawingPointsCount === 0 ? 'Specify first point' : 'Specify endpoint (right-click to cancel)';
     case 'DRAW_POLYLINE':
       return drawingPointsCount === 0
         ? 'Specify start point'
@@ -71,6 +71,14 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
       return drawingPointsCount === 0
         ? 'Specify start point'
         : `Specify next point (${drawingPointsCount} pts) — Enter/double-click to close`;
+    case 'DRAW_RECTANGLE':
+      return drawingPointsCount === 0
+        ? 'Specify first corner of rectangle'
+        : 'Specify opposite corner (right-click to cancel)';
+    case 'DRAW_REGULAR_POLYGON':
+      return drawingPointsCount === 0
+        ? `Specify center of ${regularPolygonSides ?? 6}-sided polygon (right-click variant menu to change sides)`
+        : `Specify radius / first vertex`;
     case 'MOVE':
       return basePoint == null ? 'Specify base point' : 'Specify destination point';
     case 'COPY':
@@ -86,7 +94,7 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
     case 'MIRROR':
       return drawingPointsCount === 0 ? 'Specify first mirror line point' : 'Specify second mirror line point';
     case 'ERASE':
-      return 'Click features to erase';
+      return 'Click features to erase (or select and press Delete)';
     default:
       return 'Type a command';
   }
@@ -104,7 +112,13 @@ export default function CommandBar() {
   const uiStore = useUIStore();
 
   const toolState = toolStore.state;
-  const hint = getPromptHint(toolState.activeTool, toolState.drawingPoints.length, toolState.rotateCenter, toolState.basePoint);
+  const hint = getPromptHint(
+    toolState.activeTool,
+    toolState.drawingPoints.length,
+    toolState.rotateCenter,
+    toolState.basePoint,
+    toolState.regularPolygonSides,
+  );
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {

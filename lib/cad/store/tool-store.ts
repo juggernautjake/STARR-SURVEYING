@@ -14,6 +14,7 @@ interface ToolStore {
   setRotateCenter: (point: Point2D) => void;
   setRotateAngle: (angle: number) => void;
   setBoxSelect: (start: Point2D | null, end: Point2D | null, active: boolean) => void;
+  setRegularPolygonSides: (sides: number) => void;
   resetToolState: () => void;
 }
 
@@ -26,6 +27,7 @@ const defaultToolState: ToolState = {
   rotateCenter: null,
   rotateAngle: 0,
   scaleFactor: 1,
+  regularPolygonSides: 6,
   boxStart: null,
   boxEnd: null,
   isBoxSelecting: false,
@@ -66,6 +68,9 @@ export const useToolStore = create<ToolStore>((set) => ({
     set((s) => ({
       state: { ...s.state, boxStart: start, boxEnd: end, isBoxSelecting: active },
     })),
+
+  setRegularPolygonSides: (sides) =>
+    set((s) => ({ state: { ...s.state, regularPolygonSides: Math.max(3, Math.min(20, sides)) } })),
 
   resetToolState: () =>
     set((s) => ({ state: { ...defaultToolState, activeTool: s.state.activeTool } })),

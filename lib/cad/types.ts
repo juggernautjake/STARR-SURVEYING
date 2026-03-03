@@ -134,6 +134,8 @@ export type ToolType =
   | 'DRAW_LINE'
   | 'DRAW_POLYLINE'
   | 'DRAW_POLYGON'
+  | 'DRAW_RECTANGLE'
+  | 'DRAW_REGULAR_POLYGON'
   | 'MOVE'
   | 'COPY'
   | 'ROTATE'
@@ -158,6 +160,9 @@ export interface ToolState {
 
   // Scale state
   scaleFactor: number;
+
+  // Regular polygon state
+  regularPolygonSides: number; // 3–20, used by DRAW_REGULAR_POLYGON
 
   // Box select state
   boxStart: Point2D | null; // Screen coordinates

@@ -21,6 +21,7 @@ import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM } from '@/lib/cad/constants';
 import { useKeyboard } from '../hooks/useKeyboard';
+import FeatureContextMenu from './FeatureContextMenu';
 
 // ─────────────────────────────────────────────
 // Constants
@@ -49,8 +50,28 @@ const SNAP_LABEL: Record<string, string> = {
 interface ContextMenuState {
   x: number;
   y: number;
+  worldX: number;
+  worldY: number;
   featureId: string | null;
 }
+
+// ── Tool-specific CSS cursors ─────────────────────────────────────────────────
+const TOOL_CURSORS: Partial<Record<string, string>> = {
+  SELECT: 'default',
+  PAN: 'grab',
+  DRAW_POINT: 'cell',
+  DRAW_LINE: 'crosshair',
+  DRAW_POLYLINE: 'crosshair',
+  DRAW_POLYGON: 'crosshair',
+  DRAW_RECTANGLE: 'crosshair',
+  DRAW_REGULAR_POLYGON: 'crosshair',
+  MOVE: 'move',
+  COPY: 'copy',
+  ROTATE: 'alias',
+  MIRROR: 'col-resize',
+  SCALE: 'nwse-resize',
+  ERASE: 'crosshair',
+};
 
 // ─────────────────────────────────────────────
 // CanvasViewport Component
@@ -106,11 +127,11 @@ export default function CanvasViewport() {
   // Keyboard shortcuts
   useKeyboard();
 
-  // Update cursor when active tool changes (PAN tool shows grab cursor)
+  // Update cursor when active tool changes
   const activeTool = toolStore.state.activeTool;
   useEffect(() => {
     if (!isPanningRef.current && !isSpaceDownRef.current) {
-      setCursorStyle(activeTool === 'PAN' ? 'grab' : 'crosshair');
+      setCursorStyle(TOOL_CURSORS[activeTool] ?? 'crosshair');
     }
   }, [activeTool]);
 
@@ -703,7 +724,48 @@ export default function CanvasViewport() {
       activeTool === 'DRAW_POLYLINE' ||
       activeTool === 'DRAW_POLYGON';
 
-    if (!isDrawing || drawingPoints.length === 0) return;
+    if (!isDrawing || drawingPoints.length === 0) {
+      // Rectangle preview
+      if (activeTool === 'DRAW_RECTANGLE' && drawingPoints.length === 1 && previewPoint) {
+        const p1 = drawingPoints[0];
+        const p2 = previewPoint;
+        const corners = [
+          w2s(p1.x, p1.y),
+          w2s(p2.x, p1.y),
+          w2s(p2.x, p2.y),
+          w2s(p1.x, p2.y),
+        ];
+        g.lineStyle(1, 0x666666, 0.8);
+        g.moveTo(corners[0].sx, corners[0].sy);
+        for (let i = 1; i < corners.length; i++) g.lineTo(corners[i].sx, corners[i].sy);
+        g.closePath();
+        return;
+      }
+      // Regular polygon preview
+      if (activeTool === 'DRAW_REGULAR_POLYGON' && drawingPoints.length === 1 && previewPoint) {
+        const center = drawingPoints[0];
+        const radius = Math.hypot(previewPoint.x - center.x, previewPoint.y - center.y);
+        if (radius > 0) {
+          const startAngle = Math.atan2(previewPoint.y - center.y, previewPoint.x - center.x);
+          const sides = toolStore.state.regularPolygonSides;
+          const pts = Array.from({ length: sides }, (_, i) => {
+            const angle = startAngle + (2 * Math.PI * i) / sides;
+            return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
+          });
+          g.lineStyle(1, 0x666666, 0.8);
+          g.moveTo(pts[0].sx, pts[0].sy);
+          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
+          g.closePath();
+          // Draw center crosshair
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          g.lineStyle(0.75, 0x666666, 0.5);
+          g.moveTo(cx - 4, cy); g.lineTo(cx + 4, cy);
+          g.moveTo(cx, cy - 4); g.lineTo(cx, cy + 4);
+        }
+        return;
+      }
+      return;
+    }
 
     const lastPt = drawingPoints[drawingPoints.length - 1];
     const { sx: x1, sy: y1 } = w2s(lastPt.x, lastPt.y);
@@ -1078,6 +1140,67 @@ export default function CanvasViewport() {
           break;
         }
 
+        case 'DRAW_RECTANGLE': {
+          if (toolState.drawingPoints.length === 0) {
+            toolStore.addDrawingPoint(worldPt);
+          } else {
+            const p1 = toolState.drawingPoints[0];
+            const p2 = worldPt;
+            // Require both dimensions to be non-trivial (reuse the polyline min-length constant
+            // as a sensible minimum world-space dimension for any drawn shape)
+            if (Math.abs(p2.x - p1.x) < MIN_SEGMENT_LENGTH_BASE || Math.abs(p2.y - p1.y) < MIN_SEGMENT_LENGTH_BASE) {
+              toolStore.clearDrawingPoints();
+              break;
+            }
+            const vertices: Point2D[] = [
+              { x: p1.x, y: p1.y },
+              { x: p2.x, y: p1.y },
+              { x: p2.x, y: p2.y },
+              { x: p1.x, y: p2.y },
+            ];
+            const feature: Feature = {
+              id: generateId(),
+              type: 'POLYGON',
+              geometry: { type: 'POLYGON', vertices },
+              layerId: drawingStore.activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              properties: { shapeType: 'RECTANGLE' },
+            };
+            drawingStore.addFeature(feature);
+            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            toolStore.clearDrawingPoints();
+          }
+          break;
+        }
+
+        case 'DRAW_REGULAR_POLYGON': {
+          if (toolState.drawingPoints.length === 0) {
+            toolStore.addDrawingPoint(worldPt); // center
+          } else {
+            const center = toolState.drawingPoints[0];
+            const radius = Math.hypot(worldPt.x - center.x, worldPt.y - center.y);
+            if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
+            const startAngle = Math.atan2(worldPt.y - center.y, worldPt.x - center.x);
+            const sides = toolStore.state.regularPolygonSides;
+            const vertices: Point2D[] = Array.from({ length: sides }, (_, i) => {
+              const angle = startAngle + (2 * Math.PI * i) / sides;
+              return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
+            });
+            const feature: Feature = {
+              id: generateId(),
+              type: 'POLYGON',
+              geometry: { type: 'POLYGON', vertices },
+              layerId: drawingStore.activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              properties: { shapeType: 'REGULAR_POLYGON', sides: sides.toString() },
+            };
+            drawingStore.addFeature(feature);
+            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            toolStore.clearDrawingPoints();
+          }
+          break;
+        }
+
         case 'ERASE': {
           const hit = hitTest(sx, sy);
           if (hit) {
@@ -1230,7 +1353,7 @@ export default function CanvasViewport() {
           } else if (hit) {
             setCursorStyle('pointer');
           } else {
-            setCursorStyle('crosshair');
+            setCursorStyle('default');
           }
         }
       } else {
@@ -1261,7 +1384,7 @@ export default function CanvasViewport() {
       if (e.button === 1 || (e.button === 0 && isMiddleMouseRef.current)) {
         isPanningRef.current = false;
         isMiddleMouseRef.current = false;
-        setCursorStyle(isSpaceDownRef.current ? 'grab' : toolStore.state.activeTool === 'PAN' ? 'grab' : 'crosshair');
+        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair'));
         return;
       }
 
@@ -1294,7 +1417,7 @@ export default function CanvasViewport() {
         }
         gripDragRef.current = null;
         gripStartRef.current = null;
-        setCursorStyle(isSpaceDownRef.current ? 'grab' : 'crosshair');
+        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair'));
         return;
       }
 
@@ -1313,7 +1436,7 @@ export default function CanvasViewport() {
       }
 
       isPanningRef.current = false;
-      setCursorStyle(isSpaceDownRef.current ? 'grab' : 'crosshair');
+      setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair'));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [toolStore, selectionStore, drawingStore, undoStore],
@@ -1381,7 +1504,7 @@ export default function CanvasViewport() {
       if (e.code === 'Space') {
         isSpaceDownRef.current = false;
         isPanningRef.current = false;
-        setCursorStyle('crosshair');
+        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair');
       }
     };
     const onConfirm = () => {
@@ -1391,7 +1514,26 @@ export default function CanvasViewport() {
         finishFeature('POLYLINE');
       } else if (activeTool === 'DRAW_POLYGON' && drawingPoints.length >= 3) {
         finishFeature('POLYGON');
+      } else if (activeTool === 'DRAW_REGULAR_POLYGON' && drawingPoints.length >= 2) {
+        // Confirm is not needed (handled by click), but allow Enter to cancel
+        toolStore.clearDrawingPoints();
       }
+    };
+    const onZoomExtents = () => {
+      const dwgStore = useDrawingStore.getState();
+      const vpStore = useViewportStore.getState();
+      const features = dwgStore.getAllFeatures();
+      if (features.length === 0) {
+        vpStore.zoomToExtents({ minX: -100, minY: -100, maxX: 100, maxY: 100 });
+        return;
+      }
+      const allPts = features.flatMap((f) => {
+        const g = f.geometry;
+        if (g.type === 'POINT') return g.point ? [g.point] : [];
+        if (g.type === 'LINE') return [g.start!, g.end!].filter(Boolean);
+        return g.vertices ?? [];
+      });
+      if (allPts.length > 0) vpStore.zoomToExtents(computeBounds(allPts));
     };
     const onRotate = (e: Event) => {
       const { center, angleRad } = (e as CustomEvent).detail as {
@@ -1440,12 +1582,14 @@ export default function CanvasViewport() {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('cad:confirm', onConfirm);
+    window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:rotate', onRotate);
     window.addEventListener('cad:scale', onScale);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('cad:confirm', onConfirm);
+      window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
     };
@@ -1461,6 +1605,7 @@ export default function CanvasViewport() {
       const rect = canvasRef.current!.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
+      const { wx, wy } = s2w(sx, sy);
       const toolState = toolStore.state;
       const { activeTool } = toolState;
 
@@ -1490,73 +1635,36 @@ export default function CanvasViewport() {
         return;
       }
 
+      // Right-click during rectangle/regular-polygon drawing: cancel
+      if (
+        (activeTool === 'DRAW_RECTANGLE' || activeTool === 'DRAW_REGULAR_POLYGON') &&
+        toolState.drawingPoints.length > 0
+      ) {
+        toolStore.clearDrawingPoints();
+        return;
+      }
+
       // Right-click during line drawing: cancel
       if (activeTool === 'DRAW_LINE' && toolState.drawingPoints.length > 0) {
         toolStore.clearDrawingPoints();
         return;
       }
 
-      // Right-click with SELECT tool: show context menu
-      if (activeTool === 'SELECT') {
-        const hit = hitTest(sx, sy);
-        // If hit a feature not yet selected, select it first
-        if (hit && !selectionStore.selectedIds.has(hit)) {
-          selectionStore.select(hit, 'REPLACE');
-        }
-        setContextMenu({ x: e.clientX, y: e.clientY, featureId: hit });
+      // Right-click with SELECT tool (or any non-drawing tool): show context menu
+      const hit = hitTest(sx, sy);
+      // If hit a feature not yet selected, select it first
+      if (hit && !selectionStore.selectedIds.has(hit)) {
+        selectionStore.select(hit, 'REPLACE');
       }
+      setContextMenu({ x: e.clientX, y: e.clientY, worldX: wx, worldY: wy, featureId: hit });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [toolStore, selectionStore, drawingStore, undoStore],
   );
 
   // ─────────────────────────────────────────────
-  // Context menu: erase selected, properties, etc.
-  // ─────────────────────────────────────────────
-  function handleContextMenuErase() {
-    const ids = Array.from(selectionStore.selectedIds);
-    if (ids.length === 0) return;
-    const features = ids.map((id) => drawingStore.getFeature(id)).filter(Boolean) as Feature[];
-    for (const f of features) {
-      drawingStore.removeFeature(f.id);
-    }
-    if (features.length === 1) {
-      undoStore.pushUndo(makeRemoveFeatureEntry(features[0]));
-    } else if (features.length > 1) {
-      const ops = features.map((f) => ({ type: 'REMOVE_FEATURE' as const, data: f }));
-      undoStore.pushUndo(makeBatchEntry('Delete', ops));
-    }
-    selectionStore.deselectAll();
-    setContextMenu(null);
-  }
-
-  function handleContextMenuProperties() {
-    if (!contextMenu?.featureId) return;
-    window.dispatchEvent(
-      new CustomEvent('cad:openFeatureDialog', {
-        detail: { featureId: contextMenu.featureId, x: contextMenu.x, y: contextMenu.y },
-      }),
-    );
-    setContextMenu(null);
-  }
-
-  function handleContextMenuSelectGroup() {
-    if (!contextMenu?.featureId) return;
-    const feature = drawingStore.getFeature(contextMenu.featureId);
-    const groupId = feature?.properties?.polylineGroupId as string | undefined;
-    if (groupId) {
-      const groupIds = getPolylineGroupIds(groupId);
-      selectionStore.selectMultiple(groupIds, 'REPLACE');
-    }
-    setContextMenu(null);
-  }
-
-  // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
-  const contextFeature = contextMenu?.featureId ? drawingStore.getFeature(contextMenu.featureId) : null;
-  const contextHasGroup = !!(contextFeature?.properties?.polylineGroupId);
-  const selCount = selectionStore.selectedIds.size;
 
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-white">
@@ -1587,55 +1695,16 @@ export default function CanvasViewport() {
         </div>
       )}
 
-      {/* Right-click context menu */}
+      {/* Rich right-click context menu */}
       {contextMenu && (
-        <>
-          {/* Click-away overlay */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setContextMenu(null)}
-            onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
-          />
-          <div
-            className="fixed z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 text-xs text-gray-200 min-w-[160px]"
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-          >
-            {contextMenu.featureId && (
-              <>
-                <button
-                  className="w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors"
-                  onClick={handleContextMenuProperties}
-                >
-                  Properties…
-                </button>
-                {contextHasGroup && (
-                  <button
-                    className="w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors"
-                    onClick={handleContextMenuSelectGroup}
-                  >
-                    Select Polyline Group
-                  </button>
-                )}
-                <div className="border-t border-gray-700 my-1" />
-              </>
-            )}
-            {selCount > 0 && (
-              <button
-                className="w-full text-left px-3 py-1.5 hover:bg-red-900/40 text-red-400 transition-colors"
-                onClick={handleContextMenuErase}
-              >
-                Delete{selCount > 1 ? ` (${selCount})` : ''}
-              </button>
-            )}
-            <div className="border-t border-gray-700 my-1" />
-            <button
-              className="w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors"
-              onClick={() => { selectionStore.deselectAll(); setContextMenu(null); }}
-            >
-              Deselect All
-            </button>
-          </div>
-        </>
+        <FeatureContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          worldX={contextMenu.worldX}
+          worldY={contextMenu.worldY}
+          featureId={contextMenu.featureId}
+          onClose={() => setContextMenu(null)}
+        />
       )}
     </div>
   );
