@@ -2075,92 +2075,94 @@ Phase 2 updates the Phase 1 renderer to handle `SurveyPoint`s:
 
 ## 21. Acceptance Tests
 
+**Phase 2 Status: ✅ COMPLETE** — All acceptance tests pass. Implementation lives in `lib/cad/codes/` (code library, lookup, suffix parsing, grouping, auto-connect), `lib/cad/import/` (CSV/RW5/JobXML parsers, pipeline, validation), `lib/cad/store/` (point-store, import-store), and `app/admin/cad/components/` (ImportDialog, PointTablePanel). Accessible at `/admin/cad` via File → Import.
+
 ### Code System
-- [ ] All 134+ built-in codes load correctly
-- [ ] Alpha-to-numeric lookup works for every code
-- [ ] Numeric-to-alpha lookup works for every code
-- [ ] Code suffix parser correctly strips `B`, `E`, `C`, `A`, `BA`, `EA`, `CA`
-- [ ] Suffix parser doesn't strip letters that aren't suffixes (e.g., `"309"` stays `"309"`)
-- [ ] Code suffix parser validates the base code exists before accepting the suffix
+- [x] All 134+ built-in codes load correctly (152 codes in `code-library.ts`)
+- [x] Alpha-to-numeric lookup works for every code (`lookupByAlpha` in `code-lookup.ts`)
+- [x] Numeric-to-alpha lookup works for every code (`lookupByNumeric` in `code-lookup.ts`)
+- [x] Code suffix parser correctly strips `B`, `E`, `C`, `A`, `BA`, `EA`, `CA` (`code-suffix-parser.ts`)
+- [x] Suffix parser doesn't strip letters that aren't suffixes (e.g., `"309"` stays `"309"`)
+- [x] Code suffix parser validates the base code exists before accepting the suffix
 
 ### Point Name Intelligence
-- [ ] `"20fnd"` → `baseNumber=20`, `FOUND`, `confidence=1.0`
-- [ ] `"20fne"` → `baseNumber=20`, `FOUND`, `confidence=0.95` (typo detected)
-- [ ] `"20set"` → `baseNumber=20`, `SET`, `confidence=1.0`
-- [ ] `"20ste"` → `baseNumber=20`, `SET`, `confidence=0.95` (typo detected)
-- [ ] `"20calc"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=0`
-- [ ] `"20cald"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=1`, `isRecalc=true`
-- [ ] `"20cale"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=2`, `isRecalc=true`
-- [ ] `"20calf"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=3`, `isRecalc=true`
-- [ ] `"100"` → `baseNumber=100`, `NONE` (no suffix)
-- [ ] `"20f"` → `baseNumber=20`, `FOUND`, `confidence=0.5` (low confidence flagged)
+- [x] `"20fnd"` → `baseNumber=20`, `FOUND`, `confidence=1.0`
+- [x] `"20fne"` → `baseNumber=20`, `FOUND`, `confidence=0.95` (typo detected)
+- [x] `"20set"` → `baseNumber=20`, `SET`, `confidence=1.0`
+- [x] `"20ste"` → `baseNumber=20`, `SET`, `confidence=0.95` (typo detected)
+- [x] `"20calc"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=0`
+- [x] `"20cald"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=1`, `isRecalc=true`
+- [x] `"20cale"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=2`, `isRecalc=true`
+- [x] `"20calf"` → `baseNumber=20`, `CALCULATED`, `recalcSeq=3`, `isRecalc=true`
+- [x] `"100"` → `baseNumber=100`, `NONE` (no suffix)
+- [x] `"20f"` → `baseNumber=20`, `FOUND`, `confidence=0.5` (low confidence flagged)
 
 ### Point Grouping
-- [ ] Points `20calc`, `20cald`, `20set` group together under `baseNumber=20`
-- [ ] `SET` chosen as `finalPoint` when present
-- [ ] `FOUND` chosen when no `SET` exists
-- [ ] Latest recalc chosen when only `CALC`s exist
-- [ ] `calcSetDelta` computed correctly
-- [ ] `deltaWarning=true` when delta > `0.10'`
-- [ ] Points without matching base numbers are NOT grouped
+- [x] Points `20calc`, `20cald`, `20set` group together under `baseNumber=20`
+- [x] `SET` chosen as `finalPoint` when present
+- [x] `FOUND` chosen when no `SET` exists
+- [x] Latest recalc chosen when only `CALC`s exist
+- [x] `calcSetDelta` computed correctly
+- [x] `deltaWarning=true` when delta > `0.10'`
+- [x] Points without matching base numbers are NOT grouped
 
 ### CSV Import
-- [ ] Standard PNEZD CSV imports correctly
-- [ ] Tab-delimited file imports correctly
-- [ ] Files with headers detected and skipped
-- [ ] Column mapper correctly assigns columns
-- [ ] Coordinate order swap (EN vs NE) works
-- [ ] Code extracted from description field's first word
-- [ ] Import presets load and apply correctly
-- [ ] Custom preset can be saved and loaded
+- [x] Standard PNEZD CSV imports correctly
+- [x] Tab-delimited file imports correctly
+- [x] Files with headers detected and skipped
+- [x] Column mapper correctly assigns columns
+- [x] Coordinate order swap (EN vs NE) works
+- [x] Code extracted from description field's first word
+- [x] Import presets load and apply correctly
+- [x] Custom preset can be saved and loaded
 
 ### RW5 Import
-- [ ] `SP` records parsed correctly (`PN`, `N`, `E`, `EL`, description)
-- [ ] Non-SP records (`JB`, `MO`, `OC`) are skipped
-- [ ] Point name extracted from description
-- [ ] Code extracted from description
+- [x] `SP` records parsed correctly (`PN`, `N`, `E`, `EL`, description)
+- [x] Non-SP records (`JB`, `MO`, `OC`) are skipped
+- [x] Point name extracted from description
+- [x] Code extracted from description
 
 ### JobXML Import
-- [ ] Point elements parsed with `Name`, `Code`, `Grid` coordinates
-- [ ] Elevation parsed correctly
-- [ ] Missing elevation handled (`null`)
+- [x] Point elements parsed with `Name`, `Code`, `Grid` coordinates
+- [x] Elevation parsed correctly
+- [x] Missing elevation handled (`null`)
 
 ### Auto-Connect
-- [ ] `"742B"` starts a new line string
-- [ ] `"742"` (no suffix) continues the line string
-- [ ] `"742E"` ends the line string
-- [ ] `"742C"` closes the line string
-- [ ] `"742BA"` starts with arc
-- [ ] `"742A"` continues as arc segment
-- [ ] `"742EA"` ends arc section
-- [ ] `"742CA"` closes with arc
-- [ ] Auto-spline codes (`632`, `634`, `729`, etc.) mark segments as `SPLINE`
-- [ ] Line strings create `POLYLINE` features on the canvas
+- [x] `"742B"` starts a new line string
+- [x] `"742"` (no suffix) continues the line string
+- [x] `"742E"` ends the line string
+- [x] `"742C"` closes the line string
+- [x] `"742BA"` starts with arc
+- [x] `"742A"` continues as arc segment
+- [x] `"742EA"` ends arc section (bug fixed: now correctly terminates line string)
+- [x] `"742CA"` closes with arc
+- [x] Auto-spline codes (`632`, `634`, `729`, etc.) mark segments as `SPLINE` (now also uses code library `isAutoSpline` flag, covering numeric codes `508`, `509`, `730`, `751`)
+- [x] Line strings create `POLYLINE` features on the canvas
 
 ### Validation
-- [ ] Duplicate point numbers flagged as `WARNING`
-- [ ] Zero coordinates flagged as `ERROR`
-- [ ] Unrecognized codes flagged as `WARNING`
-- [ ] Coordinate outliers detected
-- [ ] Single-point line strings flagged
-- [ ] Low-confidence name suffixes flagged as `INFO`
-- [ ] Calc-only points (no set/found) flagged as `INFO`
+- [x] Duplicate point numbers flagged as `WARNING`
+- [x] Zero coordinates flagged as `ERROR`
+- [x] Unrecognized codes flagged as `WARNING`
+- [x] Coordinate outliers detected
+- [x] Single-point line strings flagged
+- [x] Low-confidence name suffixes flagged as `INFO`
+- [x] Calc-only points (no set/found) flagged as `INFO`
 
 ### Point Table
-- [ ] All imported points displayed in table
-- [ ] Sort by any column works
-- [ ] Filter by text works (searches name, code, description)
-- [ ] Click row → selects point on canvas
-- [ ] Code display toggle switches alpha ↔ numeric
-- [ ] Point groups shown with color-coded stripes
-- [ ] Final point marked with `★`
+- [x] All imported points displayed in table
+- [x] Sort by any column works
+- [x] Filter by text works (searches name, code, description)
+- [x] Click row → selects point on canvas
+- [x] Code display toggle switches alpha ↔ numeric
+- [x] Point groups shown with color-coded stripes
+- [x] Final point marked with `★`
 
 ### Simplified Export
-- [ ] Export with collapse ON: `317→309`, `328→309`, etc.
-- [ ] Export with collapse OFF: codes unchanged
-- [ ] Point names preserved exactly (fnd, set, calc stay)
-- [ ] B/E suffixes optionally preserved
-- [ ] Output matches expected CSV format
+- [x] Export with collapse ON: `317→309`, `328→309`, etc.
+- [x] Export with collapse OFF: codes unchanged
+- [x] Point names preserved exactly (fnd, set, calc stay)
+- [x] B/E suffixes optionally preserved
+- [x] Output matches expected CSV format
 
 ---
 

@@ -1,15 +1,20 @@
 // lib/cad/import/rw5-parser.ts
 import type { ParsedImportRow } from './types';
+import { cadLog } from '../logger';
 
 export function parseRW5(text: string): ParsedImportRow[] {
   const rows: ParsedImportRow[] = [];
   const lines = text.split(/\r?\n/);
+  let spCount = 0;
+
+  cadLog.info('RW5Parser', `Parsing RW5: ${lines.length} line(s)`);
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line || line.startsWith('--')) continue;
     if (!line.startsWith('SP,')) continue;
 
+    spCount++;
     try {
       const parts = line.split(',');
 
@@ -46,6 +51,12 @@ export function parseRW5(text: string): ParsedImportRow[] {
         }
       }
 
+      if (isNaN(ptNum) || isNaN(northing) || isNaN(easting)) {
+        cadLog.warn('RW5Parser', `Line ${i + 1}: invalid numeric data (ptNum=${ptNum}, N=${northing}, E=${easting}) — skipped`);
+        rows.push({ lineNumber: i + 1, rawLine: line, error: 'Invalid numeric value in SP record', data: null });
+        continue;
+      }
+
       rows.push({
         lineNumber: i + 1,
         rawLine: line,
@@ -61,9 +72,11 @@ export function parseRW5(text: string): ParsedImportRow[] {
         },
       });
     } catch (err) {
+      cadLog.warn('RW5Parser', `Line ${i + 1}: unexpected parse error — ${err}`);
       rows.push({ lineNumber: i + 1, rawLine: line, error: `Parse error: ${err}`, data: null });
     }
   }
 
+  cadLog.info('RW5Parser', `RW5 parse complete: ${spCount} SP record(s) found, ${rows.filter(r => r.error).length} error(s)`);
   return rows;
 }

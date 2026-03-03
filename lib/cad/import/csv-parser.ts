@@ -1,5 +1,6 @@
 // lib/cad/import/csv-parser.ts
 import type { ParsedImportRow, CSVImportConfig } from './types';
+import { cadLog } from '../logger';
 
 export function parseCSV(text: string, config: CSVImportConfig): ParsedImportRow[] {
   const rows: ParsedImportRow[] = [];
@@ -7,6 +8,8 @@ export function parseCSV(text: string, config: CSVImportConfig): ParsedImportRow
 
   let startRow = config.hasHeader ? 1 : 0;
   startRow += config.skipRows;
+
+  cadLog.info('CSVParser', `Parsing CSV: ${lines.length} total lines, start row ${startRow}, delimiter "${config.delimiter}"`);
 
   for (let i = startRow; i < lines.length; i++) {
     const line = lines[i];
@@ -21,6 +24,7 @@ export function parseCSV(text: string, config: CSVImportConfig): ParsedImportRow
     );
 
     if (cols.length < maxColNeeded + 1) {
+      cadLog.warn('CSVParser', `Line ${i + 1}: only ${cols.length} column(s), expected at least ${maxColNeeded + 1} — skipped`);
       rows.push({ lineNumber: i + 1, rawLine: line, error: 'Insufficient columns', data: null });
       continue;
     }
@@ -32,6 +36,7 @@ export function parseCSV(text: string, config: CSVImportConfig): ParsedImportRow
     const desc = cols[config.columns.description]?.trim() ?? '';
 
     if (isNaN(ptNum) || isNaN(rawN) || isNaN(rawE)) {
+      cadLog.warn('CSVParser', `Line ${i + 1}: invalid numeric value (ptNum=${ptNum}, N=${rawN}, E=${rawE}) — skipped`);
       rows.push({ lineNumber: i + 1, rawLine: line, error: 'Invalid numeric value', data: null });
       continue;
     }
