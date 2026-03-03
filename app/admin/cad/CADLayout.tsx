@@ -246,6 +246,13 @@ export default function CADLayout() {
           <PointTablePanel
             codeDisplayMode={drawingStore.document.settings.codeDisplayMode ?? 'ALPHA'}
             onCodeDisplayModeChange={(mode) => drawingStore.updateSettings({ codeDisplayMode: mode })}
+            deltaWarningThreshold={drawingStore.document.settings.deltaWarningThreshold ?? 0.10}
+            onSelectPoint={(pointId) => {
+              // Find the feature associated with this point and select it
+              const features = drawingStore.getAllFeatures();
+              const f = features.find(feat => feat.properties.pointId === pointId);
+              if (f) selectionStore.select(f.id, 'REPLACE');
+            }}
           />
         </div>
       )}

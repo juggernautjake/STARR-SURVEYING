@@ -29,6 +29,8 @@ interface PointTablePanelProps {
   codeDisplayMode: 'ALPHA' | 'NUMERIC';
   onCodeDisplayModeChange: (mode: 'ALPHA' | 'NUMERIC') => void;
   onSelectPoint?: (pointId: string) => void;
+  /** Calc-to-field delta distance (feet) above which a Δ warning is shown. From settings.deltaWarningThreshold */
+  deltaWarningThreshold?: number;
 }
 
 type SortDirection = 'asc' | 'desc';
@@ -139,6 +141,7 @@ export default function PointTablePanel({
   codeDisplayMode,
   onCodeDisplayModeChange,
   onSelectPoint,
+  deltaWarningThreshold = 0.10,
 }: PointTablePanelProps) {
   const pointStore = usePointStore();
   const [filter, setFilter] = useState('');
@@ -146,9 +149,6 @@ export default function PointTablePanel({
   const [showGroups, setShowGroups] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
-
-  // Delta threshold — read from drawing settings event if available
-  const deltaThreshold = 0.10; // fallback; real value comes from settings
 
   const sortedPoints = useMemo(
     () => pointStore.getSortedPoints(sort.field, sort.direction, filter || undefined),
@@ -384,7 +384,7 @@ export default function PointTablePanel({
                         </Tooltip>
                       )}
                       {pt.pointName}
-                      {showGroups && <DeltaBadge point={pt} threshold={deltaThreshold} />}
+                      {showGroups && <DeltaBadge point={pt} threshold={deltaWarningThreshold} />}
                     </span>
                   </td>
                   <td className={tdClass}>{pt.northing.toFixed(3)}</td>
