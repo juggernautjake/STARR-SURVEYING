@@ -13,6 +13,8 @@ import ToolOptionsBar from './components/ToolOptionsBar';
 import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
+import { cadLog } from '@/lib/cad/logger';
+import { validateAndMigrateDocument } from '@/lib/cad/validate';
 
 // CanvasViewport requires browser APIs; load it client-side only
 const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
@@ -138,9 +140,11 @@ export default function CADLayout() {
         };
         await writeAutosave(payload);
         setAutoSaveFailed(false);
-      } catch {
+        cadLog.debug('AutoSave', `Auto-saved drawing: ${drawingStore.document.name}`);
+      } catch (err) {
         // IndexedDB not available or quota exceeded — warn user
         setAutoSaveFailed(true);
+        cadLog.warn('AutoSave', 'Auto-save failed', err);
       }
     }, AUTOSAVE_INTERVAL);
     return () => clearInterval(interval);
@@ -168,10 +172,16 @@ export default function CADLayout() {
               <button
                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs transition-colors"
                 onClick={() => {
-                  const payload = recoveryPayload.document as Parameters<typeof drawingStore.loadDocument>[0];
-                  drawingStore.loadDocument(payload);
-                  selectionStore.deselectAll();
-                  undoStore.clear();
+                  try {
+                    const doc = validateAndMigrateDocument(recoveryPayload.document);
+                    drawingStore.loadDocument(doc);
+                    selectionStore.deselectAll();
+                    undoStore.clear();
+                    cadLog.info('AutoSave', `Recovered drawing: ${doc.name}`);
+                  } catch (err) {
+                    cadLog.error('AutoSave', 'Recovery failed — document was invalid', err);
+                    alert('The auto-save could not be recovered (invalid format). Starting fresh.');
+                  }
                   setRecoveryPayload(null);
                   // Zoom to the recovered drawing's extents
                   setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
