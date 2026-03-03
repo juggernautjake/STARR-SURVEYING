@@ -8,6 +8,7 @@ import {
   useToolStore,
   useViewportStore,
   useUndoStore,
+  useUIStore,
   makeRemoveFeatureEntry,
   makeBatchEntry,
 } from '@/lib/cad/store';
@@ -49,6 +50,7 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   'z s': 'view.zoomSelection',
   'ctrl+=': 'view.zoomIn',
   'ctrl+-': 'view.zoomOut',
+  f2: 'layer.panel',
   f3: 'snap.toggle',
   f7: 'snap.grid',
   f8: 'snap.ortho',
@@ -227,6 +229,9 @@ export function useKeyboard() {
         break;
       case 'snap.polar':
         toolStore.setPolarEnabled(!toolStore.state.polarEnabled);
+        break;
+      case 'layer.panel':
+        useUIStore.getState().toggleLayerPanel();
         break;
       case 'tool.confirm':
         confirmCurrentTool();
