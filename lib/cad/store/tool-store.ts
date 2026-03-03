@@ -14,6 +14,11 @@ interface ToolStore {
   setRotateCenter: (point: Point2D) => void;
   setRotateAngle: (angle: number) => void;
   setBoxSelect: (start: Point2D | null, end: Point2D | null, active: boolean) => void;
+  setRegularPolygonSides: (sides: number) => void;
+  setOrthoEnabled: (enabled: boolean) => void;
+  setPolarEnabled: (enabled: boolean) => void;
+  setPolarAngle: (angle: number) => void;
+  setCopyMode: (enabled: boolean) => void;
   resetToolState: () => void;
 }
 
@@ -26,6 +31,11 @@ const defaultToolState: ToolState = {
   rotateCenter: null,
   rotateAngle: 0,
   scaleFactor: 1,
+  regularPolygonSides: 6,
+  orthoEnabled: false,
+  polarEnabled: false,
+  polarAngle: 45,
+  copyMode: false,
   boxStart: null,
   boxEnd: null,
   isBoxSelecting: false,
@@ -36,7 +46,16 @@ export const useToolStore = create<ToolStore>((set) => ({
 
   setTool: (tool) =>
     set((s) => ({
-      state: { ...defaultToolState, activeTool: tool },
+      state: {
+        ...defaultToolState,
+        activeTool: tool,
+        // Preserve user mode settings across tool switches
+        orthoEnabled: s.state.orthoEnabled,
+        polarEnabled: s.state.polarEnabled,
+        polarAngle: s.state.polarAngle,
+        copyMode: s.state.copyMode,
+        regularPolygonSides: s.state.regularPolygonSides,
+      },
     })),
 
   addDrawingPoint: (point) =>
@@ -67,6 +86,30 @@ export const useToolStore = create<ToolStore>((set) => ({
       state: { ...s.state, boxStart: start, boxEnd: end, isBoxSelecting: active },
     })),
 
+  setRegularPolygonSides: (sides) =>
+    set((s) => ({ state: { ...s.state, regularPolygonSides: Math.max(3, Math.min(20, sides)) } })),
+
+  setOrthoEnabled: (enabled) =>
+    set((s) => ({ state: { ...s.state, orthoEnabled: enabled, polarEnabled: enabled ? false : s.state.polarEnabled } })),
+
+  setPolarEnabled: (enabled) =>
+    set((s) => ({ state: { ...s.state, polarEnabled: enabled, orthoEnabled: enabled ? false : s.state.orthoEnabled } })),
+
+  setPolarAngle: (angle) =>
+    set((s) => ({ state: { ...s.state, polarAngle: Math.max(1, Math.min(90, angle)) } })),
+
+  setCopyMode: (enabled) =>
+    set((s) => ({ state: { ...s.state, copyMode: enabled } })),
+
   resetToolState: () =>
-    set((s) => ({ state: { ...defaultToolState, activeTool: s.state.activeTool } })),
+    set((s) => ({
+      state: {
+        ...defaultToolState,
+        activeTool: s.state.activeTool,
+        orthoEnabled: s.state.orthoEnabled,
+        polarEnabled: s.state.polarEnabled,
+        polarAngle: s.state.polarAngle,
+        regularPolygonSides: s.state.regularPolygonSides,
+      },
+    })),
 }));

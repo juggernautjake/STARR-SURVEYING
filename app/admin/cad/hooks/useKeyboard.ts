@@ -13,6 +13,7 @@ import {
 } from '@/lib/cad/store';
 import { computeBounds, featureBounds } from '@/lib/cad/geometry/bounds';
 import type { Feature } from '@/lib/cad/types';
+import { copyCadSelection, pasteCadClipboard, duplicateSelection } from '@/lib/cad/operations';
 
 // Phase 1 default bindings: key combo → actionId
 const PHASE_1_SHORTCUTS: Record<string, string> = {
@@ -23,6 +24,9 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   'ctrl+o': 'file.open',
   'ctrl+n': 'file.new',
   'ctrl+a': 'edit.selectAll',
+  'ctrl+c': 'edit.copy',
+  'ctrl+v': 'edit.paste',
+  'ctrl+d': 'edit.duplicate',
   escape: 'edit.deselect',
   delete: 'edit.delete',
   backspace: 'edit.delete',
@@ -35,6 +39,8 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   // Two-key chords — checked first when a previous key is pending
   'p l': 'tool.polyline',
   'p g': 'tool.polygon',
+  'r e': 'tool.rectangle',
+  'c i': 'tool.circle',
   'c o': 'tool.copy',
   'r o': 'tool.rotate',
   'm i': 'tool.mirror',
@@ -45,6 +51,8 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   'ctrl+-': 'view.zoomOut',
   f3: 'snap.toggle',
   f7: 'snap.grid',
+  f8: 'snap.ortho',
+  f10: 'snap.polar',
   enter: 'tool.confirm',
 };
 
@@ -145,6 +153,15 @@ export function useKeyboard() {
       case 'edit.delete':
         eraseSelected();
         break;
+      case 'edit.copy':
+        copyCadSelected();
+        break;
+      case 'edit.paste':
+        pasteCad();
+        break;
+      case 'edit.duplicate':
+        duplicateCad();
+        break;
       case 'tool.select':
         toolStore.setTool('SELECT');
         break;
@@ -175,6 +192,18 @@ export function useKeyboard() {
       case 'tool.erase':
         toolStore.setTool('ERASE');
         break;
+      case 'tool.rectangle':
+        toolStore.setTool('DRAW_RECTANGLE');
+        break;
+      case 'tool.circle':
+        toolStore.setTool('DRAW_CIRCLE');
+        break;
+      case 'tool.polyline':
+        toolStore.setTool('DRAW_POLYLINE');
+        break;
+      case 'tool.polygon':
+        toolStore.setTool('DRAW_POLYGON');
+        break;
       case 'view.zoomExtents':
         zoomToExtents();
         break;
@@ -192,6 +221,12 @@ export function useKeyboard() {
         break;
       case 'snap.grid':
         drawingStore.updateSettings({ gridVisible: !drawingStore.document.settings.gridVisible });
+        break;
+      case 'snap.ortho':
+        toolStore.setOrthoEnabled(!toolStore.state.orthoEnabled);
+        break;
+      case 'snap.polar':
+        toolStore.setPolarEnabled(!toolStore.state.polarEnabled);
         break;
       case 'tool.confirm':
         confirmCurrentTool();
@@ -216,6 +251,18 @@ export function useKeyboard() {
       undoStore.pushUndo(makeBatchEntry('Delete', ops));
     }
     selectionStore.deselectAll();
+  }
+
+  function copyCadSelected() {
+    copyCadSelection();
+  }
+
+  function pasteCad() {
+    pasteCadClipboard();
+  }
+
+  function duplicateCad() {
+    duplicateSelection();
   }
 
   function zoomToExtents() {

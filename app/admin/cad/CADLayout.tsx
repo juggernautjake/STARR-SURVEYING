@@ -9,6 +9,9 @@ import LayerPanel from './components/LayerPanel';
 import PropertyPanel from './components/PropertyPanel';
 import CommandBar from './components/CommandBar';
 import StatusBar from './components/StatusBar';
+import ToolOptionsBar from './components/ToolOptionsBar';
+import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
+import SettingsDialog from './components/SettingsDialog';
 import { useUIStore, useDrawingStore } from '@/lib/cad/store';
 
 // CanvasViewport requires browser APIs; load it client-side only
@@ -53,6 +56,33 @@ export default function CADLayout() {
   const { showLayerPanel, showPropertyPanel } = useUIStore();
   const drawingStore = useDrawingStore();
   const [autoSaveFailed, setAutoSaveFailed] = useState(false);
+  const [featureDialog, setFeatureDialog] = useState<{
+    featureId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Listen for feature dialog open events dispatched from CanvasViewport
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { featureId, x, y } = (e as CustomEvent).detail as {
+        featureId: string;
+        x: number;
+        y: number;
+      };
+      setFeatureDialog({ featureId, x, y });
+    };
+    window.addEventListener('cad:openFeatureDialog', handler);
+    return () => window.removeEventListener('cad:openFeatureDialog', handler);
+  }, []);
+
+  // Listen for settings open event
+  useEffect(() => {
+    const handler = () => setShowSettings(true);
+    window.addEventListener('cad:openSettings', handler);
+    return () => window.removeEventListener('cad:openSettings', handler);
+  }, []);
 
   // Auto-save to IndexedDB every 60 seconds
   useEffect(() => {
@@ -87,6 +117,9 @@ export default function CADLayout() {
       {/* Top menu bar */}
       <MenuBar />
 
+      {/* Contextual tool options strip */}
+      <ToolOptionsBar />
+
       {/* Main content area */}
       <div className="flex flex-1 min-h-0">
         {/* Left sidebar: tools */}
@@ -117,6 +150,19 @@ export default function CADLayout() {
       {/* Bottom area: command bar + status bar */}
       <CommandBar />
       <StatusBar />
+
+      {/* Feature properties dialog (opened by double-clicking a feature) */}
+      {featureDialog && drawingStore.getFeature(featureDialog.featureId) && (
+        <FeaturePropertiesDialog
+          featureId={featureDialog.featureId}
+          initialX={featureDialog.x}
+          initialY={featureDialog.y}
+          onClose={() => setFeatureDialog(null)}
+        />
+      )}
+
+      {/* Settings dialog */}
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

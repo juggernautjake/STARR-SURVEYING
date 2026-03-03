@@ -21,6 +21,7 @@ import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM } from '@/lib/cad/constants';
 import { useKeyboard } from '../hooks/useKeyboard';
+import FeatureContextMenu from './FeatureContextMenu';
 
 // ─────────────────────────────────────────────
 // Constants
@@ -28,6 +29,12 @@ import { useKeyboard } from '../hooks/useKeyboard';
 const HIT_TOLERANCE_PX = 5;
 const GRIP_SIZE = 8; // half-size of grip square in pixels
 const MAX_GRID_ITERATIONS = 500; // max grid lines per axis to prevent performance issues
+// Minimum meaningful segment length in world units before zoom scaling.
+// Prevents duplicate zero-length segments on double-click.
+const MIN_SEGMENT_LENGTH_BASE = 0.001;
+
+// Number of vertices used to approximate a circle as a polygon
+const CIRCLE_VERTS = 64;
 
 // Grid scale multipliers — find smallest that puts lines >= MIN_PX_GRID apart
 const GRID_SCALE_MULTIPLIERS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
@@ -40,6 +47,34 @@ const SNAP_LABEL: Record<string, string> = {
   CENTER: 'Center',
   PERPENDICULAR: 'Perpendicular',
   GRID: 'Grid',
+};
+
+// Context menu state
+interface ContextMenuState {
+  x: number;
+  y: number;
+  worldX: number;
+  worldY: number;
+  featureId: string | null;
+}
+
+// ── Tool-specific CSS cursors ─────────────────────────────────────────────────
+const TOOL_CURSORS: Partial<Record<string, string>> = {
+  SELECT: 'default',
+  PAN: 'grab',
+  DRAW_POINT: 'cell',
+  DRAW_LINE: 'crosshair',
+  DRAW_POLYLINE: 'crosshair',
+  DRAW_POLYGON: 'crosshair',
+  DRAW_RECTANGLE: 'crosshair',
+  DRAW_REGULAR_POLYGON: 'crosshair',
+  DRAW_CIRCLE: 'crosshair',
+  MOVE: 'move',
+  COPY: 'copy',
+  ROTATE: 'alias',
+  MIRROR: 'col-resize',
+  SCALE: 'nwse-resize',
+  ERASE: 'crosshair',
 };
 
 // ─────────────────────────────────────────────
@@ -86,15 +121,21 @@ export default function CanvasViewport() {
   const hoveredIdRef = useRef<string | null>(null);
   const [cursorStyle, setCursorStyle] = useState('crosshair');
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  // Polyline group ID tracking — each new polyline drawing gets a fresh UUID
+  const polylineGroupIdRef = useRef<string | null>(null);
+  // Track last segment feature ID for dblclick cleanup
+  const lastPolylineSegmentIdRef = useRef<string | null>(null);
 
   // Keyboard shortcuts
   useKeyboard();
 
-  // Update cursor when active tool changes (PAN tool shows grab cursor)
+  // Update cursor when active tool changes
   const activeTool = toolStore.state.activeTool;
   useEffect(() => {
     if (!isPanningRef.current && !isSpaceDownRef.current) {
-      setCursorStyle(activeTool === 'PAN' ? 'grab' : 'crosshair');
+      setCursorStyle(TOOL_CURSORS[activeTool] ?? 'crosshair');
     }
   }, [activeTool]);
 
@@ -114,11 +155,16 @@ export default function CanvasViewport() {
       const width = canvas.offsetWidth || 800;
       const height = canvas.offsetHeight || 600;
 
+      const bgColor = parseInt(
+        (drawingStore.document.settings.backgroundColor ?? '#FFFFFF').replace('#', ''),
+        16,
+      );
+
       const app = new PIXI.Application({
         view: canvas,
         width,
         height,
-        backgroundColor: 0xffffff,
+        backgroundColor: bgColor,
         antialias: true,
         resolution: window.devicePixelRatio || 1,
         autoDensity: true,
@@ -227,6 +273,12 @@ export default function CanvasViewport() {
     const baseMinor = baseMajor / doc.settings.gridMinorDivisions;
     const gridStyle = doc.settings.gridStyle;
 
+    // Use configurable colors (fall back to defaults if not set)
+    const majorColorHex = (doc.settings.gridMajorColor ?? '#c8c8c8').replace('#', '');
+    const minorColorHex = (doc.settings.gridMinorColor ?? '#e8e8e8').replace('#', '');
+    const majorColor = parseInt(majorColorHex, 16);
+    const minorColor = parseInt(minorColorHex, 16);
+
     // Auto-scale: find the smallest "nice" spacing that places lines >= MIN_PX apart
     const MIN_PX = gridStyle === 'DOTS' ? 5 : 8;
     let minorSpacing = baseMinor;
@@ -267,7 +319,7 @@ export default function CanvasViewport() {
         const { sy: syTop } = w2s(wx, wb.maxY);
         const { sy: syBot } = w2s(wx, wb.minY);
         const isMajorLine = isMajor(wx);
-        g.lineStyle(isMajorLine ? 0.5 : 0.25, isMajorLine ? 0xbbbbbb : 0xe0e0e0, 1);
+        g.lineStyle(isMajorLine ? 0.5 : 0.25, isMajorLine ? majorColor : minorColor, 1);
         g.moveTo(sx, syTop);
         g.lineTo(sx, syBot);
       }
@@ -277,7 +329,7 @@ export default function CanvasViewport() {
         const { sx: sxLeft } = w2s(wb.minX, wy);
         const { sx: sxRight } = w2s(wb.maxX, wy);
         const isMajorLine = isMajor(wy);
-        g.lineStyle(isMajorLine ? 0.5 : 0.25, isMajorLine ? 0xbbbbbb : 0xe0e0e0, 1);
+        g.lineStyle(isMajorLine ? 0.5 : 0.25, isMajorLine ? majorColor : minorColor, 1);
         g.moveTo(sxLeft, sy);
         g.lineTo(sxRight, sy);
       }
@@ -285,7 +337,7 @@ export default function CanvasViewport() {
       for (let wx = startX; wx <= endX; wx += spacing) {
         for (let wy = startY; wy <= endY; wy += spacing) {
           const major = isMajor(wx) && isMajor(wy);
-          const color = major ? 0xbbbbbb : 0xe0e0e0;
+          const color = major ? majorColor : minorColor;
           const { sx, sy } = w2s(wx, wy);
 
           if (gridStyle === 'DOTS') {
@@ -436,6 +488,10 @@ export default function CanvasViewport() {
 
     // Draw hover highlight (when SELECT tool active and not already selected)
     const hoveredId = hoveredIdRef.current;
+    const hoverColorHex = (drawingStore.document.settings.hoverColor ?? '#66aaff').replace('#', '');
+    const hoverColor = parseInt(hoverColorHex, 16);
+    const selColorHex = (drawingStore.document.settings.selectionColor ?? '#0088ff').replace('#', '');
+    const selColor = parseInt(selColorHex, 16);
     if (
       hoveredId &&
       !selectedIds.has(hoveredId) &&
@@ -444,7 +500,7 @@ export default function CanvasViewport() {
       const feature = drawingStore.getFeature(hoveredId);
       if (feature) {
         const geom = feature.geometry;
-        g.lineStyle(1.5, 0x66aaff, 0.6);
+        g.lineStyle(1.5, hoverColor, 0.6);
         switch (geom.type) {
           case 'POINT': {
             const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
@@ -490,9 +546,9 @@ export default function CanvasViewport() {
       const feature = drawingStore.getFeature(featureId);
       if (!feature) continue;
 
-      // Highlight: blue outline
+      // Highlight: selection color outline
       const geom = feature.geometry;
-      g.lineStyle(2, 0x0088ff, 1);
+      g.lineStyle(2, selColor, 1);
       switch (geom.type) {
         case 'POINT': {
           const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
@@ -532,7 +588,7 @@ export default function CanvasViewport() {
       }
 
       // Grip squares at vertices
-      g.lineStyle(1, 0x0088ff, 1);
+      g.lineStyle(1, selColor, 1);
       g.beginFill(0xffffff, 1);
       const gripPoints = getFeatureVertices(feature);
       for (const pt of gripPoints) {
@@ -617,6 +673,10 @@ export default function CanvasViewport() {
     const { drawingPoints, previewPoint } = toolState;
     const activeTool = toolState.activeTool;
 
+    // Configurable selection/hover colors (also used here for preview lines)
+    const selColorHex = (drawingStore.document.settings.selectionColor ?? '#0088ff').replace('#', '');
+    const selColor = parseInt(selColorHex, 16);
+
     if (!previewPoint) return;
 
     // For MOVE/COPY: show line from base point to cursor
@@ -628,7 +688,7 @@ export default function CanvasViewport() {
       const bp = toolState.basePoint;
       const { sx: bx, sy: by } = w2s(bp.x, bp.y);
       const { sx: x2, sy: y2 } = w2s(previewPoint.x, previewPoint.y);
-      g.lineStyle(1, 0x0088ff, 0.6);
+      g.lineStyle(1, selColor, 0.6);
       g.moveTo(bx, by);
       g.lineTo(x2, y2);
       return;
@@ -682,7 +742,72 @@ export default function CanvasViewport() {
       activeTool === 'DRAW_POLYLINE' ||
       activeTool === 'DRAW_POLYGON';
 
-    if (!isDrawing || drawingPoints.length === 0) return;
+    if (!isDrawing || drawingPoints.length === 0) {
+      // Rectangle preview
+      if (activeTool === 'DRAW_RECTANGLE' && drawingPoints.length === 1 && previewPoint) {
+        const p1 = drawingPoints[0];
+        const p2 = previewPoint;
+        const corners = [
+          w2s(p1.x, p1.y),
+          w2s(p2.x, p1.y),
+          w2s(p2.x, p2.y),
+          w2s(p1.x, p2.y),
+        ];
+        g.lineStyle(1, 0x666666, 0.8);
+        g.moveTo(corners[0].sx, corners[0].sy);
+        for (let i = 1; i < corners.length; i++) g.lineTo(corners[i].sx, corners[i].sy);
+        g.closePath();
+        return;
+      }
+      // Regular polygon preview
+      if (activeTool === 'DRAW_REGULAR_POLYGON' && drawingPoints.length === 1 && previewPoint) {
+        const center = drawingPoints[0];
+        const radius = Math.hypot(previewPoint.x - center.x, previewPoint.y - center.y);
+        if (radius > 0) {
+          const startAngle = Math.atan2(previewPoint.y - center.y, previewPoint.x - center.x);
+          const sides = toolStore.state.regularPolygonSides;
+          const pts = Array.from({ length: sides }, (_, i) => {
+            const angle = startAngle + (2 * Math.PI * i) / sides;
+            return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
+          });
+          g.lineStyle(1, 0x666666, 0.8);
+          g.moveTo(pts[0].sx, pts[0].sy);
+          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
+          g.closePath();
+          // Draw center crosshair
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          g.lineStyle(0.75, 0x666666, 0.5);
+          g.moveTo(cx - 4, cy); g.lineTo(cx + 4, cy);
+          g.moveTo(cx, cy - 4); g.lineTo(cx, cy + 4);
+        }
+        return;
+      }
+      // Circle preview
+      if (activeTool === 'DRAW_CIRCLE' && drawingPoints.length === 1 && previewPoint) {
+        const center = drawingPoints[0];
+        const radius = Math.hypot(previewPoint.x - center.x, previewPoint.y - center.y);
+        if (radius > 0) {
+          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
+            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
+            return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
+          });
+          g.lineStyle(1, 0x666666, 0.8);
+          g.moveTo(pts[0].sx, pts[0].sy);
+          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
+          g.closePath();
+          // Center crosshair + radius line
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          const { sx: rx, sy: ry } = w2s(previewPoint.x, previewPoint.y);
+          g.lineStyle(0.75, 0x666666, 0.5);
+          g.moveTo(cx - 5, cy); g.lineTo(cx + 5, cy);
+          g.moveTo(cx, cy - 5); g.lineTo(cx, cy + 5);
+          g.lineStyle(0.5, 0x888888, 0.4);
+          g.moveTo(cx, cy); g.lineTo(rx, ry);
+        }
+        return;
+      }
+      return;
+    }
 
     const lastPt = drawingPoints[drawingPoints.length - 1];
     const { sx: x1, sy: y1 } = w2s(lastPt.x, lastPt.y);
@@ -717,6 +842,15 @@ export default function CanvasViewport() {
   // Master render function
   // ─────────────────────────────────────────────
   function renderAll() {
+    // Sync canvas background color with settings
+    const pixi = pixiRef.current;
+    if (pixi) {
+      const bgHex = drawingStore.document.settings.backgroundColor ?? '#FFFFFF';
+      const bgColor = parseInt(bgHex.replace('#', ''), 16);
+      if ((pixi.app.renderer as { backgroundColor?: number }).backgroundColor !== bgColor) {
+        pixi.app.renderer.background.color = bgColor;
+      }
+    }
     renderGrid();
     renderFeatures();
     renderSelection();
@@ -848,13 +982,88 @@ export default function CanvasViewport() {
     }
   }
 
+  // ─────────────────────────────────────────────
+  // Helper: get all segment IDs that share a polylineGroupId
+  // ─────────────────────────────────────────────
+  function getPolylineGroupIds(groupId: string): string[] {
+    return drawingStore
+      .getAllFeatures()
+      .filter((f) => f.properties.polylineGroupId === groupId)
+      .map((f) => f.id);
+  }
+
+  // ─────────────────────────────────────────────
+  // Create a single LINE segment as part of a polyline group
+  // ─────────────────────────────────────────────
+  function createPolylineSegment(start: Point2D, end: Point2D, groupId: string): Feature {
+    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const layerStyle = getActiveLayerStyle();
+    return {
+      id: generateId(),
+      type: 'LINE',
+      geometry: { type: 'LINE', start, end },
+      layerId: activeLayerId,
+      style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+      properties: { polylineGroupId: groupId },
+    };
+  }
+
   function finishFeature(type: FeatureType) {
     const { drawingPoints } = toolStore.state;
+
+    if (type === 'POLYLINE') {
+      // Polyline: already created as individual LINE segments during drawing.
+      // Just reset drawing state; undo is already recorded per segment.
+      polylineGroupIdRef.current = null;
+      lastPolylineSegmentIdRef.current = null;
+      toolStore.clearDrawingPoints();
+      return;
+    }
+
     const feature = createFeature(type, drawingPoints);
     if (!feature) return;
     drawingStore.addFeature(feature);
     undoStore.pushUndo(makeAddFeatureEntry(feature));
     toolStore.clearDrawingPoints();
+  }
+
+  // ─────────────────────────────────────────────
+  // Ortho / Polar constraint helper
+  // ─────────────────────────────────────────────
+  function applyConstraints(pt: Point2D): Point2D {
+    const ts = toolStore.state;
+    const { orthoEnabled, polarEnabled, polarAngle, drawingPoints, basePoint, rotateCenter } = ts;
+    if (!orthoEnabled && !polarEnabled) return pt;
+
+    // Reference point: last drawn point, or base point for move/rotate, or rotate center
+    const refPt = drawingPoints[drawingPoints.length - 1] ?? basePoint ?? rotateCenter;
+    if (!refPt) return pt;
+
+    const dx = pt.x - refPt.x;
+    const dy = pt.y - refPt.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) return pt;
+
+    if (orthoEnabled) {
+      // Snap to nearest 90° axis (horizontal/vertical)
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        return { x: pt.x, y: refPt.y }; // horizontal
+      } else {
+        return { x: refPt.x, y: pt.y }; // vertical
+      }
+    }
+
+    if (polarEnabled && polarAngle > 0) {
+      const rawDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+      const snappedDeg = Math.round(rawDeg / polarAngle) * polarAngle;
+      const snappedRad = (snappedDeg * Math.PI) / 180;
+      return {
+        x: refPt.x + dist * Math.cos(snappedRad),
+        y: refPt.y + dist * Math.sin(snappedRad),
+      };
+    }
+
+    return pt;
   }
 
   // ─────────────────────────────────────────────
@@ -875,11 +1084,12 @@ export default function CanvasViewport() {
         settings.gridMajorSpacing / settings.gridMinorDivisions,
       );
       snapResultRef.current = snap;
-      if (snap) return snap.point;
+      const snapped = snap ? snap.point : cursor;
+      return applyConstraints(snapped);
     } else {
       snapResultRef.current = null;
     }
-    return cursor;
+    return applyConstraints(cursor);
   }
 
   // ─────────────────────────────────────────────
@@ -949,8 +1159,17 @@ export default function CanvasViewport() {
           const hit = hitTest(sx, sy);
           if (hit) {
             clickHitFeatureRef.current = true;
-            const mode = e.shiftKey ? 'TOGGLE' : 'REPLACE';
-            selectionStore.select(hit, mode);
+            // If clicked feature is part of a polyline group, select entire group
+            const hitFeature = drawingStore.getFeature(hit);
+            const groupId = hitFeature?.properties?.polylineGroupId as string | undefined;
+            if (groupId && !e.shiftKey) {
+              // Select all segments of the polyline group
+              const groupIds = getPolylineGroupIds(groupId);
+              selectionStore.selectMultiple(groupIds, 'REPLACE');
+            } else {
+              const mode = e.shiftKey ? 'TOGGLE' : 'REPLACE';
+              selectionStore.select(hit, mode);
+            }
             toolStore.setBoxSelect(null, null, false);
           } else {
             clickHitFeatureRef.current = false;
@@ -978,12 +1197,116 @@ export default function CanvasViewport() {
         }
 
         case 'DRAW_POLYLINE': {
-          toolStore.addDrawingPoint(worldPt);
+          const prevPoints = toolState.drawingPoints;
+          if (prevPoints.length === 0) {
+            // First click: start a new polyline group
+            polylineGroupIdRef.current = generateId();
+            toolStore.addDrawingPoint(worldPt);
+          } else {
+            const lastPt = prevPoints[prevPoints.length - 1];
+            const dist = Math.hypot(worldPt.x - lastPt.x, worldPt.y - lastPt.y);
+            // Only create a segment if the new point is meaningfully different
+            if (dist > MIN_SEGMENT_LENGTH_BASE / viewportStore.zoom) {
+              const segment = createPolylineSegment(lastPt, worldPt, polylineGroupIdRef.current!);
+              drawingStore.addFeature(segment);
+              undoStore.pushUndo(makeAddFeatureEntry(segment));
+              lastPolylineSegmentIdRef.current = segment.id;
+              toolStore.addDrawingPoint(worldPt);
+            }
+          }
           break;
         }
 
         case 'DRAW_POLYGON': {
           toolStore.addDrawingPoint(worldPt);
+          break;
+        }
+
+        case 'DRAW_RECTANGLE': {
+          if (toolState.drawingPoints.length === 0) {
+            toolStore.addDrawingPoint(worldPt);
+          } else {
+            const p1 = toolState.drawingPoints[0];
+            const p2 = worldPt;
+            // Require both dimensions to be non-trivial (reuse the polyline min-length constant
+            // as a sensible minimum world-space dimension for any drawn shape)
+            if (Math.abs(p2.x - p1.x) < MIN_SEGMENT_LENGTH_BASE || Math.abs(p2.y - p1.y) < MIN_SEGMENT_LENGTH_BASE) {
+              toolStore.clearDrawingPoints();
+              break;
+            }
+            const vertices: Point2D[] = [
+              { x: p1.x, y: p1.y },
+              { x: p2.x, y: p1.y },
+              { x: p2.x, y: p2.y },
+              { x: p1.x, y: p2.y },
+            ];
+            const feature: Feature = {
+              id: generateId(),
+              type: 'POLYGON',
+              geometry: { type: 'POLYGON', vertices },
+              layerId: drawingStore.activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              properties: { shapeType: 'RECTANGLE' },
+            };
+            drawingStore.addFeature(feature);
+            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            toolStore.clearDrawingPoints();
+          }
+          break;
+        }
+
+        case 'DRAW_REGULAR_POLYGON': {
+          if (toolState.drawingPoints.length === 0) {
+            toolStore.addDrawingPoint(worldPt); // center
+          } else {
+            const center = toolState.drawingPoints[0];
+            const radius = Math.hypot(worldPt.x - center.x, worldPt.y - center.y);
+            if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
+            const startAngle = Math.atan2(worldPt.y - center.y, worldPt.x - center.x);
+            const sides = toolStore.state.regularPolygonSides;
+            const vertices: Point2D[] = Array.from({ length: sides }, (_, i) => {
+              const angle = startAngle + (2 * Math.PI * i) / sides;
+              return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
+            });
+            const feature: Feature = {
+              id: generateId(),
+              type: 'POLYGON',
+              geometry: { type: 'POLYGON', vertices },
+              layerId: drawingStore.activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              properties: { shapeType: 'REGULAR_POLYGON', sides: sides.toString() },
+            };
+            drawingStore.addFeature(feature);
+            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            toolStore.clearDrawingPoints();
+          }
+          break;
+        }
+
+        case 'DRAW_CIRCLE': {
+          if (toolState.drawingPoints.length === 0) {
+            toolStore.addDrawingPoint(worldPt); // center
+          } else {
+            const center = toolState.drawingPoints[0];
+            const radius = Math.hypot(worldPt.x - center.x, worldPt.y - center.y);
+            if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
+            // Approximate circle as 64-vertex polygon
+            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
+              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
+              return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
+            });
+            const feature: Feature = {
+              id: generateId(),
+              type: 'POLYGON',
+              geometry: { type: 'POLYGON', vertices },
+              layerId: drawingStore.activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              properties: { shapeType: 'CIRCLE', centerX: center.x.toString(), centerY: center.y.toString(), radius: radius.toString() },
+            };
+            drawingStore.addFeature(feature);
+            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            toolStore.clearDrawingPoints();
+          }
           break;
         }
 
@@ -1131,6 +1454,17 @@ export default function CanvasViewport() {
       if (toolStore.state.activeTool === 'SELECT' && !isPanningRef.current) {
         const hit = hitTest(sx, sy);
         hoveredIdRef.current = hit;
+        // Change cursor to pointer when hovering a feature
+        if (!gripDragRef.current) {
+          const onGrip = hit && selectionStore.selectedIds.has(hit) ? hitTestGrip(sx, sy) : null;
+          if (onGrip) {
+            setCursorStyle('move');
+          } else if (hit) {
+            setCursorStyle('pointer');
+          } else {
+            setCursorStyle('default');
+          }
+        }
       } else {
         hoveredIdRef.current = null;
       }
@@ -1159,7 +1493,7 @@ export default function CanvasViewport() {
       if (e.button === 1 || (e.button === 0 && isMiddleMouseRef.current)) {
         isPanningRef.current = false;
         isMiddleMouseRef.current = false;
-        setCursorStyle(isSpaceDownRef.current ? 'grab' : toolStore.state.activeTool === 'PAN' ? 'grab' : 'crosshair');
+        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair'));
         return;
       }
 
@@ -1192,7 +1526,7 @@ export default function CanvasViewport() {
         }
         gripDragRef.current = null;
         gripStartRef.current = null;
-        setCursorStyle(isSpaceDownRef.current ? 'grab' : 'crosshair');
+        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair'));
         return;
       }
 
@@ -1211,7 +1545,7 @@ export default function CanvasViewport() {
       }
 
       isPanningRef.current = false;
-      setCursorStyle(isSpaceDownRef.current ? 'grab' : 'crosshair');
+      setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair'));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [toolStore, selectionStore, drawingStore, undoStore],
@@ -1230,18 +1564,38 @@ export default function CanvasViewport() {
   );
 
   const handleDoubleClick = useCallback(
-    (_e: React.MouseEvent<HTMLCanvasElement>) => {
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
       const toolState = toolStore.state;
       const { activeTool } = toolState;
 
-      if (activeTool === 'DRAW_POLYLINE' && toolState.drawingPoints.length >= 2) {
+      if (activeTool === 'DRAW_POLYLINE') {
+        // Double-click while drawing polyline: the second single-click mousedown already
+        // created the last segment (if the cursor moved). Just stop drawing.
+        // The min-distance check in mousedown prevents zero-length duplicate segments.
         finishFeature('POLYLINE');
-      } else if (activeTool === 'DRAW_POLYGON' && toolState.drawingPoints.length >= 3) {
+        return;
+      }
+
+      if (activeTool === 'DRAW_POLYGON' && toolState.drawingPoints.length >= 3) {
         finishFeature('POLYGON');
+        return;
+      }
+
+      // SELECT tool (or any non-drawing tool): open feature properties dialog
+      const hit = hitTest(sx, sy);
+      if (hit) {
+        window.dispatchEvent(
+          new CustomEvent('cad:openFeatureDialog', {
+            detail: { featureId: hit, x: e.clientX, y: e.clientY },
+          }),
+        );
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore],
+    [toolStore, drawingStore],
   );
 
   // ─────────────────────────────────────────────
@@ -1259,7 +1613,7 @@ export default function CanvasViewport() {
       if (e.code === 'Space') {
         isSpaceDownRef.current = false;
         isPanningRef.current = false;
-        setCursorStyle('crosshair');
+        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair');
       }
     };
     const onConfirm = () => {
@@ -1269,7 +1623,26 @@ export default function CanvasViewport() {
         finishFeature('POLYLINE');
       } else if (activeTool === 'DRAW_POLYGON' && drawingPoints.length >= 3) {
         finishFeature('POLYGON');
+      } else if (activeTool === 'DRAW_REGULAR_POLYGON' && drawingPoints.length >= 2) {
+        // Confirm is not needed (handled by click), but allow Enter to cancel
+        toolStore.clearDrawingPoints();
       }
+    };
+    const onZoomExtents = () => {
+      const dwgStore = useDrawingStore.getState();
+      const vpStore = useViewportStore.getState();
+      const features = dwgStore.getAllFeatures();
+      if (features.length === 0) {
+        vpStore.zoomToExtents({ minX: -100, minY: -100, maxX: 100, maxY: 100 });
+        return;
+      }
+      const allPts = features.flatMap((f) => {
+        const g = f.geometry;
+        if (g.type === 'POINT') return g.point ? [g.point] : [];
+        if (g.type === 'LINE') return [g.start!, g.end!].filter(Boolean);
+        return g.vertices ?? [];
+      });
+      if (allPts.length > 0) vpStore.zoomToExtents(computeBounds(allPts));
     };
     const onRotate = (e: Event) => {
       const { center, angleRad } = (e as CustomEvent).detail as {
@@ -1318,12 +1691,14 @@ export default function CanvasViewport() {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('cad:confirm', onConfirm);
+    window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:rotate', onRotate);
     window.addEventListener('cad:scale', onScale);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('cad:confirm', onConfirm);
+      window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
     };
@@ -1331,8 +1706,75 @@ export default function CanvasViewport() {
   }, [toolStore]);
 
   // ─────────────────────────────────────────────
+  // Right-click / context menu handler
+  // ─────────────────────────────────────────────
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      e.preventDefault();
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const { wx, wy } = s2w(sx, sy);
+      const toolState = toolStore.state;
+      const { activeTool } = toolState;
+
+      // Right-click during polyline drawing: finish if we have at least 1 committed segment
+      // (drawingPoints.length >= 2 means: start point + at least 1 more = at least 1 segment)
+      if (activeTool === 'DRAW_POLYLINE') {
+        if (toolState.drawingPoints.length >= 2) {
+          finishFeature('POLYLINE');
+        } else {
+          // Cancel — no segments yet
+          polylineGroupIdRef.current = null;
+          lastPolylineSegmentIdRef.current = null;
+          toolStore.clearDrawingPoints();
+          toolStore.setTool('SELECT');
+        }
+        return;
+      }
+
+      // Right-click during polygon drawing: close & finish, or cancel
+      if (activeTool === 'DRAW_POLYGON') {
+        if (toolState.drawingPoints.length >= 3) {
+          finishFeature('POLYGON');
+        } else {
+          toolStore.clearDrawingPoints();
+          toolStore.setTool('SELECT');
+        }
+        return;
+      }
+
+      // Right-click during rectangle/regular-polygon/circle drawing: cancel
+      if (
+        (activeTool === 'DRAW_RECTANGLE' || activeTool === 'DRAW_REGULAR_POLYGON' || activeTool === 'DRAW_CIRCLE') &&
+        toolState.drawingPoints.length > 0
+      ) {
+        toolStore.clearDrawingPoints();
+        return;
+      }
+
+      // Right-click during line drawing: cancel
+      if (activeTool === 'DRAW_LINE' && toolState.drawingPoints.length > 0) {
+        toolStore.clearDrawingPoints();
+        return;
+      }
+
+      // Right-click with SELECT tool (or any non-drawing tool): show context menu
+      const hit = hitTest(sx, sy);
+      // If hit a feature not yet selected, select it first
+      if (hit && !selectionStore.selectedIds.has(hit)) {
+        selectionStore.select(hit, 'REPLACE');
+      }
+      setContextMenu({ x: e.clientX, y: e.clientY, worldX: wx, worldY: wy, featureId: hit });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [toolStore, selectionStore, drawingStore, undoStore],
+  );
+
+  // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
+
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-white">
       <canvas
@@ -1344,7 +1786,7 @@ export default function CanvasViewport() {
         onMouseUp={handleMouseUp}
         onWheel={handleWheel}
         onDoubleClick={handleDoubleClick}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={handleContextMenu}
       />
       {snapLabel && (
         <div
@@ -1360,6 +1802,18 @@ export default function CanvasViewport() {
         >
           {snapLabel.text}
         </div>
+      )}
+
+      {/* Rich right-click context menu */}
+      {contextMenu && (
+        <FeatureContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          worldX={contextMenu.worldX}
+          worldY={contextMenu.worldY}
+          featureId={contextMenu.featureId}
+          onClose={() => setContextMenu(null)}
+        />
       )}
     </div>
   );
