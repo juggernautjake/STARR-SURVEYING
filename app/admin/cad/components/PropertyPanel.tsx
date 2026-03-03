@@ -7,6 +7,10 @@ import { generateId } from '@/lib/cad/types';
 import type { Feature } from '@/lib/cad/types';
 
 // ── Inline editable coordinate input ────────────────────────────────────────
+function fmtCoord(n: number): string {
+  return isNaN(n) ? '0.000' : n.toFixed(3);
+}
+
 function CoordInput({
   label,
   value,
@@ -16,8 +20,8 @@ function CoordInput({
   value: number;
   onChange: (v: number) => void;
 }) {
-  const [local, setLocal] = useState(isNaN(value) ? '0.000' : value.toFixed(3));
-  useEffect(() => setLocal(isNaN(value) ? '0.000' : value.toFixed(3)), [value]);
+  const [local, setLocal] = useState(fmtCoord(value));
+  useEffect(() => setLocal(fmtCoord(value)), [value]);
   return (
     <div className="flex items-center gap-1">
       <span className="text-gray-500 w-4 shrink-0 font-mono text-[10px]">{label}</span>
@@ -32,7 +36,7 @@ function CoordInput({
         onBlur={() => {
           const v = parseFloat(local);
           const safe = isNaN(v) ? value : v;
-          setLocal(safe.toFixed(3));
+          setLocal(fmtCoord(safe));
           onChange(safe);
         }}
         onKeyDown={(e) => {
@@ -101,7 +105,7 @@ export default function PropertyPanel() {
     });
   }
 
-  // Real-time coordinate editing — updates canvas immediately (undo is recorded on blur in CoordInput)
+  // Real-time coordinate editing — updates canvas immediately on every keystroke.
   function updateCoord(index: number, axis: 'x' | 'y', value: number) {
     if (!single) return;
     const before = drawingStore.getFeature(single.id)!;

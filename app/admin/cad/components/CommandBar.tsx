@@ -70,11 +70,11 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
     case 'DRAW_POLYLINE':
       return drawingPointsCount === 0
         ? 'Specify start point — click or type x,y'
-        : `Specify next point (${drawingPointsCount} pt${drawingPointsCount !== 1 ? 's' : ''}) — Right-click, Enter, or double-click to finish [Undo] to remove last pt`;
+        : `Specify next point (${drawingPointsCount} pt${drawingPointsCount !== 1 ? 's' : ''}) — Right-click, Enter, or double-click to finish  [U] removes last pt`;
     case 'DRAW_POLYGON':
       return drawingPointsCount === 0
         ? 'Specify start point — click or type x,y'
-        : `Specify next vertex (${drawingPointsCount} pt${drawingPointsCount !== 1 ? 's' : ''}, min 3) — Enter or double-click to close polygon [Undo] removes last pt`;
+        : `Specify next vertex (${drawingPointsCount} pt${drawingPointsCount !== 1 ? 's' : ''}, min 3) — Enter or double-click to close polygon  [U] removes last pt`;
     case 'DRAW_RECTANGLE':
       return drawingPointsCount === 0
         ? 'Specify first corner of rectangle — click or type x,y'

@@ -59,8 +59,10 @@ async function readAutosave(): Promise<{ savedAt: string; document: unknown } | 
     return new Promise((resolve) => {
       const tx = db.transaction(AUTOSAVE_STORE, 'readonly');
       const req = tx.objectStore(AUTOSAVE_STORE).get(AUTOSAVE_KEY);
-      req.onsuccess = () => { db.close(); resolve(req.result ?? null); };
-      req.onerror = () => { db.close(); resolve(null); };
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => resolve(null);
+      tx.oncomplete = () => db.close();
+      tx.onerror = () => db.close();
     });
   } catch {
     return null;
