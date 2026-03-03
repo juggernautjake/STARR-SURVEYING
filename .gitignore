@@ -40,3 +40,9 @@ yarn-error.log*
 # OS
 Thumbs.db
 .DS_Store
+
+# Worker
+worker/dist/
+worker/node_modules/
+worker/.env
+worker/pnpm-lock.yaml
