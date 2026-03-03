@@ -84,6 +84,9 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
     { label: 'Research', items: [
       { href: '/admin/research', label: 'Property Research', icon: '🔬', roles: ['admin'], internalOnly: true },
     ]},
+    { label: 'CAD', items: [
+      { href: '/admin/cad', label: 'CAD Editor', icon: '📐', internalOnly: true },
+    ]},
     { label: 'Rewards & Pay', items: [
       { href: '/admin/rewards', label: 'Rewards & Store', icon: '🏆', internalOnly: true },
       { href: '/admin/pay-progression', label: 'Pay Progression', icon: '📈', internalOnly: true },
