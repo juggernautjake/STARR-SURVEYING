@@ -1,7 +1,7 @@
 'use client';
 // app/admin/cad/components/CanvasViewport.tsx — PixiJS canvas rendering engine
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -26,6 +26,17 @@ import { useKeyboard } from '../hooks/useKeyboard';
 // Constants
 // ─────────────────────────────────────────────
 const HIT_TOLERANCE_PX = 5;
+const GRIP_SIZE = 8; // half-size of grip square in pixels
+
+const SNAP_LABEL: Record<string, string> = {
+  ENDPOINT: 'Endpoint',
+  MIDPOINT: 'Midpoint',
+  INTERSECTION: 'Intersection',
+  NEAREST: 'Nearest',
+  CENTER: 'Center',
+  PERPENDICULAR: 'Perpendicular',
+  GRID: 'Grid',
+};
 
 // ─────────────────────────────────────────────
 // CanvasViewport Component
@@ -61,6 +72,15 @@ export default function CanvasViewport() {
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
   const rafRef = useRef<number>(0);
+  const gripDragRef = useRef<{
+    featureId: string;
+    vertexIndex: number;
+    type: 'POINT' | 'LINE_START' | 'LINE_END' | 'VERTEX';
+  } | null>(null);
+  const gripStartRef = useRef<Feature | null>(null);
+  const clickHitFeatureRef = useRef(false);
+  const [cursorStyle, setCursorStyle] = useState('crosshair');
+  const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
 
   // Keyboard shortcuts
   useKeyboard();
@@ -220,10 +240,12 @@ export default function CanvasViewport() {
           g.endFill();
         } else if (gridStyle === 'LINES') {
           if (wy === startY) {
-            // Vertical line
+            // Vertical line — major depends only on wx
             const { sy: syTop } = w2s(wx, wb.maxY);
             const { sy: syBot } = w2s(wx, wb.minY);
-            g.lineStyle(major ? 0.5 : 0.25, color, 1);
+            const isMajorLine = isMajor(wx);
+            const vLineColor = isMajorLine ? 0xcccccc : 0xe8e8e8;
+            g.lineStyle(isMajorLine ? 0.5 : 0.25, vLineColor, 1);
             g.moveTo(sx, syTop);
             g.lineTo(sx, syBot);
           }
@@ -238,15 +260,15 @@ export default function CanvasViewport() {
       }
 
       if (gridStyle === 'LINES') {
-        // Horizontal lines pass
+        // Horizontal lines — major depends only on wy
         for (let wy = startY; wy <= endY; wy += spacing) {
-          const major = isMajor(wx) && isMajor(wy);
           if (wx === startX) {
-            const color = isMajor(wy) ? 0xcccccc : 0xe8e8e8;
+            const isMajorLine = isMajor(wy);
+            const color = isMajorLine ? 0xcccccc : 0xe8e8e8;
             const { sx: sxLeft } = w2s(wb.minX, wy);
             const { sx: sxRight } = w2s(wb.maxX, wy);
             const { sy } = w2s(wx, wy);
-            g.lineStyle(major ? 0.5 : 0.25, color, 1);
+            g.lineStyle(isMajorLine ? 0.5 : 0.25, color, 1);
             g.moveTo(sxLeft, sy);
             g.lineTo(sxRight, sy);
           }
@@ -732,6 +754,25 @@ export default function CanvasViewport() {
   }
 
   // ─────────────────────────────────────────────
+  // Grip hit testing
+  // ─────────────────────────────────────────────
+  function hitTestGrip(sx: number, sy: number): { featureId: string; vertexIndex: number } | null {
+    const { selectedIds } = selectionStore;
+    for (const featureId of selectedIds) {
+      const feature = drawingStore.getFeature(featureId);
+      if (!feature) continue;
+      const verts = getFeatureVertices(feature);
+      for (let i = 0; i < verts.length; i++) {
+        const { sx: gx, sy: gy } = w2s(verts[i].x, verts[i].y);
+        if (Math.abs(sx - gx) <= GRIP_SIZE && Math.abs(sy - gy) <= GRIP_SIZE) {
+          return { featureId, vertexIndex: i };
+        }
+      }
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────
   // Mouse event handlers
   // ─────────────────────────────────────────────
   const handleMouseDown = useCallback(
@@ -745,6 +786,7 @@ export default function CanvasViewport() {
       if (e.button === 1 || (e.button === 0 && isSpaceDownRef.current)) {
         isPanningRef.current = true;
         isMiddleMouseRef.current = e.button === 1;
+        setCursorStyle('grabbing');
         return;
       }
 
@@ -754,14 +796,27 @@ export default function CanvasViewport() {
       const { activeTool } = toolState;
       const worldPt = getSnappedWorld(sx, sy);
 
+      // Check grip first (when SELECT tool active and something selected)
+      if (activeTool === 'SELECT' && selectionStore.selectedIds.size > 0) {
+        const grip = hitTestGrip(sx, sy);
+        if (grip) {
+          gripDragRef.current = { featureId: grip.featureId, vertexIndex: grip.vertexIndex, type: 'VERTEX' };
+          gripStartRef.current = drawingStore.getFeature(grip.featureId) ?? null;
+          return;
+        }
+      }
+
       switch (activeTool) {
         case 'SELECT': {
           toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
           const hit = hitTest(sx, sy);
           if (hit) {
+            clickHitFeatureRef.current = true;
             const mode = e.shiftKey ? 'TOGGLE' : 'REPLACE';
             selectionStore.select(hit, mode);
             toolStore.setBoxSelect(null, null, false);
+          } else {
+            clickHitFeatureRef.current = false;
           }
           break;
         }
@@ -898,6 +953,33 @@ export default function CanvasViewport() {
       lastMouseRef.current = { x: sx, y: sy };
 
       const worldPt = getSnappedWorld(sx, sy);
+
+      // Grip drag update
+      if (gripDragRef.current) {
+        const { featureId, vertexIndex } = gripDragRef.current;
+        const feature = drawingStore.getFeature(featureId);
+        if (feature) {
+          const geom = { ...feature.geometry };
+          switch (geom.type) {
+            case 'POINT':
+              geom.point = worldPt;
+              break;
+            case 'LINE':
+              if (vertexIndex === 0) geom.start = worldPt;
+              else geom.end = worldPt;
+              break;
+            case 'POLYLINE':
+            case 'POLYGON': {
+              const verts = [...(geom.vertices ?? [])];
+              verts[vertexIndex] = worldPt;
+              geom.vertices = verts;
+              break;
+            }
+          }
+          drawingStore.updateFeatureGeometry(featureId, geom);
+        }
+      }
+
       toolStore.setPreviewPoint(worldPt);
       viewportStore.setCursorWorld(worldPt);
 
@@ -906,9 +988,18 @@ export default function CanvasViewport() {
       if (toolState.isBoxSelecting && toolState.boxStart) {
         toolStore.setBoxSelect(toolState.boxStart, { x: sx, y: sy }, true);
       }
+
+      // Update snap label
+      const snap = snapResultRef.current;
+      if (snap) {
+        const { sx: lx, sy: ly } = viewportStore.worldToScreen(snap.point.x, snap.point.y);
+        setSnapLabel({ sx: lx, sy: ly, text: SNAP_LABEL[snap.type] ?? snap.type });
+      } else {
+        setSnapLabel(null);
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [viewportStore, toolStore],
+    [viewportStore, toolStore, drawingStore],
   );
 
   const handleMouseUp = useCallback(
@@ -916,6 +1007,7 @@ export default function CanvasViewport() {
       if (e.button === 1 || (e.button === 0 && isMiddleMouseRef.current)) {
         isPanningRef.current = false;
         isMiddleMouseRef.current = false;
+        setCursorStyle(isSpaceDownRef.current ? 'grab' : 'crosshair');
         return;
       }
 
@@ -926,6 +1018,26 @@ export default function CanvasViewport() {
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
 
+      // Commit grip drag
+      if (gripDragRef.current && gripStartRef.current) {
+        const { featureId } = gripDragRef.current;
+        const before = gripStartRef.current;
+        const after = drawingStore.getFeature(featureId);
+        if (after) {
+          undoStore.pushUndo({
+            id: generateId(),
+            description: 'Grip edit',
+            timestamp: Date.now(),
+            operations: [{ type: 'MODIFY_FEATURE', data: { id: featureId, before, after } }],
+          });
+        }
+        gripDragRef.current = null;
+        gripStartRef.current = null;
+        isPanningRef.current = false;
+        setCursorStyle(isSpaceDownRef.current ? 'grab' : 'crosshair');
+        return;
+      }
+
       // Finish box selection
       if (toolState.isBoxSelecting && toolState.activeTool === 'SELECT') {
         const start = toolState.boxStart!;
@@ -934,14 +1046,17 @@ export default function CanvasViewport() {
         if (dragDist > 5) {
           const ids = boxSelectFeatures(start, end);
           selectionStore.selectMultiple(ids, e.shiftKey ? 'ADD' : 'REPLACE');
+        } else if (!clickHitFeatureRef.current && !e.shiftKey) {
+          selectionStore.deselectAll();
         }
         toolStore.setBoxSelect(null, null, false);
       }
 
       isPanningRef.current = false;
+      setCursorStyle(isSpaceDownRef.current ? 'grab' : 'crosshair');
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore, selectionStore],
+    [toolStore, selectionStore, drawingStore, undoStore],
   );
 
   const handleWheel = useCallback(
@@ -979,12 +1094,14 @@ export default function CanvasViewport() {
       if (e.code === 'Space') {
         e.preventDefault();
         isSpaceDownRef.current = true;
+        setCursorStyle('grab');
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
         isSpaceDownRef.current = false;
         isPanningRef.current = false;
+        setCursorStyle('crosshair');
       }
     };
     const onConfirm = () => {
@@ -996,13 +1113,37 @@ export default function CanvasViewport() {
         finishFeature('POLYGON');
       }
     };
+    const onRotate = (e: Event) => {
+      const { center, angleRad } = (e as CustomEvent).detail as {
+        center: Point2D;
+        angleRad: number;
+      };
+      const selStore = useSelectionStore.getState();
+      const dwgStore = useDrawingStore.getState();
+      const undStore = useUndoStore.getState();
+      const ids = Array.from(selStore.selectedIds);
+      if (ids.length === 0) return;
+      const ops = ids
+        .map((id) => {
+          const f = dwgStore.getFeature(id);
+          if (!f) return null;
+          const newF = transformFeature(f, (p) => rotate(p, center, angleRad));
+          dwgStore.updateFeature(id, { geometry: newF.geometry });
+          return { type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } };
+        })
+        .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
+      if (ops.length > 0) undStore.pushUndo(makeBatchEntry('Rotate', ops));
+      toolStore.resetToolState();
+    };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('cad:confirm', onConfirm);
+    window.addEventListener('cad:rotate', onRotate);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('cad:confirm', onConfirm);
+      window.removeEventListener('cad:rotate', onRotate);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolStore]);
@@ -1015,7 +1156,7 @@ export default function CanvasViewport() {
       <canvas
         ref={canvasRef}
         className="block w-full h-full"
-        style={{ cursor: isSpaceDownRef.current ? 'grab' : 'crosshair' }}
+        style={{ cursor: cursorStyle }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -1023,6 +1164,21 @@ export default function CanvasViewport() {
         onDoubleClick={handleDoubleClick}
         onContextMenu={(e) => e.preventDefault()}
       />
+      {snapLabel && (
+        <div
+          className="absolute pointer-events-none text-xs font-mono px-1 py-0.5 rounded"
+          style={{
+            left: snapLabel.sx + 12,
+            top: snapLabel.sy - 8,
+            color: '#00ff00',
+            background: 'rgba(0,0,0,0.6)',
+            transform: 'translateY(-50%)',
+            zIndex: 10,
+          }}
+        >
+          {snapLabel.text}
+        </div>
+      )}
     </div>
   );
 }

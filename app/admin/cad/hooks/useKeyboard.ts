@@ -8,6 +8,8 @@ import {
   useToolStore,
   useViewportStore,
   useUndoStore,
+  makeRemoveFeatureEntry,
+  makeBatchEntry,
 } from '@/lib/cad/store';
 import { computeBounds, featureBounds } from '@/lib/cad/geometry/bounds';
 
@@ -172,9 +174,19 @@ export function useKeyboard() {
   function eraseSelected() {
     const selectionStore = useSelectionStore.getState();
     const drawingStore = useDrawingStore.getState();
+    const undoStore = useUndoStore.getState();
     const ids = Array.from(selectionStore.selectedIds);
     if (ids.length === 0) return;
-    for (const id of ids) drawingStore.removeFeature(id);
+    const features = ids
+      .map((id) => drawingStore.getFeature(id))
+      .filter(Boolean) as import('@/lib/cad/types').Feature[];
+    for (const f of features) drawingStore.removeFeature(f.id);
+    if (features.length === 1) {
+      undoStore.pushUndo(makeRemoveFeatureEntry(features[0]));
+    } else if (features.length > 1) {
+      const ops = features.map((f) => ({ type: 'REMOVE_FEATURE' as const, data: f }));
+      undoStore.pushUndo(makeBatchEntry('Delete', ops));
+    }
     selectionStore.deselectAll();
   }
 

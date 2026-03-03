@@ -9,6 +9,8 @@ import {
   useViewportStore,
   useUndoStore,
   useUIStore,
+  makeRemoveFeatureEntry,
+  makeBatchEntry,
 } from '@/lib/cad/store';
 import type { ParsedCommand } from '@/lib/cad/types';
 import { featureBounds, computeBounds } from '@/lib/cad/geometry/bounds';
@@ -113,7 +115,14 @@ export default function CommandBar() {
       }
 
       if (parsed.type === 'DISTANCE') {
-        // Could be used for distance-based input — future enhancement
+        // Rotate tool: treat distance as rotation angle in degrees
+        if (toolState.activeTool === 'ROTATE' && toolState.rotateCenter) {
+          const angleDeg = (parsed.value as { value: number }).value;
+          const angleRad = (angleDeg * Math.PI) / 180;
+          const center = toolState.rotateCenter;
+          window.dispatchEvent(new CustomEvent('cad:rotate', { detail: { center, angleDeg, angleRad } }));
+          toolStore.resetToolState();
+        }
         return;
       }
 
@@ -212,7 +221,16 @@ export default function CommandBar() {
   function eraseSelected() {
     const ids = Array.from(selectionStore.selectedIds);
     if (ids.length === 0) return;
-    for (const id of ids) drawingStore.removeFeature(id);
+    const features = ids
+      .map((id) => drawingStore.getFeature(id))
+      .filter(Boolean) as import('@/lib/cad/types').Feature[];
+    for (const f of features) drawingStore.removeFeature(f.id);
+    if (features.length === 1) {
+      undoStore.pushUndo(makeRemoveFeatureEntry(features[0]));
+    } else if (features.length > 1) {
+      const ops = features.map((f) => ({ type: 'REMOVE_FEATURE' as const, data: f }));
+      undoStore.pushUndo(makeBatchEntry('Delete', ops));
+    }
     selectionStore.deselectAll();
   }
 
