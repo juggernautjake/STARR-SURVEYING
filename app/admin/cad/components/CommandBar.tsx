@@ -12,7 +12,7 @@ import {
   makeRemoveFeatureEntry,
   makeBatchEntry,
 } from '@/lib/cad/store';
-import type { ParsedCommand } from '@/lib/cad/types';
+import type { ParsedCommand, Feature } from '@/lib/cad/types';
 import { featureBounds, computeBounds } from '@/lib/cad/geometry/bounds';
 
 // ─────────────────────────────────────────────
@@ -223,7 +223,7 @@ export default function CommandBar() {
     if (ids.length === 0) return;
     const features = ids
       .map((id) => drawingStore.getFeature(id))
-      .filter(Boolean) as import('@/lib/cad/types').Feature[];
+      .filter(Boolean) as Feature[];
     for (const f of features) drawingStore.removeFeature(f.id);
     if (features.length === 1) {
       undoStore.pushUndo(makeRemoveFeatureEntry(features[0]));

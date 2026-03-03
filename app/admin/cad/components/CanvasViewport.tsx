@@ -1033,7 +1033,6 @@ export default function CanvasViewport() {
         }
         gripDragRef.current = null;
         gripStartRef.current = null;
-        isPanningRef.current = false;
         setCursorStyle(isSpaceDownRef.current ? 'grab' : 'crosshair');
         return;
       }

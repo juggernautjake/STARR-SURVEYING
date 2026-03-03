@@ -12,6 +12,7 @@ import {
   makeBatchEntry,
 } from '@/lib/cad/store';
 import { computeBounds, featureBounds } from '@/lib/cad/geometry/bounds';
+import type { Feature } from '@/lib/cad/types';
 
 // Phase 1 default bindings: key combo → actionId
 const PHASE_1_SHORTCUTS: Record<string, string> = {
@@ -179,7 +180,7 @@ export function useKeyboard() {
     if (ids.length === 0) return;
     const features = ids
       .map((id) => drawingStore.getFeature(id))
-      .filter(Boolean) as import('@/lib/cad/types').Feature[];
+      .filter(Boolean) as Feature[];
     for (const f of features) drawingStore.removeFeature(f.id);
     if (features.length === 1) {
       undoStore.pushUndo(makeRemoveFeatureEntry(features[0]));
@@ -216,7 +217,7 @@ export function useKeyboard() {
     if (ids.length === 0) return zoomToExtents();
     const features = ids
       .map((id) => drawingStore.getFeature(id))
-      .filter(Boolean) as import('@/lib/cad/types').Feature[];
+      .filter(Boolean) as Feature[];
     if (features.length === 0) return;
     const bounds = features.reduce(
       (acc, f) => {
