@@ -18,6 +18,7 @@ interface MenuItem {
   shortcut?: string;
   action: () => void;
   separator?: false;
+  disabled?: boolean;
 }
 interface SeparatorItem {
   separator: true;
@@ -32,6 +33,9 @@ interface MenuDef {
 export default function MenuBar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
   const toolStore = useToolStore();
@@ -89,6 +93,24 @@ export default function MenuBar() {
     viewportStore.zoomToExtents(computeBounds(allPoints));
   }
 
+  function startEditName() {
+    setNameValue(drawingStore.document.name);
+    setEditingName(true);
+    setTimeout(() => nameInputRef.current?.select(), 0);
+  }
+
+  function commitEditName() {
+    const trimmed = nameValue.trim();
+    if (trimmed) {
+      // Use updateSettings to trigger dirty, or just update name directly
+      drawingStore.loadDocument({ ...drawingStore.document, name: trimmed });
+    }
+    setEditingName(false);
+  }
+
+  const undoDesc = undoStore.undoDescription();
+  const redoDesc = undoStore.redoDescription();
+
   const menus: MenuDef[] = [
     {
       label: 'File',
@@ -103,8 +125,18 @@ export default function MenuBar() {
     {
       label: 'Edit',
       items: [
-        { label: 'Undo', shortcut: 'Ctrl+Z', action: () => undoStore.undo() },
-        { label: 'Redo', shortcut: 'Ctrl+Y', action: () => undoStore.redo() },
+        {
+          label: undoDesc ? `Undo ${undoDesc}` : 'Undo',
+          shortcut: 'Ctrl+Z',
+          action: () => undoStore.undo(),
+          disabled: !undoStore.canUndo(),
+        },
+        {
+          label: redoDesc ? `Redo ${redoDesc}` : 'Redo',
+          shortcut: 'Ctrl+Y',
+          action: () => undoStore.redo(),
+          disabled: !undoStore.canRedo(),
+        },
         { separator: true },
         { label: 'Delete Selection', shortcut: 'Del', action: () => {
           const ids = Array.from(selectionStore.selectedIds);
@@ -138,6 +170,10 @@ export default function MenuBar() {
           label: uiStore.showLayerPanel ? 'Hide Layer Panel' : 'Show Layer Panel',
           action: () => uiStore.toggleLayerPanel(),
         },
+        {
+          label: uiStore.showPropertyPanel ? 'Hide Properties' : 'Show Properties',
+          action: () => uiStore.togglePropertyPanel(),
+        },
       ],
     },
     {
@@ -152,6 +188,7 @@ export default function MenuBar() {
         { label: 'Copy', shortcut: 'CO', action: () => toolStore.setTool('COPY') },
         { label: 'Rotate', shortcut: 'RO', action: () => toolStore.setTool('ROTATE') },
         { label: 'Mirror', shortcut: 'MI', action: () => toolStore.setTool('MIRROR') },
+        { label: 'Scale', shortcut: 'SC', action: () => toolStore.setTool('SCALE') },
         { label: 'Erase', shortcut: 'E', action: () => toolStore.setTool('ERASE') },
       ],
     },
@@ -182,7 +219,7 @@ export default function MenuBar() {
 
           {openMenu === menu.label && (
             <div
-              className="absolute top-full left-0 z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[180px]"
+              className="absolute top-full left-0 z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[200px]"
               onMouseLeave={() => setOpenMenu(null)}
             >
               {menu.items.map((item, idx) =>
@@ -191,10 +228,17 @@ export default function MenuBar() {
                 ) : (
                   <button
                     key={idx}
-                    className="w-full flex items-center justify-between px-3 py-1 hover:bg-gray-700 text-left"
+                    className={`w-full flex items-center justify-between px-3 py-1 text-left ${
+                      (item as MenuItem).disabled
+                        ? 'opacity-40 cursor-default'
+                        : 'hover:bg-gray-700'
+                    }`}
+                    disabled={(item as MenuItem).disabled}
                     onClick={() => {
-                      (item as MenuItem).action();
-                      setOpenMenu(null);
+                      if (!(item as MenuItem).disabled) {
+                        (item as MenuItem).action();
+                        setOpenMenu(null);
+                      }
                     }}
                   >
                     <span>{(item as MenuItem).label}</span>
@@ -214,10 +258,31 @@ export default function MenuBar() {
         <span className="ml-2 text-yellow-400 text-[10px]">● unsaved</span>
       )}
 
-      {/* Document name */}
-      <span className="ml-auto mr-3 text-gray-400 text-xs truncate max-w-48">
-        {drawingStore.document.name}
-      </span>
+      {/* Document name — click to rename */}
+      <div className="ml-auto mr-3 flex items-center min-w-0">
+        {editingName ? (
+          <input
+            ref={nameInputRef}
+            className="bg-gray-700 text-white text-xs px-1 rounded outline-none max-w-48"
+            value={nameValue}
+            onChange={(e) => setNameValue(e.target.value)}
+            onBlur={commitEditName}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitEditName();
+              if (e.key === 'Escape') setEditingName(false);
+            }}
+            autoFocus
+          />
+        ) : (
+          <span
+            className="text-gray-400 text-xs truncate max-w-48 cursor-pointer hover:text-white"
+            title="Double-click to rename"
+            onDoubleClick={startEditName}
+          >
+            {drawingStore.document.name}
+          </span>
+        )}
+      </div>
 
       {/* Close overlay */}
       {openMenu && (
@@ -262,10 +327,17 @@ export default function MenuBar() {
                 ['Pan', 'H (or Space+drag)'],
                 ['Point', 'P'],
                 ['Line', 'L'],
+                ['Polyline', 'P then L'],
+                ['Polygon', 'P then G'],
                 ['Move', 'M'],
+                ['Copy', 'C then O'],
+                ['Rotate', 'R then O'],
+                ['Mirror', 'M then I'],
+                ['Scale', 'S then C'],
                 ['Erase', 'E'],
                 ['Drawing', null],
                 ['Finish Polyline/Polygon', 'Enter or double-click'],
+                ['Polar input', '@dist<angle (e.g. @50<45)'],
               ].map(([label, shortcut], i) =>
                 shortcut === null ? (
                   <div key={i} className="col-span-2 mt-2 pt-1 border-t border-gray-600 font-semibold text-gray-400 uppercase tracking-wider text-[10px]">
@@ -285,3 +357,4 @@ export default function MenuBar() {
     </div>
   );
 }
+

@@ -16,7 +16,7 @@ import { findSnapPoint } from '@/lib/cad/geometry/snap';
 import { featureBounds, computeBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point';
-import { translate, rotate, mirror, transformFeature } from '@/lib/cad/geometry/transform';
+import { translate, rotate, mirror, scale, transformFeature } from '@/lib/cad/geometry/transform';
 import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM } from '@/lib/cad/constants';
@@ -79,6 +79,7 @@ export default function CanvasViewport() {
   } | null>(null);
   const gripStartRef = useRef<Feature | null>(null);
   const clickHitFeatureRef = useRef(false);
+  const hoveredIdRef = useRef<string | null>(null);
   const [cursorStyle, setCursorStyle] = useState('crosshair');
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
 
@@ -218,13 +219,29 @@ export default function CanvasViewport() {
 
     const { zoom, screenWidth, screenHeight } = viewportStore;
     const wb = viewportStore.getWorldBounds();
-    const majorSpacing = doc.settings.gridMajorSpacing;
-    const minorSpacing = majorSpacing / doc.settings.gridMinorDivisions;
+    const baseMajor = doc.settings.gridMajorSpacing;
+    const baseMinor = baseMajor / doc.settings.gridMinorDivisions;
     const gridStyle = doc.settings.gridStyle;
 
-    // Skip minor lines if they'd be too close together
-    const minorPx = minorSpacing * zoom;
-    const drawMinor = minorPx >= 4;
+    // Auto-scale: find the smallest "nice" spacing that places lines >= MIN_PX apart
+    const MIN_PX = gridStyle === 'DOTS' ? 5 : 8;
+    const SCALES = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
+    let minorSpacing = baseMinor;
+    for (const s of SCALES) {
+      const candidate = baseMinor * s;
+      if (candidate * zoom >= MIN_PX) {
+        minorSpacing = candidate;
+        break;
+      }
+    }
+    if (minorSpacing * zoom < MIN_PX) {
+      // Still too small — use major or skip
+      minorSpacing = baseMajor;
+    }
+
+    // Major spacing is always a multiple of minor
+    const majorSpacing = baseMajor > minorSpacing ? baseMajor : minorSpacing * doc.settings.gridMinorDivisions;
+    const drawMinor = minorSpacing < majorSpacing && minorSpacing * zoom >= MIN_PX;
 
     const spacing = drawMinor ? minorSpacing : majorSpacing;
     const startX = Math.floor(wb.minX / spacing) * spacing;
@@ -232,53 +249,54 @@ export default function CanvasViewport() {
     const startY = Math.floor(wb.minY / spacing) * spacing;
     const endY = Math.ceil(wb.maxY / spacing) * spacing;
 
+    // Clamp loop iterations to avoid hang on extreme zoom-out
+    const maxIterX = Math.ceil((endX - startX) / spacing) + 1;
+    const maxIterY = Math.ceil((endY - startY) / spacing) + 1;
+    if (maxIterX > 500 || maxIterY > 500) return; // too many lines
+
     const isMajor = (v: number) =>
-      Math.abs(Math.round(v / majorSpacing) * majorSpacing - v) < 0.001;
+      Math.abs(Math.round(v / majorSpacing) * majorSpacing - v) < majorSpacing * 0.001;
 
-    for (let wx = startX; wx <= endX; wx += spacing) {
-      for (let wy = startY; wy <= endY; wy += spacing) {
-        const major = isMajor(wx) && isMajor(wy);
-        const color = major ? 0xcccccc : 0xe8e8e8;
-        const { sx, sy } = w2s(wx, wy);
-
-        if (gridStyle === 'DOTS') {
-          const r = major ? 1.5 : 0.75;
-          g.beginFill(color, 1);
-          g.drawCircle(sx, sy, r);
-          g.endFill();
-        } else if (gridStyle === 'LINES') {
-          if (wy === startY) {
-            // Vertical line — major depends only on wx
-            const { sy: syTop } = w2s(wx, wb.maxY);
-            const { sy: syBot } = w2s(wx, wb.minY);
-            const isMajorLine = isMajor(wx);
-            const vLineColor = isMajorLine ? 0xcccccc : 0xe8e8e8;
-            g.lineStyle(isMajorLine ? 0.5 : 0.25, vLineColor, 1);
-            g.moveTo(sx, syTop);
-            g.lineTo(sx, syBot);
-          }
-        } else if (gridStyle === 'CROSSHAIRS') {
-          const size = major ? 4 : 2;
-          g.lineStyle(0.5, color, 1);
-          g.moveTo(sx - size, sy);
-          g.lineTo(sx + size, sy);
-          g.moveTo(sx, sy - size);
-          g.lineTo(sx, sy + size);
-        }
+    if (gridStyle === 'LINES') {
+      // Draw vertical lines
+      for (let wx = startX; wx <= endX; wx += spacing) {
+        const { sx } = w2s(wx, 0);
+        const { sy: syTop } = w2s(wx, wb.maxY);
+        const { sy: syBot } = w2s(wx, wb.minY);
+        const isMajorLine = isMajor(wx);
+        g.lineStyle(isMajorLine ? 0.5 : 0.25, isMajorLine ? 0xbbbbbb : 0xe0e0e0, 1);
+        g.moveTo(sx, syTop);
+        g.lineTo(sx, syBot);
       }
-
-      if (gridStyle === 'LINES') {
-        // Horizontal lines — major depends only on wy
+      // Draw horizontal lines
+      for (let wy = startY; wy <= endY; wy += spacing) {
+        const { sy } = w2s(0, wy);
+        const { sx: sxLeft } = w2s(wb.minX, wy);
+        const { sx: sxRight } = w2s(wb.maxX, wy);
+        const isMajorLine = isMajor(wy);
+        g.lineStyle(isMajorLine ? 0.5 : 0.25, isMajorLine ? 0xbbbbbb : 0xe0e0e0, 1);
+        g.moveTo(sxLeft, sy);
+        g.lineTo(sxRight, sy);
+      }
+    } else {
+      for (let wx = startX; wx <= endX; wx += spacing) {
         for (let wy = startY; wy <= endY; wy += spacing) {
-          if (wx === startX) {
-            const isMajorLine = isMajor(wy);
-            const color = isMajorLine ? 0xcccccc : 0xe8e8e8;
-            const { sx: sxLeft } = w2s(wb.minX, wy);
-            const { sx: sxRight } = w2s(wb.maxX, wy);
-            const { sy } = w2s(wx, wy);
-            g.lineStyle(isMajorLine ? 0.5 : 0.25, color, 1);
-            g.moveTo(sxLeft, sy);
-            g.lineTo(sxRight, sy);
+          const major = isMajor(wx) && isMajor(wy);
+          const color = major ? 0xbbbbbb : 0xe0e0e0;
+          const { sx, sy } = w2s(wx, wy);
+
+          if (gridStyle === 'DOTS') {
+            const r = major ? 1.5 : 0.75;
+            g.beginFill(color, 1);
+            g.drawCircle(sx, sy, r);
+            g.endFill();
+          } else if (gridStyle === 'CROSSHAIRS') {
+            const size = major ? 4 : 2;
+            g.lineStyle(0.5, color, 1);
+            g.moveTo(sx - size, sy);
+            g.lineTo(sx + size, sy);
+            g.moveTo(sx, sy - size);
+            g.lineTo(sx, sy + size);
           }
         }
       }
@@ -292,11 +310,11 @@ export default function CanvasViewport() {
       origin.sy >= -20 &&
       origin.sy <= screenHeight + 20
     ) {
-      g.lineStyle(1, 0xff0000, 0.7);
-      g.moveTo(origin.sx - 8, origin.sy);
-      g.lineTo(origin.sx + 8, origin.sy);
-      g.moveTo(origin.sx, origin.sy - 8);
-      g.lineTo(origin.sx, origin.sy + 8);
+      g.lineStyle(1.5, 0xff0000, 0.8);
+      g.moveTo(origin.sx - 10, origin.sy);
+      g.lineTo(origin.sx + 10, origin.sy);
+      g.moveTo(origin.sx, origin.sy - 10);
+      g.lineTo(origin.sx, origin.sy + 10);
     }
   }
 
@@ -411,6 +429,57 @@ export default function CanvasViewport() {
         Math.abs(boxEnd.y - boxStart.y),
       );
       g.endFill();
+    }
+
+    // Draw hover highlight (when SELECT tool active and not already selected)
+    const hoveredId = hoveredIdRef.current;
+    if (
+      hoveredId &&
+      !selectedIds.has(hoveredId) &&
+      toolState.activeTool === 'SELECT'
+    ) {
+      const feature = drawingStore.getFeature(hoveredId);
+      if (feature) {
+        const geom = feature.geometry;
+        g.lineStyle(1.5, 0x66aaff, 0.6);
+        switch (geom.type) {
+          case 'POINT': {
+            const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
+            g.drawRect(sx - 5, sy - 5, 10, 10);
+            break;
+          }
+          case 'LINE': {
+            const s = w2s(geom.start!.x, geom.start!.y);
+            const e = w2s(geom.end!.x, geom.end!.y);
+            g.moveTo(s.sx, s.sy);
+            g.lineTo(e.sx, e.sy);
+            break;
+          }
+          case 'POLYLINE': {
+            const verts = geom.vertices!;
+            if (verts.length < 2) break;
+            const first = w2s(verts[0].x, verts[0].y);
+            g.moveTo(first.sx, first.sy);
+            for (let i = 1; i < verts.length; i++) {
+              const v = w2s(verts[i].x, verts[i].y);
+              g.lineTo(v.sx, v.sy);
+            }
+            break;
+          }
+          case 'POLYGON': {
+            const verts = geom.vertices!;
+            if (verts.length < 3) break;
+            const first = w2s(verts[0].x, verts[0].y);
+            g.moveTo(first.sx, first.sy);
+            for (let i = 1; i < verts.length; i++) {
+              const v = w2s(verts[i].x, verts[i].y);
+              g.lineTo(v.sx, v.sy);
+            }
+            g.closePath();
+            break;
+          }
+        }
+      }
     }
 
     // Draw selection highlights
@@ -615,7 +684,11 @@ export default function CanvasViewport() {
   function hitTest(sx: number, sy: number): string | null {
     const { wx, wy } = s2w(sx, sy);
     const worldTol = HIT_TOLERANCE_PX / viewportStore.zoom;
-    const features = drawingStore.getVisibleFeatures();
+    // Exclude features on locked layers from selection
+    const features = drawingStore.getVisibleFeatures().filter((f) => {
+      const layer = drawingStore.getLayer(f.layerId);
+      return !layer?.locked;
+    });
 
     // Priority: points > line endpoints > lines > polygons
     for (const feature of features) {
@@ -666,6 +739,8 @@ export default function CanvasViewport() {
     return drawingStore
       .getVisibleFeatures()
       .filter((f) => {
+        const layer = drawingStore.getLayer(f.layerId);
+        if (layer?.locked) return false;
         const fb = featureBounds(f);
         if (isWindow) {
           return boundsContains(selBox, fb);
@@ -929,6 +1004,13 @@ export default function CanvasViewport() {
           break;
         }
 
+        case 'SCALE': {
+          if (!toolState.basePoint) {
+            toolStore.setBasePoint(worldPt);
+          }
+          break;
+        }
+
         case 'MIRROR': {
           if (toolState.drawingPoints.length === 0) {
             toolStore.addDrawingPoint(worldPt);
@@ -998,6 +1080,14 @@ export default function CanvasViewport() {
 
       toolStore.setPreviewPoint(worldPt);
       viewportStore.setCursorWorld(worldPt);
+
+      // Update hover state (SELECT tool only)
+      if (toolStore.state.activeTool === 'SELECT' && !isPanningRef.current) {
+        const hit = hitTest(sx, sy);
+        hoveredIdRef.current = hit;
+      } else {
+        hoveredIdRef.current = null;
+      }
 
       // Box select: update end point
       const toolState = toolStore.state;
@@ -1157,15 +1247,39 @@ export default function CanvasViewport() {
       if (ops.length > 0) undStore.pushUndo(makeBatchEntry('Rotate', ops));
       toolStore.resetToolState();
     };
+    const onScale = (e: Event) => {
+      const { center, factor } = (e as CustomEvent).detail as {
+        center: Point2D;
+        factor: number;
+      };
+      const selStore = useSelectionStore.getState();
+      const dwgStore = useDrawingStore.getState();
+      const undStore = useUndoStore.getState();
+      const ids = Array.from(selStore.selectedIds);
+      if (ids.length === 0) return;
+      const ops = ids
+        .map((id) => {
+          const f = dwgStore.getFeature(id);
+          if (!f) return null;
+          const newF = transformFeature(f, (p) => scale(p, center, factor));
+          dwgStore.updateFeature(id, { geometry: newF.geometry });
+          return { type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } };
+        })
+        .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
+      if (ops.length > 0) undStore.pushUndo(makeBatchEntry('Scale', ops));
+      toolStore.resetToolState();
+    };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('cad:confirm', onConfirm);
     window.addEventListener('cad:rotate', onRotate);
+    window.addEventListener('cad:scale', onScale);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('cad:confirm', onConfirm);
       window.removeEventListener('cad:rotate', onRotate);
+      window.removeEventListener('cad:scale', onScale);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolStore]);

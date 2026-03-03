@@ -32,6 +32,13 @@ const PHASE_1_SHORTCUTS: Record<string, string> = {
   p: 'tool.point',
   m: 'tool.move',
   e: 'tool.erase',
+  // Two-key chords — checked first when a previous key is pending
+  'p l': 'tool.polyline',
+  'p g': 'tool.polygon',
+  'c o': 'tool.copy',
+  'r o': 'tool.rotate',
+  'm i': 'tool.mirror',
+  's c': 'tool.scale',
   'z e': 'view.zoomExtents',
   'z s': 'view.zoomSelection',
   'ctrl+=': 'view.zoomIn',
@@ -152,6 +159,18 @@ export function useKeyboard() {
         break;
       case 'tool.move':
         toolStore.setTool('MOVE');
+        break;
+      case 'tool.copy':
+        toolStore.setTool('COPY');
+        break;
+      case 'tool.rotate':
+        toolStore.setTool('ROTATE');
+        break;
+      case 'tool.mirror':
+        toolStore.setTool('MIRROR');
+        break;
+      case 'tool.scale':
+        toolStore.setTool('SCALE');
         break;
       case 'tool.erase':
         toolStore.setTool('ERASE');

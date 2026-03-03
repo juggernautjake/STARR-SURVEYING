@@ -2,7 +2,7 @@
 // app/admin/cad/components/LayerPanel.tsx — Layer list panel
 
 import { useState, useRef } from 'react';
-import { Eye, EyeOff, Plus } from 'lucide-react';
+import { Eye, EyeOff, Lock, LockOpen, Plus } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
@@ -37,6 +37,10 @@ export default function LayerPanel() {
 
   function handleToggleVisibility(layer: Layer) {
     store.updateLayer(layer.id, { visible: !layer.visible });
+  }
+
+  function handleToggleLock(layer: Layer) {
+    store.updateLayer(layer.id, { locked: !layer.locked });
   }
 
   function handleSetActive(layerId: string) {
@@ -133,6 +137,18 @@ export default function LayerPanel() {
               {layer.visible ? <Eye size={12} /> : <EyeOff size={12} />}
             </button>
 
+            {/* Lock toggle */}
+            <button
+              className={`flex-shrink-0 p-0.5 ${layer.locked ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-600 hover:text-gray-300'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleLock(layer);
+              }}
+              title={layer.locked ? 'Unlock layer' : 'Lock layer'}
+            >
+              {layer.locked ? <Lock size={12} /> : <LockOpen size={12} />}
+            </button>
+
             {/* Color swatch */}
             <div
               className="w-3 h-3 rounded-sm flex-shrink-0 border border-gray-500"
@@ -189,6 +205,16 @@ export default function LayerPanel() {
             onClick={() => startRename(contextMenu.layerId)}
           >
             Rename
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700"
+            onClick={() => {
+              const layer = doc.layers[contextMenu.layerId];
+              if (layer) handleToggleLock(layer);
+              setContextMenu(null);
+            }}
+          >
+            {doc.layers[contextMenu.layerId]?.locked ? 'Unlock' : 'Lock'}
           </button>
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700"

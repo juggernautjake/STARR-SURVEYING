@@ -21,6 +21,15 @@ import { featureBounds, computeBounds } from '@/lib/cad/geometry/bounds';
 function parseCommand(raw: string): ParsedCommand {
   const trimmed = raw.trim();
 
+  // @dist<angle — polar relative (e.g., @50<45 means 50 units at 45 degrees)
+  if (/^@-?\d+(\.\d+)?<-?\d+(\.\d+)?$/.test(trimmed)) {
+    const [distPart, anglePart] = trimmed.slice(1).split('<').map(Number);
+    const angleRad = (anglePart * Math.PI) / 180;
+    const dx = distPart * Math.cos(angleRad);
+    const dy = distPart * Math.sin(angleRad);
+    return { type: 'COORDINATE', value: { relative: true, dx, dy } };
+  }
+
   // @dx,dy relative coordinate
   if (/^@-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(trimmed)) {
     const [dx, dy] = trimmed.slice(1).split(',').map(Number);
@@ -70,6 +79,10 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
       return rotateCenter == null
         ? 'Specify rotation center'
         : 'Type rotation angle in degrees, then press Enter';
+    case 'SCALE':
+      return rotateCenter == null
+        ? 'Specify base point for scale'
+        : 'Type scale factor (e.g. 2 for double, 0.5 for half), then press Enter';
     case 'MIRROR':
       return drawingPointsCount === 0 ? 'Specify first mirror line point' : 'Specify second mirror line point';
     case 'ERASE':
@@ -124,6 +137,14 @@ export default function CommandBar() {
           const center = toolState.rotateCenter;
           window.dispatchEvent(new CustomEvent('cad:rotate', { detail: { center, angleDeg, angleRad } }));
           toolStore.resetToolState();
+        }
+        // Scale tool: treat distance as scale factor
+        if (toolState.activeTool === 'SCALE' && toolState.basePoint) {
+          const factor = (parsed.value as { value: number }).value;
+          if (factor > 0) {
+            window.dispatchEvent(new CustomEvent('cad:scale', { detail: { center: toolState.basePoint, factor } }));
+            toolStore.resetToolState();
+          }
         }
         return;
       }
@@ -196,6 +217,10 @@ export default function CommandBar() {
       case 'mirror':
       case 'mi':
         toolStore.setTool('MIRROR');
+        break;
+      case 'scale':
+      case 'sc':
+        toolStore.setTool('SCALE');
         break;
       case 'erase':
       case 'e':

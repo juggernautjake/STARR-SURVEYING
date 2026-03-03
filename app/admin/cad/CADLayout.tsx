@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import MenuBar from './components/MenuBar';
 import ToolBar from './components/ToolBar';
 import LayerPanel from './components/LayerPanel';
+import PropertyPanel from './components/PropertyPanel';
 import CommandBar from './components/CommandBar';
 import StatusBar from './components/StatusBar';
 import { useUIStore, useDrawingStore } from '@/lib/cad/store';
@@ -49,7 +50,7 @@ async function writeAutosave(value: unknown): Promise<void> {
 }
 
 export default function CADLayout() {
-  const { showLayerPanel } = useUIStore();
+  const { showLayerPanel, showPropertyPanel } = useUIStore();
   const drawingStore = useDrawingStore();
   const [autoSaveFailed, setAutoSaveFailed] = useState(false);
 
@@ -104,6 +105,13 @@ export default function CADLayout() {
         <div className="flex-1 relative min-w-0">
           <CanvasViewport />
         </div>
+
+        {/* Right sidebar: property panel (toggleable) */}
+        {showPropertyPanel && (
+          <div className="flex flex-col bg-gray-800 border-l border-gray-700 w-48 flex-shrink-0">
+            <PropertyPanel />
+          </div>
+        )}
       </div>
 
       {/* Bottom area: command bar + status bar */}

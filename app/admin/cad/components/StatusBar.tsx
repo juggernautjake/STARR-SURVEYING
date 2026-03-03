@@ -1,22 +1,38 @@
 'use client';
 // app/admin/cad/components/StatusBar.tsx — Bottom status bar
 
-import { useDrawingStore, useViewportStore, useSelectionStore } from '@/lib/cad/store';
+import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore } from '@/lib/cad/store';
+
+const TOOL_LABELS: Record<string, string> = {
+  SELECT: 'Select',
+  PAN: 'Pan',
+  DRAW_POINT: 'Point',
+  DRAW_LINE: 'Line',
+  DRAW_POLYLINE: 'Polyline',
+  DRAW_POLYGON: 'Polygon',
+  MOVE: 'Move',
+  COPY: 'Copy',
+  ROTATE: 'Rotate',
+  MIRROR: 'Mirror',
+  SCALE: 'Scale',
+  ERASE: 'Erase',
+};
 
 export default function StatusBar() {
   const drawingStore = useDrawingStore();
   const viewportStore = useViewportStore();
   const selectionStore = useSelectionStore();
+  const toolStore = useToolStore();
   const cursor = viewportStore.cursorWorld;
   const zoom = viewportStore.zoom;
 
   const { document: doc, activeLayerId } = drawingStore;
   const activeLayer = doc.layers[activeLayerId];
-  const { snapEnabled, gridVisible } = doc.settings;
+  const { snapEnabled, gridVisible, drawingScale } = doc.settings;
   const selCount = selectionStore.selectionCount();
+  const activeTool = toolStore.state.activeTool;
 
   // Express zoom as a percentage of 1px-per-world-unit baseline
-  // e.g. at zoom=1: 1 screen px = 1 world unit (foot); at zoom=2: 200% means 1px = 0.5ft
   const zoomPct = Math.round(zoom * 100);
 
   function toggleSnap() {
@@ -43,13 +59,20 @@ export default function StatusBar() {
 
       <span className="text-gray-600">|</span>
 
+      {/* Active tool */}
+      <span className="shrink-0 text-gray-500" title="Active tool">
+        {TOOL_LABELS[activeTool] ?? activeTool}
+      </span>
+
+      <span className="text-gray-600">|</span>
+
       {/* Active layer */}
       <button
         className="hover:text-white transition-colors shrink-0"
         title="Active layer"
         onClick={() => drawingStore.setActiveLayer(activeLayerId)}
       >
-        Layer: <span className="text-white">{activeLayer?.name ?? '—'}</span>
+        Layer: <span className={activeLayer?.locked ? 'text-yellow-400' : 'text-white'}>{activeLayer?.name ?? '—'}{activeLayer?.locked ? ' 🔒' : ''}</span>
       </button>
 
       <span className="text-gray-600">|</span>
@@ -81,6 +104,13 @@ export default function StatusBar() {
       >
         Grid: {gridVisible ? 'ON' : 'OFF'}
       </button>
+
+      <span className="text-gray-600">|</span>
+
+      {/* Drawing scale */}
+      <span className="text-gray-500 shrink-0" title="Drawing scale">
+        1″={drawingScale}′
+      </span>
     </div>
   );
 }

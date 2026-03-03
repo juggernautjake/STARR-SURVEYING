@@ -138,6 +138,7 @@ export type ToolType =
   | 'COPY'
   | 'ROTATE'
   | 'MIRROR'
+  | 'SCALE'
   | 'ERASE';
 
 export interface ToolState {
@@ -154,6 +155,9 @@ export interface ToolState {
   // Rotate state
   rotateCenter: Point2D | null;
   rotateAngle: number;
+
+  // Scale state
+  scaleFactor: number;
 
   // Box select state
   boxStart: Point2D | null; // Screen coordinates

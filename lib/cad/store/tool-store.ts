@@ -25,6 +25,7 @@ const defaultToolState: ToolState = {
   displacement: null,
   rotateCenter: null,
   rotateAngle: 0,
+  scaleFactor: 1,
   boxStart: null,
   boxEnd: null,
   isBoxSelecting: false,

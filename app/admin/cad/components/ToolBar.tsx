@@ -15,6 +15,7 @@ import {
   RotateCw,
   FlipHorizontal2,
   Eraser,
+  Expand,
 } from 'lucide-react';
 
 interface ToolButton {
@@ -35,6 +36,7 @@ const TOOLS: ToolButton[] = [
   { tool: 'COPY', label: 'Copy', shortcut: 'CO', icon: <Copy size={16} /> },
   { tool: 'ROTATE', label: 'Rotate', shortcut: 'RO', icon: <RotateCw size={16} /> },
   { tool: 'MIRROR', label: 'Mirror', shortcut: 'MI', icon: <FlipHorizontal2 size={16} /> },
+  { tool: 'SCALE', label: 'Scale', shortcut: 'SC', icon: <Expand size={16} /> },
   { tool: 'ERASE', label: 'Erase', shortcut: 'E', icon: <Eraser size={16} /> },
 ];
 
