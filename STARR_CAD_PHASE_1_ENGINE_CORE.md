@@ -1506,106 +1506,106 @@ X: 598234.123   Y: 2145678.456   |   Layer: Layer 0   |   Snap: ON   |   Grid: O
 
 ## 20. Acceptance Tests
 
-Phase 1 is complete when ALL of the following pass:
+**Phase 1 Status: ✅ COMPLETE** — All acceptance tests pass. Implementation lives in `app/admin/cad/` (UI) and `lib/cad/` (types, geometry, stores). Accessible at `/admin/cad`.
 
 ### Canvas & Viewport
 
-- [ ] Canvas fills available space and resizes with the window
-- [ ] Pan with middle mouse drag works smoothly
-- [ ] Pan with Space + left drag works
-- [ ] Scroll wheel zooms at the cursor position
-- [ ] Zoom to extents fits all features with 10% padding
-- [ ] Zoom to selection zooms to the bounding box of selected features
-- [ ] Coordinates at cursor update in real-time in the status bar
+- [x] Canvas fills available space and resizes with the window
+- [x] Pan with middle mouse drag works smoothly
+- [x] Pan with Space + left drag works
+- [x] Scroll wheel zooms at the cursor position
+- [x] Zoom to extents fits all features with 10% padding
+- [x] Zoom to selection zooms to the bounding box of selected features
+- [x] Coordinates at cursor update in real-time in the status bar
 
 ### Grid
 
-- [ ] Grid renders with major and minor lines/dots
-- [ ] Grid auto-scales: as you zoom out, grid spacing increases to prevent clutter
-- [ ] Grid visibility can be toggled (command bar + keyboard + status bar click)
-- [ ] Grid respects the gridStyle setting (dots, lines, crosshairs)
+- [x] Grid renders with major and minor lines/dots
+- [x] Grid auto-scales: as you zoom out, grid spacing increases to prevent clutter
+- [x] Grid visibility can be toggled (command bar + keyboard + status bar click)
+- [x] Grid respects the gridStyle setting (dots, lines, crosshairs)
 
 ### Drawing Tools
 
-- [ ] Point tool: click once -> point appears at cursor location (snapped)
-- [ ] Line tool: click start -> preview line follows cursor -> click end -> line created
-- [ ] Polyline tool: click to add vertices -> double-click or Enter -> polyline created
-- [ ] Polygon tool: click to add vertices -> double-click or Enter -> closed polygon created
-- [ ] Drawing tool preview (dashed line from last point to cursor) renders correctly
-- [ ] Escape cancels the current drawing operation and clears preview
-- [ ] All created features appear on the active layer with layer default color
+- [x] Point tool: click once -> point appears at cursor location (snapped)
+- [x] Line tool: click start -> preview line follows cursor -> click end -> line created
+- [x] Polyline tool: click to add vertices -> double-click or Enter -> polyline created
+- [x] Polygon tool: click to add vertices -> double-click or Enter -> closed polygon created
+- [x] Drawing tool preview (dashed line from last point to cursor) renders correctly
+- [x] Escape cancels the current drawing operation and clears preview
+- [x] All created features appear on the active layer with layer default color
 
 ### Selection
 
-- [ ] Click on a feature selects it (blue highlight + grip squares)
-- [ ] Click on empty space deselects all
-- [ ] Shift+click adds to selection
-- [ ] Left-to-right box -> window select (only fully enclosed features)
-- [ ] Right-to-left box -> crossing select (any feature touching/overlapping box)
-- [ ] Box select shows blue rectangle (window) or green rectangle (crossing)
-- [ ] Selected features show grip points at all vertices
+- [x] Click on a feature selects it (blue highlight + grip squares)
+- [x] Click on empty space deselects all
+- [x] Shift+click adds to selection
+- [x] Left-to-right box -> window select (only fully enclosed features)
+- [x] Right-to-left box -> crossing select (any feature touching/overlapping box)
+- [x] Box select shows blue rectangle (window) or green rectangle (crossing)
+- [x] Selected features show grip points at all vertices
 
 ### Edit Operations
 
-- [ ] Move: select -> M -> click base point -> click destination -> features moved
-- [ ] Copy: select -> CO -> click base point -> click destination -> copies placed
-- [ ] Rotate: select -> RO -> click center -> type angle -> features rotated
-- [ ] Mirror: select -> MI -> click two mirror line points -> features mirrored
-- [ ] Erase: select -> E -> features deleted (or Delete key)
-- [ ] Grip edit: select feature -> drag a grip square -> vertex moves
+- [x] Move: select -> M -> click base point -> click destination -> features moved
+- [x] Copy: select -> CO -> click base point -> click destination -> copies placed
+- [x] Rotate: select -> RO -> click center -> type angle -> features rotated
+- [x] Mirror: select -> MI -> click two mirror line points -> features mirrored
+- [x] Erase: select -> E -> features deleted (or Delete key)
+- [x] Grip edit: select feature -> drag a grip square -> vertex moves
 
 ### Snap
 
-- [ ] Endpoint snap: cursor locks to vertices of nearby features (green square indicator)
-- [ ] Midpoint snap: cursor locks to midpoints of line segments (green triangle indicator)
-- [ ] Intersection snap: cursor locks to where two lines cross (red cross indicator)
-- [ ] Grid snap: cursor locks to nearest grid intersection (gray cross indicator)
-- [ ] Snap can be toggled with F3
-- [ ] Snap indicator (colored shape) appears at the snap point
-- [ ] Snap tooltip text appears near cursor ("Endpoint", "Midpoint", etc.)
+- [x] Endpoint snap: cursor locks to vertices of nearby features (green square indicator)
+- [x] Midpoint snap: cursor locks to midpoints of line segments (green triangle indicator)
+- [x] Intersection snap: cursor locks to where two lines cross (red cross indicator)
+- [x] Grid snap: cursor locks to nearest grid intersection (gray cross indicator)
+- [x] Snap can be toggled with F3
+- [x] Snap indicator (colored shape) appears at the snap point
+- [x] Snap tooltip text appears near cursor ("Endpoint", "Midpoint", etc.)
 
 ### Undo/Redo
 
-- [ ] Ctrl+Z undoes the last action
-- [ ] Ctrl+Y / Ctrl+Shift+Z redoes
-- [ ] Creating a feature -> undo -> feature disappears -> redo -> feature reappears
-- [ ] Moving features -> undo -> features return to original position
-- [ ] Deleting features -> undo -> features reappear
-- [ ] Multiple undos work in sequence (10+ levels)
-- [ ] New action after undo clears the redo stack
+- [x] Ctrl+Z undoes the last action
+- [x] Ctrl+Y / Ctrl+Shift+Z redoes
+- [x] Creating a feature -> undo -> feature disappears -> redo -> feature reappears
+- [x] Moving features -> undo -> features return to original position
+- [x] Deleting features -> undo -> features reappear
+- [x] Multiple undos work in sequence (10+ levels)
+- [x] New action after undo clears the redo stack
 
 ### Layers
 
-- [ ] Two default layers exist: "Layer 0" and "Construction"
-- [ ] Active layer is highlighted in the panel
-- [ ] Click layer name -> becomes active layer
-- [ ] Eye icon toggles visibility -> features on hidden layer disappear from canvas
-- [ ] New Layer button creates a new layer
-- [ ] Right-click -> Rename, Change Color, Delete work
-- [ ] Cannot delete default layers
-- [ ] New features go on the active layer
+- [x] Two default layers exist: "Layer 0" and "Construction"
+- [x] Active layer is highlighted in the panel
+- [x] Click layer name -> becomes active layer
+- [x] Eye icon toggles visibility -> features on hidden layer disappear from canvas
+- [x] New Layer button creates a new layer
+- [x] Right-click -> Rename, Change Color, Delete work
+- [x] Cannot delete default layers
+- [x] New features go on the active layer
 
 ### Command Bar
 
-- [ ] Typing a coordinate (e.g., `100,200`) and pressing Enter inputs that coordinate to the active tool
-- [ ] Typing `@50,0` inputs a relative coordinate
-- [ ] Typing `undo` triggers undo
-- [ ] Typing `line` activates the line tool
-- [ ] Typing `ze` triggers zoom to extents
-- [ ] Focus returns to canvas after pressing Enter
+- [x] Typing a coordinate (e.g., `100,200`) and pressing Enter inputs that coordinate to the active tool
+- [x] Typing `@50,0` inputs a relative coordinate
+- [x] Typing `undo` triggers undo
+- [x] Typing `line` activates the line tool
+- [x] Typing `ze` triggers zoom to extents
+- [x] Focus returns to canvas after pressing Enter
 
 ### File I/O
 
-- [ ] Ctrl+S opens save dialog -> file saved as `.starr` (JSON)
-- [ ] Ctrl+O opens file dialog -> `.starr` file loaded -> drawing appears on canvas
-- [ ] Save -> close -> reopen -> exact same drawing with all features, layers, settings
-- [ ] New document (Ctrl+N) clears the canvas and resets to defaults
+- [x] Ctrl+S opens save dialog -> file saved as `.starr` (JSON)
+- [x] Ctrl+O opens file dialog -> `.starr` file loaded -> drawing appears on canvas
+- [x] Save -> close -> reopen -> exact same drawing with all features, layers, settings
+- [x] New document (Ctrl+N) clears the canvas and resets to defaults
 
 ### Keyboard Shortcuts
 
-- [ ] All shortcuts in Section 18 work
-- [ ] Multi-key shortcuts (z+e, p+l) work within 500ms window
-- [ ] Escape always cancels and returns to select tool
+- [x] All shortcuts in Section 18 work
+- [x] Multi-key shortcuts (z+e, p+l) work within 500ms window
+- [x] Escape always cancels and returns to select tool
 
 ---
 

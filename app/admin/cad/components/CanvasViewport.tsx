@@ -20,6 +20,7 @@ import { translate, rotate, mirror, scale, transformFeature } from '@/lib/cad/ge
 import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM } from '@/lib/cad/constants';
+import { cadLog } from '@/lib/cad/logger';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
 
@@ -130,6 +131,7 @@ export default function CanvasViewport() {
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [drawingMenu, setDrawingMenu] = useState<DrawingMenuState | null>(null);
+  const [initError, setInitError] = useState<string | null>(null);
 
   // Polyline group ID tracking — each new polyline drawing gets a fresh UUID
   const polylineGroupIdRef = useRef<string | null>(null);
@@ -156,72 +158,87 @@ export default function CanvasViewport() {
     let cancelled = false;
 
     async function init() {
-      const PIXI = await import('pixi.js');
-      if (cancelled || !canvasRef.current) return;
+      try {
+        const PIXI = await import('pixi.js');
+        if (cancelled || !canvasRef.current) return;
 
-      const canvas = canvasRef.current;
-      const width = canvas.offsetWidth || 800;
-      const height = canvas.offsetHeight || 600;
+        const canvas = canvasRef.current;
+        const width = canvas.offsetWidth || 800;
+        const height = canvas.offsetHeight || 600;
 
-      const bgColor = parseInt(
-        (drawingStore.document.settings.backgroundColor ?? '#FFFFFF').replace('#', ''),
-        16,
-      );
+        const bgColor = parseInt(
+          (drawingStore.document.settings.backgroundColor ?? '#FFFFFF').replace('#', ''),
+          16,
+        );
 
-      const app = new PIXI.Application({
-        view: canvas,
-        width,
-        height,
-        backgroundColor: bgColor,
-        antialias: true,
-        resolution: window.devicePixelRatio || 1,
-        autoDensity: true,
-      });
+        const app = new PIXI.Application({
+          view: canvas,
+          width,
+          height,
+          backgroundColor: bgColor,
+          antialias: true,
+          resolution: window.devicePixelRatio || 1,
+          autoDensity: true,
+        });
 
-      const gridLayer = new PIXI.Container();
-      const featureLayer = new PIXI.Container();
-      const selectionLayer = new PIXI.Container();
-      const snapLayer = new PIXI.Container();
-      const toolPreviewLayer = new PIXI.Container();
+        const gridLayer = new PIXI.Container();
+        const featureLayer = new PIXI.Container();
+        const selectionLayer = new PIXI.Container();
+        const snapLayer = new PIXI.Container();
+        const toolPreviewLayer = new PIXI.Container();
 
-      app.stage.addChild(gridLayer, featureLayer, selectionLayer, snapLayer, toolPreviewLayer);
+        app.stage.addChild(gridLayer, featureLayer, selectionLayer, snapLayer, toolPreviewLayer);
 
-      const gridGraphics = new PIXI.Graphics();
-      gridLayer.addChild(gridGraphics);
+        const gridGraphics = new PIXI.Graphics();
+        gridLayer.addChild(gridGraphics);
 
-      const selectionGraphics = new PIXI.Graphics();
-      selectionLayer.addChild(selectionGraphics);
+        const selectionGraphics = new PIXI.Graphics();
+        selectionLayer.addChild(selectionGraphics);
 
-      const snapGraphics = new PIXI.Graphics();
-      snapLayer.addChild(snapGraphics);
+        const snapGraphics = new PIXI.Graphics();
+        snapLayer.addChild(snapGraphics);
 
-      const previewGraphics = new PIXI.Graphics();
-      toolPreviewLayer.addChild(previewGraphics);
+        const previewGraphics = new PIXI.Graphics();
+        toolPreviewLayer.addChild(previewGraphics);
 
-      pixiRef.current = {
-        app,
-        gridLayer,
-        featureLayer,
-        selectionLayer,
-        snapLayer,
-        toolPreviewLayer,
-        featureGraphics: new Map(),
-        gridGraphics,
-        selectionGraphics,
-        snapGraphics,
-        previewGraphics,
-        GraphicsClass: PIXI.Graphics,
-      };
+        pixiRef.current = {
+          app,
+          gridLayer,
+          featureLayer,
+          selectionLayer,
+          snapLayer,
+          toolPreviewLayer,
+          featureGraphics: new Map(),
+          gridGraphics,
+          selectionGraphics,
+          snapGraphics,
+          previewGraphics,
+          GraphicsClass: PIXI.Graphics,
+        };
 
-      viewportStore.setScreenSize(width, height);
+        viewportStore.setScreenSize(width, height);
+        cadLog.info('CanvasViewport', 'PixiJS canvas initialised successfully');
 
-      // Start render loop
-      function renderLoop() {
-        if (!pixiRef.current) return;
-        renderAll();
+        // Start render loop
+        function renderLoop() {
+          if (!pixiRef.current) return;
+          try {
+            renderAll();
+          } catch (err) {
+            cadLog.error('CanvasViewport', 'Render loop error — frame skipped', err);
+          }
+          rafRef.current = requestAnimationFrame(renderLoop);
+        }
         rafRef.current = requestAnimationFrame(renderLoop);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        cadLog.error('CanvasViewport', 'PixiJS initialisation failed', err);
+        setInitError(
+          msg.includes('WebGL') || msg.includes('context')
+            ? 'WebGL is not available in this browser. Try enabling hardware acceleration in browser settings.'
+            : `Canvas failed to initialise: ${msg}`,
+        );
       }
-      rafRef.current = requestAnimationFrame(renderLoop);
     }
 
     init();
@@ -1339,13 +1356,17 @@ export default function CanvasViewport() {
             const dy = worldPt.y - toolState.basePoint.y;
             const selectedIds = Array.from(selectionStore.selectedIds);
             if (selectedIds.length === 0) break;
-            const ops = selectedIds.map((id) => {
-              const f = drawingStore.getFeature(id)!;
+            const ops = selectedIds.flatMap((id) => {
+              const f = drawingStore.getFeature(id);
+              if (!f) {
+                cadLog.warn('CanvasViewport', `MOVE: feature "${id}" not found — skipped`);
+                return [];
+              }
               const newF = transformFeature(f, (p) => translate(p, dx, dy));
               drawingStore.updateFeature(id, { geometry: newF.geometry });
-              return { type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } };
+              return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
             });
-            undoStore.pushUndo(makeBatchEntry('Move', ops));
+            if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Move', ops));
             toolStore.resetToolState();
           }
           break;
@@ -1361,14 +1382,20 @@ export default function CanvasViewport() {
             if (selectedIds.length === 0) break;
             const newFeatures: Feature[] = [];
             for (const id of selectedIds) {
-              const f = drawingStore.getFeature(id)!;
+              const f = drawingStore.getFeature(id);
+              if (!f) {
+                cadLog.warn('CanvasViewport', `COPY: feature "${id}" not found — skipped`);
+                continue;
+              }
               const newF = transformFeature(f, (p) => translate(p, dx, dy));
               newF.id = generateId();
               newFeatures.push(newF);
             }
-            drawingStore.addFeatures(newFeatures);
-            const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
-            undoStore.pushUndo(makeBatchEntry('Copy', ops));
+            if (newFeatures.length > 0) {
+              drawingStore.addFeatures(newFeatures);
+              const ops = newFeatures.map((f) => ({ type: 'ADD_FEATURE' as const, data: f }));
+              undoStore.pushUndo(makeBatchEntry('Copy', ops));
+            }
             toolStore.setBasePoint(worldPt); // Allow multiple copies
           }
           break;
@@ -1396,13 +1423,17 @@ export default function CanvasViewport() {
             const lineB = worldPt;
             const selectedIds = Array.from(selectionStore.selectedIds);
             if (selectedIds.length === 0) break;
-            const ops = selectedIds.map((id) => {
-              const f = drawingStore.getFeature(id)!;
+            const ops = selectedIds.flatMap((id) => {
+              const f = drawingStore.getFeature(id);
+              if (!f) {
+                cadLog.warn('CanvasViewport', `MIRROR: feature "${id}" not found — skipped`);
+                return [];
+              }
               const newF = transformFeature(f, (p) => mirror(p, lineA, lineB));
               drawingStore.updateFeature(id, { geometry: newF.geometry });
-              return { type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } };
+              return [{ type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } }];
             });
-            undoStore.pushUndo(makeBatchEntry('Mirror', ops));
+            if (ops.length > 0) undoStore.pushUndo(makeBatchEntry('Mirror', ops));
             toolStore.clearDrawingPoints();
           }
           break;
@@ -1812,6 +1843,23 @@ export default function CanvasViewport() {
 
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-white">
+      {/* PixiJS init failure overlay */}
+      {initError && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-950/90">
+          <div className="max-w-sm w-full bg-gray-900 border border-red-700 rounded-xl p-5 shadow-2xl space-y-3 text-xs">
+            <div className="flex items-center gap-2 text-red-400 font-semibold text-sm">
+              <span>⚠️</span> Canvas Initialisation Failed
+            </div>
+            <p className="text-gray-300 leading-relaxed">{initError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         className="block w-full h-full"

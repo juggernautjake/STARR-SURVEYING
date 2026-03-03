@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import type { UndoEntry, UndoOperation, Feature, Layer } from '../types';
 import { generateId } from '../types';
 import { useDrawingStore } from './drawing-store';
+import { cadLog } from '../logger';
 
 const MAX_UNDO_STACK = 500;
 
@@ -28,39 +29,45 @@ function applyOperations(operations: UndoOperation[], reverse: boolean) {
   const ops = reverse ? [...operations].reverse() : operations;
 
   for (const op of ops) {
-    const data = op.data as Record<string, unknown>;
-    switch (op.type) {
-      case 'ADD_FEATURE':
-        if (reverse) removeFeature(data.id as string);
-        else addFeature(data as unknown as Feature);
-        break;
-      case 'REMOVE_FEATURE':
-        if (reverse) addFeature(data as unknown as Feature);
-        else removeFeature(data.id as string);
-        break;
-      case 'MODIFY_FEATURE': {
-        const featureData = data as { id: string; before: Partial<Feature>; after: Partial<Feature> };
-        updateFeature(featureData.id, reverse ? featureData.before : featureData.after);
-        break;
+    try {
+      const data = op.data as Record<string, unknown>;
+      switch (op.type) {
+        case 'ADD_FEATURE':
+          if (reverse) removeFeature(data.id as string);
+          else addFeature(data as unknown as Feature);
+          break;
+        case 'REMOVE_FEATURE':
+          if (reverse) addFeature(data as unknown as Feature);
+          else removeFeature(data.id as string);
+          break;
+        case 'MODIFY_FEATURE': {
+          const featureData = data as { id: string; before: Partial<Feature>; after: Partial<Feature> };
+          updateFeature(featureData.id, reverse ? featureData.before : featureData.after);
+          break;
+        }
+        case 'ADD_LAYER':
+          if (reverse) removeLayer(data.id as string);
+          else addLayer(data as unknown as Layer);
+          break;
+        case 'REMOVE_LAYER':
+          if (reverse) addLayer(data as unknown as Layer);
+          else removeLayer(data.id as string);
+          break;
+        case 'MODIFY_LAYER': {
+          const layerData = data as { id: string; before: Partial<Layer>; after: Partial<Layer> };
+          updateLayer(layerData.id, reverse ? layerData.before : layerData.after);
+          break;
+        }
+        case 'BATCH': {
+          const batchOps = data.operations as UndoOperation[];
+          applyOperations(batchOps, reverse);
+          break;
+        }
+        default:
+          cadLog.warn('UndoStore', `Unknown undo operation type: "${op.type}"`);
       }
-      case 'ADD_LAYER':
-        if (reverse) removeLayer(data.id as string);
-        else addLayer(data as unknown as Layer);
-        break;
-      case 'REMOVE_LAYER':
-        if (reverse) addLayer(data as unknown as Layer);
-        else removeLayer(data.id as string);
-        break;
-      case 'MODIFY_LAYER': {
-        const layerData = data as { id: string; before: Partial<Layer>; after: Partial<Layer> };
-        updateLayer(layerData.id, reverse ? layerData.before : layerData.after);
-        break;
-      }
-      case 'BATCH': {
-        const batchOps = data.operations as UndoOperation[];
-        applyOperations(batchOps, reverse);
-        break;
-      }
+    } catch (err) {
+      cadLog.error('UndoStore', `Failed to apply operation "${op.type}" — skipping`, err);
     }
   }
 }

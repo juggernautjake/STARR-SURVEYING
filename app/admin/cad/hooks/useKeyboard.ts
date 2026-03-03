@@ -15,6 +15,8 @@ import {
 import { computeBounds, featureBounds } from '@/lib/cad/geometry/bounds';
 import type { Feature } from '@/lib/cad/types';
 import { copyCadSelection, pasteCadClipboard, duplicateSelection } from '@/lib/cad/operations';
+import { cadLog } from '@/lib/cad/logger';
+import { validateAndMigrateDocument } from '@/lib/cad/validate';
 
 // Phase 1 default bindings: key combo → actionId
 const PHASE_1_SHORTCUTS: Record<string, string> = {
@@ -325,21 +327,27 @@ export function useKeyboard() {
   }
 
   function saveDocument() {
-    const drawingStore = useDrawingStore.getState();
-    const payload = {
-      version: '1.0',
-      application: 'starr-cad',
-      document: drawingStore.document,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = Object.assign(document.createElement('a'), {
-      href: url,
-      download: `${drawingStore.document.name}.starr`,
-    });
-    a.click();
-    URL.revokeObjectURL(url);
-    drawingStore.markClean();
+    try {
+      const drawingStore = useDrawingStore.getState();
+      const payload = {
+        version: '1.0',
+        application: 'starr-cad',
+        document: drawingStore.document,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), {
+        href: url,
+        download: `${drawingStore.document.name}.starr`,
+      });
+      a.click();
+      URL.revokeObjectURL(url);
+      drawingStore.markClean();
+      cadLog.info('FileIO', `Saved drawing: ${drawingStore.document.name}`);
+    } catch (err) {
+      cadLog.error('FileIO', 'Failed to save document', err);
+      alert('Failed to save the drawing. See the browser console for details.');
+    }
   }
 
   function openFileDialog() {
@@ -352,18 +360,18 @@ export function useKeyboard() {
       if (!file) return;
       try {
         const text = await file.text();
-        const payload = JSON.parse(text) as {
-          document: import('@/lib/cad/types').DrawingDocument;
-        };
-        useDrawingStore.getState().loadDocument(payload.document);
+        const payload = JSON.parse(text) as { document: unknown };
+        const doc = validateAndMigrateDocument(payload?.document ?? payload);
+        useDrawingStore.getState().loadDocument(doc);
         useSelectionStore.getState().deselectAll();
+        useUndoStore.getState().clear();
+        cadLog.info('FileIO', `Loaded drawing: ${doc.name}`);
+        // Zoom to the loaded drawing's content after a short delay to let the canvas render
+        setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
       } catch (err) {
-        const msg = err instanceof SyntaxError
-          ? 'Invalid file format — the file could not be parsed as JSON.'
-          : err instanceof Error
-          ? `Failed to load file: ${err.message}`
-          : 'Failed to load file. Make sure it is a valid .starr drawing.';
-        alert(msg);
+        const msg = err instanceof Error ? err.message : 'Failed to load file.';
+        cadLog.error('FileIO', 'Failed to open .starr file', err);
+        alert(`${msg}\n\nMake sure this is a valid .starr drawing file.`);
       }
     };
     input.click();
