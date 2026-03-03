@@ -265,8 +265,13 @@ export function useKeyboard() {
         };
         useDrawingStore.getState().loadDocument(payload.document);
         useSelectionStore.getState().deselectAll();
-      } catch {
-        alert('Failed to load file. Make sure it is a valid .starr drawing.');
+      } catch (err) {
+        const msg = err instanceof SyntaxError
+          ? 'Invalid file format — the file could not be parsed as JSON.'
+          : err instanceof Error
+          ? `Failed to load file: ${err.message}`
+          : 'Failed to load file. Make sure it is a valid .starr drawing.';
+        alert(msg);
       }
     };
     input.click();

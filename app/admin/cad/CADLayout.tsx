@@ -1,7 +1,7 @@
 'use client';
 // app/admin/cad/CADLayout.tsx — Main CAD editor UI shell
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import MenuBar from './components/MenuBar';
 import ToolBar from './components/ToolBar';
@@ -26,6 +26,7 @@ const AUTOSAVE_INTERVAL = 60_000;
 export default function CADLayout() {
   const { showLayerPanel } = useUIStore();
   const drawingStore = useDrawingStore();
+  const [autoSaveFailed, setAutoSaveFailed] = useState(false);
 
   // Auto-save to localStorage every 60 seconds
   useEffect(() => {
@@ -38,8 +39,10 @@ export default function CADLayout() {
           document: drawingStore.document,
         };
         localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(payload));
+        setAutoSaveFailed(false);
       } catch {
-        // Storage quota exceeded — ignore silently
+        // Storage quota exceeded or serialization error — warn user
+        setAutoSaveFailed(true);
       }
     }, AUTOSAVE_INTERVAL);
     return () => clearInterval(interval);
@@ -47,6 +50,14 @@ export default function CADLayout() {
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden bg-white select-none">
+      {/* Auto-save failure warning */}
+      {autoSaveFailed && (
+        <div className="bg-yellow-500 text-black text-xs px-3 py-1 flex justify-between items-center">
+          <span>⚠️ Auto-save failed (storage full). Please save manually with Ctrl+S.</span>
+          <button onClick={() => setAutoSaveFailed(false)} className="ml-4 font-bold">✕</button>
+        </div>
+      )}
+
       {/* Top menu bar */}
       <MenuBar />
 

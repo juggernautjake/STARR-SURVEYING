@@ -19,15 +19,13 @@ import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point
 import { translate, rotate, mirror, transformFeature } from '@/lib/cad/geometry/transform';
 import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType } from '@/lib/cad/types';
-import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES } from '@/lib/cad/constants';
+import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM } from '@/lib/cad/constants';
 import { useKeyboard } from '../hooks/useKeyboard';
 
 // ─────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────
 const HIT_TOLERANCE_PX = 5;
-const MIN_ZOOM = 0.001;
-const MAX_ZOOM = 1000;
 
 // ─────────────────────────────────────────────
 // CanvasViewport Component
@@ -206,12 +204,12 @@ export default function CanvasViewport() {
     const startY = Math.floor(wb.minY / spacing) * spacing;
     const endY = Math.ceil(wb.maxY / spacing) * spacing;
 
-    const isMajor = (v: number, sp: number) =>
+    const isMajor = (v: number) =>
       Math.abs(Math.round(v / majorSpacing) * majorSpacing - v) < 0.001;
 
     for (let wx = startX; wx <= endX; wx += spacing) {
       for (let wy = startY; wy <= endY; wy += spacing) {
-        const major = isMajor(wx, majorSpacing) && isMajor(wy, majorSpacing);
+        const major = isMajor(wx) && isMajor(wy);
         const color = major ? 0xcccccc : 0xe8e8e8;
         const { sx, sy } = w2s(wx, wy);
 
@@ -242,9 +240,9 @@ export default function CanvasViewport() {
       if (gridStyle === 'LINES') {
         // Horizontal lines pass
         for (let wy = startY; wy <= endY; wy += spacing) {
-          const major = isMajor(wx, majorSpacing) && isMajor(wy, majorSpacing);
+          const major = isMajor(wx) && isMajor(wy);
           if (wx === startX) {
-            const color = isMajor(wy, majorSpacing) ? 0xcccccc : 0xe8e8e8;
+            const color = isMajor(wy) ? 0xcccccc : 0xe8e8e8;
             const { sx: sxLeft } = w2s(wb.minX, wy);
             const { sx: sxRight } = w2s(wb.maxX, wy);
             const { sy } = w2s(wx, wy);

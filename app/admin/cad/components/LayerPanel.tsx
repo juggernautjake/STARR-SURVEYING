@@ -7,6 +7,18 @@ import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
 
+// Accessible palette for new layers — visually distinct, good contrast
+const LAYER_COLOR_PALETTE = [
+  '#E53E3E', '#DD6B20', '#D69E2E', '#38A169', '#3182CE',
+  '#805AD5', '#D53F8C', '#00B5D8', '#2D3748', '#718096',
+];
+let paletteIndex = 0;
+function nextLayerColor(): string {
+  const color = LAYER_COLOR_PALETTE[paletteIndex % LAYER_COLOR_PALETTE.length];
+  paletteIndex++;
+  return color;
+}
+
 interface ContextMenu {
   layerId: string;
   x: number;
@@ -38,7 +50,7 @@ export default function LayerPanel() {
       name: `Layer ${doc.layerOrder.length + 1}`,
       visible: true,
       locked: false,
-      color: '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0'),
+      color: nextLayerColor(),
       lineWeight: 1,
       opacity: 1,
       isDefault: false,
