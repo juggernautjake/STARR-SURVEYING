@@ -27,6 +27,10 @@ import { useKeyboard } from '../hooks/useKeyboard';
 // ─────────────────────────────────────────────
 const HIT_TOLERANCE_PX = 5;
 const GRIP_SIZE = 8; // half-size of grip square in pixels
+const MAX_GRID_ITERATIONS = 500; // max grid lines per axis to prevent performance issues
+
+// Grid scale multipliers — find smallest that puts lines >= MIN_PX_GRID apart
+const GRID_SCALE_MULTIPLIERS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
 
 const SNAP_LABEL: Record<string, string> = {
   ENDPOINT: 'Endpoint',
@@ -225,9 +229,8 @@ export default function CanvasViewport() {
 
     // Auto-scale: find the smallest "nice" spacing that places lines >= MIN_PX apart
     const MIN_PX = gridStyle === 'DOTS' ? 5 : 8;
-    const SCALES = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
     let minorSpacing = baseMinor;
-    for (const s of SCALES) {
+    for (const s of GRID_SCALE_MULTIPLIERS) {
       const candidate = baseMinor * s;
       if (candidate * zoom >= MIN_PX) {
         minorSpacing = candidate;
@@ -235,7 +238,7 @@ export default function CanvasViewport() {
       }
     }
     if (minorSpacing * zoom < MIN_PX) {
-      // Still too small — use major or skip
+      // Still too small — fall back to major spacing
       minorSpacing = baseMajor;
     }
 
@@ -252,7 +255,7 @@ export default function CanvasViewport() {
     // Clamp loop iterations to avoid hang on extreme zoom-out
     const maxIterX = Math.ceil((endX - startX) / spacing) + 1;
     const maxIterY = Math.ceil((endY - startY) / spacing) + 1;
-    if (maxIterX > 500 || maxIterY > 500) return; // too many lines
+    if (maxIterX > MAX_GRID_ITERATIONS || maxIterY > MAX_GRID_ITERATIONS) return; // too many lines
 
     const isMajor = (v: number) =>
       Math.abs(Math.round(v / majorSpacing) * majorSpacing - v) < majorSpacing * 0.001;
@@ -628,6 +631,49 @@ export default function CanvasViewport() {
       g.lineStyle(1, 0x0088ff, 0.6);
       g.moveTo(bx, by);
       g.lineTo(x2, y2);
+      return;
+    }
+
+    // For ROTATE: show line from center to cursor + angle arc indicator
+    if (activeTool === 'ROTATE' && toolState.rotateCenter) {
+      const center = toolState.rotateCenter;
+      const { sx: cx, sy: cy } = w2s(center.x, center.y);
+      const { sx: x2, sy: y2 } = w2s(previewPoint.x, previewPoint.y);
+      g.lineStyle(1, 0xff8800, 0.7);
+      g.moveTo(cx, cy);
+      g.lineTo(x2, y2);
+      // Small cross at center
+      g.moveTo(cx - 5, cy);
+      g.lineTo(cx + 5, cy);
+      g.moveTo(cx, cy - 5);
+      g.lineTo(cx, cy + 5);
+      return;
+    }
+
+    // For SCALE: show line from base point to cursor
+    if (activeTool === 'SCALE' && toolState.basePoint) {
+      const bp = toolState.basePoint;
+      const { sx: bx, sy: by } = w2s(bp.x, bp.y);
+      const { sx: x2, sy: y2 } = w2s(previewPoint.x, previewPoint.y);
+      g.lineStyle(1, 0x00ff88, 0.6);
+      g.moveTo(bx, by);
+      g.lineTo(x2, y2);
+      // Small cross at base point
+      g.moveTo(bx - 5, by);
+      g.lineTo(bx + 5, by);
+      g.moveTo(bx, by - 5);
+      g.lineTo(bx, by + 5);
+      return;
+    }
+
+    // For MIRROR: show mirror line preview
+    if (activeTool === 'MIRROR' && drawingPoints.length === 1) {
+      const lineA = drawingPoints[0];
+      const { sx: ax, sy: ay } = w2s(lineA.x, lineA.y);
+      const { sx: bx, sy: by } = w2s(previewPoint.x, previewPoint.y);
+      g.lineStyle(1, 0xff00ff, 0.6);
+      g.moveTo(ax, ay);
+      g.lineTo(bx, by);
       return;
     }
 

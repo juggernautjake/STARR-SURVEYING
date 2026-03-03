@@ -30,10 +30,21 @@ export default function StatusBar() {
   const activeLayer = doc.layers[activeLayerId];
   const { snapEnabled, gridVisible, drawingScale } = doc.settings;
   const selCount = selectionStore.selectionCount();
-  const activeTool = toolStore.state.activeTool;
+  const { activeTool, drawingPoints, basePoint, rotateCenter } = toolStore.state;
 
   // Express zoom as a percentage of 1px-per-world-unit baseline
   const zoomPct = Math.round(zoom * 100);
+
+  // Live distance/angle when drawing
+  let distanceInfo: { dist: string; angle: string } | null = null;
+  const lastPt = drawingPoints[drawingPoints.length - 1] ?? basePoint ?? rotateCenter;
+  if (lastPt && (activeTool.startsWith('DRAW_') || activeTool === 'MOVE' || activeTool === 'COPY' || activeTool === 'MIRROR')) {
+    const dx = cursor.x - lastPt.x;
+    const dy = cursor.y - lastPt.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+    distanceInfo = { dist: dist.toFixed(3), angle: angleDeg.toFixed(1) };
+  }
 
   function toggleSnap() {
     drawingStore.updateSettings({ snapEnabled: !snapEnabled });
@@ -49,6 +60,16 @@ export default function StatusBar() {
       <span className="font-mono shrink-0">
         X: {cursor.x.toFixed(3)} &nbsp; Y: {cursor.y.toFixed(3)}
       </span>
+
+      {/* Live dist/angle when drawing */}
+      {distanceInfo && (
+        <>
+          <span className="text-gray-600">|</span>
+          <span className="font-mono shrink-0 text-cyan-400">
+            d={distanceInfo.dist} ∠{distanceInfo.angle}°
+          </span>
+        </>
+      )}
 
       <span className="text-gray-600">|</span>
 

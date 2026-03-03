@@ -176,7 +176,7 @@ export default function PropertyPanel() {
               value={displayWeight}
               onChange={(e) => setEditWeight(e.target.value)}
               onBlur={commitStyleChange}
-              onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
             />
           </div>
           <div className="flex items-center justify-between gap-2">
@@ -190,7 +190,7 @@ export default function PropertyPanel() {
               value={displayOpacity}
               onChange={(e) => setEditOpacity(e.target.value)}
               onBlur={commitStyleChange}
-              onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
             />
           </div>
         </div>

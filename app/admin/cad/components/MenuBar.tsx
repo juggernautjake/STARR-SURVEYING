@@ -102,8 +102,7 @@ export default function MenuBar() {
   function commitEditName() {
     const trimmed = nameValue.trim();
     if (trimmed) {
-      // Use updateSettings to trigger dirty, or just update name directly
-      drawingStore.loadDocument({ ...drawingStore.document, name: trimmed });
+      drawingStore.updateDocumentName(trimmed);
     }
     setEditingName(false);
   }

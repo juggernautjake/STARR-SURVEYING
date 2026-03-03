@@ -55,7 +55,7 @@ function parseCommand(raw: string): ParsedCommand {
 // ─────────────────────────────────────────────
 // Tool prompt hints
 // ─────────────────────────────────────────────
-function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCenter?: unknown): string {
+function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCenter?: unknown, basePoint?: unknown): string {
   switch (activeTool) {
     case 'SELECT':
       return 'Select objects or type a command';
@@ -72,15 +72,15 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
         ? 'Specify start point'
         : `Specify next point (${drawingPointsCount} pts) — Enter/double-click to close`;
     case 'MOVE':
-      return drawingPointsCount === 0 ? 'Specify base point' : 'Specify destination point';
+      return basePoint == null ? 'Specify base point' : 'Specify destination point';
     case 'COPY':
-      return 'Specify base point';
+      return basePoint == null ? 'Specify base point' : 'Specify destination (click again for more copies)';
     case 'ROTATE':
       return rotateCenter == null
         ? 'Specify rotation center'
         : 'Type rotation angle in degrees, then press Enter';
     case 'SCALE':
-      return rotateCenter == null
+      return basePoint == null
         ? 'Specify base point for scale'
         : 'Type scale factor (e.g. 2 for double, 0.5 for half), then press Enter';
     case 'MIRROR':
@@ -104,7 +104,7 @@ export default function CommandBar() {
   const uiStore = useUIStore();
 
   const toolState = toolStore.state;
-  const hint = getPromptHint(toolState.activeTool, toolState.drawingPoints.length, toolState.rotateCenter);
+  const hint = getPromptHint(toolState.activeTool, toolState.drawingPoints.length, toolState.rotateCenter, toolState.basePoint);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {

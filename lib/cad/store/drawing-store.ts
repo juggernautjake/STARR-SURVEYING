@@ -50,6 +50,7 @@ interface DrawingStore {
   // Document actions
   newDocument: () => void;
   loadDocument: (doc: DrawingDocument) => void;
+  updateDocumentName: (name: string) => void;
   updateSettings: (settings: Partial<DrawingSettings>) => void;
   markClean: () => void;
 
@@ -210,6 +211,12 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
 
   loadDocument: (doc) =>
     set({ document: doc, activeLayerId: doc.layerOrder[0] ?? '', isDirty: false }),
+
+  updateDocumentName: (name) =>
+    set((state) => ({
+      document: { ...state.document, name, modified: new Date().toISOString() },
+      isDirty: true,
+    })),
 
   updateSettings: (settings) =>
     set((state) => ({
