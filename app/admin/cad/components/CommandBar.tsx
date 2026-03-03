@@ -58,49 +58,59 @@ function parseCommand(raw: string): ParsedCommand {
 function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCenter?: unknown, basePoint?: unknown, regularPolygonSides?: number): string {
   switch (activeTool) {
     case 'SELECT':
-      return 'Select objects or type a command';
+      return 'Click to select, Shift+click to add/remove, drag to box-select, or type a command';
+    case 'PAN':
+      return 'Click and drag to pan. Scroll to zoom. Middle-mouse drag also pans. Press S to return to Select.';
     case 'DRAW_POINT':
-      return 'Click to place point';
+      return 'Click to place a point. Use snap for precision. Esc to cancel.';
     case 'DRAW_LINE':
-      return drawingPointsCount === 0 ? 'Specify first point' : 'Specify endpoint (right-click to cancel)';
+      return drawingPointsCount === 0
+        ? 'Specify first point — click or type x,y'
+        : 'Specify endpoint — click, type x,y, @dx,dy, or @dist<angle. Right-click or Esc to cancel.';
     case 'DRAW_POLYLINE':
       return drawingPointsCount === 0
-        ? 'Specify start point'
-        : `Specify next point (${drawingPointsCount} pts) — Right-click/Enter/double-click to finish`;
+        ? 'Specify start point — click or type x,y'
+        : `Specify next point (${drawingPointsCount} pt${drawingPointsCount !== 1 ? 's' : ''}) — Right-click, Enter, or double-click to finish  [U] removes last pt`;
     case 'DRAW_POLYGON':
       return drawingPointsCount === 0
-        ? 'Specify start point'
-        : `Specify next point (${drawingPointsCount} pts) — Enter/double-click to close`;
+        ? 'Specify start point — click or type x,y'
+        : `Specify next vertex (${drawingPointsCount} pt${drawingPointsCount !== 1 ? 's' : ''}, min 3) — Enter or double-click to close polygon  [U] removes last pt`;
     case 'DRAW_RECTANGLE':
       return drawingPointsCount === 0
-        ? 'Specify first corner of rectangle'
-        : 'Specify opposite corner (right-click to cancel)';
+        ? 'Specify first corner of rectangle — click or type x,y'
+        : 'Specify opposite corner — click, type x,y, or @dx,dy. Right-click or Esc to cancel.';
     case 'DRAW_REGULAR_POLYGON':
       return drawingPointsCount === 0
-        ? `Specify center of ${regularPolygonSides ?? 6}-sided polygon (right-click variant menu to change sides)`
-        : `Specify radius / first vertex`;
+        ? `Specify center of ${regularPolygonSides ?? 6}-sided polygon — change sides in the toolbar above`
+        : 'Specify radius or click a vertex position. Esc to cancel.';
     case 'DRAW_CIRCLE':
       return drawingPointsCount === 0
-        ? 'Specify circle center point'
-        : 'Specify radius (or type a distance in the command bar)';
+        ? 'Specify circle center point — click or type x,y'
+        : 'Specify radius — click a point on the circle or type a distance value';
     case 'MOVE':
-      return basePoint == null ? 'Specify base point' : 'Specify destination point';
+      return basePoint == null
+        ? 'Select objects then specify base point — click or type x,y'
+        : 'Specify destination point — click, type x,y, or @dx,dy relative offset';
     case 'COPY':
-      return basePoint == null ? 'Specify base point' : 'Specify destination (click again for more copies)';
+      return basePoint == null
+        ? 'Select objects then specify base point — click or type x,y'
+        : 'Specify destination — click to place copies, Esc when done';
     case 'ROTATE':
       return rotateCenter == null
-        ? 'Specify rotation center'
-        : 'Type rotation angle in degrees, then press Enter';
+        ? 'Specify rotation center point — click or type x,y'
+        : 'Type rotation angle in degrees (positive=CCW) and press Enter, or use the toolbar presets above';
     case 'SCALE':
       return basePoint == null
-        ? 'Specify base point for scale'
-        : 'Type scale factor (e.g. 2 for double, 0.5 for half), then press Enter';
+        ? 'Specify base point for scale — click or type x,y'
+        : 'Type scale factor (e.g. 2=double, 0.5=half) and press Enter, or use the toolbar presets above';
     case 'MIRROR':
-      return drawingPointsCount === 0 ? 'Specify first mirror line point' : 'Specify second mirror line point';
+      return drawingPointsCount === 0
+        ? 'Specify first point of mirror line — click or type x,y'
+        : 'Specify second point of mirror line — click or type x,y. Esc to cancel.';
     case 'ERASE':
-      return 'Click features to erase (or select and press Delete)';
+      return 'Click features to erase them, or select features first then press Delete';
     default:
-      return 'Type a command';
+      return 'Type a command (e.g. line, polyline, move, rotate) or coordinates (x,y or @dx,dy)';
   }
 }
 
@@ -181,8 +191,19 @@ export default function CommandBar() {
   function executeCommand(name: string) {
     switch (name) {
       case 'undo':
-      case 'u':
         undoStore.undo();
+        break;
+      case 'u':
+        // During active polyline/polygon drawing, 'u' removes the last placed vertex
+        // without cancelling the entire operation (like AutoCAD/Carlson behavior)
+        if (
+          (toolState.activeTool === 'DRAW_POLYLINE' || toolState.activeTool === 'DRAW_POLYGON') &&
+          toolState.drawingPoints.length > 0
+        ) {
+          toolStore.popDrawingPoint();
+        } else {
+          undoStore.undo();
+        }
         break;
       case 'redo':
         undoStore.redo();
@@ -248,6 +269,27 @@ export default function CommandBar() {
       case 's':
         toolStore.setTool('SELECT');
         break;
+      case 'scale':
+      case 'sc':
+        toolStore.setTool('SCALE');
+        break;
+      case 'pan':
+      case 'h':
+        toolStore.setTool('PAN');
+        break;
+      case 'rectangle':
+      case 'rect':
+      case 're':
+        toolStore.setTool('DRAW_RECTANGLE');
+        break;
+      case 'circle':
+      case 'ci':
+        toolStore.setTool('DRAW_CIRCLE');
+        break;
+      case 'regpoly':
+      case 'rp':
+        toolStore.setTool('DRAW_REGULAR_POLYGON');
+        break;
       case 'snap on':
         drawingStore.updateSettings({ snapEnabled: true });
         break;
@@ -259,6 +301,18 @@ export default function CommandBar() {
         break;
       case 'grid off':
         drawingStore.updateSettings({ gridVisible: false });
+        break;
+      case 'ortho on':
+        toolStore.setOrthoEnabled(true);
+        break;
+      case 'ortho off':
+        toolStore.setOrthoEnabled(false);
+        break;
+      case 'polar on':
+        toolStore.setPolarEnabled(true);
+        break;
+      case 'polar off':
+        toolStore.setPolarEnabled(false);
         break;
     }
   }

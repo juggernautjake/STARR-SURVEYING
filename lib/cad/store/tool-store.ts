@@ -7,6 +7,7 @@ interface ToolStore {
 
   setTool: (tool: ToolType) => void;
   addDrawingPoint: (point: Point2D) => void;
+  popDrawingPoint: () => void;
   setPreviewPoint: (point: Point2D | null) => void;
   clearDrawingPoints: () => void;
   setBasePoint: (point: Point2D) => void;
@@ -61,6 +62,14 @@ export const useToolStore = create<ToolStore>((set) => ({
   addDrawingPoint: (point) =>
     set((s) => ({
       state: { ...s.state, drawingPoints: [...s.state.drawingPoints, point] },
+    })),
+
+  popDrawingPoint: () =>
+    set((s) => ({
+      state: {
+        ...s.state,
+        drawingPoints: s.state.drawingPoints.slice(0, -1),
+      },
     })),
 
   setPreviewPoint: (point) =>

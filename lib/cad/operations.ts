@@ -296,9 +296,10 @@ export function selectSimilarType(featureId: string): void {
   const selectionStore = useSelectionStore.getState();
   const feature = drawingStore.getFeature(featureId);
   if (!feature) return;
+  // Select features of the same type on the same layer (matches AutoCAD "Select Similar" behaviour)
   const similarIds = drawingStore
     .getAllFeatures()
-    .filter((f) => f.type === feature.type)
+    .filter((f) => f.type === feature.type && f.layerId === feature.layerId)
     .map((f) => f.id);
   selectionStore.selectMultiple(similarIds, 'REPLACE');
 }

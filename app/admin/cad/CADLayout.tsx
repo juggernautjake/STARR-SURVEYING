@@ -52,6 +52,23 @@ async function writeAutosave(value: unknown): Promise<void> {
   });
 }
 
+/** Read the autosave entry from IndexedDB */
+async function readAutosave(): Promise<{ savedAt: string; document: unknown } | null> {
+  try {
+    const db = await openAutosaveDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(AUTOSAVE_STORE, 'readonly');
+      const req = tx.objectStore(AUTOSAVE_STORE).get(AUTOSAVE_KEY);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => resolve(null);
+      tx.oncomplete = () => db.close();
+      tx.onerror = () => db.close();
+    });
+  } catch {
+    return null;
+  }
+}
+
 export default function CADLayout() {
   const { showLayerPanel, showPropertyPanel } = useUIStore();
   const drawingStore = useDrawingStore();
@@ -62,6 +79,29 @@ export default function CADLayout() {
     y: number;
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [recoveryPayload, setRecoveryPayload] = useState<{
+    savedAt: string;
+    document: unknown;
+  } | null>(null);
+
+  // On mount: check IndexedDB for a crash-recovery autosave
+  useEffect(() => {
+    readAutosave().then((saved) => {
+      if (!saved?.savedAt) return;
+      const savedTime = new Date(saved.savedAt).getTime();
+      const docTime = new Date(drawingStore.document.modified).getTime();
+      // Offer recovery only when the autosave is meaningfully newer (> 5 s)
+      if (savedTime - docTime > 5_000) {
+        setRecoveryPayload(saved);
+      }
+    });
+    // Zoom to a sensible default view after the canvas initialises
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('cad:zoomExtents'));
+    }, 200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Listen for feature dialog open events dispatched from CanvasViewport
   useEffect(() => {
@@ -106,6 +146,40 @@ export default function CADLayout() {
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden bg-white select-none">
+      {/* Crash-recovery dialog — offered when an autosave newer than current document is found */}
+      {recoveryPayload && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70">
+          <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-5 max-w-md w-full text-sm text-gray-200 space-y-4">
+            <h2 className="text-white font-semibold text-base">Recover Unsaved Drawing?</h2>
+            <p className="text-gray-400 text-xs leading-relaxed">
+              An auto-saved version from{' '}
+              <strong className="text-white">{new Date(recoveryPayload.savedAt).toLocaleString()}</strong>{' '}
+              was found — this is newer than the current document. Would you like to restore it?
+            </p>
+            <div className="flex gap-3 justify-end pt-2">
+              <button
+                className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs transition-colors"
+                onClick={() => setRecoveryPayload(null)}
+              >
+                Discard & Start Fresh
+              </button>
+              <button
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs transition-colors"
+                onClick={() => {
+                  const payload = recoveryPayload.document as Parameters<typeof drawingStore.loadDocument>[0];
+                  drawingStore.loadDocument(payload);
+                  setRecoveryPayload(null);
+                  // Zoom to the recovered drawing's extents
+                  setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
+                }}
+              >
+                Recover Drawing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Auto-save failure warning */}
       {autoSaveFailed && (
         <div className="bg-yellow-500 text-black text-xs px-3 py-1 flex justify-between items-center">
