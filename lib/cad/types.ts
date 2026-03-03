@@ -65,6 +65,24 @@ export interface DrawingSettings {
   paperOrientation: 'PORTRAIT' | 'LANDSCAPE';
   drawingScale: number; // e.g., 50 for 1"=50'
   codeDisplayMode: 'ALPHA' | 'NUMERIC';
+
+  // ─── Phase 2: Points & Import ───────────────────────────────────────────
+
+  // Code display toggle — alpha (e.g., "BC02") or numeric (e.g., "309")
+  // Affects the Point Table panel, canvas labels, and exported CSV.
+
+  // Point labels
+  showPointLabels: boolean;           // Show code/name text near each point on canvas
+  pointLabelField: 'CODE' | 'ELEVATION' | 'NAME' | 'NUMBER'; // What text to show per point
+
+  // Point grouping quality checks
+  deltaWarningThreshold: number;      // Feet — calc-to-field delta above this triggers a warning (default: 0.10)
+
+  // Group position display
+  showAllGroupPositions: boolean;     // Show all calc/set/found positions instead of just the final
+
+  // Import defaults
+  autoZoomOnImport: boolean;          // Zoom to fit after every import (default: true)
 }
 
 // --- FEATURES ---

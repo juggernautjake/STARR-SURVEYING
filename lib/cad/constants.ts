@@ -22,6 +22,12 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   paperOrientation: 'LANDSCAPE',
   drawingScale: 50,
   codeDisplayMode: 'ALPHA',
+  // Phase 2 defaults
+  showPointLabels: true,
+  pointLabelField: 'CODE',
+  deltaWarningThreshold: 0.10,
+  showAllGroupPositions: false,
+  autoZoomOnImport: true,
 };
 
 export const DEFAULT_FEATURE_STYLE: FeatureStyle = {

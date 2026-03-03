@@ -37,6 +37,7 @@ export interface ImportStats {
 export function processImport(
   parsedRows: ParsedImportRow[],
   sourceFileName: string,
+  deltaWarningThreshold?: number,
 ): ImportResult {
   const points: SurveyPoint[] = [];
   const stats: ImportStats = {
@@ -114,7 +115,7 @@ export function processImport(
   }
 
   // Step 3: Group points
-  const pointGroups = groupPointsByBaseName(points);
+  const pointGroups = groupPointsByBaseName(points, deltaWarningThreshold);
   stats.pointGroupsFound = pointGroups.size;
   for (const group of pointGroups.values()) {
     if (group.hasBothCalcAndField) stats.groupsWithCalcAndField++;

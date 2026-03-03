@@ -1,13 +1,17 @@
 // lib/cad/codes/point-grouping.ts
 import type { SurveyPoint, PointGroup } from '../types';
 
-const DELTA_WARNING_THRESHOLD = 0.10; // feet
+/** Default delta warning threshold in feet. Can be overridden per-call. */
+export const DEFAULT_DELTA_WARNING_THRESHOLD = 0.10;
 
 function distance(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
-export function groupPointsByBaseName(points: SurveyPoint[]): Map<number, PointGroup> {
+export function groupPointsByBaseName(
+  points: SurveyPoint[],
+  deltaWarningThreshold = DEFAULT_DELTA_WARNING_THRESHOLD,
+): Map<number, PointGroup> {
   const groups = new Map<number, PointGroup>();
 
   for (const pt of points) {
@@ -78,8 +82,8 @@ export function groupPointsByBaseName(points: SurveyPoint[]): Map<number, PointG
     }
 
     group.deltaWarning =
-      (group.calcSetDelta !== null && group.calcSetDelta > DELTA_WARNING_THRESHOLD) ||
-      (group.calcFoundDelta !== null && group.calcFoundDelta > DELTA_WARNING_THRESHOLD);
+      (group.calcSetDelta !== null && group.calcSetDelta > deltaWarningThreshold) ||
+      (group.calcFoundDelta !== null && group.calcFoundDelta > deltaWarningThreshold);
   }
 
   return groups;

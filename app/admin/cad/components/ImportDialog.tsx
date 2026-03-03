@@ -449,6 +449,9 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
   const undoStore = useUndoStore();
   const [importResult, setImportResult] = useState<ReturnType<typeof processImport> | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  const { settings } = drawingStore.document;
 
   const canGoNext = () => {
     const { step, file, rawText } = importStore;
@@ -461,19 +464,41 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
 
   const handleNext = async () => {
     const { step, rawText, fileType, config } = importStore;
+    setParseError(null);
 
     // Build the parse result when moving to PREVIEW
     if (step === 'COLUMN_MAPPING' || (step === 'FILE_SELECT' && fileType !== 'CSV' && fileType !== 'TXT')) {
       setIsProcessing(true);
       try {
-        const parsed = fileType === 'RW5'
-          ? parseRW5(rawText)
-          : fileType === 'JOBXML'
-            ? parseJobXML(rawText)
-            : parseCSV(rawText, config);
-        const result = processImport(parsed, importStore.file?.name ?? 'unknown');
+        let parsed;
+        if (fileType === 'RW5') {
+          parsed = parseRW5(rawText);
+        } else if (fileType === 'JOBXML') {
+          parsed = parseJobXML(rawText);
+        } else {
+          parsed = parseCSV(rawText, config);
+        }
+        // Check for total parse failure
+        const allErrors = parsed.filter(r => r.error !== null);
+        if (parsed.length === 0) {
+          setParseError('No data found in this file. Please check the file format and try again.');
+          return;
+        }
+        if (allErrors.length === parsed.length) {
+          setParseError(`All ${allErrors.length} rows failed to parse. Check the column mapping and delimiter settings, then try again.`);
+          return;
+        }
+        const result = processImport(
+          parsed,
+          importStore.file?.name ?? 'unknown',
+          settings.deltaWarningThreshold,
+        );
         setImportResult(result);
         importStore.setImportResult(result);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setParseError(`Parse error: ${msg}. Please check the file format and try again.`);
+        return;
       } finally {
         setIsProcessing(false);
       }
@@ -489,79 +514,104 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
 
   const handleExecuteImport = () => {
     if (!importResult) return;
+    setParseError(null);
 
-    // Add points to point store
-    pointStore.importPoints(importResult);
+    try {
+      // Add points to point store
+      pointStore.importPoints(importResult);
 
-    // Build features for the drawing canvas
-    const features: Feature[] = [];
-    const operations: UndoOperation[] = [];
+      // Build features for the drawing canvas
+      const features: Feature[] = [];
+      const operations: UndoOperation[] = [];
 
-    // Build a lookup map for O(1) point access by ID
-    const pointById = new Map(importResult.points.map(p => [p.id, p]));
+      // Build a lookup map for O(1) point access by ID
+      const pointById = new Map(importResult.points.map(p => [p.id, p]));
 
-    for (const pt of importResult.points) {
-      const pointFeature: Feature = {
-        id: generateId(),
-        type: 'POINT',
-        geometry: { type: 'POINT', point: { x: pt.easting, y: pt.northing } },
-        layerId: pt.layerId,
-        style: {
-          color: pt.codeDefinition?.defaultColor ?? '#000000',
-          lineWeight: 1,
-          opacity: 1,
-        },
-        properties: {
-          pointId: pt.id,
-          pointName: pt.pointName,
-          code: pt.resolvedAlphaCode,
-        },
-      };
-      pt.featureId = pointFeature.id;
-      features.push(pointFeature);
-      operations.push({ type: 'ADD_FEATURE', data: pointFeature });
+      for (const pt of importResult.points) {
+        try {
+          const pointFeature: Feature = {
+            id: generateId(),
+            type: 'POINT',
+            geometry: { type: 'POINT', point: { x: pt.easting, y: pt.northing } },
+            layerId: pt.layerId,
+            style: {
+              color: pt.codeDefinition?.defaultColor ?? '#000000',
+              lineWeight: 1,
+              opacity: 1,
+            },
+            properties: {
+              pointId: pt.id,
+              pointName: pt.pointName,
+              code: pt.resolvedAlphaCode,
+              numericCode: pt.resolvedNumericCode,
+            },
+          };
+          pt.featureId = pointFeature.id;
+          features.push(pointFeature);
+          operations.push({ type: 'ADD_FEATURE', data: pointFeature });
+        } catch {
+          // Skip malformed points rather than failing the entire import
+        }
+      }
+
+      for (const ls of importResult.lineStrings) {
+        if (ls.pointIds.length < 2) continue;
+        try {
+          const pts = ls.pointIds
+            .map(id => pointById.get(id))
+            .filter((p): p is (typeof importResult.points)[number] => p !== undefined);
+          if (pts.length < 2) continue;
+
+          const codeDef = pts[0]?.codeDefinition;
+          const lineFeature: Feature = {
+            id: generateId(),
+            type: 'POLYLINE',
+            geometry: {
+              type: 'POLYLINE',
+              vertices: pts.map(p => ({ x: p.easting, y: p.northing })),
+            },
+            layerId: pts[0]?.layerId ?? 'MISC',
+            style: {
+              color: codeDef?.defaultColor ?? '#000000',
+              lineWeight: codeDef?.defaultLineWeight ?? 1,
+              opacity: 1,
+            },
+            properties: {
+              lineStringId: ls.id,
+              codeBase: ls.codeBase,
+              isClosed: String(ls.isClosed),
+            },
+          };
+          ls.featureId = lineFeature.id;
+          features.push(lineFeature);
+          operations.push({ type: 'ADD_FEATURE', data: lineFeature });
+        } catch {
+          // Skip malformed line strings
+        }
+      }
+
+      if (features.length === 0) {
+        setParseError('No valid features could be created from the imported data. Check the file and try again.');
+        return;
+      }
+
+      // Batch-add to drawing with a single undoable entry
+      drawingStore.addFeatures(features);
+      undoStore.pushUndo(
+        makeBatchEntry(`Import ${importResult.stats.parsedSuccessfully} points`, operations),
+      );
+
+      // Auto-zoom to imported points if setting is enabled
+      if (settings.autoZoomOnImport ?? true) {
+        setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
+      }
+
+      importStore.nextStep(); // → COMPLETE
+      onImportComplete?.();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setParseError(`Import failed: ${msg}. Your data has not been saved.`);
     }
-
-    for (const ls of importResult.lineStrings) {
-      if (ls.pointIds.length < 2) continue;
-      const pts = ls.pointIds
-        .map(id => pointById.get(id))
-        .filter((p): p is (typeof importResult.points)[number] => p !== undefined);
-      if (pts.length < 2) continue;
-
-      const codeDef = pts[0]?.codeDefinition;
-      const lineFeature: Feature = {
-        id: generateId(),
-        type: 'POLYLINE',
-        geometry: {
-          type: 'POLYLINE',
-          vertices: pts.map(p => ({ x: p.easting, y: p.northing })),
-        },
-        layerId: pts[0]?.layerId ?? 'MISC',
-        style: {
-          color: codeDef?.defaultColor ?? '#000000',
-          lineWeight: codeDef?.defaultLineWeight ?? 1,
-          opacity: 1,
-        },
-        properties: {
-          lineStringId: ls.id,
-          codeBase: ls.codeBase,
-          isClosed: String(ls.isClosed),
-        },
-      };
-      ls.featureId = lineFeature.id;
-      features.push(lineFeature);
-      operations.push({ type: 'ADD_FEATURE', data: lineFeature });
-    }
-
-    // Batch-add to drawing with a single undoable entry
-    drawingStore.addFeatures(features);
-    undoStore.pushUndo(
-      makeBatchEntry(`Import ${importResult.stats.parsedSuccessfully} points`, operations),
-    );
-
-    importStore.nextStep(); // → COMPLETE
-    onImportComplete?.();
   };
 
   const isLastDataStep = importStore.step === 'VALIDATION';
@@ -583,6 +633,16 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
         {/* Body */}
         <div className="flex-1 overflow-auto px-5 py-4">
           <StepIndicator current={importStore.step} />
+
+          {/* Parse/import error message */}
+          {parseError && (
+            <div className="mb-4 flex items-start gap-2 bg-red-950/60 border border-red-700 rounded-lg p-3 text-xs text-red-300">
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-red-200">Error:</strong> {parseError}
+              </div>
+            </div>
+          )}
 
           {importStore.step === 'FILE_SELECT' && <FileSelectStep />}
           {importStore.step === 'COLUMN_MAPPING' && <ColumnMappingStep />}

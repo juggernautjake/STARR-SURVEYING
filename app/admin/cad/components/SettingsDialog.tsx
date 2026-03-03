@@ -2,7 +2,7 @@
 // app/admin/cad/components/SettingsDialog.tsx — Drawing settings & preferences
 
 import { useState } from 'react';
-import { X, Grid, ZoomIn, Sliders, Palette } from 'lucide-react';
+import { X, Grid, Sliders, Palette, MapPin } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import type { SnapType } from '@/lib/cad/types';
 import Tooltip from './Tooltip';
@@ -21,7 +21,7 @@ const ALL_SNAP_TYPES: { type: SnapType; label: string; description: string }[] =
   { type: 'GRID', label: 'Grid', description: 'Snaps to the nearest grid intersection' },
 ];
 
-const TABS = ['Display', 'Grid', 'Appearance', 'Snap', 'Document'] as const;
+const TABS = ['Display', 'Grid', 'Appearance', 'Snap', 'Points', 'Document'] as const;
 type Tab = typeof TABS[number];
 
 // ── Helper: color row with tooltip ───────────────────────────────────────────
@@ -421,6 +421,199 @@ export default function SettingsDialog({ onClose }: Props) {
               </div>
             </div>
           )}
+
+          {/* ── Points & Import (Phase 2) ────────────────────────────────────── */}
+          {activeTab === 'Points' && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-[11px] text-blue-400">
+                <MapPin size={12} />
+                <span className="font-medium">Survey Point Display &amp; Import Settings</span>
+              </div>
+
+              {/* Code Display Mode */}
+              <div>
+                <Tooltip
+                  label="Code Display Mode"
+                  description="Controls how point codes are shown throughout the interface. Alpha mode shows mnemonic codes like BC02 or FN03; Numeric mode shows the original numeric equivalents like 309 or 742. This affects the Point Table, canvas labels, and exported CSVs."
+                  side="right"
+                  delay={400}
+                >
+                  <div>
+                    <div className="text-white font-medium mb-1">Code Display Mode</div>
+                    <div className="text-gray-500 text-[10px] mb-2">
+                      How codes appear in the Point Table, canvas labels, and exports.
+                    </div>
+                  </div>
+                </Tooltip>
+                <div className="flex gap-2">
+                  {(['ALPHA', 'NUMERIC'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      className={`px-3 py-1.5 rounded border text-xs font-medium transition-colors ${
+                        settings.codeDisplayMode === mode
+                          ? 'bg-blue-600 border-blue-500 text-white'
+                          : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                      }`}
+                      onClick={() => drawingStore.updateSettings({ codeDisplayMode: mode })}
+                    >
+                      {mode === 'ALPHA' ? '🔤 Alpha (BC02, FN03…)' : '🔢 Numeric (309, 742…)'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Point Labels */}
+              <div className="border-t border-gray-700 pt-3">
+                <Tooltip
+                  label="Show Point Labels"
+                  description="When enabled, a small text label is drawn near each survey point on the canvas. The label field determines what text is shown. Disable for cleaner views with many points."
+                  side="right"
+                  delay={400}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="text-white font-medium">Show Point Labels</div>
+                      <div className="text-gray-500 text-[10px]">Draw code/name text near each survey point on canvas</div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={settings.showPointLabels ?? true}
+                        onChange={() => drawingStore.updateSettings({ showPointLabels: !(settings.showPointLabels ?? true) })}
+                      />
+                      <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                    </label>
+                  </div>
+                </Tooltip>
+
+                {(settings.showPointLabels ?? true) && (
+                  <div className="mt-2">
+                    <label className="block text-gray-400 mb-1">Label Field</label>
+                    <select
+                      className="w-full bg-gray-700 text-white rounded px-2 py-1 outline-none text-xs"
+                      value={settings.pointLabelField ?? 'CODE'}
+                      onChange={(e) =>
+                        drawingStore.updateSettings({
+                          pointLabelField: e.target.value as typeof settings.pointLabelField,
+                        })
+                      }
+                    >
+                      <option value="CODE">Code (e.g., BC02 or 309)</option>
+                      <option value="NAME">Point Name (e.g., 20set)</option>
+                      <option value="NUMBER">Point Number (e.g., 20)</option>
+                      <option value="ELEVATION">Elevation (e.g., 815.23)</option>
+                    </select>
+                    <p className="text-gray-500 text-[10px] mt-1">
+                      What text to display near each point. Code respects the Code Display Mode above.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Delta Warning Threshold */}
+              <div className="border-t border-gray-700 pt-3">
+                <Tooltip
+                  label="Delta Warning Threshold"
+                  description="When a calculated point and its corresponding set or found point are further apart than this value (in survey feet), a delta warning (Δ) is shown in the Point Table. The default is 0.10 feet — any calc-to-field discrepancy greater than this triggers a yellow warning badge."
+                  side="right"
+                  delay={400}
+                >
+                  <div>
+                    <div className="text-white font-medium mb-1">Delta Warning Threshold</div>
+                    <div className="text-gray-500 text-[10px] mb-2">
+                      Calc-to-field distance above which a Δ warning appears in the Point Table.
+                    </div>
+                  </div>
+                </Tooltip>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="w-24 bg-gray-700 text-white rounded px-2 py-1 outline-none font-mono"
+                    type="number"
+                    min="0.001"
+                    max="10"
+                    step="0.01"
+                    value={settings.deltaWarningThreshold ?? 0.10}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      if (!isNaN(v) && v > 0) drawingStore.updateSettings({ deltaWarningThreshold: v });
+                    }}
+                  />
+                  <span className="text-gray-400">feet</span>
+                  <button
+                    className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors underline ml-2"
+                    onClick={() => drawingStore.updateSettings({ deltaWarningThreshold: 0.10 })}
+                  >
+                    Reset to 0.10′
+                  </button>
+                </div>
+              </div>
+
+              {/* Show All Group Positions */}
+              <div className="border-t border-gray-700 pt-3">
+                <Tooltip
+                  label="Show All Group Positions"
+                  description="When a point group has both calculated and field positions (set/found), this toggle shows all variants on the canvas with reduced opacity — not just the final chosen point. Useful for visualizing how far off the calculated position was from the field measurement."
+                  side="right"
+                  delay={400}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-white font-medium">Show All Group Positions</div>
+                      <div className="text-gray-500 text-[10px]">Show calc/set/found overlays instead of only the final point</div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={settings.showAllGroupPositions ?? false}
+                        onChange={() => drawingStore.updateSettings({ showAllGroupPositions: !(settings.showAllGroupPositions ?? false) })}
+                      />
+                      <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                    </label>
+                  </div>
+                </Tooltip>
+              </div>
+
+              {/* Auto Zoom on Import */}
+              <div className="border-t border-gray-700 pt-3">
+                <Tooltip
+                  label="Auto-Zoom After Import"
+                  description="When enabled, the canvas automatically zooms to fit all imported points after a successful import. Disable if you prefer to control the view manually."
+                  side="right"
+                  delay={400}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-white font-medium">Auto-Zoom After Import</div>
+                      <div className="text-gray-500 text-[10px]">Zoom to fit imported points automatically</div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={settings.autoZoomOnImport ?? true}
+                        onChange={() => drawingStore.updateSettings({ autoZoomOnImport: !(settings.autoZoomOnImport ?? true) })}
+                      />
+                      <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                    </label>
+                  </div>
+                </Tooltip>
+              </div>
+
+              {/* Code System Info */}
+              <div className="border-t border-gray-700 pt-3">
+                <div className="text-gray-500 text-[10px] space-y-1">
+                  <p className="text-gray-400 font-medium">Point Code System</p>
+                  <p>STARR CAD uses a dual-code system: every code has both an alpha (mnemonic) and numeric equivalent.</p>
+                  <p>Example: <span className="font-mono text-blue-300">BC02 ↔ 309</span> (1/2″ Iron Rod Found), <span className="font-mono text-blue-300">FN03 ↔ 742</span> (Chain Link Fence)</p>
+                  <p>Codes with <span className="font-mono text-yellow-300">B/E</span> suffixes start/end line strings. <span className="font-mono text-yellow-300">BA/EA/CA/A</span> variants create arc segments.</p>
+                  <p>Point names ending in <span className="font-mono text-green-300">fnd/set/calc</span> trigger monument intelligence — the best field position is chosen as the final drawn point.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* Footer */}

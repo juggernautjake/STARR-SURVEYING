@@ -1,7 +1,7 @@
 'use client';
 // app/admin/cad/components/StatusBar.tsx — Bottom status bar
 
-import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore } from '@/lib/cad/store';
+import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore, usePointStore } from '@/lib/cad/store';
 
 const TOOL_LABELS: Record<string, string> = {
   SELECT: 'Select',
@@ -26,14 +26,20 @@ export default function StatusBar() {
   const viewportStore = useViewportStore();
   const selectionStore = useSelectionStore();
   const toolStore = useToolStore();
+  const pointStore = usePointStore();
   const cursor = viewportStore.cursorWorld;
   const zoom = viewportStore.zoom;
 
   const { document: doc, activeLayerId } = drawingStore;
   const activeLayer = doc.layers[activeLayerId];
-  const { snapEnabled, gridVisible, drawingScale } = doc.settings;
+  const { snapEnabled, gridVisible, drawingScale, codeDisplayMode } = doc.settings;
   const selCount = selectionStore.selectionCount();
   const { activeTool, drawingPoints, basePoint, rotateCenter, orthoEnabled, polarEnabled, polarAngle, copyMode } = toolStore.state;
+
+  // Phase 2 — point stats
+  const pointCount = pointStore.getPointCount();
+  const lineStringCount = pointStore.getAllLineStrings().length;
+  const deltaWarnings = Array.from(pointStore.pointGroups.values()).filter(g => g.deltaWarning).length;
 
   // Express zoom as a percentage of 1px-per-world-unit baseline
   const zoomPct = Math.round(zoom * 100);
@@ -159,6 +165,28 @@ export default function StatusBar() {
       <span className="text-gray-500 shrink-0" title="Drawing scale">
         1″={drawingScale}′
       </span>
+
+      {/* Phase 2 — Point stats (only shown when points are imported) */}
+      {pointCount > 0 && (
+        <>
+          <span className="text-gray-600">|</span>
+          <span
+            className="text-cyan-600 shrink-0 font-mono"
+            title={`${pointCount} survey points imported · ${lineStringCount} line strings · Code mode: ${codeDisplayMode}`}
+          >
+            {pointCount}pts
+            {lineStringCount > 0 && ` · ${lineStringCount}ls`}
+          </span>
+          {deltaWarnings > 0 && (
+            <span
+              className="text-yellow-400 shrink-0"
+              title={`${deltaWarnings} point group(s) have calc-to-field delta above the warning threshold`}
+            >
+              ⚠ {deltaWarnings}Δ
+            </span>
+          )}
+        </>
+      )}
     </div>
   );
 }

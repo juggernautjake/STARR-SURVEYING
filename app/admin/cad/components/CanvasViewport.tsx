@@ -1761,6 +1761,32 @@ export default function CanvasViewport() {
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:rotate', onRotate);
     window.addEventListener('cad:scale', onScale);
+
+    // ── Phase 2: zoom to a specific feature (dispatched from PointTablePanel) ──
+    const onZoomToFeature = (e: Event) => {
+      const { featureId } = (e as CustomEvent).detail as { featureId: string };
+      const dwgStore = useDrawingStore.getState();
+      const vpStore = useViewportStore.getState();
+      const feature = dwgStore.getFeature(featureId);
+      if (!feature) return;
+      const g = feature.geometry;
+      let pts: { x: number; y: number }[] = [];
+      if (g.type === 'POINT' && g.point) pts = [g.point];
+      else if (g.type === 'LINE') pts = [g.start!, g.end!].filter(Boolean);
+      else pts = g.vertices ?? [];
+      if (pts.length === 0) return;
+      const bounds = computeBounds(pts);
+      // Expand single-point bounds so it's visible
+      const padded = {
+        minX: bounds.minX - 50,
+        minY: bounds.minY - 50,
+        maxX: bounds.maxX + 50,
+        maxY: bounds.maxY + 50,
+      };
+      vpStore.zoomToExtents(padded);
+    };
+    window.addEventListener('cad:zoomToFeature', onZoomToFeature);
+
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -1768,6 +1794,7 @@ export default function CanvasViewport() {
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
+      window.removeEventListener('cad:zoomToFeature', onZoomToFeature);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolStore]);
