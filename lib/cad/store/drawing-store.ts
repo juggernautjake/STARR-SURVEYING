@@ -51,6 +51,7 @@ interface DrawingStore {
   newDocument: () => void;
   loadDocument: (doc: DrawingDocument) => void;
   updateDocumentName: (name: string) => void;
+  updateDocumentAuthor: (author: string) => void;
   updateSettings: (settings: Partial<DrawingSettings>) => void;
   markClean: () => void;
 
@@ -215,6 +216,12 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
   updateDocumentName: (name) =>
     set((state) => ({
       document: { ...state.document, name, modified: new Date().toISOString() },
+      isDirty: true,
+    })),
+
+  updateDocumentAuthor: (author) =>
+    set((state) => ({
+      document: { ...state.document, author, modified: new Date().toISOString() },
       isDirty: true,
     })),
 

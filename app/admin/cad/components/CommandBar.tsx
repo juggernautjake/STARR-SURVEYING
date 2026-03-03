@@ -66,7 +66,7 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
     case 'DRAW_POLYLINE':
       return drawingPointsCount === 0
         ? 'Specify start point'
-        : `Specify next point (${drawingPointsCount} pts) — Enter/double-click to finish`;
+        : `Specify next point (${drawingPointsCount} pts) — Right-click/Enter/double-click to finish`;
     case 'DRAW_POLYGON':
       return drawingPointsCount === 0
         ? 'Specify start point'

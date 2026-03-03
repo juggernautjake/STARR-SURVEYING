@@ -28,6 +28,9 @@ import { useKeyboard } from '../hooks/useKeyboard';
 const HIT_TOLERANCE_PX = 5;
 const GRIP_SIZE = 8; // half-size of grip square in pixels
 const MAX_GRID_ITERATIONS = 500; // max grid lines per axis to prevent performance issues
+// Minimum meaningful segment length in world units before zoom scaling.
+// Prevents duplicate zero-length segments on double-click.
+const MIN_SEGMENT_LENGTH_BASE = 0.001;
 
 // Grid scale multipliers — find smallest that puts lines >= MIN_PX_GRID apart
 const GRID_SCALE_MULTIPLIERS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
@@ -41,6 +44,13 @@ const SNAP_LABEL: Record<string, string> = {
   PERPENDICULAR: 'Perpendicular',
   GRID: 'Grid',
 };
+
+// Context menu state
+interface ContextMenuState {
+  x: number;
+  y: number;
+  featureId: string | null;
+}
 
 // ─────────────────────────────────────────────
 // CanvasViewport Component
@@ -86,6 +96,12 @@ export default function CanvasViewport() {
   const hoveredIdRef = useRef<string | null>(null);
   const [cursorStyle, setCursorStyle] = useState('crosshair');
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  // Polyline group ID tracking — each new polyline drawing gets a fresh UUID
+  const polylineGroupIdRef = useRef<string | null>(null);
+  // Track last segment feature ID for dblclick cleanup
+  const lastPolylineSegmentIdRef = useRef<string | null>(null);
 
   // Keyboard shortcuts
   useKeyboard();
@@ -114,11 +130,16 @@ export default function CanvasViewport() {
       const width = canvas.offsetWidth || 800;
       const height = canvas.offsetHeight || 600;
 
+      const bgColor = parseInt(
+        (drawingStore.document.settings.backgroundColor ?? '#FFFFFF').replace('#', ''),
+        16,
+      );
+
       const app = new PIXI.Application({
         view: canvas,
         width,
         height,
-        backgroundColor: 0xffffff,
+        backgroundColor: bgColor,
         antialias: true,
         resolution: window.devicePixelRatio || 1,
         autoDensity: true,
@@ -717,6 +738,15 @@ export default function CanvasViewport() {
   // Master render function
   // ─────────────────────────────────────────────
   function renderAll() {
+    // Sync canvas background color with settings
+    const pixi = pixiRef.current;
+    if (pixi) {
+      const bgHex = drawingStore.document.settings.backgroundColor ?? '#FFFFFF';
+      const bgColor = parseInt(bgHex.replace('#', ''), 16);
+      if ((pixi.app.renderer as { backgroundColor?: number }).backgroundColor !== bgColor) {
+        pixi.app.renderer.background.color = bgColor;
+      }
+    }
     renderGrid();
     renderFeatures();
     renderSelection();
@@ -848,8 +878,44 @@ export default function CanvasViewport() {
     }
   }
 
+  // ─────────────────────────────────────────────
+  // Helper: get all segment IDs that share a polylineGroupId
+  // ─────────────────────────────────────────────
+  function getPolylineGroupIds(groupId: string): string[] {
+    return drawingStore
+      .getAllFeatures()
+      .filter((f) => f.properties.polylineGroupId === groupId)
+      .map((f) => f.id);
+  }
+
+  // ─────────────────────────────────────────────
+  // Create a single LINE segment as part of a polyline group
+  // ─────────────────────────────────────────────
+  function createPolylineSegment(start: Point2D, end: Point2D, groupId: string): Feature {
+    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const layerStyle = getActiveLayerStyle();
+    return {
+      id: generateId(),
+      type: 'LINE',
+      geometry: { type: 'LINE', start, end },
+      layerId: activeLayerId,
+      style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+      properties: { polylineGroupId: groupId },
+    };
+  }
+
   function finishFeature(type: FeatureType) {
     const { drawingPoints } = toolStore.state;
+
+    if (type === 'POLYLINE') {
+      // Polyline: already created as individual LINE segments during drawing.
+      // Just reset drawing state; undo is already recorded per segment.
+      polylineGroupIdRef.current = null;
+      lastPolylineSegmentIdRef.current = null;
+      toolStore.clearDrawingPoints();
+      return;
+    }
+
     const feature = createFeature(type, drawingPoints);
     if (!feature) return;
     drawingStore.addFeature(feature);
@@ -949,8 +1015,17 @@ export default function CanvasViewport() {
           const hit = hitTest(sx, sy);
           if (hit) {
             clickHitFeatureRef.current = true;
-            const mode = e.shiftKey ? 'TOGGLE' : 'REPLACE';
-            selectionStore.select(hit, mode);
+            // If clicked feature is part of a polyline group, select entire group
+            const hitFeature = drawingStore.getFeature(hit);
+            const groupId = hitFeature?.properties?.polylineGroupId as string | undefined;
+            if (groupId && !e.shiftKey) {
+              // Select all segments of the polyline group
+              const groupIds = getPolylineGroupIds(groupId);
+              selectionStore.selectMultiple(groupIds, 'REPLACE');
+            } else {
+              const mode = e.shiftKey ? 'TOGGLE' : 'REPLACE';
+              selectionStore.select(hit, mode);
+            }
             toolStore.setBoxSelect(null, null, false);
           } else {
             clickHitFeatureRef.current = false;
@@ -978,7 +1053,23 @@ export default function CanvasViewport() {
         }
 
         case 'DRAW_POLYLINE': {
-          toolStore.addDrawingPoint(worldPt);
+          const prevPoints = toolState.drawingPoints;
+          if (prevPoints.length === 0) {
+            // First click: start a new polyline group
+            polylineGroupIdRef.current = generateId();
+            toolStore.addDrawingPoint(worldPt);
+          } else {
+            const lastPt = prevPoints[prevPoints.length - 1];
+            const dist = Math.hypot(worldPt.x - lastPt.x, worldPt.y - lastPt.y);
+            // Only create a segment if the new point is meaningfully different
+            if (dist > MIN_SEGMENT_LENGTH_BASE / viewportStore.zoom) {
+              const segment = createPolylineSegment(lastPt, worldPt, polylineGroupIdRef.current!);
+              drawingStore.addFeature(segment);
+              undoStore.pushUndo(makeAddFeatureEntry(segment));
+              lastPolylineSegmentIdRef.current = segment.id;
+              toolStore.addDrawingPoint(worldPt);
+            }
+          }
           break;
         }
 
@@ -1131,6 +1222,17 @@ export default function CanvasViewport() {
       if (toolStore.state.activeTool === 'SELECT' && !isPanningRef.current) {
         const hit = hitTest(sx, sy);
         hoveredIdRef.current = hit;
+        // Change cursor to pointer when hovering a feature
+        if (!gripDragRef.current) {
+          const onGrip = hit && selectionStore.selectedIds.has(hit) ? hitTestGrip(sx, sy) : null;
+          if (onGrip) {
+            setCursorStyle('move');
+          } else if (hit) {
+            setCursorStyle('pointer');
+          } else {
+            setCursorStyle('crosshair');
+          }
+        }
       } else {
         hoveredIdRef.current = null;
       }
@@ -1230,18 +1332,38 @@ export default function CanvasViewport() {
   );
 
   const handleDoubleClick = useCallback(
-    (_e: React.MouseEvent<HTMLCanvasElement>) => {
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
       const toolState = toolStore.state;
       const { activeTool } = toolState;
 
-      if (activeTool === 'DRAW_POLYLINE' && toolState.drawingPoints.length >= 2) {
+      if (activeTool === 'DRAW_POLYLINE') {
+        // Double-click while drawing polyline: the second single-click mousedown already
+        // created the last segment (if the cursor moved). Just stop drawing.
+        // The min-distance check in mousedown prevents zero-length duplicate segments.
         finishFeature('POLYLINE');
-      } else if (activeTool === 'DRAW_POLYGON' && toolState.drawingPoints.length >= 3) {
+        return;
+      }
+
+      if (activeTool === 'DRAW_POLYGON' && toolState.drawingPoints.length >= 3) {
         finishFeature('POLYGON');
+        return;
+      }
+
+      // SELECT tool (or any non-drawing tool): open feature properties dialog
+      const hit = hitTest(sx, sy);
+      if (hit) {
+        window.dispatchEvent(
+          new CustomEvent('cad:openFeatureDialog', {
+            detail: { featureId: hit, x: e.clientX, y: e.clientY },
+          }),
+        );
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolStore],
+    [toolStore, drawingStore],
   );
 
   // ─────────────────────────────────────────────
@@ -1331,8 +1453,111 @@ export default function CanvasViewport() {
   }, [toolStore]);
 
   // ─────────────────────────────────────────────
+  // Right-click / context menu handler
+  // ─────────────────────────────────────────────
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      e.preventDefault();
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const toolState = toolStore.state;
+      const { activeTool } = toolState;
+
+      // Right-click during polyline drawing: finish if we have at least 1 committed segment
+      // (drawingPoints.length >= 2 means: start point + at least 1 more = at least 1 segment)
+      if (activeTool === 'DRAW_POLYLINE') {
+        if (toolState.drawingPoints.length >= 2) {
+          finishFeature('POLYLINE');
+        } else {
+          // Cancel — no segments yet
+          polylineGroupIdRef.current = null;
+          lastPolylineSegmentIdRef.current = null;
+          toolStore.clearDrawingPoints();
+          toolStore.setTool('SELECT');
+        }
+        return;
+      }
+
+      // Right-click during polygon drawing: close & finish, or cancel
+      if (activeTool === 'DRAW_POLYGON') {
+        if (toolState.drawingPoints.length >= 3) {
+          finishFeature('POLYGON');
+        } else {
+          toolStore.clearDrawingPoints();
+          toolStore.setTool('SELECT');
+        }
+        return;
+      }
+
+      // Right-click during line drawing: cancel
+      if (activeTool === 'DRAW_LINE' && toolState.drawingPoints.length > 0) {
+        toolStore.clearDrawingPoints();
+        return;
+      }
+
+      // Right-click with SELECT tool: show context menu
+      if (activeTool === 'SELECT') {
+        const hit = hitTest(sx, sy);
+        // If hit a feature not yet selected, select it first
+        if (hit && !selectionStore.selectedIds.has(hit)) {
+          selectionStore.select(hit, 'REPLACE');
+        }
+        setContextMenu({ x: e.clientX, y: e.clientY, featureId: hit });
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [toolStore, selectionStore, drawingStore, undoStore],
+  );
+
+  // ─────────────────────────────────────────────
+  // Context menu: erase selected, properties, etc.
+  // ─────────────────────────────────────────────
+  function handleContextMenuErase() {
+    const ids = Array.from(selectionStore.selectedIds);
+    if (ids.length === 0) return;
+    const features = ids.map((id) => drawingStore.getFeature(id)).filter(Boolean) as Feature[];
+    for (const f of features) {
+      drawingStore.removeFeature(f.id);
+    }
+    if (features.length === 1) {
+      undoStore.pushUndo(makeRemoveFeatureEntry(features[0]));
+    } else if (features.length > 1) {
+      const ops = features.map((f) => ({ type: 'REMOVE_FEATURE' as const, data: f }));
+      undoStore.pushUndo(makeBatchEntry('Delete', ops));
+    }
+    selectionStore.deselectAll();
+    setContextMenu(null);
+  }
+
+  function handleContextMenuProperties() {
+    if (!contextMenu?.featureId) return;
+    window.dispatchEvent(
+      new CustomEvent('cad:openFeatureDialog', {
+        detail: { featureId: contextMenu.featureId, x: contextMenu.x, y: contextMenu.y },
+      }),
+    );
+    setContextMenu(null);
+  }
+
+  function handleContextMenuSelectGroup() {
+    if (!contextMenu?.featureId) return;
+    const feature = drawingStore.getFeature(contextMenu.featureId);
+    const groupId = feature?.properties?.polylineGroupId as string | undefined;
+    if (groupId) {
+      const groupIds = getPolylineGroupIds(groupId);
+      selectionStore.selectMultiple(groupIds, 'REPLACE');
+    }
+    setContextMenu(null);
+  }
+
+  // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
+  const contextFeature = contextMenu?.featureId ? drawingStore.getFeature(contextMenu.featureId) : null;
+  const contextHasGroup = !!(contextFeature?.properties?.polylineGroupId);
+  const selCount = selectionStore.selectedIds.size;
+
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-white">
       <canvas
@@ -1344,7 +1569,7 @@ export default function CanvasViewport() {
         onMouseUp={handleMouseUp}
         onWheel={handleWheel}
         onDoubleClick={handleDoubleClick}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={handleContextMenu}
       />
       {snapLabel && (
         <div
@@ -1360,6 +1585,57 @@ export default function CanvasViewport() {
         >
           {snapLabel.text}
         </div>
+      )}
+
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <>
+          {/* Click-away overlay */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
+          />
+          <div
+            className="fixed z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 text-xs text-gray-200 min-w-[160px]"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+          >
+            {contextMenu.featureId && (
+              <>
+                <button
+                  className="w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors"
+                  onClick={handleContextMenuProperties}
+                >
+                  Properties…
+                </button>
+                {contextHasGroup && (
+                  <button
+                    className="w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors"
+                    onClick={handleContextMenuSelectGroup}
+                  >
+                    Select Polyline Group
+                  </button>
+                )}
+                <div className="border-t border-gray-700 my-1" />
+              </>
+            )}
+            {selCount > 0 && (
+              <button
+                className="w-full text-left px-3 py-1.5 hover:bg-red-900/40 text-red-400 transition-colors"
+                onClick={handleContextMenuErase}
+              >
+                Delete{selCount > 1 ? ` (${selCount})` : ''}
+              </button>
+            )}
+            <div className="border-t border-gray-700 my-1" />
+            <button
+              className="w-full text-left px-3 py-1.5 hover:bg-gray-700 transition-colors"
+              onClick={() => { selectionStore.deselectAll(); setContextMenu(null); }}
+            >
+              Deselect All
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
