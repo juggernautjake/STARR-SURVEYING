@@ -319,7 +319,7 @@ function safeNormalizeCall(raw: unknown): BoundaryCall {
     distance: distance && typeof distance === 'object' ? {
       raw: String(distance.raw ?? ''),
       value: safeNumber(distance.value) ?? 0,
-      unit: (['feet', 'varas', 'chains', 'meters'].includes(String(distance.unit)) ? String(distance.unit) : 'feet') as BoundaryCall['distance'] extends null ? never : NonNullable<BoundaryCall['distance']>['unit'],
+      unit: (['feet', 'varas', 'chains', 'meters', 'rods', 'links'].includes(String(distance.unit)) ? String(distance.unit) : 'feet') as NonNullable<BoundaryCall['distance']>['unit'],
     } : null,
     curve: curve && typeof curve === 'object' ? parseCurveData(curve) : null,
     toPoint: safeGetString(obj, 'toPoint'),
@@ -347,6 +347,7 @@ function parseCurveData(curve: Record<string, unknown>): NonNullable<BoundaryCal
     chordBearing: chordBearing && typeof chordBearing === 'object' ? {
       raw: String(chordBearing.raw ?? ''),
       decimalDegrees: safeNumber(chordBearing.decimalDegrees) ?? 0,
+      quadrant: String(chordBearing.quadrant ?? ''),
     } : null,
     chordDistance: chordDistance && typeof chordDistance === 'object' ? {
       raw: String(chordDistance.raw ?? ''),
@@ -382,7 +383,7 @@ async function extractFromText(
   logger: PipelineLogger,
   docLabel: string,
 ): Promise<ExtractedBoundaryData | null> {
-  const finish = logger.startAttempt({
+  const tracker = logger.startAttempt({
     layer: 'Stage3A',
     source: 'Claude-Text',
     method: 'text-extraction',
@@ -391,7 +392,9 @@ async function extractFromText(
 
   // Truncate extremely long documents to avoid token limits
   const truncated = text.length > 80_000 ? text.substring(0, 80_000) + '\n\n[... document truncated at 80,000 characters ...]' : text;
+  tracker.step(`Document length: ${text.length} chars${text.length > 80_000 ? ' (truncated to 80K)' : ''}`);
 
+  tracker.step('Sending to Claude for text extraction...');
   const rawResponse = await callClaudeWithRetry(
     anthropicApiKey,
     [{
@@ -421,17 +424,20 @@ Return your analysis as the specified JSON format.`,
   );
 
   if (!rawResponse) {
-    finish({ status: 'fail', error: 'No response from Claude' });
+    tracker({ status: 'fail', error: 'No response from Claude' });
     return null;
   }
 
+  tracker.step(`Got response (${rawResponse.length} chars), parsing JSON...`);
   const extracted = parseExtractionResponse(rawResponse);
   if (!extracted) {
-    finish({ status: 'fail', error: 'Failed to parse extraction response', details: rawResponse.substring(0, 200) });
+    tracker.step(`JSON parse failed. Raw response preview: ${rawResponse.substring(0, 300)}`);
+    tracker({ status: 'fail', error: 'Failed to parse extraction response', details: rawResponse.substring(0, 200) });
     return null;
   }
 
-  finish({
+  tracker.step(`Parsed: type=${extracted.type}, calls=${extracted.calls.length}, refs=${extracted.references.length}, confidence=${extracted.confidence}`);
+  tracker({
     status: 'success',
     dataPointsFound: extracted.calls.length + extracted.references.length,
     details: `Type: ${extracted.type}, Calls: ${extracted.calls.length}, Refs: ${extracted.references.length}, Confidence: ${extracted.confidence}`,
@@ -450,7 +456,7 @@ async function extractFromImage(
   docLabel: string,
 ): Promise<{ ocrText: string | null; extracted: ExtractedBoundaryData | null }> {
   // Pass 1: OCR
-  const ocrFinish = logger.startAttempt({
+  const ocrTracker = logger.startAttempt({
     layer: 'Stage3B-OCR',
     source: 'Claude-Vision',
     method: 'ocr-pass1',
@@ -459,12 +465,15 @@ async function extractFromImage(
 
   // For PDFs, we send as image/png (Playwright screenshots) or skip
   const effectiveMediaType = mediaType === 'application/pdf' ? 'image/png' as const : mediaType;
+  ocrTracker.step(`Media type: ${mediaType}, effective: ${effectiveMediaType}, base64 length: ${imageBase64.length}`);
+
   // For TIFF, Claude doesn't support it directly — would need conversion
   if (mediaType === 'image/tiff') {
-    ocrFinish({ status: 'fail', error: 'TIFF not directly supported — needs conversion to PNG' });
+    ocrTracker({ status: 'fail', error: 'TIFF not directly supported — needs conversion to PNG' });
     return { ocrText: null, extracted: null };
   }
 
+  ocrTracker.step('Sending image to Claude Vision for OCR...');
   const ocrResponse = await callClaudeWithRetry(
     anthropicApiKey,
     [{
@@ -486,21 +495,24 @@ async function extractFromImage(
   );
 
   if (!ocrResponse) {
-    ocrFinish({ status: 'fail', error: 'No OCR response' });
+    ocrTracker({ status: 'fail', error: 'No OCR response' });
     return { ocrText: null, extracted: null };
   }
 
   // Parse OCR result
+  ocrTracker.step(`Got OCR response (${ocrResponse.length} chars), parsing...`);
   let ocrText: string | null = null;
   const parsed = safeParseJson(ocrResponse);
   if (parsed && typeof parsed.full_text === 'string') {
     ocrText = parsed.full_text;
+    ocrTracker.step(`Parsed structured OCR: ${ocrText.length} chars, confidence: ${parsed.overall_confidence ?? 'N/A'}`);
   } else {
     // Use raw response as OCR text if it's not JSON
     ocrText = ocrResponse;
+    ocrTracker.step(`OCR response not JSON — using raw text (${ocrText.length} chars)`);
   }
 
-  ocrFinish({
+  ocrTracker({
     status: ocrText && ocrText.length > 50 ? 'success' : 'partial',
     dataPointsFound: ocrText ? 1 : 0,
     details: `OCR text: ${ocrText?.length ?? 0} chars`,
@@ -530,13 +542,15 @@ async function verifyExtraction(
   docLabel: string,
   passNumber: number,
 ): Promise<ExtractedBoundaryData> {
-  const finish = logger.startAttempt({
+  const tracker = logger.startAttempt({
     layer: `Stage3-Verify-${passNumber}`,
     source: 'Claude-Text',
     method: 'verification-pass',
     input: `${docLabel} (pass ${passNumber})`,
   });
 
+  tracker.step(`Verification pass ${passNumber}: original has ${originalResult.calls.length} calls, confidence ${originalResult.confidence.toFixed(2)}`);
+  tracker.step('Sending to Claude for re-analysis...');
   const rawResponse = await callClaudeWithRetry(
     anthropicApiKey,
     [{
@@ -561,13 +575,15 @@ Return the corrected/confirmed extraction in the same JSON format. Add warnings 
   );
 
   if (!rawResponse) {
-    finish({ status: 'fail', error: 'No verification response' });
+    tracker({ status: 'fail', error: 'No verification response' });
     return originalResult;
   }
 
+  tracker.step(`Got verification response (${rawResponse.length} chars), parsing...`);
   const verified = parseExtractionResponse(rawResponse);
   if (!verified) {
-    finish({ status: 'fail', error: 'Failed to parse verification response' });
+    tracker.step(`JSON parse failed for verification response. Preview: ${rawResponse.substring(0, 200)}`);
+    tracker({ status: 'fail', error: 'Failed to parse verification response' });
     return originalResult; // Keep original rather than losing data
   }
 
@@ -618,7 +634,8 @@ Return the corrected/confirmed extraction in the same JSON format. Add warnings 
   verified.verificationPasses = passNumber;
   verified.verified = mismatches.length === 0;
 
-  finish({
+  tracker.step(`Verification result: ${mismatches.length} corrections, final confidence ${verified.confidence.toFixed(2)}, verified=${verified.verified}`);
+  tracker({
     status: 'success',
     dataPointsFound: verified.calls.length,
     details: `Corrections: ${mismatches.length}, Confidence: ${verified.confidence.toFixed(2)}`,

@@ -14,14 +14,64 @@ interface BisConfig {
   name: string;
 }
 
-const BIS_CONFIGS: Record<string, BisConfig> = {
-  bell:       { baseUrl: 'https://esearch.bellcad.org', name: 'Bell CAD' },
-  williamson: { baseUrl: 'https://esearch.wilcotx.gov', name: 'Williamson CAD' },
-  mclennan:   { baseUrl: 'https://esearch.mclennancad.org', name: 'McLennan CAD' },
-  coryell:    { baseUrl: 'https://esearch.coryellcad.org', name: 'Coryell CAD' },
-  lampasas:   { baseUrl: 'https://esearch.lampasascad.org', name: 'Lampasas CAD' },
-  falls:      { baseUrl: 'https://esearch.fallscad.net', name: 'Falls CAD' },
-  milam:      { baseUrl: 'https://esearch.milamcad.org', name: 'Milam CAD' },
+export const BIS_CONFIGS: Record<string, BisConfig> = {
+  // ── Central Texas (primary service area) ─────────────────────────
+  bell:        { baseUrl: 'https://esearch.bellcad.org', name: 'Bell CAD' },
+  williamson:  { baseUrl: 'https://esearch.wilcotx.gov', name: 'Williamson CAD' },
+  mclennan:    { baseUrl: 'https://esearch.mclennancad.org', name: 'McLennan CAD' },
+  coryell:     { baseUrl: 'https://esearch.coryellcad.org', name: 'Coryell CAD' },
+  lampasas:    { baseUrl: 'https://esearch.lampasascad.org', name: 'Lampasas CAD' },
+  falls:       { baseUrl: 'https://esearch.fallscad.net', name: 'Falls CAD' },
+  milam:       { baseUrl: 'https://esearch.milamcad.org', name: 'Milam CAD' },
+  hays:        { baseUrl: 'https://esearch.hayscad.com', name: 'Hays CAD' },
+  burnet:      { baseUrl: 'https://esearch.burnet-cad.org', name: 'Burnet CAD' },
+  guadalupe:   { baseUrl: 'https://esearch.guadalupead.org', name: 'Guadalupe CAD' },
+  // ── Greater Houston / Gulf Coast ─────────────────────────────────
+  brazoria:    { baseUrl: 'https://esearch.brazoriacad.org', name: 'Brazoria CAD' },
+  brazos:      { baseUrl: 'https://esearch.brazoscad.org', name: 'Brazos CAD' },
+  fort_bend:   { baseUrl: 'https://esearch.fbcad.org', name: 'Fort Bend CAD' },
+  galveston:   { baseUrl: 'https://esearch.galvestoncad.org', name: 'Galveston CAD' },
+  montgomery:  { baseUrl: 'https://esearch.mcad-tx.org', name: 'Montgomery CAD' },
+  liberty:     { baseUrl: 'https://esearch.libertycad.com', name: 'Liberty CAD' },
+  waller:      { baseUrl: 'https://esearch.waller-cad.org', name: 'Waller CAD' },
+  colorado:    { baseUrl: 'https://esearch.coloradocad.org', name: 'Colorado CAD' },
+  austin:      { baseUrl: 'https://esearch.austincad.org', name: 'Austin County CAD' },
+  calhoun:     { baseUrl: 'https://esearch.calhouncad.org', name: 'Calhoun CAD' },
+  matagorda:   { baseUrl: 'https://esearch.matagorda-cad.org', name: 'Matagorda CAD' },
+  victoria:    { baseUrl: 'https://esearch.victoriacad.org', name: 'Victoria CAD' },
+  washington:  { baseUrl: 'https://esearch.washingtoncad.org', name: 'Washington CAD' },
+  lavaca:      { baseUrl: 'https://esearch.lavacacad.com', name: 'Lavaca CAD' },
+  // ── DFW Metro / North Texas ──────────────────────────────────────
+  collin:      { baseUrl: 'https://esearch.collincad.org', name: 'Collin CAD' },
+  ellis:       { baseUrl: 'https://esearch.elliscad.com', name: 'Ellis CAD' },
+  grayson:     { baseUrl: 'https://esearch.graysonappraisal.org', name: 'Grayson CAD' },
+  kaufman:     { baseUrl: 'https://esearch.kaufman-cad.org', name: 'Kaufman CAD' },
+  henderson:   { baseUrl: 'https://esearch.henderson-cad.org', name: 'Henderson CAD' },
+  hunt:        { baseUrl: 'https://esearch.hunt-cad.org', name: 'Hunt CAD' },
+  wise:        { baseUrl: 'https://esearch.wise-cad.com', name: 'Wise CAD' },
+  // ── East Texas ───────────────────────────────────────────────────
+  angelina:    { baseUrl: 'https://esearch.angelinacad.org', name: 'Angelina CAD' },
+  gregg:       { baseUrl: 'https://esearch.gcad.org', name: 'Gregg CAD' },
+  harrison:    { baseUrl: 'https://esearch.harrisoncad.net', name: 'Harrison CAD' },
+  nacogdoches: { baseUrl: 'https://esearch.nacocad.org', name: 'Nacogdoches CAD' },
+  cass:        { baseUrl: 'https://esearch.casscad.org', name: 'Cass CAD' },
+  wood:        { baseUrl: 'https://esearch.woodcad.net', name: 'Wood CAD' },
+  // ── South Texas / Rio Grande Valley ──────────────────────────────
+  bexar:       { baseUrl: 'https://esearch.bcad.org', name: 'Bexar CAD' },
+  hidalgo:     { baseUrl: 'https://esearch.hidalgoad.org', name: 'Hidalgo CAD' },
+  nueces:      { baseUrl: 'https://esearch.nuecescad.net', name: 'Nueces CAD' },
+  atascosa:    { baseUrl: 'https://esearch.atascosacad.com', name: 'Atascosa CAD' },
+  wilson:      { baseUrl: 'https://esearch.wilson-cad.org', name: 'Wilson CAD' },
+  kleberg:     { baseUrl: 'https://esearch.kleberg-cad.org', name: 'Kleberg CAD' },
+  // ── West / Panhandle Texas ───────────────────────────────────────
+  taylor:      { baseUrl: 'https://esearch.taylor-cad.org', name: 'Taylor CAD' },
+  wichita:     { baseUrl: 'https://esearch.wadtx.com', name: 'Wichita CAD' },
+  gray:        { baseUrl: 'https://esearch.graycad.org', name: 'Gray CAD' },
+  hale:        { baseUrl: 'https://esearch.halecad.org', name: 'Hale CAD' },
+  deaf_smith:  { baseUrl: 'https://esearch.deafsmithcad.org', name: 'Deaf Smith CAD' },
+  erath:       { baseUrl: 'https://esearch.erath-cad.com', name: 'Erath CAD' },
+  young:       { baseUrl: 'https://esearch.youngcad.org', name: 'Young CAD' },
+  real:        { baseUrl: 'https://esearch.realcad.org', name: 'Real CAD' },
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -173,7 +223,7 @@ async function searchCadHttp(
 
   // Step 1: Acquire session cookies by loading the search page
   let sessionCookies: string | null = null;
-  const cookieFinish = logger.startAttempt({
+  const cookieTracker = logger.startAttempt({
     layer: 'Stage1A-Cookie',
     source: 'CAD-HTTP',
     method: 'session-acquisition',
@@ -181,6 +231,7 @@ async function searchCadHttp(
   });
 
   try {
+    cookieTracker.step(`Fetching search page to acquire session cookies: ${baseUrl}`);
     const pageResponse = await fetch(baseUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -191,6 +242,7 @@ async function searchCadHttp(
     });
 
     if (pageResponse.ok) {
+      cookieTracker.step(`Page loaded: HTTP ${pageResponse.status}`);
       // Extract Set-Cookie headers
       const setCookie = pageResponse.headers.get('set-cookie');
       if (setCookie) {
@@ -200,18 +252,22 @@ async function searchCadHttp(
           .map((c) => c.split(';')[0].trim())
           .filter((c) => c.includes('='))
           .join('; ');
+        cookieTracker.step(`Acquired session cookies: ${sessionCookies.substring(0, 80)}...`);
+      } else {
+        cookieTracker.step('No Set-Cookie headers in response');
       }
-      cookieFinish({ status: 'success', dataPointsFound: sessionCookies ? 1 : 0, details: `Cookies: ${sessionCookies ? 'acquired' : 'none'}` });
+      cookieTracker({ status: 'success', dataPointsFound: sessionCookies ? 1 : 0, details: `Cookies: ${sessionCookies ? 'acquired' : 'none'}` });
     } else {
-      cookieFinish({ status: 'fail', error: `HTTP ${pageResponse.status}` });
+      cookieTracker.step(`Page load failed: HTTP ${pageResponse.status}`);
+      cookieTracker({ status: 'fail', error: `HTTP ${pageResponse.status}` });
     }
   } catch (err) {
-    cookieFinish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+    cookieTracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
   }
 
   // Step 2: Try each variant with the session cookies
   for (const variant of exactVariants) {
-    const finish = logger.startAttempt({
+    const tracker = logger.startAttempt({
       layer: 'Stage1A',
       source: 'CAD-HTTP',
       method: 'POST',
@@ -221,6 +277,7 @@ async function searchCadHttp(
     try {
       const keywords = `StreetNumber:${encodeURIComponent(variant.streetNumber)} StreetName:${encodeURIComponent(variant.streetName)}`;
       const url = `${baseUrl}/search/SearchResults?keywords=${keywords}`;
+      tracker.step(`POST ${url}`);
 
       const headers: Record<string, string> = {
         'Accept': 'application/json, text/plain, */*',
@@ -239,14 +296,16 @@ async function searchCadHttp(
       });
 
       if (!response.ok) {
-        finish({ status: 'fail', error: `HTTP ${response.status} ${response.statusText}`, nextLayer: 'Stage1B' });
+        tracker.step(`HTTP error: ${response.status} ${response.statusText}`);
+        tracker({ status: 'fail', error: `HTTP ${response.status} ${response.statusText}`, nextLayer: 'Stage1B' });
         diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
         continue;
       }
 
       const contentType = response.headers.get('content-type') ?? '';
+      tracker.step(`Response: HTTP ${response.status}, content-type: ${contentType}`);
       if (!contentType.includes('json')) {
-        finish({ status: 'fail', error: `Non-JSON response: ${contentType}`, nextLayer: 'Stage1B' });
+        tracker({ status: 'fail', error: `Non-JSON response: ${contentType}`, nextLayer: 'Stage1B' });
         diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
         continue;
       }
@@ -261,14 +320,16 @@ async function searchCadHttp(
       });
 
       if (!results.length) {
-        finish({ status: 'fail', error: 'No results', nextLayer: 'Stage1B' });
+        tracker.step('Response parsed but contains 0 results');
+        tracker({ status: 'fail', error: 'No results', nextLayer: 'Stage1B' });
         continue;
       }
 
-      finish({ status: 'success', dataPointsFound: results.length, details: `${results.length} results for variant "${variant.format}"` });
+      tracker.step(`Found ${results.length} results. First ID: ${getProp(results[0], 'propertyId', 'PropertyId') ?? 'N/A'}`);
+      tracker({ status: 'success', dataPointsFound: results.length, details: `${results.length} results for variant "${variant.format}"` });
       return results;
     } catch (err) {
-      finish({ status: 'fail', error: err instanceof Error ? err.message : String(err), nextLayer: 'Stage1B' });
+      tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err), nextLayer: 'Stage1B' });
       diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
     }
   }
@@ -343,8 +404,10 @@ async function searchCadPlaywright(
       // Tab might not exist
     }
 
-    // Set up AJAX response interception
+    // Set up AJAX response interception with promise-based capture
     let capturedResults: CadSearchResult[] = [];
+    let resolveCapture: ((results: CadSearchResult[]) => void) | null = null;
+
     page.on('response', async (response) => {
       try {
         const url = response.url();
@@ -355,6 +418,7 @@ async function searchCadPlaywright(
             const results = Array.isArray(data) ? data : data.resultsList ?? [];
             if (results.length > 0) {
               capturedResults = results;
+              if (resolveCapture) resolveCapture(results);
             }
           }
         }
@@ -430,14 +494,26 @@ async function searchCadPlaywright(
           await page.keyboard.press('Enter');
         }
 
-        // Wait for results
-        await page.waitForTimeout(2_000);
-        try {
-          await page.waitForSelector('table tbody tr, .search-results tr, .result-row, .property-result, .resultsList', { timeout: 10_000 });
-        } catch { /* may not appear with these selectors */ }
+        // Wait for AJAX response with timeout — fixes race condition where
+        // capturedResults was checked before the response callback fired
+        const capturePromise = new Promise<CadSearchResult[]>((resolve) => {
+          resolveCapture = resolve;
+          // If results already captured synchronously (unlikely but safe)
+          if (capturedResults.length > 0) resolve(capturedResults);
+        });
 
-        // Additional wait for AJAX
-        await page.waitForTimeout(1_000);
+        // Race between AJAX capture, DOM element appearance, and timeout
+        try {
+          await Promise.race([
+            capturePromise,
+            page.waitForSelector('table tbody tr, .search-results tr, .result-row, .property-result, .resultsList', { timeout: 12_000 }),
+            page.waitForTimeout(12_000),
+          ]);
+        } catch { /* timeout or selector not found — continue */ }
+
+        // Small settle delay for any late-arriving AJAX
+        await page.waitForTimeout(500);
+        resolveCapture = null;
 
         if (capturedResults.length > 0) {
           diagnostics.variantsTried.push({
@@ -584,8 +660,8 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
       });
     }
 
-    return results as unknown as CadSearchResult[];
-  });
+    return results as CadSearchResult[];
+  }) as Promise<CadSearchResult[]>;
 }
 
 // ── Layer 1C: Vision OCR Fallback ──────────────────────────────────────────
@@ -759,10 +835,11 @@ function pickBestResult(
   inputAddress: NormalizedAddress,
   logger: PipelineLogger,
 ): CadSearchResult | null {
-  // Filter out UDI records
+  // Filter out UDI records (Undivided Interest — not real property results)
   const nonUdi = results.filter((r) => {
     const isUdi = (r as Record<string, unknown>).isUDI ?? (r as Record<string, unknown>).IsUDI;
-    return !isUdi;
+    // Explicitly check for true/truthy — undefined/null means NOT a UDI
+    return isUdi !== true && isUdi !== 'true' && isUdi !== 1;
   });
 
   const candidates = nonUdi.length > 0 ? nonUdi : results;

@@ -153,6 +153,48 @@ const CITY_TO_COUNTY: Record<string, string> = {
   hearne: 'Robertson', calvert: 'Robertson', franklin: 'Robertson',
   // Lee County
   giddings: 'Lee', lexington: 'Lee',
+  // Guadalupe County
+  seguin: 'Guadalupe', schertz_guadalupe: 'Guadalupe', cibolo: 'Guadalupe',
+  // Brazos County
+  bryan: 'Brazos', college_station: 'Brazos',
+  // Fort Bend County
+  sugar_land: 'Fort Bend', missouri_city: 'Fort Bend', richmond: 'Fort Bend',
+  rosenberg: 'Fort Bend', katy_fort_bend: 'Fort Bend', fulshear: 'Fort Bend',
+  // Galveston County
+  galveston: 'Galveston', texas_city: 'Galveston', league_city: 'Galveston',
+  dickinson: 'Galveston', friendswood: 'Galveston', santa_fe: 'Galveston',
+  // Montgomery County
+  conroe: 'Montgomery', the_woodlands: 'Montgomery', magnolia: 'Montgomery',
+  willis: 'Montgomery', new_caney: 'Montgomery', porter: 'Montgomery',
+  // Collin County
+  plano: 'Collin', mckinney: 'Collin', frisco: 'Collin',
+  allen: 'Collin', wylie: 'Collin', celina: 'Collin', prosper: 'Collin',
+  // Denton County
+  denton: 'Denton', lewisville: 'Denton', flower_mound: 'Denton',
+  little_elm: 'Denton', corinth: 'Denton', argyle: 'Denton',
+  // Ellis County
+  waxahachie: 'Ellis', midlothian: 'Ellis', ennis: 'Ellis',
+  // Brazoria County
+  pearland: 'Brazoria', alvin: 'Brazoria', lake_jackson: 'Brazoria',
+  angleton: 'Brazoria', clute: 'Brazoria', manvel: 'Brazoria',
+  // Nueces County
+  corpus_christi: 'Nueces', robstown: 'Nueces', port_aransas: 'Nueces',
+  // Victoria County
+  victoria: 'Victoria',
+  // Taylor County
+  abilene: 'Taylor',
+  // Hidalgo County
+  mcallen: 'Hidalgo', edinburg: 'Hidalgo', mission: 'Hidalgo', pharr: 'Hidalgo',
+  // Cameron County
+  brownsville: 'Cameron', harlingen: 'Cameron', san_benito: 'Cameron',
+  // Wichita County
+  wichita_falls: 'Wichita',
+  // Erath County
+  stephenville: 'Erath',
+  // Grayson County
+  sherman: 'Grayson', denison: 'Grayson',
+  // Kaufman County
+  kaufman: 'Kaufman', terrell: 'Kaufman', forney: 'Kaufman',
 };
 
 /**
@@ -222,7 +264,7 @@ async function geocodeNominatim(address: string, logger: PipelineLogger): Promis
   lat: number | null;
   lon: number | null;
 }> {
-  const finish = logger.startAttempt({
+  const tracker = logger.startAttempt({
     layer: 'Stage0A',
     source: 'Nominatim',
     method: 'geocode',
@@ -233,6 +275,7 @@ async function geocodeNominatim(address: string, logger: PipelineLogger): Promis
 
   try {
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&addressdetails=1&limit=3&countrycodes=us`;
+    tracker.step(`GET ${url}`);
 
     const response = await fetchWithRetry(url, {
       headers: { 'User-Agent': 'StarrResearchPipeline/5.0 (property-research)' },
@@ -240,21 +283,24 @@ async function geocodeNominatim(address: string, logger: PipelineLogger): Promis
     }, 2, logger, 'Nominatim');
 
     if (!response || !response.ok) {
-      finish({ status: 'fail', error: response ? `HTTP ${response.status}` : 'Network error' });
+      tracker.step(`Nominatim failed: ${response ? `HTTP ${response.status}` : 'no response'}`);
+      tracker({ status: 'fail', error: response ? `HTTP ${response.status}` : 'Network error' });
       return fail;
     }
 
     const results = (await response.json()) as NominatimResult[];
+    tracker.step(`Nominatim returned ${results.length} result(s)`);
     if (!results.length) {
-      finish({ status: 'fail', error: 'No results' });
+      tracker({ status: 'fail', error: 'No results' });
       return fail;
     }
 
     // Pick best result: prefer one with house_number
     const best = results.find((r) => r.address.house_number) ?? results[0];
     const addr = best.address;
+    tracker.step(`Best result: road="${addr.road}", house="${addr.house_number}", city="${addr.city ?? addr.town}", county="${addr.county}"`);
 
-    finish({
+    tracker({
       status: 'success',
       dataPointsFound: results.length,
       details: `Road: ${addr.road ?? 'N/A'}, House: ${addr.house_number ?? 'N/A'}, County: ${addr.county ?? 'N/A'}`,
@@ -272,7 +318,7 @@ async function geocodeNominatim(address: string, logger: PipelineLogger): Promis
       lon: parseFloat(best.lon),
     };
   } catch (err) {
-    finish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+    tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
     return fail;
   }
 }
@@ -316,7 +362,7 @@ async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
   lon: number | null;
   matchedAddress: string | null;
 }> {
-  const finish = logger.startAttempt({
+  const censusTracker = logger.startAttempt({
     layer: 'Stage0B',
     source: 'Census',
     method: 'geocode',
@@ -327,13 +373,15 @@ async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
 
   try {
     const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${encodeURIComponent(address)}&benchmark=Public_AR_Current&format=json`;
+    censusTracker.step(`GET ${url}`);
 
     const response = await fetchWithRetry(url, {
       signal: AbortSignal.timeout(20_000),
     }, 2, logger, 'Census');
 
     if (!response || !response.ok) {
-      finish({ status: 'fail', error: response ? `HTTP ${response.status}` : 'Network error' });
+      censusTracker.step(`Census failed: ${response ? `HTTP ${response.status}` : 'no response'}`);
+      censusTracker({ status: 'fail', error: response ? `HTTP ${response.status}` : 'Network error' });
       return fail;
     }
 
@@ -341,14 +389,16 @@ async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
     const matches = data.result?.addressMatches;
 
     if (!matches?.length) {
-      finish({ status: 'fail', error: 'No address matches' });
+      censusTracker.step('Census returned 0 address matches');
+      censusTracker({ status: 'fail', error: 'No address matches' });
       return fail;
     }
 
     const match = matches[0];
     const comp = match.addressComponents;
+    censusTracker.step(`Census matched: "${match.matchedAddress}" | street="${comp.streetName}", preDir="${comp.preDirection}", type="${comp.suffixType}", city="${comp.city}"`);
 
-    finish({
+    censusTracker({
       status: 'success',
       dataPointsFound: matches.length,
       details: `Matched: ${match.matchedAddress}, Street: ${comp.streetName}, Type: ${comp.suffixType}`,
@@ -369,7 +419,7 @@ async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
       matchedAddress: match.matchedAddress,
     };
   } catch (err) {
-    finish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+    censusTracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
     return fail;
   }
 }

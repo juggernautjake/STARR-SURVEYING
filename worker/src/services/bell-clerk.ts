@@ -14,6 +14,7 @@ interface KofileConfig {
 }
 
 const KOFILE_CONFIGS: Record<string, KofileConfig> = {
+  // ── Central Texas (primary service area) ─────────────────────────
   bell:       { subdomain: 'bell.tx.publicsearch.us', name: 'Bell County Clerk' },
   williamson: { subdomain: 'williamson.tx.publicsearch.us', name: 'Williamson County Clerk' },
   mclennan:   { subdomain: 'mclennan.tx.publicsearch.us', name: 'McLennan County Clerk' },
@@ -31,6 +32,28 @@ const KOFILE_CONFIGS: Record<string, KofileConfig> = {
   robertson:  { subdomain: 'robertson.tx.publicsearch.us', name: 'Robertson County Clerk' },
   lee:        { subdomain: 'lee.tx.publicsearch.us', name: 'Lee County Clerk' },
   llano:      { subdomain: 'llano.tx.publicsearch.us', name: 'Llano County Clerk' },
+  // ── Additional verified Kofile/GovOS counties ────────────────────
+  anderson:   { subdomain: 'anderson.tx.publicsearch.us', name: 'Anderson County Clerk' },
+  bee:        { subdomain: 'bee.tx.publicsearch.us', name: 'Bee County Clerk' },
+  bexar:      { subdomain: 'bexar.tx.publicsearch.us', name: 'Bexar County Clerk' },
+  blanco:     { subdomain: 'blanco.tx.publicsearch.us', name: 'Blanco County Clerk' },
+  brazos:     { subdomain: 'brazos.tx.publicsearch.us', name: 'Brazos County Clerk' },
+  brewster:   { subdomain: 'brewster.tx.publicsearch.us', name: 'Brewster County Clerk' },
+  burleson:   { subdomain: 'burleson.tx.publicsearch.us', name: 'Burleson County Clerk' },
+  cameron:    { subdomain: 'cameron.tx.publicsearch.us', name: 'Cameron County Clerk' },
+  chambers:   { subdomain: 'chambers.tx.publicsearch.us', name: 'Chambers County Clerk' },
+  collin:     { subdomain: 'collin.tx.publicsearch.us', name: 'Collin County Clerk' },
+  dallas:     { subdomain: 'dallas.tx.publicsearch.us', name: 'Dallas County Clerk' },
+  denton:     { subdomain: 'denton.tx.publicsearch.us', name: 'Denton County Clerk' },
+  grayson:    { subdomain: 'grayson.tx.publicsearch.us', name: 'Grayson County Clerk' },
+  hidalgo:    { subdomain: 'hidalgo.tx.publicsearch.us', name: 'Hidalgo County Clerk' },
+  jefferson:  { subdomain: 'jefferson.tx.publicsearch.us', name: 'Jefferson County Clerk' },
+  johnson:    { subdomain: 'johnson.tx.publicsearch.us', name: 'Johnson County Clerk' },
+  kendall:    { subdomain: 'kendall.tx.publicsearch.us', name: 'Kendall County Clerk' },
+  midland:    { subdomain: 'midland.tx.publicsearch.us', name: 'Midland County Clerk' },
+  montgomery: { subdomain: 'montgomery.tx.publicsearch.us', name: 'Montgomery County Clerk' },
+  parker:     { subdomain: 'parker.tx.publicsearch.us', name: 'Parker County Clerk' },
+  refugio:    { subdomain: 'refugio.tx.publicsearch.us', name: 'Refugio County Clerk' },
 };
 
 // ── Deed-Relevant Document Types ───────────────────────────────────────────
@@ -358,7 +381,7 @@ export async function searchClerkRecords(
   const searchNames = formatOwnerForSearch(ownerName);
   logger.info('Stage2', `Searching ${config.name} with ${searchNames.length} name variants: ${searchNames.join(' | ')}`);
 
-  const finish = logger.startAttempt({
+  const tracker = logger.startAttempt({
     layer: 'Stage2A',
     source: config.name,
     method: 'playwright-search',
@@ -532,31 +555,80 @@ export async function searchClerkRecords(
                   await nextBtn.click();
                   await page.waitForTimeout(3_000);
 
+                  // Re-use the same full extraction logic for paginated results
                   const moreExtracted = await page.evaluate((bUrl: string) => {
-                    const docs: Array<{ type: string; url: string | null; text: string }> = [];
-                    document.querySelectorAll('.result-item, .search-result, table tbody tr').forEach((row) => {
+                    const docs: Array<{
+                      type: string;
+                      date: string;
+                      instrumentNumber: string;
+                      volume: string;
+                      docPage: string;
+                      grantors: string[];
+                      grantees: string[];
+                      url: string | null;
+                      text: string;
+                    }> = [];
+                    const rows = document.querySelectorAll('.result-item, .search-result, table tbody tr, .document-row, [class*="result-"]');
+                    rows.forEach((row) => {
                       const text = row.textContent?.trim() ?? '';
-                      const link = row.querySelector('a[href]');
-                      const href = link?.getAttribute('href') ?? '';
-                      const url = href ? (href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`) : null;
-                      if (text.length > 10) docs.push({ type: 'Unknown', url, text: text.substring(0, 500) });
+                      if (text.length < 10) return;
+
+                      const links = Array.from(row.querySelectorAll('a[href]'));
+                      let url: string | null = null;
+                      for (const link of links) {
+                        const href = link.getAttribute('href') ?? '';
+                        if (href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/\d{4,}/)) {
+                          url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+                          break;
+                        }
+                      }
+                      if (!url && links.length > 0) {
+                        for (const link of links) {
+                          const href = link.getAttribute('href') ?? '';
+                          if (!href.includes('search') && !href.includes('filter') && !href.includes('#') && href.length > 5) {
+                            url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+                            break;
+                          }
+                        }
+                      }
+
+                      const findMatch = (patterns: RegExp[]): string => {
+                        for (const p of patterns) {
+                          const m = text.match(p);
+                          if (m) return (m[1] ?? m[0]).trim();
+                        }
+                        return '';
+                      };
+
+                      docs.push({
+                        type: findMatch([/(?:Type|Document Type)\s*:?\s*([^\n|]+)/i, /\b(Warranty Deed|Plat|Easement|Deed of Trust|Deed)\b/i]) || 'Unknown',
+                        date: findMatch([/(?:Date|Recorded|Filed)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i, /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/]),
+                        instrumentNumber: findMatch([/(?:Instrument|Inst\.?\s*#?)\s*:?\s*([\d\-]+)/i, /\b(\d{8,})\b/]),
+                        volume: findMatch([/(?:Volume|Vol\.?)\s*:?\s*(\d+)/i]),
+                        docPage: findMatch([/(?:Page|Pg\.?)\s*:?\s*(\d+)/i]),
+                        grantors: findMatch([/(?:Grantor|From)\s*:?\s*([^\n|;]+)/i]) ? [findMatch([/(?:Grantor|From)\s*:?\s*([^\n|;]+)/i])] : [],
+                        grantees: findMatch([/(?:Grantee|To)\s*:?\s*([^\n|;]+)/i]) ? [findMatch([/(?:Grantee|To)\s*:?\s*([^\n|;]+)/i])] : [],
+                        url,
+                        text: text.substring(0, 500),
+                      });
                     });
                     return docs;
                   }, baseUrl);
 
                   for (const doc of moreExtracted) {
                     documents.push({
-                      instrumentNumber: null,
-                      volume: null,
-                      page: null,
+                      instrumentNumber: doc.instrumentNumber || null,
+                      volume: doc.volume || null,
+                      page: doc.docPage || null,
                       documentType: doc.type,
-                      recordingDate: null,
-                      grantors: [],
-                      grantees: [],
+                      recordingDate: doc.date || null,
+                      grantors: doc.grantors,
+                      grantees: doc.grantees,
                       source: config.name,
                       url: doc.url,
                     });
                   }
+                  logger.info('Stage2A', `Pagination page ${pageNum + 2}: found ${moreExtracted.length} more documents`);
                 }
               } catch { break; }
             }
@@ -578,7 +650,8 @@ export async function searchClerkRecords(
     const relevant = sorted.filter((d) => isDeedRelevant(d.documentType));
     const toFetch = relevant.length > 0 ? relevant.slice(0, 15) : sorted.slice(0, 8);
 
-    finish({
+    tracker.step(`Found ${documents.length} total documents, ${relevant.length} deed-relevant, fetching top ${toFetch.length}`);
+    tracker({
       status: documents.length > 0 ? 'success' : 'partial',
       dataPointsFound: documents.length,
       details: `${documents.length} total, ${relevant.length} deed-relevant, fetching ${toFetch.length}`,
@@ -633,7 +706,7 @@ export async function searchClerkRecords(
     }
 
     const errMsg = err instanceof Error ? err.message : String(err);
-    finish({ status: 'fail', error: errMsg });
+    tracker({ status: 'fail', error: errMsg });
     logger.error('Stage2', `Clerk search failed: ${errMsg}`, err);
     return [];
   }

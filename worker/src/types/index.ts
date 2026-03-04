@@ -164,12 +164,12 @@ export interface BoundaryCall {
   distance: {
     raw: string;
     value: number;
-    unit: 'feet' | 'varas' | 'chains' | 'meters';
+    unit: 'feet' | 'varas' | 'chains' | 'meters' | 'rods' | 'links';
   } | null;
   curve: {
     radius: { raw: string; value: number };
     arcLength: { raw: string; value: number } | null;
-    chordBearing: { raw: string; decimalDegrees: number } | null;
+    chordBearing: { raw: string; decimalDegrees: number; quadrant: string } | null;
     chordDistance: { raw: string; value: number } | null;
     direction: 'left' | 'right';
     delta: { raw: string; decimalDegrees: number } | null;
@@ -261,6 +261,8 @@ export interface LayerAttempt {
   nextLayer?: string;
   timestamp: string;
   details?: string;
+  /** Step-by-step action log for detailed diagnostics */
+  steps?: string[];
 }
 
 // ── County Registry ────────────────────────────────
