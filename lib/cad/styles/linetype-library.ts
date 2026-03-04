@@ -55,3 +55,32 @@ export const BUILTIN_LINE_TYPES: LineTypeDefinition[] = [
 export function getLineTypeById(id: string): LineTypeDefinition | undefined {
   return BUILTIN_LINE_TYPES.find(lt => lt.id === id);
 }
+
+/**
+ * Get all line types in a specific category.
+ */
+export function getLineTypesByCategory(category: LineTypeDefinition['category']): LineTypeDefinition[] {
+  return BUILTIN_LINE_TYPES.filter(lt => lt.category === category);
+}
+
+/**
+ * Find a line type by ID, searching built-in library first then custom types.
+ * Returns undefined only if not found in either. Never throws.
+ */
+export function findLineType(id: string, customLineTypes: LineTypeDefinition[] = []): LineTypeDefinition | undefined {
+  if (!id) return undefined;
+  return BUILTIN_LINE_TYPES.find(lt => lt.id === id) ?? customLineTypes.find(lt => lt.id === id);
+}
+
+/**
+ * Resolve a line type ID to a definition, falling back to SOLID if not found.
+ * Never returns undefined — safe to use without null checks in renderers.
+ */
+export function resolveLineTypeWithFallback(id: string | null | undefined, customLineTypes: LineTypeDefinition[] = []): LineTypeDefinition {
+  if (id) {
+    const lt = findLineType(id, customLineTypes);
+    if (lt) return lt;
+  }
+  // SOLID is always present in the built-in library
+  return BUILTIN_LINE_TYPES.find(lt => lt.id === 'SOLID')!;
+}

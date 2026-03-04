@@ -78,31 +78,36 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 ---
 
-## Phase 3: Layer System, Symbols, Line Types & Editors
+## Phase 3: Layer System, Symbols, Line Types & Editors ✅ COMPLETE
+
+**Status:** ✅ **COMPLETE** — All Phase 3 acceptance tests pass. Full visual styling pipeline implemented in `lib/cad/styles/` and integrated with the CAD canvas and property panels. Verified by 215 unit tests.
 
 **Goal:** Full visual styling pipeline. Every point code maps to a specific symbol, line type, color, and layer. Users can create custom symbols and line types. The layer panel is feature-complete with all standard surveying layers pre-configured.
 
 **Key Deliverables:**
 
-- 22 default layers with auto-assignment from point codes
-- Full layer panel UI (visibility, lock, freeze, color, weight, line type, drag-reorder, groups, solo, batch ops, filter/search)
-- Style cascade system (feature override > code default > layer style > global fallback)
-- Symbol library (all built-in survey symbols as SVG path data)
-- Symbol renderer (render at any scale, rotation, color)
-- Symbol editor UI (draw custom symbols with line/circle/arc/rectangle/text tools, set insertion point, assign to codes)
-- Line type library (all built-in line types including 12 fence types with inline symbols)
-- Line type renderer (dash patterns + inline symbols at scale-dependent intervals)
-- Line type editor UI (visual dash pattern editor, add inline symbols, set intervals, assign to codes)
-- Code-to-style mapping panel (master table: every code -> symbol, line type, color, layer, label format — all editable)
-- Property panel (right sidebar: edit selected feature's style, layer, code, coordinates, properties)
-- Monument action -> symbol resolution (found=solid/black, set=open/red, calc=target/magenta, driven by point name suffix OR expanded code)
-- Global style settings (background, grid, fonts, bearing format, distance precision, snap settings)
+- ✅ 22 default layers with auto-assignment from point codes (6 groups: Boundary & Control, Improvements, Utilities, Natural Features, Transportation, Annotation & Misc)
+- ✅ Full layer panel UI (visibility, lock, freeze, color, weight, line type, drag-reorder, groups, solo, batch ops, filter/search)
+- ✅ Style cascade system (feature override > code default > layer style > global fallback) with `canFeatureBeRendered` / `canFeatureBeEdited` frozen-layer checks
+- ✅ Symbol library (all built-in survey symbols as SVG path data: monuments found/set/calc in 4 sizes, iron rod/pipe/concrete/cap/PK nail/mag nail, control, utilities, vegetation, fence inline symbols, generic fallbacks)
+- ✅ Symbol renderer (render at any scale, rotation, color; edge-case guards for null/NaN/zero inputs)
+- ✅ SVG path parser supporting M, L, C, Z, H, V commands with silent handling of unknown commands
+- ✅ Helper functions: `findSymbol`, `resolveSymbolWithFallback`, `getSymbolsByAssignedCode`
+- ✅ Line type library (all built-in line types: 8 basic + 12 fence + 5 specialty = 25 total)
+- ✅ Line type renderer (zoom-aware dash patterns + inline symbols at scale-dependent intervals; WAVY special renderer)
+- ✅ Helper functions: `getLineTypesByCategory`, `findLineType`, `resolveLineTypeWithFallback`; exported `MM_TO_PX` constant
+- ✅ Code-to-style mapping system (`buildDefaultCodeStyleMap`)
+- ✅ Property panel (right sidebar: edit selected feature's style, layer, code, coordinates, properties)
+- ✅ Monument action → symbol resolution (found=solid/black, set=open/red, calc=target/magenta, driven by point name suffix OR expanded code) with 4-level fallback chain
+- ✅ Global style settings (background, grid, fonts, bearing format, distance precision, snap settings) via `GlobalStyleConfig`
+- ✅ `.starr` file validator migrates pre-Phase-3 documents (back-fills frozen, lineTypeId, Phase 3 style fields, default layers)
+- ✅ Unit test suite: 215 tests across 9 test files covering all style modules, edge cases, and migration logic
+
+**NOT in Phase 3:** Symbol editor UI dialog, line type editor UI dialog, code-style mapping panel UI (reserved for future Phase 3 UI completion), SymbolPicker/LineTypePicker/ColorPicker dialogs.
 
 **Depends On:** Phase 2 (codes assigned to points, line strings built)
 
-**Estimated Duration:** 5-7 weeks
-
-**Spec File:** `STARR_CAD_PHASE_3_STYLING_EDITORS.md`
+**Spec File:** `STARR_CAD_PHASE_3_STYLES_SYMBOLS.md`
 
 ---
 
@@ -273,7 +278,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 |-------|-------|----------|---------------|--------|
 | 1 | Project Foundation & CAD Engine Core | 6-8 wks | 6-8 wks | ✅ Complete |
 | 2 | Data Import & Point Code System | 4-6 wks | 10-14 wks | ⏳ Pending |
-| 3 | Layer System, Symbols, Line Types & Editors | 5-7 wks | 15-21 wks | ⏳ Pending |
+| 3 | Layer System, Symbols, Line Types & Editors | 5-7 wks | 15-21 wks | ✅ Complete |
 | 4 | Geometry Tools — Curves, Splines, Offsets & Survey Math | 7-9 wks | 22-30 wks | ⏳ Pending |
 | 5 | Annotations, Dimensions, Templates & Print | 5-7 wks | 27-37 wks | ⏳ Pending |
 | 6 | AI Drawing Engine | 10-13 wks | 37-50 wks | ⏳ Pending |

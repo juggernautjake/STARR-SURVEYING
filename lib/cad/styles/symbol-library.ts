@@ -391,3 +391,34 @@ export function getSymbolById(id: string): SymbolDefinition | undefined {
 export function getSymbolsByCategory(category: SymbolDefinition['category']): SymbolDefinition[] {
   return BUILTIN_SYMBOLS.filter(s => s.category === category);
 }
+
+/**
+ * Get all symbols (built-in + custom) that are assigned to a specific point code.
+ * Returns built-in matches first, then custom.
+ */
+export function getSymbolsByAssignedCode(code: string, customSymbols: SymbolDefinition[] = []): SymbolDefinition[] {
+  const all = [...BUILTIN_SYMBOLS, ...customSymbols];
+  return all.filter(s => s.assignedCodes.includes(code));
+}
+
+/**
+ * Find a symbol by ID, searching built-in library first then custom symbols.
+ * Returns undefined only if not found in either. Never throws.
+ */
+export function findSymbol(id: string, customSymbols: SymbolDefinition[] = []): SymbolDefinition | undefined {
+  if (!id) return undefined;
+  return BUILTIN_SYMBOLS.find(s => s.id === id) ?? customSymbols.find(s => s.id === id);
+}
+
+/**
+ * Resolve a symbol ID to a definition, falling back to GENERIC_QUESTION if not found.
+ * Never returns undefined — safe to use without null checks in renderers.
+ */
+export function resolveSymbolWithFallback(id: string | null | undefined, customSymbols: SymbolDefinition[] = []): SymbolDefinition {
+  if (id) {
+    const sym = findSymbol(id, customSymbols);
+    if (sym) return sym;
+  }
+  // Fall back to GENERIC_QUESTION (always present in built-in library)
+  return BUILTIN_SYMBOLS.find(s => s.id === 'GENERIC_QUESTION')!;
+}

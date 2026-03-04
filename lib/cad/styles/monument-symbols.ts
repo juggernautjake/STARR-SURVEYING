@@ -8,8 +8,9 @@ export function resolveMonumentVisuals(
 ): { symbolId: string; color: string } {
   if (!codeDefinition || codeDefinition.category !== 'BOUNDARY_CONTROL') {
     return {
-      symbolId: codeDefinition?.defaultSymbolId ?? 'GENERIC_CROSS',
-      color: codeDefinition?.defaultColor ?? '#000000',
+      // Use || (not ??) so that an empty string defaultSymbolId also falls back
+      symbolId: codeDefinition?.defaultSymbolId || 'GENERIC_CROSS',
+      color: codeDefinition?.defaultColor || '#000000',
     };
   }
 
@@ -21,19 +22,27 @@ export function resolveMonumentVisuals(
     };
   }
 
-  // Resolve by monument action
+  // Resolve by monument action (treat null/UNKNOWN as FOUND)
+  const effectiveAction: 'FOUND' | 'SET' | 'CALCULATED' =
+    monumentAction === 'SET' ? 'SET'
+    : monumentAction === 'CALCULATED' ? 'CALCULATED'
+    : 'FOUND';
+
   const monumentType = codeDefinition.monumentType ?? 'Generic';
   const sizeKey = (codeDefinition.monumentSize ?? '').replace(/["\/]/g, '');
 
-  switch (monumentAction) {
-    case 'FOUND':      return { symbolId: findSymbolForAction(monumentType, sizeKey, 'FOUND'), color: '#000000' };
-    case 'SET':        return { symbolId: findSymbolForAction(monumentType, sizeKey, 'SET'),   color: '#FF0000' };
-    case 'CALCULATED': return { symbolId: findSymbolForAction(monumentType, sizeKey, 'CALC'),  color: '#FF00FF' };
-    default:           return { symbolId: findSymbolForAction(monumentType, sizeKey, 'FOUND'), color: '#000000' };
-  }
+  const symbolId = findSymbolForAction(monumentType, sizeKey, effectiveAction);
+  const color =
+    effectiveAction === 'SET'        ? '#FF0000'
+    : effectiveAction === 'CALCULATED' ? '#FF00FF'
+    : '#000000';
+
+  return { symbolId, color };
 }
 
-function findSymbolForAction(type: string, size: string, action: string): string {
+function findSymbolForAction(type: string, size: string, action: 'FOUND' | 'SET' | 'CALCULATED'): string {
+  const actionSuffix = action === 'CALCULATED' ? 'CALC' : action;
+
   const typeMap: Record<string, string> = {
     'Iron Rod': 'IR', 'Iron Pipe': 'IP', 'Concrete': 'CONC', 'Concrete Monument': 'CONC',
     'Cap/Disk': 'CAP', 'PK Nail': 'PKNAIL', 'Mag Nail': 'MAGNAIL',
@@ -50,11 +59,21 @@ function findSymbolForAction(type: string, size: string, action: string): string
   const rawSize = size.replace(/["\\/]/g, '');
   const mappedSize = sizeMap[rawSize] ?? rawSize;
   const sizeStr = mappedSize ? `_${mappedSize}` : '';
-  const specific = `MON_${prefix}${sizeStr}_${action}`;
 
+  // 1. Try with type + size (most specific)
+  const specific = `MON_${prefix}${sizeStr}_${actionSuffix}`;
   if (getSymbolById(specific)) return specific;
-  // Try without size
-  const withoutSize = `MON_${prefix}_${action}`;
-  if (getSymbolById(withoutSize)) return withoutSize;
-  return `MON_GENERIC_${action}`;
+
+  // 2. Try with type only (no size)
+  if (sizeStr) {
+    const withoutSize = `MON_${prefix}_${actionSuffix}`;
+    if (getSymbolById(withoutSize)) return withoutSize;
+  }
+
+  // 3. Fall back to generic monument symbol for this action
+  const genericFallback = `MON_GENERIC_${actionSuffix}`;
+  if (getSymbolById(genericFallback)) return genericFallback;
+
+  // 4. Last resort: generic cross (always present)
+  return 'GENERIC_CROSS';
 }

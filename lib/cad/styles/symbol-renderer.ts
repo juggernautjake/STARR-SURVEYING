@@ -2,8 +2,11 @@
 import type { SymbolDefinition } from './types';
 
 /** Parse color: '#RRGGBB' → number for PixiJS */
-function parseColor(hex: string): number {
-  return parseInt(hex.replace('#', ''), 16);
+export function parseColor(hex: string): number {
+  if (!hex || typeof hex !== 'string') return 0x000000;
+  const clean = hex.replace('#', '');
+  const parsed = parseInt(clean, 16);
+  return isNaN(parsed) ? 0x000000 : parsed;
 }
 
 function resolvePathColor(
@@ -22,31 +25,59 @@ interface PathCommand {
   x2?: number; y2?: number;
 }
 
-function parseSVGPathData(d: string): PathCommand[] {
+/**
+ * Parse a minimal subset of SVG path data used by CAD symbols.
+ * Supported commands: M, L, C, Z, H (horizontal line), V (vertical line).
+ * Unknown commands are silently skipped so custom symbols never crash the renderer.
+ */
+export function parseSVGPathData(d: string): PathCommand[] {
+  if (!d) return [];
   const commands: PathCommand[] = [];
-  const regex = /([MLCZ])\s*([^MLCZ]*)/gi;
+  // Extend regex to also capture H and V commands
+  const regex = /([MLCZHV])\s*([^MLCZHV]*)/gi;
   let match: RegExpExecArray | null;
+  let curX = 0, curY = 0;
 
   while ((match = regex.exec(d)) !== null) {
-    const type = match[1].toUpperCase() as PathCommand['type'];
+    const type = match[1].toUpperCase();
     const nums = match[2].trim().split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
 
     switch (type) {
       case 'M':
       case 'L':
         for (let i = 0; i + 1 < nums.length; i += 2) {
-          const cmd: PathCommand = { type: i === 0 ? type : 'L', x: nums[i], y: nums[i + 1] };
+          const cmd: PathCommand = { type: (i === 0 ? type : 'L') as 'M' | 'L', x: nums[i], y: nums[i + 1] };
           commands.push(cmd);
+          curX = nums[i];
+          curY = nums[i + 1];
+        }
+        break;
+      case 'H':
+        // Horizontal line: only x provided; y stays same
+        for (const x of nums) {
+          commands.push({ type: 'L', x, y: curY });
+          curX = x;
+        }
+        break;
+      case 'V':
+        // Vertical line: only y provided; x stays same
+        for (const y of nums) {
+          commands.push({ type: 'L', x: curX, y });
+          curY = y;
         }
         break;
       case 'C':
         for (let i = 0; i + 5 < nums.length; i += 6) {
           commands.push({ type: 'C', x1: nums[i], y1: nums[i + 1], x2: nums[i + 2], y2: nums[i + 3], x: nums[i + 4], y: nums[i + 5] });
+          curX = nums[i + 4];
+          curY = nums[i + 5];
         }
         break;
       case 'Z':
         commands.push({ type: 'Z', x: 0, y: 0 });
         break;
+      // Unknown commands (A, S, Q, T, etc.) are silently ignored — ensures
+      // malformed custom symbols never crash the renderer.
     }
   }
   return commands;
@@ -74,25 +105,33 @@ export function renderSymbol(
   color: number,
   opacity: number,
 ): void {
+  // Guard against invalid input that could corrupt PixiJS state
+  if (!g || !symbol) return;
+  if (!Array.isArray(symbol.paths) || symbol.paths.length === 0) return;
+  if (!isFinite(screenX) || !isFinite(screenY)) return;
+  if (!isFinite(sizePx) || sizePx <= 0) return;
+
   const scale = sizePx / 10;
-  const rad = (rotation * Math.PI) / 180;
+  const safeRotation = isFinite(rotation) ? rotation : 0;
+  const safeOpacity = Math.max(0, Math.min(1, isFinite(opacity) ? opacity : 1));
+  const rad = (safeRotation * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
 
   for (const path of symbol.paths) {
-    if (path.type === 'TEXT') continue; // TEXT handled separately
+    if (path.type === 'TEXT') continue; // TEXT handled separately by PIXI.Text
 
     const fillColor = resolvePathColor(path.fill, color);
     const strokeColor = resolvePathColor(path.stroke, color);
 
     if (strokeColor !== null) {
-      g.lineStyle(path.strokeWidth * scale, strokeColor, opacity);
+      g.lineStyle(Math.max(0, path.strokeWidth * scale), strokeColor, safeOpacity);
     } else {
       g.lineStyle(0);
     }
 
     if (fillColor !== null) {
-      g.beginFill(fillColor, opacity);
+      g.beginFill(fillColor, safeOpacity);
     }
 
     // Apply manual transform (translate + rotate + scale)
@@ -107,14 +146,15 @@ export function renderSymbol(
 
     switch (path.type) {
       case 'CIRCLE': {
-        const center = tx(path.cx!, path.cy!);
+        const center = tx(path.cx ?? 0, path.cy ?? 0);
         const rScaled = (path.r ?? 1) * scale;
-        g.drawCircle(center.x, center.y, rScaled);
+        if (rScaled > 0) g.drawCircle(center.x, center.y, rScaled);
         break;
       }
       case 'RECT': {
         const x = path.x ?? 0, y = path.y ?? 0;
         const w = path.width ?? 0, h = path.height ?? 0;
+        if (w === 0 || h === 0) break;
         const p1 = tx(x, y);
         const p2 = tx(x + w, y);
         const p3 = tx(x + w, y + h);
