@@ -16,6 +16,10 @@ import {
   computeSelectionCentroid,
 } from '@/lib/cad/operations';
 
+// Line weight constraints
+const MIN_LINE_WEIGHT = 0.1;
+const MAX_LINE_WEIGHT = 10;
+
 // ─────────────────────────────────────────────
 // Shared tiny toggle button
 // ─────────────────────────────────────────────
@@ -105,7 +109,7 @@ export default function ToolOptionsBar() {
   const drawingStore = useDrawingStore();
 
   const ts = toolStore.state;
-  const { activeTool, orthoEnabled, polarEnabled, polarAngle, copyMode, regularPolygonSides } = ts;
+  const { activeTool, orthoEnabled, polarEnabled, polarAngle, copyMode, regularPolygonSides, drawStyle } = ts;
 
   // Which groups of options are relevant for the current tool
   const isDrawingTool = activeTool.startsWith('DRAW_');
@@ -118,6 +122,7 @@ export default function ToolOptionsBar() {
   const showRotateAngle = activeTool === 'ROTATE';
   const showScaleFactor = activeTool === 'SCALE';
   const showSelectAll = activeTool === 'SELECT';
+  const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
 
   // Local state for text inputs
   const selCount = selectionStore.selectedIds.size;
@@ -215,6 +220,93 @@ export default function ToolOptionsBar() {
             tooltipDesc="When enabled, the operation creates a copy of the original instead of modifying it in-place."
             color="bg-green-700"
           />
+        </>
+      )}
+
+      {/* ── Line style controls (DRAW_LINE / DRAW_POLYLINE) ────────────────── */}
+      {showLineStyle && (
+        <>
+          <Sep />
+          {/* Color picker */}
+          <Tooltip label="Line Color" description="Set the color for new line segments. Overrides the active layer color." side="bottom" delay={400}>
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-gray-400 shrink-0">Color:</span>
+              <input
+                type="color"
+                className="w-7 h-5 rounded cursor-pointer border border-gray-600 bg-transparent p-0"
+                value={drawStyle.color ?? '#000000'}
+                title="Line color"
+                onChange={(e) => toolStore.setDrawStyle({ color: e.target.value })}
+              />
+              {drawStyle.color != null && (
+                <button
+                  className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+                  onClick={() => toolStore.setDrawStyle({ color: null })}
+                  title="Reset to layer color"
+                >✕</button>
+              )}
+            </div>
+          </Tooltip>
+          <Sep />
+          {/* Line weight */}
+          <Tooltip label="Line Weight" description="Set line thickness in points. Overrides the active layer weight." side="bottom" delay={400}>
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-gray-400 shrink-0">Weight:</span>
+              <input
+                type="number"
+                min={MIN_LINE_WEIGHT}
+                max={MAX_LINE_WEIGHT}
+                step={0.25}
+                className="w-12 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-blue-500 h-5"
+                value={drawStyle.lineWeight ?? ''}
+                placeholder="layer"
+                title="Line weight (pt)"
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  toolStore.setDrawStyle({ lineWeight: isNaN(v) ? null : Math.max(MIN_LINE_WEIGHT, Math.min(MAX_LINE_WEIGHT, v)) });
+                }}
+              />
+            </div>
+          </Tooltip>
+          <Sep />
+          {/* Opacity */}
+          <Tooltip label="Opacity" description="Set line opacity (0 = transparent, 1 = fully opaque)." side="bottom" delay={400}>
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-gray-400 shrink-0">Opacity:</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                className="w-16 h-3 cursor-pointer accent-blue-500"
+                value={drawStyle.opacity ?? 1}
+                title={`Opacity: ${Math.round((drawStyle.opacity ?? 1) * 100)}%`}
+                onChange={(e) => toolStore.setDrawStyle({ opacity: parseFloat(e.target.value) })}
+              />
+              <span className="text-[10px] text-gray-400 w-7 text-right font-mono shrink-0">
+                {Math.round((drawStyle.opacity ?? 1) * 100)}%
+              </span>
+            </div>
+          </Tooltip>
+          <Sep />
+          {/* Line type */}
+          <Tooltip label="Line Type" description="Choose the line pattern for new segments." side="bottom" delay={400}>
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-gray-400 shrink-0">Type:</span>
+              <select
+                className="bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none border border-gray-600 focus:border-blue-500 h-5 font-mono"
+                value={drawStyle.lineType}
+                onChange={(e) => toolStore.setDrawStyle({ lineType: e.target.value })}
+                title="Line type"
+              >
+                <option value="SOLID">─── Solid</option>
+                <option value="DASHED">- - - Dashed</option>
+                <option value="DOTTED">· · · Dotted</option>
+                <option value="DOT_DASH">-·-·- Dot-Dash</option>
+                <option value="LONG_DASH">── ── Long Dash</option>
+              </select>
+            </div>
+          </Tooltip>
         </>
       )}
 
