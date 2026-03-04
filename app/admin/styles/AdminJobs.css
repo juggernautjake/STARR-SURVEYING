@@ -1269,6 +1269,10 @@
 .file-viewer__ctrl-btn { background: #374151; color: #D1D5DB; border: 1px solid #4B5563; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.78rem; cursor: pointer; font-family: inherit; text-decoration: none; transition: all 0.15s; }
 .file-viewer__ctrl-btn:hover { background: #4B5563; color: #fff; }
 .file-viewer__zoom-level { font-size: 0.75rem; color: #9CA3AF; min-width: 40px; text-align: center; }
+.file-viewer__zoom-input { width: 46px; background: #374151; color: #D1D5DB; border: 1px solid #4B5563; border-radius: 6px; padding: 0.3rem 0.4rem; font-size: 0.78rem; text-align: center; font-family: inherit; -moz-appearance: textfield; }
+.file-viewer__zoom-input::-webkit-inner-spin-button, .file-viewer__zoom-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.file-viewer__zoom-input:focus { outline: 1px solid #3B82F6; border-color: #3B82F6; }
+.file-viewer__zoom-pct { font-size: 0.78rem; color: #9CA3AF; }
 .file-viewer__divider { width: 1px; height: 20px; background: #4B5563; margin: 0 0.25rem; }
 .file-viewer__close-btn { background: #EF4444; color: #fff; border: none; border-radius: 6px; padding: 0.3rem 0.65rem; font-size: 1.1rem; cursor: pointer; line-height: 1; font-weight: 600; }
 .file-viewer__close-btn:hover { background: #DC2626; }
