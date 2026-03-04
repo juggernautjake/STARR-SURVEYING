@@ -31,7 +31,7 @@ interface MenuDef {
   items: MenuEntry[];
 }
 
-export default function MenuBar({ onOpenImport, onTogglePointTable }: { onOpenImport?: () => void; onTogglePointTable?: () => void }) {
+export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator }: { onOpenImport?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -194,6 +194,30 @@ export default function MenuBar({ onOpenImport, onTogglePointTable }: { onOpenIm
           label: 'Toggle Point Table',
           action: () => { onTogglePointTable?.(); setOpenMenu(null); },
         },
+        {
+          label: 'Toggle Traverse Panel',
+          action: () => { onToggleTraversePanel?.(); setOpenMenu(null); },
+        },
+      ],
+    },
+    {
+      label: 'Survey',
+      items: [
+        {
+          label: 'Curve Calculator…',
+          shortcut: 'CC',
+          action: () => { onOpenCurveCalculator?.(); setOpenMenu(null); },
+        },
+        { separator: true },
+        { label: 'Arc', shortcut: 'A', action: () => { toolStore.setTool('DRAW_ARC'); setOpenMenu(null); } },
+        { label: 'Spline (Fit-Point)', shortcut: 'SF', action: () => { toolStore.setTool('DRAW_SPLINE_FIT'); setOpenMenu(null); } },
+        { label: 'Spline (NURBS)', shortcut: 'SN', action: () => { toolStore.setTool('DRAW_SPLINE_CONTROL'); setOpenMenu(null); } },
+        { separator: true },
+        { label: 'Curb Return / Fillet', shortcut: 'CR', action: () => { toolStore.setTool('CURB_RETURN'); setOpenMenu(null); } },
+        { label: 'Offset', shortcut: 'OF', action: () => { toolStore.setTool('OFFSET'); setOpenMenu(null); } },
+        { separator: true },
+        { label: 'Inverse (Bearing & Distance)', shortcut: 'INV', action: () => { toolStore.setTool('INVERSE'); setOpenMenu(null); } },
+        { label: 'Forward Point', shortcut: 'FP', action: () => { toolStore.setTool('FORWARD_POINT'); setOpenMenu(null); } },
       ],
     },
     {

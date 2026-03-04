@@ -14,6 +14,8 @@ import FeaturePropertiesDialog from './components/FeaturePropertiesDialog';
 import SettingsDialog from './components/SettingsDialog';
 import ImportDialog from './components/ImportDialog';
 import PointTablePanel from './components/PointTablePanel';
+import TraversePanel from './components/TraversePanel';
+import CurveCalculator from './components/CurveCalculator';
 import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -87,6 +89,8 @@ export default function CADLayout() {
   const [showSettings, setShowSettings] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showPointTable, setShowPointTable] = useState(false);
+  const [showTraversePanel, setShowTraversePanel] = useState(false);
+  const [showCurveCalculator, setShowCurveCalculator] = useState(false);
   const [recoveryPayload, setRecoveryPayload] = useState<{
     savedAt: string;
     document: unknown;
@@ -207,7 +211,12 @@ export default function CADLayout() {
       )}
 
       {/* Top menu bar */}
-      <MenuBar onOpenImport={() => setShowImportDialog(true)} onTogglePointTable={() => setShowPointTable(p => !p)} />
+      <MenuBar
+        onOpenImport={() => setShowImportDialog(true)}
+        onTogglePointTable={() => setShowPointTable(p => !p)}
+        onToggleTraversePanel={() => setShowTraversePanel(p => !p)}
+        onOpenCurveCalculator={() => setShowCurveCalculator(true)}
+      />
 
       {/* Contextual tool options strip */}
       <ToolOptionsBar />
@@ -231,10 +240,15 @@ export default function CADLayout() {
           <CanvasViewport />
         </div>
 
-        {/* Right sidebar: property panel (toggleable) */}
-        {showPropertyPanel && (
+        {/* Right sidebar: property panel + traverse panel (toggleable) */}
+        {(showPropertyPanel || showTraversePanel) && (
           <div className="flex flex-col bg-gray-800 border-l border-gray-700 w-48 flex-shrink-0">
-            <PropertyPanel />
+            {showPropertyPanel && <PropertyPanel />}
+            {showTraversePanel && (
+              <div className="flex-1 overflow-hidden">
+                <TraversePanel />
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -263,6 +277,9 @@ export default function CADLayout() {
 
       {/* Settings dialog */}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+
+      {/* Curve Calculator dialog */}
+      {showCurveCalculator && <CurveCalculator onClose={() => setShowCurveCalculator(false)} />}
 
       {/* Import field data dialog */}
       {showImportDialog && (

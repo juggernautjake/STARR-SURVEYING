@@ -24,6 +24,12 @@ import {
   Maximize,
   ChevronRight,
   Slash,
+  GitCommitHorizontal,
+  Waves,
+  ArrowRightLeft,
+  Navigation,
+  SeparatorHorizontal,
+  RefreshCw,
 } from 'lucide-react';
 import { useToolStore, useSelectionStore, useViewportStore, useDrawingStore } from '@/lib/cad/store';
 import {
@@ -307,6 +313,43 @@ function buildToolGroups(
           icon: <Eraser size={14} />,
           action: () => deleteSelection(),
         },
+      ],
+    },
+
+    // ── Phase 4 tools ──
+
+    {
+      mainTool: 'DRAW_ARC',
+      label: 'Arc',
+      description: 'Draw a true circular arc. Right-click for spline drawing tools.',
+      shortcut: 'A',
+      icon: <GitCommitHorizontal size={16} />,
+      variants: [
+        { tool: 'DRAW_ARC', label: 'Arc (3-point)', description: 'Click PC, mid-point, PT to define an arc.', shortcut: 'A', icon: <GitCommitHorizontal size={14} /> },
+        { tool: 'DRAW_SPLINE_FIT', label: 'Spline (fit-point)', description: 'Click fit-points for a smooth Fusion 360-style spline. Double-click to finish.', shortcut: 'SF', icon: <Waves size={14} /> },
+        { tool: 'DRAW_SPLINE_CONTROL', label: 'Spline (NURBS control-point)', description: 'Click control points for a NURBS spline. Double-click to finish.', shortcut: 'SN', icon: <Spline size={14} /> },
+      ],
+    },
+    {
+      mainTool: 'CURB_RETURN',
+      label: 'Curb Return',
+      description: 'Fillet two lines with a circular arc. Click first line, second line, enter radius. Right-click for Offset tool.',
+      shortcut: 'CR',
+      icon: <RefreshCw size={16} />,
+      variants: [
+        { tool: 'CURB_RETURN', label: 'Curb Return / Fillet', description: 'Click first line, click second line, type radius. Arc is computed at intersection.', shortcut: 'CR', icon: <RefreshCw size={14} /> },
+        { tool: 'OFFSET', label: 'Offset', description: 'Offset a polyline/line by a parallel distance. Right-click on a feature to offset it.', shortcut: 'OF', icon: <SeparatorHorizontal size={14} /> },
+      ],
+    },
+    {
+      mainTool: 'INVERSE',
+      label: 'Inverse',
+      description: 'Click two points to compute bearing and distance between them. Right-click for Forward Point tool.',
+      shortcut: 'INV',
+      icon: <ArrowRightLeft size={16} />,
+      variants: [
+        { tool: 'INVERSE', label: 'Inverse (bearing & distance)', description: 'Click point A then point B — bearing and distance are shown in the status bar and command bar.', shortcut: 'INV', icon: <ArrowRightLeft size={14} /> },
+        { tool: 'FORWARD_POINT', label: 'Forward Point', description: 'Click a base point, type bearing and distance in the command bar to place a new point.', shortcut: 'FP', icon: <Navigation size={14} /> },
       ],
     },
   ];
