@@ -4,7 +4,7 @@
 // Shows options relevant to the currently active tool — ortho/polar modes,
 // copy mode, regular-polygon sides picker, rotate angle, scale factor, etc.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToolStore, useSelectionStore, useViewportStore, useDrawingStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
 import {
@@ -15,6 +15,7 @@ import {
   duplicateSelection,
   computeSelectionCentroid,
 } from '@/lib/cad/operations';
+import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
 
 // ─────────────────────────────────────────────
 // Shared tiny toggle button
@@ -118,12 +119,45 @@ export default function ToolOptionsBar() {
   const showRotateAngle = activeTool === 'ROTATE';
   const showScaleFactor = activeTool === 'SCALE';
   const showSelectAll = activeTool === 'SELECT';
+  const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
 
   // Local state for text inputs
   const selCount = selectionStore.selectedIds.size;
 
   // POLAR_ANGLE_PRESETS
   const POLAR_PRESETS = [15, 30, 45, 90] as const;
+
+  // Line style state (kept in sync with toolStore.drawingStyleOverride)
+  const override = ts.drawingStyleOverride;
+  const activeLayerStyle = drawingStore.getActiveLayerStyle();
+  const [lineColor, setLineColor] = useState(override?.color ?? activeLayerStyle.color ?? '#000000');
+  const [lineWeight, setLineWeight] = useState(String(override?.lineWeight ?? activeLayerStyle.lineWeight ?? 0.5));
+  const [lineOpacity, setLineOpacity] = useState(String(override?.opacity ?? 1));
+  const [lineTypeId, setLineTypeId] = useState(override?.lineTypeId ?? 'SOLID');
+
+  // When the active tool changes to a line tool, reset the local state from the
+  // store so the bar reflects whatever the user had set previously.
+  useEffect(() => {
+    if (showLineStyle) {
+      const ov = toolStore.state.drawingStyleOverride;
+      if (ov) {
+        if (ov.color) setLineColor(ov.color);
+        if (ov.lineWeight != null) setLineWeight(String(ov.lineWeight));
+        if (ov.opacity != null) setLineOpacity(String(ov.opacity));
+        if (ov.lineTypeId) setLineTypeId(ov.lineTypeId);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTool]);
+
+  // Push combined override into tool store whenever any style field changes
+  function applyLineStyle(overrides: { color?: string; lineWeight?: number; opacity?: number; lineTypeId?: string }) {
+    const current = toolStore.state.drawingStyleOverride ?? {};
+    toolStore.setDrawingStyleOverride({ ...current, ...overrides });
+  }
+
+  // Line type options – only the basic BASIC category for the picker
+  const BASIC_LINE_TYPES = BUILTIN_LINE_TYPES.filter((lt) => lt.category === 'BASIC');
 
   return (
     <div
@@ -215,6 +249,116 @@ export default function ToolOptionsBar() {
             tooltipDesc="When enabled, the operation creates a copy of the original instead of modifying it in-place."
             color="bg-green-700"
           />
+        </>
+      )}
+
+      {/* ── Line style (shown for DRAW_LINE and DRAW_POLYLINE) ─────────────── */}
+      {showLineStyle && (
+        <>
+          <Sep />
+          {/* Color */}
+          <Tooltip label="Line Color" description="Set the color for lines you draw. Overrides the active layer color for this drawing session." side="bottom" delay={400}>
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-gray-400 shrink-0">Color</span>
+              <input
+                type="color"
+                className="w-6 h-5 rounded cursor-pointer border border-gray-600 bg-transparent p-0"
+                value={lineColor}
+                onChange={(e) => {
+                  setLineColor(e.target.value);
+                  applyLineStyle({ color: e.target.value });
+                }}
+                title="Line color"
+              />
+            </div>
+          </Tooltip>
+          {/* Line weight */}
+          <Tooltip label="Line Weight" description="Stroke width in drawing units. Common values: 0.25 (fine), 0.5, 1, 2." side="bottom" delay={400}>
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-gray-400 shrink-0">Wt</span>
+              <input
+                type="number"
+                min={0.05}
+                max={10}
+                step={0.05}
+                className="w-14 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-blue-500 h-5"
+                value={lineWeight}
+                onChange={(e) => setLineWeight(e.target.value)}
+                onBlur={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) applyLineStyle({ lineWeight: v });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const v = parseFloat((e.target as HTMLInputElement).value);
+                    if (!isNaN(v) && v > 0) applyLineStyle({ lineWeight: v });
+                  }
+                }}
+                title="Line weight"
+              />
+            </div>
+          </Tooltip>
+          {/* Opacity */}
+          <Tooltip label="Opacity" description="Line opacity from 0 (transparent) to 1 (fully opaque)." side="bottom" delay={400}>
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-gray-400 shrink-0">α</span>
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                className="w-12 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-blue-500 h-5"
+                value={lineOpacity}
+                onChange={(e) => setLineOpacity(e.target.value)}
+                onBlur={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v)) applyLineStyle({ opacity: Math.max(0, Math.min(1, v)) });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const v = parseFloat((e.target as HTMLInputElement).value);
+                    if (!isNaN(v)) applyLineStyle({ opacity: Math.max(0, Math.min(1, v)) });
+                  }
+                }}
+                title="Opacity 0–1"
+              />
+            </div>
+          </Tooltip>
+          {/* Line type */}
+          <Tooltip label="Line Type" description="Select the dash pattern for the line. Solid, Dashed, Dotted, etc." side="bottom" delay={400}>
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-gray-400 shrink-0">Type</span>
+              <select
+                className="bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none border border-gray-600 focus:border-blue-500 h-5"
+                value={lineTypeId}
+                onChange={(e) => {
+                  setLineTypeId(e.target.value);
+                  applyLineStyle({ lineTypeId: e.target.value });
+                }}
+                title="Line type"
+              >
+                {BASIC_LINE_TYPES.map((lt) => (
+                  <option key={lt.id} value={lt.id}>{lt.name}</option>
+                ))}
+              </select>
+            </div>
+          </Tooltip>
+          {/* Reset to layer defaults */}
+          <Tooltip label="Reset Style" description="Clear all style overrides and revert to the active layer's color and weight." side="bottom" delay={400}>
+            <button
+              className="px-1.5 py-0 rounded text-[10px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors h-5"
+              onClick={() => {
+                toolStore.setDrawingStyleOverride(null);
+                setLineColor(activeLayerStyle.color ?? '#000000');
+                setLineWeight(String(activeLayerStyle.lineWeight ?? 0.5));
+                setLineOpacity('1');
+                setLineTypeId('SOLID');
+              }}
+              title="Reset to layer defaults"
+            >
+              ↺
+            </button>
+          </Tooltip>
         </>
       )}
 

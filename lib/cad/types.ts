@@ -214,6 +214,14 @@ export interface ToolState {
   boxStart: Point2D | null; // Screen coordinates
   boxEnd: Point2D | null;
   isBoxSelecting: boolean;
+
+  // Per-draw style overrides (set in ToolOptionsBar, applied when creating features)
+  drawingStyleOverride: {
+    color?: string;
+    lineWeight?: number;
+    opacity?: number;
+    lineTypeId?: string;
+  } | null;
 }
 
 // --- UNDO ---

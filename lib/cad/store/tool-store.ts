@@ -20,6 +20,7 @@ interface ToolStore {
   setPolarEnabled: (enabled: boolean) => void;
   setPolarAngle: (angle: number) => void;
   setCopyMode: (enabled: boolean) => void;
+  setDrawingStyleOverride: (style: ToolState['drawingStyleOverride']) => void;
   resetToolState: () => void;
 }
 
@@ -40,6 +41,7 @@ const defaultToolState: ToolState = {
   boxStart: null,
   boxEnd: null,
   isBoxSelecting: false,
+  drawingStyleOverride: null,
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -56,6 +58,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         polarAngle: s.state.polarAngle,
         copyMode: s.state.copyMode,
         regularPolygonSides: s.state.regularPolygonSides,
+        drawingStyleOverride: s.state.drawingStyleOverride,
       },
     })),
 
@@ -109,6 +112,9 @@ export const useToolStore = create<ToolStore>((set) => ({
 
   setCopyMode: (enabled) =>
     set((s) => ({ state: { ...s.state, copyMode: enabled } })),
+
+  setDrawingStyleOverride: (style) =>
+    set((s) => ({ state: { ...s.state, drawingStyleOverride: style } })),
 
   resetToolState: () =>
     set((s) => ({
