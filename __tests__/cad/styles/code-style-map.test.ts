@@ -11,12 +11,16 @@ function makeCode(overrides: Partial<PointCodeDefinition> = {}): PointCodeDefini
     description: '1/2" Iron Rod', category: 'BOUNDARY_CONTROL',
     subcategory: 'Iron Rod',
     connectType: 'POINT',
+    isAutoSpline: false,
     defaultSymbolId: 'MON_IR_050_FOUND',
     defaultColor: '#000000',
     defaultLineTypeId: 'SOLID',
     defaultLineWeight: 0.25,
     defaultLabelFormat: '{code}',
     defaultLayerId: 'BOUNDARY-MON',
+    simplifiedCode: 'BC02',
+    simplifiedDescription: '1/2" Iron Rod',
+    collapses: false,
     monumentType: 'Iron Rod',
     monumentSize: '1/2"',
     monumentAction: null,
@@ -68,8 +72,8 @@ describe('buildDefaultCodeStyleMap', () => {
     expect(map.get('BC02')?.symbolSize).toBe(2.5);
   });
 
-  it('sets symbolSize to 0 for LINE/POLYLINE codes (no point symbol needed)', () => {
-    const code = makeCode({ connectType: 'POLYLINE' });
+  it('sets symbolSize to 0 for LINE codes (no point symbol needed)', () => {
+    const code = makeCode({ connectType: 'LINE' });
     const map = buildDefaultCodeStyleMap([code]);
     expect(map.get('BC02')?.symbolSize).toBe(0);
   });

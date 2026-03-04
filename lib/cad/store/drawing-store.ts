@@ -216,7 +216,7 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
 
   newDocument: () => {
     const doc = createDefaultDocument();
-    set({ document: doc, activeLayerId: doc.layerOrder[0], isDirty: false });
+    set({ document: doc, activeLayerId: doc.layerOrder[0] ?? '', isDirty: false });
   },
 
   loadDocument: (doc) =>

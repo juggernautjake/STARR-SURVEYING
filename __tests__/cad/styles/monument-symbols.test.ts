@@ -11,12 +11,16 @@ function makeBoundaryCode(overrides: Partial<PointCodeDefinition> = {}): PointCo
     description: '1/2" IR', category: 'BOUNDARY_CONTROL',
     subcategory: 'Iron Rod',
     connectType: 'POINT',
+    isAutoSpline: false,
     defaultSymbolId: '',
     defaultColor: '#000000',
     defaultLineTypeId: 'SOLID',
     defaultLineWeight: 0.25,
     defaultLabelFormat: '{code}',
     defaultLayerId: 'BOUNDARY-MON',
+    simplifiedCode: 'BC02',
+    simplifiedDescription: '1/2" IR',
+    collapses: false,
     monumentType: 'Iron Rod',
     monumentSize: '1/2"',
     monumentAction: null,
@@ -37,13 +41,13 @@ describe('resolveMonumentVisuals', () => {
   });
 
   it('returns code defaultSymbolId when set on non-BOUNDARY_CONTROL code', () => {
-    const code = makeBoundaryCode({ category: 'UTILITY', defaultSymbolId: 'UTIL_HYDRANT' });
+    const code = makeBoundaryCode({ category: 'UTILITIES', defaultSymbolId: 'UTIL_HYDRANT' });
     const result = resolveMonumentVisuals(code, 'FOUND');
     expect(result.symbolId).toBe('UTIL_HYDRANT');
   });
 
   it('returns GENERIC_CROSS for non-BOUNDARY_CONTROL code without defaultSymbolId', () => {
-    const code = makeBoundaryCode({ category: 'UTILITY', defaultSymbolId: '' });
+    const code = makeBoundaryCode({ category: 'UTILITIES', defaultSymbolId: '' });
     const result = resolveMonumentVisuals(code, null);
     expect(result.symbolId).toBe('GENERIC_CROSS');
     expect(result.color).toBe('#000000');
