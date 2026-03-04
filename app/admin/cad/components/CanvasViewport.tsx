@@ -535,17 +535,13 @@ export default function CanvasViewport() {
       g.endFill();
     }
 
-    // Draw hover highlight (when SELECT tool active and not already selected)
+    // Draw hover highlight for ANY tool (not just SELECT) when hovering over an element
     const hoveredId = hoveredIdRef.current;
     const hoverColorHex = (drawingStore.document.settings.hoverColor ?? '#66aaff').replace('#', '');
     const hoverColor = parseInt(hoverColorHex, 16);
     const selColorHex = (drawingStore.document.settings.selectionColor ?? '#0088ff').replace('#', '');
     const selColor = parseInt(selColorHex, 16);
-    if (
-      hoveredId &&
-      !selectedIds.has(hoveredId) &&
-      toolState.activeTool === 'SELECT'
-    ) {
+    if (hoveredId && !selectedIds.has(hoveredId)) {
       const feature = drawingStore.getFeature(hoveredId);
       if (feature) {
         const geom = feature.geometry;
@@ -724,6 +720,11 @@ export default function CanvasViewport() {
     const { drawingPoints, previewPoint } = toolState;
     const activeTool = toolState.activeTool;
 
+    // Active layer color for drawing previews
+    const activeLayerStyle = drawingStore.getActiveLayerStyle();
+    const previewColorHex = (activeLayerStyle.color ?? '#0066cc').replace('#', '');
+    const previewColor = parseInt(previewColorHex, 16);
+
     // Configurable selection/hover colors (also used here for preview lines)
     const selColorHex = (drawingStore.document.settings.selectionColor ?? '#0088ff').replace('#', '');
     const selColor = parseInt(selColorHex, 16);
@@ -742,6 +743,9 @@ export default function CanvasViewport() {
       g.lineStyle(1, selColor, 0.6);
       g.moveTo(bx, by);
       g.lineTo(x2, y2);
+      // Base point cross
+      g.moveTo(bx - 5, by); g.lineTo(bx + 5, by);
+      g.moveTo(bx, by - 5); g.lineTo(bx, by + 5);
       return;
     }
 
@@ -750,14 +754,16 @@ export default function CanvasViewport() {
       const center = toolState.rotateCenter;
       const { sx: cx, sy: cy } = w2s(center.x, center.y);
       const { sx: x2, sy: y2 } = w2s(previewPoint.x, previewPoint.y);
-      g.lineStyle(1, 0xff8800, 0.7);
+      g.lineStyle(1.5, 0xff8800, 0.8);
       g.moveTo(cx, cy);
       g.lineTo(x2, y2);
-      // Small cross at center
-      g.moveTo(cx - 5, cy);
-      g.lineTo(cx + 5, cy);
-      g.moveTo(cx, cy - 5);
-      g.lineTo(cx, cy + 5);
+      // Center crosshair
+      g.moveTo(cx - 8, cy); g.lineTo(cx + 8, cy);
+      g.moveTo(cx, cy - 8); g.lineTo(cx, cy + 8);
+      // Circle at cursor tip
+      g.beginFill(0xff8800, 0.6);
+      g.drawCircle(x2, y2, 4);
+      g.endFill();
       return;
     }
 
@@ -766,14 +772,12 @@ export default function CanvasViewport() {
       const bp = toolState.basePoint;
       const { sx: bx, sy: by } = w2s(bp.x, bp.y);
       const { sx: x2, sy: y2 } = w2s(previewPoint.x, previewPoint.y);
-      g.lineStyle(1, 0x00ff88, 0.6);
+      g.lineStyle(1.5, 0x00cc66, 0.8);
       g.moveTo(bx, by);
       g.lineTo(x2, y2);
-      // Small cross at base point
-      g.moveTo(bx - 5, by);
-      g.lineTo(bx + 5, by);
-      g.moveTo(bx, by - 5);
-      g.lineTo(bx, by + 5);
+      // Base point cross
+      g.moveTo(bx - 8, by); g.lineTo(bx + 8, by);
+      g.moveTo(bx, by - 8); g.lineTo(bx, by + 8);
       return;
     }
 
@@ -782,7 +786,7 @@ export default function CanvasViewport() {
       const lineA = drawingPoints[0];
       const { sx: ax, sy: ay } = w2s(lineA.x, lineA.y);
       const { sx: bx, sy: by } = w2s(previewPoint.x, previewPoint.y);
-      g.lineStyle(1, 0xff00ff, 0.6);
+      g.lineStyle(1.5, 0xff00ff, 0.7);
       g.moveTo(ax, ay);
       g.lineTo(bx, by);
       return;
@@ -794,7 +798,7 @@ export default function CanvasViewport() {
       activeTool === 'DRAW_POLYGON';
 
     if (!isDrawing || drawingPoints.length === 0) {
-      // Rectangle preview
+      // Rectangle preview — show solid rectangle with light fill
       if (activeTool === 'DRAW_RECTANGLE' && drawingPoints.length === 1 && previewPoint) {
         const p1 = drawingPoints[0];
         const p2 = previewPoint;
@@ -804,10 +808,16 @@ export default function CanvasViewport() {
           w2s(p2.x, p2.y),
           w2s(p1.x, p2.y),
         ];
-        g.lineStyle(1, 0x666666, 0.8);
+        g.lineStyle(1.5, previewColor, 0.9);
+        g.beginFill(previewColor, 0.08);
         g.moveTo(corners[0].sx, corners[0].sy);
         for (let i = 1; i < corners.length; i++) g.lineTo(corners[i].sx, corners[i].sy);
         g.closePath();
+        g.endFill();
+        // Start corner dot
+        g.beginFill(previewColor, 0.9);
+        g.drawCircle(corners[0].sx, corners[0].sy, 3);
+        g.endFill();
         return;
       }
       // Regular polygon preview
@@ -821,15 +831,20 @@ export default function CanvasViewport() {
             const angle = startAngle + (2 * Math.PI * i) / sides;
             return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
           });
-          g.lineStyle(1, 0x666666, 0.8);
+          g.lineStyle(1.5, previewColor, 0.9);
+          g.beginFill(previewColor, 0.08);
           g.moveTo(pts[0].sx, pts[0].sy);
           for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
           g.closePath();
+          g.endFill();
           // Draw center crosshair
           const { sx: cx, sy: cy } = w2s(center.x, center.y);
-          g.lineStyle(0.75, 0x666666, 0.5);
+          g.lineStyle(1, previewColor, 0.5);
           g.moveTo(cx - 4, cy); g.lineTo(cx + 4, cy);
           g.moveTo(cx, cy - 4); g.lineTo(cx, cy + 4);
+          g.beginFill(previewColor, 0.8);
+          g.drawCircle(cx, cy, 2.5);
+          g.endFill();
         }
         return;
       }
@@ -842,50 +857,70 @@ export default function CanvasViewport() {
             const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
             return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
           });
-          g.lineStyle(1, 0x666666, 0.8);
+          g.lineStyle(1.5, previewColor, 0.9);
+          g.beginFill(previewColor, 0.06);
           g.moveTo(pts[0].sx, pts[0].sy);
           for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
           g.closePath();
+          g.endFill();
           // Center crosshair + radius line
           const { sx: cx, sy: cy } = w2s(center.x, center.y);
           const { sx: rx, sy: ry } = w2s(previewPoint.x, previewPoint.y);
-          g.lineStyle(0.75, 0x666666, 0.5);
+          g.lineStyle(1, previewColor, 0.5);
           g.moveTo(cx - 5, cy); g.lineTo(cx + 5, cy);
           g.moveTo(cx, cy - 5); g.lineTo(cx, cy + 5);
-          g.lineStyle(0.5, 0x888888, 0.4);
+          g.lineStyle(0.75, previewColor, 0.35);
           g.moveTo(cx, cy); g.lineTo(rx, ry);
+          g.beginFill(previewColor, 0.8);
+          g.drawCircle(cx, cy, 2.5);
+          g.endFill();
         }
         return;
+      }
+      // DRAW_RECTANGLE/CIRCLE/POLYGON with no points: show start-point indicator at cursor
+      if (
+        (activeTool === 'DRAW_RECTANGLE' || activeTool === 'DRAW_CIRCLE' ||
+         activeTool === 'DRAW_REGULAR_POLYGON' || activeTool === 'DRAW_POLYGON' ||
+         activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE') &&
+        drawingPoints.length === 0
+      ) {
+        const { sx, sy } = w2s(previewPoint.x, previewPoint.y);
+        g.lineStyle(1, previewColor, 0.5);
+        g.moveTo(sx - 6, sy); g.lineTo(sx + 6, sy);
+        g.moveTo(sx, sy - 6); g.lineTo(sx, sy + 6);
       }
       return;
     }
 
+    // ── DRAW_LINE / DRAW_POLYLINE / DRAW_POLYGON rubber-band preview ──────────
     const lastPt = drawingPoints[drawingPoints.length - 1];
     const { sx: x1, sy: y1 } = w2s(lastPt.x, lastPt.y);
     const { sx: x2, sy: y2 } = w2s(previewPoint.x, previewPoint.y);
 
-    // Dashed preview line
-    g.lineStyle(1, 0x666666, 0.7);
-    const dashLen = 6;
-    const gapLen = 4;
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    if (len < 1) return;
-    const ux = dx / len;
-    const uy = dy / len;
-    let pos = 0;
-    let drawing = true;
-    while (pos < len) {
-      const segLen = Math.min(drawing ? dashLen : gapLen, len - pos);
-      const nx = x1 + ux * pos;
-      const ny = y1 + uy * pos;
-      if (drawing) {
-        g.moveTo(nx, ny);
-        g.lineTo(nx + ux * segLen, ny + uy * segLen);
-      }
-      pos += segLen;
-      drawing = !drawing;
+    // Solid preview line in active layer color
+    g.lineStyle(1.5, previewColor, 0.85);
+    g.moveTo(x1, y1);
+    g.lineTo(x2, y2);
+
+    // Draw start-point dot at the first drawing point
+    const firstPt = drawingPoints[0];
+    const { sx: fx, sy: fy } = w2s(firstPt.x, firstPt.y);
+    g.beginFill(previewColor, 0.9);
+    g.drawCircle(fx, fy, 3.5);
+    g.endFill();
+
+    // Draw anchor dot at last committed point (if different from first)
+    if (drawingPoints.length > 1) {
+      g.beginFill(previewColor, 0.7);
+      g.drawCircle(x1, y1, 2.5);
+      g.endFill();
+    }
+
+    // For DRAW_POLYGON: also close to first point with a lighter dashed line
+    if (activeTool === 'DRAW_POLYGON' && drawingPoints.length >= 2) {
+      g.lineStyle(0.75, previewColor, 0.3);
+      g.moveTo(x2, y2);
+      g.lineTo(fx, fy);
     }
   }
 
@@ -1377,6 +1412,12 @@ export default function CanvasViewport() {
         }
 
         case 'MOVE': {
+          // If nothing selected, auto-select the clicked element first
+          if (selectionStore.selectedIds.size === 0) {
+            const hit = hitTest(sx, sy);
+            if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
           if (!toolState.basePoint) {
             toolStore.setBasePoint(worldPt);
           } else {
@@ -1401,6 +1442,12 @@ export default function CanvasViewport() {
         }
 
         case 'COPY': {
+          // If nothing selected, auto-select the clicked element first
+          if (selectionStore.selectedIds.size === 0) {
+            const hit = hitTest(sx, sy);
+            if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
           if (!toolState.basePoint) {
             toolStore.setBasePoint(worldPt);
           } else {
@@ -1430,6 +1477,12 @@ export default function CanvasViewport() {
         }
 
         case 'ROTATE': {
+          // If nothing selected, auto-select the clicked element first
+          if (selectionStore.selectedIds.size === 0) {
+            const hit = hitTest(sx, sy);
+            if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
           if (!toolState.rotateCenter) {
             toolStore.setRotateCenter(worldPt);
           }
@@ -1437,6 +1490,12 @@ export default function CanvasViewport() {
         }
 
         case 'SCALE': {
+          // If nothing selected, auto-select the clicked element first
+          if (selectionStore.selectedIds.size === 0) {
+            const hit = hitTest(sx, sy);
+            if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
           if (!toolState.basePoint) {
             toolStore.setBasePoint(worldPt);
           }
@@ -1444,6 +1503,12 @@ export default function CanvasViewport() {
         }
 
         case 'MIRROR': {
+          // If nothing selected, auto-select the clicked element first
+          if (selectionStore.selectedIds.size === 0) {
+            const hit = hitTest(sx, sy);
+            if (hit) selectionStore.select(hit, 'REPLACE');
+            break;
+          }
           if (toolState.drawingPoints.length === 0) {
             toolStore.addDrawingPoint(worldPt);
           } else {
@@ -1517,20 +1582,28 @@ export default function CanvasViewport() {
       toolStore.setPreviewPoint(worldPt);
       viewportStore.setCursorWorld(worldPt);
 
-      // Update hover state (SELECT tool only)
-      if (toolStore.state.activeTool === 'SELECT' && !isPanningRef.current) {
+      // Update hover state for ALL tools — shows highlighted element under cursor
+      if (!isPanningRef.current) {
         const hit = hitTest(sx, sy);
         hoveredIdRef.current = hit;
-        // Change cursor to pointer when hovering a feature
-        if (!gripDragRef.current) {
-          const onGrip = hit && selectionStore.selectedIds.has(hit) ? hitTestGrip(sx, sy) : null;
-          if (onGrip) {
-            setCursorStyle('move');
-          } else if (hit) {
-            setCursorStyle('pointer');
-          } else {
-            setCursorStyle('default');
+        // Update cursor style for SELECT tool
+        if (toolStore.state.activeTool === 'SELECT') {
+          if (!gripDragRef.current) {
+            const onGrip = hit && selectionStore.selectedIds.has(hit) ? hitTestGrip(sx, sy) : null;
+            if (onGrip) {
+              setCursorStyle('move');
+            } else if (hit) {
+              setCursorStyle('pointer');
+            } else {
+              setCursorStyle('default');
+            }
           }
+        } else if (hit && !toolStore.state.activeTool.startsWith('DRAW_')) {
+          // For modification tools: show pointer cursor when hovering a selectable element
+          setCursorStyle('pointer');
+        } else {
+          const cursor = TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair';
+          if (!isPanningRef.current) setCursorStyle(cursor);
         }
       } else {
         hoveredIdRef.current = null;
@@ -1869,6 +1942,9 @@ export default function CanvasViewport() {
   // Render
   // ─────────────────────────────────────────────
 
+  const hasNoLayers = drawingStore.document.layerOrder.length === 0;
+  const isDrawingTool = activeTool.startsWith('DRAW_');
+
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-white">
       {/* PixiJS init failure overlay */}
@@ -1888,6 +1964,16 @@ export default function CanvasViewport() {
           </div>
         </div>
       )}
+
+      {/* No-layers warning overlay — shown when trying to draw with no active layer */}
+      {hasNoLayers && isDrawingTool && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+          <div className="bg-yellow-900/90 border border-yellow-600 text-yellow-200 text-xs font-semibold px-4 py-2 rounded-lg shadow-lg text-center">
+            ⚠️ No layers — add a layer in the Layer Panel or create a new drawing.
+          </div>
+        </div>
+      )}
+
       <canvas
         ref={canvasRef}
         className="block w-full h-full"

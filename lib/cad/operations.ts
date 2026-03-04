@@ -184,6 +184,39 @@ export function scaleSelection(factor: number): void {
   }
 }
 
+/**
+ * Scale the selection non-uniformly (distort) around a pivot point.
+ * scaleX and scaleY are independent multipliers for each axis.
+ */
+export function scaleSelectionXY(scaleX: number, scaleY: number, pivot?: Point2D): void {
+  const selectionStore = useSelectionStore.getState();
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const ids = Array.from(selectionStore.selectedIds);
+  if (ids.length === 0 || scaleX <= 0 || scaleY <= 0) return;
+
+  const center = pivot ?? computeSelectionCentroid(ids);
+
+  const distort = (p: Point2D): Point2D => ({
+    x: center.x + (p.x - center.x) * scaleX,
+    y: center.y + (p.y - center.y) * scaleY,
+  });
+
+  const ops = ids
+    .map((id) => {
+      const f = drawingStore.getFeature(id);
+      if (!f) return null;
+      const newF = transformFeature(f, distort);
+      drawingStore.updateFeature(id, { geometry: newF.geometry });
+      return { type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } };
+    })
+    .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
+
+  if (ops.length > 0) {
+    undoStore.pushUndo(makeBatchEntry(`Distort ×X${scaleX} ×Y${scaleY}`, ops));
+  }
+}
+
 export function duplicateSelection(offsetX = 10, offsetY = -10): void {
   const selectionStore = useSelectionStore.getState();
   const drawingStore = useDrawingStore.getState();

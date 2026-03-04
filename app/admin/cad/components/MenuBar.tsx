@@ -128,7 +128,7 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
     {
       label: 'File',
       items: [
-        { label: 'New Drawing', shortcut: 'Ctrl+N', action: () => { drawingStore.newDocument(); selectionStore.deselectAll(); undoStore.clear(); } },
+        { label: 'New Drawing', shortcut: 'Ctrl+N', action: () => { window.dispatchEvent(new CustomEvent('cad:openNewDrawingDialog')); setOpenMenu(null); } },
         { label: 'Open…', shortcut: 'Ctrl+O', action: openFileDialog },
         { separator: true },
         { label: 'Save', shortcut: 'Ctrl+S', action: saveDocument },
