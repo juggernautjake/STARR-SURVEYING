@@ -50,15 +50,22 @@ export default function LayerPanel() {
 
   function handleNewLayer() {
     const id = generateId();
+    const existingCount = doc.layerOrder.length;
     store.addLayer({
       id,
-      name: `Layer ${doc.layerOrder.length + 1}`,
+      name: `Layer ${existingCount + 1}`,
       visible: true,
       locked: false,
+      frozen: false,
       color: nextLayerColor(),
-      lineWeight: 1,
+      lineWeight: 0.25,
+      lineTypeId: 'SOLID',
       opacity: 1,
+      groupId: null,
+      sortOrder: existingCount,
       isDefault: false,
+      isProtected: false,
+      autoAssignCodes: [],
     });
     store.setActiveLayer(id);
   }

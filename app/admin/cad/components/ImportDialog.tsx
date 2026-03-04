@@ -24,6 +24,7 @@ import { BUILT_IN_PRESETS } from '@/lib/cad/import/types';
 import type { CSVImportConfig } from '@/lib/cad/import/types';
 import type { Feature, UndoOperation } from '@/lib/cad/types';
 import { generateId } from '@/lib/cad/types';
+import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 
 interface ImportDialogProps {
   onClose: () => void;
@@ -507,9 +508,8 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
         geometry: { type: 'POINT', point: { x: pt.easting, y: pt.northing } },
         layerId: pt.layerId,
         style: {
+          ...DEFAULT_FEATURE_STYLE,
           color: pt.codeDefinition?.defaultColor ?? '#000000',
-          lineWeight: 1,
-          opacity: 1,
         },
         properties: {
           pointId: pt.id,
@@ -539,9 +539,9 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
         },
         layerId: pts[0]?.layerId ?? 'MISC',
         style: {
+          ...DEFAULT_FEATURE_STYLE,
           color: codeDef?.defaultColor ?? '#000000',
-          lineWeight: codeDef?.defaultLineWeight ?? 1,
-          opacity: 1,
+          lineWeight: codeDef?.defaultLineWeight ?? null,
         },
         properties: {
           lineStringId: ls.id,
