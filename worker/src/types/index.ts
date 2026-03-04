@@ -122,6 +122,17 @@ export interface DocumentResult {
   fromUserUpload?: boolean;
   /** Processing errors that occurred */
   processingErrors?: string[];
+  /** High-resolution screenshots of each page of the document */
+  pageScreenshots?: PageScreenshot[];
+}
+
+/** A single page screenshot captured from a document viewer */
+export interface PageScreenshot {
+  pageNumber: number;
+  /** base64-encoded PNG image at highest available resolution */
+  imageBase64: string;
+  width: number;
+  height: number;
 }
 
 // ── Stage 3: AI Extraction ─────────────────────────

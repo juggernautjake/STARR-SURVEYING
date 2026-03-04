@@ -3,7 +3,7 @@
 // Documents are screened, analyzed, verified, and scored.
 // Supports user-uploaded files alongside online-retrieved documents.
 
-import type { DocumentResult, ExtractedBoundaryData, BoundaryCall, DocumentReference } from '../types/index.js';
+import type { DocumentResult, ExtractedBoundaryData, BoundaryCall, DocumentReference, PageScreenshot } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -644,6 +644,108 @@ Return the corrected/confirmed extraction in the same JSON format. Add warnings 
   return verified;
 }
 
+// ── Multi-Page Screenshot OCR ──────────────────────────────────────────────
+
+/**
+ * Process ALL page screenshots from a document viewer.
+ * OCRs each page individually, concatenates the text, then runs
+ * structured extraction on the combined text for the full document.
+ */
+async function extractFromPageScreenshots(
+  pages: PageScreenshot[],
+  anthropicApiKey: string,
+  logger: PipelineLogger,
+  docLabel: string,
+): Promise<{ ocrText: string | null; extracted: ExtractedBoundaryData | null }> {
+  if (!pages.length) return { ocrText: null, extracted: null };
+
+  const tracker = logger.startAttempt({
+    layer: 'Stage3B-MultiPage',
+    source: 'Claude-Vision',
+    method: 'multi-page-ocr',
+    input: `${docLabel} (${pages.length} pages)`,
+  });
+
+  tracker.step(`Processing ${pages.length} page screenshot(s) for ${docLabel}`);
+
+  // For single-page documents, just use the standard image extraction
+  if (pages.length === 1) {
+    tracker.step('Single page — delegating to standard image extraction');
+    tracker({ status: 'success', dataPointsFound: 1, details: 'Delegated to single-page extractor' });
+    return extractFromImage(pages[0].imageBase64, 'image/png', anthropicApiKey, logger, `${docLabel}-p1`);
+  }
+
+  // For multi-page: OCR each page, then combine and extract
+  const pageTexts: string[] = [];
+  const batchSize = 3; // Send up to 3 pages at a time to reduce API calls
+
+  for (let batchStart = 0; batchStart < pages.length; batchStart += batchSize) {
+    const batch = pages.slice(batchStart, batchStart + batchSize);
+    const batchEnd = Math.min(batchStart + batchSize, pages.length);
+    const batchLabel = `pages ${batchStart + 1}-${batchEnd}`;
+    tracker.step(`OCR batch: ${batchLabel} of ${pages.length}`);
+
+    // Build multi-image message content
+    const contentParts: Array<{ type: string; source?: unknown; text?: string }> = [];
+    for (const page of batch) {
+      contentParts.push({
+        type: 'image',
+        source: { type: 'base64', media_type: 'image/png' as const, data: page.imageBase64 },
+      });
+      contentParts.push({
+        type: 'text',
+        text: `[Page ${page.pageNumber} — ${page.width}x${page.height}px]`,
+      });
+    }
+    contentParts.push({
+      type: 'text',
+      text: `Extract ALL text from ${batch.length > 1 ? 'these pages' : 'this page'} of a Texas land surveying document. Be extremely thorough — every bearing, distance, monument, and reference matters. Return text for each page labeled with its page number.`,
+    });
+
+    const ocrResponse = await callClaudeWithRetry(
+      anthropicApiKey,
+      [{ role: 'user', content: contentParts }],
+      OCR_SYSTEM_PROMPT,
+      logger,
+      `ocr-batch:${docLabel}:${batchLabel}`,
+      16384,
+    );
+
+    if (ocrResponse) {
+      // Try to parse as JSON, fall back to raw text
+      const parsed = safeParseJson(ocrResponse);
+      if (parsed && typeof parsed.full_text === 'string') {
+        pageTexts.push(parsed.full_text);
+        tracker.step(`Batch ${batchLabel}: extracted ${parsed.full_text.length} chars (structured)`);
+      } else {
+        pageTexts.push(ocrResponse);
+        tracker.step(`Batch ${batchLabel}: extracted ${ocrResponse.length} chars (raw)`);
+      }
+    } else {
+      tracker.step(`Batch ${batchLabel}: OCR failed — no response`);
+    }
+  }
+
+  if (!pageTexts.length) {
+    tracker({ status: 'fail', error: `All ${pages.length} pages failed OCR` });
+    return { ocrText: null, extracted: null };
+  }
+
+  // Combine all page texts
+  const combinedText = pageTexts.join('\n\n--- PAGE BREAK ---\n\n');
+  tracker.step(`Combined OCR: ${combinedText.length} chars from ${pageTexts.length} batch(es)`);
+
+  tracker({
+    status: 'success',
+    dataPointsFound: pageTexts.length,
+    details: `OCR'd ${pages.length} pages → ${combinedText.length} chars total`,
+  });
+
+  // Now run structured extraction on the combined text
+  const extracted = await extractFromText(combinedText, anthropicApiKey, logger, `${docLabel}-multipage`);
+  return { ocrText: combinedText, extracted };
+}
+
 // ── Main Extraction Function ───────────────────────────────────────────────
 
 /**
@@ -748,7 +850,26 @@ export async function extractDocuments(
       }
     }
 
-    // Try image/screenshot if no text extraction succeeded
+    // Try multi-page screenshots first (highest quality — captured at full resolution)
+    if (!doc.extractedData && doc.pageScreenshots && doc.pageScreenshots.length > 0) {
+      logger.info('Stage3', `${label}: Processing ${doc.pageScreenshots.length} page screenshot(s)`);
+      const { ocrText, extracted } = await extractFromPageScreenshots(
+        doc.pageScreenshots, anthropicApiKey, logger, label,
+      );
+
+      doc.ocrText = ocrText;
+
+      if (extracted && ocrText) {
+        const verified = await runVerification(ocrText, extracted, `${label}-pages`);
+        doc.extractedData = verified;
+        updateBest(verified);
+      } else if (extracted) {
+        doc.extractedData = extracted;
+        updateBest(extracted);
+      }
+    }
+
+    // Fall back to single image if no page screenshots or text extraction succeeded
     if (!doc.extractedData && doc.imageBase64) {
       const mediaType = doc.imageFormat === 'jpg' ? 'image/jpeg' as const
         : doc.imageFormat === 'pdf' ? 'application/pdf' as const
@@ -772,9 +893,9 @@ export async function extractDocuments(
       }
     }
 
-    // Warn if document had no usable content
-    if (!doc.textContent && !doc.imageBase64) {
-      logger.warn('Stage3', `${label}: WARNING — No text or image content to analyze`);
+    // Warn if document had no usable content at all
+    if (!doc.textContent && !doc.imageBase64 && (!doc.pageScreenshots || doc.pageScreenshots.length === 0)) {
+      logger.warn('Stage3', `${label}: WARNING — No text, images, or page screenshots to analyze`);
       if (!doc.processingErrors) doc.processingErrors = [];
       doc.processingErrors.push('No text or image content available for AI analysis');
     }
