@@ -8,6 +8,7 @@ export function resolveMonumentVisuals(
 ): { symbolId: string; color: string } {
   if (!codeDefinition || codeDefinition.category !== 'BOUNDARY_CONTROL') {
     return {
+      // Use || (not ??) so that an empty string defaultSymbolId also falls back
       symbolId: codeDefinition?.defaultSymbolId || 'GENERIC_CROSS',
       color: codeDefinition?.defaultColor || '#000000',
     };
@@ -55,7 +56,7 @@ function findSymbolForAction(type: string, size: string, action: 'FOUND' | 'SET'
     '34': '075', // 3/4"
   };
   const prefix = typeMap[type] ?? 'GENERIC';
-  const rawSize = size.replace(/["\\\/]/g, '');
+  const rawSize = size.replace(/["\\/]/g, '');
   const mappedSize = sizeMap[rawSize] ?? rawSize;
   const sizeStr = mappedSize ? `_${mappedSize}` : '';
 
