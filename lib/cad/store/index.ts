@@ -9,3 +9,4 @@ export { usePointStore } from './point-store';
 export type { PointSortField } from './point-store';
 export { useImportStore } from './import-store';
 export type { ImportStep, FileType } from './import-store';
+export { useTraverseStore } from './traverse-store';
