@@ -57,6 +57,7 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
     drawingStore.setActiveLayer(layerId);
 
     onClose();
+    // Allow the canvas to initialise before zooming to the new document extents
     setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
   }
 

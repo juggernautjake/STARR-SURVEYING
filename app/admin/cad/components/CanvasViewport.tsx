@@ -132,6 +132,8 @@ export default function CanvasViewport() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [drawingMenu, setDrawingMenu] = useState<DrawingMenuState | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
+  // HUD: floating operation info panel near cursor
+  const [hud, setHud] = useState<{ sx: number; sy: number; lines: string[] } | null>(null);
 
   // Polyline group ID tracking — each new polyline drawing gets a fresh UUID
   const polylineGroupIdRef = useRef<string | null>(null);
@@ -1623,6 +1625,61 @@ export default function CanvasViewport() {
       } else {
         setSnapLabel(null);
       }
+
+      // Update floating HUD with operation values
+      const ts = toolStore.state;
+      const hudLines: string[] = [];
+      if (ts.activeTool === 'DRAW_LINE' || ts.activeTool === 'DRAW_POLYLINE') {
+        if (ts.drawingPoints.length > 0) {
+          const lastPt = ts.drawingPoints[ts.drawingPoints.length - 1];
+          const dx = worldPt.x - lastPt.x;
+          const dy = worldPt.y - lastPt.y;
+          const dist = Math.hypot(dx, dy);
+          const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+          hudLines.push(`Len: ${dist.toFixed(3)}`);
+          hudLines.push(`∠ ${angle.toFixed(1)}°`);
+          hudLines.push(`ΔX: ${dx.toFixed(3)}  ΔY: ${dy.toFixed(3)}`);
+        } else {
+          hudLines.push(`X: ${worldPt.x.toFixed(3)}`);
+          hudLines.push(`Y: ${worldPt.y.toFixed(3)}`);
+        }
+      } else if (ts.activeTool === 'MOVE' && ts.basePoint) {
+        const dx = worldPt.x - ts.basePoint.x;
+        const dy = worldPt.y - ts.basePoint.y;
+        hudLines.push(`ΔX: ${dx.toFixed(3)}`);
+        hudLines.push(`ΔY: ${dy.toFixed(3)}`);
+        hudLines.push(`Dist: ${Math.hypot(dx, dy).toFixed(3)}`);
+      } else if (ts.activeTool === 'ROTATE' && ts.rotateCenter) {
+        const dx = worldPt.x - ts.rotateCenter.x;
+        const dy = worldPt.y - ts.rotateCenter.y;
+        const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+        hudLines.push(`Angle: ${angleDeg.toFixed(2)}°`);
+        hudLines.push(`Radius: ${Math.hypot(dx, dy).toFixed(3)}`);
+      } else if (ts.activeTool === 'SCALE' && ts.basePoint) {
+        const dist = Math.hypot(worldPt.x - ts.basePoint.x, worldPt.y - ts.basePoint.y);
+        hudLines.push(`Radius: ${dist.toFixed(3)}`);
+      } else if (
+        (ts.activeTool === 'DRAW_RECTANGLE' || ts.activeTool === 'DRAW_CIRCLE' ||
+         ts.activeTool === 'DRAW_REGULAR_POLYGON') &&
+        ts.drawingPoints.length > 0
+      ) {
+        const origin = ts.drawingPoints[0];
+        const dx = worldPt.x - origin.x;
+        const dy = worldPt.y - origin.y;
+        const r = Math.hypot(dx, dy);
+        if (ts.activeTool === 'DRAW_RECTANGLE') {
+          hudLines.push(`W: ${Math.abs(dx).toFixed(3)}`);
+          hudLines.push(`H: ${Math.abs(dy).toFixed(3)}`);
+        } else {
+          hudLines.push(`Radius: ${r.toFixed(3)}`);
+        }
+      }
+
+      if (hudLines.length > 0) {
+        setHud({ sx: sx + 18, sy: sy - 10, lines: hudLines });
+      } else {
+        setHud(null);
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [viewportStore, toolStore, drawingStore],
@@ -1999,6 +2056,24 @@ export default function CanvasViewport() {
           }}
         >
           {snapLabel.text}
+        </div>
+      )}
+
+      {/* Floating operation HUD — shows live numeric values near cursor during operations */}
+      {hud && (
+        <div
+          className="absolute pointer-events-none z-20 text-[10px] font-mono leading-tight rounded px-1.5 py-1"
+          style={{
+            left: hud.sx,
+            top: hud.sy,
+            background: 'rgba(0,0,0,0.72)',
+            color: '#e0e8ff',
+            border: '1px solid rgba(100,140,255,0.4)',
+          }}
+        >
+          {hud.lines.map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
         </div>
       )}
 
