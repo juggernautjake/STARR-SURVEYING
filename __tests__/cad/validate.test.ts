@@ -152,7 +152,7 @@ describe('validateAndMigrateDocument — feature migration', () => {
       },
     });
     const result = validateAndMigrateDocument(raw);
-    const style = result.features['f1'].style as Record<string, unknown>;
+    const style = result.features['f1'].style as unknown as Record<string, unknown>;
     expect(style.lineTypeId).toBe(null);
     expect(style.symbolId).toBe(null);
     expect(style.symbolSize).toBe(null);
@@ -181,13 +181,13 @@ describe('validateAndMigrateDocument — layer migration', () => {
       layers: { 'layer-1': { id: 'layer-1', name: 'Layer 1', visible: true, locked: false } },
     });
     const result = validateAndMigrateDocument(raw);
-    expect((result.layers['layer-1'] as Record<string, unknown>).frozen).toBe(false);
+    expect((result.layers['layer-1'] as unknown as Record<string, unknown>).frozen).toBe(false);
   });
 
   it('back-fills lineTypeId for pre-Phase-3 layers', () => {
     const raw = makeMinimalRaw();
     const result = validateAndMigrateDocument(raw);
-    expect((result.layers['layer-1'] as Record<string, unknown>).lineTypeId).toBe('SOLID');
+    expect((result.layers['layer-1'] as unknown as Record<string, unknown>).lineTypeId).toBe('SOLID');
   });
 
   it('merges the 22 default layers when absent from loaded document', () => {

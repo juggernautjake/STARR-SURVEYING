@@ -4,12 +4,11 @@
 import { generateId } from './types';
 import type { Feature, Point2D } from './types';
 import { rotate, mirror, scale, transformFeature } from './geometry/transform';
-import { featureBounds } from './geometry/bounds';
+import { computeBounds } from './geometry/bounds';
 import { useDrawingStore } from './store/drawing-store';
 import { useSelectionStore } from './store/selection-store';
 import { useUndoStore, makeBatchEntry, makeAddFeatureEntry, makeRemoveFeatureEntry } from './store/undo-store';
 import { useViewportStore } from './store/viewport-store';
-import { computeBounds } from './geometry/bounds';
 
 // ─────────────────────────────────────────────
 // Clipboard
