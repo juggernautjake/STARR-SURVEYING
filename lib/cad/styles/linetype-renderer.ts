@@ -3,6 +3,12 @@ import type { LineTypeDefinition, InlineSymbolConfig } from './types';
 import { getSymbolById } from './symbol-library';
 import { renderSymbol } from './symbol-renderer';
 
+/**
+ * Pixels per mm at screen resolution. Used to convert mm dash pattern values
+ * to screen-space pixels. This is an approximation assuming ~96 DPI screen.
+ */
+export const MM_TO_PX = 3.78;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function renderLineWithType(
   g: any,
@@ -14,32 +20,39 @@ export function renderLineWithType(
   drawingScale: number,
   zoom: number,
 ): void {
-  if (screenPoints.length < 2) return;
+  if (!g || !lineType || screenPoints.length < 2) return;
+
+  // Filter out any NaN or infinite coordinates
+  const validPoints = screenPoints.filter(p => isFinite(p.x) && isFinite(p.y));
+  if (validPoints.length < 2) return;
+
+  const safeWeight = Math.max(0, isFinite(weight) ? weight : 1);
+  const safeOpacity = Math.max(0, Math.min(1, isFinite(opacity) ? opacity : 1));
 
   if (lineType.dashPattern.length === 0 && lineType.specialRenderer === 'NONE' && lineType.inlineSymbols.length === 0) {
     // Fast path: solid line
-    g.lineStyle(weight, color, opacity);
-    g.moveTo(screenPoints[0].x, screenPoints[0].y);
-    for (let i = 1; i < screenPoints.length; i++) {
-      g.lineTo(screenPoints[i].x, screenPoints[i].y);
+    g.lineStyle(safeWeight, color, safeOpacity);
+    g.moveTo(validPoints[0].x, validPoints[0].y);
+    for (let i = 1; i < validPoints.length; i++) {
+      g.lineTo(validPoints[i].x, validPoints[i].y);
     }
   } else if (lineType.specialRenderer === 'WAVY') {
-    renderWavyLine(g, screenPoints, color, weight, opacity);
+    renderWavyLine(g, validPoints, color, safeWeight, safeOpacity);
   } else {
     if (lineType.dashPattern.length > 0) {
-      renderDashedLine(g, screenPoints, lineType.dashPattern, color, weight, opacity);
+      renderDashedLine(g, validPoints, lineType.dashPattern, color, safeWeight, safeOpacity, zoom);
     } else {
-      g.lineStyle(weight, color, opacity);
-      g.moveTo(screenPoints[0].x, screenPoints[0].y);
-      for (let i = 1; i < screenPoints.length; i++) {
-        g.lineTo(screenPoints[i].x, screenPoints[i].y);
+      g.lineStyle(safeWeight, color, safeOpacity);
+      g.moveTo(validPoints[0].x, validPoints[0].y);
+      for (let i = 1; i < validPoints.length; i++) {
+        g.lineTo(validPoints[i].x, validPoints[i].y);
       }
     }
   }
 
   // Render inline symbols (LOD: skip if interval < 6px)
   for (const config of lineType.inlineSymbols) {
-    renderInlineSymbols(g, screenPoints, config, color, opacity, drawingScale, zoom);
+    renderInlineSymbols(g, validPoints, config, color, safeOpacity, drawingScale, zoom);
   }
 }
 
@@ -51,9 +64,15 @@ function renderDashedLine(
   color: number,
   weight: number,
   opacity: number,
+  zoom: number,
 ): void {
-  // Convert mm pattern to screen pixels (approx 2.5px per mm)
-  const screenPattern = pattern.map(v => v * 2.5);
+  if (pattern.length === 0) return;
+
+  // Convert mm dash-pattern values to screen pixels using zoom-aware scaling.
+  // At zoom=1 (100%), 1 unit = 1 screen pixel; MM_TO_PX converts mm → px.
+  // Clamp to a minimum of 1px per dash so the line is always visible.
+  const scale = Math.max(zoom * MM_TO_PX, 0.1);
+  const screenPattern = pattern.map(v => Math.max(v * scale, 1));
   g.lineStyle(weight, color, opacity);
 
   let patternIdx = 0;
@@ -113,19 +132,24 @@ function renderInlineSymbols(
     intervalPx = config.interval * zoom;
   }
 
-  const sizePx = config.symbolSize * 2.5;
-  const minInterval = Math.max(sizePx * 3, 6);
+  const sizePx = Math.max(config.symbolSize * MM_TO_PX, 0.5);
+  // Enforce a minimum interval so symbols never overlap catastrophically
+  const minInterval = Math.max(sizePx * 2, 6);
   intervalPx = Math.max(intervalPx, minInterval);
 
   const symbolDef = getSymbolById(config.symbolId);
   if (!symbolDef) return;
 
+  // Start half an interval in so symbols are centred along the line
   let distAccum = intervalPx / 2;
 
   for (let i = 0; i < points.length - 1; i++) {
     const p0 = points[i], p1 = points[i + 1];
     const segLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-    if (segLen < 0.001) continue;
+    if (segLen < 0.001) {
+      // Zero-length segment: don't advance distAccum so we don't lose our position
+      continue;
+    }
     const angle = Math.atan2(p1.y - p0.y, p1.x - p0.x);
 
     while (distAccum <= segLen) {
@@ -137,10 +161,11 @@ function renderInlineSymbols(
       if (config.symbolRotation === 'ALONG_LINE') rotation = angle * 180 / Math.PI;
       else if (config.symbolRotation === 'PERPENDICULAR') rotation = (angle * 180 / Math.PI) + 90;
 
+      const perpAngle = angle + Math.PI / 2;
       let ox = 0, oy = 0;
-      if (config.side !== 'CENTER' && config.side !== 'BOTH') {
-        const perpAngle = angle + Math.PI / 2;
-        const offsetPx = (config.side === 'LEFT' ? -1 : 1) * sizePx * 0.8;
+      if (config.side === 'LEFT' || config.side === 'RIGHT') {
+        const sign = config.side === 'LEFT' ? -1 : 1;
+        const offsetPx = sign * sizePx * 0.8;
         ox = Math.cos(perpAngle) * offsetPx;
         oy = Math.sin(perpAngle) * offsetPx;
       }
@@ -148,7 +173,6 @@ function renderInlineSymbols(
       renderSymbol(g, symbolDef, sx + ox, sy + oy, sizePx, rotation, lineColor, opacity);
 
       if (config.side === 'BOTH') {
-        const perpAngle = angle + Math.PI / 2;
         const offsetPx = sizePx * 0.8;
         renderSymbol(g, symbolDef,
           sx - Math.cos(perpAngle) * offsetPx,
@@ -158,7 +182,8 @@ function renderInlineSymbols(
 
       distAccum += intervalPx;
     }
-    distAccum -= segLen;
+    // Carry over the remaining fractional distance to the next segment
+    distAccum = Math.max(distAccum - segLen, 0);
   }
 }
 
@@ -171,10 +196,12 @@ function renderWavyLine(
   opacity: number,
 ): void {
   g.lineStyle(weight, color, opacity);
-  const amplitude = weight * 3;
-  const wavelength = weight * 12;
+  // Clamp amplitude so very thick lines don't produce absurdly large waves
+  const amplitude = Math.min(weight * 3, 8);
+  const wavelength = Math.max(weight * 12, 4);
   const STEP = 3;
   let totalDist = 0;
+  let firstPoint = true;
 
   for (let i = 0; i < points.length - 1; i++) {
     const p0 = points[i], p1 = points[i + 1];
@@ -188,11 +215,15 @@ function renderWavyLine(
       const t = s / steps;
       const bx = p0.x + (p1.x - p0.x) * t;
       const by = p0.y + (p1.y - p0.y) * t;
-      const wave = Math.sin((totalDist + segLen * t) / Math.max(wavelength, 1) * Math.PI * 2) * amplitude;
+      const wave = Math.sin((totalDist + segLen * t) / wavelength * Math.PI * 2) * amplitude;
       const wx = bx + perpX * wave;
       const wy = by + perpY * wave;
-      if (i === 0 && s === 0) g.moveTo(wx, wy);
-      else g.lineTo(wx, wy);
+      if (firstPoint) {
+        g.moveTo(wx, wy);
+        firstPoint = false;
+      } else {
+        g.lineTo(wx, wy);
+      }
     }
     totalDist += segLen;
   }
