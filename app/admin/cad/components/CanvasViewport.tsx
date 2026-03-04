@@ -175,7 +175,7 @@ export default function CanvasViewport() {
           view: canvas,
           width,
           height,
-          backgroundColor: bgColor,
+          background: bgColor,
           antialias: true,
           resolution: window.devicePixelRatio || 1,
           autoDensity: true,
@@ -259,15 +259,39 @@ export default function CanvasViewport() {
   // ─────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
+
+    // Suppress the benign "ResizeObserver loop completed with undelivered
+    // notifications" browser error so it cannot reach the React error boundary.
+    // This message is consistent across Chromium, Firefox, and Safari.
+    const suppressResizeObserverError = (e: ErrorEvent) => {
+      if (e.message?.includes('ResizeObserver loop')) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('error', suppressResizeObserverError);
+
+    let rafId: ReturnType<typeof requestAnimationFrame> | null = null;
     const ro = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry || !pixiRef.current) return;
+      // Defer the resize to the next animation frame to prevent the synchronous
+      // layout-recalculation cycle that triggers the ResizeObserver loop error.
+      if (rafId !== null) cancelAnimationFrame(rafId);
       const { width, height } = entry.contentRect;
-      pixiRef.current.app.renderer.resize(width, height);
-      viewportStore.setScreenSize(width, height);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (!pixiRef.current) return;
+        pixiRef.current.app.renderer.resize(width, height);
+        viewportStore.setScreenSize(width, height);
+      });
     });
     ro.observe(containerRef.current);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.removeEventListener('error', suppressResizeObserverError);
+    };
   }, [viewportStore]);
 
   // ─────────────────────────────────────────────
@@ -874,7 +898,7 @@ export default function CanvasViewport() {
     if (pixi) {
       const bgHex = drawingStore.document.settings.backgroundColor ?? '#FFFFFF';
       const bgColor = parseInt(bgHex.replace('#', ''), 16);
-      if ((pixi.app.renderer as { backgroundColor?: number }).backgroundColor !== bgColor) {
+      if (pixi.app.renderer.background.color !== bgColor) {
         pixi.app.renderer.background.color = bgColor;
       }
     }
