@@ -37,6 +37,18 @@ const MIN_SEGMENT_LENGTH_BASE = 0.001;
 // Number of vertices used to approximate a circle as a polygon
 const CIRCLE_VERTS = 64;
 
+// Grey background color rendered outside the paper boundary
+const CANVAS_SURROUND_COLOR = 0x808080;
+
+// Paper size map (inches): name → [width, height] in portrait
+const PAPER_SIZE_MAP: Record<string, [number, number]> = {
+  LETTER: [8.5, 11],
+  TABLOID: [11, 17],
+  ARCH_C: [18, 24],
+  ARCH_D: [24, 36],
+  ARCH_E: [36, 48],
+};
+
 // Grid scale multipliers — find smallest that puts lines >= MIN_PX_GRID apart
 const GRID_SCALE_MULTIPLIERS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
 
@@ -327,10 +339,7 @@ export default function CanvasViewport() {
     const { paperSize, paperOrientation, drawingScale: scale } = doc.settings;
     const { screenWidth, screenHeight } = useViewportStore.getState();
 
-    const sizeMap: Record<string, [number, number]> = {
-      LETTER: [8.5, 11], TABLOID: [11, 17], ARCH_C: [18, 24], ARCH_D: [24, 36], ARCH_E: [36, 48],
-    };
-    let [w, h] = sizeMap[paperSize ?? 'TABLOID'] ?? [11, 17];
+    let [w, h] = PAPER_SIZE_MAP[paperSize ?? 'TABLOID'] ?? [11, 17];
     if (paperOrientation === 'LANDSCAPE') { [w, h] = [h, w]; }
     const paperW = w * (scale ?? 50);
     const paperH = h * (scale ?? 50);
@@ -344,7 +353,7 @@ export default function CanvasViewport() {
     const pHeight = br.sy - tl.sy;
 
     // Grey background covering the whole viewport
-    g.beginFill(0xa0a0a0, 1);
+    g.beginFill(CANVAS_SURROUND_COLOR, 1);
     g.drawRect(0, 0, screenWidth, screenHeight);
     g.endFill();
 
@@ -2159,8 +2168,8 @@ export default function CanvasViewport() {
 
       {/* Cursor X/Y coordinate overlay — always visible in bottom-left of canvas */}
       <div
-        className="absolute bottom-2 left-2 pointer-events-none z-10 text-[10px] font-mono text-white select-none"
-        style={{ background: 'rgba(0,0,0,0.55)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.02em' }}
+        className="absolute bottom-2 left-2 pointer-events-none z-10 text-[10px] font-mono text-white select-none rounded px-1.5 py-0.5"
+        style={{ background: 'rgba(0,0,0,0.55)' }}
       >
         X: {viewportStore.cursorWorld.x.toFixed(3)} &nbsp; Y: {viewportStore.cursorWorld.y.toFixed(3)}
       </div>

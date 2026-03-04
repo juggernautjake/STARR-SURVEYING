@@ -16,6 +16,10 @@ import {
   computeSelectionCentroid,
 } from '@/lib/cad/operations';
 
+// Line weight constraints
+const MIN_LINE_WEIGHT = 0.1;
+const MAX_LINE_WEIGHT = 10;
+
 // ─────────────────────────────────────────────
 // Shared tiny toggle button
 // ─────────────────────────────────────────────
@@ -250,8 +254,8 @@ export default function ToolOptionsBar() {
               <span className="text-[11px] text-gray-400 shrink-0">Weight:</span>
               <input
                 type="number"
-                min={0.1}
-                max={10}
+                min={MIN_LINE_WEIGHT}
+                max={MAX_LINE_WEIGHT}
                 step={0.25}
                 className="w-12 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-blue-500 h-5"
                 value={drawStyle.lineWeight ?? ''}
@@ -259,7 +263,7 @@ export default function ToolOptionsBar() {
                 title="Line weight (pt)"
                 onChange={(e) => {
                   const v = parseFloat(e.target.value);
-                  toolStore.setDrawStyle({ lineWeight: isNaN(v) ? null : Math.max(0.1, Math.min(10, v)) });
+                  toolStore.setDrawStyle({ lineWeight: isNaN(v) ? null : Math.max(MIN_LINE_WEIGHT, Math.min(MAX_LINE_WEIGHT, v)) });
                 }}
               />
             </div>
