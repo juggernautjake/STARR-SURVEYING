@@ -1,9 +1,10 @@
-// worker/src/services/bell-cad.ts — Stage 1: Bell County CAD Property Identification
-// Layer 1A: HTTP POST to CAD JSON API
-// Layer 1B: Playwright browser automation
+// worker/src/services/bell-cad.ts — Stage 1: CAD Property Identification
+// Layer 1A: HTTP with session cookie acquisition (fixes HTTP 415)
+// Layer 1B: Playwright browser automation (tries all exact + partial variants)
 // Layer 1C: Screenshot + Claude Vision OCR fallback
+// Every result is validated against the original search address.
 
-import type { PropertyIdResult, NormalizedAddress, AddressVariant } from '../types/index.js';
+import type { PropertyIdResult, PropertyValidation, NormalizedAddress, AddressVariant, SearchDiagnostics } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 
 // ── BIS Consultants eSearch Configuration ──────────────────────────────────
@@ -23,7 +24,7 @@ const BIS_CONFIGS: Record<string, BisConfig> = {
   milam:      { baseUrl: 'https://esearch.milamcad.org', name: 'Milam CAD' },
 };
 
-// ── Types for CAD API Response ─────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────
 
 interface CadSearchResult {
   propertyId?: string;
@@ -38,73 +39,237 @@ interface CadSearchResult {
   Address?: string;
   isUDI?: boolean;
   IsUDI?: boolean;
+  acreage?: number;
+  Acreage?: number;
+  propertyType?: string;
+  PropertyType?: string;
+  situsAddress?: string;
+  SitusAddress?: string;
 }
 
-// ── Layer 1A: HTTP POST to CAD JSON API ────────────────────────────────────
+function getProp(result: CadSearchResult, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const val = (result as Record<string, unknown>)[key];
+    if (val !== undefined && val !== null && String(val).trim() !== '') {
+      return String(val).trim();
+    }
+  }
+  return null;
+}
 
+function getNumProp(result: CadSearchResult, ...keys: string[]): number | null {
+  for (const key of keys) {
+    const val = (result as Record<string, unknown>)[key];
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') {
+      const parsed = parseFloat(val.replace(/,/g, ''));
+      if (!isNaN(parsed)) return parsed;
+    }
+  }
+  return null;
+}
+
+// ── Property Result Validation ─────────────────────────────────────────────
+
+/**
+ * Validate a CAD result against the original search address.
+ * Returns a confidence score and list of issues.
+ */
+function validatePropertyResult(
+  result: CadSearchResult,
+  inputAddress: NormalizedAddress,
+  logger: PipelineLogger,
+): PropertyValidation {
+  const issues: string[] = [];
+
+  const resultAddress = getProp(result, 'address', 'Address', 'situsAddress', 'SitusAddress') ?? '';
+  const resultOwner = getProp(result, 'ownerName', 'OwnerName') ?? '';
+  const resultAcreage = getNumProp(result, 'acreage', 'Acreage');
+
+  // Street number match
+  const inputNum = inputAddress.parsed.streetNumber;
+  const resultHasNum = resultAddress.includes(inputNum);
+  const streetNumberMatch = inputNum ? resultHasNum : true;
+  if (!streetNumberMatch) {
+    issues.push(`Street number mismatch: input "${inputNum}" not found in "${resultAddress}"`);
+  }
+
+  // Street name match (fuzzy — check if any key words overlap)
+  const inputStreet = inputAddress.parsed.streetName.toLowerCase().replace(/[^a-z0-9\s]/g, '');
+  const resultStreet = resultAddress.toLowerCase().replace(/[^a-z0-9\s]/g, '');
+  const inputWords = new Set(inputStreet.split(/\s+/).filter((w) => w.length > 1));
+  const resultWords = new Set(resultStreet.split(/\s+/).filter((w) => w.length > 1));
+  let wordOverlap = 0;
+  for (const w of inputWords) {
+    if (resultWords.has(w)) wordOverlap++;
+  }
+  const streetNameMatch = inputWords.size > 0 ? wordOverlap >= Math.ceil(inputWords.size * 0.5) : true;
+  if (!streetNameMatch) {
+    issues.push(`Street name mismatch: input "${inputAddress.parsed.streetName}" vs result "${resultAddress}"`);
+  }
+
+  // City match
+  const inputCity = inputAddress.parsed.city?.toLowerCase();
+  const resultHasCity = inputCity ? resultAddress.toLowerCase().includes(inputCity) : null;
+  const cityMatch = resultHasCity;
+  if (inputCity && !resultHasCity) {
+    // Not necessarily an issue — CAD often omits city from situs address
+  }
+
+  // Acreage reasonableness
+  let acreageReasonable: boolean | null = null;
+  if (resultAcreage !== null) {
+    acreageReasonable = resultAcreage > 0 && resultAcreage < 100_000;
+    if (!acreageReasonable) {
+      issues.push(`Acreage seems unreasonable: ${resultAcreage} acres`);
+    }
+  }
+
+  // Owner name validity
+  const ownerNameValid = resultOwner.length >= 2 && !resultOwner.match(/^[\d\s]+$/);
+  if (!ownerNameValid && resultOwner) {
+    issues.push(`Owner name appears invalid: "${resultOwner}"`);
+  }
+
+  // Compute overall confidence
+  let confidence = 1.0;
+  if (!streetNumberMatch) confidence -= 0.4;
+  if (!streetNameMatch) confidence -= 0.35;
+  if (inputCity && !resultHasCity) confidence -= 0.05;
+  if (!ownerNameValid) confidence -= 0.1;
+  if (acreageReasonable === false) confidence -= 0.1;
+  confidence = Math.max(0, Math.min(1, confidence));
+
+  if (issues.length > 0) {
+    logger.info('Stage1-Validate', `Validation: confidence=${confidence.toFixed(2)}, issues: ${issues.join('; ')}`);
+  }
+
+  return {
+    streetNumberMatch,
+    streetNameMatch,
+    cityMatch,
+    acreageReasonable,
+    ownerNameValid,
+    multipleResults: false, // set by caller
+    confidence,
+    issues,
+  };
+}
+
+// ── Layer 1A: HTTP with Session Cookie Acquisition ─────────────────────────
+
+/**
+ * Fix for HTTP 415: First load the search page to acquire session cookies,
+ * then POST with those cookies attached.
+ */
 async function searchCadHttp(
   baseUrl: string,
   variants: AddressVariant[],
   logger: PipelineLogger,
+  diagnostics: SearchDiagnostics,
 ): Promise<CadSearchResult[] | null> {
-  for (const variant of variants) {
+  const exactVariants = variants.filter((v) => !v.isPartial).sort((a, b) => a.priority - b.priority);
+  if (exactVariants.length === 0) return null;
+
+  // Step 1: Acquire session cookies by loading the search page
+  let sessionCookies: string | null = null;
+  const cookieFinish = logger.startAttempt({
+    layer: 'Stage1A-Cookie',
+    source: 'CAD-HTTP',
+    method: 'session-acquisition',
+    input: baseUrl,
+  });
+
+  try {
+    const pageResponse = await fetch(baseUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (pageResponse.ok) {
+      // Extract Set-Cookie headers
+      const setCookie = pageResponse.headers.get('set-cookie');
+      if (setCookie) {
+        // Parse cookie names and values
+        sessionCookies = setCookie
+          .split(',')
+          .map((c) => c.split(';')[0].trim())
+          .filter((c) => c.includes('='))
+          .join('; ');
+      }
+      cookieFinish({ status: 'success', dataPointsFound: sessionCookies ? 1 : 0, details: `Cookies: ${sessionCookies ? 'acquired' : 'none'}` });
+    } else {
+      cookieFinish({ status: 'fail', error: `HTTP ${pageResponse.status}` });
+    }
+  } catch (err) {
+    cookieFinish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+  }
+
+  // Step 2: Try each variant with the session cookies
+  for (const variant of exactVariants) {
     const finish = logger.startAttempt({
       layer: 'Stage1A',
       source: 'CAD-HTTP',
       method: 'POST',
-      input: `${variant.streetNumber} ${variant.streetName}`,
+      input: `${variant.streetNumber} ${variant.streetName} (${variant.format})`,
     });
 
     try {
       const keywords = `StreetNumber:${encodeURIComponent(variant.streetNumber)} StreetName:${encodeURIComponent(variant.streetName)}`;
       const url = `${baseUrl}/search/SearchResults?keywords=${keywords}`;
 
+      const headers: Record<string, string> = {
+        'Accept': 'application/json, text/plain, */*',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': `${baseUrl}/`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      };
+      if (sessionCookies) {
+        headers['Cookie'] = sessionCookies;
+      }
+
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Accept': 'application/json, text/plain, */*',
-          'X-Requested-With': 'XMLHttpRequest',
-          'Referer': `${baseUrl}/`,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        },
+        headers,
         signal: AbortSignal.timeout(10_000),
       });
 
       if (!response.ok) {
-        finish({
-          status: 'fail',
-          error: `HTTP ${response.status} ${response.statusText}`,
-          nextLayer: 'Stage1B',
-        });
+        finish({ status: 'fail', error: `HTTP ${response.status} ${response.statusText}`, nextLayer: 'Stage1B' });
+        diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
         continue;
       }
 
       const contentType = response.headers.get('content-type') ?? '';
       if (!contentType.includes('json')) {
-        finish({
-          status: 'fail',
-          error: `Non-JSON response: ${contentType}`,
-          nextLayer: 'Stage1B',
-        });
+        finish({ status: 'fail', error: `Non-JSON response: ${contentType}`, nextLayer: 'Stage1B' });
+        diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
         continue;
       }
 
       const data = await response.json() as { resultsList?: CadSearchResult[] } | CadSearchResult[];
       const results = Array.isArray(data) ? data : data.resultsList ?? [];
 
+      diagnostics.variantsTried.push({
+        variant,
+        resultCount: results.length,
+        hitPropertyId: results.length > 0 ? getProp(results[0], 'propertyId', 'PropertyId') : null,
+      });
+
       if (!results.length) {
         finish({ status: 'fail', error: 'No results', nextLayer: 'Stage1B' });
         continue;
       }
 
-      finish({ status: 'success', dataPointsFound: results.length });
+      finish({ status: 'success', dataPointsFound: results.length, details: `${results.length} results for variant "${variant.format}"` });
       return results;
     } catch (err) {
-      finish({
-        status: 'fail',
-        error: err instanceof Error ? err.message : String(err),
-        nextLayer: 'Stage1B',
-      });
+      finish({ status: 'fail', error: err instanceof Error ? err.message : String(err), nextLayer: 'Stage1B' });
+      diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
     }
   }
 
@@ -116,13 +281,21 @@ async function searchCadHttp(
 async function searchCadPlaywright(
   baseUrl: string,
   variants: AddressVariant[],
+  inputAddress: NormalizedAddress,
   logger: PipelineLogger,
-): Promise<{ results: CadSearchResult[]; screenshot: Buffer | null }> {
+  diagnostics: SearchDiagnostics,
+): Promise<{ results: CadSearchResult[]; screenshot: Buffer | null; validation: PropertyValidation | null }> {
+  // Sort: exact variants first, then partials
+  const sortedVariants = [...variants].sort((a, b) => {
+    if (a.isPartial !== b.isPartial) return a.isPartial ? 1 : -1;
+    return a.priority - b.priority;
+  });
+
   const finish = logger.startAttempt({
     layer: 'Stage1B',
     source: 'CAD-Playwright',
     method: 'browser-automation',
-    input: variants.map((v) => v.query).join(' | '),
+    input: `${sortedVariants.length} variants (${sortedVariants.filter((v) => !v.isPartial).length} exact, ${sortedVariants.filter((v) => v.isPartial).length} partial)`,
   });
 
   let browser = null;
@@ -132,171 +305,287 @@ async function searchCadPlaywright(
     const { chromium } = await import('playwright');
     browser = await chromium.launch({
       headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     });
 
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      viewport: { width: 1366, height: 768 },
     });
 
     const page = await context.newPage();
+    page.setDefaultTimeout(15_000);
 
     // Navigate to the search page
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
-    // Try to click "By Address" tab if it exists
+    // Click "By Address" tab
     try {
-      const addressTab = page.locator('text=By Address, a:has-text("Address"), [data-tab="address"]').first();
-      await addressTab.click({ timeout: 3_000 });
-      await page.waitForTimeout(500);
+      const tabSelectors = [
+        'text=By Address',
+        'a:has-text("Address")',
+        '[data-tab="address"]',
+        '.tab:has-text("Address")',
+        'li:has-text("Address") a',
+        '#searchType_address',
+      ];
+      for (const sel of tabSelectors) {
+        try {
+          const tab = page.locator(sel).first();
+          if (await tab.isVisible({ timeout: 1_500 })) {
+            await tab.click();
+            await page.waitForTimeout(800);
+            break;
+          }
+        } catch { continue; }
+      }
     } catch {
-      // Tab might not exist, continue
+      // Tab might not exist
     }
 
+    // Set up AJAX response interception
     let capturedResults: CadSearchResult[] = [];
-
-    // Set up response interceptor to capture AJAX results
     page.on('response', async (response) => {
       try {
         const url = response.url();
-        if (url.includes('SearchResults') || url.includes('searchresults')) {
-          const contentType = response.headers()['content-type'] ?? '';
-          if (contentType.includes('json')) {
+        if (url.includes('SearchResults') || url.includes('searchresults') || url.includes('Search')) {
+          const ct = response.headers()['content-type'] ?? '';
+          if (ct.includes('json')) {
             const data = await response.json() as { resultsList?: CadSearchResult[] } | CadSearchResult[];
             const results = Array.isArray(data) ? data : data.resultsList ?? [];
-            if (results.length > capturedResults.length) {
+            if (results.length > 0) {
               capturedResults = results;
             }
           }
         }
-      } catch {
-        // Ignore response parsing errors
-      }
+      } catch { /* ignore */ }
     });
 
-    // Try each variant
-    for (const variant of variants) {
-      try {
-        // Fill street number and street name using page.evaluate for reliability
-        await page.evaluate(
-          ([num, name]: [string, string]) => {
-            // Try various selector patterns for the street number field
-            const numSelectors = [
-              'input[name*="StreetNumber" i]',
-              'input[name*="streetNumber" i]',
-              'input[id*="streetnum" i]',
-              'input[placeholder*="number" i]',
-            ];
-            const nameSelectors = [
-              'input[name*="StreetName" i]',
-              'input[name*="streetName" i]',
-              'input[id*="streetname" i]',
-              'input[placeholder*="name" i]',
-            ];
+    // Identify the input fields
+    const numFieldSelectors = [
+      'input[name*="StreetNumber" i]', 'input[name*="streetnumber" i]',
+      'input[id*="streetnum" i]', 'input[id*="StreetNumber" i]',
+      'input[placeholder*="number" i]', 'input[placeholder*="Number" i]',
+      '#txtStreetNumber', '#StreetNumber',
+    ];
+    const nameFieldSelectors = [
+      'input[name*="StreetName" i]', 'input[name*="streetname" i]',
+      'input[id*="streetname" i]', 'input[id*="StreetName" i]',
+      'input[placeholder*="name" i]', 'input[placeholder*="Name" i]',
+      '#txtStreetName', '#StreetName',
+    ];
+    const searchBtnSelectors = [
+      'button:has-text("Search")', 'input[type="submit"][value*="Search" i]',
+      'button[type="submit"]', '.search-btn', '#btnSearch',
+      'input[type="submit"]', 'a:has-text("Search")',
+    ];
 
-            for (const sel of numSelectors) {
+    // Try each variant
+    for (const variant of sortedVariants) {
+      capturedResults = []; // Reset for each attempt
+
+      try {
+        // Clear and fill fields
+        await page.evaluate(
+          ([num, name, numSels, nameSels]: [string, string, string[], string[]]) => {
+            for (const sel of numSels) {
               const el = document.querySelector(sel) as HTMLInputElement | null;
               if (el) {
+                el.value = '';
                 el.value = num;
                 el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
                 break;
               }
             }
-
-            for (const sel of nameSelectors) {
+            for (const sel of nameSels) {
               const el = document.querySelector(sel) as HTMLInputElement | null;
               if (el) {
+                el.value = '';
                 el.value = name;
                 el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
                 break;
               }
             }
           },
-          [variant.streetNumber, variant.streetName] as [string, string],
+          [variant.streetNumber, variant.streetName, numFieldSelectors, nameFieldSelectors] as [string, string, string[], string[]],
         );
 
-        // Click search button
-        const searchBtn = page.locator('button:has-text("Search"), input[type="submit"], .search-btn, button[type="submit"]').first();
-        await searchBtn.click({ timeout: 5_000 });
+        // Click search
+        let searchClicked = false;
+        for (const sel of searchBtnSelectors) {
+          try {
+            const btn = page.locator(sel).first();
+            if (await btn.isVisible({ timeout: 1_500 })) {
+              await btn.click();
+              searchClicked = true;
+              break;
+            }
+          } catch { continue; }
+        }
+
+        if (!searchClicked) {
+          // Fall back to Enter key
+          await page.keyboard.press('Enter');
+        }
 
         // Wait for results
-        await page.waitForTimeout(3_000);
-
-        // Also try to wait for result rows to appear
+        await page.waitForTimeout(2_000);
         try {
-          await page.waitForSelector('table tbody tr, .search-results tr, .result-row', { timeout: 10_000 });
-        } catch {
-          // Results might not have loaded via DOM
-        }
+          await page.waitForSelector('table tbody tr, .search-results tr, .result-row, .property-result, .resultsList', { timeout: 10_000 });
+        } catch { /* may not appear with these selectors */ }
+
+        // Additional wait for AJAX
+        await page.waitForTimeout(1_000);
 
         if (capturedResults.length > 0) {
-          break; // Got results via AJAX interception
+          diagnostics.variantsTried.push({
+            variant,
+            resultCount: capturedResults.length,
+            hitPropertyId: getProp(capturedResults[0], 'propertyId', 'PropertyId'),
+          });
+
+          if (variant.isPartial) {
+            diagnostics.partialSearches.push({
+              query: variant.query ?? `${variant.streetNumber} ${variant.streetName}`,
+              resultCount: capturedResults.length,
+            });
+          }
+
+          logger.info('Stage1B', `Variant "${variant.format}" found ${capturedResults.length} results via AJAX`);
+          break;
         }
-      } catch {
-        // Variant didn't work, try next
-        continue;
+
+        // If AJAX didn't capture, try DOM extraction
+        const domResults = await extractResultsFromDOM(page);
+        if (domResults.length > 0) {
+          capturedResults = domResults;
+          diagnostics.variantsTried.push({
+            variant,
+            resultCount: domResults.length,
+            hitPropertyId: getProp(domResults[0], 'propertyId', 'PropertyId'),
+          });
+          logger.info('Stage1B', `Variant "${variant.format}" found ${domResults.length} results via DOM`);
+          break;
+        }
+
+        // Check if "no results" message is shown (don't waste time on more variants of same name)
+        const noResultsShown = await page.evaluate(() => {
+          const body = document.body.textContent?.toLowerCase() ?? '';
+          return body.includes('no results') || body.includes('no records found') || body.includes('0 results');
+        });
+
+        diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
+
+        if (noResultsShown && !variant.isPartial) {
+          logger.info('Stage1B', `Variant "${variant.format}" returned "no results" — trying next`);
+        }
+
+      } catch (err) {
+        logger.warn('Stage1B', `Variant "${variant.format}" failed: ${err instanceof Error ? err.message : String(err)}`);
+        diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
       }
     }
 
-    // Take screenshot for debugging/Vision OCR
-    screenshot = await page.screenshot({ fullPage: true }) as Buffer;
-
-    // If AJAX interception didn't capture results, try DOM extraction
-    if (capturedResults.length === 0) {
-      try {
-        const rows = await page.$$eval('table tbody tr', (trs) =>
-          trs.map((tr) => {
-            const cells = Array.from(tr.querySelectorAll('td'));
-            return {
-              text: cells.map((c) => c.textContent?.trim() ?? '').join(' | '),
-              href: tr.querySelector('a')?.getAttribute('href') ?? null,
-            };
-          }),
-        );
-
-        for (const row of rows) {
-          // Try to extract property ID from links or cell text
-          const idMatch = row.href?.match(/(?:Id|id|ID)=(\d+)/) ?? row.text.match(/(\d{4,})/);
-          if (idMatch) {
-            capturedResults.push({
-              propertyId: idMatch[1],
-              ownerName: row.text,
-              address: row.text,
-            });
-          }
-        }
-      } catch {
-        // DOM extraction failed
-      }
+    // Take screenshot for Vision OCR fallback
+    try {
+      screenshot = await page.screenshot({ fullPage: true }) as Buffer;
+    } catch {
+      logger.warn('Stage1B', 'Failed to take screenshot');
     }
 
     await browser.close();
+    browser = null;
 
+    // Validate best result
+    let validation: PropertyValidation | null = null;
     if (capturedResults.length > 0) {
+      const best = pickBestResult(capturedResults, inputAddress, logger);
+      if (best) {
+        validation = validatePropertyResult(best, inputAddress, logger);
+        validation.multipleResults = capturedResults.length > 1;
+      }
+
       finish({
         status: 'success',
         dataPointsFound: capturedResults.length,
-        details: `Found ${capturedResults.length} results via Playwright`,
+        details: `${capturedResults.length} results, validation: ${validation?.confidence.toFixed(2) ?? 'N/A'}`,
       });
     } else {
-      finish({
-        status: 'fail',
-        error: 'No results found via Playwright',
-        nextLayer: 'Stage1C',
-      });
+      finish({ status: 'fail', error: `No results from ${sortedVariants.length} variants`, nextLayer: 'Stage1C' });
     }
 
-    return { results: capturedResults, screenshot };
+    return { results: capturedResults, screenshot, validation };
   } catch (err) {
     if (browser) {
       try { await browser.close(); } catch { /* ignore */ }
     }
-    finish({
-      status: 'fail',
-      error: err instanceof Error ? err.message : String(err),
-      nextLayer: 'Stage1C',
-    });
-    return { results: [], screenshot };
+    finish({ status: 'fail', error: err instanceof Error ? err.message : String(err), nextLayer: 'Stage1C' });
+    return { results: [], screenshot, validation: null };
   }
+}
+
+// ── DOM Extraction Helper ──────────────────────────────────────────────────
+
+async function extractResultsFromDOM(page: import('playwright').Page): Promise<CadSearchResult[]> {
+  return page.evaluate(() => {
+    const results: Array<Record<string, string | null>> = [];
+
+    // Strategy 1: Table rows
+    const tableRows = document.querySelectorAll('table tbody tr');
+    if (tableRows.length > 0) {
+      tableRows.forEach((row) => {
+        const cells = Array.from(row.querySelectorAll('td'));
+        const text = row.textContent?.trim() ?? '';
+        const links = Array.from(row.querySelectorAll('a[href]'));
+
+        // Try to find property ID from link
+        let propertyId: string | null = null;
+        for (const link of links) {
+          const href = link.getAttribute('href') ?? '';
+          const match = href.match(/(?:Id|id|ID|propertyId)=(\w+)/);
+          if (match) { propertyId = match[1]; break; }
+        }
+
+        // Try text-based extraction
+        if (!propertyId) {
+          const idMatch = text.match(/(?:Property\s*(?:ID|#)\s*:?\s*)(\d{4,})/i);
+          if (idMatch) propertyId = idMatch[1];
+        }
+
+        if (propertyId || cells.length >= 2) {
+          results.push({
+            propertyId: propertyId ?? cells[0]?.textContent?.trim() ?? null,
+            ownerName: cells.length > 1 ? cells[1]?.textContent?.trim() ?? null : null,
+            address: cells.length > 2 ? cells[2]?.textContent?.trim() ?? null : text.substring(0, 200),
+            legalDescription: cells.length > 3 ? cells[3]?.textContent?.trim() ?? null : null,
+          });
+        }
+      });
+    }
+
+    // Strategy 2: Result divs/cards
+    if (results.length === 0) {
+      const cards = document.querySelectorAll('.result-item, .property-result, .search-result-item, [class*="result"]');
+      cards.forEach((card) => {
+        const text = card.textContent?.trim() ?? '';
+        const link = card.querySelector('a[href]');
+        const href = link?.getAttribute('href') ?? '';
+        const idMatch = href.match(/(?:Id|id|propertyId)=(\w+)/) ?? text.match(/(\d{5,})/);
+
+        if (idMatch) {
+          results.push({
+            propertyId: idMatch[1],
+            ownerName: null,
+            address: text.substring(0, 200),
+          });
+        }
+      });
+    }
+
+    return results as unknown as CadSearchResult[];
+  });
 }
 
 // ── Layer 1C: Vision OCR Fallback ──────────────────────────────────────────
@@ -305,12 +594,12 @@ async function extractFromScreenshot(
   screenshot: Buffer,
   anthropicApiKey: string,
   logger: PipelineLogger,
-): Promise<PropertyIdResult | null> {
+): Promise<CadSearchResult[]> {
   const finish = logger.startAttempt({
     layer: 'Stage1C',
     source: 'CAD-Vision',
     method: 'screenshot-ocr',
-    input: `screenshot (${screenshot.length} bytes)`,
+    input: `screenshot (${(screenshot.length / 1024).toFixed(0)} KB)`,
   });
 
   try {
@@ -319,7 +608,7 @@ async function extractFromScreenshot(
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 4096,
+      max_tokens: 8192,
       temperature: 0,
       messages: [
         {
@@ -327,26 +616,23 @@ async function extractFromScreenshot(
           content: [
             {
               type: 'image',
-              source: {
-                type: 'base64',
-                media_type: 'image/png',
-                data: screenshot.toString('base64'),
-              },
+              source: { type: 'base64', media_type: 'image/png', data: screenshot.toString('base64') },
             },
             {
               type: 'text',
               text: `This is a screenshot of a Texas county appraisal district (CAD) search results page.
 
-Extract ALL property information visible in the results. For each property found, provide:
-- Property ID (numeric)
-- GEO ID (if visible)
-- Owner name
-- Legal description
-- Situs address
-- Acreage (if visible)
+Extract ALL property information visible. For EACH property row, extract:
+- propertyId (the numeric or alphanumeric property ID / account number)
+- geoId (geographic ID, if visible)
+- ownerName
+- legalDescription
+- situsAddress (the physical address)
+- acreage (if visible)
+- propertyType (if visible: real, personal, mineral, etc.)
 
-Return a JSON array of objects. If no results are visible, return an empty array.
-Return ONLY valid JSON, no markdown fences or explanation.`,
+CRITICAL: Extract EVERY visible result, not just the first one.
+Return ONLY valid JSON array, no markdown. If NO results visible, return [].`,
             },
           ],
         },
@@ -356,52 +642,25 @@ Return ONLY valid JSON, no markdown fences or explanation.`,
     const text = response.content.find((c) => c.type === 'text');
     if (!text || text.type !== 'text') {
       finish({ status: 'fail', error: 'No text in Vision response' });
-      return null;
+      return [];
     }
 
     const cleaned = text.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const parsed = JSON.parse(cleaned) as Array<{
-      propertyId?: string;
-      property_id?: string;
-      geoId?: string;
-      geo_id?: string;
-      ownerName?: string;
-      owner_name?: string;
-      legalDescription?: string;
-      legal_description?: string;
-      acreage?: number;
-      address?: string;
-    }>;
+    let parsed: CadSearchResult[];
 
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      finish({ status: 'fail', error: 'No properties found in screenshot' });
-      return null;
+    try {
+      parsed = JSON.parse(cleaned);
+      if (!Array.isArray(parsed)) parsed = [];
+    } catch {
+      finish({ status: 'fail', error: 'Failed to parse Vision JSON' });
+      return [];
     }
 
-    const first = parsed[0];
-    const propId = first.propertyId ?? first.property_id ?? '';
-
-    if (!propId) {
-      finish({ status: 'fail', error: 'No property ID found in OCR' });
-      return null;
-    }
-
-    finish({ status: 'success', dataPointsFound: parsed.length });
-
-    return {
-      propertyId: propId,
-      geoId: first.geoId ?? first.geo_id ?? null,
-      ownerName: first.ownerName ?? first.owner_name ?? null,
-      legalDescription: first.legalDescription ?? first.legal_description ?? null,
-      acreage: first.acreage ?? null,
-      propertyType: null,
-      situsAddress: first.address ?? null,
-      source: 'vision-ocr',
-      layer: 'Stage1C',
-    };
+    finish({ status: parsed.length > 0 ? 'success' : 'fail', dataPointsFound: parsed.length });
+    return parsed;
   } catch (err) {
     finish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
-    return null;
+    return [];
   }
 }
 
@@ -411,7 +670,7 @@ async function enrichPropertyDetail(
   baseUrl: string,
   propertyId: string,
   logger: PipelineLogger,
-): Promise<{ acreage: number | null; legalDescription: string | null }> {
+): Promise<{ acreage: number | null; legalDescription: string | null; propertyType: string | null }> {
   const finish = logger.startAttempt({
     layer: 'Stage1-Detail',
     source: 'CAD-Detail',
@@ -425,7 +684,7 @@ async function enrichPropertyDetail(
 
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml',
       },
       signal: AbortSignal.timeout(15_000),
@@ -433,42 +692,103 @@ async function enrichPropertyDetail(
 
     if (!response.ok) {
       finish({ status: 'fail', error: `HTTP ${response.status}` });
-      return { acreage: null, legalDescription: null };
+      return { acreage: null, legalDescription: null, propertyType: null };
     }
 
     const html = await response.text();
 
-    // Extract acreage from HTML
-    const acreageMatch = html.match(/(?:Acreage|Land\s*Area|Total\s*Acres?)\s*:?\s*<[^>]*>\s*([\d,.]+)/i)
-      ?? html.match(/([\d,.]+)\s*(?:acres?|ac)\b/i);
-    const acreage = acreageMatch ? parseFloat(acreageMatch[1].replace(/,/g, '')) : null;
+    // Extract acreage (try multiple patterns)
+    let acreage: number | null = null;
+    const acreagePatterns = [
+      /(?:Acreage|Land\s*Area|Total\s*Acres?|Land\s*Size)\s*:?\s*(?:<[^>]*>)?\s*([\d,.]+)/i,
+      /(?:Acres?)\s*:?\s*(?:<[^>]*>)?\s*([\d,.]+)/i,
+      /([\d,.]+)\s*(?:acres?|ac)\b/i,
+    ];
+    for (const pattern of acreagePatterns) {
+      const match = html.match(pattern);
+      if (match) {
+        const val = parseFloat(match[1].replace(/,/g, ''));
+        if (!isNaN(val) && val > 0) { acreage = val; break; }
+      }
+    }
 
-    // Extract legal description from HTML
-    const legalMatch = html.match(/(?:Legal\s*Description|Legal\s*Desc\.?)\s*:?\s*<[^>]*>\s*([^<]+)/i);
-    const legalDescription = legalMatch ? legalMatch[1].trim() : null;
+    // Extract legal description (try multiple patterns)
+    let legalDescription: string | null = null;
+    const legalPatterns = [
+      /(?:Legal\s*Description|Legal\s*Desc\.?)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i,
+      /class="[^"]*legal[^"]*"[^>]*>\s*([^<]+)/i,
+      /id="[^"]*legal[^"]*"[^>]*>\s*([^<]+)/i,
+    ];
+    for (const pattern of legalPatterns) {
+      const match = html.match(pattern);
+      if (match && match[1].trim().length > 5) {
+        legalDescription = match[1].trim();
+        break;
+      }
+    }
 
+    // Extract property type
+    let propertyType: string | null = null;
+    const typeMatch = html.match(/(?:Property\s*Type|Prop\s*Type|Type)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i);
+    if (typeMatch && typeMatch[1].trim().length > 1) {
+      propertyType = typeMatch[1].trim();
+    }
+
+    const found = (acreage ? 1 : 0) + (legalDescription ? 1 : 0) + (propertyType ? 1 : 0);
     finish({
-      status: acreage || legalDescription ? 'success' : 'partial',
-      dataPointsFound: (acreage ? 1 : 0) + (legalDescription ? 1 : 0),
-      details: `Acreage: ${acreage ?? 'N/A'}, Legal: ${legalDescription ? 'found' : 'N/A'}`,
+      status: found > 0 ? 'success' : 'partial',
+      dataPointsFound: found,
+      details: `Acreage: ${acreage ?? 'N/A'}, Legal: ${legalDescription ? `${legalDescription.length} chars` : 'N/A'}, Type: ${propertyType ?? 'N/A'}`,
     });
 
-    return { acreage, legalDescription };
+    return { acreage, legalDescription, propertyType };
   } catch (err) {
     finish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
-    return { acreage: null, legalDescription: null };
+    return { acreage: null, legalDescription: null, propertyType: null };
   }
 }
 
 // ── Pick Best Result ───────────────────────────────────────────────────────
 
-function pickBestResult(results: CadSearchResult[]): CadSearchResult | null {
-  // Filter out UDI (Undivided Interest) records
-  const nonUdi = results.filter((r) => !(r.isUDI ?? r.IsUDI));
-  if (nonUdi.length === 0 && results.length > 0) {
-    return results[0]; // Fall back to first even if UDI
+/**
+ * From a list of CAD results, pick the best one.
+ * Filters out UDI records, validates against input, scores by match quality.
+ */
+function pickBestResult(
+  results: CadSearchResult[],
+  inputAddress: NormalizedAddress,
+  logger: PipelineLogger,
+): CadSearchResult | null {
+  // Filter out UDI records
+  const nonUdi = results.filter((r) => {
+    const isUdi = (r as Record<string, unknown>).isUDI ?? (r as Record<string, unknown>).IsUDI;
+    return !isUdi;
+  });
+
+  const candidates = nonUdi.length > 0 ? nonUdi : results;
+  if (candidates.length === 0) return null;
+
+  // Score each candidate
+  const scored = candidates.map((r) => {
+    const validation = validatePropertyResult(r, inputAddress, logger);
+    return { result: r, validation };
+  });
+
+  // Sort by confidence descending
+  scored.sort((a, b) => b.validation.confidence - a.validation.confidence);
+
+  // Log top candidates
+  for (let i = 0; i < Math.min(3, scored.length); i++) {
+    const { result: r, validation: v } = scored[i];
+    logger.info('Stage1-Pick', `  #${i + 1}: ID=${getProp(r, 'propertyId', 'PropertyId')}, confidence=${v.confidence.toFixed(2)}, addr="${getProp(r, 'address', 'Address', 'situsAddress') ?? 'N/A'}"`);
   }
-  return nonUdi[0] ?? null;
+
+  // Warn if best match has low confidence
+  if (scored[0].validation.confidence < 0.5) {
+    logger.warn('Stage1-Pick', `Best match confidence is only ${scored[0].validation.confidence.toFixed(2)} — result may not be correct`);
+  }
+
+  return scored[0].result;
 }
 
 // ── Main Search Function ───────────────────────────────────────────────────
@@ -476,82 +796,147 @@ function pickBestResult(results: CadSearchResult[]): CadSearchResult | null {
 /**
  * Search for a property in a BIS Consultants eSearch CAD system.
  * Tries HTTP → Playwright → Vision OCR in sequence (layered fallback).
+ * All results are validated against the original search address.
  */
 export async function searchBisCad(
   county: string,
   normalized: NormalizedAddress,
   anthropicApiKey: string,
   logger: PipelineLogger,
-): Promise<PropertyIdResult | null> {
+): Promise<{ property: PropertyIdResult | null; diagnostics: SearchDiagnostics }> {
   const config = BIS_CONFIGS[county.toLowerCase()];
+  const diagnostics: SearchDiagnostics = {
+    variantsGenerated: normalized.variants,
+    variantsTried: [],
+    partialSearches: [],
+    searchDuration_ms: 0,
+  };
+  const searchStart = Date.now();
+
   if (!config) {
-    logger.warn('Stage1', `No BIS config for county: ${county}`);
-    return null;
+    logger.warn('Stage1', `No BIS config for county: ${county}. Known counties: ${Object.keys(BIS_CONFIGS).join(', ')}`);
+    diagnostics.searchDuration_ms = Date.now() - searchStart;
+    return { property: null, diagnostics };
   }
 
   const { variants } = normalized;
   if (!variants.length) {
     logger.warn('Stage1', 'No address variants to search');
-    return null;
+    diagnostics.searchDuration_ms = Date.now() - searchStart;
+    return { property: null, diagnostics };
   }
 
-  // Layer 1A: HTTP POST
-  const httpResults = await searchCadHttp(config.baseUrl, variants, logger);
-  if (httpResults && httpResults.length > 0) {
-    const best = pickBestResult(httpResults);
-    if (best) {
-      const propId = best.propertyId ?? best.PropertyId ?? '';
-      const detail = await enrichPropertyDetail(config.baseUrl, propId, logger);
+  logger.info('Stage1', `Searching ${config.name} with ${variants.length} variants (${variants.filter((v) => !v.isPartial).length} exact, ${variants.filter((v) => v.isPartial).length} partial)`);
 
-      return {
-        propertyId: propId,
-        geoId: best.geoId ?? best.GeoId ?? null,
-        ownerName: best.ownerName ?? best.OwnerName ?? null,
-        legalDescription: detail.legalDescription ?? best.legalDescription ?? best.LegalDescription ?? null,
-        acreage: detail.acreage ?? null,
-        propertyType: null,
-        situsAddress: best.address ?? best.Address ?? null,
-        source: config.name,
-        layer: 'Stage1A',
-      };
+  // Layer 1A: HTTP POST with session cookies
+  const httpResults = await searchCadHttp(config.baseUrl, variants, logger, diagnostics);
+  if (httpResults && httpResults.length > 0) {
+    const best = pickBestResult(httpResults, normalized, logger);
+    if (best) {
+      const propId = getProp(best, 'propertyId', 'PropertyId') ?? '';
+      const validation = validatePropertyResult(best, normalized, logger);
+      validation.multipleResults = httpResults.length > 1;
+
+      // Only accept if validation passes minimum threshold
+      if (validation.confidence >= 0.3) {
+        const detail = await enrichPropertyDetail(config.baseUrl, propId, logger);
+        diagnostics.searchDuration_ms = Date.now() - searchStart;
+
+        return {
+          property: {
+            propertyId: propId,
+            geoId: getProp(best, 'geoId', 'GeoId'),
+            ownerName: getProp(best, 'ownerName', 'OwnerName'),
+            legalDescription: detail.legalDescription ?? getProp(best, 'legalDescription', 'LegalDescription'),
+            acreage: detail.acreage ?? getNumProp(best, 'acreage', 'Acreage'),
+            propertyType: detail.propertyType ?? getProp(best, 'propertyType', 'PropertyType'),
+            situsAddress: getProp(best, 'address', 'Address', 'situsAddress', 'SitusAddress'),
+            source: config.name,
+            layer: 'Stage1A',
+            matchConfidence: validation.confidence,
+            validationNotes: validation.issues,
+          },
+          diagnostics,
+        };
+      } else {
+        logger.warn('Stage1A', `Best HTTP result rejected — confidence ${validation.confidence.toFixed(2)} below 0.3 threshold`);
+      }
     }
   }
 
-  // Layer 1B: Playwright
-  const { results: pwResults, screenshot } = await searchCadPlaywright(config.baseUrl, variants, logger);
-  if (pwResults.length > 0) {
-    const best = pickBestResult(pwResults);
-    if (best) {
-      const propId = best.propertyId ?? best.PropertyId ?? '';
-      const detail = await enrichPropertyDetail(config.baseUrl, propId, logger);
+  // Layer 1B: Playwright (tries all variants including partials)
+  const { results: pwResults, screenshot, validation: pwValidation } = await searchCadPlaywright(
+    config.baseUrl, variants, normalized, logger, diagnostics,
+  );
 
-      return {
-        propertyId: propId,
-        geoId: best.geoId ?? best.GeoId ?? null,
-        ownerName: best.ownerName ?? best.OwnerName ?? null,
-        legalDescription: detail.legalDescription ?? best.legalDescription ?? best.LegalDescription ?? null,
-        acreage: detail.acreage ?? null,
-        propertyType: null,
-        situsAddress: best.address ?? best.Address ?? null,
-        source: config.name,
-        layer: 'Stage1B',
-      };
+  if (pwResults.length > 0) {
+    const best = pickBestResult(pwResults, normalized, logger);
+    if (best) {
+      const propId = getProp(best, 'propertyId', 'PropertyId') ?? '';
+      const validation = pwValidation ?? validatePropertyResult(best, normalized, logger);
+      validation.multipleResults = pwResults.length > 1;
+
+      if (validation.confidence >= 0.2) {
+        const detail = await enrichPropertyDetail(config.baseUrl, propId, logger);
+        diagnostics.searchDuration_ms = Date.now() - searchStart;
+
+        return {
+          property: {
+            propertyId: propId,
+            geoId: getProp(best, 'geoId', 'GeoId'),
+            ownerName: getProp(best, 'ownerName', 'OwnerName'),
+            legalDescription: detail.legalDescription ?? getProp(best, 'legalDescription', 'LegalDescription'),
+            acreage: detail.acreage ?? getNumProp(best, 'acreage', 'Acreage'),
+            propertyType: detail.propertyType ?? getProp(best, 'propertyType', 'PropertyType'),
+            situsAddress: getProp(best, 'address', 'Address', 'situsAddress', 'SitusAddress'),
+            source: config.name,
+            layer: 'Stage1B',
+            matchConfidence: validation.confidence,
+            validationNotes: validation.issues,
+          },
+          diagnostics,
+        };
+      } else {
+        logger.warn('Stage1B', `Best Playwright result rejected — confidence ${validation.confidence.toFixed(2)} below 0.2 threshold`);
+      }
     }
   }
 
   // Layer 1C: Vision OCR from screenshot
-  if (screenshot) {
-    const visionResult = await extractFromScreenshot(screenshot, anthropicApiKey, logger);
-    if (visionResult) {
-      const detail = await enrichPropertyDetail(config.baseUrl, visionResult.propertyId, logger);
-      return {
-        ...visionResult,
-        legalDescription: detail.legalDescription ?? visionResult.legalDescription,
-        acreage: detail.acreage ?? visionResult.acreage,
-      };
+  if (screenshot && screenshot.length > 1000) {
+    const visionResults = await extractFromScreenshot(screenshot, anthropicApiKey, logger);
+    if (visionResults.length > 0) {
+      const best = pickBestResult(visionResults, normalized, logger);
+      if (best) {
+        const propId = getProp(best, 'propertyId', 'PropertyId', 'property_id') ?? '';
+        if (propId) {
+          const detail = await enrichPropertyDetail(config.baseUrl, propId, logger);
+          const validation = validatePropertyResult(best, normalized, logger);
+          validation.multipleResults = visionResults.length > 1;
+          diagnostics.searchDuration_ms = Date.now() - searchStart;
+
+          return {
+            property: {
+              propertyId: propId,
+              geoId: getProp(best, 'geoId', 'GeoId', 'geo_id'),
+              ownerName: getProp(best, 'ownerName', 'OwnerName', 'owner_name'),
+              legalDescription: detail.legalDescription ?? getProp(best, 'legalDescription', 'LegalDescription', 'legal_description'),
+              acreage: detail.acreage ?? getNumProp(best, 'acreage', 'Acreage'),
+              propertyType: detail.propertyType,
+              situsAddress: getProp(best, 'address', 'Address', 'situsAddress', 'SitusAddress'),
+              source: config.name,
+              layer: 'Stage1C',
+              matchConfidence: validation.confidence,
+              validationNotes: [...validation.issues, 'Property identified via screenshot OCR — lower reliability'],
+            },
+            diagnostics,
+          };
+        }
+      }
     }
   }
 
-  logger.error('Stage1', 'All CAD search layers failed');
-  return null;
+  logger.error('Stage1', `All CAD search layers exhausted — property not found. Tried ${diagnostics.variantsTried.length} variants.`);
+  diagnostics.searchDuration_ms = Date.now() - searchStart;
+  return { property: null, diagnostics };
 }

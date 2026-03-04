@@ -7,6 +7,12 @@ export interface PipelineInput {
   address: string;
   county: string;
   state: string;
+  /** If the user already knows the CAD property ID, skip address search */
+  propertyId?: string;
+  /** If the user knows the owner name, use it for direct search */
+  ownerName?: string;
+  /** User-uploaded files to process alongside online-retrieved documents */
+  userFiles?: UserFile[];
 }
 
 export interface PipelineResult {
@@ -22,6 +28,34 @@ export interface PipelineResult {
   validation: ValidationResult | null;
   log: LayerAttempt[];
   duration_ms: number;
+  /** Search diagnostics: which variants were tried, which hit */
+  searchDiagnostics?: SearchDiagnostics;
+}
+
+// ── User File Upload ─────────────────────────────────
+
+export interface UserFile {
+  filename: string;
+  mimeType: string;
+  /** base64-encoded file data */
+  data: string;
+  /** Size in bytes */
+  size: number;
+  /** User-provided description or notes about this file */
+  description?: string;
+}
+
+// ── Search Diagnostics ───────────────────────────────
+
+export interface SearchDiagnostics {
+  /** All address variants that were generated */
+  variantsGenerated: AddressVariant[];
+  /** Which variants were actually tried against the CAD */
+  variantsTried: Array<{ variant: AddressVariant; resultCount: number; hitPropertyId: string | null }>;
+  /** Partial search attempts */
+  partialSearches: Array<{ query: string; resultCount: number }>;
+  /** Total time spent searching */
+  searchDuration_ms: number;
 }
 
 // ── Stage 1: Property Identification ───────────────
@@ -36,6 +70,31 @@ export interface PropertyIdResult {
   situsAddress: string | null;
   source: string;
   layer: string;
+  /** Confidence score 0-1 for how well the result matches the input */
+  matchConfidence: number;
+  /** Validation notes (mismatches, concerns) */
+  validationNotes: string[];
+}
+
+// ── Property Result Validation ───────────────────────
+
+export interface PropertyValidation {
+  /** Does the returned street number match the input? */
+  streetNumberMatch: boolean;
+  /** Does the returned street name match (fuzzy)? */
+  streetNameMatch: boolean;
+  /** Does the returned city match? */
+  cityMatch: boolean | null;
+  /** Is the acreage within a reasonable range? */
+  acreageReasonable: boolean | null;
+  /** Is the owner name non-empty and parseable? */
+  ownerNameValid: boolean;
+  /** Are there multiple results — could be ambiguous? */
+  multipleResults: boolean;
+  /** Computed match confidence 0-1 */
+  confidence: number;
+  /** Issues found */
+  issues: string[];
 }
 
 // ── Stage 2: Documents ─────────────────────────────
@@ -59,6 +118,10 @@ export interface DocumentResult {
   imageFormat: 'png' | 'jpg' | 'tiff' | 'pdf' | null;
   ocrText: string | null;
   extractedData: ExtractedBoundaryData | null;
+  /** Whether this came from user upload vs online retrieval */
+  fromUserUpload?: boolean;
+  /** Processing errors that occurred */
+  processingErrors?: string[];
 }
 
 // ── Stage 3: AI Extraction ─────────────────────────
@@ -83,6 +146,10 @@ export interface ExtractedBoundaryData {
   } | null;
   confidence: number;
   warnings: string[];
+  /** Number of verification passes completed */
+  verificationPasses?: number;
+  /** Was this result confirmed by multiple extraction passes? */
+  verified?: boolean;
 }
 
 export type BoundaryDescription = ExtractedBoundaryData;
@@ -136,6 +203,10 @@ export interface ValidationResult {
   referenceComplete: boolean;
   overallQuality: 'excellent' | 'good' | 'fair' | 'poor' | 'failed';
   flags: string[];
+  /** Traverse points computed from boundary calls (for drawing) */
+  traversePoints?: Array<{ x: number; y: number }>;
+  /** Total perimeter in feet */
+  totalPerimeter_ft?: number;
 }
 
 // ── Address Normalization ──────────────────────────
@@ -145,12 +216,18 @@ export interface AddressVariant {
   streetName: string;
   format: string;
   query?: string;
+  /** Priority order — lower numbers are tried first */
+  priority: number;
+  /** Is this a partial/fuzzy search? */
+  isPartial: boolean;
 }
 
 export interface ParsedAddress {
   streetNumber: string;
   streetName: string;
   streetType: string;
+  preDirection: string | null;
+  postDirection: string | null;
   unit: string | null;
   city: string | null;
   state: string | null;
@@ -166,6 +243,8 @@ export interface NormalizedAddress {
   variants: AddressVariant[];
   lat: number | null;
   lon: number | null;
+  /** Detected county from geocoding (may differ from user input) */
+  detectedCounty: string | null;
 }
 
 // ── Logging ────────────────────────────────────────
@@ -203,4 +282,6 @@ export interface ActivePipeline {
   state: string;
   startedAt: string;
   currentStage: string;
+  /** When the last status update was sent */
+  lastUpdate?: string;
 }

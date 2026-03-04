@@ -1,7 +1,7 @@
 // worker/src/services/ai-extraction.ts — Stage 3: AI Extraction
 // Multi-pass Claude text extraction and Vision OCR with confidence verification.
-// Documents are screened, analyzed, re-analyzed for confirmation, and scored.
-// We prioritize accuracy over speed: multiple passes to confirm results.
+// Documents are screened, analyzed, verified, and scored.
+// Supports user-uploaded files alongside online-retrieved documents.
 
 import type { DocumentResult, ExtractedBoundaryData, BoundaryCall, DocumentReference } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
@@ -9,11 +9,10 @@ import { PipelineLogger } from '../lib/logger.js';
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const AI_MODEL = 'claude-sonnet-4-5-20250929';
-const REQUEST_TIMEOUT_MS = 180_000; // 3 minutes per AI call
 const MAX_RETRIES = 4;
 const BASE_RETRY_DELAY_MS = 2_000;
-const CONFIDENCE_THRESHOLD_RERUN = 0.80; // Re-run extraction if below this
-const MAX_VERIFICATION_PASSES = 3; // Up to 3 verification passes per document
+const CONFIDENCE_THRESHOLD_RERUN = 0.80;
+const MAX_VERIFICATION_PASSES = 3;
 
 // ── Document Screening Keywords ────────────────────────────────────────────
 
@@ -21,12 +20,16 @@ const PRIMARY_KEYWORDS = [
   'metes', 'bounds', 'thence', 'bearing', 'degrees', 'iron rod', 'iron pin',
   'feet', 'varas', 'curve', 'radius', 'point of beginning', 'pob',
   'minutes', 'seconds', 'north', 'south', 'east', 'west',
+  'monument', 'stake', 'concrete', 'cap', 'set', 'found',
+  'beginning', 'commence', 'thence', 'along',
 ];
 
 const SECONDARY_KEYWORDS = [
   'easement', 'deed', 'plat', 'subdivision', 'volume', 'page', 'instrument',
   'grantor', 'grantee', 'tract', 'parcel', 'lot', 'block', 'abstract',
   'survey', 'county', 'conveyed', 'described', 'recorded', 'filed',
+  'warranty', 'being', 'situated', 'lying', 'containing', 'more or less',
+  'acres', 'square feet', 'hectares',
 ];
 
 const SKIP_PATTERNS = [
@@ -38,6 +41,9 @@ const SKIP_PATTERNS = [
   /access\s*denied/i,
   /no\s*records?\s*found/i,
   /session\s*expired/i,
+  /please\s*sign\s*in/i,
+  /forgot\s*password/i,
+  /create\s*account/i,
 ];
 
 // ── Texas Surveying System Prompt ──────────────────────────────────────────
@@ -48,7 +54,7 @@ const EXTRACTION_SYSTEM_PROMPT = `You are an expert Texas Registered Professiona
 - Spanish land grants, Republic of Texas patents, Mexican-era surveys
 - Texas vara measurements (1 vara = 33⅓ inches = 2.7778 feet)
 - Chain measurements (1 chain = 66 feet, 1 rod = 16.5 feet)
-- Bearing notation in all formats: N 45°30'15" E, N45-30-15E, N45°30'E
+- Bearing notation: N 45°30'15" E, N45-30-15E, N45°30'E, S89°59'30"W
 - Curve data: radius, arc length, chord bearing, chord distance, delta angle
 - Monument descriptions: iron rods, iron pins, concrete monuments, PK nails, railroad spikes
 - Texas county recording systems: volumes, pages, instrument numbers, cabinet/slide plat references
@@ -60,15 +66,15 @@ CRITICAL RULES:
 1. Extract ALL data — never skip or abbreviate. Every bearing, distance, monument, and reference matters.
 2. Preserve EXACT notation from the document. Do not normalize or round values.
 3. For bearings, ALWAYS provide both the raw text AND computed decimal degrees.
-4. Decimal degrees for quadrant bearings: NE = degrees as-is, SE = degrees as-is, SW = degrees as-is, NW = degrees as-is. The quadrant tells direction. Decimal degrees is the angle within that quadrant (always 0-90°).
+4. Decimal degrees for quadrant bearings: the angle within that quadrant (always 0-90°). The quadrant (NE/NW/SE/SW) tells direction.
 5. For distances, identify the unit. Modern Texas deeds use feet. Historical deeds may use varas, chains, or rods.
-6. For curves, extract ALL available data: radius, arc length, chord bearing, chord distance, delta angle, and direction (left/right).
-7. Flag any unclear, illegible, or ambiguous text with a warning.
+6. For curves, extract ALL available data: radius, arc length, chord bearing, chord distance, delta angle, direction (left/right).
+7. Flag unclear, illegible, or ambiguous text with a warning.
 8. Note ALL document references (volume/page, instrument number, plat cabinet/slide, abstract/survey).
 9. Set confidence per-call (0.0-1.0). Anything unclear gets < 0.85.
-10. Think step by step. Read the entire document before extracting. Identify the description type first, then extract systematically.
+10. Read the entire document before extracting. Identify the description type first, then extract systematically.
 
-RESPONSE FORMAT — Return ONLY valid JSON (no markdown fences, no explanation outside JSON):
+RESPONSE FORMAT — Return ONLY valid JSON (no markdown fences):
 {
   "type": "metes_and_bounds" | "lot_and_block" | "hybrid" | "reference_only",
   "datum": "NAD83" | "NAD27" | "unknown",
@@ -79,16 +85,8 @@ RESPONSE FORMAT — Return ONLY valid JSON (no markdown fences, no explanation o
   "calls": [
     {
       "sequence": 1,
-      "bearing": {
-        "raw": "N 45°30'15\\" E",
-        "decimalDegrees": 45.504167,
-        "quadrant": "NE"
-      },
-      "distance": {
-        "raw": "150.00 feet",
-        "value": 150.00,
-        "unit": "feet"
-      },
+      "bearing": { "raw": "N 45°30'15\\" E", "decimalDegrees": 45.504167, "quadrant": "NE" },
+      "distance": { "raw": "150.00 feet", "value": 150.00, "unit": "feet" },
       "curve": null,
       "toPoint": "an iron rod found",
       "along": "the south line of Lot 12",
@@ -96,36 +94,19 @@ RESPONSE FORMAT — Return ONLY valid JSON (no markdown fences, no explanation o
     }
   ],
   "references": [
-    {
-      "type": "deed",
-      "volume": "1234",
-      "page": "567",
-      "instrumentNumber": null,
-      "cabinetSlide": null,
-      "county": "Bell",
-      "description": "source deed"
-    }
+    { "type": "deed", "volume": "1234", "page": "567", "instrumentNumber": null, "cabinetSlide": null, "county": "Bell", "description": "source deed" }
   ],
   "area": { "raw": "1.234 acres", "value": 1.234, "unit": "acres" },
-  "lotBlock": {
-    "lot": "21",
-    "block": "8",
-    "subdivision": "Dawson Ridge",
-    "phase": "1",
-    "cabinet": "A",
-    "slide": "123"
-  },
+  "lotBlock": { "lot": "21", "block": "8", "subdivision": "Dawson Ridge", "phase": "1", "cabinet": "A", "slide": "123" },
   "confidence": 0.90,
-  "warnings": ["unclear text at line 5"]
+  "warnings": []
 }`;
 
-// ── OCR System Prompt ──────────────────────────────────────────────────────
+const OCR_SYSTEM_PROMPT = `You are an expert document OCR specialist for Texas land surveying records.
 
-const OCR_SYSTEM_PROMPT = `You are an expert document OCR specialist for Texas land surveying records. You will be given an image of a recorded document (deed, plat, survey, field notes).
+Extract ALL text visible in this document with maximum accuracy.
 
-TASK: Extract ALL text visible in the document with maximum accuracy.
-
-CRITICAL RULES FOR SURVEYING DOCUMENTS:
+CRITICAL RULES:
 1. Preserve ALL symbols exactly: ° (degrees), ' (minutes), " (seconds), ½, ¼, ⅓
 2. Preserve ALL abbreviations: N, S, E, W, ft, Blk, Lt, Vol, Pg, Inst, Abs
 3. For bearing notation, get degree/minute/second symbols exactly right
@@ -135,19 +116,13 @@ CRITICAL RULES FOR SURVEYING DOCUMENTS:
 7. Read in natural document order: top to bottom, left to right
 8. Capture EVERY piece of text, including headers, footers, stamps, marginalia
 
-RESPONSE FORMAT — Return ONLY valid JSON:
+Return ONLY valid JSON:
 {
-  "full_text": "complete extracted text in reading order, with line breaks preserved",
-  "regions": [
-    {
-      "text": "extracted text region",
-      "location": "description of where on page",
-      "confidence": 95
-    }
-  ],
+  "full_text": "complete extracted text in reading order",
+  "regions": [{ "text": "region text", "location": "description", "confidence": 95 }],
   "overall_confidence": 90,
   "document_type_guess": "warranty deed | plat | survey | field notes | other",
-  "notes": "any issues, unclear areas, or special observations"
+  "notes": "any issues or observations"
 }`;
 
 // ── Retry Helper ───────────────────────────────────────────────────────────
@@ -164,8 +139,6 @@ async function callClaudeWithRetry(
   label: string,
   maxTokens: number = 16384,
 ): Promise<string | null> {
-  let lastError: unknown = null;
-
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
       const delayMs = BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
@@ -187,20 +160,19 @@ async function callClaudeWithRetry(
 
       const textBlock = response.content.find((c) => c.type === 'text');
       if (!textBlock || textBlock.type !== 'text' || !textBlock.text.trim()) {
-        logger.warn('Stage3', `${label}: Empty response from Claude`);
+        logger.warn('Stage3', `${label}: Empty response from Claude (attempt ${attempt + 1})`);
         continue;
       }
 
       return textBlock.text;
     } catch (err) {
-      lastError = err;
       const errMsg = err instanceof Error ? err.message : String(err);
 
-      // Don't retry on non-transient errors
+      // Don't retry on auth/permission errors
       if (err && typeof err === 'object' && 'status' in err) {
         const status = (err as { status: number }).status;
         if (status === 400 || status === 401 || status === 403) {
-          logger.error('Stage3', `${label}: Non-retryable error (${status})`, err);
+          logger.error('Stage3', `${label}: Non-retryable error (HTTP ${status})`, err);
           return null;
         }
       }
@@ -209,7 +181,7 @@ async function callClaudeWithRetry(
     }
   }
 
-  logger.error('Stage3', `${label}: All ${MAX_RETRIES + 1} attempts failed`, lastError);
+  logger.error('Stage3', `${label}: All ${MAX_RETRIES + 1} attempts exhausted`);
   return null;
 }
 
@@ -217,27 +189,20 @@ async function callClaudeWithRetry(
 
 type ScreeningResult = 'analyze' | 'enrich' | 'skip';
 
-/**
- * Screen a document to decide whether it's worth full AI analysis.
- * Returns 'analyze' for full extraction, 'enrich' for metadata only, 'skip' for irrelevant.
- */
 export function screenDocument(text: string): ScreeningResult {
   if (!text || text.length < 50) return 'skip';
 
-  // Check skip patterns
   for (const pattern of SKIP_PATTERNS) {
     if (pattern.test(text)) return 'skip';
   }
 
   const lowerText = text.toLowerCase();
 
-  // Count primary keywords (metes & bounds indicators)
   let primaryCount = 0;
   for (const kw of PRIMARY_KEYWORDS) {
     if (lowerText.includes(kw)) primaryCount++;
   }
 
-  // Count secondary keywords (deed/title indicators)
   let secondaryCount = 0;
   for (const kw of SECONDARY_KEYWORDS) {
     if (lowerText.includes(kw)) secondaryCount++;
@@ -251,107 +216,161 @@ export function screenDocument(text: string): ScreeningResult {
   return 'skip';
 }
 
-// ── Parse Claude Response ──────────────────────────────────────────────────
+// ── Safe JSON Parsing ──────────────────────────────────────────────────────
 
-function parseExtractionResponse(raw: string): ExtractedBoundaryData | null {
+function safeParseJson(raw: string): Record<string, unknown> | null {
+  // Strip markdown fences
+  let cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+  // Try direct parse
   try {
-    const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const parsed = JSON.parse(cleaned);
+    return JSON.parse(cleaned) as Record<string, unknown>;
+  } catch { /* continue */ }
 
-    // Validate required fields
-    if (!parsed.type || !['metes_and_bounds', 'lot_and_block', 'hybrid', 'reference_only'].includes(parsed.type)) {
-      return null;
-    }
-
-    // Normalize the response
-    const result: ExtractedBoundaryData = {
-      type: parsed.type,
-      datum: parsed.datum ?? 'unknown',
-      pointOfBeginning: {
-        description: parsed.pointOfBeginning?.description ?? '',
-        referenceMonument: parsed.pointOfBeginning?.referenceMonument ?? null,
-      },
-      calls: Array.isArray(parsed.calls) ? parsed.calls.map(normalizeCall) : [],
-      references: Array.isArray(parsed.references) ? parsed.references.map(normalizeReference) : [],
-      area: parsed.area ? {
-        raw: parsed.area.raw ?? '',
-        value: typeof parsed.area.value === 'number' ? parsed.area.value : null,
-        unit: parsed.area.unit ?? 'acres',
-      } : null,
-      lotBlock: parsed.lotBlock ? {
-        lot: parsed.lotBlock.lot ?? '',
-        block: parsed.lotBlock.block ?? '',
-        subdivision: parsed.lotBlock.subdivision ?? '',
-        phase: parsed.lotBlock.phase ?? null,
-        cabinet: parsed.lotBlock.cabinet ?? null,
-        slide: parsed.lotBlock.slide ?? null,
-      } : null,
-      confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
-      warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
-    };
-
-    return result;
-  } catch {
-    return null;
+  // Try to find JSON object in the response
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    } catch { /* continue */ }
   }
+
+  return null;
 }
 
-function normalizeCall(raw: Record<string, unknown>): BoundaryCall {
-  const bearing = raw.bearing as Record<string, unknown> | null;
-  const distance = raw.distance as Record<string, unknown> | null;
-  const curve = raw.curve as Record<string, unknown> | null;
+// ── Type-Safe Response Parsing ─────────────────────────────────────────────
+
+function parseExtractionResponse(raw: string): ExtractedBoundaryData | null {
+  const parsed = safeParseJson(raw);
+  if (!parsed) return null;
+
+  const validTypes = ['metes_and_bounds', 'lot_and_block', 'hybrid', 'reference_only'];
+  if (!parsed.type || !validTypes.includes(String(parsed.type))) return null;
 
   return {
-    sequence: typeof raw.sequence === 'number' ? raw.sequence : 0,
-    bearing: bearing ? {
-      raw: String(bearing.raw ?? ''),
-      decimalDegrees: typeof bearing.decimalDegrees === 'number' ? bearing.decimalDegrees : 0,
-      quadrant: String(bearing.quadrant ?? ''),
+    type: parsed.type as ExtractedBoundaryData['type'],
+    datum: (['NAD83', 'NAD27', 'unknown'].includes(String(parsed.datum ?? '')) ? String(parsed.datum) : 'unknown') as ExtractedBoundaryData['datum'],
+    pointOfBeginning: {
+      description: String(safeGet(parsed, 'pointOfBeginning', 'description') ?? ''),
+      referenceMonument: safeGetString(parsed, 'pointOfBeginning', 'referenceMonument'),
+    },
+    calls: Array.isArray(parsed.calls) ? parsed.calls.map(safeNormalizeCall) : [],
+    references: Array.isArray(parsed.references) ? parsed.references.map(safeNormalizeReference) : [],
+    area: parsed.area && typeof parsed.area === 'object' ? {
+      raw: String((parsed.area as Record<string, unknown>).raw ?? ''),
+      value: safeNumber((parsed.area as Record<string, unknown>).value),
+      unit: String((parsed.area as Record<string, unknown>).unit ?? 'acres'),
     } : null,
-    distance: distance ? {
-      raw: String(distance.raw ?? ''),
-      value: typeof distance.value === 'number' ? distance.value : 0,
-      unit: (['feet', 'varas', 'chains', 'meters'].includes(String(distance.unit))
-        ? String(distance.unit) : 'feet') as 'feet' | 'varas' | 'chains' | 'meters',
+    lotBlock: parsed.lotBlock && typeof parsed.lotBlock === 'object' ? {
+      lot: String((parsed.lotBlock as Record<string, unknown>).lot ?? ''),
+      block: String((parsed.lotBlock as Record<string, unknown>).block ?? ''),
+      subdivision: String((parsed.lotBlock as Record<string, unknown>).subdivision ?? ''),
+      phase: safeGetString(parsed.lotBlock as Record<string, unknown>, 'phase'),
+      cabinet: safeGetString(parsed.lotBlock as Record<string, unknown>, 'cabinet'),
+      slide: safeGetString(parsed.lotBlock as Record<string, unknown>, 'slide'),
     } : null,
-    curve: curve ? {
-      radius: {
-        raw: String((curve.radius as Record<string, unknown>)?.raw ?? ''),
-        value: typeof (curve.radius as Record<string, unknown>)?.value === 'number' ? (curve.radius as Record<string, unknown>).value as number : 0,
-      },
-      arcLength: curve.arcLength ? {
-        raw: String((curve.arcLength as Record<string, unknown>).raw ?? ''),
-        value: typeof (curve.arcLength as Record<string, unknown>).value === 'number' ? (curve.arcLength as Record<string, unknown>).value as number : 0,
-      } : null,
-      chordBearing: curve.chordBearing ? {
-        raw: String((curve.chordBearing as Record<string, unknown>).raw ?? ''),
-        decimalDegrees: typeof (curve.chordBearing as Record<string, unknown>).decimalDegrees === 'number' ? (curve.chordBearing as Record<string, unknown>).decimalDegrees as number : 0,
-      } : null,
-      chordDistance: curve.chordDistance ? {
-        raw: String((curve.chordDistance as Record<string, unknown>).raw ?? ''),
-        value: typeof (curve.chordDistance as Record<string, unknown>).value === 'number' ? (curve.chordDistance as Record<string, unknown>).value as number : 0,
-      } : null,
-      direction: curve.direction === 'left' ? 'left' : 'right',
-      delta: curve.delta ? {
-        raw: String((curve.delta as Record<string, unknown>).raw ?? ''),
-        decimalDegrees: typeof (curve.delta as Record<string, unknown>).decimalDegrees === 'number' ? (curve.delta as Record<string, unknown>).decimalDegrees as number : 0,
-      } : null,
-    } : null,
-    toPoint: typeof raw.toPoint === 'string' ? raw.toPoint : null,
-    along: typeof raw.along === 'string' ? raw.along : null,
-    confidence: typeof raw.confidence === 'number' ? raw.confidence : 0.5,
+    confidence: safeNumber(parsed.confidence) ?? 0.5,
+    warnings: Array.isArray(parsed.warnings) ? parsed.warnings.map(String) : [],
   };
 }
 
-function normalizeReference(raw: Record<string, unknown>): DocumentReference {
+// Type-safe helpers
+function safeGet(obj: Record<string, unknown>, ...keys: string[]): unknown {
+  let current: unknown = obj;
+  for (const key of keys) {
+    if (current && typeof current === 'object' && key in (current as Record<string, unknown>)) {
+      current = (current as Record<string, unknown>)[key];
+    } else {
+      return undefined;
+    }
+  }
+  return current;
+}
+
+function safeGetString(obj: Record<string, unknown>, ...keys: string[]): string | null {
+  const val = keys.length === 1 ? obj[keys[0]] : safeGet(obj, ...keys);
+  if (val === null || val === undefined) return null;
+  const str = String(val).trim();
+  return str.length > 0 ? str : null;
+}
+
+function safeNumber(val: unknown): number | null {
+  if (typeof val === 'number' && !isNaN(val)) return val;
+  if (typeof val === 'string') {
+    const n = parseFloat(val);
+    if (!isNaN(n)) return n;
+  }
+  return null;
+}
+
+function safeNormalizeCall(raw: unknown): BoundaryCall {
+  const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const bearing = obj.bearing as Record<string, unknown> | null | undefined;
+  const distance = obj.distance as Record<string, unknown> | null | undefined;
+  const curve = obj.curve as Record<string, unknown> | null | undefined;
+
   return {
-    type: (['deed', 'plat', 'easement', 'survey', 'other'].includes(String(raw.type)) ? String(raw.type) : 'other') as DocumentReference['type'],
-    volume: typeof raw.volume === 'string' ? raw.volume : null,
-    page: typeof raw.page === 'string' ? raw.page : null,
-    instrumentNumber: typeof raw.instrumentNumber === 'string' ? raw.instrumentNumber : null,
-    cabinetSlide: typeof raw.cabinetSlide === 'string' ? raw.cabinetSlide : null,
-    county: typeof raw.county === 'string' ? raw.county : null,
-    description: typeof raw.description === 'string' ? raw.description : null,
+    sequence: safeNumber(obj.sequence) ?? 0,
+    bearing: bearing && typeof bearing === 'object' ? {
+      raw: String(bearing.raw ?? ''),
+      decimalDegrees: safeNumber(bearing.decimalDegrees) ?? 0,
+      quadrant: String(bearing.quadrant ?? ''),
+    } : null,
+    distance: distance && typeof distance === 'object' ? {
+      raw: String(distance.raw ?? ''),
+      value: safeNumber(distance.value) ?? 0,
+      unit: (['feet', 'varas', 'chains', 'meters'].includes(String(distance.unit)) ? String(distance.unit) : 'feet') as BoundaryCall['distance'] extends null ? never : NonNullable<BoundaryCall['distance']>['unit'],
+    } : null,
+    curve: curve && typeof curve === 'object' ? parseCurveData(curve) : null,
+    toPoint: safeGetString(obj, 'toPoint'),
+    along: safeGetString(obj, 'along'),
+    confidence: safeNumber(obj.confidence) ?? 0.5,
+  };
+}
+
+function parseCurveData(curve: Record<string, unknown>): NonNullable<BoundaryCall['curve']> {
+  const radius = curve.radius as Record<string, unknown> | undefined;
+  const arcLength = curve.arcLength as Record<string, unknown> | null | undefined;
+  const chordBearing = curve.chordBearing as Record<string, unknown> | null | undefined;
+  const chordDistance = curve.chordDistance as Record<string, unknown> | null | undefined;
+  const delta = curve.delta as Record<string, unknown> | null | undefined;
+
+  return {
+    radius: {
+      raw: String(radius && typeof radius === 'object' ? radius.raw ?? '' : ''),
+      value: (radius && typeof radius === 'object' ? safeNumber(radius.value) : safeNumber(curve.radius)) ?? 0,
+    },
+    arcLength: arcLength && typeof arcLength === 'object' ? {
+      raw: String(arcLength.raw ?? ''),
+      value: safeNumber(arcLength.value) ?? 0,
+    } : null,
+    chordBearing: chordBearing && typeof chordBearing === 'object' ? {
+      raw: String(chordBearing.raw ?? ''),
+      decimalDegrees: safeNumber(chordBearing.decimalDegrees) ?? 0,
+    } : null,
+    chordDistance: chordDistance && typeof chordDistance === 'object' ? {
+      raw: String(chordDistance.raw ?? ''),
+      value: safeNumber(chordDistance.value) ?? 0,
+    } : null,
+    direction: curve.direction === 'left' ? 'left' : 'right',
+    delta: delta && typeof delta === 'object' ? {
+      raw: String(delta.raw ?? ''),
+      decimalDegrees: safeNumber(delta.decimalDegrees) ?? 0,
+    } : null,
+  };
+}
+
+function safeNormalizeReference(raw: unknown): DocumentReference {
+  const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const validTypes = ['deed', 'plat', 'easement', 'survey', 'other'];
+  return {
+    type: (validTypes.includes(String(obj.type)) ? String(obj.type) : 'other') as DocumentReference['type'],
+    volume: safeGetString(obj, 'volume'),
+    page: safeGetString(obj, 'page'),
+    instrumentNumber: safeGetString(obj, 'instrumentNumber'),
+    cabinetSlide: safeGetString(obj, 'cabinetSlide'),
+    county: safeGetString(obj, 'county'),
+    description: safeGetString(obj, 'description'),
   };
 }
 
@@ -370,10 +389,17 @@ async function extractFromText(
     input: `${docLabel} (${text.length} chars)`,
   });
 
-  const userContent = `Analyze the following Texas property document and extract ALL boundary information, legal descriptions, document references, and relevant surveying data.
+  // Truncate extremely long documents to avoid token limits
+  const truncated = text.length > 80_000 ? text.substring(0, 80_000) + '\n\n[... document truncated at 80,000 characters ...]' : text;
+
+  const rawResponse = await callClaudeWithRetry(
+    anthropicApiKey,
+    [{
+      role: 'user',
+      content: `Analyze the following Texas property document and extract ALL boundary information, legal descriptions, document references, and relevant surveying data.
 
 Think step by step:
-1. First, read the entire document to understand its context
+1. Read the entire document to understand its context
 2. Identify the type of legal description (metes & bounds, lot & block, hybrid, reference only)
 3. Extract the point of beginning if present
 4. Extract every boundary call in sequence
@@ -384,14 +410,11 @@ Think step by step:
 
 DOCUMENT TEXT:
 ---
-${text}
+${truncated}
 ---
 
-Return your analysis as the specified JSON format. Think carefully about every bearing and distance.`;
-
-  const rawResponse = await callClaudeWithRetry(
-    anthropicApiKey,
-    [{ role: 'user', content: userContent }],
+Return your analysis as the specified JSON format.`,
+    }],
     EXTRACTION_SYSTEM_PROMPT,
     logger,
     `text-extract:${docLabel}`,
@@ -404,7 +427,7 @@ Return your analysis as the specified JSON format. Think carefully about every b
 
   const extracted = parseExtractionResponse(rawResponse);
   if (!extracted) {
-    finish({ status: 'fail', error: 'Failed to parse extraction response' });
+    finish({ status: 'fail', error: 'Failed to parse extraction response', details: rawResponse.substring(0, 200) });
     return null;
   }
 
@@ -421,36 +444,42 @@ Return your analysis as the specified JSON format. Think carefully about every b
 
 async function extractFromImage(
   imageBase64: string,
-  mediaType: 'image/png' | 'image/jpeg',
+  mediaType: 'image/png' | 'image/jpeg' | 'image/tiff' | 'application/pdf',
   anthropicApiKey: string,
   logger: PipelineLogger,
   docLabel: string,
 ): Promise<{ ocrText: string | null; extracted: ExtractedBoundaryData | null }> {
-  // Pass 1: OCR — extract raw text from image
+  // Pass 1: OCR
   const ocrFinish = logger.startAttempt({
     layer: 'Stage3B-OCR',
     source: 'Claude-Vision',
     method: 'ocr-pass1',
-    input: `${docLabel} (image)`,
+    input: `${docLabel} (image ${mediaType})`,
   });
+
+  // For PDFs, we send as image/png (Playwright screenshots) or skip
+  const effectiveMediaType = mediaType === 'application/pdf' ? 'image/png' as const : mediaType;
+  // For TIFF, Claude doesn't support it directly — would need conversion
+  if (mediaType === 'image/tiff') {
+    ocrFinish({ status: 'fail', error: 'TIFF not directly supported — needs conversion to PNG' });
+    return { ocrText: null, extracted: null };
+  }
 
   const ocrResponse = await callClaudeWithRetry(
     anthropicApiKey,
-    [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mediaType, data: imageBase64 },
-          },
-          {
-            type: 'text',
-            text: 'Extract ALL text from this Texas land surveying document. Be extremely thorough — every bearing, distance, monument, and reference matters. Read carefully, especially handwritten portions.',
-          },
-        ],
-      },
-    ],
+    [{
+      role: 'user',
+      content: [
+        {
+          type: 'image',
+          source: { type: 'base64', media_type: effectiveMediaType, data: imageBase64 },
+        },
+        {
+          type: 'text',
+          text: 'Extract ALL text from this Texas land surveying document. Be extremely thorough — every bearing, distance, monument, and reference matters.',
+        },
+      ],
+    }],
     OCR_SYSTEM_PROMPT,
     logger,
     `ocr:${docLabel}`,
@@ -463,17 +492,16 @@ async function extractFromImage(
 
   // Parse OCR result
   let ocrText: string | null = null;
-  try {
-    const cleaned = ocrResponse.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const parsed = JSON.parse(cleaned);
-    ocrText = parsed.full_text ?? ocrResponse;
-  } catch {
-    // If not valid JSON, use raw response as OCR text
+  const parsed = safeParseJson(ocrResponse);
+  if (parsed && typeof parsed.full_text === 'string') {
+    ocrText = parsed.full_text;
+  } else {
+    // Use raw response as OCR text if it's not JSON
     ocrText = ocrResponse;
   }
 
   ocrFinish({
-    status: ocrText ? 'success' : 'fail',
+    status: ocrText && ocrText.length > 50 ? 'success' : 'partial',
     dataPointsFound: ocrText ? 1 : 0,
     details: `OCR text: ${ocrText?.length ?? 0} chars`,
   });
@@ -484,15 +512,15 @@ async function extractFromImage(
 
   // Pass 2: Extract structured data from OCR text
   const extracted = await extractFromText(ocrText, anthropicApiKey, logger, `${docLabel}-ocr`);
-
   return { ocrText, extracted };
 }
 
 // ── Verification Pass ──────────────────────────────────────────────────────
 
 /**
- * Re-run extraction on the same document and compare results for consistency.
- * If the second pass disagrees on key fields, merge carefully and flag warnings.
+ * Re-run extraction and compare. Keeps the BETTER result (not just the latest).
+ * If disagreements are found, the more conservative (lower confidence) values
+ * are flagged but both versions are preserved in warnings.
  */
 async function verifyExtraction(
   text: string,
@@ -506,10 +534,14 @@ async function verifyExtraction(
     layer: `Stage3-Verify-${passNumber}`,
     source: 'Claude-Text',
     method: 'verification-pass',
-    input: `${docLabel} (verification pass ${passNumber})`,
+    input: `${docLabel} (pass ${passNumber})`,
   });
 
-  const verifyPrompt = `You previously analyzed this document and produced the extraction below. Please re-read the document VERY CAREFULLY and verify every single value. Check each bearing's degrees, minutes, and seconds. Check each distance value. Check each monument description. Check each document reference.
+  const rawResponse = await callClaudeWithRetry(
+    anthropicApiKey,
+    [{
+      role: 'user',
+      content: `You previously analyzed this document. Please re-read it VERY CAREFULLY and verify every value. Check each bearing, distance, monument, and reference.
 
 If you find ANY errors in the previous extraction, correct them. If everything is correct, confirm it.
 
@@ -521,11 +553,8 @@ ORIGINAL DOCUMENT TEXT:
 ${text}
 ---
 
-Return the corrected/confirmed extraction in the same JSON format. If you changed anything, add a warning noting what was corrected.`;
-
-  const rawResponse = await callClaudeWithRetry(
-    anthropicApiKey,
-    [{ role: 'user', content: verifyPrompt }],
+Return the corrected/confirmed extraction in the same JSON format. Add warnings for anything you corrected.`,
+    }],
     EXTRACTION_SYSTEM_PROMPT,
     logger,
     `verify:${docLabel}:pass${passNumber}`,
@@ -539,22 +568,20 @@ Return the corrected/confirmed extraction in the same JSON format. If you change
   const verified = parseExtractionResponse(rawResponse);
   if (!verified) {
     finish({ status: 'fail', error: 'Failed to parse verification response' });
-    return originalResult;
+    return originalResult; // Keep original rather than losing data
   }
 
-  // Compare key fields
-  const callCountMatch = verified.calls.length === originalResult.calls.length;
-  const typeMatch = verified.type === originalResult.type;
+  // Compare and merge
   const mismatches: string[] = [];
-
+  const callCountMatch = verified.calls.length === originalResult.calls.length;
   if (!callCountMatch) {
     mismatches.push(`Call count: ${originalResult.calls.length} → ${verified.calls.length}`);
   }
-  if (!typeMatch) {
+  if (verified.type !== originalResult.type) {
     mismatches.push(`Type: ${originalResult.type} → ${verified.type}`);
   }
 
-  // Check individual call bearings/distances
+  // Check individual calls
   const minCalls = Math.min(verified.calls.length, originalResult.calls.length);
   for (let i = 0; i < minCalls; i++) {
     const orig = originalResult.calls[i];
@@ -570,30 +597,31 @@ Return the corrected/confirmed extraction in the same JSON format. If you change
     if (orig.distance && ver.distance) {
       const distDiff = Math.abs(orig.distance.value - ver.distance.value);
       if (distDiff > 0.01) {
-        mismatches.push(`Call ${i + 1} distance: ${orig.distance.raw} → ${ver.distance.raw}`);
+        mismatches.push(`Call ${i + 1} distance: ${orig.distance.raw} (${orig.distance.value}) → ${ver.distance.raw} (${ver.distance.value})`);
       }
     }
   }
 
   if (mismatches.length > 0) {
-    logger.warn('Stage3-Verify', `Verification found ${mismatches.length} discrepancies: ${mismatches.join('; ')}`);
-    // Use the verified version (more careful second read) with warnings
+    logger.warn('Stage3-Verify', `Pass ${passNumber} found ${mismatches.length} corrections: ${mismatches.join('; ')}`);
     verified.warnings = [
       ...verified.warnings,
       `Verification pass ${passNumber} corrected: ${mismatches.join('; ')}`,
     ];
-    // Slightly lower confidence due to corrections needed
-    verified.confidence = Math.max(0.5, verified.confidence - 0.05 * mismatches.length);
+    verified.confidence = Math.max(0.3, verified.confidence - 0.05 * mismatches.length);
   } else {
-    // Confirmed! Boost confidence slightly
+    // Confirmed — boost confidence
     verified.confidence = Math.min(1.0, verified.confidence + 0.03);
-    logger.info('Stage3-Verify', `Verification pass ${passNumber} confirmed all values`);
+    logger.info('Stage3-Verify', `Pass ${passNumber} confirmed all values`);
   }
+
+  verified.verificationPasses = passNumber;
+  verified.verified = mismatches.length === 0;
 
   finish({
     status: 'success',
     dataPointsFound: verified.calls.length,
-    details: `Mismatches: ${mismatches.length}, Final confidence: ${verified.confidence.toFixed(2)}`,
+    details: `Corrections: ${mismatches.length}, Confidence: ${verified.confidence.toFixed(2)}`,
   });
 
   return verified;
@@ -603,7 +631,7 @@ Return the corrected/confirmed extraction in the same JSON format. If you change
 
 /**
  * Process all documents through AI extraction with multi-pass verification.
- * Each document is screened, extracted, verified, and scored.
+ * User-uploaded files are processed with the same pipeline.
  */
 export async function extractDocuments(
   documents: DocumentResult[],
@@ -616,131 +644,126 @@ export async function extractDocuments(
   let bestBoundary: ExtractedBoundaryData | null = null;
   let bestConfidence = 0;
 
-  // First: process CAD legal description if available (highest priority source)
+  function updateBest(extracted: ExtractedBoundaryData): void {
+    if (extracted.confidence > bestConfidence) {
+      bestBoundary = extracted;
+      bestConfidence = extracted.confidence;
+    }
+  }
+
+  // Helper to run verification loops
+  async function runVerification(
+    text: string,
+    extracted: ExtractedBoundaryData,
+    label: string,
+  ): Promise<ExtractedBoundaryData> {
+    let result = extracted;
+    let passCount = 0;
+
+    // Run verification if confidence is below threshold
+    while (result.confidence < CONFIDENCE_THRESHOLD_RERUN && passCount < MAX_VERIFICATION_PASSES) {
+      passCount++;
+      logger.info('Stage3', `${label} confidence ${result.confidence.toFixed(2)} < ${CONFIDENCE_THRESHOLD_RERUN} — verification pass ${passCount}`);
+      result = await verifyExtraction(text, result, anthropicApiKey, logger, label, passCount);
+    }
+
+    // Mandatory verification for metes_and_bounds with calls (regardless of confidence)
+    if (result.type === 'metes_and_bounds' && result.calls.length > 0 && passCount === 0) {
+      passCount++;
+      result = await verifyExtraction(text, result, anthropicApiKey, logger, label, passCount);
+    }
+
+    return result;
+  }
+
+  // ── Process CAD legal description first (highest priority) ──
   if (legalDescriptionFromCad && legalDescriptionFromCad.length > 20) {
     const screening = screenDocument(legalDescriptionFromCad);
     logger.info('Stage3', `CAD legal description screening: ${screening}`);
 
     if (screening === 'analyze') {
-      let extracted = await extractFromText(
-        legalDescriptionFromCad,
-        anthropicApiKey,
-        logger,
-        'CAD-legal-description',
-      );
-
+      const extracted = await extractFromText(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal');
       if (extracted) {
-        // Verification passes for low-confidence results
-        let passCount = 0;
-        while (extracted.confidence < CONFIDENCE_THRESHOLD_RERUN && passCount < MAX_VERIFICATION_PASSES) {
-          passCount++;
-          logger.info('Stage3', `CAD legal confidence ${extracted.confidence.toFixed(2)} < ${CONFIDENCE_THRESHOLD_RERUN}, running verification pass ${passCount}`);
-          extracted = await verifyExtraction(
-            legalDescriptionFromCad,
-            extracted,
-            anthropicApiKey,
-            logger,
-            'CAD-legal-description',
-            passCount,
-          );
-        }
-
-        // Always run at least one verification pass for metes_and_bounds
-        if (extracted.type === 'metes_and_bounds' && extracted.calls.length > 0 && passCount === 0) {
-          extracted = await verifyExtraction(
-            legalDescriptionFromCad,
-            extracted,
-            anthropicApiKey,
-            logger,
-            'CAD-legal-description',
-            1,
-          );
-        }
-
-        if (extracted.confidence > bestConfidence) {
-          bestBoundary = extracted;
-          bestConfidence = extracted.confidence;
-        }
+        const verified = await runVerification(legalDescriptionFromCad, extracted, 'CAD-legal');
+        updateBest(verified);
+      }
+    } else if (screening === 'enrich') {
+      // Still worth sending to Claude for lot/block info even if no metes & bounds
+      const extracted = await extractFromText(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal-enrich');
+      if (extracted) {
+        updateBest(extracted);
       }
     }
   }
 
-  // Process each document
+  // ── Process each document ──
   for (let i = 0; i < documents.length; i++) {
     const doc = documents[i];
-    const label = `doc-${i + 1}-${doc.ref.documentType}`;
+    const label = `doc-${i + 1}-${doc.ref.documentType.replace(/\s+/g, '_').substring(0, 20)}`;
+    const isUserUpload = doc.fromUserUpload ?? false;
+
+    // User uploads always get analyzed (user paid for and chose these files)
+    const forceAnalyze = isUserUpload;
 
     // Try text content first
     if (doc.textContent && doc.textContent.length > 50) {
-      const screening = screenDocument(doc.textContent);
-      logger.info('Stage3', `${label} text screening: ${screening} (${doc.textContent.length} chars)`);
+      const screening = forceAnalyze ? 'analyze' : screenDocument(doc.textContent);
+      logger.info('Stage3', `${label} text screening: ${screening} (${doc.textContent.length} chars)${isUserUpload ? ' [USER UPLOAD]' : ''}`);
 
-      if (screening === 'skip') {
+      if (screening === 'skip' && !forceAnalyze) {
         logger.info('Stage3', `${label}: Skipping — not relevant`);
         continue;
       }
 
-      if (screening === 'analyze') {
-        let extracted = await extractFromText(doc.textContent, anthropicApiKey, logger, label);
-
+      if (screening === 'analyze' || forceAnalyze) {
+        const extracted = await extractFromText(doc.textContent, anthropicApiKey, logger, label);
         if (extracted) {
-          // Verification loop
-          let passCount = 0;
-          while (extracted.confidence < CONFIDENCE_THRESHOLD_RERUN && passCount < MAX_VERIFICATION_PASSES) {
-            passCount++;
-            extracted = await verifyExtraction(doc.textContent, extracted, anthropicApiKey, logger, label, passCount);
-          }
-
-          // Mandatory verification for metes_and_bounds with calls
-          if (extracted.type === 'metes_and_bounds' && extracted.calls.length > 0 && passCount === 0) {
-            extracted = await verifyExtraction(doc.textContent, extracted, anthropicApiKey, logger, label, 1);
-          }
-
+          const verified = await runVerification(doc.textContent, extracted, label);
+          doc.extractedData = verified;
+          updateBest(verified);
+        }
+      } else if (screening === 'enrich') {
+        const extracted = await extractFromText(doc.textContent, anthropicApiKey, logger, `${label}-enrich`);
+        if (extracted) {
           doc.extractedData = extracted;
-
-          if (extracted.confidence > bestConfidence) {
-            bestBoundary = extracted;
-            bestConfidence = extracted.confidence;
-          }
+          updateBest(extracted);
         }
       }
     }
-    // Try image/screenshot if no text or text extraction failed
-    else if (doc.imageBase64 && !doc.extractedData) {
-      const mediaType = doc.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png';
+
+    // Try image/screenshot if no text extraction succeeded
+    if (!doc.extractedData && doc.imageBase64) {
+      const mediaType = doc.imageFormat === 'jpg' ? 'image/jpeg' as const
+        : doc.imageFormat === 'pdf' ? 'application/pdf' as const
+        : doc.imageFormat === 'tiff' ? 'image/tiff' as const
+        : 'image/png' as const;
 
       const { ocrText, extracted } = await extractFromImage(
-        doc.imageBase64,
-        mediaType as 'image/png' | 'image/jpeg',
-        anthropicApiKey,
-        logger,
-        label,
+        doc.imageBase64, mediaType, anthropicApiKey, logger, label,
       );
 
       doc.ocrText = ocrText;
 
-      if (extracted) {
-        // Verification for OCR-sourced data (inherently less reliable)
-        let verifiedExtraction = extracted;
-        if (ocrText) {
-          for (let pass = 1; pass <= Math.min(2, MAX_VERIFICATION_PASSES); pass++) {
-            verifiedExtraction = await verifyExtraction(ocrText, verifiedExtraction, anthropicApiKey, logger, label, pass);
-          }
-        }
-
-        doc.extractedData = verifiedExtraction;
-
-        if (verifiedExtraction.confidence > bestConfidence) {
-          bestBoundary = verifiedExtraction;
-          bestConfidence = verifiedExtraction.confidence;
-        }
+      if (extracted && ocrText) {
+        // OCR-sourced data gets extra verification (inherently less reliable)
+        const verified = await runVerification(ocrText, extracted, `${label}-ocr`);
+        doc.extractedData = verified;
+        updateBest(verified);
+      } else if (extracted) {
+        doc.extractedData = extracted;
+        updateBest(extracted);
       }
-    } else {
-      logger.warn('Stage3', `${label}: WARNING: No text or image content to analyze`);
+    }
+
+    // Warn if document had no usable content
+    if (!doc.textContent && !doc.imageBase64) {
+      logger.warn('Stage3', `${label}: WARNING — No text or image content to analyze`);
+      if (!doc.processingErrors) doc.processingErrors = [];
+      doc.processingErrors.push('No text or image content available for AI analysis');
     }
   }
 
-  logger.info('Stage3', `Extraction complete. Best boundary: ${bestBoundary?.type ?? 'none'} (confidence: ${bestConfidence.toFixed(2)})`);
+  logger.info('Stage3', `Extraction complete. Best: ${bestBoundary?.type ?? 'none'} (confidence: ${bestConfidence.toFixed(2)}, calls: ${bestBoundary?.calls.length ?? 0})`);
 
   return { documents, boundary: bestBoundary };
 }
