@@ -3,6 +3,8 @@ import type { SurveyPoint, LineString, LineSegmentType } from '../types';
 import { generateId } from '../types';
 import { lookupCode } from './code-lookup';
 
+// Hard-coded set covers both alpha and numeric forms for backward compatibility.
+// The code library's isAutoSpline flag is also checked in isAutoSplineCode() below.
 const AUTO_SPLINE_CODES = new Set([
   '630', '632', '633', '634',
   '729', '357', '358',
@@ -11,10 +13,20 @@ const AUTO_SPLINE_CODES = new Set([
   'PL08', 'PL09',
 ]);
 
+/**
+ * Returns true if the given base code should produce spline (curved) segments.
+ * Checks both the hard-coded legacy set and the code library's isAutoSpline flag
+ * so that any newly-added library entries are automatically honoured.
+ */
 export function isAutoSplineCode(baseCode: string): boolean {
-  return AUTO_SPLINE_CODES.has(baseCode.toUpperCase());
+  if (AUTO_SPLINE_CODES.has(baseCode.toUpperCase())) return true;
+  return lookupCode(baseCode)?.isAutoSpline === true;
 }
 
+/**
+ * Convert every STRAIGHT segment in auto-spline line strings to SPLINE.
+ * Must be called after buildLineStrings().
+ */
 export function markAutoSplineStrings(lineStrings: LineString[]): void {
   for (const ls of lineStrings) {
     if (isAutoSplineCode(ls.codeBase)) {
@@ -81,10 +93,12 @@ export function buildLineStrings(points: SurveyPoint[]): LineString[] {
         break;
       }
       case 'EA': {
+        // End arc: add the closing arc point then terminate the line string
         if (current) {
           current.pointIds.push(point.id);
           current.segments.push('ARC');
         }
+        currentByCode.delete(baseCode);
         break;
       }
       case 'E': {

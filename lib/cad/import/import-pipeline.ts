@@ -7,6 +7,7 @@ import { lookupCode } from '../codes/code-lookup';
 import { groupPointsByBaseName } from '../codes/point-grouping';
 import { buildLineStrings, markAutoSplineStrings } from '../codes/auto-connect';
 import { validatePoints } from './validation';
+import { cadLog } from '../logger';
 import type { ParsedImportRow } from './types';
 
 export interface ImportResult {
@@ -38,6 +39,8 @@ export function processImport(
   parsedRows: ParsedImportRow[],
   sourceFileName: string,
 ): ImportResult {
+  cadLog.info('ImportPipeline', `Starting import: "${sourceFileName}" — ${parsedRows.length} rows`);
+
   const points: SurveyPoint[] = [];
   const stats: ImportStats = {
     totalRows: parsedRows.length,
@@ -53,6 +56,7 @@ export function processImport(
   for (const row of parsedRows) {
     if (row.error || !row.data) {
       stats.parseErrors++;
+      cadLog.warn('ImportPipeline', `Parse error on line ${row.lineNumber}: ${row.error ?? 'no data'}`);
       continue;
     }
     stats.parsedSuccessfully++;
@@ -63,7 +67,12 @@ export function processImport(
     const parsedName = parsePointName(d.pointName);
 
     if (codeDef) stats.recognizedCodes++;
-    else stats.unrecognizedCodes++;
+    else {
+      stats.unrecognizedCodes++;
+      if (d.rawCode) {
+        cadLog.debug('ImportPipeline', `Unrecognized code "${d.rawCode}" on point ${d.pointName} (line ${row.lineNumber})`);
+      }
+    }
     if (codeDef?.connectType === 'POINT') stats.pointCodeCount++;
     if (codeDef?.connectType === 'LINE') stats.lineCodeCount++;
 
@@ -105,6 +114,7 @@ export function processImport(
   const lineStrings = buildLineStrings(points);
   markAutoSplineStrings(lineStrings);
   stats.lineStringsBuilt = lineStrings.length;
+  cadLog.info('ImportPipeline', `Built ${lineStrings.length} line string(s) from ${stats.lineCodeCount} line-code point(s)`);
 
   for (const ls of lineStrings) {
     for (const ptId of ls.pointIds) {
@@ -120,6 +130,9 @@ export function processImport(
     if (group.hasBothCalcAndField) stats.groupsWithCalcAndField++;
     if (group.deltaWarning) stats.deltaWarnings++;
   }
+  if (stats.deltaWarnings > 0) {
+    cadLog.warn('ImportPipeline', `${stats.deltaWarnings} point group(s) have calc/field delta > 0.10'`);
+  }
 
   // Step 4: Validate
   const validationIssues = validatePoints(points, lineStrings, pointGroups);
@@ -127,6 +140,15 @@ export function processImport(
     const pt = points.find(p => p.id === issue.pointId);
     if (pt) pt.validationIssues.push(issue);
   }
+
+  const errorCount = validationIssues.filter(i => i.severity === 'ERROR').length;
+  const warnCount  = validationIssues.filter(i => i.severity === 'WARNING').length;
+  cadLog.info(
+    'ImportPipeline',
+    `Import complete — ${stats.parsedSuccessfully} points, ${stats.parseErrors} errors, ` +
+    `${stats.unrecognizedCodes} unknown codes, ${errorCount} validation errors, ${warnCount} warnings`,
+    stats,
+  );
 
   return { points, lineStrings, pointGroups, validationIssues, stats };
 }

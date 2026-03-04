@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Feature } from '@/lib/cad/types';
+import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 
 // ── Inline editable coordinate input ────────────────────────────────────────
 function fmtCoord(n: number): string {
@@ -78,7 +79,7 @@ export default function PropertyPanel() {
     const lineWeight = Math.max(0.1, Math.min(20, parseFloat(displayWeight) || 1));
     const opacity = Math.max(0, Math.min(1, (parseFloat(displayOpacity) || 100) / 100));
     drawingStore.updateFeature(single.id, {
-      style: { color, lineWeight, opacity },
+      style: { ...DEFAULT_FEATURE_STYLE, ...single.style, color, lineWeight, opacity, isOverride: true },
     });
     const after = drawingStore.getFeature(single.id)!;
     undoStore.pushUndo({

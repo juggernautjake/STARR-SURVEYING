@@ -6,6 +6,8 @@ import type { DrawingDocument } from './types';
 import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYERS } from './constants';
 import { generateId } from './types';
 import { cadLog } from './logger';
+import { DEFAULT_LAYER_GROUPS, getDefaultLayersRecord, getDefaultLayerOrder } from './styles/default-layers';
+import { DEFAULT_GLOBAL_STYLE_CONFIG } from './styles/types';
 
 /** Minimal structural check — throws a descriptive Error if critical fields are missing. */
 function assertShape(raw: unknown): asserts raw is Record<string, unknown> {
@@ -53,10 +55,10 @@ export function validateAndMigrateDocument(raw: unknown): DrawingDocument {
   // Guarantee at least one layer exists
   if (layerOrder.length === 0) {
     cadLog.warn('FileIO', 'No valid layers found — inserting default Layer 0');
-    const id = generateId();
+    const newId = generateId();
     const [defaultLayer] = DEFAULT_LAYERS;
-    (layers as Record<string, unknown>)[id] = { id, ...defaultLayer };
-    layerOrder.push(id);
+    (layers as Record<string, unknown>)[newId] = { ...defaultLayer, id: newId };
+    layerOrder.push(newId);
   }
 
   // Validate features: remove any that reference non-existent layers
@@ -78,22 +80,88 @@ export function validateAndMigrateDocument(raw: unknown): DrawingDocument {
     if (!f.id) f.id = fid;
     if (!f.properties || typeof f.properties !== 'object') f.properties = {};
     if (!f.style || typeof f.style !== 'object') {
-      f.style = { color: '#000000', lineWeight: 1, opacity: 1 };
+      f.style = {
+        color: null, lineWeight: null, opacity: 1,
+        lineTypeId: null, symbolId: null, symbolSize: null,
+        symbolRotation: 0, labelVisible: null, labelFormat: null,
+        labelOffset: { x: 0, y: 0 }, isOverride: false,
+      };
+    } else {
+      // Back-fill Phase 3 style fields for documents saved before Phase 3
+      const style = f.style as Record<string, unknown>;
+      if (!('lineTypeId'      in style)) style.lineTypeId      = null;
+      if (!('symbolId'        in style)) style.symbolId        = null;
+      if (!('symbolSize'      in style)) style.symbolSize      = null;
+      if (!('symbolRotation'  in style)) style.symbolRotation  = 0;
+      if (!('labelVisible'    in style)) style.labelVisible    = null;
+      if (!('labelFormat'     in style)) style.labelFormat     = null;
+      if (!('labelOffset'     in style)) style.labelOffset     = { x: 0, y: 0 };
+      if (!('isOverride'      in style)) style.isOverride      = false;
     }
   }
   if (removedFeatureCount > 0) {
     cadLog.warn('FileIO', `Removed ${removedFeatureCount} malformed feature(s) from loaded document`);
   }
 
+  // ── Phase 3: back-fill layer Phase 3 fields ─────────────────────────────────
+  for (const layerVal of Object.values(layers)) {
+    if (!layerVal || typeof layerVal !== 'object') continue;
+    const l = layerVal as Record<string, unknown>;
+    if (!('frozen'          in l)) l.frozen          = false;
+    if (!('lineTypeId'      in l)) l.lineTypeId      = 'SOLID';
+    if (!('groupId'         in l)) l.groupId         = null;
+    if (!('sortOrder'       in l)) l.sortOrder       = 0;
+    if (!('isProtected'     in l)) l.isProtected     = false;
+    if (!('autoAssignCodes' in l)) l.autoAssignCodes = [];
+  }
+
+  // ── Phase 3: layer groups ─────────────────────────────────────────────────
+  const layerGroups = (r.layerGroups && typeof r.layerGroups === 'object' && !Array.isArray(r.layerGroups))
+    ? (r.layerGroups as DrawingDocument['layerGroups'])
+    : (() => {
+        const groups: DrawingDocument['layerGroups'] = {};
+        for (const g of DEFAULT_LAYER_GROUPS) groups[g.id] = g;
+        return groups;
+      })();
+
+  const layerGroupOrder = Array.isArray(r.layerGroupOrder)
+    ? (r.layerGroupOrder as string[])
+    : DEFAULT_LAYER_GROUPS.map(g => g.id);
+
+  // ── Phase 3: merge default layers that are missing from the loaded document ─
+  // (ensures 22 default layers are always present when loading an older file)
+  const defaultLayers = getDefaultLayersRecord();
+  const defaultLayerOrder = getDefaultLayerOrder();
+  let layerOrderExtended = layerOrder;
+  for (const dlId of defaultLayerOrder) {
+    if (!layers[dlId]) {
+      // defaultLayers[dlId].id already equals dlId (static fixed IDs), but be explicit
+      (layers as Record<string, unknown>)[dlId] = { ...defaultLayers[dlId], id: dlId };
+      layerOrderExtended = [...layerOrderExtended, dlId];
+    }
+  }
+
   return {
-    id:        String(r.id),
-    name:      typeof r.name === 'string' ? r.name : 'Untitled Drawing',
-    created:   typeof r.created === 'string' ? r.created : new Date().toISOString(),
-    modified:  typeof r.modified === 'string' ? r.modified : new Date().toISOString(),
-    author:    typeof r.author === 'string' ? r.author : '',
-    features:  features as DrawingDocument['features'],
-    layers:    layers as DrawingDocument['layers'],
-    layerOrder,
-    settings:  settings as DrawingDocument['settings'],
+    id:               String(r.id),
+    name:             typeof r.name    === 'string' ? r.name    : 'Untitled Drawing',
+    created:          typeof r.created === 'string' ? r.created : new Date().toISOString(),
+    modified:         typeof r.modified === 'string' ? r.modified : new Date().toISOString(),
+    author:           typeof r.author  === 'string' ? r.author  : '',
+    features:         features    as DrawingDocument['features'],
+    layers:           layers      as DrawingDocument['layers'],
+    layerOrder:       layerOrderExtended,
+    layerGroups,
+    layerGroupOrder,
+    customSymbols:    Array.isArray(r.customSymbols)  ? (r.customSymbols  as DrawingDocument['customSymbols'])  : [],
+    customLineTypes:  Array.isArray(r.customLineTypes) ? (r.customLineTypes as DrawingDocument['customLineTypes']) : [],
+    codeStyleOverrides: (r.codeStyleOverrides && typeof r.codeStyleOverrides === 'object' && !Array.isArray(r.codeStyleOverrides))
+      ? (r.codeStyleOverrides as DrawingDocument['codeStyleOverrides'])
+      : {},
+  // Back-fill: spread DEFAULT_GLOBAL_STYLE_CONFIG first so all required keys are
+  // always present, then overlay whatever was saved (safe migration pattern).
+  globalStyleConfig: (r.globalStyleConfig && typeof r.globalStyleConfig === 'object')
+    ? { ...DEFAULT_GLOBAL_STYLE_CONFIG, ...(r.globalStyleConfig as Partial<DrawingDocument['globalStyleConfig']>) }
+    : { ...DEFAULT_GLOBAL_STYLE_CONFIG },
+    settings:         settings as DrawingDocument['settings'],
   };
 }

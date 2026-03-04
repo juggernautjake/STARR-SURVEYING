@@ -309,7 +309,7 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
                 <input
                   type="color"
                   className="w-8 h-6 rounded cursor-pointer bg-transparent border-0 outline-none"
-                  value={feature.style.color}
+                  value={feature.style.color ?? '#000000'}
                   onChange={(e) => updateStyle({ color: e.target.value })}
                 />
               </div>
@@ -321,7 +321,7 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
                   step="0.5"
                   min="0.1"
                   max="20"
-                  value={feature.style.lineWeight}
+                  value={feature.style.lineWeight ?? 1}
                   onChange={(e) => {
                     const v = parseFloat(e.target.value);
                     if (!isNaN(v) && v > 0) updateStyle({ lineWeight: Math.max(0.1, Math.min(20, v)) });

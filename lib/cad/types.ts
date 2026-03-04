@@ -33,6 +33,14 @@ export interface DrawingDocument {
   layers: Record<string, Layer>; // layerId -> Layer
   layerOrder: string[]; // Layer IDs in render order (bottom to top)
 
+  // Phase 3 additions
+  layerGroups: Record<string, import('./styles/types').LayerGroup>;
+  layerGroupOrder: string[];
+  customSymbols: import('./styles/types').SymbolDefinition[];
+  customLineTypes: import('./styles/types').LineTypeDefinition[];
+  codeStyleOverrides: Record<string, Partial<import('./styles/types').CodeStyleMapping>>;
+  globalStyleConfig: import('./styles/types').GlobalStyleConfig;
+
   // Configuration
   settings: DrawingSettings;
 }
@@ -89,9 +97,19 @@ export interface FeatureGeometry {
 }
 
 export interface FeatureStyle {
-  color: string; // Hex color (e.g., "#000000")
-  lineWeight: number; // Pixels on screen (default: 1)
-  opacity: number; // 0-1 (default: 1)
+  color: string | null;       // null = inherit from cascade
+  lineWeight: number | null;  // null = inherit
+  opacity: number;            // 0–1, always present
+
+  // Phase 3 additions
+  lineTypeId: string | null;
+  symbolId: string | null;
+  symbolSize: number | null;
+  symbolRotation: number;
+  labelVisible: boolean | null;
+  labelFormat: string | null;
+  labelOffset: { x: number; y: number };
+  isOverride: boolean;
 }
 
 // --- LAYERS ---
@@ -101,10 +119,17 @@ export interface Layer {
   name: string;
   visible: boolean;
   locked: boolean;
-  color: string; // Default color for features on this layer
-  lineWeight: number; // Default line weight (pixels)
+  frozen: boolean;
+  color: string;
+  lineWeight: number;
+  lineTypeId: string;
   opacity: number;
-  isDefault: boolean; // Cannot be deleted
+  groupId: string | null;
+  sortOrder: number;
+  isDefault: boolean;
+  isProtected: boolean;
+  autoAssignCodes: string[];
+  featureCount?: number;
 }
 
 // --- SNAP ---

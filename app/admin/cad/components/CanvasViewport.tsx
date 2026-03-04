@@ -431,8 +431,8 @@ export default function CanvasViewport() {
 
   function drawFeature(g: import('pixi.js').Graphics, feature: Feature) {
     g.clear();
-    const color = parseInt(feature.style.color.replace('#', ''), 16);
-    const weight = feature.style.lineWeight;
+    const color = parseInt((feature.style.color ?? '#000000').replace('#', ''), 16);
+    const weight = feature.style.lineWeight ?? 0.25;
     const alpha = feature.style.opacity;
     const geom = feature.geometry;
 
