@@ -16,6 +16,7 @@ import ImportDialog from './components/ImportDialog';
 import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
 import CurveCalculator from './components/CurveCalculator';
+import NewDrawingDialog from './components/NewDrawingDialog';
 import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -91,6 +92,7 @@ export default function CADLayout() {
   const [showPointTable, setShowPointTable] = useState(false);
   const [showTraversePanel, setShowTraversePanel] = useState(false);
   const [showCurveCalculator, setShowCurveCalculator] = useState(false);
+  const [showNewDrawingDialog, setShowNewDrawingDialog] = useState(false);
   const [recoveryPayload, setRecoveryPayload] = useState<{
     savedAt: string;
     document: unknown;
@@ -99,12 +101,20 @@ export default function CADLayout() {
   // On mount: check IndexedDB for a crash-recovery autosave
   useEffect(() => {
     readAutosave().then((saved) => {
-      if (!saved?.savedAt) return;
+      if (!saved?.savedAt) {
+        // No autosave — show new drawing dialog if starting blank
+        if (drawingStore.document.layerOrder.length === 0) {
+          setShowNewDrawingDialog(true);
+        }
+        return;
+      }
       const savedTime = new Date(saved.savedAt).getTime();
       const docTime = new Date(drawingStore.document.modified).getTime();
       // Offer recovery only when the autosave is meaningfully newer (> 5 s)
       if (savedTime - docTime > 5_000) {
         setRecoveryPayload(saved);
+      } else if (drawingStore.document.layerOrder.length === 0) {
+        setShowNewDrawingDialog(true);
       }
     });
     // Zoom to a sensible default view after the canvas initialises
@@ -134,6 +144,13 @@ export default function CADLayout() {
     const handler = () => setShowSettings(true);
     window.addEventListener('cad:openSettings', handler);
     return () => window.removeEventListener('cad:openSettings', handler);
+  }, []);
+
+  // Listen for new drawing dialog event (dispatched by MenuBar "New Drawing")
+  useEffect(() => {
+    const handler = () => setShowNewDrawingDialog(true);
+    window.addEventListener('cad:openNewDrawingDialog', handler);
+    return () => window.removeEventListener('cad:openNewDrawingDialog', handler);
   }, []);
 
   // Auto-save to IndexedDB every 60 seconds
@@ -286,6 +303,14 @@ export default function CADLayout() {
         <ImportDialog
           onClose={() => setShowImportDialog(false)}
           onImportComplete={() => { setShowImportDialog(false); setShowPointTable(true); }}
+        />
+      )}
+
+      {/* New Drawing / Get Started dialog */}
+      {showNewDrawingDialog && (
+        <NewDrawingDialog
+          onClose={() => setShowNewDrawingDialog(false)}
+          onImport={() => { setShowNewDrawingDialog(false); setShowImportDialog(true); }}
         />
       )}
     </div>

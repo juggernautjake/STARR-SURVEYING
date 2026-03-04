@@ -3,18 +3,11 @@ import { create } from 'zustand';
 import type { DrawingDocument, Feature, Layer, DrawingSettings } from '../types';
 import { generateId } from '../types';
 import { DEFAULT_DRAWING_SETTINGS } from '../constants';
-import { getDefaultLayersRecord, getDefaultLayerOrder, DEFAULT_LAYER_GROUPS } from '../styles/default-layers';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
 
+// Start with a completely blank document — no layers, no features.
+// The user must create a new drawing or import data to begin working.
 function createDefaultDocument(): DrawingDocument {
-  const layers = getDefaultLayersRecord();
-  const layerOrder = getDefaultLayerOrder();
-
-  const layerGroups: Record<string, import('../styles/types').LayerGroup> = {};
-  for (const group of DEFAULT_LAYER_GROUPS) {
-    layerGroups[group.id] = group;
-  }
-
   return {
     id: generateId(),
     name: 'Untitled Drawing',
@@ -22,10 +15,10 @@ function createDefaultDocument(): DrawingDocument {
     modified: new Date().toISOString(),
     author: '',
     features: {},
-    layers,
-    layerOrder,
-    layerGroups,
-    layerGroupOrder: DEFAULT_LAYER_GROUPS.map(g => g.id),
+    layers: {},
+    layerOrder: [],
+    layerGroups: {},
+    layerGroupOrder: [],
     customSymbols: [],
     customLineTypes: [],
     codeStyleOverrides: {},
@@ -79,7 +72,7 @@ const defaultDoc = createDefaultDocument();
 
 export const useDrawingStore = create<DrawingStore>((set, get) => ({
   document: defaultDoc,
-  activeLayerId: defaultDoc.layerOrder[0],
+  activeLayerId: '',
   isDirty: false,
 
   addFeature: (feature) =>
@@ -216,7 +209,7 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
 
   newDocument: () => {
     const doc = createDefaultDocument();
-    set({ document: doc, activeLayerId: doc.layerOrder[0] ?? '', isDirty: false });
+    set({ document: doc, activeLayerId: '', isDirty: false });
   },
 
   loadDocument: (doc) =>

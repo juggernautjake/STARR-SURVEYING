@@ -7,7 +7,14 @@
 import { useState } from 'react';
 import { useToolStore, useSelectionStore, useViewportStore, useDrawingStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
-import { rotateSelection, scaleSelection, deleteSelection, duplicateSelection } from '@/lib/cad/operations';
+import {
+  rotateSelection,
+  scaleSelection,
+  scaleSelectionXY,
+  deleteSelection,
+  duplicateSelection,
+  computeSelectionCentroid,
+} from '@/lib/cad/operations';
 
 // ─────────────────────────────────────────────
 // Shared tiny toggle button
@@ -268,6 +275,43 @@ export default function ToolOptionsBar() {
               <QuickRotateInput copyMode={copyMode} />
             </div>
           </Tooltip>
+          <Sep />
+          {/* Center-point presets for rotate */}
+          <Tooltip
+            label="Center of Mass"
+            description="Set the rotate center to the bounding-box centroid of the selected elements."
+            side="bottom"
+            delay={400}
+          >
+            <button
+              className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => {
+                const ids = Array.from(selectionStore.selectedIds);
+                if (!ids.length) return;
+                const c = computeSelectionCentroid(ids);
+                toolStore.setRotateCenter(c);
+              }}
+            >
+              ⊕ Center of Mass
+            </button>
+          </Tooltip>
+          <Tooltip
+            label="Center of Page"
+            description="Set the rotate center to the center of the paper (based on paper size and drawing scale)."
+            side="bottom"
+            delay={400}
+          >
+            <button
+              className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => {
+                const settings = drawingStore.document.settings;
+                const pageCenterWorld = getPageCenter(settings);
+                toolStore.setRotateCenter(pageCenterWorld);
+              }}
+            >
+              ⊞ Center of Page
+            </button>
+          </Tooltip>
         </>
       )}
 
@@ -286,6 +330,46 @@ export default function ToolOptionsBar() {
               <QuickScaleInput copyMode={copyMode} />
             </div>
           </Tooltip>
+          <Sep />
+          {/* Center-point presets for scale */}
+          <Tooltip
+            label="Center of Mass"
+            description="Set the scale pivot to the bounding-box centroid of the selected elements."
+            side="bottom"
+            delay={400}
+          >
+            <button
+              className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => {
+                const ids = Array.from(selectionStore.selectedIds);
+                if (!ids.length) return;
+                const c = computeSelectionCentroid(ids);
+                toolStore.setBasePoint(c);
+              }}
+            >
+              ⊕ Center of Mass
+            </button>
+          </Tooltip>
+          <Tooltip
+            label="Center of Page"
+            description="Set the scale pivot to the center of the paper."
+            side="bottom"
+            delay={400}
+          >
+            <button
+              className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              onClick={() => {
+                const settings = drawingStore.document.settings;
+                const pageCenterWorld = getPageCenter(settings);
+                toolStore.setBasePoint(pageCenterWorld);
+              }}
+            >
+              ⊞ Center of Page
+            </button>
+          </Tooltip>
+          <Sep />
+          {/* Distort: non-uniform scale */}
+          <DistortInputs />
         </>
       )}
 
@@ -403,6 +487,79 @@ export default function ToolOptionsBar() {
         </button>
       </Tooltip>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Helper: compute paper center in world coords
+// ─────────────────────────────────────────────
+function getPageCenter(settings: { paperSize?: string; paperOrientation?: string; drawingScale?: number }): import('@/lib/cad/types').Point2D {
+  const scale = settings.drawingScale ?? 50; // inches per world unit
+  const sizeMap: Record<string, [number, number]> = {
+    LETTER: [8.5, 11],
+    TABLOID: [11, 17],
+    ARCH_C: [18, 24],
+    ARCH_D: [24, 36],
+    ARCH_E: [36, 48],
+  };
+  let [w, h] = sizeMap[settings.paperSize ?? 'TABLOID'] ?? [11, 17];
+  if (settings.paperOrientation === 'LANDSCAPE') {
+    [w, h] = [h, w];
+  }
+  return { x: (w * scale) / 2, y: (h * scale) / 2 };
+}
+
+// ─────────────────────────────────────────────
+// Distort: non-uniform scale inputs
+// ─────────────────────────────────────────────
+function DistortInputs() {
+  const [scaleX, setScaleX] = useState('1');
+  const [scaleY, setScaleY] = useState('1');
+
+  function apply() {
+    const x = parseFloat(scaleX);
+    const y = parseFloat(scaleY);
+    if (isNaN(x) || isNaN(y) || x <= 0 || y <= 0) return;
+    scaleSelectionXY(x, y);
+  }
+
+  return (
+    <Tooltip
+      label="Distort"
+      description="Scale the selection independently on each axis (non-uniform scaling). Enter separate X and Y scale factors."
+      side="bottom"
+      delay={400}
+    >
+      <div className="flex items-center gap-0.5">
+        <span className="text-[11px] text-gray-400 shrink-0">Distort X:</span>
+        <input
+          type="number"
+          min={0.01}
+          step={0.1}
+          className="w-10 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-purple-500 h-5"
+          value={scaleX}
+          onChange={(e) => setScaleX(e.target.value)}
+          title="X-axis scale factor"
+        />
+        <span className="text-[11px] text-gray-400 shrink-0">Y:</span>
+        <input
+          type="number"
+          min={0.01}
+          step={0.1}
+          className="w-10 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-purple-500 h-5"
+          value={scaleY}
+          onChange={(e) => setScaleY(e.target.value)}
+          title="Y-axis scale factor"
+          onKeyDown={(e) => { if (e.key === 'Enter') apply(); }}
+        />
+        <button
+          className="px-2 py-0 rounded text-[10px] bg-purple-700 border border-purple-600 text-white hover:bg-purple-600 transition-colors h-5"
+          onClick={apply}
+        >
+          Apply
+        </button>
+      </div>
+    </Tooltip>
   );
 }
 

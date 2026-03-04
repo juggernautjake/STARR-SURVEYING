@@ -25,6 +25,7 @@ import type { CSVImportConfig } from '@/lib/cad/import/types';
 import type { Feature, UndoOperation } from '@/lib/cad/types';
 import { generateId } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
+import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
 
 interface ImportDialogProps {
   onClose: () => void;
@@ -490,6 +491,21 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
 
   const handleExecuteImport = () => {
     if (!importResult) return;
+
+    // Ensure all standard survey layers exist in the document (needed for blank documents)
+    const existingLayers = drawingStore.document.layers;
+    const existingLayerOrder = drawingStore.document.layerOrder;
+    // Add missing default layers (by their fixed IDs like 'BOUNDARY', 'MISC', etc.)
+    const missingLayers = PHASE3_DEFAULT_LAYERS.filter((l) => !existingLayers[l.id]);
+    if (missingLayers.length > 0) {
+      for (const layer of missingLayers) {
+        drawingStore.addLayer(layer);
+      }
+      // If no active layer was set yet, use the first default
+      if (!existingLayerOrder.length) {
+        drawingStore.setActiveLayer(PHASE3_DEFAULT_LAYERS[0].id);
+      }
+    }
 
     // Add points to point store
     pointStore.importPoints(importResult);
