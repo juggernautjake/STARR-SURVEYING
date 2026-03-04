@@ -35,13 +35,26 @@ export function resolveMonumentVisuals(
 
 function findSymbolForAction(type: string, size: string, action: string): string {
   const typeMap: Record<string, string> = {
-    'Iron Rod': 'IR', 'Iron Pipe': 'IP', 'Concrete': 'CONC',
+    'Iron Rod': 'IR', 'Iron Pipe': 'IP', 'Concrete': 'CONC', 'Concrete Monument': 'CONC',
     'Cap/Disk': 'CAP', 'PK Nail': 'PKNAIL', 'Mag Nail': 'MAGNAIL',
   };
+  // Map stripped fractional inch sizes to the zero-padded format used in symbol-library.ts IDs.
+  // e.g. monumentSize '3/8"' → strip quotes/slashes → '38' → look up → '038' (as in MON_IR_038_FOUND)
+  const sizeMap: Record<string, string> = {
+    '38': '038', // 3/8"
+    '12': '050', // 1/2"
+    '58': '058', // 5/8"
+    '34': '075', // 3/4"
+  };
   const prefix = typeMap[type] ?? 'GENERIC';
-  const sizeStr = size ? `_${size}` : '';
+  const rawSize = size.replace(/["\\/]/g, '');
+  const mappedSize = sizeMap[rawSize] ?? rawSize;
+  const sizeStr = mappedSize ? `_${mappedSize}` : '';
   const specific = `MON_${prefix}${sizeStr}_${action}`;
 
   if (getSymbolById(specific)) return specific;
+  // Try without size
+  const withoutSize = `MON_${prefix}_${action}`;
+  if (getSymbolById(withoutSize)) return withoutSize;
   return `MON_GENERIC_${action}`;
 }
