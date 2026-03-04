@@ -1863,6 +1863,213 @@
   border-top: 1px solid #A7F3D0;
 }
 
+/* Deep Research button */
+.research-search__deep-btn {
+  background: #1E3A5F !important;
+  color: #fff !important;
+}
+.research-search__deep-btn:hover:not(:disabled) {
+  background: #15304F !important;
+}
+.research-search__deep-btn:disabled {
+  opacity: 0.6;
+}
+
+/* Deep Research Pipeline Status */
+.research-search__pipeline {
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  border: 1px solid #E5E7EB;
+  background: #F9FAFB;
+}
+.research-search__pipeline--running,
+.research-search__pipeline--starting {
+  background: #EFF6FF;
+  border-color: #BFDBFE;
+}
+.research-search__pipeline--success {
+  background: #ECFDF5;
+  border-color: #A7F3D0;
+}
+.research-search__pipeline--partial {
+  background: #FFFBEB;
+  border-color: #FCD34D;
+}
+.research-search__pipeline--failed {
+  background: #FEF2F2;
+  border-color: #FECACA;
+}
+.research-search__pipeline-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.research-search__pipeline-icon {
+  font-size: 0.9rem;
+  min-width: 1.5rem;
+  text-align: center;
+}
+.research-search__pipeline-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.research-search__pipeline-field {
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.research-search__pipeline-field strong {
+  color: #374151;
+  margin-right: 0.35rem;
+}
+.research-search__pipeline-legal {
+  display: block;
+  margin-top: 0.2rem;
+  color: #6B7280;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.research-search__pipeline-docs {
+  margin-top: 0.65rem;
+  font-size: 0.82rem;
+}
+.research-search__pipeline-doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+}
+.research-search__pipeline-doc {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  background: rgba(255,255,255,0.6);
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+.research-search__pipeline-doc-type {
+  font-weight: 500;
+  min-width: 100px;
+}
+.research-search__pipeline-doc-tag {
+  background: #E5E7EB;
+  color: #374151;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.72rem;
+}
+.research-search__pipeline-doc-tag--extracted {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+/* Pipeline Audit Log */
+.research-search__pipeline-log-section {
+  margin-top: 0.65rem;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  padding-top: 0.5rem;
+}
+.research-search__pipeline-log {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.72rem;
+}
+.research-search__pipeline-log-entry {
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.7);
+  border-left: 3px solid #D1D5DB;
+}
+.research-search__pipeline-log-entry--success {
+  border-left-color: #10B981;
+}
+.research-search__pipeline-log-entry--fail {
+  border-left-color: #EF4444;
+  background: rgba(254,226,226,0.3);
+}
+.research-search__pipeline-log-entry--partial {
+  border-left-color: #F59E0B;
+}
+.research-search__pipeline-log-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.research-search__pipeline-log-badge {
+  background: #1E3A5F;
+  color: #fff;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  font-weight: 600;
+  font-size: 0.68rem;
+}
+.research-search__pipeline-log-source {
+  font-weight: 600;
+  color: #374151;
+}
+.research-search__pipeline-log-method {
+  color: #6B7280;
+}
+.research-search__pipeline-log-status {
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  font-weight: 600;
+  font-size: 0.68rem;
+}
+.research-search__pipeline-log-status--success {
+  background: #D1FAE5;
+  color: #065F46;
+}
+.research-search__pipeline-log-status--fail {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+.research-search__pipeline-log-status--partial {
+  background: #FEF3C7;
+  color: #92400E;
+}
+.research-search__pipeline-log-duration {
+  color: #9CA3AF;
+  margin-left: auto;
+}
+.research-search__pipeline-log-input,
+.research-search__pipeline-log-details,
+.research-search__pipeline-log-data {
+  color: #6B7280;
+  margin-top: 0.15rem;
+  word-break: break-word;
+}
+.research-search__pipeline-log-error {
+  color: #DC2626;
+  margin-top: 0.15rem;
+  font-weight: 500;
+}
+.research-search__pipeline-log-steps {
+  margin-top: 0.2rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid #E5E7EB;
+}
+.research-search__pipeline-log-step {
+  color: #9CA3AF;
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+.research-search__pipeline-log-step::before {
+  content: '> ';
+  color: #D1D5DB;
+}
+
 /* Address normalization alert */
 .research-search__address-alert {
   margin: 0.75rem 1.5rem 0;

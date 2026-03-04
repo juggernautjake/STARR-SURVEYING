@@ -1,9 +1,60 @@
 // app/admin/research/components/PropertySearchPanel.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import type { PropertySearchResult, PropertySearchResponse, SearchSource } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
+
+// Pipeline response types (from worker)
+interface PipelineDocument {
+  ref?: { documentType?: string; url?: string };
+  hasText?: boolean;
+  hasImage?: boolean;
+  hasOcr?: boolean;
+  extractedData?: {
+    type?: string;
+    callCount?: number;
+    confidence?: number;
+    verified?: boolean;
+  } | null;
+}
+
+interface PipelineLogEntry {
+  layer: string;
+  source: string;
+  method: string;
+  input: string;
+  status: string;
+  duration_ms: number;
+  dataPointsFound: number;
+  error?: string;
+  details?: string;
+  timestamp?: string;
+  steps?: string[];
+}
+
+interface PipelineStatusResponse {
+  projectId: string;
+  status: string;
+  currentStage?: string;
+  result?: {
+    propertyId?: string;
+    ownerName?: string;
+    legalDescription?: string;
+    acreage?: string | number;
+    documentCount?: number;
+    duration_ms?: number;
+    boundary?: {
+      type?: string;
+      callCount?: number;
+      confidence?: number;
+      verified?: boolean;
+    } | null;
+    searchDiagnostics?: Record<string, unknown>;
+  };
+  documents?: PipelineDocument[];
+  log?: PipelineLogEntry[];
+}
 
 interface PropertySearchPanelProps {
   projectId: string;
@@ -48,6 +99,14 @@ export default function PropertySearchPanel({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showAddressIssues, setShowAddressIssues] = useState(true);
 
+  // Deep research pipeline state
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [pipelineStatus, setPipelineStatus] = useState<string | null>(null);
+  const [pipelineResult, setPipelineResult] = useState<PipelineStatusResponse | null>(null);
+  const [pipelineError, setPipelineError] = useState('');
+  const [showPipelineLog, setShowPipelineLog] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   async function handleSearch() {
     if (searching) return;
     if (!address.trim() && !county.trim() && !parcelId.trim()) {
@@ -86,6 +145,86 @@ export default function PropertySearchPanel({
     }
 
     setSearching(false);
+  }
+
+  // ── Deep Research Pipeline ──────────────────────────────────────────
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const pollPipelineStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/pipeline`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          setPipelineStatus('not_found');
+          stopPolling();
+        }
+        return;
+      }
+      const data = await res.json() as PipelineStatusResponse;
+      setPipelineResult(data);
+
+      if (data.status === 'running') {
+        setPipelineStatus('running');
+      } else {
+        // Pipeline finished (success, partial, or failed)
+        setPipelineStatus(data.status);
+        setPipelineRunning(false);
+        stopPolling();
+        onImported?.();
+      }
+    } catch {
+      // Network error — keep polling
+    }
+  }, [projectId, stopPolling, onImported]);
+
+  async function handleDeepResearch() {
+    if (pipelineRunning) return;
+    if (!county.trim()) {
+      setPipelineError('County is required for deep research.');
+      return;
+    }
+
+    setPipelineRunning(true);
+    setPipelineError('');
+    setPipelineStatus('starting');
+    setPipelineResult(null);
+
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/pipeline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address: address.trim() || undefined,
+          county: county.trim(),
+          propertyId: parcelId.trim() || undefined,
+          ownerName: ownerName.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        setPipelineError(err.error || 'Failed to start deep research');
+        setPipelineRunning(false);
+        setPipelineStatus(null);
+        return;
+      }
+
+      setPipelineStatus('running');
+
+      // Start polling every 5 seconds
+      stopPolling();
+      pollRef.current = setInterval(pollPipelineStatus, 5_000);
+    } catch {
+      setPipelineError('Network error starting deep research.');
+      setPipelineRunning(false);
+      setPipelineStatus(null);
+    }
   }
 
   function toggleResult(id: string) {
@@ -264,11 +403,168 @@ export default function PropertySearchPanel({
           <button
             className="research-page__new-btn"
             onClick={handleSearch}
-            disabled={searching}
+            disabled={searching || pipelineRunning}
           >
             {searching ? 'Searching all sources...' : 'Search Public Records'}
           </button>
+
+          <button
+            className="research-page__new-btn research-search__deep-btn"
+            onClick={handleDeepResearch}
+            disabled={pipelineRunning || searching}
+            title="Uses AI-powered browser automation to scrape county CAD and clerk records, capture document pages at high resolution, and extract boundary data"
+          >
+            {pipelineRunning ? 'Deep Research Running...' : 'Run Deep Research'}
+          </button>
         </div>
+
+        {/* Deep Research Pipeline Status */}
+        {pipelineStatus && (
+          <div className={`research-search__pipeline research-search__pipeline--${pipelineStatus}`}>
+            <div className="research-search__pipeline-header">
+              <span className="research-search__pipeline-icon">
+                {pipelineStatus === 'running' || pipelineStatus === 'starting' ? '...' : pipelineStatus === 'success' || pipelineStatus === 'partial' ? 'OK' : '!!'}
+              </span>
+              <span className="research-search__pipeline-title">
+                {pipelineStatus === 'starting' && 'Starting deep research pipeline...'}
+                {pipelineStatus === 'running' && `Deep research running${pipelineResult?.currentStage ? ` (${pipelineResult.currentStage})` : ''}...`}
+                {pipelineStatus === 'success' && 'Deep research complete'}
+                {pipelineStatus === 'partial' && 'Deep research completed with partial results'}
+                {pipelineStatus === 'failed' && 'Deep research failed'}
+              </span>
+            </div>
+
+            {/* Results summary */}
+            {pipelineResult?.result && (
+              <div className="research-search__pipeline-results">
+                {pipelineResult.result.propertyId && (
+                  <div className="research-search__pipeline-field">
+                    <strong>Property ID:</strong> {pipelineResult.result.propertyId}
+                  </div>
+                )}
+                {pipelineResult.result.ownerName && (
+                  <div className="research-search__pipeline-field">
+                    <strong>Owner:</strong> {pipelineResult.result.ownerName}
+                  </div>
+                )}
+                {pipelineResult.result.legalDescription && (
+                  <div className="research-search__pipeline-field">
+                    <strong>Legal Description:</strong>
+                    <span className="research-search__pipeline-legal">
+                      {pipelineResult.result.legalDescription.length > 200
+                        ? pipelineResult.result.legalDescription.substring(0, 200) + '...'
+                        : pipelineResult.result.legalDescription}
+                    </span>
+                  </div>
+                )}
+                {pipelineResult.result.acreage && (
+                  <div className="research-search__pipeline-field">
+                    <strong>Acreage:</strong> {pipelineResult.result.acreage}
+                  </div>
+                )}
+                {pipelineResult.result.documentCount !== undefined && pipelineResult.result.documentCount > 0 && (
+                  <div className="research-search__pipeline-field">
+                    <strong>Documents found:</strong> {pipelineResult.result.documentCount}
+                  </div>
+                )}
+                {pipelineResult.result.boundary && (
+                  <div className="research-search__pipeline-field">
+                    <strong>Boundary:</strong> {pipelineResult.result.boundary.type}
+                    {' '} ({pipelineResult.result.boundary.callCount} calls,{' '}
+                    confidence: {Math.round((pipelineResult.result.boundary.confidence ?? 0) * 100)}%
+                    {pipelineResult.result.boundary.verified ? ' - Verified' : ''})
+                  </div>
+                )}
+                {pipelineResult.result.duration_ms && (
+                  <div className="research-search__pipeline-field">
+                    <strong>Duration:</strong> {(pipelineResult.result.duration_ms / 1000).toFixed(1)}s
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Document list */}
+            {pipelineResult?.documents && pipelineResult.documents.length > 0 && (
+              <div className="research-search__pipeline-docs">
+                <strong>Documents:</strong>
+                <div className="research-search__pipeline-doc-list">
+                  {pipelineResult.documents.map((doc: PipelineDocument, i: number) => (
+                    <div key={i} className="research-search__pipeline-doc">
+                      <span className="research-search__pipeline-doc-type">{doc.ref?.documentType || 'Document'}</span>
+                      {doc.hasText && <span className="research-search__pipeline-doc-tag">Text</span>}
+                      {doc.hasImage && <span className="research-search__pipeline-doc-tag">Image</span>}
+                      {doc.hasOcr && <span className="research-search__pipeline-doc-tag">OCR</span>}
+                      {doc.extractedData && (
+                        <span className="research-search__pipeline-doc-tag research-search__pipeline-doc-tag--extracted">
+                          {doc.extractedData.type} ({Math.round((doc.extractedData.confidence ?? 0) * 100)}%)
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pipeline Audit Log */}
+            {pipelineResult?.log && pipelineResult.log.length > 0 && (
+              <div className="research-search__pipeline-log-section">
+                <button
+                  className="research-search__advanced-toggle"
+                  onClick={() => setShowPipelineLog(!showPipelineLog)}
+                  type="button"
+                >
+                  {showPipelineLog ? '-- Hide' : '++ Show'} Pipeline Log ({pipelineResult.log.length} entries)
+                </button>
+
+                {showPipelineLog && (
+                  <div className="research-search__pipeline-log">
+                    {pipelineResult.log.map((entry: PipelineLogEntry, i: number) => (
+                      <div
+                        key={i}
+                        className={`research-search__pipeline-log-entry research-search__pipeline-log-entry--${entry.status}`}
+                      >
+                        <div className="research-search__pipeline-log-header">
+                          <span className="research-search__pipeline-log-badge">{entry.layer}</span>
+                          <span className="research-search__pipeline-log-source">{entry.source}</span>
+                          <span className="research-search__pipeline-log-method">{entry.method}</span>
+                          <span className={`research-search__pipeline-log-status research-search__pipeline-log-status--${entry.status}`}>
+                            {entry.status}
+                          </span>
+                          {entry.duration_ms > 0 && (
+                            <span className="research-search__pipeline-log-duration">{(entry.duration_ms / 1000).toFixed(1)}s</span>
+                          )}
+                        </div>
+                        {entry.input && (
+                          <div className="research-search__pipeline-log-input">Input: {entry.input}</div>
+                        )}
+                        {entry.details && (
+                          <div className="research-search__pipeline-log-details">{entry.details}</div>
+                        )}
+                        {entry.error && (
+                          <div className="research-search__pipeline-log-error">Error: {entry.error}</div>
+                        )}
+                        {entry.dataPointsFound > 0 && (
+                          <div className="research-search__pipeline-log-data">Data points: {entry.dataPointsFound}</div>
+                        )}
+                        {entry.steps && entry.steps.length > 0 && (
+                          <div className="research-search__pipeline-log-steps">
+                            {entry.steps.map((step: string, j: number) => (
+                              <div key={j} className="research-search__pipeline-log-step">{step}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {pipelineError && (
+          <div className="research-search__error">{pipelineError}</div>
+        )}
       </div>
 
       {/* Search results */}
