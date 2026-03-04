@@ -634,6 +634,8 @@ export default function CanvasViewport() {
       case 'POLYLINE':
       case 'POLYGON':
         return geom.vertices ?? [];
+      default:
+        return [];
     }
   }
 
@@ -1004,6 +1006,8 @@ export default function CanvasViewport() {
           style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
           properties: {},
         };
+      default:
+        return null;
     }
   }
 

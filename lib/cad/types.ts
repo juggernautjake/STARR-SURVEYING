@@ -77,7 +77,7 @@ export interface DrawingSettings {
 
 // --- FEATURES ---
 
-export type FeatureType = 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON';
+export type FeatureType = 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON' | 'ARC' | 'SPLINE' | 'MIXED_GEOMETRY';
 
 export interface Feature {
   id: string;
@@ -174,7 +174,14 @@ export type ToolType =
   | 'ROTATE'
   | 'MIRROR'
   | 'SCALE'
-  | 'ERASE';
+  | 'ERASE'
+  | 'DRAW_ARC'
+  | 'DRAW_SPLINE_FIT'
+  | 'DRAW_SPLINE_CONTROL'
+  | 'CURB_RETURN'
+  | 'OFFSET'
+  | 'INVERSE'
+  | 'FORWARD_POINT';
 
 export interface ToolState {
   activeTool: ToolType;
@@ -386,4 +393,139 @@ export interface PointGroup {
   calcFoundDelta: number | null;
   hasBothCalcAndField: boolean;
   deltaWarning: boolean;
+}
+
+// ─── PHASE 4: GEOMETRY TYPES ───
+
+export interface ArcDefinition {
+  center: Point2D;
+  radius: number;
+  startAngle: number;       // Radians, measured from east (math convention)
+  endAngle: number;         // Radians
+  direction: 'CW' | 'CCW';
+
+  // Key points (derived)
+  pc: Point2D;    // Point of Curvature (start)
+  pt: Point2D;    // Point of Tangency (end)
+  mpc: Point2D;   // Mid-Point of Curve
+  pi: Point2D;    // Point of Intersection (tangent intersection)
+}
+
+export interface CurveParameters {
+  R: number;         // Radius
+  delta: number;     // Central angle (radians)
+  L: number;         // Arc length
+  C: number;         // Chord distance
+  CB: number;        // Chord bearing (azimuth radians)
+  T: number;         // Tangent distance
+  E: number;         // External distance
+  M: number;         // Mid-ordinate
+  D: number;         // Degree of curve (arc definition)
+  direction: 'LEFT' | 'RIGHT';
+
+  pc: Point2D;
+  pt: Point2D;
+  pi: Point2D;
+  rp: Point2D;    // Radius point (center)
+  mpc: Point2D;
+
+  tangentInBearing: number;   // Azimuth into the curve (radians)
+  tangentOutBearing: number;  // Azimuth out of the curve
+}
+
+export interface TangentHandle {
+  pointIndex: number;
+  leftDirection: Point2D;
+  leftMagnitude: number;
+  rightDirection: Point2D;
+  rightMagnitude: number;
+  symmetric: boolean;
+  isCorner: boolean;
+}
+
+export interface FitPointSplineDefinition {
+  fitPoints: Point2D[];
+  tangentHandles: TangentHandle[];
+  degree: number;      // 2=quadratic, 3=cubic (default)
+  isClosed: boolean;
+}
+
+export interface ControlPointSplineDefinition {
+  controlPoints: Point2D[];
+  weights: number[];   // NURBS weights (1.0 = uniform)
+  degree: number;
+  isClosed: boolean;
+}
+
+export interface SpiralDefinition {
+  type: 'CLOTHOID';
+  length: number;
+  radiusStart: number;
+  radiusEnd: number;
+  A: number;   // Spiral parameter: A² = R × L
+  ts: Point2D; // Tangent-to-Spiral point
+  sc: Point2D; // Spiral-to-Curve point
+  direction: 'LEFT' | 'RIGHT';
+}
+
+export interface TraverseLeg {
+  fromPointId: string;
+  toPointId: string;
+  bearing: number;      // Azimuth degrees
+  distance: number;     // Feet
+  deltaNorth: number;   // Latitude (N+, S-)
+  deltaEast: number;    // Departure (E+, W-)
+  isArc: boolean;
+  curveData: CurveParameters | null;
+}
+
+export interface ClosureResult {
+  linearError: number;
+  errorNorth: number;
+  errorEast: number;
+  errorBearing: number;
+  angularError: number;
+  precisionRatio: string;
+  precisionDenominator: number;
+  totalDistance: number;
+}
+
+export type AdjustmentMethod = 'COMPASS' | 'TRANSIT' | 'CRANDALL' | 'NONE';
+
+export interface AreaResult {
+  squareFeet: number;
+  acres: number;
+  method: 'COORDINATE';
+}
+
+export interface Traverse {
+  id: string;
+  name: string;
+  pointIds: string[];
+  isClosed: boolean;
+  legs: TraverseLeg[];
+  closure: ClosureResult | null;
+  adjustedPoints: Point2D[] | null;
+  adjustmentMethod: AdjustmentMethod | null;
+  area: AreaResult | null;
+}
+
+export interface OffsetConfig {
+  distance: number;
+  side: 'LEFT' | 'RIGHT';
+  cornerHandling: 'MITER' | 'ROUND' | 'CHAMFER';
+  miterLimit: number;
+  maintainLink: boolean;
+  targetLayerId: string | null;
+}
+
+export interface MixedSegment {
+  type: 'STRAIGHT' | 'ARC' | 'SPLINE';
+  arcDef?: ArcDefinition;
+  splinePoints?: Point2D[];
+}
+
+export interface MixedGeometryDefinition {
+  vertices: Point2D[];
+  segments: MixedSegment[];
 }
