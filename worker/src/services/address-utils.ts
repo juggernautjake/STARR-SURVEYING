@@ -97,52 +97,45 @@ const DIRECTIONAL_ABBREV_RE = /^(North|South|East|West|Northeast|Northwest|South
 const DIRECTIONAL_SUFFIX_RE = /\b(North|South|East|West|Northeast|Northwest|Southeast|Southwest|NE|NW|SE|SW|N|S|E|W)$/i;
 
 // ── Texas City → County Mapping ────────────────────────────────────────────
-// Covers Central Texas counties within 160-mile radius of Belton
+// Covers ~143 Texas counties within 200-mile radius of Belton (Bell County)
+// Organized by concentric rings from Bell County center
 
 const CITY_TO_COUNTY: Record<string, string> = {
-  // Bell County
+  // ═══ RING 0: Bell County (center) ═══
   belton: 'Bell', temple: 'Bell', killeen: 'Bell', harker_heights: 'Bell',
   copperas_cove: 'Bell', nolanville: 'Bell', salado: 'Bell', rogers: 'Bell',
   troy: 'Bell', holland: 'Bell', little_river_academy: 'Bell', morgans_point_resort: 'Bell',
-  // Williamson County
-  georgetown: 'Williamson', round_rock: 'Williamson', cedar_park: 'Williamson',
-  leander: 'Williamson', taylor: 'Williamson', liberty_hill: 'Williamson',
-  hutto: 'Williamson', jarrell: 'Williamson', florence: 'Williamson',
-  granger: 'Williamson', bartlett: 'Williamson', thrall: 'Williamson',
-  // Travis County
-  austin: 'Travis', pflugerville: 'Travis', del_valle: 'Travis',
-  manor: 'Travis', bee_cave: 'Travis', lakeway: 'Travis',
-  west_lake_hills: 'Travis', rollingwood: 'Travis',
+
+  // ═══ RING 1: Adjacent counties (~0-30 mi) ═══
+  // Coryell County
+  gatesville: 'Coryell', evant: 'Coryell', oglesby: 'Coryell', flat: 'Coryell',
   // McLennan County
   waco: 'McLennan', woodway: 'McLennan', hewitt: 'McLennan',
   robinson: 'McLennan', mcgregor: 'McLennan', lorena: 'McLennan',
   china_spring: 'McLennan', west: 'McLennan', mart: 'McLennan',
   moody: 'McLennan', bruceville_eddy: 'McLennan', lacy_lakeview: 'McLennan',
-  // Coryell County
-  gatesville: 'Coryell', copperas_cove_coryell: 'Coryell',
-  evant: 'Coryell', oglesby: 'Coryell', flat: 'Coryell',
-  // Lampasas County
-  lampasas: 'Lampasas', lometa: 'Lampasas', kempner: 'Lampasas',
   // Falls County
   marlin: 'Falls', rosebud: 'Falls', lott: 'Falls',
   // Milam County
   cameron: 'Milam', rockdale: 'Milam', thorndale: 'Milam', milano: 'Milam',
-  // Hays County
-  san_marcos: 'Hays', kyle: 'Hays', buda: 'Hays',
-  wimberley: 'Hays', dripping_springs: 'Hays',
-  // Comal County
-  new_braunfels: 'Comal', bulverde: 'Comal', canyon_lake: 'Comal',
-  garden_ridge: 'Comal', spring_branch: 'Comal',
-  // Bexar County
-  san_antonio: 'Bexar', converse: 'Bexar', live_oak: 'Bexar',
-  universal_city: 'Bexar', schertz: 'Bexar', helotes: 'Bexar',
+  // Williamson County
+  georgetown: 'Williamson', round_rock: 'Williamson', cedar_park: 'Williamson',
+  leander: 'Williamson', taylor: 'Williamson', liberty_hill: 'Williamson',
+  hutto: 'Williamson', jarrell: 'Williamson', florence: 'Williamson',
+  granger: 'Williamson', bartlett: 'Williamson', thrall: 'Williamson',
   // Burnet County
   burnet: 'Burnet', marble_falls: 'Burnet', bertram: 'Burnet',
   granite_shoals: 'Burnet', cottonwood_shores: 'Burnet',
-  // Llano County
-  llano: 'Llano', kingsland: 'Llano', horseshoe_bay: 'Llano',
+  // Lampasas County
+  lampasas: 'Lampasas', lometa: 'Lampasas', kempner: 'Lampasas',
   // Hamilton County
   hamilton: 'Hamilton', hico: 'Hamilton',
+
+  // ═══ RING 2: ~30-60 mi ═══
+  // Travis County
+  austin: 'Travis', pflugerville: 'Travis', del_valle: 'Travis',
+  manor: 'Travis', bee_cave: 'Travis', lakeway: 'Travis',
+  west_lake_hills: 'Travis', rollingwood: 'Travis',
   // Bosque County
   meridian: 'Bosque', clifton: 'Bosque', valley_mills: 'Bosque',
   // Hill County
@@ -153,6 +146,292 @@ const CITY_TO_COUNTY: Record<string, string> = {
   hearne: 'Robertson', calvert: 'Robertson', franklin: 'Robertson',
   // Lee County
   giddings: 'Lee', lexington: 'Lee',
+  // Llano County
+  llano: 'Llano', kingsland: 'Llano', horseshoe_bay: 'Llano',
+  // Mills County
+  goldthwaite: 'Mills', mullin: 'Mills',
+  // San Saba County
+  san_saba: 'San Saba', richland_springs: 'San Saba',
+  // Bastrop County
+  bastrop: 'Bastrop', elgin: 'Bastrop', smithville: 'Bastrop',
+  // Hays County
+  san_marcos: 'Hays', kyle: 'Hays', buda: 'Hays',
+  wimberley: 'Hays', dripping_springs: 'Hays',
+
+  // ═══ RING 3: ~60-100 mi ═══
+  // Brazos County
+  bryan: 'Brazos', college_station: 'Brazos',
+  // Burleson County
+  caldwell_burleson: 'Burleson', somerville: 'Burleson',
+  // Blanco County
+  johnson_city: 'Blanco', blanco: 'Blanco',
+  // Comal County
+  new_braunfels: 'Comal', bulverde: 'Comal', canyon_lake: 'Comal',
+  garden_ridge: 'Comal', spring_branch: 'Comal',
+  // Guadalupe County
+  seguin: 'Guadalupe', cibolo: 'Guadalupe', schertz_guadalupe: 'Guadalupe',
+  // Freestone County
+  fairfield: 'Freestone', teague: 'Freestone',
+  // Navarro County
+  corsicana: 'Navarro', kerens: 'Navarro', dawson: 'Navarro',
+  // Somervell County
+  glen_rose: 'Somervell',
+  // Comanche County
+  comanche: 'Comanche', de_leon: 'Comanche',
+  // Brown County
+  brownwood: 'Brown', early: 'Brown', bangs: 'Brown',
+  // McCulloch County
+  brady: 'McCulloch', rochelle: 'McCulloch',
+  // Mason County
+  mason: 'Mason',
+  // Leon County
+  centerville: 'Leon', buffalo: 'Leon', jewett: 'Leon',
+  // Madison County
+  madisonville: 'Madison', midway: 'Madison',
+  // Washington County
+  brenham: 'Washington', chappell_hill: 'Washington', burton: 'Washington',
+  // Fayette County
+  la_grange: 'Fayette', schulenburg: 'Fayette', flatonia: 'Fayette',
+  // Caldwell County
+  lockhart: 'Caldwell', luling: 'Caldwell', martindale: 'Caldwell',
+  // Erath County
+  stephenville: 'Erath', dublin: 'Erath',
+  // Johnson County
+  cleburne: 'Johnson', burleson_johnson: 'Johnson', joshua: 'Johnson',
+  alvarado: 'Johnson', grandview: 'Johnson',
+  // Hood County
+  granbury: 'Hood', tolar: 'Hood', cresson: 'Hood',
+  // Gonzales County
+  gonzales: 'Gonzales', nixon: 'Gonzales', waelder: 'Gonzales',
+
+  // ═══ RING 4: ~100-140 mi ═══
+  // Bexar County
+  san_antonio: 'Bexar', converse: 'Bexar', live_oak_bexar: 'Bexar',
+  universal_city: 'Bexar', schertz: 'Bexar', helotes: 'Bexar',
+  // Dallas County
+  dallas: 'Dallas', garland: 'Dallas', irving: 'Dallas', mesquite: 'Dallas',
+  grand_prairie: 'Dallas', richardson: 'Dallas', desoto: 'Dallas', duncanville: 'Dallas',
+  // Tarrant County
+  fort_worth: 'Tarrant', arlington: 'Tarrant', north_richland_hills: 'Tarrant',
+  euless: 'Tarrant', bedford: 'Tarrant', hurst: 'Tarrant', grapevine: 'Tarrant',
+  keller: 'Tarrant', mansfield: 'Tarrant', southlake: 'Tarrant',
+  // Ellis County
+  waxahachie: 'Ellis', midlothian: 'Ellis', ennis: 'Ellis', red_oak: 'Ellis',
+  // Kaufman County
+  kaufman: 'Kaufman', terrell: 'Kaufman', forney: 'Kaufman',
+  // Collin County
+  plano: 'Collin', mckinney: 'Collin', frisco: 'Collin',
+  allen: 'Collin', wylie: 'Collin', celina: 'Collin', prosper: 'Collin',
+  // Denton County
+  denton: 'Denton', lewisville: 'Denton', flower_mound: 'Denton',
+  little_elm: 'Denton', corinth: 'Denton', argyle: 'Denton',
+  // Parker County
+  weatherford: 'Parker', aledo: 'Parker', willow_park: 'Parker', hudson_oaks: 'Parker',
+  // Palo Pinto County
+  mineral_wells: 'Palo Pinto', palo_pinto: 'Palo Pinto', gordon: 'Palo Pinto',
+  // Eastland County
+  eastland: 'Eastland', cisco: 'Eastland', ranger: 'Eastland', gorman: 'Eastland',
+  // Callahan County
+  baird: 'Callahan', clyde: 'Callahan', cross_plains: 'Callahan',
+  // Coleman County
+  coleman: 'Coleman', santa_anna: 'Coleman',
+  // Kendall County
+  boerne: 'Kendall', comfort: 'Kendall', fair_oaks_ranch: 'Kendall',
+  // Kerr County
+  kerrville: 'Kerr', ingram: 'Kerr', center_point: 'Kerr', hunt: 'Kerr',
+  // Gillespie County
+  fredericksburg: 'Gillespie', stonewall_gillespie: 'Gillespie',
+  // Kimble County
+  junction: 'Kimble', london: 'Kimble',
+  // Menard County
+  menard: 'Menard',
+  // Concho County
+  paint_rock: 'Concho', eden: 'Concho',
+  // Grimes County
+  anderson: 'Grimes', navasota: 'Grimes', todd_mission: 'Grimes',
+  // Walker County
+  huntsville: 'Walker', riverside: 'Walker', new_waverly: 'Walker',
+  // Waller County
+  hempstead: 'Waller', waller: 'Waller', prairie_view: 'Waller',
+  // Colorado County
+  columbus: 'Colorado', eagle_lake: 'Colorado', weimar: 'Colorado',
+  // Lavaca County
+  hallettsville: 'Lavaca', yoakum: 'Lavaca', shiner: 'Lavaca',
+  // DeWitt County
+  cuero: 'DeWitt', yorktown: 'DeWitt',
+  // Wilson County
+  floresville: 'Wilson', la_vernia: 'Wilson', stockdale: 'Wilson',
+  // Anderson County
+  palestine: 'Anderson', elkhart: 'Anderson', frankston: 'Anderson',
+  // Henderson County
+  athens: 'Henderson', gun_barrel_city: 'Henderson', mabank: 'Henderson',
+  // Rockwall County
+  rockwall: 'Rockwall', royse_city: 'Rockwall', heath: 'Rockwall',
+  // Runnels County
+  ballinger: 'Runnels', winters: 'Runnels',
+  // Houston County
+  crockett: 'Houston', grapeland: 'Houston',
+
+  // ═══ RING 5: ~140-175 mi ═══
+  // Taylor County
+  abilene: 'Taylor', merkel: 'Taylor', tuscola: 'Taylor',
+  // Stephens County
+  breckenridge: 'Stephens',
+  // Shackelford County
+  albany: 'Shackelford',
+  // Jack County
+  jacksboro: 'Jack',
+  // Wise County
+  decatur: 'Wise', bridgeport: 'Wise', alvord: 'Wise', rhome: 'Wise',
+  // Grayson County
+  sherman: 'Grayson', denison: 'Grayson', whitesboro: 'Grayson', van_alstyne: 'Grayson',
+  // Hunt County
+  greenville: 'Hunt', commerce: 'Hunt', caddo_mills: 'Hunt',
+  // Van Zandt County
+  canton: 'Van Zandt', grand_saline: 'Van Zandt', wills_point: 'Van Zandt',
+  // Rains County
+  emory: 'Rains', point: 'Rains',
+  // Smith County
+  tyler: 'Smith', whitehouse: 'Smith', lindale: 'Smith', bullard: 'Smith',
+  // Cherokee County
+  rusk: 'Cherokee', jacksonville: 'Cherokee', alto: 'Cherokee',
+  // Montgomery County
+  conroe: 'Montgomery', the_woodlands: 'Montgomery', magnolia: 'Montgomery',
+  willis: 'Montgomery', new_caney: 'Montgomery', porter: 'Montgomery',
+  // Harris County
+  houston: 'Harris', pasadena: 'Harris', baytown: 'Harris', katy: 'Harris',
+  sugar_land_harris: 'Harris', pearland_harris: 'Harris', spring: 'Harris',
+  cypress: 'Harris', humble: 'Harris', tomball: 'Harris',
+  // Fort Bend County
+  sugar_land: 'Fort Bend', missouri_city: 'Fort Bend', richmond: 'Fort Bend',
+  rosenberg: 'Fort Bend', fulshear: 'Fort Bend',
+  // Brazoria County
+  pearland: 'Brazoria', alvin: 'Brazoria', lake_jackson: 'Brazoria',
+  angleton: 'Brazoria', clute: 'Brazoria', manvel: 'Brazoria',
+  // Austin County
+  bellville: 'Austin', sealy: 'Austin', wallis: 'Austin',
+  // Victoria County
+  victoria: 'Victoria',
+  // Karnes County
+  karnes_city: 'Karnes', kenedy: 'Karnes', runge: 'Karnes',
+  // Medina County
+  hondo: 'Medina', castroville: 'Medina', devine: 'Medina', natalia: 'Medina',
+  // Bandera County
+  bandera: 'Bandera', pipe_creek: 'Bandera',
+  // Atascosa County
+  jourdanton: 'Atascosa', pleasanton: 'Atascosa', poteet: 'Atascosa', lytle: 'Atascosa',
+  // Goliad County
+  goliad: 'Goliad',
+  // Jackson County
+  edna: 'Jackson', ganado: 'Jackson',
+  // San Jacinto County
+  coldspring: 'San Jacinto', shepherd: 'San Jacinto',
+  // Polk County
+  livingston: 'Polk', corrigan: 'Polk', onalaska: 'Polk',
+  // Trinity County
+  groveton: 'Trinity', trinity: 'Trinity',
+  // Tom Green County
+  san_angelo: 'Tom Green', wall: 'Tom Green', grape_creek: 'Tom Green',
+  // Nolan County
+  sweetwater: 'Nolan', roscoe: 'Nolan',
+  // Coke County
+  robert_lee: 'Coke', bronte: 'Coke',
+  // Schleicher County
+  eldorado: 'Schleicher',
+  // Sutton County
+  sonora: 'Sutton',
+  // Edwards County
+  rocksprings: 'Edwards',
+  // Real County
+  leakey: 'Real', camp_wood: 'Real',
+  // Uvalde County
+  uvalde: 'Uvalde', sabinal: 'Uvalde',
+
+  // ═══ RING 6: ~175-200 mi (outer edge) ═══
+  // Wichita County
+  wichita_falls: 'Wichita', burkburnett: 'Wichita', iowa_park: 'Wichita',
+  // Clay County
+  henrietta: 'Clay',
+  // Archer County
+  archer_city: 'Archer', holliday: 'Archer',
+  // Baylor County
+  seymour: 'Baylor',
+  // Throckmorton County
+  throckmorton: 'Throckmorton',
+  // Jones County
+  anson: 'Jones', stamford_jones: 'Jones', hamlin: 'Jones',
+  // Haskell County
+  haskell: 'Haskell',
+  // Knox County
+  benjamin: 'Knox', munday: 'Knox',
+  // Fisher County
+  roby: 'Fisher', rotan: 'Fisher',
+  // Stonewall County
+  aspermont: 'Stonewall',
+  // Irion County
+  mertzon: 'Irion',
+  // Cooke County
+  gainesville: 'Cooke', muenster: 'Cooke', valley_view: 'Cooke',
+  // Montague County
+  montague: 'Montague', bowie_montague: 'Montague', nocona: 'Montague',
+  // Fannin County
+  bonham: 'Fannin', leonard: 'Fannin', honey_grove: 'Fannin',
+  // Delta County
+  cooper: 'Delta',
+  // Hopkins County
+  sulphur_springs: 'Hopkins', como: 'Hopkins',
+  // Wood County
+  quitman: 'Wood', mineola: 'Wood', winnsboro: 'Wood',
+  // Upshur County
+  gilmer: 'Upshur', big_sandy: 'Upshur',
+  // Gregg County
+  longview: 'Gregg', kilgore: 'Gregg', gladewater: 'Gregg',
+  // Rusk County
+  henderson: 'Rusk', overton: 'Rusk', tatum: 'Rusk',
+  // Nacogdoches County
+  nacogdoches: 'Nacogdoches', garrison: 'Nacogdoches',
+  // Angelina County
+  lufkin: 'Angelina', diboll: 'Angelina', hudson: 'Angelina',
+  // Panola County
+  carthage: 'Panola',
+  // Shelby County
+  center: 'Shelby', timpson: 'Shelby',
+  // San Augustine County
+  san_augustine: 'San Augustine',
+  // Galveston County
+  galveston: 'Galveston', texas_city: 'Galveston', league_city: 'Galveston',
+  dickinson: 'Galveston', friendswood: 'Galveston', santa_fe_galveston: 'Galveston',
+  // Chambers County
+  anahuac: 'Chambers', winnie: 'Chambers', mont_belvieu: 'Chambers',
+  // Liberty County
+  liberty: 'Liberty', dayton: 'Liberty', cleveland: 'Liberty',
+  // Wharton County
+  wharton: 'Wharton', el_campo: 'Wharton', east_bernard: 'Wharton',
+  // Matagorda County
+  bay_city: 'Matagorda', palacios: 'Matagorda',
+  // Calhoun County
+  port_lavaca: 'Calhoun', point_comfort: 'Calhoun', seadrift: 'Calhoun',
+  // Refugio County
+  refugio: 'Refugio', woodsboro: 'Refugio',
+  // Bee County
+  beeville: 'Bee', pettus: 'Bee',
+  // Live Oak County
+  george_west: 'Live Oak', three_rivers: 'Live Oak',
+  // San Patricio County
+  sinton: 'San Patricio', portland: 'San Patricio', ingleside: 'San Patricio',
+  aransas_pass: 'San Patricio', taft: 'San Patricio', odem: 'San Patricio',
+  // McMullen County
+  tilden: 'McMullen',
+  // Frio County
+  pearsall: 'Frio', dilley: 'Frio',
+  // La Salle County
+  cotulla: 'La Salle', encinal: 'La Salle',
+  // Dimmit County
+  carrizo_springs: 'Dimmit', big_wells: 'Dimmit',
+  // Young County
+  graham: 'Young', olney: 'Young',
+  // Nueces County (borderline ~225 mi but commonly searched)
+  corpus_christi: 'Nueces', robstown: 'Nueces', port_aransas: 'Nueces',
 };
 
 /**
@@ -222,7 +501,7 @@ async function geocodeNominatim(address: string, logger: PipelineLogger): Promis
   lat: number | null;
   lon: number | null;
 }> {
-  const finish = logger.startAttempt({
+  const tracker = logger.startAttempt({
     layer: 'Stage0A',
     source: 'Nominatim',
     method: 'geocode',
@@ -233,6 +512,7 @@ async function geocodeNominatim(address: string, logger: PipelineLogger): Promis
 
   try {
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&addressdetails=1&limit=3&countrycodes=us`;
+    tracker.step(`GET ${url}`);
 
     const response = await fetchWithRetry(url, {
       headers: { 'User-Agent': 'StarrResearchPipeline/5.0 (property-research)' },
@@ -240,21 +520,24 @@ async function geocodeNominatim(address: string, logger: PipelineLogger): Promis
     }, 2, logger, 'Nominatim');
 
     if (!response || !response.ok) {
-      finish({ status: 'fail', error: response ? `HTTP ${response.status}` : 'Network error' });
+      tracker.step(`Nominatim failed: ${response ? `HTTP ${response.status}` : 'no response'}`);
+      tracker({ status: 'fail', error: response ? `HTTP ${response.status}` : 'Network error' });
       return fail;
     }
 
     const results = (await response.json()) as NominatimResult[];
+    tracker.step(`Nominatim returned ${results.length} result(s)`);
     if (!results.length) {
-      finish({ status: 'fail', error: 'No results' });
+      tracker({ status: 'fail', error: 'No results' });
       return fail;
     }
 
     // Pick best result: prefer one with house_number
     const best = results.find((r) => r.address.house_number) ?? results[0];
     const addr = best.address;
+    tracker.step(`Best result: road="${addr.road}", house="${addr.house_number}", city="${addr.city ?? addr.town}", county="${addr.county}"`);
 
-    finish({
+    tracker({
       status: 'success',
       dataPointsFound: results.length,
       details: `Road: ${addr.road ?? 'N/A'}, House: ${addr.house_number ?? 'N/A'}, County: ${addr.county ?? 'N/A'}`,
@@ -272,7 +555,7 @@ async function geocodeNominatim(address: string, logger: PipelineLogger): Promis
       lon: parseFloat(best.lon),
     };
   } catch (err) {
-    finish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+    tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
     return fail;
   }
 }
@@ -316,7 +599,7 @@ async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
   lon: number | null;
   matchedAddress: string | null;
 }> {
-  const finish = logger.startAttempt({
+  const censusTracker = logger.startAttempt({
     layer: 'Stage0B',
     source: 'Census',
     method: 'geocode',
@@ -327,13 +610,15 @@ async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
 
   try {
     const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${encodeURIComponent(address)}&benchmark=Public_AR_Current&format=json`;
+    censusTracker.step(`GET ${url}`);
 
     const response = await fetchWithRetry(url, {
       signal: AbortSignal.timeout(20_000),
     }, 2, logger, 'Census');
 
     if (!response || !response.ok) {
-      finish({ status: 'fail', error: response ? `HTTP ${response.status}` : 'Network error' });
+      censusTracker.step(`Census failed: ${response ? `HTTP ${response.status}` : 'no response'}`);
+      censusTracker({ status: 'fail', error: response ? `HTTP ${response.status}` : 'Network error' });
       return fail;
     }
 
@@ -341,14 +626,16 @@ async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
     const matches = data.result?.addressMatches;
 
     if (!matches?.length) {
-      finish({ status: 'fail', error: 'No address matches' });
+      censusTracker.step('Census returned 0 address matches');
+      censusTracker({ status: 'fail', error: 'No address matches' });
       return fail;
     }
 
     const match = matches[0];
     const comp = match.addressComponents;
+    censusTracker.step(`Census matched: "${match.matchedAddress}" | street="${comp.streetName}", preDir="${comp.preDirection}", type="${comp.suffixType}", city="${comp.city}"`);
 
-    finish({
+    censusTracker({
       status: 'success',
       dataPointsFound: matches.length,
       details: `Matched: ${match.matchedAddress}, Street: ${comp.streetName}, Type: ${comp.suffixType}`,
@@ -369,7 +656,7 @@ async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
       matchedAddress: match.matchedAddress,
     };
   } catch (err) {
-    finish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+    censusTracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
     return fail;
   }
 }

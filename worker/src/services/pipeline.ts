@@ -5,7 +5,7 @@
 import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyIdResult, SearchDiagnostics } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
-import { searchBisCad } from './bell-cad.js';
+import { searchBisCad, BIS_CONFIGS } from './bell-cad.js';
 import { searchClerkRecords } from './bell-clerk.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
@@ -198,17 +198,8 @@ async function lookupByPropertyId(
   });
 
   // Use the BIS config to fetch property detail directly
-  const BIS_URLS: Record<string, string> = {
-    bell: 'https://esearch.bellcad.org',
-    williamson: 'https://esearch.wilcotx.gov',
-    mclennan: 'https://esearch.mclennancad.org',
-    coryell: 'https://esearch.coryellcad.org',
-    lampasas: 'https://esearch.lampasascad.org',
-    falls: 'https://esearch.fallscad.net',
-    milam: 'https://esearch.milamcad.org',
-  };
-
-  const baseUrl = BIS_URLS[county.toLowerCase()];
+  const config = BIS_CONFIGS[county.toLowerCase()];
+  const baseUrl = config?.baseUrl;
   if (!baseUrl) {
     finish({ status: 'fail', error: `No CAD URL for county: ${county}` });
     return null;
@@ -359,82 +350,87 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       const nameVariants = await aiFormatOwnerName(input.ownerName, anthropicApiKey, logger);
       logger.info('Stage1', `AI generated ${nameVariants.length} name variants for clerk/CAD search`);
 
-      // Try Playwright search with owner name
+      // Try Playwright search with owner name — wrapped in try/finally for cleanup
       const { chromium } = await import('playwright');
-      const browser = await chromium.launch({ headless: process.env.PLAYWRIGHT_HEADLESS !== 'false' });
-      const context = await browser.newContext();
-      const page = await context.newPage();
+      let ownerBrowser = null;
+      try {
+        ownerBrowser = await chromium.launch({ headless: process.env.PLAYWRIGHT_HEADLESS !== 'false' });
+        const context = await ownerBrowser.newContext();
+        const page = await context.newPage();
 
-      const BIS_URLS: Record<string, string> = {
-        bell: 'https://esearch.bellcad.org',
-        williamson: 'https://esearch.wilcotx.gov',
-        mclennan: 'https://esearch.mclennancad.org',
-      };
-      const baseUrl = BIS_URLS[input.county.toLowerCase()];
+        const ownerCadConfig = BIS_CONFIGS[input.county.toLowerCase()];
+        const ownerBaseUrl = ownerCadConfig?.baseUrl;
 
-      if (baseUrl) {
-        for (const nameVariant of nameVariants.slice(0, 5)) {
-          try {
-            // Try the "By Owner" search on CAD
-            await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        if (ownerBaseUrl) {
+          for (const nameVariant of nameVariants.slice(0, 5)) {
+            try {
+              logger.info('Stage1', `Owner search: trying "${nameVariant}" on ${ownerCadConfig.name}`);
 
-            // Click owner tab
-            const ownerTabSelectors = ['text=By Owner', 'a:has-text("Owner")', '[data-tab="owner"]'];
-            for (const sel of ownerTabSelectors) {
-              try {
-                const tab = page.locator(sel).first();
-                if (await tab.isVisible({ timeout: 2_000 })) {
-                  await tab.click();
-                  await page.waitForTimeout(800);
-                  break;
-                }
-              } catch { continue; }
-            }
+              // Try the "By Owner" search on CAD
+              await page.goto(ownerBaseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
-            // Fill owner name
-            await page.evaluate((name: string) => {
-              const inputs = document.querySelectorAll('input[type="text"]');
-              const ownerInput = Array.from(inputs).find((el) => {
-                const placeholder = (el as HTMLInputElement).placeholder?.toLowerCase() ?? '';
-                const name_attr = (el as HTMLInputElement).name?.toLowerCase() ?? '';
-                return placeholder.includes('owner') || name_attr.includes('owner') || name_attr.includes('name');
-              }) as HTMLInputElement | undefined;
-              if (ownerInput) {
-                ownerInput.value = name;
-                ownerInput.dispatchEvent(new Event('input', { bubbles: true }));
+              // Click owner tab
+              const ownerTabSelectors = ['text=By Owner', 'a:has-text("Owner")', '[data-tab="owner"]'];
+              for (const sel of ownerTabSelectors) {
+                try {
+                  const tab = page.locator(sel).first();
+                  if (await tab.isVisible({ timeout: 2_000 })) {
+                    await tab.click();
+                    await page.waitForTimeout(800);
+                    break;
+                  }
+                } catch { continue; }
               }
-            }, nameVariant);
 
-            // Submit
-            const btn = page.locator('button:has-text("Search"), input[type="submit"]').first();
-            await btn.click({ timeout: 5_000 });
-            await page.waitForTimeout(3_000);
+              // Fill owner name
+              await page.evaluate((name: string) => {
+                const inputs = document.querySelectorAll('input[type="text"]');
+                const ownerInput = Array.from(inputs).find((el) => {
+                  const placeholder = (el as HTMLInputElement).placeholder?.toLowerCase() ?? '';
+                  const nameAttr = (el as HTMLInputElement).name?.toLowerCase() ?? '';
+                  return placeholder.includes('owner') || nameAttr.includes('owner') || nameAttr.includes('name');
+                }) as HTMLInputElement | undefined;
+                if (ownerInput) {
+                  ownerInput.value = name;
+                  ownerInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+              }, nameVariant);
 
-            // Check for results
-            const resultText = await page.evaluate(() => {
-              const firstRow = document.querySelector('table tbody tr');
-              if (!firstRow) return null;
-              const link = firstRow.querySelector('a[href]');
-              const href = link?.getAttribute('href') ?? '';
-              const idMatch = href.match(/Id=(\w+)/);
-              return {
-                id: idMatch?.[1] ?? null,
-                text: firstRow.textContent?.trim() ?? '',
-              };
-            });
+              // Submit
+              const btn = page.locator('button:has-text("Search"), input[type="submit"]').first();
+              await btn.click({ timeout: 5_000 });
+              await page.waitForTimeout(3_000);
 
-            if (resultText?.id) {
-              logger.info('Stage1', `Owner name "${nameVariant}" found property ID: ${resultText.id}`);
-              propertyResult = await lookupByPropertyId(input.county, resultText.id, logger);
-              if (propertyResult) break;
+              // Check for results
+              const resultText = await page.evaluate(() => {
+                const firstRow = document.querySelector('table tbody tr');
+                if (!firstRow) return null;
+                const link = firstRow.querySelector('a[href]');
+                const href = link?.getAttribute('href') ?? '';
+                const idMatch = href.match(/Id=(\w+)/);
+                return {
+                  id: idMatch?.[1] ?? null,
+                  text: firstRow.textContent?.trim() ?? '',
+                };
+              });
+
+              if (resultText?.id) {
+                logger.info('Stage1', `Owner name "${nameVariant}" found property ID: ${resultText.id}`);
+                propertyResult = await lookupByPropertyId(input.county, resultText.id, logger);
+                if (propertyResult) break;
+              }
+            } catch (err) {
+              logger.warn('Stage1', `Owner search "${nameVariant}" failed: ${err instanceof Error ? err.message : String(err)}`);
             }
-          } catch (err) {
-            logger.warn('Stage1', `Owner search "${nameVariant}" failed: ${err instanceof Error ? err.message : String(err)}`);
           }
+        } else {
+          logger.warn('Stage1', `No CAD config for county "${input.county}" — cannot search by owner name`);
+        }
+      } finally {
+        if (ownerBrowser) {
+          try { await ownerBrowser.close(); } catch { /* ignore */ }
         }
       }
-
-      await browser.close();
     }
 
     if (!propertyResult) {

@@ -71,10 +71,15 @@ function bearingToAzimuth(decimalDegrees: number, quadrant: string): number {
   const q = quadrant.toUpperCase().replace(/\s/g, '');
 
   switch (q) {
-    case 'NE': case 'N': return decimalDegrees;
-    case 'SE': case 'E': return 180 - decimalDegrees;
-    case 'SW': case 'S': return 180 + decimalDegrees;
-    case 'NW': case 'W': return 360 - decimalDegrees;
+    case 'NE': return decimalDegrees;
+    case 'SE': return 180 - decimalDegrees;
+    case 'SW': return 180 + decimalDegrees;
+    case 'NW': return 360 - decimalDegrees;
+    // Cardinal directions — fixed angles (decimalDegrees should be 0 for these)
+    case 'N': return decimalDegrees;       // Due North = 0°
+    case 'S': return 180 + decimalDegrees; // Due South = 180°
+    case 'E': return 90;                   // Due East = 90°
+    case 'W': return 270;                  // Due West = 270°
     default:
       // Unknown quadrant — try to use the value as-is
       return decimalDegrees;
@@ -111,7 +116,7 @@ function computeTraverse(calls: BoundaryCall[], logger: PipelineLogger): {
     if (call.curve) {
       // For curves, use chord bearing and chord distance for traverse
       if (call.curve.chordBearing && call.curve.chordDistance && call.curve.chordDistance.value > 0) {
-        const azimuth = bearingToAzimuth(call.curve.chordBearing.decimalDegrees, 'NE');
+        const azimuth = bearingToAzimuth(call.curve.chordBearing.decimalDegrees, call.curve.chordBearing.quadrant);
         const dist = call.curve.chordDistance.value;
         const azRad = degreesToRadians(azimuth);
 

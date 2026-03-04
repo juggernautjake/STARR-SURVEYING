@@ -3,7 +3,7 @@
 // Features: concurrent document fetching, PDF download attempts, pagination,
 // better URL extraction, retry logic for transient failures.
 
-import type { DocumentRef, DocumentResult } from '../types/index.js';
+import type { DocumentRef, DocumentResult, PageScreenshot } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 
 // ── Kofile PublicSearch Configuration ──────────────────────────────────────
@@ -13,24 +13,89 @@ interface KofileConfig {
   name: string;
 }
 
+// Kofile/GovOS PublicSearch — all known counties within 200-mile radius of Bell County
 const KOFILE_CONFIGS: Record<string, KofileConfig> = {
-  bell:       { subdomain: 'bell.tx.publicsearch.us', name: 'Bell County Clerk' },
-  williamson: { subdomain: 'williamson.tx.publicsearch.us', name: 'Williamson County Clerk' },
-  mclennan:   { subdomain: 'mclennan.tx.publicsearch.us', name: 'McLennan County Clerk' },
-  coryell:    { subdomain: 'coryell.tx.publicsearch.us', name: 'Coryell County Clerk' },
-  milam:      { subdomain: 'milam.tx.publicsearch.us', name: 'Milam County Clerk' },
-  falls:      { subdomain: 'falls.tx.publicsearch.us', name: 'Falls County Clerk' },
-  lampasas:   { subdomain: 'lampasas.tx.publicsearch.us', name: 'Lampasas County Clerk' },
-  hays:       { subdomain: 'hays.tx.publicsearch.us', name: 'Hays County Clerk' },
-  comal:      { subdomain: 'comal.tx.publicsearch.us', name: 'Comal County Clerk' },
-  burnet:     { subdomain: 'burnet.tx.publicsearch.us', name: 'Burnet County Clerk' },
-  bosque:     { subdomain: 'bosque.tx.publicsearch.us', name: 'Bosque County Clerk' },
-  hamilton:   { subdomain: 'hamilton.tx.publicsearch.us', name: 'Hamilton County Clerk' },
-  hill:       { subdomain: 'hill.tx.publicsearch.us', name: 'Hill County Clerk' },
-  limestone:  { subdomain: 'limestone.tx.publicsearch.us', name: 'Limestone County Clerk' },
-  robertson:  { subdomain: 'robertson.tx.publicsearch.us', name: 'Robertson County Clerk' },
-  lee:        { subdomain: 'lee.tx.publicsearch.us', name: 'Lee County Clerk' },
-  llano:      { subdomain: 'llano.tx.publicsearch.us', name: 'Llano County Clerk' },
+  // ── Ring 0-1: Bell + adjacent (~0-30 mi) ─────────────────────────
+  bell:        { subdomain: 'bell.tx.publicsearch.us', name: 'Bell County Clerk' },
+  coryell:     { subdomain: 'coryell.tx.publicsearch.us', name: 'Coryell County Clerk' },
+  mclennan:    { subdomain: 'mclennan.tx.publicsearch.us', name: 'McLennan County Clerk' },
+  falls:       { subdomain: 'falls.tx.publicsearch.us', name: 'Falls County Clerk' },
+  milam:       { subdomain: 'milam.tx.publicsearch.us', name: 'Milam County Clerk' },
+  williamson:  { subdomain: 'williamson.tx.publicsearch.us', name: 'Williamson County Clerk' },
+  burnet:      { subdomain: 'burnet.tx.publicsearch.us', name: 'Burnet County Clerk' },
+  lampasas:    { subdomain: 'lampasas.tx.publicsearch.us', name: 'Lampasas County Clerk' },
+  // ── Ring 2: (~30-60 mi) ──────────────────────────────────────────
+  hamilton:    { subdomain: 'hamilton.tx.publicsearch.us', name: 'Hamilton County Clerk' },
+  bosque:      { subdomain: 'bosque.tx.publicsearch.us', name: 'Bosque County Clerk' },
+  hill:        { subdomain: 'hill.tx.publicsearch.us', name: 'Hill County Clerk' },
+  limestone:   { subdomain: 'limestone.tx.publicsearch.us', name: 'Limestone County Clerk' },
+  robertson:   { subdomain: 'robertson.tx.publicsearch.us', name: 'Robertson County Clerk' },
+  lee:         { subdomain: 'lee.tx.publicsearch.us', name: 'Lee County Clerk' },
+  bastrop:     { subdomain: 'bastrop.tx.publicsearch.us', name: 'Bastrop County Clerk' },
+  san_saba:    { subdomain: 'sansaba.tx.publicsearch.us', name: 'San Saba County Clerk' },
+  mills:       { subdomain: 'mills.tx.publicsearch.us', name: 'Mills County Clerk' },
+  // ── Ring 3: (~60-100 mi) ─────────────────────────────────────────
+  hays:        { subdomain: 'hays.tx.publicsearch.us', name: 'Hays County Clerk' },
+  comal:       { subdomain: 'comal.tx.publicsearch.us', name: 'Comal County Clerk' },
+  blanco:      { subdomain: 'blanco.tx.publicsearch.us', name: 'Blanco County Clerk' },
+  llano:       { subdomain: 'llano.tx.publicsearch.us', name: 'Llano County Clerk' },
+  caldwell:    { subdomain: 'caldwell.tx.publicsearch.us', name: 'Caldwell County Clerk' },
+  guadalupe:   { subdomain: 'guadalupe.tx.publicsearch.us', name: 'Guadalupe County Clerk' },
+  mason:       { subdomain: 'mason.tx.publicsearch.us', name: 'Mason County Clerk' },
+  mcculloch:   { subdomain: 'mcculloch.tx.publicsearch.us', name: 'McCulloch County Clerk' },
+  brown:       { subdomain: 'brown.tx.publicsearch.us', name: 'Brown County Clerk' },
+  comanche:    { subdomain: 'comanche.tx.publicsearch.us', name: 'Comanche County Clerk' },
+  erath:       { subdomain: 'erath.tx.publicsearch.us', name: 'Erath County Clerk' },
+  somervell:   { subdomain: 'somervell.tx.publicsearch.us', name: 'Somervell County Clerk' },
+  johnson:     { subdomain: 'johnson.tx.publicsearch.us', name: 'Johnson County Clerk' },
+  ellis:       { subdomain: 'ellis.tx.publicsearch.us', name: 'Ellis County Clerk' },
+  navarro:     { subdomain: 'navarro.tx.publicsearch.us', name: 'Navarro County Clerk' },
+  freestone:   { subdomain: 'freestone.tx.publicsearch.us', name: 'Freestone County Clerk' },
+  leon:        { subdomain: 'leon.tx.publicsearch.us', name: 'Leon County Clerk' },
+  madison:     { subdomain: 'madison.tx.publicsearch.us', name: 'Madison County Clerk' },
+  brazos:      { subdomain: 'brazos.tx.publicsearch.us', name: 'Brazos County Clerk' },
+  burleson:    { subdomain: 'burleson.tx.publicsearch.us', name: 'Burleson County Clerk' },
+  washington:  { subdomain: 'washington.tx.publicsearch.us', name: 'Washington County Clerk' },
+  fayette:     { subdomain: 'fayette.tx.publicsearch.us', name: 'Fayette County Clerk' },
+  gonzales:    { subdomain: 'gonzales.tx.publicsearch.us', name: 'Gonzales County Clerk' },
+  // ── Ring 4-5: (~100-175 mi) ──────────────────────────────────────
+  hood:        { subdomain: 'hood.tx.publicsearch.us', name: 'Hood County Clerk' },
+  palo_pinto:  { subdomain: 'palopinto.tx.publicsearch.us', name: 'Palo Pinto County Clerk' },
+  parker:      { subdomain: 'parker.tx.publicsearch.us', name: 'Parker County Clerk' },
+  kendall:     { subdomain: 'kendall.tx.publicsearch.us', name: 'Kendall County Clerk' },
+  bandera:     { subdomain: 'bandera.tx.publicsearch.us', name: 'Bandera County Clerk' },
+  bexar:       { subdomain: 'bexar.tx.publicsearch.us', name: 'Bexar County Clerk' },
+  medina:      { subdomain: 'medina.tx.publicsearch.us', name: 'Medina County Clerk' },
+  wilson:      { subdomain: 'wilson.tx.publicsearch.us', name: 'Wilson County Clerk' },
+  karnes:      { subdomain: 'karnes.tx.publicsearch.us', name: 'Karnes County Clerk' },
+  dewitt:      { subdomain: 'dewitt.tx.publicsearch.us', name: 'DeWitt County Clerk' },
+  lavaca:      { subdomain: 'lavaca.tx.publicsearch.us', name: 'Lavaca County Clerk' },
+  colorado:    { subdomain: 'colorado.tx.publicsearch.us', name: 'Colorado County Clerk' },
+  anderson:    { subdomain: 'anderson.tx.publicsearch.us', name: 'Anderson County Clerk' },
+  henderson:   { subdomain: 'henderson.tx.publicsearch.us', name: 'Henderson County Clerk' },
+  kaufman:     { subdomain: 'kaufman.tx.publicsearch.us', name: 'Kaufman County Clerk' },
+  collin:      { subdomain: 'collin.tx.publicsearch.us', name: 'Collin County Clerk' },
+  denton:      { subdomain: 'denton.tx.publicsearch.us', name: 'Denton County Clerk' },
+  dallas:      { subdomain: 'dallas.tx.publicsearch.us', name: 'Dallas County Clerk' },
+  montgomery:  { subdomain: 'montgomery.tx.publicsearch.us', name: 'Montgomery County Clerk' },
+  fort_bend:   { subdomain: 'fortbend.tx.publicsearch.us', name: 'Fort Bend County Clerk' },
+  brazoria:    { subdomain: 'brazoria.tx.publicsearch.us', name: 'Brazoria County Clerk' },
+  galveston:   { subdomain: 'galveston.tx.publicsearch.us', name: 'Galveston County Clerk' },
+  victoria:    { subdomain: 'victoria.tx.publicsearch.us', name: 'Victoria County Clerk' },
+  // ── Ring 6: (~175-200 mi) ────────────────────────────────────────
+  grayson:     { subdomain: 'grayson.tx.publicsearch.us', name: 'Grayson County Clerk' },
+  hunt:        { subdomain: 'hunt.tx.publicsearch.us', name: 'Hunt County Clerk' },
+  van_zandt:   { subdomain: 'vanzandt.tx.publicsearch.us', name: 'Van Zandt County Clerk' },
+  smith:       { subdomain: 'smith.tx.publicsearch.us', name: 'Smith County Clerk' },
+  cherokee:    { subdomain: 'cherokee.tx.publicsearch.us', name: 'Cherokee County Clerk' },
+  nacogdoches: { subdomain: 'nacogdoches.tx.publicsearch.us', name: 'Nacogdoches County Clerk' },
+  angelina:    { subdomain: 'angelina.tx.publicsearch.us', name: 'Angelina County Clerk' },
+  uvalde:      { subdomain: 'uvalde.tx.publicsearch.us', name: 'Uvalde County Clerk' },
+  atascosa:    { subdomain: 'atascosa.tx.publicsearch.us', name: 'Atascosa County Clerk' },
+  goliad:      { subdomain: 'goliad.tx.publicsearch.us', name: 'Goliad County Clerk' },
+  jackson:     { subdomain: 'jackson.tx.publicsearch.us', name: 'Jackson County Clerk' },
+  matagorda:   { subdomain: 'matagorda.tx.publicsearch.us', name: 'Matagorda County Clerk' },
+  chambers:    { subdomain: 'chambers.tx.publicsearch.us', name: 'Chambers County Clerk' },
 };
 
 // ── Deed-Relevant Document Types ───────────────────────────────────────────
@@ -163,7 +228,411 @@ interface FetchedDocument {
   imageBase64: string | null;
   imageFormat: 'png' | 'jpg' | 'tiff' | 'pdf' | null;
   processingErrors: string[];
+  pageScreenshots: PageScreenshot[];
+  /** Whether the URL resolved to a valid page with content */
+  urlValid: boolean;
 }
+
+// ── URL Validation ──────────────────────────────────────────────────────────
+
+/**
+ * Check if a page actually loaded with real content (not blank/broken/error).
+ */
+async function isPageValid(page: import('playwright').Page): Promise<{ valid: boolean; reason: string }> {
+  const check = await page.evaluate(() => {
+    const body = document.body;
+    if (!body) return { valid: false, reason: 'No body element' };
+
+    const text = body.textContent?.trim() ?? '';
+    const title = document.title?.toLowerCase() ?? '';
+
+    // Check for common error indicators
+    if (text.length < 50) return { valid: false, reason: `Page too short (${text.length} chars)` };
+    if (/404|not found|page not found/i.test(title)) return { valid: false, reason: '404 page' };
+    if (/error|forbidden|unauthorized|access denied/i.test(title)) return { valid: false, reason: `Error page: ${title}` };
+    if (/blank|empty/i.test(title) && text.length < 100) return { valid: false, reason: 'Blank page' };
+
+    // Check if the page is just a login/redirect
+    const hasLoginForm = !!document.querySelector('form[action*="login"], form[action*="sign"], input[type="password"]');
+    if (hasLoginForm && text.length < 500) return { valid: false, reason: 'Login page' };
+
+    return { valid: true, reason: 'OK' };
+  });
+
+  return check;
+}
+
+// ── Multi-Page Document Viewer Navigation ───────────────────────────────────
+
+/**
+ * Navigate through ALL pages of a document in a viewer, capturing high-res
+ * screenshots of each page. Handles page arrows, page selectors, and
+ * canvas/image-based viewers.
+ *
+ * Returns an array of PageScreenshot objects for every page found.
+ */
+async function captureAllDocumentPages(
+  page: import('playwright').Page,
+  logger: PipelineLogger,
+  label: string,
+  maxPages: number = 50,
+): Promise<PageScreenshot[]> {
+  const screenshots: PageScreenshot[] = [];
+
+  // Detect the document viewer type and page count
+  const viewerInfo = await page.evaluate(() => {
+    // Look for page count indicators
+    const pageCountPatterns = [
+      /(?:of|\/)\s*(\d+)\s*(?:pages?)?/i,
+      /(\d+)\s*(?:pages?|pgs?)\s*(?:total)?/i,
+      /page\s*\d+\s*of\s*(\d+)/i,
+    ];
+    const bodyText = document.body.textContent ?? '';
+    let totalPages = 1;
+    for (const pattern of pageCountPatterns) {
+      const match = bodyText.match(pattern);
+      if (match) {
+        const parsed = parseInt(match[1], 10);
+        if (parsed > 0 && parsed < 500) { totalPages = parsed; break; }
+      }
+    }
+
+    // Check for page number input
+    const pageInput = document.querySelector(
+      'input[type="number"][class*="page"], input[aria-label*="page" i], input[name*="page" i], input[id*="pageNum" i], input.page-number'
+    ) as HTMLInputElement | null;
+
+    // Detect viewer type
+    const hasCanvas = !!document.querySelector('canvas');
+    const hasDocImage = !!document.querySelector(
+      'img.document-image, img[src*="document"], img[src*="page"], img[src*="image"], img[src*="scan"], .page-image img'
+    );
+    const hasIframe = !!document.querySelector('iframe[src*="document"], iframe[src*="viewer"]');
+
+    // Find next/prev buttons
+    const nextSelectors = [
+      '[aria-label*="next" i]', '[title*="next" i]',
+      'button:has-text("Next")', 'a:has-text("Next")',
+      '.next-page', '.page-next', '#nextPage', '#btnNext',
+      'button.next', 'a.next',
+      '[class*="next-page"]', '[class*="page-next"]',
+      '[class*="forward"]', '[class*="right-arrow"]',
+      'button[class*="next"]', 'a[class*="next"]',
+      // Arrow buttons (common in document viewers)
+      'button:has(svg), button:has(.arrow-right), button:has(.chevron-right)',
+      '.viewer-controls button:last-child',
+      '.page-controls button:last-child',
+      '.pagination button:last-child',
+    ];
+
+    let nextBtnFound = false;
+    for (const sel of nextSelectors) {
+      try {
+        const el = document.querySelector(sel);
+        if (el && (el as HTMLElement).offsetParent !== null) {
+          nextBtnFound = true;
+          break;
+        }
+      } catch { /* invalid selector */ }
+    }
+
+    // Check for zoom controls
+    const hasZoom = !!(
+      document.querySelector('[aria-label*="zoom" i], [title*="zoom" i], button:has-text("Zoom"), .zoom-control') ||
+      document.querySelector('select[class*="zoom"], input[class*="zoom"]')
+    );
+
+    return {
+      totalPages,
+      hasPageInput: !!pageInput,
+      pageInputMax: pageInput?.max ? parseInt(pageInput.max, 10) : null,
+      hasCanvas,
+      hasDocImage,
+      hasIframe,
+      nextBtnFound,
+      hasZoom,
+      viewerType: hasCanvas ? 'canvas' : hasDocImage ? 'image' : hasIframe ? 'iframe' : 'unknown',
+    };
+  });
+
+  logger.info('Stage2B', `${label}: Viewer detected — type=${viewerInfo.viewerType}, pages=${viewerInfo.totalPages}, nextBtn=${viewerInfo.nextBtnFound}, zoom=${viewerInfo.hasZoom}`);
+
+  // Try to maximize zoom for best resolution
+  if (viewerInfo.hasZoom) {
+    try {
+      await page.evaluate(() => {
+        // Try zoom dropdown/select
+        const zoomSelect = document.querySelector('select[class*="zoom"], select[aria-label*="zoom" i]') as HTMLSelectElement | null;
+        if (zoomSelect) {
+          // Pick highest zoom value
+          const options = Array.from(zoomSelect.options);
+          const maxZoom = options.reduce((max, opt) => {
+            const val = parseFloat(opt.value);
+            return val > max ? val : max;
+          }, 0);
+          if (maxZoom > 0) {
+            zoomSelect.value = String(maxZoom);
+            zoomSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          return;
+        }
+
+        // Try zoom-in button (click multiple times)
+        const zoomIn = document.querySelector('[aria-label*="zoom in" i], [title*="zoom in" i], button:has-text("Zoom In"), .zoom-in, #zoomIn') as HTMLElement | null;
+        if (zoomIn) {
+          for (let i = 0; i < 5; i++) zoomIn.click();
+          return;
+        }
+
+        // Try "fit width" or "actual size" button for best resolution
+        const fitBtn = document.querySelector('[aria-label*="actual" i], [title*="actual" i], [aria-label*="fit width" i]') as HTMLElement | null;
+        if (fitBtn) fitBtn.click();
+      });
+      await page.waitForTimeout(1_500);
+      logger.info('Stage2B', `${label}: Attempted zoom maximize`);
+    } catch {
+      logger.info('Stage2B', `${label}: Zoom maximize failed — continuing at default zoom`);
+    }
+  }
+
+  // Determine effective total pages
+  const effectiveTotal = Math.min(
+    viewerInfo.pageInputMax ?? viewerInfo.totalPages,
+    maxPages,
+  );
+
+  // Capture page 1
+  const page1Screenshot = await captureCurrentPageScreenshot(page, label, logger);
+  if (page1Screenshot) {
+    screenshots.push({ ...page1Screenshot, pageNumber: 1 });
+    logger.info('Stage2B', `${label}: Page 1 captured (${page1Screenshot.width}x${page1Screenshot.height})`);
+  }
+
+  // Navigate through remaining pages
+  if (effectiveTotal > 1) {
+    for (let pageNum = 2; pageNum <= effectiveTotal; pageNum++) {
+      const navigated = await navigateToNextPage(page, pageNum, viewerInfo.hasPageInput, logger, label);
+      if (!navigated) {
+        logger.info('Stage2B', `${label}: Could not navigate to page ${pageNum} — stopping at ${pageNum - 1} pages`);
+        break;
+      }
+
+      // Wait for page to render
+      await page.waitForTimeout(1_500);
+
+      const screenshot = await captureCurrentPageScreenshot(page, label, logger);
+      if (screenshot) {
+        screenshots.push({ ...screenshot, pageNumber: pageNum });
+        logger.info('Stage2B', `${label}: Page ${pageNum}/${effectiveTotal} captured (${screenshot.width}x${screenshot.height})`);
+      } else {
+        logger.warn('Stage2B', `${label}: Page ${pageNum} capture failed — continuing`);
+      }
+    }
+  }
+
+  logger.info('Stage2B', `${label}: Captured ${screenshots.length}/${effectiveTotal} pages total`);
+  return screenshots;
+}
+
+/**
+ * Navigate to the next page in a document viewer.
+ * Tries: page input field, next button/arrow, keyboard arrow.
+ */
+async function navigateToNextPage(
+  page: import('playwright').Page,
+  targetPage: number,
+  hasPageInput: boolean,
+  logger: PipelineLogger,
+  label: string,
+): Promise<boolean> {
+  // Method 1: Direct page number input
+  if (hasPageInput) {
+    try {
+      const success = await page.evaluate((target: number) => {
+        const pageInput = document.querySelector(
+          'input[type="number"][class*="page"], input[aria-label*="page" i], input[name*="page" i], input[id*="pageNum" i], input.page-number'
+        ) as HTMLInputElement | null;
+        if (pageInput) {
+          pageInput.value = String(target);
+          pageInput.dispatchEvent(new Event('input', { bubbles: true }));
+          pageInput.dispatchEvent(new Event('change', { bubbles: true }));
+          pageInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+          return true;
+        }
+        return false;
+      }, targetPage);
+
+      if (success) {
+        await page.waitForTimeout(1_000);
+        return true;
+      }
+    } catch { /* fall through */ }
+  }
+
+  // Method 2: Click next/forward button
+  const nextSelectors = [
+    '[aria-label*="next" i]', '[title*="next" i]',
+    'button:has-text("Next")', 'a:has-text("Next")',
+    '.next-page', '.page-next', '#nextPage', '#btnNext',
+    'button.next', 'a.next',
+    '[class*="next-page"]', '[class*="page-next"]',
+    '[class*="forward"]',
+    'button[class*="next"]', 'a[class*="next"]',
+    '.viewer-controls button:last-child',
+    '.page-controls button:last-child',
+  ];
+
+  for (const sel of nextSelectors) {
+    try {
+      const btn = page.locator(sel).first();
+      if (await btn.isVisible({ timeout: 1_000 })) {
+        const isDisabled = await btn.isDisabled().catch(() => false);
+        if (!isDisabled) {
+          await btn.click();
+          return true;
+        }
+      }
+    } catch { continue; }
+  }
+
+  // Method 3: Right arrow key (common in document viewers)
+  try {
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(500);
+
+    // Check if page actually changed
+    const currentText = await page.evaluate(() => {
+      const indicator = document.body.textContent?.match(/page\s*(\d+)/i);
+      return indicator ? parseInt(indicator[1], 10) : null;
+    });
+    if (currentText === targetPage) return true;
+  } catch { /* fall through */ }
+
+  return false;
+}
+
+/**
+ * Capture a high-resolution screenshot of the current document page.
+ * Tries to find the document image/canvas element and screenshot just that
+ * for maximum clarity, falling back to full-page screenshot.
+ */
+async function captureCurrentPageScreenshot(
+  page: import('playwright').Page,
+  label: string,
+  logger: PipelineLogger,
+): Promise<{ imageBase64: string; width: number; height: number } | null> {
+  try {
+    // Try to find the specific document element for targeted screenshot
+    const docElement = await page.evaluate(() => {
+      const selectors = [
+        'canvas', // Canvas-based viewer (most common for high-res)
+        'img.document-image', 'img[src*="document"]', 'img[src*="page"]',
+        'img[src*="image"]', 'img[src*="scan"]', '.page-image img',
+        '.viewer img', 'img[class*="doc"]',
+        '.document-viewer', '.page-viewer', '.viewer-content',
+        '#documentViewer', '#pageViewer',
+      ];
+
+      for (const sel of selectors) {
+        const el = document.querySelector(sel) as HTMLElement | null;
+        if (el && el.offsetWidth > 200 && el.offsetHeight > 200) {
+          const rect = el.getBoundingClientRect();
+          return {
+            found: true,
+            selector: sel,
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            isCanvas: el.tagName === 'CANVAS',
+            isImg: el.tagName === 'IMG',
+            imgSrc: el.tagName === 'IMG' ? (el as HTMLImageElement).src : null,
+            naturalWidth: el.tagName === 'IMG' ? (el as HTMLImageElement).naturalWidth : 0,
+            naturalHeight: el.tagName === 'IMG' ? (el as HTMLImageElement).naturalHeight : 0,
+          };
+        }
+      }
+
+      return { found: false, selector: null, width: 0, height: 0, isCanvas: false, isImg: false, imgSrc: null, naturalWidth: 0, naturalHeight: 0 };
+    });
+
+    // If we found a canvas, try to extract its data directly at full resolution
+    if (docElement.found && docElement.isCanvas) {
+      const canvasData = await page.evaluate((sel: string) => {
+        const canvas = document.querySelector(sel) as HTMLCanvasElement | null;
+        if (!canvas) return null;
+        try {
+          // Get full resolution data from canvas
+          return {
+            dataUrl: canvas.toDataURL('image/png', 1.0),
+            width: canvas.width,
+            height: canvas.height,
+          };
+        } catch {
+          // Canvas might be tainted (cross-origin)
+          return null;
+        }
+      }, docElement.selector!);
+
+      if (canvasData?.dataUrl) {
+        const base64 = canvasData.dataUrl.replace(/^data:image\/png;base64,/, '');
+        return { imageBase64: base64, width: canvasData.width, height: canvasData.height };
+      }
+    }
+
+    // If we found an img element, try to download the source at full resolution
+    if (docElement.found && docElement.isImg && docElement.imgSrc) {
+      try {
+        const imgResponse = await page.context().request.get(docElement.imgSrc, { timeout: 15_000 });
+        if (imgResponse.ok()) {
+          const imgBuffer = await imgResponse.body();
+          if (imgBuffer.length > 1000) {
+            return {
+              imageBase64: imgBuffer.toString('base64'),
+              width: docElement.naturalWidth || docElement.width,
+              height: docElement.naturalHeight || docElement.height,
+            };
+          }
+        }
+      } catch {
+        // Fall through to element screenshot
+      }
+    }
+
+    // Take element-level screenshot if we found the viewer
+    if (docElement.found && docElement.selector) {
+      try {
+        const element = page.locator(docElement.selector).first();
+        const elementScreenshot = await element.screenshot({ type: 'png' }) as Buffer;
+        if (elementScreenshot.length > 1000) {
+          return {
+            imageBase64: elementScreenshot.toString('base64'),
+            width: docElement.width,
+            height: docElement.height,
+          };
+        }
+      } catch {
+        // Fall through to full page
+      }
+    }
+
+    // Fallback: full page screenshot at maximum viewport
+    const screenshot = await page.screenshot({ fullPage: true, type: 'png' }) as Buffer;
+    if (screenshot.length > 1000) {
+      const size = await page.viewportSize();
+      return {
+        imageBase64: screenshot.toString('base64'),
+        width: size?.width ?? 1366,
+        height: size?.height ?? 768,
+      };
+    }
+
+    return null;
+  } catch (err) {
+    logger.warn('Stage2B', `${label}: Screenshot capture failed: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+// ── Document Detail Fetcher (with multi-page and URL validation) ────────────
 
 async function fetchDocumentDetail(
   page: import('playwright').Page,
@@ -179,10 +648,11 @@ async function fetchDocumentDetail(
     imageBase64: null,
     imageFormat: null,
     processingErrors: [],
+    pageScreenshots: [],
+    urlValid: false,
   };
 
   if (!doc.url) {
-    // Build URL from instrument number as fallback
     if (doc.instrumentNumber) {
       doc.url = `${baseUrl}/results?department=RP&search=index&q=${encodeURIComponent(doc.instrumentNumber)}`;
       logger.info('Stage2B', `${label}: Built fallback URL from instrument number`);
@@ -192,7 +662,7 @@ async function fetchDocumentDetail(
     }
   }
 
-  const finish = logger.startAttempt({
+  const tracker = logger.startAttempt({
     layer: 'Stage2B',
     source: 'Clerk-Detail',
     method: 'page-fetch',
@@ -200,10 +670,38 @@ async function fetchDocumentDetail(
   });
 
   try {
-    await page.goto(doc.url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    tracker.step(`Navigating to: ${doc.url}`);
+
+    // Set a larger viewport for high-res capture
+    await page.setViewportSize({ width: 1920, height: 1200 });
+
+    const response = await page.goto(doc.url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+
+    // Check HTTP response status
+    if (response && (response.status() >= 400 || response.status() === 0)) {
+      tracker.step(`HTTP error: ${response.status()}`);
+      result.processingErrors.push(`URL returned HTTP ${response.status()}`);
+      doc.url = null; // Mark URL as broken
+      tracker({ status: 'fail', error: `HTTP ${response.status()} — broken URL removed` });
+      return result;
+    }
+
     await page.waitForTimeout(2_500);
 
-    // ── Try to extract text content ──────────────────────────
+    // Validate the page actually has content
+    const pageCheck = await isPageValid(page);
+    if (!pageCheck.valid) {
+      tracker.step(`Page invalid: ${pageCheck.reason}`);
+      result.processingErrors.push(`Page broken: ${pageCheck.reason}`);
+      doc.url = null; // Mark URL as broken
+      tracker({ status: 'fail', error: `Broken page: ${pageCheck.reason}` });
+      return result;
+    }
+
+    result.urlValid = true;
+    tracker.step('Page loaded and validated');
+
+    // ── Extract text content ──────────────────────────────
     const pageText = await page.evaluate(() => {
       const contentSelectors = [
         '.document-content', '.detail-content', '.instrument-text',
@@ -216,19 +714,17 @@ async function fetchDocumentDetail(
           return el.textContent.trim();
         }
       }
-      // Fall back to body but exclude nav/header/footer
       const body = document.querySelector('main') ?? document.body;
       const text = body.textContent?.trim() ?? '';
       return text.length > 200 ? text : '';
     });
 
     if (pageText.length > 100) {
-      result.textContent = pageText.substring(0, 50_000); // Cap at 50K chars
+      result.textContent = pageText.substring(0, 50_000);
+      tracker.step(`Extracted text: ${result.textContent.length} chars`);
     }
 
-    // ── Try to find document images/PDFs ──────────────────────
-
-    // Check for PDF embed/iframe
+    // ── Try to find and download PDF ──────────────────────
     const pdfUrl = await page.evaluate(() => {
       const pdfSelectors = [
         'iframe[src*=".pdf"]', 'embed[src*=".pdf"]',
@@ -245,8 +741,7 @@ async function fetchDocumentDetail(
     });
 
     if (pdfUrl) {
-      logger.info('Stage2B', `${label}: Found PDF URL: ${pdfUrl}`);
-      // Try to download the PDF
+      tracker.step(`Found PDF: ${pdfUrl}`);
       try {
         const fullPdfUrl = pdfUrl.startsWith('http') ? pdfUrl : `${baseUrl}${pdfUrl.startsWith('/') ? '' : '/'}${pdfUrl}`;
         const pdfResponse = await page.context().request.get(fullPdfUrl, { timeout: 30_000 });
@@ -254,56 +749,33 @@ async function fetchDocumentDetail(
           const pdfBuffer = await pdfResponse.body();
           result.imageBase64 = pdfBuffer.toString('base64');
           result.imageFormat = 'pdf';
-          logger.info('Stage2B', `${label}: Downloaded PDF (${(pdfBuffer.length / 1024).toFixed(0)} KB)`);
+          tracker.step(`Downloaded PDF: ${(pdfBuffer.length / 1024).toFixed(0)} KB`);
         }
       } catch (pdfErr) {
         result.processingErrors.push(`PDF download failed: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
       }
     }
 
-    // Check for document images
-    if (!result.imageBase64) {
-      const imageInfo = await page.evaluate(() => {
-        const imgSelectors = [
-          'img.document-image', 'img[src*="document"]', 'img[src*="instrument"]',
-          'img[src*="image"]', '.page-image img', '.viewer img',
-          'img[src*="page"]', 'img[src*="scan"]', 'img[class*="doc"]',
-        ];
-        for (const sel of imgSelectors) {
-          const el = document.querySelector(sel) as HTMLImageElement | null;
-          if (el?.src && el.naturalWidth > 100) {
-            return { found: true, src: el.src, width: el.naturalWidth, height: el.naturalHeight };
-          }
-        }
-        // Check for canvas-based viewer
-        const canvas = document.querySelector('canvas.document-viewer, canvas[class*="page"]') as HTMLCanvasElement | null;
-        if (canvas) {
-          return { found: true, src: 'canvas', width: canvas.width, height: canvas.height };
-        }
-        return { found: false, src: null, width: 0, height: 0 };
-      });
+    // ── Capture ALL pages of the document at high resolution ──────
+    tracker.step('Capturing document pages at high resolution...');
+    result.pageScreenshots = await captureAllDocumentPages(page, logger, label);
 
-      if (imageInfo.found) {
-        // Take a screenshot of the document area or full page
-        const screenshot = await page.screenshot({ fullPage: true }) as Buffer;
-        result.imageBase64 = screenshot.toString('base64');
-        result.imageFormat = 'png';
-        logger.info('Stage2B', `${label}: Captured screenshot (${(screenshot.length / 1024).toFixed(0)} KB)`);
-      }
+    // Use first page screenshot as imageBase64 if no PDF was downloaded
+    if (!result.imageBase64 && result.pageScreenshots.length > 0) {
+      result.imageBase64 = result.pageScreenshots[0].imageBase64;
+      result.imageFormat = 'png';
     }
 
-    // ── Extract additional metadata from detail page ──────────
+    // ── Extract metadata from detail page ──────────────────
     const metadata = await page.evaluate(() => {
       const getFieldText = (labels: string[]): string | null => {
-        for (const label of labels) {
-          // Try label:value pattern
-          const re = new RegExp(`${label}\\s*:?\\s*([^\\n<]+)`, 'i');
+        for (const lbl of labels) {
+          const re = new RegExp(`${lbl}\\s*:?\\s*([^\\n<]+)`, 'i');
           const match = document.body.textContent?.match(re);
           if (match) return match[1].trim();
         }
         return null;
       };
-
       return {
         volume: getFieldText(['Volume', 'Vol', 'Book']),
         page: getFieldText(['Page', 'Pg']),
@@ -314,7 +786,6 @@ async function fetchDocumentDetail(
       };
     });
 
-    // Merge metadata into ref
     if (metadata.volume && !doc.volume) doc.volume = metadata.volume;
     if (metadata.page && !doc.page) doc.page = metadata.page;
     if (metadata.instrumentNumber && !doc.instrumentNumber) doc.instrumentNumber = metadata.instrumentNumber;
@@ -322,18 +793,19 @@ async function fetchDocumentDetail(
     if (metadata.grantors && doc.grantors.length === 0) doc.grantors = [metadata.grantors];
     if (metadata.grantees && doc.grantees.length === 0) doc.grantees = [metadata.grantees];
 
-    const dataPoints = (result.textContent ? 1 : 0) + (result.imageBase64 ? 1 : 0);
-    finish({
+    const dataPoints = (result.textContent ? 1 : 0) + result.pageScreenshots.length + (result.imageBase64 ? 1 : 0);
+    tracker.step(`Complete: ${result.pageScreenshots.length} pages captured, text: ${result.textContent?.length ?? 0} chars`);
+    tracker({
       status: dataPoints > 0 ? 'success' : 'partial',
       dataPointsFound: dataPoints,
-      details: `Text: ${result.textContent?.length ?? 0} chars, Image: ${result.imageFormat ?? 'none'}${result.processingErrors.length > 0 ? `, Errors: ${result.processingErrors.length}` : ''}`,
+      details: `Pages: ${result.pageScreenshots.length}, Text: ${result.textContent?.length ?? 0} chars, Image: ${result.imageFormat ?? 'none'}`,
     });
 
     return result;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     result.processingErrors.push(`Detail page fetch failed: ${errMsg}`);
-    finish({ status: 'fail', error: errMsg });
+    tracker({ status: 'fail', error: errMsg });
     return result;
   }
 }
@@ -358,7 +830,7 @@ export async function searchClerkRecords(
   const searchNames = formatOwnerForSearch(ownerName);
   logger.info('Stage2', `Searching ${config.name} with ${searchNames.length} name variants: ${searchNames.join(' | ')}`);
 
-  const finish = logger.startAttempt({
+  const tracker = logger.startAttempt({
     layer: 'Stage2A',
     source: config.name,
     method: 'playwright-search',
@@ -532,31 +1004,80 @@ export async function searchClerkRecords(
                   await nextBtn.click();
                   await page.waitForTimeout(3_000);
 
+                  // Re-use the same full extraction logic for paginated results
                   const moreExtracted = await page.evaluate((bUrl: string) => {
-                    const docs: Array<{ type: string; url: string | null; text: string }> = [];
-                    document.querySelectorAll('.result-item, .search-result, table tbody tr').forEach((row) => {
+                    const docs: Array<{
+                      type: string;
+                      date: string;
+                      instrumentNumber: string;
+                      volume: string;
+                      docPage: string;
+                      grantors: string[];
+                      grantees: string[];
+                      url: string | null;
+                      text: string;
+                    }> = [];
+                    const rows = document.querySelectorAll('.result-item, .search-result, table tbody tr, .document-row, [class*="result-"]');
+                    rows.forEach((row) => {
                       const text = row.textContent?.trim() ?? '';
-                      const link = row.querySelector('a[href]');
-                      const href = link?.getAttribute('href') ?? '';
-                      const url = href ? (href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`) : null;
-                      if (text.length > 10) docs.push({ type: 'Unknown', url, text: text.substring(0, 500) });
+                      if (text.length < 10) return;
+
+                      const links = Array.from(row.querySelectorAll('a[href]'));
+                      let url: string | null = null;
+                      for (const link of links) {
+                        const href = link.getAttribute('href') ?? '';
+                        if (href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/\d{4,}/)) {
+                          url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+                          break;
+                        }
+                      }
+                      if (!url && links.length > 0) {
+                        for (const link of links) {
+                          const href = link.getAttribute('href') ?? '';
+                          if (!href.includes('search') && !href.includes('filter') && !href.includes('#') && href.length > 5) {
+                            url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+                            break;
+                          }
+                        }
+                      }
+
+                      const findMatch = (patterns: RegExp[]): string => {
+                        for (const p of patterns) {
+                          const m = text.match(p);
+                          if (m) return (m[1] ?? m[0]).trim();
+                        }
+                        return '';
+                      };
+
+                      docs.push({
+                        type: findMatch([/(?:Type|Document Type)\s*:?\s*([^\n|]+)/i, /\b(Warranty Deed|Plat|Easement|Deed of Trust|Deed)\b/i]) || 'Unknown',
+                        date: findMatch([/(?:Date|Recorded|Filed)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i, /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/]),
+                        instrumentNumber: findMatch([/(?:Instrument|Inst\.?\s*#?)\s*:?\s*([\d\-]+)/i, /\b(\d{8,})\b/]),
+                        volume: findMatch([/(?:Volume|Vol\.?)\s*:?\s*(\d+)/i]),
+                        docPage: findMatch([/(?:Page|Pg\.?)\s*:?\s*(\d+)/i]),
+                        grantors: findMatch([/(?:Grantor|From)\s*:?\s*([^\n|;]+)/i]) ? [findMatch([/(?:Grantor|From)\s*:?\s*([^\n|;]+)/i])] : [],
+                        grantees: findMatch([/(?:Grantee|To)\s*:?\s*([^\n|;]+)/i]) ? [findMatch([/(?:Grantee|To)\s*:?\s*([^\n|;]+)/i])] : [],
+                        url,
+                        text: text.substring(0, 500),
+                      });
                     });
                     return docs;
                   }, baseUrl);
 
                   for (const doc of moreExtracted) {
                     documents.push({
-                      instrumentNumber: null,
-                      volume: null,
-                      page: null,
+                      instrumentNumber: doc.instrumentNumber || null,
+                      volume: doc.volume || null,
+                      page: doc.docPage || null,
                       documentType: doc.type,
-                      recordingDate: null,
-                      grantors: [],
-                      grantees: [],
+                      recordingDate: doc.date || null,
+                      grantors: doc.grantors,
+                      grantees: doc.grantees,
                       source: config.name,
                       url: doc.url,
                     });
                   }
+                  logger.info('Stage2A', `Pagination page ${pageNum + 2}: found ${moreExtracted.length} more documents`);
                 }
               } catch { break; }
             }
@@ -578,7 +1099,8 @@ export async function searchClerkRecords(
     const relevant = sorted.filter((d) => isDeedRelevant(d.documentType));
     const toFetch = relevant.length > 0 ? relevant.slice(0, 15) : sorted.slice(0, 8);
 
-    finish({
+    tracker.step(`Found ${documents.length} total documents, ${relevant.length} deed-relevant, fetching top ${toFetch.length}`);
+    tracker({
       status: documents.length > 0 ? 'success' : 'partial',
       dataPointsFound: documents.length,
       details: `${documents.length} total, ${relevant.length} deed-relevant, fetching ${toFetch.length}`,
@@ -607,6 +1129,15 @@ export async function searchClerkRecords(
       for (const batchResult of batchResults) {
         if (batchResult.status === 'fulfilled') {
           const fetched = batchResult.value;
+          // Skip documents with broken/invalid URLs that returned no content
+          if (!fetched.urlValid && !fetched.textContent && !fetched.imageBase64 && fetched.pageScreenshots.length === 0) {
+            logger.info('Stage2B', `Skipping doc with broken URL: ${fetched.ref.url ?? 'no-url'}`);
+            continue;
+          }
+          // Clear broken URLs so they don't appear in results
+          if (!fetched.urlValid) {
+            fetched.ref.url = null;
+          }
           results.push({
             ref: fetched.ref,
             textContent: fetched.textContent,
@@ -615,6 +1146,7 @@ export async function searchClerkRecords(
             ocrText: null,
             extractedData: null,
             processingErrors: fetched.processingErrors,
+            pageScreenshots: fetched.pageScreenshots.length > 0 ? fetched.pageScreenshots : undefined,
           });
         } else {
           logger.warn('Stage2B', `Batch fetch failed: ${batchResult.reason}`);
@@ -633,7 +1165,7 @@ export async function searchClerkRecords(
     }
 
     const errMsg = err instanceof Error ? err.message : String(err);
-    finish({ status: 'fail', error: errMsg });
+    tracker({ status: 'fail', error: errMsg });
     logger.error('Stage2', `Clerk search failed: ${errMsg}`, err);
     return [];
   }

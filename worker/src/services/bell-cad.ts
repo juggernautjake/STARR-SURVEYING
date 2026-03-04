@@ -14,14 +14,120 @@ interface BisConfig {
   name: string;
 }
 
-const BIS_CONFIGS: Record<string, BisConfig> = {
-  bell:       { baseUrl: 'https://esearch.bellcad.org', name: 'Bell CAD' },
-  williamson: { baseUrl: 'https://esearch.wilcotx.gov', name: 'Williamson CAD' },
-  mclennan:   { baseUrl: 'https://esearch.mclennancad.org', name: 'McLennan CAD' },
-  coryell:    { baseUrl: 'https://esearch.coryellcad.org', name: 'Coryell CAD' },
-  lampasas:   { baseUrl: 'https://esearch.lampasascad.org', name: 'Lampasas CAD' },
-  falls:      { baseUrl: 'https://esearch.fallscad.net', name: 'Falls CAD' },
-  milam:      { baseUrl: 'https://esearch.milamcad.org', name: 'Milam CAD' },
+// BIS Consultants eSearch — all known counties within 200-mile radius of Bell County
+// organized in concentric rings from Belton, TX outward.
+export const BIS_CONFIGS: Record<string, BisConfig> = {
+  // ── Ring 0: Bell County ──────────────────────────────────────────
+  bell:        { baseUrl: 'https://esearch.bellcad.org', name: 'Bell CAD' },
+  // ── Ring 1: Adjacent to Bell (~0-30 mi) ──────────────────────────
+  coryell:     { baseUrl: 'https://esearch.coryellcad.org', name: 'Coryell CAD' },
+  mclennan:    { baseUrl: 'https://esearch.mclennancad.org', name: 'McLennan CAD' },
+  falls:       { baseUrl: 'https://esearch.fallscad.net', name: 'Falls CAD' },
+  milam:       { baseUrl: 'https://esearch.milamcad.org', name: 'Milam CAD' },
+  williamson:  { baseUrl: 'https://esearch.wilcotx.gov', name: 'Williamson CAD' },
+  burnet:      { baseUrl: 'https://esearch.burnet-cad.org', name: 'Burnet CAD' },
+  lampasas:    { baseUrl: 'https://esearch.lampasascad.org', name: 'Lampasas CAD' },
+  // ── Ring 2: (~30-60 mi) ──────────────────────────────────────────
+  hamilton:    { baseUrl: 'https://esearch.hamiltoncad.org', name: 'Hamilton CAD' },
+  bosque:      { baseUrl: 'https://esearch.bosquecad.com', name: 'Bosque CAD' },
+  hill:        { baseUrl: 'https://esearch.hillcad.org', name: 'Hill CAD' },
+  limestone:   { baseUrl: 'https://esearch.limestonecad.org', name: 'Limestone CAD' },
+  robertson:   { baseUrl: 'https://esearch.robertsoncad.org', name: 'Robertson CAD' },
+  lee:         { baseUrl: 'https://esearch.leecad.org', name: 'Lee CAD' },
+  bastrop:     { baseUrl: 'https://esearch.bastropcad.org', name: 'Bastrop CAD' },
+  san_saba:    { baseUrl: 'https://esearch.sansabacad.org', name: 'San Saba CAD' },
+  mills:       { baseUrl: 'https://esearch.millscad.org', name: 'Mills CAD' },
+  // ── Ring 3: (~60-100 mi) ─────────────────────────────────────────
+  hays:        { baseUrl: 'https://esearch.hayscad.com', name: 'Hays CAD' },
+  guadalupe:   { baseUrl: 'https://esearch.guadalupead.org', name: 'Guadalupe CAD' },
+  caldwell:    { baseUrl: 'https://esearch.caldwellcad.org', name: 'Caldwell CAD' },
+  blanco:      { baseUrl: 'https://esearch.blancocad.org', name: 'Blanco CAD' },
+  llano:       { baseUrl: 'https://esearch.llanocad.net', name: 'Llano CAD' },
+  mason:       { baseUrl: 'https://esearch.masoncad.org', name: 'Mason CAD' },
+  mcculloch:   { baseUrl: 'https://esearch.mccullochcad.org', name: 'McCulloch CAD' },
+  brown:       { baseUrl: 'https://esearch.browncad.org', name: 'Brown CAD' },
+  comanche:    { baseUrl: 'https://esearch.comanchecad.org', name: 'Comanche CAD' },
+  erath:       { baseUrl: 'https://esearch.erath-cad.com', name: 'Erath CAD' },
+  somervell:   { baseUrl: 'https://esearch.somervellcad.net', name: 'Somervell CAD' },
+  johnson:     { baseUrl: 'https://esearch.johnsoncad.com', name: 'Johnson CAD' },
+  ellis:       { baseUrl: 'https://esearch.elliscad.com', name: 'Ellis CAD' },
+  navarro:     { baseUrl: 'https://esearch.navarrocad.com', name: 'Navarro CAD' },
+  freestone:   { baseUrl: 'https://esearch.freestonecad.org', name: 'Freestone CAD' },
+  leon:        { baseUrl: 'https://esearch.leoncad.org', name: 'Leon CAD' },
+  madison:     { baseUrl: 'https://esearch.madisoncad.org', name: 'Madison CAD' },
+  brazos:      { baseUrl: 'https://esearch.brazoscad.org', name: 'Brazos CAD' },
+  burleson:    { baseUrl: 'https://esearch.burlesoncad.org', name: 'Burleson CAD' },
+  washington:  { baseUrl: 'https://esearch.washingtoncad.org', name: 'Washington CAD' },
+  fayette:     { baseUrl: 'https://esearch.fayettecad.org', name: 'Fayette CAD' },
+  gonzales:    { baseUrl: 'https://esearch.gonzalescad.org', name: 'Gonzales CAD' },
+  comal:       { baseUrl: 'https://esearch.comalcad.org', name: 'Comal CAD' },
+  // ── Ring 4: (~100-140 mi) ────────────────────────────────────────
+  hood:        { baseUrl: 'https://esearch.hoodcad.org', name: 'Hood CAD' },
+  palo_pinto:  { baseUrl: 'https://esearch.palopintocad.org', name: 'Palo Pinto CAD' },
+  eastland:    { baseUrl: 'https://esearch.eastlandcad.com', name: 'Eastland CAD' },
+  stephens:    { baseUrl: 'https://esearch.stephenscad.com', name: 'Stephens CAD' },
+  coleman:     { baseUrl: 'https://esearch.colemancad.org', name: 'Coleman CAD' },
+  callahan:    { baseUrl: 'https://esearch.callahancad.org', name: 'Callahan CAD' },
+  concho:      { baseUrl: 'https://esearch.conchocad.org', name: 'Concho CAD' },
+  menard:      { baseUrl: 'https://esearch.menardcad.org', name: 'Menard CAD' },
+  kimble:      { baseUrl: 'https://esearch.kimblecad.org', name: 'Kimble CAD' },
+  gillespie:   { baseUrl: 'https://esearch.gillespiecad.org', name: 'Gillespie CAD' },
+  kerr:        { baseUrl: 'https://esearch.kerrcad.org', name: 'Kerr CAD' },
+  kendall:     { baseUrl: 'https://esearch.kendallcad.org', name: 'Kendall CAD' },
+  bandera:     { baseUrl: 'https://esearch.banderacad.org', name: 'Bandera CAD' },
+  bexar:       { baseUrl: 'https://esearch.bcad.org', name: 'Bexar CAD' },
+  medina:      { baseUrl: 'https://esearch.medinacad.org', name: 'Medina CAD' },
+  wilson:      { baseUrl: 'https://esearch.wilson-cad.org', name: 'Wilson CAD' },
+  lavaca:      { baseUrl: 'https://esearch.lavacacad.com', name: 'Lavaca CAD' },
+  colorado:    { baseUrl: 'https://esearch.coloradocad.org', name: 'Colorado CAD' },
+  austin:      { baseUrl: 'https://esearch.austincad.org', name: 'Austin County CAD' },
+  waller:      { baseUrl: 'https://esearch.waller-cad.org', name: 'Waller CAD' },
+  grimes:      { baseUrl: 'https://esearch.grimescad.org', name: 'Grimes CAD' },
+  walker:      { baseUrl: 'https://esearch.walkercad.org', name: 'Walker CAD' },
+  houston:     { baseUrl: 'https://esearch.houstoncad.org', name: 'Houston County CAD' },
+  anderson:    { baseUrl: 'https://esearch.andersoncad.org', name: 'Anderson CAD' },
+  henderson:   { baseUrl: 'https://esearch.henderson-cad.org', name: 'Henderson CAD' },
+  kaufman:     { baseUrl: 'https://esearch.kaufman-cad.org', name: 'Kaufman CAD' },
+  // ── Ring 5: (~140-175 mi) ────────────────────────────────────────
+  parker:      { baseUrl: 'https://esearch.parkercad.org', name: 'Parker CAD' },
+  wise:        { baseUrl: 'https://esearch.wise-cad.com', name: 'Wise CAD' },
+  collin:      { baseUrl: 'https://esearch.collincad.org', name: 'Collin CAD' },
+  hunt:        { baseUrl: 'https://esearch.hunt-cad.org', name: 'Hunt CAD' },
+  van_zandt:   { baseUrl: 'https://esearch.vanzandtcad.org', name: 'Van Zandt CAD' },
+  taylor:      { baseUrl: 'https://esearch.taylor-cad.org', name: 'Taylor CAD' },
+  runnels:     { baseUrl: 'https://esearch.runnelscad.org', name: 'Runnels CAD' },
+  nolan:       { baseUrl: 'https://esearch.nolancad.org', name: 'Nolan CAD' },
+  coke:        { baseUrl: 'https://esearch.cokecad.org', name: 'Coke CAD' },
+  tom_green:   { baseUrl: 'https://esearch.tomgreencad.org', name: 'Tom Green CAD' },
+  real:        { baseUrl: 'https://esearch.realcad.org', name: 'Real CAD' },
+  edwards:     { baseUrl: 'https://esearch.edwardscad.org', name: 'Edwards CAD' },
+  atascosa:    { baseUrl: 'https://esearch.atascosacad.com', name: 'Atascosa CAD' },
+  karnes:      { baseUrl: 'https://esearch.karnescad.org', name: 'Karnes CAD' },
+  dewitt:      { baseUrl: 'https://esearch.dewittcad.org', name: 'DeWitt CAD' },
+  victoria:    { baseUrl: 'https://esearch.victoriacad.org', name: 'Victoria CAD' },
+  montgomery:  { baseUrl: 'https://esearch.mcad-tx.org', name: 'Montgomery CAD' },
+  liberty:     { baseUrl: 'https://esearch.libertycad.com', name: 'Liberty CAD' },
+  fort_bend:   { baseUrl: 'https://esearch.fbcad.org', name: 'Fort Bend CAD' },
+  brazoria:    { baseUrl: 'https://esearch.brazoriacad.org', name: 'Brazoria CAD' },
+  galveston:   { baseUrl: 'https://esearch.galvestoncad.org', name: 'Galveston CAD' },
+  // ── Ring 6: (~175-200 mi) ────────────────────────────────────────
+  jack:        { baseUrl: 'https://esearch.jackcad.org', name: 'Jack CAD' },
+  young:       { baseUrl: 'https://esearch.youngcad.org', name: 'Young CAD' },
+  shackelford: { baseUrl: 'https://esearch.shackelfordcad.org', name: 'Shackelford CAD' },
+  jones:       { baseUrl: 'https://esearch.jonescad.org', name: 'Jones CAD' },
+  grayson:     { baseUrl: 'https://esearch.graysonappraisal.org', name: 'Grayson CAD' },
+  uvalde:      { baseUrl: 'https://esearch.uvaldecad.org', name: 'Uvalde CAD' },
+  goliad:      { baseUrl: 'https://esearch.goliadcad.org', name: 'Goliad CAD' },
+  matagorda:   { baseUrl: 'https://esearch.matagorda-cad.org', name: 'Matagorda CAD' },
+  calhoun:     { baseUrl: 'https://esearch.calhouncad.org', name: 'Calhoun CAD' },
+  jackson:     { baseUrl: 'https://esearch.jacksoncad.org', name: 'Jackson CAD' },
+  wharton:     { baseUrl: 'https://esearch.whartoncad.org', name: 'Wharton CAD' },
+  san_jacinto: { baseUrl: 'https://esearch.sanjacintocad.org', name: 'San Jacinto CAD' },
+  trinity:     { baseUrl: 'https://esearch.trinitycad.org', name: 'Trinity CAD' },
+  angelina:    { baseUrl: 'https://esearch.angelinacad.org', name: 'Angelina CAD' },
+  nacogdoches: { baseUrl: 'https://esearch.nacocad.org', name: 'Nacogdoches CAD' },
+  cherokee:    { baseUrl: 'https://esearch.cherokeecad.org', name: 'Cherokee CAD' },
+  smith:       { baseUrl: 'https://esearch.smithcad.org', name: 'Smith CAD' },
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -173,7 +279,7 @@ async function searchCadHttp(
 
   // Step 1: Acquire session cookies by loading the search page
   let sessionCookies: string | null = null;
-  const cookieFinish = logger.startAttempt({
+  const cookieTracker = logger.startAttempt({
     layer: 'Stage1A-Cookie',
     source: 'CAD-HTTP',
     method: 'session-acquisition',
@@ -181,6 +287,7 @@ async function searchCadHttp(
   });
 
   try {
+    cookieTracker.step(`Fetching search page to acquire session cookies: ${baseUrl}`);
     const pageResponse = await fetch(baseUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -191,6 +298,7 @@ async function searchCadHttp(
     });
 
     if (pageResponse.ok) {
+      cookieTracker.step(`Page loaded: HTTP ${pageResponse.status}`);
       // Extract Set-Cookie headers
       const setCookie = pageResponse.headers.get('set-cookie');
       if (setCookie) {
@@ -200,18 +308,22 @@ async function searchCadHttp(
           .map((c) => c.split(';')[0].trim())
           .filter((c) => c.includes('='))
           .join('; ');
+        cookieTracker.step(`Acquired session cookies: ${sessionCookies.substring(0, 80)}...`);
+      } else {
+        cookieTracker.step('No Set-Cookie headers in response');
       }
-      cookieFinish({ status: 'success', dataPointsFound: sessionCookies ? 1 : 0, details: `Cookies: ${sessionCookies ? 'acquired' : 'none'}` });
+      cookieTracker({ status: 'success', dataPointsFound: sessionCookies ? 1 : 0, details: `Cookies: ${sessionCookies ? 'acquired' : 'none'}` });
     } else {
-      cookieFinish({ status: 'fail', error: `HTTP ${pageResponse.status}` });
+      cookieTracker.step(`Page load failed: HTTP ${pageResponse.status}`);
+      cookieTracker({ status: 'fail', error: `HTTP ${pageResponse.status}` });
     }
   } catch (err) {
-    cookieFinish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+    cookieTracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
   }
 
   // Step 2: Try each variant with the session cookies
   for (const variant of exactVariants) {
-    const finish = logger.startAttempt({
+    const tracker = logger.startAttempt({
       layer: 'Stage1A',
       source: 'CAD-HTTP',
       method: 'POST',
@@ -221,6 +333,7 @@ async function searchCadHttp(
     try {
       const keywords = `StreetNumber:${encodeURIComponent(variant.streetNumber)} StreetName:${encodeURIComponent(variant.streetName)}`;
       const url = `${baseUrl}/search/SearchResults?keywords=${keywords}`;
+      tracker.step(`POST ${url}`);
 
       const headers: Record<string, string> = {
         'Accept': 'application/json, text/plain, */*',
@@ -239,14 +352,16 @@ async function searchCadHttp(
       });
 
       if (!response.ok) {
-        finish({ status: 'fail', error: `HTTP ${response.status} ${response.statusText}`, nextLayer: 'Stage1B' });
+        tracker.step(`HTTP error: ${response.status} ${response.statusText}`);
+        tracker({ status: 'fail', error: `HTTP ${response.status} ${response.statusText}`, nextLayer: 'Stage1B' });
         diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
         continue;
       }
 
       const contentType = response.headers.get('content-type') ?? '';
+      tracker.step(`Response: HTTP ${response.status}, content-type: ${contentType}`);
       if (!contentType.includes('json')) {
-        finish({ status: 'fail', error: `Non-JSON response: ${contentType}`, nextLayer: 'Stage1B' });
+        tracker({ status: 'fail', error: `Non-JSON response: ${contentType}`, nextLayer: 'Stage1B' });
         diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
         continue;
       }
@@ -261,14 +376,16 @@ async function searchCadHttp(
       });
 
       if (!results.length) {
-        finish({ status: 'fail', error: 'No results', nextLayer: 'Stage1B' });
+        tracker.step('Response parsed but contains 0 results');
+        tracker({ status: 'fail', error: 'No results', nextLayer: 'Stage1B' });
         continue;
       }
 
-      finish({ status: 'success', dataPointsFound: results.length, details: `${results.length} results for variant "${variant.format}"` });
+      tracker.step(`Found ${results.length} results. First ID: ${getProp(results[0], 'propertyId', 'PropertyId') ?? 'N/A'}`);
+      tracker({ status: 'success', dataPointsFound: results.length, details: `${results.length} results for variant "${variant.format}"` });
       return results;
     } catch (err) {
-      finish({ status: 'fail', error: err instanceof Error ? err.message : String(err), nextLayer: 'Stage1B' });
+      tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err), nextLayer: 'Stage1B' });
       diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
     }
   }
@@ -343,8 +460,10 @@ async function searchCadPlaywright(
       // Tab might not exist
     }
 
-    // Set up AJAX response interception
+    // Set up AJAX response interception with promise-based capture
     let capturedResults: CadSearchResult[] = [];
+    let resolveCapture: ((results: CadSearchResult[]) => void) | null = null;
+
     page.on('response', async (response) => {
       try {
         const url = response.url();
@@ -355,6 +474,7 @@ async function searchCadPlaywright(
             const results = Array.isArray(data) ? data : data.resultsList ?? [];
             if (results.length > 0) {
               capturedResults = results;
+              if (resolveCapture) resolveCapture(results);
             }
           }
         }
@@ -430,14 +550,26 @@ async function searchCadPlaywright(
           await page.keyboard.press('Enter');
         }
 
-        // Wait for results
-        await page.waitForTimeout(2_000);
-        try {
-          await page.waitForSelector('table tbody tr, .search-results tr, .result-row, .property-result, .resultsList', { timeout: 10_000 });
-        } catch { /* may not appear with these selectors */ }
+        // Wait for AJAX response with timeout — fixes race condition where
+        // capturedResults was checked before the response callback fired
+        const capturePromise = new Promise<CadSearchResult[]>((resolve) => {
+          resolveCapture = resolve;
+          // If results already captured synchronously (unlikely but safe)
+          if (capturedResults.length > 0) resolve(capturedResults);
+        });
 
-        // Additional wait for AJAX
-        await page.waitForTimeout(1_000);
+        // Race between AJAX capture, DOM element appearance, and timeout
+        try {
+          await Promise.race([
+            capturePromise,
+            page.waitForSelector('table tbody tr, .search-results tr, .result-row, .property-result, .resultsList', { timeout: 12_000 }),
+            page.waitForTimeout(12_000),
+          ]);
+        } catch { /* timeout or selector not found — continue */ }
+
+        // Small settle delay for any late-arriving AJAX
+        await page.waitForTimeout(500);
+        resolveCapture = null;
 
         if (capturedResults.length > 0) {
           diagnostics.variantsTried.push({
@@ -584,8 +716,8 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
       });
     }
 
-    return results as unknown as CadSearchResult[];
-  });
+    return results as CadSearchResult[];
+  }) as Promise<CadSearchResult[]>;
 }
 
 // ── Layer 1C: Vision OCR Fallback ──────────────────────────────────────────
@@ -759,10 +891,11 @@ function pickBestResult(
   inputAddress: NormalizedAddress,
   logger: PipelineLogger,
 ): CadSearchResult | null {
-  // Filter out UDI records
+  // Filter out UDI records (Undivided Interest — not real property results)
   const nonUdi = results.filter((r) => {
     const isUdi = (r as Record<string, unknown>).isUDI ?? (r as Record<string, unknown>).IsUDI;
-    return !isUdi;
+    // Explicitly check for true/truthy — undefined/null means NOT a UDI
+    return isUdi !== true && isUdi !== 'true' && isUdi !== 1;
   });
 
   const candidates = nonUdi.length > 0 ? nonUdi : results;
