@@ -93,12 +93,14 @@ export default function CanvasViewport() {
   const containerRef = useRef<HTMLDivElement>(null);
   const pixiRef = useRef<{
     app: import('pixi.js').Application;
+    paperLayer: import('pixi.js').Container;
     gridLayer: import('pixi.js').Container;
     featureLayer: import('pixi.js').Container;
     selectionLayer: import('pixi.js').Container;
     snapLayer: import('pixi.js').Container;
     toolPreviewLayer: import('pixi.js').Container;
     featureGraphics: Map<string, import('pixi.js').Graphics>;
+    paperGraphics: import('pixi.js').Graphics;
     gridGraphics: import('pixi.js').Graphics;
     selectionGraphics: import('pixi.js').Graphics;
     snapGraphics: import('pixi.js').Graphics;
@@ -183,13 +185,17 @@ export default function CanvasViewport() {
           autoDensity: true,
         });
 
+        const paperLayer = new PIXI.Container();
         const gridLayer = new PIXI.Container();
         const featureLayer = new PIXI.Container();
         const selectionLayer = new PIXI.Container();
         const snapLayer = new PIXI.Container();
         const toolPreviewLayer = new PIXI.Container();
 
-        app.stage.addChild(gridLayer, featureLayer, selectionLayer, snapLayer, toolPreviewLayer);
+        app.stage.addChild(paperLayer, gridLayer, featureLayer, selectionLayer, snapLayer, toolPreviewLayer);
+
+        const paperGraphics = new PIXI.Graphics();
+        paperLayer.addChild(paperGraphics);
 
         const gridGraphics = new PIXI.Graphics();
         gridLayer.addChild(gridGraphics);
@@ -205,12 +211,14 @@ export default function CanvasViewport() {
 
         pixiRef.current = {
           app,
+          paperLayer,
           gridLayer,
           featureLayer,
           selectionLayer,
           snapLayer,
           toolPreviewLayer,
           featureGraphics: new Map(),
+          paperGraphics,
           gridGraphics,
           selectionGraphics,
           snapGraphics,
@@ -307,6 +315,52 @@ export default function CanvasViewport() {
   }
 
   // ─────────────────────────────────────────────
+  // Render: Paper background (grey outside paper, white inside)
+  // ─────────────────────────────────────────────
+  function renderPaper() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const g = pixi.paperGraphics;
+    g.clear();
+
+    const doc = useDrawingStore.getState().document;
+    const { paperSize, paperOrientation, drawingScale: scale } = doc.settings;
+    const { screenWidth, screenHeight } = useViewportStore.getState();
+
+    const sizeMap: Record<string, [number, number]> = {
+      LETTER: [8.5, 11], TABLOID: [11, 17], ARCH_C: [18, 24], ARCH_D: [24, 36], ARCH_E: [36, 48],
+    };
+    let [w, h] = sizeMap[paperSize ?? 'TABLOID'] ?? [11, 17];
+    if (paperOrientation === 'LANDSCAPE') { [w, h] = [h, w]; }
+    const paperW = w * (scale ?? 50);
+    const paperH = h * (scale ?? 50);
+
+    // Paper corners in screen coords (world: (0,0) = bottom-left, (paperW,paperH) = top-right)
+    const tl = w2s(0, paperH);
+    const br = w2s(paperW, 0);
+    const pLeft = tl.sx;
+    const pTop = tl.sy;
+    const pWidth = br.sx - tl.sx;
+    const pHeight = br.sy - tl.sy;
+
+    // Grey background covering the whole viewport
+    g.beginFill(0xa0a0a0, 1);
+    g.drawRect(0, 0, screenWidth, screenHeight);
+    g.endFill();
+
+    // White paper rectangle
+    g.beginFill(0xffffff, 1);
+    g.drawRect(pLeft, pTop, pWidth, pHeight);
+    g.endFill();
+
+    // Paper border (thin drop-shadow effect)
+    g.lineStyle(1, 0x000000, 0.2);
+    g.drawRect(pLeft + 2, pTop + 2, pWidth, pHeight); // shadow
+    g.lineStyle(0.5, 0x000000, 0.4);
+    g.drawRect(pLeft, pTop, pWidth, pHeight); // border
+  }
+
+  // ─────────────────────────────────────────────
   // Render: Grid
   // ─────────────────────────────────────────────
   function renderGrid() {
@@ -315,10 +369,10 @@ export default function CanvasViewport() {
     const g = pixi.gridGraphics;
     g.clear();
 
-    const doc = drawingStore.document;
+    const doc = useDrawingStore.getState().document;
     if (!doc.settings.gridVisible) return;
 
-    const { zoom, screenWidth, screenHeight } = viewportStore;
+    const { zoom, screenWidth, screenHeight } = useViewportStore.getState();
     const wb = viewportStore.getWorldBounds();
     const baseMajor = doc.settings.gridMajorSpacing;
     const baseMinor = baseMajor / doc.settings.gridMinorDivisions;
@@ -518,8 +572,9 @@ export default function CanvasViewport() {
     const g = pixi.selectionGraphics;
     g.clear();
 
-    const { selectedIds } = selectionStore;
-    const toolState = toolStore.state;
+    const { selectedIds } = useSelectionStore.getState();
+    const toolState = useToolStore.getState().state;
+    const docSettings = useDrawingStore.getState().document.settings;
 
     // Draw box selection rectangle
     if (toolState.isBoxSelecting && toolState.boxStart && toolState.boxEnd) {
@@ -539,9 +594,9 @@ export default function CanvasViewport() {
 
     // Draw hover highlight for ANY tool (not just SELECT) when hovering over an element
     const hoveredId = hoveredIdRef.current;
-    const hoverColorHex = (drawingStore.document.settings.hoverColor ?? '#66aaff').replace('#', '');
+    const hoverColorHex = (docSettings.hoverColor ?? '#66aaff').replace('#', '');
     const hoverColor = parseInt(hoverColorHex, 16);
-    const selColorHex = (drawingStore.document.settings.selectionColor ?? '#0088ff').replace('#', '');
+    const selColorHex = (docSettings.selectionColor ?? '#0088ff').replace('#', '');
     const selColor = parseInt(selColorHex, 16);
     if (hoveredId && !selectedIds.has(hoveredId)) {
       const feature = drawingStore.getFeature(hoveredId);
@@ -718,17 +773,21 @@ export default function CanvasViewport() {
     const g = pixi.previewGraphics;
     g.clear();
 
-    const toolState = toolStore.state;
+    // Always use getState() to avoid stale closure issues in the render loop
+    const toolState = useToolStore.getState().state;
     const { drawingPoints, previewPoint } = toolState;
     const activeTool = toolState.activeTool;
 
     // Active layer color for drawing previews
-    const activeLayerStyle = drawingStore.getActiveLayerStyle();
-    const previewColorHex = (activeLayerStyle.color ?? '#0066cc').replace('#', '');
+    const activeLayerStyle = useDrawingStore.getState().getActiveLayerStyle();
+    // Apply draw style overrides for line tools
+    const drawStyle = toolState.drawStyle;
+    const rawColor = (drawStyle.color ?? activeLayerStyle.color ?? '#0066cc');
+    const previewColorHex = rawColor.replace('#', '');
     const previewColor = parseInt(previewColorHex, 16);
 
     // Configurable selection/hover colors (also used here for preview lines)
-    const selColorHex = (drawingStore.document.settings.selectionColor ?? '#0088ff').replace('#', '');
+    const selColorHex = (useDrawingStore.getState().document.settings.selectionColor ?? '#0088ff').replace('#', '');
     const selColor = parseInt(selColorHex, 16);
 
     if (!previewPoint) return;
@@ -930,15 +989,17 @@ export default function CanvasViewport() {
   // Master render function
   // ─────────────────────────────────────────────
   function renderAll() {
-    // Sync canvas background color with settings
+    // The background is now a grey surround with a white paper rectangle (renderPaper).
+    // Keep the PixiJS canvas background as the grey tone so it blends seamlessly.
     const pixi = pixiRef.current;
     if (pixi) {
-      const bgHex = drawingStore.document.settings.backgroundColor ?? '#FFFFFF';
+      const bgHex = useDrawingStore.getState().document.settings.backgroundColor ?? '#FFFFFF';
       const bgColor = parseInt(bgHex.replace('#', ''), 16);
       if (pixi.app.renderer.background.color !== bgColor) {
         pixi.app.renderer.background.color = bgColor;
       }
     }
+    renderPaper();
     renderGrid();
     renderFeatures();
     renderSelection();
@@ -1026,6 +1087,17 @@ export default function CanvasViewport() {
     const { activeLayerId, getActiveLayerStyle } = drawingStore;
     const layerStyle = getActiveLayerStyle();
     const id = generateId();
+    const ds = useToolStore.getState().state.drawStyle;
+    // Merge draw style overrides on top of layer style for line/polyline tools
+    const isLineType = type === 'LINE' || type === 'POLYLINE';
+    const style: typeof DEFAULT_FEATURE_STYLE = {
+      ...DEFAULT_FEATURE_STYLE,
+      ...layerStyle,
+      ...(isLineType && ds.color != null ? { color: ds.color } : {}),
+      ...(isLineType && ds.lineWeight != null ? { lineWeight: ds.lineWeight } : {}),
+      ...(isLineType && ds.opacity != null ? { opacity: ds.opacity } : {}),
+      ...(isLineType && ds.lineType !== 'SOLID' ? { lineTypeId: ds.lineType } : {}),
+    };
 
     switch (type) {
       case 'POINT':
@@ -1044,7 +1116,7 @@ export default function CanvasViewport() {
           type: 'LINE',
           geometry: { type: 'LINE', start: points[0], end: points[1] },
           layerId: activeLayerId,
-          style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+          style,
           properties: {},
         };
       case 'POLYLINE':
@@ -1054,7 +1126,7 @@ export default function CanvasViewport() {
           type: 'POLYLINE',
           geometry: { type: 'POLYLINE', vertices: points },
           layerId: activeLayerId,
-          style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+          style,
           properties: {},
         };
       case 'POLYGON':
@@ -1088,12 +1160,20 @@ export default function CanvasViewport() {
   function createPolylineSegment(start: Point2D, end: Point2D, groupId: string): Feature {
     const { activeLayerId, getActiveLayerStyle } = drawingStore;
     const layerStyle = getActiveLayerStyle();
+    const ds = useToolStore.getState().state.drawStyle;
     return {
       id: generateId(),
       type: 'LINE',
       geometry: { type: 'LINE', start, end },
       layerId: activeLayerId,
-      style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+      style: {
+        ...DEFAULT_FEATURE_STYLE,
+        ...layerStyle,
+        ...(ds.color != null ? { color: ds.color } : {}),
+        ...(ds.lineWeight != null ? { lineWeight: ds.lineWeight } : {}),
+        ...(ds.opacity != null ? { opacity: ds.opacity } : {}),
+        ...(ds.lineType !== 'SOLID' ? { lineTypeId: ds.lineType } : {}),
+      },
       properties: { polylineGroupId: groupId },
     };
   }
@@ -2003,7 +2083,7 @@ export default function CanvasViewport() {
   const isDrawingTool = activeTool.startsWith('DRAW_');
 
   return (
-    <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-white">
+    <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-gray-400">
       {/* PixiJS init failure overlay */}
       {initError && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-950/90">
@@ -2076,6 +2156,14 @@ export default function CanvasViewport() {
           ))}
         </div>
       )}
+
+      {/* Cursor X/Y coordinate overlay — always visible in bottom-left of canvas */}
+      <div
+        className="absolute bottom-2 left-2 pointer-events-none z-10 text-[10px] font-mono text-white select-none"
+        style={{ background: 'rgba(0,0,0,0.55)', padding: '2px 7px', borderRadius: 3, letterSpacing: '0.02em' }}
+      >
+        X: {viewportStore.cursorWorld.x.toFixed(3)} &nbsp; Y: {viewportStore.cursorWorld.y.toFixed(3)}
+      </div>
 
       {/* Rich right-click context menu */}
       {contextMenu && (
