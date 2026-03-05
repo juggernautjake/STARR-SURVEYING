@@ -397,3 +397,66 @@ export function getConfidenceDescription(score: number): string {
   if (score >= 35) return 'Low — Significant uncertainty, poor readability or contradictions';
   return 'Very Low — Unreliable data, major contradictions or illegible sources';
 }
+
+// ── 5-Symbol Confidence System ────────────────────────────────────────────────
+//
+// Maps numeric scores (0-100) to the surveyor-friendly 5-symbol notation
+// used in field reports (matches spec §7 and worker/src/services/validation.ts).
+//
+//   ✓ CONFIRMED  (score ≥ 88) — Multiple independent sources agree
+//   ~ DEDUCED    (score ≥ 65) — Single source, reasonable confidence
+//   ? UNCONFIRMED (score ≥ 45) — Single OCR pass, no cross-reference
+//   ✗ DISCREPANCY (score ≥ 20) — Sources actively disagree
+//   ✗✗ CRITICAL   (score < 20) — Major conflict requiring resolution
+
+export type ConfidenceSymbol = 'CONFIRMED' | 'DEDUCED' | 'UNCONFIRMED' | 'DISCREPANCY' | 'CRITICAL';
+
+export interface ConfidenceSymbolRating {
+  symbol:  ConfidenceSymbol;
+  display: '✓' | '~' | '?' | '✗' | '✗✗';
+  label:   string;
+  score:   number;
+  color:   string;
+}
+
+export function getConfidenceSymbol(score: number): ConfidenceSymbolRating {
+  if (score >= 88) return { symbol: 'CONFIRMED',   display: '✓',  label: 'CONFIRMED',   score, color: '#059669' }; // green
+  if (score >= 65) return { symbol: 'DEDUCED',     display: '~',  label: 'DEDUCED',     score, color: '#2563EB' }; // blue
+  if (score >= 45) return { symbol: 'UNCONFIRMED', display: '?',  label: 'UNCONFIRMED', score, color: '#F59E0B' }; // amber
+  if (score >= 20) return { symbol: 'DISCREPANCY', display: '✗',  label: 'DISCREPANCY', score, color: '#F97316' }; // orange
+  return                   { symbol: 'CRITICAL',   display: '✗✗', label: 'CRITICAL',    score, color: '#EF4444' }; // red
+}
+
+/**
+ * Format a confidence symbol for display in UI and reports.
+ * Returns a short string like "✓ CONFIRMED (92)" suitable for table cells.
+ */
+export function formatConfidenceSymbol(score: number, showScore = false): string {
+  const r = getConfidenceSymbol(score);
+  return showScore ? `${r.display} ${r.label} (${Math.round(score)})` : `${r.display} ${r.label}`;
+}
+
+/**
+ * Summarise an array of per-call confidence scores into symbol counts.
+ * Useful for the confidence summary section of the validation report.
+ */
+export function summariseConfidenceSymbols(scores: number[]): {
+  counts: Record<ConfidenceSymbol, number>;
+  overallPct: number;
+  dominantSymbol: ConfidenceSymbolRating;
+} {
+  const counts: Record<ConfidenceSymbol, number> = {
+    CONFIRMED: 0, DEDUCED: 0, UNCONFIRMED: 0, DISCREPANCY: 0, CRITICAL: 0,
+  };
+
+  let totalScore = 0;
+  for (const s of scores) {
+    counts[getConfidenceSymbol(s).symbol]++;
+    totalScore += s;
+  }
+
+  const overallPct    = scores.length > 0 ? Math.round(totalScore / scores.length) : 0;
+  const dominantSymbol = getConfidenceSymbol(overallPct);
+
+  return { counts, overallPct, dominantSymbol };
+}
