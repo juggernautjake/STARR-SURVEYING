@@ -37,7 +37,7 @@ function ToggleBtn({ active, onClick, label, tooltipLabel, tooltipDesc, shortcut
   return (
     <Tooltip label={tooltipLabel} description={tooltipDesc} shortcut={shortcut} side="bottom" delay={400}>
       <button
-        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors border
+        className={`flex items-center gap-1 px-2.5 h-6 rounded text-[11px] font-medium transition-colors border whitespace-nowrap
           ${active
             ? `${color} border-blue-500 text-white`
             : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white'}`}
@@ -74,7 +74,7 @@ function NumberInput({ value, onChange, onCommit, min, max, step = 1, width = 'w
           min={min}
           max={max}
           step={step}
-          className={`${width} bg-gray-700 text-white text-[11px] rounded px-1.5 py-0.5 outline-none font-mono text-center border border-gray-600 focus:border-blue-500`}
+          className={`${width} h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-blue-500`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onBlur={(e) => {
@@ -97,7 +97,7 @@ function NumberInput({ value, onChange, onCommit, min, max, step = 1, width = 'w
 // Separator
 // ─────────────────────────────────────────────
 function Sep() {
-  return <span className="text-gray-600 select-none">|</span>;
+  return <span className="text-gray-600 select-none mx-0.5">│</span>;
 }
 
 // ─────────────────────────────────────────────
@@ -143,11 +143,11 @@ export default function ToolOptionsBar() {
 
   return (
     <div
-      className="flex items-center bg-gray-850 border-b border-gray-700 px-3 gap-2 h-8 text-xs text-gray-300 overflow-x-auto shrink-0"
+      className="flex items-center bg-gray-850 border-b border-gray-700 px-3 gap-2 min-h-[40px] py-1 text-xs text-gray-300 overflow-x-auto shrink-0"
       style={{ backgroundColor: '#1a1f2e' }}
     >
       {/* ── Tool name badge ─────────────────────────────────────────────────── */}
-      <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider shrink-0 mr-1">
+      <span className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider shrink-0 mr-1 whitespace-nowrap">
         {TOOL_DISPLAY_NAMES[activeTool] ?? activeTool}
       </span>
 
@@ -190,7 +190,7 @@ export default function ToolOptionsBar() {
                   {POLAR_PRESETS.map((a) => (
                     <button
                       key={a}
-                      className={`px-1.5 py-0 rounded text-[10px] transition-colors border h-5
+                      className={`px-2 h-6 rounded text-[11px] transition-colors border
                         ${polarAngle === a
                           ? 'bg-indigo-600 border-indigo-500 text-white'
                           : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
@@ -204,7 +204,7 @@ export default function ToolOptionsBar() {
                     type="number"
                     min={1}
                     max={90}
-                    className="w-10 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-indigo-500 h-5"
+                    className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1 outline-none font-mono text-center border border-gray-600 focus:border-indigo-500"
                     value={polarAngle}
                     onChange={(e) => {
                       const v = parseInt(e.target.value);
@@ -240,18 +240,18 @@ export default function ToolOptionsBar() {
           <Sep />
           {/* Color picker */}
           <Tooltip label="Line Color" description="Set the color for new line segments. Overrides the active layer color." side="bottom" delay={400}>
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] text-gray-400 shrink-0">Color:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0 leading-none">Color:</span>
               <input
                 type="color"
-                className="w-7 h-5 rounded cursor-pointer border border-gray-600 bg-transparent p-0"
+                className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5 block"
                 value={drawStyle.color ?? '#000000'}
                 title="Line color"
                 onChange={(e) => toolStore.setDrawStyle({ color: e.target.value })}
               />
               {drawStyle.color != null && (
                 <button
-                  className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+                  className="w-5 h-6 flex items-center justify-center text-[11px] text-gray-500 hover:text-gray-300 hover:bg-gray-700 rounded transition-colors"
                   onClick={() => toolStore.setDrawStyle({ color: null })}
                   title="Reset to layer color"
                 >✕</button>
@@ -261,14 +261,14 @@ export default function ToolOptionsBar() {
           <Sep />
           {/* Line weight */}
           <Tooltip label="Line Weight" description="Set line thickness in points. Overrides the active layer weight." side="bottom" delay={400}>
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] text-gray-400 shrink-0">Weight:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0 leading-none">Weight:</span>
               <input
                 type="number"
                 min={MIN_LINE_WEIGHT}
                 max={MAX_LINE_WEIGHT}
                 step={0.25}
-                className="w-12 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-blue-500 h-5"
+                className="w-14 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-blue-500"
                 value={drawStyle.lineWeight ?? ''}
                 placeholder="layer"
                 title="Line weight (pt)"
@@ -282,19 +282,19 @@ export default function ToolOptionsBar() {
           <Sep />
           {/* Opacity */}
           <Tooltip label="Opacity" description="Set line opacity (0 = transparent, 1 = fully opaque)." side="bottom" delay={400}>
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] text-gray-400 shrink-0">Opacity:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0 leading-none">Opacity:</span>
               <input
                 type="range"
                 min={0}
                 max={1}
                 step={0.05}
-                className="w-16 h-3 cursor-pointer accent-blue-500"
+                className="w-20 h-4 cursor-pointer accent-blue-500"
                 value={drawStyle.opacity ?? 1}
                 title={`Opacity: ${Math.round((drawStyle.opacity ?? 1) * 100)}%`}
                 onChange={(e) => toolStore.setDrawStyle({ opacity: parseFloat(e.target.value) })}
               />
-              <span className="text-[10px] text-gray-400 w-7 text-right font-mono shrink-0">
+              <span className="text-[11px] text-gray-300 w-8 text-right font-mono shrink-0 leading-none">
                 {Math.round((drawStyle.opacity ?? 1) * 100)}%
               </span>
             </div>
@@ -302,10 +302,10 @@ export default function ToolOptionsBar() {
           <Sep />
           {/* Line type */}
           <Tooltip label="Line Type" description="Choose the line pattern for new segments." side="bottom" delay={400}>
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] text-gray-400 shrink-0">Type:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0 leading-none">Type:</span>
               <select
-                className="bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none border border-gray-600 focus:border-blue-500 h-5 font-mono"
+                className="h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none border border-gray-600 focus:border-blue-500 font-mono"
                 value={drawStyle.lineType}
                 onChange={(e) => toolStore.setDrawStyle({ lineType: e.target.value })}
                 title="Line type"
@@ -331,13 +331,13 @@ export default function ToolOptionsBar() {
             side="bottom"
             delay={400}
           >
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-gray-400 shrink-0">Sides:</span>
               <div className="flex gap-0.5">
                 {[3, 4, 5, 6, 8, 10, 12].map((n) => (
                   <button
                     key={n}
-                    className={`w-6 h-5 text-[10px] rounded border transition-colors
+                    className={`w-7 h-6 text-[11px] rounded border transition-colors
                       ${regularPolygonSides === n
                         ? 'bg-blue-600 border-blue-500 text-white'
                         : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
@@ -350,7 +350,7 @@ export default function ToolOptionsBar() {
                   type="number"
                   min={3}
                   max={20}
-                  className="w-10 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-blue-500 h-5"
+                  className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1 outline-none font-mono text-center border border-gray-600 focus:border-blue-500"
                   value={regularPolygonSides}
                   onChange={(e) => {
                     const v = parseInt(e.target.value);
@@ -373,7 +373,7 @@ export default function ToolOptionsBar() {
             side="bottom"
             delay={400}
           >
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-gray-400 shrink-0">∠</span>
               <QuickRotateInput copyMode={copyMode} />
             </div>
@@ -387,7 +387,7 @@ export default function ToolOptionsBar() {
             delay={400}
           >
             <button
-              className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors whitespace-nowrap"
               onClick={() => {
                 const ids = Array.from(selectionStore.selectedIds);
                 if (!ids.length) return;
@@ -405,7 +405,7 @@ export default function ToolOptionsBar() {
             delay={400}
           >
             <button
-              className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors whitespace-nowrap"
               onClick={() => {
                 const settings = drawingStore.document.settings;
                 const pageCenterWorld = getPageCenter(settings);
@@ -428,7 +428,7 @@ export default function ToolOptionsBar() {
             side="bottom"
             delay={400}
           >
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-gray-400 shrink-0">×</span>
               <QuickScaleInput copyMode={copyMode} />
             </div>
@@ -442,7 +442,7 @@ export default function ToolOptionsBar() {
             delay={400}
           >
             <button
-              className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors whitespace-nowrap"
               onClick={() => {
                 const ids = Array.from(selectionStore.selectedIds);
                 if (!ids.length) return;
@@ -460,7 +460,7 @@ export default function ToolOptionsBar() {
             delay={400}
           >
             <button
-              className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors whitespace-nowrap"
               onClick={() => {
                 const settings = drawingStore.document.settings;
                 const pageCenterWorld = getPageCenter(settings);
@@ -488,7 +488,7 @@ export default function ToolOptionsBar() {
             delay={400}
           >
             <button
-              className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+              className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors whitespace-nowrap"
               onClick={() => {
                 const allIds = drawingStore.getAllFeatures().map((f) => f.id);
                 selectionStore.selectMultiple(allIds, 'REPLACE');
@@ -507,7 +507,7 @@ export default function ToolOptionsBar() {
                 delay={400}
               >
                 <button
-                  className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+                  className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors whitespace-nowrap"
                   onClick={() => selectionStore.deselectAll()}
                 >
                   Deselect
@@ -521,7 +521,7 @@ export default function ToolOptionsBar() {
                 delay={400}
               >
                 <button
-                  className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-red-900/50 text-red-400 hover:bg-red-900/30 transition-colors"
+                  className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-red-900/50 text-red-400 hover:bg-red-900/30 transition-colors whitespace-nowrap"
                   onClick={() => deleteSelection()}
                 >
                   Delete ({selCount})
@@ -535,7 +535,7 @@ export default function ToolOptionsBar() {
                 delay={400}
               >
                 <button
-                  className="px-2 py-0.5 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
+                  className="px-2.5 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors whitespace-nowrap"
                   onClick={() => duplicateSelection()}
                 >
                   Duplicate
@@ -558,7 +558,7 @@ export default function ToolOptionsBar() {
         delay={400}
       >
         <button
-          className={`px-2 py-0.5 rounded text-[11px] border transition-colors
+          className={`px-2.5 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
             ${drawingStore.document.settings.snapEnabled
               ? 'bg-green-700/30 border-green-600 text-green-400'
               : 'bg-gray-700 border-gray-600 text-gray-500 hover:text-gray-300'}`}
@@ -578,7 +578,7 @@ export default function ToolOptionsBar() {
         delay={400}
       >
         <button
-          className={`px-2 py-0.5 rounded text-[11px] border transition-colors
+          className={`px-2.5 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
             ${drawingStore.document.settings.gridVisible
               ? 'bg-green-700/30 border-green-600 text-green-400'
               : 'bg-gray-700 border-gray-600 text-gray-500 hover:text-gray-300'}`}
@@ -633,13 +633,13 @@ function DistortInputs() {
       side="bottom"
       delay={400}
     >
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-1.5">
         <span className="text-[11px] text-gray-400 shrink-0">Distort X:</span>
         <input
           type="number"
           min={0.01}
           step={0.1}
-          className="w-10 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-purple-500 h-5"
+          className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1 outline-none font-mono text-center border border-gray-600 focus:border-purple-500"
           value={scaleX}
           onChange={(e) => setScaleX(e.target.value)}
           title="X-axis scale factor"
@@ -649,14 +649,14 @@ function DistortInputs() {
           type="number"
           min={0.01}
           step={0.1}
-          className="w-10 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-purple-500 h-5"
+          className="w-12 h-6 bg-gray-700 text-white text-[11px] rounded px-1 outline-none font-mono text-center border border-gray-600 focus:border-purple-500"
           value={scaleY}
           onChange={(e) => setScaleY(e.target.value)}
           title="Y-axis scale factor"
           onKeyDown={(e) => { if (e.key === 'Enter') apply(); }}
         />
         <button
-          className="px-2 py-0 rounded text-[10px] bg-purple-700 border border-purple-600 text-white hover:bg-purple-600 transition-colors h-5"
+          className="px-2.5 h-6 rounded text-[11px] bg-purple-700 border border-purple-600 text-white hover:bg-purple-600 transition-colors"
           onClick={apply}
         >
           Apply
@@ -682,11 +682,11 @@ function QuickRotateInput({ copyMode }: { copyMode: boolean }) {
   }
 
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-1">
       {presets.map((a) => (
         <button
           key={a}
-          className="px-1.5 py-0 rounded text-[10px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors h-5"
+          className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
           onClick={() => { setAngle(String(a)); apply(a); }}
           title={`Rotate ${a > 0 ? `${a}° CCW` : `${Math.abs(a)}° CW`}`}
         >
@@ -695,14 +695,14 @@ function QuickRotateInput({ copyMode }: { copyMode: boolean }) {
       ))}
       <input
         type="number"
-        className="w-12 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-blue-500 h-5"
+        className="w-14 h-6 bg-gray-700 text-white text-[11px] rounded px-1 outline-none font-mono text-center border border-gray-600 focus:border-blue-500"
         value={angle}
         onChange={(e) => setAngle(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') { const v = parseFloat(angle); if (!isNaN(v)) apply(v); } }}
         title="Custom angle in degrees (positive = CCW)"
       />
       <button
-        className="px-2 py-0 rounded text-[10px] bg-blue-700 border border-blue-600 text-white hover:bg-blue-600 transition-colors h-5"
+        className="px-2.5 h-6 rounded text-[11px] bg-blue-700 border border-blue-600 text-white hover:bg-blue-600 transition-colors"
         onClick={() => { const v = parseFloat(angle); if (!isNaN(v)) apply(v); }}
       >
         Apply
@@ -726,11 +726,11 @@ function QuickScaleInput({ copyMode }: { copyMode: boolean }) {
   }
 
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-1">
       {presets.map((f) => (
         <button
           key={f}
-          className="px-1.5 py-0 rounded text-[10px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors h-5"
+          className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
           onClick={() => { setFactor(String(f)); apply(f); }}
           title={`Scale ×${f}`}
         >
@@ -741,14 +741,14 @@ function QuickScaleInput({ copyMode }: { copyMode: boolean }) {
         type="number"
         min={0.01}
         step={0.1}
-        className="w-12 bg-gray-700 text-white text-[10px] rounded px-1 py-0 outline-none font-mono text-center border border-gray-600 focus:border-green-500 h-5"
+        className="w-14 h-6 bg-gray-700 text-white text-[11px] rounded px-1 outline-none font-mono text-center border border-gray-600 focus:border-green-500"
         value={factor}
         onChange={(e) => setFactor(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') { const v = parseFloat(factor); if (!isNaN(v) && v > 0) apply(v); } }}
         title="Custom scale factor (e.g. 2 = double size)"
       />
       <button
-        className="px-2 py-0 rounded text-[10px] bg-green-700 border border-green-600 text-white hover:bg-green-600 transition-colors h-5"
+        className="px-2.5 h-6 rounded text-[11px] bg-green-700 border border-green-600 text-white hover:bg-green-600 transition-colors"
         onClick={() => { const v = parseFloat(factor); if (!isNaN(v) && v > 0) apply(v); }}
       >
         Apply
