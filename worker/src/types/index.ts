@@ -280,6 +280,8 @@ export interface NormalizedAddress {
   lon: number | null;
   /** Detected county from geocoding (may differ from user input) */
   detectedCounty: string | null;
+  /** 5-digit FIPS code for the detected county (e.g. "48027" = Bell County) */
+  countyFIPS: string | null;
 }
 
 // ── Logging ────────────────────────────────────────
