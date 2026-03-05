@@ -26,6 +26,8 @@ export interface PipelineResult {
   documents: DocumentResult[];
   boundary: BoundaryDescription | null;
   validation: ValidationResult | null;
+  /** Phase 3.5: Geometric reconciliation — visual geometry vs OCR text */
+  reconciliation?: import('./services/geo-reconcile.js').ReconciliationResult;
   log: LayerAttempt[];
   duration_ms: number;
   /** Search diagnostics: which variants were tried, which hit */
@@ -200,6 +202,26 @@ export interface DocumentReference {
   description: string | null;
 }
 
+// ── 5-Symbol Confidence Rating ────────────────────
+//
+// Directly maps to the spec's five-symbol validation notation:
+//   ✓ CONFIRMED  — Multiple independent sources agree, math closes
+//   ~ DEDUCED    — Logically inferred from surrounding context (single source)
+//   ? UNCONFIRMED — Single source, no cross-reference possible
+//   ✗ DISCREPANCY — Sources disagree or math doesn't close
+//   ✗✗ CRITICAL  — Major error: missing, contradictory, or geometrically impossible
+
+export type ConfidenceSymbol = 'CONFIRMED' | 'DEDUCED' | 'UNCONFIRMED' | 'DISCREPANCY' | 'CRITICAL';
+
+export interface ConfidenceRating {
+  symbol: ConfidenceSymbol;
+  /** Unicode display character(s) for the symbol */
+  display: '✓' | '~' | '?' | '✗' | '✗✗';
+  label: string;
+  /** Numeric score 0-100 equivalent */
+  score: number;
+}
+
 // ── Stage 4: Validation ────────────────────────────
 
 export interface ValidationResult {
@@ -218,6 +240,8 @@ export interface ValidationResult {
   traversePoints?: Array<{ x: number; y: number }>;
   /** Total perimeter in feet */
   totalPerimeter_ft?: number;
+  /** 5-symbol confidence rating derived from all validation checks */
+  confidenceRating?: ConfidenceRating;
 }
 
 // ── Address Normalization ──────────────────────────

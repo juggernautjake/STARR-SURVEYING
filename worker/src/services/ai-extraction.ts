@@ -5,6 +5,7 @@
 
 import type { DocumentResult, ExtractedBoundaryData, BoundaryCall, DocumentReference, PageScreenshot } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
+import { adaptiveVisionOcr } from './adaptive-vision.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -446,7 +447,12 @@ Return your analysis as the specified JSON format.`,
   return extracted;
 }
 
-// ── Layer 3B: Vision OCR (Two-Pass) ────────────────────────────────────────
+// ── Layer 3B: Vision OCR — Adaptive (large) or single-pass (small) ───────────
+
+/** Base64 character threshold above which we use the adaptive vision pipeline.
+ *  ~800 000 base64 chars ≈ 600 KB decoded, which is roughly a small thumbnail.
+ *  Anything larger (full-res plat scans) goes through adaptive-vision.ts. */
+const ADAPTIVE_VISION_THRESHOLD = 800_000;
 
 async function extractFromImage(
   imageBase64: string,
@@ -455,23 +461,70 @@ async function extractFromImage(
   logger: PipelineLogger,
   docLabel: string,
 ): Promise<{ ocrText: string | null; extracted: ExtractedBoundaryData | null }> {
-  // Pass 1: OCR
+  // For PDFs, we send as image/png (Playwright screenshots) or skip
+  const effectiveMediaType = mediaType === 'application/pdf' ? 'image/png' as const : mediaType;
+
+  // For TIFF, Claude doesn't support it directly — would need conversion
+  if (mediaType === 'image/tiff') {
+    const tracker = logger.startAttempt({ layer: 'Stage3B-OCR', source: 'Claude-Vision', method: 'ocr-tiff', input: docLabel });
+    tracker({ status: 'fail', error: 'TIFF not directly supported — needs conversion to PNG' });
+    return { ocrText: null, extracted: null };
+  }
+
+  // ── Route: Adaptive Vision (large plat images) vs single-pass (small) ────
+  const isLarge = imageBase64.length > ADAPTIVE_VISION_THRESHOLD;
+
+  if (isLarge && (effectiveMediaType === 'image/png' || effectiveMediaType === 'image/jpeg')) {
+    // ── Adaptive Vision path ─────────────────────────────────────────────
+    const ocrTracker = logger.startAttempt({
+      layer: 'Stage3B-OCR',
+      source: 'Claude-Vision-Adaptive',
+      method: 'adaptive-quadrant-ocr',
+      input: `${docLabel} (${imageBase64.length} base64 chars)`,
+    });
+    ocrTracker.step(`Large image (${imageBase64.length} chars) — using adaptive vision pipeline`);
+
+    const imgBuffer = Buffer.from(imageBase64, 'base64');
+    const avResult = await adaptiveVisionOcr(
+      imgBuffer, effectiveMediaType, anthropicApiKey, logger, docLabel,
+    );
+
+    ocrTracker.step(
+      `Adaptive vision complete: ${avResult.totalSegments} segments, ` +
+      `${avResult.escalatedSegments} escalated, ${avResult.totalApiCalls} API calls, ` +
+      `overall confidence=${avResult.overallConfidence}`,
+    );
+
+    const ocrText = avResult.mergedText || null;
+
+    if (avResult.manualReviewSegments > 0) {
+      ocrTracker.step(`⚠ ${avResult.manualReviewSegments} segment(s) flagged for manual review (confidence < 50)`);
+    }
+
+    ocrTracker({
+      status: ocrText && ocrText.length > 50 ? 'success' : 'partial',
+      dataPointsFound: avResult.totalSegments,
+      details: `Grid: ${avResult.gridUsed ? `${avResult.gridUsed.rows}×${avResult.gridUsed.cols}` : 'single'}, ` +
+               `confidence: ${avResult.overallConfidence}, calls: ${avResult.totalApiCalls}`,
+    });
+
+    if (!ocrText || ocrText.length < 50) {
+      return { ocrText, extracted: null };
+    }
+
+    // Pass 2: structured extraction from merged OCR text
+    const extracted = await extractFromText(ocrText, anthropicApiKey, logger, `${docLabel}-adaptive-ocr`);
+    return { ocrText, extracted };
+  }
+
+  // ── Single-pass Vision path (small images) ─────────────────────────────
   const ocrTracker = logger.startAttempt({
     layer: 'Stage3B-OCR',
     source: 'Claude-Vision',
     method: 'ocr-pass1',
     input: `${docLabel} (image ${mediaType})`,
   });
-
-  // For PDFs, we send as image/png (Playwright screenshots) or skip
-  const effectiveMediaType = mediaType === 'application/pdf' ? 'image/png' as const : mediaType;
   ocrTracker.step(`Media type: ${mediaType}, effective: ${effectiveMediaType}, base64 length: ${imageBase64.length}`);
-
-  // For TIFF, Claude doesn't support it directly — would need conversion
-  if (mediaType === 'image/tiff') {
-    ocrTracker({ status: 'fail', error: 'TIFF not directly supported — needs conversion to PNG' });
-    return { ocrText: null, extracted: null };
-  }
 
   ocrTracker.step('Sending image to Claude Vision for OCR...');
   const ocrResponse = await callClaudeWithRetry(
@@ -499,7 +552,6 @@ async function extractFromImage(
     return { ocrText: null, extracted: null };
   }
 
-  // Parse OCR result
   ocrTracker.step(`Got OCR response (${ocrResponse.length} chars), parsing...`);
   let ocrText: string | null = null;
   const parsed = safeParseJson(ocrResponse);
@@ -507,7 +559,6 @@ async function extractFromImage(
     ocrText = parsed.full_text;
     ocrTracker.step(`Parsed structured OCR: ${ocrText.length} chars, confidence: ${parsed.overall_confidence ?? 'N/A'}`);
   } else {
-    // Use raw response as OCR text if it's not JSON
     ocrText = ocrResponse;
     ocrTracker.step(`OCR response not JSON — using raw text (${ocrText.length} chars)`);
   }
@@ -522,7 +573,6 @@ async function extractFromImage(
     return { ocrText, extracted: null };
   }
 
-  // Pass 2: Extract structured data from OCR text
   const extracted = await extractFromText(ocrText, anthropicApiKey, logger, `${docLabel}-ocr`);
   return { ocrText, extracted };
 }
