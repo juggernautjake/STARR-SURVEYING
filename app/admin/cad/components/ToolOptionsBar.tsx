@@ -97,7 +97,7 @@ function NumberInput({ value, onChange, onCommit, min, max, step = 1, width = 'w
 // Separator
 // ─────────────────────────────────────────────
 function Sep() {
-  return <span className="text-gray-600 select-none mx-0.5">│</span>;
+  return <span className="w-px h-4 bg-gray-600 mx-1 shrink-0" role="separator" aria-hidden="true" />;
 }
 
 // ─────────────────────────────────────────────
@@ -147,7 +147,11 @@ export default function ToolOptionsBar() {
       style={{ backgroundColor: '#1a1f2e' }}
     >
       {/* ── Tool name badge ─────────────────────────────────────────────────── */}
-      <span className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider shrink-0 mr-1 whitespace-nowrap">
+      <span
+        className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider shrink-0 mr-1 whitespace-nowrap"
+        role="status"
+        aria-label={`Active tool: ${TOOL_DISPLAY_NAMES[activeTool] ?? activeTool}`}
+      >
         {TOOL_DISPLAY_NAMES[activeTool] ?? activeTool}
       </span>
 
@@ -247,6 +251,7 @@ export default function ToolOptionsBar() {
                 className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5 block"
                 value={drawStyle.color ?? '#000000'}
                 title="Line color"
+                aria-label="Line color"
                 onChange={(e) => toolStore.setDrawStyle({ color: e.target.value })}
               />
               {drawStyle.color != null && (
