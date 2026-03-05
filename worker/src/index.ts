@@ -372,6 +372,82 @@ app.delete('/research/result/:projectId', requireAuth, (req: Request, res: Respo
   }
 });
 
+// ── POST /research/reanalyze/:projectId ────────────────────────────────────
+// Stage 11: Re-analysis after document acquisition.
+// Accepts newly purchased/uploaded documents and re-runs only the affected stages.
+// Returns before/after comparison and an updated PipelineResult.
+
+app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  if (!completedResults.has(projectId)) {
+    res.status(404).json({ error: `No completed result for project ${projectId} — run initial pipeline first` });
+    return;
+  }
+
+  const { runReanalysis } = await import('./services/reanalysis.js');
+  type NewDocument = import('./services/reanalysis.js').NewDocument;
+
+  const body = req.body as { documents?: unknown[] };
+  if (!Array.isArray(body.documents) || body.documents.length === 0) {
+    res.status(400).json({ error: 'Request body must include a non-empty "documents" array' });
+    return;
+  }
+
+  // Validate document entries
+  const validTypes = ['unwatermarked_plat', 'adjacent_deed', 'txdot_row_map'];
+  const newDocs: NewDocument[] = [];
+  for (const doc of body.documents) {
+    const d = doc as Record<string, unknown>;
+    if (!d.type || !validTypes.includes(String(d.type))) {
+      res.status(400).json({ error: `Invalid document type "${d.type}" — must be one of: ${validTypes.join(', ')}` });
+      return;
+    }
+    if (!d.data || typeof d.data !== 'string') {
+      res.status(400).json({ error: 'Each document must have a base64-encoded "data" field' });
+      return;
+    }
+    newDocs.push({
+      type:                   d.type as NewDocument['type'],
+      label:                  String(d.label ?? d.type),
+      data:                   d.data as string,
+      mimeType:               (d.mimeType as NewDocument['mimeType']) ?? 'image/png',
+      adjacentPropertyOwner:  d.adjacentPropertyOwner ? String(d.adjacentPropertyOwner) : undefined,
+    });
+  }
+
+  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  if (!anthropicApiKey) {
+    res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
+    return;
+  }
+
+  const previous = completedResults.get(projectId)!;
+  const { PipelineLogger } = await import('./lib/logger.js');
+  const logger = new PipelineLogger(projectId);
+
+  try {
+    const result = await runReanalysis(previous, newDocs, anthropicApiKey, logger);
+
+    // Store the updated result in memory
+    completedResults.set(projectId, result.updated);
+
+    res.json({
+      projectId,
+      status:              result.updated.status,
+      stagesRerun:         result.stagesRerrun,
+      beforeScore:         result.beforeScore,
+      afterScore:          result.afterScore,
+      changeSummary:       result.changeSummary,
+      additionalApiCalls:  result.additionalApiCalls,
+      durationMs:          result.durationMs,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: `Re-analysis failed: ${msg}` });
+  }
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();

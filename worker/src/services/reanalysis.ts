@@ -111,7 +111,7 @@ function mergeBoundaryData(
   // Merge references (deduplicate by instrumentNumber)
   const refMap = new Map<string, ExtractedBoundaryData['references'][0]>();
   for (const ref of [...existing.references, ...newExtracted.references]) {
-    const key = ref.instrumentNumber ?? `${ref.volume}-${ref.page}` ?? ref.description ?? Math.random().toString();
+    const key = ref.instrumentNumber ?? (ref.volume && ref.page ? `${ref.volume}-${ref.page}` : ref.description) ?? Math.random().toString();
     if (!refMap.has(key)) refMap.set(key, ref);
   }
 
