@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import GoogleAdsScript from './GoogleAdsScript';
 
 // Footer CSS
 import '../styles/Footer.css';
@@ -60,6 +61,9 @@ const Footer = (): React.ReactElement => {
 
   return (
     <footer className="footer">
+      {/* Google Ads Conversion Tracking */}
+      <GoogleAdsScript />
+
       {/* Angled Top Edge */}
       <div className="footer__angle"></div>
       
