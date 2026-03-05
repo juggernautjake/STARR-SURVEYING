@@ -3,7 +3,7 @@
 // and fill in sensible defaults for fields added in later versions.
 
 import type { DrawingDocument } from './types';
-import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYERS } from './constants';
+import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYERS, DEFAULT_DISPLAY_PREFERENCES } from './constants';
 import { generateId } from './types';
 import { cadLog } from './logger';
 import { DEFAULT_LAYER_GROUPS, getDefaultLayersRecord, getDefaultLayerOrder } from './styles/default-layers';
@@ -40,9 +40,18 @@ export function validateAndMigrateDocument(raw: unknown): DrawingDocument {
   const r = raw as Record<string, unknown>;
 
   // Fill in missing settings fields (added in later builds)
-  const settings = typeof r.settings === 'object' && r.settings !== null
-    ? { ...DEFAULT_DRAWING_SETTINGS, ...(r.settings as Record<string, unknown>) }
-    : { ...DEFAULT_DRAWING_SETTINGS };
+  const rawSettings = typeof r.settings === 'object' && r.settings !== null
+    ? (r.settings as Record<string, unknown>)
+    : {};
+  // Back-fill displayPreferences — merge defaults first, then overlay saved values
+  const savedDisplayPrefs = (rawSettings.displayPreferences && typeof rawSettings.displayPreferences === 'object')
+    ? { ...DEFAULT_DISPLAY_PREFERENCES, ...(rawSettings.displayPreferences as Record<string, unknown>) }
+    : { ...DEFAULT_DISPLAY_PREFERENCES };
+  const settings = {
+    ...DEFAULT_DRAWING_SETTINGS,
+    ...rawSettings,
+    displayPreferences: savedDisplayPrefs,
+  };
 
   // Ensure layerOrder only references layers that actually exist
   const layers = r.layers as Record<string, unknown>;

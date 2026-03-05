@@ -576,6 +576,36 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
       makeBatchEntry(`Import ${importResult.stats.parsedSuccessfully} points`, operations),
     );
 
+    // Auto-set origin offset from imported survey coordinates.
+    // If the points have real-world N/E coordinates far from the origin,
+    // offset the display so the coordinate readouts show the real-world values.
+    if (importResult.points.length > 0) {
+      const allNorthing = importResult.points.map(p => p.northing);
+      const allEasting  = importResult.points.map(p => p.easting);
+      const minN = Math.min(...allNorthing);
+      const minE = Math.min(...allEasting);
+      // If coordinates are more than 1000 units from world origin, auto-set origin.
+      // The origin offset is the minimum point's coordinate so coordinates near
+      // the data set display meaningful numbers.
+      const hasLargeOffset = Math.abs(minN) > 1000 || Math.abs(minE) > 1000;
+      if (hasLargeOffset) {
+        const currentPrefs = drawingStore.document.settings.displayPreferences;
+        // Only auto-set if user hasn't manually set an origin already
+        if (currentPrefs && currentPrefs.originNorthing === 0 && currentPrefs.originEasting === 0) {
+          // Round to nearest 100 for a clean origin
+          const roundedN = Math.round(minN / 100) * 100;
+          const roundedE = Math.round(minE / 100) * 100;
+          drawingStore.updateSettings({
+            displayPreferences: {
+              ...currentPrefs,
+              originNorthing: roundedN,
+              originEasting: roundedE,
+            },
+          });
+        }
+      }
+    }
+
     importStore.nextStep(); // → COMPLETE
     onImportComplete?.();
   };

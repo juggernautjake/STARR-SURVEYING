@@ -17,6 +17,7 @@ import PointTablePanel from './components/PointTablePanel';
 import TraversePanel from './components/TraversePanel';
 import CurveCalculator from './components/CurveCalculator';
 import NewDrawingDialog from './components/NewDrawingDialog';
+import DisplayPreferencesPanel, { DisplayPrefsToggleButton } from './components/DisplayPreferencesPanel';
 import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -93,6 +94,7 @@ export default function CADLayout() {
   const [showTraversePanel, setShowTraversePanel] = useState(false);
   const [showCurveCalculator, setShowCurveCalculator] = useState(false);
   const [showNewDrawingDialog, setShowNewDrawingDialog] = useState(false);
+  const [showDisplayPrefs, setShowDisplayPrefs] = useState(false);
   const [recoveryPayload, setRecoveryPayload] = useState<{
     savedAt: string;
     document: unknown;
@@ -235,8 +237,22 @@ export default function CADLayout() {
         onOpenCurveCalculator={() => setShowCurveCalculator(true)}
       />
 
-      {/* Contextual tool options strip */}
-      <ToolOptionsBar />
+      {/* Contextual tool options strip — with Prefs button on the right */}
+      <div className="relative flex items-stretch shrink-0">
+        <div className="flex-1 min-w-0">
+          <ToolOptionsBar />
+        </div>
+        {/* Display Preferences toggle button — always visible at right end of toolbar */}
+        <div
+          className="flex items-center px-2 border-b border-l border-gray-700 shrink-0"
+          style={{ backgroundColor: '#1a1f2e' }}
+        >
+          <DisplayPrefsToggleButton
+            open={showDisplayPrefs}
+            onToggle={() => setShowDisplayPrefs((v) => !v)}
+          />
+        </div>
+      </div>
 
       {/* Main content area */}
       <div className="flex flex-1 min-h-0">
@@ -255,6 +271,13 @@ export default function CADLayout() {
         {/* Canvas fills remaining space */}
         <div className="flex-1 relative min-w-0">
           <CanvasViewport />
+          {/* Display Preferences slide-down panel — anchored to top-right of canvas */}
+          <div className="absolute top-0 right-0 z-30">
+            <DisplayPreferencesPanel
+              open={showDisplayPrefs}
+              onClose={() => setShowDisplayPrefs(false)}
+            />
+          </div>
         </div>
 
         {/* Right sidebar: property panel + traverse panel (toggleable) */}

@@ -19,7 +19,8 @@ import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point
 import { translate, rotate, mirror, scale, transformFeature } from '@/lib/cad/geometry/transform';
 import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType } from '@/lib/cad/types';
-import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM } from '@/lib/cad/constants';
+import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
 import { cadLog } from '@/lib/cad/logger';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
@@ -1926,6 +1927,7 @@ export default function CanvasViewport() {
 
       // Update floating HUD with operation values
       const ts = toolStore.state;
+      const prefs = useDrawingStore.getState().document.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
       const hudLines: string[] = [];
       if (ts.activeTool === 'DRAW_LINE' || ts.activeTool === 'DRAW_POLYLINE') {
         if (ts.drawingPoints.length > 0) {
@@ -1933,29 +1935,32 @@ export default function CanvasViewport() {
           const dx = worldPt.x - lastPt.x;
           const dy = worldPt.y - lastPt.y;
           const dist = Math.hypot(dx, dy);
-          const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-          hudLines.push(`Len: ${dist.toFixed(3)}`);
-          hudLines.push(`∠ ${angle.toFixed(1)}°`);
-          hudLines.push(`ΔX: ${dx.toFixed(3)}  ΔY: ${dy.toFixed(3)}`);
+          const mathAngleRad = Math.atan2(dy, dx);
+          hudLines.push(`Len: ${formatDistance(dist, prefs)}`);
+          hudLines.push(`Bearing: ${formatAngle(mathAngleRad, prefs, 'BEARING')}`);
+          hudLines.push(`ΔN: ${formatDistance(Math.abs(dy), prefs)}${dy >= 0 ? ' N' : ' S'}  ΔE: ${formatDistance(Math.abs(dx), prefs)}${dx >= 0 ? ' E' : ' W'}`);
         } else {
-          hudLines.push(`X: ${worldPt.x.toFixed(3)}`);
-          hudLines.push(`Y: ${worldPt.y.toFixed(3)}`);
+          const coords = formatCoordinates(worldPt.x, worldPt.y, prefs);
+          hudLines.push(`${coords.label1}: ${coords.value1}`);
+          hudLines.push(`${coords.label2}: ${coords.value2}`);
         }
       } else if (ts.activeTool === 'MOVE' && ts.basePoint) {
         const dx = worldPt.x - ts.basePoint.x;
         const dy = worldPt.y - ts.basePoint.y;
-        hudLines.push(`ΔX: ${dx.toFixed(3)}`);
-        hudLines.push(`ΔY: ${dy.toFixed(3)}`);
-        hudLines.push(`Dist: ${Math.hypot(dx, dy).toFixed(3)}`);
+        hudLines.push(`ΔN: ${formatDistance(Math.abs(dy), prefs)}${dy >= 0 ? ' N' : ' S'}`);
+        hudLines.push(`ΔE: ${formatDistance(Math.abs(dx), prefs)}${dx >= 0 ? ' E' : ' W'}`);
+        hudLines.push(`Dist: ${formatDistance(Math.hypot(dx, dy), prefs)}`);
       } else if (ts.activeTool === 'ROTATE' && ts.rotateCenter) {
         const dx = worldPt.x - ts.rotateCenter.x;
         const dy = worldPt.y - ts.rotateCenter.y;
-        const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-        hudLines.push(`Angle: ${angleDeg.toFixed(2)}°`);
-        hudLines.push(`Radius: ${Math.hypot(dx, dy).toFixed(3)}`);
+        // Survey azimuth from north, clockwise
+        let azimuth = 90 - (Math.atan2(dy, dx) * 180 / Math.PI);
+        azimuth = ((azimuth % 360) + 360) % 360;
+        hudLines.push(`Bearing: ${formatSurveyAngle(azimuth, prefs)}`);
+        hudLines.push(`Radius: ${formatDistance(Math.hypot(dx, dy), prefs)}`);
       } else if (ts.activeTool === 'SCALE' && ts.basePoint) {
         const dist = Math.hypot(worldPt.x - ts.basePoint.x, worldPt.y - ts.basePoint.y);
-        hudLines.push(`Radius: ${dist.toFixed(3)}`);
+        hudLines.push(`Radius: ${formatDistance(dist, prefs)}`);
       } else if (
         (ts.activeTool === 'DRAW_RECTANGLE' || ts.activeTool === 'DRAW_CIRCLE' ||
          ts.activeTool === 'DRAW_REGULAR_POLYGON') &&
@@ -1966,27 +1971,27 @@ export default function CanvasViewport() {
         const dy = worldPt.y - origin.y;
         const r = Math.hypot(dx, dy);
         if (ts.activeTool === 'DRAW_RECTANGLE') {
-          hudLines.push(`W: ${Math.abs(dx).toFixed(3)}`);
-          hudLines.push(`H: ${Math.abs(dy).toFixed(3)}`);
+          hudLines.push(`W: ${formatDistance(Math.abs(dx), prefs)}`);
+          hudLines.push(`H: ${formatDistance(Math.abs(dy), prefs)}`);
         } else {
-          hudLines.push(`Radius: ${r.toFixed(3)}`);
+          hudLines.push(`Radius: ${formatDistance(r, prefs)}`);
         }
       } else if (ts.activeTool === 'DRAW_CIRCLE_EDGE' && ts.drawingPoints.length > 0) {
         const p1 = ts.drawingPoints[0];
         const diameter = Math.hypot(worldPt.x - p1.x, worldPt.y - p1.y);
-        hudLines.push(`Diameter: ${diameter.toFixed(3)}`);
-        hudLines.push(`Radius: ${(diameter / 2).toFixed(3)}`);
+        hudLines.push(`Diameter: ${formatDistance(diameter, prefs)}`);
+        hudLines.push(`Radius: ${formatDistance(diameter / 2, prefs)}`);
       } else if (
         (ts.activeTool === 'DRAW_ELLIPSE' || ts.activeTool === 'DRAW_ELLIPSE_EDGE') &&
         ts.drawingPoints.length > 0
       ) {
         const p1 = ts.drawingPoints[0];
         if (ts.activeTool === 'DRAW_ELLIPSE') {
-          hudLines.push(`Semi-X: ${Math.abs(worldPt.x - p1.x).toFixed(3)}`);
-          hudLines.push(`Semi-Y: ${Math.abs(worldPt.y - p1.y).toFixed(3)}`);
+          hudLines.push(`Semi-X: ${formatDistance(Math.abs(worldPt.x - p1.x), prefs)}`);
+          hudLines.push(`Semi-Y: ${formatDistance(Math.abs(worldPt.y - p1.y), prefs)}`);
         } else {
-          hudLines.push(`Width: ${Math.abs(worldPt.x - p1.x).toFixed(3)}`);
-          hudLines.push(`Height: ${Math.abs(worldPt.y - p1.y).toFixed(3)}`);
+          hudLines.push(`Width: ${formatDistance(Math.abs(worldPt.x - p1.x), prefs)}`);
+          hudLines.push(`Height: ${formatDistance(Math.abs(worldPt.y - p1.y), prefs)}`);
         }
       }
 
@@ -2404,14 +2409,6 @@ export default function CanvasViewport() {
         </div>
       )}
 
-      {/* Cursor X/Y coordinate overlay — always visible in bottom-left of canvas */}
-      <div
-        className="absolute bottom-2 left-2 pointer-events-none z-10 text-[10px] font-mono text-white select-none rounded px-1.5 py-0.5"
-        style={{ background: 'rgba(0,0,0,0.55)' }}
-      >
-        X: {viewportStore.cursorWorld.x.toFixed(3)} &nbsp; Y: {viewportStore.cursorWorld.y.toFixed(3)}
-      </div>
-
       {/* Rich right-click context menu */}
       {contextMenu && (
         <FeatureContextMenu
@@ -2465,14 +2462,22 @@ export default function CanvasViewport() {
         </>
       )}
 
-      {/* Permanent X/Y coordinate tracker in the bottom-left of the canvas */}
+      {/* Permanent N/E coordinate tracker in the bottom-left of the canvas */}
       <div
         className="absolute bottom-1 left-1 pointer-events-none z-20 flex items-center gap-2 px-2 py-0.5 rounded text-[10px] font-mono"
         style={{ background: 'rgba(0,0,0,0.55)', color: '#c8d8ff', border: '1px solid rgba(120,150,220,0.35)' }}
       >
-        <span>X: {cursorWorld.x.toFixed(3)}</span>
-        <span className="text-gray-500">|</span>
-        <span>Y: {cursorWorld.y.toFixed(3)}</span>
+        {(() => {
+          const dispPrefs = useDrawingStore.getState().document.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
+          const c = formatCoordinates(cursorWorld.x, cursorWorld.y, dispPrefs);
+          return (
+            <>
+              <span>{c.label1}: {c.value1}</span>
+              <span className="text-gray-500">|</span>
+              <span>{c.label2}: {c.value2}</span>
+            </>
+          );
+        })()}
       </div>
     </div>
   );
