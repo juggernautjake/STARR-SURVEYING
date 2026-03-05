@@ -37,6 +37,18 @@ const MIN_SEGMENT_LENGTH_BASE = 0.001;
 // Number of vertices used to approximate a circle as a polygon
 const CIRCLE_VERTS = 64;
 
+// Grey background color rendered outside the paper boundary
+const CANVAS_SURROUND_COLOR = 0x808080;
+
+// Paper size map (inches): name → [width, height] in portrait
+const PAPER_SIZE_MAP: Record<string, [number, number]> = {
+  LETTER: [8.5, 11],
+  TABLOID: [11, 17],
+  ARCH_C: [18, 24],
+  ARCH_D: [24, 36],
+  ARCH_E: [36, 48],
+};
+
 // Grid scale multipliers — find smallest that puts lines >= MIN_PX_GRID apart
 const GRID_SCALE_MULTIPLIERS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
 
@@ -93,12 +105,14 @@ export default function CanvasViewport() {
   const containerRef = useRef<HTMLDivElement>(null);
   const pixiRef = useRef<{
     app: import('pixi.js').Application;
+    paperLayer: import('pixi.js').Container;
     gridLayer: import('pixi.js').Container;
     featureLayer: import('pixi.js').Container;
     selectionLayer: import('pixi.js').Container;
     snapLayer: import('pixi.js').Container;
     toolPreviewLayer: import('pixi.js').Container;
     featureGraphics: Map<string, import('pixi.js').Graphics>;
+    paperGraphics: import('pixi.js').Graphics;
     gridGraphics: import('pixi.js').Graphics;
     selectionGraphics: import('pixi.js').Graphics;
     snapGraphics: import('pixi.js').Graphics;
@@ -183,13 +197,17 @@ export default function CanvasViewport() {
           autoDensity: true,
         });
 
+        const paperLayer = new PIXI.Container();
         const gridLayer = new PIXI.Container();
         const featureLayer = new PIXI.Container();
         const selectionLayer = new PIXI.Container();
         const snapLayer = new PIXI.Container();
         const toolPreviewLayer = new PIXI.Container();
 
-        app.stage.addChild(gridLayer, featureLayer, selectionLayer, snapLayer, toolPreviewLayer);
+        app.stage.addChild(paperLayer, gridLayer, featureLayer, selectionLayer, snapLayer, toolPreviewLayer);
+
+        const paperGraphics = new PIXI.Graphics();
+        paperLayer.addChild(paperGraphics);
 
         const gridGraphics = new PIXI.Graphics();
         gridLayer.addChild(gridGraphics);
@@ -205,12 +223,14 @@ export default function CanvasViewport() {
 
         pixiRef.current = {
           app,
+          paperLayer,
           gridLayer,
           featureLayer,
           selectionLayer,
           snapLayer,
           toolPreviewLayer,
           featureGraphics: new Map(),
+          paperGraphics,
           gridGraphics,
           selectionGraphics,
           snapGraphics,
@@ -307,46 +327,46 @@ export default function CanvasViewport() {
   }
 
   // ─────────────────────────────────────────────
-  // Render: Paper boundary (white sheet on grey background)
+  // Render: Paper background (grey outside paper, white inside)
   // ─────────────────────────────────────────────
-  function renderPaperBoundary(g: import('pixi.js').Graphics) {
+  function renderPaper() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const g = pixi.paperGraphics;
+    g.clear();
+
     const doc = useDrawingStore.getState().document;
-    const settings = doc.settings;
-    const scale = settings.drawingScale ?? 50;
-    const PAPER_SIZES: Record<string, [number, number]> = {
-      LETTER: [8.5, 11], TABLOID: [11, 17], ARCH_C: [18, 24],
-      ARCH_D: [24, 36], ARCH_E: [36, 48],
-    };
-    let [pw, ph] = PAPER_SIZES[settings.paperSize ?? 'TABLOID'] ?? [11, 17];
-    if (settings.paperOrientation === 'LANDSCAPE') [pw, ph] = [ph, pw];
-    const worldW = pw * scale;
-    const worldH = ph * scale;
+    const { paperSize, paperOrientation, drawingScale: scale } = doc.settings;
+    const { screenWidth, screenHeight } = useViewportStore.getState();
 
-    // Paper goes from (0,0) to (worldW, worldH) in world coords
-    const tl = w2s(0, worldH);
-    const br = w2s(worldW, 0);
-    const paperLeft = tl.sx;
-    const paperTop = tl.sy;
-    const paperWidth = br.sx - tl.sx;
-    const paperHeight = br.sy - tl.sy;
+    let [w, h] = PAPER_SIZE_MAP[paperSize ?? 'TABLOID'] ?? [11, 17];
+    if (paperOrientation === 'LANDSCAPE') { [w, h] = [h, w]; }
+    const paperW = w * (scale ?? 50);
+    const paperH = h * (scale ?? 50);
 
-    // White fill for the paper area
+    // Paper corners in screen coords (world: (0,0) = bottom-left, (paperW,paperH) = top-right)
+    const tl = w2s(0, paperH);
+    const br = w2s(paperW, 0);
+    const pLeft = tl.sx;
+    const pTop = tl.sy;
+    const pWidth = br.sx - tl.sx;
+    const pHeight = br.sy - tl.sy;
+
+    // Grey background covering the whole viewport
+    g.beginFill(CANVAS_SURROUND_COLOR, 1);
+    g.drawRect(0, 0, screenWidth, screenHeight);
+    g.endFill();
+
+    // White paper rectangle
     g.beginFill(0xffffff, 1);
-    g.lineStyle(1, 0x888888, 0.7);
-    g.drawRect(paperLeft, paperTop, paperWidth, paperHeight);
+    g.drawRect(pLeft, pTop, pWidth, pHeight);
     g.endFill();
 
-    // Subtle drop shadow (a slightly darker rect behind)
-    g.beginFill(0x000000, 0.12);
-    g.lineStyle(0);
-    g.drawRect(paperLeft + 3, paperTop + 3, paperWidth, paperHeight);
-    g.endFill();
-
-    // Redraw paper on top so shadow is behind
-    g.beginFill(0xffffff, 1);
-    g.lineStyle(1, 0x777777, 0.8);
-    g.drawRect(paperLeft, paperTop, paperWidth, paperHeight);
-    g.endFill();
+    // Paper border (thin drop-shadow effect)
+    g.lineStyle(1, 0x000000, 0.2);
+    g.drawRect(pLeft + 2, pTop + 2, pWidth, pHeight); // shadow
+    g.lineStyle(0.5, 0x000000, 0.4);
+    g.drawRect(pLeft, pTop, pWidth, pHeight); // border
   }
 
   // ─────────────────────────────────────────────
@@ -358,11 +378,6 @@ export default function CanvasViewport() {
     const g = pixi.gridGraphics;
     g.clear();
 
-    // Always render the paper boundary (white sheet on grey viewport)
-    renderPaperBoundary(g);
-
-    // Use getState() to avoid stale closure (renderGrid is called from rAF loop
-    // initialised once in useEffect — it captures the first render's closures).
     const doc = useDrawingStore.getState().document;
     if (!doc.settings.gridVisible) return;
 
@@ -566,9 +581,9 @@ export default function CanvasViewport() {
     const g = pixi.selectionGraphics;
     g.clear();
 
-    // Use getState() to read live Zustand state from a stale rAF closure.
     const { selectedIds } = useSelectionStore.getState();
     const toolState = useToolStore.getState().state;
+    const docSettings = useDrawingStore.getState().document.settings;
 
     // Draw box selection rectangle
     if (toolState.isBoxSelecting && toolState.boxStart && toolState.boxEnd) {
@@ -588,10 +603,9 @@ export default function CanvasViewport() {
 
     // Draw hover highlight for ANY tool (not just SELECT) when hovering over an element
     const hoveredId = hoveredIdRef.current;
-    const _docSettings = useDrawingStore.getState().document.settings;
-    const hoverColorHex = (_docSettings.hoverColor ?? '#66aaff').replace('#', '');
+    const hoverColorHex = (docSettings.hoverColor ?? '#66aaff').replace('#', '');
     const hoverColor = parseInt(hoverColorHex, 16);
-    const selColorHex = (_docSettings.selectionColor ?? '#0088ff').replace('#', '');
+    const selColorHex = (docSettings.selectionColor ?? '#0088ff').replace('#', '');
     const selColor = parseInt(selColorHex, 16);
     if (hoveredId && !selectedIds.has(hoveredId)) {
       const feature = drawingStore.getFeature(hoveredId);
@@ -768,17 +782,17 @@ export default function CanvasViewport() {
     const g = pixi.previewGraphics;
     g.clear();
 
-    // Use getState() to bypass stale closure — the rAF loop runs from a one-time
-    // useEffect so it captures the initial render's closures; getState() always
-    // returns the live Zustand state regardless of which render's scope we're in.
+    // Always use getState() to avoid stale closure issues in the render loop
     const toolState = useToolStore.getState().state;
     const { drawingPoints, previewPoint } = toolState;
     const activeTool = toolState.activeTool;
 
     // Active layer color for drawing previews
-    const activeLayerStyle = drawingStore.getActiveLayerStyle();
-    const styleOverride = toolState.drawingStyleOverride;
-    const previewColorHex = (styleOverride?.color ?? activeLayerStyle.color ?? '#0066cc').replace('#', '');
+    const activeLayerStyle = useDrawingStore.getState().getActiveLayerStyle();
+    // Apply draw style overrides for line tools
+    const drawStyle = toolState.drawStyle;
+    const rawColor = (drawStyle.color ?? activeLayerStyle.color ?? '#0066cc');
+    const previewColorHex = rawColor.replace('#', '');
     const previewColor = parseInt(previewColorHex, 16);
 
     // Configurable selection/hover colors (also used here for preview lines)
@@ -984,16 +998,17 @@ export default function CanvasViewport() {
   // Master render function
   // ─────────────────────────────────────────────
   function renderAll() {
-    // Use getState() so the rAF loop (initialised once) always reads live state.
+    // The background is now a grey surround with a white paper rectangle (renderPaper).
+    // Keep the PixiJS canvas background as the grey tone so it blends seamlessly.
     const pixi = pixiRef.current;
     if (pixi) {
-      // The viewport background is always a neutral grey; the paper rectangle
-      // (rendered in renderGrid) provides the white drawing area.
-      const bgColor = 0xb0b8c8; // slate-grey viewport surround
+      const bgHex = useDrawingStore.getState().document.settings.backgroundColor ?? '#FFFFFF';
+      const bgColor = parseInt(bgHex.replace('#', ''), 16);
       if (pixi.app.renderer.background.color !== bgColor) {
         pixi.app.renderer.background.color = bgColor;
       }
     }
+    renderPaper();
     renderGrid();
     renderFeatures();
     renderSelection();
@@ -1083,6 +1098,17 @@ export default function CanvasViewport() {
     const styleOverride = useToolStore.getState().state.drawingStyleOverride ?? {};
     const mergedStyle = { ...DEFAULT_FEATURE_STYLE, ...layerStyle, ...styleOverride };
     const id = generateId();
+    const ds = useToolStore.getState().state.drawStyle;
+    // Merge draw style overrides on top of layer style for line/polyline tools
+    const isLineType = type === 'LINE' || type === 'POLYLINE';
+    const style: typeof DEFAULT_FEATURE_STYLE = {
+      ...DEFAULT_FEATURE_STYLE,
+      ...layerStyle,
+      ...(isLineType && ds.color != null ? { color: ds.color } : {}),
+      ...(isLineType && ds.lineWeight != null ? { lineWeight: ds.lineWeight } : {}),
+      ...(isLineType && ds.opacity != null ? { opacity: ds.opacity } : {}),
+      ...(isLineType && ds.lineType !== 'SOLID' ? { lineTypeId: ds.lineType } : {}),
+    };
 
     switch (type) {
       case 'POINT':
@@ -1101,7 +1127,7 @@ export default function CanvasViewport() {
           type: 'LINE',
           geometry: { type: 'LINE', start: points[0], end: points[1] },
           layerId: activeLayerId,
-          style: mergedStyle,
+          style,
           properties: {},
         };
       case 'POLYLINE':
@@ -1111,7 +1137,7 @@ export default function CanvasViewport() {
           type: 'POLYLINE',
           geometry: { type: 'POLYLINE', vertices: points },
           layerId: activeLayerId,
-          style: mergedStyle,
+          style,
           properties: {},
         };
       case 'POLYGON':
@@ -1145,13 +1171,20 @@ export default function CanvasViewport() {
   function createPolylineSegment(start: Point2D, end: Point2D, groupId: string): Feature {
     const { activeLayerId, getActiveLayerStyle } = drawingStore;
     const layerStyle = getActiveLayerStyle();
-    const styleOverride = useToolStore.getState().state.drawingStyleOverride ?? {};
+    const ds = useToolStore.getState().state.drawStyle;
     return {
       id: generateId(),
       type: 'LINE',
       geometry: { type: 'LINE', start, end },
       layerId: activeLayerId,
-      style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle, ...styleOverride },
+      style: {
+        ...DEFAULT_FEATURE_STYLE,
+        ...layerStyle,
+        ...(ds.color != null ? { color: ds.color } : {}),
+        ...(ds.lineWeight != null ? { lineWeight: ds.lineWeight } : {}),
+        ...(ds.opacity != null ? { opacity: ds.opacity } : {}),
+        ...(ds.lineType !== 'SOLID' ? { lineTypeId: ds.lineType } : {}),
+      },
       properties: { polylineGroupId: groupId },
     };
   }
@@ -2062,7 +2095,7 @@ export default function CanvasViewport() {
   const cursorWorld = viewportStore.cursorWorld;
 
   return (
-    <div ref={containerRef} className="w-full h-full relative overflow-hidden" style={{ backgroundColor: '#b0b8c8' }}>
+    <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-gray-400">
       {/* PixiJS init failure overlay */}
       {initError && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-950/90">
@@ -2135,6 +2168,14 @@ export default function CanvasViewport() {
           ))}
         </div>
       )}
+
+      {/* Cursor X/Y coordinate overlay — always visible in bottom-left of canvas */}
+      <div
+        className="absolute bottom-2 left-2 pointer-events-none z-10 text-[10px] font-mono text-white select-none rounded px-1.5 py-0.5"
+        style={{ background: 'rgba(0,0,0,0.55)' }}
+      >
+        X: {viewportStore.cursorWorld.x.toFixed(3)} &nbsp; Y: {viewportStore.cursorWorld.y.toFixed(3)}
+      </div>
 
       {/* Rich right-click context menu */}
       {contextMenu && (

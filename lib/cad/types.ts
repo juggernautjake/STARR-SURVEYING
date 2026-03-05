@@ -215,13 +215,13 @@ export interface ToolState {
   boxEnd: Point2D | null;
   isBoxSelecting: boolean;
 
-  // Per-draw style overrides (set in ToolOptionsBar, applied when creating features)
-  drawingStyleOverride: {
-    color?: string;
-    lineWeight?: number;
-    opacity?: number;
-    lineTypeId?: string;
-  } | null;
+  // Per-session drawing style overrides (apply when creating line/polyline features)
+  drawStyle: {
+    color: string | null;       // null = use active layer color
+    lineWeight: number | null;  // null = use active layer weight
+    opacity: number | null;     // null = use active layer opacity
+    lineType: string;           // 'SOLID' | 'DASHED' | 'DOTTED' | 'DOT_DASH' | 'LONG_DASH'
+  };
 }
 
 // --- UNDO ---

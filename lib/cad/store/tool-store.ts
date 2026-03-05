@@ -20,9 +20,16 @@ interface ToolStore {
   setPolarEnabled: (enabled: boolean) => void;
   setPolarAngle: (angle: number) => void;
   setCopyMode: (enabled: boolean) => void;
-  setDrawingStyleOverride: (style: ToolState['drawingStyleOverride']) => void;
+  setDrawStyle: (style: Partial<ToolState['drawStyle']>) => void;
   resetToolState: () => void;
 }
+
+const defaultDrawStyle: ToolState['drawStyle'] = {
+  color: null,
+  lineWeight: null,
+  opacity: null,
+  lineType: 'SOLID',
+};
 
 const defaultToolState: ToolState = {
   activeTool: 'SELECT',
@@ -41,7 +48,7 @@ const defaultToolState: ToolState = {
   boxStart: null,
   boxEnd: null,
   isBoxSelecting: false,
-  drawingStyleOverride: null,
+  drawStyle: { ...defaultDrawStyle },
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -58,7 +65,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         polarAngle: s.state.polarAngle,
         copyMode: s.state.copyMode,
         regularPolygonSides: s.state.regularPolygonSides,
-        drawingStyleOverride: s.state.drawingStyleOverride,
+        drawStyle: s.state.drawStyle, // Preserve draw style across tool switches
       },
     })),
 
@@ -113,8 +120,8 @@ export const useToolStore = create<ToolStore>((set) => ({
   setCopyMode: (enabled) =>
     set((s) => ({ state: { ...s.state, copyMode: enabled } })),
 
-  setDrawingStyleOverride: (style) =>
-    set((s) => ({ state: { ...s.state, drawingStyleOverride: style } })),
+  setDrawStyle: (style) =>
+    set((s) => ({ state: { ...s.state, drawStyle: { ...s.state.drawStyle, ...style } } })),
 
   resetToolState: () =>
     set((s) => ({
@@ -125,6 +132,7 @@ export const useToolStore = create<ToolStore>((set) => ({
         polarEnabled: s.state.polarEnabled,
         polarAngle: s.state.polarAngle,
         regularPolygonSides: s.state.regularPolygonSides,
+        drawStyle: s.state.drawStyle,
       },
     })),
 }));
