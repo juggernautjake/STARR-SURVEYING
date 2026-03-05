@@ -7,6 +7,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './types/index.js';
 import { runPipeline } from './services/pipeline.js';
+import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -372,6 +373,66 @@ app.delete('/research/result/:projectId', requireAuth, (req: Request, res: Respo
   }
 });
 
+// ── POST /research/discover ────────────────────────────────────────────────
+// Phase 1: Universal property discovery across any Texas county CAD system.
+// Geocodes the address, selects the appropriate CAD adapter, and returns a
+// fully enriched PropertyDetail object.
+
+app.post('/research/discover', requireAuth, async (req: Request, res: Response) => {
+  const { address, county, state } = req.body as {
+    address?: string;
+    county?:  string;
+    state?:   string;
+  };
+
+  if (!address) {
+    res.status(400).json({ error: 'address is required' });
+    return;
+  }
+
+  try {
+    const engine = new PropertyDiscoveryEngine();
+    const result = await engine.discover(address, county, state ?? 'TX');
+    res.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: `Discovery failed: ${msg}` });
+  }
+});
+
+// ── POST /research/full-pipeline ───────────────────────────────────────────
+// Accepts a project ID + address and runs the full multi-phase research
+// pipeline asynchronously in the background.
+// Returns HTTP 202 immediately so the client can poll /research/status/:id.
+
+app.post('/research/full-pipeline', requireAuth, (req: Request, res: Response) => {
+  const { projectId, address, county, state } = req.body as {
+    projectId?: string;
+    address?:   string;
+    county?:    string;
+    state?:     string;
+  };
+
+  if (!projectId || !address) {
+    res.status(400).json({ error: 'projectId and address are required' });
+    return;
+  }
+
+  // Return 202 immediately — pipeline runs in background
+  res.status(202).json({ status: 'accepted', projectId });
+
+  // Run discovery then hand off to full pipeline asynchronously
+  (async () => {
+    try {
+      const engine = new PropertyDiscoveryEngine();
+      await engine.discover(address, county, state ?? 'TX');
+      // Phase 2+ pipeline stages would be chained here as they are implemented
+    } catch (err) {
+      console.error(`[Pipeline] Discovery phase failed for ${projectId}:`, err);
+    }
+  })();
+});
+
 // ── POST /research/reanalyze/:projectId ────────────────────────────────────
 // Stage 11: Re-analysis after document acquisition.
 // Accepts newly purchased/uploaded documents and re-runs only the affected stages.
@@ -463,6 +524,8 @@ app.listen(PORT, () => {
 `);
   console.log('[Server] Endpoints:');
   console.log('  GET    /health');
+  console.log('  POST   /research/discover');
+  console.log('  POST   /research/full-pipeline');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');
   console.log('  GET    /research/result/:projectId/full');

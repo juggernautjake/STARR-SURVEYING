@@ -953,7 +953,7 @@ export async function analyzeProject(
     if (resumeMode) {
       // Resume mode: carryover points are already in the DB — do not delete them.
       // Only (re-)insert data points for documents we just processed in this run.
-      const newlyAnalyzedDocIds = new Set(documents.map(d => d.id));
+      const newlyAnalyzedDocIds = new Set(documents.map((d: ResearchDocument) => d.id));
       const newPoints = allDataPoints.filter(dp => newlyAnalyzedDocIds.has(dp.document_id));
 
       if (newlyAnalyzedDocIds.size > 0) {

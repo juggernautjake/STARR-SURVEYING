@@ -329,3 +329,21 @@ export function getBisCounties(): CountyRecord[] {
 export function getTrueAutoCounties(): CountyRecord[] {
   return TEXAS_COUNTIES.filter(c => c.cadSystem === 'trueautomation');
 }
+
+/**
+ * Look up the 5-digit FIPS code for a Texas county name.
+ * Accepts any form resolveCounty() handles (e.g. "Bell", "bell county", "48027").
+ * Returns empty string if the county is not found or state is not TX/TEXAS.
+ */
+export function lookupCountyFIPS(countyName: string, state: string): string {
+  if (state.toUpperCase() !== 'TX' && state.toUpperCase() !== 'TEXAS') return '';
+  return resolveCounty(countyName)?.fips ?? '';
+}
+
+/**
+ * Look up the county name (ALL CAPS) for a 5-digit Texas FIPS code.
+ * Returns empty string if the FIPS is not found.
+ */
+export function lookupCountyName(fips: string): string {
+  return _byFips.get(fips)?.name.toUpperCase() ?? '';
+}
