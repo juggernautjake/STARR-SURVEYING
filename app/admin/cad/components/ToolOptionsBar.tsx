@@ -4,7 +4,7 @@
 // Shows options relevant to the currently active tool — ortho/polar modes,
 // copy mode, regular-polygon sides picker, rotate angle, scale factor, etc.
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToolStore, useSelectionStore, useViewportStore, useDrawingStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
 import {
@@ -15,6 +15,7 @@ import {
   duplicateSelection,
   computeSelectionCentroid,
 } from '@/lib/cad/operations';
+import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
 
 // Line weight constraints
 const MIN_LINE_WEIGHT = 0.1;
@@ -129,6 +130,38 @@ export default function ToolOptionsBar() {
 
   // POLAR_ANGLE_PRESETS
   const POLAR_PRESETS = [15, 30, 45, 90] as const;
+
+  // Line style state (kept in sync with toolStore.drawingStyleOverride)
+  const override = ts.drawingStyleOverride;
+  const activeLayerStyle = drawingStore.getActiveLayerStyle();
+  const [lineColor, setLineColor] = useState(override?.color ?? activeLayerStyle.color ?? '#000000');
+  const [lineWeight, setLineWeight] = useState(String(override?.lineWeight ?? activeLayerStyle.lineWeight ?? 0.5));
+  const [lineOpacity, setLineOpacity] = useState(String(override?.opacity ?? 1));
+  const [lineTypeId, setLineTypeId] = useState(override?.lineTypeId ?? 'SOLID');
+
+  // When the active tool changes to a line tool, reset the local state from the
+  // store so the bar reflects whatever the user had set previously.
+  useEffect(() => {
+    if (showLineStyle) {
+      const ov = toolStore.state.drawingStyleOverride;
+      if (ov) {
+        if (ov.color) setLineColor(ov.color);
+        if (ov.lineWeight != null) setLineWeight(String(ov.lineWeight));
+        if (ov.opacity != null) setLineOpacity(String(ov.opacity));
+        if (ov.lineTypeId) setLineTypeId(ov.lineTypeId);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTool]);
+
+  // Push combined override into tool store whenever any style field changes
+  function applyLineStyle(overrides: { color?: string; lineWeight?: number; opacity?: number; lineTypeId?: string }) {
+    const current = toolStore.state.drawingStyleOverride ?? {};
+    toolStore.setDrawingStyleOverride({ ...current, ...overrides });
+  }
+
+  // Line type options – only the basic BASIC category for the picker
+  const BASIC_LINE_TYPES = BUILTIN_LINE_TYPES.filter((lt) => lt.category === 'BASIC');
 
   return (
     <div

@@ -73,7 +73,8 @@ interface ToolGroupDef {
 
 // We define this as a factory function so the icons and actions can reference the stores at render time.
 function buildToolGroups(
-  toolStore: { setTool: (t: ToolType) => void; state: { regularPolygonSides: number } },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toolStore: { setTool: (t: ToolType) => void; state: { regularPolygonSides: number }; setDrawingStyleOverride: (s: any) => void },
   viewportStore: { zoomAt: (x: number, y: number, f: number) => void; screenWidth: number; screenHeight: number },
 ): ToolGroupDef[] {
   return [
@@ -141,18 +142,16 @@ function buildToolGroups(
     {
       mainTool: 'DRAW_LINE',
       label: 'Line',
-      description: 'Draw a single line segment. Click the start point, then the end point.',
+      description: 'Draw a single line segment. Click the start point, then the end point. Right-click for line type variants.',
       shortcut: 'L',
       icon: <Minus size={16} />,
       variants: [
-        { tool: 'DRAW_LINE', label: 'Line', description: 'Click start point, then end point to draw a line segment.', shortcut: 'L', icon: <Minus size={14} /> },
-        {
-          tool: 'DRAW_LINE',
-          label: 'Construction Line',
-          description: 'Same as Line but placed on the Construction layer for reference geometry that won\'t be printed.',
-          icon: <Slash size={14} />,
-          action: () => toolStore.setTool('DRAW_LINE'),
-        },
+        { tool: 'DRAW_LINE', label: 'Line — Solid', description: 'Click start point, then end point to draw a solid line segment.', shortcut: 'L', icon: <Minus size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawingStyleOverride({ lineTypeId: 'SOLID' }); } },
+        { tool: 'DRAW_LINE', label: 'Line — Dashed', description: 'Draw a dashed line segment.', icon: <Slash size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawingStyleOverride({ lineTypeId: 'DASHED' }); } },
+        { tool: 'DRAW_LINE', label: 'Line — Dotted', description: 'Draw a dotted line segment.', icon: <GitCommitHorizontal size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawingStyleOverride({ lineTypeId: 'DOTTED' }); } },
+        { tool: 'DRAW_LINE', label: 'Line — Dash-Dot', description: 'Draw a dash-dot line segment (centerline style).', icon: <SeparatorHorizontal size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawingStyleOverride({ lineTypeId: 'DASH_DOT' }); } },
+        { tool: 'DRAW_LINE', label: 'Line — Center', description: 'Draw a centerline (long dash – short dash pattern).', icon: <Navigation size={14} />, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawingStyleOverride({ lineTypeId: 'CENTER' }); } },
+        { tool: 'DRAW_LINE', label: 'Construction Line', description: 'Same as Line but intended for reference geometry.', icon: <Slash size={14} />, belowSep: false, action: () => { toolStore.setTool('DRAW_LINE'); toolStore.setDrawingStyleOverride(null); } },
       ],
     },
     {

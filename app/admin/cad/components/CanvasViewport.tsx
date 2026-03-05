@@ -1095,6 +1095,8 @@ export default function CanvasViewport() {
   function createFeature(type: FeatureType, points: Point2D[]): Feature | null {
     const { activeLayerId, getActiveLayerStyle } = drawingStore;
     const layerStyle = getActiveLayerStyle();
+    const styleOverride = useToolStore.getState().state.drawingStyleOverride ?? {};
+    const mergedStyle = { ...DEFAULT_FEATURE_STYLE, ...layerStyle, ...styleOverride };
     const id = generateId();
     const ds = useToolStore.getState().state.drawStyle;
     // Merge draw style overrides on top of layer style for line/polyline tools
@@ -1115,7 +1117,7 @@ export default function CanvasViewport() {
           type: 'POINT',
           geometry: { type: 'POINT', point: points[0] },
           layerId: activeLayerId,
-          style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+          style: mergedStyle,
           properties: {},
         };
       case 'LINE':
@@ -1145,7 +1147,7 @@ export default function CanvasViewport() {
           type: 'POLYGON',
           geometry: { type: 'POLYGON', vertices: points },
           layerId: activeLayerId,
-          style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+          style: mergedStyle,
           properties: {},
         };
       default:
@@ -2090,6 +2092,7 @@ export default function CanvasViewport() {
 
   const hasNoLayers = drawingStore.document.layerOrder.length === 0;
   const isDrawingTool = activeTool.startsWith('DRAW_');
+  const cursorWorld = viewportStore.cursorWorld;
 
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-gray-400">
@@ -2226,6 +2229,16 @@ export default function CanvasViewport() {
           </div>
         </>
       )}
+
+      {/* Permanent X/Y coordinate tracker in the bottom-left of the canvas */}
+      <div
+        className="absolute bottom-1 left-1 pointer-events-none z-20 flex items-center gap-2 px-2 py-0.5 rounded text-[10px] font-mono"
+        style={{ background: 'rgba(0,0,0,0.55)', color: '#c8d8ff', border: '1px solid rgba(120,150,220,0.35)' }}
+      >
+        <span>X: {cursorWorld.x.toFixed(3)}</span>
+        <span className="text-gray-500">|</span>
+        <span>Y: {cursorWorld.y.toFixed(3)}</span>
+      </div>
     </div>
   );
 }
