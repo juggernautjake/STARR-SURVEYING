@@ -535,6 +535,15 @@ export async function analyzeProject(
     }).eq('id', projectId);
   }
 
+  // ── Token usage accumulator ──────────────────────────────────────────────
+  // All AI calls in the pipeline contribute here. Totals are persisted in
+  // analysis_metadata so operators can track API spend per project.
+  const tokenUsage = { input: 0, output: 0 };
+  function accumulateTokens(used: { input: number; output: number }) {
+    tokenUsage.input += used.input;
+    tokenUsage.output += used.output;
+  }
+
   async function checkAbort(): Promise<boolean> {
     const { data } = await supabaseAdmin
       .from('research_projects')
@@ -876,7 +885,7 @@ export async function analyzeProject(
       try {
         const extracted = await raceWithAbort(
           withDocumentTimeout(
-            extractFromDocument(doc, extractCategories),
+            extractFromDocument(doc, extractCategories, accumulateTokens),
             docLabel
           )
         );
@@ -1080,6 +1089,7 @@ export async function analyzeProject(
         data_point_count: allDataPoints.length,
         discrepancy_count: allDiscrepancies.length,
         documents_analyzed: allDocuments.length,
+        tokens_used: tokenUsage,
         logs,
       },
       updated_at: new Date().toISOString(),
@@ -1157,7 +1167,8 @@ export async function analyzeProject(
 
 async function extractFromDocument(
   doc: ResearchDocument,
-  extractCategories: Record<string, boolean>
+  extractCategories: Record<string, boolean>,
+  onTokens?: (used: { input: number; output: number }) => void
 ): Promise<Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[]> {
 
   // ── Build enabled-categories description ──────────────────────────────────
@@ -1202,6 +1213,7 @@ async function extractFromDocument(
           `Extract ALL text visible in the image, preserving every bearing, distance, monument, easement description, deed reference, ` +
           `legal description, lot/block, and any other surveying or property data exactly as written.`,
         );
+        onTokens?.(ocrResult.tokensUsed);
 
         const ocrText = typeof ocrResult.response === 'string'
           ? ocrResult.response
@@ -1237,13 +1249,14 @@ Extract these categories: ${enabledCategories}
 ${isImage ? 'NOTE: This document was processed via Claude Vision OCR — treat the extracted text as the full document content.' : ''}
 
 DOCUMENT TEXT:
-${textForExtraction.substring(0, 15000)}`;
+${textForExtraction.substring(0, 18000)}`;
 
   const result = await callAI({
     promptKey: 'DATA_EXTRACTOR',
     userContent,
     maxTokens: 8192,
   });
+  onTokens?.(result.tokensUsed);
 
   const data = result.response as {
     data_points?: Array<{

@@ -202,15 +202,44 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/** Parse AI response text — strip markdown fences and parse JSON */
+/** Parse AI response text — strip markdown fences and parse JSON.
+ *
+ * Attempts three strategies in order:
+ * 1. Strip markdown code fences, then JSON.parse the whole string.
+ * 2. Find the first JSON object ({...}) embedded in prose text.
+ * 3. Find the first JSON array ([...]) embedded in prose text.
+ *
+ * Returns raw text if all three fail (callers should validate the type).
+ */
 function parseResponse(rawText: string): unknown {
+  // Strategy 1: strip fences and parse directly
   try {
     const cleaned = rawText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
     return JSON.parse(cleaned);
-  } catch {
-    // Return raw text if not valid JSON
-    return rawText;
+  } catch { /* fall through */ }
+
+  // Strategy 2: extract first JSON object (handles commentary before/after JSON)
+  const objMatch = rawText.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try {
+      return JSON.parse(objMatch[0]);
+    } catch { /* fall through */ }
   }
+
+  // Strategy 3: extract first JSON array
+  const arrMatch = rawText.match(/\[[\s\S]*\]/);
+  if (arrMatch) {
+    try {
+      return JSON.parse(arrMatch[0]);
+    } catch { /* fall through */ }
+  }
+
+  // All strategies failed — return raw text; callers that cast to a typed object
+  // will receive a string and should guard against this.
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('[AI] Response is not valid JSON; returning raw text. Preview:', rawText.substring(0, 200));
+  }
+  return rawText;
 }
 
 /** Create an AbortController with a timeout */
