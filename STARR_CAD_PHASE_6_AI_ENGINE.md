@@ -529,6 +529,50 @@ function kasaCircleFit(points: Point2D[]): ArcDefinition | null {
 
 The core intelligence that compares field survey data against the recorded deed.
 
+### 5.0 Orientation Correction (pre-reconciliation step)
+
+Before deed calls can be matched to field lines, the raw survey must be correctly
+oriented.  If the total-station was not properly backsighted, every bearing will be
+offset by a constant rotation error and the matching step will fail.
+
+**Integration point with Phase 2 orientation tools:**
+The Phase 2 `orient.ts` module (`lib/cad/geometry/orient.ts`) provides:
+- `extractReferenceLines(features)` — candidate reference line segments from the drawing
+- `generateBearingCandidates(measAz, otherLines?)` — smart snap + AI candidate list.
+  The `BearingCandidate.source` field has a reserved value `'DEED_AI'` specifically for
+  candidates produced by this stage.  Each AI candidate should carry:
+  - `azimuth` — the deed call's bearing converted to azimuth degrees
+  - `correctionDeg` — the global rotation that would make this field line match this call
+  - `confidence` — computed from OCR score × bearing-distance proximity score
+  - `reason` — human-readable match description (e.g. "Deed call: S 45°30'E, 247.3 ft")
+
+**Stage 3 orientation algorithm:**
+1. Parse all bearing calls from `DeedData.calls` (deed parser already produces azimuths)
+2. For each field line segment (from `extractReferenceLines`), for each deed call:
+   - Compute distance and bearing proximity scores
+   - If distance score > 0.7 AND bearing proximity within 30°, it is a candidate match
+3. For each candidate match pair, compute the implied global correction:
+   `correction = computeOrientationCorrection(fieldLine.azimuth, deedCall.bearing)`
+4. Find the correction value with the most supporting evidence (histogram / RANSAC)
+5. If the dominant correction has support from ≥ 2 independent line pairs with
+   confidence > 0.6, auto-apply it and record it in `ReconciliationResult.orientationApplied`
+6. Otherwise, populate `BearingCandidate[]` with `source: 'DEED_AI'` and surface them
+   in the `OrientationDialog` "Suggested Bearings" panel for the surveyor to review
+
+**Fields to add to `ReconciliationResult`:**
+```typescript
+orientationApplied: boolean;
+orientationCorrectionDeg: number | null;   // The rotation applied
+orientationSupportCount: number;           // Number of line pairs that agreed
+orientationPivot: Point2D | null;
+```
+
+**UI integration:**
+- When the AI auto-applies an orientation correction, show a toast notification:
+  "Survey orientation auto-adjusted: +X.XX° CCW based on N deed calls"
+- The user can undo this via the standard undo stack (it is recorded as a batch entry)
+- The `OrientationDialog` should show "AI-adjusted" status and allow re-correction
+
 ```typescript
 // packages/ai-engine/src/stage-3-reconcile.ts
 

@@ -18,6 +18,7 @@ import TraversePanel from './components/TraversePanel';
 import CurveCalculator from './components/CurveCalculator';
 import NewDrawingDialog from './components/NewDrawingDialog';
 import DisplayPreferencesPanel, { DisplayPrefsToggleButton } from './components/DisplayPreferencesPanel';
+import OrientationDialog from './components/OrientationDialog';
 import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -95,6 +96,7 @@ export default function CADLayout() {
   const [showCurveCalculator, setShowCurveCalculator] = useState(false);
   const [showNewDrawingDialog, setShowNewDrawingDialog] = useState(false);
   const [showDisplayPrefs, setShowDisplayPrefs] = useState(false);
+  const [showOrientationDialog, setShowOrientationDialog] = useState(false);
   const [recoveryPayload, setRecoveryPayload] = useState<{
     savedAt: string;
     document: unknown;
@@ -235,6 +237,7 @@ export default function CADLayout() {
         onTogglePointTable={() => setShowPointTable(p => !p)}
         onToggleTraversePanel={() => setShowTraversePanel(p => !p)}
         onOpenCurveCalculator={() => setShowCurveCalculator(true)}
+        onOpenOrientationDialog={() => setShowOrientationDialog(true)}
       />
 
       {/* Contextual tool options strip — with Prefs button on the right */}
@@ -320,6 +323,9 @@ export default function CADLayout() {
 
       {/* Curve Calculator dialog */}
       {showCurveCalculator && <CurveCalculator onClose={() => setShowCurveCalculator(false)} />}
+
+      {/* Survey Orientation Adjustment dialog */}
+      {showOrientationDialog && <OrientationDialog onClose={() => setShowOrientationDialog(false)} />}
 
       {/* Import field data dialog */}
       {showImportDialog && (
