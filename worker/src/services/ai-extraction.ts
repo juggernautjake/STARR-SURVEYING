@@ -8,7 +8,7 @@ import { PipelineLogger } from '../lib/logger.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const AI_MODEL = 'claude-sonnet-4-5-20250929';
+const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
 const MAX_RETRIES = 4;
 const BASE_RETRY_DELAY_MS = 2_000;
 const CONFIDENCE_THRESHOLD_RERUN = 0.80;

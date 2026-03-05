@@ -768,16 +768,39 @@ export async function analyzeProject(
     // 2. Per-document extraction
     const allDataPoints: Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[] = [];
 
-    // In resume mode also collect data points already stored from the previous partial run
+    // In resume mode, load data points from previously-analyzed documents so
+    // cross-reference analysis and discrepancy detection see the full picture.
+    // These points are already stored in the DB and must NOT be re-inserted.
+    const carryoverPoints: Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[] = [];
     if (resumeMode && skippedCount > 0) {
       const { data: prevPoints } = await supabaseAdmin
         .from('extracted_data_points')
         .select('*')
         .eq('research_project_id', projectId);
       if (prevPoints?.length) {
-        addLog('info', `Resume: carrying over ${prevPoints.length} data point(s) from previous run`);
-        // These are already in the DB — track them so discrepancy detection sees them,
-        // but don't re-insert (use a flag to skip the delete-and-reinsert step later).
+        addLog('info', `Resume: carrying over ${prevPoints.length} data point(s) from ${skippedCount} already-analyzed document(s)`);
+        for (const p of prevPoints) {
+          carryoverPoints.push({
+            research_project_id: p.research_project_id,
+            document_id: p.document_id,
+            data_category: p.data_category,
+            raw_value: p.raw_value,
+            normalized_value: p.normalized_value ?? null,
+            display_value: p.display_value ?? null,
+            unit: p.unit ?? null,
+            source_page: p.source_page ?? null,
+            source_location: p.source_location ?? null,
+            source_bounding_box: p.source_bounding_box ?? null,
+            source_text_excerpt: p.source_text_excerpt ?? null,
+            sequence_order: p.sequence_order ?? null,
+            sequence_group: p.sequence_group ?? null,
+            extraction_confidence: p.extraction_confidence ?? null,
+            confidence_reasoning: p.confidence_reasoning ?? null,
+          });
+        }
+        // Add carryover points into the working set so discrepancy detection
+        // and cross-reference analysis see data from ALL documents.
+        allDataPoints.push(...carryoverPoints);
       }
     }
 
@@ -903,9 +926,11 @@ export async function analyzeProject(
 
     addLog('info', `Document extraction complete — ${allDataPoints.length} total data points from ${documents.length} document(s)`);
 
-    // 3. Attempt normalization on extracted values
+    // 3. Attempt normalization on extracted values (skip carryover points — already normalized)
+    const carryoverDocIds = new Set(carryoverPoints.map(p => p.document_id));
     let normalizedCount = 0;
     for (const dp of allDataPoints) {
+      if (carryoverDocIds.has(dp.document_id)) continue; // already normalized in prior run
       try {
         dp.normalized_value = attemptNormalization(dp.data_category, dp.raw_value, dp.normalized_value);
         normalizedCount++;
@@ -916,21 +941,61 @@ export async function analyzeProject(
     addLog('info', `Normalized ${normalizedCount} data points`);
 
     // 4. Store extracted data points
-    if (allDataPoints.length > 0) {
-      // Delete previous data points for this project
-      await supabaseAdmin
-        .from('extracted_data_points')
-        .delete()
-        .eq('research_project_id', projectId);
+    if (resumeMode) {
+      // Resume mode: carryover points are already in the DB — do not delete them.
+      // Only (re-)insert data points for documents we just processed in this run.
+      const newlyAnalyzedDocIds = new Set(documents.map(d => d.id));
+      const newPoints = allDataPoints.filter(dp => newlyAnalyzedDocIds.has(dp.document_id));
 
-      // Insert in batches of 50
-      for (let i = 0; i < allDataPoints.length; i += 50) {
-        const batch = allDataPoints.slice(i, i + 50);
-        await supabaseAdmin.from('extracted_data_points').insert(batch);
+      if (newlyAnalyzedDocIds.size > 0) {
+        // Remove any stale data points for the documents being re-analyzed (idempotent).
+        try {
+          await supabaseAdmin
+            .from('extracted_data_points')
+            .delete()
+            .eq('research_project_id', projectId)
+            .in('document_id', [...newlyAnalyzedDocIds]);
+        } catch (dbErr) {
+          addLog('warn', 'Could not delete stale data points for re-analyzed documents', dbErr instanceof Error ? dbErr.message : String(dbErr));
+        }
       }
-      addLog('success', `Saved ${allDataPoints.length} data points to database`);
+
+      if (newPoints.length > 0) {
+        for (let i = 0; i < newPoints.length; i += 50) {
+          const batch = newPoints.slice(i, i + 50);
+          try {
+            await supabaseAdmin.from('extracted_data_points').insert(batch);
+          } catch (dbErr) {
+            addLog('warn', `Batch insert failed (points ${i}–${i + batch.length - 1})`, dbErr instanceof Error ? dbErr.message : String(dbErr));
+          }
+        }
+      }
+
+      addLog('success', `Saved ${newPoints.length} new + ${carryoverPoints.length} carried-over data points (${allDataPoints.length} total)`);
     } else {
-      addLog('warn', 'No data points were extracted from any document');
+      // Non-resume: delete all previous results and reinsert the full set.
+      if (allDataPoints.length > 0) {
+        try {
+          await supabaseAdmin
+            .from('extracted_data_points')
+            .delete()
+            .eq('research_project_id', projectId);
+        } catch (dbErr) {
+          addLog('warn', 'Could not clear previous data points', dbErr instanceof Error ? dbErr.message : String(dbErr));
+        }
+
+        for (let i = 0; i < allDataPoints.length; i += 50) {
+          const batch = allDataPoints.slice(i, i + 50);
+          try {
+            await supabaseAdmin.from('extracted_data_points').insert(batch);
+          } catch (dbErr) {
+            addLog('warn', `Batch insert failed (points ${i}–${i + batch.length - 1})`, dbErr instanceof Error ? dbErr.message : String(dbErr));
+          }
+        }
+        addLog('success', `Saved ${allDataPoints.length} data points to database`);
+      } else {
+        addLog('warn', 'No data points were extracted from any document');
+      }
     }
 
     // 4b. Chain-of-title: follow Volume/Page and Instrument references (Layer 2E)
@@ -942,7 +1007,11 @@ export async function analyzeProject(
       if (chainPoints.length > 0) {
         allDataPoints.push(...chainPoints);
         for (let i = 0; i < chainPoints.length; i += 50) {
-          await supabaseAdmin.from('extracted_data_points').insert(chainPoints.slice(i, i + 50));
+          try {
+            await supabaseAdmin.from('extracted_data_points').insert(chainPoints.slice(i, i + 50));
+          } catch (dbErr) {
+            addLog('warn', `Chain-of-title batch insert failed (points ${i}–${i + Math.min(50, chainPoints.length - i) - 1})`, dbErr instanceof Error ? dbErr.message : String(dbErr));
+          }
         }
         addLog('success', `Chain-of-title: stored ${chainPoints.length} additional data points`);
       }
@@ -955,7 +1024,13 @@ export async function analyzeProject(
     if (uniqueDocIds.size > 1 && allDataPoints.length > 0) {
       addLog('info', `Running cross-reference analysis across ${uniqueDocIds.size} documents`);
       try {
-        aiDiscrepancies = await crossReferenceAnalysis(projectId, allDataPoints, documents);
+        // In resume mode, pass allDocuments so every document has a proper label
+        // in the cross-reference summary (newly-processed docs are in `documents`,
+        // but previously-analyzed docs are only in `allDocuments`).
+        const docsForCrossRef = resumeMode
+          ? (allDocuments as ResearchDocument[])
+          : documents;
+        aiDiscrepancies = await crossReferenceAnalysis(projectId, allDataPoints, docsForCrossRef);
         addLog('info', `Cross-reference analysis found ${aiDiscrepancies.length} discrepanc${aiDiscrepancies.length === 1 ? 'y' : 'ies'}`);
       } catch (err) {
         addLog('warn', 'Cross-reference analysis failed — continuing without it', err instanceof Error ? err.message : String(err));
@@ -972,14 +1047,22 @@ export async function analyzeProject(
     const allDiscrepancies = [...aiDiscrepancies, ...mathDiscrepancies];
     if (allDiscrepancies.length > 0) {
       // Delete previous discrepancies
-      await supabaseAdmin
-        .from('discrepancies')
-        .delete()
-        .eq('research_project_id', projectId);
+      try {
+        await supabaseAdmin
+          .from('discrepancies')
+          .delete()
+          .eq('research_project_id', projectId);
+      } catch (dbErr) {
+        addLog('warn', 'Could not clear previous discrepancies', dbErr instanceof Error ? dbErr.message : String(dbErr));
+      }
 
       for (let i = 0; i < allDiscrepancies.length; i += 50) {
         const batch = allDiscrepancies.slice(i, i + 50);
-        await supabaseAdmin.from('discrepancies').insert(batch);
+        try {
+          await supabaseAdmin.from('discrepancies').insert(batch);
+        } catch (dbErr) {
+          addLog('warn', `Discrepancy batch insert failed (items ${i}–${i + batch.length - 1})`, dbErr instanceof Error ? dbErr.message : String(dbErr));
+        }
       }
       addLog('success', `Saved ${allDiscrepancies.length} discrepancies to database`);
     }
@@ -1267,6 +1350,67 @@ function attemptNormalization(
 
 // ── Cross-Reference Analysis ────────────────────────────────────────────────
 
+/**
+ * Safely truncate a per-category data summary to at most `maxChars` characters
+ * while keeping the result valid JSON.
+ *
+ * Strategy: prioritise boundary-critical categories, then truncate per-category
+ * item lists (halving until they fit) rather than slicing the serialised string
+ * mid-object (which produces unparseable output).
+ */
+function buildSafeCrossRefSummary(
+  summary: Record<string, unknown[]>,
+  maxChars: number,
+): string {
+  const full = JSON.stringify(summary);
+  if (full.length <= maxChars) return full;
+
+  // Priority order — boundary geometry first, then supporting data
+  const PRIORITY = [
+    'call', 'bearing', 'distance', 'curve_data', 'area',
+    'monument', 'point_of_beginning', 'legal_description',
+    'recording_reference', 'easement', 'setback', 'right_of_way',
+    'adjoiner', 'surveyor_info', 'flood_zone', 'zoning', 'other',
+  ];
+
+  const sorted = Object.keys(summary).sort((a, b) => {
+    const ai = PRIORITY.indexOf(a);
+    const bi = PRIORITY.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+
+  const truncated: Record<string, unknown[]> = {};
+  // Estimate chars consumed so far: opening + closing braces
+  let used = 2;
+
+  for (const cat of sorted) {
+    let items = summary[cat];
+    // Try to fit the full list, then successively halve until it fits or is empty
+    while (items.length > 0) {
+      const entry = `${JSON.stringify(cat)}:${JSON.stringify(items)}`;
+      const needed = used + entry.length + (Object.keys(truncated).length > 0 ? 1 : 0);
+      if (needed <= maxChars) {
+        truncated[cat] = items;
+        used = needed;
+        break;
+      }
+      items = items.slice(0, Math.max(1, Math.floor(items.length / 2)));
+      // If even a single-item list doesn't fit, skip this category
+      if (items.length === 1) {
+        const singleEntry = `${JSON.stringify(cat)}:${JSON.stringify(items)}`;
+        const singleNeeded = used + singleEntry.length + (Object.keys(truncated).length > 0 ? 1 : 0);
+        if (singleNeeded <= maxChars) {
+          truncated[cat] = items;
+          used = singleNeeded;
+        }
+        break;
+      }
+    }
+  }
+
+  return JSON.stringify(truncated);
+}
+
 async function crossReferenceAnalysis(
   projectId: string,
   dataPoints: Omit<ExtractedDataPoint, 'id' | 'created_at' | 'updated_at'>[],
@@ -1288,8 +1432,9 @@ async function crossReferenceAnalysis(
     return acc;
   }, {} as Record<string, unknown[]>);
 
-  // Truncate the summary to fit in context
-  const summaryStr = JSON.stringify(summary).substring(0, 12000);
+  // Safely truncate the summary to fit in the AI context window.
+  // Per-category truncation preserves valid JSON and prioritises boundary data.
+  const summaryStr = buildSafeCrossRefSummary(summary, 12000);
 
   const result = await callAI({
     promptKey: 'CROSS_REFERENCE_ANALYZER',
