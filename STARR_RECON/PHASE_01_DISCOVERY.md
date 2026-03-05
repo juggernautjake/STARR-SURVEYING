@@ -503,4 +503,88 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lon: numb
 
 ---
 
+## 7. Property Discovery Orchestrator
+
+The `PropertyDiscoveryEngine` in `worker/src/services/property-discovery.ts` ties together all steps above.
+
+```typescript
+const engine = new PropertyDiscoveryEngine();
+const result = await engine.discover("3779 FM 436, Belton, TX 76513", "Bell", "TX");
+```
+
+It selects the adapter via `getCADConfig(countyFIPS)`, runs address-variant search, fetches detail, cross-validates, and always calls `adapter.destroy()` in the `finally` block.
+
+---
+
+## 8. Express API Endpoints
+
+Both endpoints require `Authorization: Bearer $WORKER_API_KEY`.
+
+### `POST /research/discover`
+
+Synchronous. Returns a `DiscoveryResult` when complete.
+
+```bash
+curl -X POST http://localhost:3100/research/discover \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $WORKER_API_KEY" \
+  -d '{ "address": "3779 FM 436, Belton, TX 76513", "county": "Bell", "state": "TX" }'
+```
+
+### `POST /research/full-pipeline`
+
+Asynchronous. Returns HTTP 202 immediately; poll `/research/status/:projectId` for progress.
+
+```bash
+curl -X POST http://localhost:3100/research/full-pipeline \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $WORKER_API_KEY" \
+  -d '{ "projectId": "proj_abc123", "address": "3779 FM 436, Belton, TX 76513" }'
+```
+
+---
+
+## 9. CLI Script
+
+`worker/research.sh` — run property research directly from the droplet console:
+
+```bash
+# Single address
+./research.sh "3779 FM 436, Belton, TX 76513"
+
+# With explicit county hint (skips geocoding)
+./research.sh "3779 FM 436, Belton, TX 76513" Bell
+```
+
+Output is pretty-printed JSON and also saved to `/tmp/discovery_<timestamp>.json`.
+
+---
+
+## 10. Testing Checklist
+
+| Test Case | Address | County | Expected Result |
+|---|---|---|---|
+| Bell County FM road | `3779 FM 436, Belton TX 76513` | Bell | ASH FAMILY TRUST, subdivision detected |
+| Bell County standard | `3424 Waggoner Dr, Belton TX 76513` | Bell | Residential property found |
+| Bell County rural | `15000 FM 93, Temple TX 76504` | Bell | Large tract, possibly standalone |
+| Auto county detection | `1100 Congress Ave, Austin TX 78701` | (auto) | Travis County detected, TCAD searched |
+| Unknown county | `123 Main St, Small Town TX 79999` | (auto) | Generic adapter with AI assist |
+| Highway format | `100 US Hwy 190, Belton TX 76513` | Bell | Tests highway variant generation |
+| Subdivision lot | `1234 Oak Dr, Nolanville TX 76559` | Bell | Lot detected, subdivision name extracted |
+
+### Phase 1 Acceptance Criteria
+
+- [ ] Given a Bell County address, returns `PropertyDetail` within 15 seconds
+- [ ] Correctly identifies subdivisions from legal description
+- [ ] Finds all lots in a subdivision when one lot is searched
+- [ ] Auto-detects county from address (geocoding)
+- [ ] Works for at least 3 CAD vendors (BIS, Tyler, TrueAutomation)
+- [ ] Falls back to AI screenshot OCR when DOM parsing fails
+- [ ] Generates correct address variants for FM/SH/US/CR roads
+- [ ] CLI script works from droplet console
+- [ ] All results logged and saved to `/tmp` for review
+- [ ] Error messages are descriptive (not just "search failed")
+
+---
+
 *Next: See `PHASE_02_HARVEST.md` — Free Document Harvesting*

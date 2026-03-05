@@ -8,6 +8,9 @@
 
 import { lookupCountyFIPS } from '../lib/county-fips.js';
 
+// Re-export for consumers that import all address utilities from a single module
+export { lookupCountyFIPS } from '../lib/county-fips.js';
+
 // ── Public types ──────────────────────────────────────────────────────────────
 
 export interface ParsedAddress {

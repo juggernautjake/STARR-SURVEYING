@@ -211,44 +211,4 @@ export abstract class CADAdapter {
     return { isSubdivision: false };
   }
 
-  // ── Match scoring ────────────────────────────────────────────────────────────
-
-  /**
-   * Compute a 0–100 relevance score between a search query string and a raw
-   * CAD API/DOM result item.  Higher = better match.
-   */
-  protected calculateMatchScore(
-    query: string,
-    item: Record<string, unknown>,
-  ): number {
-    const q = query.toUpperCase().trim();
-    let score = 50; // baseline
-
-    // Boost real property
-    const rawType = String(
-      item.property_type ?? item.PropertyType ?? '',
-    ).toUpperCase();
-    if (rawType === 'R' || rawType === 'REAL') score += 20;
-    if (rawType === 'P' || rawType === 'PERSONAL') score -= 40;
-
-    // Address match
-    const addr = String(
-      item.SitusAddress ?? item.situs_address ?? '',
-    ).toUpperCase();
-    if (addr && addr.includes(q)) {
-      score += 25;
-    } else if (addr) {
-      // Partial: at least the street number matches
-      const qNum = q.match(/^\d+/)?.[0] ?? '';
-      if (qNum && addr.startsWith(qNum)) score += 10;
-    }
-
-    // Owner match
-    const owner = String(
-      item.OwnerName ?? item.owner_name ?? '',
-    ).toUpperCase();
-    if (owner && owner.includes(q)) score += 20;
-
-    return Math.max(0, Math.min(100, score));
-  }
 }

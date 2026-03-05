@@ -2,10 +2,10 @@
 // BIS Consultants eSearch adapter — covers Bell, McLennan, Coryell, Lampasas,
 // and ~60+ other Texas counties that all run the same BIS platform.
 //
-// Search strategy:
-//   1. JSON API at {baseUrl}/api/search  (fast, preferred)
+// Search strategy (in order of preference):
+//   1. JSON API at {baseUrl}/api/search  (fast, no browser needed)
 //   2. Playwright DOM scrape             (fallback)
-//   3. Claude Vision OCR                 (last resort)
+//   3. Claude Vision OCR                 (last resort when DOM fails)
 //
 // Spec §1.5 — BIS Adapter
 
@@ -54,6 +54,33 @@ interface AiSearchItem {
   acreage?: string;
 }
 
+interface AiDetailResult {
+  owner?: string;
+  ownerMailingAddress?: string;
+  situsAddress?: string;
+  legalDescription?: string;
+  acreage?: string | number;
+  assessedValue?: string | number;
+  marketValue?: string | number;
+  abstractSurvey?: string;
+  subdivisionName?: string;
+  lotNumber?: string;
+  blockNumber?: string;
+  geoId?: string;
+  taxYear?: number;
+  deedReferences?: Array<{
+    instrumentNumber?: string;
+    type?: string;
+    date?: string;
+    description?: string;
+  }>;
+  improvements?: Array<{
+    type?: string;
+    sqft?: number;
+    yearBuilt?: number;
+  }>;
+}
+
 // ── BISAdapter ────────────────────────────────────────────────────────────────
 
 export class BISAdapter extends CADAdapter {
@@ -61,7 +88,7 @@ export class BISAdapter extends CADAdapter {
   // ── searchByAddress ──────────────────────────────────────────────────────────
 
   async searchByAddress(variants: AddressVariant[]): Promise<PropertySearchResult[]> {
-    // BIS systems have a backend API — try that first
+    // Try the backend JSON API first (fast, no browser overhead)
     if (this.config.apiUrl) {
       for (const variant of variants) {
         try {
@@ -111,34 +138,8 @@ export class BISAdapter extends CADAdapter {
   // ── findSubdivisionLots ──────────────────────────────────────────────────────
 
   async findSubdivisionLots(subdivisionName: string): Promise<PropertySearchResult[]> {
-    // BIS API: search by legal description / subdivision name
-    if (this.config.apiUrl) {
-      try {
-        const response = await fetch(this.config.apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            legal_description: subdivisionName,
-            search_type: 'legal',
-          }),
-          signal: AbortSignal.timeout(15000),
-        });
-        if (response.ok) {
-          const data = await response.json() as BisApiResponse;
-          const items: BisApiItem[] = data.results ?? data.Properties ?? [];
-          return items
-            .map(item => this.mapApiItem(subdivisionName, item))
-            .filter((r): r is PropertySearchResult => r !== null)
-            .sort((a, b) => b.matchScore - a.matchScore);
-        }
-      } catch (e) {
-        console.warn('[BIS] Subdivision API search failed:', e);
-      }
-    }
-
-    // Playwright fallback: use address field with subdivision name
-    await this.initBrowser();
-    return this.playwrightSearch(subdivisionName, 'address');
+    // BIS legal description search often works via owner name search field
+    return this.searchByOwner(subdivisionName);
   }
 
   // ── getPropertyDetail ────────────────────────────────────────────────────────
@@ -149,117 +150,186 @@ export class BISAdapter extends CADAdapter {
 
     const detailUrl = buildDetailUrl(this.config, propertyId);
     await this.page.goto(detailUrl, { waitUntil: 'networkidle', timeout: 30000 });
-    await this.page.waitForTimeout(500);
+    await this.page.waitForTimeout(1500);
 
-    const rawHtml = await this.page.content();
+    // Screenshot for AI fallback
+    const screenshotPath = `/tmp/cad_detail_${propertyId}.png`;
+    await this.page.screenshot({ path: screenshotPath, fullPage: true });
 
-    // ── Try structured DOM extraction first ──────────────────────────────────
+    // Try DOM extraction first
+    const detail = await this.extractDetailFromDOM(propertyId);
 
-    const detail = await this.page.evaluate(() => {
-      function text(selector: string): string {
-        return (document.querySelector(selector) as HTMLElement)?.innerText?.trim() ?? '';
-      }
-      function allText(selector: string): string[] {
-        return Array.from(document.querySelectorAll(selector))
-          .map(el => (el as HTMLElement).innerText?.trim())
-          .filter(Boolean);
-      }
-
-      return {
-        owner:       text('[data-field="owner_name"], .owner-name, #ownerName'),
-        ownerAddr:   text('[data-field="owner_address"], .owner-address'),
-        situs:       text('[data-field="situs_address"], .situs-address, #situsAddress'),
-        legal:       text('[data-field="legal_description"], .legal-description, #legalDescription'),
-        acreage:     text('[data-field="acreage"], .acreage, #acreage'),
-        assessed:    text('[data-field="assessed_value"], .assessed-value'),
-        market:      text('[data-field="market_value"], .market-value'),
-        geoId:       text('[data-field="geo_id"], .geo-id, #geoId'),
-        taxYear:     text('[data-field="tax_year"], .tax-year'),
-        abstract:    text('[data-field="abstract_survey"], .abstract-survey'),
-        deedRows:    allText('.deed-reference tr, .instrument-row, [data-type="deed"]'),
-        improvRows:  allText('.improvement-row, [data-type="improvement"]'),
-      };
-    });
-
-    // ── Fall back to AI OCR if key fields are empty ──────────────────────────
-
-    let finalDetail = detail;
-    if (!detail.owner && !detail.legal) {
-      const aiText = await this.aiParseScreen(
-        `This is a Texas County Appraisal District property detail page (BIS Consultants system).
-
-Extract the following fields and return as JSON:
-{
-  "owner": "...",
-  "ownerAddr": "...",
-  "situs": "...",
-  "legal": "...",
-  "acreage": "...",
-  "assessed": "...",
-  "market": "...",
-  "geoId": "...",
-  "taxYear": "...",
-  "abstract": "...",
-  "deedRows": ["..."],
-  "improvRows": ["..."]
-}
-
-Return ONLY the JSON object, no explanation.`,
-      );
-      try {
-        const parsed = JSON.parse(aiText) as typeof detail;
-        finalDetail = parsed;
-      } catch {
-        // AI fallback also failed — return what we have from DOM
-      }
+    // Supplement with AI if critical fields are missing
+    if (!detail.owner || !detail.legalDescription) {
+      const aiDetail = await this.extractDetailFromAI(propertyId);
+      if (!detail.owner && aiDetail.owner)                               detail.owner = aiDetail.owner;
+      if (!detail.legalDescription && aiDetail.legalDescription)         detail.legalDescription = aiDetail.legalDescription;
+      if (!detail.acreage && aiDetail.acreage)                           detail.acreage = aiDetail.acreage;
+      if (detail.deedReferences.length === 0)                            detail.deedReferences = aiDetail.deedReferences;
     }
 
-    // ── Parse deed references ────────────────────────────────────────────────
+    // Detect subdivision membership
+    const subInfo = this.detectSubdivision(detail.legalDescription);
+    detail.subdivisionName = subInfo.subdivisionName;
+    detail.lotNumber        = subInfo.lotNumber;
+    detail.blockNumber      = subInfo.blockNumber;
 
-    const deedReferences: DeedReference[] = finalDetail.deedRows
-      .map(row => this.parseDeedRow(row))
-      .filter((r): r is DeedReference => r !== null);
+    // Find all related lots if this is part of a subdivision
+    if (subInfo.isSubdivision && subInfo.subdivisionName) {
+      detail.relatedPropertyIds = await this.findSubdivisionLotIds(
+        subInfo.subdivisionName,
+        propertyId,
+      );
+    }
 
-    // ── Parse improvements ───────────────────────────────────────────────────
-
-    const improvements = finalDetail.improvRows.map(row => {
-      const parts = row.split(/\t|\s{2,}/).map(s => s.trim()).filter(Boolean);
-      return {
-        type:      parts[0] ?? 'Unknown',
-        sqft:      parseInt(parts[1] ?? '', 10) || undefined,
-        yearBuilt: parseInt(parts[2] ?? '', 10) || undefined,
-        condition: parts[3] ?? undefined,
-      };
-    });
-
-    // ── Detect subdivision ───────────────────────────────────────────────────
-
-    const subdiv = this.detectSubdivision(finalDetail.legal ?? '');
-
-    return {
-      propertyId,
-      geoId:               finalDetail.geoId || undefined,
-      owner:               finalDetail.owner ?? '',
-      ownerMailingAddress: finalDetail.ownerAddr || undefined,
-      situsAddress:        finalDetail.situs ?? '',
-      legalDescription:    finalDetail.legal ?? '',
-      acreage:             parseFloat(finalDetail.acreage ?? '') || 0,
-      propertyType:        'real',
-      assessedValue:       parseFloat(finalDetail.assessed?.replace(/[$,]/g, '') ?? '') || undefined,
-      marketValue:         parseFloat(finalDetail.market?.replace(/[$,]/g, '') ?? '') || undefined,
-      taxYear:             parseInt(finalDetail.taxYear ?? '', 10) || undefined,
-      abstractSurvey:      finalDetail.abstract || undefined,
-      subdivisionName:     subdiv.subdivisionName,
-      lotNumber:           subdiv.lotNumber,
-      blockNumber:         subdiv.blockNumber,
-      deedReferences,
-      relatedPropertyIds:  [],   // Populated by findSubdivisionLots after this call
-      improvements,
-      rawHtml,
-    };
+    detail.screenshotPath = screenshotPath;
+    return detail;
   }
 
-  // ── Private helpers ──────────────────────────────────────────────────────────
+  // ── Private: DOM extraction ───────────────────────────────────────────────────
+
+  private async extractDetailFromDOM(propertyId: string): Promise<PropertyDetail> {
+    if (!this.page) throw new Error('Browser not initialized');
+
+    const detail: PropertyDetail = {
+      propertyId,
+      owner:             '',
+      situsAddress:      '',
+      legalDescription:  '',
+      acreage:           0,
+      propertyType:      'real',
+      deedReferences:    [],
+      relatedPropertyIds:[],
+      improvements:      [],
+    };
+
+    // Helper: try several label variants and return the first non-empty match
+    const extractField = async (labels: string[]): Promise<string> => {
+      for (const label of labels) {
+        try {
+          // "Label: Value" pattern in a parent element
+          const el = await this.page!.$(`text=${label}`);
+          if (el) {
+            const parent = await el.$('xpath=..');
+            if (parent) {
+              const text = await parent.innerText();
+              const value = text.replace(new RegExp(`${label}:?\\s*`, 'i'), '').trim();
+              if (value) return value;
+            }
+          }
+          // Table layout: label cell followed by value cell
+          const td = await this.page!.$(`td:has-text("${label}") + td`);
+          if (td) {
+            const value = await td.innerText();
+            if (value.trim()) return value.trim();
+          }
+        } catch {
+          // Continue to next label variant
+        }
+      }
+      return '';
+    };
+
+    detail.owner               = await extractField(['Owner Name', 'Owner', 'Property Owner']);
+    detail.ownerMailingAddress = await extractField(['Mailing Address', 'Mail Address', 'Owner Address']) || undefined;
+    detail.situsAddress        = await extractField(['Situs Address', 'Property Address', 'Location']);
+    detail.legalDescription    = await extractField(['Legal Description', 'Legal', 'Legal Desc']);
+    detail.geoId               = await extractField(['Geographic ID', 'Geo ID', 'GEO ID']) || undefined;
+    detail.abstractSurvey      = await extractField(['Abstract', 'Survey', 'Abstract/Survey']) || undefined;
+
+    const acreageStr   = await extractField(['Acreage', 'Acres', 'Land Area']);
+    detail.acreage     = parseFloat(acreageStr) || 0;
+
+    const valueStr     = await extractField(['Assessed Value', 'Total Value', 'Market Value', 'Appraised Value']);
+    detail.assessedValue = parseFloat(valueStr.replace(/[$,]/g, '')) || undefined;
+
+    return detail;
+  }
+
+  // ── Private: AI detail extraction ────────────────────────────────────────────
+
+  private async extractDetailFromAI(propertyId: string): Promise<PropertyDetail> {
+    const aiResult = await this.aiParseScreen(
+      `This is a property detail page from a Texas County Appraisal District website (BIS Consultants system).
+
+Extract ALL available information and return as JSON:
+{
+  "owner": "owner name",
+  "ownerMailingAddress": "mailing address",
+  "situsAddress": "property address",
+  "legalDescription": "full legal description exactly as shown",
+  "acreage": 0.0,
+  "assessedValue": 0,
+  "marketValue": 0,
+  "abstractSurvey": "abstract and survey name",
+  "subdivisionName": "if part of a subdivision",
+  "lotNumber": "lot number if shown",
+  "blockNumber": "block number if shown",
+  "geoId": "geographic ID if shown",
+  "taxYear": 2025,
+  "deedReferences": [
+    { "instrumentNumber": "...", "type": "deed|plat|easement", "date": "...", "description": "..." }
+  ],
+  "improvements": [
+    { "type": "Residential", "sqft": 0, "yearBuilt": 0 }
+  ]
+}
+
+CRITICAL: Extract the legal description EXACTLY as shown — it contains the subdivision name and lot/block which are essential for further research.
+Return ONLY valid JSON, no explanation.`,
+    );
+
+    try {
+      const parsed = JSON.parse(
+        aiResult.replace(/```json?|```/g, '').trim(),
+      ) as AiDetailResult;
+
+      return {
+        propertyId,
+        owner:               parsed.owner ?? '',
+        ownerMailingAddress: parsed.ownerMailingAddress,
+        situsAddress:        parsed.situsAddress ?? '',
+        legalDescription:    parsed.legalDescription ?? '',
+        acreage:             parseFloat(String(parsed.acreage ?? '0')) || 0,
+        propertyType:        'real',
+        assessedValue:       parseFloat(String(parsed.assessedValue ?? '0')) || undefined,
+        marketValue:         parseFloat(String(parsed.marketValue ?? '0')) || undefined,
+        taxYear:             parsed.taxYear,
+        abstractSurvey:      parsed.abstractSurvey,
+        subdivisionName:     parsed.subdivisionName,
+        lotNumber:           parsed.lotNumber,
+        blockNumber:         parsed.blockNumber,
+        geoId:               parsed.geoId,
+        deedReferences:      (parsed.deedReferences ?? []).map(d => ({
+          instrumentNumber: d.instrumentNumber,
+          type:             (d.type ?? 'other') as DeedReference['type'],
+          date:             d.date,
+          description:      d.description,
+        })),
+        relatedPropertyIds:  [],
+        improvements:        (parsed.improvements ?? []).map(i => ({
+          type:      i.type ?? 'Unknown',
+          sqft:      i.sqft,
+          yearBuilt: i.yearBuilt,
+        })),
+      };
+    } catch (e) {
+      console.warn('[BIS] AI detail parse failed:', e);
+      return {
+        propertyId,
+        owner:             '',
+        situsAddress:      '',
+        legalDescription:  '',
+        acreage:           0,
+        propertyType:      'real',
+        deedReferences:    [],
+        relatedPropertyIds:[],
+        improvements:      [],
+      };
+    }
+  }
+
+  // ── Private: API search ───────────────────────────────────────────────────────
 
   private async apiSearch(
     query: string,
@@ -290,32 +360,7 @@ Return ONLY the JSON object, no explanation.`,
       .sort((a, b) => b.matchScore - a.matchScore);
   }
 
-  /** Map a raw BIS API item to a PropertySearchResult, or null if filtered out. */
-  private mapApiItem(
-    query: string,
-    item: BisApiItem,
-  ): PropertySearchResult | null {
-    // Filter personal property (vehicles, etc.)
-    const rawType = String(
-      item.property_type ?? item.PropertyType ?? '',
-    ).toUpperCase();
-    if (rawType === 'P' || rawType === 'PERSONAL') return null;
-
-    const propType: PropertySearchResult['propertyType'] =
-      rawType === 'R' || rawType === 'REAL' ? 'real' : 'unknown';
-
-    return {
-      propertyId:      String(item.PropertyId ?? item.property_id ?? item.ID ?? ''),
-      geoId:           String(item.GeoId       ?? item.geo_id       ?? '') || undefined,
-      owner:           String(item.OwnerName    ?? item.owner_name   ?? ''),
-      situsAddress:    String(item.SitusAddress ?? item.situs_address ?? ''),
-      legalDescription:String(item.LegalDescription ?? item.legal_description ?? ''),
-      acreage:         parseFloat(String(item.Acreage ?? item.acreage ?? '0')) || undefined,
-      propertyType:    propType,
-      assessedValue:   parseFloat(String(item.AssessedValue ?? item.assessed_value ?? '0')) || undefined,
-      matchScore:      this.calculateMatchScore(query, item as Record<string, unknown>),
-    };
-  }
+  // ── Private: Playwright search ────────────────────────────────────────────────
 
   private async playwrightSearch(
     query: string,
@@ -352,26 +397,25 @@ Return ONLY the JSON object, no explanation.`,
       .catch(() => {});
     await this.page.waitForTimeout(1000);
 
-    // Check for empty results
+    // Empty results indicator
     const noResults = await this.page.$('.no-results, text=No records found');
     if (noResults) return [];
 
-    // Parse results from DOM
+    // DOM parse: BIS rows are typically tab-separated: ID | Owner | Address | Legal
     const results: PropertySearchResult[] = [];
     const rows = await this.page.$$('.search-result-row, #searchResults tr');
 
     for (const row of rows) {
-      const text  = await row.innerText();
-      const link  = await row.$('a');
-      const href  = link ? await link.getAttribute('href') : '';
+      const text = await row.innerText();
+      const link = await row.$('a');
+      const href = link ? await link.getAttribute('href') : '';
 
       const idMatch =
         href?.match(/\/Property\/View\/(\d+)/i) ??
         href?.match(/prop_id=(\d+)/i);
       if (!idMatch) continue;
 
-      // BIS rows: ID | Owner | Address | Legal (tab-separated)
-      const cells = text.split('\t').map(s => s.trim()).filter(Boolean);
+      const cells = text.split('\t').map((s: string) => s.trim()).filter(Boolean);
 
       results.push({
         propertyId:       idMatch[1],
@@ -383,9 +427,9 @@ Return ONLY the JSON object, no explanation.`,
       });
     }
 
-    // Last resort: AI screenshot OCR
+    // Last resort: Claude Vision OCR
     if (results.length === 0) {
-      const aiText = await this.aiParseScreen(
+      const aiResult = await this.aiParseScreen(
         `This is a property search results page from a Texas County Appraisal District (BIS Consultants system).
 
 Extract ALL property records visible in the search results. For each record provide:
@@ -399,78 +443,94 @@ Extract ALL property records visible in the search results. For each record prov
 Return as JSON array:
 [{ "propertyId": "...", "owner": "...", "address": "...", "legalDescription": "...", "propertyType": "...", "acreage": "..." }]
 
-Return ONLY the JSON array, no explanation.`,
+Only include REAL property records (not vehicles or personal property).`,
       );
 
       try {
-        const items = JSON.parse(aiText) as AiSearchItem[];
-        for (const item of items) {
+        const parsed = JSON.parse(
+          aiResult.replace(/```json?|```/g, '').trim(),
+        ) as AiSearchItem[];
+
+        for (const item of parsed) {
           if (!item.propertyId) continue;
-          const pt = (item.propertyType ?? '').toUpperCase();
-          if (pt === 'PERSONAL' || pt === 'P') continue;
           results.push({
             propertyId:       item.propertyId,
             owner:            item.owner ?? '',
             situsAddress:     item.address ?? '',
             legalDescription: item.legalDescription ?? '',
+            propertyType:     item.propertyType?.toLowerCase() === 'personal'
+              ? 'personal'
+              : 'real',
             acreage:          parseFloat(item.acreage ?? '') || undefined,
-            propertyType:     pt === 'REAL' || pt === 'R' ? 'real' : 'unknown',
-            matchScore:       30,   // AI-sourced results get lower base score
+            matchScore:       40,  // AI-parsed results get lower confidence score
           });
         }
-      } catch {
-        console.warn('[BIS] Failed to parse AI OCR result as JSON');
+      } catch (e) {
+        console.warn('[BIS] AI parse failed:', e);
       }
     }
 
-    return results.sort((a, b) => b.matchScore - a.matchScore);
+    return results.filter(r => r.propertyType === 'real');
   }
 
-  /** Parse a single deed-reference row string into a DeedReference. */
-  private parseDeedRow(row: string): DeedReference | null {
-    const clean = row.trim();
-    if (!clean) return null;
+  // ── Private: helpers ──────────────────────────────────────────────────────────
 
-    // Instrument number pattern: "2023032044" or "VOL 123 PG 456"
-    const instrMatch = clean.match(/\b(\d{10,})\b/);
-    const volMatch   = clean.match(/VOL(?:UME)?\s*(\d+)/i);
-    const pgMatch    = clean.match(/(?:PG|PAGE)\s*(\d+)/i);
-    const dateMatch  = clean.match(/(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})/);
+  /** Map a raw BIS API item to a PropertySearchResult, filtering out personal property. */
+  private mapApiItem(
+    query: string,
+    item: BisApiItem,
+  ): PropertySearchResult | null {
+    const rawType = String(
+      item.property_type ?? item.PropertyType ?? '',
+    ).toUpperCase();
+    // Filter personal property (vehicles, etc.)
+    if (rawType === 'P' || rawType === 'PERSONAL') return null;
 
-    // Determine document type from keywords
-    let type: DeedReference['type'] = 'other';
-    const upper = clean.toUpperCase();
-    if (upper.includes('DEED') || upper.includes('WARRANTY') || upper.includes('QUITCLAIM')) {
-      type = 'deed';
-    } else if (upper.includes('PLAT') || upper.includes('FINAL PLAT') || upper.includes('SUBDIVISION PLAT')) {
-      type = 'plat';
-    } else if (upper.includes('EASEMENT') || upper.includes('RIGHT-OF-WAY')) {
-      type = 'easement';
-    } else if (upper.includes('RESTRICT')) {
-      type = 'restriction';
-    } else if (upper.includes('LIEN') || upper.includes('MORTGAGE')) {
-      type = 'lien';
-    }
-
-    // Normalise date to ISO 8601
-    let date: string | undefined;
-    if (dateMatch) {
-      const raw = dateMatch[1];
-      if (raw.includes('/')) {
-        const [m, d, y] = raw.split('/');
-        date = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-      } else {
-        date = raw;
-      }
-    }
+    const propType: PropertySearchResult['propertyType'] =
+      rawType === 'R' || rawType === 'REAL' ? 'real' : 'unknown';
 
     return {
-      instrumentNumber: instrMatch?.[1],
-      volume:           volMatch?.[1],
-      page:             pgMatch?.[1],
-      type,
-      date,
-      description:      clean,
+      propertyId:       String(item.PropertyId ?? item.property_id ?? item.ID ?? ''),
+      geoId:            String(item.GeoId ?? item.geo_id ?? '') || undefined,
+      owner:            String(item.OwnerName ?? item.owner_name ?? ''),
+      situsAddress:     String(item.SitusAddress ?? item.situs_address ?? ''),
+      legalDescription: String(item.LegalDescription ?? item.legal_description ?? ''),
+      acreage:          parseFloat(String(item.Acreage ?? item.acreage ?? '0')) || undefined,
+      propertyType:     propType,
+      assessedValue:    parseFloat(String(item.AssessedValue ?? item.assessed_value ?? '0')) || undefined,
+      matchScore:       this.calculateMatchScore(query, item as Record<string, unknown>),
     };
+  }
+
+  /** Collect all lot property IDs in the same subdivision, excluding the current parcel. */
+  private async findSubdivisionLotIds(
+    subdivisionName: string,
+    currentId: string,
+  ): Promise<string[]> {
+    try {
+      const lots = await this.findSubdivisionLots(subdivisionName);
+      return lots
+        .map(l => l.propertyId)
+        .filter(id => id !== currentId);
+    } catch (e) {
+      console.warn(`[BIS] Could not find subdivision lots for "${subdivisionName}":`, e);
+      return [];
+    }
+  }
+
+  /** Compute a 0–100 relevance score for a search result against the query. */
+  private calculateMatchScore(query: string, item: Record<string, unknown>): number {
+    let score = 50;
+
+    const address   = String(item.SitusAddress ?? item.situs_address ?? '').toUpperCase();
+    const queryUpper = query.toUpperCase();
+
+    if (address.includes(queryUpper)) score += 30;
+    if (address.startsWith(queryUpper.split(' ')[0])) score += 10;
+
+    const propType = String(item.property_type ?? item.PropertyType ?? '').toUpperCase();
+    if (propType === 'R' || propType === 'REAL') score += 10;
+
+    return Math.min(100, score);
   }
 }
