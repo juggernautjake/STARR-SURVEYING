@@ -31,6 +31,8 @@ function getFileCategory(name: string, mime?: string): 'image' | 'pdf' | 'text' 
 
 export default function FileViewer({ file, onClose }: FileViewerProps) {
   const [scale, setScale] = useState(1);
+  // zoomInput tracks the text shown in the zoom input box; synced from scale
+  const [zoomInput, setZoomInput] = useState('100');
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -38,11 +40,25 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
 
   const category = getFileCategory(file.file_name, file.mime_type);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setScale(prev => Math.min(Math.max(prev + delta, 0.25), 5));
-  }, []);
+  // Keep the zoom input display in sync when scale changes externally
+  useEffect(() => {
+    setZoomInput(String(Math.round(scale * 100)));
+  }, [scale]);
+
+  // Ctrl+scroll zoom: attach a native (non-passive) wheel listener so we can call
+  // preventDefault() and prevent the browser from zooming or scrolling the page.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || category !== 'image') return;
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setScale(prev => Math.min(Math.max(prev + delta, 0.05), 3));
+    }
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [category]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (category !== 'image') return;
@@ -65,14 +81,29 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
   }
 
   function zoomIn() {
-    setScale(prev => Math.min(prev + 0.25, 5));
+    setScale(prev => Math.min(prev + 0.1, 3));
   }
 
   function zoomOut() {
-    setScale(prev => Math.max(prev - 0.25, 0.25));
+    setScale(prev => Math.max(prev - 0.1, 0.05));
   }
 
-  // Close on Escape
+  function handleZoomInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setZoomInput(e.target.value);
+  }
+
+  // Apply the typed zoom value (5%–300%); revert to current scale if invalid
+  function handleZoomInputCommit() {
+    const val = parseInt(zoomInput, 10);
+    if (!isNaN(val) && val >= 5 && val <= 300) {
+      setScale(val / 100);
+    } else {
+      setZoomInput(String(Math.round(scale * 100)));
+    }
+  }
+
+  // Keyboard shortcuts (Escape/+/-/0) — stopPropagation in the zoom input prevents
+  // these from firing while the user is typing a custom zoom value
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -96,8 +127,25 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
           <div className="file-viewer__controls">
             {category === 'image' && (
               <>
-                <button className="file-viewer__ctrl-btn" onClick={zoomOut} title="Zoom out (-)">-</button>
-                <span className="file-viewer__zoom-level">{Math.round(scale * 100)}%</span>
+                <button className="file-viewer__ctrl-btn" onClick={zoomOut} title="Zoom out (−)">−</button>
+                {/* Zoom selector: editable input showing current zoom %, range 5%–300% */}
+                <input
+                  className="file-viewer__zoom-input"
+                  type="number"
+                  min={5}
+                  max={300}
+                  value={zoomInput}
+                  onChange={handleZoomInputChange}
+                  onBlur={handleZoomInputCommit}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { handleZoomInputCommit(); e.currentTarget.blur(); }
+                    // Prevent global zoom shortcuts (+/-/0/Esc) from firing while typing
+                    if (['+', '=', '-', '0', 'Escape'].includes(e.key)) e.stopPropagation();
+                  }}
+                  title="Zoom level (5%–300%)"
+                  aria-label="Zoom level"
+                />
+                <span className="file-viewer__zoom-pct">%</span>
                 <button className="file-viewer__ctrl-btn" onClick={zoomIn} title="Zoom in (+)">+</button>
                 <button className="file-viewer__ctrl-btn" onClick={resetView} title="Reset (0)">Fit</button>
                 <span className="file-viewer__divider" />
@@ -124,7 +172,6 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
         <div
           className="file-viewer__content"
           ref={containerRef}
-          onWheel={category === 'image' ? handleWheel : undefined}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -182,7 +229,7 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
         {/* Footer hints */}
         {category === 'image' && (
           <div className="file-viewer__footer">
-            Scroll to zoom &middot; Drag to pan &middot; Press 0 to reset &middot; Esc to close
+            Ctrl+Scroll to zoom &middot; Drag to pan &middot; Press 0 to reset &middot; Esc to close
           </div>
         )}
       </div>
