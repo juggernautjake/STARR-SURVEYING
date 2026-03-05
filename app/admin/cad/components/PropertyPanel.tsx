@@ -160,11 +160,11 @@ export default function PropertyPanel() {
             {features.map((f) => f.type).join(', ')}
           </div>
           <div className="border-t border-gray-700 pt-2 space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-gray-400">Color</span>
               <input
                 type="color"
-                className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5"
                 defaultValue="#000000"
                 onChange={(e) => {
                   const color = e.target.value;
@@ -217,11 +217,11 @@ export default function PropertyPanel() {
         {/* Style */}
         <div className="space-y-2 border-t border-gray-700 pt-2">
           <div className="text-gray-500 text-[10px] uppercase tracking-wider">Style</div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-400">Color</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-gray-400 shrink-0">Color</span>
             <input
               type="color"
-              className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+              className="w-8 h-6 rounded cursor-pointer border border-gray-600 bg-transparent p-0.5"
               value={displayColor}
               onChange={(e) => setEditColor(e.target.value)}
               onBlur={commitStyleChange}
@@ -230,7 +230,7 @@ export default function PropertyPanel() {
           <div className="flex items-center justify-between gap-2">
             <span className="text-gray-400 shrink-0">Line Weight</span>
             <input
-              className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right outline-none"
+              className="w-14 h-6 bg-gray-700 text-white rounded px-1 text-right outline-none border border-gray-600 focus:border-blue-500 text-xs"
               type="number"
               step="0.5"
               min="0.1"
@@ -244,7 +244,7 @@ export default function PropertyPanel() {
           <div className="flex items-center justify-between gap-2">
             <span className="text-gray-400 shrink-0">Opacity %</span>
             <input
-              className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right outline-none"
+              className="w-14 h-6 bg-gray-700 text-white rounded px-1 text-right outline-none border border-gray-600 focus:border-blue-500 text-xs"
               type="number"
               step="5"
               min="0"

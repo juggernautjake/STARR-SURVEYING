@@ -241,7 +241,7 @@ export default function CADLayout() {
       {/* Main content area */}
       <div className="flex flex-1 min-h-0">
         {/* Left sidebar: tools */}
-        <div className="flex flex-col bg-gray-800 border-r border-gray-700" style={{ width: 48 }}>
+        <div className="flex flex-col bg-gray-800 border-r border-gray-700" style={{ width: 52 }}>
           <ToolBar />
         </div>
 
