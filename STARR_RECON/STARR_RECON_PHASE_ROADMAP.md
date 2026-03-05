@@ -267,7 +267,7 @@ starr-software/                     # Turborepo monorepo root
 | 3 | AI Document Intelligence | 🟡 SPEC COMPLETE | 1,636 | Phase 2 | 7–9 |
 | 4 | Subdivision & Plat Intelligence | 🟡 SPEC COMPLETE | 1,361 | Phase 3 | 10–12 |
 | 5 | Adjacent Property Deep Research | 🟡 SPEC COMPLETE | 1,507 | Phase 3, 4 | 13–15 |
-| 6 | TxDOT ROW Integration | 🟡 SPEC COMPLETE | 1,287 | Phase 3 | 16–18 |
+| 6 | TxDOT ROW Integration | 🟠 IN PROGRESS | 1,287 | Phase 3 | 16–18 |
 | 7 | Geometric Reconciliation | 🟡 SPEC COMPLETE | 1,424 | Phases 3–6 | 19–21 |
 | 8 | Confidence Scoring | 🟡 SPEC COMPLETE | 1,138 | Phase 7 | 22–23 |
 | 9 | Document Purchase | 🟡 SPEC COMPLETE | 1,448 | Phases 2, 3, 7, 8 | 24–26 |
