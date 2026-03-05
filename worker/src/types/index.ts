@@ -26,6 +26,8 @@ export interface PipelineResult {
   documents: DocumentResult[];
   boundary: BoundaryDescription | null;
   validation: ValidationResult | null;
+  /** Phase 3.5: Geometric reconciliation — visual geometry vs OCR text */
+  reconciliation?: import('../services/geo-reconcile.js').ReconciliationResult;
   log: LayerAttempt[];
   duration_ms: number;
   /** Search diagnostics: which variants were tried, which hit */
@@ -200,6 +202,26 @@ export interface DocumentReference {
   description: string | null;
 }
 
+// ── 5-Symbol Confidence Rating ────────────────────
+//
+// Directly maps to the spec's five-symbol validation notation:
+//   ✓ CONFIRMED  — Multiple independent sources agree, math closes
+//   ~ DEDUCED    — Logically inferred from surrounding context (single source)
+//   ? UNCONFIRMED — Single source, no cross-reference possible
+//   ✗ DISCREPANCY — Sources disagree or math doesn't close
+//   ✗✗ CRITICAL  — Major error: missing, contradictory, or geometrically impossible
+
+export type ConfidenceSymbol = 'CONFIRMED' | 'DEDUCED' | 'UNCONFIRMED' | 'DISCREPANCY' | 'CRITICAL';
+
+export interface ConfidenceRating {
+  symbol: ConfidenceSymbol;
+  /** Unicode display character(s) for the symbol */
+  display: '✓' | '~' | '?' | '✗' | '✗✗';
+  label: string;
+  /** Numeric score 0-100 equivalent */
+  score: number;
+}
+
 // ── Stage 4: Validation ────────────────────────────
 
 export interface ValidationResult {
@@ -218,6 +240,8 @@ export interface ValidationResult {
   traversePoints?: Array<{ x: number; y: number }>;
   /** Total perimeter in feet */
   totalPerimeter_ft?: number;
+  /** 5-symbol confidence rating derived from all validation checks */
+  confidenceRating?: ConfidenceRating;
 }
 
 // ── Address Normalization ──────────────────────────
@@ -256,6 +280,8 @@ export interface NormalizedAddress {
   lon: number | null;
   /** Detected county from geocoding (may differ from user input) */
   detectedCounty: string | null;
+  /** 5-digit FIPS code for the detected county (e.g. "48027" = Bell County) */
+  countyFIPS: string | null;
 }
 
 // ── Logging ────────────────────────────────────────
@@ -297,4 +323,75 @@ export interface ActivePipeline {
   currentStage: string;
   /** When the last status update was sent */
   lastUpdate?: string;
+}
+
+// ── Document Purchase Record ────────────────────────
+// Spec §18 Cost Tracking — every document purchase is logged with full audit trail
+
+export type PurchaseSource = 'texasfile' | 'county_clerk' | 'txdot';
+export type PurchasePaymentMethod = 'texasfile_wallet' | 'county_credit_card' | 'stripe';
+
+export interface PurchaseRecord {
+  projectId:        string;
+  userId:           string;
+  documentName:     string;
+  instrumentNumber: string;
+  source:           PurchaseSource;
+  pageCount:        number;
+  costPerPage:      number;
+  totalCost:        number;
+  paymentMethod:    PurchasePaymentMethod;
+  purchaseDate:     Date;
+  /** Confidence impact of adding this document: before and after scores */
+  confidenceImpact: { before: number; after: number };
+  /** Path in Supabase Storage where the purchased document was stored */
+  downloadPath:     string;
+}
+
+// ── Storage Path Conventions ────────────────────────
+// Spec §18 Document Storage — hierarchical path structure in the
+// 'research-documents' Supabase Storage bucket.
+//
+//   research-documents/{projectId}/target/      ← target property docs
+//   research-documents/{projectId}/adjacent/    ← per-neighbor docs
+//   research-documents/{projectId}/txdot/       ← TxDOT ROW data
+//   research-documents/{projectId}/reports/     ← generated reports
+
+export const STORAGE_PATHS = {
+  /** Target property: plat and deed documents */
+  targetPlat:  (projectId: string, suffix = 'watermarked.png') =>
+    `${projectId}/target/plat_${suffix}`,
+  targetDeed:  (projectId: string, suffix = 'watermarked.png') =>
+    `${projectId}/target/deed_${suffix}`,
+
+  /** Adjacent property documents (one folder per owner name slug) */
+  adjacentDeed: (projectId: string, ownerSlug: string, suffix = 'watermarked.png') =>
+    `${projectId}/adjacent/${ownerSlug}/deed_${suffix}`,
+  adjacentPlat: (projectId: string, ownerSlug: string, suffix = 'plat.pdf') =>
+    `${projectId}/adjacent/${ownerSlug}/${suffix}`,
+
+  /** TxDOT ROW data */
+  txdotScreenshot: (projectId: string) =>
+    `${projectId}/txdot/rpam_screenshot.png`,
+  txdotRowMap:     (projectId: string) =>
+    `${projectId}/txdot/row_map.pdf`,
+  txdotGeoJSON:    (projectId: string) =>
+    `${projectId}/txdot/row_parcels.geojson`,
+
+  /** Generated reports */
+  masterReport:      (projectId: string) =>
+    `${projectId}/reports/MASTER_VALIDATION_REPORT.txt`,
+  confidenceReport:  (projectId: string) =>
+    `${projectId}/reports/confidence_report.json`,
+  purchaseHistory:   (projectId: string) =>
+    `${projectId}/reports/purchase_history.json`,
+} as const;
+
+/** Slugify an owner name for use in storage paths */
+export function ownerNameToSlug(ownerName: string): string {
+  return ownerName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .substring(0, 64);
 }

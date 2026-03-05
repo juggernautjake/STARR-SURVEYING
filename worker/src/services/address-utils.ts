@@ -5,6 +5,7 @@
 
 import type { NormalizedAddress, AddressVariant, ParsedAddress } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
+import { countyToFIPS } from '../lib/county-fips.js';
 
 // ── Road Abbreviation Maps ─────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@
 // reference completeness, and quality rating.
 // Handles both quadrant bearings AND azimuth bearings.
 
-import type { ExtractedBoundaryData, BoundaryCall, ValidationResult } from '../types/index.js';
+import type { ExtractedBoundaryData, BoundaryCall, ValidationResult, ConfidenceRating, ConfidenceSymbol } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 
 // ── Unit Conversions ───────────────────────────────────────────────────────
@@ -357,6 +357,69 @@ function computeQualityRating(
   return 'failed';
 }
 
+// ── 5-Symbol Confidence Rating ─────────────────────────────────────────────
+
+/**
+ * Map all validation check results to the 5-symbol confidence rating system:
+ *
+ *   ✓ CONFIRMED  — Closure is excellent/good AND bearing+distance pass AND no major flags
+ *   ~ DEDUCED    — Good geometric consistency but only one source or minor issues
+ *   ? UNCONFIRMED — Incomplete data (lot & block only, no metes & bounds)
+ *   ✗ DISCREPANCY — Math fails or area differs significantly from CAD
+ *   ✗✗ CRITICAL  — Failed quality, missing data, or impossible geometry
+ */
+function computeConfidenceRating(
+  quality: ValidationResult['overallQuality'],
+  bearingSane: boolean,
+  distanceSane: boolean,
+  areaDiscrepancy_pct: number | null,
+  callCount: number,
+  flags: string[],
+): ConfidenceRating {
+  const RATINGS: Record<ConfidenceSymbol, ConfidenceRating> = {
+    CONFIRMED:    { symbol: 'CONFIRMED',    display: '✓',  label: 'CONFIRMED',    score: 90 },
+    DEDUCED:      { symbol: 'DEDUCED',      display: '~',  label: 'DEDUCED',      score: 70 },
+    UNCONFIRMED:  { symbol: 'UNCONFIRMED',  display: '?',  label: 'UNCONFIRMED',  score: 50 },
+    DISCREPANCY:  { symbol: 'DISCREPANCY',  display: '✗',  label: 'DISCREPANCY',  score: 25 },
+    CRITICAL:     { symbol: 'CRITICAL',     display: '✗✗', label: 'CRITICAL',     score: 5  },
+  };
+
+  // ── CRITICAL: fundamental failures ──────────────────────────────────────
+  if (quality === 'failed') return RATINGS.CRITICAL;
+  if (callCount === 0)      return RATINGS.CRITICAL;
+
+  const hasCriticalFlag = flags.some(f =>
+    f.toLowerCase().includes('major area discrepancy') ||
+    f.toLowerCase().includes('impossible') ||
+    f.toLowerCase().includes('degenerate')
+  );
+  if (hasCriticalFlag) return RATINGS.CRITICAL;
+
+  // ── DISCREPANCY: math doesn't close or sources conflict ─────────────────
+  if (!bearingSane || !distanceSane) return RATINGS.DISCREPANCY;
+  if (quality === 'poor')            return RATINGS.DISCREPANCY;
+
+  const areaConflict = areaDiscrepancy_pct !== null && areaDiscrepancy_pct > 10;
+  if (areaConflict) return RATINGS.DISCREPANCY;
+
+  // ── UNCONFIRMED: fair closure, data present but weak ────────────────────
+  if (quality === 'fair') return RATINGS.UNCONFIRMED;
+
+  // ── DEDUCED: good closure, all sanity checks pass ────────────────────────
+  if (quality === 'good') return RATINGS.DEDUCED;
+
+  // ── CONFIRMED: excellent closure, all checks pass, no significant flags ──
+  const hasSignificantFlag = flags.some(f =>
+    f.toLowerCase().includes('discrepancy') ||
+    f.toLowerCase().includes('mismatch') ||
+    f.toLowerCase().includes('skipped')
+  );
+  if (quality === 'excellent' && !hasSignificantFlag) return RATINGS.CONFIRMED;
+
+  // Excellent quality but has minor flags → DEDUCED
+  return RATINGS.DEDUCED;
+}
+
 // ── Main Validation Function ───────────────────────────────────────────────
 
 /**
@@ -486,6 +549,13 @@ export function validateBoundary(
   );
   logger.info('Stage4F', `Overall quality: ${quality.toUpperCase()}`);
 
+  // ── 4G: 5-symbol confidence rating ──────────────────────
+  const confidenceRating = computeConfidenceRating(
+    quality, bearingSane, distanceSane, areaDiscrepancy_pct,
+    boundary.calls.length, allFlags,
+  );
+  logger.info('Stage4G', `Confidence: ${confidenceRating.display} ${confidenceRating.label} (score: ${confidenceRating.score})`);
+
   return {
     closureError_ft,
     precisionRatio: precisionRatioStr,
@@ -500,5 +570,6 @@ export function validateBoundary(
     flags: allFlags,
     traversePoints: points.map(({ x, y }) => ({ x, y })),
     totalPerimeter_ft,
+    confidenceRating,
   };
 }

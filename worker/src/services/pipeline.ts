@@ -9,6 +9,7 @@ import { searchBisCad, BIS_CONFIGS } from './bell-cad.js';
 import { searchClerkRecords } from './bell-clerk.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
+import { runGeoReconcile } from './geo-reconcile.js';
 
 // ── Supabase Client (Lazy Init) ───────────────────────────────────────────
 
@@ -500,7 +501,49 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     );
 
     logger.info('Stage3', `Extraction complete. Boundary: ${boundary?.type ?? 'none'}, Calls: ${boundary?.calls.length ?? 0}`);
-    await updateStatus(input.projectId, 'running', 'Extraction complete. Validating...');
+    await updateStatus(input.projectId, 'running', 'Extraction complete. Running geometric reconciliation...');
+
+    // ═══════════════════════════════════════════════════════════════════
+    // STAGE 3.5: Geometric Reconciliation
+    // Visual geometry analysis of the plat image vs OCR text extraction.
+    // Identifies watermark-obscured digit conflicts (e.g. the L4 N86°/N36°/N56° case).
+    // Only runs when a plat document with an image is available.
+    // ═══════════════════════════════════════════════════════════════════
+
+    logger.info('Stage3.5', '═══ STAGE 3.5: Geometric Reconciliation ═══');
+
+    // Find the best plat image document (prefer plats, then surveys, then any image)
+    const platDoc = processedDocs.find(d =>
+      d.imageBase64 && d.imageFormat &&
+      (d.ref.documentType.toLowerCase().includes('plat') ||
+       d.ref.documentType.toLowerCase().includes('survey'))
+    ) ?? processedDocs.find(d => d.imageBase64 && d.imageFormat);
+
+    let reconciliation: import('../types/index.js').PipelineResult['reconciliation'] = undefined;
+
+    if (platDoc?.imageBase64 && platDoc.imageFormat) {
+      const mediaType = (platDoc.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png') as 'image/png' | 'image/jpeg';
+      try {
+        reconciliation = await runGeoReconcile(
+          boundary,
+          platDoc.imageBase64,
+          mediaType,
+          anthropicApiKey,
+          logger,
+          platDoc.ref.instrumentNumber ?? platDoc.ref.documentType,
+        );
+        logger.info('Stage3.5',
+          `Reconciliation: ${reconciliation.agreementCount} confirmed, ` +
+          `${reconciliation.conflictCount} conflicts, ` +
+          `${reconciliation.overallAgreementPct}% agreement`);
+      } catch (err) {
+        logger.warn('Stage3.5', `Geometric reconciliation failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } else {
+      logger.info('Stage3.5', 'No plat image available — skipping geometric reconciliation');
+    }
+
+    await updateStatus(input.projectId, 'running', 'Reconciliation complete. Validating...');
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 4: Validation
@@ -537,6 +580,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       documents: processedDocs,
       boundary,
       validation,
+      reconciliation,
       log: logger.getAttempts(),
       duration_ms,
       searchDiagnostics,
