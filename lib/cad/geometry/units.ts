@@ -74,9 +74,7 @@ function formatAsFraction(value: number, maxDenom = 64): string {
 
   if (frac < 0.0001) return `${sign}${whole}`;
 
-  // Find best power-of-2 denominator
-  const denom = FRACTION_DENOMS.find((d) => d <= maxDenom) ?? 64;
-  // Try each denominator in increasing order, pick the one with least remainder
+  // Try each power-of-2 denominator, pick the one with least remainder
   let bestNum = 0;
   let bestDen = 1;
   let bestErr = Infinity;
@@ -86,7 +84,7 @@ function formatAsFraction(value: number, maxDenom = 64): string {
     const err = Math.abs(frac - num / d);
     if (err < bestErr) { bestErr = err; bestNum = num; bestDen = d; }
   }
-  if (bestErr > 0.5 / denom) {
+  if (bestErr > 0.5 / maxDenom) {
     // Frac rounds to zero at this precision — just return whole
     return `${sign}${whole}`;
   }

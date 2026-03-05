@@ -194,7 +194,7 @@ export default function DisplayPreferencesPanel({ open, onClose }: Props) {
       <div className="p-3 space-y-3 overflow-y-auto" style={{ maxHeight: 540 }}>
 
         {/* ── Distances & Dimensions ──────────────────────────────────────── */}
-        <Section title="Distances &amp; Dimensions">
+        <Section title="Distances & Dimensions">
           <OptionRow<LinearUnit>
             label="Distance Unit"
             options={[
@@ -248,7 +248,7 @@ export default function DisplayPreferencesPanel({ open, onClose }: Props) {
         </Section>
 
         {/* ── Bearings & Angles ─────────────────────────────────────────────── */}
-        <Section title="Bearings &amp; Angles">
+        <Section title="Bearings & Angles">
           <OptionRow<BearingFormat>
             label="Bearing Style"
             options={[
