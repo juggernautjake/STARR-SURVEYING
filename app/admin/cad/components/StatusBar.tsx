@@ -1,6 +1,7 @@
 'use client';
 // app/admin/cad/components/StatusBar.tsx — Bottom status bar
 
+import { useState, useEffect, useRef } from 'react';
 import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore } from '@/lib/cad/store';
 
 const TOOL_LABELS: Record<string, string> = {
@@ -21,6 +22,10 @@ const TOOL_LABELS: Record<string, string> = {
   ERASE: 'Erase',
 };
 
+const MIN_ZOOM_PCT = 5;
+const MAX_ZOOM_PCT = 500;
+const ZOOM_STEP_PCT = 25;
+
 export default function StatusBar() {
   const drawingStore = useDrawingStore();
   const viewportStore = useViewportStore();
@@ -37,6 +42,52 @@ export default function StatusBar() {
 
   // Express zoom as a percentage of 1px-per-world-unit baseline
   const zoomPct = Math.round(zoom * 100);
+
+  // Zoom input editing state
+  const [zoomEditing, setZoomEditing] = useState(false);
+  const [zoomInputValue, setZoomInputValue] = useState('');
+  const zoomInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync input value whenever the external zoom changes (not while editing)
+  useEffect(() => {
+    if (!zoomEditing) {
+      setZoomInputValue(String(zoomPct));
+    }
+  }, [zoomPct, zoomEditing]);
+
+  function applyZoomPct(pct: number) {
+    const clamped = Math.max(MIN_ZOOM_PCT, Math.min(MAX_ZOOM_PCT, pct));
+    viewportStore.setZoom(clamped / 100);
+  }
+
+  function incrementZoom() {
+    applyZoomPct(Math.min(MAX_ZOOM_PCT, zoomPct + ZOOM_STEP_PCT));
+  }
+
+  function decrementZoom() {
+    applyZoomPct(Math.max(MIN_ZOOM_PCT, zoomPct - ZOOM_STEP_PCT));
+  }
+
+  function commitZoomInput() {
+    const val = parseFloat(zoomInputValue);
+    if (!isNaN(val) && val > 0) {
+      applyZoomPct(val);
+    } else {
+      setZoomInputValue(String(zoomPct));
+    }
+    setZoomEditing(false);
+  }
+
+  function handleZoomKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      commitZoomInput();
+      (e.target as HTMLInputElement).blur();
+    } else if (e.key === 'Escape') {
+      setZoomInputValue(String(zoomPct));
+      setZoomEditing(false);
+      (e.target as HTMLInputElement).blur();
+    }
+  }
 
   // Live distance/angle when drawing
   let distanceInfo: { dist: string; angle: string } | null = null;
@@ -76,10 +127,47 @@ export default function StatusBar() {
 
       <span className="text-gray-600">|</span>
 
-      {/* Zoom level */}
-      <span className="font-mono shrink-0" title="Current zoom level">
-        {zoomPct}%
-      </span>
+      {/* Zoom control: − [input %] + */}
+      <div className="flex items-center gap-0.5 shrink-0" title="Zoom level (Ctrl+scroll to zoom, 5%–500%)">
+        <button
+          onClick={decrementZoom}
+          disabled={zoomPct <= MIN_ZOOM_PCT}
+          className="w-4 h-4 flex items-center justify-center rounded text-gray-300 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors leading-none"
+          title={`Zoom out 25% (current: ${zoomPct}%)`}
+        >
+          −
+        </button>
+        <div className="relative flex items-center">
+          <input
+            ref={zoomInputRef}
+            type="text"
+            inputMode="numeric"
+            value={zoomEditing ? zoomInputValue : String(zoomPct)}
+            onChange={(e) => {
+              setZoomEditing(true);
+              setZoomInputValue(e.target.value);
+            }}
+            onFocus={() => {
+              setZoomEditing(true);
+              setZoomInputValue(String(zoomPct));
+              setTimeout(() => zoomInputRef.current?.select(), 0);
+            }}
+            onBlur={commitZoomInput}
+            onKeyDown={handleZoomKeyDown}
+            className="w-10 text-center bg-gray-800 border border-gray-600 rounded text-gray-200 font-mono text-xs px-0.5 py-0 focus:outline-none focus:border-blue-500 focus:text-white"
+            style={{ height: 18 }}
+          />
+          <span className="ml-0.5 text-gray-500 font-mono">%</span>
+        </div>
+        <button
+          onClick={incrementZoom}
+          disabled={zoomPct >= MAX_ZOOM_PCT}
+          className="w-4 h-4 flex items-center justify-center rounded text-gray-300 hover:bg-gray-700 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors leading-none"
+          title={`Zoom in 25% (current: ${zoomPct}%)`}
+        >
+          +
+        </button>
+      </div>
 
       <span className="text-gray-600">|</span>
 

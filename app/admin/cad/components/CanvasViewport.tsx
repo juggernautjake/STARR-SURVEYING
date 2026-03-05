@@ -1095,8 +1095,7 @@ export default function CanvasViewport() {
   function createFeature(type: FeatureType, points: Point2D[]): Feature | null {
     const { activeLayerId, getActiveLayerStyle } = drawingStore;
     const layerStyle = getActiveLayerStyle();
-    const styleOverride = useToolStore.getState().state.drawingStyleOverride ?? {};
-    const mergedStyle = { ...DEFAULT_FEATURE_STYLE, ...layerStyle, ...styleOverride };
+    const mergedStyle = { ...DEFAULT_FEATURE_STYLE, ...layerStyle };
     const id = generateId();
     const ds = useToolStore.getState().state.drawStyle;
     // Merge draw style overrides on top of layer style for line/polyline tools
@@ -1839,18 +1838,6 @@ export default function CanvasViewport() {
     [toolStore, selectionStore, drawingStore, undoStore],
   );
 
-  const handleWheel = useCallback(
-    (e: React.WheelEvent<HTMLCanvasElement>) => {
-      e.preventDefault();
-      const rect = canvasRef.current!.getBoundingClientRect();
-      const sx = e.clientX - rect.left;
-      const sy = e.clientY - rect.top;
-      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-      viewportStore.zoomAt(sx, sy, factor);
-    },
-    [viewportStore],
-  );
-
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const rect = canvasRef.current!.getBoundingClientRect();
@@ -2022,6 +2009,28 @@ export default function CanvasViewport() {
   }, [toolStore]);
 
   // ─────────────────────────────────────────────
+  // Ctrl+scroll → zoom canvas (non-passive, prevents browser zoom)
+  // Regular scroll without Ctrl is passed through to the browser normally.
+  // ─────────────────────────────────────────────
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return; // Only handle Ctrl+scroll
+      e.preventDefault(); // Prevent browser page zoom
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      useViewportStore.getState().zoomAt(sx, sy, factor);
+    };
+
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // ─────────────────────────────────────────────
   // Right-click / context menu handler
   // ─────────────────────────────────────────────
   const handleContextMenu = useCallback(
@@ -2130,7 +2139,6 @@ export default function CanvasViewport() {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onWheel={handleWheel}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
