@@ -2225,9 +2225,113 @@ Phase 2 updates the Phase 1 renderer to handle `SurveyPoint`s:
 
 ---
 
-### Copilot Session Template
+## 22. Survey Orientation Adjustment
 
-> I am building Starr CAD Phase 2 — Data Import & Point Code System. Phase 1 (CAD engine core with PixiJS canvas, selection, undo, snap, layers, file I/O) is complete. I am now adding field data import (CSV, RW5, JobXML), a 134-code dual-code library (alpha ↔ numeric), point name suffix intelligence that fuzzy-matches fnd/set/calc variants and detects recalculations (cald, cale, calf), point grouping that resolves calc/set/found relationships, and auto-connect logic that builds line strings from B/E suffixes. The full Phase 2 spec is in `STARR_CAD_PHASE_2_DATA_IMPORT.md`. All types are defined in Section 2. I am currently working on **[CURRENT TASK from Build Order]**.
+### 22.1 Background
+
+Total-station surveys are sometimes collected without a proper backsight to a known
+reference direction.  When this happens, every bearing in the dataset is off by the same
+constant rotational error.  The surveyor may not discover the problem until the imported
+drawing is compared against the deed or an adjacent survey.
+
+This is a critical quality-control step that must be supported directly within the CAD
+software — not as an afterthought — because it affects every bearing, line, area
+calculation, and annotation in the drawing.
+
+### 22.2 Implementation (Phase 2 — Scaffolded)
+
+The orientation adjustment feature is scaffolded in Phase 2 with the following
+functionality built and delivered:
+
+**Core math (`lib/cad/geometry/orient.ts`):**
+- `computeOrientationCorrection(measured, true)` — returns the CCW correction angle
+- `computeCorrectionFromPoints(from, to, knownAzimuth)` — correction from two coordinates
+- `applyOrientationRotation(features, correctionDeg, pivot)` — rotates all features
+- `computeCentroid(features)` — default pivot for rotation
+- `extractReferenceLines(features)` — scan drawing features and return all meaningful
+  line segments sorted by length, for the user to pick a reference line
+- `generateBearingCandidates(measuredAzimuth, otherLines?)` — produces a ranked list of
+  smart bearing suggestions (snap-to-1°/5°/15°/30°/45°, cardinal directions, parallel /
+  perpendicular to other lines in the drawing) that the user can choose from in the UI.
+  The `confidence` field on each candidate is Phase-6-ready for AI deed scores.
+
+**UI (`app/admin/cad/components/OrientationDialog.tsx`):**
+- Accessed via Survey → Adjust Orientation…
+- **Primary workflow** — "Pick a Line":
+  1. Scans the drawing and shows all line segments, sorted longest-first
+  2. User clicks the segment they recognise (e.g. a property boundary)
+  3. A panel of smart suggested bearings appears; user clicks one (or types any bearing)
+  4. Live correction angle preview updates instantly
+  5. "Apply Orientation" rotates every feature in the drawing (fully undoable)
+- **Advanced methods** (collapsible):
+  - Method A: Enter measured vs. true azimuth directly
+  - Method B: Enter two point coordinates + deed bearing
+  - Method C: AI deed import placeholder (Phase 6)
+- Custom pivot point support (default: centroid of all features)
+
+**Wired into:**
+- `Survey → Adjust Orientation…` in the MenuBar
+- Full undo/redo integration (single batch entry)
+- Zoom-to-extents triggered after apply
+
+### 22.3 What Needs to Be Fleshed Out (Future Phases)
+
+The following aspects require additional work and should be planned across Phases 4/6/7:
+
+#### Phase 4 — Geometry Tools
+- **Traverse-level correction**: When a closed traverse is imported, detect bearing
+  misclosure separately from angular error and offer a Bowditch-like bearing adjustment
+  that distributes the misclosure across all traverse legs, not just a single rotation.
+- **Scale correction**: Some total-station setups introduce a combined scale + rotation
+  error (e.g., incorrect instrument constants).  The correction tool should optionally
+  also allow a scale factor so the user can correct both in one step.
+- **Reference-point lock**: After orientation adjustment, allow the user to "lock" a
+  reference point so that subsequent corrections preserve that point's position.
+
+#### Phase 6 — AI Drawing Engine
+- **AI deed orientation reconciliation** (see Phase 6 spec §5 for the Stage 3
+  reconciliation pipeline):
+  - Parse bearing calls from deed PDF / image / pasted legal description via OCR + NLP
+  - Match each deed call to the nearest field-shot line by distance + bearing proximity
+  - Compute the best-fit rotational correction (possibly a least-squares fit across
+    multiple matching calls instead of a single reference line)
+  - Populate the "Suggested Bearings" list in the Pick-a-Line UI with deed-matched
+    candidates, each carrying a confidence score from the OCR pipeline
+  - Flag mismatches (e.g. a field line whose deed call direction is reversed) for the
+    surveyor to review individually before applying the global correction
+  - Support per-call acceptance / rejection in a side-by-side view (field vs. deed)
+  - Handle multi-parcel plats where different parcels may have different orientations
+
+#### Phase 7 — Final Polish
+- **Batch orientation**: Support correcting multiple imported surveys in one session,
+  each with its own reference line and correction angle.
+- **History / audit trail**: Record the correction angle, pivot, reference line, and
+  timestamp in the drawing's metadata for QA/QC purposes.
+- **Report**: Generate a PDF orientation correction report showing before/after bearings
+  for all lines, the correction angle applied, and the deed source used.
+
+### 22.4 New Survey Considerations
+
+For brand-new surveys (no existing deed to compare against), orientation correction is
+more complex and requires:
+
+1. **GPS tie-in**: If any points were also collected with GPS, their coordinates provide
+   the true North reference.  The surveyor identifies two GPS-tied points; the CAD
+   software computes the true azimuth between them and applies that as the reference.
+2. **Astronomical observation**: Some surveys are oriented by solar or Polaris
+   observation.  The surveyor enters the observed azimuth and the time of observation;
+   the software could (Phase 6+) compute the true azimuth automatically from
+   astronomical tables.
+3. **State Plane / Geodetic tie**: If the survey is tied to State Plane Coordinates,
+   the grid-to-ground scale factor and meridian convergence must be applied before
+   the orientation correction is meaningful.
+4. **Magnetic declination**: For surveys oriented by compass, the local magnetic
+   declination (obtainable from NOAA) must be subtracted from magnetic bearings to get
+   true bearings before any correction is applied.
+5. **No reference available**: In the absence of any external reference, the surveyor
+   can orient the drawing relative to a prominent feature (e.g. the longest road edge
+   set to run due East) as a working convention, with a note that the orientation is
+   assumed and should be verified when a deed or GPS tie becomes available.
 
 ---
 

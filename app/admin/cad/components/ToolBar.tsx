@@ -167,7 +167,7 @@ function buildToolGroups(
     {
       mainTool: 'DRAW_POLYGON',
       label: 'Polygon',
-      description: 'Draw a closed polygon shape. Right-click for more shape variants (Rectangle, Circle, Regular Polygon).',
+      description: 'Draw a closed polygon shape. Right-click for more shape variants (Rectangle, Circle, Ellipse, Regular Polygon).',
       shortcut: 'PG',
       icon: <Pentagon size={16} />,
       variants: [
@@ -181,10 +181,37 @@ function buildToolGroups(
         },
         {
           tool: 'DRAW_CIRCLE',
-          label: 'Circle',
-          description: 'Click the center, then click or type the radius to draw a circle (stored as a 64-vertex polygon approximation).',
+          label: 'Circle (Center)',
+          description: 'Click the center point, then drag or click to set the radius. Draws a circle expanding from its center.',
           shortcut: 'CI',
           icon: <Circle size={14} />,
+        },
+        {
+          tool: 'DRAW_CIRCLE_EDGE',
+          label: 'Circle (Edge)',
+          description: 'Click a point on the circle edge, then drag or click the diametrically opposite point. The circle expands from the side rather than the center.',
+          icon: <Circle size={14} />,
+        },
+        {
+          tool: 'DRAW_ELLIPSE',
+          label: 'Ellipse (Center)',
+          description: 'Click the center, then drag to a bounding-box corner to set both semi-axes.',
+          icon: (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <ellipse cx="7" cy="7" rx="6" ry="4" />
+            </svg>
+          ),
+        },
+        {
+          tool: 'DRAW_ELLIPSE_EDGE',
+          label: 'Ellipse (Edge)',
+          description: 'Click one corner of the bounding box, then drag or click the opposite corner. The ellipse expands from its edge.',
+          icon: (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <ellipse cx="7" cy="7" rx="6" ry="4" />
+              <line x1="1" y1="7" x2="13" y2="7" strokeOpacity="0.4" strokeDasharray="2 2" />
+            </svg>
+          ),
         },
         {
           tool: 'DRAW_REGULAR_POLYGON',

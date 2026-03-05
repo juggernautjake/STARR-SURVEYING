@@ -1,11 +1,24 @@
 // lib/cad/constants.ts — Default values for the Starr CAD engine
-import type { DrawingSettings, FeatureStyle, SnapType } from './types';
+import type { DrawingSettings, FeatureStyle, SnapType, DisplayPreferences } from './types';
 import { PHASE3_DEFAULT_LAYERS } from './styles/default-layers';
 
 export { PHASE3_DEFAULT_LAYERS as DEFAULT_LAYERS };
 
 export const MIN_ZOOM = 0.001;
 export const MAX_ZOOM = 1000;
+
+/** Default display preferences — decimal feet, DMS quadrant bearings, N/E coordinates */
+export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
+  linearUnit: 'FT',
+  linearFormat: 'DECIMAL',
+  linearDecimalPlaces: 3,
+  areaUnit: 'SQ_FT',
+  angleFormat: 'DMS',
+  bearingFormat: 'QUADRANT',
+  coordMode: 'NE',
+  originNorthing: 0,
+  originEasting: 0,
+};
 
 export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   units: 'FEET',
@@ -25,6 +38,7 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   paperOrientation: 'LANDSCAPE',
   drawingScale: 50,
   codeDisplayMode: 'ALPHA',
+  displayPreferences: { ...DEFAULT_DISPLAY_PREFERENCES },
 };
 
 export const DEFAULT_FEATURE_STYLE: FeatureStyle = {

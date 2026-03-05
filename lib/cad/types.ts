@@ -19,6 +19,44 @@ export interface BoundingBox {
   maxY: number;
 }
 
+// ─── DISPLAY PREFERENCES ───
+
+export type LinearUnit = 'FT' | 'IN' | 'MILE' | 'M' | 'CM' | 'MM';
+export type LinearFormat = 'DECIMAL' | 'FRACTION';
+export type AreaUnit = 'SQ_FT' | 'ACRES' | 'SQ_M' | 'HECTARES';
+export type AngleFormat = 'DMS' | 'DECIMAL_DEG';
+export type BearingFormat = 'QUADRANT' | 'AZIMUTH';
+export type CoordMode = 'NE' | 'XY';
+
+/**
+ * User-configurable display preferences for units, formats, and coordinate mode.
+ * Stored in DrawingSettings so preferences persist per drawing.
+ */
+export interface DisplayPreferences {
+  /** Distance unit for all linear measurements. Default: 'FT' */
+  linearUnit: LinearUnit;
+  /** Decimal vs. fraction representation of linear values. Default: 'DECIMAL' */
+  linearFormat: LinearFormat;
+  /** Number of decimal places (or denominator size for fractions). Default: 3 */
+  linearDecimalPlaces: number;
+  /** Area unit. Default: 'SQ_FT' */
+  areaUnit: AreaUnit;
+  /** DMS vs. decimal-degree display for angles. Default: 'DMS' */
+  angleFormat: AngleFormat;
+  /** Quadrant (N xx°xx'xx" E) vs. azimuth (0–360). Default: 'QUADRANT' */
+  bearingFormat: BearingFormat;
+  /** Whether to show Northing/Easting labels or plain X/Y. Default: 'NE' */
+  coordMode: CoordMode;
+  /**
+   * World-space origin offset for coordinate display.
+   * Displayed Northing = worldY + originNorthing
+   * Displayed Easting  = worldX + originEasting
+   * Set automatically when importing survey data with real-world coordinates.
+   */
+  originNorthing: number;
+  originEasting: number;
+}
+
 // --- DRAWING DOCUMENT ---
 
 export interface DrawingDocument {
@@ -73,6 +111,9 @@ export interface DrawingSettings {
   paperOrientation: 'PORTRAIT' | 'LANDSCAPE';
   drawingScale: number; // e.g., 50 for 1"=50'
   codeDisplayMode: 'ALPHA' | 'NUMERIC';
+
+  // User display preferences (units, bearings, coordinates)
+  displayPreferences: DisplayPreferences;
 }
 
 // --- FEATURES ---
@@ -169,6 +210,9 @@ export type ToolType =
   | 'DRAW_RECTANGLE'
   | 'DRAW_REGULAR_POLYGON'
   | 'DRAW_CIRCLE'
+  | 'DRAW_CIRCLE_EDGE'
+  | 'DRAW_ELLIPSE'
+  | 'DRAW_ELLIPSE_EDGE'
   | 'MOVE'
   | 'COPY'
   | 'ROTATE'

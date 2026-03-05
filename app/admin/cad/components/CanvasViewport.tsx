@@ -19,7 +19,8 @@ import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point
 import { translate, rotate, mirror, scale, transformFeature } from '@/lib/cad/geometry/transform';
 import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType } from '@/lib/cad/types';
-import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM } from '@/lib/cad/constants';
+import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
 import { cadLog } from '@/lib/cad/logger';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
@@ -89,6 +90,9 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
   DRAW_RECTANGLE: 'crosshair',
   DRAW_REGULAR_POLYGON: 'crosshair',
   DRAW_CIRCLE: 'crosshair',
+  DRAW_CIRCLE_EDGE: 'crosshair',
+  DRAW_ELLIPSE: 'crosshair',
+  DRAW_ELLIPSE_EDGE: 'crosshair',
   MOVE: 'move',
   COPY: 'copy',
   ROTATE: 'alias',
@@ -896,7 +900,7 @@ export default function CanvasViewport() {
         const radius = Math.hypot(previewPoint.x - center.x, previewPoint.y - center.y);
         if (radius > 0) {
           const startAngle = Math.atan2(previewPoint.y - center.y, previewPoint.x - center.x);
-          const sides = toolStore.state.regularPolygonSides;
+          const sides = toolState.regularPolygonSides;
           const pts = Array.from({ length: sides }, (_, i) => {
             const angle = startAngle + (2 * Math.PI * i) / sides;
             return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
@@ -918,7 +922,7 @@ export default function CanvasViewport() {
         }
         return;
       }
-      // Circle preview
+      // Circle preview (center + radius mode)
       if (activeTool === 'DRAW_CIRCLE' && drawingPoints.length === 1 && previewPoint) {
         const center = drawingPoints[0];
         const radius = Math.hypot(previewPoint.x - center.x, previewPoint.y - center.y);
@@ -947,9 +951,114 @@ export default function CanvasViewport() {
         }
         return;
       }
+      // Circle preview (edge/diameter mode) — first point is on the circle edge
+      if (activeTool === 'DRAW_CIRCLE_EDGE' && drawingPoints.length === 1 && previewPoint) {
+        const p1 = drawingPoints[0];
+        const diameter = Math.hypot(previewPoint.x - p1.x, previewPoint.y - p1.y);
+        const radius = diameter / 2;
+        if (radius > 0) {
+          const center = { x: (p1.x + previewPoint.x) / 2, y: (p1.y + previewPoint.y) / 2 };
+          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
+            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
+            return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
+          });
+          g.lineStyle(1.5, previewColor, 0.9);
+          g.beginFill(previewColor, 0.06);
+          g.moveTo(pts[0].sx, pts[0].sy);
+          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
+          g.closePath();
+          g.endFill();
+          // Diameter line from p1 to preview point
+          const { sx: p1x, sy: p1y } = w2s(p1.x, p1.y);
+          const { sx: p2x, sy: p2y } = w2s(previewPoint.x, previewPoint.y);
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          g.lineStyle(0.75, previewColor, 0.35);
+          g.moveTo(p1x, p1y); g.lineTo(p2x, p2y);
+          // Center crosshair
+          g.lineStyle(1, previewColor, 0.5);
+          g.moveTo(cx - 4, cy); g.lineTo(cx + 4, cy);
+          g.moveTo(cx, cy - 4); g.lineTo(cx, cy + 4);
+          // Edge dots
+          g.beginFill(previewColor, 0.8);
+          g.drawCircle(p1x, p1y, 2.5);
+          g.drawCircle(p2x, p2y, 2.5);
+          g.endFill();
+        }
+        return;
+      }
+      // Ellipse preview (center + bounding-box corner mode)
+      if (activeTool === 'DRAW_ELLIPSE' && drawingPoints.length === 1 && previewPoint) {
+        const center = drawingPoints[0];
+        const rx = Math.abs(previewPoint.x - center.x);
+        const ry = Math.abs(previewPoint.y - center.y);
+        if (rx > 0 && ry > 0) {
+          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
+            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
+            return w2s(center.x + rx * Math.cos(angle), center.y + ry * Math.sin(angle));
+          });
+          g.lineStyle(1.5, previewColor, 0.9);
+          g.beginFill(previewColor, 0.06);
+          g.moveTo(pts[0].sx, pts[0].sy);
+          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
+          g.closePath();
+          g.endFill();
+          // Center crosshair + bounding box dashes
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          const { sx: ex, sy: ey } = w2s(previewPoint.x, previewPoint.y);
+          g.lineStyle(1, previewColor, 0.5);
+          g.moveTo(cx - 5, cy); g.lineTo(cx + 5, cy);
+          g.moveTo(cx, cy - 5); g.lineTo(cx, cy + 5);
+          // Semi-axis lines
+          g.lineStyle(0.75, previewColor, 0.3);
+          g.moveTo(cx, cy); g.lineTo(ex, cy);
+          g.moveTo(cx, cy); g.lineTo(cx, ey);
+          g.beginFill(previewColor, 0.8);
+          g.drawCircle(cx, cy, 2.5);
+          g.endFill();
+        }
+        return;
+      }
+      // Ellipse preview (edge/diameter mode) — first point is on the ellipse bounding box edge
+      if (activeTool === 'DRAW_ELLIPSE_EDGE' && drawingPoints.length === 1 && previewPoint) {
+        const p1 = drawingPoints[0];
+        const cx = (p1.x + previewPoint.x) / 2;
+        const cy = (p1.y + previewPoint.y) / 2;
+        const rx = Math.abs(previewPoint.x - p1.x) / 2;
+        const ry = Math.abs(previewPoint.y - p1.y) / 2;
+        if (rx > 0 && ry > 0) {
+          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
+            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
+            return w2s(cx + rx * Math.cos(angle), cy + ry * Math.sin(angle));
+          });
+          g.lineStyle(1.5, previewColor, 0.9);
+          g.beginFill(previewColor, 0.06);
+          g.moveTo(pts[0].sx, pts[0].sy);
+          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
+          g.closePath();
+          g.endFill();
+          // Diagonal line from p1 to p2 (bounding box diagonal)
+          const { sx: p1x, sy: p1y } = w2s(p1.x, p1.y);
+          const { sx: p2x, sy: p2y } = w2s(previewPoint.x, previewPoint.y);
+          const { sx: scx, sy: scy } = w2s(cx, cy);
+          g.lineStyle(0.75, previewColor, 0.3);
+          g.moveTo(p1x, p1y); g.lineTo(p2x, p2y);
+          // Center crosshair
+          g.lineStyle(1, previewColor, 0.5);
+          g.moveTo(scx - 4, scy); g.lineTo(scx + 4, scy);
+          g.moveTo(scx, scy - 4); g.lineTo(scx, scy + 4);
+          // Edge dots
+          g.beginFill(previewColor, 0.8);
+          g.drawCircle(p1x, p1y, 2.5);
+          g.drawCircle(p2x, p2y, 2.5);
+          g.endFill();
+        }
+        return;
+      }
       // DRAW_RECTANGLE/CIRCLE/POLYGON with no points: show start-point indicator at cursor
       if (
         (activeTool === 'DRAW_RECTANGLE' || activeTool === 'DRAW_CIRCLE' ||
+         activeTool === 'DRAW_CIRCLE_EDGE' || activeTool === 'DRAW_ELLIPSE' ||
+         activeTool === 'DRAW_ELLIPSE_EDGE' ||
          activeTool === 'DRAW_REGULAR_POLYGON' || activeTool === 'DRAW_POLYGON' ||
          activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE') &&
         drawingPoints.length === 0
@@ -1490,6 +1599,106 @@ export default function CanvasViewport() {
           break;
         }
 
+        case 'DRAW_CIRCLE_EDGE': {
+          // Edge/diameter mode: first click sets a point on the circle edge,
+          // second click sets the diametrically opposite point.
+          if (toolState.drawingPoints.length === 0) {
+            toolStore.addDrawingPoint(worldPt); // first edge point
+          } else {
+            const p1 = toolState.drawingPoints[0];
+            const diameter = Math.hypot(worldPt.x - p1.x, worldPt.y - p1.y);
+            const radius = diameter / 2;
+            if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
+            const center = { x: (p1.x + worldPt.x) / 2, y: (p1.y + worldPt.y) / 2 };
+            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
+              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
+              return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
+            });
+            const feature: Feature = {
+              id: generateId(),
+              type: 'POLYGON',
+              geometry: { type: 'POLYGON', vertices },
+              layerId: drawingStore.activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              properties: { shapeType: 'CIRCLE', centerX: center.x.toString(), centerY: center.y.toString(), radius: radius.toString() },
+            };
+            drawingStore.addFeature(feature);
+            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            toolStore.clearDrawingPoints();
+          }
+          break;
+        }
+
+        case 'DRAW_ELLIPSE': {
+          // Center mode: first click sets the center, second click sets the corner of the bounding box.
+          if (toolState.drawingPoints.length === 0) {
+            toolStore.addDrawingPoint(worldPt); // center
+          } else {
+            const center = toolState.drawingPoints[0];
+            const radiusX = Math.abs(worldPt.x - center.x);
+            const radiusY = Math.abs(worldPt.y - center.y);
+            if (radiusX < MIN_SEGMENT_LENGTH_BASE || radiusY < MIN_SEGMENT_LENGTH_BASE) {
+              toolStore.clearDrawingPoints(); break;
+            }
+            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
+              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
+              return { x: center.x + radiusX * Math.cos(angle), y: center.y + radiusY * Math.sin(angle) };
+            });
+            const feature: Feature = {
+              id: generateId(),
+              type: 'POLYGON',
+              geometry: { type: 'POLYGON', vertices },
+              layerId: drawingStore.activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              properties: {
+                shapeType: 'ELLIPSE',
+                centerX: center.x.toString(), centerY: center.y.toString(),
+                radiusX: radiusX.toString(), radiusY: radiusY.toString(),
+              },
+            };
+            drawingStore.addFeature(feature);
+            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            toolStore.clearDrawingPoints();
+          }
+          break;
+        }
+
+        case 'DRAW_ELLIPSE_EDGE': {
+          // Edge mode: first click sets one corner of the bounding box,
+          // second click sets the diametrically opposite corner.
+          if (toolState.drawingPoints.length === 0) {
+            toolStore.addDrawingPoint(worldPt); // first corner
+          } else {
+            const p1 = toolState.drawingPoints[0];
+            const radiusX = Math.abs(worldPt.x - p1.x) / 2;
+            const radiusY = Math.abs(worldPt.y - p1.y) / 2;
+            if (radiusX < MIN_SEGMENT_LENGTH_BASE || radiusY < MIN_SEGMENT_LENGTH_BASE) {
+              toolStore.clearDrawingPoints(); break;
+            }
+            const center = { x: (p1.x + worldPt.x) / 2, y: (p1.y + worldPt.y) / 2 };
+            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
+              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
+              return { x: center.x + radiusX * Math.cos(angle), y: center.y + radiusY * Math.sin(angle) };
+            });
+            const feature: Feature = {
+              id: generateId(),
+              type: 'POLYGON',
+              geometry: { type: 'POLYGON', vertices },
+              layerId: drawingStore.activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
+              properties: {
+                shapeType: 'ELLIPSE',
+                centerX: center.x.toString(), centerY: center.y.toString(),
+                radiusX: radiusX.toString(), radiusY: radiusY.toString(),
+              },
+            };
+            drawingStore.addFeature(feature);
+            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            toolStore.clearDrawingPoints();
+          }
+          break;
+        }
+
         case 'ERASE': {
           const hit = hitTest(sx, sy);
           if (hit) {
@@ -1718,6 +1927,7 @@ export default function CanvasViewport() {
 
       // Update floating HUD with operation values
       const ts = toolStore.state;
+      const prefs = useDrawingStore.getState().document.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
       const hudLines: string[] = [];
       if (ts.activeTool === 'DRAW_LINE' || ts.activeTool === 'DRAW_POLYLINE') {
         if (ts.drawingPoints.length > 0) {
@@ -1725,29 +1935,32 @@ export default function CanvasViewport() {
           const dx = worldPt.x - lastPt.x;
           const dy = worldPt.y - lastPt.y;
           const dist = Math.hypot(dx, dy);
-          const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-          hudLines.push(`Len: ${dist.toFixed(3)}`);
-          hudLines.push(`∠ ${angle.toFixed(1)}°`);
-          hudLines.push(`ΔX: ${dx.toFixed(3)}  ΔY: ${dy.toFixed(3)}`);
+          const mathAngleRad = Math.atan2(dy, dx);
+          hudLines.push(`Len: ${formatDistance(dist, prefs)}`);
+          hudLines.push(`Bearing: ${formatAngle(mathAngleRad, prefs, 'BEARING')}`);
+          hudLines.push(`ΔN: ${formatDistance(Math.abs(dy), prefs)}${dy >= 0 ? ' N' : ' S'}  ΔE: ${formatDistance(Math.abs(dx), prefs)}${dx >= 0 ? ' E' : ' W'}`);
         } else {
-          hudLines.push(`X: ${worldPt.x.toFixed(3)}`);
-          hudLines.push(`Y: ${worldPt.y.toFixed(3)}`);
+          const coords = formatCoordinates(worldPt.x, worldPt.y, prefs);
+          hudLines.push(`${coords.label1}: ${coords.value1}`);
+          hudLines.push(`${coords.label2}: ${coords.value2}`);
         }
       } else if (ts.activeTool === 'MOVE' && ts.basePoint) {
         const dx = worldPt.x - ts.basePoint.x;
         const dy = worldPt.y - ts.basePoint.y;
-        hudLines.push(`ΔX: ${dx.toFixed(3)}`);
-        hudLines.push(`ΔY: ${dy.toFixed(3)}`);
-        hudLines.push(`Dist: ${Math.hypot(dx, dy).toFixed(3)}`);
+        hudLines.push(`ΔN: ${formatDistance(Math.abs(dy), prefs)}${dy >= 0 ? ' N' : ' S'}`);
+        hudLines.push(`ΔE: ${formatDistance(Math.abs(dx), prefs)}${dx >= 0 ? ' E' : ' W'}`);
+        hudLines.push(`Dist: ${formatDistance(Math.hypot(dx, dy), prefs)}`);
       } else if (ts.activeTool === 'ROTATE' && ts.rotateCenter) {
         const dx = worldPt.x - ts.rotateCenter.x;
         const dy = worldPt.y - ts.rotateCenter.y;
-        const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-        hudLines.push(`Angle: ${angleDeg.toFixed(2)}°`);
-        hudLines.push(`Radius: ${Math.hypot(dx, dy).toFixed(3)}`);
+        // Survey azimuth from north, clockwise
+        let azimuth = 90 - (Math.atan2(dy, dx) * 180 / Math.PI);
+        azimuth = ((azimuth % 360) + 360) % 360;
+        hudLines.push(`Bearing: ${formatSurveyAngle(azimuth, prefs)}`);
+        hudLines.push(`Radius: ${formatDistance(Math.hypot(dx, dy), prefs)}`);
       } else if (ts.activeTool === 'SCALE' && ts.basePoint) {
         const dist = Math.hypot(worldPt.x - ts.basePoint.x, worldPt.y - ts.basePoint.y);
-        hudLines.push(`Radius: ${dist.toFixed(3)}`);
+        hudLines.push(`Radius: ${formatDistance(dist, prefs)}`);
       } else if (
         (ts.activeTool === 'DRAW_RECTANGLE' || ts.activeTool === 'DRAW_CIRCLE' ||
          ts.activeTool === 'DRAW_REGULAR_POLYGON') &&
@@ -1758,10 +1971,27 @@ export default function CanvasViewport() {
         const dy = worldPt.y - origin.y;
         const r = Math.hypot(dx, dy);
         if (ts.activeTool === 'DRAW_RECTANGLE') {
-          hudLines.push(`W: ${Math.abs(dx).toFixed(3)}`);
-          hudLines.push(`H: ${Math.abs(dy).toFixed(3)}`);
+          hudLines.push(`W: ${formatDistance(Math.abs(dx), prefs)}`);
+          hudLines.push(`H: ${formatDistance(Math.abs(dy), prefs)}`);
         } else {
-          hudLines.push(`Radius: ${r.toFixed(3)}`);
+          hudLines.push(`Radius: ${formatDistance(r, prefs)}`);
+        }
+      } else if (ts.activeTool === 'DRAW_CIRCLE_EDGE' && ts.drawingPoints.length > 0) {
+        const p1 = ts.drawingPoints[0];
+        const diameter = Math.hypot(worldPt.x - p1.x, worldPt.y - p1.y);
+        hudLines.push(`Diameter: ${formatDistance(diameter, prefs)}`);
+        hudLines.push(`Radius: ${formatDistance(diameter / 2, prefs)}`);
+      } else if (
+        (ts.activeTool === 'DRAW_ELLIPSE' || ts.activeTool === 'DRAW_ELLIPSE_EDGE') &&
+        ts.drawingPoints.length > 0
+      ) {
+        const p1 = ts.drawingPoints[0];
+        if (ts.activeTool === 'DRAW_ELLIPSE') {
+          hudLines.push(`Semi-X: ${formatDistance(Math.abs(worldPt.x - p1.x), prefs)}`);
+          hudLines.push(`Semi-Y: ${formatDistance(Math.abs(worldPt.y - p1.y), prefs)}`);
+        } else {
+          hudLines.push(`Width: ${formatDistance(Math.abs(worldPt.x - p1.x), prefs)}`);
+          hudLines.push(`Height: ${formatDistance(Math.abs(worldPt.y - p1.y), prefs)}`);
         }
       }
 
@@ -2068,9 +2298,11 @@ export default function CanvasViewport() {
         return;
       }
 
-      // Right-click during rectangle/regular-polygon/circle drawing: cancel
+      // Right-click during rectangle/regular-polygon/circle/ellipse drawing: cancel
       if (
-        (activeTool === 'DRAW_RECTANGLE' || activeTool === 'DRAW_REGULAR_POLYGON' || activeTool === 'DRAW_CIRCLE') &&
+        (activeTool === 'DRAW_RECTANGLE' || activeTool === 'DRAW_REGULAR_POLYGON' ||
+         activeTool === 'DRAW_CIRCLE' || activeTool === 'DRAW_CIRCLE_EDGE' ||
+         activeTool === 'DRAW_ELLIPSE' || activeTool === 'DRAW_ELLIPSE_EDGE') &&
         toolState.drawingPoints.length > 0
       ) {
         toolStore.clearDrawingPoints();
@@ -2177,14 +2409,6 @@ export default function CanvasViewport() {
         </div>
       )}
 
-      {/* Cursor X/Y coordinate overlay — always visible in bottom-left of canvas */}
-      <div
-        className="absolute bottom-2 left-2 pointer-events-none z-10 text-[10px] font-mono text-white select-none rounded px-1.5 py-0.5"
-        style={{ background: 'rgba(0,0,0,0.55)' }}
-      >
-        X: {viewportStore.cursorWorld.x.toFixed(3)} &nbsp; Y: {viewportStore.cursorWorld.y.toFixed(3)}
-      </div>
-
       {/* Rich right-click context menu */}
       {contextMenu && (
         <FeatureContextMenu
@@ -2238,14 +2462,22 @@ export default function CanvasViewport() {
         </>
       )}
 
-      {/* Permanent X/Y coordinate tracker in the bottom-left of the canvas */}
+      {/* Permanent N/E coordinate tracker in the bottom-left of the canvas */}
       <div
         className="absolute bottom-1 left-1 pointer-events-none z-20 flex items-center gap-2 px-2 py-0.5 rounded text-[10px] font-mono"
         style={{ background: 'rgba(0,0,0,0.55)', color: '#c8d8ff', border: '1px solid rgba(120,150,220,0.35)' }}
       >
-        <span>X: {cursorWorld.x.toFixed(3)}</span>
-        <span className="text-gray-500">|</span>
-        <span>Y: {cursorWorld.y.toFixed(3)}</span>
+        {(() => {
+          const dispPrefs = useDrawingStore.getState().document.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
+          const c = formatCoordinates(cursorWorld.x, cursorWorld.y, dispPrefs);
+          return (
+            <>
+              <span>{c.label1}: {c.value1}</span>
+              <span className="text-gray-500">|</span>
+              <span>{c.label2}: {c.value2}</span>
+            </>
+          );
+        })()}
       </div>
     </div>
   );

@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useDrawingStore, useViewportStore, useSelectionStore, useToolStore } from '@/lib/cad/store';
+import { formatDistance, formatCoordinates, formatAngle } from '@/lib/cad/geometry/units';
+import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 
 const TOOL_LABELS: Record<string, string> = {
   SELECT: 'Select',
@@ -14,6 +16,9 @@ const TOOL_LABELS: Record<string, string> = {
   DRAW_RECTANGLE: 'Rectangle',
   DRAW_REGULAR_POLYGON: 'Reg.Polygon',
   DRAW_CIRCLE: 'Circle',
+  DRAW_CIRCLE_EDGE: 'Circle(E)',
+  DRAW_ELLIPSE: 'Ellipse',
+  DRAW_ELLIPSE_EDGE: 'Ellipse(E)',
   MOVE: 'Move',
   COPY: 'Copy',
   ROTATE: 'Rotate',
@@ -37,6 +42,7 @@ export default function StatusBar() {
   const { document: doc, activeLayerId } = drawingStore;
   const activeLayer = doc.layers[activeLayerId];
   const { snapEnabled, gridVisible, drawingScale } = doc.settings;
+  const prefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
   const selCount = selectionStore.selectionCount();
   const { activeTool, drawingPoints, basePoint, rotateCenter, orthoEnabled, polarEnabled, polarAngle, copyMode } = toolStore.state;
 
@@ -89,16 +95,23 @@ export default function StatusBar() {
     }
   }
 
-  // Live distance/angle when drawing
-  let distanceInfo: { dist: string; angle: string } | null = null;
+  // Live distance/angle when drawing — formatted per display preferences
+  let distanceInfo: { dist: string; bearing: string } | null = null;
   const lastPt = drawingPoints[drawingPoints.length - 1] ?? basePoint ?? rotateCenter;
   if (lastPt && (activeTool.startsWith('DRAW_') || activeTool === 'MOVE' || activeTool === 'COPY' || activeTool === 'MIRROR')) {
     const dx = cursor.x - lastPt.x;
     const dy = cursor.y - lastPt.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-    distanceInfo = { dist: dist.toFixed(3), angle: angleDeg.toFixed(1) };
+    // Math angle (counter-clockwise from east) → survey bearing
+    const mathAngleRad = Math.atan2(dy, dx);
+    distanceInfo = {
+      dist: formatDistance(dist, prefs),
+      bearing: formatAngle(mathAngleRad, prefs, 'BEARING'),
+    };
   }
+
+  // Formatted cursor coordinates
+  const coords = formatCoordinates(cursor.x, cursor.y, prefs);
 
   function toggleSnap() {
     drawingStore.updateSettings({ snapEnabled: !snapEnabled });
@@ -111,16 +124,16 @@ export default function StatusBar() {
   return (
     <div className="flex items-center bg-gray-900 border-t border-gray-700 px-3 py-0.5 text-xs text-gray-400 gap-4 overflow-hidden">
       {/* Coordinates */}
-      <span className="font-mono shrink-0">
-        X: {cursor.x.toFixed(3)} &nbsp; Y: {cursor.y.toFixed(3)}
+      <span className="font-mono shrink-0 text-cyan-300">
+        {coords.label1}: {coords.value1} &nbsp; {coords.label2}: {coords.value2}
       </span>
 
-      {/* Live dist/angle when drawing */}
+      {/* Live dist/bearing when drawing */}
       {distanceInfo && (
         <>
           <span className="text-gray-600">|</span>
           <span className="font-mono shrink-0 text-cyan-400">
-            d={distanceInfo.dist} ∠{distanceInfo.angle}°
+            d={distanceInfo.dist} &nbsp; {distanceInfo.bearing}
           </span>
         </>
       )}

@@ -31,7 +31,7 @@ interface MenuDef {
   items: MenuEntry[];
 }
 
-export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator }: { onOpenImport?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void }) {
+export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog }: { onOpenImport?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -203,6 +203,12 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
     {
       label: 'Survey',
       items: [
+        {
+          label: 'Adjust Orientation…',
+          shortcut: 'OA',
+          action: () => { onOpenOrientationDialog?.(); setOpenMenu(null); },
+        },
+        { separator: true },
         {
           label: 'Curve Calculator…',
           shortcut: 'CC',
