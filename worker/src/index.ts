@@ -3,11 +3,14 @@
 // Provides API endpoints for the Vercel frontend to trigger and poll research pipelines.
 
 import 'dotenv/config';
+import fs from 'fs';
+import path from 'path';
 import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './types/index.js';
 import { runPipeline } from './services/pipeline.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
+import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -400,6 +403,86 @@ app.post('/research/discover', requireAuth, async (req: Request, res: Response) 
   }
 });
 
+// ── POST /research/harvest ─────────────────────────────────────────────────
+// Phase 2: Free document harvesting — multi-county clerk automation.
+// Takes Phase 1 PropertyIdentity output and downloads every available free
+// document from the county clerk system for the target property, subdivision
+// lots, and adjacent owners.
+//
+// Long-running (up to ~3 minutes).  Returns HTTP 202 immediately.
+// Results are persisted to /tmp/harvest/{projectId}/harvest_result.json and
+// can be retrieved via GET /research/harvest/:projectId.
+
+app.post('/research/harvest', requireAuth, async (req: Request, res: Response) => {
+  const input = req.body as HarvestInput;
+
+  if (!input.projectId || !input.owner || !input.county) {
+    res.status(400).json({ error: 'projectId, owner, and county are required' });
+    return;
+  }
+
+  // Validate projectId to safe characters — prevents path traversal
+  if (!/^[a-zA-Z0-9_-]+$/.test(input.projectId)) {
+    res.status(400).json({
+      error: 'projectId may only contain alphanumeric characters, hyphens, and underscores',
+    });
+    return;
+  }
+
+  // Return 202 immediately — harvest runs asynchronously in the background
+  res.status(202).json({ status: 'accepted', projectId: input.projectId });
+
+  // Run harvest in background
+  const harvester = new DocumentHarvester();
+  try {
+    const result = await harvester.harvest(input);
+
+    // Persist result to filesystem so the status endpoint can serve it
+    try {
+      const outputPath = `/tmp/harvest/${input.projectId}/harvest_result.json`;
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
+    } catch (fsError) {
+      console.error(
+        `[Harvest] Failed to write result for ${input.projectId} — ` +
+        `check /tmp permissions and disk space:`,
+        fsError,
+      );
+    }
+
+    console.log(
+      `[Harvest] Complete: ${result.documentIndex.totalDocumentsFound} docs, ` +
+      `${result.documentIndex.totalPagesDownloaded} pages`,
+    );
+
+    // TODO: Update Supabase with harvest results for the frontend dashboard
+  } catch (error) {
+    console.error(`[Harvest] Failed for ${input.projectId}:`, error);
+  }
+});
+
+// ── GET /research/harvest/:projectId ──────────────────────────────────────
+// Quick status check — returns the completed harvest result or in_progress.
+
+app.get('/research/harvest/:projectId', requireAuth, (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  // Validate projectId to safe characters — prevents path traversal
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const resultPath = `/tmp/harvest/${projectId}/harvest_result.json`;
+
+  if (fs.existsSync(resultPath)) {
+    const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+    res.json(result);
+  } else {
+    res.json({ status: 'in_progress' });
+  }
+});
+
 // ── POST /research/full-pipeline ───────────────────────────────────────────
 // Accepts a project ID + address and runs the full multi-phase research
 // pipeline asynchronously in the background.
@@ -524,7 +607,9 @@ app.listen(PORT, () => {
 `);
   console.log('[Server] Endpoints:');
   console.log('  GET    /health');
-  console.log('  POST   /research/discover');
+  console.log('  POST   /research/discover          ← Phase 1: property identity');
+  console.log('  POST   /research/harvest            ← Phase 2: document harvesting');
+  console.log('  GET    /research/harvest/:projectId ← Phase 2: harvest status/result');
   console.log('  POST   /research/full-pipeline');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');
