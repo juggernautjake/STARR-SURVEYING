@@ -15,6 +15,7 @@ interface ViewportStore {
   zoomAt: (screenX: number, screenY: number, factor: number) => void;
   zoomToExtents: (bounds: BoundingBox, padding?: number) => void;
   zoomToRect: (worldBounds: BoundingBox) => void;
+  setZoom: (zoom: number) => void;
   setScreenSize: (width: number, height: number) => void;
   setCursorWorld: (pt: Point2D) => void;
 
@@ -62,6 +63,9 @@ export const useViewportStore = create<ViewportStore>((set, get) => ({
   zoomToRect: (worldBounds) => {
     get().zoomToExtents(worldBounds, 0);
   },
+
+  setZoom: (newZoom) =>
+    set(() => ({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom)) })),
 
   setScreenSize: (width, height) => set({ screenWidth: width, screenHeight: height }),
 
