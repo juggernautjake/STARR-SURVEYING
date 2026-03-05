@@ -211,8 +211,18 @@ export interface ReferenceLine {
   label: string;
 }
 
-const DEFAULT_MIN_LENGTH = 0.5; // feet — ignore tiny rounding segments
-const MAX_LINES = 80;           // cap to keep the picker list manageable
+/**
+ * Minimum segment length for a line to be considered as a reference candidate.
+ * 0.5 ft filters out sub-foot precision artifacts and rounding edges that
+ * would produce unreliable azimuth readings.
+ */
+const DEFAULT_MIN_LENGTH = 0.5; // feet
+/**
+ * Maximum reference lines returned to keep the picker list scrollable and
+ * responsive.  80 lines covers typical survey files (50–300 points) while
+ * preventing the UI from becoming unwieldy on very large datasets.
+ */
+const MAX_LINES = 80;
 
 /**
  * Extract all meaningful line segments from `features`.
@@ -282,8 +292,10 @@ export function extractReferenceLines(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Source tag for a bearing candidate.  Phase 6 will add 'DEED_AI' once the
- * deed-OCR / NLP pipeline is wired up.
+ * Source tag for a bearing candidate.  'DEED_AI' is reserved for Phase 6 —
+ * AI deed parsing integration.  Once the deed OCR/NLP pipeline (Phase 6 §5.0)
+ * parses bearing calls from a uploaded deed PDF, those calls are injected as
+ * 'DEED_AI' candidates with confidence scores from the OCR pipeline.
  */
 export type BearingCandidateSource =
   | 'SNAP_1DEG'

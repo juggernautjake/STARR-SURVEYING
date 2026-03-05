@@ -10,6 +10,7 @@ import {
   orientSurveyByReferenceLine,
   orientSurveyByManualCorrection,
 } from '@/lib/cad/geometry/orient';
+import { inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import type { Feature } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 
@@ -327,9 +328,14 @@ describe('orientSurveyByReferenceLine', () => {
     // After -90° correction (90° CW rotation about origin):
     //   start (0,0)   → (0,0)
     //   end   (100,0) → (0,-100)
-    const end = result.features[0].geometry.end!;
+    const geom = result.features[0].geometry;
+    const end = geom.end!;
     expect(end.x).toBeCloseTo(0, 3);
     expect(end.y).toBeCloseTo(-100, 3);
+    // Verify the rotated segment's azimuth is 180° (South), consistent with a
+    // -90° correction applied to the original 90° (East) segment.
+    const { azimuth } = inverseBearingDistance(geom.start!, geom.end!);
+    expect(azimuth).toBeCloseTo(180, 2);
   });
 });
 

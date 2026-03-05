@@ -22,7 +22,7 @@
 //   Method B — Enter two point coordinates + deed bearing
 //   Method C — AI deed import (Phase 6 scaffold)
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   X, RotateCcw, RotateCw, Compass, Info, ChevronDown, ChevronUp,
   Search, CheckCircle2,
@@ -54,6 +54,11 @@ function normAz(a: number): number {
 
 function corrLabel(deg: number): string {
   return `${deg >= 0 ? '+' : ''}${deg.toFixed(4)}\u00b0 ${deg >= 0 ? 'CCW' : 'CW'}`;
+}
+
+/** Returns `singular` when count is 1, otherwise `singular + 's'` (or explicit `plural`). */
+function pluralize(count: number, singular: string, plural?: string): string {
+  return count === 1 ? singular : (plural ?? `${singular}s`);
 }
 
 // ── Micro-components ─────────────────────────────────────────────────────────
@@ -167,10 +172,13 @@ export default function OrientationDialog({ onClose }: Props) {
   // ── Derived ───────────────────────────────────────────────────────────────
   const allFeatures = drawingStore.getAllFeatures();
 
+  // Use document.modified as the memoisation key so extractReferenceLines
+  // re-runs whenever any feature geometry changes, not just when the feature
+  // count changes (length alone misses geometry-only edits on the same set).
   const allLines = useMemo(
     () => extractReferenceLines(allFeatures),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allFeatures.length],
+    [drawingStore.document.modified],
   );
 
   const filteredLines = useMemo(() => {
@@ -224,7 +232,10 @@ export default function OrientationDialog({ onClose }: Props) {
   }
 
   // ── Apply ─────────────────────────────────────────────────────────────────
-  const handleApply = useCallback(() => {
+  // Plain function (not useCallback) — this is a modal dialog that opens/closes
+  // infrequently, so memoisation brings no benefit and would risk stale closures
+  // over the many form-state dependencies.
+  function handleApply() {
     setError(null);
     try {
       const features = allFeatures;
@@ -265,14 +276,14 @@ export default function OrientationDialog({ onClose }: Props) {
       for (const f of rotated) drawingStore.updateFeatureGeometry(f.id, f.geometry);
 
       undoStore.pushUndo(makeBatchEntry(`Orient survey (${corrLabel(correctionDeg)})`, ops));
+      // Defer zoom-to-extents by one animation frame so the canvas has time to
+      // re-render the rotated geometry before the viewport bounds are computed.
       setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 100);
       onClose();
     } catch (e) {
       setError((e as Error).message);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [method, selectedLine, selectedCand, manualBearingLP, measBearing, trueBearing,
-      pt1N, pt1E, pt2N, pt2E, tpBearing, customPivot, pivotN, pivotE]);
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -363,7 +374,7 @@ export default function OrientationDialog({ onClose }: Props) {
                   })}
                 </div>
                 <div className="text-[9px] text-gray-600 mt-1">
-                  {allLines.length} line segment{allLines.length !== 1 ? 's' : ''} found in drawing
+                  {allLines.length} {pluralize(allLines.length, 'line segment')} found in drawing
                 </div>
               </>
             )}
@@ -445,7 +456,7 @@ export default function OrientationDialog({ onClose }: Props) {
                     : <RotateCw  size={12} className="shrink-0" />}
                   <span>
                     Correction: <strong className="font-mono">{corrLabel(lpCorrection)}</strong>
-                    &nbsp;applied to all {allFeatures.length} feature{allFeatures.length !== 1 ? 's' : ''}.
+                    &nbsp;applied to all {allFeatures.length} {pluralize(allFeatures.length, 'feature')}.
                   </span>
                 </div>
               )}
@@ -608,8 +619,8 @@ export default function OrientationDialog({ onClose }: Props) {
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-700 shrink-0">
           <div className="text-[10px] text-gray-500">
-            {allFeatures.length} feature{allFeatures.length !== 1 ? 's' : ''}
-            {allLines.length > 0 && ` \u00b7 ${allLines.length} line segment${allLines.length !== 1 ? 's' : ''}`}
+            {allFeatures.length} {pluralize(allFeatures.length, 'feature')}
+            {allLines.length > 0 && ` \u00b7 ${allLines.length} ${pluralize(allLines.length, 'line segment')}`}
           </div>
           <div className="flex items-center gap-2">
             <button
