@@ -1123,6 +1123,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const margin   = 0.1 * inchToPx;
     const res      = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
 
+    // ── Paper-adaptive sizes — prevent elements overlapping on any paper size ──
+    // All values in paper-inches, clamped to fractions of paper width (pw).
+    const innerGapIn = 0.20;                              // gap between bottom-band elements
+    const tbWIn      = Math.min(5.5, pw * 0.47);         // title block width
+    const tbHIn      = Math.min(2.2, tbWIn * 0.42);      // title block height
+    const sigBoxWIn  = Math.min(2.8, pw * 0.27);         // signature box width
+    const sigBoxHIn  = Math.min(0.75, sigBoxWIn * 0.30); // signature box height
+    const naRadiusPx = (tb.northArrowSizeIn ?? 1.5) * inchToPx * 0.44; // star radius in screen px
+    // Vertical distance from star center to top of the N label
+    // (N label center = starCenter - radius*(1+nOffset/radius) ≈ starCenter - radius*1.55)
+    // Top of N label ≈ starCenter - radius*1.775 → use 1.78 for a clean margin.
+    const NA_CENTER_OFFSET = 1.78;           // naCy = naScrTop + naRadiusPx * NA_CENTER_OFFSET
+    const NA_ELEM_TOTAL_H  = naRadiusPx * 2.78; // full height: N label top → S tip
+    const NA_HIT_PAD       = 7;             // hover bounding-box padding (px)
+
     // ── Shared text helper ──────────────────────────────────────────
     const pixiCtx = pixi; // non-nullable capture for use in nested closures
     function mkTBText(
@@ -1139,9 +1154,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // ────────────────────────────────────────────────────────────────
     // TITLE BLOCK  (bottom-right of page)
     // ────────────────────────────────────────────────────────────────
-    const tbH       = 2.2  * inchToPx;
-    const tbW       = 5.5  * inchToPx;
-    const headerH   = 0.30 * inchToPx;
+    const tbW       = tbWIn * inchToPx;
+    const tbH       = tbHIn * inchToPx;
+    const headerH   = Math.min(0.30, tbHIn * 0.15) * inchToPx;
     const numRows   = 4;
     const dataH     = tbH - headerH;
     const rowH      = dataH / numRows;
@@ -1265,8 +1280,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // ────────────────────────────────────────────────────────────────
     // SIGNATURE / SEAL BLOCK  (bottom-left of page)
     // ────────────────────────────────────────────────────────────────
-    const sigBoxH  = 0.75 * inchToPx;
-    const sigBoxW  = 2.8  * inchToPx;
+    const sigBoxW  = sigBoxWIn * inchToPx;
+    const sigBoxH  = sigBoxHIn * inchToPx;
     const sealColW = sigBoxH;               // left square = seal
     const sigLeft  = tl.sx + margin;
     const sigTop   = br.sy - margin - sigBoxH;
@@ -1326,71 +1341,77 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }).position.set(sigLineX1, sigLineY + 3);
 
     // ────────────────────────────────────────────────────────────────
-    // NORTH ARROW BOX  (top-right of page, or custom pos)
+    // NORTH ARROW  (top-right, no box — just the star + "N" label)
     // ────────────────────────────────────────────────────────────────
-    const northArrowSizeIn = tb.northArrowSizeIn ?? 1.5;
-    const naBoxPadIn = 0.22;
-    const naBoxIn    = northArrowSizeIn + 2 * naBoxPadIn;  // box side in paper inches
-    const naBoxPx    = naBoxIn * inchToPx;
-    const naTxtH     = Math.max(naBoxPx * 0.14, 7);        // "NORTH" label height
-    const naTotalH   = naBoxPx + naTxtH + 0.06 * inchToPx; // box + label gap
+    // Uses named constants NA_CENTER_OFFSET, NA_ELEM_TOTAL_H, NA_HIT_PAD defined above.
+    const naElemW  = naRadiusPx * 2.0;
 
     let naScrLeft: number;
     let naScrTop: number;
     if (drag?.element === 'northArrow') {
       naScrLeft = tl.sx + drag.livePosX * inchToPx;
-      naScrTop  = br.sy - (drag.livePosY * inchToPx + naTotalH);
+      naScrTop  = br.sy - (drag.livePosY * inchToPx + NA_ELEM_TOTAL_H);
     } else if (tb.northArrowPos) {
       naScrLeft = tl.sx + tb.northArrowPos.x * inchToPx;
-      naScrTop  = br.sy - (tb.northArrowPos.y * inchToPx + naTotalH);
+      naScrTop  = br.sy - (tb.northArrowPos.y * inchToPx + NA_ELEM_TOTAL_H);
     } else {
-      // Default: top-right corner
-      naScrLeft = br.sx - margin - naBoxPx;
+      // Default: top-right, N label sits just inside the top margin
+      naScrLeft = br.sx - margin - naElemW;
       naScrTop  = tl.sy + margin;
     }
 
-    tbBoundsRef.current.northArrow = { screenX: naScrLeft, screenY: naScrTop, w: naBoxPx, h: naTotalH };
+    // Star center — N label is above the center, so offset down by NA_CENTER_OFFSET × radius
+    const naCx   = naScrLeft + naRadiusPx;
+    const naCy   = naScrTop  + naRadiusPx * NA_CENTER_OFFSET;
+
+    tbBoundsRef.current.northArrow = {
+      screenX: naScrLeft - NA_HIT_PAD, screenY: naScrTop - NA_HIT_PAD,
+      w: naElemW + 2 * NA_HIT_PAD, h: NA_ELEM_TOTAL_H + 2 * NA_HIT_PAD,
+    };
     const naHovered  = hoveredTBElemRef.current === 'northArrow';
     const naDragging = drag?.element === 'northArrow';
 
-    // Box background (white) and border
-    g.lineStyle(0);
-    g.beginFill(0xffffff, 0.92);
-    g.drawRect(naScrLeft, naScrTop, naBoxPx, naTotalH);
-    g.endFill();
-    g.lineStyle(1.5, 0x000000, 0.8);
-    g.drawRect(naScrLeft, naScrTop, naBoxPx, naTotalH);
-
-    // Blue hover highlight
+    // Blue hover highlight — rect around the floating element
     if (naHovered || naDragging) {
-      g.lineStyle(2.5, 0x0088ff, 0.9);
-      g.drawRect(naScrLeft - 4, naScrTop - 4, naBoxPx + 8, naTotalH + 8);
+      g.lineStyle(2, 0x0088ff, 0.85);
+      g.drawRect(
+        naScrLeft - NA_HIT_PAD, naScrTop - NA_HIT_PAD,
+        naElemW + 2 * NA_HIT_PAD, NA_ELEM_TOTAL_H + 2 * NA_HIT_PAD,
+      );
     }
 
-    // North arrow inside box
-    const naCx     = naScrLeft + naBoxPx / 2;
-    const naCy     = naScrTop  + naBoxPx * 0.50;
+    // Draw star + N label (drawNorthArrow places "N" above the north tip)
     const rotDeg   = doc.settings.drawingRotationDeg ?? 0;
     const arrowRad = (rotDeg * Math.PI) / 180;
-    drawNorthArrow(g, naCx, naCy, northArrowSizeIn * inchToPx * 0.44, arrowRad,
+    drawNorthArrow(g, naCx, naCy, naRadiusPx, arrowRad,
       tb.northArrowStyle ?? 'STARR', pixi, mkTBText);
-
-    // "NORTH" label below arrow
-    const northLblTxt = mkTBText('NORTH', {
-      fontFamily: 'Arial', fontSize: naTxtH * 0.85, fill: 0x111111,
-      fontWeight: 'bold', letterSpacing: 1.5,
-    });
-    northLblTxt.anchor.set(0.5, 0);
-    northLblTxt.position.set(naCx, naScrTop + naBoxPx + 0.03 * inchToPx);
+    // NOTE: no separate "NORTH" label — just the N inside drawNorthArrow
 
     // ────────────────────────────────────────────────────────────────
-    // GRAPHIC SCALE BAR  (bottom-left area or custom pos)
+    // GRAPHIC SCALE BAR  (bottom-center or custom pos)
     // ────────────────────────────────────────────────────────────────
     if (tb.scaleBarVisible !== false) {
-      const targetLenIn   = tb.scaleBarLengthIn ?? 2.0;
-      const targetWorldFt = targetLenIn * ds;
+      const gapPx          = innerGapIn * inchToPx;
+      const hasCustomSbPos = !!(drag?.element === 'scaleBar' || tb.scaleBarPos);
 
-      // Find a nice segment length (round number of feet)
+      // Compute default left anchor so we can constrain bar length
+      const defaultSbLeft = tl.sx + margin + sigBoxWIn * inchToPx + gapPx;
+      // Available px between sig block right-edge and title block left-edge (minus gap)
+      const MIN_SCALE_BAR_WIDTH_IN      = 0.5; // minimum bar width if space is very tight
+      const SCALE_BAR_AVAIL_SPACE_RATIO = 0.95; // use 95% of available — leaves a small breathing gap
+      const availSbPx = Math.max(
+        (br.sx - margin - tbW) - gapPx - defaultSbLeft,
+        MIN_SCALE_BAR_WIDTH_IN * inchToPx,
+      );
+
+      // Constrain target length to available space for default positions
+      const userTargetLenIn = tb.scaleBarLengthIn ?? 2.0;
+      const effectiveLenIn  = hasCustomSbPos
+        ? userTargetLenIn
+        : Math.min(userTargetLenIn, (availSbPx * SCALE_BAR_AVAIL_SPACE_RATIO) / inchToPx);
+
+      // Find a nice segment length (round number of feet/world units)
+      const targetWorldFt = effectiveLenIn * ds;
       const niceSteps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
       const rawSeg    = targetWorldFt / 4;
       let segFt       = niceSteps[0];
@@ -1410,10 +1431,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         sbScrLeft   = tl.sx + tb.scaleBarPos.x * inchToPx;
         sbScrBottom = br.sy - tb.scaleBarPos.y * inchToPx;
       } else {
-        // Default: bottom of page, positioned after the signature block (sigBoxW=2.8" + gap 0.4")
-        const sigBoxWidthIn = 2.8;
-        const sigGapIn = 0.4;
-        sbScrLeft   = tl.sx + (sigBoxWidthIn + sigGapIn) * inchToPx + margin;
+        sbScrLeft   = defaultSbLeft;
         sbScrBottom = br.sy - margin;
       }
 
@@ -1636,7 +1654,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         fill: 0x000000,
         fontWeight: 'bold',
       });
-      const nOffset = radius * 0.30;
+      const nOffset = radius * 0.55;  // clear gap between N and north tip
       nLbl.anchor.set(0.5, 0.5);
       nLbl.position.set(tipX + ux * nOffset, tipY + uy * nOffset);
     } else {
@@ -1648,7 +1666,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         fontWeight: 'bold',
       }));
       (nLbl as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
-      const nOffset = radius * 0.30;
+      const nOffset = radius * 0.55;  // clear gap between N and north tip
       nLbl.anchor.set(0.5, 0.5);
       nLbl.position.set(tipX + ux * nOffset, tipY + uy * nOffset);
       nLbl.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
@@ -3369,28 +3387,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           let origPosX = 0;
           let origPosY = 0;
           if (tbHit === 'northArrow') {
-            const northArrowSizeIn = tb?.northArrowSizeIn ?? 1.5;
-            const naBoxPadIn = 0.22;
-            const naBoxIn    = northArrowSizeIn + 2 * naBoxPadIn;
-            const naBoxPx    = naBoxIn * inchToPx;
-            const naTxtH     = Math.max(naBoxPx * 0.14, 7);
-            const naTotalH   = naBoxPx + naTxtH + 0.06 * inchToPx;
+            const northArrowSizeIn  = tb?.northArrowSizeIn ?? 1.5;
+            const naRadiusPxD       = northArrowSizeIn * inchToPx * 0.44;
+            const naTotalHD         = naRadiusPxD * 2.78; // NA_ELEM_TOTAL_H equivalent
+            const naElemWD          = naRadiusPxD * 2.0;
             if (tb?.northArrowPos) {
               origPosX = tb.northArrowPos.x;
               origPosY = tb.northArrowPos.y;
             } else {
-              // Default top-right: BL corner of NA box in paper-inch from paper BL
-              origPosX = (br.sx - margin - naBoxPx - tl.sx) / inchToPx;
-              origPosY = (br.sy - (tl.sy + margin + naTotalH)) / inchToPx;
+              origPosX = (br.sx - margin - naElemWD - tl.sx) / inchToPx;
+              origPosY = (br.sy - (tl.sy + margin + naTotalHD)) / inchToPx;
             }
           } else if (tbHit === 'titleBlock') {
-            const tbH = 2.2 * inchToPx;
-            const tbW = 5.5 * inchToPx;
+            const tbWInD = Math.min(5.5, pw * 0.47);
+            const tbHInD = Math.min(2.2, tbWInD * 0.42);
+            const tbWD   = tbWInD * inchToPx;
+            const tbHD   = tbHInD * inchToPx;
             if (tb?.titleBlockPos) {
               origPosX = tb.titleBlockPos.x;
               origPosY = tb.titleBlockPos.y;
             } else {
-              origPosX = (br.sx - margin - tbW - tl.sx) / inchToPx;
+              origPosX = (br.sx - margin - tbWD - tl.sx) / inchToPx;
               origPosY = margin / inchToPx;
             }
           } else if (tbHit === 'scaleBar') {
@@ -3398,10 +3415,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               origPosX = tb.scaleBarPos.x;
               origPosY = tb.scaleBarPos.y;
             } else {
-              // Default position: after signature block (sigBoxW=2.8" + gap 0.4") from paper left
-              const sigBoxWidthIn = 2.8;
-              const sigGapIn = 0.4;
-              origPosX = sigBoxWidthIn + sigGapIn + margin / inchToPx;
+              const sigWIn = Math.min(2.8, pw * 0.27);
+              origPosX = sigWIn + 0.20 + margin / inchToPx;  // sig width + innerGap
               origPosY = margin / inchToPx;
             }
           }
