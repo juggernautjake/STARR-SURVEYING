@@ -4,6 +4,7 @@
 **Version:** 1.0 | **Last Updated:** March 2026  
 **Phase Duration:** Weeks 7–9  
 **Depends On:** Phase 1 (`PropertyIdentity`), Phase 2 (`HarvestResult` with images)  
+**Status:** 🟠 IN PROGRESS — Foundation services complete; orchestrator layer (`ai-document-analyzer.ts`, `ai-plat-analyzer.ts`, `ai-deed-analyzer.ts`, `ai-context-analyzer.ts`, `models/property-intelligence.ts`) not yet built  
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
 ---
@@ -172,6 +173,7 @@ Result is saved to `/tmp/analysis/{projectId}/intelligence.json` and returned vi
 | `worker/src/services/document-intelligence.ts` | Relevance scoring | ✅ Done |
 | `worker/src/types/document-harvest.ts` | HarvestInput / HarvestResult types | ✅ Done |
 | `worker/harvest.sh` | CLI harvest script | ✅ Done |
+| `worker/src/services/clerk-registry.ts` | FIPS → adapter routing | ❌ Not yet built |
 
 ### Phase 3 Foundation — PARTIALLY BUILT 🔨
 

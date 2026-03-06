@@ -16,7 +16,46 @@ Given **ANY** Texas property address, find the property ID, owner, legal descrip
 
 ---
 
-## Table of Contents
+## Current State of the Codebase
+
+**Phase Status: ✅ COMPLETE**
+
+All Phase 1 code has been implemented. The following files exist and are production-ready:
+
+### Implemented Files
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `worker/src/services/discovery-engine.ts` | `PropertyDiscoveryEngine` — multi-vendor CAD search orchestrator | ✅ Complete |
+| `worker/src/services/property-discovery.ts` | Express route handler (`POST /research/discover`) | ✅ Complete |
+| `worker/src/services/cad-registry.ts` | CAD vendor registry mapping FIPS codes to adapter configs | ✅ Complete |
+| `worker/src/services/address-utils.ts` | Address parsing, normalization, variant generation, geocoding | ✅ Complete |
+| `worker/src/services/address-normalizer.ts` | Address normalization (Census geocoder integration) | ✅ Complete |
+| `worker/src/adapters/cad-adapter.ts` | Abstract `CadAdapter` base class | ✅ Complete |
+| `worker/src/adapters/bis-adapter.ts` | BIS Consultants adapter (Bell, McLennan, Coryell, Lampasas, ~60 counties) | ✅ Complete |
+| `worker/src/adapters/trueautomation-adapter.ts` | TrueAutomation adapter (Travis, Dallas/DCAD, Bexar, Fort Bend, ~80 counties) | ✅ Complete |
+| `worker/src/adapters/tyler-adapter.ts` | Tyler/Aumentum adapter (Williamson, Hays, Comal, Guadalupe, ~50 counties) | ✅ Complete |
+| `worker/src/adapters/generic-cad-adapter.ts` | AI-assisted generic Playwright fallback | ✅ Complete |
+| `worker/src/lib/county-fips.ts` | Texas county FIPS lookup table (all 254 counties) | ✅ Complete |
+| `worker/src/types/property-discovery.ts` | Phase 1 TypeScript types | ✅ Complete |
+
+### API Endpoint
+
+`POST /research/discover` — live in `worker/src/index.ts`
+
+### Still Missing / Not Yet Built
+
+| Item | Notes |
+|------|-------|
+| `worker/src/adapters/hcad-adapter.ts` | Harris County (Houston) custom CAD adapter — needed for statewide coverage |
+| `worker/src/adapters/tad-adapter.ts` | Tarrant County (Fort Worth) custom CAD adapter — needed for statewide coverage |
+| `GET /research/discover/:projectId` status endpoint | Phase 1 uses `/research/status/:projectId` instead |
+
+### Notes on Legacy Files
+
+`worker/src/services/bell-cad.ts` — the original monolithic BIS CAD scraper. This file still exists and is still used by the older `pipeline.ts` service. It is functionally superseded by `bis-adapter.ts` but has not been deleted. Future cleanup should migrate any remaining callers to the adapter-based `discovery-engine.ts` and remove `bell-cad.ts`.
+
+---
 
 1. [What This Phase Must Accomplish](#1-what-this-phase-must-accomplish)
 2. [Architecture Overview](#2-architecture-overview)

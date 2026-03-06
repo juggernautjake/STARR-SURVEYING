@@ -10,7 +10,30 @@
 
 ---
 
-## 9.1 What This Phase Must Accomplish
+## Current State of the Codebase
+
+**Phase Status: ✅ COMPLETE**
+
+All Phase 9 code has been implemented.
+
+### Implemented Files
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `worker/src/services/document-purchase-orchestrator.ts` | `DocumentPurchaseOrchestrator` — Phase 9 top-level orchestrator | ✅ Complete |
+| `worker/src/services/purchase-adapters/kofile-purchase-adapter.ts` | Kofile document purchase via Playwright | ✅ Complete |
+| `worker/src/services/purchase-adapters/texasfile-purchase-adapter.ts` | TexasFile document purchase | ✅ Complete |
+| `worker/src/services/billing-tracker.ts` | Purchase cost tracking and audit trail | ✅ Complete |
+| `worker/src/services/watermark-comparison.ts` | Watermarked vs. official image quality comparison | ✅ Complete |
+| `worker/src/services/reanalysis.ts` | Re-runs AI extraction on purchased (clean) documents | ✅ Complete |
+| `worker/src/types/purchase.ts` | Phase 9 TypeScript types (`PurchaseReport`, `PurchaseRecord`, etc.) | ✅ Complete |
+| `worker/purchase.sh` | CLI wrapper for Phase 9 | ✅ Complete |
+
+### API Endpoint
+
+`POST /research/purchase` and `GET /research/purchase/:projectId` — live in `worker/src/index.ts`
+
+---
 
 Phase 8 identified which documents to purchase and projected the confidence improvement. Phase 9 executes those purchases and validates the projections.
 

@@ -4,6 +4,7 @@
 **Version:** 1.0 | **Last Updated:** March 2026
 **Phase Duration:** Weeks 16–18
 **Depends On:** Phase 1 (`PropertyIdentity` with coordinates), Phase 3 (`intelligence.json` with road list), Phase 4 (`subdivision.json` with road dedications)
+**Status:** 🟠 IN PROGRESS — Foundation (`txdot-row.ts`, `coordinates.ts`) complete; 6 new orchestrator service files not yet built
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
 ---
@@ -160,15 +161,15 @@ Result is saved to `/tmp/analysis/{projectId}/row_data.json` (canonical Phase 6 
 
 ## 2. Current State of the Codebase
 
-### Phases 1–5 — COMPLETE
+### Phases 1–5 — Status
 
 | Phase | Key Files | Status |
 |-------|-----------|--------|
-| 1 — Discovery | `discovery-engine.ts`, `property-discovery.ts`, `bis-adapter.ts`, `trueautomation-adapter.ts`, `tyler-adapter.ts`, `generic-cad-adapter.ts`, `cad-registry.ts` | Done |
-| 2 — Harvest | `document-harvester.ts`, `kofile-clerk-adapter.ts`, `texasfile-adapter.ts`, `clerk-adapter.ts`, `document-intelligence.ts` | Done |
-| 3 — Extraction | `ai-extraction.ts`, `adaptive-vision.ts`, `geo-reconcile.ts`, `property-validation-pipeline.ts` | Done |
-| 4 — Subdivision | `subdivision-detector.ts`, `lot-enumerator.ts`, `interior-line-analyzer.ts`, `area-reconciler.ts` | Done |
-| 5 — Adjacent | `adjacent-queue-builder.ts`, `adjacent-research-worker.ts`, `cross-validation-engine.ts`, `adjacent-research-orchestrator.ts` | Done |
+| 1 — Discovery | `discovery-engine.ts`, `property-discovery.ts`, `bis-adapter.ts`, `trueautomation-adapter.ts`, `tyler-adapter.ts`, `generic-cad-adapter.ts`, `cad-registry.ts` | ✅ Complete |
+| 2 — Harvest | `document-harvester.ts`, `kofile-clerk-adapter.ts`, `texasfile-adapter.ts`, `clerk-adapter.ts`, `document-intelligence.ts` | 🟠 In Progress — `clerk-registry.ts` missing |
+| 3 — Extraction | `ai-extraction.ts`, `adaptive-vision.ts`, `geo-reconcile.ts`, `property-validation-pipeline.ts` (foundation only) | 🟠 In Progress — orchestrator layer (`ai-document-analyzer.ts`) not yet built |
+| 4 — Subdivision | `subdivision-intelligence.ts`, `subdivision-classifier.ts`, `lot-enumerator.ts`, `interior-line-analyzer.ts`, `area-reconciliation.ts`, `adjacency-builder.ts` | ✅ Complete |
+| 5 — Adjacent | `adjacent-research.ts` (foundation), `adjacency-builder.ts` (foundation) | 🟠 In Progress — 4 orchestrator files missing |
 
 ### Phase 6 — PARTIALLY BUILT
 
