@@ -38,6 +38,11 @@ import {
   ellipseGripPoints,
   arcGripPoints,
   splineGripPoints,
+  fitPointsToBezier,
+  bezierToFitPoints,
+  getSplineHandles,
+  insertInflectionPoint,
+  findClosestSplineParam,
   type GraphicsLike,
 } from '@/lib/cad/geometry/curve-render';
 import { useKeyboard } from '../hooks/useKeyboard';
@@ -118,6 +123,9 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
   DRAW_CIRCLE_EDGE: SVG_CURSOR_CROSSHAIR,
   DRAW_ELLIPSE: SVG_CURSOR_CROSSHAIR,
   DRAW_ELLIPSE_EDGE: SVG_CURSOR_CROSSHAIR,
+  DRAW_CURVED_LINE: SVG_CURSOR_CROSSHAIR,
+  DRAW_SPLINE_FIT: SVG_CURSOR_CROSSHAIR,
+  DRAW_SPLINE_CONTROL: SVG_CURSOR_CROSSHAIR,
   MOVE: 'move',
   COPY: 'copy',
   ROTATE: SVG_CURSOR_ROTATE,
@@ -169,7 +177,7 @@ export default function CanvasViewport() {
   const gripDragRef = useRef<{
     featureId: string;
     vertexIndex: number;
-    type: 'POINT' | 'LINE_START' | 'LINE_END' | 'VERTEX';
+    type: 'POINT' | 'LINE_START' | 'LINE_END' | 'VERTEX' | 'SPLINE_FIT' | 'SPLINE_HANDLE';
   } | null>(null);
   const gripStartRef = useRef<Feature | null>(null);
   const clickHitFeatureRef = useRef(false);
@@ -212,6 +220,46 @@ export default function CanvasViewport() {
       setCursorStyle(TOOL_CURSORS[activeTool] ?? 'crosshair');
     }
   }, [activeTool]);
+
+  // Auto-finish curved line when switching tools (including clicking curved line tool again)
+  const prevToolRef = useRef(activeTool);
+  useEffect(() => {
+    const prev = prevToolRef.current;
+    prevToolRef.current = activeTool;
+    if (prev === 'DRAW_CURVED_LINE' && activeTool !== 'DRAW_CURVED_LINE') {
+      // The tool store's setTool already cleared drawingPoints, but we captured
+      // the points before the switch via a subscription. Instead, we rely on
+      // the store subscription below to handle this.
+    }
+  }, [activeTool]);
+
+  // Subscribe to tool store to auto-finish curved line before drawingPoints are cleared
+  useEffect(() => {
+    let prevTool = useToolStore.getState().state.activeTool;
+    let prevPoints = useToolStore.getState().state.drawingPoints;
+    const unsub = useToolStore.subscribe((state) => {
+      const curTool = state.state.activeTool;
+      if (prevTool === 'DRAW_CURVED_LINE' && curTool !== 'DRAW_CURVED_LINE' && prevPoints.length >= 2) {
+        // Finish the spline with the captured points before they were cleared
+        const controlPoints = fitPointsToBezier(prevPoints, false);
+        const dStore = useDrawingStore.getState();
+        const layerStyle = dStore.getActiveLayerStyle();
+        const feature: Feature = {
+          id: generateId(),
+          type: 'SPLINE',
+          geometry: { type: 'SPLINE', spline: { controlPoints, isClosed: false } },
+          layerId: dStore.activeLayerId,
+          style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+          properties: {},
+        };
+        dStore.addFeature(feature);
+        useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+      }
+      prevTool = curTool;
+      prevPoints = state.state.drawingPoints;
+    });
+    return unsub;
+  }, []);
 
   // ─────────────────────────────────────────────
   // Initialize PixiJS
@@ -993,14 +1041,64 @@ export default function CanvasViewport() {
       const gripBorderColor = parseInt(gripColorHex, 16);
       const gripFillHex = (docSettings.gripFillColor ?? '#ffffff').replace('#', '');
       const gripFill = parseInt(gripFillHex, 16);
-      g.lineStyle(1, gripBorderColor, 1);
-      g.beginFill(gripFill, 1);
-      const gripPoints = getFeatureVertices(feature);
-      for (const pt of gripPoints) {
-        const { sx, sy } = w2s(pt.x, pt.y);
-        g.drawRect(sx - gs / 2, sy - gs / 2, gs, gs);
+      // SPLINE: draw tangent handles with specialized grips
+      if (geom.type === 'SPLINE' && geom.spline && geom.spline.controlPoints.length >= 4) {
+        const cp = geom.spline.controlPoints;
+        const fitPts = bezierToFitPoints(cp);
+        const fitCount = fitPts.length;
+
+        // Draw tangent handle lines (thin gray lines from inflection point to handle endpoints)
+        g.lineStyle(1, 0xaaaaaa, 0.6);
+        for (let fi = 0; fi < fitCount; fi++) {
+          const handles = getSplineHandles(cp, fi);
+          const pt = w2s(handles.point.x, handles.point.y);
+          if (handles.leftHandle) {
+            const lh = w2s(handles.leftHandle.x, handles.leftHandle.y);
+            g.moveTo(pt.sx, pt.sy);
+            g.lineTo(lh.sx, lh.sy);
+          }
+          if (handles.rightHandle) {
+            const rh = w2s(handles.rightHandle.x, handles.rightHandle.y);
+            g.moveTo(pt.sx, pt.sy);
+            g.lineTo(rh.sx, rh.sy);
+          }
+        }
+
+        // Draw white square grips at handle endpoints (control points)
+        g.lineStyle(1, gripBorderColor, 1);
+        g.beginFill(gripFill, 1);
+        for (let fi = 0; fi < fitCount; fi++) {
+          const handles = getSplineHandles(cp, fi);
+          if (handles.leftHandle) {
+            const lh = w2s(handles.leftHandle.x, handles.leftHandle.y);
+            g.drawRect(lh.sx - gs / 2, lh.sy - gs / 2, gs, gs);
+          }
+          if (handles.rightHandle) {
+            const rh = w2s(handles.rightHandle.x, handles.rightHandle.y);
+            g.drawRect(rh.sx - gs / 2, rh.sy - gs / 2, gs, gs);
+          }
+        }
+        g.endFill();
+
+        // Draw circle grips at inflection points (on-curve points)
+        g.lineStyle(1.5, gripBorderColor, 1);
+        g.beginFill(gripFill, 1);
+        for (let fi = 0; fi < fitCount; fi++) {
+          const pt = w2s(fitPts[fi].x, fitPts[fi].y);
+          g.drawCircle(pt.sx, pt.sy, gs / 2 + 1);
+        }
+        g.endFill();
+      } else {
+        // Standard grip squares for all other geometry types
+        g.lineStyle(1, gripBorderColor, 1);
+        g.beginFill(gripFill, 1);
+        const gripPoints = getFeatureVertices(feature);
+        for (const pt of gripPoints) {
+          const { sx, sy } = w2s(pt.x, pt.y);
+          g.drawRect(sx - gs / 2, sy - gs / 2, gs, gs);
+        }
+        g.endFill();
       }
-      g.endFill();
     }
   }
 
@@ -1161,6 +1259,81 @@ export default function CanvasViewport() {
       g.lineStyle(1.5, 0xff00ff, 0.7);
       g.moveTo(ax, ay);
       g.lineTo(bx, by);
+      return;
+    }
+
+    // ── DRAW_CURVED_LINE preview: live bezier curve from fit points + cursor ──
+    if (activeTool === 'DRAW_CURVED_LINE') {
+      if (drawingPoints.length === 0) {
+        // No points yet: show start-point crosshair at cursor
+        const { sx, sy } = w2s(previewPoint.x, previewPoint.y);
+        g.lineStyle(1, previewColor, 0.5);
+        g.moveTo(sx - 6, sy); g.lineTo(sx + 6, sy);
+        g.moveTo(sx, sy - 6); g.lineTo(sx, sy + 6);
+        return;
+      }
+
+      // Build temporary fit points including the live cursor position
+      const tempFitPoints = [...drawingPoints, previewPoint];
+      const tempCP = fitPointsToBezier(tempFitPoints, false);
+
+      // Draw the live bezier curve
+      if (tempCP.length >= 4) {
+        g.lineStyle(1.5, previewColor, 0.85);
+        const p0 = w2s(tempCP[0].x, tempCP[0].y);
+        g.moveTo(p0.sx, p0.sy);
+        const numSegs = Math.floor((tempCP.length - 1) / 3);
+        for (let seg = 0; seg < numSegs; seg++) {
+          const idx = seg * 3;
+          const cp1 = w2s(tempCP[idx + 1].x, tempCP[idx + 1].y);
+          const cp2 = w2s(tempCP[idx + 2].x, tempCP[idx + 2].y);
+          const end = w2s(tempCP[idx + 3].x, tempCP[idx + 3].y);
+          g.bezierCurveTo(cp1.sx, cp1.sy, cp2.sx, cp2.sy, end.sx, end.sy);
+        }
+      } else if (drawingPoints.length === 1) {
+        // Only 1 fit point + cursor: straight line preview
+        const s = w2s(drawingPoints[0].x, drawingPoints[0].y);
+        const e = w2s(previewPoint.x, previewPoint.y);
+        g.lineStyle(1.5, previewColor, 0.85);
+        g.moveTo(s.sx, s.sy);
+        g.lineTo(e.sx, e.sy);
+      }
+
+      // Draw inflection point dots at each committed fit point
+      g.lineStyle(1, previewColor, 0.9);
+      for (let i = 0; i < drawingPoints.length; i++) {
+        const { sx, sy } = w2s(drawingPoints[i].x, drawingPoints[i].y);
+        g.beginFill(i === 0 ? previewColor : 0xffffff, i === 0 ? 0.9 : 0.8);
+        g.drawCircle(sx, sy, i === 0 ? 4 : 3);
+        g.endFill();
+      }
+
+      // Show tangent handles on committed fit points (if >= 2 fit points)
+      if (drawingPoints.length >= 2) {
+        const committedCP = fitPointsToBezier(drawingPoints, false);
+        const fitCount = drawingPoints.length;
+        g.lineStyle(0.75, 0xaaaaaa, 0.5);
+        for (let fi = 0; fi < fitCount; fi++) {
+          const handles = getSplineHandles(committedCP, fi);
+          const pt = w2s(handles.point.x, handles.point.y);
+          if (handles.leftHandle) {
+            const lh = w2s(handles.leftHandle.x, handles.leftHandle.y);
+            g.moveTo(pt.sx, pt.sy);
+            g.lineTo(lh.sx, lh.sy);
+          }
+          if (handles.rightHandle) {
+            const rh = w2s(handles.rightHandle.x, handles.rightHandle.y);
+            g.moveTo(pt.sx, pt.sy);
+            g.lineTo(rh.sx, rh.sy);
+          }
+        }
+      }
+
+      // Cursor dot
+      const { sx: cx, sy: cy } = w2s(previewPoint.x, previewPoint.y);
+      g.beginFill(previewColor, 0.7);
+      g.drawCircle(cx, cy, 2.5);
+      g.endFill();
       return;
     }
 
@@ -1703,6 +1876,40 @@ export default function CanvasViewport() {
       return;
     }
 
+    // SPLINE: convert fit points to cubic bezier control points
+    if (type === 'SPLINE') {
+      if (drawingPoints.length < 2) {
+        toolStore.clearDrawingPoints();
+        return;
+      }
+      const controlPoints = fitPointsToBezier(drawingPoints, false);
+      const { activeLayerId, getActiveLayerStyle } = drawingStore;
+      const layerStyle = getActiveLayerStyle();
+      const ds = useToolStore.getState().state.drawStyle;
+      const feature: Feature = {
+        id: generateId(),
+        type: 'SPLINE',
+        geometry: {
+          type: 'SPLINE',
+          spline: { controlPoints, isClosed: false },
+        },
+        layerId: activeLayerId,
+        style: {
+          ...DEFAULT_FEATURE_STYLE,
+          ...layerStyle,
+          ...(ds.color != null ? { color: ds.color } : {}),
+          ...(ds.lineWeight != null ? { lineWeight: ds.lineWeight } : {}),
+          ...(ds.opacity != null ? { opacity: ds.opacity } : {}),
+          ...(ds.lineType !== 'SOLID' ? { lineTypeId: ds.lineType } : {}),
+        },
+        properties: {},
+      };
+      drawingStore.addFeature(feature);
+      undoStore.pushUndo(makeAddFeatureEntry(feature));
+      toolStore.clearDrawingPoints();
+      return;
+    }
+
     const feature = createFeature(type, drawingPoints);
     if (!feature) return;
     drawingStore.addFeature(feature);
@@ -1778,15 +1985,30 @@ export default function CanvasViewport() {
   // ─────────────────────────────────────────────
   // Grip hit testing
   // ─────────────────────────────────────────────
-  function hitTestGrip(sx: number, sy: number): { featureId: string; vertexIndex: number } | null {
+  function hitTestGrip(sx: number, sy: number): { featureId: string; vertexIndex: number; gripType?: 'SPLINE_FIT' | 'SPLINE_HANDLE' } | null {
     const { selectedIds } = selectionStore;
+    const gripHitSize = (drawingStore.document.settings.gripSize ?? 6) + 2;
     for (const featureId of selectedIds) {
       const feature = drawingStore.getFeature(featureId);
       if (!feature) continue;
+
+      // Specialized grip hit test for SPLINE features
+      if (feature.geometry.type === 'SPLINE' && feature.geometry.spline && feature.geometry.spline.controlPoints.length >= 4) {
+        const cp = feature.geometry.spline.controlPoints;
+        // Test all control points — identify if it's a fit point or handle endpoint
+        for (let i = 0; i < cp.length; i++) {
+          const { sx: gx, sy: gy } = w2s(cp[i].x, cp[i].y);
+          if (Math.abs(sx - gx) <= gripHitSize && Math.abs(sy - gy) <= gripHitSize) {
+            const isFitPoint = i % 3 === 0;
+            return { featureId, vertexIndex: i, gripType: isFitPoint ? 'SPLINE_FIT' : 'SPLINE_HANDLE' };
+          }
+        }
+        continue;
+      }
+
       const verts = getFeatureVertices(feature);
       for (let i = 0; i < verts.length; i++) {
         const { sx: gx, sy: gy } = w2s(verts[i].x, verts[i].y);
-        const gripHitSize = (drawingStore.document.settings.gripSize ?? 6) + 2;
         if (Math.abs(sx - gx) <= gripHitSize && Math.abs(sy - gy) <= gripHitSize) {
           return { featureId, vertexIndex: i };
         }
@@ -1831,7 +2053,10 @@ export default function CanvasViewport() {
       if (activeTool === 'SELECT' && selectionStore.selectedIds.size > 0) {
         const grip = hitTestGrip(sx, sy);
         if (grip) {
-          gripDragRef.current = { featureId: grip.featureId, vertexIndex: grip.vertexIndex, type: 'VERTEX' };
+          const gType = grip.gripType === 'SPLINE_FIT' ? 'SPLINE_FIT'
+            : grip.gripType === 'SPLINE_HANDLE' ? 'SPLINE_HANDLE'
+            : 'VERTEX';
+          gripDragRef.current = { featureId: grip.featureId, vertexIndex: grip.vertexIndex, type: gType };
           gripStartRef.current = drawingStore.getFeature(grip.featureId) ?? null;
           return;
         }
@@ -2157,6 +2382,13 @@ export default function CanvasViewport() {
           break;
         }
 
+        case 'DRAW_CURVED_LINE': {
+          // Curved line tool: works like polyline — each click adds a fit point.
+          // On finish, the fit points are converted to cubic bezier control points.
+          toolStore.addDrawingPoint(worldPt);
+          break;
+        }
+
         case 'ERASE': {
           const hit = hitTest(sx, sy);
           if (hit) {
@@ -2413,7 +2645,26 @@ export default function CanvasViewport() {
             case 'SPLINE': {
               if (geom.spline) {
                 const s = { ...geom.spline, controlPoints: [...geom.spline.controlPoints] };
-                if (vertexIndex >= 0 && vertexIndex < s.controlPoints.length) {
+                const dragType = gripDragRef.current?.type;
+                if (dragType === 'SPLINE_FIT') {
+                  // Dragging a fit point (on-curve point at index i*3):
+                  // Move the fit point and its adjacent handles by the same delta
+                  const oldPt = s.controlPoints[vertexIndex];
+                  const dx = worldPt.x - oldPt.x;
+                  const dy = worldPt.y - oldPt.y;
+                  s.controlPoints[vertexIndex] = worldPt;
+                  // Move adjacent left handle
+                  if (vertexIndex > 0) {
+                    const lh = s.controlPoints[vertexIndex - 1];
+                    s.controlPoints[vertexIndex - 1] = { x: lh.x + dx, y: lh.y + dy };
+                  }
+                  // Move adjacent right handle
+                  if (vertexIndex + 1 < s.controlPoints.length) {
+                    const rh = s.controlPoints[vertexIndex + 1];
+                    s.controlPoints[vertexIndex + 1] = { x: rh.x + dx, y: rh.y + dy };
+                  }
+                } else if (vertexIndex >= 0 && vertexIndex < s.controlPoints.length) {
+                  // Dragging a handle endpoint: just move that control point
                   s.controlPoints[vertexIndex] = worldPt;
                 }
                 geom.spline = s;
@@ -2710,6 +2961,14 @@ export default function CanvasViewport() {
         return;
       }
 
+      if (activeTool === 'DRAW_CURVED_LINE') {
+        // Double-click finishes curved line drawing (the last click already added a point)
+        if (toolState.drawingPoints.length >= 2) {
+          finishFeature('SPLINE');
+        }
+        return;
+      }
+
       // SELECT tool (or any non-drawing tool): open feature properties dialog
       const hit = hitTest(sx, sy);
       if (hit) {
@@ -2777,6 +3036,8 @@ export default function CanvasViewport() {
         finishFeature('POLYLINE');
       } else if (activeTool === 'DRAW_POLYGON' && drawingPoints.length >= 3) {
         finishFeature('POLYGON');
+      } else if (activeTool === 'DRAW_CURVED_LINE' && drawingPoints.length >= 2) {
+        finishFeature('SPLINE');
       } else if (activeTool === 'DRAW_REGULAR_POLYGON' && drawingPoints.length >= 2) {
         // Confirm is not needed (handled by click), but allow Enter to cancel
         toolStore.clearDrawingPoints();
@@ -2964,6 +3225,17 @@ export default function CanvasViewport() {
           // Cancel — no segments yet
           polylineGroupIdRef.current = null;
           lastPolylineSegmentIdRef.current = null;
+          toolStore.clearDrawingPoints();
+          toolStore.setTool('SELECT');
+        }
+        return;
+      }
+
+      // Right-click during curved line drawing: finish if enough points
+      if (activeTool === 'DRAW_CURVED_LINE') {
+        if (toolState.drawingPoints.length >= 2) {
+          finishFeature('SPLINE');
+        } else {
           toolStore.clearDrawingPoints();
           toolStore.setTool('SELECT');
         }

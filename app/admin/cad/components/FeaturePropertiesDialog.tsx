@@ -142,6 +142,52 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
     drawingStore.updateFeatureGeometry(featureId, geom);
   }
 
+  function updateCircle(key: string, value: number) {
+    if (!feature || !feature.geometry.circle) return;
+    const geom = { ...feature.geometry };
+    const c = { ...geom.circle! };
+    if (key === 'cx') c.center = { ...c.center, x: value };
+    else if (key === 'cy') c.center = { ...c.center, y: value };
+    else if (key === 'radius') c.radius = Math.max(0.001, value);
+    geom.circle = c;
+    drawingStore.updateFeatureGeometry(featureId, geom);
+  }
+
+  function updateEllipse(key: string, value: number) {
+    if (!feature || !feature.geometry.ellipse) return;
+    const geom = { ...feature.geometry };
+    const e = { ...geom.ellipse! };
+    if (key === 'cx') e.center = { ...e.center, x: value };
+    else if (key === 'cy') e.center = { ...e.center, y: value };
+    else if (key === 'rx') e.radiusX = Math.max(0.001, value);
+    else if (key === 'ry') e.radiusY = Math.max(0.001, value);
+    else if (key === 'rotation') e.rotation = (value * Math.PI) / 180;
+    geom.ellipse = e;
+    drawingStore.updateFeatureGeometry(featureId, geom);
+  }
+
+  function updateArc(key: string, value: number) {
+    if (!feature || !feature.geometry.arc) return;
+    const geom = { ...feature.geometry };
+    const a = { ...geom.arc! };
+    if (key === 'cx') a.center = { ...a.center, x: value };
+    else if (key === 'cy') a.center = { ...a.center, y: value };
+    else if (key === 'radius') a.radius = Math.max(0.001, value);
+    else if (key === 'startAngle') a.startAngle = (value * Math.PI) / 180;
+    else if (key === 'endAngle') a.endAngle = (value * Math.PI) / 180;
+    geom.arc = a;
+    drawingStore.updateFeatureGeometry(featureId, geom);
+  }
+
+  function updateSplinePoint(cpIndex: number, axis: 'x' | 'y', value: number) {
+    if (!feature || !feature.geometry.spline) return;
+    const geom = { ...feature.geometry };
+    const s = { ...geom.spline!, controlPoints: [...geom.spline!.controlPoints] };
+    s.controlPoints[cpIndex] = { ...s.controlPoints[cpIndex], [axis]: value };
+    geom.spline = s;
+    drawingStore.updateFeatureGeometry(featureId, geom);
+  }
+
   // ── Property editing ─────────────────────────────────────────────────────
   function updateProperty(key: string, value: string) {
     if (!feature) return;
@@ -184,6 +230,19 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
         return sum + Math.hypot(v.x - prev.x, v.y - prev.y);
       }, 0);
     }
+    if (g.type === 'CIRCLE' && g.circle) {
+      return 2 * Math.PI * g.circle.radius;
+    }
+    if (g.type === 'ELLIPSE' && g.ellipse) {
+      // Ramanujan approximation for ellipse circumference
+      const { radiusX: a, radiusY: b } = g.ellipse;
+      return Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
+    }
+    if (g.type === 'ARC' && g.arc) {
+      let angle = g.arc.endAngle - g.arc.startAngle;
+      if (angle < 0) angle += 2 * Math.PI;
+      return angle * g.arc.radius;
+    }
     return 0;
   }
 
@@ -207,6 +266,7 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
   // ── Geometry vertices list ───────────────────────────────────────────────
   let vertices: Point2D[] = [];
   let vertexLabels: string[] = [];
+  const isCurveType = geom.type === 'CIRCLE' || geom.type === 'ELLIPSE' || geom.type === 'ARC' || geom.type === 'SPLINE';
   if (geom.type === 'POINT' && geom.point) {
     vertices = [geom.point];
     vertexLabels = ['Position'];
@@ -358,7 +418,65 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
           </button>
           {showGeom && (
             <div className="space-y-2 mt-1 pl-1">
-              {vertices.map((v, i) => (
+              {/* Circle geometry */}
+              {geom.type === 'CIRCLE' && geom.circle && (
+                <>
+                  <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">Center</div>
+                  <CoordInput label="X" value={geom.circle.center.x} onChange={(v) => updateCircle('cx', v)} />
+                  <CoordInput label="Y" value={geom.circle.center.y} onChange={(v) => updateCircle('cy', v)} />
+                  <CoordInput label="Radius" value={geom.circle.radius} onChange={(v) => updateCircle('radius', v)} />
+                </>
+              )}
+
+              {/* Ellipse geometry */}
+              {geom.type === 'ELLIPSE' && geom.ellipse && (
+                <>
+                  <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">Center</div>
+                  <CoordInput label="X" value={geom.ellipse.center.x} onChange={(v) => updateEllipse('cx', v)} />
+                  <CoordInput label="Y" value={geom.ellipse.center.y} onChange={(v) => updateEllipse('cy', v)} />
+                  <CoordInput label="Radius X" value={geom.ellipse.radiusX} onChange={(v) => updateEllipse('rx', v)} />
+                  <CoordInput label="Radius Y" value={geom.ellipse.radiusY} onChange={(v) => updateEllipse('ry', v)} />
+                  <CoordInput label="Rotation°" value={(geom.ellipse.rotation * 180) / Math.PI} onChange={(v) => updateEllipse('rotation', v)} />
+                </>
+              )}
+
+              {/* Arc geometry */}
+              {geom.type === 'ARC' && geom.arc && (
+                <>
+                  <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">Center</div>
+                  <CoordInput label="X" value={geom.arc.center.x} onChange={(v) => updateArc('cx', v)} />
+                  <CoordInput label="Y" value={geom.arc.center.y} onChange={(v) => updateArc('cy', v)} />
+                  <CoordInput label="Radius" value={geom.arc.radius} onChange={(v) => updateArc('radius', v)} />
+                  <CoordInput label="Start°" value={(geom.arc.startAngle * 180) / Math.PI} onChange={(v) => updateArc('startAngle', v)} />
+                  <CoordInput label="End°" value={(geom.arc.endAngle * 180) / Math.PI} onChange={(v) => updateArc('endAngle', v)} />
+                </>
+              )}
+
+              {/* Spline geometry — show fit points */}
+              {geom.type === 'SPLINE' && geom.spline && (() => {
+                const cp = geom.spline!.controlPoints;
+                const fitPoints: { pt: Point2D; cpIdx: number }[] = [];
+                for (let i = 0; i < cp.length; i += 3) {
+                  fitPoints.push({ pt: cp[i], cpIdx: i });
+                }
+                return (
+                  <>
+                    <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">
+                      Fit Points ({fitPoints.length})
+                    </div>
+                    {fitPoints.map((fp, i) => (
+                      <div key={fp.cpIdx} className="space-y-1">
+                        <div className="text-gray-500 text-[9px]">Point {i + 1}</div>
+                        <CoordInput label="X" value={fp.pt.x} onChange={(v) => updateSplinePoint(fp.cpIdx, 'x', v)} />
+                        <CoordInput label="Y" value={fp.pt.y} onChange={(v) => updateSplinePoint(fp.cpIdx, 'y', v)} />
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
+
+              {/* Standard vertices (POINT, LINE, POLYLINE, POLYGON) */}
+              {!isCurveType && vertices.map((v, i) => (
                 <div key={i} className="space-y-1">
                   {vertices.length > 1 && (
                     <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">

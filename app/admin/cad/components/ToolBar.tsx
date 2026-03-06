@@ -354,6 +354,7 @@ function buildToolGroups(
       icon: <GitCommitHorizontal size={16} />,
       variants: [
         { tool: 'DRAW_ARC', label: 'Arc (3-point)', description: 'Click PC, mid-point, PT to define an arc.', shortcut: 'A', icon: <GitCommitHorizontal size={14} /> },
+        { tool: 'DRAW_CURVED_LINE', label: 'Curved Line', description: 'Click to place fit points with tangent handles. Right-click or double-click to finish. Creates smooth bezier curves.', shortcut: 'CL', icon: <Waves size={14} /> },
         { tool: 'DRAW_SPLINE_FIT', label: 'Spline (fit-point)', description: 'Click fit-points for a smooth Fusion 360-style spline. Double-click to finish.', shortcut: 'SF', icon: <Waves size={14} /> },
         { tool: 'DRAW_SPLINE_CONTROL', label: 'Spline (NURBS control-point)', description: 'Click control points for a NURBS spline. Double-click to finish.', shortcut: 'SN', icon: <Spline size={14} /> },
       ],

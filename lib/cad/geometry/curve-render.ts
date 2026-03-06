@@ -337,3 +337,178 @@ export function arcGripPoints(arc: ArcGeometry): Point2D[] {
 export function splineGripPoints(spline: SplineGeometry): Point2D[] {
   return [...spline.controlPoints];
 }
+
+// ── FIT-POINT TO CUBIC BEZIER CONVERSION ──
+
+/**
+ * Convert a set of fit-points (points that the curve passes through) into
+ * cubic bezier control points with automatic tangent handle computation.
+ *
+ * Uses the Catmull-Rom approach: tangent at each fit point is parallel to the
+ * line between the previous and next fit points. The control point magnitude
+ * is 1/3 of the distance to adjacent fit points (standard cubic interpolation).
+ *
+ * Returns the SplineGeometry control points array (3N+1 for N segments).
+ */
+export function fitPointsToBezier(fitPoints: Point2D[], isClosed: boolean): Point2D[] {
+  const n = fitPoints.length;
+  if (n < 2) return [...fitPoints];
+
+  // Compute tangent vectors at each fit point (Catmull-Rom style)
+  const tangents: Point2D[] = [];
+  for (let i = 0; i < n; i++) {
+    const prev = fitPoints[(i - 1 + n) % n];
+    const next = fitPoints[(i + 1) % n];
+
+    let tx: number, ty: number;
+    if (!isClosed && i === 0) {
+      // First point: forward difference
+      tx = next.x - fitPoints[i].x;
+      ty = next.y - fitPoints[i].y;
+    } else if (!isClosed && i === n - 1) {
+      // Last point: backward difference
+      tx = fitPoints[i].x - prev.x;
+      ty = fitPoints[i].y - prev.y;
+    } else {
+      // Interior or closed: central difference
+      tx = next.x - prev.x;
+      ty = next.y - prev.y;
+    }
+
+    const len = Math.hypot(tx, ty);
+    if (len > 0) {
+      tangents.push({ x: tx / len, y: ty / len });
+    } else {
+      tangents.push({ x: 1, y: 0 });
+    }
+  }
+
+  // Build control points: for each segment between fitPoints[i] and fitPoints[i+1],
+  // we place two control points at 1/3 of the segment length along the tangent.
+  const result: Point2D[] = [];
+  const segCount = isClosed ? n : n - 1;
+
+  for (let i = 0; i < segCount; i++) {
+    const j = (i + 1) % n;
+    const p0 = fitPoints[i];
+    const p3 = fitPoints[j];
+    const dist = Math.hypot(p3.x - p0.x, p3.y - p0.y);
+    const t = dist / 3; // 1/3 rule for smooth cubic interpolation
+
+    if (i === 0) result.push(p0);
+
+    // First control point: from p0 along tangent at p0
+    const cp1: Point2D = {
+      x: p0.x + tangents[i].x * t,
+      y: p0.y + tangents[i].y * t,
+    };
+    // Second control point: from p3 backwards along tangent at p3
+    const cp2: Point2D = {
+      x: p3.x - tangents[j].x * t,
+      y: p3.y - tangents[j].y * t,
+    };
+
+    result.push(cp1, cp2, p3);
+  }
+
+  return result;
+}
+
+/**
+ * Extract the fit points (on-curve points) from a bezier control point array.
+ * These are every 3rd point starting from index 0.
+ */
+export function bezierToFitPoints(controlPoints: Point2D[]): Point2D[] {
+  const result: Point2D[] = [];
+  for (let i = 0; i <= controlPoints.length - 1; i += 3) {
+    result.push(controlPoints[i]);
+  }
+  return result;
+}
+
+/**
+ * Get tangent handle data for a fit point at index `fitIndex`.
+ * Returns the two control points (left handle, right handle) and the on-curve point.
+ */
+export function getSplineHandles(
+  controlPoints: Point2D[],
+  fitIndex: number,
+): { point: Point2D; leftHandle: Point2D | null; rightHandle: Point2D | null } {
+  const cpIdx = fitIndex * 3;
+  const point = controlPoints[cpIdx];
+  const leftHandle = cpIdx > 0 ? controlPoints[cpIdx - 1] : null;
+  const rightHandle = cpIdx + 1 < controlPoints.length ? controlPoints[cpIdx + 1] : null;
+  return { point, leftHandle, rightHandle };
+}
+
+/**
+ * Insert a new inflection point into a spline at parameter `t` along segment `segIndex`.
+ * Uses de Casteljau subdivision to split the bezier segment and maintain curve shape.
+ */
+export function insertInflectionPoint(
+  controlPoints: Point2D[],
+  segIndex: number,
+  t: number = 0.5,
+): Point2D[] {
+  const idx = segIndex * 3;
+  const p0 = controlPoints[idx];
+  const p1 = controlPoints[idx + 1];
+  const p2 = controlPoints[idx + 2];
+  const p3 = controlPoints[idx + 3];
+
+  // de Casteljau subdivision at parameter t
+  const lerp = (a: Point2D, b: Point2D, s: number): Point2D => ({
+    x: a.x + (b.x - a.x) * s,
+    y: a.y + (b.y - a.y) * s,
+  });
+
+  const q0 = lerp(p0, p1, t);
+  const q1 = lerp(p1, p2, t);
+  const q2 = lerp(p2, p3, t);
+  const r0 = lerp(q0, q1, t);
+  const r1 = lerp(q1, q2, t);
+  const s0 = lerp(r0, r1, t); // The new on-curve point
+
+  // Replace the original 4 control points with 7:
+  // p0, q0, r0, s0, r1, q2, p3
+  const result = [...controlPoints];
+  result.splice(idx, 4, p0, q0, r0, s0, r1, q2, p3);
+  return result;
+}
+
+/**
+ * Find which segment and parameter t a point is closest to on a spline.
+ */
+export function findClosestSplineParam(
+  controlPoints: Point2D[],
+  worldPt: Point2D,
+): { segIndex: number; t: number; distance: number } {
+  const numSegments = Math.floor((controlPoints.length - 1) / 3);
+  let bestSeg = 0;
+  let bestT = 0.5;
+  let bestDist = Infinity;
+  const samples = 30;
+
+  for (let seg = 0; seg < numSegments; seg++) {
+    const idx = seg * 3;
+    const p0 = controlPoints[idx];
+    const p1 = controlPoints[idx + 1];
+    const p2 = controlPoints[idx + 2];
+    const p3 = controlPoints[idx + 3];
+
+    for (let s = 0; s <= samples; s++) {
+      const t = s / samples;
+      const u = 1 - t;
+      const bx = u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x;
+      const by = u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y;
+      const d = Math.hypot(worldPt.x - bx, worldPt.y - by);
+      if (d < bestDist) {
+        bestDist = d;
+        bestSeg = seg;
+        bestT = t;
+      }
+    }
+  }
+
+  return { segIndex: bestSeg, t: bestT, distance: bestDist };
+}

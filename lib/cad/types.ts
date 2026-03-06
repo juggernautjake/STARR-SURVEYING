@@ -316,6 +316,7 @@ export type ToolType =
   | 'DRAW_ARC'
   | 'DRAW_SPLINE_FIT'
   | 'DRAW_SPLINE_CONTROL'
+  | 'DRAW_CURVED_LINE'
   | 'CURB_RETURN'
   | 'OFFSET'
   | 'INVERSE'
