@@ -13,8 +13,6 @@
 //
 // Spec §2.5 — Document Harvesting Orchestrator
 
-import { KofileClerkAdapter } from '../adapters/kofile-clerk-adapter.js';
-import { TexasFileAdapter } from '../adapters/texasfile-adapter.js';
 import {
   ClerkAdapter,
   type ClerkDocumentResult,
@@ -25,6 +23,7 @@ import {
   filterAndRankResults,
   type ScoringContext,
 } from './document-intelligence.js';
+import { getClerkAdapter } from './clerk-registry.js';
 
 /** Default cost estimate when `getDocumentPricing()` is not called (most Kofile counties) */
 const DEFAULT_PRICE_PER_PAGE = 1.00;
@@ -367,19 +366,13 @@ export class DocumentHarvester {
 
   /**
    * Select the best available clerk adapter for a given county.
-   * Priority: Kofile (known FIPS) → TexasFile (universal fallback).
-   *
-   * TODO: add CountyFusion/Cott adapter (~40 counties)
-   * TODO: add Tyler/Odyssey adapter (~30 counties)
+   * Routes via ClerkRegistry: Kofile → CountyFusion → Tyler → TexasFile.
    */
   private getClerkAdapter(
     countyFIPS: string,
     countyName: string,
   ): ClerkAdapter {
-    // Kofile/PublicSearch — ~80+ Texas counties
-    // Most counties follow the standard *.tx.publicsearch.us subdomain pattern
-    // and will be handled by the default config in KofileClerkAdapter.
-    return new KofileClerkAdapter(countyFIPS, countyName);
+    return getClerkAdapter(countyFIPS, countyName);
   }
 
   /**
