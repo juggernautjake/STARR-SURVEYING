@@ -12,6 +12,7 @@ import { runPipeline } from './services/pipeline.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
 import { SubdivisionIntelligenceEngine } from './services/subdivision-intelligence.js';
+import { runAdjacentResearch, type FullCrossValidationReport } from './services/adjacent-research-orchestrator.js';
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
@@ -810,6 +811,136 @@ app.get('/research/subdivision/:projectId', requireAuth, (req: Request, res: Res
   }
 });
 
+// ── POST /research/adjacent ───────────────────────────────────────────────
+// Phase 5: Adjacent Property Research & Boundary Cross-Validation.
+// Takes Phase 3 intelligence output + optional Phase 4 subdivision model,
+// researches every neighboring property, downloads deeds, extracts boundary
+// calls via Claude Vision, and cross-validates shared boundaries.
+//
+// Long-running (~10-30 minutes for a typical subdivision). Returns HTTP 202.
+// Results are persisted to /tmp/analysis/{projectId}/cross_validation_report.json.
+
+// In-memory job state (per-worker-process; does not persist across PM2 restarts)
+const activeAdjacentJobs = new Map<
+  string,
+  { status: 'running' | 'complete' | 'failed'; result?: FullCrossValidationReport }
+>();
+
+app.post('/research/adjacent', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const { projectId, intelligencePath, subdivisionPath } = req.body as {
+    projectId?: string;
+    intelligencePath?: string;
+    subdivisionPath?: string;
+  };
+
+  if (!projectId || typeof projectId !== 'string') {
+    res.status(400).json({ error: 'projectId is required' });
+    return;
+  }
+
+  // Validate projectId to safe characters — prevents path traversal
+  if (!/^[a-zA-Z0-9_-]{1,100}$/.test(projectId)) {
+    res.status(400).json({
+      error: 'projectId may only contain alphanumeric characters, hyphens, and underscores (max 100 chars)',
+    });
+    return;
+  }
+
+  const resolvedIntelPath =
+    intelligencePath ?? `/tmp/analysis/${projectId}/property_intelligence.json`;
+
+  if (!fs.existsSync(resolvedIntelPath)) {
+    res.status(400).json({
+      error: `Intelligence file not found at: ${resolvedIntelPath}`,
+      hint: 'Run POST /research/analyze (Phase 3) first.',
+    });
+    return;
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    res.status(500).json({
+      error: 'ANTHROPIC_API_KEY is not set — required for Phase 5 AI deed extraction',
+    });
+    return;
+  }
+
+  // Accept immediately and run asynchronously
+  activeAdjacentJobs.set(projectId, { status: 'running' });
+  res.status(202).json({
+    status: 'accepted',
+    projectId,
+    pollUrl: `/research/adjacent/${projectId}`,
+    resultsPath: `/tmp/analysis/${projectId}/cross_validation_report.json`,
+    note: 'Phase 5 takes 10-30 minutes depending on the number of adjacent properties.',
+  });
+
+  // Run in background
+  runAdjacentResearch(projectId, resolvedIntelPath, subdivisionPath)
+    .then((report) => {
+      activeAdjacentJobs.set(projectId, { status: 'complete', result: report });
+      console.log(
+        `[Adjacent] ${projectId} complete: ` +
+        `${report.crossValidationSummary.successfullyResearched}/` +
+        `${report.crossValidationSummary.totalAdjacentProperties} researched, ` +
+        `confidence: ${report.crossValidationSummary.overallBoundaryConfidence}%`,
+      );
+    })
+    .catch((err: unknown) => {
+      console.error(`[Adjacent] ${projectId} failed:`, err);
+      activeAdjacentJobs.set(projectId, { status: 'failed' });
+    });
+});
+
+// ── GET /research/adjacent/:projectId ────────────────────────────────────────
+// Phase 5: Check status of an adjacent research job, or retrieve completed result.
+
+app.get('/research/adjacent/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const state = activeAdjacentJobs.get(projectId);
+
+  if (!state) {
+    // Check if result was written to disk from a previous run
+    const diskPath = `/tmp/analysis/${projectId}/cross_validation_report.json`;
+    if (fs.existsSync(diskPath)) {
+      try {
+        const result = JSON.parse(fs.readFileSync(diskPath, 'utf-8')) as FullCrossValidationReport;
+        res.json({ status: 'complete', result });
+        return;
+      } catch {
+        res.status(500).json({ error: 'Failed to parse cross_validation_report.json' });
+        return;
+      }
+    }
+    res.status(404).json({
+      error: `No adjacent research found for project: ${projectId}`,
+      hint: 'Start with POST /research/adjacent',
+    });
+    return;
+  }
+
+  if (state.status === 'running') {
+    res.json({
+      status: 'in_progress',
+      projectId,
+      message: 'Each adjacent property takes 2-5 minutes. Check back soon.',
+    });
+    return;
+  }
+
+  if (state.status === 'failed') {
+    res.status(500).json({ status: 'failed', projectId });
+    return;
+  }
+
+  res.json({ status: 'complete', projectId, result: state.result });
+});
+
 // ── POST /research/reconcile ──────────────────────────────────────────────
 // Phase 7: Geometric Reconciliation & Multi-Source Cross-Validation.
 // Consumes every data source from Phases 3-6, treats each as an independent
@@ -1127,6 +1258,8 @@ app.listen(PORT, () => {
   console.log('  GET    /research/analyze/:projectId      ← Phase 3: analysis status/result');
   console.log('  POST   /research/subdivision             ← Phase 4: subdivision intelligence');
   console.log('  GET    /research/subdivision/:projectId  ← Phase 4: subdivision status/result');
+  console.log('  POST   /research/adjacent                ← Phase 5: adjacent property research & cross-validation');
+  console.log('  GET    /research/adjacent/:projectId     ← Phase 5: adjacent status/result');
   console.log('  POST   /research/reconcile               ← Phase 7: geometric reconciliation');
   console.log('  GET    /research/reconcile/:projectId    ← Phase 7: reconciliation status/result');
   console.log('  POST   /research/confidence              ← Phase 8: confidence scoring');

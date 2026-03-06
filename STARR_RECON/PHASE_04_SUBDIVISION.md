@@ -3,7 +3,8 @@
 **Starr Software — AI Property Research Pipeline**
 **Phase Duration:** Weeks 10–12
 **Depends On:** Phase 1 (PropertyIdentity), Phase 2 (HarvestedDocuments), Phase 3 (PropertyIntelligence with lot data, AI extraction)
-**Status:** ✅ COMPLETE — Implementation delivered
+**Status:** ✅ COMPLETE v1.1 — All bugs fixed, traverse closure added, full test coverage, Phase 5 scaffold ready
+**Last Updated:** March 2026
 
 ---
 
@@ -19,11 +20,47 @@ A `SubdivisionIntelligenceEngine` that takes Phase 3 output and returns a `Subdi
 
 ---
 
+## Changelog (v1.1 — March 2026)
+
+### Bug Fixes
+- **`subdivision-intelligence.ts`**: Fixed TypeScript error — `prop.abstractSurvey` doesn't exist on `PropertyIntelligenceInput.property`; corrected to use `plat?.parentTract?.abstractSurvey ?? null`
+- **`subdivision-intelligence.ts`**: Fixed `DatumInfo` type mismatch — datum fallback now includes `epoch: null` field
+- **`subdivision-classifier.ts`**: Fixed classification priority — PHASE/SECTION patterns now detected before RANCH/PARK patterns (e.g. "HIGHLANDS RANCH PHASE 3" correctly classifies as `development_plat`)
+- **`subdivision-classifier.ts`**: Fixed lot-in-subdivision detection — LOT/BLOCK pattern now handles both "LOT X, BLOCK Y, SUBDIVISION NAME" (LOT first) and "SUBDIVISION NAME, LOT X, BLOCK Y" (LOT after name) formats
+- **`adjacent-research.ts`**: Exported bearing math functions (`parseAzimuth`, `reverseAzimuth`, `angularDiff`, `rateBearingDiff`, `rateDistanceDiff`) for Phase 5 cross-validation engine
+
+### New Features
+- **Traverse Closure**: Added `TraverseComputation` from `traverse-closure.ts` to compute per-lot traverse closure for lots with ≥3 boundary calls. Each `SubdivisionLot.closure` is now populated with `errorNorthing`, `errorEasting`, `errorDistance`, `closureRatio`, and `status` fields.
+- **Lot Geometry Estimation**: `estimateLotGeometry()` helper infers `frontage`, `depth`, `shape`, and `frontsOn` road from boundary call `along` descriptors and call count/pattern.
+- **Shape Classification**: Lot shapes classified as `rectangular_or_trapezoidal` (4 calls), `triangular` (3), `irregular_polygon` (5-6), `complex_polygon` (7+), or `irregular_with_curves`
+- **Buildable Area Estimation**: `computeBuildableArea()` computes approximate buildable envelope using setbacks (front, rear, side). Falls back to 60% of lot area when no setbacks are available.
+- **Reserve Classification**: `inferReservePurpose()` and `inferReserveRestrictions()` helpers classify reserves as drainage, utility, open_space, access, common_area, or right_of_way from their name. Handles drainage, utility, landscape, buffer, park, HOA, access, ROW, and road patterns.
+- **Improved Reserve Detection**: Now also detects `common_area`, `open_space`, `drainage`, `landscape`, and `buffer` patterns in addition to `reserve`
+- **Missing Data Reporting**: Poor traverse closure (ratio status = `poor`) is now reported in the `errors[]` array
+
+### Phase 5 Setup (Added)
+- **`worker/src/services/adjacent-queue-builder.ts`**: `AdjacentQueueBuilder` — builds research queue from Phase 3 adjacentProperties, deed chain references, and Phase 4 adjacency matrix external neighbors. De-duplicates by owner name, generates alternate name spellings, assigns research priority.
+- **`worker/src/services/adjacent-research-worker.ts`**: `AdjacentResearchWorker` — per-adjacent-property research: deed search (instrument#, grantee, grantor strategies), image download, Claude Vision AI extraction, chain-of-title tracing.
+- **`worker/src/services/cross-validation-engine.ts`**: `CrossValidationEngine` — call-by-call shared boundary cross-validation using bearing reversal + tolerance tables from `adjacent-research.ts`.
+- **`worker/src/services/adjacent-research-orchestrator.ts`**: `AdjacentResearchOrchestrator` + `runAdjacentResearch()` — ties all Phase 5 steps together, produces `FullCrossValidationReport` → `cross_validation_report.json`.
+- **`worker/src/index.ts`**: Added `POST /research/adjacent` and `GET /research/adjacent/:projectId` endpoints.
+- **`worker/adjacent.sh`**: CLI script for Phase 5.
+
+### Tests
+- **`__tests__/recon/phase4-subdivision.test.ts`**: 57 unit tests covering all Phase 4 services:
+  - SubdivisionClassifier (9 tests): all 9 classification types, minor plat, phased development, standalone tract
+  - InteriorLineAnalyzer (11 tests): bearing parsing, reversal, tolerance matching, discrepancy detection
+  - reconcileAreas (5 tests): sum, discrepancy, excellent threshold, source classification
+  - AdjacencyBuilder (2 tests): neighbor graph, empty case
+  - SubdivisionIntelligenceEngine (30 tests): lot enumeration, traverse closure, reserve inference, buildable area, shape classification, perimeter computation, standalone tract failure mode
+
+---
+
 ## Current State of the Codebase
 
-**Phase Status: ✅ COMPLETE**
+**Phase Status: ✅ COMPLETE v1.1**
 
-All Phase 4 code has been implemented. The following files exist and are production-ready:
+All Phase 4 code has been implemented, bug-fixed, and tested. The following files exist and are production-ready:
 
 ### Implemented Files
 
