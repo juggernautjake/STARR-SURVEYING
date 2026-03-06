@@ -35,8 +35,8 @@ describe('default-layers', () => {
 
   // ── Default layers ──────────────────────────────────────────────────────
 
-  it('has exactly 22 default layers', () => {
-    expect(PHASE3_DEFAULT_LAYERS).toHaveLength(22);
+  it('has exactly 23 default layers', () => {
+    expect(PHASE3_DEFAULT_LAYERS).toHaveLength(23);
   });
 
   it('every layer has required fields', () => {
@@ -131,15 +131,15 @@ describe('default-layers', () => {
     }
   });
 
-  it('getDefaultLayersRecord returns exactly 22 entries', () => {
-    expect(Object.keys(getDefaultLayersRecord())).toHaveLength(22);
+  it('getDefaultLayersRecord returns exactly 23 entries', () => {
+    expect(Object.keys(getDefaultLayersRecord())).toHaveLength(23);
   });
 
   // ── getDefaultLayerOrder ────────────────────────────────────────────────
 
-  it('getDefaultLayerOrder returns an array of 22 IDs', () => {
+  it('getDefaultLayerOrder returns an array of 23 IDs', () => {
     const order = getDefaultLayerOrder();
-    expect(order).toHaveLength(22);
+    expect(order).toHaveLength(23);
   });
 
   it('getDefaultLayerOrder contains every layer ID', () => {

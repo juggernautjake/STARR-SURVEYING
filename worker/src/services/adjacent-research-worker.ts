@@ -13,9 +13,11 @@
 //   - AI model is read from RESEARCH_AI_MODEL env var (defaults to claude-sonnet-4-5-20250929)
 //   - This worker is designed for sequential execution (not parallel) to avoid rate-limit violations
 //   - All HTTP AI calls check response.ok before parsing JSON (Phase 3/4 pattern)
+//   - Structured logging via PipelineLogger (per spec: no bare console.log in Phase 5 code)
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { PipelineLogger } from '../lib/logger.js';
 import type { ClerkAdapter, ClerkDocumentResult, DocumentImage } from '../adapters/clerk-adapter.js';
 import type { AdjacentResearchTask } from './adjacent-queue-builder.js';
 
@@ -121,17 +123,19 @@ export class AdjacentResearchWorker {
   private outputDir: string;
   private searchLog: SearchLogEntry[] = [];
   private errors: string[] = [];
+  private logger: PipelineLogger;
 
   constructor(clerkAdapter: ClerkAdapter, projectId: string) {
     this.clerkAdapter = clerkAdapter;
     this.apiKey = process.env.ANTHROPIC_API_KEY ?? '';
     this.outputDir = `/tmp/harvest/${projectId}/adjacent`;
+    this.logger = new PipelineLogger(projectId);
 
     // Ensure output directory exists
     try {
       fs.mkdirSync(this.outputDir, { recursive: true });
     } catch (e) {
-      console.warn(`[AdjacentWorker] Could not create output dir ${this.outputDir}:`, e);
+      this.logger.warn('AdjacentWorker', `Could not create output dir ${this.outputDir}: ${e}`);
     }
   }
 
@@ -156,7 +160,7 @@ export class AdjacentResearchWorker {
     try {
       fs.mkdirSync(ownerDir, { recursive: true });
     } catch (e) {
-      console.warn(`[AdjacentWorker] Could not create owner dir ${ownerDir}:`, e);
+      this.logger.warn('AdjacentWorker', `Could not create owner dir ${ownerDir}: ${e}`);
     }
 
     const result: AdjacentResearchResult = {
@@ -172,7 +176,7 @@ export class AdjacentResearchWorker {
 
     try {
       // ── Step A: Find the adjacent deed ─────────────────────────────────────
-      console.log(`[AdjacentWorker] Searching for deed: ${task.owner}`);
+      this.logger.info('AdjacentWorker', `Searching for deed: ${task.owner}`);
       const searchStart = Date.now();
       const deed = await this.findAdjacentDeed(task, ourPropertyContext);
       result.timing.searchMs = Date.now() - searchStart;
@@ -190,7 +194,7 @@ export class AdjacentResearchWorker {
       }
 
       // ── Step B: Download deed images ────────────────────────────────────────
-      console.log(`[AdjacentWorker] Downloading images for ${deed.instrumentNumber}`);
+      this.logger.info('AdjacentWorker', `Downloading images for ${deed.instrumentNumber}`);
       const downloadStart = Date.now();
       const images = await this.downloadDeedImages(deed, ownerDir);
       result.timing.downloadMs = Date.now() - downloadStart;
@@ -224,7 +228,7 @@ export class AdjacentResearchWorker {
         return result;
       }
 
-      console.log(`[AdjacentWorker] Extracting boundary from ${images.length} page(s)...`);
+      this.logger.info('AdjacentWorker', `Extracting boundary from ${images.length} page(s)...`);
       const extractStart = Date.now();
       const extracted = await this.extractBoundaryFromAdjacentDeed(
         images.map((img) => img.imagePath),
@@ -242,8 +246,9 @@ export class AdjacentResearchWorker {
           `Possible causes: watermarks obscure critical data, non-standard deed format, or deed predates metes-and-bounds descriptions.`,
         );
       } else {
-        console.log(
-          `[AdjacentWorker] Extracted ${extracted.totalCalls} calls, ` +
+        this.logger.info(
+          'AdjacentWorker',
+          `Extracted ${extracted.totalCalls} calls, ` +
           `${extracted.metesAndBounds.filter((c) => c.isSharedBoundary).length} shared boundary calls`,
         );
       }
@@ -261,7 +266,7 @@ export class AdjacentResearchWorker {
       const msg = error instanceof Error ? error.message : String(error);
       result.researchStatus = 'failed';
       result.errors.push(`Research failed for "${task.owner}": ${msg}`);
-      console.error(`[AdjacentWorker] Error for ${task.owner}:`, error);
+      this.logger.error('AdjacentWorker', `Error researching ${task.owner}`, error);
     }
 
     result.timing.totalMs = Date.now() - startTime;
@@ -295,7 +300,7 @@ export class AdjacentResearchWorker {
           reason: 'Direct instrument number from plat/deed reference',
         });
         if (results.length > 0) {
-          console.log(`[AdjacentWorker] Found via instrument# ${inst}`);
+          this.logger.info('AdjacentWorker', `Found via instrument# ${inst}`);
           return results[0];
         }
       } catch (e) {
@@ -322,7 +327,7 @@ export class AdjacentResearchWorker {
 
         if (deeds.length === 0) { await this.rateLimit(); continue; }
         if (deeds.length === 1) {
-          console.log(`[AdjacentWorker] Found via grantee name "${nameVariant}" (1 result)`);
+          this.logger.info('AdjacentWorker', `Found via grantee name "${nameVariant}" (1 result)`);
           return deeds[0];
         }
 
@@ -330,7 +335,7 @@ export class AdjacentResearchWorker {
         if (this.apiKey) {
           const selected = await this.aiSelectCorrectDeed(deeds, task, context);
           if (selected) {
-            console.log(`[AdjacentWorker] AI selected deed ${selected.instrumentNumber} from ${deeds.length} candidates`);
+            this.logger.info('AdjacentWorker', `AI selected deed ${selected.instrumentNumber} from ${deeds.length} candidates`);
             return selected;
           }
         } else {
@@ -422,8 +427,9 @@ Reply with ONLY the number (1, 2, 3...) or "NONE" if no match.`;
       // Check HTTP status before parsing
       if (!response.ok) {
         const errBody = await response.text().catch(() => '');
-        console.warn(
-          `[AdjacentWorker] AI deed selection HTTP ${response.status}: ${errBody.slice(0, 200)}`,
+        this.logger.warn(
+          'AdjacentWorker',
+          `AI deed selection HTTP ${response.status}: ${errBody.slice(0, 200)}`,
         );
         return null;
       }
@@ -434,7 +440,7 @@ Reply with ONLY the number (1, 2, 3...) or "NONE" if no match.`;
       };
 
       if (data.error) {
-        console.warn(`[AdjacentWorker] AI deed selection API error: ${data.error.message ?? JSON.stringify(data.error)}`);
+        this.logger.warn('AdjacentWorker', `AI deed selection API error: ${data.error.message ?? JSON.stringify(data.error)}`);
         return null;
       }
 
@@ -453,7 +459,7 @@ Reply with ONLY the number (1, 2, 3...) or "NONE" if no match.`;
         return candidates[idx];
       }
     } catch (e) {
-      console.warn('[AdjacentWorker] AI deed selection failed:', e);
+      this.logger.warn('AdjacentWorker', `AI deed selection failed: ${e}`);
     }
     return null;
   }
@@ -470,7 +476,7 @@ Reply with ONLY the number (1, 2, 3...) or "NONE" if no match.`;
     try {
       return await this.clerkAdapter.getDocumentImages(deed.instrumentNumber);
     } catch (e) {
-      console.warn(`[AdjacentWorker] Failed to download images for ${deed.instrumentNumber}:`, e);
+      this.logger.warn('AdjacentWorker', `Failed to download images for ${deed.instrumentNumber}: ${e}`);
       return [];
     }
   }
@@ -503,7 +509,7 @@ Reply with ONLY the number (1, 2, 3...) or "NONE" if no match.`;
       });
 
     if (imageContents.length === 0) {
-      console.warn('[AdjacentWorker] No readable images found for AI extraction');
+      this.logger.warn('AdjacentWorker', 'No readable images found for AI extraction');
       return null;
     }
 
@@ -567,8 +573,9 @@ CRITICAL:
       // Always check HTTP status before parsing — avoids silent failures on rate limits / auth errors
       if (!response.ok) {
         const errBody = await response.text().catch(() => '');
-        console.warn(
-          `[AdjacentWorker] AI extraction HTTP ${response.status} ${response.statusText}: ${errBody.slice(0, 200)}`,
+        this.logger.warn(
+          'AdjacentWorker',
+          `AI extraction HTTP ${response.status} ${response.statusText}: ${errBody.slice(0, 200)}`,
         );
         return null;
       }
@@ -580,13 +587,13 @@ CRITICAL:
 
       // Handle Anthropic API-level errors (e.g., context-length exceeded)
       if (data.error) {
-        console.warn(`[AdjacentWorker] AI extraction API error: ${data.error.message ?? JSON.stringify(data.error)}`);
+        this.logger.warn('AdjacentWorker', `AI extraction API error: ${data.error.message ?? JSON.stringify(data.error)}`);
         return null;
       }
 
       const text = data.content?.[0]?.text ?? '';
       if (!text) {
-        console.warn('[AdjacentWorker] AI extraction returned empty response');
+        this.logger.warn('AdjacentWorker', 'AI extraction returned empty response');
         return null;
       }
 
@@ -607,7 +614,7 @@ CRITICAL:
         notes:            parsed.notes ?? [],
       };
     } catch (e) {
-      console.warn('[AdjacentWorker] AI extraction parse failed:', e);
+      this.logger.warn('AdjacentWorker', `AI extraction parse failed: ${e}`);
       return null;
     }
   }
@@ -679,7 +686,7 @@ CRITICAL:
           break;
         }
       } catch (e) {
-        console.warn(`[AdjacentWorker] Chain of title search failed for "${grantor}":`, e);
+        this.logger.warn('AdjacentWorker', `Chain of title search failed for "${grantor}": ${e}`);
         break;
       }
       await this.rateLimit();
@@ -744,7 +751,7 @@ NO = the calls are essentially the same (same boundary, possibly different phras
 
         if (!response.ok) {
           // Rate limited or auth error — fall through to heuristic
-          console.warn(`[AdjacentWorker] boundaryDescriptionChanged AI call HTTP ${response.status}`);
+          this.logger.warn('AdjacentWorker', `boundaryDescriptionChanged AI call HTTP ${response.status}`);
           return false;
         }
 
@@ -754,14 +761,14 @@ NO = the calls are essentially the same (same boundary, possibly different phras
         };
 
         if (data.error) {
-          console.warn(`[AdjacentWorker] boundaryDescriptionChanged AI error: ${data.error.message}`);
+          this.logger.warn('AdjacentWorker', `boundaryDescriptionChanged AI error: ${data.error.message}`);
           return false;
         }
 
         const answer = (data.content?.[0]?.text ?? '').trim().toUpperCase();
         return answer.startsWith('YES');
       } catch (e) {
-        console.warn('[AdjacentWorker] boundaryDescriptionChanged AI call failed:', e);
+        this.logger.warn('AdjacentWorker', `boundaryDescriptionChanged AI call failed: ${e}`);
         return false;
       }
     }

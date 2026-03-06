@@ -1,4 +1,4 @@
-// lib/cad/styles/default-layers.ts — 22 default survey layers + 6 groups
+// lib/cad/styles/default-layers.ts — 23 default survey layers + 6 groups
 import type { LayerGroup } from './types';
 import type { Layer } from '../types';
 
@@ -50,7 +50,7 @@ export const PHASE3_DEFAULT_LAYERS: Layer[] = [
   { id: 'SURVEY-INFO',   name: 'Survey Info',         visible: true, locked: false, frozen: false, color: '#000000', lineWeight: 0.35, lineTypeId: 'SOLID',        opacity: 1, groupId: 'grp-annot',    sortOrder: 3, isDefault: true, isProtected: true,  autoAssignCodes: [] },
 ];
 
-/** Get 22 default layers as a Record<id, Layer> */
+/** Get all 23 default layers as a Record<id, Layer> */
 export function getDefaultLayersRecord(): Record<string, Layer> {
   const record: Record<string, Layer> = {};
   for (const layer of PHASE3_DEFAULT_LAYERS) {
