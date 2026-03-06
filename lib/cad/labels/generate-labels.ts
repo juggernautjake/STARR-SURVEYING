@@ -114,7 +114,16 @@ export function generateLabelsForFeature(
   layer: Layer,
   displayPrefs: DisplayPreferences,
 ): TextLabel[] {
-  const layerPrefs = layer.displayPreferences ?? DEFAULT_LAYER_DISPLAY_PREFERENCES;
+  const rawPrefs = layer.displayPreferences;
+  // Merge with defaults to ensure all fields (including pointLabelOffset) are always present,
+  // guarding against partially-saved preferences from older document versions.
+  const layerPrefs: LayerDisplayPreferences = rawPrefs
+    ? {
+        ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
+        ...rawPrefs,
+        pointLabelOffset: rawPrefs.pointLabelOffset ?? DEFAULT_LAYER_DISPLAY_PREFERENCES.pointLabelOffset,
+      }
+    : DEFAULT_LAYER_DISPLAY_PREFERENCES;
   // Apply per-layer format overrides
   const resolvedPrefs = resolveLayerDisplayPrefs(displayPrefs, layerPrefs);
   const existing = feature.textLabels ?? [];

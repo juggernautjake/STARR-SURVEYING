@@ -213,6 +213,13 @@ function TextStyleEditor({
   );
 }
 
+// Label-visibility keys: changing these should immediately regenerate labels on existing features
+const LABEL_VISIBILITY_KEYS: ReadonlyArray<keyof LayerDisplayPreferences> = [
+  'showBearings', 'showDistances', 'showLineLabels',
+  'showPointNames', 'showPointDescriptions', 'showPointElevations', 'showPointCoordinates',
+  'showArea', 'showPerimeter',
+];
+
 // ── Main component ──
 export default function LayerPreferencesPanel({ layerId, open, onClose }: Props) {
   const store = useDrawingStore();
@@ -221,10 +228,40 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
 
   if (!layer) return null;
 
-  const prefs: LayerDisplayPreferences = layer.displayPreferences ?? { ...DEFAULT_LAYER_DISPLAY_PREFERENCES };
+  const prefs: LayerDisplayPreferences = {
+    ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
+    ...(layer.displayPreferences ?? {}),
+    // Ensure nested objects always have defaults (guards against partially-saved preferences)
+    pointLabelOffset: {
+      ...DEFAULT_LAYER_DISPLAY_PREFERENCES.pointLabelOffset,
+      ...(layer.displayPreferences?.pointLabelOffset ?? {}),
+    },
+  };
 
   function update(partial: Partial<LayerDisplayPreferences>) {
     store.updateLayerDisplayPreferences(layerId, partial);
+
+    // Auto-regenerate labels when any label-visibility toggle changes
+    const touchesVisibility = Object.keys(partial).some((k) =>
+      LABEL_VISIBILITY_KEYS.includes(k as keyof LayerDisplayPreferences),
+    );
+    if (touchesVisibility) {
+      const features = store.getFeaturesOnLayer(layerId);
+      const displayPrefs = store.document.settings.displayPreferences;
+      // Build merged prefs with the same safe-merge logic used for `prefs`
+      const mergedPrefs: LayerDisplayPreferences = {
+        ...prefs,
+        ...partial,
+        pointLabelOffset: {
+          ...prefs.pointLabelOffset,
+          ...((partial.pointLabelOffset) ?? {}),
+        },
+      };
+      const labelMap = regenerateLayerLabels(features, { ...layer, displayPreferences: mergedPrefs }, displayPrefs);
+      labelMap.forEach((labels, featureId) => {
+        store.setFeatureTextLabels(featureId, labels);
+      });
+    }
   }
 
   function applyToExistingFeatures() {

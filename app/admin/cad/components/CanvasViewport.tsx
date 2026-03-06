@@ -22,6 +22,7 @@ import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel, CircleGeome
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
 import { inverseBearingDistance } from '@/lib/cad/geometry/bearing';
+import { generateLabelsForFeature } from '@/lib/cad/labels';
 import { cadLog } from '@/lib/cad/logger';
 import {
   drawCircle as drawCircleCurve,
@@ -255,7 +256,7 @@ export default function CanvasViewport() {
           style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
           properties: {},
         };
-        dStore.addFeature(feature);
+        dStore.addFeature(withAutoLabels(feature));
         useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
       } else if (isCtrlTool && curTool !== prevTool && prevPoints.length >= 4) {
         const usable = Math.floor((prevPoints.length - 1) / 3) * 3 + 1;
@@ -270,7 +271,7 @@ export default function CanvasViewport() {
           style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
           properties: {},
         };
-        dStore.addFeature(feature);
+        dStore.addFeature(withAutoLabels(feature));
         useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
       }
       prevTool = curTool;
@@ -1944,6 +1945,19 @@ export default function CanvasViewport() {
   }
 
   // ─────────────────────────────────────────────
+  // Helper: attach auto-generated labels to a feature based on layer preferences
+  // ─────────────────────────────────────────────
+  function withAutoLabels(feature: Feature): Feature {
+    const doc = useDrawingStore.getState().document;
+    const layer = doc.layers[feature.layerId];
+    if (!layer) return feature;
+    const displayPrefs = doc.settings.displayPreferences;
+    const labels = generateLabelsForFeature(feature, layer, displayPrefs);
+    if (labels.length === 0) return feature;
+    return { ...feature, textLabels: labels };
+  }
+
+  // ─────────────────────────────────────────────
   // Helper: get all segment IDs that share a polylineGroupId
   // ─────────────────────────────────────────────
   function getPolylineGroupIds(groupId: string): string[] {
@@ -2020,16 +2034,18 @@ export default function CanvasViewport() {
         },
         properties: {},
       };
-      drawingStore.addFeature(feature);
-      undoStore.pushUndo(makeAddFeatureEntry(feature));
+      const labelledFeature = withAutoLabels(feature);
+      drawingStore.addFeature(labelledFeature);
+      undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
       toolStore.clearDrawingPoints();
       return;
     }
 
     const feature = createFeature(type, drawingPoints);
     if (!feature) return;
-    drawingStore.addFeature(feature);
-    undoStore.pushUndo(makeAddFeatureEntry(feature));
+    const labelledFeature = withAutoLabels(feature);
+    drawingStore.addFeature(labelledFeature);
+    undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
     toolStore.clearDrawingPoints();
   }
 
@@ -2064,8 +2080,9 @@ export default function CanvasViewport() {
       },
       properties: {},
     };
-    drawingStore.addFeature(feature);
-    undoStore.pushUndo(makeAddFeatureEntry(feature));
+    const labelledFeature = withAutoLabels(feature);
+    drawingStore.addFeature(labelledFeature);
+    undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
     toolStore.clearDrawingPoints();
   }
 
@@ -2310,8 +2327,9 @@ export default function CanvasViewport() {
         case 'DRAW_POINT': {
           const feature = createFeature('POINT', [worldPt]);
           if (feature) {
-            drawingStore.addFeature(feature);
-            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            const labelledFeature = withAutoLabels(feature);
+            drawingStore.addFeature(labelledFeature);
+            undoStore.pushUndo(makeAddFeatureEntry(labelledFeature));
           }
           break;
         }
@@ -2341,7 +2359,7 @@ export default function CanvasViewport() {
             // Only create a segment if the new point is meaningfully different
             if (dist > MIN_SEGMENT_LENGTH_BASE / viewportStore.zoom) {
               const segment = createPolylineSegment(lastPt, worldPt, polylineGroupIdRef.current!);
-              drawingStore.addFeature(segment);
+              drawingStore.addFeature(withAutoLabels(segment));
               undoStore.pushUndo(makeAddFeatureEntry(segment));
               lastPolylineSegmentIdRef.current = segment.id;
               toolStore.addDrawingPoint(worldPt);
@@ -2381,7 +2399,7 @@ export default function CanvasViewport() {
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
               properties: { shapeType: 'RECTANGLE' },
             };
-            drawingStore.addFeature(feature);
+            drawingStore.addFeature(withAutoLabels(feature));
             undoStore.pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
@@ -2409,7 +2427,7 @@ export default function CanvasViewport() {
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
               properties: { shapeType: 'REGULAR_POLYGON', sides: sides.toString() },
             };
-            drawingStore.addFeature(feature);
+            drawingStore.addFeature(withAutoLabels(feature));
             undoStore.pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
@@ -2435,7 +2453,7 @@ export default function CanvasViewport() {
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
               properties: { shapeType: 'CIRCLE' },
             };
-            drawingStore.addFeature(feature);
+            drawingStore.addFeature(withAutoLabels(feature));
             undoStore.pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
@@ -2465,7 +2483,7 @@ export default function CanvasViewport() {
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
               properties: { shapeType: 'CIRCLE' },
             };
-            drawingStore.addFeature(feature);
+            drawingStore.addFeature(withAutoLabels(feature));
             undoStore.pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
@@ -2495,7 +2513,7 @@ export default function CanvasViewport() {
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
               properties: { shapeType: 'ELLIPSE' },
             };
-            drawingStore.addFeature(feature);
+            drawingStore.addFeature(withAutoLabels(feature));
             undoStore.pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
@@ -2527,7 +2545,7 @@ export default function CanvasViewport() {
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
               properties: { shapeType: 'ELLIPSE' },
             };
-            drawingStore.addFeature(feature);
+            drawingStore.addFeature(withAutoLabels(feature));
             undoStore.pushUndo(makeAddFeatureEntry(feature));
             toolStore.clearDrawingPoints();
           }
@@ -2569,7 +2587,7 @@ export default function CanvasViewport() {
                 style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
                 properties: {},
               };
-              drawingStore.addFeature(feature);
+              drawingStore.addFeature(withAutoLabels(feature));
               undoStore.pushUndo(makeAddFeatureEntry(feature));
             }
             toolStore.clearDrawingPoints();
@@ -3246,7 +3264,13 @@ export default function CanvasViewport() {
       const vpStore = useViewportStore.getState();
       const features = dwgStore.getAllFeatures();
       if (features.length === 0) {
-        vpStore.zoomToExtents({ minX: -100, minY: -100, maxX: 100, maxY: 100 });
+        // No features: zoom to show the full paper so the user can start drawing immediately
+        const { paperSize: ps, paperOrientation: po, drawingScale: ds } = dwgStore.document.settings;
+        let [pw, ph] = PAPER_SIZE_MAP[ps ?? 'TABLOID'] ?? [11, 17];
+        if (po === 'LANDSCAPE') { [pw, ph] = [ph, pw]; }
+        const paperW = pw * (ds ?? 50);
+        const paperH = ph * (ds ?? 50);
+        vpStore.zoomToExtents({ minX: 0, minY: 0, maxX: paperW, maxY: paperH }, 0.05);
         return;
       }
       const allPts = features.flatMap((f) => {
