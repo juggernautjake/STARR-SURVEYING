@@ -178,7 +178,7 @@ export interface DrawingSettings {
 
 // ─── TITLE BLOCK ───
 
-export type NorthArrowStyle = 'SIMPLE' | 'COMPASS_ROSE' | 'DETAILED' | 'TRADITIONAL';
+export type NorthArrowStyle = 'SIMPLE' | 'COMPASS_ROSE' | 'DETAILED' | 'TRADITIONAL' | 'STARR';
 export type InfoBoxStyle = 'STANDARD' | 'MINIMAL' | 'DETAILED';
 
 /** Configuration for the survey title block rendered on the drawing paper. */
@@ -203,6 +203,20 @@ export interface TitleBlockConfig {
   sheetNumber: string;
   totalSheets: string;
   notes: string;
+
+  // ── Moveable element positions (paper-inch from paper bottom-left; null = use default) ──
+  /** North arrow box position (bottom-left corner, paper inches from paper BL). null = top-right default. */
+  northArrowPos?: { x: number; y: number } | null;
+  /** Title block position (bottom-left corner, paper inches from paper BL). null = bottom-right default. */
+  titleBlockPos?: { x: number; y: number } | null;
+  /** Scale bar position (bottom-left corner, paper inches from paper BL). null = bottom-center default. */
+  scaleBarPos?: { x: number; y: number } | null;
+
+  // ── Scale bar ──
+  /** Show the checkered graphic scale bar. Default: true */
+  scaleBarVisible?: boolean;
+  /** Length of the scale bar in paper inches. Default: 2.0 */
+  scaleBarLengthIn?: number;
 }
 
 // --- FEATURES ---

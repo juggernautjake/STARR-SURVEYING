@@ -214,6 +214,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const hoveredIdRef = useRef<string | null>(null);
   // Hovered label key (featureId:labelId or text:featureId) for blue highlight
   const hoveredLabelKeyRef = useRef<string | null>(null);
+  // Hovered title-block overlay element ('northArrow' | 'titleBlock' | 'scaleBar' | null)
+  const hoveredTBElemRef = useRef<'northArrow' | 'titleBlock' | 'scaleBar' | null>(null);
+  // Screen bounding boxes of each TB element (updated each render frame)
+  const tbBoundsRef = useRef<{
+    northArrow: { screenX: number; screenY: number; w: number; h: number } | null;
+    titleBlock: { screenX: number; screenY: number; w: number; h: number } | null;
+    scaleBar:   { screenX: number; screenY: number; w: number; h: number } | null;
+  }>({ northArrow: null, titleBlock: null, scaleBar: null });
+  // Drag state for title-block overlay elements
+  const tbDragRef = useRef<{
+    element: 'northArrow' | 'titleBlock' | 'scaleBar';
+    startSX: number;
+    startSY: number;
+    origPosX: number;  // paper-inch BL pos at drag start
+    origPosY: number;
+    livePosX: number;  // paper-inch BL pos during drag
+    livePosY: number;
+  } | null>(null);
   // Element drag-to-move: tracks feature being dragged in SELECT mode
   const dragFeatureRef = useRef<{
     featureIds: string[];
@@ -1045,20 +1063,49 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Render: Title Block (north arrow + survey info + signature line)
   // Fixed to paper — does NOT rotate with the drawing
   // ─────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────
+  // Helper: hit-test screen (sx,sy) against a TB element bounding box
+  // ─────────────────────────────────────────────────────────────────
+  function hitTestTBElement(sx: number, sy: number): 'northArrow' | 'titleBlock' | 'scaleBar' | null {
+    const b = tbBoundsRef.current;
+    if (b.northArrow) {
+      const { screenX, screenY, w, h } = b.northArrow;
+      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'northArrow';
+    }
+    if (b.titleBlock) {
+      const { screenX, screenY, w, h } = b.titleBlock;
+      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'titleBlock';
+    }
+    if (b.scaleBar) {
+      const { screenX, screenY, w, h } = b.scaleBar;
+      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'scaleBar';
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Render: Title Block (bottom-right), Signature Block (bottom-left),
+  //         North Arrow (top-right), and Scale Bar
+  // ─────────────────────────────────────────────────────────────────
   function renderTitleBlock() {
     const pixi = pixiRef.current;
     if (!pixi) return;
     const g = pixi.titleBlockGraphics;
-    g.clear();
 
-    // Clear old title block text objects
+    // Always clear first so nothing lingers when hidden
+    g.clear();
     const tbTexts = pixi.titleBlockLayer.children.filter(
       (c) => c !== g && (c as { _isTitleBlockText?: boolean })._isTitleBlockText,
     );
     for (const t of tbTexts) pixi.titleBlockLayer.removeChild(t);
 
+    // Reset bounds so stale hits don't persist
+    tbBoundsRef.current.northArrow = null;
+    tbBoundsRef.current.titleBlock = null;
+    tbBoundsRef.current.scaleBar   = null;
+
     const doc = useDrawingStore.getState().document;
-    const tb = doc.settings.titleBlock;
+    const tb  = doc.settings.titleBlock;
     if (!tb?.visible) return;
 
     const { paperSize, paperOrientation, drawingScale } = doc.settings;
@@ -1068,128 +1115,400 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const paperH = ph * (drawingScale ?? 50);
     const { zoom } = useViewportStore.getState();
 
-    // Paper corners in screen space (no drawing rotation — title block is paper-fixed)
-    const tl = w2s(0, paperH);
-    const br = w2s(paperW, 0);
-    const pLeft = tl.sx;
-    const pTop = tl.sy;
-    const pWidth = br.sx - tl.sx;
-    const pHeight = br.sy - tl.sy;
+    // Paper corners in screen space (title block layer is NOT rotated)
+    const tl = w2s(0, paperH);   // paper top-left
+    const br = w2s(paperW, 0);   // paper bottom-right
 
-    // Title block lives in the bottom-right corner
-    // Heights and widths scale with paper and zoom
-    const inchToPx = zoom * (drawingScale ?? 50); // 1 paper inch in screen pixels
-    const margin = 0.1 * inchToPx;       // 0.1" margin
-    const tbH = 1.8 * inchToPx;          // total title block height in screen px
-    const tbW = 5.0 * inchToPx;          // total title block width
-    const northArrowSizeIn = tb.northArrowSizeIn ?? 1.5;
-    const northArrowPx = northArrowSizeIn * inchToPx;
+    const inchToPx = zoom * (drawingScale ?? 50); // screen pixels per paper inch
+    const margin   = 0.1 * inchToPx;
+    const res      = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
 
-    // Bottom-right anchor (screen pixels)
-    const brX = br.sx - margin;
-    const brY = br.sy - margin;
-    const boxLeft = brX - tbW;
-    const boxTop = brY - tbH;
-
-    // ── Outer border ──
-    g.lineStyle(1, 0x000000, 1);
-    g.drawRect(boxLeft, boxTop, tbW, tbH);
-
-    // ── Left column: North Arrow ──
-    const naColW = northArrowPx + 0.4 * inchToPx;
-    const naColX = boxLeft;
-    g.lineStyle(0.5, 0x000000, 0.6);
-    g.moveTo(naColX + naColW, boxTop);
-    g.lineTo(naColX + naColW, brY);
-
-    // North arrow center
-    const naCx = naColX + naColW / 2;
-    const naCy = boxTop + tbH / 2;
-    const rotDeg = doc.settings.drawingRotationDeg ?? 0;
-    // North arrow compensates for drawing rotation: if drawing is 25° CW,
-    // the arrow points 25° CW from screen-up to show where true north is.
-    const arrowRad = (rotDeg * Math.PI) / 180;
-    drawNorthArrow(g, naCx, naCy, northArrowPx * 0.45, arrowRad, tb.northArrowStyle ?? 'DETAILED', pixi);
-
-    // ── Right column: Info Box ──
-    const infoLeft = naColX + naColW;
-    const infoW = tbW - naColW;
-    const fields = buildInfoFields(tb, doc);
-    const rowH = tbH / Math.max(fields.length, 1);
-    const labelFontSz = Math.max(Math.min(rowH * 0.38, 11), 6);
-    const valFontSz = Math.max(Math.min(rowH * 0.42, 12), 7);
-
-    g.lineStyle(0.3, 0x000000, 0.3);
-    for (let i = 0; i < fields.length; i++) {
-      const ry = boxTop + i * rowH;
-      if (i > 0) {
-        g.moveTo(infoLeft, ry);
-        g.lineTo(infoLeft + infoW, ry);
-      }
-      const [label, value] = fields[i];
-      // Label (small, gray)
-      const labelTxt = new pixi.TextClass(label, new pixi.TextStyleClass({
-        fontFamily: 'Arial',
-        fontSize: labelFontSz,
-        fill: 0x666666,
-        fontWeight: 'normal',
-      }));
-      (labelTxt as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
-      labelTxt.position.set(infoLeft + 4, ry + 2);
-      labelTxt.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
-      pixi.titleBlockLayer.addChild(labelTxt);
-      // Value (bold, black)
-      const valTxt = new pixi.TextClass(value || '', new pixi.TextStyleClass({
-        fontFamily: 'Arial',
-        fontSize: valFontSz,
-        fill: 0x000000,
-        fontWeight: 'bold',
-        wordWrap: true,
-        wordWrapWidth: infoW - 8,
-      }));
-      (valTxt as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
-      valTxt.position.set(infoLeft + 4, ry + labelFontSz + 3);
-      valTxt.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
-      pixi.titleBlockLayer.addChild(valTxt);
+    // ── Shared text helper ──────────────────────────────────────────
+    const pixiCtx = pixi; // non-nullable capture for use in nested closures
+    function mkTBText(
+      content: string,
+      style: Partial<import('pixi.js').ITextStyle>,
+    ) {
+      const t = new pixiCtx.TextClass(content, new pixiCtx.TextStyleClass(style));
+      (t as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
+      t.resolution = res;
+      pixiCtx.titleBlockLayer.addChild(t);
+      return t;
     }
 
-    // ── Signature Line ──
-    const sigY = brY - 0.35 * inchToPx;
-    g.lineStyle(0.8, 0x000000, 0.8);
-    g.moveTo(infoLeft + 8, sigY);
-    g.lineTo(infoLeft + infoW * 0.7, sigY);
-    const sigLbl = new pixi.TextClass('Signature / Seal', new pixi.TextStyleClass({
-      fontFamily: 'Arial',
-      fontSize: Math.max(labelFontSz - 1, 5),
-      fill: 0x999999,
-      fontStyle: 'italic',
-    }));
-    (sigLbl as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
-    sigLbl.position.set(infoLeft + 8, sigY + 2);
-    sigLbl.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
-    pixi.titleBlockLayer.addChild(sigLbl);
+    // ────────────────────────────────────────────────────────────────
+    // TITLE BLOCK  (bottom-right of page)
+    // ────────────────────────────────────────────────────────────────
+    const tbH       = 2.2  * inchToPx;
+    const tbW       = 5.5  * inchToPx;
+    const headerH   = 0.30 * inchToPx;
+    const numRows   = 4;
+    const dataH     = tbH - headerH;
+    const rowH      = dataH / numRows;
+
+    // Resolve position: use live drag pos → stored pos → default bottom-right
+    let tbScrLeft: number;
+    let tbScrBottom: number;
+    const drag = tbDragRef.current;
+    if (drag?.element === 'titleBlock') {
+      tbScrLeft   = tl.sx + drag.livePosX * inchToPx;
+      tbScrBottom = br.sy - drag.livePosY * inchToPx;
+    } else if (tb.titleBlockPos) {
+      tbScrLeft   = tl.sx + tb.titleBlockPos.x * inchToPx;
+      tbScrBottom = br.sy - tb.titleBlockPos.y * inchToPx;
+    } else {
+      tbScrLeft   = br.sx - margin - tbW;
+      tbScrBottom = br.sy - margin;
+    }
+    const tbScrTop   = tbScrBottom - tbH;
+    const tbScrRight = tbScrLeft + tbW;
+    const midX       = tbScrLeft + tbW / 2;
+    const halfTbW    = tbW / 2;
+    const dataTop    = tbScrTop + headerH;
+
+    // Store bounds
+    tbBoundsRef.current.titleBlock = { screenX: tbScrLeft, screenY: tbScrTop, w: tbW, h: tbH };
+    const tbHovered  = hoveredTBElemRef.current === 'titleBlock';
+    const tbDragging = drag?.element === 'titleBlock';
+
+    // ── Outer double border ─────────────────────────────────────────
+    g.lineStyle(2.5, 0x000000, 1);
+    g.drawRect(tbScrLeft, tbScrTop, tbW, tbH);
+    g.lineStyle(0.6, 0x000000, 0.55);
+    g.drawRect(tbScrLeft + 4, tbScrTop + 4, tbW - 8, tbH - 8);
+
+    // ── Blue hover / drag highlight ─────────────────────────────────
+    if (tbHovered || tbDragging) {
+      g.lineStyle(2.5, 0x0088ff, 0.9);
+      g.drawRect(tbScrLeft - 4, tbScrTop - 4, tbW + 8, tbH + 8);
+    }
+
+    // ── Header bar (dark navy) ──────────────────────────────────────
+    g.lineStyle(0);
+    g.beginFill(0x1a2b4a, 1);
+    g.drawRect(tbScrLeft, tbScrTop, tbW, headerH);
+    g.endFill();
+    // Accent line under header
+    g.lineStyle(1.5, 0x3d6ea6, 0.9);
+    g.moveTo(tbScrLeft,  tbScrTop + headerH);
+    g.lineTo(tbScrRight, tbScrTop + headerH);
+
+    // Firm name (white, bold)
+    const hFontSz  = Math.max(headerH * 0.52, 7);
+    const firmTxt  = mkTBText((tb.firmName || 'SURVEY FIRM').toUpperCase(), {
+      fontFamily: 'Arial', fontSize: hFontSz, fill: 0xffffff,
+      fontWeight: 'bold', letterSpacing: 2,
+    });
+    firmTxt.anchor.set(0, 0.5);
+    firmTxt.position.set(tbScrLeft + 10, tbScrTop + headerH / 2);
+
+    // Right subtitle (italic, muted blue)
+    const subTxt = mkTBText('BOUNDARY SURVEY', {
+      fontFamily: 'Arial', fontSize: Math.max(hFontSz * 0.70, 5.5),
+      fill: 0x6a9fcc, fontStyle: 'italic', letterSpacing: 0.5,
+    });
+    subTxt.anchor.set(1, 0.5);
+    subTxt.position.set(tbScrRight - 10, tbScrTop + headerH / 2);
+
+    // ── Horizontal row dividers ─────────────────────────────────────
+    g.lineStyle(1, 0x000000, 0.85);
+    for (let i = 1; i < numRows; i++) {
+      const ry = dataTop + i * rowH;
+      g.moveTo(tbScrLeft, ry);
+      g.lineTo(tbScrRight, ry);
+    }
+
+    // ── Vertical mid-divider ────────────────────────────────────────
+    g.lineStyle(0.75, 0x000000, 0.7);
+    g.moveTo(midX, dataTop);
+    g.lineTo(midX, tbScrBottom);
+
+    // ── Field-cell renderer ─────────────────────────────────────────
+    function drawCell(
+      label: string,
+      value: string,
+      cellLeft: number,
+      cellTop: number,
+      cellW: number,
+      cellH: number,
+    ) {
+      const pad   = 6;
+      const lblSz = Math.max(cellH * 0.27, 5.5);
+      const valSz = Math.max(cellH * 0.43, 7.5);
+      const lbl = mkTBText(label.toUpperCase(), {
+        fontFamily: 'Arial', fontSize: lblSz, fill: 0x2c4a6e,
+        fontWeight: 'bold', letterSpacing: 0.5,
+      });
+      lbl.position.set(cellLeft + pad, cellTop + 3);
+      const val = mkTBText(value || '—', {
+        fontFamily: 'Arial', fontSize: valSz,
+        fill: value ? 0x111111 : 0xcccccc,
+        fontWeight: value ? 'bold' : 'normal',
+        wordWrap: true, wordWrapWidth: cellW - pad * 2,
+      });
+      val.position.set(cellLeft + pad, cellTop + lblSz + 5);
+    }
+
+    const ds         = drawingScale ?? 50;
+    const scaleLabel = tb.scaleLabel || `1" = ${ds}'`;
+
+    drawCell('PROJECT',        tb.projectName     || '', tbScrLeft, dataTop,             halfTbW, rowH);
+    drawCell('JOB NO.',        tb.projectNumber   || '', midX,      dataTop,             halfTbW, rowH);
+    drawCell('CLIENT / OWNER', tb.clientName      || '', tbScrLeft, dataTop + rowH,      halfTbW, rowH);
+    drawCell('DATE',           tb.surveyDate      || '', midX,      dataTop + rowH,      halfTbW, rowH);
+    drawCell('PREPARED BY',    tb.surveyorName    || '', tbScrLeft, dataTop + 2 * rowH,  halfTbW, rowH);
+    drawCell('LICENSE NO.',    tb.surveyorLicense || '', midX,      dataTop + 2 * rowH,  halfTbW, rowH);
+    drawCell('SCALE',          scaleLabel,              tbScrLeft, dataTop + 3 * rowH,  halfTbW, rowH);
+    drawCell('SHEET', `${tb.sheetNumber || '1'} OF ${tb.totalSheets || '1'}`,
+      midX, dataTop + 3 * rowH, halfTbW, rowH);
+
+    // ────────────────────────────────────────────────────────────────
+    // SIGNATURE / SEAL BLOCK  (bottom-left of page)
+    // ────────────────────────────────────────────────────────────────
+    const sigBoxH  = 0.75 * inchToPx;
+    const sigBoxW  = 2.8  * inchToPx;
+    const sealColW = sigBoxH;               // left square = seal
+    const sigLeft  = tl.sx + margin;
+    const sigTop   = br.sy - margin - sigBoxH;
+
+    // Outer double border
+    g.lineStyle(2, 0x000000, 1);
+    g.drawRect(sigLeft, sigTop, sigBoxW, sigBoxH);
+    g.lineStyle(0.5, 0x000000, 0.5);
+    g.drawRect(sigLeft + 3, sigTop + 3, sigBoxW - 6, sigBoxH - 6);
+
+    // Seal column divider
+    g.lineStyle(1, 0x000000, 0.85);
+    g.moveTo(sigLeft + sealColW, sigTop);
+    g.lineTo(sigLeft + sealColW, sigTop + sigBoxH);
+
+    // Concentric seal circles
+    const sCx = sigLeft + sealColW / 2;
+    const sCy = sigTop  + sigBoxH  / 2;
+    g.lineStyle(0.75, 0x000000, 0.8);
+    g.drawCircle(sCx, sCy, sealColW * 0.38);
+    g.lineStyle(0.4, 0x000000, 0.4);
+    g.drawCircle(sCx, sCy, sealColW * 0.46);
+
+    // Signature line
+    const sigLineX1 = sigLeft + sealColW + 8;
+    const sigLineX2 = sigLeft + sigBoxW  - 8;
+    const sigLineY  = sigTop  + sigBoxH  * 0.65;
+    g.lineStyle(1, 0x000000, 1);
+    g.moveTo(sigLineX1, sigLineY);
+    g.lineTo(sigLineX2, sigLineY);
+
+    const sLblSz = Math.max(sigBoxH * 0.17, 5);
+    const sValSz = Math.max(sigBoxH * 0.21, 5.5);
+
+    // "RPLS" in seal center
+    const rplsTxt = mkTBText('RPLS', {
+      fontFamily: 'Arial', fontSize: sLblSz, fill: 0x777777, letterSpacing: 0.5,
+    });
+    rplsTxt.anchor.set(0.5, 0.5);
+    rplsTxt.position.set(sCx, sCy);
+
+    // "OFFICIAL SEAL" below circle
+    const sealLbl = mkTBText('OFFICIAL SEAL', {
+      fontFamily: 'Arial', fontSize: sLblSz, fill: 0x777777, letterSpacing: 0.3,
+    });
+    sealLbl.anchor.set(0.5, 0);
+    sealLbl.position.set(sCx, sigTop + sigBoxH * 0.74);
+
+    // "REGISTERED PROFESSIONAL LAND SURVEYOR"
+    mkTBText('REGISTERED PROFESSIONAL LAND SURVEYOR', {
+      fontFamily: 'Arial', fontSize: sValSz, fill: 0x444444, fontStyle: 'italic',
+    }).position.set(sigLineX1, sigTop + 5);
+
+    // "AUTHORIZED SIGNATURE"
+    mkTBText('AUTHORIZED SIGNATURE', {
+      fontFamily: 'Arial', fontSize: sLblSz, fill: 0x2c4a6e, fontWeight: 'bold', letterSpacing: 0.4,
+    }).position.set(sigLineX1, sigLineY + 3);
+
+    // ────────────────────────────────────────────────────────────────
+    // NORTH ARROW BOX  (top-right of page, or custom pos)
+    // ────────────────────────────────────────────────────────────────
+    const northArrowSizeIn = tb.northArrowSizeIn ?? 1.5;
+    const naBoxPadIn = 0.22;
+    const naBoxIn    = northArrowSizeIn + 2 * naBoxPadIn;  // box side in paper inches
+    const naBoxPx    = naBoxIn * inchToPx;
+    const naTxtH     = Math.max(naBoxPx * 0.14, 7);        // "NORTH" label height
+    const naTotalH   = naBoxPx + naTxtH + 0.06 * inchToPx; // box + label gap
+
+    let naScrLeft: number;
+    let naScrTop: number;
+    if (drag?.element === 'northArrow') {
+      naScrLeft = tl.sx + drag.livePosX * inchToPx;
+      naScrTop  = br.sy - (drag.livePosY * inchToPx + naTotalH);
+    } else if (tb.northArrowPos) {
+      naScrLeft = tl.sx + tb.northArrowPos.x * inchToPx;
+      naScrTop  = br.sy - (tb.northArrowPos.y * inchToPx + naTotalH);
+    } else {
+      // Default: top-right corner
+      naScrLeft = br.sx - margin - naBoxPx;
+      naScrTop  = tl.sy + margin;
+    }
+
+    tbBoundsRef.current.northArrow = { screenX: naScrLeft, screenY: naScrTop, w: naBoxPx, h: naTotalH };
+    const naHovered  = hoveredTBElemRef.current === 'northArrow';
+    const naDragging = drag?.element === 'northArrow';
+
+    // Box background (white) and border
+    g.lineStyle(0);
+    g.beginFill(0xffffff, 0.92);
+    g.drawRect(naScrLeft, naScrTop, naBoxPx, naTotalH);
+    g.endFill();
+    g.lineStyle(1.5, 0x000000, 0.8);
+    g.drawRect(naScrLeft, naScrTop, naBoxPx, naTotalH);
+
+    // Blue hover highlight
+    if (naHovered || naDragging) {
+      g.lineStyle(2.5, 0x0088ff, 0.9);
+      g.drawRect(naScrLeft - 4, naScrTop - 4, naBoxPx + 8, naTotalH + 8);
+    }
+
+    // North arrow inside box
+    const naCx     = naScrLeft + naBoxPx / 2;
+    const naCy     = naScrTop  + naBoxPx * 0.50;
+    const rotDeg   = doc.settings.drawingRotationDeg ?? 0;
+    const arrowRad = (rotDeg * Math.PI) / 180;
+    drawNorthArrow(g, naCx, naCy, northArrowSizeIn * inchToPx * 0.44, arrowRad,
+      tb.northArrowStyle ?? 'STARR', pixi, mkTBText);
+
+    // "NORTH" label below arrow
+    const northLblTxt = mkTBText('NORTH', {
+      fontFamily: 'Arial', fontSize: naTxtH * 0.85, fill: 0x111111,
+      fontWeight: 'bold', letterSpacing: 1.5,
+    });
+    northLblTxt.anchor.set(0.5, 0);
+    northLblTxt.position.set(naCx, naScrTop + naBoxPx + 0.03 * inchToPx);
+
+    // ────────────────────────────────────────────────────────────────
+    // GRAPHIC SCALE BAR  (bottom-left area or custom pos)
+    // ────────────────────────────────────────────────────────────────
+    if (tb.scaleBarVisible !== false) {
+      const targetLenIn   = tb.scaleBarLengthIn ?? 2.0;
+      const targetWorldFt = targetLenIn * ds;
+
+      // Find a nice segment length (round number of feet)
+      const niceSteps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
+      const rawSeg    = targetWorldFt / 4;
+      let segFt       = niceSteps[0];
+      for (const s of niceSteps) { if (s <= rawSeg) segFt = s; }
+      const numSegs   = 4;
+      const totalFt   = segFt * numSegs;
+      const barLenPx  = (totalFt / ds) * inchToPx;
+      const barH      = Math.max(0.12 * inchToPx, 6);
+      const sbTotalH  = barH + Math.max(0.20 * inchToPx, 10) * 2 + 4; // bar + labels above & below
+
+      let sbScrLeft: number;
+      let sbScrBottom: number;
+      if (drag?.element === 'scaleBar') {
+        sbScrLeft   = tl.sx + drag.livePosX * inchToPx;
+        sbScrBottom = br.sy - drag.livePosY * inchToPx;
+      } else if (tb.scaleBarPos) {
+        sbScrLeft   = tl.sx + tb.scaleBarPos.x * inchToPx;
+        sbScrBottom = br.sy - tb.scaleBarPos.y * inchToPx;
+      } else {
+        // Default: bottom of page, positioned after the signature block (sigBoxW=2.8" + gap 0.4")
+        const sigBoxWidthIn = 2.8;
+        const sigGapIn = 0.4;
+        sbScrLeft   = tl.sx + (sigBoxWidthIn + sigGapIn) * inchToPx + margin;
+        sbScrBottom = br.sy - margin;
+      }
+
+      const sbScrTop = sbScrBottom - sbTotalH;
+      const barTop   = sbScrTop + Math.max(0.20 * inchToPx, 10) + 4;
+
+      tbBoundsRef.current.scaleBar = { screenX: sbScrLeft, screenY: sbScrTop, w: barLenPx, h: sbTotalH };
+      const sbHovered  = hoveredTBElemRef.current === 'scaleBar';
+      const sbDragging = drag?.element === 'scaleBar';
+
+      // Blue hover highlight
+      if (sbHovered || sbDragging) {
+        g.lineStyle(2.5, 0x0088ff, 0.9);
+        g.drawRect(sbScrLeft - 5, sbScrTop - 5, barLenPx + 10, sbTotalH + 10);
+      }
+
+      // "GRAPHIC SCALE" label above
+      const gsLblSz = Math.max(barH * 0.9, 6);
+      const gsTxt = mkTBText('GRAPHIC SCALE', {
+        fontFamily: 'Arial', fontSize: gsLblSz, fill: 0x111111, fontWeight: 'bold', letterSpacing: 0.5,
+      });
+      gsTxt.anchor.set(0.5, 1);
+      gsTxt.position.set(sbScrLeft + barLenPx / 2, barTop - 3);
+
+      // Checkered bar segments
+      const segPx = barLenPx / numSegs;
+      for (let i = 0; i < numSegs; i++) {
+        const segLeft = sbScrLeft + i * segPx;
+        const fill    = i % 2 === 0 ? 0x000000 : 0xffffff;
+        g.lineStyle(0);
+        g.beginFill(fill, 1);
+        g.drawRect(segLeft, barTop, segPx, barH);
+        g.endFill();
+      }
+      // Outer border around entire bar
+      g.lineStyle(1, 0x000000, 1);
+      g.drawRect(sbScrLeft, barTop, barLenPx, barH);
+      // Segment dividers
+      g.lineStyle(0.5, 0x000000, 0.7);
+      for (let i = 1; i < numSegs; i++) {
+        const divX = sbScrLeft + i * segPx;
+        g.moveTo(divX, barTop);
+        g.lineTo(divX, barTop + barH);
+      }
+
+      // Tick marks + distance labels below bar
+      const tickH   = barH * 0.5;
+      const lblBelowSz = Math.max(barH * 0.85, 5.5);
+      g.lineStyle(0.75, 0x000000, 1);
+      for (let i = 0; i <= numSegs; i++) {
+        const tickX = sbScrLeft + i * segPx;
+        g.moveTo(tickX, barTop + barH);
+        g.lineTo(tickX, barTop + barH + tickH);
+        const distFt   = i * segFt;
+        const distLabel = distFt >= 1000
+          ? `${Math.round(distFt / 1000 * 10) / 10}K`
+          : String(distFt);
+        const lbl = mkTBText(distLabel, {
+          fontFamily: 'Arial', fontSize: lblBelowSz, fill: 0x111111,
+        });
+        lbl.anchor.set(0.5, 0);
+        lbl.position.set(tickX, barTop + barH + tickH + 1);
+      }
+
+      // Units label
+      const unitsLbl = mkTBText('FEET', {
+        fontFamily: 'Arial', fontSize: lblBelowSz, fill: 0x444444, fontStyle: 'italic',
+      });
+      unitsLbl.position.set(sbScrLeft + barLenPx + 4, barTop + barH + tickH + 1);
+    }
   }
 
+  // ─────────────────────────────────────────────────────────────────
+  // Draw a north arrow symbol into graphics g, centered at (cx, cy)
+  // ─────────────────────────────────────────────────────────────────
   function drawNorthArrow(
     g: import('pixi.js').Graphics,
     cx: number,
     cy: number,
     radius: number,
-    rotRad: number, // visual rotation (compensates for drawing rotation)
+    rotRad: number,
     style: string,
     pixi: NonNullable<typeof pixiRef.current>,
+    mkTBText?: (content: string, style: Partial<import('pixi.js').ITextStyle>) => import('pixi.js').Text,
   ) {
     const cos = Math.cos(rotRad);
     const sin = Math.sin(rotRad);
-    // "up" direction after rotation: screen-up = -y, rotated by rotRad
-    const ux = -sin;  // x component of rotated up
-    const uy = -cos;  // y component of rotated up (screen y inverted)
-    const tipX = cx + ux * radius;
-    const tipY = cy + uy * radius;
+    // "up" direction after rotation (screen-up = -y, rotated by rotRad)
+    const ux = -sin;
+    const uy = -cos;
+    const tipX  = cx + ux * radius;
+    const tipY  = cy + uy * radius;
     const baseX = cx - ux * radius * 0.9;
     const baseY = cy - uy * radius * 0.9;
-    // perpendicular direction for barbs
-    const px =  uy;
+    const px =  uy;   // perpendicular
     const py = -ux;
 
     g.lineStyle(0);
@@ -1198,112 +1517,143 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       g.lineStyle(1.5, 0x000000, 1);
       g.moveTo(baseX, baseY);
       g.lineTo(tipX, tipY);
-      // Arrowhead
       const hx = cx + ux * radius * 0.6;
       const hy = cy + uy * radius * 0.6;
       const bw = radius * 0.22;
-      g.moveTo(tipX, tipY);
-      g.lineTo(hx + px * bw, hy + py * bw);
-      g.moveTo(tipX, tipY);
-      g.lineTo(hx - px * bw, hy - py * bw);
+      g.moveTo(tipX, tipY); g.lineTo(hx + px * bw, hy + py * bw);
+      g.moveTo(tipX, tipY); g.lineTo(hx - px * bw, hy - py * bw);
+
     } else if (style === 'TRADITIONAL') {
-      // Classic filled north half
       const bw = radius * 0.28;
       g.beginFill(0x000000, 1);
-      g.moveTo(tipX, tipY);
-      g.lineTo(cx + px * bw, cy + py * bw);
-      g.lineTo(baseX, baseY);
-      g.closePath();
-      g.endFill();
+      g.moveTo(tipX, tipY); g.lineTo(cx + px * bw, cy + py * bw);
+      g.lineTo(baseX, baseY); g.closePath(); g.endFill();
       g.beginFill(0xffffff, 1);
-      g.moveTo(tipX, tipY);
-      g.lineTo(cx - px * bw, cy - py * bw);
-      g.lineTo(baseX, baseY);
-      g.closePath();
-      g.endFill();
+      g.moveTo(tipX, tipY); g.lineTo(cx - px * bw, cy - py * bw);
+      g.lineTo(baseX, baseY); g.closePath(); g.endFill();
       g.lineStyle(1, 0x000000, 1);
       g.drawCircle(cx, cy, radius * 0.12);
+
     } else if (style === 'COMPASS_ROSE') {
-      // N/S/E/W rose
       for (let i = 0; i < 4; i++) {
-        const a = rotRad + (i * Math.PI) / 2;
-        const tx = cx - Math.sin(a) * radius;
-        const ty = cy - Math.cos(a) * radius;
-        const bx = cx + Math.sin(a) * radius * 0.3;
-        const by = cy + Math.cos(a) * radius * 0.3;
-        const pw2 = radius * 0.18;
-        const px2 =  Math.cos(a);
-        const py2 = -Math.sin(a);
+        const a    = rotRad + (i * Math.PI) / 2;
+        const tx   = cx - Math.sin(a) * radius;
+        const ty   = cy - Math.cos(a) * radius;
+        const bx   = cx + Math.sin(a) * radius * 0.3;
+        const by   = cy + Math.cos(a) * radius * 0.3;
+        const pw2  = radius * 0.18;
+        const px2  =  Math.cos(a);
+        const py2  = -Math.sin(a);
         const fill = i === 0 ? 0x000000 : 0x888888;
         g.beginFill(fill, 1);
         g.moveTo(tx, ty);
         g.lineTo(cx + px2 * pw2, cy + py2 * pw2);
         g.lineTo(bx, by);
         g.lineTo(cx - px2 * pw2, cy - py2 * pw2);
-        g.closePath();
-        g.endFill();
+        g.closePath(); g.endFill();
       }
       g.lineStyle(1, 0x000000, 1);
       g.drawCircle(cx, cy, radius * 0.15);
+
+    } else if (style === 'STARR') {
+      // ── STARR 8-pointed star compass ─────────────────────────────
+      // Intercardinal points (NE/SE/SW/NW) — drawn first (back layer)
+      for (let i = 0; i < 4; i++) {
+        const a   = rotRad + Math.PI / 4 + (i * Math.PI) / 2;
+        const ax  = -Math.sin(a);
+        const ay  = -Math.cos(a);
+        const bx2 =  Math.cos(a);
+        const by2 = -Math.sin(a);
+        const tipX2  = cx + ax * radius * 0.60;
+        const tipY2  = cy + ay * radius * 0.60;
+        const baseX2 = cx - ax * radius * 0.22;
+        const baseY2 = cy - ay * radius * 0.22;
+        const hw = radius * 0.15;
+        g.lineStyle(0);
+        g.beginFill(0xcccccc, 1);
+        g.moveTo(tipX2, tipY2);
+        g.lineTo(cx + bx2 * hw, cy + by2 * hw);
+        g.lineTo(baseX2, baseY2);
+        g.lineTo(cx - bx2 * hw, cy - by2 * hw);
+        g.closePath(); g.endFill();
+        g.lineStyle(0.5, 0x888888, 0.8);
+        g.moveTo(tipX2, tipY2); g.lineTo(cx + bx2 * hw, cy + by2 * hw);
+        g.moveTo(tipX2, tipY2); g.lineTo(cx - bx2 * hw, cy - by2 * hw);
+        g.lineStyle(0);
+      }
+      // Cardinal points (N/S/E/W) — classic split-blade (half black / half white)
+      for (let i = 0; i < 4; i++) {
+        const a    = rotRad + (i * Math.PI) / 2;
+        const ax   = -Math.sin(a);
+        const ay   = -Math.cos(a);
+        const bx2  =  Math.cos(a);
+        const by2  = -Math.sin(a);
+        const tipX2  = cx + ax * radius;
+        const tipY2  = cy + ay * radius;
+        const hw     = radius * 0.22;
+        // Left blade
+        g.lineStyle(0);
+        g.beginFill(0x111111, 1);
+        g.moveTo(tipX2, tipY2); g.lineTo(cx, cy);
+        g.lineTo(cx + bx2 * hw, cy + by2 * hw); g.closePath(); g.endFill();
+        // Right blade (white)
+        g.beginFill(0xfafafa, 1);
+        g.moveTo(tipX2, tipY2); g.lineTo(cx, cy);
+        g.lineTo(cx - bx2 * hw, cy - by2 * hw); g.closePath(); g.endFill();
+        // Outline
+        g.lineStyle(0.8, 0x000000, 1);
+        g.moveTo(tipX2, tipY2); g.lineTo(cx + bx2 * hw, cy + by2 * hw);
+        g.moveTo(tipX2, tipY2); g.lineTo(cx - bx2 * hw, cy - by2 * hw);
+        g.lineStyle(0);
+      }
+      // Center ring (white fill with border, then small dot)
+      g.lineStyle(1, 0x000000, 1);
+      g.beginFill(0xffffff, 1); g.drawCircle(cx, cy, radius * 0.14); g.endFill();
+      g.beginFill(0x000000, 1); g.drawCircle(cx, cy, radius * 0.05); g.endFill();
+      g.lineStyle(0);
+
     } else {
       // DETAILED (default): double-headed with styled tick
       const bw = radius * 0.26;
       g.beginFill(0x000000, 1);
-      g.moveTo(tipX, tipY);
-      g.lineTo(cx + px * bw, cy + py * bw);
-      g.lineTo(baseX, baseY);
-      g.closePath();
-      g.endFill();
+      g.moveTo(tipX, tipY); g.lineTo(cx + px * bw, cy + py * bw);
+      g.lineTo(baseX, baseY); g.closePath(); g.endFill();
       g.beginFill(0xffffff, 1);
       g.lineStyle(0.8, 0x000000, 1);
-      g.moveTo(tipX, tipY);
-      g.lineTo(cx - px * bw, cy - py * bw);
-      g.lineTo(baseX, baseY);
-      g.closePath();
-      g.endFill();
+      g.moveTo(tipX, tipY); g.lineTo(cx - px * bw, cy - py * bw);
+      g.lineTo(baseX, baseY); g.closePath(); g.endFill();
       g.lineStyle(0);
       g.lineStyle(0.8, 0x000000, 0.4);
       g.moveTo(cx - ux * radius * 1.05, cy - uy * radius * 1.05);
       g.lineTo(cx + ux * radius * 1.05, cy + uy * radius * 1.05);
     }
 
-    // Draw "N" label at the north tip
-    const nLbl = new pixi.TextClass('N', new pixi.TextStyleClass({
-      fontFamily: 'Arial',
-      fontSize: Math.max(radius * 0.45, 8),
-      fill: 0x000000,
-      fontWeight: 'bold',
-    }));
-    (nLbl as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
-    const nOffset = radius * 0.28;
-    nLbl.anchor.set(0.5, 0.5);
-    nLbl.position.set(tipX + ux * nOffset, tipY + uy * nOffset);
-    nLbl.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
-    pixi.titleBlockLayer.addChild(nLbl);
-  }
-
-  function buildInfoFields(
-    tb: import('@/lib/cad/types').TitleBlockConfig,
-    doc: import('@/lib/cad/types').DrawingDocument,
-  ): [string, string][] {
-    const drawingScale = doc.settings.drawingScale ?? 50;
-    const scaleLabel = tb.scaleLabel || `1" = ${drawingScale}'`;
-    const base: [string, string][] = [
-      ['Firm', tb.firmName || ''],
-      ['Surveyor', tb.surveyorName || ''],
-      ['License', tb.surveyorLicense || ''],
-      ['Project', tb.projectName || ''],
-      ['Client', tb.clientName || ''],
-      ['Date', tb.surveyDate || ''],
-      ['Scale', scaleLabel],
-      ['Sheet', `${tb.sheetNumber || '1'} of ${tb.totalSheets || '1'}`],
-    ];
-    if (tb.infoBoxStyle === 'DETAILED') {
-      base.push(['Job #', tb.projectNumber || ''], ['Notes', tb.notes || '']);
-    } else if (tb.infoBoxStyle === 'MINIMAL') {
-      return base.slice(0, 5);
+    // "N" label at the north tip (drawn for all styles)
+    if (mkTBText) {
+      const nLbl = mkTBText('N', {
+        fontFamily: 'Arial',
+        fontSize: Math.max(radius * 0.45, 8),
+        fill: 0x000000,
+        fontWeight: 'bold',
+      });
+      const nOffset = radius * 0.30;
+      nLbl.anchor.set(0.5, 0.5);
+      nLbl.position.set(tipX + ux * nOffset, tipY + uy * nOffset);
+    } else {
+      // Fallback when mkTBText not provided (legacy call path)
+      const nLbl = new pixi.TextClass('N', new pixi.TextStyleClass({
+        fontFamily: 'Arial',
+        fontSize: Math.max(radius * 0.45, 8),
+        fill: 0x000000,
+        fontWeight: 'bold',
+      }));
+      (nLbl as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
+      const nOffset = radius * 0.30;
+      nLbl.anchor.set(0.5, 0.5);
+      nLbl.position.set(tipX + ux * nOffset, tipY + uy * nOffset);
+      nLbl.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
+      pixi.titleBlockLayer.addChild(nLbl);
     }
-    return base;
   }
 
   // ─────────────────────────────────────────────
@@ -3000,6 +3350,71 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       const worldPt = getSnappedWorld(sx, sy);
 
+      // ── Title-block overlay element drag (SELECT mode) ──────────────
+      if (activeTool === 'SELECT') {
+        const tbHit = hitTestTBElement(sx, sy);
+        if (tbHit) {
+          const doc        = useDrawingStore.getState().document;
+          const tb         = doc.settings.titleBlock;
+          const { zoom }   = useViewportStore.getState();
+          const ds         = doc.settings.drawingScale ?? 50;
+          const inchToPx   = zoom * ds;
+          let [pw, ph] = PAPER_SIZE_MAP[doc.settings.paperSize ?? 'TABLOID'] ?? [11, 17];
+          if (doc.settings.paperOrientation === 'LANDSCAPE') [pw, ph] = [ph, pw];
+          const tl = w2s(0, ph * ds);
+          const br = w2s(pw * ds, 0);
+          const margin = 0.1 * inchToPx;
+
+          // Compute current paper-inch BL position of the element
+          let origPosX = 0;
+          let origPosY = 0;
+          if (tbHit === 'northArrow') {
+            const northArrowSizeIn = tb?.northArrowSizeIn ?? 1.5;
+            const naBoxPadIn = 0.22;
+            const naBoxIn    = northArrowSizeIn + 2 * naBoxPadIn;
+            const naBoxPx    = naBoxIn * inchToPx;
+            const naTxtH     = Math.max(naBoxPx * 0.14, 7);
+            const naTotalH   = naBoxPx + naTxtH + 0.06 * inchToPx;
+            if (tb?.northArrowPos) {
+              origPosX = tb.northArrowPos.x;
+              origPosY = tb.northArrowPos.y;
+            } else {
+              // Default top-right: BL corner of NA box in paper-inch from paper BL
+              origPosX = (br.sx - margin - naBoxPx - tl.sx) / inchToPx;
+              origPosY = (br.sy - (tl.sy + margin + naTotalH)) / inchToPx;
+            }
+          } else if (tbHit === 'titleBlock') {
+            const tbH = 2.2 * inchToPx;
+            const tbW = 5.5 * inchToPx;
+            if (tb?.titleBlockPos) {
+              origPosX = tb.titleBlockPos.x;
+              origPosY = tb.titleBlockPos.y;
+            } else {
+              origPosX = (br.sx - margin - tbW - tl.sx) / inchToPx;
+              origPosY = margin / inchToPx;
+            }
+          } else if (tbHit === 'scaleBar') {
+            if (tb?.scaleBarPos) {
+              origPosX = tb.scaleBarPos.x;
+              origPosY = tb.scaleBarPos.y;
+            } else {
+              // Default position: after signature block (sigBoxW=2.8" + gap 0.4") from paper left
+              const sigBoxWidthIn = 2.8;
+              const sigGapIn = 0.4;
+              origPosX = sigBoxWidthIn + sigGapIn + margin / inchToPx;
+              origPosY = margin / inchToPx;
+            }
+          }
+
+          tbDragRef.current = {
+            element: tbHit, startSX: sx, startSY: sy,
+            origPosX, origPosY, livePosX: origPosX, livePosY: origPosY,
+          };
+          setCursorStyle('grabbing');
+          return;
+        }
+      }
+
       // Check grip first (when SELECT tool active and something selected)
       if (activeTool === 'SELECT' && selectionStore.selectedIds.size > 0) {
         const grip = hitTestGrip(sx, sy);
@@ -3577,6 +3992,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
+      // Title-block overlay element drag update
+      if (tbDragRef.current) {
+        const tbDrag = tbDragRef.current;
+        const { zoom }  = useViewportStore.getState();
+        const doc       = useDrawingStore.getState().document;
+        const inchToPx  = zoom * (doc.settings.drawingScale ?? 50);
+        const dScreenX  = sx - tbDrag.startSX;
+        const dScreenY  = sy - tbDrag.startSY;
+        // Screen right → paper right; screen down → paper BL-y decreases
+        tbDrag.livePosX = tbDrag.origPosX + dScreenX / inchToPx;
+        tbDrag.livePosY = tbDrag.origPosY - dScreenY / inchToPx;
+        setCursorStyle('grabbing');
+        return;
+      }
+
       // Interactive rotate/scale preview — cursor drives the transformation
       if (interactiveOpRef.current) {
         const op = interactiveOpRef.current;
@@ -3797,7 +4227,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       viewportStore.setCursorWorld(worldPt);
 
       // Update hover state for ALL tools — shows highlighted element under cursor
-      if (!isPanningRef.current && !dragFeatureRef.current) {
+      if (!isPanningRef.current && !dragFeatureRef.current && !tbDragRef.current) {
+        // Check TB element hover (SELECT tool only)
+        const tbHover = toolStore.state.activeTool === 'SELECT' ? hitTestTBElement(sx, sy) : null;
+        if (tbHover !== hoveredTBElemRef.current) {
+          hoveredTBElemRef.current = tbHover;
+        }
+        if (tbHover) {
+          setCursorStyle('grab');
+        }
+
         // Check label hover first (labels render on top of features)
         const labelHover = hitTestLabel(sx, sy);
         const prevLabelKey = hoveredLabelKeyRef.current;
@@ -3815,7 +4254,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         hoveredIdRef.current = hit;
         // Update cursor style for SELECT tool
         if (toolStore.state.activeTool === 'SELECT') {
-          if (!gripDragRef.current) {
+          if (!gripDragRef.current && !tbHover) {
             const onGrip = hit && selectionStore.selectedIds.has(hit) ? hitTestGrip(sx, sy) : null;
             if (onGrip) {
               setCursorStyle('move');
@@ -3836,7 +4275,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         } else if (hit && !toolStore.state.activeTool.startsWith('DRAW_')) {
           // For modification tools: show pointer cursor when hovering a selectable element
           setCursorStyle('pointer');
-        } else {
+        } else if (!tbHover) {
           const cursor = TOOL_CURSORS[toolStore.state.activeTool] ?? SVG_CURSOR_CROSSHAIR;
           if (!isPanningRef.current) setCursorStyle(cursor);
         }
@@ -3969,6 +4408,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (labelDragRef.current) {
         labelDragRef.current = null;
         setCursorStyle(TOOL_CURSORS[toolState.activeTool] ?? 'default');
+        return;
+      }
+
+      // Commit title-block element drag
+      if (tbDragRef.current) {
+        const { element, livePosX, livePosY, origPosX, origPosY } = tbDragRef.current;
+        const moved = Math.abs(livePosX - origPosX) > 0.01 || Math.abs(livePosY - origPosY) > 0.01;
+        if (moved) {
+          const pos = { x: livePosX, y: livePosY };
+          if (element === 'northArrow')  drawingStore.updateTitleBlock({ northArrowPos: pos });
+          if (element === 'titleBlock')  drawingStore.updateTitleBlock({ titleBlockPos: pos });
+          if (element === 'scaleBar')    drawingStore.updateTitleBlock({ scaleBarPos: pos });
+        }
+        tbDragRef.current = null;
+        hoveredTBElemRef.current = null;
+        setCursorStyle('default');
         return;
       }
 
