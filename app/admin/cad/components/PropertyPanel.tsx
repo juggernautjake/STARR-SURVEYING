@@ -68,6 +68,8 @@ export default function PropertyPanel() {
   const [editColor, setEditColor] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState<string | null>(null);
   const [editOpacity, setEditOpacity] = useState<string | null>(null);
+  // Toggle between N/E (Northing/Easting) and raw X/Y
+  const [useNE, setUseNE] = useState(true);
 
   const single = features.length === 1 ? features[0] : null;
   const displayColor = editColor ?? (single?.style.color ?? '#000000');
@@ -108,6 +110,22 @@ export default function PropertyPanel() {
     });
   }
 
+  function handleBulkLayerChange(layerId: string) {
+    if (features.length === 0) return;
+    const operations = features.map((f) => {
+      const before = { ...f };
+      drawingStore.updateFeature(f.id, { layerId });
+      const after = drawingStore.getFeature(f.id)!;
+      return { type: 'MODIFY_FEATURE' as const, data: { id: f.id, before, after } };
+    });
+    undoStore.pushUndo({
+      id: generateId(),
+      description: `Move ${features.length} object${features.length > 1 ? 's' : ''} to layer`,
+      timestamp: Date.now(),
+      operations,
+    });
+  }
+
   // Real-time coordinate editing — updates canvas immediately on every keystroke.
   function updateCoord(index: number, axis: 'x' | 'y', value: number) {
     if (!single) return;
@@ -135,6 +153,23 @@ export default function PropertyPanel() {
   const { document: doc } = drawingStore;
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
   const displayPrefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
+  const originN = displayPrefs.originNorthing ?? 0;
+  const originE = displayPrefs.originEasting ?? 0;
+
+  // N/E ↔ X/Y coordinate conversion helpers
+  function worldToDisplay(wx: number, wy: number) {
+    return useNE
+      ? { a: wy + originN, b: wx + originE }  // a=Northing, b=Easting
+      : { a: wx, b: wy };                      // a=X, b=Y
+  }
+  function displayToWorldX(dispA: number, dispB: number) {
+    return useNE ? dispB - originE : dispA;
+  }
+  function displayToWorldY(dispA: number, dispB: number) {
+    return useNE ? dispA - originN : dispB;
+  }
+  const labelA = useNE ? 'N' : 'X';
+  const labelB = useNE ? 'E' : 'Y';
 
   if (features.length === 0) {
     return (
@@ -151,7 +186,9 @@ export default function PropertyPanel() {
   }
 
   if (features.length > 1) {
-    // Multi-select: show count + allow bulk color/weight change
+    // Multi-select: show count + allow bulk color/weight change + move to layer
+    const mixedLayers = new Set(features.map((f) => f.layerId)).size > 1;
+    const sharedLayerId = mixedLayers ? '' : features[0].layerId;
     return (
       <div className="flex flex-col h-full text-gray-200 text-xs">
         <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700">
@@ -178,6 +215,34 @@ export default function PropertyPanel() {
               />
             </div>
           </div>
+          {/* Move to layer — bulk action */}
+          <div className="border-t border-gray-700 pt-2 space-y-1">
+            <div className="text-gray-500 text-[10px] uppercase tracking-wider">Move to Layer</div>
+            {mixedLayers && (
+              <div className="text-[9px] text-yellow-500 mb-1">Multiple layers selected</div>
+            )}
+            <div className="flex items-center gap-1.5">
+              {(() => {
+                const targetLayer = sharedLayerId ? doc.layers[sharedLayerId] : null;
+                return targetLayer ? (
+                  <div
+                    className="w-3 h-3 rounded-sm border border-gray-500 shrink-0"
+                    style={{ backgroundColor: targetLayer.color }}
+                  />
+                ) : null;
+              })()}
+              <select
+                className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
+                value={sharedLayerId}
+                onChange={(e) => handleBulkLayerChange(e.target.value)}
+              >
+                {mixedLayers && <option value="" disabled>— mixed —</option>}
+                {layers.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -190,8 +255,20 @@ export default function PropertyPanel() {
 
   return (
     <div className="flex flex-col h-full text-gray-200 text-xs overflow-y-auto">
-      <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700 flex-shrink-0">
-        Properties
+      <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700 flex-shrink-0 flex items-center justify-between">
+        <span>Properties</span>
+        {/* N/E ↔ X/Y toggle */}
+        <button
+          className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
+            useNE
+              ? 'bg-blue-700 border-blue-500 text-white'
+              : 'bg-gray-700 border-gray-600 text-gray-400 hover:text-white'
+          }`}
+          title={useNE ? 'Showing Northing/Easting — click for X/Y' : 'Showing X/Y — click for N/E'}
+          onClick={() => setUseNE((v) => !v)}
+        >
+          {useNE ? 'N/E' : 'X/Y'}
+        </button>
       </div>
 
       <div className="p-2 space-y-3 flex-1 overflow-y-auto animate-[fadeIn_150ms_ease-out]">
@@ -201,20 +278,32 @@ export default function PropertyPanel() {
           <div className="text-white font-semibold">{feature.type}</div>
         </div>
 
-        {/* Layer */}
+        {/* Layer — dropdown to move element to a different layer */}
         <div className="space-y-1">
           <div className="text-gray-500 text-[10px] uppercase tracking-wider">Layer</div>
-          <select
-            className="w-full bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none"
-            value={feature.layerId}
-            onChange={(e) => handleLayerChange(e.target.value)}
-          >
-            {layers.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-1.5">
+            {layer && (
+              <div
+                className="w-3 h-3 rounded-sm border border-gray-500 shrink-0"
+                style={{ backgroundColor: layer.color }}
+                title={layer.name}
+              />
+            )}
+            <select
+              className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
+              value={feature.layerId}
+              onChange={(e) => handleLayerChange(e.target.value)}
+            >
+              {layers.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {layer?.locked && (
+            <div className="text-[9px] text-yellow-500">⚠ Layer is locked</div>
+          )}
         </div>
 
         {/* Style */}
@@ -265,18 +354,39 @@ export default function PropertyPanel() {
           <div className="text-gray-500 text-[10px] uppercase tracking-wider">Geometry</div>
           {geom.type === 'POINT' && geom.point && (
             <div className="space-y-1">
-              <CoordInput label="X" value={geom.point.x} onChange={(v) => updateCoord(0, 'x', v)} />
-              <CoordInput label="Y" value={geom.point.y} onChange={(v) => updateCoord(0, 'y', v)} />
+              {(() => {
+                const { a, b } = worldToDisplay(geom.point!.x, geom.point!.y);
+                return (
+                  <>
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} />
+                  </>
+                );
+              })()}
             </div>
           )}
           {geom.type === 'LINE' && geom.start && geom.end && (
             <div className="space-y-1.5">
               <div className="text-gray-500 text-[9px] uppercase">Start</div>
-              <CoordInput label="X" value={geom.start.x} onChange={(v) => updateCoord(0, 'x', v)} />
-              <CoordInput label="Y" value={geom.start.y} onChange={(v) => updateCoord(0, 'y', v)} />
+              {(() => {
+                const { a, b } = worldToDisplay(geom.start!.x, geom.start!.y);
+                return (
+                  <>
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} />
+                  </>
+                );
+              })()}
               <div className="text-gray-500 text-[9px] uppercase pt-0.5">End</div>
-              <CoordInput label="X" value={geom.end.x} onChange={(v) => updateCoord(1, 'x', v)} />
-              <CoordInput label="Y" value={geom.end.y} onChange={(v) => updateCoord(1, 'y', v)} />
+              {(() => {
+                const { a, b } = worldToDisplay(geom.end!.x, geom.end!.y);
+                return (
+                  <>
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(1, 'x', displayToWorldX(val, b)); updateCoord(1, 'y', displayToWorldY(val, b)); }} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(1, 'x', displayToWorldX(a, val)); updateCoord(1, 'y', displayToWorldY(a, val)); }} />
+                  </>
+                );
+              })()}
               {(() => {
                 const { azimuth, distance } = inverseBearingDistance(geom.start, geom.end);
                 return (
@@ -300,8 +410,15 @@ export default function PropertyPanel() {
           )}
           {geom.type === 'TEXT' && geom.point && (
             <div className="space-y-1">
-              <CoordInput label="X" value={geom.point.x} onChange={(v) => updateCoord(0, 'x', v)} />
-              <CoordInput label="Y" value={geom.point.y} onChange={(v) => updateCoord(0, 'y', v)} />
+              {(() => {
+                const { a, b } = worldToDisplay(geom.point!.x, geom.point!.y);
+                return (
+                  <>
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} />
+                  </>
+                );
+              })()}
             </div>
           )}
           {(geom.type === 'POLYLINE' || geom.type === 'POLYGON') && geom.vertices && (
@@ -309,28 +426,31 @@ export default function PropertyPanel() {
               <div className="font-mono text-[10px] text-gray-400">
                 {geom.vertices.length} vertices
               </div>
-              {geom.vertices.map((v, i) => (
-                <div key={i} className="space-y-0.5">
-                  <div className="text-gray-600 text-[9px]">V{i + 1}</div>
-                  <CoordInput label="X" value={v.x} onChange={(val) => updateCoord(i, 'x', val)} />
-                  <CoordInput label="Y" value={v.y} onChange={(val) => updateCoord(i, 'y', val)} />
-                </div>
-              ))}
+              {geom.vertices.map((v, i) => {
+                const { a, b } = worldToDisplay(v.x, v.y);
+                return (
+                  <div key={i} className="space-y-0.5">
+                    <div className="text-gray-600 text-[9px]">V{i + 1}</div>
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(i, 'x', displayToWorldX(val, b)); updateCoord(i, 'y', displayToWorldY(val, b)); }} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(i, 'x', displayToWorldX(a, val)); updateCoord(i, 'y', displayToWorldY(a, val)); }} />
+                  </div>
+                );
+              })}
               {geom.type === 'POLYLINE' && geom.vertices.length >= 2 && (
                 <div className="font-mono text-[10px] text-gray-400 pt-0.5">
-                  L: {geom.vertices.reduce((sum, v, i) => {
+                  L: {formatDistance(geom.vertices.reduce((sum, v, i) => {
                     if (i === 0) return 0;
                     const p = geom.vertices![i - 1];
                     return sum + Math.hypot(v.x - p.x, v.y - p.y);
-                  }, 0).toFixed(3)}
+                  }, 0), displayPrefs)}
                 </div>
               )}
               {geom.type === 'POLYGON' && geom.vertices.length >= 3 && (
                 <div className="font-mono text-[10px] text-gray-400 pt-0.5">
-                  P: {geom.vertices.reduce((sum, v, i) => {
+                  P: {formatDistance(geom.vertices.reduce((sum, v, i) => {
                     const n = geom.vertices![(i + 1) % geom.vertices!.length];
                     return sum + Math.hypot(n.x - v.x, n.y - v.y);
-                  }, 0).toFixed(3)}
+                  }, 0), displayPrefs)}
                 </div>
               )}
             </div>
@@ -456,20 +576,62 @@ export default function PropertyPanel() {
           </div>
         )}
 
-        {/* Layer info */}
-        {layer && (
-          <div className="space-y-1 border-t border-gray-700 pt-2">
-            <div className="text-gray-500 text-[10px] uppercase tracking-wider">Layer Info</div>
-            <div className="flex items-center gap-2 text-[10px] text-gray-300">
-              <div
-                className="w-3 h-3 rounded-sm border border-gray-500"
-                style={{ backgroundColor: layer.color }}
-              />
-              <span>{layer.name}</span>
-              {layer.locked && <span className="text-yellow-400">(locked)</span>}
-            </div>
+        {/* Label style controls for LINE/POLYLINE/POLYGON features with bearing/distance labels */}
+        {(feature.type === 'LINE' || feature.type === 'POLYLINE' || feature.type === 'POLYGON') &&
+          feature.textLabels && feature.textLabels.length > 0 && (
+          <div className="space-y-2 border-t border-gray-700 pt-2">
+            <div className="text-gray-500 text-[10px] uppercase tracking-wider">Label Styles</div>
+            {feature.textLabels.map((label) => (
+              <div key={label.id} className="space-y-1.5 border border-gray-750 rounded px-2 py-1.5" style={{ borderColor: '#2d3545' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-300 font-medium">
+                    {label.kind === 'BEARING' ? 'Bearing' : label.kind === 'DISTANCE' ? 'Distance' : label.kind}
+                  </span>
+                  <span className="text-[9px] text-gray-500 font-mono truncate max-w-[100px]">{label.text}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-gray-500 text-[9px] shrink-0">Size (pt)</span>
+                  <input
+                    type="number" min={4} max={144} step={1}
+                    className="w-12 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-[10px] outline-none border border-gray-600 focus:border-blue-500"
+                    value={label.style.fontSize}
+                    onChange={(e) => {
+                      const v = Math.max(4, Math.min(144, parseInt(e.target.value) || 10));
+                      drawingStore.updateTextLabel(feature.id, label.id, { style: { ...label.style, fontSize: v } });
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-gray-500 text-[9px] shrink-0">Scale</span>
+                  <input
+                    type="number" min={0.1} max={10} step={0.1}
+                    className="w-12 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-[10px] outline-none border border-gray-600 focus:border-blue-500"
+                    value={Number(label.scale.toFixed(2))}
+                    onChange={(e) => {
+                      const v = Math.max(0.1, Math.min(10, parseFloat(e.target.value) || 1));
+                      drawingStore.updateTextLabel(feature.id, label.id, { scale: v });
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-gray-500 text-[9px] shrink-0">Rotation (°)</span>
+                  <input
+                    type="number" min={-360} max={360} step={1}
+                    className="w-12 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-[10px] outline-none border border-gray-600 focus:border-blue-500"
+                    value={label.rotation !== null ? Math.round((label.rotation * 180) / Math.PI) : ''}
+                    placeholder="auto"
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      const rotation = raw === '' ? null : (parseFloat(raw) * Math.PI) / 180;
+                      drawingStore.updateTextLabel(feature.id, label.id, { rotation });
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         )}
+
       </div>
     </div>
   );

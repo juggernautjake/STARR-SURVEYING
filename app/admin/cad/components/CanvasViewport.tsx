@@ -49,6 +49,7 @@ import {
 } from '@/lib/cad/geometry/curve-render';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
+import InteractiveOpPanel from './InteractiveOpPanel';
 
 // ─────────────────────────────────────────────
 // Constants
@@ -187,6 +188,8 @@ export default function CanvasViewport() {
   const gripStartRef = useRef<Feature | null>(null);
   const clickHitFeatureRef = useRef(false);
   const hoveredIdRef = useRef<string | null>(null);
+  // Hovered label key (featureId:labelId or text:featureId) for blue highlight
+  const hoveredLabelKeyRef = useRef<string | null>(null);
   // Element drag-to-move: tracks feature being dragged in SELECT mode
   const dragFeatureRef = useRef<{
     featureIds: string[];
@@ -200,6 +203,16 @@ export default function CanvasViewport() {
     startWorld: Point2D;
     startOffset: Point2D;
   } | null>(null);
+  // Interactive rotate/scale mode — driven by cursor position
+  const interactiveOpRef = useRef<{
+    type: 'ROTATE' | 'SCALE';
+    pivot: Point2D;
+    originals: Map<string, Feature>;
+    /** For ROTATE: angle from pivot to cursor when mode was entered (radians) */
+    baseAngle: number;
+    /** For SCALE: distance from pivot to cursor when mode was entered (world units) */
+    baseDist: number;
+  } | null>(null);
   // Canvas pan in SELECT mode (click on empty space + drag)
   const selectPanRef = useRef(false);
   const [cursorStyle, setCursorStyle] = useState('crosshair');
@@ -210,6 +223,14 @@ export default function CanvasViewport() {
   // HUD: floating operation info panel near cursor
   const [hud, setHud] = useState<{ sx: number; sy: number; lines: string[] } | null>(null);
   const [textInputState, setTextInputState] = useState<{ sx: number; sy: number; wx: number; wy: number } | null>(null);
+  // Label attribute editor state (double-click on a bearing/distance label)
+  const [labelEditState, setLabelEditState] = useState<{ featureId: string; labelId: string; sx: number; sy: number } | null>(null);
+  // Interactive rotate/scale HUD: drives the InteractiveOpPanel
+  const [interactivePanel, setInteractivePanel] = useState<{
+    type: 'ROTATE' | 'SCALE';
+    currentAngleDeg: number;
+    currentFactor: number;
+  } | null>(null);
 
   // Polyline group ID tracking — each new polyline drawing gets a fresh UUID
   const polylineGroupIdRef = useRef<string | null>(null);
@@ -854,7 +875,8 @@ export default function CanvasViewport() {
 
         // Get or create text object
         let textObj = pixi.labelTexts.get(labelKey);
-        const textColor = label.style.color ?? layer.color ?? '#000000';
+        const isHovered = hoveredLabelKeyRef.current === labelKey;
+        const textColor = isHovered ? '#3b82f6' : (label.style.color ?? layer.color ?? '#000000');
         // Scale font size: label.style.fontSize is in "points on paper"
         // 1 pt = 1/72 inch; 1 inch = drawingScale world units → world units → screen pixels
         const drawingScale = doc.settings.drawingScale ?? 50;
@@ -936,7 +958,8 @@ export default function CanvasViewport() {
       activeKeys.add(key);
 
       const { sx, sy } = w2s(geom.point.x, geom.point.y);
-      const color = feature.style.color ?? layer.color ?? '#000000';
+      const isHovered = hoveredLabelKeyRef.current === key;
+      const color = isHovered ? '#3b82f6' : (feature.style.color ?? layer.color ?? '#000000');
       const alpha = feature.style.opacity;
       const rotation = geom.textRotation ?? 0;
       const fontPt = Number(feature.properties.fontSize ?? 12);
@@ -1891,7 +1914,7 @@ export default function CanvasViewport() {
   // ─────────────────────────────────────────────
   // Hit test: Text labels
   // ─────────────────────────────────────────────
-  function hitTestLabel(sx: number, sy: number): { featureId: string; labelId: string } | null {
+  function hitTestLabel(sx: number, sy: number): { featureId: string; labelId: string; isTextFeature: boolean; key: string } | null {
     const pixi = pixiRef.current;
     if (!pixi) return null;
 
@@ -1900,8 +1923,12 @@ export default function CanvasViewport() {
       const bounds = textObj.getBounds();
       if (sx >= bounds.x && sx <= bounds.x + bounds.width &&
           sy >= bounds.y && sy <= bounds.y + bounds.height) {
+        if (key.startsWith('text:')) {
+          const featureId = key.slice(5); // strip 'text:' prefix
+          return { featureId, labelId: featureId, isTextFeature: true, key };
+        }
         const [featureId, labelId] = key.split(':');
-        return { featureId, labelId };
+        return { featureId, labelId, isTextFeature: false, key };
       }
     }
     return null;
@@ -2375,6 +2402,41 @@ export default function CanvasViewport() {
         return;
       }
 
+      // Commit interactive rotate/scale on left-click
+      if (interactiveOpRef.current) {
+        const op = interactiveOpRef.current;
+        const { wx: curWx, wy: curWy } = s2w(sx, sy);
+        const cursorVec = { x: curWx - op.pivot.x, y: curWy - op.pivot.y };
+        const ops: { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[] = [];
+
+        if (op.type === 'ROTATE') {
+          const currentAngle = Math.atan2(cursorVec.y, cursorVec.x);
+          const deltaAngle = currentAngle - op.baseAngle;
+          for (const [id, orig] of op.originals) {
+            const after = drawingStore.getFeature(id);
+            if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: orig, after } });
+          }
+          if (ops.length > 0) {
+            const deg = ((deltaAngle * 180) / Math.PI).toFixed(1);
+            undoStore.pushUndo(makeBatchEntry(`Rotate ${deg}°`, ops));
+          }
+        } else {
+          const curDist = Math.hypot(cursorVec.x, cursorVec.y);
+          const factor = op.baseDist > 0 ? curDist / op.baseDist : 1;
+          for (const [id, orig] of op.originals) {
+            const after = drawingStore.getFeature(id);
+            if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: orig, after } });
+          }
+          if (ops.length > 0) {
+            undoStore.pushUndo(makeBatchEntry(`Scale ×${factor.toFixed(3)}`, ops));
+          }
+        }
+        interactiveOpRef.current = null;
+        setInteractivePanel(null);
+        setCursorStyle(TOOL_CURSORS[activeTool] ?? 'default');
+        return;
+      }
+
       const worldPt = getSnappedWorld(sx, sy);
 
       // Check grip first (when SELECT tool active and something selected)
@@ -2395,18 +2457,37 @@ export default function CanvasViewport() {
           // Check label hit first — labels are on top of features visually
           const labelHit = hitTestLabel(sx, sy);
           if (labelHit) {
-            const feature = drawingStore.getFeature(labelHit.featureId);
-            const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
-            if (feature && label) {
-              const { wx, wy } = s2w(sx, sy);
-              labelDragRef.current = {
-                featureId: labelHit.featureId,
-                labelId: labelHit.labelId,
-                startWorld: { x: wx, y: wy },
-                startOffset: { ...label.offset },
-              };
-              setCursorStyle('grabbing');
-              return;
+            if (labelHit.isTextFeature) {
+              // TEXT feature — select it and start drag-to-move
+              const textFeature = drawingStore.getFeature(labelHit.featureId);
+              if (textFeature) {
+                selectionStore.select(labelHit.featureId, e.shiftKey ? 'TOGGLE' : 'REPLACE');
+                const startWorld = s2w(sx, sy);
+                const originals = new Map<string, Feature>();
+                originals.set(labelHit.featureId, JSON.parse(JSON.stringify(textFeature)));
+                dragFeatureRef.current = {
+                  featureIds: [labelHit.featureId],
+                  startWorld: { x: startWorld.wx, y: startWorld.wy },
+                  originals,
+                };
+                setCursorStyle('grabbing');
+                return;
+              }
+            } else {
+              // Regular feature text label — drag offset
+              const feature = drawingStore.getFeature(labelHit.featureId);
+              const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
+              if (feature && label) {
+                const { wx, wy } = s2w(sx, sy);
+                labelDragRef.current = {
+                  featureId: labelHit.featureId,
+                  labelId: labelHit.labelId,
+                  startWorld: { x: wx, y: wy },
+                  startOffset: { ...label.offset },
+                };
+                setCursorStyle('grabbing');
+                return;
+              }
             }
           }
 
@@ -2929,6 +3010,38 @@ export default function CanvasViewport() {
         return;
       }
 
+      // Interactive rotate/scale preview — cursor drives the transformation
+      if (interactiveOpRef.current) {
+        const op = interactiveOpRef.current;
+        const { wx: curWx, wy: curWy } = s2w(sx, sy);
+        const cursorVec = { x: curWx - op.pivot.x, y: curWy - op.pivot.y };
+
+        if (op.type === 'ROTATE') {
+          const currentAngle = Math.atan2(cursorVec.y, cursorVec.x);
+          const deltaAngle = currentAngle - op.baseAngle;
+          for (const [id, orig] of op.originals) {
+            const newF = transformFeature(orig, (p) => rotate(p, op.pivot, deltaAngle));
+            drawingStore.updateFeatureGeometry(id, newF.geometry);
+          }
+          const deg = (deltaAngle * 180) / Math.PI;
+          setInteractivePanel((prev) =>
+            prev ? { ...prev, currentAngleDeg: deg } : { type: 'ROTATE', currentAngleDeg: deg, currentFactor: 1 }
+          );
+        } else {
+          const curDist = Math.hypot(cursorVec.x, cursorVec.y);
+          const factor = op.baseDist > 0 ? curDist / op.baseDist : 1;
+          for (const [id, orig] of op.originals) {
+            const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
+            drawingStore.updateFeatureGeometry(id, newF.geometry);
+          }
+          setInteractivePanel((prev) =>
+            prev ? { ...prev, currentFactor: factor } : { type: 'SCALE', currentAngleDeg: 0, currentFactor: factor }
+          );
+        }
+        setCursorStyle('crosshair');
+        return;
+      }
+
       // Grip drag update
       if (gripDragRef.current) {
         const { featureId, vertexIndex } = gripDragRef.current;
@@ -3069,6 +3182,19 @@ export default function CanvasViewport() {
 
       // Update hover state for ALL tools — shows highlighted element under cursor
       if (!isPanningRef.current && !dragFeatureRef.current) {
+        // Check label hover first (labels render on top of features)
+        const labelHover = hitTestLabel(sx, sy);
+        const prevLabelKey = hoveredLabelKeyRef.current;
+        const newLabelKey = labelHover ? labelHover.key : null;
+        if (prevLabelKey !== newLabelKey) {
+          hoveredLabelKeyRef.current = newLabelKey;
+          // Force a re-render to update label color
+          if (pixiRef.current?.app) {
+            renderLabels();
+            renderTextFeatures();
+          }
+        }
+
         const hit = hitTest(sx, sy);
         hoveredIdRef.current = hit;
         // Update cursor style for SELECT tool
@@ -3077,6 +3203,9 @@ export default function CanvasViewport() {
             const onGrip = hit && selectionStore.selectedIds.has(hit) ? hitTestGrip(sx, sy) : null;
             if (onGrip) {
               setCursorStyle('move');
+            } else if (labelHover) {
+              // Hovering over a label: show grab cursor
+              setCursorStyle('grab');
             } else if (hit) {
               // Hovering over an element: show grab cursor to indicate it can be dragged
               setCursorStyle('grab');
@@ -3096,6 +3225,9 @@ export default function CanvasViewport() {
           if (!isPanningRef.current) setCursorStyle(cursor);
         }
       } else if (isPanningRef.current) {
+        if (hoveredLabelKeyRef.current !== null) {
+          hoveredLabelKeyRef.current = null;
+        }
         hoveredIdRef.current = null;
       }
 
@@ -3349,6 +3481,19 @@ export default function CanvasViewport() {
       }
 
       // SELECT tool (or any non-drawing tool): open feature properties dialog
+      // First check if double-clicking on a text label (bearing/distance/etc.)
+      const labelHit = hitTestLabel(sx, sy);
+      if (labelHit) {
+        if (!labelHit.isTextFeature) {
+          // It's a feature text label (bearing/distance/etc.) — open label attribute editor
+          setLabelEditState({ featureId: labelHit.featureId, labelId: labelHit.labelId, sx: e.clientX, sy: e.clientY });
+          return;
+        } else {
+          // TEXT feature — select it and open properties
+          selectionStore.select(labelHit.featureId, 'REPLACE');
+          return;
+        }
+      }
       const hit = hitTest(sx, sy);
       if (hit) {
         window.dispatchEvent(
@@ -3399,6 +3544,17 @@ export default function CanvasViewport() {
         e.preventDefault();
         isSpaceDownRef.current = true;
         setCursorStyle('grab');
+      }
+      // Cancel interactive rotate/scale on Escape
+      if (e.key === 'Escape' && interactiveOpRef.current) {
+        const dwgStore = useDrawingStore.getState();
+        for (const [id, orig] of interactiveOpRef.current.originals) {
+          dwgStore.updateFeatureGeometry(id, orig.geometry);
+        }
+        interactiveOpRef.current = null;
+        setInteractivePanel(null);
+        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        e.stopPropagation();
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -3519,6 +3675,104 @@ export default function CanvasViewport() {
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:rotate', onRotate);
     window.addEventListener('cad:scale', onScale);
+
+    // ── Interactive rotate: cursor drives rotation in real-time ────────────
+    const onStartInteractiveRotate = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { pivot?: Point2D } | undefined;
+      const selStore = useSelectionStore.getState();
+      const dwgStore = useDrawingStore.getState();
+      const ids = Array.from(selStore.selectedIds);
+      if (ids.length === 0) return;
+
+      // Compute pivot (provided or bounding-box centroid)
+      let pivot: Point2D = detail?.pivot ?? { x: 0, y: 0 };
+      if (!detail?.pivot) {
+        const allPts: Point2D[] = [];
+        for (const id of ids) {
+          const f = dwgStore.getFeature(id);
+          if (f) {
+            const g = f.geometry;
+            if (g.type === 'POINT' && g.point) allPts.push(g.point);
+            else if (g.type === 'LINE') { if (g.start) allPts.push(g.start); if (g.end) allPts.push(g.end); }
+            else if (g.vertices) allPts.push(...g.vertices);
+            else if (g.circle) allPts.push(g.circle.center);
+            else if (g.ellipse) allPts.push(g.ellipse.center);
+            else if (g.arc) allPts.push(g.arc.center);
+            else if (g.spline) allPts.push(...g.spline.controlPoints);
+            else if (g.point) allPts.push(g.point);
+          }
+        }
+        if (allPts.length > 0) {
+          const bounds = computeBounds(allPts);
+          pivot = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
+        }
+      }
+
+      // Snapshot originals
+      const originals = new Map<string, Feature>();
+      for (const id of ids) {
+        const f = dwgStore.getFeature(id);
+        if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
+      }
+
+      // Compute base angle from pivot to current cursor (world)
+      const cursorWorld = useViewportStore.getState().cursorWorld ?? pivot;
+      const baseAngle = Math.atan2(cursorWorld.y - pivot.y, cursorWorld.x - pivot.x);
+
+      interactiveOpRef.current = { type: 'ROTATE', pivot, originals, baseAngle, baseDist: 0 };
+      setInteractivePanel({ type: 'ROTATE', currentAngleDeg: 0, currentFactor: 1 });
+      setCursorStyle('crosshair');
+    };
+
+    // ── Interactive scale: cursor distance from center drives scale ─────────
+    const onStartInteractiveScale = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { pivot?: Point2D } | undefined;
+      const selStore = useSelectionStore.getState();
+      const dwgStore = useDrawingStore.getState();
+      const ids = Array.from(selStore.selectedIds);
+      if (ids.length === 0) return;
+
+      let pivot: Point2D = detail?.pivot ?? { x: 0, y: 0 };
+      if (!detail?.pivot) {
+        const allPts: Point2D[] = [];
+        for (const id of ids) {
+          const f = dwgStore.getFeature(id);
+          if (f) {
+            const g = f.geometry;
+            if (g.type === 'POINT' && g.point) allPts.push(g.point);
+            else if (g.type === 'LINE') { if (g.start) allPts.push(g.start); if (g.end) allPts.push(g.end); }
+            else if (g.vertices) allPts.push(...g.vertices);
+            else if (g.circle) allPts.push(g.circle.center);
+            else if (g.ellipse) allPts.push(g.ellipse.center);
+            else if (g.arc) allPts.push(g.arc.center);
+            else if (g.spline) allPts.push(...g.spline.controlPoints);
+            else if (g.point) allPts.push(g.point);
+          }
+        }
+        if (allPts.length > 0) {
+          const bounds = computeBounds(allPts);
+          pivot = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
+        }
+      }
+
+      const originals = new Map<string, Feature>();
+      for (const id of ids) {
+        const f = dwgStore.getFeature(id);
+        if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
+      }
+
+      // Base distance = distance from pivot to current cursor (world)
+      const cursorWorld = useViewportStore.getState().cursorWorld ?? pivot;
+      const baseDist = Math.hypot(cursorWorld.x - pivot.x, cursorWorld.y - pivot.y);
+
+      interactiveOpRef.current = { type: 'SCALE', pivot, originals, baseAngle: 0, baseDist: Math.max(baseDist, 0.001) };
+      setInteractivePanel({ type: 'SCALE', currentAngleDeg: 0, currentFactor: 1 });
+      setCursorStyle('crosshair');
+    };
+
+    window.addEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
+    window.addEventListener('cad:startInteractiveScale', onStartInteractiveScale);
+
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -3526,6 +3780,8 @@ export default function CanvasViewport() {
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
+      window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
+      window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolStore]);
@@ -3591,6 +3847,74 @@ export default function CanvasViewport() {
   }, []);
 
   // ─────────────────────────────────────────────
+  // Interactive op: cancel (restore originals) / commit (push undo) / preview (apply typed value)
+  // These are passed as callbacks to InteractiveOpPanel.
+  // ─────────────────────────────────────────────
+  function cancelInteractiveOp() {
+    const op = interactiveOpRef.current;
+    if (!op) return;
+    for (const [id, orig] of op.originals) {
+      drawingStore.updateFeatureGeometry(id, orig.geometry);
+    }
+    interactiveOpRef.current = null;
+    setInteractivePanel(null);
+    setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+  }
+
+  function commitInteractiveOp(value: number) {
+    const op = interactiveOpRef.current;
+    if (!op) return;
+    // Apply the typed/final value from originals
+    if (op.type === 'ROTATE') {
+      const angleRad = (value * Math.PI) / 180;
+      for (const [id, orig] of op.originals) {
+        const newF = transformFeature(orig, (p) => rotate(p, op.pivot, angleRad));
+        drawingStore.updateFeatureGeometry(id, newF.geometry);
+      }
+    } else {
+      const factor = Math.max(0.0001, value);
+      for (const [id, orig] of op.originals) {
+        const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
+        drawingStore.updateFeatureGeometry(id, newF.geometry);
+      }
+    }
+    // Collect undo ops
+    const ops = [...op.originals.entries()]
+      .map(([id, orig]) => {
+        const after = drawingStore.getFeature(id);
+        return after ? { type: 'MODIFY_FEATURE' as const, data: { id, before: orig, after } } : null;
+      })
+      .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
+    if (ops.length > 0) {
+      const label = op.type === 'ROTATE'
+        ? `Rotate ${value.toFixed(1)}°`
+        : `Scale ×${value.toFixed(3)}`;
+      undoStore.pushUndo(makeBatchEntry(label, ops));
+    }
+    interactiveOpRef.current = null;
+    setInteractivePanel(null);
+    setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+  }
+
+  function previewInteractiveOp(value: number) {
+    const op = interactiveOpRef.current;
+    if (!op) return;
+    if (op.type === 'ROTATE') {
+      const angleRad = (value * Math.PI) / 180;
+      for (const [id, orig] of op.originals) {
+        const newF = transformFeature(orig, (p) => rotate(p, op.pivot, angleRad));
+        drawingStore.updateFeatureGeometry(id, newF.geometry);
+      }
+    } else {
+      const factor = Math.max(0.0001, value);
+      for (const [id, orig] of op.originals) {
+        const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
+        drawingStore.updateFeatureGeometry(id, newF.geometry);
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────
   // Right-click / context menu handler
   // ─────────────────────────────────────────────
   const handleContextMenu = useCallback(
@@ -3602,6 +3926,12 @@ export default function CanvasViewport() {
       const { wx, wy } = s2w(sx, sy);
       const toolState = toolStore.state;
       const { activeTool } = toolState;
+
+      // Right-click during an interactive op: cancel the op, do not open context menu
+      if (interactiveOpRef.current) {
+        cancelInteractiveOp();
+        return;
+      }
 
       // Right-click during polyline drawing: finish if we have at least 1 committed segment
       // (drawingPoints.length >= 2 means: start point + at least 1 more = at least 1 segment)
@@ -3767,6 +4097,20 @@ export default function CanvasViewport() {
         </div>
       )}
 
+      {/* Interactive Rotate / Scale dialogue panel */}
+      {interactivePanel && interactiveOpRef.current && (
+        <InteractiveOpPanel
+          type={interactivePanel.type}
+          currentAngleDeg={interactivePanel.currentAngleDeg}
+          currentFactor={interactivePanel.currentFactor}
+          originals={interactiveOpRef.current.originals}
+          displayPrefs={drawingStore.document.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES}
+          onCommit={commitInteractiveOp}
+          onCancel={cancelInteractiveOp}
+          onPreview={previewInteractiveOp}
+        />
+      )}
+
       {/* Rich right-click context menu */}
       {contextMenu && (
         <FeatureContextMenu
@@ -3783,12 +4127,13 @@ export default function CanvasViewport() {
       {textInputState && (
         <div
           className="fixed z-50"
-          style={{ left: textInputState.sx + 4, top: textInputState.sy - 16 }}
+          style={{ left: textInputState.sx + 4, top: textInputState.sy - 20 }}
         >
           <input
             autoFocus
-            className="bg-white border-2 border-blue-500 text-black text-sm px-1 py-0.5 outline-none shadow-lg min-w-[120px]"
-            placeholder="Type text…"
+            className="bg-gray-900 border-2 border-blue-400 text-white text-sm px-2 py-1 outline-none shadow-2xl min-w-[160px] rounded font-sans"
+            style={{ caretColor: '#60a5fa' }}
+            placeholder="Type text here…"
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === 'Escape') {
                 if (e.key === 'Enter') {
@@ -3807,9 +4152,105 @@ export default function CanvasViewport() {
               setTextInputState(null);
             }}
           />
-          <div className="text-[9px] text-gray-500 mt-0.5">Enter to place · Esc to cancel</div>
+          <div className="text-[9px] text-gray-400 mt-0.5 px-0.5">Enter to place · Esc to cancel</div>
         </div>
       )}
+
+      {/* Label attribute editor (double-click on bearing/distance label) */}
+      {labelEditState && (() => {
+        const { featureId, labelId } = labelEditState;
+        const feature = drawingStore.getFeature(featureId);
+        const label = feature?.textLabels?.find((l) => l.id === labelId);
+        if (!feature || !label) { setLabelEditState(null); return null; }
+        return (
+          <div
+            className="fixed z-50 bg-gray-900 border border-blue-400 rounded-lg shadow-2xl p-3 w-64"
+            style={{ left: Math.min(labelEditState.sx, (typeof window !== 'undefined' ? window.innerWidth : 800) - 270), top: labelEditState.sy + 8 }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-blue-300 uppercase tracking-wider">
+                {label.kind === 'BEARING' ? 'Bearing' : label.kind === 'DISTANCE' ? 'Distance' : label.kind} Label
+              </span>
+              <button
+                className="text-gray-500 hover:text-white text-xs p-0.5 rounded"
+                onClick={() => setLabelEditState(null)}
+              >✕</button>
+            </div>
+            <div className="text-[10px] text-gray-400 font-mono mb-2 truncate">{label.text}</div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 text-[10px] shrink-0">Font Size (pt)</span>
+                <input
+                  type="number" min={4} max={144} step={1}
+                  className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-xs outline-none border border-gray-600 focus:border-blue-500"
+                  value={label.style.fontSize}
+                  onChange={(e) => {
+                    const v = Math.max(4, Math.min(144, parseInt(e.target.value) || 10));
+                    drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontSize: v } });
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 text-[10px] shrink-0">Scale</span>
+                <input
+                  type="number" min={0.1} max={10} step={0.1}
+                  className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-xs outline-none border border-gray-600 focus:border-blue-500"
+                  value={Number(label.scale.toFixed(2))}
+                  onChange={(e) => {
+                    const v = Math.max(0.1, Math.min(10, parseFloat(e.target.value) || 1));
+                    drawingStore.updateTextLabel(featureId, labelId, { scale: v });
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 text-[10px] shrink-0">Rotation (°)</span>
+                <input
+                  type="number" min={-360} max={360} step={1}
+                  className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-xs outline-none border border-gray-600 focus:border-blue-500"
+                  value={label.rotation !== null ? Math.round((label.rotation * 180) / Math.PI) : ''}
+                  placeholder="auto"
+                  onChange={(e) => {
+                    const raw = e.target.value.trim();
+                    const rotation = raw === '' ? null : (parseFloat(raw) * Math.PI) / 180;
+                    drawingStore.updateTextLabel(featureId, labelId, { rotation });
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 text-[10px] shrink-0">Font</span>
+                <select
+                  className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
+                  value={label.style.fontFamily}
+                  onChange={(e) => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontFamily: e.target.value } })}
+                >
+                  <option value="Arial">Arial</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Courier New">Courier New</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Verdana">Verdana</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className={`px-2 py-0.5 text-[10px] rounded border ${label.style.fontWeight === 'bold' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                  onClick={() => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontWeight: label.style.fontWeight === 'bold' ? 'normal' : 'bold' } })}
+                >B</button>
+                <button
+                  className={`px-2 py-0.5 text-[10px] rounded border italic ${label.style.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                  onClick={() => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontStyle: label.style.fontStyle === 'italic' ? 'normal' : 'italic' } })}
+                >I</button>
+                {label.userPositioned && (
+                  <button
+                    className="ml-auto px-2 py-0.5 text-[9px] rounded border border-gray-600 bg-gray-700 text-gray-400 hover:text-white hover:bg-gray-600"
+                    onClick={() => drawingStore.updateTextLabel(featureId, labelId, { userPositioned: false })}
+                  >Reset Pos</button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Drawing-mode mini-menu (shown on right-click during DRAW_POLYGON) */}
       {drawingMenu && (
