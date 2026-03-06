@@ -1,9 +1,9 @@
 'use client';
 // app/admin/cad/components/TitleBlockPanel.tsx
-// Panel for configuring the survey title block (north arrow + info box + signature line).
+// Panel for configuring the survey title block (north arrow + info box + signature line + scale bar).
 
 import { useState } from 'react';
-import { X, ChevronDown, ChevronUp, Eye, EyeOff, Compass, FileText, PenLine } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, Eye, EyeOff, Compass, FileText, PenLine, Ruler } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import type { NorthArrowStyle, InfoBoxStyle } from '@/lib/cad/types';
 
@@ -13,10 +13,11 @@ interface Props {
 }
 
 const NORTH_ARROW_STYLES: { value: NorthArrowStyle; label: string; desc: string }[] = [
-  { value: 'SIMPLE',       label: 'Simple',       desc: 'Single needle arrow with N label' },
-  { value: 'DETAILED',     label: 'Detailed',     desc: 'Double-headed arrow with styled N (default)' },
-  { value: 'TRADITIONAL',  label: 'Traditional',  desc: 'Classic surveying north arrow' },
-  { value: 'COMPASS_ROSE', label: 'Compass Rose', desc: 'Full N/S/E/W rose graphic' },
+  { value: 'STARR',        label: 'STARR ★',      desc: '8-pointed star compass (STARR style)' },
+  { value: 'SIMPLE',       label: 'Simple',        desc: 'Single needle arrow with N label' },
+  { value: 'DETAILED',     label: 'Detailed',      desc: 'Double-headed arrow with styled N' },
+  { value: 'TRADITIONAL',  label: 'Traditional',   desc: 'Classic surveying north arrow' },
+  { value: 'COMPASS_ROSE', label: 'Compass Rose',  desc: 'Full N/S/E/W rose graphic' },
 ];
 
 const INFO_BOX_STYLES: { value: InfoBoxStyle; label: string; desc: string }[] = [
@@ -63,7 +64,7 @@ export default function TitleBlockPanel({ open, onClose }: Props) {
   const drawingStore = useDrawingStore();
   const tb = drawingStore.document.settings.titleBlock;
   const [showNorthArrow, setShowNorthArrow] = useState(true);
-  const [showInfoBox, setShowInfoBox]       = useState(true);
+  const [showScaleBarSection, setShowScaleBarSection]   = useState(true);
   const [showMetaFields, setShowMetaFields] = useState(true);
 
   if (!open) return null;
@@ -133,35 +134,48 @@ export default function TitleBlockPanel({ open, onClose }: Props) {
                 />
               </FieldRow>
               <p className="text-xs text-gray-500 leading-relaxed">
-                The north arrow always points to true north and compensates automatically for any drawing rotation.
+                The north arrow is placed in the top-right of the page. Hover &amp; drag to reposition it.
               </p>
             </div>
           )}
         </div>
 
-        {/* Info Box */}
+        {/* Graphic Scale Bar */}
         <div className="space-y-2">
           <SectionHeader
-            icon={<FileText size={13} className="text-blue-400" />}
-            title="Info Box"
-            open={showInfoBox}
-            onToggle={() => setShowInfoBox((v) => !v)}
+            icon={<Ruler size={13} className="text-blue-400" />}
+            title="Graphic Scale Bar"
+            open={showScaleBarSection}
+            onToggle={() => setShowScaleBarSection((v) => !v)}
           />
-          {showInfoBox && (
+          {showScaleBarSection && (
             <div className="pl-1 space-y-2">
-              <FieldRow label="Layout">
-                <select
-                  value={tb.infoBoxStyle}
-                  onChange={(e) => update({ infoBoxStyle: e.target.value as InfoBoxStyle })}
-                  className={inputCls}
+              <FieldRow label="Show bar">
+                <button
+                  onClick={() => update({ scaleBarVisible: !(tb.scaleBarVisible ?? true) })}
+                  className={`w-full text-left px-2 py-1 rounded text-xs border transition-colors ${
+                    (tb.scaleBarVisible ?? true)
+                      ? 'bg-blue-600/20 border-blue-500 text-blue-300'
+                      : 'bg-gray-700 border-gray-600 text-gray-400'
+                  }`}
                 >
-                  {INFO_BOX_STYLES.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
+                  {(tb.scaleBarVisible ?? true) ? 'Visible' : 'Hidden'}
+                </button>
               </FieldRow>
+              <FieldRow label="Length (inches)">
+                <input
+                  type="number"
+                  min={0.5}
+                  max={6}
+                  step={0.25}
+                  value={tb.scaleBarLengthIn ?? 2.0}
+                  onChange={(e) => update({ scaleBarLengthIn: parseFloat(e.target.value) || 2.0 })}
+                  className={inputCls}
+                />
+              </FieldRow>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                The checkered scale bar updates automatically when the drawing scale changes. Hover &amp; drag to reposition.
+              </p>
             </div>
           )}
         </div>
@@ -217,9 +231,10 @@ export default function TitleBlockPanel({ open, onClose }: Props) {
       {/* Footer hint */}
       <div className="px-3 py-2 border-t border-gray-700 shrink-0">
         <p className="text-xs text-gray-500 leading-relaxed">
-          The title block is placed at the bottom-right of the paper and scaled for the selected paper size.
+          Hover over any title block element to highlight it, then drag to reposition. Title block and signature block are at the bottom of the page.
         </p>
       </div>
     </div>
   );
 }
+

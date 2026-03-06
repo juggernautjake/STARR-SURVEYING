@@ -79,7 +79,7 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   // Title block — populated with sensible survey defaults
   titleBlock: {
     visible: true,
-    northArrowStyle: 'DETAILED',
+    northArrowStyle: 'STARR',
     northArrowSizeIn: 1.5,
     infoBoxStyle: 'STANDARD',
     firmName: '',
@@ -93,6 +93,11 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
     sheetNumber: '1',
     totalSheets: '1',
     notes: '',
+    northArrowPos: null,
+    titleBlockPos: null,
+    scaleBarPos: null,
+    scaleBarVisible: true,
+    scaleBarLengthIn: 2.0,
   } satisfies TitleBlockConfig,
 };
 
