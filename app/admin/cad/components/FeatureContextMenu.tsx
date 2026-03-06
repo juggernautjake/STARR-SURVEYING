@@ -43,6 +43,7 @@ import {
   copyCadSelection,
 } from '@/lib/cad/operations';
 import { insertInflectionPoint, findClosestSplineParam } from '@/lib/cad/geometry/curve-render';
+import { generateId } from '@/lib/cad/types';
 
 interface Props {
   x: number;          // Screen X (clientX)
