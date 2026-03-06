@@ -13,7 +13,7 @@ import {
   makeBatchEntry,
 } from '@/lib/cad/store';
 import { findSnapPoint } from '@/lib/cad/geometry/snap';
-import { featureBounds, computeBounds } from '@/lib/cad/geometry/bounds';
+import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point';
 import { translate, rotate, mirror, scale, transformFeature } from '@/lib/cad/geometry/transform';
@@ -2475,7 +2475,7 @@ export default function CanvasViewport() {
       const selectedIds = useSelectionStore.getState().selectedIds;
       if (selectedIds.size > 0) {
         const drawStore = useDrawingStore.getState();
-        const bounds = computeBounds(
+        const bounds = computeFeaturesBounds(
           Array.from(selectedIds)
             .map((id) => drawStore.getFeature(id))
             .filter(Boolean) as Feature[],
