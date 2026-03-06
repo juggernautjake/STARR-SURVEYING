@@ -380,12 +380,12 @@ export default function CommandBar() {
   };
 
   return (
-    <div className="flex items-center bg-gray-900 border-t border-gray-700 px-2 py-1 gap-2 text-xs">
+    <div className="flex items-center bg-gray-900 border-t border-gray-700 px-2 py-1 gap-2 text-xs transition-colors duration-150">
       <span className="text-gray-400 shrink-0">Command:</span>
       <form onSubmit={handleSubmit} className="flex-1">
         <input
           ref={inputRef}
-          className="w-full bg-transparent text-white outline-none placeholder-gray-600"
+          className="w-full bg-transparent text-white outline-none placeholder-gray-600 transition-colors duration-150"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onFocus={() => uiStore.setCommandBarFocused(true)}

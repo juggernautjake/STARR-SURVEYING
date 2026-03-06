@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   MousePointer2,
+  BoxSelect,
   Hand,
   Circle,
   Minus,
@@ -85,7 +86,8 @@ function buildToolGroups(
       shortcut: 'S',
       icon: <MousePointer2 size={16} />,
       variants: [
-        { tool: 'SELECT', label: 'Select (click / box)', description: 'Click a feature to select it, or drag to draw a selection box. Shift+click to add/remove from selection.', shortcut: 'S', icon: <MousePointer2 size={14} /> },
+        { tool: 'SELECT', label: 'Select (click / drag)', description: 'Click a feature to select it, drag to move it. Click empty space and drag to pan. Shift+click for box select.', shortcut: 'S', icon: <MousePointer2 size={14} /> },
+        { tool: 'BOX_SELECT', label: 'Box Select', description: 'Drag a rectangle to select features. Left-to-right = window (fully enclosed), right-to-left = crossing (any overlap). Respects box select preferences.', shortcut: 'B', icon: <BoxSelect size={14} /> },
       ],
     },
     {
@@ -413,10 +415,10 @@ function VariantFlyout({ group, activeTool, onSelect, onClose, anchorY }: Flyout
 
   return (
     <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/10 animate-[fadeIn_150ms_ease-out]" onClick={onClose} />
       <div
         ref={flyoutRef}
-        className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl py-1 min-w-[260px] max-w-[340px]"
+        className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl py-1 min-w-[260px] max-w-[340px] animate-[slideInLeft_150ms_ease-out]"
         style={{ left: flyoutLeft, top: Math.max(4, top) }}
       >
         {/* Group label header */}
@@ -429,8 +431,8 @@ function VariantFlyout({ group, activeTool, onSelect, onClose, anchorY }: Flyout
           return (
             <div key={idx}>
               <button
-                className={`w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors gap-2
-                  ${isCurrent ? 'bg-blue-600/20 text-blue-300' : 'hover:bg-gray-700 text-gray-200'}`}
+                className={`w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-all duration-150 gap-2
+                  ${isCurrent ? 'bg-blue-600/20 text-blue-300' : 'hover:bg-gray-700 text-gray-200 hover:pl-4'}`}
                 onClick={() => {
                   onSelect(v);
                   onClose();
@@ -575,10 +577,10 @@ export default function ToolBar() {
                   e.preventDefault();
                   if (hasVariants) openFlyout(group, e.currentTarget);
                 }}
-                className={`w-9 h-9 flex items-center justify-center rounded transition-colors relative
+                className={`w-9 h-9 flex items-center justify-center rounded transition-all duration-150 relative
                   ${isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`}
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30 scale-105'
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white hover:scale-110 active:scale-95'}`}
               >
                 {getGroupIcon(group)}
                 {/* Small triangle indicator: bottom-right corner marks tools with variants */}

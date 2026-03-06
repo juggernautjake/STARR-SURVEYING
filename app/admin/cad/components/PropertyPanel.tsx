@@ -139,7 +139,7 @@ export default function PropertyPanel() {
         <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700">
           Properties
         </div>
-        <div className="flex-1 flex items-center justify-center text-gray-600 text-[10px] text-center px-2">
+        <div className="flex-1 flex items-center justify-center text-gray-600 text-[10px] text-center px-2 animate-[fadeIn_200ms_ease-out]">
           No selection.
           <br />Select features to edit.
         </div>
@@ -154,7 +154,7 @@ export default function PropertyPanel() {
         <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700">
           Properties
         </div>
-        <div className="p-2 space-y-2">
+        <div className="p-2 space-y-2 animate-[fadeIn_150ms_ease-out]">
           <div className="text-gray-400">{features.length} objects selected</div>
           <div className="text-gray-500 text-[10px]">
             {features.map((f) => f.type).join(', ')}
@@ -191,7 +191,7 @@ export default function PropertyPanel() {
         Properties
       </div>
 
-      <div className="p-2 space-y-3 flex-1 overflow-y-auto">
+      <div className="p-2 space-y-3 flex-1 overflow-y-auto animate-[fadeIn_150ms_ease-out]">
         {/* Type */}
         <div className="space-y-1">
           <div className="text-gray-500 text-[10px] uppercase tracking-wider">Object</div>

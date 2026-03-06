@@ -106,11 +106,52 @@ export interface DrawingSettings {
   gridMajorColor: string;  // Hex, default '#c8c8c8'
   gridMinorColor: string;  // Hex, default '#e8e8e8'
 
+  // Selection behavior for grouped elements (polylines, polygon groups)
+  // 'GROUP_FIRST' = first click selects entire group, then click again to select individual segment
+  // 'ELEMENT_FIRST' = first click selects individual segment, right-click > "Select Group" for whole group
+  groupSelectMode: 'GROUP_FIRST' | 'ELEMENT_FIRST';
+
+  // Box selection (rectangle drag) behavior:
+  // 'CROSSING_EXPAND_GROUPS' = any overlap selects, and expands to full polyline/polygon groups
+  // 'CROSSING_INDIVIDUAL' = any overlap selects individual elements only (no group expansion)
+  // 'WINDOW_FULL_ONLY' = only elements/groups fully enclosed in the rectangle are selected
+  boxSelectMode: 'CROSSING_EXPAND_GROUPS' | 'CROSSING_INDIVIDUAL' | 'WINDOW_FULL_ONLY';
+
   // Paper
   paperSize: 'LETTER' | 'TABLOID' | 'ARCH_C' | 'ARCH_D' | 'ARCH_E';
   paperOrientation: 'PORTRAIT' | 'LANDSCAPE';
   drawingScale: number; // e.g., 50 for 1"=50'
   codeDisplayMode: 'ALPHA' | 'NUMERIC';
+
+  // Interaction & Viewport
+  zoomSpeed: number;           // Multiplier for scroll zoom (0.5=slow, 1.0=default, 2.0=fast)
+  zoomTowardCursor: boolean;   // true = zoom centers on cursor, false = zoom centers on viewport center
+  invertScrollZoom: boolean;   // true = scroll up zooms out (inverted), false = scroll up zooms in (natural)
+  panSpeed: number;            // Multiplier for pan sensitivity (0.5=slow, 1.0=default, 2.0=fast)
+  dragThreshold: number;       // Pixels of movement before a click becomes a drag (default: 5)
+
+  // Grip & Handle appearance
+  gripSize: number;            // Size of selection grip squares in pixels (3–12, default: 6)
+  gripColor: string;           // Grip square color, default matches selectionColor
+  gripFillColor: string;       // Grip square fill color (default: '#ffffff')
+
+  // Hover & highlight
+  hoverGlowEnabled: boolean;   // Show multi-layer glow on hover (default: true)
+  hoverGlowIntensity: number;  // Glow intensity multiplier 0.5–2.0 (default: 1.0)
+  selectionLineWidth: number;  // Width of selection outline in pixels (default: 1.5)
+
+  // Labels & annotations display
+  showPointLabels: boolean;    // Show labels on point features (default: true)
+  showLineLabels: boolean;     // Show bearing/distance labels on lines (default: true)
+  showDimensions: boolean;     // Show dimension annotations (default: true)
+
+  // Cursor
+  cursorCrosshairSize: number; // Size of crosshair cursor in pixels (16–48, default: 24)
+  showCursorCoordinates: boolean; // Show coordinate readout near cursor (default: false)
+
+  // Auto-save
+  autoSaveEnabled: boolean;    // Enable periodic auto-save (default: true)
+  autoSaveIntervalSec: number; // Seconds between auto-saves (30–600, default: 120)
 
   // User display preferences (units, bearings, coordinates)
   displayPreferences: DisplayPreferences;
@@ -202,6 +243,7 @@ export type BoxSelectMode = 'WINDOW' | 'CROSSING';
 
 export type ToolType =
   | 'SELECT'
+  | 'BOX_SELECT'
   | 'PAN'
   | 'DRAW_POINT'
   | 'DRAW_LINE'

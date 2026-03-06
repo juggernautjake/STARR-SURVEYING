@@ -224,7 +224,7 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
   return (
     <div
       ref={dialogRef}
-      className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl text-xs text-gray-200 select-none"
+      className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl text-xs text-gray-200 select-none animate-[scaleIn_150ms_cubic-bezier(0.16,1,0.3,1)]"
       style={{ left: pos.x, top: pos.y, width: DIALOG_WIDTH, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
       onClick={(e) => e.stopPropagation()}
     >

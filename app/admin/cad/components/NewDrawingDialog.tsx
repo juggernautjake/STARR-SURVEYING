@@ -69,8 +69,8 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg text-sm text-gray-200">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 animate-[fadeIn_150ms_ease-out]">
+      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg text-sm text-gray-200 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-gray-700">
           <h1 className="text-xl font-bold text-white">STARR CAD</h1>

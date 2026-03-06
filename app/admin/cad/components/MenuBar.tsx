@@ -274,7 +274,7 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
 
           {openMenu === menu.label && (
             <div
-              className="absolute top-full left-0 z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[200px]"
+              className="absolute top-full left-0 z-50 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[200px] animate-[slideInDown_150ms_cubic-bezier(0.16,1,0.3,1)]"
               onMouseLeave={() => setOpenMenu(null)}
             >
               {menu.items.map((item, idx) =>
@@ -283,10 +283,10 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
                 ) : (
                   <button
                     key={idx}
-                    className={`w-full flex items-center justify-between px-3 py-1 text-left ${
+                    className={`w-full flex items-center justify-between px-3 py-1.5 text-left transition-colors duration-100 ${
                       (item as MenuItem).disabled
                         ? 'opacity-40 cursor-default'
-                        : 'hover:bg-gray-700'
+                        : 'hover:bg-gray-700 hover:text-white'
                     }`}
                     disabled={(item as MenuItem).disabled}
                     onClick={() => {
@@ -310,7 +310,7 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
 
       {/* Dirty indicator */}
       {drawingStore.isDirty && (
-        <span className="ml-2 text-yellow-400 text-[10px]">● unsaved</span>
+        <span className="ml-2 text-yellow-400 text-[10px] animate-[fadeIn_300ms_ease-out]">● unsaved</span>
       )}
 
       {/* Document name — click to rename */}
@@ -342,16 +342,16 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
       {/* Close overlay */}
       {openMenu && (
         <div
-          className="fixed inset-0 z-40"
+          className="fixed inset-0 z-40 animate-[fadeIn_100ms_ease-out]"
           onClick={() => setOpenMenu(null)}
         />
       )}
 
       {/* Keyboard Shortcuts modal */}
       {showShortcuts && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowShortcuts(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out]" onClick={() => setShowShortcuts(false)}>
           <div
-            className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-6 max-w-lg w-full mx-4 text-xs text-gray-200"
+            className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-6 max-w-lg w-full mx-4 text-xs text-gray-200 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">

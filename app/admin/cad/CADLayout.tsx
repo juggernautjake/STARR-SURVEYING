@@ -183,8 +183,8 @@ export default function CADLayout() {
     <div className="flex flex-col h-screen w-full overflow-hidden bg-white select-none">
       {/* Crash-recovery dialog — offered when an autosave newer than current document is found */}
       {recoveryPayload && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70">
-          <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-5 max-w-md w-full text-sm text-gray-200 space-y-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 animate-[fadeIn_150ms_ease-out]">
+          <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl p-5 max-w-md w-full text-sm text-gray-200 space-y-4 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
             <h2 className="text-white font-semibold text-base">Recover Unsaved Drawing?</h2>
             <p className="text-gray-400 text-xs leading-relaxed">
               An auto-saved version from{' '}
@@ -225,7 +225,7 @@ export default function CADLayout() {
 
       {/* Auto-save failure warning */}
       {autoSaveFailed && (
-        <div className="bg-yellow-500 text-black text-xs px-3 py-1 flex justify-between items-center">
+        <div className="bg-yellow-500 text-black text-xs px-3 py-1 flex justify-between items-center animate-[slideInDown_200ms_cubic-bezier(0.16,1,0.3,1)]">
           <span>⚠️ Auto-save failed. Please save manually with Ctrl+S.</span>
           <button onClick={() => setAutoSaveFailed(false)} className="ml-4 font-bold">✕</button>
         </div>
@@ -266,7 +266,7 @@ export default function CADLayout() {
 
         {/* Layer panel (toggleable) */}
         {showLayerPanel && (
-          <div className="flex flex-col bg-gray-800 border-r border-gray-700 w-48">
+          <div className="flex flex-col bg-gray-800 border-r border-gray-700 w-48 cad-slide-left">
             <LayerPanel />
           </div>
         )}
@@ -285,7 +285,7 @@ export default function CADLayout() {
 
         {/* Right sidebar: property panel + traverse panel (toggleable) */}
         {(showPropertyPanel || showTraversePanel) && (
-          <div className="flex flex-col bg-gray-800 border-l border-gray-700 w-48 flex-shrink-0">
+          <div className="flex flex-col bg-gray-800 border-l border-gray-700 w-48 flex-shrink-0 cad-slide-right">
             {showPropertyPanel && <PropertyPanel />}
             {showTraversePanel && (
               <div className="flex-1 overflow-hidden">
@@ -299,7 +299,7 @@ export default function CADLayout() {
       {/* Bottom area: command bar + optional point table + status bar */}
       <CommandBar />
       {showPointTable && (
-        <div className="h-48 border-t border-gray-700 shrink-0">
+        <div className="h-48 border-t border-gray-700 shrink-0 animate-[slideInUp_200ms_cubic-bezier(0.16,1,0.3,1)]">
           <PointTablePanel
             codeDisplayMode={drawingStore.document.settings.codeDisplayMode ?? 'ALPHA'}
             onCodeDisplayModeChange={(mode) => drawingStore.updateSettings({ codeDisplayMode: mode })}

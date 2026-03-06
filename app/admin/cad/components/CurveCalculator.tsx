@@ -109,8 +109,8 @@ export default function CurveCalculator({ onClose, onPlace }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-lg shadow-xl w-[700px] max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-[fadeIn_150ms_ease-out]">
+      <div className="bg-white rounded-lg shadow-xl w-[700px] max-h-[90vh] overflow-y-auto animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-semibold">Curve Calculator</h2>
