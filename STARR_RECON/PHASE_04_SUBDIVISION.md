@@ -3,7 +3,7 @@
 **Starr Software — AI Property Research Pipeline**
 **Phase Duration:** Weeks 10–12
 **Depends On:** Phase 1 (PropertyIdentity), Phase 2 (HarvestedDocuments), Phase 3 (PropertyIntelligence with lot data, AI extraction)
-**Status:** ✅ COMPLETE v1.1 — All bugs fixed, traverse closure added, full test coverage, Phase 5 scaffold ready
+**Status:** ✅ COMPLETE v1.2 — All bugs fixed, perimeter closure added, HTTP error handling improved, 80 unit tests pass
 **Last Updated:** March 2026
 
 ---
@@ -17,6 +17,30 @@ When a property is part of a subdivision, research the ENTIRE subdivision — ev
 A `SubdivisionIntelligenceEngine` that takes Phase 3 output and returns a `SubdivisionModel` with every lot's metes and bounds, every interior division line, every common element, and a subdivision-wide analysis.
 
 **Output file:** `subdivision_model.json`
+
+---
+
+## Changelog (v1.2 — March 2026)
+
+### Bug Fixes & Robustness
+- **`subdivision-ai-analysis.ts`**: Added HTTP response status check — if Anthropic API returns 4xx/5xx, returns `emptyResult()` with the error message instead of crashing. Added `try/catch` around the `fetch()` call for network errors.
+- **`adjacency-builder.ts`**: Same HTTP status guard as above — network errors and API errors now return `{ lots, adjacencies: {} }` gracefully instead of throwing.
+- **`subdivision-intelligence.ts`**: Fixed unsafe `as RestrictiveCovenants['source']` cast — source is now validated against the known union values and falls back to `'plat_notes'` if the input contains an unexpected string.
+- **`subdivision-intelligence.ts`**: Added input validation — `analyze()` now returns a `failed` model immediately if `projectId` or `intelligencePath` is empty.
+- **`subdivision-classifier.ts`**: Amendment search now logs a warning when individual search terms fail, and logs a summary count at completion.
+
+### New Features
+- **Perimeter Closure Computation**: `SubdivisionIntelligenceEngine.analyze()` now computes traverse closure for the subdivision perimeter (using `TraverseComputation`) and populates `model.subdivision.perimeter.closure`. Poor perimeter closure is added to `errors[]`. Previously this field was always `null`.
+
+### Tests (v1.2)
+- **`__tests__/recon/phase4-subdivision.test.ts`**: Expanded from 57 to **80 unit tests**:
+  - TraverseComputation (7 tests): perfect rectangle, skipped calls, curve chord bearing, zero-traverse ratio, poor closure, compass rule application, zero-error skip
+  - Perimeter closure (2 tests): closure computed from platAnalysis.perimeter, null when <3 calls
+  - Error handling (2 tests): empty projectId → failed model, invalid JSON → failed model
+  - SubdivisionClassifier (1 test): LOT-after-name format detection
+  - reconcileAreas edge cases (3 tests): zero stated area, sqft-over-acreage priority, common_area type
+  - Reserve purpose classification (6 tests): drainage, utility, open_space, access, common_area, default
+  - restrictiveCovenants source sanitization (2 tests): invalid → plat_notes, valid preserved
 
 ---
 
@@ -46,21 +70,13 @@ A `SubdivisionIntelligenceEngine` that takes Phase 3 output and returns a `Subdi
 - **`worker/src/index.ts`**: Added `POST /research/adjacent` and `GET /research/adjacent/:projectId` endpoints.
 - **`worker/adjacent.sh`**: CLI script for Phase 5.
 
-### Tests
-- **`__tests__/recon/phase4-subdivision.test.ts`**: 57 unit tests covering all Phase 4 services:
-  - SubdivisionClassifier (9 tests): all 9 classification types, minor plat, phased development, standalone tract
-  - InteriorLineAnalyzer (11 tests): bearing parsing, reversal, tolerance matching, discrepancy detection
-  - reconcileAreas (5 tests): sum, discrepancy, excellent threshold, source classification
-  - AdjacencyBuilder (2 tests): neighbor graph, empty case
-  - SubdivisionIntelligenceEngine (30 tests): lot enumeration, traverse closure, reserve inference, buildable area, shape classification, perimeter computation, standalone tract failure mode
-
 ---
 
 ## Current State of the Codebase
 
-**Phase Status: ✅ COMPLETE v1.1**
+**Phase Status: ✅ COMPLETE v1.2**
 
-All Phase 4 code has been implemented, bug-fixed, and tested. The following files exist and are production-ready:
+All Phase 4 code has been implemented, bug-fixed, hardened, and tested. The following files exist and are production-ready:
 
 ### Implemented Files
 
@@ -73,6 +89,8 @@ All Phase 4 code has been implemented, bug-fixed, and tested. The following file
 | `worker/src/services/interior-line-analyzer.ts` | `InteriorLineAnalyzer` — verifies shared interior boundary calls | ✅ Complete |
 | `worker/src/services/area-reconciliation.ts` | Area reconciliation (lot sum vs. total subdivision area) | ✅ Complete |
 | `worker/src/services/adjacency-builder.ts` | `AdjacencyBuilder` — builds lot adjacency matrix (used by Phase 5) | ✅ Complete |
+| `worker/src/services/traverse-closure.ts` | `TraverseComputation` — traverse closure + Compass Rule (Bowditch) | ✅ Complete |
+| `worker/src/services/lot-confidence-scorer.ts` | `LotConfidenceScorer` — per-lot and boundary-side confidence scoring | ✅ Complete (used by Phase 8) |
 | `worker/src/types/subdivision.ts` | Phase 4 TypeScript types (`SubdivisionModel`, `LotData`, etc.) | ✅ Complete |
 | `worker/subdivision.sh` | CLI wrapper for Phase 4 | ✅ Complete |
 
@@ -526,3 +544,30 @@ const engine = new SubdivisionIntelligenceEngine({
 ```
 
 Without adapters, the engine falls back to plat-only data from Phase 3.
+
+---
+
+## 4.14 Known Limitations & Outstanding TODOs
+
+### ⚠️ Requires External Configuration
+
+| Requirement | Details | Status |
+|-------------|---------|--------|
+| `ANTHROPIC_API_KEY` | Required for AI holistic analysis (`SubdivisionAIAnalysis`) and AI adjacency matrix (`AdjacencyBuilder.buildFromAI`). Without it, these steps are silently skipped and the model still completes with non-AI data. | ⚠️ Must be set in `.env` |
+| `WORKER_API_KEY` | Required for the HTTP API endpoints (`POST /research/subdivision`, `GET /research/subdivision/:projectId`). | ⚠️ Must be set in `.env` |
+| CAD Adapter | `LotEnumerator` requires a live CAD adapter (HCAD/TAD) for full lot cross-referencing. Without it, only plat-extracted lots are enumerated. | ℹ️ Optional but improves completeness |
+| Clerk Adapter | `SubdivisionClassifier.searchForAmendments` requires a live Clerk adapter (Kofile/CountyFusion/Tyler). Without it, plat amendment chain is empty. | ℹ️ Optional but important for replat detection |
+
+### 🔧 Heuristic / Approximate Computations
+
+- **`estimateLotGeometry()` depth estimation**: Uses the longest boundary call as an approximation of lot depth. For wide rectangular lots where frontage is the longest call, depth may be overestimated. This is a known trade-off. Exact geometry requires coordinate-based computation (requires Phase 7 output or direct CAD coordinate data).
+- **`computeBuildableArea()`**: Setback envelope uses a rectangular approximation. Non-rectangular lots will have inaccurate buildable area estimates.
+- **AI Adjacency Matrix**: Only computed when both a plat image and `ANTHROPIC_API_KEY` are available. When AI is unavailable, `adjacencyMatrix` is built from interior line analysis only (no cardinal directions for non-shared lots).
+
+### 📋 Future Improvements (Not Yet Implemented)
+
+- [ ] **Plat amendment chain full download**: Currently only searches for amendment instrument numbers — does not download and re-extract amended plat images. Would require Phase 2 (clerk adapter) integration loop.
+- [ ] **Lot-level CC&R mapping**: `restrictiveCovenants.knownRestrictions` is a subdivision-wide list. Future work: map specific restrictions to specific lots (e.g., corner lot setbacks, waterfront lots).
+- [ ] **Coordinate-based geometry**: True lot area computation from boundary call coordinates (Phase 7 feeds back here). Current approach uses plat-extracted acreage values.
+- [ ] **Multi-page plat support**: `SubdivisionAIAnalysis` only sends the first plat image to Claude. Large subdivisions with multi-sheet plats need pagination logic.
+- [ ] **HOA document download**: Restrictive covenants are extracted from plat notes; actual CC&R document download and deep extraction is not yet implemented.

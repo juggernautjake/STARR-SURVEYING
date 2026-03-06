@@ -123,6 +123,14 @@ export class SubdivisionIntelligenceEngine {
     let aiCalls = 0;
     const errors: string[] = [];
 
+    // ── Input Validation ─────────────────────────────────────────────────
+    if (!projectId || projectId.trim().length === 0) {
+      return this.failedModel('projectId is required and cannot be empty', startTime);
+    }
+    if (!intelligencePath || intelligencePath.trim().length === 0) {
+      return this.failedModel('intelligencePath is required and cannot be empty', startTime);
+    }
+
     console.log(`[Subdivision] Starting analysis for ${projectId}`);
 
     // ── Load Phase 3 output ──────────────────────────────────────────────
@@ -392,13 +400,7 @@ export class SubdivisionIntelligenceEngine {
 
     // ── STEP 7: Restrictive Covenant Extraction ─────────────────────────
     console.log('[Subdivision] Step 7: Restrictive covenants...');
-
-    const restrictiveCovenants: RestrictiveCovenants = {
-      instrument: plat?.restrictiveCovenants?.instrument ?? null,
-      available: !!plat?.restrictiveCovenants?.instrument,
-      knownRestrictions: plat?.restrictiveCovenants?.knownRestrictions || [],
-      source: (plat?.restrictiveCovenants?.source as RestrictiveCovenants['source']) || 'plat_notes',
-    };
+    // Covenants are assembled at model creation after source validation (below).
 
     // ── STEP 8: Subdivision-Wide Validation ─────────────────────────────
     console.log('[Subdivision] Step 8: Validation & reconciliation...');
@@ -554,9 +556,63 @@ export class SubdivisionIntelligenceEngine {
     // ── Determine plat instrument ────────────────────────────────────────
     const platRef = prop.deedReferences.find((r) => r.type === 'plat');
 
+    // ── Compute Perimeter Closure ────────────────────────────────────────
+    console.log('[Subdivision] Computing perimeter closure...');
+    const perimeterCalls = plat?.perimeter?.calls || extraction?.calls || [];
+    let perimeterClosure: ClosureData | null = null;
+    if (perimeterCalls.length >= 3) {
+      try {
+        const perimTraverseCalls = perimeterCalls.map((c) => ({
+          callId: String(c.sequence),
+          bearing: c.bearing?.raw ?? null,
+          distance: c.distance?.value ?? null,
+          type: (c.curve ? 'curve' : 'straight') as 'straight' | 'curve',
+          curve: c.curve ? {
+            chordBearing: c.curve.chordBearing?.raw,
+            chordDistance: c.curve.chordDistance?.value,
+            arcLength: c.curve.arcLength?.value,
+          } : undefined,
+        }));
+        const perimResult = traverseEngine.computeTraverse(perimTraverseCalls);
+        perimeterClosure = {
+          errorNorthing: perimResult.errorNorthing,
+          errorEasting: perimResult.errorEasting,
+          errorDistance: perimResult.errorDistance,
+          closureRatio: perimResult.closureRatio,
+          status: perimResult.status,
+        };
+        if (perimResult.status === 'poor') {
+          errors.push(
+            `Subdivision perimeter traverse closure is poor: ${perimResult.closureRatio}. ` +
+            `Error distance: ${perimResult.errorDistance.toFixed(3)}'`,
+          );
+          console.warn(
+            `[Subdivision] WARNING: Poor perimeter closure (${perimResult.closureRatio}) — ` +
+            `error dist ${perimResult.errorDistance.toFixed(3)}'`,
+          );
+        } else {
+          console.log(
+            `[Subdivision] Perimeter closure: ${perimResult.closureRatio} (${perimResult.status})`,
+          );
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn('[Subdivision] Perimeter closure computation failed:', msg);
+        errors.push(`Perimeter closure computation failed: ${msg}`);
+      }
+    }
+
     // ── Assemble Final Model ────────────────────────────────────────────
     const totalMs = Date.now() - startTime;
     console.log(`[Subdivision] Complete: ${subdivisionLots.length} lots, ${subdivisionReserves.length} reserves in ${(totalMs / 1000).toFixed(1)}s`);
+
+    // Validate and sanitize restrictive covenants source field
+    const validCovenantSources = ['plat_notes', 'ccr_document', 'deed_restrictions', 'unknown'] as const;
+    type CovenantSource = RestrictiveCovenants['source'];
+    const rawSource = plat?.restrictiveCovenants?.source;
+    const isValidSource = (s: string | undefined | null): s is CovenantSource =>
+      validCovenantSources.includes((s ?? '') as CovenantSource);
+    const covenantSource: CovenantSource = isValidSource(rawSource) ? rawSource : 'plat_notes';
 
     const model: SubdivisionModel = {
       status: errors.length === 0 ? 'complete' : 'partial',
@@ -577,17 +633,22 @@ export class SubdivisionIntelligenceEngine {
           sqft: statedAcreage ? statedAcreage * 43560 : null,
           computed: false,
         },
-        perimeterLength: this.computePerimeterLength(plat?.perimeter?.calls || extraction?.calls || []),
+        perimeterLength: this.computePerimeterLength(perimeterCalls),
         perimeter: {
-          calls: plat?.perimeter?.calls || extraction?.calls || [],
-          closure: null,
+          calls: perimeterCalls,
+          closure: perimeterClosure,
         },
       },
 
       lots: subdivisionLots,
       reserves: subdivisionReserves,
       commonElements,
-      restrictiveCovenants,
+      restrictiveCovenants: {
+        instrument: plat?.restrictiveCovenants?.instrument ?? null,
+        available: !!plat?.restrictiveCovenants?.instrument,
+        knownRestrictions: plat?.restrictiveCovenants?.knownRestrictions || [],
+        source: covenantSource,
+      },
       lotRelationships,
       subdivisionAnalysis,
 
