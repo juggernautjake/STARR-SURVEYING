@@ -35,6 +35,9 @@ import type { ReconciliationResult } from './geo-reconcile.js';
 
 const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
 
+/** Maximum characters of the raw AI response to include in error log previews. */
+const MAX_ERROR_PREVIEW_LENGTH = 500;
+
 // ── Context analysis prompt ───────────────────────────────────────────────
 
 const CONTEXT_ANALYSIS_PROMPT = `You are a senior licensed Texas Professional Land Surveyor (RPLS) and title researcher. Analyze this property's extracted data and provide expert context.
@@ -299,7 +302,15 @@ export class AIContextAnalyzer {
     });
 
     const textBlock = response.content.find(c => c.type === 'text');
-    const raw = textBlock?.type === 'text' ? textBlock.text : '{}';
+    // Log a warning if the model returned no text block (e.g. stop_reason=tool_use)
+    if (!textBlock || textBlock.type !== 'text') {
+      this.logger.warn(
+        'AIContextAnalyzer',
+        `AI returned no text block (stop_reason: ${response.stop_reason ?? 'unknown'}) — using fallback values`,
+      );
+      return this.fallbackContextResult();
+    }
+    const raw = textBlock.text;
 
     // Strip markdown fences
     const cleaned = raw
@@ -311,8 +322,13 @@ export class AIContextAnalyzer {
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(cleaned) as Record<string, unknown>;
-    } catch {
-      this.logger.warn('AIContextAnalyzer', 'AI response JSON parse error — using fallback values');
+    } catch (parseErr) {
+      // Log the raw response (truncated) for troubleshooting
+      const preview = cleaned.length > MAX_ERROR_PREVIEW_LENGTH ? `${cleaned.slice(0, MAX_ERROR_PREVIEW_LENGTH)}…` : cleaned;
+      this.logger.warn(
+        'AIContextAnalyzer',
+        `AI response JSON parse error (${parseErr instanceof Error ? parseErr.message : String(parseErr)}) — using fallback values. Raw preview: ${preview}`,
+      );
       return this.fallbackContextResult();
     }
 

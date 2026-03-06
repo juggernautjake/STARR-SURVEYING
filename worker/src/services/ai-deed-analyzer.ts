@@ -279,8 +279,12 @@ export class AIDeedAnalyzer {
           // Fill in any newly computed params (guard guarantees non-null before assignment)
           if (!curveData.arcLength    && completed.params.arcLength_ft !== null) curveData.arcLength    = completed.params.arcLength_ft;
           if (!curveData.chordDistance && completed.params.chord_ft     !== null) curveData.chordDistance = completed.params.chord_ft;
-        } catch {
-          // completeBoundaryCallCurve failures are non-fatal
+        } catch (curveErr) {
+          // completeBoundaryCallCurve failures are non-fatal but worth noting for debugging
+          this.logger.warn(
+            'AIDeedAnalyzer',
+            `Curve completion failed for sequence ${call.sequence}: ${curveErr instanceof Error ? curveErr.message : String(curveErr)}`,
+          );
         }
 
         const arcL = curveData.arcLength ?? 0;
