@@ -951,7 +951,12 @@ export async function extractDocuments(
     }
   }
 
-  logger.info('Stage3', `Extraction complete. Best: ${bestBoundary?.type ?? 'none'} (confidence: ${bestConfidence.toFixed(2)}, calls: ${bestBoundary?.calls.length ?? 0})`);
+  // TypeScript control-flow analysis loses track of `bestBoundary` after
+  // mutations inside nested closures (updateBest).  Use a type assertion so
+  // the optional-chaining accesses below compile correctly.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+  const finalBoundary = bestBoundary as ExtractedBoundaryData | null;
+  logger.info('Stage3', `Extraction complete. Best: ${finalBoundary?.type ?? 'none'} (confidence: ${bestConfidence.toFixed(2)}, calls: ${finalBoundary?.calls.length ?? 0})`);
 
-  return { documents, boundary: bestBoundary };
+  return { documents, boundary: finalBoundary };
 }
