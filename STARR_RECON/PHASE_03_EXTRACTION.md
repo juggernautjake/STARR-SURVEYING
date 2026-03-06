@@ -1,10 +1,10 @@
 # STARR RECON — Phase 3: AI Document Intelligence & Property Analysis
 
 **Product:** Starr Compass — AI Property Research (STARR RECON)  
-**Version:** 1.1 | **Last Updated:** March 2026  
+**Version:** 1.2 | **Last Updated:** March 2026  
 **Phase Duration:** Weeks 7–9  
 **Depends On:** Phase 1 (`PropertyIdentity`), Phase 2 (`HarvestResult` with images)  
-**Status:** ✅ COMPLETE — All orchestrator files built and tested. 600 unit tests pass (563 pre-existing + 37 new Phase 3 tests).  
+**Status:** ✅ COMPLETE — All orchestrator files built and tested. 633 unit tests pass (563 pre-existing + 70 Phase 3 tests).  
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
 ---
@@ -200,11 +200,31 @@ The following services were built as proof-of-concept and form the **core founda
 | `worker/src/services/ai-document-analyzer.ts` | Phase 3 top-level orchestrator — routes docs, runs pipelines, assembles output | ✅ Built |
 | `worker/analyze.sh` | CLI script for droplet console use | ✅ Built |
 
+### Bugs Fixed (v1.2 — March 2026)
+
+The following bugs were identified and fixed during a comprehensive Phase 3 review:
+
+1. **TypeScript build error** (`ai-extraction.ts:954`): TypeScript control-flow analysis typed `bestBoundary` as `never` after mutations inside `updateBest()` closure. Fixed by adding `as ExtractedBoundaryData | null` cast before the final log line. This was causing the Vercel CI build to fail.
+
+2. **Incorrect FIPS county lookup** (`ai-document-analyzer.ts`): `TEXAS_FIPS_COUNTY` was missing **Deaf Smith County** (FIPS 48117) and had a cascade error shifting all 192+ county entries from FIPS 48117 to 48507 by one position. All affected entries (including Harris=48201, Tarrant=48439, Travis=48453, Starr=48427, Zavala=48507) corrected.
+
+3. **Silent boundary call drops** (`ai-plat-analyzer.ts: convertRawCall`): When a boundary call was dropped due to an empty bearing or NaN distance, nothing was logged. Fixed: calls to `this.logger.warn()` added so operators can see which calls are being silently dropped.
+
+4. **Unsafe status enum cast** (`ai-plat-analyzer.ts: convertRawCall`): The status string from AI synthesis was cast with `as` without validation. Fixed: runtime validation against `VALID_STATUSES` array; unknown values now default to `'text_only'` instead of silently propagating garbage.
+
+5. **Silent AI response parse error** (`ai-context-analyzer.ts: callContextAI`): JSON parse failures only logged a generic message with no context. Fixed: parse error message and a 500-character preview of the raw response are now logged. Also: missing `textBlock` from AI response (e.g., when `stop_reason=tool_use`) now warns with the stop reason instead of silently using empty object `'{}'`.
+
+6. **Silent curve completion failures** (`ai-deed-analyzer.ts: convertCalls`): The `catch` block for `completeBoundaryCallCurve()` was empty. Fixed: exception message is now logged as a warning with the call sequence number.
+
+7. **Silent notes array truncation** (`ai-document-analyzer.ts: assemblePropertyIntelligence`): `plat.notes.slice(0, 20)` was silently dropping notes without logging. Fixed: replaced with `this.capNotes()` helper that logs a warning when truncation occurs.
+
 ### Known Limitations (Require More Info or Future Phases)
 
-- **County inference**: `AIDocumentAnalyzer.inferCounty()` uses a simple heuristic. Full county metadata should be threaded through `HarvestResult` in a future schema update (TODO noted in code).
+- **County inference**: `AIDocumentAnalyzer.inferCounty()` now uses FIPS-code extraction from source strings (e.g., `"kofile_48027"` → Bell County) with a complete all-254-county lookup table. Full county metadata should ideally be added directly to `HarvestResult` in a future schema update for maximum reliability.
 - **Traverse closure**: `perimeterBoundary.closureStatus` is always `'unknown'` at Phase 3 — full traverse closure (error northing/easting, ratio) is Phase 7 work.
 - **Supabase upload**: `property_intelligence.json` is saved to disk only. Supabase Storage upload is marked TODO in `ai-document-analyzer.ts`.
+- **`ANTHROPIC_API_KEY`**: Required at runtime on the worker droplet. If missing, all three AI pipelines will fail. Set via `.env` or Droplet environment variable before running `analyze.sh`.
+- **Live integration tests**: All current tests are unit tests (pure logic, no live AI calls). A separate integration test suite is needed to verify end-to-end accuracy on real plat/deed images from the worker droplet.
 
 ### Key Architecture Relationship: Old vs New Types
 

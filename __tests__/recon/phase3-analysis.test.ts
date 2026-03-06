@@ -6,14 +6,16 @@
 //
 //   1. PropertyIntelligence model: computeConfidenceSummary()
 //   2. PropertyIntelligence model: toConfidenceSymbol()
-//   3. AIPlatAnalyzer: buildTextExtractionFromOcr (internal helper via integration)
-//   4. AIPlatAnalyzer: mergePageResults (deterministic merge logic)
+//   3. AIPlatAnalyzer: buildTextExtractionFromOcr (internal helper via bracket notation)
+//   4. AIPlatAnalyzer: parseBearingToDec, extractQuadrant, detectDatum helpers
 //   5. AIDeedAnalyzer: convertCalls() — vara conversion, curve completion
 //   6. AIDeedAnalyzer: toDeedChainEntry() — field mapping
 //   7. AIDocumentAnalyzer: document routing (extractPlatDocuments / extractDeedDocuments)
 //   8. AIContextAnalyzer: confidence summary rating boundaries
+//   9. TEXAS_FIPS_COUNTY lookup table — completeness and correctness
+//  10. AIPlatAnalyzer: convertRawCall status validation (via bracket notation)
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import {
   computeConfidenceSummary,
@@ -28,6 +30,8 @@ import type {
 } from '../../worker/src/models/property-intelligence.js';
 
 import { AIDeedAnalyzer } from '../../worker/src/services/ai-deed-analyzer.js';
+import { AIPlatAnalyzer } from '../../worker/src/services/ai-plat-analyzer.js';
+import { TEXAS_FIPS_COUNTY } from '../../worker/src/services/ai-document-analyzer.js';
 import { PipelineLogger } from '../../worker/src/lib/logger.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -462,5 +466,245 @@ describe('document type routing constants', () => {
     for (const dt of deedTypes) {
       expect(platTypes.includes(dt)).toBe(false);
     }
+  });
+});
+
+// ── 8. TEXAS_FIPS_COUNTY lookup table ────────────────────────────────────────
+
+describe('TEXAS_FIPS_COUNTY', () => {
+  it('contains all 254 Texas county entries', () => {
+    // Texas has exactly 254 counties
+    expect(Object.keys(TEXAS_FIPS_COUNTY).length).toBe(254);
+  });
+
+  it('maps Bell County correctly (FIPS 48027)', () => {
+    expect(TEXAS_FIPS_COUNTY['48027']).toBe('Bell');
+  });
+
+  it('maps Bexar County correctly (FIPS 48029)', () => {
+    expect(TEXAS_FIPS_COUNTY['48029']).toBe('Bexar');
+  });
+
+  it('maps Harris County correctly (FIPS 48201)', () => {
+    expect(TEXAS_FIPS_COUNTY['48201']).toBe('Harris');
+  });
+
+  it('maps Travis County correctly (FIPS 48453)', () => {
+    expect(TEXAS_FIPS_COUNTY['48453']).toBe('Travis');
+  });
+
+  it('maps Tarrant County correctly (FIPS 48439)', () => {
+    expect(TEXAS_FIPS_COUNTY['48439']).toBe('Tarrant');
+  });
+
+  it('maps Starr County correctly (FIPS 48427 — namesake county)', () => {
+    expect(TEXAS_FIPS_COUNTY['48427']).toBe('Starr');
+  });
+
+  it('maps the last Texas FIPS entry (Zavala, 48507)', () => {
+    expect(TEXAS_FIPS_COUNTY['48507']).toBe('Zavala');
+  });
+
+  it('all FIPS keys start with "48" (Texas state code)', () => {
+    for (const fips of Object.keys(TEXAS_FIPS_COUNTY)) {
+      expect(fips.startsWith('48')).toBe(true);
+    }
+  });
+
+  it('all FIPS keys are 5-character strings', () => {
+    for (const fips of Object.keys(TEXAS_FIPS_COUNTY)) {
+      expect(fips.length).toBe(5);
+    }
+  });
+
+  it('all county names are non-empty strings', () => {
+    for (const name of Object.values(TEXAS_FIPS_COUNTY)) {
+      expect(typeof name).toBe('string');
+      expect(name.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ── 9. AIPlatAnalyzer private helpers (bracket notation) ─────────────────────
+//
+// These methods are pure deterministic functions (no AI calls) that benefit
+// from direct unit testing.  Since they are private implementation details that
+// should not be part of the public surface, we access them via `as any` bracket
+// notation rather than changing visibility.  This is a deliberate tradeoff:
+// keeping the production API clean while still getting full test coverage of
+// the internal parsing logic.
+
+describe('AIPlatAnalyzer internal helpers', () => {
+  const logger   = new PipelineLogger('test-plat');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const analyzer = new AIPlatAnalyzer('test-key-no-calls', logger) as any;
+
+  // ── parseBearingToDec ─────────────────────────────────────────────────
+
+  describe('parseBearingToDec', () => {
+    it('parses degree-minute-second bearing correctly', () => {
+      const val = analyzer.parseBearingToDec('N 85°22\'02" E');
+      // 85 + 22/60 + 02/3600 = 85.3672…
+      expect(val).toBeCloseTo(85.367, 2);
+    });
+
+    it('parses zero-second bearing', () => {
+      const val = analyzer.parseBearingToDec('S 45°00\'00" W');
+      expect(val).toBe(45);
+    });
+
+    it('returns null for an empty string', () => {
+      expect(analyzer.parseBearingToDec('')).toBeNull();
+    });
+
+    it('returns null for non-bearing garbage', () => {
+      expect(analyzer.parseBearingToDec('not a bearing')).toBeNull();
+    });
+
+    it('handles dash-delimited format', () => {
+      const val = analyzer.parseBearingToDec('N 10-30-00 E');
+      expect(val).toBeCloseTo(10.5, 2);
+    });
+  });
+
+  // ── extractQuadrant ───────────────────────────────────────────────────
+
+  describe('extractQuadrant', () => {
+    it('returns NE for N…E bearing', () => {
+      expect(analyzer.extractQuadrant('N 85°22\'02" E')).toBe('NE');
+    });
+
+    it('returns SW for S…W bearing', () => {
+      expect(analyzer.extractQuadrant('S 10°00\'00" W')).toBe('SW');
+    });
+
+    it('returns SE for S…E bearing', () => {
+      expect(analyzer.extractQuadrant('S 45°00\'00" E')).toBe('SE');
+    });
+
+    it('returns NW for N…W bearing', () => {
+      expect(analyzer.extractQuadrant('N 45°00\'00" W')).toBe('NW');
+    });
+
+    it('returns NE as default for unrecognised input', () => {
+      expect(analyzer.extractQuadrant('unknown')).toBe('NE');
+    });
+  });
+
+  // ── detectDatum ───────────────────────────────────────────────────────
+
+  describe('detectDatum', () => {
+    it('detects NAD83', () => {
+      expect(analyzer.detectDatum('Based on NAD83 datum')).toBe('NAD83');
+      expect(analyzer.detectDatum('NAD 83 Central Zone')).toBe('NAD83');
+    });
+
+    it('detects NAD27', () => {
+      expect(analyzer.detectDatum('NAD27 Texas')).toBe('NAD27');
+    });
+
+    it('returns unknown when no datum found', () => {
+      expect(analyzer.detectDatum('No datum information')).toBe('unknown');
+    });
+  });
+
+  // ── buildTextExtractionFromOcr ────────────────────────────────────────
+
+  describe('buildTextExtractionFromOcr', () => {
+    it('returns null for empty string', () => {
+      expect(analyzer.buildTextExtractionFromOcr('')).toBeNull();
+      expect(analyzer.buildTextExtractionFromOcr('   ')).toBeNull();
+    });
+
+    it('extracts bearing+distance pairs from OCR text', () => {
+      const ocr = 'N 85°22\'02" E, 461.81 feet along FM 436';
+      const result = analyzer.buildTextExtractionFromOcr(ocr);
+      expect(result).not.toBeNull();
+      expect(result.calls.length).toBeGreaterThanOrEqual(1);
+      expect(result.calls[0].distance.value).toBeCloseTo(461.81, 1);
+    });
+
+    it('returns metes_and_bounds type', () => {
+      const ocr = 'N 10°00\'00" E, 100.00 feet';
+      const result = analyzer.buildTextExtractionFromOcr(ocr);
+      expect(result?.type).toBe('metes_and_bounds');
+    });
+
+    it('skips NaN distances gracefully', () => {
+      // Regex requires digits before the unit, so "abc feet" won't match
+      const ocr = 'N 10°00\'00" E, abc feet';
+      const result = analyzer.buildTextExtractionFromOcr(ocr);
+      // Either null (no matches) or empty calls array is acceptable
+      if (result !== null) {
+        expect(result.calls.length).toBe(0);
+      }
+    });
+
+    it('detects NAD83 datum from text', () => {
+      const ocr = 'NAD83 State Plane Texas Central Zone — N 10°00\'00" E, 100 feet';
+      const result = analyzer.buildTextExtractionFromOcr(ocr);
+      expect(result?.datum).toBe('NAD83');
+    });
+  });
+
+  // ── convertRawCall status validation ─────────────────────────────────
+
+  describe('convertRawCall status validation', () => {
+    const emptyRecon = new Map();
+
+    it('returns null for missing bearing', () => {
+      const raw = { bearing: '', distance: 100, unit: 'feet', confidence: 0.8 };
+      const spy = vi.spyOn(logger, 'warn');
+      const result = analyzer.convertRawCall(raw, 'LOT1_C1', 1, 'lot_1', emptyRecon);
+      expect(result).toBeNull();
+      // Warn should have been called mentioning empty bearing
+      expect(spy).toHaveBeenCalledWith(
+        'AIPlatAnalyzer',
+        expect.stringContaining('empty bearing'),
+      );
+      spy.mockRestore();
+    });
+
+    it('returns null and warns for non-numeric distance', () => {
+      const raw = { bearing: 'N 85°22\'02" E', distance: 'abc', unit: 'feet', confidence: 0.8 };
+      const spy = vi.spyOn(logger, 'warn');
+      const result = analyzer.convertRawCall(raw, 'LOT1_C2', 1, 'lot_1', emptyRecon);
+      expect(result).toBeNull();
+      expect(spy).toHaveBeenCalledWith(
+        'AIPlatAnalyzer',
+        expect.stringContaining('non-numeric distance'),
+      );
+      spy.mockRestore();
+    });
+
+    it('falls back to text_only for an unknown status string', () => {
+      const raw = {
+        bearing: 'N 45°00\'00" E',
+        distance: 100,
+        unit: 'feet',
+        confidence: 0.8,
+        status: 'invalid_status_value',
+      };
+      const result = analyzer.convertRawCall(raw, 'LOT1_C3', 1, 'lot_1', emptyRecon);
+      // Should return a valid call (not null) with status normalised to text_only
+      expect(result).not.toBeNull();
+      // confidence symbol for text_only + conf=80 → '~'
+      expect(result?.confidenceSymbol).toBe('~');
+    });
+
+    it('accepts all valid status strings without normalisation', () => {
+      const validStatuses = ['confirmed', 'conflict', 'text_only', 'unresolved'];
+      for (const s of validStatuses) {
+        const raw = {
+          bearing: 'N 45°00\'00" E',
+          distance: 100,
+          unit: 'feet',
+          confidence: 0.9,
+          status: s,
+        };
+        const result = analyzer.convertRawCall(raw, `LOT1_${s}`, 1, 'lot_1', emptyRecon);
+        expect(result).not.toBeNull();
+      }
+    });
   });
 });

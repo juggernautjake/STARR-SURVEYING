@@ -35,6 +35,10 @@ const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
 /** 1 Texas vara = 33⅓ inches = 2.7778 feet (exact) */
 const VARAS_TO_FEET = 2.7778;
 
+/** Valid values for the call status field coming from AI synthesis or reconciliation. */
+const VALID_CALL_STATUSES = ['confirmed', 'conflict', 'text_only', 'unresolved'] as const;
+type CallStatus = typeof VALID_CALL_STATUSES[number];
+
 // ── Public interfaces ─────────────────────────────────────────────────────
 
 export interface PlatSubdivisionInfo {
@@ -679,16 +683,29 @@ export class AIPlatAnalyzer {
 
     const bearing  = this.safeStr(raw.bearing) ?? '';
     const distance = typeof raw.distance === 'number' ? raw.distance : parseFloat(raw.distance ?? '0');
-    if (!bearing || isNaN(distance)) return null;
+    if (!bearing || isNaN(distance)) {
+      // Log drops so missing calls are visible in troubleshooting
+      if (!bearing) {
+        this.logger.warn('AIPlatAnalyzer', `[${lotId}/${callId}] Dropping call — empty bearing`);
+      } else {
+        this.logger.warn('AIPlatAnalyzer', `[${lotId}/${callId}] Dropping call — non-numeric distance (raw: ${String(raw.distance)})`);
+      }
+      return null;
+    }
 
     // Unit handling — convert varas if needed
     const rawUnit: 'feet' | 'varas' = raw.unit === 'varas' ? 'varas' : 'feet';
     const distFeet = rawUnit === 'varas' ? distance * VARAS_TO_FEET : distance;
 
-    // Determine status from synthesis or reconciliation index
+    // Determine status from synthesis or reconciliation index.
+    // Validate the string against known values before casting to avoid silent
+    // bad data propagating downstream.
     const rawStatus = this.safeStr(raw.status) ?? 'text_only';
     const reconEntry = recon.get(seqNum);
-    const status = (reconEntry?.status ?? rawStatus) as 'confirmed' | 'conflict' | 'text_only' | 'unresolved';
+    const resolvedStatus = reconEntry?.status ?? rawStatus;
+    const status: CallStatus = (VALID_CALL_STATUSES as readonly string[]).includes(resolvedStatus)
+      ? resolvedStatus as CallStatus
+      : 'text_only';
 
     // Map to confidence value
     const ocrConf = typeof raw.confidence === 'number' ? Math.round(raw.confidence * 100) : 70;
