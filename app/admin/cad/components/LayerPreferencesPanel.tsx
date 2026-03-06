@@ -218,6 +218,9 @@ const LABEL_VISIBILITY_KEYS: ReadonlyArray<keyof LayerDisplayPreferences> = [
   'showBearings', 'showDistances', 'showLineLabels',
   'showPointNames', 'showPointDescriptions', 'showPointElevations', 'showPointCoordinates',
   'showArea', 'showPerimeter',
+  // Format overrides also require label regeneration to apply new formatting
+  'bearingFormatOverride', 'angleFormatOverride', 'linearUnitOverride', 'linearFormatOverride',
+  'linearDecimalPlacesOverride', 'areaUnitOverride', 'coordModeOverride',
 ];
 
 // ── Main component ──

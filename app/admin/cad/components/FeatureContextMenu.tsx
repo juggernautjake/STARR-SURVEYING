@@ -419,7 +419,7 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
         },
         {
           id: 'layerPrefs',
-          label: 'Layer Preferences',
+          label: 'Layer Preferences…',
           icon: <Layers size={12} />,
           action: () => {
             const sel = Array.from(selectionStore.selectedIds);
@@ -427,6 +427,19 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
             if (firstFeature) {
               window.dispatchEvent(
                 new CustomEvent('cad:openLayerPrefs', { detail: { layerId: firstFeature.layerId } }),
+              );
+            }
+            onClose();
+          },
+        },
+        {
+          id: 'featureLabelPrefs',
+          label: 'Edit Label Preferences…',
+          icon: <Layers size={12} />,
+          action: () => {
+            if (featureId) {
+              window.dispatchEvent(
+                new CustomEvent('cad:openFeatureLabelPrefs', { detail: { featureId } }),
               );
             }
             onClose();

@@ -91,7 +91,7 @@ export const DEFAULT_FEATURE_STYLE: FeatureStyle = {
 /** Default text style used for all label kinds unless overridden. */
 export const DEFAULT_TEXT_LABEL_STYLE: TextLabelStyle = {
   fontFamily: 'Arial',
-  fontSize: 10,
+  fontSize: 12,
   fontWeight: 'normal',
   fontStyle: 'normal',
   color: null,           // inherit layer color
@@ -116,17 +116,17 @@ export const DEFAULT_LAYER_DISPLAY_PREFERENCES: LayerDisplayPreferences = {
 
   bearingTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE },
   distanceTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE },
-  areaTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 12, fontWeight: 'bold' },
+  areaTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 14, fontWeight: 'bold' },
   pointNameTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontWeight: 'bold' },
   pointDescriptionTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE },
-  pointElevationTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 9 },
-  pointCoordinateTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 9, fontFamily: 'Courier New' },
+  pointElevationTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 10 },
+  pointCoordinateTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 10, fontFamily: 'Courier New' },
 
-  pointLabelOffset: { x: 5, y: -5 },  // slightly right and below point
+  pointLabelOffset: { x: 5, y: 5 },   // slightly right and above point
   pointLabelAutoRotate: false,
 
-  bearingTextGap: 3,
-  distanceTextGap: 3,
+  bearingTextGap: 5,
+  distanceTextGap: 5,
 
   // Per-layer format overrides — null = inherit from drawing-level preferences
   bearingFormatOverride: null,

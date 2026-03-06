@@ -159,7 +159,7 @@ export interface DrawingSettings {
 
 // --- FEATURES ---
 
-export type FeatureType = 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON' | 'CIRCLE' | 'ELLIPSE' | 'ARC' | 'SPLINE' | 'MIXED_GEOMETRY';
+export type FeatureType = 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON' | 'CIRCLE' | 'ELLIPSE' | 'ARC' | 'SPLINE' | 'TEXT' | 'MIXED_GEOMETRY';
 
 export interface Feature {
   id: string;
@@ -191,6 +191,11 @@ export interface FeatureGeometry {
   arc?: ArcGeometry;
   /** Cubic bezier spline segments (type='SPLINE') */
   spline?: SplineGeometry;
+
+  /** Text geometry: used when type='TEXT' */
+  textContent?: string;    // The text string
+  textRotation?: number;   // Rotation in radians (0 = horizontal)
+  textWidth?: number;      // Width in world units (0 = auto)
 }
 
 // ── TRUE CURVE GEOMETRY DEFINITIONS ──
@@ -320,7 +325,8 @@ export type ToolType =
   | 'CURB_RETURN'
   | 'OFFSET'
   | 'INVERSE'
-  | 'FORWARD_POINT';
+  | 'FORWARD_POINT'
+  | 'DRAW_TEXT';
 
 export interface ToolState {
   activeTool: ToolType;

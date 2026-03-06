@@ -5,7 +5,9 @@ import { useState, useEffect } from 'react';
 import { useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Feature } from '@/lib/cad/types';
-import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
+import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
+import { formatDistance } from '@/lib/cad/geometry/units';
 
 // ── Inline editable coordinate input ────────────────────────────────────────
 function fmtCoord(n: number): string {
@@ -132,6 +134,7 @@ export default function PropertyPanel() {
 
   const { document: doc } = drawingStore;
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
+  const displayPrefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
 
   if (features.length === 0) {
     return (
@@ -274,10 +277,31 @@ export default function PropertyPanel() {
               <div className="text-gray-500 text-[9px] uppercase pt-0.5">End</div>
               <CoordInput label="X" value={geom.end.x} onChange={(v) => updateCoord(1, 'x', v)} />
               <CoordInput label="Y" value={geom.end.y} onChange={(v) => updateCoord(1, 'y', v)} />
-              <div className="font-mono text-[10px] text-gray-400 pt-0.5">
-                L: {Math.hypot(geom.end.x - geom.start.x, geom.end.y - geom.start.y).toFixed(3)}
-                &nbsp; ∠{((Math.atan2(geom.end.y - geom.start.y, geom.end.x - geom.start.x) * 180) / Math.PI).toFixed(2)}°
-              </div>
+              {(() => {
+                const { azimuth, distance } = inverseBearingDistance(geom.start, geom.end);
+                return (
+                  <div className="space-y-0.5 pt-0.5 border-t border-gray-700">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-gray-500">Bearing</span>
+                      <span className="font-mono text-blue-300">{formatBearing(azimuth)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-gray-500">Azimuth</span>
+                      <span className="font-mono text-gray-300">{formatAzimuth(azimuth)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-gray-500">Distance</span>
+                      <span className="font-mono text-gray-300">{formatDistance(distance, displayPrefs)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+          {geom.type === 'TEXT' && geom.point && (
+            <div className="space-y-1">
+              <CoordInput label="X" value={geom.point.x} onChange={(v) => updateCoord(0, 'x', v)} />
+              <CoordInput label="Y" value={geom.point.y} onChange={(v) => updateCoord(0, 'y', v)} />
             </div>
           )}
           {(geom.type === 'POLYLINE' || geom.type === 'POLYGON') && geom.vertices && (
@@ -312,6 +336,112 @@ export default function PropertyPanel() {
             </div>
           )}
         </div>
+
+        {/* Text properties (editable for TEXT features) */}
+        {feature.type === 'TEXT' && (
+          <div className="space-y-2 border-t border-gray-700 pt-2">
+            <div className="text-gray-500 text-[10px] uppercase tracking-wider">Text</div>
+            <div className="space-y-1">
+              <div className="text-gray-500 text-[9px] uppercase">Content</div>
+              <input
+                className="w-full bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
+                value={String(feature.geometry.textContent ?? '')}
+                onChange={(e) => {
+                  const before = drawingStore.getFeature(feature.id)!;
+                  drawingStore.updateFeature(feature.id, {
+                    geometry: { ...feature.geometry, textContent: e.target.value },
+                  });
+                  const after = drawingStore.getFeature(feature.id)!;
+                  undoStore.pushUndo({
+                    id: generateId(),
+                    description: 'Edit text',
+                    timestamp: Date.now(),
+                    operations: [{ type: 'MODIFY_FEATURE', data: { id: feature.id, before, after } }],
+                  });
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-400 shrink-0 text-[10px]">Font Size (pt)</span>
+              <input
+                type="number"
+                min={4}
+                max={144}
+                step={1}
+                className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right outline-none border border-gray-600 focus:border-blue-500 text-xs"
+                value={Number(feature.properties.fontSize ?? 12)}
+                onChange={(e) => {
+                  const v = Math.max(4, Math.min(144, parseInt(e.target.value) || 12));
+                  drawingStore.updateFeature(feature.id, {
+                    properties: { ...feature.properties, fontSize: v },
+                  });
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-400 shrink-0 text-[10px]">Rotation (°)</span>
+              <input
+                type="number"
+                min={-360}
+                max={360}
+                step={1}
+                className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right outline-none border border-gray-600 focus:border-blue-500 text-xs"
+                value={Math.round(((feature.geometry.textRotation ?? 0) * 180) / Math.PI)}
+                onChange={(e) => {
+                  const deg = parseFloat(e.target.value) || 0;
+                  drawingStore.updateFeature(feature.id, {
+                    geometry: { ...feature.geometry, textRotation: (deg * Math.PI) / 180 },
+                  });
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-400 shrink-0 text-[10px]">Font</span>
+              <select
+                className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
+                value={String(feature.properties.fontFamily ?? 'Arial')}
+                onChange={(e) => {
+                  drawingStore.updateFeature(feature.id, {
+                    properties: { ...feature.properties, fontFamily: e.target.value },
+                  });
+                }}
+              >
+                <option value="Arial">Arial</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier New">Courier New</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Verdana">Verdana</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className={`px-2 py-0.5 text-[10px] rounded border ${feature.properties.fontWeight === 'bold' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                onClick={() => drawingStore.updateFeature(feature.id, {
+                  properties: { ...feature.properties, fontWeight: feature.properties.fontWeight === 'bold' ? 'normal' : 'bold' },
+                })}
+              >B</button>
+              <button
+                className={`px-2 py-0.5 text-[10px] rounded border italic ${feature.properties.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                onClick={() => drawingStore.updateFeature(feature.id, {
+                  properties: { ...feature.properties, fontStyle: feature.properties.fontStyle === 'italic' ? 'normal' : 'italic' },
+                })}
+              >I</button>
+              <div className="flex gap-0.5">
+                {(['left', 'center', 'right'] as const).map((align) => (
+                  <button
+                    key={align}
+                    className={`px-1.5 py-0.5 text-[9px] rounded border ${feature.properties.textAlign === align ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                    onClick={() => drawingStore.updateFeature(feature.id, {
+                      properties: { ...feature.properties, textAlign: align },
+                    })}
+                  >
+                    {align === 'left' ? '⬅' : align === 'center' ? '⬛' : '➡'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Polyline group ID (shown for LINE segments that are part of a polyline chain) */}
         {feature.type === 'LINE' && feature.properties.polylineGroupId && (
