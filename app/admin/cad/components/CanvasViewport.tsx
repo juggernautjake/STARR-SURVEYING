@@ -43,6 +43,7 @@ import {
   getSplineHandles,
   insertInflectionPoint,
   findClosestSplineParam,
+  arcFrom3Points,
   type GraphicsLike,
 } from '@/lib/cad/geometry/curve-render';
 import { useKeyboard } from '../hooks/useKeyboard';
@@ -239,9 +240,26 @@ export default function CanvasViewport() {
     let prevPoints = useToolStore.getState().state.drawingPoints;
     const unsub = useToolStore.subscribe((state) => {
       const curTool = state.state.activeTool;
-      if (prevTool === 'DRAW_CURVED_LINE' && curTool !== 'DRAW_CURVED_LINE' && prevPoints.length >= 2) {
+      const isFitTool = prevTool === 'DRAW_CURVED_LINE' || prevTool === 'DRAW_SPLINE_FIT';
+      const isCtrlTool = prevTool === 'DRAW_SPLINE_CONTROL';
+      if (isFitTool && curTool !== prevTool && prevPoints.length >= 2) {
         // Finish the spline with the captured points before they were cleared
         const controlPoints = fitPointsToBezier(prevPoints, false);
+        const dStore = useDrawingStore.getState();
+        const layerStyle = dStore.getActiveLayerStyle();
+        const feature: Feature = {
+          id: generateId(),
+          type: 'SPLINE',
+          geometry: { type: 'SPLINE', spline: { controlPoints, isClosed: false } },
+          layerId: dStore.activeLayerId,
+          style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+          properties: {},
+        };
+        dStore.addFeature(feature);
+        useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+      } else if (isCtrlTool && curTool !== prevTool && prevPoints.length >= 4) {
+        const usable = Math.floor((prevPoints.length - 1) / 3) * 3 + 1;
+        const controlPoints = prevPoints.slice(0, usable);
         const dStore = useDrawingStore.getState();
         const layerStyle = dStore.getActiveLayerStyle();
         const feature: Feature = {
@@ -1262,8 +1280,8 @@ export default function CanvasViewport() {
       return;
     }
 
-    // ── DRAW_CURVED_LINE preview: live bezier curve from fit points + cursor ──
-    if (activeTool === 'DRAW_CURVED_LINE') {
+    // ── DRAW_CURVED_LINE / DRAW_SPLINE_FIT preview: live bezier curve from fit points + cursor ──
+    if (activeTool === 'DRAW_CURVED_LINE' || activeTool === 'DRAW_SPLINE_FIT') {
       if (drawingPoints.length === 0) {
         // No points yet: show start-point crosshair at cursor
         const { sx, sy } = w2s(previewPoint.x, previewPoint.y);
@@ -1326,6 +1344,105 @@ export default function CanvasViewport() {
             g.moveTo(pt.sx, pt.sy);
             g.lineTo(rh.sx, rh.sy);
           }
+        }
+      }
+
+      // Cursor dot
+      const { sx: cx, sy: cy } = w2s(previewPoint.x, previewPoint.y);
+      g.beginFill(previewColor, 0.7);
+      g.drawCircle(cx, cy, 2.5);
+      g.endFill();
+      return;
+    }
+
+    // ── DRAW_SPLINE_CONTROL preview: show control point polygon + bezier curves ──
+    if (activeTool === 'DRAW_SPLINE_CONTROL') {
+      const allPts = [...drawingPoints, previewPoint];
+      if (allPts.length === 0) return;
+
+      // Draw control polygon (dashed-style thin lines between all points)
+      g.lineStyle(0.75, previewColor, 0.3);
+      const first = w2s(allPts[0].x, allPts[0].y);
+      g.moveTo(first.sx, first.sy);
+      for (let i = 1; i < allPts.length; i++) {
+        const p = w2s(allPts[i].x, allPts[i].y);
+        g.lineTo(p.sx, p.sy);
+      }
+
+      // Draw the bezier curve from complete segments
+      const numSegs = Math.floor((allPts.length - 1) / 3);
+      if (numSegs > 0) {
+        g.lineStyle(1.5, previewColor, 0.85);
+        const p0 = w2s(allPts[0].x, allPts[0].y);
+        g.moveTo(p0.sx, p0.sy);
+        for (let seg = 0; seg < numSegs; seg++) {
+          const idx = seg * 3;
+          const cp1 = w2s(allPts[idx + 1].x, allPts[idx + 1].y);
+          const cp2 = w2s(allPts[idx + 2].x, allPts[idx + 2].y);
+          const end = w2s(allPts[idx + 3].x, allPts[idx + 3].y);
+          g.bezierCurveTo(cp1.sx, cp1.sy, cp2.sx, cp2.sy, end.sx, end.sy);
+        }
+      }
+
+      // Draw dots at each control point
+      for (let i = 0; i < allPts.length; i++) {
+        const { sx, sy } = w2s(allPts[i].x, allPts[i].y);
+        const isOnCurve = i % 3 === 0;
+        g.lineStyle(1, previewColor, 0.9);
+        g.beginFill(isOnCurve ? previewColor : 0xffffff, isOnCurve ? 0.9 : 0.7);
+        if (isOnCurve) {
+          g.drawCircle(sx, sy, 3.5);
+        } else {
+          g.drawRect(sx - 3, sy - 3, 6, 6);
+        }
+        g.endFill();
+      }
+      return;
+    }
+
+    // ── DRAW_ARC preview: show arc from committed points + cursor ──
+    if (activeTool === 'DRAW_ARC') {
+      if (drawingPoints.length === 0) {
+        // No points: show crosshair
+        const { sx, sy } = w2s(previewPoint.x, previewPoint.y);
+        g.lineStyle(1, previewColor, 0.5);
+        g.moveTo(sx - 6, sy); g.lineTo(sx + 6, sy);
+        g.moveTo(sx, sy - 6); g.lineTo(sx, sy + 6);
+        return;
+      }
+
+      // Draw dots at committed points
+      for (let i = 0; i < drawingPoints.length; i++) {
+        const { sx, sy } = w2s(drawingPoints[i].x, drawingPoints[i].y);
+        g.lineStyle(1, previewColor, 0.9);
+        g.beginFill(previewColor, 0.8);
+        g.drawCircle(sx, sy, 3.5);
+        g.endFill();
+      }
+
+      if (drawingPoints.length === 1) {
+        // 1 point: show line to cursor
+        const s = w2s(drawingPoints[0].x, drawingPoints[0].y);
+        const e = w2s(previewPoint.x, previewPoint.y);
+        g.lineStyle(1, previewColor, 0.5);
+        g.moveTo(s.sx, s.sy);
+        g.lineTo(e.sx, e.sy);
+      } else if (drawingPoints.length === 2) {
+        // 2 points + cursor: compute and draw the preview arc
+        const arcGeom = arcFrom3Points(drawingPoints[0], drawingPoints[1], previewPoint);
+        if (arcGeom) {
+          const pvZoom = useViewportStore.getState().zoom;
+          g.lineStyle(1.5, previewColor, 0.85);
+          drawArcCurve(g as unknown as GraphicsLike, arcGeom, w2s, pvZoom);
+        } else {
+          // Collinear: draw straight lines
+          const s = w2s(drawingPoints[0].x, drawingPoints[0].y);
+          const m = w2s(drawingPoints[1].x, drawingPoints[1].y);
+          const e = w2s(previewPoint.x, previewPoint.y);
+          g.lineStyle(1, previewColor, 0.5);
+          g.moveTo(s.sx, s.sy);
+          g.lineTo(m.sx, m.sy);
+          g.lineTo(e.sx, e.sy);
         }
       }
 
@@ -1518,7 +1635,8 @@ export default function CanvasViewport() {
          activeTool === 'DRAW_CIRCLE_EDGE' || activeTool === 'DRAW_ELLIPSE' ||
          activeTool === 'DRAW_ELLIPSE_EDGE' ||
          activeTool === 'DRAW_REGULAR_POLYGON' || activeTool === 'DRAW_POLYGON' ||
-         activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE') &&
+         activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE' ||
+         activeTool === 'DRAW_SPLINE_CONTROL') &&
         drawingPoints.length === 0
       ) {
         const { sx, sy } = w2s(previewPoint.x, previewPoint.y);
@@ -1912,6 +2030,42 @@ export default function CanvasViewport() {
 
     const feature = createFeature(type, drawingPoints);
     if (!feature) return;
+    drawingStore.addFeature(feature);
+    undoStore.pushUndo(makeAddFeatureEntry(feature));
+    toolStore.clearDrawingPoints();
+  }
+
+  /** Finish a control-point spline (raw control points used directly). */
+  function finishControlPointSpline() {
+    const drawingPoints = useToolStore.getState().state.drawingPoints;
+    if (drawingPoints.length < 4) {
+      toolStore.clearDrawingPoints();
+      return;
+    }
+    // Pad to a multiple of 3 + 1 if needed (trim extra points)
+    const usable = Math.floor((drawingPoints.length - 1) / 3) * 3 + 1;
+    const controlPoints = drawingPoints.slice(0, usable);
+    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const layerStyle = getActiveLayerStyle();
+    const ds = useToolStore.getState().state.drawStyle;
+    const feature: Feature = {
+      id: generateId(),
+      type: 'SPLINE',
+      geometry: {
+        type: 'SPLINE',
+        spline: { controlPoints, isClosed: false },
+      },
+      layerId: activeLayerId,
+      style: {
+        ...DEFAULT_FEATURE_STYLE,
+        ...layerStyle,
+        ...(ds.color != null ? { color: ds.color } : {}),
+        ...(ds.lineWeight != null ? { lineWeight: ds.lineWeight } : {}),
+        ...(ds.opacity != null ? { opacity: ds.opacity } : {}),
+        ...(ds.lineType !== 'SOLID' ? { lineTypeId: ds.lineType } : {}),
+      },
+      properties: {},
+    };
     drawingStore.addFeature(feature);
     undoStore.pushUndo(makeAddFeatureEntry(feature));
     toolStore.clearDrawingPoints();
@@ -2382,10 +2536,46 @@ export default function CanvasViewport() {
           break;
         }
 
-        case 'DRAW_CURVED_LINE': {
-          // Curved line tool: works like polyline — each click adds a fit point.
+        case 'DRAW_CURVED_LINE':
+        case 'DRAW_SPLINE_FIT': {
+          // Curved line / Spline fit-point tool: each click adds a fit point.
           // On finish, the fit points are converted to cubic bezier control points.
           toolStore.addDrawingPoint(worldPt);
+          break;
+        }
+
+        case 'DRAW_SPLINE_CONTROL': {
+          // Control-point spline: each click adds a raw control point.
+          // Points are used directly as cubic bezier control points (groups of 4).
+          toolStore.addDrawingPoint(worldPt);
+          break;
+        }
+
+        case 'DRAW_ARC': {
+          // 3-point arc: click start point, mid-arc point, end point
+          if (toolState.drawingPoints.length < 2) {
+            toolStore.addDrawingPoint(worldPt);
+          } else {
+            const p1 = toolState.drawingPoints[0];
+            const p2 = toolState.drawingPoints[1];
+            const p3 = worldPt;
+            const arcGeom = arcFrom3Points(p1, p2, p3);
+            if (arcGeom && arcGeom.radius > MIN_SEGMENT_LENGTH_BASE) {
+              const { activeLayerId, getActiveLayerStyle } = drawingStore;
+              const layerStyle = getActiveLayerStyle();
+              const feature: Feature = {
+                id: generateId(),
+                type: 'ARC',
+                geometry: { type: 'ARC', arc: arcGeom },
+                layerId: activeLayerId,
+                style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+                properties: {},
+              };
+              drawingStore.addFeature(feature);
+              undoStore.pushUndo(makeAddFeatureEntry(feature));
+            }
+            toolStore.clearDrawingPoints();
+          }
           break;
         }
 
@@ -2961,10 +3151,18 @@ export default function CanvasViewport() {
         return;
       }
 
-      if (activeTool === 'DRAW_CURVED_LINE') {
+      if (activeTool === 'DRAW_CURVED_LINE' || activeTool === 'DRAW_SPLINE_FIT') {
         // Double-click finishes curved line drawing (the last click already added a point)
         if (toolState.drawingPoints.length >= 2) {
           finishFeature('SPLINE');
+        }
+        return;
+      }
+
+      if (activeTool === 'DRAW_SPLINE_CONTROL') {
+        // Double-click finishes control-point spline
+        if (toolState.drawingPoints.length >= 4) {
+          finishControlPointSpline();
         }
         return;
       }
@@ -3036,8 +3234,10 @@ export default function CanvasViewport() {
         finishFeature('POLYLINE');
       } else if (activeTool === 'DRAW_POLYGON' && drawingPoints.length >= 3) {
         finishFeature('POLYGON');
-      } else if (activeTool === 'DRAW_CURVED_LINE' && drawingPoints.length >= 2) {
+      } else if ((activeTool === 'DRAW_CURVED_LINE' || activeTool === 'DRAW_SPLINE_FIT') && drawingPoints.length >= 2) {
         finishFeature('SPLINE');
+      } else if (activeTool === 'DRAW_SPLINE_CONTROL' && drawingPoints.length >= 4) {
+        finishControlPointSpline();
       } else if (activeTool === 'DRAW_REGULAR_POLYGON' && drawingPoints.length >= 2) {
         // Confirm is not needed (handled by click), but allow Enter to cancel
         toolStore.clearDrawingPoints();
@@ -3231,14 +3431,31 @@ export default function CanvasViewport() {
         return;
       }
 
-      // Right-click during curved line drawing: finish if enough points
-      if (activeTool === 'DRAW_CURVED_LINE') {
+      // Right-click during curved line / spline fit drawing: finish if enough points
+      if (activeTool === 'DRAW_CURVED_LINE' || activeTool === 'DRAW_SPLINE_FIT') {
         if (toolState.drawingPoints.length >= 2) {
           finishFeature('SPLINE');
         } else {
           toolStore.clearDrawingPoints();
           toolStore.setTool('SELECT');
         }
+        return;
+      }
+
+      // Right-click during control-point spline drawing: finish if enough points
+      if (activeTool === 'DRAW_SPLINE_CONTROL') {
+        if (toolState.drawingPoints.length >= 4) {
+          finishControlPointSpline();
+        } else {
+          toolStore.clearDrawingPoints();
+          toolStore.setTool('SELECT');
+        }
+        return;
+      }
+
+      // Right-click during arc drawing: cancel
+      if (activeTool === 'DRAW_ARC' && toolState.drawingPoints.length > 0) {
+        toolStore.clearDrawingPoints();
         return;
       }
 

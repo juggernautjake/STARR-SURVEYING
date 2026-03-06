@@ -42,6 +42,7 @@ import {
   zoomToSelection,
   copyCadSelection,
 } from '@/lib/cad/operations';
+import { insertInflectionPoint, findClosestSplineParam } from '@/lib/cad/geometry/curve-render';
 
 interface Props {
   x: number;          // Screen X (clientX)
@@ -265,6 +266,33 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
             );
           },
         },
+        // Add Inflection Point — only for SPLINE features
+        ...(feature.geometry.type === 'SPLINE' && feature.geometry.spline && feature.geometry.spline.controlPoints.length >= 4
+          ? [
+              {
+                id: 'add-inflection',
+                label: 'Add Inflection Point',
+                icon: <Expand size={12} />,
+                action: () => {
+                  const spline = feature.geometry.spline!;
+                  const closest = findClosestSplineParam(spline.controlPoints, { x: worldX, y: worldY });
+                  const newCPs = insertInflectionPoint(spline.controlPoints, closest.segIndex, closest.t);
+                  const newGeom = { ...feature.geometry, spline: { ...spline, controlPoints: newCPs } };
+                  const before = JSON.parse(JSON.stringify(feature));
+                  drawingStore.updateFeatureGeometry(feature.id, newGeom);
+                  const after = drawingStore.getFeature(feature.id);
+                  if (after) {
+                    undoStore.pushUndo({
+                      id: generateId(),
+                      description: 'Add inflection point to spline',
+                      timestamp: Date.now(),
+                      operations: [{ type: 'MODIFY_FEATURE', data: { id: feature.id, before, after } }],
+                    });
+                  }
+                },
+              } as MenuItemDef,
+            ]
+          : []),
         { separator: true, id: 's0' },
         {
           id: 'copy',

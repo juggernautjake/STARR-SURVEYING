@@ -146,6 +146,46 @@ export function drawArc(
   g.arc(cx, cy, screenRadius, screenStart, screenEnd, screenAnticlockwise);
 }
 
+/**
+ * Compute an ArcGeometry from 3 points (start, mid, end).
+ * Returns null if the points are collinear.
+ */
+export function arcFrom3Points(
+  p1: Point2D, p2: Point2D, p3: Point2D,
+): ArcGeometry | null {
+  // Find the circumscribed circle center via perpendicular bisectors
+  const ax = p1.x, ay = p1.y;
+  const bx = p2.x, by = p2.y;
+  const cx = p3.x, cy = p3.y;
+
+  const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+  if (Math.abs(d) < 1e-10) return null; // collinear
+
+  const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
+  const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
+
+  const center = { x: ux, y: uy };
+  const radius = Math.hypot(ax - ux, ay - uy);
+
+  const startAngle = Math.atan2(ay - uy, ax - ux);
+  const midAngle = Math.atan2(by - uy, bx - ux);
+  const endAngle = Math.atan2(cy - uy, cx - ux);
+
+  // Determine direction: is the arc going CW or CCW through mid?
+  // Normalize angles to [0, 2π)
+  const norm = (a: number) => { let v = a % (2 * Math.PI); if (v < 0) v += 2 * Math.PI; return v; };
+  const ns = norm(startAngle);
+  const nm = norm(midAngle);
+  const ne = norm(endAngle);
+
+  // Check if mid is between start→end going CCW (anticlockwise)
+  const ccwSpan = norm(ne - ns);
+  const ccwMid = norm(nm - ns);
+  const anticlockwise = ccwMid < ccwSpan;
+
+  return { center, radius, startAngle, endAngle, anticlockwise };
+}
+
 // ── SPLINE (CUBIC BEZIER) ──
 
 /** Draw a cubic bezier spline using native bezierCurveTo(). */
@@ -267,27 +307,78 @@ function normalizeAngle(a: number): number {
   return a;
 }
 
-/** Approximate distance from a point to a cubic bezier spline. */
+/** Evaluate a cubic bezier at parameter t */
+function evalBezier(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, t: number): Point2D {
+  const u = 1 - t;
+  return {
+    x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+    y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+  };
+}
+
+/** Evaluate the derivative of a cubic bezier at parameter t */
+function evalBezierDeriv(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, t: number): Point2D {
+  const u = 1 - t;
+  return {
+    x: 3 * u * u * (p1.x - p0.x) + 6 * u * t * (p2.x - p1.x) + 3 * t * t * (p3.x - p2.x),
+    y: 3 * u * u * (p1.y - p0.y) + 6 * u * t * (p2.y - p1.y) + 3 * t * t * (p3.y - p2.y),
+  };
+}
+
+/**
+ * Newton refinement: refine parameter t to minimize distance from pt to bezier.
+ * Uses projection onto the tangent to iteratively improve t.
+ */
+function refineClosestT(
+  p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D,
+  pt: Point2D, tInit: number, iterations: number = 4,
+): number {
+  let t = tInit;
+  for (let i = 0; i < iterations; i++) {
+    const b = evalBezier(p0, p1, p2, p3, t);
+    const d = evalBezierDeriv(p0, p1, p2, p3, t);
+    const dx = b.x - pt.x;
+    const dy = b.y - pt.y;
+    // f(t) = dot(B(t) - pt, B'(t)), solve f(t) = 0 via Newton's method
+    const numerator = dx * d.x + dy * d.y;
+    // For the denominator we'd need the second derivative, but a simple
+    // projection step works well enough: t -= dot / |B'|^2
+    const denom = d.x * d.x + d.y * d.y;
+    if (denom < 1e-12) break;
+    t -= numerator / denom;
+    t = Math.max(0, Math.min(1, t));
+  }
+  return t;
+}
+
+/** Accurate distance from a point to a cubic bezier spline, using coarse sampling + Newton refinement. */
 export function pointToSplineDistance(pt: Point2D, spline: SplineGeometry): number {
   const cps = spline.controlPoints;
   if (cps.length < 4) return Infinity;
 
   let minDist = Infinity;
   const numSegments = Math.floor((cps.length - 1) / 3);
-  const samples = 20; // samples per segment
+  const coarseSamples = 16;
 
   for (let seg = 0; seg < numSegments; seg++) {
     const idx = seg * 3;
     const p0 = cps[idx], p1 = cps[idx + 1], p2 = cps[idx + 2], p3 = cps[idx + 3];
 
-    for (let s = 0; s <= samples; s++) {
-      const t = s / samples;
-      const u = 1 - t;
-      const bx = u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x;
-      const by = u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y;
-      const d = Math.hypot(pt.x - bx, pt.y - by);
-      if (d < minDist) minDist = d;
+    // Coarse pass: find the best t candidate
+    let bestT = 0;
+    let bestD = Infinity;
+    for (let s = 0; s <= coarseSamples; s++) {
+      const t = s / coarseSamples;
+      const b = evalBezier(p0, p1, p2, p3, t);
+      const d = Math.hypot(pt.x - b.x, pt.y - b.y);
+      if (d < bestD) { bestD = d; bestT = t; }
     }
+
+    // Newton refinement for sub-pixel accuracy
+    const refinedT = refineClosestT(p0, p1, p2, p3, pt, bestT);
+    const refined = evalBezier(p0, p1, p2, p3, refinedT);
+    const refinedDist = Math.hypot(pt.x - refined.x, pt.y - refined.y);
+    if (refinedDist < minDist) minDist = refinedDist;
   }
 
   return minDist;
@@ -478,6 +569,7 @@ export function insertInflectionPoint(
 
 /**
  * Find which segment and parameter t a point is closest to on a spline.
+ * Uses coarse sampling + Newton refinement for accuracy.
  */
 export function findClosestSplineParam(
   controlPoints: Point2D[],
@@ -487,7 +579,7 @@ export function findClosestSplineParam(
   let bestSeg = 0;
   let bestT = 0.5;
   let bestDist = Infinity;
-  const samples = 30;
+  const coarseSamples = 20;
 
   for (let seg = 0; seg < numSegments; seg++) {
     const idx = seg * 3;
@@ -496,17 +588,25 @@ export function findClosestSplineParam(
     const p2 = controlPoints[idx + 2];
     const p3 = controlPoints[idx + 3];
 
-    for (let s = 0; s <= samples; s++) {
-      const t = s / samples;
-      const u = 1 - t;
-      const bx = u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x;
-      const by = u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y;
-      const d = Math.hypot(worldPt.x - bx, worldPt.y - by);
-      if (d < bestDist) {
-        bestDist = d;
-        bestSeg = seg;
-        bestT = t;
-      }
+    // Coarse pass
+    let segBestT = 0;
+    let segBestD = Infinity;
+    for (let s = 0; s <= coarseSamples; s++) {
+      const t = s / coarseSamples;
+      const b = evalBezier(p0, p1, p2, p3, t);
+      const d = Math.hypot(worldPt.x - b.x, worldPt.y - b.y);
+      if (d < segBestD) { segBestD = d; segBestT = t; }
+    }
+
+    // Newton refinement
+    const refinedT = refineClosestT(p0, p1, p2, p3, worldPt, segBestT);
+    const refined = evalBezier(p0, p1, p2, p3, refinedT);
+    const refinedDist = Math.hypot(worldPt.x - refined.x, worldPt.y - refined.y);
+
+    if (refinedDist < bestDist) {
+      bestDist = refinedDist;
+      bestSeg = seg;
+      bestT = refinedT;
     }
   }
 
