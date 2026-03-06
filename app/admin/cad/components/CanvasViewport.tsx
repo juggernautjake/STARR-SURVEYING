@@ -128,6 +128,7 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
   DRAW_CURVED_LINE: SVG_CURSOR_CROSSHAIR,
   DRAW_SPLINE_FIT: SVG_CURSOR_CROSSHAIR,
   DRAW_SPLINE_CONTROL: SVG_CURSOR_CROSSHAIR,
+  DRAW_TEXT: SVG_CURSOR_CROSSHAIR,
   MOVE: 'move',
   COPY: 'copy',
   ROTATE: SVG_CURSOR_ROTATE,
@@ -135,6 +136,10 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
   SCALE: 'nwse-resize',
   ERASE: SVG_CURSOR_ERASE_IDLE,
 };
+
+const MIN_LABEL_FONT_SIZE_PX = 4;
+const AZIMUTH_PRECISION = 8;
+const DISTANCE_PRECISION = 6;
 
 // ─────────────────────────────────────────────
 // CanvasViewport Component
@@ -206,11 +211,14 @@ export default function CanvasViewport() {
   const [initError, setInitError] = useState<string | null>(null);
   // HUD: floating operation info panel near cursor
   const [hud, setHud] = useState<{ sx: number; sy: number; lines: string[] } | null>(null);
+  const [textInputState, setTextInputState] = useState<{ sx: number; sy: number; wx: number; wy: number } | null>(null);
 
   // Polyline group ID tracking — each new polyline drawing gets a fresh UUID
   const polylineGroupIdRef = useRef<string | null>(null);
   // Track last segment feature ID for dblclick cleanup
   const lastPolylineSegmentIdRef = useRef<string | null>(null);
+  // Track whether the text input overlay was explicitly cancelled (Escape) to suppress onBlur commit
+  const textInputCancelledRef = useRef(false);
 
   // Keyboard shortcuts
   useKeyboard();
@@ -739,6 +747,19 @@ export default function CanvasViewport() {
         }
         break;
       }
+      case 'TEXT': {
+        // TEXT features are rendered via renderTextFeatures(), not here.
+        // We just draw a tiny anchor marker in draw mode.
+        if (geom.point) {
+          const { sx, sy } = w2s(geom.point.x, geom.point.y);
+          g.lineStyle(0.5, color, alpha * 0.5);
+          g.moveTo(sx - 3, sy - 3);
+          g.lineTo(sx + 3, sy + 3);
+          g.moveTo(sx + 3, sy - 3);
+          g.lineTo(sx - 3, sy + 3);
+        }
+        break;
+      }
     }
   }
 
@@ -751,8 +772,8 @@ export default function CanvasViewport() {
 
     const visibleFeatures = drawingStore.getVisibleFeatures();
     const activeLabelIds = new Set<string>();
-    const zoom = viewportStore.zoom;
-    const doc = drawingStore.document;
+    const { zoom } = useViewportStore.getState();
+    const doc = useDrawingStore.getState().document;
 
     for (const feature of visibleFeatures) {
       const labels = feature.textLabels;
@@ -812,15 +833,35 @@ export default function CanvasViewport() {
 
         // Convert anchor to screen
         const { sx: ax, sy: ay } = w2s(anchorWorld.x, anchorWorld.y);
-        // Apply offset (in screen pixels)
-        const offsetScale = label.userPositioned ? 1 : label.scale;
-        const finalX = ax + label.offset.x * offsetScale;
-        const finalY = ay + label.offset.y * offsetScale;
+
+        // Compute screen offset from world-unit offset
+        const scale = label.userPositioned ? 1 : label.scale;
+        let screenDx = 0;
+        let screenDy = 0;
+        if (label.rotation !== null && !label.userPositioned) {
+          // Line-relative offset: x = along line, y = perpendicular (positive = above/left of direction)
+          const θ = label.rotation;
+          const along = label.offset.x * scale;
+          const perp = label.offset.y * scale;
+          // Rotate offset by line angle and convert world → screen (y inverted)
+          screenDx = (Math.cos(θ) * along - Math.sin(θ) * perp) * zoom;
+          screenDy = -(Math.sin(θ) * along + Math.cos(θ) * perp) * zoom;
+        } else {
+          // Point labels and user-positioned: world-unit offset applied directly (y inverted)
+          screenDx = label.offset.x * scale * zoom;
+          screenDy = -label.offset.y * scale * zoom;
+        }
+        const finalX = ax + screenDx;
+        const finalY = ay + screenDy;
 
         // Get or create text object
         let textObj = pixi.labelTexts.get(labelKey);
         const textColor = label.style.color ?? layer.color ?? '#000000';
-        const fontSize = Math.max(6, label.style.fontSize * label.scale);
+        // Scale font size: label.style.fontSize is in "points on paper"
+        // 1 pt = 1/72 inch; 1 inch = drawingScale world units → world units → screen pixels
+        const drawingScale = doc.settings.drawingScale ?? 50;
+        const fontSizeWorld = (label.style.fontSize / 72) * drawingScale * scale;
+        const fontSize = Math.max(MIN_LABEL_FONT_SIZE_PX, fontSizeWorld * zoom);
 
         if (!textObj) {
           const style = new pixi.TextStyleClass({
@@ -868,6 +909,75 @@ export default function CanvasViewport() {
     // Remove label texts that are no longer active
     for (const [key, textObj] of pixi.labelTexts) {
       if (!activeLabelIds.has(key)) {
+        pixi.labelLayer.removeChild(textObj);
+        textObj.destroy();
+        pixi.labelTexts.delete(key);
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Render: TEXT features as PixiJS Text objects
+  // ─────────────────────────────────────────────
+  function renderTextFeatures() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const { zoom } = useViewportStore.getState();
+    const doc = useDrawingStore.getState().document;
+    const drawingScale = doc.settings.drawingScale ?? 50;
+    const visibleFeatures = drawingStore.getVisibleFeatures().filter(f => f.type === 'TEXT');
+    const activeKeys = new Set<string>();
+
+    for (const feature of visibleFeatures) {
+      const geom = feature.geometry;
+      if (!geom.point || !geom.textContent) continue;
+      const layer = doc.layers[feature.layerId];
+      if (!layer) continue;
+
+      const key = `text:${feature.id}`;
+      activeKeys.add(key);
+
+      const { sx, sy } = w2s(geom.point.x, geom.point.y);
+      const color = feature.style.color ?? layer.color ?? '#000000';
+      const alpha = feature.style.opacity;
+      const rotation = geom.textRotation ?? 0;
+      const fontPt = Number(feature.properties.fontSize ?? 12);
+      const fontFamily = String(feature.properties.fontFamily ?? 'Arial');
+      const fontWeight = (feature.properties.fontWeight ?? 'normal') as 'normal' | 'bold';
+      const fontStyle = (feature.properties.fontStyle ?? 'normal') as 'normal' | 'italic';
+      const align = (feature.properties.textAlign ?? 'left') as 'left' | 'center' | 'right';
+      const fontSize = Math.max(MIN_LABEL_FONT_SIZE_PX, (fontPt / 72) * drawingScale * zoom);
+
+      let textObj = pixi.labelTexts.get(key);
+      if (!textObj) {
+        const style = new pixi.TextStyleClass({
+          fontFamily, fontSize, fontWeight, fontStyle,
+          fill: color, align,
+        });
+        textObj = new pixi.TextClass(geom.textContent, style);
+        textObj.anchor.set(0, 0.5);
+        pixi.labelTexts.set(key, textObj);
+        pixi.labelLayer.addChild(textObj);
+      } else {
+        if (textObj.text !== geom.textContent) textObj.text = geom.textContent;
+        const s = textObj.style as import('pixi.js').TextStyle;
+        s.fontFamily = fontFamily;
+        s.fontSize = fontSize;
+        s.fontWeight = fontWeight;
+        s.fontStyle = fontStyle;
+        s.fill = color;
+        s.align = align;
+      }
+
+      textObj.position.set(sx, sy);
+      textObj.rotation = -rotation;
+      textObj.alpha = alpha;
+      textObj.visible = true;
+    }
+
+    // Remove text objects for non-visible TEXT features
+    for (const [key, textObj] of pixi.labelTexts) {
+      if (key.startsWith('text:') && !activeKeys.has(key)) {
         pixi.labelLayer.removeChild(textObj);
         textObj.destroy();
         pixi.labelTexts.delete(key);
@@ -1696,6 +1806,7 @@ export default function CanvasViewport() {
     renderGrid();
     renderFeatures();
     renderLabels();
+    renderTextFeatures();
     renderSelection();
     renderSnapIndicator();
     renderToolPreview();
@@ -1767,6 +1878,13 @@ export default function CanvasViewport() {
       if (geom.type === 'SPLINE' && geom.spline) {
         const d = pointToSplineDistance({ x: wx, y: wy }, geom.spline);
         if (d <= worldTol) return feature.id;
+      }
+      // TEXT hit testing
+      if (geom.type === 'TEXT' && geom.point) {
+        const { sx: fx, sy: fy } = w2s(geom.point.x, geom.point.y);
+        if (Math.hypot(sx - fx, sy - fy) <= HIT_TOLERANCE_PX * 2) {
+          return feature.id;
+        }
       }
     }
     return null;
@@ -1903,16 +2021,21 @@ export default function CanvasViewport() {
           style: mergedStyle,
           properties: {},
         };
-      case 'LINE':
+      case 'LINE': {
         if (points.length < 2) return null;
+        const { azimuth: lineAzimuth, distance: lineDist } = inverseBearingDistance(points[0], points[1]);
         return {
           id,
           type: 'LINE',
           geometry: { type: 'LINE', start: points[0], end: points[1] },
           layerId: activeLayerId,
           style,
-          properties: {},
+          properties: {
+            azimuth: lineAzimuth.toFixed(AZIMUTH_PRECISION),
+            distance: lineDist.toFixed(DISTANCE_PRECISION),
+          },
         };
+      }
       case 'POLYLINE':
         if (points.length < 2) return null;
         return {
@@ -1958,6 +2081,39 @@ export default function CanvasViewport() {
   }
 
   // ─────────────────────────────────────────────
+  // Commit a TEXT feature placed via DRAW_TEXT tool
+  // ─────────────────────────────────────────────
+  function commitTextFeature(text: string, wx: number, wy: number) {
+    if (!text.trim()) return;
+    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const layerStyle = getActiveLayerStyle();
+    const feature: Feature = {
+      id: generateId(),
+      type: 'TEXT',
+      geometry: {
+        type: 'TEXT',
+        point: { x: wx, y: wy },
+        textContent: text,
+        textRotation: 0,
+      },
+      layerId: activeLayerId,
+      style: {
+        ...DEFAULT_FEATURE_STYLE,
+        ...layerStyle,
+      },
+      properties: {
+        fontSize: 12,
+        fontFamily: 'Arial',
+        fontWeight: 'normal',
+        fontStyle: 'normal',
+        textAlign: 'left',
+      },
+    };
+    drawingStore.addFeature(feature);
+    undoStore.pushUndo(makeAddFeatureEntry(feature));
+  }
+
+  // ─────────────────────────────────────────────
   // Helper: get all segment IDs that share a polylineGroupId
   // ─────────────────────────────────────────────
   function getPolylineGroupIds(groupId: string): string[] {
@@ -1974,6 +2130,7 @@ export default function CanvasViewport() {
     const { activeLayerId, getActiveLayerStyle } = drawingStore;
     const layerStyle = getActiveLayerStyle();
     const ds = useToolStore.getState().state.drawStyle;
+    const { azimuth: segAzimuth, distance: segDist } = inverseBearingDistance(start, end);
     return {
       id: generateId(),
       type: 'LINE',
@@ -1987,7 +2144,11 @@ export default function CanvasViewport() {
         ...(ds.opacity != null ? { opacity: ds.opacity } : {}),
         ...(ds.lineType !== 'SOLID' ? { lineTypeId: ds.lineType } : {}),
       },
-      properties: { polylineGroupId: groupId },
+      properties: {
+        polylineGroupId: groupId,
+        azimuth: segAzimuth.toFixed(AZIMUTH_PRECISION),
+        distance: segDist.toFixed(DISTANCE_PRECISION),
+      },
     };
   }
 
@@ -2564,6 +2725,12 @@ export default function CanvasViewport() {
           // Control-point spline: each click adds a raw control point.
           // Points are used directly as cubic bezier control points (groups of 4).
           toolStore.addDrawingPoint(worldPt);
+          break;
+        }
+
+        case 'DRAW_TEXT': {
+          // Show inline text input at click position
+          setTextInputState({ sx, sy, wx: worldPt.x, wy: worldPt.y });
           break;
         }
 
@@ -3612,6 +3779,38 @@ export default function CanvasViewport() {
           featureId={contextMenu.featureId}
           onClose={() => setContextMenu(null)}
         />
+      )}
+
+      {/* DRAW_TEXT inline input overlay */}
+      {textInputState && (
+        <div
+          className="fixed z-50"
+          style={{ left: textInputState.sx + 4, top: textInputState.sy - 16 }}
+        >
+          <input
+            autoFocus
+            className="bg-white border-2 border-blue-500 text-black text-sm px-1 py-0.5 outline-none shadow-lg min-w-[120px]"
+            placeholder="Type text…"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'Escape') {
+                if (e.key === 'Enter') {
+                  commitTextFeature(e.currentTarget.value, textInputState.wx, textInputState.wy);
+                } else {
+                  textInputCancelledRef.current = true;
+                }
+                setTextInputState(null);
+              }
+            }}
+            onBlur={(e) => {
+              if (!textInputCancelledRef.current && e.currentTarget.value.trim()) {
+                commitTextFeature(e.currentTarget.value, textInputState.wx, textInputState.wy);
+              }
+              textInputCancelledRef.current = false;
+              setTextInputState(null);
+            }}
+          />
+          <div className="text-[9px] text-gray-500 mt-0.5">Enter to place · Esc to cancel</div>
+        </div>
       )}
 
       {/* Drawing-mode mini-menu (shown on right-click during DRAW_POLYGON) */}
