@@ -15,6 +15,7 @@ import { SubdivisionIntelligenceEngine } from './services/subdivision-intelligen
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
+import { createReportRoutes } from './routes/report-routes.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -957,6 +958,10 @@ app.get('/research/purchase/:projectId', requireAuth, (req: Request, res: Respon
   }
 });
 
+// ── Phase 10: Report & Pipeline Routes ─────────────────────────────────────
+
+app.use(createReportRoutes(requireAuth));
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -983,6 +988,11 @@ app.listen(PORT, () => {
   console.log('  GET    /research/confidence/:projectId   ← Phase 8: confidence report');
   console.log('  POST   /research/purchase                ← Phase 9: document purchase');
   console.log('  GET    /research/purchase/:projectId     ← Phase 9: purchase report');
+  console.log('  POST   /research/run                    ← Phase 10: full pipeline');
+  console.log('  GET    /research/run/:projectId         ← Phase 10: pipeline status');
+  console.log('  POST   /research/report                 ← Phase 10: generate reports');
+  console.log('  GET    /research/deliverables/:projectId← Phase 10: list deliverables');
+  console.log('  GET    /research/download/:id/:format   ← Phase 10: download file');
   console.log('  POST   /research/full-pipeline');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');
