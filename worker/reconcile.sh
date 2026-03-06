@@ -47,7 +47,7 @@ if [ ! -f "$BASE/property_intelligence.json" ]; then
   echo "  3. (Phase 3: AI Extraction)                     ← produces intelligence JSON"
   echo "  4. ./subdivision.sh <projectId>                ← Phase 4: Subdivision (optional)"
   echo "  5. (Phase 5: Adjacent Research)                 ← cross_validation_report.json"
-  echo "  6. (Phase 6: TxDOT ROW)                        ← row_report.json"
+  echo "  6. (Phase 6: TxDOT ROW)                        ← row_data.json"
   echo "  7. ./reconcile.sh <projectId>                  ← Phase 7: THIS SCRIPT"
   exit 1
 fi
@@ -76,8 +76,8 @@ else
   echo "  · Phase 5 cross-validation report not found (skipping)"
 fi
 
-if [ -f "$BASE/row_report.json" ]; then
-  PATHS="$PATHS, \"rowReport\": \"$BASE/row_report.json\""
+if [ -f "$BASE/row_data.json" ]; then
+  PATHS="$PATHS, \"rowReport\": \"$BASE/row_data.json\""
   echo "  ✓ Phase 6 TxDOT ROW report found"
 else
   echo "  · Phase 6 TxDOT ROW report not found (skipping)"

@@ -550,7 +550,7 @@ export class ConfidenceScoringEngine {
     }
 
     // Try to load ROW report for resolved discrepancies
-    const rowPath = path.join(dir, 'row_report.json');
+    const rowPath = path.join(dir, 'row_data.json');
     if (fs.existsSync(rowPath)) {
       try {
         const row = JSON.parse(fs.readFileSync(rowPath, 'utf-8'));

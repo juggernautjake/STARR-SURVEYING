@@ -531,7 +531,7 @@ The engine automatically loads additional context from sibling files in the anal
 |------|-----------|
 | `property_intelligence.json` | County, subdivision name, survey date, deed references (for known documents list) |
 | `subdivision_model.json` | Lot acreages (stated vs computed) |
-| `row_report.json` | Resolved conflicts (from Phase 6 TxDOT ROW) |
+| `row_data.json` | Resolved conflicts (from Phase 6 TxDOT ROW) |
 
 ### Per-Call Confidence Example
 
