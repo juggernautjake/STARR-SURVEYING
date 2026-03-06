@@ -145,30 +145,46 @@ LOOKING AT THE PLAT IMAGE, analyze the ENTIRE SUBDIVISION and provide:
 
 Return your analysis as structured text with clear section headers.`;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        max_tokens: 8000,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: { type: 'base64', media_type: mediaType, data: base64 },
-              },
-              { type: 'text', text: prompt },
-            ],
-          },
-        ],
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: AI_MODEL,
+          max_tokens: 8000,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: { type: 'base64', media_type: mediaType, data: base64 },
+                },
+                { type: 'text', text: prompt },
+              ],
+            },
+          ],
+        }),
+      });
+    } catch (networkErr) {
+      console.error('[SubdivisionAIAnalysis] Network error calling Anthropic API:', networkErr);
+      return this.emptyResult(`Network error during AI analysis: ${networkErr}`);
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '(unreadable)');
+      console.error(
+        `[SubdivisionAIAnalysis] Anthropic API error ${response.status}: ${errText}`,
+      );
+      return this.emptyResult(
+        `AI analysis API error ${response.status} — ${errText.slice(0, 200)}`,
+      );
+    }
 
     const data = (await response.json()) as {
       content?: { text?: string }[];

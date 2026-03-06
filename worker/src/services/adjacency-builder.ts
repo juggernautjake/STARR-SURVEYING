@@ -29,17 +29,19 @@ export class AdjacencyBuilder {
       ? 'image/jpeg'
       : 'image/png';
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        max_tokens: 4000,
-        messages: [
+    let response: Response;
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: AI_MODEL,
+          max_tokens: 4000,
+          messages: [
           {
             role: 'user',
             content: [
@@ -74,6 +76,18 @@ Use lowercase lot IDs like "lot_1", "reserve_a". For roads use "road:NAME". For 
         ],
       }),
     });
+    } catch (networkErr) {
+      console.error('[AdjacencyBuilder] Network error calling Anthropic API:', networkErr);
+      return { lots: lotNames, adjacencies: {} };
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '(unreadable)');
+      console.error(
+        `[AdjacencyBuilder] Anthropic API error ${response.status}: ${errText}`,
+      );
+      return { lots: lotNames, adjacencies: {} };
+    }
 
     const data = (await response.json()) as {
       content?: { text?: string }[];

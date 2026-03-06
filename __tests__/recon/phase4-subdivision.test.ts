@@ -28,6 +28,13 @@
 //  23. SubdivisionIntelligenceEngine: lot geometry estimation — road frontage from "along"
 //  24. SubdivisionIntelligenceEngine: lot geometry estimation — shape classification
 //  25. SubdivisionIntelligenceEngine: perimeter length computation
+//  26. SubdivisionIntelligenceEngine: perimeter closure computation (v1.2)
+//  27. TraverseComputation: computeTraverse and applyCompassRule (v1.2)
+//  28. SubdivisionIntelligenceEngine: error handling — empty projectId, invalid JSON (v1.2)
+//  29. SubdivisionClassifier: LOT-after-name format detection (v1.2)
+//  30. reconcileAreas: edge cases — zero area, common_area type (v1.2)
+//  31. SubdivisionIntelligenceEngine: reserve purpose classification — all categories (v1.2)
+//  32. SubdivisionIntelligenceEngine: restrictiveCovenants source sanitization (v1.2)
 
 import { describe, it, expect, vi } from 'vitest';
 import fs from 'fs';
@@ -1046,6 +1053,383 @@ describe('SubdivisionIntelligenceEngine: perimeter from extraction calls', () =>
     const model = await engine.analyze('test-perimeter', intelPath);
 
     expect(model.subdivision.perimeterLength).toBeCloseTo(expectedPerim, 1);
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+});
+
+// ── 26. Perimeter closure computation ────────────────────────────────────────
+
+describe('SubdivisionIntelligenceEngine: perimeter closure', () => {
+  it('computes perimeter closure when perimeter calls are provided in platAnalysis', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph4-perimclosure-'));
+    const intelPath = path.join(tmpDir, 'property_intelligence.json');
+
+    // Near-perfect rectangle: N 85°22'02" E 461.81' / S 04°37'58" E 275.92' /
+    //                          S 85°22'02" W 461.81' / N 04°37'58" W 275.92'
+    const perimCalls: BoundaryCall[] = [
+      makeBearingCall(1, 'N 85°22\'02" E', 461.81),
+      makeBearingCall(2, 'S 04°37\'58" E', 275.92),
+      makeBearingCall(3, 'S 85°22\'02" W', 461.81),
+      makeBearingCall(4, 'N 04°37\'58" W', 275.92),
+    ];
+
+    const intel: PropertyIntelligenceInput = makeIntelligenceInput(
+      {},
+      {
+        lots: [{ lotId: 'lot_1', name: 'Lot 1', acreage: 2.92, sqft: 127200, boundaryCalls: [], curves: [], confidence: 80 }],
+        surveyor: null, parentTract: null, datum: null, pointOfBeginning: null,
+        totalArea: { acreage: 2.92, sqft: 127200 },
+        perimeter: { calls: perimCalls },
+        platImagePaths: [],
+        commonElements: null, restrictiveCovenants: null, setbacks: null,
+      },
+    );
+
+    fs.writeFileSync(intelPath, JSON.stringify(intel, null, 2));
+    const engine = new SubdivisionIntelligenceEngine();
+    const model = await engine.analyze('test-perimclosure', intelPath);
+
+    // Perimeter closure should be computed (not null) since we have 4 calls
+    expect(model.subdivision.perimeter.closure).not.toBeNull();
+    if (model.subdivision.perimeter.closure) {
+      expect(['excellent', 'acceptable']).toContain(model.subdivision.perimeter.closure.status);
+    }
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('leaves perimeter closure null when fewer than 3 perimeter calls', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph4-noperim-'));
+    const intelPath = path.join(tmpDir, 'property_intelligence.json');
+
+    const intel: PropertyIntelligenceInput = makeIntelligenceInput(
+      {},
+      {
+        lots: [{ lotId: 'lot_1', name: 'Lot 1', acreage: 1.0, sqft: 43560, boundaryCalls: [], curves: [], confidence: 75 }],
+        surveyor: null, parentTract: null, datum: null, pointOfBeginning: null,
+        totalArea: null,
+        perimeter: { calls: [makeBearingCall(1, 'N 45°00\'00" E', 100)] }, // only 1 call
+        platImagePaths: [],
+        commonElements: null, restrictiveCovenants: null, setbacks: null,
+      },
+    );
+
+    fs.writeFileSync(intelPath, JSON.stringify(intel, null, 2));
+    const engine = new SubdivisionIntelligenceEngine();
+    const model = await engine.analyze('test-noperim', intelPath);
+
+    expect(model.subdivision.perimeter.closure).toBeNull();
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+});
+
+// ── 27. TraverseComputation unit tests ───────────────────────────────────────
+
+import { TraverseComputation } from '../../worker/src/services/traverse-closure.js';
+
+describe('TraverseComputation: computeTraverse', () => {
+  const engine = new TraverseComputation();
+
+  it('computes excellent closure for a perfect rectangle', () => {
+    // Perfect north-south oriented rectangle: 100' E, 100' S, 100' W, 100' N
+    const calls = [
+      { callId: 'c1', bearing: 'N 90°00\'00" E', distance: 100, type: 'straight' as const },
+      { callId: 'c2', bearing: 'S 00°00\'00" W', distance: 100, type: 'straight' as const },
+      { callId: 'c3', bearing: 'S 90°00\'00" W', distance: 100, type: 'straight' as const },
+      { callId: 'c4', bearing: 'N 00°00\'00" E', distance: 100, type: 'straight' as const },
+    ];
+    const result = engine.computeTraverse(calls);
+
+    expect(result.errorDistance).toBeLessThan(0.01);
+    expect(result.status).toBe('excellent');
+    expect(result.perimeterLength).toBeCloseTo(400, 1);
+    expect(result.points).toHaveLength(4);
+  });
+
+  it('skips calls without bearing and distance', () => {
+    const calls = [
+      { callId: 'c1', bearing: null, distance: null, type: 'straight' as const }, // skipped
+      { callId: 'c2', bearing: 'N 90°00\'00" E', distance: 200, type: 'straight' as const },
+    ];
+    const result = engine.computeTraverse(calls);
+
+    expect(result.points).toHaveLength(1); // only one valid call
+    expect(result.perimeterLength).toBeCloseTo(200, 1);
+  });
+
+  it('uses chord bearing and distance for curve calls', () => {
+    const calls = [
+      {
+        callId: 'curve1',
+        bearing: null,
+        distance: null,
+        type: 'curve' as const,
+        curve: {
+          chordBearing: 'N 45°00\'00" E',
+          chordDistance: 141.42,
+          arcLength: 157.08,
+        },
+      },
+    ];
+    const result = engine.computeTraverse(calls);
+
+    // Should use chord for traverse, arc for perimeter
+    expect(result.perimeterLength).toBeCloseTo(157.08, 1);
+    expect(result.points).toHaveLength(1);
+  });
+
+  it('returns 1:infinity ratio for perfect closure', () => {
+    // Single call that returns to start — impossible, so use zero-length calls
+    const result = engine.computeTraverse([]);
+
+    expect(result.closureRatio).toBe('1:∞');
+    expect(result.status).toBe('excellent');
+    expect(result.perimeterLength).toBe(0);
+    expect(result.points).toHaveLength(0);
+  });
+
+  it('classifies poor closure when ratio < 5000', () => {
+    // Introduce a large error: add 5' discrepancy to a 100' traverse
+    // N 90° E 100', then S 90° W only 90' — 10' closing error on 190' traverse = 1:19 ratio
+    const calls = [
+      { callId: 'c1', bearing: 'N 90°00\'00" E', distance: 100, type: 'straight' as const },
+      { callId: 'c2', bearing: 'S 90°00\'00" W', distance: 90, type: 'straight' as const },
+    ];
+    const result = engine.computeTraverse(calls);
+
+    expect(result.status).toBe('poor');
+    expect(result.errorDistance).toBeCloseTo(10, 1);
+  });
+});
+
+describe('TraverseComputation: applyCompassRule', () => {
+  const engine = new TraverseComputation();
+
+  it('applies compass rule to a traverse with small error', () => {
+    const calls = [
+      { callId: 'c1', bearing: 'N 90°00\'00" E', distance: 100, type: 'straight' as const },
+      { callId: 'c2', bearing: 'S 90°00\'00" W', distance: 99.5, type: 'straight' as const }, // 0.5' error
+    ];
+    const closure = engine.computeTraverse(calls);
+    const adjusted = engine.applyCompassRule(calls, closure);
+
+    expect(adjusted.compassRuleApplied).toBe(true);
+    expect(adjusted.adjustments).toHaveLength(2);
+    // Adjustments should sum to the negative of the error
+    const totalDN = adjusted.adjustments.reduce((s, a) => s + a.dN, 0);
+    const totalDE = adjusted.adjustments.reduce((s, a) => s + a.dE, 0);
+    expect(totalDN).toBeCloseTo(-closure.errorNorthing, 3);
+    expect(totalDE).toBeCloseTo(-closure.errorEasting, 3);
+  });
+
+  it('skips compass rule when there is no error', () => {
+    // Perfect closure: applyCompassRule should return compassRuleApplied=false
+    const perfectClosure = {
+      errorNorthing: 0,
+      errorEasting: 0,
+      errorDistance: 0,
+      closureRatio: '1:∞',
+      status: 'excellent' as const,
+      perimeterLength: 400,
+      points: [],
+    };
+    const result = engine.applyCompassRule([], perfectClosure);
+
+    expect(result.compassRuleApplied).toBe(false);
+  });
+});
+
+// ── 28. Error handling tests ──────────────────────────────────────────────────
+
+describe('SubdivisionIntelligenceEngine: error handling', () => {
+  it('returns failed model for empty projectId', async () => {
+    const engine = new SubdivisionIntelligenceEngine();
+    const model = await engine.analyze('', '/tmp/some-file.json');
+
+    expect(model.status).toBe('failed');
+    expect(model.errors[0]).toContain('projectId');
+  });
+
+  it('returns failed model for invalid JSON file content', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph4-badjson-'));
+    const intelPath = path.join(tmpDir, 'property_intelligence.json');
+
+    fs.writeFileSync(intelPath, '{ invalid json content !!!');
+
+    const engine = new SubdivisionIntelligenceEngine();
+    const model = await engine.analyze('bad-json-project', intelPath);
+
+    expect(model.status).toBe('failed');
+    expect(model.errors[0]).toMatch(/parse/i);
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+});
+
+// ── 29. SubdivisionClassifier: LOT-after-name format ─────────────────────────
+
+describe('SubdivisionClassifier: LOT after subdivision name', () => {
+  const classifier = new SubdivisionClassifier();
+
+  it('detects lot_in_subdivision when LOT appears after subdivision name', () => {
+    // "CEDAR RIDGE SUBDIVISION, LOT 3, BLOCK 2" — LOT after name format
+    const result = classifier.classifyFromLegalDescription(
+      'CEDAR RIDGE SUBDIVISION, LOT 3, BLOCK 2',
+    );
+    expect(result.classification).toBe('lot_in_subdivision');
+  });
+});
+
+// ── 30. reconcileAreas: edge cases ───────────────────────────────────────────
+
+describe('reconcileAreas: edge cases', () => {
+  it('handles zero statedTotalAcreage gracefully', () => {
+    const result = reconcileAreas(0, [
+      { name: 'Lot 1', sqft: 43560, lotType: 'residential' },
+    ]);
+
+    // unaccountedPct cannot be computed from 0 stated area — should be 0 or handled
+    expect(result.unaccountedPct).toBe(0);
+    // Status depends on computed total vs stated — should at least not throw
+    expect(result).toBeDefined();
+  });
+
+  it('handles lots with both acreage and sqft (prefers sqft)', () => {
+    // sqft takes priority in area sum
+    const result = reconcileAreas(2, [
+      { name: 'Lot A', sqft: 43560, acreage: 1, lotType: 'residential' }, // both provided
+      { name: 'Lot B', acreage: 1, lotType: 'residential' },              // acreage only
+    ]);
+
+    expect(result.computedLotSumSqFt).toBeCloseTo(2 * 43560, 0);
+    expect(result.status).toBe('excellent');
+  });
+
+  it('classifies common_area type lots separately', () => {
+    const result = reconcileAreas(3, [
+      { name: 'Lot 1', sqft: 43560, lotType: 'residential' },
+      { name: 'Common Area A', sqft: 43560, lotType: 'common_area' },
+      { name: 'Lot 2', sqft: 43560, lotType: 'residential' },
+    ]);
+
+    expect(result.commonAreaSqFt).toBeCloseTo(43560, 0);
+    const caEntry = result.breakdown.find((b) => b.name === 'Common Area A');
+    expect(caEntry?.type).toBe('common_area');
+  });
+});
+
+// ── 31. Reserve purpose inference ────────────────────────────────────────────
+
+describe('SubdivisionIntelligenceEngine: reserve purpose classification', () => {
+  async function getReservePurpose(name: string): Promise<string | undefined> {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph4-respurp-'));
+    const intelPath = path.join(tmpDir, 'property_intelligence.json');
+
+    const intel: PropertyIntelligenceInput = makeIntelligenceInput(
+      {},
+      {
+        lots: [
+          { lotId: 'lot_1', name: 'Lot 1', acreage: 1.0, sqft: 43560, boundaryCalls: [], curves: [], confidence: 75 },
+          { lotId: 'res_x', name, acreage: 0.5, sqft: 21780, boundaryCalls: [], curves: [], confidence: 70 },
+        ],
+        surveyor: null, parentTract: null, datum: null, pointOfBeginning: null,
+        totalArea: null, perimeter: null, platImagePaths: [],
+        commonElements: null, restrictiveCovenants: null, setbacks: null,
+      },
+    );
+
+    fs.writeFileSync(intelPath, JSON.stringify(intel, null, 2));
+    const engine = new SubdivisionIntelligenceEngine();
+    const model = await engine.analyze('test-respurp', intelPath);
+    fs.rmSync(tmpDir, { recursive: true });
+
+    return model.reserves[0]?.purpose;
+  }
+
+  it('classifies "Reserve Drainage" as drainage', async () => {
+    expect(await getReservePurpose('Reserve Drainage')).toBe('drainage');
+  });
+
+  it('classifies "Utility Reserve B" as utility', async () => {
+    expect(await getReservePurpose('Utility Reserve B')).toBe('utility');
+  });
+
+  it('classifies "Landscape Reserve" as open_space', async () => {
+    expect(await getReservePurpose('Landscape Reserve')).toBe('open_space');
+  });
+
+  it('classifies "Access Reserve" as access', async () => {
+    expect(await getReservePurpose('Access Reserve')).toBe('access');
+  });
+
+  it('classifies "Common Area HOA" as common_area', async () => {
+    expect(await getReservePurpose('Common Area HOA')).toBe('common_area');
+  });
+
+  it('classifies unnamed "Reserve A" as drainage_and_utility (default)', async () => {
+    expect(await getReservePurpose('Reserve A')).toBe('drainage_and_utility');
+  });
+});
+
+// ── 32. restrictiveCovenants source validation ────────────────────────────────
+
+describe('SubdivisionIntelligenceEngine: restrictiveCovenants source', () => {
+  it('defaults to plat_notes when source is missing', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph4-cov-'));
+    const intelPath = path.join(tmpDir, 'property_intelligence.json');
+
+    const intel: PropertyIntelligenceInput = makeIntelligenceInput(
+      {},
+      {
+        lots: [{ lotId: 'lot_1', name: 'Lot 1', acreage: 1.0, sqft: 43560, boundaryCalls: [], curves: [], confidence: 75 }],
+        surveyor: null, parentTract: null, datum: null, pointOfBeginning: null,
+        totalArea: null, perimeter: null, platImagePaths: [],
+        commonElements: null,
+        restrictiveCovenants: {
+          instrument: 'CC-2020-1234',
+          knownRestrictions: ['No commercial use'],
+          source: 'INVALID_SOURCE', // Should be sanitized to 'plat_notes'
+        },
+        setbacks: null,
+      },
+    );
+
+    fs.writeFileSync(intelPath, JSON.stringify(intel, null, 2));
+    const engine = new SubdivisionIntelligenceEngine();
+    const model = await engine.analyze('test-covenants', intelPath);
+
+    expect(model.restrictiveCovenants.source).toBe('plat_notes');
+    expect(model.restrictiveCovenants.instrument).toBe('CC-2020-1234');
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('preserves valid source values (ccr_document)', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph4-cov2-'));
+    const intelPath = path.join(tmpDir, 'property_intelligence.json');
+
+    const intel: PropertyIntelligenceInput = makeIntelligenceInput(
+      {},
+      {
+        lots: [{ lotId: 'lot_1', name: 'Lot 1', acreage: 1.0, sqft: 43560, boundaryCalls: [], curves: [], confidence: 75 }],
+        surveyor: null, parentTract: null, datum: null, pointOfBeginning: null,
+        totalArea: null, perimeter: null, platImagePaths: [],
+        commonElements: null,
+        restrictiveCovenants: {
+          instrument: 'CC-2020-5678',
+          knownRestrictions: [],
+          source: 'ccr_document',
+        },
+        setbacks: null,
+      },
+    );
+
+    fs.writeFileSync(intelPath, JSON.stringify(intel, null, 2));
+    const engine = new SubdivisionIntelligenceEngine();
+    const model = await engine.analyze('test-covenants2', intelPath);
+
+    expect(model.restrictiveCovenants.source).toBe('ccr_document');
 
     fs.rmSync(tmpDir, { recursive: true });
   });

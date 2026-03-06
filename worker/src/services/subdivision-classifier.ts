@@ -128,6 +128,7 @@ export class SubdivisionClassifier {
   ): Promise<PlatAmendment[]> {
     const amendments: PlatAmendment[] = [];
     const seen = new Set<string>();
+    let searchErrors = 0;
 
     const searchTermGroups = [
       // Replats
@@ -155,6 +156,9 @@ export class SubdivisionClassifier {
       ['vacating_plat', 'plat'],
     ];
 
+    // Count total searches: one API call per term per group
+    const totalSearches = searchTermGroups.reduce((sum, terms) => sum + terms.length, 0);
+
     for (let g = 0; g < searchTermGroups.length; g++) {
       const terms = searchTermGroups[g];
       const docTypes = docTypeGroups[g];
@@ -174,13 +178,25 @@ export class SubdivisionClassifier {
               });
             }
           }
-        } catch {
+        } catch (err) {
+          searchErrors++;
+          console.warn(`[SubdivisionClassifier] Amendment search failed for term "${term}":`, err);
           // continue searching other terms
         }
       }
     }
 
     // Sort chronologically
+    if (searchErrors > 0) {
+      console.warn(
+        `[SubdivisionClassifier] ${searchErrors}/${totalSearches} amendment searches failed for "${subdivisionName}"`,
+      );
+    } else {
+      console.log(
+        `[SubdivisionClassifier] Amendment search complete: ${amendments.length} found for "${subdivisionName}"`,
+      );
+    }
+
     return amendments.sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     );
