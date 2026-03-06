@@ -12,6 +12,7 @@ import { runPipeline } from './services/pipeline.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
 import { SubdivisionIntelligenceEngine } from './services/subdivision-intelligence.js';
+import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -663,6 +664,96 @@ app.get('/research/subdivision/:projectId', requireAuth, (req: Request, res: Res
   }
 });
 
+// ── POST /research/reconcile ──────────────────────────────────────────────
+// Phase 7: Geometric Reconciliation & Multi-Source Cross-Validation.
+// Consumes every data source from Phases 3-6, treats each as an independent
+// "reading" of every boundary call, and produces a single reconciled boundary.
+//
+// Long-running (up to ~60 seconds). Returns HTTP 202 immediately.
+// Results are persisted to /tmp/analysis/{projectId}/reconciled_boundary.json.
+
+app.post('/research/reconcile', requireAuth, async (req: Request, res: Response) => {
+  const { projectId, phasePaths } = req.body as {
+    projectId?: string;
+    phasePaths?: {
+      intelligence?: string;
+      subdivision?: string;
+      crossValidation?: string;
+      rowReport?: string;
+    };
+  };
+
+  if (!projectId || !phasePaths?.intelligence) {
+    res.status(400).json({ error: 'projectId and phasePaths.intelligence required' });
+    return;
+  }
+
+  // Validate projectId to safe characters — prevents path traversal
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({
+      error: 'projectId may only contain alphanumeric characters, hyphens, and underscores',
+    });
+    return;
+  }
+
+  // Validate all paths are .json files
+  const paths = [
+    phasePaths.intelligence,
+    phasePaths.subdivision,
+    phasePaths.crossValidation,
+    phasePaths.rowReport,
+  ].filter(Boolean) as string[];
+
+  for (const p of paths) {
+    if (!p.endsWith('.json')) {
+      res.status(400).json({ error: `All phase paths must be .json files: ${p}` });
+      return;
+    }
+  }
+
+  res.status(202).json({ status: 'accepted', projectId });
+
+  try {
+    const engine = new GeometricReconciliationEngine();
+    const result = await engine.reconcile(projectId, {
+      intelligence: phasePaths.intelligence,
+      subdivision: phasePaths.subdivision,
+      crossValidation: phasePaths.crossValidation,
+      rowReport: phasePaths.rowReport,
+    });
+
+    const before = result.closureOptimization?.beforeReconciliation || 'n/a';
+    const after = result.closureOptimization?.afterCompassRule || 'n/a';
+    console.log(`[Reconcile] Complete: closure ${before} → ${after}`);
+    console.log(
+      `[Reconcile] Avg confidence: ${result.reconciledPerimeter?.previousAverageConfidence}% → ${result.reconciledPerimeter?.averageConfidence}%`,
+    );
+  } catch (error) {
+    console.error(`[Reconcile] Failed for ${projectId}:`, error);
+  }
+});
+
+// ── GET /research/reconcile/:projectId ───────────────────────────────────
+// Quick status check — returns the completed reconciliation or in_progress.
+
+app.get('/research/reconcile/:projectId', requireAuth, (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const resultPath = `/tmp/analysis/${projectId}/reconciled_boundary.json`;
+
+  if (fs.existsSync(resultPath)) {
+    const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+    res.json(result);
+  } else {
+    res.json({ status: 'in_progress' });
+  }
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -683,6 +774,8 @@ app.listen(PORT, () => {
   console.log('  GET    /research/harvest/:projectId      ← Phase 2: harvest status/result');
   console.log('  POST   /research/subdivision             ← Phase 4: subdivision intelligence');
   console.log('  GET    /research/subdivision/:projectId  ← Phase 4: subdivision status/result');
+  console.log('  POST   /research/reconcile               ← Phase 7: geometric reconciliation');
+  console.log('  GET    /research/reconcile/:projectId    ← Phase 7: reconciliation status/result');
   console.log('  POST   /research/full-pipeline');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');
