@@ -227,7 +227,15 @@ export class PropertyDiscoveryEngine {
       case 'dcad':          return new TrueAutomationAdapter(config); // DCAD uses TrueAuto structure
       case 'hcad':          return new HCADAdapter(config);           // Harris County custom portal
       case 'tad':           return new TADAdapter(config);            // Tarrant County custom portal
-      default:              return new BISAdapter(config); // BIS is the most common vendor
+      default: {
+        // Unknown vendor — use AI-assisted generic adapter rather than silently
+        // misrouting to BISAdapter (which would fail with wrong URLs/selectors).
+        // The county name is parsed from the config display name.
+        // The FIPS is not stored in CADConfig so we pass an empty string;
+        // GenericCADAdapter only uses it for a diagnostic note, not URL construction.
+        const countyName = config.name.replace(/\s*(?:Appraisal District|CAD).*$/i, '').trim();
+        return new GenericCADAdapter(countyName || config.name, '');
+      }
     }
   }
 

@@ -1073,6 +1073,7 @@ export async function normalizeAddress(
       lat,
       lon,
       detectedCounty,
+      countyFIPS: countyToFIPS(detectedCounty ?? '') ?? null,
     };
   }
 
@@ -1109,6 +1110,7 @@ export async function normalizeAddress(
       lat,
       lon,
       detectedCounty,
+      countyFIPS: countyToFIPS(detectedCounty ?? '') ?? null,
     };
   }
 
@@ -1129,5 +1131,6 @@ export async function normalizeAddress(
     lat: null,
     lon: null,
     detectedCounty,
+    countyFIPS: countyToFIPS(detectedCounty ?? '') ?? null,
   };
 }

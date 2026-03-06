@@ -379,6 +379,61 @@ describe('CADAdapter.detectSubdivision', () => {
     expect(result.lotNumber).toBe('3');
     expect(result.blockNumber).toBe('B');
   });
+
+  // ── Pattern 5 guard: survey/abstract descriptions should NOT be flagged ────
+
+  it('returns isSubdivision=false for a RANCH SURVEY metes-and-bounds description', () => {
+    // Bug fix: "RANCH" keyword alone should not trigger subdivision if SURVEY is present
+    const result = adapter.testDetectSubdivision(
+      'JOHNSON RANCH SURVEY, A-488, 15.25 ACRES',
+    );
+    expect(result.isSubdivision).toBe(false);
+  });
+
+  it('returns isSubdivision=false for a PARK SURVEY metes-and-bounds description', () => {
+    // Bug fix: "PARK" keyword alone should not trigger subdivision if SURVEY is present
+    const result = adapter.testDetectSubdivision(
+      'CEDAR PARK SURVEY, ABSTRACT 123, 5.5 ACRES',
+    );
+    expect(result.isSubdivision).toBe(false);
+  });
+
+  it('still detects RANCH as subdivision keyword when no survey/abstract present', () => {
+    // "RANCH" subdivisions (e.g. "ROLLING RANCH ESTATES") should still be detected
+    const result = adapter.testDetectSubdivision('ROLLING RANCH PHASE 2');
+    expect(result.isSubdivision).toBe(true);
+  });
+
+  it('returns isSubdivision=false for a description with acreage and ABSTRACT', () => {
+    const result = adapter.testDetectSubdivision(
+      'WILLIAM HARTRICK SURVEY, ABSTRACT 488, 12.358 ACRES',
+    );
+    expect(result.isSubdivision).toBe(false);
+  });
+
+  it('detects HEIGHTS subdivision keyword without survey context', () => {
+    const result = adapter.testDetectSubdivision('MILL CREEK HEIGHTS SEC 4');
+    expect(result.isSubdivision).toBe(true);
+    expect(result.subdivisionName).toContain('HEIGHTS');
+  });
+
+  it('handles letter-only block designator (BLOCK A)', () => {
+    // Bug fix from March 2026: block numbers must support letters-only (BLOCK A)
+    const result = adapter.testDetectSubdivision(
+      'LOT 5, BLOCK A, SUNRISE MEADOWS ADDITION',
+    );
+    expect(result.isSubdivision).toBe(true);
+    expect(result.blockNumber).toBe('A');
+    expect(result.lotNumber).toBe('5');
+  });
+
+  it('handles alphanumeric block designator (BLOCK 2A)', () => {
+    const result = adapter.testDetectSubdivision(
+      'LOT 12, BLOCK 2A, CREEKSIDE VILLAGE',
+    );
+    expect(result.isSubdivision).toBe(true);
+    expect(result.blockNumber).toBe('2A');
+  });
 });
 
 // ── 5. County FIPS Lookups ────────────────────────────────────────────────────
@@ -456,5 +511,79 @@ describe('countyToFIPS', () => {
 
   it('returns null for an unknown county', () => {
     expect(countyToFIPS('NotACounty')).toBeNull();
+  });
+});
+
+// ── 6. PropertyDiscoveryEngine — adapter selection ────────────────────────────
+// These tests validate that PropertyDiscoveryEngine.createAdapter routes
+// to the correct adapter class for each CAD vendor.  We test this indirectly
+// via the CAD registry vendor field since createAdapter is private.
+
+describe('CAD registry vendor coverage', () => {
+  it('Bell County (48027) uses bis vendor', () => {
+    const cfg = getCADConfig('48027');
+    expect(cfg!.vendor).toBe('bis');
+  });
+
+  it('Harris County (48201) uses hcad vendor', () => {
+    const cfg = getCADConfig('48201');
+    expect(cfg!.vendor).toBe('hcad');
+  });
+
+  it('Tarrant County (48439) uses tad vendor', () => {
+    const cfg = getCADConfig('48439');
+    expect(cfg!.vendor).toBe('tad');
+  });
+
+  it('Travis County (48453) uses trueautomation vendor', () => {
+    const cfg = getCADConfig('48453');
+    expect(cfg!.vendor).toBe('trueautomation');
+  });
+
+  it('Dallas County (48113) uses dcad vendor', () => {
+    const cfg = getCADConfig('48113');
+    expect(cfg!.vendor).toBe('dcad');
+  });
+
+  it('Bexar County (48029) uses trueautomation vendor', () => {
+    const cfg = getCADConfig('48029');
+    expect(cfg!.vendor).toBe('trueautomation');
+  });
+
+  it('Hays County (48209) uses bis vendor (esearch.hayscad.com)', () => {
+    const cfg = getCADConfig('48209');
+    expect(cfg!.vendor).toBe('bis');
+    expect(cfg!.searchUrl).toContain('hayscad');
+  });
+
+  it('Comal County (48091) uses bis vendor (esearch.comalcad.org)', () => {
+    const cfg = getCADConfig('48091');
+    expect(cfg!.vendor).toBe('bis');
+    expect(cfg!.searchUrl).toContain('comalcad');
+  });
+
+  it('all registered configs have a valid cadSystem field', () => {
+    const list = listRegisteredCounties();
+    const validSystems = new Set([
+      'bis_consultants', 'trueautomation', 'hcad', 'tad',
+      'capitol_appraisal', 'pritchard_abbott', 'texasfile_fallback', 'unknown',
+    ]);
+    for (const { config } of list) {
+      expect(validSystems.has(config.cadSystem),
+        `${config.name} has unknown cadSystem: ${config.cadSystem}`,
+      ).toBe(true);
+    }
+  });
+
+  it('HCAD config has correct addressField and resultSelector', () => {
+    const cfg = getCADConfig('48201')!;
+    expect(cfg.addressField).toBe('search_str');
+    expect(cfg.resultSelector).toContain('searchResults');
+  });
+
+  it('TAD config has correct addressField and resultSelector', () => {
+    const cfg = getCADConfig('48439')!;
+    expect(cfg.addressField).toBe('address');
+    expect(cfg.resultSelector).toContain('search-results-table');
   });
 });

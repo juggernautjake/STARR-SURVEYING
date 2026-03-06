@@ -177,6 +177,9 @@ interface TrueAutoHit {
   situs_street?:  string;
   situs_city?:    string;
   mailing_addr?:  string;
+  mailing_city?:  string;
+  mailing_state?: string;
+  mailing_zip?:   string;
   market_value?:  number | string;
   abs_name?:      string;
   subdv_name?:    string;
@@ -251,7 +254,7 @@ async function findRelatedLots(
 ): Promise<string[]> {
   try {
     const { normalizeAddress: na } = await import('./address-utils.js');
-    const syntheticAddress = { raw: subdivisionName, canonical: subdivisionName, parsed: { streetNumber: '', streetName: subdivisionName, streetType: '', preDirection: null, postDirection: null, unit: null, city: null, state: 'TX', zip: null }, geocoded: false, source: 'manual' as const, variants: [{ streetNumber: '', streetName: subdivisionName, format: 'name_only', priority: 0, isPartial: true }], lat: null, lon: null, detectedCounty: countyKey };
+    const syntheticAddress = { raw: subdivisionName, canonical: subdivisionName, parsed: { streetNumber: '', streetName: subdivisionName, streetType: '', preDirection: null, postDirection: null, unit: null, city: null, state: 'TX', zip: null }, geocoded: false, source: 'manual' as const, variants: [{ streetNumber: '', streetName: subdivisionName, format: 'name_only', priority: 0, isPartial: true }], lat: null, lon: null, detectedCounty: countyKey, countyFIPS: null };
 
     // For BIS counties, search by subdivision name as owner/keyword
     const { property: sample } = await searchBisCad(countyKey, syntheticAddress, anthropicApiKey, logger);

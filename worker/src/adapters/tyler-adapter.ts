@@ -6,13 +6,14 @@
 
 import { CADAdapter, type PropertySearchResult, type PropertyDetail } from './cad-adapter.js';
 import type { AddressVariant } from '../services/address-normalizer.js';
+import type { ElementHandle } from 'playwright';
 
 export class TylerAdapter extends CADAdapter {
 
   // ── Private helper ───────────────────────────────────────────────────────────
 
   /** Extract a property ID from a result row's link href. */
-  private async extractPropertyId(row: Awaited<ReturnType<typeof this.page.$$>>[number]): Promise<string> {
+  private async extractPropertyId(row: ElementHandle): Promise<string> {
     const directAttr = await row.getAttribute(this.config.propertyIdField).catch(() => null);
     if (directAttr) return directAttr;
 
