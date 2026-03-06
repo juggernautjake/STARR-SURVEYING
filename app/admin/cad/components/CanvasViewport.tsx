@@ -29,7 +29,7 @@ import FeatureContextMenu from './FeatureContextMenu';
 // Constants
 // ─────────────────────────────────────────────
 const HIT_TOLERANCE_PX = 5;
-const GRIP_SIZE = 8; // half-size of grip square in pixels
+const DEFAULT_GRIP_SIZE = 8; // half-size of grip square in pixels (fallback)
 const MAX_GRID_ITERATIONS = 500; // max grid lines per axis to prevent performance issues
 // Minimum meaningful segment length in world units before zoom scaling.
 // Prevents duplicate zero-length segments on double-click.
@@ -631,7 +631,9 @@ export default function CanvasViewport() {
     const hoverColor = parseInt(hoverColorHex, 16);
     const selColorHex = (docSettings.selectionColor ?? '#0088ff').replace('#', '');
     const selColor = parseInt(selColorHex, 16);
-    if (hoveredId && !selectedIds.has(hoveredId)) {
+    const glowEnabled = docSettings.hoverGlowEnabled ?? true;
+    const glowIntensity = docSettings.hoverGlowIntensity ?? 1.0;
+    if (hoveredId && !selectedIds.has(hoveredId) && glowEnabled) {
       const feature = drawingStore.getFeature(hoveredId);
       if (feature) {
         const geom = feature.geometry;
@@ -676,14 +678,14 @@ export default function CanvasViewport() {
           }
         };
 
-        // Outer glow layer (thick, soft)
-        g.lineStyle(6, hoverColor, 0.15);
+        // Outer glow layer (thick, soft) — intensity-scaled
+        g.lineStyle(6 * glowIntensity, hoverColor, 0.15 * glowIntensity);
         drawGeomOutline();
         // Middle glow layer
-        g.lineStyle(3, hoverColor, 0.3);
+        g.lineStyle(3 * glowIntensity, hoverColor, 0.3 * glowIntensity);
         drawGeomOutline();
         // Inner highlight layer (crisp)
-        g.lineStyle(1.5, hoverColor, 0.7);
+        g.lineStyle(1.5, hoverColor, Math.min(1, 0.7 * glowIntensity));
         drawGeomOutline();
       }
     }
@@ -693,9 +695,10 @@ export default function CanvasViewport() {
       const feature = drawingStore.getFeature(featureId);
       if (!feature) continue;
 
-      // Highlight: selection color outline
+      // Highlight: selection color outline — width from settings
       const geom = feature.geometry;
-      g.lineStyle(2, selColor, 1);
+      const selLineW = docSettings.selectionLineWidth ?? 1.5;
+      g.lineStyle(selLineW + 0.5, selColor, 1);
       switch (geom.type) {
         case 'POINT': {
           const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
@@ -734,13 +737,18 @@ export default function CanvasViewport() {
         }
       }
 
-      // Grip squares at vertices
-      g.lineStyle(1, selColor, 1);
-      g.beginFill(0xffffff, 1);
+      // Grip squares at vertices — size and colors from settings
+      const gs = docSettings.gripSize ?? 6;
+      const gripColorHex = (docSettings.gripColor ?? docSettings.selectionColor ?? '#0088ff').replace('#', '');
+      const gripBorderColor = parseInt(gripColorHex, 16);
+      const gripFillHex = (docSettings.gripFillColor ?? '#ffffff').replace('#', '');
+      const gripFill = parseInt(gripFillHex, 16);
+      g.lineStyle(1, gripBorderColor, 1);
+      g.beginFill(gripFill, 1);
       const gripPoints = getFeatureVertices(feature);
       for (const pt of gripPoints) {
         const { sx, sy } = w2s(pt.x, pt.y);
-        g.drawRect(sx - 4, sy - 4, 8, 8);
+        g.drawRect(sx - gs / 2, sy - gs / 2, gs, gs);
       }
       g.endFill();
     }
@@ -1482,7 +1490,8 @@ export default function CanvasViewport() {
       const verts = getFeatureVertices(feature);
       for (let i = 0; i < verts.length; i++) {
         const { sx: gx, sy: gy } = w2s(verts[i].x, verts[i].y);
-        if (Math.abs(sx - gx) <= GRIP_SIZE && Math.abs(sy - gy) <= GRIP_SIZE) {
+        const gripHitSize = (drawingStore.document.settings.gripSize ?? 6) + 2;
+        if (Math.abs(sx - gx) <= gripHitSize && Math.abs(sy - gy) <= gripHitSize) {
           return { featureId, vertexIndex: i };
         }
       }
@@ -1986,8 +1995,9 @@ export default function CanvasViewport() {
       const sy = e.clientY - rect.top;
 
       if (isPanningRef.current) {
-        const dx = sx - lastMouseRef.current.x;
-        const dy = sy - lastMouseRef.current.y;
+        const panMult = drawingStore.document.settings.panSpeed ?? 1.0;
+        const dx = (sx - lastMouseRef.current.x) * panMult;
+        const dy = (sy - lastMouseRef.current.y) * panMult;
         viewportStore.pan(dx, dy);
       }
 
@@ -2258,7 +2268,8 @@ export default function CanvasViewport() {
         const start = toolState.boxStart!;
         const end = toolState.boxEnd ?? { x: sx, y: sy };
         const dragDist = Math.hypot(end.x - start.x, end.y - start.y);
-        if (dragDist > 5) {
+        const threshold = drawingStore.document.settings.dragThreshold ?? 5;
+        if (dragDist > threshold) {
           const ids = boxSelectFeatures(start, end);
           selectionStore.selectMultiple(ids, e.shiftKey ? 'ADD' : 'REPLACE');
         } else if (!clickHitFeatureRef.current && !e.shiftKey) {
@@ -2485,7 +2496,18 @@ export default function CanvasViewport() {
         }
       }
 
-      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      const zoomSettings = useDrawingStore.getState().document.settings;
+      const speed = zoomSettings.zoomSpeed ?? 1.0;
+      const invert = zoomSettings.invertScrollZoom ?? false;
+      const zoomTowardCursor = zoomSettings.zoomTowardCursor ?? true;
+      const baseFactor = 1.0 + 0.15 * speed;
+      const scrollUp = invert ? (e.deltaY > 0) : (e.deltaY < 0);
+      const factor = scrollUp ? baseFactor : 1 / baseFactor;
+      if (!zoomTowardCursor) {
+        const vp = useViewportStore.getState();
+        sx = vp.screenWidth / 2;
+        sy = vp.screenHeight / 2;
+      }
       useViewportStore.getState().zoomAt(sx, sy, factor);
     };
 

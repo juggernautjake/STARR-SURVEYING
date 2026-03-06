@@ -40,6 +40,37 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   paperOrientation: 'LANDSCAPE',
   drawingScale: 50,
   codeDisplayMode: 'ALPHA',
+
+  // Interaction & Viewport
+  zoomSpeed: 1.0,
+  zoomTowardCursor: true,
+  invertScrollZoom: false,
+  panSpeed: 1.0,
+  dragThreshold: 5,
+
+  // Grip & Handle appearance
+  gripSize: 6,
+  gripColor: '#0088ff',
+  gripFillColor: '#ffffff',
+
+  // Hover & highlight
+  hoverGlowEnabled: true,
+  hoverGlowIntensity: 1.0,
+  selectionLineWidth: 1.5,
+
+  // Labels & annotations display
+  showPointLabels: true,
+  showLineLabels: true,
+  showDimensions: true,
+
+  // Cursor
+  cursorCrosshairSize: 24,
+  showCursorCoordinates: false,
+
+  // Auto-save
+  autoSaveEnabled: true,
+  autoSaveIntervalSec: 120,
+
   displayPreferences: { ...DEFAULT_DISPLAY_PREFERENCES },
 };
 

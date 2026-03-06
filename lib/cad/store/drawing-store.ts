@@ -55,6 +55,7 @@ interface DrawingStore {
   updateDocumentName: (name: string) => void;
   updateDocumentAuthor: (author: string) => void;
   updateSettings: (settings: Partial<DrawingSettings>) => void;
+  updateGlobalStyleConfig: (config: Partial<import('../styles/types').GlobalStyleConfig>) => void;
   markClean: () => void;
 
   // Queries
@@ -232,6 +233,16 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       document: {
         ...state.document,
         settings: { ...state.document.settings, ...settings },
+        modified: new Date().toISOString(),
+      },
+      isDirty: true,
+    })),
+
+  updateGlobalStyleConfig: (config) =>
+    set((state) => ({
+      document: {
+        ...state.document,
+        globalStyleConfig: { ...state.document.globalStyleConfig, ...config },
         modified: new Date().toISOString(),
       },
       isDirty: true,
