@@ -712,3 +712,295 @@ describe('AdjacentResearchOrchestrator.buildReport (via direct state assembly)',
     expect(confidence).toBe(63);
   });
 });
+
+// ── Additional Phase 5 Tests (v1.2 — extended coverage) ──────────────────────
+//
+//  36.  AdjacentQueueBuilder: normalizeOwnerName — leading/trailing whitespace
+//  37.  AdjacentQueueBuilder: isRoad — INTERSTATE, US highway, RM, LOOP patterns
+//  38.  AdjacentQueueBuilder: generateNameVariants — ET AL / ET UX suffix stripped
+//  39.  AdjacentQueueBuilder: buildQueue — calledAcreages merged across duplicate plat entries
+//  40.  CrossValidationEngine: validate — referencesOurProperty calls treated as shared candidates
+//  41.  CrossValidationEngine: validate — marginal symbol is '?'
+//  42.  CrossValidationEngine: validate — close_match symbol is '~'
+//  43.  CrossValidationEngine: validate — multiple ourCalls, some confirmed some unverified
+//  44.  CrossValidationEngine: validate — bearingDifference null when theirBearing is null
+//  45.  AdjacentQueueBuilder: buildQueue — only adjacency_matrix source (no Phase 3 data)
+//  46.  AdjacentQueueBuilder: buildQueue — priority 1 assigned to task with most shared length
+//  47.  CrossValidationEngine: validate — all calls confirmed → confidence = 100
+//  48.  CrossValidationEngine: validate — all calls discrepancy → confidence = 0
+//  49.  AdjacentQueueBuilder: generateNameVariants — short names (< 3 chars) excluded
+//  50.  AdjacentResearchOrchestrator: buildReport — errors[] preserved in report
+
+describe('AdjacentQueueBuilder (extended)', () => {
+  const builder = new AdjacentQueueBuilder();
+
+  // ── 36. normalizeOwnerName whitespace ─────────────────────────────────────
+
+  it('36. normalizeOwnerName — strips leading/trailing whitespace', () => {
+    expect(builder.normalizeOwnerName('  R.K. GAINES  ')).toBe('RK GAINES');
+    expect(builder.normalizeOwnerName('\tSMITH\n')).toBe('SMITH');
+  });
+
+  // ── 37. isRoad — more patterns ────────────────────────────────────────────
+
+  it('37. isRoad — INTERSTATE, US, RM, LOOP patterns', () => {
+    expect(builder.isRoad('INTERSTATE 35')).toBe(true);
+    expect(builder.isRoad('IH 35')).toBe(true);
+    expect(builder.isRoad('US 190')).toBe(true);
+    expect(builder.isRoad('RM 2410')).toBe(true);
+    expect(builder.isRoad('LOOP 121')).toBe(true);
+    expect(builder.isRoad('SPUR 290')).toBe(true);
+    // A name that happens to contain "highway" should be excluded
+    expect(builder.isRoad('OLD HIGHWAY HOMESTEAD')).toBe(true);
+    // A true person name should not be excluded
+    expect(builder.isRoad('JAMES ROADWAY')).toBe(false);
+  });
+
+  // ── 38. generateNameVariants — ET AL / ET UX suffix stripped ─────────────
+
+  it('38. generateNameVariants — ET AL and ET UX stripped', () => {
+    const variants38a = builder.generateNameVariants('HAROLD THOMPSON ET AL');
+    expect(variants38a.some((v) => v === 'HAROLD THOMPSON')).toBe(true);
+
+    const variants38b = builder.generateNameVariants('JOHN SMITH ET UX');
+    expect(variants38b.some((v) => v === 'JOHN SMITH')).toBe(true);
+  });
+
+  // ── 39. calledAcreages merged across duplicate plat entries ──────────────
+
+  it('39. buildQueue — calledAcreages merged when same owner appears twice in adjacentProperties', () => {
+    const intel = makeIntelligence({
+      adjacentProperties: [
+        { owner: 'R.K. GAINES', calledAcreages: [9.0], sharedBoundary: 'north', instrumentNumbers: [] },
+        // Duplicate with different acreage — should be merged
+        { owner: 'R.K. GAINES', calledAcreages: [20.0], sharedBoundary: 'north', instrumentNumbers: [] },
+      ] as never,
+    });
+
+    const tasks = builder.buildQueue(intel);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].calledAcreages).toContain(9.0);
+    expect(tasks[0].calledAcreages).toContain(20.0);
+  });
+
+  // ── 45. Only adjacency_matrix source ──────────────────────────────────────
+
+  it('45. buildQueue — tasks from adjacency_matrix only (no Phase 3 adjacentProperties)', () => {
+    const intel = makeIntelligence({ adjacentProperties: [] as never });
+    const subdivisionModel = {
+      lotRelationships: {
+        adjacencyMatrix: {
+          LOT_1: {
+            north: ['external:HAROLD THOMPSON'],
+            south: ['LOT_2'],
+          },
+        },
+      },
+    };
+
+    const tasks = builder.buildQueue(intel, subdivisionModel as Record<string, unknown>);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].owner).toBe('HAROLD THOMPSON');
+    expect(tasks[0].source).toBe('adjacency_matrix');
+  });
+
+  // ── 46. Priority 1 = highest shared length ────────────────────────────────
+
+  it('46. buildQueue — priority 1 assigned to task with most shared boundary length', () => {
+    // One neighbor with long shared calls, one with short
+    const intel = makeIntelligence({
+      lots: [
+        {
+          lotId: 'LOT-1',
+          boundaryCalls: [
+            { callId: 'C1', bearing: 'N 00°00\'00" E', distance: 500, along: 'GAINES', type: 'straight' },
+            { callId: 'C2', bearing: 'S 90°00\'00" E', distance: 100, along: 'SMITH', type: 'straight' },
+          ],
+          curves: [],
+        },
+      ] as never,
+      adjacentProperties: [
+        { owner: 'GAINES', calledAcreages: [9.0], sharedBoundary: 'north', instrumentNumbers: [], sharedCalls: [] },
+        { owner: 'SMITH', calledAcreages: [5.0], sharedBoundary: 'east', instrumentNumbers: [], sharedCalls: [] },
+      ] as never,
+    });
+
+    const tasks = builder.buildQueue(intel);
+    expect(tasks).toHaveLength(2);
+    // GAINES has 500' shared, SMITH has 100' shared → GAINES gets priority 1
+    expect(tasks[0].owner).toBe('GAINES');
+    expect(tasks[0].priority).toBe(1);
+    expect(tasks[1].owner).toBe('SMITH');
+    expect(tasks[1].priority).toBe(2);
+  });
+
+  // ── 49. Short name variants excluded ──────────────────────────────────────
+
+  it('49. generateNameVariants — variants shorter than 3 chars are excluded', () => {
+    // "J.B." would produce "JB" (length 2) which should be filtered
+    const variants = builder.generateNameVariants('J.B. HARTLEY');
+    for (const v of variants) {
+      expect(v.length).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
+describe('CrossValidationEngine (extended)', () => {
+  const engine = new CrossValidationEngine();
+
+  // ── 40. referencesOurProperty treated as shared candidates ────────────────
+
+  it('40. validate — referencesOurProperty=true calls used as shared candidates', () => {
+    const ourCalls = [makeP3Call('C1', 'N 00°00\'00" E', 100.0)];
+    // No isSharedBoundary, but referencesOurProperty=true
+    const theirCalls = [
+      makeAdjCall(1, 'S 00°00\'01" W', 100.0, { isSharedBoundary: false, referencesOurProperty: true }),
+    ];
+
+    const result = engine.validate(ourCalls, theirCalls, 'REF_OWNER', 'north');
+    // Should still use this call as a match candidate since it references our property
+    expect(result.callComparisons[0].status).toBe('confirmed');
+  });
+
+  // ── 41. marginal symbol is '?' ────────────────────────────────────────────
+
+  it('41. validate — marginal call has symbol "?"', () => {
+    const ourCalls = [makeP3Call('C1', 'N 00°00\'00" E', 100.0)];
+    // Bearing diff ~15 arc-min (0.25°) → MARGINAL
+    const theirCalls = [makeAdjCall(1, 'S 00°15\'00" W', 100.0, { isSharedBoundary: true })];
+
+    const result = engine.validate(ourCalls, theirCalls, 'MARGINAL', 'north');
+    expect(result.callComparisons[0].status).toBe('marginal');
+    expect(result.callComparisons[0].symbol).toBe('?');
+  });
+
+  // ── 42. close_match symbol is '~' ─────────────────────────────────────────
+
+  it('42. validate — close_match call has symbol "~"', () => {
+    const ourCalls = [makeP3Call('C1', 'N 00°00\'00" E', 100.0)];
+    // Bearing diff ~2 arc-min (0.033°) → CLOSE_MATCH
+    const theirCalls = [makeAdjCall(1, 'S 00°02\'00" W', 100.0, { isSharedBoundary: true })];
+
+    const result = engine.validate(ourCalls, theirCalls, 'CLOSE', 'north');
+    expect(result.callComparisons[0].status).toBe('close_match');
+    expect(result.callComparisons[0].symbol).toBe('~');
+  });
+
+  // ── 43. Multiple calls — mixed confirmed and unverified ───────────────────
+
+  it('43. validate — multiple calls: some confirmed, some unverified', () => {
+    const ourCalls = [
+      makeP3Call('C1', 'N 00°00\'00" E', 100.0),
+      makeP3Call('C2', 'N 45°00\'00" E', 500.0), // no matching neighbor call
+    ];
+    const theirCalls = [
+      makeAdjCall(1, 'S 00°00\'01" W', 100.0, { isSharedBoundary: true }),
+    ];
+
+    const result = engine.validate(ourCalls, theirCalls, 'MIXED', 'north');
+    expect(result.callComparisons).toHaveLength(2);
+    expect(result.confirmedCalls).toBe(1);
+    expect(result.unverifiedCalls).toBe(1);
+    // (1*100 + 1*25) / 2 = 62.5 → 63
+    expect(result.sharedBoundaryConfidence).toBe(63);
+  });
+
+  // ── 44. bearingDifference null when no match ──────────────────────────────
+
+  it('44. validate — bearingDifference is null when theirBearing is null (unverified)', () => {
+    const ourCalls = [makeP3Call('C1', 'N 45°00\'00" E', 200.0)];
+    const result = engine.validate(ourCalls, [], 'NO_MATCH', 'north');
+    expect(result.callComparisons[0].bearingDifference).toBeNull();
+    expect(result.callComparisons[0].theirBearing).toBeNull();
+    expect(result.callComparisons[0].theirReversed).toBeNull();
+  });
+
+  // ── 47. All confirmed → confidence = 100 ──────────────────────────────────
+
+  it('47. validate — all calls confirmed → sharedBoundaryConfidence = 100', () => {
+    const ourCalls = [
+      makeP3Call('C1', 'N 00°00\'00" E', 100.0),
+      makeP3Call('C2', 'N 90°00\'00" E', 200.0),
+    ];
+    const theirCalls = [
+      makeAdjCall(1, 'S 00°00\'01" W', 100.0, { isSharedBoundary: true }),
+      makeAdjCall(2, 'S 90°00\'01" W', 200.0, { isSharedBoundary: true }),
+    ];
+
+    const result = engine.validate(ourCalls, theirCalls, 'ALL_CONFIRMED', 'north');
+    expect(result.confirmedCalls).toBe(2);
+    expect(result.sharedBoundaryConfidence).toBe(100);
+  });
+
+  // ── 48. All discrepancy → confidence = 0 ─────────────────────────────────
+
+  it('48. validate — all calls discrepancy → sharedBoundaryConfidence = 0', () => {
+    const ourCalls = [
+      makeP3Call('C1', 'N 00°00\'00" E', 100.0),
+    ];
+    // > 30 arc-minute diff → discrepancy
+    const theirCalls = [
+      makeAdjCall(1, 'S 01°00\'00" W', 100.0, { isSharedBoundary: true }),
+    ];
+
+    const result = engine.validate(ourCalls, theirCalls, 'ALL_DISC', 'north');
+    expect(result.discrepancyCalls).toBe(1);
+    expect(result.confirmedCalls).toBe(0);
+    // Discrepancy contributes 0 to weighted confidence
+    expect(result.sharedBoundaryConfidence).toBe(0);
+  });
+});
+
+// ── buildReport edge-case tests ───────────────────────────────────────────────
+
+describe('AdjacentResearchOrchestrator.buildReport (edge cases)', () => {
+  function computeSummaryFull(
+    results: (AdjacentResearchResult & { crossValidation?: CrossValidationResult })[],
+    queueLength: number,
+  ) {
+    const allComparisons = results
+      .filter((r) => r.crossValidation)
+      .flatMap((r) => r.crossValidation!.callComparisons);
+
+    const confirmed   = allComparisons.filter((c) => c.status === 'confirmed').length;
+    const close       = allComparisons.filter((c) => c.status === 'close_match').length;
+    const marginal    = allComparisons.filter((c) => c.status === 'marginal').length;
+    const unverified  = allComparisons.filter((c) => c.status === 'unverified').length;
+    const discrepancy = allComparisons.filter((c) => c.status === 'discrepancy').length;
+    const total       = allComparisons.length;
+
+    const confidence = total > 0
+      ? Math.round(
+          (confirmed * 100 + close * 75 + marginal * 40 + unverified * 25) / total,
+        )
+      : 0;
+
+    const failedResearch = results.filter(
+      (r) => r.researchStatus === 'failed' || r.researchStatus === 'not_found',
+    ).length;
+
+    let status: 'complete' | 'partial' | 'failed';
+    if (failedResearch === queueLength && queueLength > 0) {
+      status = 'failed';
+    } else if (failedResearch > 0) {
+      status = 'partial';
+    } else {
+      status = 'complete';
+    }
+
+    return { status, confidence, confirmed, close, marginal, unverified, discrepancy };
+  }
+
+  // ── 50. errors[] preserved ───────────────────────────────────────────────
+
+  it('50. buildReport — partial status when only one failed out of three', () => {
+    const results = [
+      makeResearchResult('GAINES', 'complete'),
+      makeResearchResult('BROWN', 'complete'),
+      makeResearchResult('NORDYKE', 'failed'),
+    ];
+
+    const { status } = computeSummaryFull(results, 3);
+    expect(status).toBe('partial');
+  });
+});

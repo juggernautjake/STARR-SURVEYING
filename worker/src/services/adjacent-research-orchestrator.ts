@@ -12,9 +12,11 @@
 //   - County clerk must be reachable and have a KofileClerkAdapter implementation
 //   - Phase 3 intelligence.json must exist at intelligencePath
 //   - Phase 4 subdivision_model.json is optional but improves adjacency detection
+//   - Structured logging via PipelineLogger (per spec: no bare console.log in Phase 5 code)
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { PipelineLogger } from '../lib/logger.js';
 import { AdjacentQueueBuilder } from './adjacent-queue-builder.js';
 import { AdjacentResearchWorker, type AdjacentResearchResult } from './adjacent-research-worker.js';
 import { CrossValidationEngine, type CrossValidationResult } from './cross-validation-engine.js';
@@ -65,31 +67,33 @@ export class AdjacentResearchOrchestrator {
     const startTime = Date.now();
     const errors: string[] = [];
     let totalAICalls = 0;
+    const logger = new PipelineLogger(projectId);
 
-    console.log(`[Adjacent] Starting Phase 5 for project: ${projectId}`);
+    logger.info('Adjacent', `Starting Phase 5 for project: ${projectId}`);
 
     // ── Step 1: Build research queue ─────────────────────────────────────────
     const queueBuilder = new AdjacentQueueBuilder();
     const queue = queueBuilder.buildQueue(intelligence, subdivisionModel);
 
-    console.log(`[Adjacent] ${queue.length} adjacent properties to research`);
+    logger.info('Adjacent', `${queue.length} adjacent properties to research`);
     for (const task of queue) {
-      console.log(
-        `[Adjacent]   #${task.priority} ${task.owner} ` +
+      logger.info(
+        'Adjacent',
+        `  #${task.priority} ${task.owner} ` +
         `(${task.sharedDirection}, ~${task.estimatedSharedLength.toFixed(0)}' shared, ` +
         `${task.instrumentHints.length} instrument hint(s))`,
       );
     }
 
     if (queue.length === 0) {
-      console.log('[Adjacent] No adjacent properties identified — check Phase 3 output for adjacentProperties');
+      logger.info('Adjacent', 'No adjacent properties identified — check Phase 3 output for adjacentProperties');
       return this.buildReport('complete', [], queue, startTime, 0, []);
     }
 
     // ── Validate required dependencies ───────────────────────────────────────
     if (!process.env.ANTHROPIC_API_KEY) {
       const errMsg = 'ANTHROPIC_API_KEY is not set — cannot run AI extraction in Phase 5';
-      console.error(`[Adjacent] ${errMsg}`);
+      logger.error('Adjacent', errMsg);
       errors.push(errMsg);
       // Continue without AI — worker will report partial results
     }
@@ -103,7 +107,7 @@ export class AdjacentResearchOrchestrator {
       const errMsg =
         'intelligence.countyFIPS (or intelligence.property.countyFIPS) is required ' +
         'but missing — ensure Phase 1 ran successfully';
-      console.error(`[Adjacent] ${errMsg}`);
+      logger.error('Adjacent', errMsg);
       errors.push(errMsg);
       return this.buildReport('failed', [], queue, startTime, 0, errors);
     }
@@ -117,7 +121,7 @@ export class AdjacentResearchOrchestrator {
       await clerkAdapter.initSession();
     } catch (e) {
       const errMsg = `Failed to initialize KofileClerkAdapter for FIPS ${countyFIPS}: ${e}`;
-      console.error(`[Adjacent] ${errMsg}`);
+      logger.error('Adjacent', errMsg, e);
       errors.push(errMsg);
       errors.push(
         'NOTE: Non-Kofile counties are not yet supported for Phase 5. ' +
@@ -145,7 +149,7 @@ export class AdjacentResearchOrchestrator {
 
     for (let i = 0; i < queue.length; i++) {
       const task = queue[i];
-      console.log(`[Adjacent] [${i + 1}/${queue.length}] Researching: ${task.owner}`);
+      logger.info('Adjacent', `[${i + 1}/${queue.length}] Researching: ${task.owner}`);
 
       try {
         const result = await worker.researchAdjacentProperty(task, ourContext);
@@ -167,14 +171,16 @@ export class AdjacentResearchOrchestrator {
               .crossValidation = cv;
             totalAICalls++;
 
-            console.log(
-              `[Adjacent] ${task.owner}: ` +
+            logger.info(
+              'Adjacent',
+              `${task.owner}: ` +
               `✓${cv.confirmedCalls} ~${cv.closeMatchCalls} ?${cv.marginalCalls} ` +
               `✗${cv.discrepancyCalls} confidence=${cv.sharedBoundaryConfidence}%`,
             );
           } else {
-            console.log(
-              `[Adjacent] ${task.owner}: ` +
+            logger.info(
+              'Adjacent',
+              `${task.owner}: ` +
               `${result.extractedBoundary.totalCalls} calls extracted, ` +
               `but no matching shared calls found for cross-validation. ` +
               `Check if Phase 3 captured "along" descriptors for this boundary.`,
@@ -186,7 +192,7 @@ export class AdjacentResearchOrchestrator {
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : String(error);
         errors.push(`Research failed for ${task.owner}: ${msg}`);
-        console.error(`[Adjacent] Failed for ${task.owner}:`, error);
+        logger.error('Adjacent', `Failed for ${task.owner}`, error);
         results.push({
           owner:            task.owner,
           researchStatus:   'failed',
@@ -204,7 +210,7 @@ export class AdjacentResearchOrchestrator {
     try {
       await clerkAdapter.destroySession();
     } catch (e) {
-      console.warn('[Adjacent] Clerk session cleanup failed:', e);
+      logger.warn('Adjacent', `Clerk session cleanup failed: ${e}`);
     }
 
     return this.buildReport('complete', results, queue, startTime, totalAICalls, errors);
@@ -346,6 +352,8 @@ export async function runAdjacentResearch(
   intelligencePath: string,
   subdivisionPath?: string,
 ): Promise<FullCrossValidationReport> {
+  const logger = new PipelineLogger(projectId);
+
   if (!fs.existsSync(intelligencePath)) {
     throw new Error(`Intelligence file not found: ${intelligencePath}`);
   }
@@ -359,7 +367,7 @@ export async function runAdjacentResearch(
     try {
       subdivisionModel = JSON.parse(fs.readFileSync(subdivisionPath, 'utf-8')) as Record<string, unknown>;
     } catch {
-      console.warn(`[Adjacent] Could not parse subdivision model at ${subdivisionPath}`);
+      logger.warn('Adjacent', `Could not parse subdivision model at ${subdivisionPath}`);
     }
   }
 
@@ -371,13 +379,14 @@ export async function runAdjacentResearch(
   try {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     fs.writeFileSync(outputPath, JSON.stringify(report, null, 2), 'utf-8');
-    console.log(`[Adjacent] Saved: ${outputPath}`);
+    logger.info('Adjacent', `Saved: ${outputPath}`);
   } catch (e) {
-    console.error(`[Adjacent] Failed to save report to ${outputPath}:`, e);
+    logger.error('Adjacent', `Failed to save report to ${outputPath}`, e);
   }
 
-  console.log(
-    `[Adjacent] COMPLETE: ` +
+  logger.info(
+    'Adjacent',
+    `COMPLETE: ` +
     `${report.crossValidationSummary.successfullyResearched}/` +
     `${report.crossValidationSummary.totalAdjacentProperties} researched, ` +
     `confidence: ${report.crossValidationSummary.overallBoundaryConfidence}%`,
