@@ -40,6 +40,18 @@ export function featureBounds(feature: Feature): BoundingBox {
   }
 }
 
+/** Compute the merged bounding box of a set of features, or null if empty */
+export function computeFeaturesBounds(features: Feature[]): BoundingBox | null {
+  if (features.length === 0) return null;
+  const boxes = features.map(featureBounds);
+  return {
+    minX: Math.min(...boxes.map((b) => b.minX)),
+    minY: Math.min(...boxes.map((b) => b.minY)),
+    maxX: Math.max(...boxes.map((b) => b.maxX)),
+    maxY: Math.max(...boxes.map((b) => b.maxY)),
+  };
+}
+
 /** Expand a bounding box by a margin (in world units) */
 export function expandBounds(bounds: BoundingBox, margin: number): BoundingBox {
   return {
