@@ -122,6 +122,8 @@ export default function FeatureLabelPreferencesPanel({ featureId, open, onClose 
   const anyRotated    = labels.some((l) => l.rotation !== null);
   const anyScaled     = labels.some((l) => l.scale !== 1);
   const anyModified   = anyPositioned || anyRotated || anyScaled;
+  /** How many distinct property types (position / rotation / scale) have bulk overrides. */
+  const bulkModCount  = [anyPositioned, anyRotated, anyScaled].filter(Boolean).length;
 
   const layer = store.document.layers[feature.layerId];
 
@@ -250,7 +252,7 @@ export default function FeatureLabelPreferencesPanel({ featureId, open, onClose 
                           </button>
                         </Tooltip>
                       )}
-                      {(isPositioned || isRotated) && isModified && (isPositioned && isRotated || isPositioned && isScaled || isRotated && isScaled) && (
+                      {([isPositioned, isRotated, isScaled].filter(Boolean).length > 1) && (
                         <Tooltip label="Reset all" description="Restore position, rotation, and scale to their defaults." side="bottom" delay={400}>
                           <button
                             className="flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[9px] rounded border border-gray-600 transition-colors"
@@ -319,7 +321,7 @@ export default function FeatureLabelPreferencesPanel({ featureId, open, onClose 
                 )}
               </div>
               {/* Reset Everything button — shown when more than one property type is modified */}
-              {(anyPositioned ? 1 : 0) + (anyRotated ? 1 : 0) + (anyScaled ? 1 : 0) > 1 && (
+              {bulkModCount > 1 && (
                 <button
                   className="w-full flex items-center justify-center gap-1.5 px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[10px] rounded border border-gray-600 transition-colors"
                   onClick={resetAll}

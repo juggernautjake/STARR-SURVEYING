@@ -329,13 +329,21 @@ export default function CanvasViewport() {
           16,
         );
 
+        // Super-sampled resolution: render at 2× the physical pixel density and let the
+        // browser downsample.  The downsampling pass acts as free hardware anti-aliasing
+        // (SSAA), which makes diagonal lines, arcs, thin strokes, and text visibly
+        // smoother without any changes to the coordinate math (CSS-pixel space throughout).
+        // Cap at 4× to keep GPU memory usage reasonable on very high-DPI displays.
+        const dpr = window.devicePixelRatio || 1;
+        const resolution = Math.min(dpr * 2, 4);
+
         const app = new PIXI.Application({
           view: canvas,
           width,
           height,
           background: bgColor,
           antialias: true,
-          resolution: window.devicePixelRatio || 1,
+          resolution,
           autoDensity: true,
         });
 
@@ -472,6 +480,16 @@ export default function CanvasViewport() {
       rafId = requestAnimationFrame(() => {
         rafId = null;
         if (!pixiRef.current) return;
+        // Re-compute the super-sampled resolution so that moving between monitors
+        // (different DPR values) always produces the sharpest possible rendering.
+        const newDpr = window.devicePixelRatio || 1;
+        const newResolution = Math.min(newDpr * 2, 4);
+        if (Math.abs(pixiRef.current.app.renderer.resolution - newResolution) > 0.01) {
+          // The renderer exposes `resolution` as a writable property on the concrete
+          // class.  We cast to the minimal structural shape instead of importing the
+          // full PixiJS Renderer type to avoid a hard coupling to the renderer backend.
+          (pixiRef.current.app.renderer as { resolution: number }).resolution = newResolution;
+        }
         pixiRef.current.app.renderer.resize(width, height);
         viewportStore.setScreenSize(width, height);
       });
@@ -894,6 +912,9 @@ export default function CanvasViewport() {
           });
           textObj = new pixi.TextClass(label.text, style);
           textObj.anchor.set(0.5, 0.5);
+          // Match the renderer's super-sampled resolution so the text texture is
+          // generated at the same density as the rest of the scene.
+          textObj.resolution = pixi.app.renderer.resolution;
           pixi.labelTexts.set(labelKey, textObj);
           pixi.labelLayer.addChild(textObj);
         } else {
@@ -977,6 +998,7 @@ export default function CanvasViewport() {
         });
         textObj = new pixi.TextClass(geom.textContent, style);
         textObj.anchor.set(0, 0.5);
+        textObj.resolution = pixi.app.renderer.resolution;
         pixi.labelTexts.set(key, textObj);
         pixi.labelLayer.addChild(textObj);
       } else {
