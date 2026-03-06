@@ -49,6 +49,7 @@ import {
 } from '@/lib/cad/geometry/curve-render';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
+import InteractiveOpPanel from './InteractiveOpPanel';
 
 // ─────────────────────────────────────────────
 // Constants
@@ -224,8 +225,12 @@ export default function CanvasViewport() {
   const [textInputState, setTextInputState] = useState<{ sx: number; sy: number; wx: number; wy: number } | null>(null);
   // Label attribute editor state (double-click on a bearing/distance label)
   const [labelEditState, setLabelEditState] = useState<{ featureId: string; labelId: string; sx: number; sy: number } | null>(null);
-  // Interactive rotate/scale HUD: shows value near cursor during interactive op
-  const [interactiveHud, setInteractiveHud] = useState<{ sx: number; sy: number; value: string; type: 'ROTATE' | 'SCALE' } | null>(null);
+  // Interactive rotate/scale HUD: drives the InteractiveOpPanel
+  const [interactivePanel, setInteractivePanel] = useState<{
+    type: 'ROTATE' | 'SCALE';
+    currentAngleDeg: number;
+    currentFactor: number;
+  } | null>(null);
 
   // Polyline group ID tracking — each new polyline drawing gets a fresh UUID
   const polylineGroupIdRef = useRef<string | null>(null);
@@ -2427,7 +2432,7 @@ export default function CanvasViewport() {
           }
         }
         interactiveOpRef.current = null;
-        setInteractiveHud(null);
+        setInteractivePanel(null);
         setCursorStyle(TOOL_CURSORS[activeTool] ?? 'default');
         return;
       }
@@ -3014,22 +3019,24 @@ export default function CanvasViewport() {
         if (op.type === 'ROTATE') {
           const currentAngle = Math.atan2(cursorVec.y, cursorVec.x);
           const deltaAngle = currentAngle - op.baseAngle;
-          // Apply live rotation from originals
           for (const [id, orig] of op.originals) {
             const newF = transformFeature(orig, (p) => rotate(p, op.pivot, deltaAngle));
             drawingStore.updateFeatureGeometry(id, newF.geometry);
           }
-          const deg = ((deltaAngle * 180) / Math.PI).toFixed(1);
-          setInteractiveHud({ sx: sx + 14, sy: sy - 18, value: `${deg}°`, type: 'ROTATE' });
+          const deg = (deltaAngle * 180) / Math.PI;
+          setInteractivePanel((prev) =>
+            prev ? { ...prev, currentAngleDeg: deg } : { type: 'ROTATE', currentAngleDeg: deg, currentFactor: 1 }
+          );
         } else {
           const curDist = Math.hypot(cursorVec.x, cursorVec.y);
           const factor = op.baseDist > 0 ? curDist / op.baseDist : 1;
-          // Apply live scale from originals
           for (const [id, orig] of op.originals) {
             const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
             drawingStore.updateFeatureGeometry(id, newF.geometry);
           }
-          setInteractiveHud({ sx: sx + 14, sy: sy - 18, value: `×${factor.toFixed(3)}`, type: 'SCALE' });
+          setInteractivePanel((prev) =>
+            prev ? { ...prev, currentFactor: factor } : { type: 'SCALE', currentAngleDeg: 0, currentFactor: factor }
+          );
         }
         setCursorStyle('crosshair');
         return;
@@ -3702,6 +3709,7 @@ export default function CanvasViewport() {
       const baseAngle = Math.atan2(cursorWorld.y - pivot.y, cursorWorld.x - pivot.x);
 
       interactiveOpRef.current = { type: 'ROTATE', pivot, originals, baseAngle, baseDist: 0 };
+      setInteractivePanel({ type: 'ROTATE', currentAngleDeg: 0, currentFactor: 1 });
       setCursorStyle('crosshair');
     };
 
@@ -3747,6 +3755,7 @@ export default function CanvasViewport() {
       const baseDist = Math.hypot(cursorWorld.x - pivot.x, cursorWorld.y - pivot.y);
 
       interactiveOpRef.current = { type: 'SCALE', pivot, originals, baseAngle: 0, baseDist: Math.max(baseDist, 0.001) };
+      setInteractivePanel({ type: 'SCALE', currentAngleDeg: 0, currentFactor: 1 });
       setCursorStyle('crosshair');
     };
 
@@ -3760,7 +3769,7 @@ export default function CanvasViewport() {
           dwgStore.updateFeatureGeometry(id, orig.geometry);
         }
         interactiveOpRef.current = null;
-        setInteractiveHud(null);
+        setInteractivePanel(null);
         setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
         e.stopPropagation();
       }
@@ -3845,6 +3854,74 @@ export default function CanvasViewport() {
   }, []);
 
   // ─────────────────────────────────────────────
+  // Interactive op: cancel (restore originals) / commit (push undo) / preview (apply typed value)
+  // These are passed as callbacks to InteractiveOpPanel.
+  // ─────────────────────────────────────────────
+  function cancelInteractiveOp() {
+    const op = interactiveOpRef.current;
+    if (!op) return;
+    for (const [id, orig] of op.originals) {
+      drawingStore.updateFeatureGeometry(id, orig.geometry);
+    }
+    interactiveOpRef.current = null;
+    setInteractivePanel(null);
+    setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+  }
+
+  function commitInteractiveOp(value: number) {
+    const op = interactiveOpRef.current;
+    if (!op) return;
+    // Apply the typed/final value from originals
+    if (op.type === 'ROTATE') {
+      const angleRad = (value * Math.PI) / 180;
+      for (const [id, orig] of op.originals) {
+        const newF = transformFeature(orig, (p) => rotate(p, op.pivot, angleRad));
+        drawingStore.updateFeatureGeometry(id, newF.geometry);
+      }
+    } else {
+      const factor = Math.max(0.0001, value);
+      for (const [id, orig] of op.originals) {
+        const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
+        drawingStore.updateFeatureGeometry(id, newF.geometry);
+      }
+    }
+    // Collect undo ops
+    const ops = [...op.originals.entries()]
+      .map(([id, orig]) => {
+        const after = drawingStore.getFeature(id);
+        return after ? { type: 'MODIFY_FEATURE' as const, data: { id, before: orig, after } } : null;
+      })
+      .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
+    if (ops.length > 0) {
+      const label = op.type === 'ROTATE'
+        ? `Rotate ${value.toFixed(1)}°`
+        : `Scale ×${value.toFixed(3)}`;
+      undoStore.pushUndo(makeBatchEntry(label, ops));
+    }
+    interactiveOpRef.current = null;
+    setInteractivePanel(null);
+    setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+  }
+
+  function previewInteractiveOp(value: number) {
+    const op = interactiveOpRef.current;
+    if (!op) return;
+    if (op.type === 'ROTATE') {
+      const angleRad = (value * Math.PI) / 180;
+      for (const [id, orig] of op.originals) {
+        const newF = transformFeature(orig, (p) => rotate(p, op.pivot, angleRad));
+        drawingStore.updateFeatureGeometry(id, newF.geometry);
+      }
+    } else {
+      const factor = Math.max(0.0001, value);
+      for (const [id, orig] of op.originals) {
+        const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
+        drawingStore.updateFeatureGeometry(id, newF.geometry);
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────
   // Right-click / context menu handler
   // ─────────────────────────────────────────────
   const handleContextMenu = useCallback(
@@ -3856,6 +3933,12 @@ export default function CanvasViewport() {
       const { wx, wy } = s2w(sx, sy);
       const toolState = toolStore.state;
       const { activeTool } = toolState;
+
+      // Right-click during an interactive op: cancel the op, do not open context menu
+      if (interactiveOpRef.current) {
+        cancelInteractiveOp();
+        return;
+      }
 
       // Right-click during polyline drawing: finish if we have at least 1 committed segment
       // (drawingPoints.length >= 2 means: start point + at least 1 more = at least 1 segment)
@@ -4019,6 +4102,20 @@ export default function CanvasViewport() {
             <div key={i}>{line}</div>
           ))}
         </div>
+      )}
+
+      {/* Interactive Rotate / Scale dialogue panel */}
+      {interactivePanel && interactiveOpRef.current && (
+        <InteractiveOpPanel
+          type={interactivePanel.type}
+          currentAngleDeg={interactivePanel.currentAngleDeg}
+          currentFactor={interactivePanel.currentFactor}
+          originals={interactiveOpRef.current.originals}
+          displayPrefs={drawingStore.document.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES}
+          onCommit={commitInteractiveOp}
+          onCancel={cancelInteractiveOp}
+          onPreview={previewInteractiveOp}
+        />
       )}
 
       {/* Rich right-click context menu */}

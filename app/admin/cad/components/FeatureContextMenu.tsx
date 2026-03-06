@@ -37,10 +37,14 @@ import {
   flipSelectionHorizontal,
   flipSelectionVertical,
   scaleSelection,
+  scaleSelectionXY,
   deleteSelection,
   selectSimilarType,
   zoomToSelection,
   copyCadSelection,
+  translateSelection,
+  offsetSelectionByDistance,
+  alignSelection,
 } from '@/lib/cad/operations';
 import { insertInflectionPoint, findClosestSplineParam } from '@/lib/cad/geometry/curve-render';
 import { generateId } from '@/lib/cad/types';
@@ -63,7 +67,7 @@ interface MenuItemDef {
   danger?: boolean;
   disabled?: boolean;
   separator?: false;
-  submenu?: MenuItemDef[];
+  submenu?: SubMenuDef[];
   action?: () => void;
 }
 interface SeparatorDef {
@@ -71,31 +75,38 @@ interface SeparatorDef {
   id: string;
 }
 type MenuDef = MenuItemDef | SeparatorDef;
+type SubMenuDef = MenuItemDef | SeparatorDef;
 
 // ── Sub-menu component ───────────────────────────────────────────────────────
-function SubMenu({ items, onAction }: { items: MenuItemDef[]; onAction: () => void }) {
+function SubMenu({ items, onAction }: { items: SubMenuDef[]; onAction: () => void }) {
   return (
-    <div className="absolute left-full top-0 z-60 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[180px]">
-      {items.map((item) => (
-        <button
-          key={item.id}
-          disabled={item.disabled}
-          className={`w-full flex items-center justify-between px-3 py-1.5 text-left text-xs transition-colors gap-3
-            ${item.disabled ? 'opacity-40 cursor-default' : item.danger ? 'hover:bg-red-900/40 text-red-400' : 'hover:bg-gray-700 text-gray-200'}`}
-          onClick={() => {
-            if (!item.disabled && item.action) {
-              item.action();
-              onAction();
-            }
-          }}
-        >
-          <span className="flex items-center gap-2">
-            {item.icon && <span className="w-4 text-gray-400">{item.icon}</span>}
-            {item.label}
-          </span>
-          {item.shortcut && <span className="text-gray-500 text-[10px] shrink-0">{item.shortcut}</span>}
-        </button>
-      ))}
+    <div className="absolute left-full top-0 z-60 bg-gray-800 border border-gray-600 rounded shadow-xl py-1 min-w-[200px]">
+      {items.map((item) => {
+        if ('separator' in item && item.separator) {
+          return <div key={item.id} className="my-1 border-t border-gray-700" />;
+        }
+        const mi = item as MenuItemDef;
+        return (
+          <button
+            key={mi.id}
+            disabled={mi.disabled}
+            className={`w-full flex items-center justify-between px-3 py-1.5 text-left text-xs transition-colors gap-3
+              ${mi.disabled ? 'opacity-40 cursor-default' : mi.danger ? 'hover:bg-red-900/40 text-red-400' : 'hover:bg-gray-700 text-gray-200'}`}
+            onClick={() => {
+              if (!mi.disabled && mi.action) {
+                mi.action();
+                onAction();
+              }
+            }}
+          >
+            <span className="flex items-center gap-2">
+              {mi.icon && <span className="w-4 text-gray-400">{mi.icon}</span>}
+              {mi.label}
+            </span>
+            {mi.shortcut && <span className="text-gray-500 text-[10px] shrink-0">{mi.shortcut}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -185,7 +196,23 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
     if (input === null) return;
     const factor = parseFloat(input);
     if (!isNaN(factor) && factor > 0) scaleSelection(factor);
-    // MenuRow/SubMenu will call onClose() after this returns
+  }
+
+  // ── Helper: translate by offset ──────────────────────────────────────────
+  function handleTranslate() {
+    const dx = parseFloat(window.prompt('Move by X (world units, + = East):') ?? '');
+    if (isNaN(dx)) return;
+    const dy = parseFloat(window.prompt('Move by Y (world units, + = North):') ?? '');
+    if (isNaN(dy)) return;
+    translateSelection(dx, dy);
+  }
+
+  // ── Helper: offset copy ───────────────────────────────────────────────────
+  function handleOffset() {
+    const input = window.prompt('Offset distance (positive = left/outward, negative = right/inward):');
+    if (input === null) return;
+    const dist = parseFloat(input);
+    if (!isNaN(dist) && dist !== 0) offsetSelectionByDistance(dist);
   }
 
   // ── Helper: move to layer ─────────────────────────────────────────────────
@@ -199,7 +226,6 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
       return { type: 'MODIFY_FEATURE' as const, data: { id, before: f, after } };
     });
     undoStore.pushUndo(makeBatchEntry('Move to Layer', ops));
-    // SubMenu's onAction will call onClose()
   }
 
   // ── Helper: hide selection's layer ───────────────────────────────────────
@@ -209,7 +235,6 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
     for (const lid of uniqueLayers) {
       drawingStore.updateLayer(lid as string, { visible: false });
     }
-    // MenuRow will call onClose()
   }
 
   // ── Helper: select polyline group ────────────────────────────────────────
@@ -223,7 +248,6 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
         .map((f) => f.id);
       selectionStore.selectMultiple(groupIds, 'REPLACE');
     }
-    // MenuRow will call onClose()
   }
 
   // ── Helper: expand current selection to include full groups ─────────────
@@ -244,13 +268,71 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
     selectionStore.selectMultiple(Array.from(expanded), 'REPLACE');
   }
 
-  // ── Helper: reduce selection to only individually selected (strip group expansion) ──
-  function handleReduceToIndividual() {
-    // Keep only features that were directly in the selection, don't expand groups
-    // This is a no-op conceptually, but useful when the user wants to confirm their selection
-    // is exactly what's shown. Just re-affirm current selection.
-    // The real use is when combined with removing specific elements.
-  }
+  // ── Build "Modify" submenu ────────────────────────────────────────────────
+  const modifySubmenu: SubMenuDef[] = [
+    // ─ Interactive (cursor-driven) ──────────────────────────────────────
+    {
+      id: 'rotateInteractive',
+      label: 'Rotate (Interactive)…',
+      icon: <RotateCw size={12} />,
+      action: () => {
+        window.dispatchEvent(new CustomEvent('cad:startInteractiveRotate'));
+        onClose();
+      },
+    },
+    {
+      id: 'scaleInteractive',
+      label: 'Scale / Resize (Interactive)…',
+      icon: <Expand size={12} />,
+      action: () => {
+        window.dispatchEvent(new CustomEvent('cad:startInteractiveScale'));
+        onClose();
+      },
+    },
+    { separator: true, id: 'ms0' },
+    // ─ Rotate presets ────────────────────────────────────────────────────
+    { id: 'rot90cw',  label: 'Rotate 90° Clockwise',     icon: <RotateCw size={12} />,  action: () => rotateSelection(-90) },
+    { id: 'rot90ccw', label: 'Rotate 90° Counter-CW',    icon: <RotateCcw size={12} />, action: () => rotateSelection(90)  },
+    { id: 'rot45cw',  label: 'Rotate 45° Clockwise',                                    action: () => rotateSelection(-45) },
+    { id: 'rot45ccw', label: 'Rotate 45° Counter-CW',                                   action: () => rotateSelection(45)  },
+    { id: 'rot180',   label: 'Rotate 180°',                                              action: () => rotateSelection(180) },
+    { id: 'rotCustom',label: 'Rotate Custom Angle…',                                    action: () => {
+        const input = window.prompt('Enter rotation angle in degrees (positive = CCW):');
+        if (input === null) return;
+        const deg = parseFloat(input);
+        if (!isNaN(deg)) rotateSelection(deg);
+      },
+    },
+    { separator: true, id: 'ms1' },
+    // ─ Mirror / Flip ─────────────────────────────────────────────────────
+    { id: 'flipH',    label: 'Mirror Horizontal',        icon: <FlipHorizontal2 size={12} />, action: () => flipSelectionHorizontal() },
+    { id: 'flipV',    label: 'Mirror Vertical',          icon: <FlipVertical2 size={12} />,   action: () => flipSelectionVertical()   },
+    { separator: true, id: 'ms2' },
+    // ─ Scale presets ─────────────────────────────────────────────────────
+    { id: 'scale2x',  label: 'Scale ×2 (Double)',        icon: <Expand size={12} />,          action: () => scaleSelection(2)         },
+    { id: 'scale05x', label: 'Scale ×0.5 (Half)',                                             action: () => scaleSelection(0.5)       },
+    { id: 'scaleCustom', label: 'Scale by Factor…',                                           action: handleScaleByFactor             },
+    { id: 'scaleXY',  label: 'Scale X/Y Independently…',                                     action: () => {
+        const sx = parseFloat(window.prompt('Scale factor X (horizontal):') ?? '');
+        if (isNaN(sx) || sx <= 0) return;
+        const sy = parseFloat(window.prompt('Scale factor Y (vertical):') ?? '');
+        if (isNaN(sy) || sy <= 0) return;
+        scaleSelectionXY(sx, sy);
+      },
+    },
+    { separator: true, id: 'ms3' },
+    // ─ Move / Offset ─────────────────────────────────────────────────────
+    { id: 'translate', label: 'Move by Offset…',                                              action: handleTranslate                 },
+    { id: 'offset',    label: 'Offset Copy…',                                                 action: handleOffset                    },
+    { separator: true, id: 'ms4' },
+    // ─ Align (only useful with 2+ selected) ─────────────────────────────
+    { id: 'alignL',   label: 'Align Left Edges',   disabled: selCount < 2,                   action: () => alignSelection('LEFT')    },
+    { id: 'alignR',   label: 'Align Right Edges',  disabled: selCount < 2,                   action: () => alignSelection('RIGHT')   },
+    { id: 'alignT',   label: 'Align Top Edges',    disabled: selCount < 2,                   action: () => alignSelection('TOP')     },
+    { id: 'alignB',   label: 'Align Bottom Edges', disabled: selCount < 2,                   action: () => alignSelection('BOTTOM')  },
+    { id: 'alignCH',  label: 'Center Horizontally',disabled: selCount < 2,                   action: () => alignSelection('CENTER_H')},
+    { id: 'alignCV',  label: 'Center Vertically',  disabled: selCount < 2,                   action: () => alignSelection('CENTER_V')},
+  ];
 
   // ── Build menu items ──────────────────────────────────────────────────────
   const featureSection: MenuDef[] = feature
