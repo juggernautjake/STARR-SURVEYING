@@ -85,8 +85,11 @@ const SVG_CURSOR_CROSSHAIR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w
 const SVG_CURSOR_ERASE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='3' y='3' width='14' height='14' rx='2' fill='%23ff4444' fill-opacity='0.3' stroke='%23ff4444' stroke-width='1.5'/%3E%3Cline x1='6' y1='6' x2='14' y2='14' stroke='white' stroke-width='2'/%3E%3Cline x1='14' y1='6' x2='6' y2='14' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 10 10, crosshair`;
 const SVG_CURSOR_ROTATE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M17 3l3.5 6-6 0' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E") 12 12, alias`;
 
+const SVG_CURSOR_BOX_SELECT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Crect x='4' y='4' width='16' height='16' fill='none' stroke='%230088ff' stroke-width='1.5' stroke-dasharray='3 2'/%3E%3Cline x1='12' y1='0' x2='12' y2='8' stroke='white' stroke-width='1'/%3E%3Cline x1='12' y1='16' x2='12' y2='24' stroke='white' stroke-width='1'/%3E%3Cline x1='0' y1='12' x2='8' y2='12' stroke='white' stroke-width='1'/%3E%3Cline x1='16' y1='12' x2='24' y2='12' stroke='white' stroke-width='1'/%3E%3C/svg%3E") 12 12, crosshair`;
+
 const TOOL_CURSORS: Partial<Record<string, string>> = {
   SELECT: 'default',
+  BOX_SELECT: SVG_CURSOR_BOX_SELECT,
   PAN: 'grab',
   DRAW_POINT: SVG_CURSOR_CROSSHAIR,
   DRAW_LINE: SVG_CURSOR_CROSSHAIR,
@@ -605,9 +608,12 @@ export default function CanvasViewport() {
     // Draw box selection rectangle
     if (toolState.isBoxSelecting && toolState.boxStart && toolState.boxEnd) {
       const { boxStart, boxEnd } = toolState;
-      const isWindow = boxEnd.x > boxStart.x; // left-to-right = window
-      const color = isWindow ? 0x0044ff : 0x00aa00;
-      g.lineStyle(1, color, 0.8);
+      const bsMode = docSettings.boxSelectMode ?? 'CROSSING_EXPAND_GROUPS';
+      const isWindowDrag = boxEnd.x > boxStart.x;
+      // Color coding: blue for window/full-only selection, green for crossing selection
+      const color = (bsMode === 'WINDOW_FULL_ONLY' || isWindowDrag) ? 0x0044ff : 0x00aa00;
+      // Dashed outline for crossing modes, solid for window
+      g.lineStyle(1.5, color, 0.8);
       g.beginFill(color, 0.08);
       g.drawRect(
         Math.min(boxStart.x, boxEnd.x),
@@ -1204,24 +1210,82 @@ export default function CanvasViewport() {
   // Box selection
   // ─────────────────────────────────────────────
   function boxSelectFeatures(start: Point2D, end: Point2D): string[] {
-    const isWindow = end.x > start.x; // left-to-right = window
+    const isWindowDrag = end.x > start.x; // left-to-right = window, right-to-left = crossing
     const { wx: minX, wy: minY } = s2w(Math.min(start.x, end.x), Math.max(start.y, end.y));
     const { wx: maxX, wy: maxY } = s2w(Math.max(start.x, end.x), Math.min(start.y, end.y));
     const selBox: BoundingBox = { minX, minY, maxX, maxY };
 
-    return drawingStore
+    const mode = drawingStore.document.settings.boxSelectMode ?? 'CROSSING_EXPAND_GROUPS';
+
+    // Determine containment test based on mode
+    const useFullContainment = mode === 'WINDOW_FULL_ONLY' || isWindowDrag;
+
+    const matchedIds: string[] = drawingStore
       .getVisibleFeatures()
       .filter((f) => {
         const layer = drawingStore.getLayer(f.layerId);
         if (layer?.locked) return false;
         const fb = featureBounds(f);
-        if (isWindow) {
+        if (useFullContainment && mode === 'WINDOW_FULL_ONLY') {
+          return boundsContains(selBox, fb);
+        } else if (isWindowDrag) {
           return boundsContains(selBox, fb);
         } else {
           return boundsOverlap(selBox, fb);
         }
       })
       .map((f) => f.id);
+
+    // Group expansion: when CROSSING_EXPAND_GROUPS, expand selection to include
+    // all members of any polyline/polygon group that has at least one selected member
+    if (mode === 'CROSSING_EXPAND_GROUPS' && matchedIds.length > 0) {
+      const groupIds = new Set<string>();
+      for (const id of matchedIds) {
+        const f = drawingStore.getFeature(id);
+        const gid = f?.properties?.polylineGroupId as string | undefined;
+        if (gid) groupIds.add(gid);
+      }
+      if (groupIds.size > 0) {
+        const expanded = new Set(matchedIds);
+        for (const f of drawingStore.getVisibleFeatures()) {
+          const gid = f.properties?.polylineGroupId as string | undefined;
+          if (gid && groupIds.has(gid)) {
+            const layer = drawingStore.getLayer(f.layerId);
+            if (!layer?.locked) expanded.add(f.id);
+          }
+        }
+        return Array.from(expanded);
+      }
+    }
+
+    // WINDOW_FULL_ONLY: also expand to full groups, but only if ALL group members are enclosed
+    if (mode === 'WINDOW_FULL_ONLY' && matchedIds.length > 0) {
+      const matchedSet = new Set(matchedIds);
+      const groupIds = new Set<string>();
+      for (const id of matchedIds) {
+        const f = drawingStore.getFeature(id);
+        const gid = f?.properties?.polylineGroupId as string | undefined;
+        if (gid) groupIds.add(gid);
+      }
+      // For each group, check if ALL members are in the box — if not, remove partial group members
+      if (groupIds.size > 0) {
+        for (const gid of groupIds) {
+          const groupMembers = drawingStore.getVisibleFeatures().filter(
+            (f) => f.properties?.polylineGroupId === gid
+          );
+          const allInBox = groupMembers.every((f) => matchedSet.has(f.id));
+          if (!allInBox) {
+            // Remove partial group members from selection
+            for (const f of groupMembers) {
+              matchedSet.delete(f.id);
+            }
+          }
+        }
+        return Array.from(matchedSet);
+      }
+    }
+
+    return matchedIds;
   }
 
   // ─────────────────────────────────────────────
@@ -1533,6 +1597,13 @@ export default function CanvasViewport() {
               toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
             }
           }
+          break;
+        }
+
+        case 'BOX_SELECT': {
+          // Dedicated box selection tool: always start box selection on mousedown
+          clickHitFeatureRef.current = false;
+          toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
           break;
         }
 
@@ -2182,8 +2253,8 @@ export default function CanvasViewport() {
         return;
       }
 
-      // Finish box selection
-      if (toolState.isBoxSelecting && toolState.activeTool === 'SELECT') {
+      // Finish box selection (works for both SELECT and BOX_SELECT tools)
+      if (toolState.isBoxSelecting && (toolState.activeTool === 'SELECT' || toolState.activeTool === 'BOX_SELECT')) {
         const start = toolState.boxStart!;
         const end = toolState.boxEnd ?? { x: sx, y: sy };
         const dragDist = Math.hypot(end.x - start.x, end.y - start.y);

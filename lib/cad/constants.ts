@@ -35,6 +35,7 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   gridMajorColor: '#c8c8c8',
   gridMinorColor: '#e8e8e8',
   groupSelectMode: 'GROUP_FIRST',
+  boxSelectMode: 'CROSSING_EXPAND_GROUPS',
   paperSize: 'TABLOID',
   paperOrientation: 'LANDSCAPE',
   drawingScale: 50,

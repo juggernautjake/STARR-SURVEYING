@@ -122,7 +122,7 @@ export default function ToolOptionsBar() {
   const showPolySides = activeTool === 'DRAW_REGULAR_POLYGON';
   const showRotateAngle = activeTool === 'ROTATE';
   const showScaleFactor = activeTool === 'SCALE';
-  const showSelectAll = activeTool === 'SELECT';
+  const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
 
   // Local state for text inputs
@@ -767,6 +767,7 @@ function QuickScaleInput({ copyMode }: { copyMode: boolean }) {
 // ─────────────────────────────────────────────
 const TOOL_DISPLAY_NAMES: Record<string, string> = {
   SELECT: 'Select',
+  BOX_SELECT: 'Box Select',
   PAN: 'Pan / Zoom',
   DRAW_POINT: 'Draw Point',
   DRAW_LINE: 'Draw Line',

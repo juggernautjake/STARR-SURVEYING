@@ -224,6 +224,32 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
     // MenuRow will call onClose()
   }
 
+  // ── Helper: expand current selection to include full groups ─────────────
+  function handleExpandSelectionToGroups() {
+    const currentIds = Array.from(selectionStore.selectedIds);
+    const groupIds = new Set<string>();
+    for (const id of currentIds) {
+      const f = drawingStore.getFeature(id);
+      const gid = f?.properties?.polylineGroupId as string | undefined;
+      if (gid) groupIds.add(gid);
+    }
+    if (groupIds.size === 0) return;
+    const expanded = new Set(currentIds);
+    for (const f of drawingStore.getAllFeatures()) {
+      const gid = f.properties?.polylineGroupId as string | undefined;
+      if (gid && groupIds.has(gid)) expanded.add(f.id);
+    }
+    selectionStore.selectMultiple(Array.from(expanded), 'REPLACE');
+  }
+
+  // ── Helper: reduce selection to only individually selected (strip group expansion) ──
+  function handleReduceToIndividual() {
+    // Keep only features that were directly in the selection, don't expand groups
+    // This is a no-op conceptually, but useful when the user wants to confirm their selection
+    // is exactly what's shown. Just re-affirm current selection.
+    // The real use is when combined with removing specific elements.
+  }
+
   // ── Build menu items ──────────────────────────────────────────────────────
   const featureSection: MenuDef[] = feature
     ? [
@@ -340,6 +366,15 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
           label: `Select All ${feature.type} features`,
           action: () => { selectSimilarType(feature.id); onClose(); },
         },
+        ...(selCount > 1
+          ? [
+              {
+                id: 'expandToGroups',
+                label: 'Expand Selection to Groups',
+                action: () => { handleExpandSelectionToGroups(); onClose(); },
+              } as MenuItemDef,
+            ]
+          : []),
         { separator: true, id: 's3' },
         {
           id: 'zoomToSel',
@@ -424,6 +459,11 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
       shortcut: 'Ctrl+C',
       action: () => { copyCadSelection(); onClose(); },
     };
+    const actionExpandGroups: MenuItemDef = {
+      id: 'expandGroupsEmpty',
+      label: 'Expand Selection to Groups',
+      action: () => { handleExpandSelectionToGroups(); onClose(); },
+    };
     const actionDelete: MenuItemDef = {
       id: 'deleteEmpty',
       label: `Delete selected (${selCount})`,
@@ -433,6 +473,7 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
       action: () => { deleteSelection(); onClose(); },
     };
     items.splice(2, 0, actionCopy);
+    items.splice(3, 0, actionExpandGroups);
     items.push({ separator: true, id: 'del_sep' });
     items.push(actionDelete);
   }

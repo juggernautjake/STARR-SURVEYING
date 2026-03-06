@@ -321,6 +321,17 @@ export default function DisplayPreferencesPanel({ open, onClose }: Props) {
               onChange={(v) => drawingStore.updateSettings({ groupSelectMode: v })}
               tooltip="Controls whether clicking a grouped element (polyline, polygon) selects the whole group or just the clicked segment."
             />
+            <OptionRow<'CROSSING_EXPAND_GROUPS' | 'CROSSING_INDIVIDUAL' | 'WINDOW_FULL_ONLY'>
+              label="Box Select"
+              options={[
+                { value: 'CROSSING_EXPAND_GROUPS', label: 'Crossing + Groups', title: 'Any overlap selects, expands to full polyline/polygon groups' },
+                { value: 'CROSSING_INDIVIDUAL', label: 'Crossing Only', title: 'Any overlap selects individual elements, no group expansion' },
+                { value: 'WINDOW_FULL_ONLY', label: 'Full Enclosure', title: 'Only fully enclosed elements/groups are selected' },
+              ]}
+              value={drawingStore.document.settings.boxSelectMode ?? 'CROSSING_EXPAND_GROUPS'}
+              onChange={(v) => drawingStore.updateSettings({ boxSelectMode: v })}
+              tooltip="Controls how the selection rectangle picks elements. Crossing selects anything touched; Full Enclosure requires elements to be completely inside the rectangle."
+            />
           </div>
         </Section>
 

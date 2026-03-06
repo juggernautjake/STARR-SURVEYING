@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   MousePointer2,
+  BoxSelect,
   Hand,
   Circle,
   Minus,
@@ -85,7 +86,8 @@ function buildToolGroups(
       shortcut: 'S',
       icon: <MousePointer2 size={16} />,
       variants: [
-        { tool: 'SELECT', label: 'Select (click / box)', description: 'Click a feature to select it, or drag to draw a selection box. Shift+click to add/remove from selection.', shortcut: 'S', icon: <MousePointer2 size={14} /> },
+        { tool: 'SELECT', label: 'Select (click / drag)', description: 'Click a feature to select it, drag to move it. Click empty space and drag to pan. Shift+click for box select.', shortcut: 'S', icon: <MousePointer2 size={14} /> },
+        { tool: 'BOX_SELECT', label: 'Box Select', description: 'Drag a rectangle to select features. Left-to-right = window (fully enclosed), right-to-left = crossing (any overlap). Respects box select preferences.', shortcut: 'B', icon: <BoxSelect size={14} /> },
       ],
     },
     {

@@ -111,6 +111,12 @@ export interface DrawingSettings {
   // 'ELEMENT_FIRST' = first click selects individual segment, right-click > "Select Group" for whole group
   groupSelectMode: 'GROUP_FIRST' | 'ELEMENT_FIRST';
 
+  // Box selection (rectangle drag) behavior:
+  // 'CROSSING_EXPAND_GROUPS' = any overlap selects, and expands to full polyline/polygon groups
+  // 'CROSSING_INDIVIDUAL' = any overlap selects individual elements only (no group expansion)
+  // 'WINDOW_FULL_ONLY' = only elements/groups fully enclosed in the rectangle are selected
+  boxSelectMode: 'CROSSING_EXPAND_GROUPS' | 'CROSSING_INDIVIDUAL' | 'WINDOW_FULL_ONLY';
+
   // Paper
   paperSize: 'LETTER' | 'TABLOID' | 'ARCH_C' | 'ARCH_D' | 'ARCH_E';
   paperOrientation: 'PORTRAIT' | 'LANDSCAPE';
@@ -207,6 +213,7 @@ export type BoxSelectMode = 'WINDOW' | 'CROSSING';
 
 export type ToolType =
   | 'SELECT'
+  | 'BOX_SELECT'
   | 'PAN'
   | 'DRAW_POINT'
   | 'DRAW_LINE'
