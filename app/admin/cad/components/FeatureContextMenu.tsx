@@ -439,7 +439,7 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
           action: () => {
             const ids = Array.from(selectionStore.selectedIds);
             ids.forEach((id) => drawingStore.hideFeature(id));
-            selectionStore.clear();
+            selectionStore.deselectAll();
             onClose();
           },
         },
