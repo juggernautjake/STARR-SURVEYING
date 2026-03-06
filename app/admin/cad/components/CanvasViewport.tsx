@@ -187,6 +187,8 @@ export default function CanvasViewport() {
   const gripStartRef = useRef<Feature | null>(null);
   const clickHitFeatureRef = useRef(false);
   const hoveredIdRef = useRef<string | null>(null);
+  // Hovered label key (featureId:labelId or text:featureId) for blue highlight
+  const hoveredLabelKeyRef = useRef<string | null>(null);
   // Element drag-to-move: tracks feature being dragged in SELECT mode
   const dragFeatureRef = useRef<{
     featureIds: string[];
@@ -210,6 +212,8 @@ export default function CanvasViewport() {
   // HUD: floating operation info panel near cursor
   const [hud, setHud] = useState<{ sx: number; sy: number; lines: string[] } | null>(null);
   const [textInputState, setTextInputState] = useState<{ sx: number; sy: number; wx: number; wy: number } | null>(null);
+  // Label attribute editor state (double-click on a bearing/distance label)
+  const [labelEditState, setLabelEditState] = useState<{ featureId: string; labelId: string; sx: number; sy: number } | null>(null);
 
   // Polyline group ID tracking — each new polyline drawing gets a fresh UUID
   const polylineGroupIdRef = useRef<string | null>(null);
@@ -854,7 +858,8 @@ export default function CanvasViewport() {
 
         // Get or create text object
         let textObj = pixi.labelTexts.get(labelKey);
-        const textColor = label.style.color ?? layer.color ?? '#000000';
+        const isHovered = hoveredLabelKeyRef.current === labelKey;
+        const textColor = isHovered ? '#3b82f6' : (label.style.color ?? layer.color ?? '#000000');
         // Scale font size: label.style.fontSize is in "points on paper"
         // 1 pt = 1/72 inch; 1 inch = drawingScale world units → world units → screen pixels
         const drawingScale = doc.settings.drawingScale ?? 50;
@@ -936,7 +941,8 @@ export default function CanvasViewport() {
       activeKeys.add(key);
 
       const { sx, sy } = w2s(geom.point.x, geom.point.y);
-      const color = feature.style.color ?? layer.color ?? '#000000';
+      const isHovered = hoveredLabelKeyRef.current === key;
+      const color = isHovered ? '#3b82f6' : (feature.style.color ?? layer.color ?? '#000000');
       const alpha = feature.style.opacity;
       const rotation = geom.textRotation ?? 0;
       const fontPt = Number(feature.properties.fontSize ?? 12);
@@ -1891,7 +1897,7 @@ export default function CanvasViewport() {
   // ─────────────────────────────────────────────
   // Hit test: Text labels
   // ─────────────────────────────────────────────
-  function hitTestLabel(sx: number, sy: number): { featureId: string; labelId: string } | null {
+  function hitTestLabel(sx: number, sy: number): { featureId: string; labelId: string; isTextFeature: boolean; key: string } | null {
     const pixi = pixiRef.current;
     if (!pixi) return null;
 
@@ -1900,8 +1906,12 @@ export default function CanvasViewport() {
       const bounds = textObj.getBounds();
       if (sx >= bounds.x && sx <= bounds.x + bounds.width &&
           sy >= bounds.y && sy <= bounds.y + bounds.height) {
+        if (key.startsWith('text:')) {
+          const featureId = key.slice(5); // strip 'text:' prefix
+          return { featureId, labelId: featureId, isTextFeature: true, key };
+        }
         const [featureId, labelId] = key.split(':');
-        return { featureId, labelId };
+        return { featureId, labelId, isTextFeature: false, key };
       }
     }
     return null;
@@ -2395,18 +2405,37 @@ export default function CanvasViewport() {
           // Check label hit first — labels are on top of features visually
           const labelHit = hitTestLabel(sx, sy);
           if (labelHit) {
-            const feature = drawingStore.getFeature(labelHit.featureId);
-            const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
-            if (feature && label) {
-              const { wx, wy } = s2w(sx, sy);
-              labelDragRef.current = {
-                featureId: labelHit.featureId,
-                labelId: labelHit.labelId,
-                startWorld: { x: wx, y: wy },
-                startOffset: { ...label.offset },
-              };
-              setCursorStyle('grabbing');
-              return;
+            if (labelHit.isTextFeature) {
+              // TEXT feature — select it and start drag-to-move
+              const textFeature = drawingStore.getFeature(labelHit.featureId);
+              if (textFeature) {
+                selectionStore.select(labelHit.featureId, e.shiftKey ? 'TOGGLE' : 'REPLACE');
+                const startWorld = s2w(sx, sy);
+                const originals = new Map<string, Feature>();
+                originals.set(labelHit.featureId, JSON.parse(JSON.stringify(textFeature)));
+                dragFeatureRef.current = {
+                  featureIds: [labelHit.featureId],
+                  startWorld: { x: startWorld.wx, y: startWorld.wy },
+                  originals,
+                };
+                setCursorStyle('grabbing');
+                return;
+              }
+            } else {
+              // Regular feature text label — drag offset
+              const feature = drawingStore.getFeature(labelHit.featureId);
+              const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
+              if (feature && label) {
+                const { wx, wy } = s2w(sx, sy);
+                labelDragRef.current = {
+                  featureId: labelHit.featureId,
+                  labelId: labelHit.labelId,
+                  startWorld: { x: wx, y: wy },
+                  startOffset: { ...label.offset },
+                };
+                setCursorStyle('grabbing');
+                return;
+              }
             }
           }
 
@@ -3069,6 +3098,19 @@ export default function CanvasViewport() {
 
       // Update hover state for ALL tools — shows highlighted element under cursor
       if (!isPanningRef.current && !dragFeatureRef.current) {
+        // Check label hover first (labels render on top of features)
+        const labelHover = hitTestLabel(sx, sy);
+        const prevLabelKey = hoveredLabelKeyRef.current;
+        const newLabelKey = labelHover ? labelHover.key : null;
+        if (prevLabelKey !== newLabelKey) {
+          hoveredLabelKeyRef.current = newLabelKey;
+          // Force a re-render to update label color
+          if (pixiRef.current?.app) {
+            renderLabels();
+            renderTextFeatures();
+          }
+        }
+
         const hit = hitTest(sx, sy);
         hoveredIdRef.current = hit;
         // Update cursor style for SELECT tool
@@ -3077,6 +3119,9 @@ export default function CanvasViewport() {
             const onGrip = hit && selectionStore.selectedIds.has(hit) ? hitTestGrip(sx, sy) : null;
             if (onGrip) {
               setCursorStyle('move');
+            } else if (labelHover) {
+              // Hovering over a label: show grab cursor
+              setCursorStyle('grab');
             } else if (hit) {
               // Hovering over an element: show grab cursor to indicate it can be dragged
               setCursorStyle('grab');
@@ -3096,6 +3141,9 @@ export default function CanvasViewport() {
           if (!isPanningRef.current) setCursorStyle(cursor);
         }
       } else if (isPanningRef.current) {
+        if (hoveredLabelKeyRef.current !== null) {
+          hoveredLabelKeyRef.current = null;
+        }
         hoveredIdRef.current = null;
       }
 
@@ -3349,6 +3397,19 @@ export default function CanvasViewport() {
       }
 
       // SELECT tool (or any non-drawing tool): open feature properties dialog
+      // First check if double-clicking on a text label (bearing/distance/etc.)
+      const labelHit = hitTestLabel(sx, sy);
+      if (labelHit) {
+        if (!labelHit.isTextFeature) {
+          // It's a feature text label (bearing/distance/etc.) — open label attribute editor
+          setLabelEditState({ featureId: labelHit.featureId, labelId: labelHit.labelId, sx: e.clientX, sy: e.clientY });
+          return;
+        } else {
+          // TEXT feature — select it and open properties
+          selectionStore.select(labelHit.featureId, 'REPLACE');
+          return;
+        }
+      }
       const hit = hitTest(sx, sy);
       if (hit) {
         window.dispatchEvent(
@@ -3783,12 +3844,13 @@ export default function CanvasViewport() {
       {textInputState && (
         <div
           className="fixed z-50"
-          style={{ left: textInputState.sx + 4, top: textInputState.sy - 16 }}
+          style={{ left: textInputState.sx + 4, top: textInputState.sy - 20 }}
         >
           <input
             autoFocus
-            className="bg-white border-2 border-blue-500 text-black text-sm px-1 py-0.5 outline-none shadow-lg min-w-[120px]"
-            placeholder="Type text…"
+            className="bg-gray-900 border-2 border-blue-400 text-white text-sm px-2 py-1 outline-none shadow-2xl min-w-[160px] rounded font-sans"
+            style={{ caretColor: '#60a5fa' }}
+            placeholder="Type text here…"
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === 'Escape') {
                 if (e.key === 'Enter') {
@@ -3807,9 +3869,105 @@ export default function CanvasViewport() {
               setTextInputState(null);
             }}
           />
-          <div className="text-[9px] text-gray-500 mt-0.5">Enter to place · Esc to cancel</div>
+          <div className="text-[9px] text-gray-400 mt-0.5 px-0.5">Enter to place · Esc to cancel</div>
         </div>
       )}
+
+      {/* Label attribute editor (double-click on bearing/distance label) */}
+      {labelEditState && (() => {
+        const { featureId, labelId } = labelEditState;
+        const feature = drawingStore.getFeature(featureId);
+        const label = feature?.textLabels?.find((l) => l.id === labelId);
+        if (!feature || !label) { setLabelEditState(null); return null; }
+        return (
+          <div
+            className="fixed z-50 bg-gray-900 border border-blue-400 rounded-lg shadow-2xl p-3 w-64"
+            style={{ left: Math.min(labelEditState.sx, (typeof window !== 'undefined' ? window.innerWidth : 800) - 270), top: labelEditState.sy + 8 }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-blue-300 uppercase tracking-wider">
+                {label.kind === 'BEARING' ? 'Bearing' : label.kind === 'DISTANCE' ? 'Distance' : label.kind} Label
+              </span>
+              <button
+                className="text-gray-500 hover:text-white text-xs p-0.5 rounded"
+                onClick={() => setLabelEditState(null)}
+              >✕</button>
+            </div>
+            <div className="text-[10px] text-gray-400 font-mono mb-2 truncate">{label.text}</div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 text-[10px] shrink-0">Font Size (pt)</span>
+                <input
+                  type="number" min={4} max={144} step={1}
+                  className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-xs outline-none border border-gray-600 focus:border-blue-500"
+                  value={label.style.fontSize}
+                  onChange={(e) => {
+                    const v = Math.max(4, Math.min(144, parseInt(e.target.value) || 10));
+                    drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontSize: v } });
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 text-[10px] shrink-0">Scale</span>
+                <input
+                  type="number" min={0.1} max={10} step={0.1}
+                  className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-xs outline-none border border-gray-600 focus:border-blue-500"
+                  value={Number(label.scale.toFixed(2))}
+                  onChange={(e) => {
+                    const v = Math.max(0.1, Math.min(10, parseFloat(e.target.value) || 1));
+                    drawingStore.updateTextLabel(featureId, labelId, { scale: v });
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 text-[10px] shrink-0">Rotation (°)</span>
+                <input
+                  type="number" min={-360} max={360} step={1}
+                  className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-xs outline-none border border-gray-600 focus:border-blue-500"
+                  value={label.rotation !== null ? Math.round((label.rotation * 180) / Math.PI) : ''}
+                  placeholder="auto"
+                  onChange={(e) => {
+                    const raw = e.target.value.trim();
+                    const rotation = raw === '' ? null : (parseFloat(raw) * Math.PI) / 180;
+                    drawingStore.updateTextLabel(featureId, labelId, { rotation });
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-gray-400 text-[10px] shrink-0">Font</span>
+                <select
+                  className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
+                  value={label.style.fontFamily}
+                  onChange={(e) => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontFamily: e.target.value } })}
+                >
+                  <option value="Arial">Arial</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Courier New">Courier New</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Verdana">Verdana</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className={`px-2 py-0.5 text-[10px] rounded border ${label.style.fontWeight === 'bold' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                  onClick={() => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontWeight: label.style.fontWeight === 'bold' ? 'normal' : 'bold' } })}
+                >B</button>
+                <button
+                  className={`px-2 py-0.5 text-[10px] rounded border italic ${label.style.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                  onClick={() => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontStyle: label.style.fontStyle === 'italic' ? 'normal' : 'italic' } })}
+                >I</button>
+                {label.userPositioned && (
+                  <button
+                    className="ml-auto px-2 py-0.5 text-[9px] rounded border border-gray-600 bg-gray-700 text-gray-400 hover:text-white hover:bg-gray-600"
+                    onClick={() => drawingStore.updateTextLabel(featureId, labelId, { userPositioned: false })}
+                  >Reset Pos</button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Drawing-mode mini-menu (shown on right-click during DRAW_POLYGON) */}
       {drawingMenu && (
