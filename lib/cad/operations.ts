@@ -3,8 +3,9 @@
 
 import { generateId } from './types';
 import type { Feature, Point2D } from './types';
-import { rotate, mirror, scale, transformFeature } from './geometry/transform';
+import { rotate, mirror, scale, transformFeature, translate } from './geometry/transform';
 import { computeBounds } from './geometry/bounds';
+import { offsetPolyline } from './geometry/offset';
 import { useDrawingStore } from './store/drawing-store';
 import { useSelectionStore } from './store/selection-store';
 import { useUndoStore, makeBatchEntry, makeAddFeatureEntry, makeRemoveFeatureEntry } from './store/undo-store';
