@@ -13,6 +13,7 @@ import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
 import { SubdivisionIntelligenceEngine } from './services/subdivision-intelligence.js';
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
+import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -754,6 +755,76 @@ app.get('/research/reconcile/:projectId', requireAuth, (req: Request, res: Respo
   }
 });
 
+// ── POST /research/confidence ─────────────────────────────────────────────
+// Phase 8: Confidence Scoring & Discrepancy Intelligence.
+// Consumes Phase 7 reconciled model and produces a hierarchical confidence
+// report with call-level, lot-level, boundary-side scoring, discrepancy
+// analysis, purchase recommendations, and surveyor decision matrix.
+
+app.post('/research/confidence', requireAuth, async (req: Request, res: Response) => {
+  const { projectId, reconciledPath } = req.body as {
+    projectId?: string;
+    reconciledPath?: string;
+  };
+
+  if (!projectId || !reconciledPath) {
+    res.status(400).json({ error: 'projectId and reconciledPath required' });
+    return;
+  }
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({
+      error: 'projectId may only contain alphanumeric characters, hyphens, and underscores',
+    });
+    return;
+  }
+
+  if (!reconciledPath.endsWith('.json')) {
+    res.status(400).json({ error: 'reconciledPath must point to a .json file' });
+    return;
+  }
+
+  res.status(202).json({ status: 'accepted', projectId });
+
+  try {
+    const engine = new ConfidenceScoringEngine();
+    const report = await engine.score(projectId, reconciledPath);
+
+    console.log(
+      `[Confidence] Complete: Overall ${report.overallConfidence?.score} (${report.overallConfidence?.grade})`,
+    );
+    console.log(
+      `[Confidence] Discrepancies: ${report.discrepancySummary?.unresolved} unresolved, ${report.discrepancySummary?.resolved} resolved`,
+    );
+    console.log(
+      `[Confidence] ${report.surveyorDecisionMatrix?.readyForField ? '✓ READY FOR FIELD' : '✗ NOT ready — purchase documents first'}`,
+    );
+  } catch (error) {
+    console.error(`[Confidence] Failed for ${projectId}:`, error);
+  }
+});
+
+// ── GET /research/confidence/:projectId ──────────────────────────────────
+// Returns the confidence report or in_progress status.
+
+app.get('/research/confidence/:projectId', requireAuth, (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const resultPath = `/tmp/analysis/${projectId}/confidence_report.json`;
+
+  if (fs.existsSync(resultPath)) {
+    const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+    res.json(result);
+  } else {
+    res.json({ status: 'in_progress' });
+  }
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -776,6 +847,8 @@ app.listen(PORT, () => {
   console.log('  GET    /research/subdivision/:projectId  ← Phase 4: subdivision status/result');
   console.log('  POST   /research/reconcile               ← Phase 7: geometric reconciliation');
   console.log('  GET    /research/reconcile/:projectId    ← Phase 7: reconciliation status/result');
+  console.log('  POST   /research/confidence              ← Phase 8: confidence scoring');
+  console.log('  GET    /research/confidence/:projectId   ← Phase 8: confidence report');
   console.log('  POST   /research/full-pipeline');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');
