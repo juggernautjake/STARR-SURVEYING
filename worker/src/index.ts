@@ -11,6 +11,7 @@ import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './
 import { runPipeline } from './services/pipeline.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
+import { SubdivisionIntelligenceEngine } from './services/subdivision-intelligence.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -592,6 +593,76 @@ app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res
   }
 });
 
+// ── POST /research/subdivision ────────────────────────────────────────────
+// Phase 4: Subdivision & Plat Intelligence.
+// Takes Phase 3 intelligence output and builds a complete SubdivisionModel
+// with every lot's metes and bounds, interior lines, common elements, and
+// subdivision-wide validation.
+//
+// Long-running (up to ~2.5 minutes).  Returns HTTP 202 immediately.
+// Results are persisted to /tmp/analysis/{projectId}/subdivision_model.json.
+
+app.post('/research/subdivision', requireAuth, async (req: Request, res: Response) => {
+  const { projectId, intelligencePath } = req.body as {
+    projectId?: string;
+    intelligencePath?: string;
+  };
+
+  if (!projectId || !intelligencePath) {
+    res.status(400).json({ error: 'projectId and intelligencePath required' });
+    return;
+  }
+
+  // Validate projectId to safe characters — prevents path traversal
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({
+      error: 'projectId may only contain alphanumeric characters, hyphens, and underscores',
+    });
+    return;
+  }
+
+  // Validate intelligencePath is a reasonable file path
+  if (!intelligencePath.endsWith('.json')) {
+    res.status(400).json({ error: 'intelligencePath must point to a .json file' });
+    return;
+  }
+
+  res.status(202).json({ status: 'accepted', projectId });
+
+  try {
+    const engine = new SubdivisionIntelligenceEngine();
+    const result = await engine.analyze(projectId, intelligencePath);
+
+    console.log(
+      `[Subdivision] Complete: ${result.lots?.length || 0} lots, ` +
+      `${result.reserves?.length || 0} reserves`,
+    );
+  } catch (error) {
+    console.error(`[Subdivision] Failed for ${projectId}:`, error);
+  }
+});
+
+// ── GET /research/subdivision/:projectId ─────────────────────────────────
+// Quick status check — returns the completed subdivision model or in_progress.
+
+app.get('/research/subdivision/:projectId', requireAuth, (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const resultPath = `/tmp/analysis/${projectId}/subdivision_model.json`;
+
+  if (fs.existsSync(resultPath)) {
+    const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+    res.json(result);
+  } else {
+    res.json({ status: 'in_progress' });
+  }
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -607,9 +678,11 @@ app.listen(PORT, () => {
 `);
   console.log('[Server] Endpoints:');
   console.log('  GET    /health');
-  console.log('  POST   /research/discover          ← Phase 1: property identity');
-  console.log('  POST   /research/harvest            ← Phase 2: document harvesting');
-  console.log('  GET    /research/harvest/:projectId ← Phase 2: harvest status/result');
+  console.log('  POST   /research/discover               ← Phase 1: property identity');
+  console.log('  POST   /research/harvest                 ← Phase 2: document harvesting');
+  console.log('  GET    /research/harvest/:projectId      ← Phase 2: harvest status/result');
+  console.log('  POST   /research/subdivision             ← Phase 4: subdivision intelligence');
+  console.log('  GET    /research/subdivision/:projectId  ← Phase 4: subdivision status/result');
   console.log('  POST   /research/full-pipeline');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');
