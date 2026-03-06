@@ -2,7 +2,7 @@
 // app/admin/cad/components/LayerPanel.tsx — Layer list panel
 
 import { useState, useRef } from 'react';
-import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon } from 'lucide-react';
+import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, RotateCw } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
@@ -33,6 +33,9 @@ export default function LayerPanel() {
   const [renameValue, setRenameValue] = useState('');
   const renameRef = useRef<HTMLInputElement>(null);
   const dragLayerIdRef = useRef<string | null>(null);
+  /** When set, a small rotation input is shown in the context menu for this layer. */
+  const [rotatingLayerId, setRotatingLayerId] = useState<string | null>(null);
+  const [rotationInputVal, setRotationInputVal] = useState('0');
 
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
 
@@ -286,6 +289,57 @@ export default function LayerPanel() {
           >
             Layer Preferences
           </button>
+          <div className="border-t border-gray-700 my-0.5" />
+          {/* Per-layer rotation */}
+          {rotatingLayerId === contextMenu.layerId ? (
+            <div className="px-3 py-1.5 flex items-center gap-1.5">
+              <RotateCw size={11} className="text-blue-400 shrink-0" />
+              <input
+                type="number"
+                step="1"
+                value={rotationInputVal}
+                onChange={(e) => setRotationInputVal(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const deg = parseFloat(rotationInputVal) || 0;
+                    store.updateLayer(contextMenu.layerId, { rotationDeg: deg === 0 ? null : deg });
+                    setRotatingLayerId(null);
+                    setContextMenu(null);
+                  }
+                  if (e.key === 'Escape') { setRotatingLayerId(null); }
+                }}
+                className="w-16 bg-gray-700 border border-gray-500 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-400"
+                autoFocus
+                placeholder="0°"
+              />
+              <button
+                className="text-[10px] text-blue-400 hover:text-blue-300"
+                onClick={() => {
+                  const deg = parseFloat(rotationInputVal) || 0;
+                  store.updateLayer(contextMenu.layerId, { rotationDeg: deg === 0 ? null : deg });
+                  setRotatingLayerId(null);
+                  setContextMenu(null);
+                }}
+              >Set</button>
+            </div>
+          ) : (
+            <button
+              className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 flex items-center gap-1.5"
+              onClick={() => {
+                const currentRot = doc.layers[contextMenu.layerId]?.rotationDeg ?? 0;
+                setRotationInputVal(String(currentRot ?? 0));
+                setRotatingLayerId(contextMenu.layerId);
+              }}
+            >
+              <RotateCw size={11} className="text-gray-400" />
+              Rotate Layer View…
+              {(doc.layers[contextMenu.layerId]?.rotationDeg ?? 0) !== 0 && (
+                <span className="ml-auto text-[10px] text-blue-400">
+                  {doc.layers[contextMenu.layerId]?.rotationDeg}°
+                </span>
+              )}
+            </button>
+          )}
           {!doc.layers[contextMenu.layerId]?.isDefault && (
             <button
               className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 text-red-400"

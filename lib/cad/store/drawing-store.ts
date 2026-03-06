@@ -1,6 +1,6 @@
 // lib/cad/store/drawing-store.ts — Central store for all drawing data
 import { create } from 'zustand';
-import type { DrawingDocument, Feature, Layer, DrawingSettings, TextLabel, LayerDisplayPreferences } from '../types';
+import type { DrawingDocument, Feature, Layer, DrawingSettings, TextLabel, LayerDisplayPreferences, ProjectImage, TitleBlockConfig } from '../types';
 import { generateId } from '../types';
 import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../constants';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
@@ -23,6 +23,7 @@ function createDefaultDocument(): DrawingDocument {
     customLineTypes: [],
     codeStyleOverrides: {},
     globalStyleConfig: { ...DEFAULT_GLOBAL_STYLE_CONFIG },
+    projectImages: {},
     settings: { ...DEFAULT_DRAWING_SETTINGS },
   };
 }
@@ -69,6 +70,15 @@ interface DrawingStore {
   hideFeature: (featureId: string) => void;
   unhideFeature: (featureId: string) => void;
   getHiddenFeatures: () => Feature[];
+
+  // Project image actions
+  addProjectImage: (image: ProjectImage) => void;
+  removeProjectImage: (imageId: string) => void;
+  getProjectImage: (imageId: string) => ProjectImage | undefined;
+  getAllProjectImages: () => ProjectImage[];
+
+  // Title block
+  updateTitleBlock: (updates: Partial<TitleBlockConfig>) => void;
 
   // Queries
   getFeature: (id: string) => Feature | undefined;
@@ -357,6 +367,47 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
 
   getHiddenFeatures: () =>
     Object.values(get().document.features).filter((f) => f.hidden === true),
+
+  // ── Project image actions ────────────────────────────────────────────────────
+
+  addProjectImage: (image) =>
+    set((state) => ({
+      document: {
+        ...state.document,
+        projectImages: { ...(state.document.projectImages ?? {}), [image.id]: image },
+        modified: new Date().toISOString(),
+      },
+      isDirty: true,
+    })),
+
+  removeProjectImage: (imageId) =>
+    set((state) => {
+      const projectImages = { ...(state.document.projectImages ?? {}) };
+      delete projectImages[imageId];
+      return {
+        document: { ...state.document, projectImages, modified: new Date().toISOString() },
+        isDirty: true,
+      };
+    }),
+
+  getProjectImage: (imageId) => (get().document.projectImages ?? {})[imageId],
+
+  getAllProjectImages: () => Object.values(get().document.projectImages ?? {}),
+
+  // ── Title block ──────────────────────────────────────────────────────────────
+
+  updateTitleBlock: (updates) =>
+    set((state) => ({
+      document: {
+        ...state.document,
+        settings: {
+          ...state.document.settings,
+          titleBlock: { ...state.document.settings.titleBlock, ...updates },
+        },
+        modified: new Date().toISOString(),
+      },
+      isDirty: true,
+    })),
 
   markClean: () => set({ isDirty: false }),
 

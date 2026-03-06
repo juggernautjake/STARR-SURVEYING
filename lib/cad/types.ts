@@ -59,6 +59,16 @@ export interface DisplayPreferences {
 
 // --- DRAWING DOCUMENT ---
 
+/** A raster or vector image stored in the project (full-resolution, referenced by IMAGE features). */
+export interface ProjectImage {
+  id: string;
+  name: string;           // Original filename or user label
+  dataUrl: string;        // Full-resolution base64 data URL
+  originalWidth: number;  // Native pixel width
+  originalHeight: number; // Native pixel height
+  addedAt: string;        // ISO 8601 timestamp
+}
+
 export interface DrawingDocument {
   id: string;
   name: string;
@@ -78,6 +88,9 @@ export interface DrawingDocument {
   customLineTypes: import('./styles/types').LineTypeDefinition[];
   codeStyleOverrides: Record<string, Partial<import('./styles/types').CodeStyleMapping>>;
   globalStyleConfig: import('./styles/types').GlobalStyleConfig;
+
+  /** Project-level image library. IMAGE features reference images by id. */
+  projectImages: Record<string, ProjectImage>;
 
   // Configuration
   settings: DrawingSettings;
@@ -155,11 +168,46 @@ export interface DrawingSettings {
 
   // User display preferences (units, bearings, coordinates)
   displayPreferences: DisplayPreferences;
+
+  // Drawing view rotation (visual only — does not alter survey data or bearings)
+  drawingRotationDeg: number; // Degrees CW on screen (default: 0)
+
+  // Title block / survey info overlay
+  titleBlock: TitleBlockConfig;
+}
+
+// ─── TITLE BLOCK ───
+
+export type NorthArrowStyle = 'SIMPLE' | 'COMPASS_ROSE' | 'DETAILED' | 'TRADITIONAL';
+export type InfoBoxStyle = 'STANDARD' | 'MINIMAL' | 'DETAILED';
+
+/** Configuration for the survey title block rendered on the drawing paper. */
+export interface TitleBlockConfig {
+  /** Show or hide the entire title block. Default: true */
+  visible: boolean;
+  northArrowStyle: NorthArrowStyle;
+  /** Size of the north arrow symbol in paper inches. Default: 1.5 */
+  northArrowSizeIn: number;
+  infoBoxStyle: InfoBoxStyle;
+
+  // Survey metadata fields shown in the info box
+  firmName: string;
+  surveyorName: string;
+  surveyorLicense: string;
+  projectName: string;
+  projectNumber: string;
+  clientName: string;
+  surveyDate: string;
+  /** Label shown for the scale, e.g. "1\" = 50'". Auto-populated if blank. */
+  scaleLabel: string;
+  sheetNumber: string;
+  totalSheets: string;
+  notes: string;
 }
 
 // --- FEATURES ---
 
-export type FeatureType = 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON' | 'CIRCLE' | 'ELLIPSE' | 'ARC' | 'SPLINE' | 'TEXT' | 'MIXED_GEOMETRY';
+export type FeatureType = 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON' | 'CIRCLE' | 'ELLIPSE' | 'ARC' | 'SPLINE' | 'TEXT' | 'MIXED_GEOMETRY' | 'IMAGE';
 
 export interface Feature {
   id: string;
@@ -196,9 +244,31 @@ export interface FeatureGeometry {
   textContent?: string;    // The text string
   textRotation?: number;   // Rotation in radians (0 = horizontal)
   textWidth?: number;      // Width in world units (0 = auto)
+
+  /** Image geometry: used when type='IMAGE' */
+  image?: ImageGeometry;
 }
 
-// ── TRUE CURVE GEOMETRY DEFINITIONS ──
+/**
+ * Geometry for an IMAGE feature. The image is positioned/sized in world coordinates.
+ * The original bitmap is stored separately in DrawingDocument.projectImages.
+ */
+export interface ImageGeometry {
+  /** References DrawingDocument.projectImages[imageId] */
+  imageId: string;
+  /** Bottom-left anchor in world coordinates */
+  position: Point2D;
+  /** Display width in world units */
+  width: number;
+  /** Display height in world units */
+  height: number;
+  /** Rotation in radians, CCW positive (math convention) */
+  rotation: number;
+  /** Mirror horizontally (flip left-right) */
+  mirrorX: boolean;
+  /** Mirror vertically (flip top-bottom) */
+  mirrorY: boolean;
+}
 
 /** A mathematically perfect circle defined by center and radius. */
 export interface CircleGeometry {
@@ -267,6 +337,9 @@ export interface Layer {
   autoAssignCodes: string[];
   featureCount?: number;
 
+  /** Per-layer view rotation in degrees (CW on screen). null = use drawing-level rotation. */
+  rotationDeg?: number | null;
+
   /** Per-layer display preferences for attribute labels. */
   displayPreferences?: LayerDisplayPreferences;
 }
@@ -326,7 +399,8 @@ export type ToolType =
   | 'OFFSET'
   | 'INVERSE'
   | 'FORWARD_POINT'
-  | 'DRAW_TEXT';
+  | 'DRAW_TEXT'
+  | 'DRAW_IMAGE';
 
 export interface ToolState {
   activeTool: ToolType;

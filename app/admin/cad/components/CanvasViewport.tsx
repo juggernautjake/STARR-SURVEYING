@@ -50,6 +50,8 @@ import {
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
 import InteractiveOpPanel from './InteractiveOpPanel';
+import ImageInsertDialog from './ImageInsertDialog';
+import type { ProjectImage } from '@/lib/cad/types';
 
 // ─────────────────────────────────────────────
 // Constants
@@ -130,6 +132,7 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
   DRAW_SPLINE_FIT: SVG_CURSOR_CROSSHAIR,
   DRAW_SPLINE_CONTROL: SVG_CURSOR_CROSSHAIR,
   DRAW_TEXT: SVG_CURSOR_CROSSHAIR,
+  DRAW_IMAGE: SVG_CURSOR_CROSSHAIR,
   MOVE: 'move',
   COPY: 'copy',
   ROTATE: SVG_CURSOR_ROTATE,
@@ -143,20 +146,36 @@ const MIN_LABEL_FONT_SIZE_PX = 4;
 // ─────────────────────────────────────────────
 // CanvasViewport Component
 // ─────────────────────────────────────────────
-export default function CanvasViewport() {
+interface CanvasViewportProps {
+  /** When set, the DRAW_IMAGE tool should pre-select this project image id. */
+  pendingPlaceImageId?: string | null;
+  /** Called after the pending image id has been consumed (image placed or dialog dismissed). */
+  onPlaceImageConsumed?: () => void;
+}
+
+export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsumed }: CanvasViewportProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pixiRef = useRef<{
     app: import('pixi.js').Application;
     paperLayer: import('pixi.js').Container;
+    /** Container that rotates with drawingRotationDeg — wraps grid, features, labels, selection, snap, preview */
+    drawingRotContainer: import('pixi.js').Container;
     gridLayer: import('pixi.js').Container;
     featureLayer: import('pixi.js').Container;
     labelLayer: import('pixi.js').Container;
     selectionLayer: import('pixi.js').Container;
     snapLayer: import('pixi.js').Container;
     toolPreviewLayer: import('pixi.js').Container;
+    /** Sits above drawingRotContainer — title block does NOT rotate with the drawing */
+    titleBlockLayer: import('pixi.js').Container;
+    titleBlockGraphics: import('pixi.js').Graphics;
     featureGraphics: Map<string, import('pixi.js').Graphics>;
     labelTexts: Map<string, import('pixi.js').Text>;
+    /** PixiJS Sprites for IMAGE features, keyed by featureId */
+    imageSprites: Map<string, import('pixi.js').Sprite>;
+    /** Texture cache keyed by projectImage.id */
+    imageTextures: Map<string, import('pixi.js').Texture>;
     paperGraphics: import('pixi.js').Graphics;
     gridGraphics: import('pixi.js').Graphics;
     selectionGraphics: import('pixi.js').Graphics;
@@ -165,6 +184,11 @@ export default function CanvasViewport() {
     GraphicsClass: new () => import('pixi.js').Graphics;
     TextClass: new (text: string, style?: import('pixi.js').TextStyle | Partial<import('pixi.js').ITextStyle>) => import('pixi.js').Text;
     TextStyleClass: new (style?: Partial<import('pixi.js').ITextStyle>) => import('pixi.js').TextStyle;
+    SpriteClass: new (texture?: import('pixi.js').Texture) => import('pixi.js').Sprite;
+    TextureClass: { from: (src: string) => import('pixi.js').Texture };
+    ContainerClass: new () => import('pixi.js').Container;
+    /** Per-layer PixiJS sub-containers for per-layer rotation. Lazy-created. */
+    _layerContainers: Map<string, import('pixi.js').Container>;
   } | null>(null);
 
   const drawingStore = useDrawingStore();
@@ -232,6 +256,11 @@ export default function CanvasViewport() {
     currentFactor: number;
   } | null>(null);
 
+  /** When set, the ImageInsertDialog is open at this world position. */
+  const [imageInsertState, setImageInsertState] = useState<{ wx: number; wy: number } | null>(null);
+  /** Tracks the pending pre-selected image id from the ImagePanel. */
+  const pendingPlaceImageIdRef = useRef<string | null>(pendingPlaceImageId ?? null);
+
   // Polyline group ID tracking — each new polyline drawing gets a fresh UUID
   const polylineGroupIdRef = useRef<string | null>(null);
   // Track last segment feature ID for dblclick cleanup
@@ -241,6 +270,21 @@ export default function CanvasViewport() {
 
   // Keyboard shortcuts
   useKeyboard();
+
+  // Sync pendingPlaceImageId prop into ref
+  useEffect(() => {
+    pendingPlaceImageIdRef.current = pendingPlaceImageId ?? null;
+  }, [pendingPlaceImageId]);
+
+  // Listen for cad:activateTool event dispatched from ImagePanel
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { tool } = (e as CustomEvent).detail as { tool: string };
+      toolStore.setTool(tool as import('@/lib/cad/types').ToolType);
+    };
+    window.addEventListener('cad:activateTool', handler);
+    return () => window.removeEventListener('cad:activateTool', handler);
+  }, [toolStore]);
 
   // Update cursor when active tool changes
   const activeTool = toolStore.state.activeTool;
@@ -347,15 +391,21 @@ export default function CanvasViewport() {
           autoDensity: true,
         });
 
+        // paperLayer is NOT rotated — the paper rectangle stays fixed
         const paperLayer = new PIXI.Container();
+        // drawingRotContainer holds everything that visually rotates with the drawing
+        const drawingRotContainer = new PIXI.Container();
         const gridLayer = new PIXI.Container();
         const featureLayer = new PIXI.Container();
         const labelLayer = new PIXI.Container();
         const selectionLayer = new PIXI.Container();
         const snapLayer = new PIXI.Container();
         const toolPreviewLayer = new PIXI.Container();
+        drawingRotContainer.addChild(gridLayer, featureLayer, labelLayer, selectionLayer, snapLayer, toolPreviewLayer);
+        // titleBlockLayer is NOT rotated — title block is paper-fixed
+        const titleBlockLayer = new PIXI.Container();
 
-        app.stage.addChild(paperLayer, gridLayer, featureLayer, labelLayer, selectionLayer, snapLayer, toolPreviewLayer);
+        app.stage.addChild(paperLayer, drawingRotContainer, titleBlockLayer);
 
         const paperGraphics = new PIXI.Graphics();
         paperLayer.addChild(paperGraphics);
@@ -372,17 +422,25 @@ export default function CanvasViewport() {
         const previewGraphics = new PIXI.Graphics();
         toolPreviewLayer.addChild(previewGraphics);
 
+        const titleBlockGraphics = new PIXI.Graphics();
+        titleBlockLayer.addChild(titleBlockGraphics);
+
         pixiRef.current = {
           app,
           paperLayer,
+          drawingRotContainer,
           gridLayer,
           featureLayer,
           labelLayer,
           selectionLayer,
           snapLayer,
           toolPreviewLayer,
+          titleBlockLayer,
+          titleBlockGraphics,
           featureGraphics: new Map(),
           labelTexts: new Map(),
+          imageSprites: new Map(),
+          imageTextures: new Map(),
           paperGraphics,
           gridGraphics,
           selectionGraphics,
@@ -391,6 +449,10 @@ export default function CanvasViewport() {
           GraphicsClass: PIXI.Graphics,
           TextClass: PIXI.Text,
           TextStyleClass: PIXI.TextStyle,
+          SpriteClass: PIXI.Sprite,
+          TextureClass: PIXI.Texture,
+          ContainerClass: PIXI.Container,
+          _layerContainers: new Map(),
         };
 
         viewportStore.setScreenSize(width, height);
@@ -510,6 +572,61 @@ export default function CanvasViewport() {
   }
   function s2w(sx: number, sy: number) {
     return viewportStore.screenToWorld(sx, sy);
+  }
+
+  // ─────────────────────────────────────────────
+  // Drawing rotation helpers
+  // ─────────────────────────────────────────────
+  /** Get paper center in world coordinates. */
+  function getPaperDimensions() {
+    const doc = useDrawingStore.getState().document;
+    const { paperSize, paperOrientation, drawingScale } = doc.settings;
+    let [pw, ph] = PAPER_SIZE_MAP[paperSize ?? 'TABLOID'] ?? [11, 17];
+    if (paperOrientation === 'LANDSCAPE') [pw, ph] = [ph, pw];
+    const paperW = pw * (drawingScale ?? 50);
+    const paperH = ph * (drawingScale ?? 50);
+    return { paperW, paperH };
+  }
+
+  /**
+   * Update the drawingRotContainer pivot & rotation each frame so the drawing
+   * visually rotates around the paper center without changing any coordinates.
+   */
+  function updateDrawingRotContainer() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const doc = useDrawingStore.getState().document;
+    const rotDeg = doc.settings.drawingRotationDeg ?? 0;
+    const rotRad = (rotDeg * Math.PI) / 180;
+    const { paperW, paperH } = getPaperDimensions();
+    // Paper center in screen coordinates (no rotation applied — pure w2s)
+    const { sx: pcSx, sy: pcSy } = w2s(paperW / 2, paperH / 2);
+    // Set pivot to paper center so rotation is around the paper center
+    pixi.drawingRotContainer.pivot.set(pcSx, pcSy);
+    pixi.drawingRotContainer.position.set(pcSx, pcSy);
+    pixi.drawingRotContainer.rotation = rotRad;
+  }
+
+  /**
+   * Convert a screen point (e.g. mouse click) to world coordinates,
+   * accounting for the drawing rotation. Use this instead of plain s2w()
+   * for all hit-testing and new-feature placement.
+   */
+  function screenToDrawingWorld(sx: number, sy: number): { wx: number; wy: number } {
+    const doc = useDrawingStore.getState().document;
+    const rotDeg = doc.settings.drawingRotationDeg ?? 0;
+    if (rotDeg === 0) return s2w(sx, sy);
+    // Inverse-rotate the screen point around the paper center first
+    const { paperW, paperH } = getPaperDimensions();
+    const { sx: pcSx, sy: pcSy } = w2s(paperW / 2, paperH / 2);
+    const rotRad = -(rotDeg * Math.PI) / 180; // inverse
+    const dx = sx - pcSx;
+    const dy = sy - pcSy;
+    const cos = Math.cos(rotRad);
+    const sin = Math.sin(rotRad);
+    const unrotSx = cos * dx - sin * dy + pcSx;
+    const unrotSy = sin * dx + cos * dy + pcSy;
+    return s2w(unrotSx, unrotSy);
   }
 
   // ─────────────────────────────────────────────
@@ -680,24 +797,62 @@ export default function CanvasViewport() {
     const pixi = pixiRef.current;
     if (!pixi) return;
 
+    const doc = useDrawingStore.getState().document;
     const visibleFeatures = drawingStore.getVisibleFeatures();
     const visibleIds = new Set(visibleFeatures.map((f) => f.id));
+
+    // Lazily-maintained per-layer sub-containers (for per-layer rotation)
+    const layerContainers = pixi._layerContainers;
 
     // Remove graphics for features no longer visible
     for (const [id, g] of pixi.featureGraphics) {
       if (!visibleIds.has(id)) {
-        pixi.featureLayer.removeChild(g);
+        g.parent?.removeChild(g);
         g.destroy();
         pixi.featureGraphics.delete(id);
       }
     }
 
+    // Update per-layer container rotations (paper-center pivot)
+    const { paperW, paperH } = getPaperDimensions();
+    const { sx: pcSx, sy: pcSy } = w2s(paperW / 2, paperH / 2);
+    for (const [layerId, lc] of layerContainers) {
+      const layer = doc.layers[layerId];
+      const layerRotDeg = layer?.rotationDeg ?? 0;
+      if (!layerRotDeg) {
+        lc.pivot.set(0, 0);
+        lc.position.set(0, 0);
+        lc.rotation = 0;
+      } else {
+        lc.pivot.set(pcSx, pcSy);
+        lc.position.set(pcSx, pcSy);
+        lc.rotation = (layerRotDeg * Math.PI) / 180;
+      }
+    }
+
     for (const feature of visibleFeatures) {
+      const layer = doc.layers[feature.layerId];
+      const layerRotDeg = layer?.rotationDeg ?? 0;
+
+      // Determine parent container
+      let parentContainer: import('pixi.js').Container = pixi.featureLayer;
+      if (layerRotDeg) {
+        if (!layerContainers.has(feature.layerId)) {
+          const lc = new pixi.ContainerClass();
+          pixi.featureLayer.addChild(lc);
+          layerContainers.set(feature.layerId, lc);
+        }
+        parentContainer = layerContainers.get(feature.layerId)!;
+      }
+
       let g = pixi.featureGraphics.get(feature.id);
       if (!g) {
         g = new pixi.GraphicsClass();
         pixi.featureGraphics.set(feature.id, g);
-        pixi.featureLayer.addChild(g);
+        parentContainer.addChild(g);
+      } else if (g.parent !== parentContainer) {
+        g.parent?.removeChild(g);
+        parentContainer.addChild(g);
       }
 
       drawFeature(g, feature);
@@ -797,7 +952,358 @@ export default function CanvasViewport() {
         }
         break;
       }
+      case 'IMAGE': {
+        // IMAGE features are rendered via renderImageFeatures() (PixiJS Sprites).
+        // drawFeature just draws a dashed selection-bounding-box when selected.
+        if (geom.image) {
+          const img = geom.image;
+          const { sx: ax, sy: ay } = w2s(img.position.x, img.position.y);
+          const { zoom } = useViewportStore.getState();
+          const wPx = img.width * zoom;
+          const hPx = img.height * zoom;
+          // Simple dashed rect outline for selection hit area
+          g.lineStyle(0.5, color, alpha * 0.3);
+          g.drawRect(ax, ay - hPx, wPx, hPx);
+        }
+        break;
+      }
     }
+  }
+
+  // ─────────────────────────────────────────────
+  // Render: IMAGE features (PixiJS Sprites)
+  // ─────────────────────────────────────────────
+  function renderImageFeatures() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+
+    const doc = useDrawingStore.getState().document;
+    const { zoom } = useViewportStore.getState();
+    const visibleFeatures = drawingStore.getVisibleFeatures().filter(
+      (f) => f.geometry.type === 'IMAGE' && f.geometry.image,
+    );
+    const activeIds = new Set(visibleFeatures.map((f) => f.id));
+
+    // Remove sprites for features no longer visible
+    for (const [fid, sprite] of pixi.imageSprites) {
+      if (!activeIds.has(fid)) {
+        pixi.featureLayer.removeChild(sprite);
+        pixi.imageSprites.delete(fid);
+      }
+    }
+
+    for (const feature of visibleFeatures) {
+      const img = feature.geometry.image!;
+      const projImg = (doc.projectImages ?? {})[img.imageId];
+      if (!projImg) continue;
+
+      // Ensure texture exists (cached)
+      if (!pixi.imageTextures.has(img.imageId)) {
+        try {
+          const tex = pixi.TextureClass.from(projImg.dataUrl);
+          pixi.imageTextures.set(img.imageId, tex);
+        } catch {
+          continue;
+        }
+      }
+      const texture = pixi.imageTextures.get(img.imageId)!;
+
+      // Ensure sprite exists
+      let sprite = pixi.imageSprites.get(feature.id);
+      if (!sprite) {
+        sprite = new pixi.SpriteClass(texture);
+        sprite.anchor.set(0, 1); // anchor at bottom-left (world convention: y up)
+        pixi.featureLayer.addChild(sprite);
+        pixi.imageSprites.set(feature.id, sprite);
+      } else if (sprite.texture !== texture) {
+        sprite.texture = texture;
+      }
+
+      // Position: bottom-left anchor in world → screen
+      const { sx, sy } = w2s(img.position.x, img.position.y);
+      sprite.position.set(sx, sy);
+
+      // Scale: world dimensions → screen pixels
+      const wPx = img.width * zoom;
+      const hPx = img.height * zoom;
+      const scaleX = wPx / (texture.width || 1);
+      const scaleY = hPx / (texture.height || 1);
+      sprite.scale.set(
+        img.mirrorX ? -scaleX : scaleX,
+        img.mirrorY ? scaleY : -scaleY, // y inverted because screen y is down, world y is up
+      );
+
+      // Rotation: world CCW positive → screen CW positive (invert)
+      sprite.rotation = -img.rotation;
+
+      // Opacity from feature style
+      sprite.alpha = feature.style.opacity ?? 1;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Render: Title Block (north arrow + survey info + signature line)
+  // Fixed to paper — does NOT rotate with the drawing
+  // ─────────────────────────────────────────────
+  function renderTitleBlock() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+    const g = pixi.titleBlockGraphics;
+    g.clear();
+
+    // Clear old title block text objects
+    const tbTexts = pixi.titleBlockLayer.children.filter(
+      (c) => c !== g && (c as { _isTitleBlockText?: boolean })._isTitleBlockText,
+    );
+    for (const t of tbTexts) pixi.titleBlockLayer.removeChild(t);
+
+    const doc = useDrawingStore.getState().document;
+    const tb = doc.settings.titleBlock;
+    if (!tb?.visible) return;
+
+    const { paperSize, paperOrientation, drawingScale } = doc.settings;
+    let [pw, ph] = PAPER_SIZE_MAP[paperSize ?? 'TABLOID'] ?? [11, 17];
+    if (paperOrientation === 'LANDSCAPE') [pw, ph] = [ph, pw];
+    const paperW = pw * (drawingScale ?? 50);
+    const paperH = ph * (drawingScale ?? 50);
+    const { zoom } = useViewportStore.getState();
+
+    // Paper corners in screen space (no drawing rotation — title block is paper-fixed)
+    const tl = w2s(0, paperH);
+    const br = w2s(paperW, 0);
+    const pLeft = tl.sx;
+    const pTop = tl.sy;
+    const pWidth = br.sx - tl.sx;
+    const pHeight = br.sy - tl.sy;
+
+    // Title block lives in the bottom-right corner
+    // Heights and widths scale with paper and zoom
+    const inchToPx = zoom * (drawingScale ?? 50); // 1 paper inch in screen pixels
+    const margin = 0.1 * inchToPx;       // 0.1" margin
+    const tbH = 1.8 * inchToPx;          // total title block height in screen px
+    const tbW = 5.0 * inchToPx;          // total title block width
+    const northArrowSizeIn = tb.northArrowSizeIn ?? 1.5;
+    const northArrowPx = northArrowSizeIn * inchToPx;
+
+    // Bottom-right anchor (screen pixels)
+    const brX = br.sx - margin;
+    const brY = br.sy - margin;
+    const boxLeft = brX - tbW;
+    const boxTop = brY - tbH;
+
+    // ── Outer border ──
+    g.lineStyle(1, 0x000000, 1);
+    g.drawRect(boxLeft, boxTop, tbW, tbH);
+
+    // ── Left column: North Arrow ──
+    const naColW = northArrowPx + 0.4 * inchToPx;
+    const naColX = boxLeft;
+    g.lineStyle(0.5, 0x000000, 0.6);
+    g.moveTo(naColX + naColW, boxTop);
+    g.lineTo(naColX + naColW, brY);
+
+    // North arrow center
+    const naCx = naColX + naColW / 2;
+    const naCy = boxTop + tbH / 2;
+    const rotDeg = doc.settings.drawingRotationDeg ?? 0;
+    // North arrow compensates for drawing rotation: if drawing is 25° CW,
+    // the arrow points 25° CW from screen-up to show where true north is.
+    const arrowRad = (rotDeg * Math.PI) / 180;
+    drawNorthArrow(g, naCx, naCy, northArrowPx * 0.45, arrowRad, tb.northArrowStyle ?? 'DETAILED', pixi);
+
+    // ── Right column: Info Box ──
+    const infoLeft = naColX + naColW;
+    const infoW = tbW - naColW;
+    const fields = buildInfoFields(tb, doc);
+    const rowH = tbH / Math.max(fields.length, 1);
+    const labelFontSz = Math.max(Math.min(rowH * 0.38, 11), 6);
+    const valFontSz = Math.max(Math.min(rowH * 0.42, 12), 7);
+
+    g.lineStyle(0.3, 0x000000, 0.3);
+    for (let i = 0; i < fields.length; i++) {
+      const ry = boxTop + i * rowH;
+      if (i > 0) {
+        g.moveTo(infoLeft, ry);
+        g.lineTo(infoLeft + infoW, ry);
+      }
+      const [label, value] = fields[i];
+      // Label (small, gray)
+      const labelTxt = new pixi.TextClass(label, new pixi.TextStyleClass({
+        fontFamily: 'Arial',
+        fontSize: labelFontSz,
+        fill: 0x666666,
+        fontWeight: 'normal',
+      }));
+      (labelTxt as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
+      labelTxt.position.set(infoLeft + 4, ry + 2);
+      labelTxt.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
+      pixi.titleBlockLayer.addChild(labelTxt);
+      // Value (bold, black)
+      const valTxt = new pixi.TextClass(value || '', new pixi.TextStyleClass({
+        fontFamily: 'Arial',
+        fontSize: valFontSz,
+        fill: 0x000000,
+        fontWeight: 'bold',
+        wordWrap: true,
+        wordWrapWidth: infoW - 8,
+      }));
+      (valTxt as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
+      valTxt.position.set(infoLeft + 4, ry + labelFontSz + 3);
+      valTxt.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
+      pixi.titleBlockLayer.addChild(valTxt);
+    }
+
+    // ── Signature Line ──
+    const sigY = brY - 0.35 * inchToPx;
+    g.lineStyle(0.8, 0x000000, 0.8);
+    g.moveTo(infoLeft + 8, sigY);
+    g.lineTo(infoLeft + infoW * 0.7, sigY);
+    const sigLbl = new pixi.TextClass('Signature / Seal', new pixi.TextStyleClass({
+      fontFamily: 'Arial',
+      fontSize: Math.max(labelFontSz - 1, 5),
+      fill: 0x999999,
+      fontStyle: 'italic',
+    }));
+    (sigLbl as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
+    sigLbl.position.set(infoLeft + 8, sigY + 2);
+    sigLbl.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
+    pixi.titleBlockLayer.addChild(sigLbl);
+  }
+
+  function drawNorthArrow(
+    g: import('pixi.js').Graphics,
+    cx: number,
+    cy: number,
+    radius: number,
+    rotRad: number, // visual rotation (compensates for drawing rotation)
+    style: string,
+    pixi: NonNullable<typeof pixiRef.current>,
+  ) {
+    const cos = Math.cos(rotRad);
+    const sin = Math.sin(rotRad);
+    // "up" direction after rotation: screen-up = -y, rotated by rotRad
+    const ux = -sin;  // x component of rotated up
+    const uy = -cos;  // y component of rotated up (screen y inverted)
+    const tipX = cx + ux * radius;
+    const tipY = cy + uy * radius;
+    const baseX = cx - ux * radius * 0.9;
+    const baseY = cy - uy * radius * 0.9;
+    // perpendicular direction for barbs
+    const px =  uy;
+    const py = -ux;
+
+    g.lineStyle(0);
+
+    if (style === 'SIMPLE') {
+      g.lineStyle(1.5, 0x000000, 1);
+      g.moveTo(baseX, baseY);
+      g.lineTo(tipX, tipY);
+      // Arrowhead
+      const hx = cx + ux * radius * 0.6;
+      const hy = cy + uy * radius * 0.6;
+      const bw = radius * 0.22;
+      g.moveTo(tipX, tipY);
+      g.lineTo(hx + px * bw, hy + py * bw);
+      g.moveTo(tipX, tipY);
+      g.lineTo(hx - px * bw, hy - py * bw);
+    } else if (style === 'TRADITIONAL') {
+      // Classic filled north half
+      const bw = radius * 0.28;
+      g.beginFill(0x000000, 1);
+      g.moveTo(tipX, tipY);
+      g.lineTo(cx + px * bw, cy + py * bw);
+      g.lineTo(baseX, baseY);
+      g.closePath();
+      g.endFill();
+      g.beginFill(0xffffff, 1);
+      g.moveTo(tipX, tipY);
+      g.lineTo(cx - px * bw, cy - py * bw);
+      g.lineTo(baseX, baseY);
+      g.closePath();
+      g.endFill();
+      g.lineStyle(1, 0x000000, 1);
+      g.drawCircle(cx, cy, radius * 0.12);
+    } else if (style === 'COMPASS_ROSE') {
+      // N/S/E/W rose
+      for (let i = 0; i < 4; i++) {
+        const a = rotRad + (i * Math.PI) / 2;
+        const tx = cx - Math.sin(a) * radius;
+        const ty = cy - Math.cos(a) * radius;
+        const bx = cx + Math.sin(a) * radius * 0.3;
+        const by = cy + Math.cos(a) * radius * 0.3;
+        const pw2 = radius * 0.18;
+        const px2 =  Math.cos(a);
+        const py2 = -Math.sin(a);
+        const fill = i === 0 ? 0x000000 : 0x888888;
+        g.beginFill(fill, 1);
+        g.moveTo(tx, ty);
+        g.lineTo(cx + px2 * pw2, cy + py2 * pw2);
+        g.lineTo(bx, by);
+        g.lineTo(cx - px2 * pw2, cy - py2 * pw2);
+        g.closePath();
+        g.endFill();
+      }
+      g.lineStyle(1, 0x000000, 1);
+      g.drawCircle(cx, cy, radius * 0.15);
+    } else {
+      // DETAILED (default): double-headed with styled tick
+      const bw = radius * 0.26;
+      g.beginFill(0x000000, 1);
+      g.moveTo(tipX, tipY);
+      g.lineTo(cx + px * bw, cy + py * bw);
+      g.lineTo(baseX, baseY);
+      g.closePath();
+      g.endFill();
+      g.beginFill(0xffffff, 1);
+      g.lineStyle(0.8, 0x000000, 1);
+      g.moveTo(tipX, tipY);
+      g.lineTo(cx - px * bw, cy - py * bw);
+      g.lineTo(baseX, baseY);
+      g.closePath();
+      g.endFill();
+      g.lineStyle(0);
+      g.lineStyle(0.8, 0x000000, 0.4);
+      g.moveTo(cx - ux * radius * 1.05, cy - uy * radius * 1.05);
+      g.lineTo(cx + ux * radius * 1.05, cy + uy * radius * 1.05);
+    }
+
+    // Draw "N" label at the north tip
+    const nLbl = new pixi.TextClass('N', new pixi.TextStyleClass({
+      fontFamily: 'Arial',
+      fontSize: Math.max(radius * 0.45, 8),
+      fill: 0x000000,
+      fontWeight: 'bold',
+    }));
+    (nLbl as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
+    const nOffset = radius * 0.28;
+    nLbl.anchor.set(0.5, 0.5);
+    nLbl.position.set(tipX + ux * nOffset, tipY + uy * nOffset);
+    nLbl.resolution = (pixi.app.renderer as { resolution?: number }).resolution ?? 2;
+    pixi.titleBlockLayer.addChild(nLbl);
+  }
+
+  function buildInfoFields(
+    tb: import('@/lib/cad/types').TitleBlockConfig,
+    doc: import('@/lib/cad/types').DrawingDocument,
+  ): [string, string][] {
+    const drawingScale = doc.settings.drawingScale ?? 50;
+    const scaleLabel = tb.scaleLabel || `1" = ${drawingScale}'`;
+    const base: [string, string][] = [
+      ['Firm', tb.firmName || ''],
+      ['Surveyor', tb.surveyorName || ''],
+      ['License', tb.surveyorLicense || ''],
+      ['Project', tb.projectName || ''],
+      ['Client', tb.clientName || ''],
+      ['Date', tb.surveyDate || ''],
+      ['Scale', scaleLabel],
+      ['Sheet', `${tb.sheetNumber || '1'} of ${tb.totalSheets || '1'}`],
+    ];
+    if (tb.infoBoxStyle === 'DETAILED') {
+      base.push(['Job #', tb.projectNumber || ''], ['Notes', tb.notes || '']);
+    } else if (tb.infoBoxStyle === 'MINIMAL') {
+      return base.slice(0, 5);
+    }
+    return base;
   }
 
   // ─────────────────────────────────────────────
@@ -1292,6 +1798,22 @@ export default function CanvasViewport() {
         return geom.arc ? arcGripPoints(geom.arc) : [];
       case 'SPLINE':
         return geom.spline ? splineGripPoints(geom.spline) : [];
+      case 'IMAGE':
+        // 4 corners + 4 edge midpoints for IMAGE resize
+        if (geom.image) {
+          const { position: p, width: w, height: h } = geom.image;
+          return [
+            { x: p.x,       y: p.y     },   // 0: bottom-left
+            { x: p.x + w,   y: p.y     },   // 1: bottom-right
+            { x: p.x + w,   y: p.y + h },   // 2: top-right
+            { x: p.x,       y: p.y + h },   // 3: top-left
+            { x: p.x + w/2, y: p.y     },   // 4: bottom-mid
+            { x: p.x + w,   y: p.y + h/2 }, // 5: right-mid
+            { x: p.x + w/2, y: p.y + h },   // 6: top-mid
+            { x: p.x,       y: p.y + h/2 }, // 7: left-mid
+          ];
+        }
+        return [];
       default:
         return [];
     }
@@ -1845,21 +2367,26 @@ export default function CanvasViewport() {
         pixi.app.renderer.background.color = bgColor;
       }
     }
+    // Update drawing rotation container pivot/rotation before rendering
+    updateDrawingRotContainer();
     renderPaper();
     renderGrid();
     renderFeatures();
+    renderImageFeatures();
     renderLabels();
     renderTextFeatures();
     renderSelection();
     renderSnapIndicator();
     renderToolPreview();
+    renderTitleBlock();
   }
 
   // ─────────────────────────────────────────────
   // Hit testing
   // ─────────────────────────────────────────────
   function hitTest(sx: number, sy: number): string | null {
-    const { wx, wy } = s2w(sx, sy);
+    // Use drawing-rotation-aware coordinate conversion
+    const { wx, wy } = screenToDrawingWorld(sx, sy);
     const worldTol = HIT_TOLERANCE_PX / viewportStore.zoom;
     // Exclude features on locked layers from selection
     const features = drawingStore.getVisibleFeatures().filter((f) => {
@@ -1926,6 +2453,17 @@ export default function CanvasViewport() {
       if (geom.type === 'TEXT' && geom.point) {
         const { sx: fx, sy: fy } = w2s(geom.point.x, geom.point.y);
         if (Math.hypot(sx - fx, sy - fy) <= HIT_TOLERANCE_PX * 2) {
+          return feature.id;
+        }
+      }
+      // IMAGE hit testing — point-in-bounding-box
+      if (geom.type === 'IMAGE' && geom.image) {
+        const img = geom.image;
+        const { zoom } = useViewportStore.getState();
+        const { sx: ax, sy: ay } = w2s(img.position.x, img.position.y);
+        const wPx = img.width * zoom;
+        const hPx = img.height * zoom;
+        if (sx >= ax && sx <= ax + wPx && sy >= ay - hPx && sy <= ay) {
           return feature.id;
         }
       }
@@ -2337,7 +2875,8 @@ export default function CanvasViewport() {
   // Get snapped world position
   // ─────────────────────────────────────────────
   function getSnappedWorld(sx: number, sy: number): Point2D {
-    const { wx, wy } = s2w(sx, sy);
+    // Use rotation-aware coordinate conversion
+    const { wx, wy } = screenToDrawingWorld(sx, sy);
     const cursor = { x: wx, y: wy };
     const { settings } = drawingStore.document;
 
@@ -2427,7 +2966,7 @@ export default function CanvasViewport() {
       // Commit interactive rotate/scale on left-click
       if (interactiveOpRef.current) {
         const op = interactiveOpRef.current;
-        const { wx: curWx, wy: curWy } = s2w(sx, sy);
+        const { wx: curWx, wy: curWy } = screenToDrawingWorld(sx, sy);
         const cursorVec = { x: curWx - op.pivot.x, y: curWy - op.pivot.y };
         const ops: { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[] = [];
 
@@ -2484,7 +3023,7 @@ export default function CanvasViewport() {
               const textFeature = drawingStore.getFeature(labelHit.featureId);
               if (textFeature) {
                 selectionStore.select(labelHit.featureId, e.shiftKey ? 'TOGGLE' : 'REPLACE');
-                const startWorld = s2w(sx, sy);
+                const startWorld = screenToDrawingWorld(sx, sy);
                 const originals = new Map<string, Feature>();
                 originals.set(labelHit.featureId, JSON.parse(JSON.stringify(textFeature)));
                 dragFeatureRef.current = {
@@ -2500,7 +3039,7 @@ export default function CanvasViewport() {
               const feature = drawingStore.getFeature(labelHit.featureId);
               const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
               if (feature && label) {
-                const { wx, wy } = s2w(sx, sy);
+                const { wx, wy } = screenToDrawingWorld(sx, sy);
                 labelDragRef.current = {
                   featureId: labelHit.featureId,
                   labelId: labelHit.labelId,
@@ -2551,7 +3090,7 @@ export default function CanvasViewport() {
             }
 
             // Start drag-to-move: store original positions for undo
-            const startWorld = s2w(sx, sy);
+            const startWorld = screenToDrawingWorld(sx, sy);
             const originals = new Map<string, Feature>();
             for (const id of featureIds) {
               const f = drawingStore.getFeature(id);
@@ -2835,6 +3374,12 @@ export default function CanvasViewport() {
           break;
         }
 
+        case 'DRAW_IMAGE': {
+          // Open image insert dialog at the clicked world position
+          setImageInsertState({ wx: worldPt.x, wy: worldPt.y });
+          break;
+        }
+
         case 'DRAW_ARC': {
           // 3-point arc: click start point, mid-arc point, end point
           if (toolState.drawingPoints.length < 2) {
@@ -3022,7 +3567,7 @@ export default function CanvasViewport() {
       // Label drag update
       if (labelDragRef.current) {
         const { featureId, labelId, startWorld, startOffset } = labelDragRef.current;
-        const { wx, wy } = s2w(sx, sy);
+        const { wx, wy } = screenToDrawingWorld(sx, sy);
         const dx = wx - startWorld.x;
         const dy = wy - startWorld.y;
         drawingStore.updateTextLabel(featureId, labelId, {
@@ -3035,7 +3580,7 @@ export default function CanvasViewport() {
       // Interactive rotate/scale preview — cursor drives the transformation
       if (interactiveOpRef.current) {
         const op = interactiveOpRef.current;
-        const { wx: curWx, wy: curWy } = s2w(sx, sy);
+        const { wx: curWx, wy: curWy } = screenToDrawingWorld(sx, sy);
         const cursorVec = { x: curWx - op.pivot.x, y: curWy - op.pivot.y };
 
         if (op.type === 'ROTATE') {
@@ -3071,6 +3616,55 @@ export default function CanvasViewport() {
         if (feature) {
           const geom = { ...feature.geometry };
           switch (geom.type) {
+            case 'IMAGE': {
+              // IMAGE resize: 8 grips — 0=BL, 1=BR, 2=TR, 3=TL, 4=Bottom-mid, 5=Right-mid, 6=Top-mid, 7=Left-mid
+              if (geom.image) {
+                const img = { ...geom.image };
+                const origRight = img.position.x + img.width;
+                const origTop = img.position.y + img.height;
+                // Shift-key constrains proportions (handled client side — check event modifier)
+                switch (vertexIndex) {
+                  case 0: // BL — moves left and bottom
+                    img.width = origRight - worldPt.x;
+                    img.height = origTop - worldPt.y;
+                    img.position = { x: worldPt.x, y: worldPt.y };
+                    break;
+                  case 1: // BR — moves right and bottom
+                    img.width = worldPt.x - img.position.x;
+                    img.height = origTop - worldPt.y;
+                    img.position = { x: img.position.x, y: worldPt.y };
+                    break;
+                  case 2: // TR — moves right and top
+                    img.width = worldPt.x - img.position.x;
+                    img.height = worldPt.y - img.position.y;
+                    break;
+                  case 3: // TL — moves left and top
+                    img.width = origRight - worldPt.x;
+                    img.height = worldPt.y - img.position.y;
+                    img.position = { x: worldPt.x, y: img.position.y };
+                    break;
+                  case 4: // Bottom-mid — moves bottom
+                    img.height = origTop - worldPt.y;
+                    img.position = { x: img.position.x, y: worldPt.y };
+                    break;
+                  case 5: // Right-mid — moves right
+                    img.width = worldPt.x - img.position.x;
+                    break;
+                  case 6: // Top-mid — moves top
+                    img.height = worldPt.y - img.position.y;
+                    break;
+                  case 7: // Left-mid — moves left
+                    img.width = origRight - worldPt.x;
+                    img.position = { x: worldPt.x, y: img.position.y };
+                    break;
+                }
+                // Enforce minimum size
+                img.width  = Math.max(img.width,  0.1);
+                img.height = Math.max(img.height, 0.1);
+                geom.image = img;
+              }
+              break;
+            }
             case 'POINT':
               geom.point = worldPt;
               break;
@@ -3185,7 +3779,7 @@ export default function CanvasViewport() {
       // Element drag-to-move in SELECT mode
       if (dragFeatureRef.current && !gripDragRef.current) {
         const { featureIds, startWorld, originals } = dragFeatureRef.current;
-        const currentWorld = s2w(sx, sy);
+        const currentWorld = screenToDrawingWorld(sx, sy);
         const dx = currentWorld.wx - startWorld.x;
         const dy = currentWorld.wy - startWorld.y;
         // Only start visual drag after a small threshold to distinguish click from drag
@@ -3381,7 +3975,7 @@ export default function CanvasViewport() {
       // Commit element drag-to-move in SELECT mode
       if (dragFeatureRef.current) {
         const { featureIds, startWorld, originals } = dragFeatureRef.current;
-        const currentWorld = s2w(sx, sy);
+        const currentWorld = screenToDrawingWorld(sx, sy);
         const dx = currentWorld.wx - startWorld.x;
         const dy = currentWorld.wy - startWorld.y;
         const didMove = Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001;
@@ -3945,7 +4539,7 @@ export default function CanvasViewport() {
       const rect = canvasRef.current!.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
-      const { wx, wy } = s2w(sx, sy);
+      const { wx, wy } = screenToDrawingWorld(sx, sy);
       const toolState = toolStore.state;
       const { activeTool } = toolState;
 
@@ -4084,6 +4678,46 @@ export default function CanvasViewport() {
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+        onDrop={(e) => {
+          e.preventDefault();
+          const imageId = e.dataTransfer.getData('application/starr-image-id');
+          if (!imageId) return;
+          const rect = canvasRef.current!.getBoundingClientRect();
+          const sx = e.clientX - rect.left;
+          const sy = e.clientY - rect.top;
+          const worldPt = screenToDrawingWorld(sx, sy);
+          const projImg = drawingStore.getProjectImage(imageId);
+          if (!projImg) return;
+          const drawingScale = drawingStore.document.settings.drawingScale ?? 50;
+          const defaultWidthIn = 4;
+          const worldW = defaultWidthIn * drawingScale;
+          const worldH = worldW * (projImg.originalHeight / projImg.originalWidth);
+          const featureId = generateId();
+          const { activeLayerId, getActiveLayerStyle } = drawingStore;
+          const layerStyle = getActiveLayerStyle();
+          const feature: Feature = {
+            id: featureId,
+            type: 'IMAGE',
+            geometry: {
+              type: 'IMAGE',
+              image: {
+                imageId,
+                position: { x: worldPt.wx, y: worldPt.wy },
+                width: worldW,
+                height: worldH,
+                rotation: 0,
+                mirrorX: false,
+                mirrorY: false,
+              },
+            },
+            layerId: activeLayerId,
+            style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+            properties: { imageName: projImg.name },
+          };
+          drawingStore.addFeature(feature);
+          undoStore.pushUndo(makeAddFeatureEntry(feature));
+        }}
       />
       {snapLabel && (
         <div
@@ -4380,6 +5014,62 @@ export default function CanvasViewport() {
           );
         })()}
       </div>
+
+      {/* Drawing rotation indicator — shown when rotation is non-zero */}
+      {(() => {
+        const rotDeg = drawingStore.document.settings.drawingRotationDeg ?? 0;
+        if (Math.abs(rotDeg) < 0.01) return null;
+        return (
+          <div
+            className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-none z-20 flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono"
+            style={{ background: 'rgba(30,60,120,0.7)', color: '#93c5fd', border: '1px solid rgba(96,165,250,0.4)' }}
+          >
+            ⟳ View rotated {Math.round(rotDeg * 10) / 10}° · bearings unchanged
+          </div>
+        );
+      })()}
+
+      {/* DRAW_IMAGE insert dialog */}
+      {imageInsertState && (
+        <ImageInsertDialog
+          worldX={imageInsertState.wx}
+          worldY={imageInsertState.wy}
+          onClose={() => {
+            setImageInsertState(null);
+            onPlaceImageConsumed?.();
+            toolStore.setTool('SELECT');
+          }}
+          onInsert={(image, worldW, worldH) => {
+            const featureId = generateId();
+            const { activeLayerId, getActiveLayerStyle } = drawingStore;
+            const layerStyle = getActiveLayerStyle();
+            const feature: Feature = {
+              id: featureId,
+              type: 'IMAGE',
+              geometry: {
+                type: 'IMAGE',
+                image: {
+                  imageId: image.id,
+                  position: { x: imageInsertState.wx, y: imageInsertState.wy },
+                  width: worldW,
+                  height: worldH,
+                  rotation: 0,
+                  mirrorX: false,
+                  mirrorY: false,
+                },
+              },
+              layerId: activeLayerId,
+              style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+              properties: { imageName: image.name },
+            };
+            drawingStore.addFeature(feature);
+            undoStore.pushUndo(makeAddFeatureEntry(feature));
+            setImageInsertState(null);
+            onPlaceImageConsumed?.();
+            toolStore.setTool('SELECT');
+          }}
+        />
+      )}
     </div>
   );
 }

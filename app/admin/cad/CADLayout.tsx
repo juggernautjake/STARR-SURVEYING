@@ -19,6 +19,9 @@ import CurveCalculator from './components/CurveCalculator';
 import NewDrawingDialog from './components/NewDrawingDialog';
 import DisplayPreferencesPanel, { DisplayPrefsToggleButton } from './components/DisplayPreferencesPanel';
 import OrientationDialog from './components/OrientationDialog';
+import DrawingRotationDialog from './components/DrawingRotationDialog';
+import TitleBlockPanel from './components/TitleBlockPanel';
+import ImagePanel from './components/ImagePanel';
 import HiddenItemsPanel from './components/HiddenItemsPanel';
 import LayerPreferencesPanel from './components/LayerPreferencesPanel';
 import FeatureLabelPreferencesPanel from './components/FeatureLabelPreferencesPanel';
@@ -101,6 +104,11 @@ export default function CADLayout() {
   const [showPointTable, setShowPointTable] = useState(false);
   const [showTraversePanel, setShowTraversePanel] = useState(false);
   const [showCurveCalculator, setShowCurveCalculator] = useState(false);
+  const [showDrawingRotation, setShowDrawingRotation] = useState(false);
+  const [showTitleBlock, setShowTitleBlock] = useState(false);
+  const [showImagePanel, setShowImagePanel] = useState(false);
+  /** When set, DRAW_IMAGE tool should pre-select this image id */
+  const [pendingPlaceImageId, setPendingPlaceImageId] = useState<string | null>(null);
 
   // Register beforeunload guard (shows native "Leave site?" dialog when dirty)
   useUnsavedChangesGuard();
@@ -296,6 +304,9 @@ export default function CADLayout() {
         onToggleTraversePanel={() => setShowTraversePanel(p => !p)}
         onOpenCurveCalculator={() => setShowCurveCalculator(true)}
         onOpenOrientationDialog={() => setShowOrientationDialog(true)}
+        onOpenDrawingRotation={() => setShowDrawingRotation(true)}
+        onOpenTitleBlock={() => setShowTitleBlock(true)}
+        onToggleImagePanel={() => setShowImagePanel(p => !p)}
       />
 
       {/* Contextual tool options strip — with Prefs button on the right */}
@@ -331,7 +342,7 @@ export default function CADLayout() {
 
         {/* Canvas fills remaining space */}
         <div className="flex-1 relative min-w-0">
-          <CanvasViewport />
+          <CanvasViewport pendingPlaceImageId={pendingPlaceImageId} onPlaceImageConsumed={() => setPendingPlaceImageId(null)} />
           {/* Display Preferences slide-down panel — anchored to top-right of canvas */}
           <div className="absolute top-0 right-0 z-30">
             <DisplayPreferencesPanel
@@ -339,8 +350,14 @@ export default function CADLayout() {
               onClose={() => setShowDisplayPrefs(false)}
             />
           </div>
+          {/* Title Block panel — slides in from right over canvas */}
+          {showTitleBlock && (
+            <div className="absolute inset-y-0 right-0 z-20">
+              <TitleBlockPanel open={showTitleBlock} onClose={() => setShowTitleBlock(false)} />
+            </div>
+          )}
           {/* Layer Preferences panel — anchored to right side of canvas */}
-          {layerPrefsLayerId && (
+          {layerPrefsLayerId && !showTitleBlock && (
             <LayerPreferencesPanel
               layerId={layerPrefsLayerId}
               open={!!layerPrefsLayerId}
@@ -348,7 +365,7 @@ export default function CADLayout() {
             />
           )}
           {/* Feature Label Preferences panel — anchored to right side of canvas */}
-          {featureLabelPrefsId && drawingStore.getFeature(featureLabelPrefsId) && (
+          {featureLabelPrefsId && drawingStore.getFeature(featureLabelPrefsId) && !showTitleBlock && (
             <FeatureLabelPreferencesPanel
               featureId={featureLabelPrefsId}
               open={!!featureLabelPrefsId}
@@ -362,15 +379,28 @@ export default function CADLayout() {
           />
         </div>
 
-        {/* Right sidebar: property panel + traverse panel (toggleable) */}
-        {(showPropertyPanel || showTraversePanel) && (
-          <div className="flex flex-col bg-gray-800 border-l border-gray-700 w-48 flex-shrink-0 cad-slide-right">
-            {showPropertyPanel && <PropertyPanel />}
-            {showTraversePanel && (
-              <div className="flex-1 overflow-hidden">
-                <TraversePanel />
-              </div>
-            )}
+        {/* Right sidebar: property panel + traverse panel + image panel (toggleable) */}
+        {(showPropertyPanel || showTraversePanel || showImagePanel) && (
+          <div className="flex bg-gray-800 border-l border-gray-700 flex-shrink-0 cad-slide-right w-48">
+            <div className="flex flex-col flex-1 min-w-0">
+              {showPropertyPanel && <PropertyPanel />}
+              {showTraversePanel && (
+                <div className="flex-1 overflow-hidden">
+                  <TraversePanel />
+                </div>
+              )}
+              {showImagePanel && (
+                <ImagePanel
+                  open={showImagePanel}
+                  onClose={() => setShowImagePanel(false)}
+                  onPlaceImage={(imgId) => {
+                    setPendingPlaceImageId(imgId);
+                    // Switch to image tool
+                    window.dispatchEvent(new CustomEvent('cad:activateTool', { detail: { tool: 'DRAW_IMAGE' } }));
+                  }}
+                />
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -405,6 +435,9 @@ export default function CADLayout() {
 
       {/* Survey Orientation Adjustment dialog */}
       {showOrientationDialog && <OrientationDialog onClose={() => setShowOrientationDialog(false)} />}
+
+      {/* Drawing Rotation dialog */}
+      {showDrawingRotation && <DrawingRotationDialog onClose={() => setShowDrawingRotation(false)} />}
 
       {/* Import field data dialog */}
       {showImportDialog && (
