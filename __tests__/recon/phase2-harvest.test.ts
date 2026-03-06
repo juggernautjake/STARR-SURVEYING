@@ -529,3 +529,403 @@ describe('registrySummary', () => {
     }
   });
 });
+
+// ── 8. smartSearch — legalDescription fallback ────────────────────────────────
+
+describe('ClerkAdapter.smartSearch legalDescription fallback', () => {
+  class LegalSearchAdapter extends ClerkAdapter {
+    public legalSearchCalled = false;
+    private fixedResults: ClerkDocumentResult[];
+
+    constructor(results: ClerkDocumentResult[]) {
+      super('MockCounty', '48999');
+      this.fixedResults = results;
+    }
+
+    async searchByInstrumentNumber(_no: string): Promise<ClerkDocumentResult[]> { return []; }
+    async searchByVolumePage(_v: string, _p: string): Promise<ClerkDocumentResult[]> { return []; }
+    async searchByGranteeName(_n: string, _o?: ClerkSearchOptions): Promise<ClerkDocumentResult[]> { return []; }
+    async searchByGrantorName(_n: string, _o?: ClerkSearchOptions): Promise<ClerkDocumentResult[]> { return []; }
+    async searchByLegalDescription(_l: string, _o?: ClerkSearchOptions): Promise<ClerkDocumentResult[]> {
+      this.legalSearchCalled = true;
+      return this.fixedResults;
+    }
+    async getDocumentImages(_no: string): Promise<DocumentImage[]> { return []; }
+    async getDocumentPricing(_no: string): Promise<PricingInfo> {
+      return { available: false, source: 'mock' };
+    }
+    async initSession(): Promise<void> {}
+    async destroySession(): Promise<void> {}
+  }
+
+  it('calls searchByLegalDescription when legalDescription is provided', async () => {
+    const doc = makeDoc('7777777777', { documentType: 'plat' });
+    const adapter = new LegalSearchAdapter([doc]);
+    const results = await adapter.smartSearch({ legalDescription: 'LOT 5, BLOCK 2' });
+    expect(adapter.legalSearchCalled).toBe(true);
+    expect(results).toHaveLength(1);
+    expect(results[0].instrumentNumber).toBe('7777777777');
+  });
+
+  it('does NOT call searchByLegalDescription when no legalDescription is given', async () => {
+    const adapter = new LegalSearchAdapter([]);
+    await adapter.smartSearch({ granteeName: 'BUYER TRUST' });
+    expect(adapter.legalSearchCalled).toBe(false);
+  });
+
+  it('deduplicates legal description results merged with name results', async () => {
+    const doc = makeDoc('8888888888', { documentType: 'easement' });
+
+    class BothSearchAdapter extends ClerkAdapter {
+      async searchByInstrumentNumber(_no: string): Promise<ClerkDocumentResult[]> { return []; }
+      async searchByVolumePage(_v: string, _p: string): Promise<ClerkDocumentResult[]> { return []; }
+      async searchByGranteeName(_n: string): Promise<ClerkDocumentResult[]> { return [doc]; }
+      async searchByGrantorName(_n: string): Promise<ClerkDocumentResult[]> { return []; }
+      async searchByLegalDescription(_l: string): Promise<ClerkDocumentResult[]> { return [doc]; }
+      async getDocumentImages(_no: string): Promise<DocumentImage[]> { return []; }
+      async getDocumentPricing(_no: string): Promise<PricingInfo> {
+        return { available: false, source: 'mock' };
+      }
+      async initSession(): Promise<void> {}
+      async destroySession(): Promise<void> {}
+    }
+
+    const bothAdapter = new BothSearchAdapter('MockCounty', '48999');
+    const results = await bothAdapter.smartSearch({
+      granteeName: 'BUYER TRUST',
+      legalDescription: 'LOT 5, BLOCK 2',
+    });
+    expect(results).toHaveLength(1);
+  });
+});
+
+// ── 9. DocumentHarvester — orchestration via mock adapter ─────────────────────
+
+import {
+  DocumentHarvester,
+  type HarvestInput,
+} from '../../worker/src/services/document-harvester.js';
+
+/** Build a HarvestInput for testing without a live browser. */
+function makeHarvestInput(
+  overrides: Partial<HarvestInput> = {},
+): HarvestInput {
+  return {
+    projectId:  'test-project-001',
+    propertyId: '524312',
+    owner:      'ASH FAMILY TRUST',
+    county:     'MockCounty',
+    countyFIPS: '48999',
+    ...overrides,
+  };
+}
+
+/**
+ * Swappable mock adapter injected into ClerkRegistry for harvester tests.
+ * We override getClerkAdapter via the registry factory by temporarily
+ * monkey-patching the module-level import.  Since we can't do that cleanly
+ * in ESM, instead we expose a testable adapter via a subclass of
+ * DocumentHarvester that accepts an injected adapter.
+ */
+class TestableHarvester extends DocumentHarvester {
+  constructor(private mockAdapter: ClerkAdapter) { super(); }
+
+  protected override getClerkAdapter(_fips: string, _county: string): ClerkAdapter {
+    return this.mockAdapter;
+  }
+}
+
+/** Minimal adapter that returns a fixed document set with no delays */
+class FastMockAdapter extends ClerkAdapter {
+  constructor(
+    private docs: ClerkDocumentResult[],
+    private images: DocumentImage[] = [],
+  ) {
+    super('MockCounty', '48999');
+  }
+
+  async searchByInstrumentNumber(no: string): Promise<ClerkDocumentResult[]> {
+    return this.docs.filter((d) => d.instrumentNumber === no);
+  }
+  async searchByVolumePage(_v: string, _p: string): Promise<ClerkDocumentResult[]> {
+    return this.docs;
+  }
+  async searchByGranteeName(_n: string, _o?: ClerkSearchOptions): Promise<ClerkDocumentResult[]> {
+    return this.docs;
+  }
+  async searchByGrantorName(_n: string, _o?: ClerkSearchOptions): Promise<ClerkDocumentResult[]> {
+    return this.docs;
+  }
+  async searchByLegalDescription(_l: string, _o?: ClerkSearchOptions): Promise<ClerkDocumentResult[]> {
+    return [];
+  }
+  async getDocumentImages(_no: string): Promise<DocumentImage[]> {
+    return this.images;
+  }
+  async getDocumentPricing(_no: string): Promise<PricingInfo> {
+    return { available: true, pricePerPage: 1.00, source: 'mock' };
+  }
+  async initSession(): Promise<void> {}
+  async destroySession(): Promise<void> {}
+}
+
+/** Override rateLimit to a no-op so tests don't wait 3–5 seconds */
+class InstantHarvester extends TestableHarvester {
+  protected override async rateLimit(): Promise<void> {}
+}
+
+describe('DocumentHarvester orchestration', () => {
+  it('returns "complete" status when no errors occur', async () => {
+    const doc = makeDoc('1111111111', { documentType: 'warranty_deed', grantees: ['ASH FAMILY TRUST'] });
+    const harvester = new InstantHarvester(new FastMockAdapter([doc]));
+    const result = await harvester.harvest(makeHarvestInput());
+    expect(result.status).toBe('complete');
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('includes target documents in result', async () => {
+    const doc = makeDoc('2222222222', { documentType: 'plat', grantees: ['ASH FAMILY TRUST'] });
+    const harvester = new InstantHarvester(new FastMockAdapter([doc]));
+    const result = await harvester.harvest(makeHarvestInput());
+    expect(result.documents.target.length).toBeGreaterThan(0);
+  });
+
+  it('deduplicates documents found in multiple searches', async () => {
+    // Same document returned by both grantee and grantor searches
+    const doc = makeDoc('3333333333', { documentType: 'warranty_deed', grantees: ['ASH FAMILY TRUST'] });
+    const harvester = new InstantHarvester(new FastMockAdapter([doc]));
+    const result = await harvester.harvest(makeHarvestInput());
+
+    const allInstr = result.documents.target.map((d) => d.instrumentNumber);
+    const unique = new Set(allInstr);
+    expect(unique.size).toBe(allInstr.length);
+  });
+
+  it('processes known deed references from Phase 1', async () => {
+    const doc = makeDoc('9876543210', { documentType: 'warranty_deed' });
+    const harvester = new InstantHarvester(new FastMockAdapter([doc]));
+
+    const result = await harvester.harvest(makeHarvestInput({
+      deedReferences: [{ instrumentNumber: '9876543210', type: 'deed' }],
+    }));
+
+    expect(result.documents.target.some((d) => d.instrumentNumber === '9876543210')).toBe(true);
+  });
+
+  it('resets state between successive harvest() calls', async () => {
+    const doc = makeDoc('4444444444', { documentType: 'plat', grantees: ['ASH FAMILY TRUST'] });
+    const harvester = new InstantHarvester(new FastMockAdapter([doc]));
+
+    await harvester.harvest(makeHarvestInput({ projectId: 'run1' }));
+    const result2 = await harvester.harvest(makeHarvestInput({ projectId: 'run2' }));
+
+    // Second run should be clean — errors don't bleed from run1
+    expect(result2.errors).toHaveLength(0);
+  });
+
+  it('includes timing.totalMs in result', async () => {
+    const harvester = new InstantHarvester(new FastMockAdapter([]));
+    const result = await harvester.harvest(makeHarvestInput());
+    expect(typeof result.timing.totalMs).toBe('number');
+    expect(result.timing.totalMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('searches both grantee and grantor for adjacent owners', async () => {
+    let granteeCallCount = 0;
+    let grantorCallCount = 0;
+
+    class SpyAdapter extends FastMockAdapter {
+      override async searchByGranteeName(name: string): Promise<ClerkDocumentResult[]> {
+        if (name !== 'ASH FAMILY TRUST') granteeCallCount++;
+        return [];
+      }
+      override async searchByGrantorName(name: string): Promise<ClerkDocumentResult[]> {
+        if (name !== 'ASH FAMILY TRUST') grantorCallCount++;
+        return [];
+      }
+    }
+
+    const harvester = new InstantHarvester(new SpyAdapter([]));
+    await harvester.harvest(makeHarvestInput({
+      adjacentOwners: ['RK GAINES', 'NORDYKE'],
+    }));
+
+    // Both adjacent owners should trigger both grantee and grantor searches
+    expect(granteeCallCount).toBe(2);
+    expect(grantorCallCount).toBe(2);
+  });
+
+  it('returns "partial" status when some searches fail', async () => {
+    class FailingAdapter extends FastMockAdapter {
+      override async searchByGranteeName(_n: string): Promise<ClerkDocumentResult[]> {
+        throw new Error('Network timeout');
+      }
+    }
+
+    const harvester = new InstantHarvester(new FailingAdapter([]));
+    const result = await harvester.harvest(makeHarvestInput());
+    expect(result.status).toBe('partial');
+    expect(result.errors.length).toBeGreaterThan(0);
+  });
+
+  it('calls destroySession() even when initSession() throws', async () => {
+    let destroyCalled = false;
+
+    class InitFailAdapter extends FastMockAdapter {
+      override async initSession(): Promise<void> {
+        throw new Error('Browser launch failed');
+      }
+      override async destroySession(): Promise<void> {
+        destroyCalled = true;
+      }
+    }
+
+    const harvester = new InstantHarvester(new InitFailAdapter([]));
+    // harvest() must not throw; it should handle the failure gracefully
+    await expect(harvester.harvest(makeHarvestInput())).rejects.toThrow();
+    // destroySession IS called from the finally block even after initSession fails
+    expect(destroyCalled).toBe(true);
+  });
+});
+
+// ── 10. CountyFusion FIPS set ────────────────────────────────────────────────
+
+import { COUNTYFUSION_FIPS_SET } from '../../worker/src/adapters/countyfusion-adapter.js';
+import { TYLER_FIPS_SET } from '../../worker/src/adapters/tyler-clerk-adapter.js';
+
+describe('COUNTYFUSION_FIPS_SET', () => {
+  it('contains Harris County (48201)', () => {
+    expect(COUNTYFUSION_FIPS_SET.has('48201')).toBe(true);
+  });
+
+  it('contains Dallas County (48113)', () => {
+    expect(COUNTYFUSION_FIPS_SET.has('48113')).toBe(true);
+  });
+
+  it('has more than 5 entries', () => {
+    expect(COUNTYFUSION_FIPS_SET.size).toBeGreaterThan(5);
+  });
+
+  it('all entries are 5-digit strings', () => {
+    for (const fips of COUNTYFUSION_FIPS_SET) {
+      expect(fips).toMatch(/^\d{5}$/);
+    }
+  });
+});
+
+describe('TYLER_FIPS_SET', () => {
+  it('contains Hidalgo County (48215)', () => {
+    expect(TYLER_FIPS_SET.has('48215')).toBe(true);
+  });
+
+  it('contains El Paso County (48141)', () => {
+    expect(TYLER_FIPS_SET.has('48141')).toBe(true);
+  });
+
+  it('has more than 3 entries', () => {
+    expect(TYLER_FIPS_SET.size).toBeGreaterThan(3);
+  });
+
+  it('all entries are 5-digit strings', () => {
+    for (const fips of TYLER_FIPS_SET) {
+      expect(fips).toMatch(/^\d{5}$/);
+    }
+  });
+});
+
+// ── 11. scoreDocumentRelevance — additional edge cases ───────────────────────
+
+describe('scoreDocumentRelevance — edge cases', () => {
+  const CTX: ScoringContext = {
+    targetOwner: 'OWNER LLC',
+    currentYear: 2026,
+  };
+
+  it('correctly scores quitclaim deed (+20)', () => {
+    // Use no recording date to isolate the type-only score (no recency bonus/penalty)
+    const doc = makeDoc('X', { documentType: 'quitclaim_deed', recordingDate: '' });
+    const score = scoreDocumentRelevance(doc, CTX);
+    expect(score.relevanceScore).toBe(20);
+    expect(score.shouldDownload).toBe(true);
+  });
+
+  it('correctly scores dedication (+20)', () => {
+    const doc = makeDoc('X', { documentType: 'dedication', recordingDate: '' });
+    const score = scoreDocumentRelevance(doc, CTX);
+    expect(score.relevanceScore).toBe(20);
+  });
+
+  it('correctly scores right-of-way (+35)', () => {
+    const doc = makeDoc('X', { documentType: 'right_of_way', recordingDate: '' });
+    const score = scoreDocumentRelevance(doc, CTX);
+    expect(score.relevanceScore).toBe(35);
+    expect(score.priority).toBe('medium');
+  });
+
+  it('correctly scores oil/gas lease (+3)', () => {
+    const doc = makeDoc('X', { documentType: 'oil_gas_lease', recordingDate: '' });
+    const score = scoreDocumentRelevance(doc, CTX);
+    expect(score.relevanceScore).toBe(3);
+    expect(score.shouldDownload).toBe(false);
+    expect(score.priority).toBe('skip');
+  });
+
+  it('correctly scores correction instrument (+8)', () => {
+    const doc = makeDoc('X', { documentType: 'correction_instrument', recordingDate: '' });
+    const score = scoreDocumentRelevance(doc, CTX);
+    expect(score.relevanceScore).toBe(8);
+    expect(score.priority).toBe('skip');
+  });
+
+  it('scores ISO date format correctly', () => {
+    const recentDoc = makeDoc('X', { documentType: 'warranty_deed', recordingDate: '2024-06-15' });
+    const score = scoreDocumentRelevance(recentDoc, CTX);
+    // warranty_deed +40 + within 5 years +10 = 50
+    expect(score.relevanceScore).toBe(50);
+  });
+
+  it('does not crash on empty recordingDate', () => {
+    const doc = makeDoc('X', { documentType: 'warranty_deed', recordingDate: '' });
+    const score = scoreDocumentRelevance(doc, CTX);
+    expect(score.relevanceScore).toBe(40);  // base score only, no recency bonus
+  });
+
+  it('gives subdivisionName bonus when grantors contain subdivision', () => {
+    const ctx: ScoringContext = {
+      targetOwner: 'OWNER LLC',
+      subdivisionName: 'SUNSET RIDGE ADDITION',
+      currentYear: 2026,
+    };
+    const doc = makeDoc('X', {
+      documentType: 'easement',
+      grantors: ['SUNSET RIDGE ADDITION'],
+      recordingDate: '',
+    });
+    const score = scoreDocumentRelevance(doc, ctx);
+    // easement +30 + subdivision match +15 = 45 (no recording date → no recency bonus)
+    expect(score.relevanceScore).toBe(45);
+  });
+});
+
+// ── 12. classifyDocumentType — vacating plat and mineral deed ─────────────────
+
+describe('ClerkAdapter.classifyDocumentType — additional types', () => {
+  const adapter = new MockClerkAdapter([]);
+
+  it('classifies VACATING PLAT', () => {
+    expect(adapter.classifyDocumentType('VACATING PLAT')).toBe('vacating_plat');
+  });
+
+  it('classifies MINERAL DEED', () => {
+    expect(adapter.classifyDocumentType('MINERAL DEED')).toBe('mineral_deed');
+  });
+
+  it('classifies GWD abbreviation as warranty_deed', () => {
+    expect(adapter.classifyDocumentType('GWD')).toBe('warranty_deed');
+  });
+
+  it('classifies MD abbreviation as oil_gas_lease', () => {
+    // MD = Mineral Deed but mapped to oil_gas_lease in current schema
+    expect(adapter.classifyDocumentType('MD')).toBe('oil_gas_lease');
+  });
+});

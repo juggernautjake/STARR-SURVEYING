@@ -467,6 +467,15 @@ export class KofileClerkAdapter extends ClerkAdapter {
   private async aiParseSearchResults(
     screenshot: Buffer,
   ): Promise<ClerkDocumentResult[]> {
+    // Guard: AI fallback requires an Anthropic API key.  Skip gracefully when
+    // the key is absent rather than crashing with a fetch auth error.
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.warn(
+        `[Kofile/${this.countyName}] AI fallback skipped — ANTHROPIC_API_KEY not set`,
+      );
+      return [];
+    }
+
     const base64 = screenshot.toString('base64');
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
