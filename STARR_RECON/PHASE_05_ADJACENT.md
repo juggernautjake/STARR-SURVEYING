@@ -4,6 +4,7 @@
 **Version:** 1.0 | **Last Updated:** March 2026  
 **Phase Duration:** Weeks 13–15  
 **Depends On:** Phase 1 (`PropertyIdentity`), Phase 2 (`DocumentHarvester`), Phase 3 (`PropertyIntelligence` with adjacent owner names), Phase 4 (`SubdivisionModel` with adjacency matrix)  
+**Status:** 🟠 IN PROGRESS — Foundation (`adjacent-research.ts`) complete; orchestrator layer (4 new service files) not yet built  
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
 ---
@@ -164,14 +165,14 @@ Returns a `FullCrossValidationReport` saved to `/tmp/analysis/{projectId}/cross_
 
 ## 2. Current State of the Codebase
 
-### Phases 1–4 — COMPLETE
+### Phases 1–4 — Status
 
 | Phase | Key Files | Status |
 |-------|-----------|--------|
-| 1 — Discovery | `discovery-engine.ts`, `property-discovery.ts`, `bis-adapter.ts`, `trueautomation-adapter.ts`, `tyler-adapter.ts`, `generic-cad-adapter.ts`, `cad-registry.ts` | Done |
-| 2 — Harvest | `document-harvester.ts`, `kofile-clerk-adapter.ts`, `texasfile-adapter.ts`, `clerk-adapter.ts`, `document-intelligence.ts` | Done |
-| 3 — Extraction | `ai-extraction.ts`, `adaptive-vision.ts`, `geo-reconcile.ts`, `ai-document-analyzer.ts`, `models/property-intelligence.ts` | Done |
-| 4 — Subdivision | `subdivision-detector.ts`, `lot-enumerator.ts`, `interior-line-analyzer.ts`, `area-reconciler.ts` (see `PHASE_04_SUBDIVISION.md`) | Done |
+| 1 — Discovery | `discovery-engine.ts`, `property-discovery.ts`, `bis-adapter.ts`, `trueautomation-adapter.ts`, `tyler-adapter.ts`, `generic-cad-adapter.ts`, `cad-registry.ts` | ✅ Done |
+| 2 — Harvest | `document-harvester.ts`, `kofile-clerk-adapter.ts`, `texasfile-adapter.ts`, `clerk-adapter.ts`, `document-intelligence.ts` | 🟠 In Progress — `clerk-registry.ts` missing (needed to route FIPS → correct adapter) |
+| 3 — Extraction | `ai-extraction.ts`, `adaptive-vision.ts`, `geo-reconcile.ts`, `property-validation-pipeline.ts` (foundation complete) | 🟠 Orchestrator layer not yet built (`ai-document-analyzer.ts` missing) |
+| 4 — Subdivision | `subdivision-intelligence.ts`, `subdivision-classifier.ts`, `lot-enumerator.ts`, `interior-line-analyzer.ts`, `area-reconciliation.ts`, `adjacency-builder.ts` | ✅ Done |
 
 ### Phase 5 — PARTIALLY BUILT
 

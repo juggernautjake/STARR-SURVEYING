@@ -19,7 +19,30 @@ A `ConfidenceScoringEngine` that consumes the reconciled model and produces a la
 
 ---
 
-## 8.1 What This Phase Must Accomplish
+## Current State of the Codebase
+
+**Phase Status: ✅ COMPLETE**
+
+All Phase 8 code has been implemented.
+
+### Implemented Files
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `worker/src/services/confidence-scoring-engine.ts` | `ConfidenceScoringEngine` — top-level Phase 8 orchestrator | ✅ Complete |
+| `worker/src/services/call-confidence-scorer.ts` | Per-call 4-factor confidence scoring | ✅ Complete |
+| `worker/src/services/lot-confidence-scorer.ts` | Per-lot confidence aggregation with closure factor | ✅ Complete |
+| `worker/src/services/discrepancy-analyzer.ts` | Discrepancy classification, root-cause analysis, resolution paths | ✅ Complete |
+| `worker/src/services/purchase-recommender.ts` | Document purchase ROI calculator and ranked recommendations | ✅ Complete |
+| `worker/src/services/surveyor-decision-matrix.ts` | Surveyor decision matrix (field-ready assessment) | ✅ Complete |
+| `worker/src/types/confidence.ts` | Phase 8 TypeScript types (`ConfidenceReport`, `CallConfidence`, etc.) | ✅ Complete |
+| `worker/confidence.sh` | CLI wrapper for Phase 8 | ✅ Complete |
+
+### API Endpoint
+
+`POST /research/confidence` and `GET /research/confidence/:projectId` — live in `worker/src/index.ts`
+
+---
 
 Phase 7 reconciled all readings and assigned per-call confidence scores. Phase 8 takes those scores and builds a comprehensive, hierarchical confidence assessment — the surveyor's decision tool.
 
@@ -508,7 +531,7 @@ The engine automatically loads additional context from sibling files in the anal
 |------|-----------|
 | `property_intelligence.json` | County, subdivision name, survey date, deed references (for known documents list) |
 | `subdivision_model.json` | Lot acreages (stated vs computed) |
-| `row_report.json` | Resolved conflicts (from Phase 6 TxDOT ROW) |
+| `row_data.json` | Resolved conflicts (from Phase 6 TxDOT ROW) |
 
 ### Per-Call Confidence Example
 

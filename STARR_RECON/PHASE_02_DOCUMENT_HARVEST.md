@@ -4,6 +4,7 @@
 **Version:** 1.0 | **Last Updated:** March 2026  
 **Phase Duration:** Weeks 4–6  
 **Depends On:** Phase 1 (`PropertyIdentity` with propertyId, owner, county, deed references)  
+**Status:** 🟠 IN PROGRESS — Core Kofile harvesting complete; missing `clerk-registry.ts`, `countyfusion-adapter.ts`, `tyler-clerk-adapter.ts`  
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
 ---

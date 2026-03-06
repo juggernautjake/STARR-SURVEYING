@@ -4,12 +4,68 @@
 
 **Duration:** Weeks 31–52+ (ongoing)
 **Depends On:** All Phases 1–10
+**Status:** 🟠 IN PROGRESS — Foundation code in place for many modules; web frontend, Supabase schema, and statewide adapter coverage are the primary remaining gaps.
 
 **Goal:** Transform the 10-phase research pipeline from a single-user CLI tool into a subscription-grade SaaS product that covers all 254 Texas counties, integrates every available government data source, processes payments for document purchases on behalf of users, delivers interactive web-based reports through Starr Compass, and operates with production-grade reliability.
 
 This phase addresses every gap, missing data source, UX consideration, and infrastructure requirement needed to sell this as a standalone subscription product or integrated Starr Compass feature that saves surveyors, title companies, and real estate professionals hours of manual research per property.
 
 **Deliverable:** A complete product-grade research platform with multi-tenant user management, Stripe billing, statewide county coverage, 10+ government data source integrations, real-time progress UI, interactive web reports, batch processing, a statewide document cache, and production infrastructure.
+
+---
+
+## Current State of Phase 11
+
+**Phase Status: 🟠 IN PROGRESS**
+
+A significant amount of Phase 11 foundation code has been built. The following modules are complete or have working implementations:
+
+### Built Foundation Code
+
+| Module | File | Status |
+|--------|------|--------|
+| FEMA NFHL Integration | `worker/src/sources/fema-nfhl-client.ts` | ✅ Complete |
+| Texas GLO Integration | `worker/src/sources/glo-client.ts` | ✅ Complete |
+| TCEQ Integration | `worker/src/sources/tceq-client.ts` | ✅ Complete |
+| Texas RRC Integration | `worker/src/sources/rrc-client.ts` | ✅ Complete |
+| USDA NRCS Soil Survey | `worker/src/sources/nrcs-soil-client.ts` | ✅ Complete |
+| Retry/Circuit Breaker | `worker/src/infra/resilience.ts` | ✅ Complete |
+| AI Response Validation | `worker/src/infra/ai-guardrails.ts` | ✅ Complete |
+| BullMQ Job Queue | `worker/src/infra/job-queue.ts` | ✅ Complete |
+| Pino Structured Logging | `worker/src/lib/logger.ts` | ✅ Complete |
+| Rate Limiter | `worker/src/lib/rate-limiter.ts` | ✅ Complete |
+| Stripe Billing | `worker/src/billing/stripe-billing.ts` | ✅ Complete |
+| Subscription Tiers | `worker/src/billing/subscription-tiers.ts` | ✅ Complete |
+| Usage/Token Tracking | `worker/src/analytics/usage-tracker.ts` | ✅ Complete |
+| Batch Processing | `worker/src/batch/batch-processor.ts` | ✅ Complete |
+| Chain of Title | `worker/src/chain-of-title/chain-builder.ts` | ✅ Complete |
+| RW5 Survey Export | `worker/src/exports/rw5-exporter.ts` | ✅ Complete |
+| Trimble JobXML Export | `worker/src/exports/jobxml-exporter.ts` | ✅ Complete |
+| WebSocket Progress Server | `worker/src/websocket/progress-server.ts` | ✅ Complete |
+| AI Prompt Registry | `worker/src/ai/prompt-registry.ts` | ✅ Complete |
+| Phase 11 TypeScript Types | `worker/src/types/expansion.ts` | ✅ Complete |
+
+### Not Yet Built (High Priority)
+
+| Item | Severity | Notes |
+|------|----------|-------|
+| HCAD adapter (Harris County / Houston) | Critical | Largest TX county; needed for statewide coverage |
+| TAD adapter (Tarrant County / Fort Worth) | Critical | 2nd largest metro; needed for statewide coverage |
+| Henschen clerk adapter (~40 counties) | Critical | Second most common TX clerk system after Kofile |
+| iDocket clerk adapter (~20 counties) | High | Third major TX clerk system |
+| `clerk-registry.ts` (FIPS → adapter routing) | Critical | Needed to route Phase 2 to correct adapter |
+| Web frontend (research dashboard) | Critical | No browser-based UI exists yet |
+| Supabase schema migrations | Critical | `research_projects` table not yet created |
+| Interactive boundary viewer (React/SVG) | High | Phase 11 UX requirement |
+| Document library UI | High | Phase 11 UX requirement |
+| USGS topographic data client | Medium | |
+| TX Comptroller tax data client | Medium | |
+| CSV exporter | Medium | `csv-exporter.ts` referenced in roadmap but not built |
+| Schema validation (Zod) between phases | High | Phase-boundary I/O validation |
+
+### Gap Analysis Updates
+
+The comprehensive gap analysis in §11.1 below was written before the Phase 11 foundation code was built. Many items listed as "Critical" gaps (retry/circuit breaker, structured logging, AI response validation, job queue, Stripe billing, batch processing) have since been addressed. The remaining critical gaps are: statewide CAD/clerk adapter coverage, web frontend, and Supabase schema.
 
 ---
 

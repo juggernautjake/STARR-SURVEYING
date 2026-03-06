@@ -166,68 +166,128 @@ starr-software/                     # Turborepo monorepo root
 │   ├── core/                       # Shared types and constants
 │   └── ...                         # Existing packages
 │
-├── worker/                         # ← RESEARCH WORKER (deploys to droplet)
+├── worker/                         # ← RESEARCH WORKER (deploys to DigitalOcean droplet)
 │   ├── src/
-│   │   ├── index.ts                # Express server entry point (EXISTS)
+│   │   ├── index.ts                # Express server entry point ✅ EXISTS
 │   │   ├── cli/
-│   │   │   └── starr-research.ts   # CLI entry point
-│   │   ├── pipeline/
-│   │   │   ├── phase-1-discovery/  # Property discovery
-│   │   │   ├── phase-2-harvest/    # Document harvesting
-│   │   │   ├── phase-3-extraction/ # AI document intelligence
-│   │   │   ├── phase-4-subdivision/# Subdivision/plat analysis
-│   │   │   ├── phase-5-adjacent/   # Adjacent property research
-│   │   │   ├── phase-6-txdot/      # TxDOT ROW integration
-│   │   │   ├── phase-7-reconciliation/ # Geometric reconciliation
-│   │   │   ├── phase-8-confidence/ # Confidence scoring
-│   │   │   ├── phase-9-purchase/   # Document purchase
-│   │   │   └── phase-10-reports/   # Report generation & exports
-│   │   ├── sources/                # Government data source clients
-│   │   │   ├── fema-nfhl-client.ts
-│   │   │   ├── glo-client.ts
-│   │   │   ├── tceq-client.ts
-│   │   │   ├── rrc-client.ts
-│   │   │   └── nrcs-soil-client.ts
-│   │   ├── adapters/
-│   │   │   ├── cad/                # CAD system adapters
-│   │   │   │   ├── base-cad-adapter.ts
-│   │   │   │   ├── bis-adapter.ts          # Bell, McLennan, Coryell, etc.
-│   │   │   │   ├── trueautomation-adapter.ts # Travis, Dallas, Bexar, etc.
-│   │   │   │   ├── tyler-adapter.ts        # Williamson, Hays, etc.
-│   │   │   │   ├── hcad-adapter.ts         # Harris County
-│   │   │   │   ├── tad-adapter.ts          # Tarrant County
-│   │   │   │   └── generic-adapter.ts      # AI-assisted fallback
-│   │   │   └── clerk/              # County clerk adapters
-│   │   │       ├── base-clerk-adapter.ts
-│   │   │       ├── kofile-adapter.ts       # ~80 counties
-│   │   │       ├── henschen-adapter.ts     # ~40 counties
-│   │   │       ├── idocket-adapter.ts      # ~20 counties
-│   │   │       ├── texasfile-adapter.ts    # Statewide aggregator
-│   │   │       └── generic-clerk-adapter.ts
-│   │   ├── infra/                  # Production infrastructure
-│   │   │   ├── resilience.ts       # Retry + circuit breaker
-│   │   │   ├── ai-guardrails.ts    # AI response validation
-│   │   │   ├── job-queue.ts        # BullMQ queue management
-│   │   │   ├── logger.ts           # Pino structured logging
-│   │   │   └── schema-validation.ts# Zod schemas for phase I/O
-│   │   ├── billing/                # Stripe integration
-│   │   │   ├── stripe-billing.ts
-│   │   │   └── subscription-tiers.ts
-│   │   ├── exports/                # Output format exporters
-│   │   │   ├── rw5-exporter.ts     # Carlson format
-│   │   │   ├── jobxml-exporter.ts  # Trimble format
-│   │   │   └── csv-exporter.ts     # Generic CSV
+│   │   │   └── starr-research.ts   # CLI entry point ✅ EXISTS
 │   │   ├── orchestrator/
-│   │   │   └── master-orchestrator.ts  # Pipeline runner
+│   │   │   └── master-orchestrator.ts  # Pipeline runner ✅ EXISTS
+│   │   ├── reports/                # Phase 10 — all complete ✅
+│   │   │   ├── svg-renderer.ts
+│   │   │   ├── png-rasterizer.ts
+│   │   │   ├── dxf-exporter.ts
+│   │   │   ├── pdf-generator.ts
+│   │   │   └── legal-description-generator.ts
+│   │   ├── services/               # Core pipeline services (FLAT structure — not subdirs)
+│   │   │   ├── discovery-engine.ts         # Phase 1 ✅
+│   │   │   ├── property-discovery.ts        # Phase 1 Express wrapper ✅
+│   │   │   ├── cad-registry.ts              # Phase 1 CAD system registry ✅
+│   │   │   ├── address-utils.ts             # Phase 1 address normalization ✅
+│   │   │   ├── address-normalizer.ts        # Phase 1 address normalization ✅
+│   │   │   ├── document-harvester.ts        # Phase 2 ✅
+│   │   │   ├── document-intelligence.ts     # Phase 2 relevance scoring ✅
+│   │   │   ├── ai-extraction.ts             # Phase 3 foundation ✅
+│   │   │   ├── adaptive-vision.ts           # Phase 3 foundation ✅
+│   │   │   ├── geo-reconcile.ts             # Phase 3 foundation ✅
+│   │   │   ├── property-validation-pipeline.ts # Phase 3 foundation ✅
+│   │   │   ├── ai-document-analyzer.ts      # Phase 3 orchestrator ❌ MISSING
+│   │   │   ├── subdivision-intelligence.ts  # Phase 4 orchestrator ✅
+│   │   │   ├── subdivision-classifier.ts    # Phase 4 ✅
+│   │   │   ├── subdivision-ai-analysis.ts   # Phase 4 ✅
+│   │   │   ├── lot-enumerator.ts            # Phase 4 ✅
+│   │   │   ├── interior-line-analyzer.ts    # Phase 4 ✅
+│   │   │   ├── area-reconciliation.ts       # Phase 4 ✅
+│   │   │   ├── adjacency-builder.ts         # Phase 4/5 foundation ✅
+│   │   │   ├── adjacent-research.ts         # Phase 5 foundation ✅
+│   │   │   ├── adjacent-research-orchestrator.ts # Phase 5 orchestrator ❌ MISSING
+│   │   │   ├── txdot-row.ts                 # Phase 6 foundation ✅
+│   │   │   ├── row-integration-engine.ts    # Phase 6 orchestrator ❌ MISSING
+│   │   │   ├── geometric-reconciliation-engine.ts # Phase 7 ✅
+│   │   │   ├── reconciliation-algorithm.ts  # Phase 7 ✅
+│   │   │   ├── reading-aggregator.ts        # Phase 7 ✅
+│   │   │   ├── source-weighting.ts          # Phase 7 ✅
+│   │   │   ├── confidence-scoring-engine.ts # Phase 8 ✅
+│   │   │   ├── call-confidence-scorer.ts    # Phase 8 ✅
+│   │   │   ├── lot-confidence-scorer.ts     # Phase 8 ✅
+│   │   │   ├── discrepancy-analyzer.ts      # Phase 8 ✅
+│   │   │   ├── purchase-recommender.ts      # Phase 8 ✅
+│   │   │   ├── surveyor-decision-matrix.ts  # Phase 8 ✅
+│   │   │   ├── document-purchase-orchestrator.ts # Phase 9 ✅
+│   │   │   ├── billing-tracker.ts           # Phase 9 ✅
+│   │   │   ├── watermark-comparison.ts      # Phase 9 ✅
+│   │   │   ├── reanalysis.ts                # Phase 9 ✅
+│   │   │   └── purchase-adapters/
+│   │   │       ├── kofile-purchase-adapter.ts    ✅
+│   │   │       └── texasfile-purchase-adapter.ts ✅
+│   │   ├── adapters/               # CAD and clerk system adapters
+│   │   │   ├── cad-adapter.ts               # Abstract CAD base ✅
+│   │   │   ├── bis-adapter.ts               # BIS (~60 counties) ✅
+│   │   │   ├── trueautomation-adapter.ts    # TrueAutomation (~80 counties) ✅
+│   │   │   ├── tyler-adapter.ts             # Tyler/Aumentum (~50 counties) ✅
+│   │   │   ├── generic-cad-adapter.ts       # AI-assisted fallback ✅
+│   │   │   ├── clerk-adapter.ts             # Abstract clerk base ✅
+│   │   │   ├── kofile-clerk-adapter.ts      # Kofile (~80 counties) ✅
+│   │   │   ├── texasfile-adapter.ts         # TexasFile (stub) 🔨
+│   │   │   ├── hcad-adapter.ts              # Harris County CAD ❌ MISSING
+│   │   │   ├── tad-adapter.ts               # Tarrant County CAD ❌ MISSING
+│   │   │   ├── countyfusion-adapter.ts      # CountyFusion clerk ❌ MISSING
+│   │   │   └── tyler-clerk-adapter.ts       # Tyler/Odyssey clerk ❌ MISSING
+│   │   ├── sources/                # Government data source clients
+│   │   │   ├── fema-nfhl-client.ts          # Phase 11 ✅
+│   │   │   ├── glo-client.ts                # Phase 11 ✅
+│   │   │   ├── tceq-client.ts               # Phase 11 ✅
+│   │   │   ├── rrc-client.ts                # Phase 11 ✅
+│   │   │   └── nrcs-soil-client.ts          # Phase 11 ✅
+│   │   ├── infra/                  # Production infrastructure
+│   │   │   ├── resilience.ts                # Retry + circuit breaker ✅
+│   │   │   ├── ai-guardrails.ts             # AI response validation ✅
+│   │   │   └── job-queue.ts                 # BullMQ queue management ✅
+│   │   ├── billing/                # Stripe integration
+│   │   │   ├── stripe-billing.ts            ✅
+│   │   │   └── subscription-tiers.ts        ✅
+│   │   ├── analytics/
+│   │   │   └── usage-tracker.ts             ✅
+│   │   ├── batch/
+│   │   │   └── batch-processor.ts           ✅
+│   │   ├── chain-of-title/
+│   │   │   └── chain-builder.ts             ✅
+│   │   ├── exports/                # Output format exporters
+│   │   │   ├── rw5-exporter.ts              # Carlson format ✅
+│   │   │   └── jobxml-exporter.ts           # Trimble format ✅
 │   │   ├── websocket/
-│   │   │   └── progress-server.ts  # Real-time progress
-│   │   └── routes/                 # Express API routes
-│   │       ├── research-routes.ts
-│   │       ├── report-routes.ts
-│   │       └── billing-routes.ts
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── Dockerfile
+│   │   │   └── progress-server.ts           ✅
+│   │   ├── ai/
+│   │   │   └── prompt-registry.ts           ✅
+│   │   ├── lib/
+│   │   │   ├── coordinates.ts               # NAD83 transforms ✅
+│   │   │   ├── county-fips.ts               # FIPS lookup table ✅
+│   │   │   ├── curve-params.ts              # Curve math ✅
+│   │   │   ├── logger.ts                    # Pino logging ✅
+│   │   │   └── rate-limiter.ts              ✅
+│   │   ├── routes/
+│   │   │   └── report-routes.ts             ✅
+│   │   └── types/
+│   │       ├── index.ts                     # Core pipeline types ✅
+│   │       ├── property-discovery.ts        # Phase 1 types ✅
+│   │       ├── document-harvest.ts          # Phase 2 types ✅
+│   │       ├── subdivision.ts               # Phase 4 types ✅
+│   │       ├── reconciliation.ts            # Phase 7 types ✅
+│   │       ├── confidence.ts                # Phase 8 types ✅
+│   │       ├── purchase.ts                  # Phase 9 types ✅
+│   │       ├── reports.ts                   # Phase 10 types ✅
+│   │       ├── county-adapter.ts            # Adapter types ✅
+│   │       └── expansion.ts                 # Phase 11 types ✅
+│   ├── confidence.sh               ✅
+│   ├── harvest.sh                   ✅
+│   ├── purchase.sh                  ✅
+│   ├── reconcile.sh                 ✅
+│   ├── report.sh                    ✅
+│   ├── research.sh                  ✅
+│   ├── subdivision.sh               ✅
+│   ├── adjacent.sh                  ❌ MISSING
+│   ├── analyze.sh                   ❌ MISSING
+│   └── row.sh                       ❌ MISSING
 │
 └── STARR_RECON/                    # ← PLANNING & SPEC DOCUMENTS (this folder)
     ├── STARR_RECON_PHASE_ROADMAP.md    # THIS FILE — master overview
@@ -262,49 +322,67 @@ starr-software/                     # Turborepo monorepo root
 
 | # | Phase | Status | Spec Lines | Dependencies | Weeks |
 |---|---|---|---|---|---|
-| 1 | Universal Property Discovery | 🟡 SPEC COMPLETE | 1,593 | None | 1–3 |
-| 2 | Free Document Harvesting | 🟡 SPEC COMPLETE | 1,590 | Phase 1 | 4–6 |
-| 3 | AI Document Intelligence | 🟡 SPEC COMPLETE | 1,636 | Phase 2 | 7–9 |
-| 4 | Subdivision & Plat Intelligence | 🟡 SPEC COMPLETE | 1,361 | Phase 3 | 10–12 |
-| 5 | Adjacent Property Deep Research | 🟡 SPEC COMPLETE | 1,507 | Phase 3, 4 | 13–15 |
+| 1 | Universal Property Discovery | 🟢 COMPLETE | 1,593 | None | 1–3 |
+| 2 | Free Document Harvesting | 🟠 IN PROGRESS | 1,590 | Phase 1 | 4–6 |
+| 3 | AI Document Intelligence | 🟠 IN PROGRESS | 1,636 | Phase 2 | 7–9 |
+| 4 | Subdivision & Plat Intelligence | 🟢 COMPLETE | 1,361 | Phase 3 | 10–12 |
+| 5 | Adjacent Property Deep Research | 🟠 IN PROGRESS | 1,507 | Phase 3, 4 | 13–15 |
 | 6 | TxDOT ROW Integration | 🟠 IN PROGRESS | 1,287 | Phase 3 | 16–18 |
-| 7 | Geometric Reconciliation | 🟡 SPEC COMPLETE | 1,424 | Phases 3–6 | 19–21 |
-| 8 | Confidence Scoring | 🟡 SPEC COMPLETE | 1,138 | Phase 7 | 22–23 |
-| 9 | Document Purchase | 🟡 SPEC COMPLETE | 1,448 | Phases 2, 3, 7, 8 | 24–26 |
-| 10 | Production Reports & Exports | 🟡 SPEC COMPLETE | 1,438 | All prior | 27–30 |
-| 11 | Product Expansion & Platform | 🟡 SPEC COMPLETE | 1,662 | All prior | 31–52 |
+| 7 | Geometric Reconciliation | 🟢 COMPLETE | 1,424 | Phases 3–6 | 19–21 |
+| 8 | Confidence Scoring | 🟢 COMPLETE | 1,138 | Phase 7 | 22–23 |
+| 9 | Document Purchase | 🟢 COMPLETE | 1,448 | Phases 2, 3, 7, 8 | 24–26 |
+| 10 | Production Reports & Exports | 🟢 COMPLETE | 1,438 | All prior | 27–30 |
+| 11 | Product Expansion & Platform | 🟠 IN PROGRESS | 1,662 | All prior | 31–52 |
 | — | **TOTAL** | — | **16,084** | — | — |
 
-> **Current Focus:** Begin implementation starting with Phase 1. All specifications are complete. No pipeline code has been written yet.
+> **Current Focus:** Complete Phase 3 AI Document Analyzer (missing: `ai-document-analyzer.ts`, `ai-plat-analyzer.ts`, `ai-deed-analyzer.ts`, `ai-context-analyzer.ts`, `models/property-intelligence.ts`). Then complete Phase 5 Adjacent Research orchestration (missing 4 service files). Then complete Phase 6 TxDOT ROW integration (missing 6 service files). Phases 1, 4, 7, 8, 9, 10 are complete. Phase 11 foundation is in progress.
 
 ---
 
-### What HAS Been Built (Pre-Specification)
+### What HAS Been Built
 
-The following items exist from prototyping and proof-of-concept work:
+#### Phase 1 — COMPLETE ✅
+`discovery-engine.ts`, `property-discovery.ts`, `bis-adapter.ts`, `trueautomation-adapter.ts`, `tyler-adapter.ts`, `generic-cad-adapter.ts`, `cad-registry.ts`, `address-utils.ts`, `address-normalizer.ts`, `county-fips.ts`, `types/property-discovery.ts` — Full multi-vendor CAD search with address normalization and geocoding.
 
-- ✅ Bell CAD BIS API integration *(proof of concept — needs refactoring to match Phase 1 spec)*
-- ✅ Bell County Kofile/PublicSearch Playwright scraper *(proof of concept — needs refactoring to match Phase 2 spec)*
-- ✅ Adaptive Vision v2 extraction system *(proof of concept — needs refactoring to match Phase 3 spec)*
-- ✅ Property validation pipeline v1 *(proof of concept — needs refactoring to match Phase 7–8 specs)*
-- ✅ DigitalOcean droplet provisioned and configured *(Node.js, Playwright, Express)*
-- ✅ Deployment guide written *(see `starr-worker-deploy-guide.md`)*
+#### Phase 2 — IN PROGRESS 🟠
+`document-harvester.ts`, `document-intelligence.ts`, `clerk-adapter.ts`, `kofile-clerk-adapter.ts`, `texasfile-adapter.ts` (stub), `types/document-harvest.ts`, `harvest.sh` — Core Kofile harvesting is complete. Missing: `clerk-registry.ts`, `countyfusion-adapter.ts`, `tyler-clerk-adapter.ts`.
 
-### What Does NOT Exist Yet
+#### Phase 3 — IN PROGRESS 🟠
+Foundation services exist: `ai-extraction.ts`, `adaptive-vision.ts`, `geo-reconcile.ts`, `property-validation-pipeline.ts`, `curve-params.ts`, `coordinates.ts`. Missing the Phase 3 orchestrator layer: `ai-document-analyzer.ts`, `ai-plat-analyzer.ts`, `ai-deed-analyzer.ts`, `ai-context-analyzer.ts`, `models/property-intelligence.ts`, `analyze.sh`.
 
-- ❌ Proper TypeScript project structure *(the `worker/` pipeline directory)*
-- ❌ Any CAD adapter besides BIS
-- ❌ Any clerk adapter besides Kofile
-- ❌ FEMA, GLO, TCEQ, RRC, NRCS integrations
-- ❌ Stripe billing
-- ❌ Job queue / concurrent user handling
-- ❌ Web frontend in Starr Compass
-- ❌ Interactive boundary viewer
-- ❌ DXF export
-- ❌ Legal description generator
-- ❌ Chain of title engine
-- ❌ Batch processing
-- ❌ Automated test suite
+#### Phase 4 — COMPLETE ✅
+`subdivision-intelligence.ts`, `subdivision-classifier.ts`, `subdivision-ai-analysis.ts`, `lot-enumerator.ts`, `interior-line-analyzer.ts`, `area-reconciliation.ts`, `adjacency-builder.ts`, `types/subdivision.ts`, `subdivision.sh` — Full subdivision analysis pipeline.
+
+#### Phase 5 — IN PROGRESS 🟠
+Foundation exists in `adjacent-research.ts` (bearing math, cross-validation engine, basic orchestrator) and `adjacency-builder.ts`. Missing the Phase 5 orchestrator layer: `adjacent-queue-builder.ts`, `adjacent-research-worker.ts`, `cross-validation-engine.ts`, `adjacent-research-orchestrator.ts`, `adjacent.sh`.
+
+#### Phase 6 — IN PROGRESS 🟠
+Foundation exists in `txdot-row.ts` (TxDOT ArcGIS REST client, road classification) and `coordinates.ts` (NAD83 coordinate transforms). Missing: `road-classifier.ts`, `txdot-rpam-client.ts`, `texas-digital-archive-client.ts`, `road-boundary-resolver.ts`, `county-road-defaults.ts`, `row-integration-engine.ts`, `row.sh`.
+
+#### Phase 7 — COMPLETE ✅
+`geometric-reconciliation-engine.ts`, `reconciliation-algorithm.ts`, `reading-aggregator.ts`, `source-weighting.ts`, `types/reconciliation.ts`, `reconcile.sh` — Full multi-source boundary reconciliation pipeline.
+
+#### Phase 8 — COMPLETE ✅
+`confidence-scoring-engine.ts`, `call-confidence-scorer.ts`, `lot-confidence-scorer.ts`, `discrepancy-analyzer.ts`, `purchase-recommender.ts`, `surveyor-decision-matrix.ts`, `types/confidence.ts`, `confidence.sh` — Full layered confidence scoring and discrepancy analysis.
+
+#### Phase 9 — COMPLETE ✅
+`document-purchase-orchestrator.ts`, `purchase-adapters/kofile-purchase-adapter.ts`, `purchase-adapters/texasfile-purchase-adapter.ts`, `billing-tracker.ts`, `watermark-comparison.ts`, `reanalysis.ts`, `types/purchase.ts`, `purchase.sh` — Full document purchase and re-analysis pipeline.
+
+#### Phase 10 — COMPLETE ✅
+`reports/svg-renderer.ts`, `reports/png-rasterizer.ts`, `reports/dxf-exporter.ts`, `reports/pdf-generator.ts`, `reports/legal-description-generator.ts`, `orchestrator/master-orchestrator.ts`, `cli/starr-research.ts`, `routes/report-routes.ts`, `types/reports.ts`, `report.sh` — Full report generation, DXF export, CLI, and master pipeline orchestrator.
+
+#### Phase 11 — IN PROGRESS 🟠
+Built: `sources/fema-nfhl-client.ts`, `sources/glo-client.ts`, `sources/nrcs-soil-client.ts`, `sources/rrc-client.ts`, `sources/tceq-client.ts`, `infra/ai-guardrails.ts`, `infra/job-queue.ts`, `infra/resilience.ts`, `billing/stripe-billing.ts`, `billing/subscription-tiers.ts`, `analytics/usage-tracker.ts`, `batch/batch-processor.ts`, `chain-of-title/chain-builder.ts`, `exports/rw5-exporter.ts`, `exports/jobxml-exporter.ts`, `websocket/progress-server.ts`, `ai/prompt-registry.ts`, `lib/rate-limiter.ts`, `lib/logger.ts`, `types/expansion.ts`. Still missing: HCAD/TAD adapters, Henschen/iDocket clerk adapters, USGS client, TX Comptroller client, web frontend, interactive report viewer, and many other platform features.
+
+### What Does NOT Exist Yet (Priority Order)
+
+1. ❌ Phase 3 orchestrator layer (`ai-document-analyzer.ts` and 4 supporting files) — **BLOCKS Phase 5**
+2. ❌ Phase 5 orchestrator layer (4 service files + CLI) — **BLOCKS full cross-validation**
+3. ❌ Phase 6 orchestrator layer (6 service files + CLI) — **BLOCKS full reconciliation inputs**
+4. ❌ Phase 2 clerk registry + CountyFusion/Tyler clerk adapters — needed for statewide coverage
+5. ❌ HCAD (Harris County) and TAD (Tarrant County) CAD adapters — Houston/Fort Worth coverage
+6. ❌ Web frontend (research dashboard, interactive boundary viewer, document library)
+7. ❌ Supabase schema migrations and `research_projects` table
 
 ---
 
@@ -355,7 +433,7 @@ INPUT: Property address OR owner name OR property ID
                                   ▼
 ┌─── Phase 3: AI EXTRACTION ──────────────────────────────────────────┐
 │  Adaptive Vision v2 → plat/deed parsing → property context          │
-│  OUTPUT: intelligence.json                                          │
+│  OUTPUT: property_intelligence.json                                          │
 │    PropertyIntelligence { boundary calls[], lot data, easements }   │
 │  KEY TYPE: BoundaryCall { bearing, distance, type, along,           │
 │                           monument, confidence, curve? }            │
@@ -708,21 +786,21 @@ export interface PipelineState {
 
 | Source | API Type | Phase | Status | Priority |
 |---|---|---|---|---|
-| County CAD (BIS) | REST API + Playwright | 1 | 🟠 Prototype exists | P0 |
-| County CAD (TrueAutomation) | Playwright (ASP.NET WebForms) | 1 | 🔴 Not started | P1 |
-| County CAD (Tyler/Aumentum) | Playwright | 1 | 🔴 Not started | P1 |
+| County CAD (BIS) | REST API + Playwright | 1 | 🟢 Complete | P0 |
+| County CAD (TrueAutomation) | Playwright (ASP.NET WebForms) | 1 | 🟢 Complete | P1 |
+| County CAD (Tyler/Aumentum) | Playwright | 1 | 🟢 Complete | P1 |
 | County CAD (HCAD) | Playwright (custom) | 1 | 🔴 Not started | P2 |
 | County CAD (TAD) | Playwright (custom) | 1 | 🔴 Not started | P2 |
-| County Clerk (Kofile) | Playwright (SPA) | 2, 9 | 🟠 Prototype exists | P0 |
-| County Clerk (TexasFile) | Playwright | 2, 9 | 🔴 Purchase adapter only | P1 |
+| County Clerk (Kofile) | Playwright (SPA) | 2, 9 | 🟢 Complete | P0 |
+| County Clerk (TexasFile) | Playwright | 2, 9 | 🟠 Purchase adapter only (harvest stub) | P1 |
 | County Clerk (Henschen) | Playwright | 2 | 🔴 Not started | P2 |
-| TxDOT RPAM (ArcGIS REST) | REST API | 6 | 🔴 Not started | P1 |
+| TxDOT ArcGIS REST | REST API | 6 | 🟠 Basic client built (`txdot-row.ts`) | P1 |
 | TxDOT RPAM (Playwright fallback) | Playwright | 6 | 🔴 Not started | P1 |
-| FEMA NFHL | ArcGIS REST (public) | 11 | 🔴 Not started | P1 |
-| Texas GLO | ArcGIS REST (public) | 11 | 🔴 Not started | P2 |
-| TCEQ | Web scrape + API | 11 | 🔴 Not started | P2 |
-| TX Railroad Commission | ArcGIS REST (public) | 11 | 🔴 Not started | P2 |
-| USDA NRCS Soil | REST API (public) | 11 | 🔴 Not started | P3 |
+| FEMA NFHL | ArcGIS REST (public) | 11 | 🟢 Complete (`fema-nfhl-client.ts`) | P1 |
+| Texas GLO | ArcGIS REST (public) | 11 | 🟢 Complete (`glo-client.ts`) | P2 |
+| TCEQ | Web scrape + API | 11 | 🟢 Complete (`tceq-client.ts`) | P2 |
+| TX Railroad Commission | ArcGIS REST (public) | 11 | 🟢 Complete (`rrc-client.ts`) | P2 |
+| USDA NRCS Soil | REST API (public) | 11 | 🟢 Complete (`nrcs-soil-client.ts`) | P3 |
 | Anthropic Claude API | REST API | 3–8 | 🟢 Working | P0 |
 
 ### 9.2 Government GIS & REST API Code Snippets
@@ -886,24 +964,24 @@ The goal is 100% Texas county coverage via a registry-based factory pattern. Tex
 
 | Vendor | Approx Counties | Key Counties | Adapter Status |
 |---|---|---|---|
-| BIS Consultants | 30 | Bell, McLennan, Coryell, Lampasas | 🟠 Prototype |
-| TrueAutomation | 80 | Travis, Dallas, Bexar, Fort Bend, Denton | 🔴 Not started |
-| Tyler Technologies | 50 | Williamson, Hays, Comal, Guadalupe | 🔴 Not started |
+| BIS Consultants | 60+ | Bell, McLennan, Coryell, Lampasas, Milam | 🟢 Complete (`bis-adapter.ts`) |
+| TrueAutomation | 80 | Travis, Dallas, Bexar, Fort Bend, Denton | 🟢 Complete (`trueautomation-adapter.ts`) |
+| Tyler Technologies | 50 | Williamson, Hays, Comal, Guadalupe | 🟢 Complete (`tyler-adapter.ts`) |
 | Harris County (HCAD) | 1 | Harris (Houston, 4.7M people) | 🔴 Not started |
 | Tarrant County (TAD) | 1 | Tarrant (Fort Worth, 2.1M people) | 🔴 Not started |
 | Capitol Appraisal | 20 | Smaller Central TX counties | 🔴 Not started |
 | Pritchard & Abbott | 30 | Rural/mineral counties | 🔴 Not started |
-| Other/Custom | 42 | Various | 🔴 Generic adapter needed |
+| Other/Custom | 42 | Various | 🟠 Generic AI fallback (`generic-cad-adapter.ts`) |
 
 ### 10.2 County Clerk Vendors
 
 | Vendor | Approx Counties | Adapter Status |
 |---|---|---|
-| Kofile/PublicSearch | 80 | 🟠 Prototype |
+| Kofile/PublicSearch | 80 | 🟢 Complete (`kofile-clerk-adapter.ts`) |
 | Henschen & Associates | 40 | 🔴 Not started |
 | iDocket | 20 | 🔴 Not started |
 | Fidlar Technologies | 15 | 🔴 Not started |
-| TexasFile (aggregator) | All 254 | 🔴 Free browse not built |
+| TexasFile (aggregator) | All 254 | 🟠 Purchase adapter only; harvest stub needs completion |
 | Custom systems | 15 (large counties) | 🔴 Not started |
 | No online access | ~20+ (rural) | N/A — flag as manual |
 
@@ -990,7 +1068,7 @@ Implementation is organized into 5 tiers. Complete each tier before starting the
 | 1.9 | Adaptive Vision v2 (plat extraction) | 3 | §3.4A | Extracts all boundary calls from plat image |
 | 1.10 | Deed text extraction | 3 | §3.4B | Extracts metes-and-bounds from deed image |
 | 1.11 | Property context analyzer | 3 | §3.5 | Determines subdivision vs standalone, identifies context |
-| 1.12 | `POST /research/extract` endpoint | 3 | §3.6 | Returns 202, async produces `intelligence.json` |
+| 1.12 | `POST /research/analyze` endpoint | 3 | §3.6 | Returns 202, async produces `property_intelligence.json` |
 
 > **Milestone:** After Tier 1, the pipeline can discover a Bell County property, download its documents, and extract boundary data with AI. This is the minimum viable pipeline.
 
@@ -1373,7 +1451,7 @@ After a complete pipeline run, files are organized as follows on the droplet:
 ├── checkpoint.json               ← Pipeline state (phases completed, timing)
 ├── discovery.json                ← Phase 1 output
 ├── documents.json                ← Phase 2 output
-├── intelligence.json             ← Phase 3 output
+├── property_intelligence.json     ← Phase 3 output
 ├── subdivision.json              ← Phase 4 output (if applicable)
 ├── cross_validation.json         ← Phase 5 output
 ├── row_data.json                 ← Phase 6 output
@@ -1426,7 +1504,7 @@ All requests require `Authorization: Bearer {WORKER_API_KEY}`.
 |---|---|---|---|
 | `POST` | `/research/discover` | 1 | Start property discovery |
 | `POST` | `/research/harvest` | 2 | Start document harvesting |
-| `POST` | `/research/extract` | 3 | Start AI extraction |
+| `POST` | `/research/analyze` | 3 | Start AI extraction |
 | `POST` | `/research/subdivision` | 4 | Start subdivision analysis |
 | `POST` | `/research/adjacent` | 5 | Start adjacent property research |
 | `POST` | `/research/row` | 6 | Start TxDOT ROW integration |

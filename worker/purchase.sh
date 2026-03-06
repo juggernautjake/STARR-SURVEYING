@@ -57,7 +57,7 @@ if [ ! -f "$CONF_PATH" ]; then
   echo "  3. (Phase 3: AI Extraction)                     ← produces intelligence JSON"
   echo "  4. ./subdivision.sh <projectId>                ← Phase 4: Subdivision"
   echo "  5. (Phase 5: Adjacent Research)                 ← cross_validation_report.json"
-  echo "  6. (Phase 6: TxDOT ROW)                        ← row_report.json"
+  echo "  6. (Phase 6: TxDOT ROW)                        ← row_data.json"
   echo "  7. ./reconcile.sh <projectId>                  ← Phase 7: Reconciliation"
   echo "  8. ./confidence.sh <projectId>                 ← Phase 8: Confidence Scoring"
   echo "  9. ./purchase.sh <projectId> [budget]          ← Phase 9: THIS SCRIPT"

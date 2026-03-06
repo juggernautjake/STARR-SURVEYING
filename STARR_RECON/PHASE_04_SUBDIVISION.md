@@ -3,7 +3,7 @@
 **Starr Software — AI Property Research Pipeline**
 **Phase Duration:** Weeks 10–12
 **Depends On:** Phase 1 (PropertyIdentity), Phase 2 (HarvestedDocuments), Phase 3 (PropertyIntelligence with lot data, AI extraction)
-**Status:** ✅ SPEC COMPLETE — Implementation delivered
+**Status:** ✅ COMPLETE — Implementation delivered
 
 ---
 
@@ -19,7 +19,42 @@ A `SubdivisionIntelligenceEngine` that takes Phase 3 output and returns a `Subdi
 
 ---
 
-## 4.1 What This Phase Must Accomplish
+## Current State of the Codebase
+
+**Phase Status: ✅ COMPLETE**
+
+All Phase 4 code has been implemented. The following files exist and are production-ready:
+
+### Implemented Files
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `worker/src/services/subdivision-intelligence.ts` | `SubdivisionIntelligenceEngine` — top-level Phase 4 orchestrator | ✅ Complete |
+| `worker/src/services/subdivision-classifier.ts` | `SubdivisionClassifier` — detects and classifies subdivision type | ✅ Complete |
+| `worker/src/services/subdivision-ai-analysis.ts` | AI-powered plat and deed analysis for subdivision data | ✅ Complete |
+| `worker/src/services/lot-enumerator.ts` | `LotEnumerator` — enumerates all lots from CAD + plat | ✅ Complete |
+| `worker/src/services/interior-line-analyzer.ts` | `InteriorLineAnalyzer` — verifies shared interior boundary calls | ✅ Complete |
+| `worker/src/services/area-reconciliation.ts` | Area reconciliation (lot sum vs. total subdivision area) | ✅ Complete |
+| `worker/src/services/adjacency-builder.ts` | `AdjacencyBuilder` — builds lot adjacency matrix (used by Phase 5) | ✅ Complete |
+| `worker/src/types/subdivision.ts` | Phase 4 TypeScript types (`SubdivisionModel`, `LotData`, etc.) | ✅ Complete |
+| `worker/subdivision.sh` | CLI wrapper for Phase 4 | ✅ Complete |
+
+### API Endpoint
+
+`POST /research/subdivision` and `GET /research/subdivision/:projectId` — live in `worker/src/index.ts`
+
+### Important: Filename Differences from Original Spec
+
+The implementation uses slightly different filenames than what was originally planned in this spec document. Throughout this document, references to the following names should be read as their actual equivalents:
+
+| Spec Name (in this document) | Actual File | Notes |
+|------------------------------|-------------|-------|
+| `subdivision-detector.ts` | `subdivision-classifier.ts` | Contains `SubdivisionClassifier` class |
+| `area-reconciler.ts` | `area-reconciliation.ts` | Contains area reconciliation logic |
+
+> **Note for agents:** When the spec below references `SubdivisionDetector`, `SubdivisionIntelligence` is the actual orchestrator class. When it references `area-reconciler.ts`, the actual file is `area-reconciliation.ts`.
+
+---
 
 After Phase 3 identifies that a property is part of a subdivision, Phase 4 does a deep-dive into the ENTIRE subdivision:
 
