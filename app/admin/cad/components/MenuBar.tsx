@@ -13,6 +13,8 @@ import {
 import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
+import { downloadCsv } from '@/lib/cad/persistence/export-csv';
+import SaveToDBDialog from './SaveToDBDialog';
 
 interface MenuItem {
   label: string;
@@ -36,6 +38,8 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
+  const [fileLoading, setFileLoading] = useState(false);
+  const [dbDialog, setDbDialog] = useState<'save' | 'open' | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const drawingStore = useDrawingStore();
   const selectionStore = useSelectionStore();
@@ -72,6 +76,7 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
+      setFileLoading(true);
       try {
         const text = await file.text();
         const payload = JSON.parse(text) as { document: unknown };
@@ -86,6 +91,8 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
         const msg = err instanceof Error ? err.message : 'Unknown error';
         cadLog.error('FileIO', 'Failed to load .starr file', err);
         alert(`Failed to load file: ${msg}\n\nMake sure this is a valid .starr drawing file.`);
+      } finally {
+        setFileLoading(false);
       }
     };
     input.click();
@@ -121,6 +128,16 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
     setEditingName(false);
   }
 
+  function exportCsv() {
+    try {
+      const { rowCount } = downloadCsv(drawingStore.document);
+      cadLog.info('FileIO', `Exported ${rowCount} points as CSV`);
+    } catch (err) {
+      cadLog.error('FileIO', 'CSV export failed', err);
+      alert('Failed to export CSV. See the browser console for details.');
+    }
+  }
+
   const undoDesc = undoStore.undoDescription();
   const redoDesc = undoStore.redoDescription();
 
@@ -130,9 +147,13 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
       items: [
         { label: 'New Drawing', shortcut: 'Ctrl+N', action: () => { window.dispatchEvent(new CustomEvent('cad:openNewDrawingDialog')); setOpenMenu(null); } },
         { label: 'Open…', shortcut: 'Ctrl+O', action: openFileDialog },
+        { label: 'Open from Database…', action: () => { setDbDialog('open'); setOpenMenu(null); } },
         { separator: true },
         { label: 'Save', shortcut: 'Ctrl+S', action: saveDocument },
         { label: 'Save As…', action: saveDocument },
+        { label: 'Save to Database…', action: () => { setDbDialog('save'); setOpenMenu(null); } },
+        { separator: true },
+        { label: 'Export as CSV…', action: () => { exportCsv(); setOpenMenu(null); } },
         { separator: true },
         { label: 'Import…', action: () => { onOpenImport?.(); setOpenMenu(null); } },
       ],
@@ -257,6 +278,7 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
   ];
 
   return (
+    <>
     <div className="flex items-center bg-gray-900 border-b border-gray-700 text-xs text-gray-200 select-none">
       {/* Logo */}
       <span className="px-3 py-1.5 font-bold text-white text-sm">Starr CAD</span>
@@ -423,6 +445,21 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
         </div>
       )}
     </div>
+
+    {/* Full-screen loading overlay — shown while parsing a .starr file */}
+    {fileLoading && (
+      <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-black/75 animate-[fadeIn_150ms_ease-out]">
+        <span className="inline-block w-10 h-10 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-white text-sm font-semibold">Opening drawing…</p>
+        <p className="text-gray-400 text-xs mt-1">Parsing and rendering data, please wait.</p>
+      </div>
+    )}
+
+    {/* Save/Open from Database dialogs */}
+    {dbDialog && (
+      <SaveToDBDialog mode={dbDialog} onClose={() => setDbDialog(null)} />
+    )}
+  </>
   );
 }
 

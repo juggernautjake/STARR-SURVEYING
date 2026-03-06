@@ -329,13 +329,21 @@ export default function CanvasViewport() {
           16,
         );
 
+        // Super-sampled resolution: render at 2× the physical pixel density and let the
+        // browser downsample.  The downsampling pass acts as free hardware anti-aliasing
+        // (SSAA), which makes diagonal lines, arcs, thin strokes, and text visibly
+        // smoother without any changes to the coordinate math (CSS-pixel space throughout).
+        // Cap at 4× to keep GPU memory usage reasonable on very high-DPI displays.
+        const dpr = window.devicePixelRatio || 1;
+        const resolution = Math.min(dpr * 2, 4);
+
         const app = new PIXI.Application({
           view: canvas,
           width,
           height,
           background: bgColor,
           antialias: true,
-          resolution: window.devicePixelRatio || 1,
+          resolution,
           autoDensity: true,
         });
 
@@ -472,6 +480,16 @@ export default function CanvasViewport() {
       rafId = requestAnimationFrame(() => {
         rafId = null;
         if (!pixiRef.current) return;
+        // Re-compute the super-sampled resolution so that moving between monitors
+        // (different DPR values) always produces the sharpest possible rendering.
+        const newDpr = window.devicePixelRatio || 1;
+        const newResolution = Math.min(newDpr * 2, 4);
+        if (Math.abs(pixiRef.current.app.renderer.resolution - newResolution) > 0.01) {
+          // The renderer exposes `resolution` as a writable property on the concrete
+          // class.  We cast to the minimal structural shape instead of importing the
+          // full PixiJS Renderer type to avoid a hard coupling to the renderer backend.
+          (pixiRef.current.app.renderer as { resolution: number }).resolution = newResolution;
+        }
         pixiRef.current.app.renderer.resize(width, height);
         viewportStore.setScreenSize(width, height);
       });
@@ -689,7 +707,7 @@ export default function CanvasViewport() {
   function drawFeature(g: import('pixi.js').Graphics, feature: Feature) {
     g.clear();
     const color = parseInt((feature.style.color ?? '#000000').replace('#', ''), 16);
-    const weight = feature.style.lineWeight ?? 0.25;
+    const weight = feature.style.lineWeight ?? 0.75;
     const alpha = feature.style.opacity;
     const geom = feature.geometry;
     const { zoom } = useViewportStore.getState();
@@ -894,6 +912,9 @@ export default function CanvasViewport() {
           });
           textObj = new pixi.TextClass(label.text, style);
           textObj.anchor.set(0.5, 0.5);
+          // Match the renderer's super-sampled resolution so the text texture is
+          // generated at the same density as the rest of the scene.
+          textObj.resolution = pixi.app.renderer.resolution;
           pixi.labelTexts.set(labelKey, textObj);
           pixi.labelLayer.addChild(textObj);
         } else {
@@ -977,6 +998,7 @@ export default function CanvasViewport() {
         });
         textObj = new pixi.TextClass(geom.textContent, style);
         textObj.anchor.set(0, 0.5);
+        textObj.resolution = pixi.app.renderer.resolution;
         pixi.labelTexts.set(key, textObj);
         pixi.labelLayer.addChild(textObj);
       } else {
@@ -4240,13 +4262,61 @@ export default function CanvasViewport() {
                   className={`px-2 py-0.5 text-[10px] rounded border italic ${label.style.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
                   onClick={() => drawingStore.updateTextLabel(featureId, labelId, { style: { ...label.style, fontStyle: label.style.fontStyle === 'italic' ? 'normal' : 'italic' } })}
                 >I</button>
-                {label.userPositioned && (
-                  <button
-                    className="ml-auto px-2 py-0.5 text-[9px] rounded border border-gray-600 bg-gray-700 text-gray-400 hover:text-white hover:bg-gray-600"
-                    onClick={() => drawingStore.updateTextLabel(featureId, labelId, { userPositioned: false })}
-                  >Reset Pos</button>
-                )}
               </div>
+              {/* Reset controls — shown when any property has been manually overridden */}
+              {(label.userPositioned || label.rotation !== null || label.scale !== 1) && (
+                <div className="pt-1.5 border-t border-gray-700/60 space-y-1">
+                  <div className="text-[9px] text-gray-600 uppercase tracking-wider font-semibold">Reset</div>
+                  <div className="flex flex-wrap gap-1">
+                    {label.userPositioned && (
+                      <button
+                        className="flex items-center gap-0.5 px-1.5 py-0.5 bg-yellow-900/40 hover:bg-yellow-800/60 text-yellow-400 text-[9px] rounded border border-yellow-700/40 transition-colors"
+                        onClick={() => {
+                          drawingStore.updateTextLabel(featureId, labelId, { userPositioned: false });
+                          // Regenerate to restore default offset/position
+                          const f = drawingStore.getFeature(featureId);
+                          if (f) {
+                            const layerDoc = drawingStore.document.layers[f.layerId];
+                            if (layerDoc) {
+                              const newLabels = generateLabelsForFeature(f, layerDoc, drawingStore.document.settings.displayPreferences);
+                              drawingStore.setFeatureTextLabels(featureId, newLabels);
+                            }
+                          }
+                        }}
+                      >↩ Position</button>
+                    )}
+                    {label.rotation !== null && (
+                      <button
+                        className="flex items-center gap-0.5 px-1.5 py-0.5 bg-purple-900/40 hover:bg-purple-800/60 text-purple-400 text-[9px] rounded border border-purple-700/40 transition-colors"
+                        onClick={() => drawingStore.updateTextLabel(featureId, labelId, { rotation: null })}
+                      >↩ Rotation</button>
+                    )}
+                    {label.scale !== 1 && (
+                      <button
+                        className="flex items-center gap-0.5 px-1.5 py-0.5 bg-sky-900/40 hover:bg-sky-800/60 text-sky-400 text-[9px] rounded border border-sky-700/40 transition-colors"
+                        onClick={() => drawingStore.updateTextLabel(featureId, labelId, { scale: 1 })}
+                      >↩ Scale</button>
+                    )}
+                    {/* "Reset All" only when more than one property is overridden */}
+                    {(label.userPositioned ? 1 : 0) + (label.rotation !== null ? 1 : 0) + (label.scale !== 1 ? 1 : 0) > 1 && (
+                      <button
+                        className="flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-[9px] rounded border border-gray-600 transition-colors"
+                        onClick={() => {
+                          drawingStore.updateTextLabel(featureId, labelId, { userPositioned: false, rotation: null, scale: 1 });
+                          const f = drawingStore.getFeature(featureId);
+                          if (f) {
+                            const layerDoc = drawingStore.document.layers[f.layerId];
+                            if (layerDoc) {
+                              const newLabels = generateLabelsForFeature(f, layerDoc, drawingStore.document.settings.displayPreferences);
+                              drawingStore.setFeatureTextLabels(featureId, newLabels);
+                            }
+                          }
+                        }}
+                      >↩ All</button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
