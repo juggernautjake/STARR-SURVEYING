@@ -1614,7 +1614,6 @@ export default function CanvasViewport() {
           // Diagonal line from p1 to p2 (bounding box diagonal)
           const { sx: p1x, sy: p1y } = w2s(p1.x, p1.y);
           const { sx: p2x, sy: p2y } = w2s(previewPoint.x, previewPoint.y);
-          const { sx: scx, sy: scy } = w2s(cx, cy);
           g.lineStyle(0.75, previewColor, 0.3);
           g.moveTo(p1x, p1y); g.lineTo(p2x, p2y);
           // Center crosshair
