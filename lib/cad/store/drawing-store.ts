@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import type { DrawingDocument, Feature, Layer, DrawingSettings, TextLabel, LayerDisplayPreferences } from '../types';
 import { generateId } from '../types';
-import { DEFAULT_DRAWING_SETTINGS } from '../constants';
+import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../constants';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
 
 // Start with a completely blank document — no layers, no features.
@@ -271,7 +271,11 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
             ...state.document.layers,
             [layerId]: {
               ...layer,
-              displayPreferences: { ...(layer.displayPreferences ?? {}), ...prefs } as LayerDisplayPreferences,
+              displayPreferences: {
+                ...DEFAULT_LAYER_DISPLAY_PREFERENCES,
+                ...(layer.displayPreferences ?? {}),
+                ...prefs,
+              } as LayerDisplayPreferences,
             },
           },
           modified: new Date().toISOString(),
