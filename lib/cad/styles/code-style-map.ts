@@ -17,7 +17,7 @@ export function buildDefaultCodeStyleMap(
       symbolSize: code.connectType === 'POINT' ? 2.5 : 0,
       symbolColor: code.defaultColor,
       lineTypeId: code.defaultLineTypeId || 'SOLID',
-      lineWeight: code.defaultLineWeight || 0.25,
+      lineWeight: code.defaultLineWeight || 0.75,
       lineColor: code.defaultColor,
       labelFormat: code.defaultLabelFormat,
       labelVisible: true,

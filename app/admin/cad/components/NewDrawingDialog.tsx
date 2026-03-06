@@ -45,7 +45,7 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
       locked: false,
       frozen: false,
       color: '#000000',
-      lineWeight: 0.25,
+      lineWeight: 0.75,
       lineTypeId: 'SOLID',
       opacity: 1,
       groupId: null,

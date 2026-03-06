@@ -58,7 +58,7 @@ export default function LayerPanel() {
       locked: false,
       frozen: false,
       color: nextLayerColor(),
-      lineWeight: 0.25,
+      lineWeight: 0.75,
       lineTypeId: 'SOLID',
       opacity: 1,
       groupId: null,

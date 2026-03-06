@@ -130,7 +130,7 @@ describe('buildCsvRows', () => {
     const rows = buildCsvRows(doc);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      pointNo: 1,
+      pointNo: '1',
       northing: 200,
       easting: 100,
       elevation: 350,
@@ -169,7 +169,7 @@ describe('buildCsvRows', () => {
       },
     });
     const rows = buildCsvRows(doc);
-    expect(rows.map((r) => r.pointNo)).toEqual([1, 2, 3]);
+    expect(rows.map((r) => r.pointNo)).toEqual(['1', '2', '3']);
   });
 
   it('skips hidden features', () => {

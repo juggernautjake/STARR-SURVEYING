@@ -40,7 +40,7 @@ export function buildCsvRows(doc: DrawingDocument): CsvRow[] {
 
     if (g.type === 'POINT' && g.point) {
       rows.push({
-        pointNo: feature.properties?.pointNo ?? '',
+        pointNo: feature.properties?.pointNo != null ? String(feature.properties.pointNo) : '',
         northing: g.point.y + originN,
         easting: g.point.x + originE,
         elevation: Number(feature.properties?.elevation ?? 0),
