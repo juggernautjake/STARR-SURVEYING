@@ -1395,8 +1395,11 @@ export default function CanvasViewport() {
     };
   }
 
-  function finishFeature(type: FeatureType) {
-    const { drawingPoints } = toolStore.state;
+  function finishFeature(type: FeatureType, overridePoints?: Point2D[]) {
+    // IMPORTANT: use getState() to read the LIVE store state, not the stale
+    // React snapshot captured during the render cycle.  Without this, points
+    // added via addDrawingPoint() in the same event handler won't be visible.
+    const drawingPoints = overridePoints ?? useToolStore.getState().state.drawingPoints;
 
     if (type === 'POLYLINE') {
       // Polyline: already created as individual LINE segments during drawing.
@@ -1629,8 +1632,11 @@ export default function CanvasViewport() {
           if (toolState.drawingPoints.length === 0) {
             toolStore.addDrawingPoint(worldPt);
           } else {
-            toolStore.addDrawingPoint(worldPt);
-            finishFeature('LINE');
+            // Pass both points directly to avoid stale-snapshot issues —
+            // addDrawingPoint updates the Zustand store, but the React
+            // snapshot (toolStore.state) won't reflect it until re-render.
+            const linePoints = [toolState.drawingPoints[0], worldPt];
+            finishFeature('LINE', linePoints);
           }
           break;
         }
