@@ -163,8 +163,8 @@ export default function TraversePanel() {
 
       {/* Legal Description Modal */}
       {showLegalDesc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl w-[600px] max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-[fadeIn_150ms_ease-out]">
+          <div className="bg-white rounded-lg shadow-xl w-[600px] max-h-[80vh] flex flex-col animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="font-semibold">Legal Description</h3>
               <button onClick={() => setShowLegalDesc(false)} className="text-gray-500 hover:text-gray-700 text-xl leading-none">&times;</button>

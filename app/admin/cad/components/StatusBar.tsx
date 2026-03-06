@@ -185,7 +185,7 @@ export default function StatusBar() {
       <span className="text-gray-600">|</span>
 
       {/* Active tool */}
-      <span className="shrink-0 text-gray-500" title="Active tool">
+      <span className="shrink-0 text-gray-500 transition-colors duration-150" title="Active tool">
         {TOOL_LABELS[activeTool] ?? activeTool}
       </span>
 
@@ -205,7 +205,7 @@ export default function StatusBar() {
       {/* Selection count */}
       {selCount > 0 && (
         <>
-          <span className="text-blue-400 shrink-0">{selCount} selected</span>
+          <span className="text-blue-400 shrink-0 animate-[fadeIn_150ms_ease-out]">{selCount} selected</span>
           <span className="text-gray-600">|</span>
         </>
       )}
@@ -235,7 +235,7 @@ export default function StatusBar() {
       {/* Ortho mode */}
       {orthoEnabled && (
         <>
-          <span className="text-blue-400 font-semibold shrink-0" title="Ortho mode active — cursor constrained to H/V axes (F8)">ORTHO</span>
+          <span className="text-blue-400 font-semibold shrink-0 animate-[fadeIn_150ms_ease-out]" title="Ortho mode active — cursor constrained to H/V axes (F8)">ORTHO</span>
           <span className="text-gray-600">|</span>
         </>
       )}
@@ -243,7 +243,7 @@ export default function StatusBar() {
       {/* Polar tracking */}
       {polarEnabled && !orthoEnabled && (
         <>
-          <span className="text-indigo-400 font-semibold shrink-0" title={`Polar tracking active at ${polarAngle}° increments (F10)`}>POLAR {polarAngle}°</span>
+          <span className="text-indigo-400 font-semibold shrink-0 animate-[fadeIn_150ms_ease-out]" title={`Polar tracking active at ${polarAngle}° increments (F10)`}>POLAR {polarAngle}°</span>
           <span className="text-gray-600">|</span>
         </>
       )}
@@ -251,7 +251,7 @@ export default function StatusBar() {
       {/* Copy mode */}
       {copyMode && (
         <>
-          <span className="text-green-400 font-semibold shrink-0" title="Copy mode: operations will keep the original">COPY</span>
+          <span className="text-green-400 font-semibold shrink-0 animate-[fadeIn_150ms_ease-out]" title="Copy mode: operations will keep the original">COPY</span>
           <span className="text-gray-600">|</span>
         </>
       )}

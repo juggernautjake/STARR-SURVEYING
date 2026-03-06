@@ -1,5 +1,5 @@
 'use client';
-// app/admin/cad/components/Tooltip.tsx — Reusable rich hover tooltip
+// app/admin/cad/components/Tooltip.tsx — Reusable rich hover tooltip with smooth animations
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 
@@ -30,25 +30,34 @@ export default function Tooltip({
   className,
   disabled,
 }: TooltipProps) {
-  const [visible, setVisible] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [animateIn, setAnimateIn] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const triggerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const show = useCallback(() => {
     if (disabled) return;
-    timerRef.current = setTimeout(() => setVisible(true), delay);
+    timerRef.current = setTimeout(() => {
+      setMounted(true);
+      // Trigger animation on next frame after mount
+      animTimerRef.current = setTimeout(() => setAnimateIn(true), 10);
+    }, delay);
   }, [delay, disabled]);
 
   const hide = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    setVisible(false);
+    if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    setAnimateIn(false);
+    // Wait for exit animation before unmounting
+    setTimeout(() => setMounted(false), 150);
   }, []);
 
   // Position after the tooltip element mounts / becomes visible
   useEffect(() => {
-    if (!visible || !triggerRef.current || !tooltipRef.current) return;
+    if (!mounted || !triggerRef.current || !tooltipRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     const tRect = tooltipRef.current.getBoundingClientRect();
     const gap = 8;
@@ -78,7 +87,15 @@ export default function Tooltip({
     x = Math.max(8, Math.min(x, window.innerWidth - tRect.width - 8));
     y = Math.max(8, Math.min(y, window.innerHeight - tRect.height - 8));
     setPos({ x, y });
-  }, [visible, side]);
+  }, [mounted, side]);
+
+  // Translate direction for entrance animation based on side
+  const translateFrom = {
+    right: 'translate-x-1',
+    left: '-translate-x-1',
+    bottom: 'translate-y-1',
+    top: '-translate-y-1',
+  }[side];
 
   return (
     <div
@@ -91,13 +108,14 @@ export default function Tooltip({
     >
       {children}
 
-      {visible && (
+      {mounted && (
         <div
           ref={tooltipRef}
-          className="fixed z-[200] pointer-events-none"
+          className={`fixed z-[200] pointer-events-none transition-all duration-150 ease-out
+            ${animateIn ? 'opacity-100 scale-100 translate-x-0 translate-y-0' : `opacity-0 scale-95 ${translateFrom}`}`}
           style={{ left: pos.x, top: pos.y }}
         >
-          <div className="bg-gray-900 border border-gray-600 rounded-lg shadow-2xl px-3 py-2 max-w-[240px]">
+          <div className="bg-gray-900 border border-gray-600 rounded-lg shadow-2xl px-3 py-2 max-w-[240px] backdrop-blur-sm">
             {/* Label + shortcut row */}
             <div className="flex items-center justify-between gap-3">
               <span className="text-white text-xs font-semibold leading-tight">{label}</span>

@@ -499,7 +499,7 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
       />
       <div
         ref={menuRef}
-        className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl py-1 text-xs text-gray-200 min-w-[200px] max-w-[260px]"
+        className="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl py-1 text-xs text-gray-200 min-w-[200px] max-w-[260px] animate-[scaleIn_120ms_cubic-bezier(0.16,1,0.3,1)]"
         style={{ top: pos.top, left: pos.left }}
         onClick={(e) => e.stopPropagation()}
       >

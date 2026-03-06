@@ -222,11 +222,11 @@ export default function SettingsDialog({ onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 animate-[fadeIn_150ms_ease-out]"
       onClick={onClose}
     >
       <div
-        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[540px] max-h-[85vh] flex flex-col text-sm text-gray-200"
+        className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[540px] max-h-[85vh] flex flex-col text-sm text-gray-200 animate-[scaleIn_200ms_cubic-bezier(0.16,1,0.3,1)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

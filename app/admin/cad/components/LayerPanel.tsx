@@ -149,7 +149,7 @@ export default function LayerPanel() {
               order.splice(toIdx, 0, fromId);
               store.reorderLayers(order);
             }}
-            className={`flex items-center gap-1 px-1 py-1 cursor-pointer hover:bg-gray-700 ${
+            className={`flex items-center gap-1 px-1 py-1 cursor-pointer transition-colors duration-100 hover:bg-gray-700 ${
               activeLayerId === layer.id ? 'bg-gray-700' : ''
             }`}
             onClick={() => handleSetActive(layer.id)}
@@ -157,7 +157,7 @@ export default function LayerPanel() {
           >
             {/* Visibility toggle */}
             <button
-              className="flex-shrink-0 text-gray-400 hover:text-white p-0.5"
+              className="flex-shrink-0 text-gray-400 hover:text-white p-0.5 transition-colors duration-100"
               onClick={(e) => {
                 e.stopPropagation();
                 handleToggleVisibility(layer);
@@ -169,7 +169,7 @@ export default function LayerPanel() {
 
             {/* Lock toggle */}
             <button
-              className={`flex-shrink-0 p-0.5 ${layer.locked ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-600 hover:text-gray-300'}`}
+              className={`flex-shrink-0 p-0.5 transition-colors duration-100 ${layer.locked ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-600 hover:text-gray-300'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleToggleLock(layer);
@@ -215,7 +215,7 @@ export default function LayerPanel() {
       {/* New Layer button */}
       <div className="border-t border-gray-700 p-1">
         <button
-          className="w-full flex items-center gap-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded px-1 py-1 text-xs"
+          className="w-full flex items-center gap-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded px-1 py-1 text-xs transition-colors duration-100"
           onClick={handleNewLayer}
         >
           <Plus size={12} />
@@ -226,18 +226,18 @@ export default function LayerPanel() {
       {/* Context menu */}
       {contextMenu && (
         <div
-          className="fixed z-50 bg-gray-800 border border-gray-600 rounded shadow-lg py-1 text-xs text-gray-200 min-w-[120px]"
+          className="fixed z-50 bg-gray-800 border border-gray-600 rounded shadow-lg py-1 text-xs text-gray-200 min-w-[120px] animate-[scaleIn_120ms_cubic-bezier(0.16,1,0.3,1)]"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            className="w-full text-left px-3 py-1 hover:bg-gray-700"
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => startRename(contextMenu.layerId)}
           >
             Rename
           </button>
           <button
-            className="w-full text-left px-3 py-1 hover:bg-gray-700"
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => {
               const layer = doc.layers[contextMenu.layerId];
               if (layer) handleToggleLock(layer);
@@ -247,14 +247,14 @@ export default function LayerPanel() {
             {doc.layers[contextMenu.layerId]?.locked ? 'Unlock' : 'Lock'}
           </button>
           <button
-            className="w-full text-left px-3 py-1 hover:bg-gray-700"
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => handleChangeColor(contextMenu.layerId)}
           >
             Change Color
           </button>
           {!doc.layers[contextMenu.layerId]?.isDefault && (
             <button
-              className="w-full text-left px-3 py-1 hover:bg-gray-700 text-red-400"
+              className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 text-red-400"
               onClick={() => handleDeleteLayer(contextMenu.layerId)}
             >
               Delete

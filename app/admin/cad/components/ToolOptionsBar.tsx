@@ -148,7 +148,8 @@ export default function ToolOptionsBar() {
     >
       {/* ── Tool name badge ─────────────────────────────────────────────────── */}
       <span
-        className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider shrink-0 mr-1 whitespace-nowrap"
+        key={activeTool}
+        className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider shrink-0 mr-1 whitespace-nowrap animate-[fadeIn_150ms_ease-out]"
         role="status"
         aria-label={`Active tool: ${TOOL_DISPLAY_NAMES[activeTool] ?? activeTool}`}
       >
