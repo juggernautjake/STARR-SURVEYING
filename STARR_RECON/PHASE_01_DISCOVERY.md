@@ -18,7 +18,7 @@ Given **ANY** Texas property address, find the property ID, owner, legal descrip
 
 ## Current State of the Codebase
 
-**Phase Status: ✅ COMPLETE**
+**Phase Status: ✅ COMPLETE** *(Updated March 2026 — all planned items implemented)*
 
 All Phase 1 code has been implemented. The following files exist and are production-ready:
 
@@ -36,20 +36,37 @@ All Phase 1 code has been implemented. The following files exist and are product
 | `worker/src/adapters/trueautomation-adapter.ts` | TrueAutomation adapter (Travis, Dallas/DCAD, Bexar, Fort Bend, ~80 counties) | ✅ Complete |
 | `worker/src/adapters/tyler-adapter.ts` | Tyler/Aumentum adapter (Williamson, Hays, Comal, Guadalupe, ~50 counties) | ✅ Complete |
 | `worker/src/adapters/generic-cad-adapter.ts` | AI-assisted generic Playwright fallback | ✅ Complete |
+| `worker/src/adapters/hcad-adapter.ts` | Harris County (Houston) custom HCAD adapter | ✅ Complete *(needs live integration test)* |
+| `worker/src/adapters/tad-adapter.ts` | Tarrant County (Fort Worth) custom TAD adapter | ✅ Complete *(needs live integration test)* |
 | `worker/src/lib/county-fips.ts` | Texas county FIPS lookup table (all 254 counties) | ✅ Complete |
 | `worker/src/types/property-discovery.ts` | Phase 1 TypeScript types | ✅ Complete |
+| `__tests__/recon/phase1-discovery.test.ts` | 48 unit tests for address normalization, registry, and subdivision detection | ✅ Complete |
 
 ### API Endpoint
 
 `POST /research/discover` — live in `worker/src/index.ts`
 
-### Still Missing / Not Yet Built
+### Remaining Items Requiring Live Validation
+
+The following items are **code-complete** but require testing against live systems:
 
 | Item | Notes |
 |------|-------|
-| `worker/src/adapters/hcad-adapter.ts` | Harris County (Houston) custom CAD adapter — needed for statewide coverage |
-| `worker/src/adapters/tad-adapter.ts` | Tarrant County (Fort Worth) custom CAD adapter — needed for statewide coverage |
-| `GET /research/discover/:projectId` status endpoint | Phase 1 uses `/research/status/:projectId` instead |
+| HCAD adapter live test | Harris County HCAD portal selectors (`search_str`, `.searchResults tr`) must be verified against `https://public.hcad.org`. Site undergoes occasional redesigns. |
+| TAD adapter live test | Tarrant County TAD portal underwent a React redesign in late 2024.  Field names (`address`, `owner_name`) and result selectors (`.search-results-table tr`) must be verified. TAD may present a CAPTCHA for automated queries. |
+| `GET /research/discover/:projectId` status endpoint | Phase 1 currently uses `/research/status/:projectId` instead.  A dedicated Phase 1 status endpoint is not yet implemented. |
+| Integration test: Bell County (BIS) | `3779 FM 436, Belton TX 76513` → should return ASH FAMILY TRUST data within 15 seconds |
+| Integration test: Travis County (TrueAutomation) | Any Austin address → should return property data via `travis.trueautomation.com` |
+| Integration test: Williamson County (Tyler) | Any Williamson County address → should return property data via `search.wcad.org` |
+| Integration test: Harris County (HCAD) | Any Houston address → should return property data via `public.hcad.org` |
+
+### Subdivision Detection Bug Fixes (Applied March 2026)
+
+The following bugs were discovered and fixed in `worker/src/adapters/cad-adapter.ts`:
+
+1. **Block numbers were required to start with a digit** — `(\d+[A-Z]?)` was replaced with `(\w+)` to support letter-only block designators like "BLOCK A" (common in Texas plats).
+2. **No pattern for "LOT X, BLOCK Y, SUBDIVISION" order** — Added Pattern 1 (`^LOT\s+(\w+)\s*,?\s*(?:BLOCK|BLK)\s+(\w+)[,\s]+(.+)`) to handle lot-first legal descriptions.
+3. **"ACRES" was in the subdivision keyword list** — Removed "ACRES" from the `additionPattern` regex.  The word "ACRES" appears in nearly every metes-and-bounds legal description (e.g. "12.358 ACRES") and was incorrectly flagging standalone tracts as subdivisions.
 
 ### Notes on Legacy Files
 

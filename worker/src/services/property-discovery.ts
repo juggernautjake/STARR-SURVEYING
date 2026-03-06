@@ -21,10 +21,12 @@ import {
 } from './address-normalizer.js';
 import { getCADConfig, buildDetailUrl } from './cad-registry.js';
 import type { CADConfig } from './cad-registry.js';
-import { BISAdapter }           from '../adapters/bis-adapter.js';
-import { TylerAdapter }         from '../adapters/tyler-adapter.js';
-import { TrueAutomationAdapter }from '../adapters/trueautomation-adapter.js';
-import { GenericCADAdapter }    from '../adapters/generic-cad-adapter.js';
+import { BISAdapter }            from '../adapters/bis-adapter.js';
+import { TylerAdapter }          from '../adapters/tyler-adapter.js';
+import { TrueAutomationAdapter } from '../adapters/trueautomation-adapter.js';
+import { HCADAdapter }           from '../adapters/hcad-adapter.js';
+import { TADAdapter }            from '../adapters/tad-adapter.js';
+import { GenericCADAdapter }     from '../adapters/generic-cad-adapter.js';
 import type { CADAdapter, PropertyDetail, PropertySearchResult } from '../adapters/cad-adapter.js';
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -222,7 +224,10 @@ export class PropertyDiscoveryEngine {
       case 'bis':           return new BISAdapter(config);
       case 'tyler':         return new TylerAdapter(config);
       case 'trueautomation':return new TrueAutomationAdapter(config);
-      default:              return new BISAdapter(config); // BIS is the most common
+      case 'dcad':          return new TrueAutomationAdapter(config); // DCAD uses TrueAuto structure
+      case 'hcad':          return new HCADAdapter(config);           // Harris County custom portal
+      case 'tad':           return new TADAdapter(config);            // Tarrant County custom portal
+      default:              return new BISAdapter(config); // BIS is the most common vendor
     }
   }
 

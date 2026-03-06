@@ -163,51 +163,101 @@ export abstract class CADAdapter {
 
   // ── Subdivision detection ────────────────────────────────────────────────────
 
-  /** Analyse a legal description and detect subdivision membership. */
+  /**
+   * Analyse a legal description and detect subdivision membership.
+   *
+   * Texas legal descriptions appear in several formats.  We try patterns in
+   * order from most specific to least specific:
+   *
+   *   1. Lot-first:  "LOT X, BLOCK Y, SUBDIVISION NAME"
+   *   2. Sub-first:  "SUBDIVISION NAME, LOT X, BLOCK Y"
+   *   3. Lot-only:   "SUBDIVISION NAME, LOT X"
+   *   4. Sub-only:   "SUBDIVISION NAME" (ADDITION / ESTATES / HEIGHTS / etc.)
+   *   5. Reserve:    "RESERVE A" / "COMMON AREA" / "OPEN SPACE"
+   *
+   * Block numbers in Texas can be purely alphabetical (e.g. "BLOCK A"),
+   * numeric (e.g. "BLOCK 12"), or alphanumeric (e.g. "BLOCK 2A") — all forms
+   * are captured by `\w+`.
+   *
+   * NOTE: "ACRES" is intentionally excluded from the keyword pattern because
+   * metes-and-bounds tracts routinely contain phrases like "12.358 ACRES",
+   * which should NOT be flagged as subdivision membership.
+   */
   detectSubdivision(legalDesc: string): SubdivisionDetection {
-    const upper = legalDesc.toUpperCase();
+    if (!legalDesc) return { isSubdivision: false };
 
-    // Pattern: "SUBDIVISION_NAME, LOT X, BLOCK Y"
-    const lotBlockPattern =
-      /^(.+?),?\s+LOT\s+(\d+[A-Z]?)\s*,?\s*(?:BLOCK|BLK)\s+(\d+[A-Z]?)/i;
-    const lotMatch = upper.match(lotBlockPattern);
-    if (lotMatch) {
+    const upper = legalDesc.trim().toUpperCase();
+
+    // ── Pattern 1: "LOT X, BLOCK Y, SUBDIVISION NAME" (lot/block first) ────────
+    // e.g. "LOT 3, BLOCK B, CEDAR PARK HEIGHTS"
+    const lotFirstBlockPattern =
+      /^LOT\s+(\w+)\s*,?\s*(?:BLOCK|BLK)\s+(\w+)[,\s]+(.+)/i;
+    const lotFirstBlock = upper.match(lotFirstBlockPattern);
+    if (lotFirstBlock) {
       return {
-        isSubdivision: true,
-        subdivisionName: lotMatch[1].trim(),
-        lotNumber:       lotMatch[2],
-        blockNumber:     lotMatch[3],
+        isSubdivision:   true,
+        lotNumber:       lotFirstBlock[1],
+        blockNumber:     lotFirstBlock[2],
+        subdivisionName: lotFirstBlock[3].trim(),
       };
     }
 
-    // Pattern: "SUBDIVISION_NAME, LOT X" (no block)
-    const lotOnlyPattern = /^(.+?),?\s+LOT\s+(\d+[A-Z]?)/i;
-    const lotOnlyMatch = upper.match(lotOnlyPattern);
-    if (lotOnlyMatch) {
+    // ── Pattern 2: "LOT X, SUBDIVISION NAME" (lot first, no block) ─────────────
+    const lotFirstOnlyPattern = /^LOT\s+(\w+)[,\s]+(.+)/i;
+    const lotFirstOnly = upper.match(lotFirstOnlyPattern);
+    if (lotFirstOnly) {
       return {
-        isSubdivision: true,
-        subdivisionName: lotOnlyMatch[1].trim(),
-        lotNumber:       lotOnlyMatch[2],
+        isSubdivision:   true,
+        lotNumber:       lotFirstOnly[1],
+        subdivisionName: lotFirstOnly[2].trim(),
       };
     }
 
-    // Pattern: "X ACRE ADDITION" / "SUBDIVISION" / "ESTATES" etc.
+    // ── Pattern 3: "SUBDIVISION NAME, LOT X, BLOCK Y" (subdivision first) ──────
+    // Block numbers can be alphabetical (BLOCK A), numeric (BLOCK 12), or
+    // alphanumeric (BLOCK 2A) — `\w+` covers all cases.
+    const subFirstBlockPattern =
+      /^(.+?),?\s+LOT\s+(\w+)\s*,?\s*(?:BLOCK|BLK)\s+(\w+)/i;
+    const subFirstBlock = upper.match(subFirstBlockPattern);
+    if (subFirstBlock) {
+      return {
+        isSubdivision:   true,
+        subdivisionName: subFirstBlock[1].trim(),
+        lotNumber:       subFirstBlock[2],
+        blockNumber:     subFirstBlock[3],
+      };
+    }
+
+    // ── Pattern 4: "SUBDIVISION NAME, LOT X" (subdivision first, no block) ─────
+    const subFirstLotPattern = /^(.+?),?\s+LOT\s+(\w+)/i;
+    const subFirstLot = upper.match(subFirstLotPattern);
+    if (subFirstLot) {
+      return {
+        isSubdivision:   true,
+        subdivisionName: subFirstLot[1].trim(),
+        lotNumber:       subFirstLot[2],
+      };
+    }
+
+    // ── Pattern 5: Subdivision keyword (no explicit lot/block) ──────────────────
+    // Intentionally omits "ACRES" — a metes-and-bounds acreage description
+    // (e.g. "WILLIAM HARTRICK SURVEY, 12.358 ACRES") is NOT a subdivision.
     const additionPattern =
-      /(.+(?:ADDITION|SUBDIVISION|ESTATES|HEIGHTS|PARK|RANCH|ACRES))/i;
+      /(.+(?:ADDITION|SUBDIVISION|ESTATES|HEIGHTS|PARK|RANCH))/i;
     const addMatch = upper.match(additionPattern);
     if (addMatch) {
       return {
-        isSubdivision: true,
+        isSubdivision:   true,
         subdivisionName: addMatch[1].trim(),
       };
     }
 
-    // Pattern: "RESERVE A" / "COMMON AREA" / "OPEN SPACE"
+    // ── Pattern 6: Reserve / common area ────────────────────────────────────────
     if (/RESERVE\s+[A-Z]|COMMON\s+AREA|OPEN\s+SPACE/i.test(upper)) {
       return { isSubdivision: true };
     }
 
-    // Likely a standalone metes-and-bounds tract
+    // Likely a standalone metes-and-bounds tract (abstract/survey description)
     return { isSubdivision: false };
   }
 
