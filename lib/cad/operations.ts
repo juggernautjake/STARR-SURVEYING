@@ -349,3 +349,131 @@ export function zoomToSelection(): void {
   const bounds = computeBounds(pts);
   viewportStore.zoomToExtents(bounds, 0.15);
 }
+
+// ─────────────────────────────────────────────
+// Translate selection by exact world-unit offset
+// ─────────────────────────────────────────────
+export function translateSelection(dx: number, dy: number): void {
+  const selectionStore = useSelectionStore.getState();
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const ids = Array.from(selectionStore.selectedIds);
+  if (ids.length === 0) return;
+  const ops = ids
+    .map((id) => {
+      const f = drawingStore.getFeature(id);
+      if (!f) return null;
+      const newF = transformFeature(f, (p) => translate(p, dx, dy));
+      drawingStore.updateFeatureGeometry(id, newF.geometry);
+      return { type: 'MODIFY_FEATURE' as const, data: { id, before: f, after: newF } };
+    })
+    .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
+  if (ops.length > 0) undoStore.pushUndo(makeBatchEntry(`Move Δ(${dx.toFixed(2)}, ${dy.toFixed(2)})`, ops));
+}
+
+// ─────────────────────────────────────────────
+// Offset selection (creates parallel copy for lines/polylines)
+// ─────────────────────────────────────────────
+export function offsetSelectionByDistance(distance: number): void {
+  const selectionStore = useSelectionStore.getState();
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const ids = Array.from(selectionStore.selectedIds);
+  if (ids.length === 0 || distance === 0) return;
+
+  const addOps: { type: 'ADD_FEATURE'; data: Feature }[] = [];
+
+  for (const id of ids) {
+    const f = drawingStore.getFeature(id);
+    if (!f) continue;
+    const g = f.geometry;
+
+    let verts: Point2D[] | null = null;
+    if (g.type === 'LINE' && g.start && g.end) {
+      verts = [g.start, g.end];
+    } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices) {
+      verts = g.vertices;
+    }
+
+    if (!verts || verts.length < 2) continue;
+
+    const offsetVerts = offsetPolyline(verts, distance);
+    if (offsetVerts.length < 2) continue;
+
+    const newFeature: Feature = {
+      ...JSON.parse(JSON.stringify(f)),
+      id: generateId(),
+      geometry: {
+        ...f.geometry,
+        type: g.type === 'LINE' ? 'LINE' : g.type,
+        ...(g.type === 'LINE'
+          ? { start: offsetVerts[0], end: offsetVerts[1] }
+          : { vertices: offsetVerts }),
+      },
+    };
+    drawingStore.addFeature(newFeature);
+    addOps.push({ type: 'ADD_FEATURE', data: newFeature });
+  }
+
+  if (addOps.length > 0) {
+    undoStore.pushUndo(makeBatchEntry(`Offset ${distance > 0 ? '+' : ''}${distance.toFixed(2)}`, addOps));
+  }
+}
+
+// ─────────────────────────────────────────────
+// Align selection
+// ─────────────────────────────────────────────
+type AlignMode = 'LEFT' | 'RIGHT' | 'TOP' | 'BOTTOM' | 'CENTER_H' | 'CENTER_V';
+
+export function alignSelection(mode: AlignMode): void {
+  const selectionStore = useSelectionStore.getState();
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const ids = Array.from(selectionStore.selectedIds);
+  if (ids.length < 2) return;
+
+  const features = ids.map((id) => drawingStore.getFeature(id)).filter(Boolean) as Feature[];
+  const allPts = features.flatMap(getFeaturePoints);
+  const bounds = computeBounds(allPts);
+
+  let targetX: number | null = null;
+  let targetY: number | null = null;
+
+  switch (mode) {
+    case 'LEFT':   targetX = bounds.minX; break;
+    case 'RIGHT':  targetX = bounds.maxX; break;
+    case 'TOP':    targetY = bounds.maxY; break;
+    case 'BOTTOM': targetY = bounds.minY; break;
+    case 'CENTER_H': targetX = (bounds.minX + bounds.maxX) / 2; break;
+    case 'CENTER_V': targetY = (bounds.minY + bounds.maxY) / 2; break;
+  }
+
+  const ops = features
+    .map((f) => {
+      const pts = getFeaturePoints(f);
+      if (pts.length === 0) return null;
+      const fb = computeBounds(pts);
+      let dx = 0, dy = 0;
+      if (targetX !== null) {
+        switch (mode) {
+          case 'LEFT':     dx = targetX - fb.minX; break;
+          case 'RIGHT':    dx = targetX - fb.maxX; break;
+          case 'CENTER_H': dx = targetX - (fb.minX + fb.maxX) / 2; break;
+        }
+      }
+      if (targetY !== null) {
+        switch (mode) {
+          case 'BOTTOM':   dy = targetY - fb.minY; break;
+          case 'TOP':      dy = targetY - fb.maxY; break;
+          case 'CENTER_V': dy = targetY - (fb.minY + fb.maxY) / 2; break;
+        }
+      }
+      if (dx === 0 && dy === 0) return null;
+      const newF = transformFeature(f, (p) => translate(p, dx, dy));
+      drawingStore.updateFeatureGeometry(f.id, newF.geometry);
+      return { type: 'MODIFY_FEATURE' as const, data: { id: f.id, before: f, after: newF } };
+    })
+    .filter(Boolean) as { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[];
+
+  if (ops.length > 0) undoStore.pushUndo(makeBatchEntry(`Align ${mode}`, ops));
+}

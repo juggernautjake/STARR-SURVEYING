@@ -202,6 +202,16 @@ export default function CanvasViewport() {
     startWorld: Point2D;
     startOffset: Point2D;
   } | null>(null);
+  // Interactive rotate/scale mode — driven by cursor position
+  const interactiveOpRef = useRef<{
+    type: 'ROTATE' | 'SCALE';
+    pivot: Point2D;
+    originals: Map<string, Feature>;
+    /** For ROTATE: angle from pivot to cursor when mode was entered (radians) */
+    baseAngle: number;
+    /** For SCALE: distance from pivot to cursor when mode was entered (world units) */
+    baseDist: number;
+  } | null>(null);
   // Canvas pan in SELECT mode (click on empty space + drag)
   const selectPanRef = useRef(false);
   const [cursorStyle, setCursorStyle] = useState('crosshair');
@@ -214,6 +224,8 @@ export default function CanvasViewport() {
   const [textInputState, setTextInputState] = useState<{ sx: number; sy: number; wx: number; wy: number } | null>(null);
   // Label attribute editor state (double-click on a bearing/distance label)
   const [labelEditState, setLabelEditState] = useState<{ featureId: string; labelId: string; sx: number; sy: number } | null>(null);
+  // Interactive rotate/scale HUD: shows value near cursor during interactive op
+  const [interactiveHud, setInteractiveHud] = useState<{ sx: number; sy: number; value: string; type: 'ROTATE' | 'SCALE' } | null>(null);
 
   // Polyline group ID tracking — each new polyline drawing gets a fresh UUID
   const polylineGroupIdRef = useRef<string | null>(null);
@@ -2385,6 +2397,41 @@ export default function CanvasViewport() {
         return;
       }
 
+      // Commit interactive rotate/scale on left-click
+      if (interactiveOpRef.current) {
+        const op = interactiveOpRef.current;
+        const { wx: curWx, wy: curWy } = s2w(sx, sy);
+        const cursorVec = { x: curWx - op.pivot.x, y: curWy - op.pivot.y };
+        const ops: { type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }[] = [];
+
+        if (op.type === 'ROTATE') {
+          const currentAngle = Math.atan2(cursorVec.y, cursorVec.x);
+          const deltaAngle = currentAngle - op.baseAngle;
+          for (const [id, orig] of op.originals) {
+            const after = drawingStore.getFeature(id);
+            if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: orig, after } });
+          }
+          if (ops.length > 0) {
+            const deg = ((deltaAngle * 180) / Math.PI).toFixed(1);
+            undoStore.pushUndo(makeBatchEntry(`Rotate ${deg}°`, ops));
+          }
+        } else {
+          const curDist = Math.hypot(cursorVec.x, cursorVec.y);
+          const factor = op.baseDist > 0 ? curDist / op.baseDist : 1;
+          for (const [id, orig] of op.originals) {
+            const after = drawingStore.getFeature(id);
+            if (after) ops.push({ type: 'MODIFY_FEATURE', data: { id, before: orig, after } });
+          }
+          if (ops.length > 0) {
+            undoStore.pushUndo(makeBatchEntry(`Scale ×${factor.toFixed(3)}`, ops));
+          }
+        }
+        interactiveOpRef.current = null;
+        setInteractiveHud(null);
+        setCursorStyle(TOOL_CURSORS[activeTool] ?? 'default');
+        return;
+      }
+
       const worldPt = getSnappedWorld(sx, sy);
 
       // Check grip first (when SELECT tool active and something selected)
@@ -2955,6 +3002,36 @@ export default function CanvasViewport() {
           offset: { x: startOffset.x + dx, y: startOffset.y + dy },
           userPositioned: true,
         });
+        return;
+      }
+
+      // Interactive rotate/scale preview — cursor drives the transformation
+      if (interactiveOpRef.current) {
+        const op = interactiveOpRef.current;
+        const { wx: curWx, wy: curWy } = s2w(sx, sy);
+        const cursorVec = { x: curWx - op.pivot.x, y: curWy - op.pivot.y };
+
+        if (op.type === 'ROTATE') {
+          const currentAngle = Math.atan2(cursorVec.y, cursorVec.x);
+          const deltaAngle = currentAngle - op.baseAngle;
+          // Apply live rotation from originals
+          for (const [id, orig] of op.originals) {
+            const newF = transformFeature(orig, (p) => rotate(p, op.pivot, deltaAngle));
+            drawingStore.updateFeatureGeometry(id, newF.geometry);
+          }
+          const deg = ((deltaAngle * 180) / Math.PI).toFixed(1);
+          setInteractiveHud({ sx: sx + 14, sy: sy - 18, value: `${deg}°`, type: 'ROTATE' });
+        } else {
+          const curDist = Math.hypot(cursorVec.x, cursorVec.y);
+          const factor = op.baseDist > 0 ? curDist / op.baseDist : 1;
+          // Apply live scale from originals
+          for (const [id, orig] of op.originals) {
+            const newF = transformFeature(orig, (p) => scale(p, op.pivot, factor));
+            drawingStore.updateFeatureGeometry(id, newF.geometry);
+          }
+          setInteractiveHud({ sx: sx + 14, sy: sy - 18, value: `×${factor.toFixed(3)}`, type: 'SCALE' });
+        }
+        setCursorStyle('crosshair');
         return;
       }
 
@@ -3580,6 +3657,119 @@ export default function CanvasViewport() {
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:rotate', onRotate);
     window.addEventListener('cad:scale', onScale);
+
+    // ── Interactive rotate: cursor drives rotation in real-time ────────────
+    const onStartInteractiveRotate = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { pivot?: Point2D } | undefined;
+      const selStore = useSelectionStore.getState();
+      const dwgStore = useDrawingStore.getState();
+      const ids = Array.from(selStore.selectedIds);
+      if (ids.length === 0) return;
+
+      // Compute pivot (provided or bounding-box centroid)
+      let pivot: Point2D = detail?.pivot ?? { x: 0, y: 0 };
+      if (!detail?.pivot) {
+        const allPts: Point2D[] = [];
+        for (const id of ids) {
+          const f = dwgStore.getFeature(id);
+          if (f) {
+            const g = f.geometry;
+            if (g.type === 'POINT' && g.point) allPts.push(g.point);
+            else if (g.type === 'LINE') { if (g.start) allPts.push(g.start); if (g.end) allPts.push(g.end); }
+            else if (g.vertices) allPts.push(...g.vertices);
+            else if (g.circle) allPts.push(g.circle.center);
+            else if (g.ellipse) allPts.push(g.ellipse.center);
+            else if (g.arc) allPts.push(g.arc.center);
+            else if (g.spline) allPts.push(...g.spline.controlPoints);
+            else if (g.point) allPts.push(g.point);
+          }
+        }
+        if (allPts.length > 0) {
+          const bounds = computeBounds(allPts);
+          pivot = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
+        }
+      }
+
+      // Snapshot originals
+      const originals = new Map<string, Feature>();
+      for (const id of ids) {
+        const f = dwgStore.getFeature(id);
+        if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
+      }
+
+      // Compute base angle from pivot to current cursor (world)
+      const cursorWorld = useViewportStore.getState().cursorWorld ?? pivot;
+      const baseAngle = Math.atan2(cursorWorld.y - pivot.y, cursorWorld.x - pivot.x);
+
+      interactiveOpRef.current = { type: 'ROTATE', pivot, originals, baseAngle, baseDist: 0 };
+      setCursorStyle('crosshair');
+    };
+
+    // ── Interactive scale: cursor distance from center drives scale ─────────
+    const onStartInteractiveScale = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { pivot?: Point2D } | undefined;
+      const selStore = useSelectionStore.getState();
+      const dwgStore = useDrawingStore.getState();
+      const ids = Array.from(selStore.selectedIds);
+      if (ids.length === 0) return;
+
+      let pivot: Point2D = detail?.pivot ?? { x: 0, y: 0 };
+      if (!detail?.pivot) {
+        const allPts: Point2D[] = [];
+        for (const id of ids) {
+          const f = dwgStore.getFeature(id);
+          if (f) {
+            const g = f.geometry;
+            if (g.type === 'POINT' && g.point) allPts.push(g.point);
+            else if (g.type === 'LINE') { if (g.start) allPts.push(g.start); if (g.end) allPts.push(g.end); }
+            else if (g.vertices) allPts.push(...g.vertices);
+            else if (g.circle) allPts.push(g.circle.center);
+            else if (g.ellipse) allPts.push(g.ellipse.center);
+            else if (g.arc) allPts.push(g.arc.center);
+            else if (g.spline) allPts.push(...g.spline.controlPoints);
+            else if (g.point) allPts.push(g.point);
+          }
+        }
+        if (allPts.length > 0) {
+          const bounds = computeBounds(allPts);
+          pivot = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
+        }
+      }
+
+      const originals = new Map<string, Feature>();
+      for (const id of ids) {
+        const f = dwgStore.getFeature(id);
+        if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
+      }
+
+      // Base distance = distance from pivot to current cursor (world)
+      const cursorWorld = useViewportStore.getState().cursorWorld ?? pivot;
+      const baseDist = Math.hypot(cursorWorld.x - pivot.x, cursorWorld.y - pivot.y);
+
+      interactiveOpRef.current = { type: 'SCALE', pivot, originals, baseAngle: 0, baseDist: Math.max(baseDist, 0.001) };
+      setCursorStyle('crosshair');
+    };
+
+    // ── Escape: cancel interactive op ──────────────────────────────────────
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (interactiveOpRef.current) {
+        // Restore originals
+        const dwgStore = useDrawingStore.getState();
+        for (const [id, orig] of interactiveOpRef.current.originals) {
+          dwgStore.updateFeatureGeometry(id, orig.geometry);
+        }
+        interactiveOpRef.current = null;
+        setInteractiveHud(null);
+        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        e.stopPropagation();
+      }
+    };
+
+    window.addEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
+    window.addEventListener('cad:startInteractiveScale', onStartInteractiveScale);
+    window.addEventListener('keydown', onEscape);
+
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -3587,6 +3777,9 @@ export default function CanvasViewport() {
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:rotate', onRotate);
       window.removeEventListener('cad:scale', onScale);
+      window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
+      window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
+      window.removeEventListener('keydown', onEscape);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolStore]);
