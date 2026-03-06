@@ -388,6 +388,82 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
           icon: <EyeOff size={12} />,
           action: hideSelectionLayer,
         },
+        {
+          id: 'layerPrefs',
+          label: 'Layer Preferences',
+          icon: <Layers size={12} />,
+          action: () => {
+            const sel = Array.from(selectionStore.selectedIds);
+            const firstFeature = sel.length > 0 ? drawingStore.getFeature(sel[0]) : null;
+            if (firstFeature) {
+              window.dispatchEvent(
+                new CustomEvent('cad:openLayerPrefs', { detail: { layerId: firstFeature.layerId } }),
+              );
+            }
+            onClose();
+          },
+        },
+        {
+          id: 'hideElement',
+          label: selCount > 1 ? `Hide Elements (${selCount})` : 'Hide Element',
+          icon: <EyeOff size={12} />,
+          action: () => {
+            const ids = Array.from(selectionStore.selectedIds);
+            ids.forEach((id) => drawingStore.hideFeature(id));
+            selectionStore.clear();
+            onClose();
+          },
+        },
+        ...((() => {
+          // Show "Hide Labels" option if selected feature(s) have visible labels
+          const selFeatures = Array.from(selectionStore.selectedIds)
+            .map((id) => drawingStore.getFeature(id))
+            .filter(Boolean);
+          const hasLabels = selFeatures.some((f) => f!.textLabels?.some((l) => l.visible));
+          if (!hasLabels) return [];
+          return [{
+            id: 'hideLabels',
+            label: 'Hide All Labels',
+            icon: <EyeOff size={12} />,
+            action: () => {
+              for (const f of selFeatures) {
+                if (!f) continue;
+                const labels = f.textLabels ?? [];
+                for (const l of labels) {
+                  if (l.visible) {
+                    drawingStore.updateTextLabel(f.id, l.id, { visible: false });
+                  }
+                }
+              }
+              onClose();
+            },
+          } as MenuItemDef];
+        })()),
+        ...((() => {
+          // Show "Show All Labels" option if selected feature(s) have hidden labels
+          const selFeatures = Array.from(selectionStore.selectedIds)
+            .map((id) => drawingStore.getFeature(id))
+            .filter(Boolean);
+          const hasHiddenLabels = selFeatures.some((f) => f!.textLabels?.some((l) => !l.visible));
+          if (!hasHiddenLabels) return [];
+          return [{
+            id: 'showLabels',
+            label: 'Show All Labels',
+            icon: <ZoomIn size={12} />,
+            action: () => {
+              for (const f of selFeatures) {
+                if (!f) continue;
+                const labels = f.textLabels ?? [];
+                for (const l of labels) {
+                  if (!l.visible) {
+                    drawingStore.updateTextLabel(f.id, l.id, { visible: true });
+                  }
+                }
+              }
+              onClose();
+            },
+          } as MenuItemDef];
+        })()),
         { separator: true, id: 's4' },
         {
           id: 'delete',

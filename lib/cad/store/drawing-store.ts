@@ -1,6 +1,6 @@
 // lib/cad/store/drawing-store.ts — Central store for all drawing data
 import { create } from 'zustand';
-import type { DrawingDocument, Feature, Layer, DrawingSettings } from '../types';
+import type { DrawingDocument, Feature, Layer, DrawingSettings, TextLabel, LayerDisplayPreferences } from '../types';
 import { generateId } from '../types';
 import { DEFAULT_DRAWING_SETTINGS } from '../constants';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
@@ -57,6 +57,18 @@ interface DrawingStore {
   updateSettings: (settings: Partial<DrawingSettings>) => void;
   updateGlobalStyleConfig: (config: Partial<import('../styles/types').GlobalStyleConfig>) => void;
   markClean: () => void;
+
+  // Layer display preferences
+  updateLayerDisplayPreferences: (layerId: string, prefs: Partial<LayerDisplayPreferences>) => void;
+
+  // Text label actions
+  updateTextLabel: (featureId: string, labelId: string, updates: Partial<TextLabel>) => void;
+  setFeatureTextLabels: (featureId: string, labels: TextLabel[]) => void;
+
+  // Hidden element actions
+  hideFeature: (featureId: string) => void;
+  unhideFeature: (featureId: string) => void;
+  getHiddenFeatures: () => Feature[];
 
   // Queries
   getFeature: (id: string) => Feature | undefined;
@@ -248,6 +260,100 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       isDirty: true,
     })),
 
+  updateLayerDisplayPreferences: (layerId, prefs) =>
+    set((state) => {
+      const layer = state.document.layers[layerId];
+      if (!layer) return state;
+      return {
+        document: {
+          ...state.document,
+          layers: {
+            ...state.document.layers,
+            [layerId]: {
+              ...layer,
+              displayPreferences: { ...(layer.displayPreferences ?? {}), ...prefs } as LayerDisplayPreferences,
+            },
+          },
+          modified: new Date().toISOString(),
+        },
+        isDirty: true,
+      };
+    }),
+
+  updateTextLabel: (featureId, labelId, updates) =>
+    set((state) => {
+      const feature = state.document.features[featureId];
+      if (!feature) return state;
+      const labels = (feature.textLabels ?? []).map((l) =>
+        l.id === labelId ? { ...l, ...updates } : l,
+      );
+      return {
+        document: {
+          ...state.document,
+          features: {
+            ...state.document.features,
+            [featureId]: { ...feature, textLabels: labels },
+          },
+          modified: new Date().toISOString(),
+        },
+        isDirty: true,
+      };
+    }),
+
+  setFeatureTextLabels: (featureId, labels) =>
+    set((state) => {
+      const feature = state.document.features[featureId];
+      if (!feature) return state;
+      return {
+        document: {
+          ...state.document,
+          features: {
+            ...state.document.features,
+            [featureId]: { ...feature, textLabels: labels },
+          },
+          modified: new Date().toISOString(),
+        },
+        isDirty: true,
+      };
+    }),
+
+  hideFeature: (featureId) =>
+    set((state) => {
+      const feature = state.document.features[featureId];
+      if (!feature) return state;
+      return {
+        document: {
+          ...state.document,
+          features: {
+            ...state.document.features,
+            [featureId]: { ...feature, hidden: true },
+          },
+          modified: new Date().toISOString(),
+        },
+        isDirty: true,
+      };
+    }),
+
+  unhideFeature: (featureId) =>
+    set((state) => {
+      const feature = state.document.features[featureId];
+      if (!feature) return state;
+      return {
+        document: {
+          ...state.document,
+          features: {
+            ...state.document.features,
+            [featureId]: { ...feature, hidden: false },
+          },
+          modified: new Date().toISOString(),
+        },
+        isDirty: true,
+      };
+    }),
+
+  getHiddenFeatures: () =>
+    Object.values(get().document.features).filter((f) => f.hidden === true),
+
   markClean: () => set({ isDirty: false }),
 
   getFeature: (id) => get().document.features[id],
@@ -260,7 +366,7 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
   getVisibleFeatures: () => {
     const { document } = get();
     return Object.values(document.features).filter(
-      (f) => document.layers[f.layerId]?.visible !== false,
+      (f) => document.layers[f.layerId]?.visible !== false && f.hidden !== true,
     );
   },
 

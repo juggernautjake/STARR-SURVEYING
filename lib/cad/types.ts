@@ -168,6 +168,11 @@ export interface Feature {
   layerId: string;
   style: FeatureStyle;
   properties: Record<string, string | number | boolean>;
+
+  /** Text labels generated from layer display preferences. */
+  textLabels?: TextLabel[];
+  /** Hidden by user (right-click hide). Feature still exists but is not rendered. */
+  hidden?: boolean;
 }
 
 export interface FeatureGeometry {
@@ -212,6 +217,9 @@ export interface Layer {
   isProtected: boolean;
   autoAssignCodes: string[];
   featureCount?: number;
+
+  /** Per-layer display preferences for attribute labels. */
+  displayPreferences?: LayerDisplayPreferences;
 }
 
 // --- SNAP ---
@@ -487,6 +495,110 @@ export interface PointGroup {
   calcFoundDelta: number | null;
   hasBothCalcAndField: boolean;
   deltaWarning: boolean;
+}
+
+// ─── TEXT LABEL STYLE ───
+
+/** Font/style configuration for text labels displayed on the canvas. */
+export interface TextLabelStyle {
+  fontFamily: string;        // e.g. 'Arial', 'Courier New', 'serif'
+  fontSize: number;          // Points (default 10)
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
+  color: string | null;      // null = inherit layer color
+  backgroundColor: string | null; // null = transparent
+  borderColor: string | null;
+  padding: number;           // px around text (default 2)
+}
+
+/** A moveable text annotation tied to a specific feature element. */
+export interface TextLabel {
+  id: string;
+  featureId: string;          // The feature this label describes
+  kind: TextLabelKind;        // What attribute the label shows
+  text: string;               // Current rendered text content
+  /** Position offset from the anchor point in world units. */
+  offset: Point2D;
+  /** Rotation in radians. null = auto-orient along line. */
+  rotation: number | null;
+  style: TextLabelStyle;
+  visible: boolean;           // false = hidden by user
+  /** Scale multiplier for resizing (default 1). */
+  scale: number;
+  /** Whether the user has manually repositioned this label. */
+  userPositioned: boolean;
+}
+
+export type TextLabelKind =
+  | 'BEARING'
+  | 'DISTANCE'
+  | 'AREA'
+  | 'POINT_NAME'
+  | 'POINT_DESCRIPTION'
+  | 'POINT_ELEVATION'
+  | 'POINT_COORDINATES'
+  | 'LINE_LENGTH'
+  | 'PERIMETER'
+  | 'CUSTOM';
+
+// ─── LAYER DISPLAY PREFERENCES ───
+
+/**
+ * Per-layer display preferences controlling which attribute labels are shown
+ * and how they are styled for all features on that layer.
+ */
+export interface LayerDisplayPreferences {
+  // ── What to show on lines ──
+  showBearings: boolean;
+  showDistances: boolean;
+  showLineLabels: boolean;
+
+  // ── What to show on points ──
+  showPointNames: boolean;
+  showPointDescriptions: boolean;
+  showPointElevations: boolean;
+  showPointCoordinates: boolean;
+
+  // ── What to show on closed shapes / polygons ──
+  showArea: boolean;
+  showPerimeter: boolean;
+
+  // ── Text style defaults for this layer's labels ──
+  bearingTextStyle: TextLabelStyle;
+  distanceTextStyle: TextLabelStyle;
+  areaTextStyle: TextLabelStyle;
+  pointNameTextStyle: TextLabelStyle;
+  pointDescriptionTextStyle: TextLabelStyle;
+  pointElevationTextStyle: TextLabelStyle;
+  pointCoordinateTextStyle: TextLabelStyle;
+
+  // ── Point label positioning ──
+  /** Offset of point labels from point center in world units. */
+  pointLabelOffset: Point2D;
+  /** Whether point labels should auto-rotate (default false = upright). */
+  pointLabelAutoRotate: boolean;
+
+  // ── Line label positioning ──
+  /** Gap between bearing text and line in world units. */
+  bearingTextGap: number;
+  /** Gap between distance text and line in world units. */
+  distanceTextGap: number;
+
+  // ── Per-layer format overrides (null = inherit from drawing-level preferences) ──
+  /** Override the bearing format for this layer (null = use drawing default). */
+  bearingFormatOverride: BearingFormat | null;
+  /** Override the angle format for this layer. */
+  angleFormatOverride: AngleFormat | null;
+  /** Override the linear unit for this layer. */
+  linearUnitOverride: LinearUnit | null;
+  /** Override the linear format for this layer. */
+  linearFormatOverride: LinearFormat | null;
+  /** Override the decimal places for this layer. */
+  linearDecimalPlacesOverride: number | null;
+  /** Override the area unit for this layer. */
+  areaUnitOverride: AreaUnit | null;
+  /** Override the coordinate mode for this layer. */
+  coordModeOverride: CoordMode | null;
 }
 
 // ─── PHASE 4: GEOMETRY TYPES ───

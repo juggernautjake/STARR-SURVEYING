@@ -1,5 +1,5 @@
 // lib/cad/constants.ts — Default values for the Starr CAD engine
-import type { DrawingSettings, FeatureStyle, SnapType, DisplayPreferences } from './types';
+import type { DrawingSettings, FeatureStyle, SnapType, DisplayPreferences, LayerDisplayPreferences, TextLabelStyle } from './types';
 import { PHASE3_DEFAULT_LAYERS } from './styles/default-layers';
 
 export { PHASE3_DEFAULT_LAYERS as DEFAULT_LAYERS };
@@ -86,6 +86,56 @@ export const DEFAULT_FEATURE_STYLE: FeatureStyle = {
   labelFormat: null,
   labelOffset: { x: 0, y: 0 },
   isOverride: false,
+};
+
+/** Default text style used for all label kinds unless overridden. */
+export const DEFAULT_TEXT_LABEL_STYLE: TextLabelStyle = {
+  fontFamily: 'Arial',
+  fontSize: 10,
+  fontWeight: 'normal',
+  fontStyle: 'normal',
+  color: null,           // inherit layer color
+  backgroundColor: null, // transparent
+  borderColor: null,
+  padding: 2,
+};
+
+/** Default layer display preferences — everything off until the user opts in. */
+export const DEFAULT_LAYER_DISPLAY_PREFERENCES: LayerDisplayPreferences = {
+  showBearings: false,
+  showDistances: false,
+  showLineLabels: false,
+
+  showPointNames: false,
+  showPointDescriptions: false,
+  showPointElevations: false,
+  showPointCoordinates: false,
+
+  showArea: false,
+  showPerimeter: false,
+
+  bearingTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE },
+  distanceTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE },
+  areaTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 12, fontWeight: 'bold' },
+  pointNameTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontWeight: 'bold' },
+  pointDescriptionTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE },
+  pointElevationTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 9 },
+  pointCoordinateTextStyle: { ...DEFAULT_TEXT_LABEL_STYLE, fontSize: 9, fontFamily: 'Courier New' },
+
+  pointLabelOffset: { x: 5, y: -5 },  // slightly right and below point
+  pointLabelAutoRotate: false,
+
+  bearingTextGap: 3,
+  distanceTextGap: 3,
+
+  // Per-layer format overrides — null = inherit from drawing-level preferences
+  bearingFormatOverride: null,
+  angleFormatOverride: null,
+  linearUnitOverride: null,
+  linearFormatOverride: null,
+  linearDecimalPlacesOverride: null,
+  areaUnitOverride: null,
+  coordModeOverride: null,
 };
 
 export const SNAP_INDICATOR_STYLES: Record<SnapType, { shape: string; color: string }> = {

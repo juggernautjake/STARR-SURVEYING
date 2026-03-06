@@ -18,9 +18,10 @@ import { boundsContains, boundsOverlap } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point';
 import { translate, rotate, mirror, scale, transformFeature } from '@/lib/cad/geometry/transform';
 import { generateId } from '@/lib/cad/types';
-import type { Feature, Point2D, BoundingBox, FeatureType } from '@/lib/cad/types';
-import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel } from '@/lib/cad/types';
+import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
+import { inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import { cadLog } from '@/lib/cad/logger';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
@@ -120,16 +121,20 @@ export default function CanvasViewport() {
     paperLayer: import('pixi.js').Container;
     gridLayer: import('pixi.js').Container;
     featureLayer: import('pixi.js').Container;
+    labelLayer: import('pixi.js').Container;
     selectionLayer: import('pixi.js').Container;
     snapLayer: import('pixi.js').Container;
     toolPreviewLayer: import('pixi.js').Container;
     featureGraphics: Map<string, import('pixi.js').Graphics>;
+    labelTexts: Map<string, import('pixi.js').Text>;
     paperGraphics: import('pixi.js').Graphics;
     gridGraphics: import('pixi.js').Graphics;
     selectionGraphics: import('pixi.js').Graphics;
     snapGraphics: import('pixi.js').Graphics;
     previewGraphics: import('pixi.js').Graphics;
     GraphicsClass: new () => import('pixi.js').Graphics;
+    TextClass: new (text: string, style?: import('pixi.js').TextStyle | Partial<import('pixi.js').ITextStyle>) => import('pixi.js').Text;
+    TextStyleClass: new (style?: Partial<import('pixi.js').ITextStyle>) => import('pixi.js').TextStyle;
   } | null>(null);
 
   const drawingStore = useDrawingStore();
@@ -158,6 +163,13 @@ export default function CanvasViewport() {
     featureIds: string[];
     startWorld: Point2D;
     originals: Map<string, Feature>;
+  } | null>(null);
+  // Text label drag tracking
+  const labelDragRef = useRef<{
+    featureId: string;
+    labelId: string;
+    startWorld: Point2D;
+    startOffset: Point2D;
   } | null>(null);
   // Canvas pan in SELECT mode (click on empty space + drag)
   const selectPanRef = useRef(false);
@@ -220,11 +232,12 @@ export default function CanvasViewport() {
         const paperLayer = new PIXI.Container();
         const gridLayer = new PIXI.Container();
         const featureLayer = new PIXI.Container();
+        const labelLayer = new PIXI.Container();
         const selectionLayer = new PIXI.Container();
         const snapLayer = new PIXI.Container();
         const toolPreviewLayer = new PIXI.Container();
 
-        app.stage.addChild(paperLayer, gridLayer, featureLayer, selectionLayer, snapLayer, toolPreviewLayer);
+        app.stage.addChild(paperLayer, gridLayer, featureLayer, labelLayer, selectionLayer, snapLayer, toolPreviewLayer);
 
         const paperGraphics = new PIXI.Graphics();
         paperLayer.addChild(paperGraphics);
@@ -246,16 +259,20 @@ export default function CanvasViewport() {
           paperLayer,
           gridLayer,
           featureLayer,
+          labelLayer,
           selectionLayer,
           snapLayer,
           toolPreviewLayer,
           featureGraphics: new Map(),
+          labelTexts: new Map(),
           paperGraphics,
           gridGraphics,
           selectionGraphics,
           snapGraphics,
           previewGraphics,
           GraphicsClass: PIXI.Graphics,
+          TextClass: PIXI.Text,
+          TextStyleClass: PIXI.TextStyle,
         };
 
         viewportStore.setScreenSize(width, height);
@@ -588,6 +605,139 @@ export default function CanvasViewport() {
         }
         g.closePath();
         break;
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Render: Text Labels (bearings, distances, areas, names, etc.)
+  // ─────────────────────────────────────────────
+  function renderLabels() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+
+    const visibleFeatures = drawingStore.getVisibleFeatures();
+    const activeLabelIds = new Set<string>();
+    const zoom = viewportStore.zoom;
+    const doc = drawingStore.document;
+
+    for (const feature of visibleFeatures) {
+      const labels = feature.textLabels;
+      if (!labels || labels.length === 0) continue;
+
+      const layer = doc.layers[feature.layerId];
+      if (!layer) continue;
+
+      const geom = feature.geometry;
+
+      for (let li = 0; li < labels.length; li++) {
+        const label = labels[li];
+        if (!label.visible) continue;
+
+        const labelKey = `${feature.id}:${label.id}`;
+        activeLabelIds.add(labelKey);
+
+        // Compute anchor position in world coordinates based on label kind and feature geometry
+        let anchorWorld: Point2D = { x: 0, y: 0 };
+        let segmentIndex = -1;
+
+        if (label.kind === 'POINT_NAME' || label.kind === 'POINT_DESCRIPTION' ||
+            label.kind === 'POINT_ELEVATION' || label.kind === 'POINT_COORDINATES') {
+          if (geom.point) {
+            anchorWorld = geom.point;
+          }
+        } else if (label.kind === 'BEARING' || label.kind === 'DISTANCE') {
+          if (geom.type === 'LINE' && geom.start && geom.end) {
+            anchorWorld = {
+              x: (geom.start.x + geom.end.x) / 2,
+              y: (geom.start.y + geom.end.y) / 2,
+            };
+          } else if ((geom.type === 'POLYLINE' || geom.type === 'POLYGON') && geom.vertices) {
+            // Find which segment this label belongs to (use li as segment proxy for bearing/distance pairs)
+            const bearingLabels = labels.filter((l) => l.kind === 'BEARING');
+            const distLabels = labels.filter((l) => l.kind === 'DISTANCE');
+            if (label.kind === 'BEARING') {
+              segmentIndex = bearingLabels.indexOf(label);
+            } else {
+              segmentIndex = distLabels.indexOf(label);
+            }
+            const verts = geom.vertices;
+            const maxSeg = geom.type === 'POLYGON' ? verts.length : verts.length - 1;
+            if (segmentIndex >= 0 && segmentIndex < maxSeg) {
+              const from = verts[segmentIndex];
+              const to = verts[(segmentIndex + 1) % verts.length];
+              anchorWorld = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+            }
+          }
+        } else if (label.kind === 'AREA' || label.kind === 'PERIMETER') {
+          if (geom.vertices && geom.vertices.length >= 3) {
+            const cx = geom.vertices.reduce((s, v) => s + v.x, 0) / geom.vertices.length;
+            const cy = geom.vertices.reduce((s, v) => s + v.y, 0) / geom.vertices.length;
+            anchorWorld = { x: cx, y: cy };
+          }
+        }
+
+        // Convert anchor to screen
+        const { sx: ax, sy: ay } = w2s(anchorWorld.x, anchorWorld.y);
+        // Apply offset (in screen pixels)
+        const offsetScale = label.userPositioned ? 1 : label.scale;
+        const finalX = ax + label.offset.x * offsetScale;
+        const finalY = ay + label.offset.y * offsetScale;
+
+        // Get or create text object
+        let textObj = pixi.labelTexts.get(labelKey);
+        const textColor = label.style.color ?? layer.color ?? '#000000';
+        const fontSize = Math.max(6, label.style.fontSize * label.scale);
+
+        if (!textObj) {
+          const style = new pixi.TextStyleClass({
+            fontFamily: label.style.fontFamily,
+            fontSize,
+            fontWeight: label.style.fontWeight,
+            fontStyle: label.style.fontStyle,
+            fill: textColor,
+            align: 'center',
+          });
+          textObj = new pixi.TextClass(label.text, style);
+          textObj.anchor.set(0.5, 0.5);
+          pixi.labelTexts.set(labelKey, textObj);
+          pixi.labelLayer.addChild(textObj);
+        } else {
+          // Update existing text
+          if (textObj.text !== label.text) textObj.text = label.text;
+          const s = textObj.style as import('pixi.js').TextStyle;
+          s.fontFamily = label.style.fontFamily;
+          s.fontSize = fontSize;
+          s.fontWeight = label.style.fontWeight;
+          s.fontStyle = label.style.fontStyle;
+          s.fill = textColor;
+        }
+
+        textObj.position.set(finalX, finalY);
+
+        // Rotation: for line labels, orient along line direction
+        if (label.rotation !== null) {
+          // PixiJS rotation is clockwise, and our y-axis is inverted (screen),
+          // so negate the rotation to match world orientation
+          textObj.rotation = -label.rotation;
+        } else {
+          textObj.rotation = 0;
+        }
+
+        textObj.alpha = layer.opacity;
+        textObj.visible = true;
+
+        // Add background if specified
+        // (background rendering is handled via the text's own properties for simplicity)
+      }
+    }
+
+    // Remove label texts that are no longer active
+    for (const [key, textObj] of pixi.labelTexts) {
+      if (!activeLabelIds.has(key)) {
+        pixi.labelLayer.removeChild(textObj);
+        textObj.destroy();
+        pixi.labelTexts.delete(key);
       }
     }
   }
@@ -1160,6 +1310,7 @@ export default function CanvasViewport() {
     renderPaper();
     renderGrid();
     renderFeatures();
+    renderLabels();
     renderSelection();
     renderSnapIndicator();
     renderToolPreview();
@@ -1209,6 +1360,25 @@ export default function CanvasViewport() {
         }
         // Check interior
         if (pointInPolygon({ x: wx, y: wy }, geom.vertices)) return feature.id;
+      }
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────
+  // Hit test: Text labels
+  // ─────────────────────────────────────────────
+  function hitTestLabel(sx: number, sy: number): { featureId: string; labelId: string } | null {
+    const pixi = pixiRef.current;
+    if (!pixi) return null;
+
+    for (const [key, textObj] of pixi.labelTexts) {
+      if (!textObj.visible) continue;
+      const bounds = textObj.getBounds();
+      if (sx >= bounds.x && sx <= bounds.x + bounds.width &&
+          sy >= bounds.y && sy <= bounds.y + bounds.height) {
+        const [featureId, labelId] = key.split(':');
+        return { featureId, labelId };
       }
     }
     return null;
@@ -1546,6 +1716,24 @@ export default function CanvasViewport() {
 
       switch (activeTool) {
         case 'SELECT': {
+          // Check label hit first — labels are on top of features visually
+          const labelHit = hitTestLabel(sx, sy);
+          if (labelHit) {
+            const feature = drawingStore.getFeature(labelHit.featureId);
+            const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
+            if (feature && label) {
+              const { wx, wy } = s2w(sx, sy);
+              labelDragRef.current = {
+                featureId: labelHit.featureId,
+                labelId: labelHit.labelId,
+                startWorld: { x: wx, y: wy },
+                startOffset: { ...label.offset },
+              };
+              setCursorStyle('grabbing');
+              return;
+            }
+          }
+
           const hit = hitTest(sx, sy);
           if (hit) {
             clickHitFeatureRef.current = true;
@@ -2011,6 +2199,19 @@ export default function CanvasViewport() {
 
       const worldPt = getSnappedWorld(sx, sy);
 
+      // Label drag update
+      if (labelDragRef.current) {
+        const { featureId, labelId, startWorld, startOffset } = labelDragRef.current;
+        const { wx, wy } = s2w(sx, sy);
+        const dx = wx - startWorld.x;
+        const dy = wy - startWorld.y;
+        drawingStore.updateTextLabel(featureId, labelId, {
+          offset: { x: startOffset.x + dx, y: startOffset.y + dy },
+          userPositioned: true,
+        });
+        return;
+      }
+
       // Grip drag update
       if (gripDragRef.current) {
         const { featureId, vertexIndex } = gripDragRef.current;
@@ -2201,6 +2402,13 @@ export default function CanvasViewport() {
       if (toolState.activeTool === 'PAN') {
         isPanningRef.current = false;
         setCursorStyle('grab');
+        return;
+      }
+
+      // Commit label drag
+      if (labelDragRef.current) {
+        labelDragRef.current = null;
+        setCursorStyle(TOOL_CURSORS[toolState.activeTool] ?? 'default');
         return;
       }
 
