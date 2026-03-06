@@ -27,24 +27,37 @@ export class SubdivisionClassifier {
       amendments: [],
     };
 
-    // Ordered list of patterns — first match wins
+    // Ordered list of patterns — first match wins.
+    // Texas legal descriptions typically use "LOT X, BLOCK Y, SUBDIVISION NAME" format,
+    // but the LOT/BLOCK may appear at the beginning or after the subdivision name.
+    // Priority: replat/amended/vacating > lot-in-subdivision > phased development > named subdivision
     const subdivisionPatterns: {
       pattern: RegExp;
       type: SubdivisionClassification;
     }[] = [
-      { pattern: /^(.+?)\s*,?\s*LOT\s+(\d+[A-Z]?)\s*,?\s*(?:BLOCK|BLK)\s+(\d+[A-Z]?)/, type: 'lot_in_subdivision' },
-      { pattern: /^(.+?)\s*,?\s*LOT\s+(\d+[A-Z]?)(?:\s*$|\s*,)/, type: 'lot_in_subdivision' },
+      // Explicit document type overrides — highest priority
       { pattern: /REPLAT\s+OF\s+(.+)/i, type: 'replat' },
       { pattern: /AMENDED\s+PLAT\s+OF\s+(.+)/i, type: 'amended_plat' },
       { pattern: /VACATING\s+PLAT/i, type: 'vacating_plat' },
+      // Lot-in-subdivision: LOT may appear before OR after subdivision name
+      // "LOT 3, BLOCK 2, CEDAR RIDGE SUBDIVISION" — LOT first
+      { pattern: /^LOT\s+(\d+[A-Z]?)\s*,?\s*(?:BLOCK|BLK)\s+(\d+[A-Z]?)/, type: 'lot_in_subdivision' },
+      // "CEDAR RIDGE SUBDIVISION, LOT 3, BLOCK 2" — LOT after name
+      { pattern: /^(.+?)\s*,\s*LOT\s+(\d+[A-Z]?)\s*,?\s*(?:BLOCK|BLK)\s+(\d+[A-Z]?)/, type: 'lot_in_subdivision' },
+      // Lot without block: "LOT 12A, SUNDOWN ADDITION" (LOT first, comma, then anything)
+      { pattern: /^LOT\s+(\d+[A-Z]?)\s*,\s*(.+)/, type: 'lot_in_subdivision' },
+      // Phased development — must appear BEFORE the RANCH/PARK/ESTATES patterns
+      // so "HIGHLANDS RANCH PHASE 3" is classified as development_plat, not original_plat
+      { pattern: /(.+?)\s*PHASE\s+(\d+|[IVX]+)/i, type: 'development_plat' },
+      { pattern: /(.+?)\s*SECTION\s+(\d+)/i, type: 'development_plat' },
+      // Named subdivision types — checked after phased patterns
       { pattern: /(\d+[\.\d]*)\s*ACRE\s+ADDITION/i, type: 'original_plat' },
       { pattern: /(.+?)\s*SUBDIVISION/i, type: 'original_plat' },
       { pattern: /(.+?)\s*ESTATES/i, type: 'original_plat' },
       { pattern: /(.+?)\s*HEIGHTS/i, type: 'original_plat' },
-      { pattern: /(.+?)\s*PARK\s/i, type: 'original_plat' },
-      { pattern: /(.+?)\s*RANCH\s/i, type: 'original_plat' },
-      { pattern: /(.+?)\s*PHASE\s+(\d+|[IVX]+)/i, type: 'development_plat' },
-      { pattern: /(.+?)\s*SECTION\s+(\d+)/i, type: 'development_plat' },
+      { pattern: /(.+?)\s*PARK\b/i, type: 'original_plat' },
+      { pattern: /(.+?)\s*RANCH\b/i, type: 'original_plat' },
+      { pattern: /(.+?)\s*ADDITION\b/i, type: 'original_plat' },
     ];
 
     for (const { pattern, type } of subdivisionPatterns) {

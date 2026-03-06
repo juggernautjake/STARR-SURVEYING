@@ -4,7 +4,7 @@
 **Version:** 1.0 | **Last Updated:** March 2026  
 **Phase Duration:** Weeks 13–15  
 **Depends On:** Phase 1 (`PropertyIdentity`), Phase 2 (`DocumentHarvester`), Phase 3 (`PropertyIntelligence` with adjacent owner names), Phase 4 (`SubdivisionModel` with adjacency matrix)  
-**Status:** 🟠 IN PROGRESS — Foundation (`adjacent-research.ts`) complete; orchestrator layer (4 new service files) not yet built  
+**Status:** ✅ SCAFFOLD COMPLETE (March 2026) — All 4 service files, API routes, and CLI script created. Needs live clerk integration testing.  
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
 ---
@@ -172,46 +172,53 @@ Returns a `FullCrossValidationReport` saved to `/tmp/analysis/{projectId}/cross_
 | 1 — Discovery | `discovery-engine.ts`, `property-discovery.ts`, `bis-adapter.ts`, `trueautomation-adapter.ts`, `tyler-adapter.ts`, `generic-cad-adapter.ts`, `cad-registry.ts` | ✅ Done |
 | 2 — Harvest | `document-harvester.ts`, `kofile-clerk-adapter.ts`, `texasfile-adapter.ts`, `clerk-adapter.ts`, `document-intelligence.ts` | 🟠 In Progress — `clerk-registry.ts` missing (needed to route FIPS → correct adapter) |
 | 3 — Extraction | `ai-extraction.ts`, `adaptive-vision.ts`, `geo-reconcile.ts`, `property-validation-pipeline.ts` (foundation complete) | 🟠 Orchestrator layer not yet built (`ai-document-analyzer.ts` missing) |
-| 4 — Subdivision | `subdivision-intelligence.ts`, `subdivision-classifier.ts`, `lot-enumerator.ts`, `interior-line-analyzer.ts`, `area-reconciliation.ts`, `adjacency-builder.ts` | ✅ Done |
+| 4 — Subdivision | `subdivision-intelligence.ts`, `subdivision-classifier.ts`, `lot-enumerator.ts`, `interior-line-analyzer.ts`, `area-reconciliation.ts`, `adjacency-builder.ts` | ✅ Done v1.1 — bugs fixed, traverse closure, full tests |
 
-### Phase 5 — PARTIALLY BUILT
+### Phase 5 — SCAFFOLD COMPLETE (needs live clerk integration)
 
-#### What Already Exists
-
-**File:** `worker/src/services/adjacent-research.ts`
-
-This file contains a **solid foundation** for Phase 5. The following are **fully implemented and must not be rewritten**. The new Phase 5 service classes (§§5.3–5.6) should import and reuse these:
-
-| Export | Description | Status |
-|--------|-------------|--------|
-| `AdjacentPropertyCandidate` | Input type for one neighbor to research | Done |
-| `SharedBoundaryCall` | Result of one bearing-reversal comparison | Done |
-| `AdjacentPropertyResult` | Full result for one neighbor | Done |
-| `AdjacentResearchResult` | Aggregate result for all neighbors | Done |
-| `SharedBoundaryRating` | `'CONFIRMED' \| 'CLOSE_MATCH' \| 'MARGINAL' \| 'DISCREPANCY' \| 'UNKNOWN'` | Done |
-| `parseAzimuth(raw)` | Parses `"N 45°28'15\" E"` to decimal azimuth 0–360° | Done |
-| `reverseAzimuth(az)` | Adds 180° mod 360 for bearing reversal | Done |
-| `angularDiff(a, b)` | Smallest angular difference between two azimuths (0–180°) | Done |
-| `rateBearingDiff(diffDeg)` | Applies bearing tolerance table → `SharedBoundaryRating` | Done |
-| `rateDistanceDiff(diffFt)` | Applies distance tolerance table → `SharedBoundaryRating` | Done |
-| `extractAdjacentCandidates(boundary, rawAdjacent?)` | Builds basic candidate list from boundary data | Done — superseded by `AdjacentQueueBuilder` |
-| `crossValidateSharedBoundary(targetBoundary, neighborBoundary, borderCallSeqs, logger)` | Core bearing-reversal comparison engine | Done — used by `CrossValidationEngine` |
-| `runAdjacentPropertyResearch(candidates, targetBoundary, searchAndExtract, logger, maxConcurrent?)` | Basic orchestrator (callback-injection model) | Done — superseded by `AdjacentResearchOrchestrator` |
-
-**Key Relationship:** The bearing math functions and tolerance tables already in `adjacent-research.ts` are the canonical implementation. The new `CrossValidationEngine` class **imports and calls** these existing functions rather than reimplementing the math.
-
-#### What Is Missing — Four New Service Files
+#### What Exists Now
 
 | New File | Class | Status |
 |----------|-------|--------|
-| `worker/src/services/adjacent-queue-builder.ts` | `AdjacentQueueBuilder` | TODO |
-| `worker/src/services/adjacent-research-worker.ts` | `AdjacentResearchWorker` | TODO |
-| `worker/src/services/cross-validation-engine.ts` | `CrossValidationEngine` | TODO |
-| `worker/src/services/adjacent-research-orchestrator.ts` | `AdjacentResearchOrchestrator` | TODO |
+| `worker/src/services/adjacent-queue-builder.ts` | `AdjacentQueueBuilder` | ✅ Done — builds queue from Phase 3/4 data |
+| `worker/src/services/adjacent-research-worker.ts` | `AdjacentResearchWorker` | ✅ Done — clerk search + AI extraction + chain-of-title |
+| `worker/src/services/cross-validation-engine.ts` | `CrossValidationEngine` | ✅ Done — uses bearing math from adjacent-research.ts |
+| `worker/src/services/adjacent-research-orchestrator.ts` | `AdjacentResearchOrchestrator` + `runAdjacentResearch()` | ✅ Done — full pipeline + disk persistence |
+| `worker/adjacent.sh` | Phase 5 CLI script | ✅ Done |
+| `POST /research/adjacent` | Express API endpoint | ✅ Done |
+| `GET /research/adjacent/:projectId` | Express status endpoint | ✅ Done |
 
-Additionally:
+**Foundation file:** `worker/src/services/adjacent-research.ts`
 
-| Item | Status |
+The bearing math functions are now **exported** from `adjacent-research.ts` for use by `cross-validation-engine.ts`:
+
+| Export | Description | Status |
+|--------|-------------|--------|
+| `AdjacentPropertyCandidate` | Input type for one neighbor to research | ✅ Done |
+| `SharedBoundaryCall` | Result of one bearing-reversal comparison | ✅ Done |
+| `AdjacentPropertyResult` | Full result for one neighbor | ✅ Done |
+| `AdjacentResearchResult` | Aggregate result for all neighbors | ✅ Done |
+| `SharedBoundaryRating` | `'CONFIRMED' \| 'CLOSE_MATCH' \| 'MARGINAL' \| 'DISCREPANCY' \| 'UNKNOWN'` | ✅ Done |
+| `parseAzimuth(raw)` | Parses `"N 45°28'15\" E"` to decimal azimuth 0–360° | ✅ Done + exported |
+| `reverseAzimuth(az)` | Adds 180° mod 360 for bearing reversal | ✅ Done + exported |
+| `angularDiff(a, b)` | Smallest angular difference between two azimuths (0–180°) | ✅ Done + exported |
+| `rateBearingDiff(diffDeg)` | Applies bearing tolerance table → `SharedBoundaryRating` | ✅ Done + exported |
+| `rateDistanceDiff(diffFt)` | Applies distance tolerance table → `SharedBoundaryRating` | ✅ Done + exported |
+| `extractAdjacentCandidates(boundary, rawAdjacent?)` | Builds basic candidate list from boundary data | ✅ Done — superseded by `AdjacentQueueBuilder` |
+| `crossValidateSharedBoundary(...)` | Core bearing-reversal comparison engine | ✅ Done — used by `CrossValidationEngine` |
+| `runAdjacentPropertyResearch(...)` | Basic orchestrator (callback-injection model) | ✅ Done — superseded by `AdjacentResearchOrchestrator` |
+
+#### What Still Needs Work (Cannot be completed without more info)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Non-Kofile county support | 🚫 Incomplete | `CountyFusionAdapter` and `TylerClerkAdapter` do not implement `searchByGranteeName()` or `getDocumentImages()` — Phase 5 only works for Kofile counties (~38 Texas counties). Extend when adapters add these methods. |
+| Chain-of-title boundary comparison | 🚫 Incomplete | `ChainEntry.boundaryDescriptionChanged` is always `false` — requires AI comparison of consecutive deed texts, which needs a second AI call with both deeds loaded. Will be implemented when Phase 5 is actively tested against live county data. |
+| `PropertyIntelligence.adjacentProperties[].sharedCalls` | 🟠 Partial | The `AdjacentQueueBuilder` reads `sharedCalls` from Phase 3 data, but Phase 3 (`AIPlatAnalyzer`) may not populate `sharedCalls` for all properties. If `sharedCalls` is empty, the engine still tries to match via `along` descriptors in boundary calls (fallback). |
+| Rate limiting in production | ⚠️ Caution | The 3-5 second delay between clerk navigations is hardcoded. In production, this should be tunable via environment variable (e.g. `CLERK_RATE_LIMIT_MS`) to accommodate different county clerk systems. |
+| Parallel execution | 🔮 Future | Phase 5 currently runs all adjacent property research sequentially. Future optimization: allow `maxConcurrent=2` with per-county rate limiting. |
+
+#### What Is Missing (from original spec)
 |------|--------|
 | `POST /research/adjacent` and `GET /research/adjacent/:projectId` in `worker/src/index.ts` | TODO |
 | `worker/adjacent.sh` CLI script | TODO |

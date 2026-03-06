@@ -4,6 +4,8 @@
 // every interior division line, every common element, and subdivision-wide analysis.
 //
 // Spec §4.1–4.10 — Phase 4: Subdivision & Plat Intelligence
+// Phase 5 handoff: SubdivisionModel.lotRelationships.adjacencyMatrix and
+//   lots[].adjacentLots are consumed by Phase 5 (AdjacentResearchOrchestrator).
 
 import fs from 'fs';
 import path from 'path';
@@ -13,6 +15,7 @@ import { InteriorLineAnalyzer, type AnalyzableLot } from './interior-line-analyz
 import { reconcileAreas } from './area-reconciliation.js';
 import { AdjacencyBuilder } from './adjacency-builder.js';
 import { SubdivisionAIAnalysis } from './subdivision-ai-analysis.js';
+import { TraverseComputation } from './traverse-closure.js';
 import type { CADAdapter } from '../adapters/cad-adapter.js';
 import type { ClerkAdapter } from '../adapters/clerk-adapter.js';
 import type { BoundaryCall, ExtractedBoundaryData } from '../types/index.js';
@@ -210,6 +213,7 @@ export class SubdivisionIntelligenceEngine {
 
     const subdivisionLots: SubdivisionLot[] = [];
     const subdivisionReserves: SubdivisionReserve[] = [];
+    const traverseEngine = new TraverseComputation();
 
     for (const inv of lotInventory) {
       const platLot = plat?.lots.find(
@@ -217,26 +221,74 @@ export class SubdivisionIntelligenceEngine {
       );
 
       const isReserve = /reserve/i.test(inv.lotName);
+      const isCommonArea = /common\s*area/i.test(inv.lotName);
+      const isDrainageOrUtility = /drainage|utility|landscape|buffer|open\s*space/i.test(inv.lotName);
       const lotId = inv.lotName
         .toLowerCase()
         .replace(/\s+/g, '_')
         .replace(/[^a-z0-9_]/g, '');
 
-      if (isReserve) {
+      if (isReserve || isCommonArea || isDrainageOrUtility) {
+        // Determine reserve purpose from name
+        const purpose = this.inferReservePurpose(inv.lotName);
+
         subdivisionReserves.push({
           reserveId: lotId,
           name: inv.lotName,
-          purpose: 'drainage_and_utility',
+          purpose,
           acreage: inv.platAcreage ?? inv.cadAcreage ?? null,
-          sqft: inv.platSqFt ?? null,
+          sqft: inv.platSqFt ?? (inv.platAcreage ? inv.platAcreage * 43560 : null),
           maintainedBy: 'HOA or developer',
-          restrictions: 'No building permitted',
+          restrictions: this.inferReserveRestrictions(purpose),
           boundaryCalls: platLot?.boundaryCalls || [],
           confidence: platLot?.confidence ?? 50,
         });
       } else {
         const acreage = inv.platAcreage ?? inv.cadAcreage ?? null;
         const sqft = inv.platSqFt ?? (acreage ? acreage * 43560 : null);
+
+        // Compute traverse closure for lots with boundary calls
+        let closure: ClosureData | null = null;
+        const allLotCalls = [...(platLot?.boundaryCalls || []), ...(platLot?.curves || [])];
+        if (allLotCalls.length >= 3) {
+          try {
+            const traverseCalls = allLotCalls.map((c) => ({
+              callId: String(c.sequence),
+              bearing: c.bearing?.raw ?? null,
+              distance: c.distance?.value ?? null,
+              type: (c.curve ? 'curve' : 'straight') as 'straight' | 'curve',
+              curve: c.curve ? {
+                chordBearing: c.curve.chordBearing?.raw,
+                chordDistance: c.curve.chordDistance?.value,
+                arcLength: c.curve.arcLength?.value,
+              } : undefined,
+            }));
+            const closureResult = traverseEngine.computeTraverse(traverseCalls);
+            closure = {
+              errorNorthing: closureResult.errorNorthing,
+              errorEasting: closureResult.errorEasting,
+              errorDistance: closureResult.errorDistance,
+              closureRatio: closureResult.closureRatio,
+              status: closureResult.status,
+            };
+          } catch (e) {
+            // If traverse computation fails, closure remains null
+            console.warn(`[Subdivision] Closure computation failed for ${inv.lotName}:`, e);
+          }
+        }
+
+        // Estimate frontage and depth from boundary calls
+        // Use plat commonElements for road names (commonElements built in Step 5, use plat source here)
+        const roadNames = plat?.commonElements?.roads?.map((r) => r.name) || [];
+        const { frontage, depth, shape, frontsOn } = this.estimateLotGeometry(
+          platLot?.boundaryCalls || [],
+          platLot?.curves || [],
+          roadNames,
+        );
+
+        // Estimate buildable area after setbacks
+        const setbacks = plat?.setbacks ?? null;
+        const buildableArea = this.computeBuildableArea(sqft, frontage, depth, setbacks);
 
         subdivisionLots.push({
           lotId,
@@ -248,18 +300,18 @@ export class SubdivisionIntelligenceEngine {
           cadPropertyId: inv.cadPropertyId ?? null,
           status: this.inferDevelopmentStatus(inv),
           position: null,
-          frontsOn: null,
-          frontage: null,
-          depth: null,
-          shape: null,
+          frontsOn,
+          frontage,
+          depth,
+          shape,
           boundaryCalls: platLot?.boundaryCalls || [],
           curves: platLot?.curves || [],
-          closure: null,
-          setbacks: plat?.setbacks ?? null,
+          closure,
+          setbacks,
           easements: [],
           adjacentLots: {},
           sharedBoundaries: [],
-          buildableArea: null,
+          buildableArea,
           confidence: platLot?.confidence ?? (inv.matchConfidence > 0 ? inv.matchConfidence : 50),
         });
       }
@@ -517,8 +569,8 @@ export class SubdivisionIntelligenceEngine {
         platAmendments,
         replats,
         surveyor: plat?.surveyor ?? { name: null, rpls: null, surveyDate: null, firmAddress: null },
-        parentTract: plat?.parentTract ?? { description: null, abstractSurvey: prop.abstractSurvey ?? null, deedInstrument: null },
-        datum: plat?.datum ?? { system: 'unknown', zone: null, units: 'US Survey Feet', scaleFactor: null, epoch: null },
+        parentTract: plat?.parentTract ?? { description: null, abstractSurvey: plat?.parentTract?.abstractSurvey ?? null, deedInstrument: null },
+        datum: plat?.datum ? { ...plat.datum, epoch: null } : { system: 'unknown', zone: null, units: 'US Survey Feet', scaleFactor: null, epoch: null },
         pointOfBeginning: plat?.pointOfBeginning ?? { northing: null, easting: null, monumentDescription: null },
         totalArea: {
           acreage: statedAcreage,
@@ -648,6 +700,168 @@ export class SubdivisionIntelligenceEngine {
     return total > 0 ? total : null;
   }
 
+  /**
+   * Infer the purpose of a reserve from its name.
+   * Covers Texas subdivision common reserve categories.
+   */
+  private inferReservePurpose(name: string): string {
+    const upper = name.toUpperCase();
+    if (/DRAINAGE|DETENTION|RETENTION|FLOODWAY|STORMWATER/i.test(upper)) return 'drainage';
+    if (/UTILITY|UTILITIES|ELECTRIC|GAS|WATER|SEWER|TELECOM/i.test(upper)) return 'utility';
+    if (/LANDSCAPE|BUFFER|GREENBELT|PARK|OPEN\s*SPACE/i.test(upper)) return 'open_space';
+    if (/ACCESS|INGRESS|EGRESS|DRIVE/i.test(upper)) return 'access';
+    if (/COMMON\s*AREA|AMENITY|CLUBHOUSE|POOL/i.test(upper)) return 'common_area';
+    if (/RIGHT.OF.WAY|ROW\b|ROAD|STREET|ALLEY/i.test(upper)) return 'right_of_way';
+    return 'drainage_and_utility'; // Default for generic reserves
+  }
+
+  /**
+   * Return a restriction string based on reserve purpose.
+   */
+  private inferReserveRestrictions(purpose: string): string {
+    switch (purpose) {
+      case 'drainage':
+      case 'drainage_and_utility':
+        return 'No building permitted; no grading that impedes drainage flow';
+      case 'utility':
+        return 'No permanent structures; utility easement access required';
+      case 'open_space':
+      case 'common_area':
+        return 'Common use only; no individual ownership; maintained by HOA';
+      case 'access':
+        return 'Ingress/egress easement; no obstructions';
+      case 'right_of_way':
+        return 'Public right-of-way; no private improvements';
+      default:
+        return 'No building permitted';
+    }
+  }
+
+  /**
+   * Estimate lot geometry (frontage, depth, shape, frontsOn road) from boundary calls.
+   * Uses the pattern of call lengths and the `along` descriptor to identify road frontage.
+   * NOTE: This is a heuristic approximation. Exact values require CAD coordinate processing.
+   */
+  private estimateLotGeometry(
+    boundaryCalls: BoundaryCall[],
+    curves: BoundaryCall[],
+    roadNames: string[],
+  ): { frontage: number | null; depth: number | null; shape: string | null; frontsOn: string | null } {
+    if (boundaryCalls.length === 0) {
+      return { frontage: null, depth: null, shape: null, frontsOn: null };
+    }
+
+    let frontage: number | null = null;
+    let frontsOn: string | null = null;
+
+    // Strategy 1: Find call with "along" field matching a road name
+    const allCalls = [...boundaryCalls, ...curves];
+    for (const call of allCalls) {
+      if (!call.along) continue;
+      const alUpper = call.along.toUpperCase();
+
+      // Check if along references a road (FM, CR, Road, Street, etc.)
+      const isRoadRef =
+        /\bFM\s*\d+|\bCR\s*\d+|\bSH\s*\d+|\bUS\s*\d+|\bIH\s*\d+|\bROAD\b|\bST\b|\bAVE\b|\bDR\b|\bBLVD\b|\bHWY\b|\bLN\b|\bWAY\b/i.test(alUpper) ||
+        roadNames.some((r) => alUpper.includes(r.toUpperCase()));
+
+      if (isRoadRef && call.distance?.value) {
+        frontage = call.distance.value;
+        frontsOn = call.along;
+        break;
+      }
+    }
+
+    // Strategy 2: If no road reference found, use shortest side as frontage (common for residential)
+    if (frontage === null && boundaryCalls.length >= 3) {
+      const distValues = boundaryCalls
+        .map((c) => c.distance?.value ?? 0)
+        .filter((d) => d > 0)
+        .sort((a, b) => a - b);
+      if (distValues.length >= 2) {
+        frontage = distValues[0]; // Shortest call = frontage (typical for rectangular lots)
+      }
+    }
+
+    // Estimate depth from longest perpendicular call
+    let depth: number | null = null;
+    if (boundaryCalls.length >= 3) {
+      const distValues = boundaryCalls
+        .map((c) => c.distance?.value ?? 0)
+        .filter((d) => d > 0)
+        .sort((a, b) => b - a);
+      if (distValues.length >= 1) {
+        depth = distValues[0]; // Longest call ≈ depth
+      }
+    }
+
+    // Classify shape based on call count and curve count
+    const totalCallCount = boundaryCalls.length + curves.length;
+    let shape: string | null = null;
+    if (curves.length > 0) {
+      shape = 'irregular_with_curves';
+    } else if (totalCallCount === 4) {
+      shape = 'rectangular_or_trapezoidal';
+    } else if (totalCallCount === 5 || totalCallCount === 6) {
+      shape = 'irregular_polygon';
+    } else if (totalCallCount > 6) {
+      shape = 'complex_polygon';
+    } else if (totalCallCount === 3) {
+      shape = 'triangular';
+    }
+
+    return { frontage, depth, shape, frontsOn };
+  }
+
+  /**
+   * Estimate buildable area after subtracting setbacks.
+   * NOTE: This is a rough approximation — real buildable area requires
+   * survey-grade lot geometry and confirmed setback measurements from plat.
+   */
+  private computeBuildableArea(
+    sqft: number | null,
+    frontage: number | null,
+    depth: number | null,
+    setbacks: { front?: number; side?: number; rear?: number } | null,
+  ): SubdivisionLot['buildableArea'] {
+    if (!sqft || sqft <= 0) {
+      return {
+        estimated: true,
+        sqft: null,
+        reductionReasons: ['No area data available'],
+      };
+    }
+
+    // If we have frontage + depth + setbacks, compute estimated buildable envelope
+    if (frontage && depth && setbacks) {
+      const front = setbacks.front ?? 0;
+      const rear = setbacks.rear ?? 0;
+      const side = setbacks.side ?? 0;
+
+      const buildableWidth = Math.max(0, frontage - side * 2);
+      const buildableDepth = Math.max(0, depth - front - rear);
+      const buildableSqft = Math.round(buildableWidth * buildableDepth);
+
+      const reductionReasons: string[] = [];
+      if (front > 0) reductionReasons.push(`Front setback: ${front}'`);
+      if (rear > 0) reductionReasons.push(`Rear setback: ${rear}'`);
+      if (side > 0) reductionReasons.push(`Side setbacks: ${side}' each`);
+
+      return {
+        estimated: true,
+        sqft: buildableSqft > 0 ? buildableSqft : null,
+        reductionReasons,
+      };
+    }
+
+    // Fallback: estimate 60% of lot as buildable (rough rule of thumb)
+    return {
+      estimated: true,
+      sqft: Math.round(sqft * 0.6),
+      reductionReasons: ['Estimated at 60% of lot area; setback data unavailable'],
+    };
+  }
+
   private identifyMissingData(
     lots: SubdivisionLot[],
     reserves: SubdivisionReserve[],
@@ -661,6 +875,9 @@ export class SubdivisionIntelligenceEngine {
       }
       if (!lot.acreage && !lot.sqft) {
         missing.push(`${lot.name} — no area data`);
+      }
+      if (lot.closure?.status === 'poor') {
+        missing.push(`${lot.name} — poor traverse closure (ratio ${lot.closure.closureRatio})`);
       }
     }
 

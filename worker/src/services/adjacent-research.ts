@@ -80,7 +80,8 @@ export interface AdjacentResearchResult {
  *   ≤ 0°30'00"  → MARGINAL
  *   > 0°30'00"  → DISCREPANCY
  */
-function rateBearingDiff(diffDeg: number): SharedBoundaryRating {
+/** Apply bearing tolerance table. Exported for reuse in cross-validation-engine.ts */
+export function rateBearingDiff(diffDeg: number): SharedBoundaryRating {
   const diffMin = diffDeg * 60;  // convert to minutes for comparison
   if (diffMin <= 0.5)  return 'CONFIRMED';     // ≤ 0°00'30"
   if (diffMin <= 5.0)  return 'CLOSE_MATCH';   // ≤ 0°05'00"
@@ -94,8 +95,9 @@ function rateBearingDiff(diffDeg: number): SharedBoundaryRating {
  *   ≤ 2.0 ft  → CLOSE_MATCH
  *   ≤ 5.0 ft  → MARGINAL
  *   > 5.0 ft  → DISCREPANCY
+ * Exported for reuse in cross-validation-engine.ts.
  */
-function rateDistanceDiff(diffFt: number): SharedBoundaryRating {
+export function rateDistanceDiff(diffFt: number): SharedBoundaryRating {
   if (diffFt <= 0.5) return 'CONFIRMED';
   if (diffFt <= 2.0) return 'CLOSE_MATCH';
   if (diffFt <= 5.0) return 'MARGINAL';
@@ -114,8 +116,9 @@ function overallRating(bearing: SharedBoundaryRating, distance: SharedBoundaryRa
 /**
  * Parse "N 45°28'15\" E" → decimal degrees azimuth (0–360, clockwise from N).
  * Returns null if unparseable.
+ * Exported for reuse in cross-validation-engine.ts.
  */
-function parseAzimuth(raw: string): number | null {
+export function parseAzimuth(raw: string): number | null {
   const m = raw.match(/([NS])\s*(\d+)[°\s]\s*(\d+)?[''\s]?\s*(\d+(?:\.\d+)?)?[""']?\s*([EW])/i);
   if (!m) return null;
 
@@ -135,20 +138,22 @@ function parseAzimuth(raw: string): number | null {
 
 /**
  * Reverse a bearing: N 30°15'22" E → S 30°15'22" W
- * Works on azimuth: azimuth + 180° (mod 360)
+ * Works on azimuth: azimuth + 180° (mod 360).
+ * Exported for reuse in cross-validation-engine.ts.
  */
-function reverseAzimuth(azimuthDeg: number): number {
+export function reverseAzimuth(azimuthDeg: number): number {
   return (azimuthDeg + 180) % 360;
 }
 
 /**
  * Smallest angular difference between two azimuths (0–180°).
+ * Exported for reuse in cross-validation-engine.ts.
  */
-function angularDiff(a: number, b: number): number {
+export function angularDiff(a: number, b: number): number {
   return Math.abs(((a - b + 540) % 360) - 180);
 }
 
-// ── Extract adjacent property candidates from boundary data ───────────────────
+
 
 /**
  * Parse the extracted boundary data for adjacent property information.
