@@ -78,7 +78,7 @@ if command -v jq &> /dev/null; then
   ADJ_COUNT=$(jq -r '.adjacentProperties | length // 0' "$INTEL_PATH" 2>/dev/null || echo "?")
   echo "Adjacent owners from Phase 3: $ADJ_COUNT"
   if [ "$ADJ_COUNT" != "0" ] && [ "$ADJ_COUNT" != "?" ]; then
-    jq -r '.adjacentProperties[]?.ownerName // empty' "$INTEL_PATH" 2>/dev/null | head -5 | while read -r owner; do
+    jq -r '.adjacentProperties[]?.owner // empty' "$INTEL_PATH" 2>/dev/null | head -5 | while read -r owner; do
       echo "  - $owner"
     done
   fi

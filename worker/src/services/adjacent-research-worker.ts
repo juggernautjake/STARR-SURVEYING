@@ -435,12 +435,11 @@ Reply with ONLY the number (1, 2, 3...) or "NONE" if no match.`;
 
   private async downloadDeedImages(
     deed: ClerkDocumentResult,
-    outputDir: string,
+    _outputDir: string,
   ): Promise<DocumentImage[]> {
-    // Note: outputDir parameter is kept for future use when adapters support
+    // Note: _outputDir parameter is reserved for future use when adapters support
     // specifying an output directory for downloads. Currently adapters save to
     // their own configured paths and return DocumentImage objects with imagePath.
-    void outputDir;
     try {
       return await this.clerkAdapter.getDocumentImages(deed.instrumentNumber);
     } catch (e) {

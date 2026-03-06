@@ -826,7 +826,7 @@ const activeAdjacentJobs = new Map<
   { status: 'running' | 'complete' | 'failed'; result?: FullCrossValidationReport }
 >();
 
-app.post('/research/adjacent', requireAuth, async (req: Request, res: Response) => {
+app.post('/research/adjacent', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
   const { projectId, intelligencePath, subdivisionPath } = req.body as {
     projectId?: string;
     intelligencePath?: string;
@@ -839,9 +839,9 @@ app.post('/research/adjacent', requireAuth, async (req: Request, res: Response) 
   }
 
   // Validate projectId to safe characters — prevents path traversal
-  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+  if (!/^[a-zA-Z0-9_-]{1,100}$/.test(projectId)) {
     res.status(400).json({
-      error: 'projectId may only contain alphanumeric characters, hyphens, and underscores',
+      error: 'projectId may only contain alphanumeric characters, hyphens, and underscores (max 100 chars)',
     });
     return;
   }
@@ -894,7 +894,7 @@ app.post('/research/adjacent', requireAuth, async (req: Request, res: Response) 
 // ── GET /research/adjacent/:projectId ────────────────────────────────────────
 // Phase 5: Check status of an adjacent research job, or retrieve completed result.
 
-app.get('/research/adjacent/:projectId', requireAuth, (req: Request, res: Response) => {
+app.get('/research/adjacent/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
   const { projectId } = req.params;
 
   if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {

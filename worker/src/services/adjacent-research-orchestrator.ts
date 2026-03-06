@@ -275,15 +275,6 @@ export class AdjacentResearchOrchestrator {
       errors,
     };
 
-    // Persist to disk for Phase 7 consumption
-    // NOTE: projectId is embedded in the output path convention
-    // The caller (API route) must call us with the correct projectId to ensure
-    // the path matches what Phase 7's reconciler expects.
-    const outputPath = report.adjacentProperties.length > 0 || report.errors.length > 0
-      ? null  // caller is responsible for path when we don't have a projectId here
-      : null;
-    void outputPath; // Will be written by caller in the API route
-
     return report;
   }
 

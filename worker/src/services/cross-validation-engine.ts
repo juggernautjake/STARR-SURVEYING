@@ -57,6 +57,22 @@ export interface CrossValidationResult {
   discrepancyCalls: number;
 }
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+/**
+ * Maximum bearing difference (in decimal degrees) for a call to be considered
+ * a plausible match during cross-validation. Calls exceeding this threshold
+ * are outside the MARGINAL category and are not matched.
+ * Value: 0.5° = 30 arc-minutes (MARGINAL threshold from adjacent-research.ts).
+ */
+const MAX_BEARING_DIFF_FOR_MATCH_DEG = 0.5;
+
+/**
+ * Minimum composite match score for a candidate call to be selected as the best match.
+ * Prevents false positives when no good match exists.
+ */
+const MIN_MATCH_SCORE = 20;
+
 // ── CrossValidationEngine ─────────────────────────────────────────────────────
 
 export class CrossValidationEngine {
@@ -144,8 +160,8 @@ export class CrossValidationEngine {
       if (theirAz === null) continue;
 
       const bearingDiff = angularDiff(reversedAz, theirAz);
-      // Outside MARGINAL threshold (>0.5°) — not a plausible match
-      if (bearingDiff > 0.5) continue;
+      // Outside MARGINAL threshold — not a plausible match
+      if (bearingDiff > MAX_BEARING_DIFF_FOR_MATCH_DEG) continue;
 
       const distDiff = Math.abs((ourCall.distance ?? 0) - theirs.distance);
 
@@ -168,8 +184,8 @@ export class CrossValidationEngine {
       }
     }
 
-    // Require a minimum score of 20 to prevent false positives
-    return bestScore > 20 ? bestMatch : null;
+    // Require a minimum score of MIN_MATCH_SCORE to prevent false positives
+    return bestScore > MIN_MATCH_SCORE ? bestMatch : null;
   }
 
   // ── Private: Build comparison ────────────────────────────────────────────────
