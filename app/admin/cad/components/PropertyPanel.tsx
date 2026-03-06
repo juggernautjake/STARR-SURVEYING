@@ -68,6 +68,8 @@ export default function PropertyPanel() {
   const [editColor, setEditColor] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState<string | null>(null);
   const [editOpacity, setEditOpacity] = useState<string | null>(null);
+  // Toggle between N/E (Northing/Easting) and raw X/Y
+  const [useNE, setUseNE] = useState(true);
 
   const single = features.length === 1 ? features[0] : null;
   const displayColor = editColor ?? (single?.style.color ?? '#000000');
@@ -151,6 +153,23 @@ export default function PropertyPanel() {
   const { document: doc } = drawingStore;
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
   const displayPrefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
+  const originN = displayPrefs.originNorthing ?? 0;
+  const originE = displayPrefs.originEasting ?? 0;
+
+  // N/E ↔ X/Y coordinate conversion helpers
+  function worldToDisplay(wx: number, wy: number) {
+    return useNE
+      ? { a: wy + originN, b: wx + originE }  // a=Northing, b=Easting
+      : { a: wx, b: wy };                      // a=X, b=Y
+  }
+  function displayToWorldX(dispA: number, dispB: number) {
+    return useNE ? dispB - originE : dispA;
+  }
+  function displayToWorldY(dispA: number, dispB: number) {
+    return useNE ? dispA - originN : dispB;
+  }
+  const labelA = useNE ? 'N' : 'X';
+  const labelB = useNE ? 'E' : 'Y';
 
   if (features.length === 0) {
     return (
@@ -236,8 +255,20 @@ export default function PropertyPanel() {
 
   return (
     <div className="flex flex-col h-full text-gray-200 text-xs overflow-y-auto">
-      <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700 flex-shrink-0">
-        Properties
+      <div className="px-2 py-1 text-gray-400 font-semibold uppercase tracking-wider text-[10px] border-b border-gray-700 flex-shrink-0 flex items-center justify-between">
+        <span>Properties</span>
+        {/* N/E ↔ X/Y toggle */}
+        <button
+          className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
+            useNE
+              ? 'bg-blue-700 border-blue-500 text-white'
+              : 'bg-gray-700 border-gray-600 text-gray-400 hover:text-white'
+          }`}
+          title={useNE ? 'Showing Northing/Easting — click for X/Y' : 'Showing X/Y — click for N/E'}
+          onClick={() => setUseNE((v) => !v)}
+        >
+          {useNE ? 'N/E' : 'X/Y'}
+        </button>
       </div>
 
       <div className="p-2 space-y-3 flex-1 overflow-y-auto animate-[fadeIn_150ms_ease-out]">
@@ -323,18 +354,39 @@ export default function PropertyPanel() {
           <div className="text-gray-500 text-[10px] uppercase tracking-wider">Geometry</div>
           {geom.type === 'POINT' && geom.point && (
             <div className="space-y-1">
-              <CoordInput label="X" value={geom.point.x} onChange={(v) => updateCoord(0, 'x', v)} />
-              <CoordInput label="Y" value={geom.point.y} onChange={(v) => updateCoord(0, 'y', v)} />
+              {(() => {
+                const { a, b } = worldToDisplay(geom.point!.x, geom.point!.y);
+                return (
+                  <>
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} />
+                  </>
+                );
+              })()}
             </div>
           )}
           {geom.type === 'LINE' && geom.start && geom.end && (
             <div className="space-y-1.5">
               <div className="text-gray-500 text-[9px] uppercase">Start</div>
-              <CoordInput label="X" value={geom.start.x} onChange={(v) => updateCoord(0, 'x', v)} />
-              <CoordInput label="Y" value={geom.start.y} onChange={(v) => updateCoord(0, 'y', v)} />
+              {(() => {
+                const { a, b } = worldToDisplay(geom.start!.x, geom.start!.y);
+                return (
+                  <>
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} />
+                  </>
+                );
+              })()}
               <div className="text-gray-500 text-[9px] uppercase pt-0.5">End</div>
-              <CoordInput label="X" value={geom.end.x} onChange={(v) => updateCoord(1, 'x', v)} />
-              <CoordInput label="Y" value={geom.end.y} onChange={(v) => updateCoord(1, 'y', v)} />
+              {(() => {
+                const { a, b } = worldToDisplay(geom.end!.x, geom.end!.y);
+                return (
+                  <>
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(1, 'x', displayToWorldX(val, b)); updateCoord(1, 'y', displayToWorldY(val, b)); }} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(1, 'x', displayToWorldX(a, val)); updateCoord(1, 'y', displayToWorldY(a, val)); }} />
+                  </>
+                );
+              })()}
               {(() => {
                 const { azimuth, distance } = inverseBearingDistance(geom.start, geom.end);
                 return (
@@ -358,8 +410,15 @@ export default function PropertyPanel() {
           )}
           {geom.type === 'TEXT' && geom.point && (
             <div className="space-y-1">
-              <CoordInput label="X" value={geom.point.x} onChange={(v) => updateCoord(0, 'x', v)} />
-              <CoordInput label="Y" value={geom.point.y} onChange={(v) => updateCoord(0, 'y', v)} />
+              {(() => {
+                const { a, b } = worldToDisplay(geom.point!.x, geom.point!.y);
+                return (
+                  <>
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(val, b)); updateCoord(0, 'y', displayToWorldY(val, b)); }} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(0, 'x', displayToWorldX(a, val)); updateCoord(0, 'y', displayToWorldY(a, val)); }} />
+                  </>
+                );
+              })()}
             </div>
           )}
           {(geom.type === 'POLYLINE' || geom.type === 'POLYGON') && geom.vertices && (
@@ -367,28 +426,31 @@ export default function PropertyPanel() {
               <div className="font-mono text-[10px] text-gray-400">
                 {geom.vertices.length} vertices
               </div>
-              {geom.vertices.map((v, i) => (
-                <div key={i} className="space-y-0.5">
-                  <div className="text-gray-600 text-[9px]">V{i + 1}</div>
-                  <CoordInput label="X" value={v.x} onChange={(val) => updateCoord(i, 'x', val)} />
-                  <CoordInput label="Y" value={v.y} onChange={(val) => updateCoord(i, 'y', val)} />
-                </div>
-              ))}
+              {geom.vertices.map((v, i) => {
+                const { a, b } = worldToDisplay(v.x, v.y);
+                return (
+                  <div key={i} className="space-y-0.5">
+                    <div className="text-gray-600 text-[9px]">V{i + 1}</div>
+                    <CoordInput label={labelA} value={a} onChange={(val) => { updateCoord(i, 'x', displayToWorldX(val, b)); updateCoord(i, 'y', displayToWorldY(val, b)); }} />
+                    <CoordInput label={labelB} value={b} onChange={(val) => { updateCoord(i, 'x', displayToWorldX(a, val)); updateCoord(i, 'y', displayToWorldY(a, val)); }} />
+                  </div>
+                );
+              })}
               {geom.type === 'POLYLINE' && geom.vertices.length >= 2 && (
                 <div className="font-mono text-[10px] text-gray-400 pt-0.5">
-                  L: {geom.vertices.reduce((sum, v, i) => {
+                  L: {formatDistance(geom.vertices.reduce((sum, v, i) => {
                     if (i === 0) return 0;
                     const p = geom.vertices![i - 1];
                     return sum + Math.hypot(v.x - p.x, v.y - p.y);
-                  }, 0).toFixed(3)}
+                  }, 0), displayPrefs)}
                 </div>
               )}
               {geom.type === 'POLYGON' && geom.vertices.length >= 3 && (
                 <div className="font-mono text-[10px] text-gray-400 pt-0.5">
-                  P: {geom.vertices.reduce((sum, v, i) => {
+                  P: {formatDistance(geom.vertices.reduce((sum, v, i) => {
                     const n = geom.vertices![(i + 1) % geom.vertices!.length];
                     return sum + Math.hypot(n.x - v.x, n.y - v.y);
-                  }, 0).toFixed(3)}
+                  }, 0), displayPrefs)}
                 </div>
               )}
             </div>

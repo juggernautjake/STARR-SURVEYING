@@ -382,6 +382,6 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     if (layer) {
       return { color: layer.color, lineWeight: layer.lineWeight, opacity: layer.opacity };
     }
-    return { color: '#000000', lineWeight: 0.25, opacity: 1 };
+    return { color: '#000000', lineWeight: 1, opacity: 1 };
   },
 }));

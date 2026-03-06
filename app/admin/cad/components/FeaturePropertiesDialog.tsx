@@ -7,6 +7,9 @@ import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useDrawingStore, useUndoStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D } from '@/lib/cad/types';
+import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import { formatDistance } from '@/lib/cad/geometry/units';
+import { formatBearing, formatAzimuth, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 
 interface Props {
   featureId: string;
@@ -82,6 +85,8 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
   const [showGeom, setShowGeom] = useState(true);
   const [showStyle, setShowStyle] = useState(true);
   const [showProps, setShowProps] = useState(false);
+  // Toggle between N/E (Northing/Easting with origin offset) and raw X/Y display
+  const [useNE, setUseNE] = useState(true);
 
   // Snapshot before editing (for undo)
   const beforeRef = useRef<Feature | null>(null);
@@ -259,13 +264,63 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
 
   const { document: doc } = drawingStore;
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
+  const displayPrefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
+  const originN = displayPrefs.originNorthing ?? 0;
+  const originE = displayPrefs.originEasting ?? 0;
+
+  // Helpers to convert between world coords and displayed N/E
+  function worldToDisplay(worldX: number, worldY: number) {
+    return useNE
+      ? { a: worldY + originN, b: worldX + originE }   // { a=Northing, b=Easting }
+      : { a: worldX,           b: worldY };              // { a=X,        b=Y }
+  }
+  function displayToWorldX(displayA: number, displayB: number) {
+    return useNE ? displayB - originE : displayA;
+  }
+  function displayToWorldY(displayA: number, displayB: number) {
+    return useNE ? displayA - originN : displayB;
+  }
+  const labelA = useNE ? 'N (Northing)' : 'X';
+  const labelB = useNE ? 'E (Easting)'  : 'Y';
+  const labelAShort = useNE ? 'Northing' : 'X';
+  const labelBShort = useNE ? 'Easting'  : 'Y';
+
   const geom = feature.geometry;
   const bearing = getBearing();
   const length = getLength();
 
-  // ── Geometry vertices list ───────────────────────────────────────────────
-  let vertices: Point2D[] = [];
+  // ── Derived measurements ─────────────────────────────────────────────────
+  let lineMeasurements: { bearing: string; azimuth: string; distance: string } | null = null;
+  let lengthStr: string | null = null;
+
+  if (geom.type === 'LINE' && geom.start && geom.end) {
+    const { azimuth, distance } = inverseBearingDistance(geom.start, geom.end);
+    lineMeasurements = {
+      bearing:  formatBearing(azimuth),
+      azimuth:  formatAzimuth(azimuth),
+      distance: formatDistance(distance, displayPrefs),
+    };
+  } else if ((geom.type === 'POLYLINE' || geom.type === 'POLYGON') && geom.vertices) {
+    const len = geom.vertices.reduce((sum, v, i) => {
+      if (i === 0) return 0;
+      const prev = geom.vertices![i - 1];
+      return sum + Math.hypot(v.x - prev.x, v.y - prev.y);
+    }, 0);
+    lengthStr = formatDistance(len, displayPrefs);
+  } else if (geom.type === 'CIRCLE' && geom.circle) {
+    lengthStr = `r = ${formatDistance(geom.circle.radius, displayPrefs)}`;
+  } else if (geom.type === 'ARC' && geom.arc) {
+    let angle = geom.arc.endAngle - geom.arc.startAngle;
+    if (angle < 0) angle += 2 * Math.PI;
+    const arcLen = angle * geom.arc.radius;
+    lengthStr = formatDistance(arcLen, displayPrefs);
+  } else if (geom.type === 'ELLIPSE' && geom.ellipse) {
+    const { radiusX: a, radiusY: b } = geom.ellipse;
+    const perim = Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
+    lengthStr = formatDistance(perim, displayPrefs);
+  }
   let vertexLabels: string[] = [];
+  let vertices: Point2D[] = [];
   const isCurveType = geom.type === 'CIRCLE' || geom.type === 'ELLIPSE' || geom.type === 'ARC' || geom.type === 'SPLINE';
   if (geom.type === 'POINT' && geom.point) {
     vertices = [geom.point];
@@ -296,13 +351,27 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
         <span className="font-semibold text-white text-xs tracking-wide">
           {feature.type} Properties
         </span>
-        <button
-          className="text-gray-400 hover:text-white transition-colors ml-2"
-          onClick={handleClose}
-          title="Close (changes are applied in real-time)"
-        >
-          <X size={14} />
-        </button>
+        <div className="flex items-center gap-1.5 ml-2">
+          {/* N/E ↔ X/Y toggle */}
+          <button
+            className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
+              useNE
+                ? 'bg-blue-700 border-blue-500 text-white'
+                : 'bg-gray-700 border-gray-500 text-gray-400 hover:text-white'
+            }`}
+            title={useNE ? 'Showing Northing/Easting — click for X/Y' : 'Showing X/Y — click for N/E'}
+            onClick={() => setUseNE((v) => !v)}
+          >
+            {useNE ? 'N/E' : 'X/Y'}
+          </button>
+          <button
+            className="text-gray-400 hover:text-white transition-colors"
+            onClick={handleClose}
+            title="Close (changes are applied in real-time)"
+          >
+            <X size={14} />
+          </button>
+        </div>
       </div>
 
       <div className="overflow-y-auto flex-1 p-2 space-y-2">
@@ -336,18 +405,28 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
         </div>
 
         {/* Derived measurements (read-only) */}
-        {(length > 0 || bearing !== null) && (
+        {(lineMeasurements || lengthStr) && (
           <div className="px-1 py-1 bg-blue-950/40 border border-blue-800/40 rounded space-y-1">
-            {length > 0 && (
+            {lineMeasurements && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Bearing</span>
+                  <span className="text-cyan-300 font-mono">{lineMeasurements.bearing}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Azimuth</span>
+                  <span className="text-gray-300 font-mono">{lineMeasurements.azimuth}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Distance</span>
+                  <span className="text-gray-300 font-mono">{lineMeasurements.distance}</span>
+                </div>
+              </>
+            )}
+            {lengthStr && (
               <div className="flex items-center justify-between">
                 <span className="text-gray-400">{geom.type === 'POLYGON' ? 'Perimeter' : 'Length'}</span>
-                <span className="text-cyan-300 font-mono">{length.toFixed(4)}</span>
-              </div>
-            )}
-            {bearing !== null && (
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Bearing</span>
-                <span className="text-cyan-300 font-mono">{bearing.toFixed(3)}°</span>
+                <span className="text-cyan-300 font-mono">{lengthStr}</span>
               </div>
             )}
           </div>
@@ -419,38 +498,95 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
           {showGeom && (
             <div className="space-y-2 mt-1 pl-1">
               {/* Circle geometry */}
-              {geom.type === 'CIRCLE' && geom.circle && (
-                <>
-                  <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">Center</div>
-                  <CoordInput label="X" value={geom.circle.center.x} onChange={(v) => updateCircle('cx', v)} />
-                  <CoordInput label="Y" value={geom.circle.center.y} onChange={(v) => updateCircle('cy', v)} />
-                  <CoordInput label="Radius" value={geom.circle.radius} onChange={(v) => updateCircle('radius', v)} />
-                </>
-              )}
+              {geom.type === 'CIRCLE' && geom.circle && (() => {
+                const circ = geom.circle!;
+                return (
+                  <>
+                    <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">Center</div>
+                    <CoordInput
+                      label={labelAShort}
+                      value={worldToDisplay(circ.center.x, circ.center.y).a}
+                      onChange={(val) => {
+                        const { b } = worldToDisplay(circ.center.x, circ.center.y);
+                        updateCircle('cx', displayToWorldX(val, b));
+                        updateCircle('cy', displayToWorldY(val, b));
+                      }}
+                    />
+                    <CoordInput
+                      label={labelBShort}
+                      value={worldToDisplay(circ.center.x, circ.center.y).b}
+                      onChange={(val) => {
+                        const { a } = worldToDisplay(circ.center.x, circ.center.y);
+                        updateCircle('cx', displayToWorldX(a, val));
+                        updateCircle('cy', displayToWorldY(a, val));
+                      }}
+                    />
+                    <CoordInput label="Radius" value={circ.radius} onChange={(v) => updateCircle('radius', v)} />
+                  </>
+                );
+              })()}
 
               {/* Ellipse geometry */}
-              {geom.type === 'ELLIPSE' && geom.ellipse && (
-                <>
-                  <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">Center</div>
-                  <CoordInput label="X" value={geom.ellipse.center.x} onChange={(v) => updateEllipse('cx', v)} />
-                  <CoordInput label="Y" value={geom.ellipse.center.y} onChange={(v) => updateEllipse('cy', v)} />
-                  <CoordInput label="Radius X" value={geom.ellipse.radiusX} onChange={(v) => updateEllipse('rx', v)} />
-                  <CoordInput label="Radius Y" value={geom.ellipse.radiusY} onChange={(v) => updateEllipse('ry', v)} />
-                  <CoordInput label="Rotation°" value={(geom.ellipse.rotation * 180) / Math.PI} onChange={(v) => updateEllipse('rotation', v)} />
-                </>
-              )}
+              {geom.type === 'ELLIPSE' && geom.ellipse && (() => {
+                const ell = geom.ellipse!;
+                return (
+                  <>
+                    <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">Center</div>
+                    <CoordInput
+                      label={labelAShort}
+                      value={worldToDisplay(ell.center.x, ell.center.y).a}
+                      onChange={(val) => {
+                        const { b } = worldToDisplay(ell.center.x, ell.center.y);
+                        updateEllipse('cx', displayToWorldX(val, b));
+                        updateEllipse('cy', displayToWorldY(val, b));
+                      }}
+                    />
+                    <CoordInput
+                      label={labelBShort}
+                      value={worldToDisplay(ell.center.x, ell.center.y).b}
+                      onChange={(val) => {
+                        const { a } = worldToDisplay(ell.center.x, ell.center.y);
+                        updateEllipse('cx', displayToWorldX(a, val));
+                        updateEllipse('cy', displayToWorldY(a, val));
+                      }}
+                    />
+                    <CoordInput label="Radius X" value={ell.radiusX} onChange={(v) => updateEllipse('rx', v)} />
+                    <CoordInput label="Radius Y" value={ell.radiusY} onChange={(v) => updateEllipse('ry', v)} />
+                    <CoordInput label="Rotation°" value={(ell.rotation * 180) / Math.PI} onChange={(v) => updateEllipse('rotation', v)} />
+                  </>
+                );
+              })()}
 
               {/* Arc geometry */}
-              {geom.type === 'ARC' && geom.arc && (
-                <>
-                  <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">Center</div>
-                  <CoordInput label="X" value={geom.arc.center.x} onChange={(v) => updateArc('cx', v)} />
-                  <CoordInput label="Y" value={geom.arc.center.y} onChange={(v) => updateArc('cy', v)} />
-                  <CoordInput label="Radius" value={geom.arc.radius} onChange={(v) => updateArc('radius', v)} />
-                  <CoordInput label="Start°" value={(geom.arc.startAngle * 180) / Math.PI} onChange={(v) => updateArc('startAngle', v)} />
-                  <CoordInput label="End°" value={(geom.arc.endAngle * 180) / Math.PI} onChange={(v) => updateArc('endAngle', v)} />
-                </>
-              )}
+              {geom.type === 'ARC' && geom.arc && (() => {
+                const arc = geom.arc!;
+                return (
+                  <>
+                    <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">Center</div>
+                    <CoordInput
+                      label={labelAShort}
+                      value={worldToDisplay(arc.center.x, arc.center.y).a}
+                      onChange={(val) => {
+                        const { b } = worldToDisplay(arc.center.x, arc.center.y);
+                        updateArc('cx', displayToWorldX(val, b));
+                        updateArc('cy', displayToWorldY(val, b));
+                      }}
+                    />
+                    <CoordInput
+                      label={labelBShort}
+                      value={worldToDisplay(arc.center.x, arc.center.y).b}
+                      onChange={(val) => {
+                        const { a } = worldToDisplay(arc.center.x, arc.center.y);
+                        updateArc('cx', displayToWorldX(a, val));
+                        updateArc('cy', displayToWorldY(a, val));
+                      }}
+                    />
+                    <CoordInput label="Radius" value={arc.radius} onChange={(v) => updateArc('radius', v)} />
+                    <CoordInput label="Start°" value={(arc.startAngle * 180) / Math.PI} onChange={(v) => updateArc('startAngle', v)} />
+                    <CoordInput label="End°" value={(arc.endAngle * 180) / Math.PI} onChange={(v) => updateArc('endAngle', v)} />
+                  </>
+                );
+              })()}
 
               {/* Spline geometry — show fit points */}
               {geom.type === 'SPLINE' && geom.spline && (() => {
@@ -467,8 +603,24 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
                     {fitPoints.map((fp, i) => (
                       <div key={fp.cpIdx} className="space-y-1">
                         <div className="text-gray-500 text-[9px]">Point {i + 1}</div>
-                        <CoordInput label="X" value={fp.pt.x} onChange={(v) => updateSplinePoint(fp.cpIdx, 'x', v)} />
-                        <CoordInput label="Y" value={fp.pt.y} onChange={(v) => updateSplinePoint(fp.cpIdx, 'y', v)} />
+                        <CoordInput
+                          label={labelAShort}
+                          value={worldToDisplay(fp.pt.x, fp.pt.y).a}
+                          onChange={(val) => {
+                            const { b } = worldToDisplay(fp.pt.x, fp.pt.y);
+                            updateSplinePoint(fp.cpIdx, 'x', displayToWorldX(val, b));
+                            updateSplinePoint(fp.cpIdx, 'y', displayToWorldY(val, b));
+                          }}
+                        />
+                        <CoordInput
+                          label={labelBShort}
+                          value={worldToDisplay(fp.pt.x, fp.pt.y).b}
+                          onChange={(val) => {
+                            const { a } = worldToDisplay(fp.pt.x, fp.pt.y);
+                            updateSplinePoint(fp.cpIdx, 'x', displayToWorldX(a, val));
+                            updateSplinePoint(fp.cpIdx, 'y', displayToWorldY(a, val));
+                          }}
+                        />
                       </div>
                     ))}
                   </>
@@ -476,25 +628,34 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
               })()}
 
               {/* Standard vertices (POINT, LINE, POLYLINE, POLYGON) */}
-              {!isCurveType && vertices.map((v, i) => (
-                <div key={i} className="space-y-1">
-                  {vertices.length > 1 && (
-                    <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">
-                      {vertexLabels[i] ?? `Vertex ${i + 1}`}
-                    </div>
-                  )}
-                  <CoordInput
-                    label={vertices.length === 1 ? 'X (East)' : 'X'}
-                    value={v.x}
-                    onChange={(val) => updateVertex(i, 'x', val)}
-                  />
-                  <CoordInput
-                    label={vertices.length === 1 ? 'Y (North)' : 'Y'}
-                    value={v.y}
-                    onChange={(val) => updateVertex(i, 'y', val)}
-                  />
-                </div>
-              ))}
+              {!isCurveType && vertices.map((v, i) => {
+                const { a: dispA, b: dispB } = worldToDisplay(v.x, v.y);
+                return (
+                  <div key={i} className="space-y-1">
+                    {vertices.length > 1 && (
+                      <div className="text-gray-500 text-[9px] uppercase tracking-wider pt-1">
+                        {vertexLabels[i] ?? `Vertex ${i + 1}`}
+                      </div>
+                    )}
+                    <CoordInput
+                      label={labelA}
+                      value={dispA}
+                      onChange={(val) => {
+                        updateVertex(i, 'x', displayToWorldX(val, dispB));
+                        updateVertex(i, 'y', displayToWorldY(val, dispB));
+                      }}
+                    />
+                    <CoordInput
+                      label={labelB}
+                      value={dispB}
+                      onChange={(val) => {
+                        updateVertex(i, 'x', displayToWorldX(dispA, val));
+                        updateVertex(i, 'y', displayToWorldY(dispA, val));
+                      }}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

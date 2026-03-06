@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { RotateCw, Expand, X, Check } from 'lucide-react';
 import type { Feature, Point2D, DisplayPreferences } from '@/lib/cad/types';
-import { formatDistance } from '@/lib/cad/geometry/units';
+import { formatDistance, formatArea } from '@/lib/cad/geometry/units';
 import { formatBearing, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
@@ -204,10 +204,10 @@ export default function InteractiveOpPanel({
       const area = polygonArea(g.vertices);
       if (type === 'SCALE') {
         dimRows.push({ label: 'Perimeter', before: formatDistance(perim, displayPrefs), after: formatDistance(perim * factor, displayPrefs) });
-        dimRows.push({ label: 'Area', before: `${area.toFixed(2)} ft²`, after: `${(area * factor * factor).toFixed(2)} ft²` });
+        dimRows.push({ label: 'Area', before: formatArea(area, displayPrefs), after: formatArea(area * factor * factor, displayPrefs) });
       } else {
         dimRows.push({ label: 'Perimeter', before: formatDistance(perim, displayPrefs), after: formatDistance(perim, displayPrefs) });
-        dimRows.push({ label: 'Area', before: `${area.toFixed(2)} ft²`, after: `${area.toFixed(2)} ft²` });
+        dimRows.push({ label: 'Area', before: formatArea(area, displayPrefs), after: formatArea(area, displayPrefs) });
       }
     } else if (g.type === 'TEXT' && g.point) {
       // TEXT: nothing measurable changes on scale/rotate except position (shown implicitly)

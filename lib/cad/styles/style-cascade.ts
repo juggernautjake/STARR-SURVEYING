@@ -22,7 +22,7 @@ export function resolveStyle(
   if (!feature || !layer) {
     // Defensive fallback — should never happen with valid data
     return {
-      color: '#000000', opacity: 1, lineTypeId: 'SOLID', lineWeight: 0.25,
+      color: '#000000', opacity: 1, lineTypeId: 'SOLID', lineWeight: 1,
       symbolId: 'GENERIC_CROSS', symbolSize: 2.0, symbolRotation: 0,
       labelVisible: false, labelFormat: '{code}',
     };
@@ -34,7 +34,7 @@ export function resolveStyle(
     color:          (fs.color           ?? codeMapping?.lineColor    ?? layer.color         ?? '#000000'),
     opacity:        (typeof fs.opacity === 'number' ? fs.opacity : 1),
     lineTypeId:     (fs.lineTypeId      ?? codeMapping?.lineTypeId   ?? layer.lineTypeId    ?? 'SOLID'),
-    lineWeight:     (fs.lineWeight      ?? codeMapping?.lineWeight   ?? layer.lineWeight    ?? 0.25),
+    lineWeight:     (fs.lineWeight      ?? codeMapping?.lineWeight   ?? layer.lineWeight    ?? 1),
     symbolId:       (fs.symbolId        ?? codeMapping?.symbolId     ?? 'GENERIC_CROSS'),
     symbolSize:     (fs.symbolSize      ?? codeMapping?.symbolSize   ?? 2.0),
     symbolRotation: (typeof fs.symbolRotation === 'number' ? fs.symbolRotation : 0),

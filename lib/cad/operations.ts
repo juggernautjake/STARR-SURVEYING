@@ -397,7 +397,14 @@ export function offsetSelectionByDistance(distance: number): void {
 
     if (!verts || verts.length < 2) continue;
 
-    const offsetVerts = offsetPolyline(verts, distance);
+    const offsetVerts = offsetPolyline(verts, {
+      distance: Math.abs(distance),
+      side: distance >= 0 ? 'LEFT' : 'RIGHT',
+      cornerHandling: 'MITER',
+      miterLimit: 4,
+      maintainLink: false,
+      targetLayerId: null,
+    });
     if (offsetVerts.length < 2) continue;
 
     const newFeature: Feature = {

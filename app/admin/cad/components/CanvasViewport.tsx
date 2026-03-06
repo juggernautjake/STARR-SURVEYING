@@ -3545,6 +3545,17 @@ export default function CanvasViewport() {
         isSpaceDownRef.current = true;
         setCursorStyle('grab');
       }
+      // Cancel interactive rotate/scale on Escape
+      if (e.key === 'Escape' && interactiveOpRef.current) {
+        const dwgStore = useDrawingStore.getState();
+        for (const [id, orig] of interactiveOpRef.current.originals) {
+          dwgStore.updateFeatureGeometry(id, orig.geometry);
+        }
+        interactiveOpRef.current = null;
+        setInteractivePanel(null);
+        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        e.stopPropagation();
+      }
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
@@ -3759,25 +3770,8 @@ export default function CanvasViewport() {
       setCursorStyle('crosshair');
     };
 
-    // ── Escape: cancel interactive op ──────────────────────────────────────
-    const onEscape = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (interactiveOpRef.current) {
-        // Restore originals
-        const dwgStore = useDrawingStore.getState();
-        for (const [id, orig] of interactiveOpRef.current.originals) {
-          dwgStore.updateFeatureGeometry(id, orig.geometry);
-        }
-        interactiveOpRef.current = null;
-        setInteractivePanel(null);
-        setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
-        e.stopPropagation();
-      }
-    };
-
     window.addEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
     window.addEventListener('cad:startInteractiveScale', onStartInteractiveScale);
-    window.addEventListener('keydown', onEscape);
 
     return () => {
       window.removeEventListener('keydown', onKeyDown);
@@ -3788,7 +3782,6 @@ export default function CanvasViewport() {
       window.removeEventListener('cad:scale', onScale);
       window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
       window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
-      window.removeEventListener('keydown', onEscape);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolStore]);
