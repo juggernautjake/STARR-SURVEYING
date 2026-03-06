@@ -42,6 +42,7 @@ import {
   zoomToSelection,
   copyCadSelection,
 } from '@/lib/cad/operations';
+import { insertInflectionPoint, findClosestSplineParam } from '@/lib/cad/geometry/curve-render';
 
 interface Props {
   x: number;          // Screen X (clientX)
@@ -265,6 +266,33 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
             );
           },
         },
+        // Add Inflection Point — only for SPLINE features
+        ...(feature.geometry.type === 'SPLINE' && feature.geometry.spline && feature.geometry.spline.controlPoints.length >= 4
+          ? [
+              {
+                id: 'add-inflection',
+                label: 'Add Inflection Point',
+                icon: <Expand size={12} />,
+                action: () => {
+                  const spline = feature.geometry.spline!;
+                  const closest = findClosestSplineParam(spline.controlPoints, { x: worldX, y: worldY });
+                  const newCPs = insertInflectionPoint(spline.controlPoints, closest.segIndex, closest.t);
+                  const newGeom = { ...feature.geometry, spline: { ...spline, controlPoints: newCPs } };
+                  const before = JSON.parse(JSON.stringify(feature));
+                  drawingStore.updateFeatureGeometry(feature.id, newGeom);
+                  const after = drawingStore.getFeature(feature.id);
+                  if (after) {
+                    undoStore.pushUndo({
+                      id: generateId(),
+                      description: 'Add inflection point to spline',
+                      timestamp: Date.now(),
+                      operations: [{ type: 'MODIFY_FEATURE', data: { id: feature.id, before, after } }],
+                    });
+                  }
+                },
+              } as MenuItemDef,
+            ]
+          : []),
         { separator: true, id: 's0' },
         {
           id: 'copy',
@@ -388,6 +416,82 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
           icon: <EyeOff size={12} />,
           action: hideSelectionLayer,
         },
+        {
+          id: 'layerPrefs',
+          label: 'Layer Preferences',
+          icon: <Layers size={12} />,
+          action: () => {
+            const sel = Array.from(selectionStore.selectedIds);
+            const firstFeature = sel.length > 0 ? drawingStore.getFeature(sel[0]) : null;
+            if (firstFeature) {
+              window.dispatchEvent(
+                new CustomEvent('cad:openLayerPrefs', { detail: { layerId: firstFeature.layerId } }),
+              );
+            }
+            onClose();
+          },
+        },
+        {
+          id: 'hideElement',
+          label: selCount > 1 ? `Hide Elements (${selCount})` : 'Hide Element',
+          icon: <EyeOff size={12} />,
+          action: () => {
+            const ids = Array.from(selectionStore.selectedIds);
+            ids.forEach((id) => drawingStore.hideFeature(id));
+            selectionStore.clear();
+            onClose();
+          },
+        },
+        ...((() => {
+          // Show "Hide Labels" option if selected feature(s) have visible labels
+          const selFeatures = Array.from(selectionStore.selectedIds)
+            .map((id) => drawingStore.getFeature(id))
+            .filter(Boolean);
+          const hasLabels = selFeatures.some((f) => f!.textLabels?.some((l) => l.visible));
+          if (!hasLabels) return [];
+          return [{
+            id: 'hideLabels',
+            label: 'Hide All Labels',
+            icon: <EyeOff size={12} />,
+            action: () => {
+              for (const f of selFeatures) {
+                if (!f) continue;
+                const labels = f.textLabels ?? [];
+                for (const l of labels) {
+                  if (l.visible) {
+                    drawingStore.updateTextLabel(f.id, l.id, { visible: false });
+                  }
+                }
+              }
+              onClose();
+            },
+          } as MenuItemDef];
+        })()),
+        ...((() => {
+          // Show "Show All Labels" option if selected feature(s) have hidden labels
+          const selFeatures = Array.from(selectionStore.selectedIds)
+            .map((id) => drawingStore.getFeature(id))
+            .filter(Boolean);
+          const hasHiddenLabels = selFeatures.some((f) => f!.textLabels?.some((l) => !l.visible));
+          if (!hasHiddenLabels) return [];
+          return [{
+            id: 'showLabels',
+            label: 'Show All Labels',
+            icon: <ZoomIn size={12} />,
+            action: () => {
+              for (const f of selFeatures) {
+                if (!f) continue;
+                const labels = f.textLabels ?? [];
+                for (const l of labels) {
+                  if (!l.visible) {
+                    drawingStore.updateTextLabel(f.id, l.id, { visible: true });
+                  }
+                }
+              }
+              onClose();
+            },
+          } as MenuItemDef];
+        })()),
         { separator: true, id: 's4' },
         {
           id: 'delete',

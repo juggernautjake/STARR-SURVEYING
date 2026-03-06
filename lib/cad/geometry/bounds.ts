@@ -19,6 +19,18 @@ export function computeBounds(points: Point2D[]): BoundingBox {
   return { minX, minY, maxX, maxY };
 }
 
+/** Compute bounding box for an ellipse (accounts for rotation) */
+function ellipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): BoundingBox {
+  // For a rotated ellipse, the bounding box extremes are:
+  // x_extent = sqrt((rx*cos(θ))² + (ry*sin(θ))²)
+  // y_extent = sqrt((rx*sin(θ))² + (ry*cos(θ))²)
+  const cosR = Math.cos(rotation);
+  const sinR = Math.sin(rotation);
+  const extX = Math.sqrt((rx * cosR) ** 2 + (ry * sinR) ** 2);
+  const extY = Math.sqrt((rx * sinR) ** 2 + (ry * cosR) ** 2);
+  return { minX: cx - extX, minY: cy - extY, maxX: cx + extX, maxY: cy + extY };
+}
+
 /** Get bounding box of a feature */
 export function featureBounds(feature: Feature): BoundingBox {
   const geom = feature.geometry;
@@ -34,7 +46,35 @@ export function featureBounds(feature: Feature): BoundingBox {
       return computeBounds([geom.start!, geom.end!]);
     case 'POLYLINE':
     case 'POLYGON':
-      return computeBounds(geom.vertices!);
+      return computeBounds(geom.vertices ?? []);
+    case 'CIRCLE': {
+      if (geom.circle) {
+        const { center, radius } = geom.circle;
+        return { minX: center.x - radius, minY: center.y - radius, maxX: center.x + radius, maxY: center.y + radius };
+      }
+      return computeBounds(geom.vertices ?? []);
+    }
+    case 'ELLIPSE': {
+      if (geom.ellipse) {
+        const { center, radiusX, radiusY, rotation } = geom.ellipse;
+        return ellipseBounds(center.x, center.y, radiusX, radiusY, rotation);
+      }
+      return computeBounds(geom.vertices ?? []);
+    }
+    case 'ARC': {
+      if (geom.arc) {
+        // Conservative: use the full circle bounds (tight arc bounds require checking quadrant crossings)
+        const { center, radius } = geom.arc;
+        return { minX: center.x - radius, minY: center.y - radius, maxX: center.x + radius, maxY: center.y + radius };
+      }
+      return computeBounds(geom.vertices ?? []);
+    }
+    case 'SPLINE': {
+      if (geom.spline) {
+        return computeBounds(geom.spline.controlPoints);
+      }
+      return computeBounds(geom.vertices ?? []);
+    }
     default:
       return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   }

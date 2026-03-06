@@ -2,7 +2,7 @@
 // app/admin/cad/components/LayerPanel.tsx — Layer list panel
 
 import { useState, useRef } from 'react';
-import { Eye, EyeOff, Lock, LockOpen, Plus } from 'lucide-react';
+import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
@@ -114,6 +114,15 @@ export default function LayerPanel() {
     input.click();
   }
 
+  function openLayerPreferences(layerId: string) {
+    setContextMenu(null);
+    window.dispatchEvent(new CustomEvent('cad:openLayerPrefs', { detail: { layerId } }));
+  }
+
+  function openHiddenItems() {
+    window.dispatchEvent(new CustomEvent('cad:toggleHiddenItems'));
+  }
+
   return (
     <div
       className="flex flex-col h-full text-gray-200 text-xs"
@@ -185,6 +194,18 @@ export default function LayerPanel() {
               style={{ backgroundColor: layer.color }}
             />
 
+            {/* Layer preferences button */}
+            <button
+              className="flex-shrink-0 text-gray-600 hover:text-blue-400 p-0.5 transition-colors duration-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                openLayerPreferences(layer.id);
+              }}
+              title="Layer display preferences"
+            >
+              <Settings size={10} />
+            </button>
+
             {/* Layer name */}
             {renamingId === layer.id ? (
               <input
@@ -212,14 +233,21 @@ export default function LayerPanel() {
         ))}
       </div>
 
-      {/* New Layer button */}
-      <div className="border-t border-gray-700 p-1">
+      {/* New Layer + Hidden Items buttons */}
+      <div className="border-t border-gray-700 p-1 space-y-0.5">
         <button
           className="w-full flex items-center gap-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded px-1 py-1 text-xs transition-colors duration-100"
           onClick={handleNewLayer}
         >
           <Plus size={12} />
           New Layer
+        </button>
+        <button
+          className="w-full flex items-center gap-1 text-gray-400 hover:text-orange-300 hover:bg-gray-700 rounded px-1 py-1 text-xs transition-colors duration-100"
+          onClick={openHiddenItems}
+        >
+          <EyeOffIcon size={12} />
+          Hidden Items
         </button>
       </div>
 
@@ -251,6 +279,12 @@ export default function LayerPanel() {
             onClick={() => handleChangeColor(contextMenu.layerId)}
           >
             Change Color
+          </button>
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
+            onClick={() => openLayerPreferences(contextMenu.layerId)}
+          >
+            Layer Preferences
           </button>
           {!doc.layers[contextMenu.layerId]?.isDefault && (
             <button

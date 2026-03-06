@@ -18,10 +18,34 @@ import { boundsContains, boundsOverlap } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point';
 import { translate, rotate, mirror, scale, transformFeature } from '@/lib/cad/geometry/transform';
 import { generateId } from '@/lib/cad/types';
-import type { Feature, Point2D, BoundingBox, FeatureType } from '@/lib/cad/types';
-import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel, CircleGeometry, EllipseGeometry, ArcGeometry, SplineGeometry } from '@/lib/cad/types';
+import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
+import { inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import { cadLog } from '@/lib/cad/logger';
+import {
+  drawCircle as drawCircleCurve,
+  drawEllipse as drawEllipseCurve,
+  drawArc as drawArcCurve,
+  drawSpline as drawSplineCurve,
+  pointToCircleDistance,
+  pointInCircle,
+  pointToEllipseDistance,
+  pointInEllipse,
+  pointToArcDistance,
+  pointToSplineDistance,
+  circleGripPoints,
+  ellipseGripPoints,
+  arcGripPoints,
+  splineGripPoints,
+  fitPointsToBezier,
+  bezierToFitPoints,
+  getSplineHandles,
+  insertInflectionPoint,
+  findClosestSplineParam,
+  arcFrom3Points,
+  type GraphicsLike,
+} from '@/lib/cad/geometry/curve-render';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
 
@@ -34,9 +58,6 @@ const MAX_GRID_ITERATIONS = 500; // max grid lines per axis to prevent performan
 // Minimum meaningful segment length in world units before zoom scaling.
 // Prevents duplicate zero-length segments on double-click.
 const MIN_SEGMENT_LENGTH_BASE = 0.001;
-
-// Number of vertices used to approximate a circle as a polygon
-const CIRCLE_VERTS = 64;
 
 // Grey background color rendered outside the paper boundary
 const CANVAS_SURROUND_COLOR = 0x808080;
@@ -82,7 +103,9 @@ interface DrawingMenuState {
 // ── Tool-specific CSS cursors ─────────────────────────────────────────────────
 // Custom SVG cursors for professional feel
 const SVG_CURSOR_CROSSHAIR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cline x1='12' y1='0' x2='12' y2='10' stroke='%23fff' stroke-width='1.5'/%3E%3Cline x1='12' y1='14' x2='12' y2='24' stroke='%23fff' stroke-width='1.5'/%3E%3Cline x1='0' y1='12' x2='10' y2='12' stroke='%23fff' stroke-width='1.5'/%3E%3Cline x1='14' y1='12' x2='24' y2='12' stroke='%23fff' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='2' fill='none' stroke='%23fff' stroke-width='1'/%3E%3Cline x1='12' y1='1' x2='12' y2='10' stroke='%23000' stroke-width='0.5'/%3E%3Cline x1='12' y1='14' x2='12' y2='23' stroke='%23000' stroke-width='0.5'/%3E%3Cline x1='1' y1='12' x2='10' y2='12' stroke='%23000' stroke-width='0.5'/%3E%3Cline x1='14' y1='12' x2='23' y2='12' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E") 12 12, crosshair`;
-const SVG_CURSOR_ERASE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='3' y='3' width='14' height='14' rx='2' fill='%23ff4444' fill-opacity='0.3' stroke='%23ff4444' stroke-width='1.5'/%3E%3Cline x1='6' y1='6' x2='14' y2='14' stroke='white' stroke-width='2'/%3E%3Cline x1='14' y1='6' x2='6' y2='14' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 10 10, crosshair`;
+// Erase cursor: yellow outline = idle (nothing under cursor), red outline = hovering over erasable element
+const SVG_CURSOR_ERASE_IDLE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='3' y='3' width='14' height='14' rx='2' fill='%23ffcc00' fill-opacity='0.15' stroke='%23ddaa00' stroke-width='1.5'/%3E%3Cline x1='6' y1='6' x2='14' y2='14' stroke='%23ddaa00' stroke-width='1.5'/%3E%3Cline x1='14' y1='6' x2='6' y2='14' stroke='%23ddaa00' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, crosshair`;
+const SVG_CURSOR_ERASE_ACTIVE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='3' y='3' width='14' height='14' rx='2' fill='%23ff4444' fill-opacity='0.3' stroke='%23ff4444' stroke-width='1.5'/%3E%3Cline x1='6' y1='6' x2='14' y2='14' stroke='white' stroke-width='2'/%3E%3Cline x1='14' y1='6' x2='6' y2='14' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 10 10, crosshair`;
 const SVG_CURSOR_ROTATE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M17 3l3.5 6-6 0' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E") 12 12, alias`;
 
 const SVG_CURSOR_BOX_SELECT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Crect x='4' y='4' width='16' height='16' fill='none' stroke='%230088ff' stroke-width='1.5' stroke-dasharray='3 2'/%3E%3Cline x1='12' y1='0' x2='12' y2='8' stroke='white' stroke-width='1'/%3E%3Cline x1='12' y1='16' x2='12' y2='24' stroke='white' stroke-width='1'/%3E%3Cline x1='0' y1='12' x2='8' y2='12' stroke='white' stroke-width='1'/%3E%3Cline x1='16' y1='12' x2='24' y2='12' stroke='white' stroke-width='1'/%3E%3C/svg%3E") 12 12, crosshair`;
@@ -101,12 +124,15 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
   DRAW_CIRCLE_EDGE: SVG_CURSOR_CROSSHAIR,
   DRAW_ELLIPSE: SVG_CURSOR_CROSSHAIR,
   DRAW_ELLIPSE_EDGE: SVG_CURSOR_CROSSHAIR,
+  DRAW_CURVED_LINE: SVG_CURSOR_CROSSHAIR,
+  DRAW_SPLINE_FIT: SVG_CURSOR_CROSSHAIR,
+  DRAW_SPLINE_CONTROL: SVG_CURSOR_CROSSHAIR,
   MOVE: 'move',
   COPY: 'copy',
   ROTATE: SVG_CURSOR_ROTATE,
   MIRROR: 'col-resize',
   SCALE: 'nwse-resize',
-  ERASE: SVG_CURSOR_ERASE,
+  ERASE: SVG_CURSOR_ERASE_IDLE,
 };
 
 // ─────────────────────────────────────────────
@@ -120,16 +146,20 @@ export default function CanvasViewport() {
     paperLayer: import('pixi.js').Container;
     gridLayer: import('pixi.js').Container;
     featureLayer: import('pixi.js').Container;
+    labelLayer: import('pixi.js').Container;
     selectionLayer: import('pixi.js').Container;
     snapLayer: import('pixi.js').Container;
     toolPreviewLayer: import('pixi.js').Container;
     featureGraphics: Map<string, import('pixi.js').Graphics>;
+    labelTexts: Map<string, import('pixi.js').Text>;
     paperGraphics: import('pixi.js').Graphics;
     gridGraphics: import('pixi.js').Graphics;
     selectionGraphics: import('pixi.js').Graphics;
     snapGraphics: import('pixi.js').Graphics;
     previewGraphics: import('pixi.js').Graphics;
     GraphicsClass: new () => import('pixi.js').Graphics;
+    TextClass: new (text: string, style?: import('pixi.js').TextStyle | Partial<import('pixi.js').ITextStyle>) => import('pixi.js').Text;
+    TextStyleClass: new (style?: Partial<import('pixi.js').ITextStyle>) => import('pixi.js').TextStyle;
   } | null>(null);
 
   const drawingStore = useDrawingStore();
@@ -148,7 +178,7 @@ export default function CanvasViewport() {
   const gripDragRef = useRef<{
     featureId: string;
     vertexIndex: number;
-    type: 'POINT' | 'LINE_START' | 'LINE_END' | 'VERTEX';
+    type: 'POINT' | 'LINE_START' | 'LINE_END' | 'VERTEX' | 'SPLINE_FIT' | 'SPLINE_HANDLE';
   } | null>(null);
   const gripStartRef = useRef<Feature | null>(null);
   const clickHitFeatureRef = useRef(false);
@@ -158,6 +188,13 @@ export default function CanvasViewport() {
     featureIds: string[];
     startWorld: Point2D;
     originals: Map<string, Feature>;
+  } | null>(null);
+  // Text label drag tracking
+  const labelDragRef = useRef<{
+    featureId: string;
+    labelId: string;
+    startWorld: Point2D;
+    startOffset: Point2D;
   } | null>(null);
   // Canvas pan in SELECT mode (click on empty space + drag)
   const selectPanRef = useRef(false);
@@ -184,6 +221,63 @@ export default function CanvasViewport() {
       setCursorStyle(TOOL_CURSORS[activeTool] ?? 'crosshair');
     }
   }, [activeTool]);
+
+  // Auto-finish curved line when switching tools (including clicking curved line tool again)
+  const prevToolRef = useRef(activeTool);
+  useEffect(() => {
+    const prev = prevToolRef.current;
+    prevToolRef.current = activeTool;
+    if (prev === 'DRAW_CURVED_LINE' && activeTool !== 'DRAW_CURVED_LINE') {
+      // The tool store's setTool already cleared drawingPoints, but we captured
+      // the points before the switch via a subscription. Instead, we rely on
+      // the store subscription below to handle this.
+    }
+  }, [activeTool]);
+
+  // Subscribe to tool store to auto-finish curved line before drawingPoints are cleared
+  useEffect(() => {
+    let prevTool = useToolStore.getState().state.activeTool;
+    let prevPoints = useToolStore.getState().state.drawingPoints;
+    const unsub = useToolStore.subscribe((state) => {
+      const curTool = state.state.activeTool;
+      const isFitTool = prevTool === 'DRAW_CURVED_LINE' || prevTool === 'DRAW_SPLINE_FIT';
+      const isCtrlTool = prevTool === 'DRAW_SPLINE_CONTROL';
+      if (isFitTool && curTool !== prevTool && prevPoints.length >= 2) {
+        // Finish the spline with the captured points before they were cleared
+        const controlPoints = fitPointsToBezier(prevPoints, false);
+        const dStore = useDrawingStore.getState();
+        const layerStyle = dStore.getActiveLayerStyle();
+        const feature: Feature = {
+          id: generateId(),
+          type: 'SPLINE',
+          geometry: { type: 'SPLINE', spline: { controlPoints, isClosed: false } },
+          layerId: dStore.activeLayerId,
+          style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+          properties: {},
+        };
+        dStore.addFeature(feature);
+        useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+      } else if (isCtrlTool && curTool !== prevTool && prevPoints.length >= 4) {
+        const usable = Math.floor((prevPoints.length - 1) / 3) * 3 + 1;
+        const controlPoints = prevPoints.slice(0, usable);
+        const dStore = useDrawingStore.getState();
+        const layerStyle = dStore.getActiveLayerStyle();
+        const feature: Feature = {
+          id: generateId(),
+          type: 'SPLINE',
+          geometry: { type: 'SPLINE', spline: { controlPoints, isClosed: false } },
+          layerId: dStore.activeLayerId,
+          style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+          properties: {},
+        };
+        dStore.addFeature(feature);
+        useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+      }
+      prevTool = curTool;
+      prevPoints = state.state.drawingPoints;
+    });
+    return unsub;
+  }, []);
 
   // ─────────────────────────────────────────────
   // Initialize PixiJS
@@ -220,11 +314,12 @@ export default function CanvasViewport() {
         const paperLayer = new PIXI.Container();
         const gridLayer = new PIXI.Container();
         const featureLayer = new PIXI.Container();
+        const labelLayer = new PIXI.Container();
         const selectionLayer = new PIXI.Container();
         const snapLayer = new PIXI.Container();
         const toolPreviewLayer = new PIXI.Container();
 
-        app.stage.addChild(paperLayer, gridLayer, featureLayer, selectionLayer, snapLayer, toolPreviewLayer);
+        app.stage.addChild(paperLayer, gridLayer, featureLayer, labelLayer, selectionLayer, snapLayer, toolPreviewLayer);
 
         const paperGraphics = new PIXI.Graphics();
         paperLayer.addChild(paperGraphics);
@@ -246,19 +341,44 @@ export default function CanvasViewport() {
           paperLayer,
           gridLayer,
           featureLayer,
+          labelLayer,
           selectionLayer,
           snapLayer,
           toolPreviewLayer,
           featureGraphics: new Map(),
+          labelTexts: new Map(),
           paperGraphics,
           gridGraphics,
           selectionGraphics,
           snapGraphics,
           previewGraphics,
           GraphicsClass: PIXI.Graphics,
+          TextClass: PIXI.Text,
+          TextStyleClass: PIXI.TextStyle,
         };
 
         viewportStore.setScreenSize(width, height);
+
+        // ── Zoom-to-fit: center the drawing paper in the viewport ──
+        // Calculate the paper bounds from settings and zoom to show the entire page
+        {
+          const docSettings = drawingStore.document.settings;
+          const { paperSize: ps, paperOrientation: po, drawingScale: ds } = docSettings;
+          let [pw, ph] = PAPER_SIZE_MAP[ps ?? 'TABLOID'] ?? [11, 17];
+          if (po === 'LANDSCAPE') { [pw, ph] = [ph, pw]; }
+          const paperW = pw * (ds ?? 50);
+          const paperH = ph * (ds ?? 50);
+
+          // Paper extends from (0,0) to (paperW, paperH) — center it
+          const paperBounds: import('@/lib/cad/types').BoundingBox = {
+            minX: 0,
+            minY: 0,
+            maxX: paperW,
+            maxY: paperH,
+          };
+          viewportStore.zoomToExtents(paperBounds, 0.05);
+        }
+
         cadLog.info('CanvasViewport', 'PixiJS canvas initialised successfully');
 
         // Start render loop
@@ -544,6 +664,7 @@ export default function CanvasViewport() {
     const weight = feature.style.lineWeight ?? 0.25;
     const alpha = feature.style.opacity;
     const geom = feature.geometry;
+    const { zoom } = useViewportStore.getState();
 
     switch (geom.type) {
       case 'POINT': {
@@ -588,6 +709,167 @@ export default function CanvasViewport() {
         }
         g.closePath();
         break;
+      }
+      case 'CIRCLE': {
+        if (geom.circle) {
+          g.lineStyle(weight, color, alpha);
+          drawCircleCurve(g as unknown as GraphicsLike, geom.circle, w2s, zoom);
+        }
+        break;
+      }
+      case 'ELLIPSE': {
+        if (geom.ellipse) {
+          g.lineStyle(weight, color, alpha);
+          drawEllipseCurve(g as unknown as GraphicsLike, geom.ellipse, w2s, zoom);
+        }
+        break;
+      }
+      case 'ARC': {
+        if (geom.arc) {
+          g.lineStyle(weight, color, alpha);
+          drawArcCurve(g as unknown as GraphicsLike, geom.arc, w2s, zoom);
+        }
+        break;
+      }
+      case 'SPLINE': {
+        if (geom.spline) {
+          g.lineStyle(weight, color, alpha);
+          drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
+        }
+        break;
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Render: Text Labels (bearings, distances, areas, names, etc.)
+  // ─────────────────────────────────────────────
+  function renderLabels() {
+    const pixi = pixiRef.current;
+    if (!pixi) return;
+
+    const visibleFeatures = drawingStore.getVisibleFeatures();
+    const activeLabelIds = new Set<string>();
+    const zoom = viewportStore.zoom;
+    const doc = drawingStore.document;
+
+    for (const feature of visibleFeatures) {
+      const labels = feature.textLabels;
+      if (!labels || labels.length === 0) continue;
+
+      const layer = doc.layers[feature.layerId];
+      if (!layer) continue;
+
+      const geom = feature.geometry;
+
+      for (let li = 0; li < labels.length; li++) {
+        const label = labels[li];
+        if (!label.visible) continue;
+
+        const labelKey = `${feature.id}:${label.id}`;
+        activeLabelIds.add(labelKey);
+
+        // Compute anchor position in world coordinates based on label kind and feature geometry
+        let anchorWorld: Point2D = { x: 0, y: 0 };
+        let segmentIndex = -1;
+
+        if (label.kind === 'POINT_NAME' || label.kind === 'POINT_DESCRIPTION' ||
+            label.kind === 'POINT_ELEVATION' || label.kind === 'POINT_COORDINATES') {
+          if (geom.point) {
+            anchorWorld = geom.point;
+          }
+        } else if (label.kind === 'BEARING' || label.kind === 'DISTANCE') {
+          if (geom.type === 'LINE' && geom.start && geom.end) {
+            anchorWorld = {
+              x: (geom.start.x + geom.end.x) / 2,
+              y: (geom.start.y + geom.end.y) / 2,
+            };
+          } else if ((geom.type === 'POLYLINE' || geom.type === 'POLYGON') && geom.vertices) {
+            // Find which segment this label belongs to (use li as segment proxy for bearing/distance pairs)
+            const bearingLabels = labels.filter((l) => l.kind === 'BEARING');
+            const distLabels = labels.filter((l) => l.kind === 'DISTANCE');
+            if (label.kind === 'BEARING') {
+              segmentIndex = bearingLabels.indexOf(label);
+            } else {
+              segmentIndex = distLabels.indexOf(label);
+            }
+            const verts = geom.vertices;
+            const maxSeg = geom.type === 'POLYGON' ? verts.length : verts.length - 1;
+            if (segmentIndex >= 0 && segmentIndex < maxSeg) {
+              const from = verts[segmentIndex];
+              const to = verts[(segmentIndex + 1) % verts.length];
+              anchorWorld = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+            }
+          }
+        } else if (label.kind === 'AREA' || label.kind === 'PERIMETER') {
+          if (geom.vertices && geom.vertices.length >= 3) {
+            const cx = geom.vertices.reduce((s, v) => s + v.x, 0) / geom.vertices.length;
+            const cy = geom.vertices.reduce((s, v) => s + v.y, 0) / geom.vertices.length;
+            anchorWorld = { x: cx, y: cy };
+          }
+        }
+
+        // Convert anchor to screen
+        const { sx: ax, sy: ay } = w2s(anchorWorld.x, anchorWorld.y);
+        // Apply offset (in screen pixels)
+        const offsetScale = label.userPositioned ? 1 : label.scale;
+        const finalX = ax + label.offset.x * offsetScale;
+        const finalY = ay + label.offset.y * offsetScale;
+
+        // Get or create text object
+        let textObj = pixi.labelTexts.get(labelKey);
+        const textColor = label.style.color ?? layer.color ?? '#000000';
+        const fontSize = Math.max(6, label.style.fontSize * label.scale);
+
+        if (!textObj) {
+          const style = new pixi.TextStyleClass({
+            fontFamily: label.style.fontFamily,
+            fontSize,
+            fontWeight: label.style.fontWeight,
+            fontStyle: label.style.fontStyle,
+            fill: textColor,
+            align: 'center',
+          });
+          textObj = new pixi.TextClass(label.text, style);
+          textObj.anchor.set(0.5, 0.5);
+          pixi.labelTexts.set(labelKey, textObj);
+          pixi.labelLayer.addChild(textObj);
+        } else {
+          // Update existing text
+          if (textObj.text !== label.text) textObj.text = label.text;
+          const s = textObj.style as import('pixi.js').TextStyle;
+          s.fontFamily = label.style.fontFamily;
+          s.fontSize = fontSize;
+          s.fontWeight = label.style.fontWeight;
+          s.fontStyle = label.style.fontStyle;
+          s.fill = textColor;
+        }
+
+        textObj.position.set(finalX, finalY);
+
+        // Rotation: for line labels, orient along line direction
+        if (label.rotation !== null) {
+          // PixiJS rotation is clockwise, and our y-axis is inverted (screen),
+          // so negate the rotation to match world orientation
+          textObj.rotation = -label.rotation;
+        } else {
+          textObj.rotation = 0;
+        }
+
+        textObj.alpha = layer.opacity;
+        textObj.visible = true;
+
+        // Add background if specified
+        // (background rendering is handled via the text's own properties for simplicity)
+      }
+    }
+
+    // Remove label texts that are no longer active
+    for (const [key, textObj] of pixi.labelTexts) {
+      if (!activeLabelIds.has(key)) {
+        pixi.labelLayer.removeChild(textObj);
+        textObj.destroy();
+        pixi.labelTexts.delete(key);
       }
     }
   }
@@ -638,6 +920,7 @@ export default function CanvasViewport() {
       if (feature) {
         const geom = feature.geometry;
         // Helper: draw geometry outline for glow layers
+        const currentZoom = useViewportStore.getState().zoom;
         const drawGeomOutline = () => {
           switch (geom.type) {
             case 'POINT': {
@@ -675,6 +958,22 @@ export default function CanvasViewport() {
               g.closePath();
               break;
             }
+            case 'CIRCLE': {
+              if (geom.circle) drawCircleCurve(g as unknown as GraphicsLike, geom.circle, w2s, currentZoom);
+              break;
+            }
+            case 'ELLIPSE': {
+              if (geom.ellipse) drawEllipseCurve(g as unknown as GraphicsLike, geom.ellipse, w2s, currentZoom);
+              break;
+            }
+            case 'ARC': {
+              if (geom.arc) drawArcCurve(g as unknown as GraphicsLike, geom.arc, w2s, currentZoom);
+              break;
+            }
+            case 'SPLINE': {
+              if (geom.spline) drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
+              break;
+            }
           }
         };
 
@@ -698,6 +997,7 @@ export default function CanvasViewport() {
       // Highlight: selection color outline — width from settings
       const geom = feature.geometry;
       const selLineW = docSettings.selectionLineWidth ?? 1.5;
+      const selZoom = useViewportStore.getState().zoom;
       g.lineStyle(selLineW + 0.5, selColor, 1);
       switch (geom.type) {
         case 'POINT': {
@@ -735,6 +1035,22 @@ export default function CanvasViewport() {
           g.closePath();
           break;
         }
+        case 'CIRCLE': {
+          if (geom.circle) drawCircleCurve(g as unknown as GraphicsLike, geom.circle, w2s, selZoom);
+          break;
+        }
+        case 'ELLIPSE': {
+          if (geom.ellipse) drawEllipseCurve(g as unknown as GraphicsLike, geom.ellipse, w2s, selZoom);
+          break;
+        }
+        case 'ARC': {
+          if (geom.arc) drawArcCurve(g as unknown as GraphicsLike, geom.arc, w2s, selZoom);
+          break;
+        }
+        case 'SPLINE': {
+          if (geom.spline) drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
+          break;
+        }
       }
 
       // Grip squares at vertices — size and colors from settings
@@ -743,14 +1059,64 @@ export default function CanvasViewport() {
       const gripBorderColor = parseInt(gripColorHex, 16);
       const gripFillHex = (docSettings.gripFillColor ?? '#ffffff').replace('#', '');
       const gripFill = parseInt(gripFillHex, 16);
-      g.lineStyle(1, gripBorderColor, 1);
-      g.beginFill(gripFill, 1);
-      const gripPoints = getFeatureVertices(feature);
-      for (const pt of gripPoints) {
-        const { sx, sy } = w2s(pt.x, pt.y);
-        g.drawRect(sx - gs / 2, sy - gs / 2, gs, gs);
+      // SPLINE: draw tangent handles with specialized grips
+      if (geom.type === 'SPLINE' && geom.spline && geom.spline.controlPoints.length >= 4) {
+        const cp = geom.spline.controlPoints;
+        const fitPts = bezierToFitPoints(cp);
+        const fitCount = fitPts.length;
+
+        // Draw tangent handle lines (thin gray lines from inflection point to handle endpoints)
+        g.lineStyle(1, 0xaaaaaa, 0.6);
+        for (let fi = 0; fi < fitCount; fi++) {
+          const handles = getSplineHandles(cp, fi);
+          const pt = w2s(handles.point.x, handles.point.y);
+          if (handles.leftHandle) {
+            const lh = w2s(handles.leftHandle.x, handles.leftHandle.y);
+            g.moveTo(pt.sx, pt.sy);
+            g.lineTo(lh.sx, lh.sy);
+          }
+          if (handles.rightHandle) {
+            const rh = w2s(handles.rightHandle.x, handles.rightHandle.y);
+            g.moveTo(pt.sx, pt.sy);
+            g.lineTo(rh.sx, rh.sy);
+          }
+        }
+
+        // Draw white square grips at handle endpoints (control points)
+        g.lineStyle(1, gripBorderColor, 1);
+        g.beginFill(gripFill, 1);
+        for (let fi = 0; fi < fitCount; fi++) {
+          const handles = getSplineHandles(cp, fi);
+          if (handles.leftHandle) {
+            const lh = w2s(handles.leftHandle.x, handles.leftHandle.y);
+            g.drawRect(lh.sx - gs / 2, lh.sy - gs / 2, gs, gs);
+          }
+          if (handles.rightHandle) {
+            const rh = w2s(handles.rightHandle.x, handles.rightHandle.y);
+            g.drawRect(rh.sx - gs / 2, rh.sy - gs / 2, gs, gs);
+          }
+        }
+        g.endFill();
+
+        // Draw circle grips at inflection points (on-curve points)
+        g.lineStyle(1.5, gripBorderColor, 1);
+        g.beginFill(gripFill, 1);
+        for (let fi = 0; fi < fitCount; fi++) {
+          const pt = w2s(fitPts[fi].x, fitPts[fi].y);
+          g.drawCircle(pt.sx, pt.sy, gs / 2 + 1);
+        }
+        g.endFill();
+      } else {
+        // Standard grip squares for all other geometry types
+        g.lineStyle(1, gripBorderColor, 1);
+        g.beginFill(gripFill, 1);
+        const gripPoints = getFeatureVertices(feature);
+        for (const pt of gripPoints) {
+          const { sx, sy } = w2s(pt.x, pt.y);
+          g.drawRect(sx - gs / 2, sy - gs / 2, gs, gs);
+        }
+        g.endFill();
       }
-      g.endFill();
     }
   }
 
@@ -764,6 +1130,14 @@ export default function CanvasViewport() {
       case 'POLYLINE':
       case 'POLYGON':
         return geom.vertices ?? [];
+      case 'CIRCLE':
+        return geom.circle ? circleGripPoints(geom.circle) : [];
+      case 'ELLIPSE':
+        return geom.ellipse ? ellipseGripPoints(geom.ellipse) : [];
+      case 'ARC':
+        return geom.arc ? arcGripPoints(geom.arc) : [];
+      case 'SPLINE':
+        return geom.spline ? splineGripPoints(geom.spline) : [];
       default:
         return [];
     }
@@ -906,6 +1280,180 @@ export default function CanvasViewport() {
       return;
     }
 
+    // ── DRAW_CURVED_LINE / DRAW_SPLINE_FIT preview: live bezier curve from fit points + cursor ──
+    if (activeTool === 'DRAW_CURVED_LINE' || activeTool === 'DRAW_SPLINE_FIT') {
+      if (drawingPoints.length === 0) {
+        // No points yet: show start-point crosshair at cursor
+        const { sx, sy } = w2s(previewPoint.x, previewPoint.y);
+        g.lineStyle(1, previewColor, 0.5);
+        g.moveTo(sx - 6, sy); g.lineTo(sx + 6, sy);
+        g.moveTo(sx, sy - 6); g.lineTo(sx, sy + 6);
+        return;
+      }
+
+      // Build temporary fit points including the live cursor position
+      const tempFitPoints = [...drawingPoints, previewPoint];
+      const tempCP = fitPointsToBezier(tempFitPoints, false);
+
+      // Draw the live bezier curve
+      if (tempCP.length >= 4) {
+        g.lineStyle(1.5, previewColor, 0.85);
+        const p0 = w2s(tempCP[0].x, tempCP[0].y);
+        g.moveTo(p0.sx, p0.sy);
+        const numSegs = Math.floor((tempCP.length - 1) / 3);
+        for (let seg = 0; seg < numSegs; seg++) {
+          const idx = seg * 3;
+          const cp1 = w2s(tempCP[idx + 1].x, tempCP[idx + 1].y);
+          const cp2 = w2s(tempCP[idx + 2].x, tempCP[idx + 2].y);
+          const end = w2s(tempCP[idx + 3].x, tempCP[idx + 3].y);
+          g.bezierCurveTo(cp1.sx, cp1.sy, cp2.sx, cp2.sy, end.sx, end.sy);
+        }
+      } else if (drawingPoints.length === 1) {
+        // Only 1 fit point + cursor: straight line preview
+        const s = w2s(drawingPoints[0].x, drawingPoints[0].y);
+        const e = w2s(previewPoint.x, previewPoint.y);
+        g.lineStyle(1.5, previewColor, 0.85);
+        g.moveTo(s.sx, s.sy);
+        g.lineTo(e.sx, e.sy);
+      }
+
+      // Draw inflection point dots at each committed fit point
+      g.lineStyle(1, previewColor, 0.9);
+      for (let i = 0; i < drawingPoints.length; i++) {
+        const { sx, sy } = w2s(drawingPoints[i].x, drawingPoints[i].y);
+        g.beginFill(i === 0 ? previewColor : 0xffffff, i === 0 ? 0.9 : 0.8);
+        g.drawCircle(sx, sy, i === 0 ? 4 : 3);
+        g.endFill();
+      }
+
+      // Show tangent handles on committed fit points (if >= 2 fit points)
+      if (drawingPoints.length >= 2) {
+        const committedCP = fitPointsToBezier(drawingPoints, false);
+        const fitCount = drawingPoints.length;
+        g.lineStyle(0.75, 0xaaaaaa, 0.5);
+        for (let fi = 0; fi < fitCount; fi++) {
+          const handles = getSplineHandles(committedCP, fi);
+          const pt = w2s(handles.point.x, handles.point.y);
+          if (handles.leftHandle) {
+            const lh = w2s(handles.leftHandle.x, handles.leftHandle.y);
+            g.moveTo(pt.sx, pt.sy);
+            g.lineTo(lh.sx, lh.sy);
+          }
+          if (handles.rightHandle) {
+            const rh = w2s(handles.rightHandle.x, handles.rightHandle.y);
+            g.moveTo(pt.sx, pt.sy);
+            g.lineTo(rh.sx, rh.sy);
+          }
+        }
+      }
+
+      // Cursor dot
+      const { sx: cx, sy: cy } = w2s(previewPoint.x, previewPoint.y);
+      g.beginFill(previewColor, 0.7);
+      g.drawCircle(cx, cy, 2.5);
+      g.endFill();
+      return;
+    }
+
+    // ── DRAW_SPLINE_CONTROL preview: show control point polygon + bezier curves ──
+    if (activeTool === 'DRAW_SPLINE_CONTROL') {
+      const allPts = [...drawingPoints, previewPoint];
+      if (allPts.length === 0) return;
+
+      // Draw control polygon (dashed-style thin lines between all points)
+      g.lineStyle(0.75, previewColor, 0.3);
+      const first = w2s(allPts[0].x, allPts[0].y);
+      g.moveTo(first.sx, first.sy);
+      for (let i = 1; i < allPts.length; i++) {
+        const p = w2s(allPts[i].x, allPts[i].y);
+        g.lineTo(p.sx, p.sy);
+      }
+
+      // Draw the bezier curve from complete segments
+      const numSegs = Math.floor((allPts.length - 1) / 3);
+      if (numSegs > 0) {
+        g.lineStyle(1.5, previewColor, 0.85);
+        const p0 = w2s(allPts[0].x, allPts[0].y);
+        g.moveTo(p0.sx, p0.sy);
+        for (let seg = 0; seg < numSegs; seg++) {
+          const idx = seg * 3;
+          const cp1 = w2s(allPts[idx + 1].x, allPts[idx + 1].y);
+          const cp2 = w2s(allPts[idx + 2].x, allPts[idx + 2].y);
+          const end = w2s(allPts[idx + 3].x, allPts[idx + 3].y);
+          g.bezierCurveTo(cp1.sx, cp1.sy, cp2.sx, cp2.sy, end.sx, end.sy);
+        }
+      }
+
+      // Draw dots at each control point
+      for (let i = 0; i < allPts.length; i++) {
+        const { sx, sy } = w2s(allPts[i].x, allPts[i].y);
+        const isOnCurve = i % 3 === 0;
+        g.lineStyle(1, previewColor, 0.9);
+        g.beginFill(isOnCurve ? previewColor : 0xffffff, isOnCurve ? 0.9 : 0.7);
+        if (isOnCurve) {
+          g.drawCircle(sx, sy, 3.5);
+        } else {
+          g.drawRect(sx - 3, sy - 3, 6, 6);
+        }
+        g.endFill();
+      }
+      return;
+    }
+
+    // ── DRAW_ARC preview: show arc from committed points + cursor ──
+    if (activeTool === 'DRAW_ARC') {
+      if (drawingPoints.length === 0) {
+        // No points: show crosshair
+        const { sx, sy } = w2s(previewPoint.x, previewPoint.y);
+        g.lineStyle(1, previewColor, 0.5);
+        g.moveTo(sx - 6, sy); g.lineTo(sx + 6, sy);
+        g.moveTo(sx, sy - 6); g.lineTo(sx, sy + 6);
+        return;
+      }
+
+      // Draw dots at committed points
+      for (let i = 0; i < drawingPoints.length; i++) {
+        const { sx, sy } = w2s(drawingPoints[i].x, drawingPoints[i].y);
+        g.lineStyle(1, previewColor, 0.9);
+        g.beginFill(previewColor, 0.8);
+        g.drawCircle(sx, sy, 3.5);
+        g.endFill();
+      }
+
+      if (drawingPoints.length === 1) {
+        // 1 point: show line to cursor
+        const s = w2s(drawingPoints[0].x, drawingPoints[0].y);
+        const e = w2s(previewPoint.x, previewPoint.y);
+        g.lineStyle(1, previewColor, 0.5);
+        g.moveTo(s.sx, s.sy);
+        g.lineTo(e.sx, e.sy);
+      } else if (drawingPoints.length === 2) {
+        // 2 points + cursor: compute and draw the preview arc
+        const arcGeom = arcFrom3Points(drawingPoints[0], drawingPoints[1], previewPoint);
+        if (arcGeom) {
+          const pvZoom = useViewportStore.getState().zoom;
+          g.lineStyle(1.5, previewColor, 0.85);
+          drawArcCurve(g as unknown as GraphicsLike, arcGeom, w2s, pvZoom);
+        } else {
+          // Collinear: draw straight lines
+          const s = w2s(drawingPoints[0].x, drawingPoints[0].y);
+          const m = w2s(drawingPoints[1].x, drawingPoints[1].y);
+          const e = w2s(previewPoint.x, previewPoint.y);
+          g.lineStyle(1, previewColor, 0.5);
+          g.moveTo(s.sx, s.sy);
+          g.lineTo(m.sx, m.sy);
+          g.lineTo(e.sx, e.sy);
+        }
+      }
+
+      // Cursor dot
+      const { sx: cx, sy: cy } = w2s(previewPoint.x, previewPoint.y);
+      g.beginFill(previewColor, 0.7);
+      g.drawCircle(cx, cy, 2.5);
+      g.endFill();
+      return;
+    }
+
     const isDrawing =
       activeTool === 'DRAW_LINE' ||
       activeTool === 'DRAW_POLYLINE' ||
@@ -962,23 +1510,19 @@ export default function CanvasViewport() {
         }
         return;
       }
-      // Circle preview (center + radius mode)
+      // Circle preview (center + radius mode) — true circle using native drawCircle
       if (activeTool === 'DRAW_CIRCLE' && drawingPoints.length === 1 && previewPoint) {
         const center = drawingPoints[0];
         const radius = Math.hypot(previewPoint.x - center.x, previewPoint.y - center.y);
         if (radius > 0) {
-          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-            return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
-          });
+          const pvZoom = useViewportStore.getState().zoom;
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          const screenRadius = radius * pvZoom;
           g.lineStyle(1.5, previewColor, 0.9);
           g.beginFill(previewColor, 0.06);
-          g.moveTo(pts[0].sx, pts[0].sy);
-          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
-          g.closePath();
+          g.drawCircle(cx, cy, screenRadius);
           g.endFill();
           // Center crosshair + radius line
-          const { sx: cx, sy: cy } = w2s(center.x, center.y);
           const { sx: rx, sy: ry } = w2s(previewPoint.x, previewPoint.y);
           g.lineStyle(1, previewColor, 0.5);
           g.moveTo(cx - 5, cy); g.lineTo(cx + 5, cy);
@@ -991,27 +1535,23 @@ export default function CanvasViewport() {
         }
         return;
       }
-      // Circle preview (edge/diameter mode) — first point is on the circle edge
+      // Circle preview (edge/diameter mode) — true circle using native drawCircle
       if (activeTool === 'DRAW_CIRCLE_EDGE' && drawingPoints.length === 1 && previewPoint) {
         const p1 = drawingPoints[0];
         const diameter = Math.hypot(previewPoint.x - p1.x, previewPoint.y - p1.y);
         const radius = diameter / 2;
         if (radius > 0) {
+          const pvZoom = useViewportStore.getState().zoom;
           const center = { x: (p1.x + previewPoint.x) / 2, y: (p1.y + previewPoint.y) / 2 };
-          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-            return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
-          });
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          const screenRadius = radius * pvZoom;
           g.lineStyle(1.5, previewColor, 0.9);
           g.beginFill(previewColor, 0.06);
-          g.moveTo(pts[0].sx, pts[0].sy);
-          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
-          g.closePath();
+          g.drawCircle(cx, cy, screenRadius);
           g.endFill();
           // Diameter line from p1 to preview point
           const { sx: p1x, sy: p1y } = w2s(p1.x, p1.y);
           const { sx: p2x, sy: p2y } = w2s(previewPoint.x, previewPoint.y);
-          const { sx: cx, sy: cy } = w2s(center.x, center.y);
           g.lineStyle(0.75, previewColor, 0.35);
           g.moveTo(p1x, p1y); g.lineTo(p2x, p2y);
           // Center crosshair
@@ -1026,24 +1566,21 @@ export default function CanvasViewport() {
         }
         return;
       }
-      // Ellipse preview (center + bounding-box corner mode)
+      // Ellipse preview (center + bounding-box corner mode) — true ellipse using native drawEllipse
       if (activeTool === 'DRAW_ELLIPSE' && drawingPoints.length === 1 && previewPoint) {
         const center = drawingPoints[0];
         const rx = Math.abs(previewPoint.x - center.x);
         const ry = Math.abs(previewPoint.y - center.y);
         if (rx > 0 && ry > 0) {
-          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-            return w2s(center.x + rx * Math.cos(angle), center.y + ry * Math.sin(angle));
-          });
+          const pvZoom = useViewportStore.getState().zoom;
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          const screenRx = rx * pvZoom;
+          const screenRy = ry * pvZoom;
           g.lineStyle(1.5, previewColor, 0.9);
           g.beginFill(previewColor, 0.06);
-          g.moveTo(pts[0].sx, pts[0].sy);
-          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
-          g.closePath();
+          g.drawEllipse(cx, cy, screenRx, screenRy);
           g.endFill();
           // Center crosshair + bounding box dashes
-          const { sx: cx, sy: cy } = w2s(center.x, center.y);
           const { sx: ex, sy: ey } = w2s(previewPoint.x, previewPoint.y);
           g.lineStyle(1, previewColor, 0.5);
           g.moveTo(cx - 5, cy); g.lineTo(cx + 5, cy);
@@ -1058,7 +1595,7 @@ export default function CanvasViewport() {
         }
         return;
       }
-      // Ellipse preview (edge/diameter mode) — first point is on the ellipse bounding box edge
+      // Ellipse preview (edge/diameter mode) — true ellipse using native drawEllipse
       if (activeTool === 'DRAW_ELLIPSE_EDGE' && drawingPoints.length === 1 && previewPoint) {
         const p1 = drawingPoints[0];
         const cx = (p1.x + previewPoint.x) / 2;
@@ -1066,15 +1603,13 @@ export default function CanvasViewport() {
         const rx = Math.abs(previewPoint.x - p1.x) / 2;
         const ry = Math.abs(previewPoint.y - p1.y) / 2;
         if (rx > 0 && ry > 0) {
-          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-            return w2s(cx + rx * Math.cos(angle), cy + ry * Math.sin(angle));
-          });
+          const pvZoom = useViewportStore.getState().zoom;
+          const { sx: scx, sy: scy } = w2s(cx, cy);
+          const screenRx = rx * pvZoom;
+          const screenRy = ry * pvZoom;
           g.lineStyle(1.5, previewColor, 0.9);
           g.beginFill(previewColor, 0.06);
-          g.moveTo(pts[0].sx, pts[0].sy);
-          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
-          g.closePath();
+          g.drawEllipse(scx, scy, screenRx, screenRy);
           g.endFill();
           // Diagonal line from p1 to p2 (bounding box diagonal)
           const { sx: p1x, sy: p1y } = w2s(p1.x, p1.y);
@@ -1100,7 +1635,8 @@ export default function CanvasViewport() {
          activeTool === 'DRAW_CIRCLE_EDGE' || activeTool === 'DRAW_ELLIPSE' ||
          activeTool === 'DRAW_ELLIPSE_EDGE' ||
          activeTool === 'DRAW_REGULAR_POLYGON' || activeTool === 'DRAW_POLYGON' ||
-         activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE') &&
+         activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE' ||
+         activeTool === 'DRAW_SPLINE_CONTROL') &&
         drawingPoints.length === 0
       ) {
         const { sx, sy } = w2s(previewPoint.x, previewPoint.y);
@@ -1160,6 +1696,7 @@ export default function CanvasViewport() {
     renderPaper();
     renderGrid();
     renderFeatures();
+    renderLabels();
     renderSelection();
     renderSnapIndicator();
     renderToolPreview();
@@ -1209,6 +1746,47 @@ export default function CanvasViewport() {
         }
         // Check interior
         if (pointInPolygon({ x: wx, y: wy }, geom.vertices)) return feature.id;
+      }
+      // True circle hit testing
+      if (geom.type === 'CIRCLE' && geom.circle) {
+        const d = pointToCircleDistance({ x: wx, y: wy }, geom.circle);
+        if (d <= worldTol) return feature.id;
+        if (pointInCircle({ x: wx, y: wy }, geom.circle)) return feature.id;
+      }
+      // True ellipse hit testing
+      if (geom.type === 'ELLIPSE' && geom.ellipse) {
+        const d = pointToEllipseDistance({ x: wx, y: wy }, geom.ellipse);
+        if (d <= worldTol) return feature.id;
+        if (pointInEllipse({ x: wx, y: wy }, geom.ellipse)) return feature.id;
+      }
+      // Arc hit testing
+      if (geom.type === 'ARC' && geom.arc) {
+        const d = pointToArcDistance({ x: wx, y: wy }, geom.arc);
+        if (d <= worldTol) return feature.id;
+      }
+      // Spline hit testing
+      if (geom.type === 'SPLINE' && geom.spline) {
+        const d = pointToSplineDistance({ x: wx, y: wy }, geom.spline);
+        if (d <= worldTol) return feature.id;
+      }
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────
+  // Hit test: Text labels
+  // ─────────────────────────────────────────────
+  function hitTestLabel(sx: number, sy: number): { featureId: string; labelId: string } | null {
+    const pixi = pixiRef.current;
+    if (!pixi) return null;
+
+    for (const [key, textObj] of pixi.labelTexts) {
+      if (!textObj.visible) continue;
+      const bounds = textObj.getBounds();
+      if (sx >= bounds.x && sx <= bounds.x + bounds.width &&
+          sy >= bounds.y && sy <= bounds.y + bounds.height) {
+        const [featureId, labelId] = key.split(':');
+        return { featureId, labelId };
       }
     }
     return null;
@@ -1356,6 +1934,12 @@ export default function CanvasViewport() {
           style: mergedStyle,
           properties: {},
         };
+      case 'CIRCLE':
+      case 'ELLIPSE':
+      case 'ARC':
+      case 'SPLINE':
+        // These types are created directly in their tool handlers with parametric geometry
+        return null;
       default:
         return null;
     }
@@ -1410,8 +1994,78 @@ export default function CanvasViewport() {
       return;
     }
 
+    // SPLINE: convert fit points to cubic bezier control points
+    if (type === 'SPLINE') {
+      if (drawingPoints.length < 2) {
+        toolStore.clearDrawingPoints();
+        return;
+      }
+      const controlPoints = fitPointsToBezier(drawingPoints, false);
+      const { activeLayerId, getActiveLayerStyle } = drawingStore;
+      const layerStyle = getActiveLayerStyle();
+      const ds = useToolStore.getState().state.drawStyle;
+      const feature: Feature = {
+        id: generateId(),
+        type: 'SPLINE',
+        geometry: {
+          type: 'SPLINE',
+          spline: { controlPoints, isClosed: false },
+        },
+        layerId: activeLayerId,
+        style: {
+          ...DEFAULT_FEATURE_STYLE,
+          ...layerStyle,
+          ...(ds.color != null ? { color: ds.color } : {}),
+          ...(ds.lineWeight != null ? { lineWeight: ds.lineWeight } : {}),
+          ...(ds.opacity != null ? { opacity: ds.opacity } : {}),
+          ...(ds.lineType !== 'SOLID' ? { lineTypeId: ds.lineType } : {}),
+        },
+        properties: {},
+      };
+      drawingStore.addFeature(feature);
+      undoStore.pushUndo(makeAddFeatureEntry(feature));
+      toolStore.clearDrawingPoints();
+      return;
+    }
+
     const feature = createFeature(type, drawingPoints);
     if (!feature) return;
+    drawingStore.addFeature(feature);
+    undoStore.pushUndo(makeAddFeatureEntry(feature));
+    toolStore.clearDrawingPoints();
+  }
+
+  /** Finish a control-point spline (raw control points used directly). */
+  function finishControlPointSpline() {
+    const drawingPoints = useToolStore.getState().state.drawingPoints;
+    if (drawingPoints.length < 4) {
+      toolStore.clearDrawingPoints();
+      return;
+    }
+    // Pad to a multiple of 3 + 1 if needed (trim extra points)
+    const usable = Math.floor((drawingPoints.length - 1) / 3) * 3 + 1;
+    const controlPoints = drawingPoints.slice(0, usable);
+    const { activeLayerId, getActiveLayerStyle } = drawingStore;
+    const layerStyle = getActiveLayerStyle();
+    const ds = useToolStore.getState().state.drawStyle;
+    const feature: Feature = {
+      id: generateId(),
+      type: 'SPLINE',
+      geometry: {
+        type: 'SPLINE',
+        spline: { controlPoints, isClosed: false },
+      },
+      layerId: activeLayerId,
+      style: {
+        ...DEFAULT_FEATURE_STYLE,
+        ...layerStyle,
+        ...(ds.color != null ? { color: ds.color } : {}),
+        ...(ds.lineWeight != null ? { lineWeight: ds.lineWeight } : {}),
+        ...(ds.opacity != null ? { opacity: ds.opacity } : {}),
+        ...(ds.lineType !== 'SOLID' ? { lineTypeId: ds.lineType } : {}),
+      },
+      properties: {},
+    };
     drawingStore.addFeature(feature);
     undoStore.pushUndo(makeAddFeatureEntry(feature));
     toolStore.clearDrawingPoints();
@@ -1485,15 +2139,30 @@ export default function CanvasViewport() {
   // ─────────────────────────────────────────────
   // Grip hit testing
   // ─────────────────────────────────────────────
-  function hitTestGrip(sx: number, sy: number): { featureId: string; vertexIndex: number } | null {
+  function hitTestGrip(sx: number, sy: number): { featureId: string; vertexIndex: number; gripType?: 'SPLINE_FIT' | 'SPLINE_HANDLE' } | null {
     const { selectedIds } = selectionStore;
+    const gripHitSize = (drawingStore.document.settings.gripSize ?? 6) + 2;
     for (const featureId of selectedIds) {
       const feature = drawingStore.getFeature(featureId);
       if (!feature) continue;
+
+      // Specialized grip hit test for SPLINE features
+      if (feature.geometry.type === 'SPLINE' && feature.geometry.spline && feature.geometry.spline.controlPoints.length >= 4) {
+        const cp = feature.geometry.spline.controlPoints;
+        // Test all control points — identify if it's a fit point or handle endpoint
+        for (let i = 0; i < cp.length; i++) {
+          const { sx: gx, sy: gy } = w2s(cp[i].x, cp[i].y);
+          if (Math.abs(sx - gx) <= gripHitSize && Math.abs(sy - gy) <= gripHitSize) {
+            const isFitPoint = i % 3 === 0;
+            return { featureId, vertexIndex: i, gripType: isFitPoint ? 'SPLINE_FIT' : 'SPLINE_HANDLE' };
+          }
+        }
+        continue;
+      }
+
       const verts = getFeatureVertices(feature);
       for (let i = 0; i < verts.length; i++) {
         const { sx: gx, sy: gy } = w2s(verts[i].x, verts[i].y);
-        const gripHitSize = (drawingStore.document.settings.gripSize ?? 6) + 2;
         if (Math.abs(sx - gx) <= gripHitSize && Math.abs(sy - gy) <= gripHitSize) {
           return { featureId, vertexIndex: i };
         }
@@ -1538,7 +2207,10 @@ export default function CanvasViewport() {
       if (activeTool === 'SELECT' && selectionStore.selectedIds.size > 0) {
         const grip = hitTestGrip(sx, sy);
         if (grip) {
-          gripDragRef.current = { featureId: grip.featureId, vertexIndex: grip.vertexIndex, type: 'VERTEX' };
+          const gType = grip.gripType === 'SPLINE_FIT' ? 'SPLINE_FIT'
+            : grip.gripType === 'SPLINE_HANDLE' ? 'SPLINE_HANDLE'
+            : 'VERTEX';
+          gripDragRef.current = { featureId: grip.featureId, vertexIndex: grip.vertexIndex, type: gType };
           gripStartRef.current = drawingStore.getFeature(grip.featureId) ?? null;
           return;
         }
@@ -1546,6 +2218,24 @@ export default function CanvasViewport() {
 
       switch (activeTool) {
         case 'SELECT': {
+          // Check label hit first — labels are on top of features visually
+          const labelHit = hitTestLabel(sx, sy);
+          if (labelHit) {
+            const feature = drawingStore.getFeature(labelHit.featureId);
+            const label = feature?.textLabels?.find((l) => l.id === labelHit.labelId);
+            if (feature && label) {
+              const { wx, wy } = s2w(sx, sy);
+              labelDragRef.current = {
+                featureId: labelHit.featureId,
+                labelId: labelHit.labelId,
+                startWorld: { x: wx, y: wy },
+                startOffset: { ...label.offset },
+              };
+              setCursorStyle('grabbing');
+              return;
+            }
+          }
+
           const hit = hitTest(sx, sy);
           if (hit) {
             clickHitFeatureRef.current = true;
@@ -1735,18 +2425,17 @@ export default function CanvasViewport() {
             const center = toolState.drawingPoints[0];
             const radius = Math.hypot(worldPt.x - center.x, worldPt.y - center.y);
             if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
-            // Approximate circle as 64-vertex polygon
-            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-              return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
-            });
+            // True circle: store parametric data, no polygon vertices
             const feature: Feature = {
               id: generateId(),
-              type: 'POLYGON',
-              geometry: { type: 'POLYGON', vertices },
+              type: 'CIRCLE',
+              geometry: {
+                type: 'CIRCLE',
+                circle: { center: { ...center }, radius },
+              },
               layerId: drawingStore.activeLayerId,
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
-              properties: { shapeType: 'CIRCLE', centerX: center.x.toString(), centerY: center.y.toString(), radius: radius.toString() },
+              properties: { shapeType: 'CIRCLE' },
             };
             drawingStore.addFeature(feature);
             undoStore.pushUndo(makeAddFeatureEntry(feature));
@@ -1766,17 +2455,17 @@ export default function CanvasViewport() {
             const radius = diameter / 2;
             if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
             const center = { x: (p1.x + worldPt.x) / 2, y: (p1.y + worldPt.y) / 2 };
-            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-              return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
-            });
+            // True circle: store parametric data, no polygon vertices
             const feature: Feature = {
               id: generateId(),
-              type: 'POLYGON',
-              geometry: { type: 'POLYGON', vertices },
+              type: 'CIRCLE',
+              geometry: {
+                type: 'CIRCLE',
+                circle: { center, radius },
+              },
               layerId: drawingStore.activeLayerId,
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
-              properties: { shapeType: 'CIRCLE', centerX: center.x.toString(), centerY: center.y.toString(), radius: radius.toString() },
+              properties: { shapeType: 'CIRCLE' },
             };
             drawingStore.addFeature(feature);
             undoStore.pushUndo(makeAddFeatureEntry(feature));
@@ -1796,21 +2485,17 @@ export default function CanvasViewport() {
             if (radiusX < MIN_SEGMENT_LENGTH_BASE || radiusY < MIN_SEGMENT_LENGTH_BASE) {
               toolStore.clearDrawingPoints(); break;
             }
-            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-              return { x: center.x + radiusX * Math.cos(angle), y: center.y + radiusY * Math.sin(angle) };
-            });
+            // True ellipse: store parametric data, no polygon vertices
             const feature: Feature = {
               id: generateId(),
-              type: 'POLYGON',
-              geometry: { type: 'POLYGON', vertices },
+              type: 'ELLIPSE',
+              geometry: {
+                type: 'ELLIPSE',
+                ellipse: { center: { ...center }, radiusX, radiusY, rotation: 0 },
+              },
               layerId: drawingStore.activeLayerId,
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
-              properties: {
-                shapeType: 'ELLIPSE',
-                centerX: center.x.toString(), centerY: center.y.toString(),
-                radiusX: radiusX.toString(), radiusY: radiusY.toString(),
-              },
+              properties: { shapeType: 'ELLIPSE' },
             };
             drawingStore.addFeature(feature);
             undoStore.pushUndo(makeAddFeatureEntry(feature));
@@ -1832,24 +2517,63 @@ export default function CanvasViewport() {
               toolStore.clearDrawingPoints(); break;
             }
             const center = { x: (p1.x + worldPt.x) / 2, y: (p1.y + worldPt.y) / 2 };
-            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-              return { x: center.x + radiusX * Math.cos(angle), y: center.y + radiusY * Math.sin(angle) };
-            });
+            // True ellipse: store parametric data, no polygon vertices
             const feature: Feature = {
               id: generateId(),
-              type: 'POLYGON',
-              geometry: { type: 'POLYGON', vertices },
+              type: 'ELLIPSE',
+              geometry: {
+                type: 'ELLIPSE',
+                ellipse: { center, radiusX, radiusY, rotation: 0 },
+              },
               layerId: drawingStore.activeLayerId,
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
-              properties: {
-                shapeType: 'ELLIPSE',
-                centerX: center.x.toString(), centerY: center.y.toString(),
-                radiusX: radiusX.toString(), radiusY: radiusY.toString(),
-              },
+              properties: { shapeType: 'ELLIPSE' },
             };
             drawingStore.addFeature(feature);
             undoStore.pushUndo(makeAddFeatureEntry(feature));
+            toolStore.clearDrawingPoints();
+          }
+          break;
+        }
+
+        case 'DRAW_CURVED_LINE':
+        case 'DRAW_SPLINE_FIT': {
+          // Curved line / Spline fit-point tool: each click adds a fit point.
+          // On finish, the fit points are converted to cubic bezier control points.
+          toolStore.addDrawingPoint(worldPt);
+          break;
+        }
+
+        case 'DRAW_SPLINE_CONTROL': {
+          // Control-point spline: each click adds a raw control point.
+          // Points are used directly as cubic bezier control points (groups of 4).
+          toolStore.addDrawingPoint(worldPt);
+          break;
+        }
+
+        case 'DRAW_ARC': {
+          // 3-point arc: click start point, mid-arc point, end point
+          if (toolState.drawingPoints.length < 2) {
+            toolStore.addDrawingPoint(worldPt);
+          } else {
+            const p1 = toolState.drawingPoints[0];
+            const p2 = toolState.drawingPoints[1];
+            const p3 = worldPt;
+            const arcGeom = arcFrom3Points(p1, p2, p3);
+            if (arcGeom && arcGeom.radius > MIN_SEGMENT_LENGTH_BASE) {
+              const { activeLayerId, getActiveLayerStyle } = drawingStore;
+              const layerStyle = getActiveLayerStyle();
+              const feature: Feature = {
+                id: generateId(),
+                type: 'ARC',
+                geometry: { type: 'ARC', arc: arcGeom },
+                layerId: activeLayerId,
+                style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+                properties: {},
+              };
+              drawingStore.addFeature(feature);
+              undoStore.pushUndo(makeAddFeatureEntry(feature));
+            }
             toolStore.clearDrawingPoints();
           }
           break;
@@ -2011,6 +2735,19 @@ export default function CanvasViewport() {
 
       const worldPt = getSnappedWorld(sx, sy);
 
+      // Label drag update
+      if (labelDragRef.current) {
+        const { featureId, labelId, startWorld, startOffset } = labelDragRef.current;
+        const { wx, wy } = s2w(sx, sy);
+        const dx = wx - startWorld.x;
+        const dy = wy - startWorld.y;
+        drawingStore.updateTextLabel(featureId, labelId, {
+          offset: { x: startOffset.x + dx, y: startOffset.y + dy },
+          userPositioned: true,
+        });
+        return;
+      }
+
       // Grip drag update
       if (gripDragRef.current) {
         const { featureId, vertexIndex } = gripDragRef.current;
@@ -2030,6 +2767,98 @@ export default function CanvasViewport() {
               const verts = [...(geom.vertices ?? [])];
               verts[vertexIndex] = worldPt;
               geom.vertices = verts;
+              break;
+            }
+            case 'CIRCLE': {
+              if (geom.circle) {
+                const c = { ...geom.circle };
+                if (vertexIndex === 0) {
+                  // Dragging center: move the whole circle
+                  c.center = worldPt;
+                } else {
+                  // Dragging a cardinal point: adjust radius
+                  c.radius = Math.hypot(worldPt.x - c.center.x, worldPt.y - c.center.y);
+                }
+                geom.circle = c;
+              }
+              break;
+            }
+            case 'ELLIPSE': {
+              if (geom.ellipse) {
+                const e = { ...geom.ellipse };
+                if (vertexIndex === 0) {
+                  // Dragging center: move the whole ellipse
+                  e.center = worldPt;
+                } else if (vertexIndex === 1 || vertexIndex === 3) {
+                  // Dragging X-axis endpoints: adjust radiusX
+                  const cosR = Math.cos(-e.rotation);
+                  const sinR = Math.sin(-e.rotation);
+                  const dx = worldPt.x - e.center.x;
+                  const dy = worldPt.y - e.center.y;
+                  const localX = dx * cosR - dy * sinR;
+                  e.radiusX = Math.max(0.01, Math.abs(localX));
+                } else {
+                  // Dragging Y-axis endpoints: adjust radiusY
+                  const cosR = Math.cos(-e.rotation);
+                  const sinR = Math.sin(-e.rotation);
+                  const dx = worldPt.x - e.center.x;
+                  const dy = worldPt.y - e.center.y;
+                  const localY = dx * sinR + dy * cosR;
+                  e.radiusY = Math.max(0.01, Math.abs(localY));
+                }
+                geom.ellipse = e;
+              }
+              break;
+            }
+            case 'ARC': {
+              if (geom.arc) {
+                const a = { ...geom.arc };
+                if (vertexIndex === 0) {
+                  // Dragging center: move the whole arc
+                  a.center = worldPt;
+                } else if (vertexIndex === 1) {
+                  // Dragging start point: adjust startAngle and radius
+                  a.radius = Math.hypot(worldPt.x - a.center.x, worldPt.y - a.center.y);
+                  a.startAngle = Math.atan2(worldPt.y - a.center.y, worldPt.x - a.center.x);
+                } else if (vertexIndex === 3) {
+                  // Dragging end point: adjust endAngle and radius
+                  a.radius = Math.hypot(worldPt.x - a.center.x, worldPt.y - a.center.y);
+                  a.endAngle = Math.atan2(worldPt.y - a.center.y, worldPt.x - a.center.x);
+                } else if (vertexIndex === 2) {
+                  // Dragging mid point: adjust radius
+                  a.radius = Math.hypot(worldPt.x - a.center.x, worldPt.y - a.center.y);
+                }
+                geom.arc = a;
+              }
+              break;
+            }
+            case 'SPLINE': {
+              if (geom.spline) {
+                const s = { ...geom.spline, controlPoints: [...geom.spline.controlPoints] };
+                const dragType = gripDragRef.current?.type;
+                if (dragType === 'SPLINE_FIT') {
+                  // Dragging a fit point (on-curve point at index i*3):
+                  // Move the fit point and its adjacent handles by the same delta
+                  const oldPt = s.controlPoints[vertexIndex];
+                  const dx = worldPt.x - oldPt.x;
+                  const dy = worldPt.y - oldPt.y;
+                  s.controlPoints[vertexIndex] = worldPt;
+                  // Move adjacent left handle
+                  if (vertexIndex > 0) {
+                    const lh = s.controlPoints[vertexIndex - 1];
+                    s.controlPoints[vertexIndex - 1] = { x: lh.x + dx, y: lh.y + dy };
+                  }
+                  // Move adjacent right handle
+                  if (vertexIndex + 1 < s.controlPoints.length) {
+                    const rh = s.controlPoints[vertexIndex + 1];
+                    s.controlPoints[vertexIndex + 1] = { x: rh.x + dx, y: rh.y + dy };
+                  }
+                } else if (vertexIndex >= 0 && vertexIndex < s.controlPoints.length) {
+                  // Dragging a handle endpoint: just move that control point
+                  s.controlPoints[vertexIndex] = worldPt;
+                }
+                geom.spline = s;
+              }
               break;
             }
           }
@@ -2075,6 +2904,9 @@ export default function CanvasViewport() {
               setCursorStyle('default');
             }
           }
+        } else if (toolStore.state.activeTool === 'ERASE') {
+          // Erase tool: yellow when nothing under cursor, red when hovering erasable element
+          setCursorStyle(hit ? SVG_CURSOR_ERASE_ACTIVE : SVG_CURSOR_ERASE_IDLE);
         } else if (hit && !toolStore.state.activeTool.startsWith('DRAW_')) {
           // For modification tools: show pointer cursor when hovering a selectable element
           setCursorStyle('pointer');
@@ -2204,6 +3036,13 @@ export default function CanvasViewport() {
         return;
       }
 
+      // Commit label drag
+      if (labelDragRef.current) {
+        labelDragRef.current = null;
+        setCursorStyle(TOOL_CURSORS[toolState.activeTool] ?? 'default');
+        return;
+      }
+
       // Commit element drag-to-move in SELECT mode
       if (dragFeatureRef.current) {
         const { featureIds, startWorld, originals } = dragFeatureRef.current;
@@ -2312,6 +3151,22 @@ export default function CanvasViewport() {
         return;
       }
 
+      if (activeTool === 'DRAW_CURVED_LINE' || activeTool === 'DRAW_SPLINE_FIT') {
+        // Double-click finishes curved line drawing (the last click already added a point)
+        if (toolState.drawingPoints.length >= 2) {
+          finishFeature('SPLINE');
+        }
+        return;
+      }
+
+      if (activeTool === 'DRAW_SPLINE_CONTROL') {
+        // Double-click finishes control-point spline
+        if (toolState.drawingPoints.length >= 4) {
+          finishControlPointSpline();
+        }
+        return;
+      }
+
       // SELECT tool (or any non-drawing tool): open feature properties dialog
       const hit = hitTest(sx, sy);
       if (hit) {
@@ -2379,6 +3234,10 @@ export default function CanvasViewport() {
         finishFeature('POLYLINE');
       } else if (activeTool === 'DRAW_POLYGON' && drawingPoints.length >= 3) {
         finishFeature('POLYGON');
+      } else if ((activeTool === 'DRAW_CURVED_LINE' || activeTool === 'DRAW_SPLINE_FIT') && drawingPoints.length >= 2) {
+        finishFeature('SPLINE');
+      } else if (activeTool === 'DRAW_SPLINE_CONTROL' && drawingPoints.length >= 4) {
+        finishControlPointSpline();
       } else if (activeTool === 'DRAW_REGULAR_POLYGON' && drawingPoints.length >= 2) {
         // Confirm is not needed (handled by click), but allow Enter to cancel
         toolStore.clearDrawingPoints();
@@ -2396,6 +3255,29 @@ export default function CanvasViewport() {
         const g = f.geometry;
         if (g.type === 'POINT') return g.point ? [g.point] : [];
         if (g.type === 'LINE') return [g.start!, g.end!].filter(Boolean);
+        if (g.type === 'CIRCLE' && g.circle) {
+          const { center, radius } = g.circle;
+          return [
+            { x: center.x - radius, y: center.y - radius },
+            { x: center.x + radius, y: center.y + radius },
+          ];
+        }
+        if (g.type === 'ELLIPSE' && g.ellipse) {
+          const { center, radiusX, radiusY } = g.ellipse;
+          const r = Math.max(radiusX, radiusY);
+          return [
+            { x: center.x - r, y: center.y - r },
+            { x: center.x + r, y: center.y + r },
+          ];
+        }
+        if (g.type === 'ARC' && g.arc) {
+          const { center, radius } = g.arc;
+          return [
+            { x: center.x - radius, y: center.y - radius },
+            { x: center.x + radius, y: center.y + radius },
+          ];
+        }
+        if (g.type === 'SPLINE' && g.spline) return g.spline.controlPoints;
         return g.vertices ?? [];
       });
       if (allPts.length > 0) vpStore.zoomToExtents(computeBounds(allPts));
@@ -2546,6 +3428,34 @@ export default function CanvasViewport() {
           toolStore.clearDrawingPoints();
           toolStore.setTool('SELECT');
         }
+        return;
+      }
+
+      // Right-click during curved line / spline fit drawing: finish if enough points
+      if (activeTool === 'DRAW_CURVED_LINE' || activeTool === 'DRAW_SPLINE_FIT') {
+        if (toolState.drawingPoints.length >= 2) {
+          finishFeature('SPLINE');
+        } else {
+          toolStore.clearDrawingPoints();
+          toolStore.setTool('SELECT');
+        }
+        return;
+      }
+
+      // Right-click during control-point spline drawing: finish if enough points
+      if (activeTool === 'DRAW_SPLINE_CONTROL') {
+        if (toolState.drawingPoints.length >= 4) {
+          finishControlPointSpline();
+        } else {
+          toolStore.clearDrawingPoints();
+          toolStore.setTool('SELECT');
+        }
+        return;
+      }
+
+      // Right-click during arc drawing: cancel
+      if (activeTool === 'DRAW_ARC' && toolState.drawingPoints.length > 0) {
+        toolStore.clearDrawingPoints();
         return;
       }
 

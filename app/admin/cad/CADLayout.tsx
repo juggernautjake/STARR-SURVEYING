@@ -19,6 +19,8 @@ import CurveCalculator from './components/CurveCalculator';
 import NewDrawingDialog from './components/NewDrawingDialog';
 import DisplayPreferencesPanel, { DisplayPrefsToggleButton } from './components/DisplayPreferencesPanel';
 import OrientationDialog from './components/OrientationDialog';
+import HiddenItemsPanel from './components/HiddenItemsPanel';
+import LayerPreferencesPanel from './components/LayerPreferencesPanel';
 import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -97,6 +99,8 @@ export default function CADLayout() {
   const [showNewDrawingDialog, setShowNewDrawingDialog] = useState(false);
   const [showDisplayPrefs, setShowDisplayPrefs] = useState(false);
   const [showOrientationDialog, setShowOrientationDialog] = useState(false);
+  const [showHiddenItems, setShowHiddenItems] = useState(false);
+  const [layerPrefsLayerId, setLayerPrefsLayerId] = useState<string | null>(null);
   const [recoveryPayload, setRecoveryPayload] = useState<{
     savedAt: string;
     document: unknown;
@@ -155,6 +159,23 @@ export default function CADLayout() {
     const handler = () => setShowNewDrawingDialog(true);
     window.addEventListener('cad:openNewDrawingDialog', handler);
     return () => window.removeEventListener('cad:openNewDrawingDialog', handler);
+  }, []);
+
+  // Listen for layer preferences open event
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { layerId } = (e as CustomEvent).detail as { layerId: string };
+      setLayerPrefsLayerId(layerId);
+    };
+    window.addEventListener('cad:openLayerPrefs', handler);
+    return () => window.removeEventListener('cad:openLayerPrefs', handler);
+  }, []);
+
+  // Listen for hidden items panel toggle event
+  useEffect(() => {
+    const handler = () => setShowHiddenItems((v) => !v);
+    window.addEventListener('cad:toggleHiddenItems', handler);
+    return () => window.removeEventListener('cad:toggleHiddenItems', handler);
   }, []);
 
   // Auto-save to IndexedDB every 60 seconds
@@ -281,6 +302,19 @@ export default function CADLayout() {
               onClose={() => setShowDisplayPrefs(false)}
             />
           </div>
+          {/* Layer Preferences panel — anchored to right side of canvas */}
+          {layerPrefsLayerId && (
+            <LayerPreferencesPanel
+              layerId={layerPrefsLayerId}
+              open={!!layerPrefsLayerId}
+              onClose={() => setLayerPrefsLayerId(null)}
+            />
+          )}
+          {/* Hidden Items panel — anchored to left side of canvas */}
+          <HiddenItemsPanel
+            open={showHiddenItems}
+            onClose={() => setShowHiddenItems(false)}
+          />
         </div>
 
         {/* Right sidebar: property panel + traverse panel (toggleable) */}
