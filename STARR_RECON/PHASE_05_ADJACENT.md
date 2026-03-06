@@ -1,10 +1,10 @@
 # STARR RECON — Phase 5: Adjacent Property Deep Research & Boundary Cross-Validation
 
 **Product:** Starr Compass — AI Property Research (STARR RECON)  
-**Version:** 1.0 | **Last Updated:** March 2026  
+**Version:** 1.2 | **Last Updated:** March 2026  
 **Phase Duration:** Weeks 13–15  
 **Depends On:** Phase 1 (`PropertyIdentity`), Phase 2 (`DocumentHarvester`), Phase 3 (`PropertyIntelligence` with adjacent owner names), Phase 4 (`SubdivisionModel` with adjacency matrix)  
-**Status:** ✅ SCAFFOLD COMPLETE (March 2026) — All 4 service files, API routes, and CLI script created. Needs live clerk integration testing.  
+**Status:** ✅ COMPLETE v1.2 (March 2026) — All 4 service files, API routes, CLI script, and 35 unit tests complete. Key fixes in v1.2: HTTP error handling in all AI calls (`response.ok` check), `CLERK_RATE_LIMIT_MS` env var for configurable rate limiting, `boundaryDescriptionChanged` implemented (AI comparison + heuristic fallback), `AdjacentQueueBuilder` priority tiebreaker bug fixed (instrument hint boost now correctly preserved), `CrossValidationEngine` matching threshold raised to 45° so large bearing differences produce `discrepancy` instead of `unverified`. Known limitations: Kofile-only counties; live clerk integration testing required.  
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
 ---

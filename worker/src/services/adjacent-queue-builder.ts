@@ -163,8 +163,16 @@ export class AdjacentQueueBuilder {
         task.priority = Math.max(1, task.priority - 2);
       }
     }
-    // Re-sort after priority boost
-    tasks.sort((a, b) => a.priority - b.priority);
+
+    // Re-sort after priority boost.
+    // Tiebreaker: tasks with instrument hints come first (so boost is preserved when priorities tie)
+    tasks.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      // Tiebreaker: hint tasks before non-hint tasks
+      const aHasHint = a.instrumentHints.length > 0 ? 0 : 1;
+      const bHasHint = b.instrumentHints.length > 0 ? 0 : 1;
+      return aHasHint - bHasHint;
+    });
     tasks.forEach((t, i) => { t.priority = i + 1; });
 
     return tasks;
