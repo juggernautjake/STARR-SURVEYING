@@ -33,10 +33,10 @@ interface PhaseDefinition {
 const PHASES: PhaseDefinition[] = [
   { phase: 1, name: 'Property Discovery', endpoint: '/research/discover', critical: true },
   { phase: 2, name: 'Document Harvesting', endpoint: '/research/harvest', critical: true },
-  { phase: 3, name: 'AI Extraction', endpoint: '/research/extract', critical: true },
+  { phase: 3, name: 'AI Extraction', endpoint: '/research/analyze', critical: true },
   { phase: 4, name: 'Subdivision Analysis', endpoint: '/research/subdivision', critical: false },
   { phase: 5, name: 'Adjacent Properties', endpoint: '/research/adjacent', critical: false },
-  { phase: 6, name: 'TxDOT ROW', endpoint: '/research/txdot', critical: false },
+  { phase: 6, name: 'TxDOT ROW', endpoint: '/research/row', critical: false },
   { phase: 7, name: 'Boundary Reconciliation', endpoint: '/research/reconcile', critical: true },
   { phase: 8, name: 'Confidence Scoring', endpoint: '/research/confidence', critical: true },
   { phase: 9, name: 'Document Purchase', endpoint: '/research/purchase', critical: false },
@@ -166,32 +166,42 @@ export class MasterOrchestrator {
   ): Promise<string> {
     const body: Record<string, any> = { projectId };
 
-    // Phase-specific request bodies
+    // Phase-specific request bodies — field names must match each route's expected shape.
     switch (phaseDef.phase) {
       case 1:
         body.address = options.address;
         if (options.county) body.county = options.county;
         break;
       case 2:
+        // POST /research/harvest accepts HarvestInput (owner, county, projectId, deedRefs…)
+        // discoveryPath points to Phase 1 discovery.json which the harvest route reads
         body.discoveryPath = checkpoint.phaseOutputs[1];
         break;
       case 3:
-        body.harvestPath = checkpoint.phaseOutputs[2];
+        // POST /research/analyze expects { projectId, harvestResultPath }
+        body.harvestResultPath = checkpoint.phaseOutputs[2];
         break;
       case 4:
-        body.extractionPath = checkpoint.phaseOutputs[3];
+        // POST /research/subdivision expects { projectId, intelligencePath }
+        body.intelligencePath = checkpoint.phaseOutputs[3];
         break;
       case 5:
-        body.extractionPath = checkpoint.phaseOutputs[3];
+        // POST /research/adjacent expects { projectId, intelligencePath, subdivisionPath? }
+        body.intelligencePath = checkpoint.phaseOutputs[3];
+        body.subdivisionPath = checkpoint.phaseOutputs[4] || null;
         break;
       case 6:
-        body.discoveryPath = checkpoint.phaseOutputs[1];
+        // POST /research/row expects { projectId, intelligencePath }
+        body.intelligencePath = checkpoint.phaseOutputs[3];
         break;
       case 7:
-        body.extractionPath = checkpoint.phaseOutputs[3];
-        body.subdivisionPath = checkpoint.phaseOutputs[4] || null;
-        body.adjacentPath = checkpoint.phaseOutputs[5] || null;
-        body.txdotPath = checkpoint.phaseOutputs[6] || null;
+        // POST /research/reconcile expects { projectId, phasePaths: { intelligence, subdivision?, crossValidation?, rowReport? } }
+        body.phasePaths = {
+          intelligence: checkpoint.phaseOutputs[3],
+          subdivision: checkpoint.phaseOutputs[4] || null,
+          crossValidation: checkpoint.phaseOutputs[5] || null,
+          rowReport: checkpoint.phaseOutputs[6] || null,
+        };
         break;
       case 8:
         body.reconciliationPath = checkpoint.phaseOutputs[7];
@@ -277,15 +287,15 @@ export class MasterOrchestrator {
     };
 
     const discovery = loadJson('discovery.json');
-    const harvest = loadJson('harvest.json');
-    const extraction = loadJson('extraction.json');
-    const subdivision = loadJson('subdivision.json');
-    const adjacent = loadJson('adjacent.json');
-    const txdot = loadJson('txdot.json');
-    const reconciliation = loadJson('reconciliation.json');
-    const confidence = loadJson('confidence.json');
-    const purchases = loadJson('purchase.json');
-    const reconciliationV2 = loadJson('reconciliation_v2.json');
+    const harvest = loadJson('harvest_result.json');
+    const extraction = loadJson('property_intelligence.json');
+    const subdivision = loadJson('subdivision_model.json');
+    const adjacent = loadJson('cross_validation_report.json');
+    const txdot = loadJson('row_data.json');
+    const reconciliation = loadJson('reconciled_boundary.json');
+    const confidence = loadJson('confidence_report.json');
+    const purchases = loadJson('purchase_report.json');
+    const reconciliationV2 = loadJson('reconciled_boundary_v2.json');
 
     return {
       projectId,

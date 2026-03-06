@@ -55,7 +55,7 @@ curl http://localhost:3100/research/analyze/ash-trust-001 \
   -H "Authorization: Bearer $WORKER_API_KEY"
 ```
 
-Result is saved to `/tmp/analysis/{projectId}/intelligence.json` and returned via the status endpoint:
+Result is saved to `/tmp/analysis/{projectId}/property_intelligence.json` and returned via the status endpoint:
 
 ```json
 {
@@ -478,7 +478,7 @@ export interface DeedChainEntry {
 
 /**
  * The primary output of Phase 3. Consumed by all downstream phases.
- * Saved to /tmp/analysis/{projectId}/intelligence.json.
+ * Saved to /tmp/analysis/{projectId}/property_intelligence.json.
  */
 export interface PropertyIntelligence {
   // Metadata
@@ -1115,7 +1115,7 @@ export interface AnalyzeResult {
   status: 'complete' | 'partial' | 'failed';
   intelligence: PropertyIntelligence | null;
   errors: string[];
-  outputPath: string;           // /tmp/analysis/{projectId}/intelligence.json
+  outputPath: string;           // /tmp/analysis/{projectId}/property_intelligence.json
 }
 
 export class AIDocumentAnalyzer {
@@ -1172,7 +1172,7 @@ export class AIDocumentAnalyzer {
     );
 
     // 7. Save to disk
-    const outputPath = path.join(outputDir, 'intelligence.json');
+    const outputPath = path.join(outputDir, 'property_intelligence.json');
     fs.writeFileSync(outputPath, JSON.stringify(intelligence, null, 2));
 
     return { status: 'complete', intelligence, errors: [], outputPath };
@@ -1236,9 +1236,9 @@ export class AIDocumentAnalyzer {
 
 ### 8.4 Output File Convention
 
-Results are saved to `/tmp/analysis/{projectId}/intelligence.json`. This is the canonical output path that downstream phases read from. Format mirrors the `harvest_result.json` pattern established in Phase 2.
+Results are saved to `/tmp/analysis/{projectId}/property_intelligence.json`. This is the canonical output path that downstream phases read from. Format mirrors the `harvest_result.json` pattern established in Phase 2.
 
-> **TODO (post Phase 3):** Upload `intelligence.json` to Supabase Storage at `{projectId}/intelligence.json` and update the `research_projects` row.
+> **TODO (post Phase 3):** Upload `property_intelligence.json` to Supabase Storage at `{projectId}/property_intelligence.json` and update the `research_projects` row.
 
 ---
 
@@ -1256,7 +1256,7 @@ Add the following endpoints to the existing Express server. Follow the same asyn
 // Phase 3: AI Document Intelligence.
 // Takes the Phase 2 harvest result path and runs all AI extraction pipelines.
 // Long-running (3–10 minutes for a 6-lot subdivision). Returns HTTP 202 immediately.
-// Results saved to /tmp/analysis/{projectId}/intelligence.json.
+// Results saved to /tmp/analysis/{projectId}/property_intelligence.json.
 
 app.post('/research/analyze', requireAuth, async (req: Request, res: Response) => {
   const { projectId, harvestResultPath } = req.body as {
@@ -1326,7 +1326,7 @@ app.get('/research/analyze/:projectId', requireAuth, (req: Request, res: Respons
     return;
   }
 
-  const resultPath = `/tmp/analysis/${projectId}/intelligence.json`;
+  const resultPath = `/tmp/analysis/${projectId}/property_intelligence.json`;
 
   if (fs.existsSync(resultPath)) {
     const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
@@ -1408,10 +1408,10 @@ echo "  curl -s http://localhost:3100/research/analyze/$PROJECT_ID \\"
 echo "    -H \"Authorization: Bearer \$WORKER_API_KEY\" | python3 -m json.tool | head -50"
 echo ""
 echo "View full intelligence file:"
-echo "  cat /tmp/analysis/$PROJECT_ID/intelligence.json | python3 -m json.tool"
+echo "  cat /tmp/analysis/$PROJECT_ID/property_intelligence.json | python3 -m json.tool"
 echo ""
 echo "Summary of results (after completion):"
-echo "  cat /tmp/analysis/$PROJECT_ID/intelligence.json | python3 -c \\"
+echo "  cat /tmp/analysis/$PROJECT_ID/property_intelligence.json | python3 -c \\"
 echo "    \"import json,sys; d=json.load(sys.stdin); print('Lots:', len(d.get('lots',[])), '| Confidence:', d.get('confidenceSummary',{}).get('overall','?'), '% —', d.get('confidenceSummary',{}).get('rating','?'))\""
 ```
 
@@ -1486,7 +1486,7 @@ worker/
 - [ ] Given a Phase 2 harvest result for `3779 FM 436, Belton TX` (ASH FAMILY TRUST), `POST /research/analyze` returns HTTP 202 within 1 second
 - [ ] `GET /research/analyze/ash-trust-001` returns `{ status: "in_progress" }` during processing and the full `PropertyIntelligence` JSON when complete
 - [ ] Full analysis completes in ≤ 10 minutes for a 6-lot subdivision with 2 plat pages and 4 deed documents
-- [ ] Intelligence file is saved to `/tmp/analysis/{projectId}/intelligence.json`
+- [ ] Intelligence file is saved to `/tmp/analysis/{projectId}/property_intelligence.json`
 - [ ] `analyze.sh` script works from droplet console for the sample property
 
 ### Plat Analysis (Pipeline A)

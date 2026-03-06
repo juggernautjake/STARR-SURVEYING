@@ -433,7 +433,7 @@ INPUT: Property address OR owner name OR property ID
                                   ▼
 ┌─── Phase 3: AI EXTRACTION ──────────────────────────────────────────┐
 │  Adaptive Vision v2 → plat/deed parsing → property context          │
-│  OUTPUT: intelligence.json                                          │
+│  OUTPUT: property_intelligence.json                                          │
 │    PropertyIntelligence { boundary calls[], lot data, easements }   │
 │  KEY TYPE: BoundaryCall { bearing, distance, type, along,           │
 │                           monument, confidence, curve? }            │
@@ -786,21 +786,21 @@ export interface PipelineState {
 
 | Source | API Type | Phase | Status | Priority |
 |---|---|---|---|---|
-| County CAD (BIS) | REST API + Playwright | 1 | 🟠 Prototype exists | P0 |
-| County CAD (TrueAutomation) | Playwright (ASP.NET WebForms) | 1 | 🔴 Not started | P1 |
-| County CAD (Tyler/Aumentum) | Playwright | 1 | 🔴 Not started | P1 |
+| County CAD (BIS) | REST API + Playwright | 1 | 🟢 Complete | P0 |
+| County CAD (TrueAutomation) | Playwright (ASP.NET WebForms) | 1 | 🟢 Complete | P1 |
+| County CAD (Tyler/Aumentum) | Playwright | 1 | 🟢 Complete | P1 |
 | County CAD (HCAD) | Playwright (custom) | 1 | 🔴 Not started | P2 |
 | County CAD (TAD) | Playwright (custom) | 1 | 🔴 Not started | P2 |
-| County Clerk (Kofile) | Playwright (SPA) | 2, 9 | 🟠 Prototype exists | P0 |
-| County Clerk (TexasFile) | Playwright | 2, 9 | 🔴 Purchase adapter only | P1 |
+| County Clerk (Kofile) | Playwright (SPA) | 2, 9 | 🟢 Complete | P0 |
+| County Clerk (TexasFile) | Playwright | 2, 9 | 🟠 Purchase adapter only (harvest stub) | P1 |
 | County Clerk (Henschen) | Playwright | 2 | 🔴 Not started | P2 |
-| TxDOT RPAM (ArcGIS REST) | REST API | 6 | 🔴 Not started | P1 |
+| TxDOT ArcGIS REST | REST API | 6 | 🟠 Basic client built (`txdot-row.ts`) | P1 |
 | TxDOT RPAM (Playwright fallback) | Playwright | 6 | 🔴 Not started | P1 |
-| FEMA NFHL | ArcGIS REST (public) | 11 | 🔴 Not started | P1 |
-| Texas GLO | ArcGIS REST (public) | 11 | 🔴 Not started | P2 |
-| TCEQ | Web scrape + API | 11 | 🔴 Not started | P2 |
-| TX Railroad Commission | ArcGIS REST (public) | 11 | 🔴 Not started | P2 |
-| USDA NRCS Soil | REST API (public) | 11 | 🔴 Not started | P3 |
+| FEMA NFHL | ArcGIS REST (public) | 11 | 🟢 Complete (`fema-nfhl-client.ts`) | P1 |
+| Texas GLO | ArcGIS REST (public) | 11 | 🟢 Complete (`glo-client.ts`) | P2 |
+| TCEQ | Web scrape + API | 11 | 🟢 Complete (`tceq-client.ts`) | P2 |
+| TX Railroad Commission | ArcGIS REST (public) | 11 | 🟢 Complete (`rrc-client.ts`) | P2 |
+| USDA NRCS Soil | REST API (public) | 11 | 🟢 Complete (`nrcs-soil-client.ts`) | P3 |
 | Anthropic Claude API | REST API | 3–8 | 🟢 Working | P0 |
 
 ### 9.2 Government GIS & REST API Code Snippets
@@ -964,24 +964,24 @@ The goal is 100% Texas county coverage via a registry-based factory pattern. Tex
 
 | Vendor | Approx Counties | Key Counties | Adapter Status |
 |---|---|---|---|
-| BIS Consultants | 30 | Bell, McLennan, Coryell, Lampasas | 🟠 Prototype |
-| TrueAutomation | 80 | Travis, Dallas, Bexar, Fort Bend, Denton | 🔴 Not started |
-| Tyler Technologies | 50 | Williamson, Hays, Comal, Guadalupe | 🔴 Not started |
+| BIS Consultants | 60+ | Bell, McLennan, Coryell, Lampasas, Milam | 🟢 Complete (`bis-adapter.ts`) |
+| TrueAutomation | 80 | Travis, Dallas, Bexar, Fort Bend, Denton | 🟢 Complete (`trueautomation-adapter.ts`) |
+| Tyler Technologies | 50 | Williamson, Hays, Comal, Guadalupe | 🟢 Complete (`tyler-adapter.ts`) |
 | Harris County (HCAD) | 1 | Harris (Houston, 4.7M people) | 🔴 Not started |
 | Tarrant County (TAD) | 1 | Tarrant (Fort Worth, 2.1M people) | 🔴 Not started |
 | Capitol Appraisal | 20 | Smaller Central TX counties | 🔴 Not started |
 | Pritchard & Abbott | 30 | Rural/mineral counties | 🔴 Not started |
-| Other/Custom | 42 | Various | 🔴 Generic adapter needed |
+| Other/Custom | 42 | Various | 🟠 Generic AI fallback (`generic-cad-adapter.ts`) |
 
 ### 10.2 County Clerk Vendors
 
 | Vendor | Approx Counties | Adapter Status |
 |---|---|---|
-| Kofile/PublicSearch | 80 | 🟠 Prototype |
+| Kofile/PublicSearch | 80 | 🟢 Complete (`kofile-clerk-adapter.ts`) |
 | Henschen & Associates | 40 | 🔴 Not started |
 | iDocket | 20 | 🔴 Not started |
 | Fidlar Technologies | 15 | 🔴 Not started |
-| TexasFile (aggregator) | All 254 | 🔴 Free browse not built |
+| TexasFile (aggregator) | All 254 | 🟠 Purchase adapter only; harvest stub needs completion |
 | Custom systems | 15 (large counties) | 🔴 Not started |
 | No online access | ~20+ (rural) | N/A — flag as manual |
 
@@ -1068,7 +1068,7 @@ Implementation is organized into 5 tiers. Complete each tier before starting the
 | 1.9 | Adaptive Vision v2 (plat extraction) | 3 | §3.4A | Extracts all boundary calls from plat image |
 | 1.10 | Deed text extraction | 3 | §3.4B | Extracts metes-and-bounds from deed image |
 | 1.11 | Property context analyzer | 3 | §3.5 | Determines subdivision vs standalone, identifies context |
-| 1.12 | `POST /research/extract` endpoint | 3 | §3.6 | Returns 202, async produces `intelligence.json` |
+| 1.12 | `POST /research/analyze` endpoint | 3 | §3.6 | Returns 202, async produces `property_intelligence.json` |
 
 > **Milestone:** After Tier 1, the pipeline can discover a Bell County property, download its documents, and extract boundary data with AI. This is the minimum viable pipeline.
 
@@ -1451,7 +1451,7 @@ After a complete pipeline run, files are organized as follows on the droplet:
 ├── checkpoint.json               ← Pipeline state (phases completed, timing)
 ├── discovery.json                ← Phase 1 output
 ├── documents.json                ← Phase 2 output
-├── intelligence.json             ← Phase 3 output
+├── property_intelligence.json     ← Phase 3 output
 ├── subdivision.json              ← Phase 4 output (if applicable)
 ├── cross_validation.json         ← Phase 5 output
 ├── row_data.json                 ← Phase 6 output
@@ -1504,7 +1504,7 @@ All requests require `Authorization: Bearer {WORKER_API_KEY}`.
 |---|---|---|---|
 | `POST` | `/research/discover` | 1 | Start property discovery |
 | `POST` | `/research/harvest` | 2 | Start document harvesting |
-| `POST` | `/research/extract` | 3 | Start AI extraction |
+| `POST` | `/research/analyze` | 3 | Start AI extraction |
 | `POST` | `/research/subdivision` | 4 | Start subdivision analysis |
 | `POST` | `/research/adjacent` | 5 | Start adjacent property research |
 | `POST` | `/research/row` | 6 | Start TxDOT ROW integration |

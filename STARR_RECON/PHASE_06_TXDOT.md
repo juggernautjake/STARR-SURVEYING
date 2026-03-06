@@ -3,7 +3,7 @@
 **Product:** Starr Compass — AI Property Research (STARR RECON)
 **Version:** 1.0 | **Last Updated:** March 2026
 **Phase Duration:** Weeks 16–18
-**Depends On:** Phase 1 (`PropertyIdentity` with coordinates), Phase 3 (`intelligence.json` with road list), Phase 4 (`subdivision.json` with road dedications)
+**Depends On:** Phase 1 (`PropertyIdentity` with coordinates), Phase 3 (`property_intelligence.json` with road list), Phase 4 (`subdivision.json` with road dedications)
 **Status:** 🟠 IN PROGRESS — Foundation (`txdot-row.ts`, `coordinates.ts`) complete; 6 new orchestrator service files not yet built
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
@@ -39,7 +39,7 @@ For every road that borders or passes through the subject property, pull right-o
 
 ## 1. What This Phase Must Accomplish
 
-Phase 3 identified roads bordering the property (e.g., FM 436, Spur 436, County Road 234) in `intelligence.json`. Phase 6 queries TxDOT's public data systems and applies county-standard assumptions to return authoritative boundary geometry.
+Phase 3 identified roads bordering the property (e.g., FM 436, Spur 436, County Road 234) in `property_intelligence.json`. Phase 6 queries TxDOT's public data systems and applies county-standard assumptions to return authoritative boundary geometry.
 
 ```bash
 curl -X POST http://localhost:3100/research/row \
@@ -47,7 +47,7 @@ curl -X POST http://localhost:3100/research/row \
   -H "Authorization: Bearer $WORKER_API_KEY" \
   -d '{
     "projectId": "ash-trust-001",
-    "intelligencePath": "/tmp/analysis/ash-trust-001/intelligence.json"
+    "intelligencePath": "/tmp/analysis/ash-trust-001/property_intelligence.json"
   }'
 ```
 
@@ -225,7 +225,7 @@ export interface RoadInfo {
 }
 ```
 
-The Phase 3 `intelligence.json` file contains a `roads: RoadInfo[]` array. Phase 6 reads this array as input. Import `RoadInfo` from this file — do not duplicate the type.
+The Phase 3 `property_intelligence.json` file contains a `roads: RoadInfo[]` array. Phase 6 reads this array as input. Import `RoadInfo` from this file — do not duplicate the type.
 
 #### What Is Missing — New Service Files to Create
 
@@ -250,7 +250,7 @@ The Phase 3 `intelligence.json` file contains a `roads: RoadInfo[]` array. Phase
 ## 3. Architecture Overview
 
 ```
-INPUT: intelligence.json (Phase 3 output)
+INPUT: property_intelligence.json (Phase 3 output)
        → reads: intelligence.roads[] (RoadInfo[])
        → reads: intelligence.pointOfBeginning.northing/easting (NAD83 state plane)
        → reads: intelligence.discrepancies[] (for road-related conflict IDs)
@@ -320,7 +320,7 @@ export interface ROWReport {
 }
 
 export interface ROWRoadResult {
-  /** Road name as extracted from intelligence.json (e.g., "FM 436") */
+  /** Road name as extracted from property_intelligence.json (e.g., "FM 436") */
   name: string;
   /** Padded TxDOT designation (e.g., "FM 0436") or null if not TxDOT */
   txdotDesignation: string | null;
@@ -569,7 +569,7 @@ import {
   buildWGS84BoundsFromLatLon,
 } from '../lib/coordinates.js';
 
-// When you have NAD83 state plane coordinates from intelligence.json:
+// When you have NAD83 state plane coordinates from property_intelligence.json:
 const bounds = buildWGS84BoundsFromNAD83(
   intelligence.pointOfBeginning.easting,    // US survey feet
   intelligence.pointOfBeginning.northing,   // US survey feet
@@ -865,7 +865,7 @@ export class RoadBoundaryResolver {
    * @param rowFeatures           TxDOT ROW parcel features from ArcGIS
    * @param centerlineFeatures    TxDOT centerline features from ArcGIS
    * @param rpamResult            RPAM screenshot analysis result (or null)
-   * @param existingDiscrepancies discrepancies[] from intelligence.json, used to link resolution
+   * @param existingDiscrepancies discrepancies[] from property_intelligence.json, used to link resolution
    */
   async resolve(
     road: ClassifiedRoad,
@@ -1027,13 +1027,13 @@ export function getCountyROWDefaults(countyName: string): CountyROWDefaults {
 
 **New file: `worker/src/services/row-integration-engine.ts`**
 
-The orchestrator ties all Phase 6 services together. It reads `intelligence.json`, loops over each identified road, runs the appropriate data-collection strategy, and assembles the `ROWReport`.
+The orchestrator ties all Phase 6 services together. It reads `property_intelligence.json`, loops over each identified road, runs the appropriate data-collection strategy, and assembles the `ROWReport`.
 
 ```typescript
 // worker/src/services/row-integration-engine.ts
 //
 // Phase 6 orchestrator — coordinates all TxDOT ROW data sources.
-// Input:  intelligence.json (Phase 3 output)
+// Input:  property_intelligence.json (Phase 3 output)
 // Output: ROWReport saved to /tmp/analysis/{projectId}/row_data.json
 
 import type { PipelineLogger } from '../lib/logger.js';
@@ -1055,7 +1055,7 @@ import type {
 /**
  * Intelligence JSON structure — subset relevant to Phase 6.
  * The full type is in property-validation-pipeline.ts (SynthesizedPropertyData).
- * Phase 6 only needs these fields from intelligence.json.
+ * Phase 6 only needs these fields from property_intelligence.json.
  */
 interface Phase3IntelligenceSubset {
   county?: string;
@@ -1086,7 +1086,7 @@ export class ROWIntegrationEngine {
    * Run Phase 6 for the given project.
    *
    * @param projectId       For output paths and logging
-   * @param intelligence    Parsed intelligence.json (Phase 3 output)
+   * @param intelligence    Parsed property_intelligence.json (Phase 3 output)
    * @param outputDir       Directory for screenshots (default: /tmp/harvested/{projectId}/txdot)
    */
   async analyze(
@@ -1175,11 +1175,11 @@ app.post('/research/row', requireAuth, (req: Request, res: Response) => {
   }
 
   const resolvedPath = intelligencePath
-    ?? `/tmp/analysis/${projectId}/intelligence.json`;
+    ?? `/tmp/analysis/${projectId}/property_intelligence.json`;
 
   if (!fs.existsSync(resolvedPath)) {
     res.status(400).json({
-      error: `intelligence.json not found at: ${resolvedPath}`,
+      error: `property_intelligence.json not found at: ${resolvedPath}`,
       hint: 'Run Phase 3 (POST /research/analyze) before Phase 6.',
     });
     return;
@@ -1256,7 +1256,7 @@ app.get('/research/row/:projectId', requireAuth, (req: Request, res: Response) =
 #!/bin/bash
 # row.sh — TxDOT ROW integration for a research project
 # Usage: ./row.sh <projectId>
-# Requires: Phase 3 complete (intelligence.json must exist)
+# Requires: Phase 3 complete (property_intelligence.json must exist)
 # Output:   /tmp/analysis/{projectId}/row_data.json
 
 set -e
@@ -1279,7 +1279,7 @@ if [ -z "$WORKER_API_KEY" ]; then
   exit 1
 fi
 
-INTEL_PATH="/tmp/analysis/$PROJECT_ID/intelligence.json"
+INTEL_PATH="/tmp/analysis/$PROJECT_ID/property_intelligence.json"
 if [ ! -f "$INTEL_PATH" ]; then
   echo "ERROR: Phase 3 output not found: $INTEL_PATH"
   echo "Run Phase 3 first: ./analyze.sh $PROJECT_ID"
@@ -1390,7 +1390,7 @@ worker/
 ### Functional Requirements
 
 - [ ] `POST /research/row` returns HTTP 202 within 1 second of valid request
-- [ ] Returns HTTP 400 when `intelligence.json` not found, with helpful error message directing user to run Phase 3 first
+- [ ] Returns HTTP 400 when `property_intelligence.json` not found, with helpful error message directing user to run Phase 3 first
 - [ ] Returns HTTP 409 when Phase 6 is already running for this project
 - [ ] `GET /research/row/:projectId` returns `{ status: "in_progress" }` during processing
 - [ ] `GET /research/row/:projectId` returns full `ROWReport` when complete

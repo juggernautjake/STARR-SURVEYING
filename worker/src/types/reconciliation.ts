@@ -191,7 +191,7 @@ export interface PhasePaths {
   intelligence: string;               // Phase 3: property_intelligence.json
   subdivision?: string;               // Phase 4: subdivision_model.json
   crossValidation?: string;           // Phase 5: cross_validation_report.json
-  rowReport?: string;                 // Phase 6: row_report.json
+  rowReport?: string;                 // Phase 6: row_data.json
 }
 
 // ── Final ReconciledBoundaryModel (the Phase 7 deliverable) ─────────────────

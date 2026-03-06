@@ -65,7 +65,7 @@ curl -X POST http://localhost:3100/research/reconcile \
       "intelligence": "/tmp/analysis/ash-trust-001/property_intelligence.json",
       "subdivision": "/tmp/analysis/ash-trust-001/subdivision_model.json",
       "crossValidation": "/tmp/analysis/ash-trust-001/cross_validation_report.json",
-      "rowReport": "/tmp/analysis/ash-trust-001/row_report.json"
+      "rowReport": "/tmp/analysis/ash-trust-001/row_data.json"
     }
   }'
 ```
@@ -445,7 +445,7 @@ POST /research/reconcile
     "intelligence": "/tmp/analysis/ash-trust-001/property_intelligence.json",
     "subdivision": "/tmp/analysis/ash-trust-001/subdivision_model.json",
     "crossValidation": "/tmp/analysis/ash-trust-001/cross_validation_report.json",
-    "rowReport": "/tmp/analysis/ash-trust-001/row_report.json"
+    "rowReport": "/tmp/analysis/ash-trust-001/row_data.json"
   }
 }
 ```
