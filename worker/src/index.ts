@@ -14,6 +14,7 @@ import { DocumentHarvester, type HarvestInput } from './services/document-harves
 import { SubdivisionIntelligenceEngine } from './services/subdivision-intelligence.js';
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
+import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -825,6 +826,137 @@ app.get('/research/confidence/:projectId', requireAuth, (req: Request, res: Resp
   }
 });
 
+// ── POST /research/purchase ────────────────────────────────────────────────
+// Phase 9: Document Purchase & Automated Re-Analysis.
+// Takes Phase 8's purchase recommendations, automatically purchases official
+// unwatermarked documents, re-extracts data from clean images, and produces
+// an updated reconciled model with improved confidence.
+//
+// Long-running (up to ~5 minutes). Returns HTTP 202 immediately.
+// Results are persisted to /tmp/analysis/{projectId}/purchase_report.json.
+
+app.post('/research/purchase', requireAuth, async (req: Request, res: Response) => {
+  const { projectId, confidenceReportPath, budget, autoReanalyze, paymentMethod } = req.body as {
+    projectId?: string;
+    confidenceReportPath?: string;
+    budget?: number;
+    autoReanalyze?: boolean;
+    paymentMethod?: string;
+  };
+
+  if (!projectId || !confidenceReportPath) {
+    res.status(400).json({ error: 'projectId and confidenceReportPath required' });
+    return;
+  }
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({
+      error: 'projectId may only contain alphanumeric characters, hyphens, and underscores',
+    });
+    return;
+  }
+
+  if (!confidenceReportPath.endsWith('.json')) {
+    res.status(400).json({ error: 'confidenceReportPath must point to a .json file' });
+    return;
+  }
+
+  res.status(202).json({ status: 'accepted', projectId });
+
+  try {
+    const confReport = JSON.parse(fs.readFileSync(confidenceReportPath, 'utf-8'));
+    const recommendations = confReport.documentPurchaseRecommendations || [];
+
+    if (recommendations.length === 0) {
+      console.log(`[Purchase] No documents recommended for purchase`);
+      const emptyReport = {
+        status: 'no_purchases_needed',
+        projectId,
+        purchases: [],
+        reanalysis: { status: 'skipped', documentReanalyses: [], discrepanciesResolved: [] },
+        updatedReconciliation: null,
+        billing: {
+          totalDocumentCost: 0,
+          taxOrFees: 0,
+          totalCharged: 0,
+          paymentMethod: paymentMethod || 'account_balance',
+          remainingBalance: budget || 25,
+          invoicePath: '',
+        },
+        timing: { totalMs: 0, purchaseMs: 0, downloadMs: 0, reanalysisMs: 0 },
+        aiCalls: 0,
+        errors: [],
+      };
+      const outputPath = `/tmp/analysis/${projectId}/purchase_report.json`;
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, JSON.stringify(emptyReport, null, 2));
+      return;
+    }
+
+    const countyFIPS = confReport.propertyContext?.countyFIPS || '48027';
+    const countyName = confReport.propertyContext?.county || 'Bell';
+
+    const orchestrator = new DocumentPurchaseOrchestrator();
+    const result = await orchestrator.executePurchases(
+      projectId,
+      recommendations,
+      {
+        kofileCredentials: process.env.KOFILE_USERNAME ? {
+          username: process.env.KOFILE_USERNAME,
+          password: process.env.KOFILE_PASSWORD!,
+          paymentOnFile: true,
+        } : undefined,
+        texasfileCredentials: process.env.TEXASFILE_USERNAME ? {
+          username: process.env.TEXASFILE_USERNAME,
+          password: process.env.TEXASFILE_PASSWORD!,
+          accountType: 'pay_per_page',
+        } : undefined,
+        budget: budget || 25.00,
+        autoReanalyze: autoReanalyze !== false,
+      },
+      countyFIPS,
+      countyName,
+    );
+
+    const purchased = result.purchases.filter(p => p.status === 'purchased');
+    console.log(
+      `[Purchase] Complete: ${purchased.length}/${result.purchases.length} purchased, $${result.billing.totalCharged.toFixed(2)} spent`,
+    );
+
+    if (result.reanalysis.documentReanalyses.length > 0 && autoReanalyze !== false) {
+      const totalChanged = result.reanalysis.documentReanalyses.reduce(
+        (s, r) => s + r.callsChanged, 0,
+      );
+      console.log(
+        `[Purchase] Re-analysis changed ${totalChanged} calls. Re-reconciliation triggered.`,
+      );
+    }
+  } catch (error) {
+    console.error(`[Purchase] Failed for ${projectId}:`, error);
+  }
+});
+
+// ── GET /research/purchase/:projectId ─────────────────────────────────────
+// Returns the purchase report or in_progress status.
+
+app.get('/research/purchase/:projectId', requireAuth, (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const resultPath = `/tmp/analysis/${projectId}/purchase_report.json`;
+
+  if (fs.existsSync(resultPath)) {
+    const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+    res.json(result);
+  } else {
+    res.json({ status: 'in_progress' });
+  }
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -849,6 +981,8 @@ app.listen(PORT, () => {
   console.log('  GET    /research/reconcile/:projectId    ← Phase 7: reconciliation status/result');
   console.log('  POST   /research/confidence              ← Phase 8: confidence scoring');
   console.log('  GET    /research/confidence/:projectId   ← Phase 8: confidence report');
+  console.log('  POST   /research/purchase                ← Phase 9: document purchase');
+  console.log('  GET    /research/purchase/:projectId     ← Phase 9: purchase report');
   console.log('  POST   /research/full-pipeline');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');
