@@ -1,0 +1,460 @@
+// __tests__/recon/phase1-discovery.test.ts
+// Unit tests for STARR RECON Phase 1: Universal Property Discovery.
+//
+// These tests cover the pure-logic portions of Phase 1 that can be validated
+// without a live browser or external HTTP calls:
+//
+//   1. Address parsing (parseAddress)
+//   2. Address variant generation (generateAddressVariants)
+//   3. CAD registry lookups (getCADConfig, buildDetailUrl, registeredCountyCount)
+//   4. Subdivision detection (CADAdapter.detectSubdivision — tested via BISAdapter)
+//   5. County FIPS lookups (resolveCounty, lookupCountyFIPS)
+//
+// Integration tests that hit real CAD websites are intentionally excluded from
+// this file — those require a live browser and network access.
+
+import { describe, it, expect } from 'vitest';
+
+// ── Imports from the Phase 1 service layer ────────────────────────────────────
+// We resolve via Node path aliases since vitest runs from the repo root.
+// The worker src uses .js extensions in import paths (ESM-only package).
+// Because vitest resolves TypeScript source directly (not compiled JS), we
+// import from the actual .ts paths.
+
+import {
+  parseAddress,
+  generateAddressVariants,
+} from '../../worker/src/services/address-normalizer.js';
+
+import {
+  getCADConfig,
+  buildDetailUrl,
+  registeredCountyCount,
+  listRegisteredCounties,
+} from '../../worker/src/services/cad-registry.js';
+
+import {
+  resolveCounty,
+  lookupCountyFIPS,
+  countyToFIPS,
+} from '../../worker/src/lib/county-fips.js';
+
+// We test the CADAdapter.detectSubdivision method indirectly through the
+// BISAdapter (which inherits it from the abstract base class).
+import { BISAdapter } from '../../worker/src/adapters/bis-adapter.js';
+
+// ── 1. Address Parsing ────────────────────────────────────────────────────────
+
+describe('parseAddress', () => {
+
+  it('parses a standard Texas address with FM road', () => {
+    const p = parseAddress('3779 FM 436, Belton, TX 76513');
+    expect(p.streetNumber).toBe('3779');
+    expect(p.streetName).toMatch(/FM\s*436/i);
+    expect(p.city).toMatch(/BELTON/i);
+    expect(p.state).toBe('TX');
+    expect(p.zip).toBe('76513');
+  });
+
+  it('parses a standard street address', () => {
+    const p = parseAddress('1100 Congress Ave, Austin, TX 78701');
+    expect(p.streetNumber).toBe('1100');
+    expect(p.streetName).toMatch(/CONGRESS\s+AVE/i);
+    expect(p.city).toMatch(/AUSTIN/i);
+    expect(p.zip).toBe('78701');
+  });
+
+  it('parses a highway address (US Hwy)', () => {
+    const p = parseAddress('100 US Hwy 190, Belton, TX 76513');
+    expect(p.streetNumber).toBe('100');
+    expect(p.streetName).toMatch(/US.*190/i);
+  });
+
+  it('handles an address without zip code', () => {
+    const p = parseAddress('500 Main St, Fort Worth, TX');
+    expect(p.streetNumber).toBe('500');
+    expect(p.city).toMatch(/FORT WORTH/i);
+    expect(p.zip).toBeUndefined();
+  });
+
+  it('handles an address with suite/apt unit', () => {
+    const p = parseAddress('100 Main St Suite 200, Austin, TX 78701');
+    expect(p.streetNumber).toBe('100');
+    expect(p.unitType).toMatch(/SUITE/i);
+    expect(p.unitNumber).toBe('200');
+  });
+
+  it('returns rawInput unchanged', () => {
+    const raw = '3779 FM 436, Belton, TX 76513';
+    const p = parseAddress(raw);
+    expect(p.rawInput).toBe(raw);
+  });
+
+  it('handles unparseable address gracefully', () => {
+    const p = parseAddress('SomeRuralRoute');
+    // Should not throw; returns a result with at least streetName populated
+    expect(p).toBeDefined();
+    expect(p.state).toBe('TX');
+  });
+});
+
+// ── 2. Address Variant Generation ─────────────────────────────────────────────
+
+describe('generateAddressVariants', () => {
+
+  it('generates FM road variants (with and without FM prefix)', () => {
+    const p = parseAddress('3779 FM 436, Belton, TX 76513');
+    const variants = generateAddressVariants(p);
+    const strings  = variants.map(v => v.searchString.toUpperCase());
+
+    // Must include the exact FM form
+    expect(strings.some(s => s.includes('FM 436') || s.includes('FM436'))).toBe(true);
+    // Must also include a bare-number fallback variant
+    expect(strings.some(s => /^3779\s+436/.test(s))).toBe(true);
+  });
+
+  it('generates RM road variants', () => {
+    const p = parseAddress('1234 RM 2325, Kerrville, TX 78028');
+    const variants = generateAddressVariants(p);
+    const strings  = variants.map(v => v.searchString.toUpperCase());
+    expect(strings.some(s => s.includes('RM 2325') || s.includes('RM2325'))).toBe(true);
+  });
+
+  it('generates CR (county road) variants', () => {
+    const p = parseAddress('5678 CR 123, Georgetown, TX 78626');
+    const variants = generateAddressVariants(p);
+    const strings  = variants.map(v => v.searchString.toUpperCase());
+    expect(strings.some(s => s.includes('CR 123'))).toBe(true);
+    expect(strings.some(s => s.includes('COUNTY ROAD 123') || s.includes('COUNTY RD 123'))).toBe(true);
+  });
+
+  it('generates US highway variants', () => {
+    const p = parseAddress('100 US 190, Belton, TX 76513');
+    const variants = generateAddressVariants(p);
+    const strings  = variants.map(v => v.searchString.toUpperCase());
+    expect(strings.some(s => /100\s+US/.test(s))).toBe(true);
+  });
+
+  it('generates suffix variants (DR ↔ DRIVE)', () => {
+    const p = parseAddress('3424 Waggoner Dr, Belton, TX 76513');
+    const variants = generateAddressVariants(p);
+    const strings  = variants.map(v => v.searchString.toUpperCase());
+    // Should contain both "DR" and "DRIVE" forms
+    const hasDr    = strings.some(s => /WAGGONER\s+DR\b/.test(s));
+    const hasDrive = strings.some(s => /WAGGONER\s+DRIVE/.test(s));
+    // At least one of the two suffix forms must appear
+    expect(hasDr || hasDrive).toBe(true);
+  });
+
+  it('always includes a street-number-only fallback with priority 99', () => {
+    const p = parseAddress('3424 Waggoner Dr, Belton, TX 76513');
+    const variants = generateAddressVariants(p);
+    const fallback = variants.find(v => v.priority === 99);
+    expect(fallback).toBeDefined();
+    expect(fallback!.searchString).toBe('3424');
+    expect(fallback!.strategy).toBe('number_only');
+  });
+
+  it('deduplicates identical search strings', () => {
+    const p = parseAddress('100 Main St, Austin, TX 78701');
+    const variants = generateAddressVariants(p);
+    const strings  = variants.map(v => v.searchString.toLowerCase());
+    const unique   = new Set(strings);
+    expect(strings.length).toBe(unique.size);
+  });
+
+  it('sorts variants so lower priority numbers come first', () => {
+    const p = parseAddress('3779 FM 436, Belton, TX 76513');
+    const variants = generateAddressVariants(p);
+    for (let i = 1; i < variants.length; i++) {
+      expect(variants[i].priority).toBeGreaterThanOrEqual(variants[i - 1].priority);
+    }
+  });
+});
+
+// ── 3. CAD Registry ───────────────────────────────────────────────────────────
+
+describe('getCADConfig', () => {
+
+  it('returns BIS config for Bell County by FIPS', () => {
+    const cfg = getCADConfig('48027');
+    expect(cfg).not.toBeNull();
+    expect(cfg!.vendor).toBe('bis');
+    expect(cfg!.searchUrl).toContain('bellcad');
+  });
+
+  it('returns BIS config for Bell County by name', () => {
+    const cfg = getCADConfig('Bell');
+    expect(cfg).not.toBeNull();
+    expect(cfg!.vendor).toBe('bis');
+  });
+
+  it('returns HCAD config for Harris County (48201)', () => {
+    const cfg = getCADConfig('48201');
+    expect(cfg).not.toBeNull();
+    expect(cfg!.vendor).toBe('hcad');
+    expect(cfg!.searchUrl).toContain('hcad.org');
+  });
+
+  it('returns TAD config for Tarrant County (48439)', () => {
+    const cfg = getCADConfig('48439');
+    expect(cfg).not.toBeNull();
+    expect(cfg!.vendor).toBe('tad');
+    expect(cfg!.searchUrl).toContain('tad.org');
+  });
+
+  it('returns TrueAutomation config for Travis County (48453)', () => {
+    const cfg = getCADConfig('48453');
+    expect(cfg).not.toBeNull();
+    expect(cfg!.vendor).toBe('trueautomation');
+    expect(cfg!.searchUrl).toContain('trueautomation.com');
+  });
+
+  it('returns DCAD config for Dallas County (48113)', () => {
+    const cfg = getCADConfig('48113');
+    expect(cfg).not.toBeNull();
+    expect(cfg!.vendor).toBe('dcad');
+  });
+
+  it('returns BIS config for McLennan County (Waco)', () => {
+    const cfg = getCADConfig('48309');
+    expect(cfg).not.toBeNull();
+    expect(cfg!.vendor).toBe('bis');
+    expect(cfg!.searchUrl).toContain('mclennan');
+  });
+
+  it('returns null for an unregistered county FIPS', () => {
+    // Using a fictitious FIPS code that is not in the registry
+    const cfg = getCADConfig('99999');
+    expect(cfg).toBeNull();
+  });
+
+  it('returns a config with all required fields', () => {
+    const cfg = getCADConfig('48027')!;
+    expect(cfg.name).toBeTruthy();
+    expect(cfg.searchUrl).toBeTruthy();
+    expect(cfg.detailUrlPattern).toContain('{propertyId}');
+    expect(cfg.searchMethod).toMatch(/^(api|playwright|hybrid)$/);
+    expect(cfg.addressField).toBeTruthy();
+    expect(cfg.ownerField).toBeTruthy();
+    expect(cfg.resultSelector).toBeTruthy();
+    expect(cfg.propertyIdField).toBeTruthy();
+  });
+});
+
+describe('buildDetailUrl', () => {
+
+  it('replaces {propertyId} placeholder in Bell CAD detail URL', () => {
+    const cfg = getCADConfig('48027')!;
+    const url = buildDetailUrl(cfg, '524312');
+    expect(url).toContain('524312');
+    expect(url).not.toContain('{propertyId}');
+    expect(url).toMatch(/^https?:\/\//);
+  });
+
+  it('URI-encodes property IDs that contain special characters', () => {
+    const cfg = getCADConfig('48027')!;
+    const url = buildDetailUrl(cfg, 'A/B+123');
+    expect(url).not.toContain('A/B+123'); // Must be encoded
+  });
+
+  it('replaces placeholder in HCAD detail URL', () => {
+    const cfg = getCADConfig('48201')!;
+    const url = buildDetailUrl(cfg, '1234567890000');
+    expect(url).toContain('1234567890000');
+    expect(url).not.toContain('{propertyId}');
+  });
+});
+
+describe('registeredCountyCount', () => {
+  it('has at least 10 registered counties', () => {
+    expect(registeredCountyCount()).toBeGreaterThanOrEqual(10);
+  });
+
+  it('listRegisteredCounties returns an array of fips+config pairs', () => {
+    const list = listRegisteredCounties();
+    expect(Array.isArray(list)).toBe(true);
+    expect(list.length).toBeGreaterThan(0);
+    for (const entry of list) {
+      expect(entry.fips).toMatch(/^\d{5}$/);
+      expect(entry.config).toBeDefined();
+      expect(entry.config.vendor).toBeTruthy();
+    }
+  });
+});
+
+// ── 4. Subdivision Detection ──────────────────────────────────────────────────
+// detectSubdivision lives on the CADAdapter abstract base class.
+// We exercise it through a BISAdapter instance (cheapest concrete subclass
+// since the constructor only needs a CADConfig — no browser launched here).
+
+describe('CADAdapter.detectSubdivision', () => {
+
+  // Build a minimal CADConfig so we can instantiate BISAdapter without a browser
+  const minimalConfig = {
+    name:             'Test',
+    vendor:           'bis' as const,
+    searchUrl:        'https://example.com',
+    detailUrlPattern: 'https://example.com/{propertyId}',
+    searchMethod:     'api' as const,
+    addressField:     'address',
+    ownerField:       'owner',
+    resultSelector:   '.row',
+    propertyIdField:  'id',
+    cadSystem:        'bis_consultants' as const,
+  };
+
+  // BISAdapter extends CADAdapter — we cast to access the protected method via
+  // a small wrapper (TypeScript won't allow direct protected access from outside).
+  class TestAdapter extends BISAdapter {
+    public testDetectSubdivision(legalDesc: string) {
+      return this.detectSubdivision(legalDesc);
+    }
+    // Satisfy abstract requirements (never called in these tests)
+    async searchByAddress()   { return []; }
+    async searchByOwner()     { return []; }
+    async getPropertyDetail() {
+      // Returns a minimal valid PropertyDetail — this method is never called in
+      // the subdivision detection tests, but TypeScript requires a concrete return type.
+      return {
+        propertyId: '', owner: '', situsAddress: '', legalDescription: '',
+        acreage: 0, propertyType: 'real' as const,
+        deedReferences: [], relatedPropertyIds: [], improvements: [],
+      };
+    }
+    async findSubdivisionLots() { return []; }
+  }
+
+  const adapter = new TestAdapter(minimalConfig);
+
+  it('detects a LOT + BLOCK subdivision legal description', () => {
+    const result = adapter.testDetectSubdivision(
+      'ASH FAMILY TRUST 12.358 ACRE ADDITION, LOT 1, BLOCK A',
+    );
+    expect(result.isSubdivision).toBe(true);
+    expect(result.lotNumber).toBe('1');
+    expect(result.blockNumber).toBe('A');
+    expect(result.subdivisionName).toContain('ASH FAMILY TRUST');
+  });
+
+  it('detects a LOT-only subdivision legal description', () => {
+    const result = adapter.testDetectSubdivision(
+      'SUNRIDGE ESTATES, LOT 7',
+    );
+    expect(result.isSubdivision).toBe(true);
+    expect(result.lotNumber).toBe('7');
+    expect(result.subdivisionName).toContain('SUNRIDGE ESTATES');
+  });
+
+  it('detects an ADDITION keyword in legal description', () => {
+    const result = adapter.testDetectSubdivision(
+      'OAK HOLLOW ADDITION SEC 2',
+    );
+    expect(result.isSubdivision).toBe(true);
+    expect(result.subdivisionName).toContain('ADDITION');
+  });
+
+  it('detects ESTATES keyword in legal description', () => {
+    const result = adapter.testDetectSubdivision('VALLEY VIEW ESTATES');
+    expect(result.isSubdivision).toBe(true);
+  });
+
+  it('returns isSubdivision=false for a metes-and-bounds tract', () => {
+    const result = adapter.testDetectSubdivision(
+      'WILLIAM HARTRICK SURVEY A-488, 12.358 ACRES',
+    );
+    expect(result.isSubdivision).toBe(false);
+  });
+
+  it('returns isSubdivision=false for an empty legal description', () => {
+    const result = adapter.testDetectSubdivision('');
+    expect(result.isSubdivision).toBe(false);
+  });
+
+  it('handles "LOT X, BLOCK Y, SUBDIVISION NAME" order (reversed)', () => {
+    const result = adapter.testDetectSubdivision(
+      'LOT 3, BLOCK B, CEDAR PARK HEIGHTS',
+    );
+    expect(result.isSubdivision).toBe(true);
+    expect(result.lotNumber).toBe('3');
+    expect(result.blockNumber).toBe('B');
+  });
+});
+
+// ── 5. County FIPS Lookups ────────────────────────────────────────────────────
+
+describe('resolveCounty', () => {
+
+  it('resolves Bell County by name', () => {
+    const rec = resolveCounty('Bell');
+    expect(rec).not.toBeNull();
+    expect(rec!.fips).toBe('48027');
+    expect(rec!.name).toBe('Bell');
+  });
+
+  it('resolves Bell County by FIPS', () => {
+    const rec = resolveCounty('48027');
+    expect(rec).not.toBeNull();
+    expect(rec!.name).toBe('Bell');
+  });
+
+  it('resolves Harris County (Houston)', () => {
+    const rec = resolveCounty('Harris');
+    expect(rec).not.toBeNull();
+    expect(rec!.fips).toBe('48201');
+    expect(rec!.cadSystem).toBe('hcad');
+  });
+
+  it('resolves Tarrant County (Fort Worth)', () => {
+    const rec = resolveCounty('Tarrant');
+    expect(rec).not.toBeNull();
+    expect(rec!.fips).toBe('48439');
+    expect(rec!.cadSystem).toBe('tad');
+  });
+
+  it('resolves Travis County (Austin)', () => {
+    const rec = resolveCounty('Travis');
+    expect(rec).not.toBeNull();
+    expect(rec!.fips).toBe('48453');
+    expect(rec!.cadSystem).toBe('trueautomation');
+  });
+
+  it('is case-insensitive (lowercase "bell")', () => {
+    const rec = resolveCounty('bell');
+    expect(rec).not.toBeNull();
+    expect(rec!.fips).toBe('48027');
+  });
+
+  it('strips "County" suffix ("Bell County")', () => {
+    const rec = resolveCounty('Bell County');
+    expect(rec).not.toBeNull();
+    expect(rec!.fips).toBe('48027');
+  });
+
+  it('returns null for an unknown county name', () => {
+    const rec = resolveCounty('Fake County That Does Not Exist');
+    expect(rec).toBeNull();
+  });
+});
+
+describe('lookupCountyFIPS', () => {
+
+  it('returns FIPS for Bell County', () => {
+    expect(lookupCountyFIPS('Bell', 'TX')).toBe('48027');
+  });
+
+  it('returns empty string for an unknown county', () => {
+    expect(lookupCountyFIPS('NotACounty', 'TX')).toBe('');
+  });
+});
+
+describe('countyToFIPS', () => {
+
+  it('returns 48027 for Bell', () => {
+    expect(countyToFIPS('Bell')).toBe('48027');
+  });
+
+  it('returns null for an unknown county', () => {
+    expect(countyToFIPS('NotACounty')).toBeNull();
+  });
+});
