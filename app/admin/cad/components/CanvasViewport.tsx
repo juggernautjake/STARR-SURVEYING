@@ -1634,8 +1634,7 @@ export default function CanvasViewport() {
          activeTool === 'DRAW_CIRCLE_EDGE' || activeTool === 'DRAW_ELLIPSE' ||
          activeTool === 'DRAW_ELLIPSE_EDGE' ||
          activeTool === 'DRAW_REGULAR_POLYGON' || activeTool === 'DRAW_POLYGON' ||
-         activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE' ||
-         activeTool === 'DRAW_SPLINE_CONTROL') &&
+         activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE') &&
         drawingPoints.length === 0
       ) {
         const { sx, sy } = w2s(previewPoint.x, previewPoint.y);
