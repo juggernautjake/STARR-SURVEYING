@@ -34,6 +34,7 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   hoverColor: '#66aaff',
   gridMajorColor: '#c8c8c8',
   gridMinorColor: '#e8e8e8',
+  groupSelectMode: 'GROUP_FIRST',
   paperSize: 'TABLOID',
   paperOrientation: 'LANDSCAPE',
   drawingScale: 50,

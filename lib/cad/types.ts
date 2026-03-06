@@ -106,6 +106,11 @@ export interface DrawingSettings {
   gridMajorColor: string;  // Hex, default '#c8c8c8'
   gridMinorColor: string;  // Hex, default '#e8e8e8'
 
+  // Selection behavior for grouped elements (polylines, polygon groups)
+  // 'GROUP_FIRST' = first click selects entire group, then click again to select individual segment
+  // 'ELEMENT_FIRST' = first click selects individual segment, right-click > "Select Group" for whole group
+  groupSelectMode: 'GROUP_FIRST' | 'ELEMENT_FIRST';
+
   // Paper
   paperSize: 'LETTER' | 'TABLOID' | 'ARCH_C' | 'ARCH_D' | 'ARCH_E';
   paperOrientation: 'PORTRAIT' | 'LANDSCAPE';

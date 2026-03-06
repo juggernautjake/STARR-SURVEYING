@@ -80,25 +80,30 @@ interface DrawingMenuState {
 }
 
 // ── Tool-specific CSS cursors ─────────────────────────────────────────────────
+// Custom SVG cursors for professional feel
+const SVG_CURSOR_CROSSHAIR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cline x1='12' y1='0' x2='12' y2='10' stroke='%23fff' stroke-width='1.5'/%3E%3Cline x1='12' y1='14' x2='12' y2='24' stroke='%23fff' stroke-width='1.5'/%3E%3Cline x1='0' y1='12' x2='10' y2='12' stroke='%23fff' stroke-width='1.5'/%3E%3Cline x1='14' y1='12' x2='24' y2='12' stroke='%23fff' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='2' fill='none' stroke='%23fff' stroke-width='1'/%3E%3Cline x1='12' y1='1' x2='12' y2='10' stroke='%23000' stroke-width='0.5'/%3E%3Cline x1='12' y1='14' x2='12' y2='23' stroke='%23000' stroke-width='0.5'/%3E%3Cline x1='1' y1='12' x2='10' y2='12' stroke='%23000' stroke-width='0.5'/%3E%3Cline x1='14' y1='12' x2='23' y2='12' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E") 12 12, crosshair`;
+const SVG_CURSOR_ERASE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='3' y='3' width='14' height='14' rx='2' fill='%23ff4444' fill-opacity='0.3' stroke='%23ff4444' stroke-width='1.5'/%3E%3Cline x1='6' y1='6' x2='14' y2='14' stroke='white' stroke-width='2'/%3E%3Cline x1='14' y1='6' x2='6' y2='14' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 10 10, crosshair`;
+const SVG_CURSOR_ROTATE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M17 3l3.5 6-6 0' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E") 12 12, alias`;
+
 const TOOL_CURSORS: Partial<Record<string, string>> = {
   SELECT: 'default',
   PAN: 'grab',
-  DRAW_POINT: 'cell',
-  DRAW_LINE: 'crosshair',
-  DRAW_POLYLINE: 'crosshair',
-  DRAW_POLYGON: 'crosshair',
-  DRAW_RECTANGLE: 'crosshair',
-  DRAW_REGULAR_POLYGON: 'crosshair',
-  DRAW_CIRCLE: 'crosshair',
-  DRAW_CIRCLE_EDGE: 'crosshair',
-  DRAW_ELLIPSE: 'crosshair',
-  DRAW_ELLIPSE_EDGE: 'crosshair',
+  DRAW_POINT: SVG_CURSOR_CROSSHAIR,
+  DRAW_LINE: SVG_CURSOR_CROSSHAIR,
+  DRAW_POLYLINE: SVG_CURSOR_CROSSHAIR,
+  DRAW_POLYGON: SVG_CURSOR_CROSSHAIR,
+  DRAW_RECTANGLE: SVG_CURSOR_CROSSHAIR,
+  DRAW_REGULAR_POLYGON: SVG_CURSOR_CROSSHAIR,
+  DRAW_CIRCLE: SVG_CURSOR_CROSSHAIR,
+  DRAW_CIRCLE_EDGE: SVG_CURSOR_CROSSHAIR,
+  DRAW_ELLIPSE: SVG_CURSOR_CROSSHAIR,
+  DRAW_ELLIPSE_EDGE: SVG_CURSOR_CROSSHAIR,
   MOVE: 'move',
   COPY: 'copy',
-  ROTATE: 'alias',
+  ROTATE: SVG_CURSOR_ROTATE,
   MIRROR: 'col-resize',
   SCALE: 'nwse-resize',
-  ERASE: 'crosshair',
+  ERASE: SVG_CURSOR_ERASE,
 };
 
 // ─────────────────────────────────────────────
@@ -145,6 +150,14 @@ export default function CanvasViewport() {
   const gripStartRef = useRef<Feature | null>(null);
   const clickHitFeatureRef = useRef(false);
   const hoveredIdRef = useRef<string | null>(null);
+  // Element drag-to-move: tracks feature being dragged in SELECT mode
+  const dragFeatureRef = useRef<{
+    featureIds: string[];
+    startWorld: Point2D;
+    originals: Map<string, Feature>;
+  } | null>(null);
+  // Canvas pan in SELECT mode (click on empty space + drag)
+  const selectPanRef = useRef(false);
   const [cursorStyle, setCursorStyle] = useState('crosshair');
   const [snapLabel, setSnapLabel] = useState<{ sx: number; sy: number; text: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -605,7 +618,8 @@ export default function CanvasViewport() {
       g.endFill();
     }
 
-    // Draw hover highlight for ANY tool (not just SELECT) when hovering over an element
+    // Draw hover glow highlight for ANY tool when hovering over an element.
+    // Uses a multi-layer glow: outer (thick, low alpha) + inner (thin, brighter)
     const hoveredId = hoveredIdRef.current;
     const hoverColorHex = (docSettings.hoverColor ?? '#66aaff').replace('#', '');
     const hoverColor = parseInt(hoverColorHex, 16);
@@ -615,44 +629,56 @@ export default function CanvasViewport() {
       const feature = drawingStore.getFeature(hoveredId);
       if (feature) {
         const geom = feature.geometry;
-        g.lineStyle(1.5, hoverColor, 0.6);
-        switch (geom.type) {
-          case 'POINT': {
-            const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
-            g.drawRect(sx - 5, sy - 5, 10, 10);
-            break;
-          }
-          case 'LINE': {
-            const s = w2s(geom.start!.x, geom.start!.y);
-            const e = w2s(geom.end!.x, geom.end!.y);
-            g.moveTo(s.sx, s.sy);
-            g.lineTo(e.sx, e.sy);
-            break;
-          }
-          case 'POLYLINE': {
-            const verts = geom.vertices!;
-            if (verts.length < 2) break;
-            const first = w2s(verts[0].x, verts[0].y);
-            g.moveTo(first.sx, first.sy);
-            for (let i = 1; i < verts.length; i++) {
-              const v = w2s(verts[i].x, verts[i].y);
-              g.lineTo(v.sx, v.sy);
+        // Helper: draw geometry outline for glow layers
+        const drawGeomOutline = () => {
+          switch (geom.type) {
+            case 'POINT': {
+              const { sx, sy } = w2s(geom.point!.x, geom.point!.y);
+              g.drawCircle(sx, sy, 7);
+              break;
             }
-            break;
-          }
-          case 'POLYGON': {
-            const verts = geom.vertices!;
-            if (verts.length < 3) break;
-            const first = w2s(verts[0].x, verts[0].y);
-            g.moveTo(first.sx, first.sy);
-            for (let i = 1; i < verts.length; i++) {
-              const v = w2s(verts[i].x, verts[i].y);
-              g.lineTo(v.sx, v.sy);
+            case 'LINE': {
+              const s = w2s(geom.start!.x, geom.start!.y);
+              const e = w2s(geom.end!.x, geom.end!.y);
+              g.moveTo(s.sx, s.sy);
+              g.lineTo(e.sx, e.sy);
+              break;
             }
-            g.closePath();
-            break;
+            case 'POLYLINE': {
+              const verts = geom.vertices!;
+              if (verts.length < 2) break;
+              const first = w2s(verts[0].x, verts[0].y);
+              g.moveTo(first.sx, first.sy);
+              for (let i = 1; i < verts.length; i++) {
+                const v = w2s(verts[i].x, verts[i].y);
+                g.lineTo(v.sx, v.sy);
+              }
+              break;
+            }
+            case 'POLYGON': {
+              const verts = geom.vertices!;
+              if (verts.length < 3) break;
+              const first = w2s(verts[0].x, verts[0].y);
+              g.moveTo(first.sx, first.sy);
+              for (let i = 1; i < verts.length; i++) {
+                const v = w2s(verts[i].x, verts[i].y);
+                g.lineTo(v.sx, v.sy);
+              }
+              g.closePath();
+              break;
+            }
           }
-        }
+        };
+
+        // Outer glow layer (thick, soft)
+        g.lineStyle(6, hoverColor, 0.15);
+        drawGeomOutline();
+        // Middle glow layer
+        g.lineStyle(3, hoverColor, 0.3);
+        drawGeomOutline();
+        // Inner highlight layer (crisp)
+        g.lineStyle(1.5, hoverColor, 0.7);
+        drawGeomOutline();
       }
     }
 
@@ -1444,24 +1470,68 @@ export default function CanvasViewport() {
 
       switch (activeTool) {
         case 'SELECT': {
-          toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
           const hit = hitTest(sx, sy);
           if (hit) {
             clickHitFeatureRef.current = true;
-            // If clicked feature is part of a polyline group, select entire group
             const hitFeature = drawingStore.getFeature(hit);
             const groupId = hitFeature?.properties?.polylineGroupId as string | undefined;
+            const groupMode = drawingStore.document.settings.groupSelectMode ?? 'GROUP_FIRST';
+            let featureIds: string[];
+
             if (groupId && !e.shiftKey) {
-              // Select all segments of the polyline group
-              const groupIds = getPolylineGroupIds(groupId);
-              selectionStore.selectMultiple(groupIds, 'REPLACE');
+              if (groupMode === 'GROUP_FIRST') {
+                // GROUP_FIRST: first click selects entire group.
+                // If the group is already selected, clicking a specific segment
+                // narrows selection to just that segment (drill-down behavior).
+                const groupIds = getPolylineGroupIds(groupId);
+                const allGroupSelected = groupIds.every((id) => selectionStore.selectedIds.has(id));
+                if (allGroupSelected) {
+                  // Already selected whole group — drill down to individual segment
+                  selectionStore.select(hit, 'REPLACE');
+                  featureIds = [hit];
+                } else {
+                  // Select entire group
+                  featureIds = groupIds;
+                  selectionStore.selectMultiple(featureIds, 'REPLACE');
+                }
+              } else {
+                // ELEMENT_FIRST: first click selects individual segment only.
+                // User can right-click > "Select Group" to get the whole group.
+                const mode = e.shiftKey ? 'TOGGLE' : 'REPLACE';
+                selectionStore.select(hit, mode);
+                featureIds = [hit];
+              }
             } else {
               const mode = e.shiftKey ? 'TOGGLE' : 'REPLACE';
               selectionStore.select(hit, mode);
+              featureIds = [hit];
             }
+
+            // Start drag-to-move: store original positions for undo
+            const startWorld = s2w(sx, sy);
+            const originals = new Map<string, Feature>();
+            for (const id of featureIds) {
+              const f = drawingStore.getFeature(id);
+              if (f) originals.set(id, JSON.parse(JSON.stringify(f)));
+            }
+            dragFeatureRef.current = {
+              featureIds,
+              startWorld: { x: startWorld.wx, y: startWorld.wy },
+              originals,
+            };
+            setCursorStyle('grabbing');
             toolStore.setBoxSelect(null, null, false);
           } else {
             clickHitFeatureRef.current = false;
+            // Click on empty canvas: start canvas pan (drag to shift view)
+            if (!e.shiftKey) {
+              selectPanRef.current = true;
+              isPanningRef.current = true;
+              setCursorStyle('grabbing');
+            } else {
+              // Shift+click on empty: start box selection
+              toolStore.setBoxSelect({ x: sx, y: sy }, { x: sx, y: sy }, true);
+            }
           }
           break;
         }
@@ -1880,11 +1950,28 @@ export default function CanvasViewport() {
         }
       }
 
+      // Element drag-to-move in SELECT mode
+      if (dragFeatureRef.current && !gripDragRef.current) {
+        const { featureIds, startWorld, originals } = dragFeatureRef.current;
+        const currentWorld = s2w(sx, sy);
+        const dx = currentWorld.wx - startWorld.x;
+        const dy = currentWorld.wy - startWorld.y;
+        // Only start visual drag after a small threshold to distinguish click from drag
+        if (Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001) {
+          for (const id of featureIds) {
+            const orig = originals.get(id);
+            if (!orig) continue;
+            const translated = transformFeature(orig, (pt) => translate(pt, dx, dy));
+            drawingStore.updateFeatureGeometry(id, translated.geometry);
+          }
+        }
+      }
+
       toolStore.setPreviewPoint(worldPt);
       viewportStore.setCursorWorld(worldPt);
 
       // Update hover state for ALL tools — shows highlighted element under cursor
-      if (!isPanningRef.current) {
+      if (!isPanningRef.current && !dragFeatureRef.current) {
         const hit = hitTest(sx, sy);
         hoveredIdRef.current = hit;
         // Update cursor style for SELECT tool
@@ -1894,8 +1981,10 @@ export default function CanvasViewport() {
             if (onGrip) {
               setCursorStyle('move');
             } else if (hit) {
-              setCursorStyle('pointer');
+              // Hovering over an element: show grab cursor to indicate it can be dragged
+              setCursorStyle('grab');
             } else {
+              // Hovering over empty canvas: default cursor
               setCursorStyle('default');
             }
           }
@@ -1903,10 +1992,10 @@ export default function CanvasViewport() {
           // For modification tools: show pointer cursor when hovering a selectable element
           setCursorStyle('pointer');
         } else {
-          const cursor = TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair';
+          const cursor = TOOL_CURSORS[toolStore.state.activeTool] ?? SVG_CURSOR_CROSSHAIR;
           if (!isPanningRef.current) setCursorStyle(cursor);
         }
-      } else {
+      } else if (isPanningRef.current) {
         hoveredIdRef.current = null;
       }
 
@@ -2010,7 +2099,7 @@ export default function CanvasViewport() {
       if (e.button === 1 || (e.button === 0 && isMiddleMouseRef.current)) {
         isPanningRef.current = false;
         isMiddleMouseRef.current = false;
-        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair'));
+        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'default'));
         return;
       }
 
@@ -2025,6 +2114,52 @@ export default function CanvasViewport() {
       if (toolState.activeTool === 'PAN') {
         isPanningRef.current = false;
         setCursorStyle('grab');
+        return;
+      }
+
+      // Commit element drag-to-move in SELECT mode
+      if (dragFeatureRef.current) {
+        const { featureIds, startWorld, originals } = dragFeatureRef.current;
+        const currentWorld = s2w(sx, sy);
+        const dx = currentWorld.wx - startWorld.x;
+        const dy = currentWorld.wy - startWorld.y;
+        const didMove = Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001;
+
+        if (didMove) {
+          // Commit the move to undo stack
+          const operations: any[] = [];
+          for (const id of featureIds) {
+            const before = originals.get(id);
+            const after = drawingStore.getFeature(id);
+            if (before && after) {
+              operations.push({ type: 'MODIFY_FEATURE', data: { id, before, after } });
+            }
+          }
+          if (operations.length > 0) {
+            undoStore.pushUndo({
+              id: generateId(),
+              description: `Move ${featureIds.length} element(s)`,
+              timestamp: Date.now(),
+              operations,
+            });
+          }
+        }
+        dragFeatureRef.current = null;
+        const hit = hitTest(sx, sy);
+        setCursorStyle(hit ? 'grab' : 'default');
+        return;
+      }
+
+      // Stop canvas pan in SELECT mode
+      if (selectPanRef.current) {
+        selectPanRef.current = false;
+        isPanningRef.current = false;
+        // If it was a short click (no drag), deselect
+        const dragDist = Math.hypot(sx - lastMouseRef.current.x, sy - lastMouseRef.current.y);
+        if (dragDist < 3 && !e.shiftKey) {
+          selectionStore.deselectAll();
+        }
+        setCursorStyle('default');
         return;
       }
 
@@ -2043,7 +2178,7 @@ export default function CanvasViewport() {
         }
         gripDragRef.current = null;
         gripStartRef.current = null;
-        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair'));
+        setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'default'));
         return;
       }
 
@@ -2062,7 +2197,7 @@ export default function CanvasViewport() {
       }
 
       isPanningRef.current = false;
-      setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'crosshair'));
+      setCursorStyle(isSpaceDownRef.current ? 'grab' : (TOOL_CURSORS[toolStore.state.activeTool] ?? 'default'));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [toolStore, selectionStore, drawingStore, undoStore],
@@ -2239,19 +2374,46 @@ export default function CanvasViewport() {
   }, [toolStore]);
 
   // ─────────────────────────────────────────────
-  // Ctrl+scroll → zoom canvas (non-passive, prevents browser zoom)
-  // Regular scroll without Ctrl is passed through to the browser normally.
+  // Scroll → zoom canvas at cursor position (non-passive, prevents page scroll)
+  // Zooms toward the cursor location (or toward the centroid of selected elements
+  // if any are selected and the cursor is not over the canvas center area).
   // ─────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey) return; // Only handle Ctrl+scroll
-      e.preventDefault(); // Prevent browser page zoom
+      e.preventDefault(); // Always prevent page scroll when over canvas
       const rect = canvas.getBoundingClientRect();
-      const sx = e.clientX - rect.left;
-      const sy = e.clientY - rect.top;
+      let sx = e.clientX - rect.left;
+      let sy = e.clientY - rect.top;
+
+      // If elements are selected, zoom toward the centroid of the selection
+      // unless the cursor is clearly aimed at a specific spot (within canvas)
+      const selectedIds = useSelectionStore.getState().selectedIds;
+      if (selectedIds.size > 0) {
+        const drawStore = useDrawingStore.getState();
+        const bounds = computeBounds(
+          Array.from(selectedIds)
+            .map((id) => drawStore.getFeature(id))
+            .filter(Boolean) as Feature[],
+        );
+        if (bounds) {
+          const centroidWorld = {
+            x: (bounds.minX + bounds.maxX) / 2,
+            y: (bounds.minY + bounds.maxY) / 2,
+          };
+          const centroidScreen = useViewportStore.getState().worldToScreen(
+            centroidWorld.x,
+            centroidWorld.y,
+          );
+          // Blend: zoom toward a point between cursor and selection centroid
+          // (60% cursor, 40% selection) for a natural feel
+          sx = sx * 0.6 + centroidScreen.sx * 0.4;
+          sy = sy * 0.6 + centroidScreen.sy * 0.4;
+        }
+      }
+
       const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
       useViewportStore.getState().zoomAt(sx, sy, factor);
     };

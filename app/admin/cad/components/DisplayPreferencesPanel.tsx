@@ -308,6 +308,22 @@ export default function DisplayPreferencesPanel({ open, onClose }: Props) {
           </div>
         </Section>
 
+        {/* Selection Behavior */}
+        <Section title="Selection">
+          <div className="space-y-1">
+            <OptionRow<'GROUP_FIRST' | 'ELEMENT_FIRST'>
+              label="Group Select"
+              options={[
+                { value: 'GROUP_FIRST', label: 'Group First', title: 'First click selects entire group, second click narrows to segment' },
+                { value: 'ELEMENT_FIRST', label: 'Element First', title: 'First click selects individual segment, right-click for group' },
+              ]}
+              value={drawingStore.document.settings.groupSelectMode ?? 'GROUP_FIRST'}
+              onChange={(v) => drawingStore.updateSettings({ groupSelectMode: v })}
+              tooltip="Controls whether clicking a grouped element (polyline, polygon) selects the whole group or just the clicked segment."
+            />
+          </div>
+        </Section>
+
       </div>
     </div>
   );

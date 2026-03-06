@@ -328,6 +328,11 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
                 label: 'Select Polyline Group',
                 action: handleSelectGroup,
               } as MenuItemDef,
+              {
+                id: 'selectSegment',
+                label: 'Select This Segment Only',
+                action: () => { if (featureId) { selectionStore.select(featureId, 'REPLACE'); } onClose(); },
+              } as MenuItemDef,
             ]
           : []),
         {
