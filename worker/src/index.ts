@@ -55,6 +55,35 @@ function validateEnvironment(): void {
 
 // ── Auth Middleware ─────────────────────────────────────────────────────────
 
+// ── Simple In-Memory Rate Limiter ───────────────────────────────────────────
+// Lightweight sliding-window rate limiter for file-system-touching routes.
+// Shared across all callers since this is an internal single-tenant worker.
+// Note: this is reset on process restart (intentional for a worker process).
+
+const _rateLimitWindows = new Map<string, number[]>();
+
+/**
+ * Rate-limit middleware — allows at most `maxReq` requests per `windowMs`
+ * from a single IP. Returns 429 when exceeded.
+ */
+function rateLimit(maxReq: number, windowMs: number) {
+  return (req: Request, res: Response, next: () => void): void => {
+    const ip  = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim()
+      ?? req.socket.remoteAddress
+      ?? 'unknown';
+    const key = `${req.path}:${ip}`;
+    const now = Date.now();
+    const hits = (_rateLimitWindows.get(key) ?? []).filter(ts => now - ts < windowMs);
+    hits.push(now);
+    _rateLimitWindows.set(key, hits);
+    if (hits.length > maxReq) {
+      res.status(429).json({ error: 'Too many requests — please slow down and try again' });
+      return;
+    }
+    next();
+  };
+}
+
 function requireAuth(req: Request, res: Response, next: () => void): void {
   const apiKey = process.env.WORKER_API_KEY;
 
@@ -613,6 +642,104 @@ app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res
   }
 });
 
+// ── POST /research/analyze ─────────────────────────────────────────────────
+// Phase 3: AI Document Intelligence.
+// Takes the Phase 2 harvest result and runs all AI extraction pipelines.
+// Long-running (3–10 minutes for a 6-lot subdivision). Returns HTTP 202
+// immediately. Results saved to /tmp/analysis/{projectId}/property_intelligence.json.
+
+app.post('/research/analyze', requireAuth, rateLimit(10, 60_000), async (req: Request, res: Response) => {
+  const { projectId, harvestResultPath } = req.body as {
+    projectId?: string;
+    harvestResultPath?: string;
+  };
+
+  // ── Validate required fields ──────────────────────────────────────────
+  if (!projectId || !harvestResultPath) {
+    res.status(400).json({ error: 'projectId and harvestResultPath are required' });
+    return;
+  }
+
+  // Validate projectId — prevent path traversal attacks
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({
+      error: 'projectId may only contain alphanumeric characters, hyphens, and underscores',
+    });
+    return;
+  }
+
+  // Validate harvest result path: must exist and be under /tmp/harvest/
+  const resolvedPath = path.resolve(harvestResultPath);
+  if (!resolvedPath.startsWith('/tmp/harvest/') || !fs.existsSync(resolvedPath)) {
+    res.status(400).json({
+      error: 'harvestResultPath must point to an existing file under /tmp/harvest/',
+    });
+    return;
+  }
+
+  // Confirm ANTHROPIC_API_KEY is set before accepting the job
+  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  if (!anthropicApiKey) {
+    res.status(503).json({
+      error: 'ANTHROPIC_API_KEY not configured on this worker — Phase 3 cannot run',
+    });
+    return;
+  }
+
+  // Return 202 immediately — analysis runs asynchronously in the background
+  res.status(202).json({
+    status:   'accepted',
+    projectId,
+    pollUrl:  `/research/analyze/${projectId}`,
+    message:  'Analysis started. Poll pollUrl for completion (typically 3–10 minutes).',
+  });
+
+  // ── Run analysis in the background ───────────────────────────────────
+  const { AIDocumentAnalyzer } = await import('./services/ai-document-analyzer.js');
+  const { PipelineLogger }     = await import('./lib/logger.js');
+  const logger  = new PipelineLogger(projectId);
+  const analyzer = new AIDocumentAnalyzer(anthropicApiKey, logger);
+
+  analyzer.analyze({ projectId, harvestResultPath: resolvedPath }).then(result => {
+    console.log(
+      `[Analyze] Complete: ${projectId} — status=${result.status}, ` +
+      `lots=${result.intelligence?.lots.length ?? 0}, ` +
+      `confidence=${result.intelligence?.confidenceSummary.overall ?? '?'}% ` +
+      `(${result.intelligence?.confidenceSummary.rating ?? '?'}), ` +
+      `errors=${result.errors.length}`,
+    );
+  }).catch(err => {
+    console.error(`[Analyze] Unhandled error for ${projectId}:`, err);
+  });
+});
+
+// ── GET /research/analyze/:projectId ─────────────────────────────────────
+// Returns the completed PropertyIntelligence JSON or { status: "in_progress" }.
+
+app.get('/research/analyze/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  // Validate projectId — prevent path traversal attacks
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const resultPath = `/tmp/analysis/${projectId}/property_intelligence.json`;
+
+  if (fs.existsSync(resultPath)) {
+    try {
+      const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+      res.json(result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: `Failed to read analysis result: ${msg}` });
+    }
+  } else {
+    res.json({ status: 'in_progress', projectId });
+  }
+});
+
 // ── POST /research/subdivision ────────────────────────────────────────────
 // Phase 4: Subdivision & Plat Intelligence.
 // Takes Phase 3 intelligence output and builds a complete SubdivisionModel
@@ -996,6 +1123,8 @@ app.listen(PORT, () => {
   console.log('  POST   /research/discover               ← Phase 1: property identity');
   console.log('  POST   /research/harvest                 ← Phase 2: document harvesting');
   console.log('  GET    /research/harvest/:projectId      ← Phase 2: harvest status/result');
+  console.log('  POST   /research/analyze                 ← Phase 3: AI document intelligence');
+  console.log('  GET    /research/analyze/:projectId      ← Phase 3: analysis status/result');
   console.log('  POST   /research/subdivision             ← Phase 4: subdivision intelligence');
   console.log('  GET    /research/subdivision/:projectId  ← Phase 4: subdivision status/result');
   console.log('  POST   /research/reconcile               ← Phase 7: geometric reconciliation');
