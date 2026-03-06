@@ -1,7 +1,7 @@
 'use client';
 // app/admin/cad/CADLayout.tsx — Main CAD editor UI shell
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import MenuBar from './components/MenuBar';
 import ToolBar from './components/ToolBar';
@@ -23,6 +23,7 @@ import HiddenItemsPanel from './components/HiddenItemsPanel';
 import LayerPreferencesPanel from './components/LayerPreferencesPanel';
 import FeatureLabelPreferencesPanel from './components/FeatureLabelPreferencesPanel';
 import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
+import { useUnsavedChangesGuard } from './hooks/useUnsavedChangesGuard';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
 
@@ -39,7 +40,10 @@ const CanvasViewport = dynamic(() => import('./components/CanvasViewport'), {
 const AUTOSAVE_DB = 'starr-cad';
 const AUTOSAVE_STORE = 'autosave';
 const AUTOSAVE_KEY = 'current';
-const AUTOSAVE_INTERVAL = 60_000;
+/** Fallback periodic interval (ms) — overridden by autoSaveIntervalSec setting */
+const DEFAULT_AUTOSAVE_INTERVAL_MS = 60_000;
+/** Debounce delay (ms) after a document change before writing to IndexedDB */
+const AUTOSAVE_DEBOUNCE_MS = 5_000;
 
 /** Open (or create) the IndexedDB autosave store */
 function openAutosaveDB(): Promise<IDBDatabase> {
@@ -97,6 +101,9 @@ export default function CADLayout() {
   const [showPointTable, setShowPointTable] = useState(false);
   const [showTraversePanel, setShowTraversePanel] = useState(false);
   const [showCurveCalculator, setShowCurveCalculator] = useState(false);
+
+  // Register beforeunload guard (shows native "Leave site?" dialog when dirty)
+  useUnsavedChangesGuard();
   const [showNewDrawingDialog, setShowNewDrawingDialog] = useState(false);
   const [showDisplayPrefs, setShowDisplayPrefs] = useState(false);
   const [showOrientationDialog, setShowOrientationDialog] = useState(false);
@@ -190,27 +197,45 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:toggleHiddenItems', handler);
   }, []);
 
-  // Auto-save to IndexedDB every 60 seconds
+  // ─── Autosave helpers ────────────────────────────────────────────────────────
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function performAutosave() {
+    if (!drawingStore.document.settings.autoSaveEnabled) return;
+    try {
+      const payload = {
+        version: '1.0',
+        application: 'starr-cad',
+        savedAt: new Date().toISOString(),
+        document: drawingStore.document,
+      };
+      await writeAutosave(payload);
+      setAutoSaveFailed(false);
+      cadLog.debug('AutoSave', `Auto-saved drawing: ${drawingStore.document.name}`);
+    } catch (err) {
+      setAutoSaveFailed(true);
+      cadLog.warn('AutoSave', 'Auto-save failed', err);
+    }
+  }
+
+  // Debounced autosave — fires 5 s after every document change
   useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const payload = {
-          version: '1.0',
-          application: 'starr-cad',
-          savedAt: new Date().toISOString(),
-          document: drawingStore.document,
-        };
-        await writeAutosave(payload);
-        setAutoSaveFailed(false);
-        cadLog.debug('AutoSave', `Auto-saved drawing: ${drawingStore.document.name}`);
-      } catch (err) {
-        // IndexedDB not available or quota exceeded — warn user
-        setAutoSaveFailed(true);
-        cadLog.warn('AutoSave', 'Auto-save failed', err);
-      }
-    }, AUTOSAVE_INTERVAL);
+    if (!drawingStore.isDirty) return;
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => { void performAutosave(); }, AUTOSAVE_DEBOUNCE_MS);
+    return () => { if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawingStore.document]);
+
+  // Periodic autosave — interval driven by the user's autoSaveIntervalSec setting
+  useEffect(() => {
+    const intervalMs =
+      (drawingStore.document.settings.autoSaveIntervalSec ?? 120) * 1_000 ||
+      DEFAULT_AUTOSAVE_INTERVAL_MS;
+    const interval = setInterval(() => { void performAutosave(); }, intervalMs);
     return () => clearInterval(interval);
-  }, [drawingStore]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawingStore.document.settings.autoSaveIntervalSec, drawingStore.document.settings.autoSaveEnabled]);
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden bg-white select-none">
