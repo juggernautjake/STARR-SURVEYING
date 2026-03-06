@@ -18,11 +18,28 @@ import { boundsContains, boundsOverlap } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon } from '@/lib/cad/geometry/point';
 import { translate, rotate, mirror, scale, transformFeature } from '@/lib/cad/geometry/transform';
 import { generateId } from '@/lib/cad/types';
-import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel } from '@/lib/cad/types';
+import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel, CircleGeometry, EllipseGeometry, ArcGeometry, SplineGeometry } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
 import { inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import { cadLog } from '@/lib/cad/logger';
+import {
+  drawCircle as drawCircleCurve,
+  drawEllipse as drawEllipseCurve,
+  drawArc as drawArcCurve,
+  drawSpline as drawSplineCurve,
+  pointToCircleDistance,
+  pointInCircle,
+  pointToEllipseDistance,
+  pointInEllipse,
+  pointToArcDistance,
+  pointToSplineDistance,
+  circleGripPoints,
+  ellipseGripPoints,
+  arcGripPoints,
+  splineGripPoints,
+  type GraphicsLike,
+} from '@/lib/cad/geometry/curve-render';
 import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
 
@@ -35,9 +52,6 @@ const MAX_GRID_ITERATIONS = 500; // max grid lines per axis to prevent performan
 // Minimum meaningful segment length in world units before zoom scaling.
 // Prevents duplicate zero-length segments on double-click.
 const MIN_SEGMENT_LENGTH_BASE = 0.001;
-
-// Number of vertices used to approximate a circle as a polygon
-const CIRCLE_VERTS = 64;
 
 // Grey background color rendered outside the paper boundary
 const CANVAS_SURROUND_COLOR = 0x808080;
@@ -83,7 +97,9 @@ interface DrawingMenuState {
 // ── Tool-specific CSS cursors ─────────────────────────────────────────────────
 // Custom SVG cursors for professional feel
 const SVG_CURSOR_CROSSHAIR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cline x1='12' y1='0' x2='12' y2='10' stroke='%23fff' stroke-width='1.5'/%3E%3Cline x1='12' y1='14' x2='12' y2='24' stroke='%23fff' stroke-width='1.5'/%3E%3Cline x1='0' y1='12' x2='10' y2='12' stroke='%23fff' stroke-width='1.5'/%3E%3Cline x1='14' y1='12' x2='24' y2='12' stroke='%23fff' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='2' fill='none' stroke='%23fff' stroke-width='1'/%3E%3Cline x1='12' y1='1' x2='12' y2='10' stroke='%23000' stroke-width='0.5'/%3E%3Cline x1='12' y1='14' x2='12' y2='23' stroke='%23000' stroke-width='0.5'/%3E%3Cline x1='1' y1='12' x2='10' y2='12' stroke='%23000' stroke-width='0.5'/%3E%3Cline x1='14' y1='12' x2='23' y2='12' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E") 12 12, crosshair`;
-const SVG_CURSOR_ERASE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='3' y='3' width='14' height='14' rx='2' fill='%23ff4444' fill-opacity='0.3' stroke='%23ff4444' stroke-width='1.5'/%3E%3Cline x1='6' y1='6' x2='14' y2='14' stroke='white' stroke-width='2'/%3E%3Cline x1='14' y1='6' x2='6' y2='14' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 10 10, crosshair`;
+// Erase cursor: yellow outline = idle (nothing under cursor), red outline = hovering over erasable element
+const SVG_CURSOR_ERASE_IDLE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='3' y='3' width='14' height='14' rx='2' fill='%23ffcc00' fill-opacity='0.15' stroke='%23ddaa00' stroke-width='1.5'/%3E%3Cline x1='6' y1='6' x2='14' y2='14' stroke='%23ddaa00' stroke-width='1.5'/%3E%3Cline x1='14' y1='6' x2='6' y2='14' stroke='%23ddaa00' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, crosshair`;
+const SVG_CURSOR_ERASE_ACTIVE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Crect x='3' y='3' width='14' height='14' rx='2' fill='%23ff4444' fill-opacity='0.3' stroke='%23ff4444' stroke-width='1.5'/%3E%3Cline x1='6' y1='6' x2='14' y2='14' stroke='white' stroke-width='2'/%3E%3Cline x1='14' y1='6' x2='6' y2='14' stroke='white' stroke-width='2'/%3E%3C/svg%3E") 10 10, crosshair`;
 const SVG_CURSOR_ROTATE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M17 3l3.5 6-6 0' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M12 3a9 9 0 0 1 8.5 6' fill='none' stroke='%23000' stroke-width='0.5'/%3E%3C/svg%3E") 12 12, alias`;
 
 const SVG_CURSOR_BOX_SELECT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Crect x='4' y='4' width='16' height='16' fill='none' stroke='%230088ff' stroke-width='1.5' stroke-dasharray='3 2'/%3E%3Cline x1='12' y1='0' x2='12' y2='8' stroke='white' stroke-width='1'/%3E%3Cline x1='12' y1='16' x2='12' y2='24' stroke='white' stroke-width='1'/%3E%3Cline x1='0' y1='12' x2='8' y2='12' stroke='white' stroke-width='1'/%3E%3Cline x1='16' y1='12' x2='24' y2='12' stroke='white' stroke-width='1'/%3E%3C/svg%3E") 12 12, crosshair`;
@@ -107,7 +123,7 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
   ROTATE: SVG_CURSOR_ROTATE,
   MIRROR: 'col-resize',
   SCALE: 'nwse-resize',
-  ERASE: SVG_CURSOR_ERASE,
+  ERASE: SVG_CURSOR_ERASE_IDLE,
 };
 
 // ─────────────────────────────────────────────
@@ -276,6 +292,27 @@ export default function CanvasViewport() {
         };
 
         viewportStore.setScreenSize(width, height);
+
+        // ── Zoom-to-fit: center the drawing paper in the viewport ──
+        // Calculate the paper bounds from settings and zoom to show the entire page
+        {
+          const docSettings = drawingStore.document.settings;
+          const { paperSize: ps, paperOrientation: po, drawingScale: ds } = docSettings;
+          let [pw, ph] = PAPER_SIZE_MAP[ps ?? 'TABLOID'] ?? [11, 17];
+          if (po === 'LANDSCAPE') { [pw, ph] = [ph, pw]; }
+          const paperW = pw * (ds ?? 50);
+          const paperH = ph * (ds ?? 50);
+
+          // Paper extends from (0,0) to (paperW, paperH) — center it
+          const paperBounds: import('@/lib/cad/types').BoundingBox = {
+            minX: 0,
+            minY: 0,
+            maxX: paperW,
+            maxY: paperH,
+          };
+          viewportStore.zoomToExtents(paperBounds, 0.05);
+        }
+
         cadLog.info('CanvasViewport', 'PixiJS canvas initialised successfully');
 
         // Start render loop
@@ -561,6 +598,7 @@ export default function CanvasViewport() {
     const weight = feature.style.lineWeight ?? 0.25;
     const alpha = feature.style.opacity;
     const geom = feature.geometry;
+    const { zoom } = useViewportStore.getState();
 
     switch (geom.type) {
       case 'POINT': {
@@ -604,6 +642,34 @@ export default function CanvasViewport() {
           g.lineTo(v.sx, v.sy);
         }
         g.closePath();
+        break;
+      }
+      case 'CIRCLE': {
+        if (geom.circle) {
+          g.lineStyle(weight, color, alpha);
+          drawCircleCurve(g as unknown as GraphicsLike, geom.circle, w2s, zoom);
+        }
+        break;
+      }
+      case 'ELLIPSE': {
+        if (geom.ellipse) {
+          g.lineStyle(weight, color, alpha);
+          drawEllipseCurve(g as unknown as GraphicsLike, geom.ellipse, w2s, zoom);
+        }
+        break;
+      }
+      case 'ARC': {
+        if (geom.arc) {
+          g.lineStyle(weight, color, alpha);
+          drawArcCurve(g as unknown as GraphicsLike, geom.arc, w2s, zoom);
+        }
+        break;
+      }
+      case 'SPLINE': {
+        if (geom.spline) {
+          g.lineStyle(weight, color, alpha);
+          drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
+        }
         break;
       }
     }
@@ -788,6 +854,7 @@ export default function CanvasViewport() {
       if (feature) {
         const geom = feature.geometry;
         // Helper: draw geometry outline for glow layers
+        const currentZoom = useViewportStore.getState().zoom;
         const drawGeomOutline = () => {
           switch (geom.type) {
             case 'POINT': {
@@ -825,6 +892,22 @@ export default function CanvasViewport() {
               g.closePath();
               break;
             }
+            case 'CIRCLE': {
+              if (geom.circle) drawCircleCurve(g as unknown as GraphicsLike, geom.circle, w2s, currentZoom);
+              break;
+            }
+            case 'ELLIPSE': {
+              if (geom.ellipse) drawEllipseCurve(g as unknown as GraphicsLike, geom.ellipse, w2s, currentZoom);
+              break;
+            }
+            case 'ARC': {
+              if (geom.arc) drawArcCurve(g as unknown as GraphicsLike, geom.arc, w2s, currentZoom);
+              break;
+            }
+            case 'SPLINE': {
+              if (geom.spline) drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
+              break;
+            }
           }
         };
 
@@ -848,6 +931,7 @@ export default function CanvasViewport() {
       // Highlight: selection color outline — width from settings
       const geom = feature.geometry;
       const selLineW = docSettings.selectionLineWidth ?? 1.5;
+      const selZoom = useViewportStore.getState().zoom;
       g.lineStyle(selLineW + 0.5, selColor, 1);
       switch (geom.type) {
         case 'POINT': {
@@ -885,6 +969,22 @@ export default function CanvasViewport() {
           g.closePath();
           break;
         }
+        case 'CIRCLE': {
+          if (geom.circle) drawCircleCurve(g as unknown as GraphicsLike, geom.circle, w2s, selZoom);
+          break;
+        }
+        case 'ELLIPSE': {
+          if (geom.ellipse) drawEllipseCurve(g as unknown as GraphicsLike, geom.ellipse, w2s, selZoom);
+          break;
+        }
+        case 'ARC': {
+          if (geom.arc) drawArcCurve(g as unknown as GraphicsLike, geom.arc, w2s, selZoom);
+          break;
+        }
+        case 'SPLINE': {
+          if (geom.spline) drawSplineCurve(g as unknown as GraphicsLike, geom.spline, w2s);
+          break;
+        }
       }
 
       // Grip squares at vertices — size and colors from settings
@@ -914,6 +1014,14 @@ export default function CanvasViewport() {
       case 'POLYLINE':
       case 'POLYGON':
         return geom.vertices ?? [];
+      case 'CIRCLE':
+        return geom.circle ? circleGripPoints(geom.circle) : [];
+      case 'ELLIPSE':
+        return geom.ellipse ? ellipseGripPoints(geom.ellipse) : [];
+      case 'ARC':
+        return geom.arc ? arcGripPoints(geom.arc) : [];
+      case 'SPLINE':
+        return geom.spline ? splineGripPoints(geom.spline) : [];
       default:
         return [];
     }
@@ -1112,23 +1220,19 @@ export default function CanvasViewport() {
         }
         return;
       }
-      // Circle preview (center + radius mode)
+      // Circle preview (center + radius mode) — true circle using native drawCircle
       if (activeTool === 'DRAW_CIRCLE' && drawingPoints.length === 1 && previewPoint) {
         const center = drawingPoints[0];
         const radius = Math.hypot(previewPoint.x - center.x, previewPoint.y - center.y);
         if (radius > 0) {
-          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-            return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
-          });
+          const pvZoom = useViewportStore.getState().zoom;
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          const screenRadius = radius * pvZoom;
           g.lineStyle(1.5, previewColor, 0.9);
           g.beginFill(previewColor, 0.06);
-          g.moveTo(pts[0].sx, pts[0].sy);
-          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
-          g.closePath();
+          g.drawCircle(cx, cy, screenRadius);
           g.endFill();
           // Center crosshair + radius line
-          const { sx: cx, sy: cy } = w2s(center.x, center.y);
           const { sx: rx, sy: ry } = w2s(previewPoint.x, previewPoint.y);
           g.lineStyle(1, previewColor, 0.5);
           g.moveTo(cx - 5, cy); g.lineTo(cx + 5, cy);
@@ -1141,27 +1245,23 @@ export default function CanvasViewport() {
         }
         return;
       }
-      // Circle preview (edge/diameter mode) — first point is on the circle edge
+      // Circle preview (edge/diameter mode) — true circle using native drawCircle
       if (activeTool === 'DRAW_CIRCLE_EDGE' && drawingPoints.length === 1 && previewPoint) {
         const p1 = drawingPoints[0];
         const diameter = Math.hypot(previewPoint.x - p1.x, previewPoint.y - p1.y);
         const radius = diameter / 2;
         if (radius > 0) {
+          const pvZoom = useViewportStore.getState().zoom;
           const center = { x: (p1.x + previewPoint.x) / 2, y: (p1.y + previewPoint.y) / 2 };
-          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-            return w2s(center.x + radius * Math.cos(angle), center.y + radius * Math.sin(angle));
-          });
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          const screenRadius = radius * pvZoom;
           g.lineStyle(1.5, previewColor, 0.9);
           g.beginFill(previewColor, 0.06);
-          g.moveTo(pts[0].sx, pts[0].sy);
-          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
-          g.closePath();
+          g.drawCircle(cx, cy, screenRadius);
           g.endFill();
           // Diameter line from p1 to preview point
           const { sx: p1x, sy: p1y } = w2s(p1.x, p1.y);
           const { sx: p2x, sy: p2y } = w2s(previewPoint.x, previewPoint.y);
-          const { sx: cx, sy: cy } = w2s(center.x, center.y);
           g.lineStyle(0.75, previewColor, 0.35);
           g.moveTo(p1x, p1y); g.lineTo(p2x, p2y);
           // Center crosshair
@@ -1176,24 +1276,21 @@ export default function CanvasViewport() {
         }
         return;
       }
-      // Ellipse preview (center + bounding-box corner mode)
+      // Ellipse preview (center + bounding-box corner mode) — true ellipse using native drawEllipse
       if (activeTool === 'DRAW_ELLIPSE' && drawingPoints.length === 1 && previewPoint) {
         const center = drawingPoints[0];
         const rx = Math.abs(previewPoint.x - center.x);
         const ry = Math.abs(previewPoint.y - center.y);
         if (rx > 0 && ry > 0) {
-          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-            return w2s(center.x + rx * Math.cos(angle), center.y + ry * Math.sin(angle));
-          });
+          const pvZoom = useViewportStore.getState().zoom;
+          const { sx: cx, sy: cy } = w2s(center.x, center.y);
+          const screenRx = rx * pvZoom;
+          const screenRy = ry * pvZoom;
           g.lineStyle(1.5, previewColor, 0.9);
           g.beginFill(previewColor, 0.06);
-          g.moveTo(pts[0].sx, pts[0].sy);
-          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
-          g.closePath();
+          g.drawEllipse(cx, cy, screenRx, screenRy);
           g.endFill();
           // Center crosshair + bounding box dashes
-          const { sx: cx, sy: cy } = w2s(center.x, center.y);
           const { sx: ex, sy: ey } = w2s(previewPoint.x, previewPoint.y);
           g.lineStyle(1, previewColor, 0.5);
           g.moveTo(cx - 5, cy); g.lineTo(cx + 5, cy);
@@ -1208,7 +1305,7 @@ export default function CanvasViewport() {
         }
         return;
       }
-      // Ellipse preview (edge/diameter mode) — first point is on the ellipse bounding box edge
+      // Ellipse preview (edge/diameter mode) — true ellipse using native drawEllipse
       if (activeTool === 'DRAW_ELLIPSE_EDGE' && drawingPoints.length === 1 && previewPoint) {
         const p1 = drawingPoints[0];
         const cx = (p1.x + previewPoint.x) / 2;
@@ -1216,15 +1313,13 @@ export default function CanvasViewport() {
         const rx = Math.abs(previewPoint.x - p1.x) / 2;
         const ry = Math.abs(previewPoint.y - p1.y) / 2;
         if (rx > 0 && ry > 0) {
-          const pts = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-            const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-            return w2s(cx + rx * Math.cos(angle), cy + ry * Math.sin(angle));
-          });
+          const pvZoom = useViewportStore.getState().zoom;
+          const { sx: scx, sy: scy } = w2s(cx, cy);
+          const screenRx = rx * pvZoom;
+          const screenRy = ry * pvZoom;
           g.lineStyle(1.5, previewColor, 0.9);
           g.beginFill(previewColor, 0.06);
-          g.moveTo(pts[0].sx, pts[0].sy);
-          for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].sx, pts[i].sy);
-          g.closePath();
+          g.drawEllipse(scx, scy, screenRx, screenRy);
           g.endFill();
           // Diagonal line from p1 to p2 (bounding box diagonal)
           const { sx: p1x, sy: p1y } = w2s(p1.x, p1.y);
@@ -1360,6 +1455,28 @@ export default function CanvasViewport() {
         }
         // Check interior
         if (pointInPolygon({ x: wx, y: wy }, geom.vertices)) return feature.id;
+      }
+      // True circle hit testing
+      if (geom.type === 'CIRCLE' && geom.circle) {
+        const d = pointToCircleDistance({ x: wx, y: wy }, geom.circle);
+        if (d <= worldTol) return feature.id;
+        if (pointInCircle({ x: wx, y: wy }, geom.circle)) return feature.id;
+      }
+      // True ellipse hit testing
+      if (geom.type === 'ELLIPSE' && geom.ellipse) {
+        const d = pointToEllipseDistance({ x: wx, y: wy }, geom.ellipse);
+        if (d <= worldTol) return feature.id;
+        if (pointInEllipse({ x: wx, y: wy }, geom.ellipse)) return feature.id;
+      }
+      // Arc hit testing
+      if (geom.type === 'ARC' && geom.arc) {
+        const d = pointToArcDistance({ x: wx, y: wy }, geom.arc);
+        if (d <= worldTol) return feature.id;
+      }
+      // Spline hit testing
+      if (geom.type === 'SPLINE' && geom.spline) {
+        const d = pointToSplineDistance({ x: wx, y: wy }, geom.spline);
+        if (d <= worldTol) return feature.id;
       }
     }
     return null;
@@ -1526,6 +1643,12 @@ export default function CanvasViewport() {
           style: mergedStyle,
           properties: {},
         };
+      case 'CIRCLE':
+      case 'ELLIPSE':
+      case 'ARC':
+      case 'SPLINE':
+        // These types are created directly in their tool handlers with parametric geometry
+        return null;
       default:
         return null;
     }
@@ -1923,18 +2046,17 @@ export default function CanvasViewport() {
             const center = toolState.drawingPoints[0];
             const radius = Math.hypot(worldPt.x - center.x, worldPt.y - center.y);
             if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
-            // Approximate circle as 64-vertex polygon
-            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-              return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
-            });
+            // True circle: store parametric data, no polygon vertices
             const feature: Feature = {
               id: generateId(),
-              type: 'POLYGON',
-              geometry: { type: 'POLYGON', vertices },
+              type: 'CIRCLE',
+              geometry: {
+                type: 'CIRCLE',
+                circle: { center: { ...center }, radius },
+              },
               layerId: drawingStore.activeLayerId,
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
-              properties: { shapeType: 'CIRCLE', centerX: center.x.toString(), centerY: center.y.toString(), radius: radius.toString() },
+              properties: { shapeType: 'CIRCLE' },
             };
             drawingStore.addFeature(feature);
             undoStore.pushUndo(makeAddFeatureEntry(feature));
@@ -1954,17 +2076,17 @@ export default function CanvasViewport() {
             const radius = diameter / 2;
             if (radius < MIN_SEGMENT_LENGTH_BASE) { toolStore.clearDrawingPoints(); break; }
             const center = { x: (p1.x + worldPt.x) / 2, y: (p1.y + worldPt.y) / 2 };
-            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-              return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
-            });
+            // True circle: store parametric data, no polygon vertices
             const feature: Feature = {
               id: generateId(),
-              type: 'POLYGON',
-              geometry: { type: 'POLYGON', vertices },
+              type: 'CIRCLE',
+              geometry: {
+                type: 'CIRCLE',
+                circle: { center, radius },
+              },
               layerId: drawingStore.activeLayerId,
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
-              properties: { shapeType: 'CIRCLE', centerX: center.x.toString(), centerY: center.y.toString(), radius: radius.toString() },
+              properties: { shapeType: 'CIRCLE' },
             };
             drawingStore.addFeature(feature);
             undoStore.pushUndo(makeAddFeatureEntry(feature));
@@ -1984,21 +2106,17 @@ export default function CanvasViewport() {
             if (radiusX < MIN_SEGMENT_LENGTH_BASE || radiusY < MIN_SEGMENT_LENGTH_BASE) {
               toolStore.clearDrawingPoints(); break;
             }
-            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-              return { x: center.x + radiusX * Math.cos(angle), y: center.y + radiusY * Math.sin(angle) };
-            });
+            // True ellipse: store parametric data, no polygon vertices
             const feature: Feature = {
               id: generateId(),
-              type: 'POLYGON',
-              geometry: { type: 'POLYGON', vertices },
+              type: 'ELLIPSE',
+              geometry: {
+                type: 'ELLIPSE',
+                ellipse: { center: { ...center }, radiusX, radiusY, rotation: 0 },
+              },
               layerId: drawingStore.activeLayerId,
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
-              properties: {
-                shapeType: 'ELLIPSE',
-                centerX: center.x.toString(), centerY: center.y.toString(),
-                radiusX: radiusX.toString(), radiusY: radiusY.toString(),
-              },
+              properties: { shapeType: 'ELLIPSE' },
             };
             drawingStore.addFeature(feature);
             undoStore.pushUndo(makeAddFeatureEntry(feature));
@@ -2020,21 +2138,17 @@ export default function CanvasViewport() {
               toolStore.clearDrawingPoints(); break;
             }
             const center = { x: (p1.x + worldPt.x) / 2, y: (p1.y + worldPt.y) / 2 };
-            const vertices: Point2D[] = Array.from({ length: CIRCLE_VERTS }, (_, i) => {
-              const angle = (2 * Math.PI * i) / CIRCLE_VERTS;
-              return { x: center.x + radiusX * Math.cos(angle), y: center.y + radiusY * Math.sin(angle) };
-            });
+            // True ellipse: store parametric data, no polygon vertices
             const feature: Feature = {
               id: generateId(),
-              type: 'POLYGON',
-              geometry: { type: 'POLYGON', vertices },
+              type: 'ELLIPSE',
+              geometry: {
+                type: 'ELLIPSE',
+                ellipse: { center, radiusX, radiusY, rotation: 0 },
+              },
               layerId: drawingStore.activeLayerId,
               style: { ...DEFAULT_FEATURE_STYLE, ...drawingStore.getActiveLayerStyle() },
-              properties: {
-                shapeType: 'ELLIPSE',
-                centerX: center.x.toString(), centerY: center.y.toString(),
-                radiusX: radiusX.toString(), radiusY: radiusY.toString(),
-              },
+              properties: { shapeType: 'ELLIPSE' },
             };
             drawingStore.addFeature(feature);
             undoStore.pushUndo(makeAddFeatureEntry(feature));
@@ -2233,6 +2347,79 @@ export default function CanvasViewport() {
               geom.vertices = verts;
               break;
             }
+            case 'CIRCLE': {
+              if (geom.circle) {
+                const c = { ...geom.circle };
+                if (vertexIndex === 0) {
+                  // Dragging center: move the whole circle
+                  c.center = worldPt;
+                } else {
+                  // Dragging a cardinal point: adjust radius
+                  c.radius = Math.hypot(worldPt.x - c.center.x, worldPt.y - c.center.y);
+                }
+                geom.circle = c;
+              }
+              break;
+            }
+            case 'ELLIPSE': {
+              if (geom.ellipse) {
+                const e = { ...geom.ellipse };
+                if (vertexIndex === 0) {
+                  // Dragging center: move the whole ellipse
+                  e.center = worldPt;
+                } else if (vertexIndex === 1 || vertexIndex === 3) {
+                  // Dragging X-axis endpoints: adjust radiusX
+                  const cosR = Math.cos(-e.rotation);
+                  const sinR = Math.sin(-e.rotation);
+                  const dx = worldPt.x - e.center.x;
+                  const dy = worldPt.y - e.center.y;
+                  const localX = dx * cosR - dy * sinR;
+                  e.radiusX = Math.max(0.01, Math.abs(localX));
+                } else {
+                  // Dragging Y-axis endpoints: adjust radiusY
+                  const cosR = Math.cos(-e.rotation);
+                  const sinR = Math.sin(-e.rotation);
+                  const dx = worldPt.x - e.center.x;
+                  const dy = worldPt.y - e.center.y;
+                  const localY = dx * sinR + dy * cosR;
+                  e.radiusY = Math.max(0.01, Math.abs(localY));
+                }
+                geom.ellipse = e;
+              }
+              break;
+            }
+            case 'ARC': {
+              if (geom.arc) {
+                const a = { ...geom.arc };
+                if (vertexIndex === 0) {
+                  // Dragging center: move the whole arc
+                  a.center = worldPt;
+                } else if (vertexIndex === 1) {
+                  // Dragging start point: adjust startAngle and radius
+                  a.radius = Math.hypot(worldPt.x - a.center.x, worldPt.y - a.center.y);
+                  a.startAngle = Math.atan2(worldPt.y - a.center.y, worldPt.x - a.center.x);
+                } else if (vertexIndex === 3) {
+                  // Dragging end point: adjust endAngle and radius
+                  a.radius = Math.hypot(worldPt.x - a.center.x, worldPt.y - a.center.y);
+                  a.endAngle = Math.atan2(worldPt.y - a.center.y, worldPt.x - a.center.x);
+                } else if (vertexIndex === 2) {
+                  // Dragging mid point: adjust radius
+                  a.radius = Math.hypot(worldPt.x - a.center.x, worldPt.y - a.center.y);
+                }
+                geom.arc = a;
+              }
+              break;
+            }
+            case 'SPLINE': {
+              if (geom.spline) {
+                const s = { ...geom.spline, controlPoints: [...geom.spline.controlPoints] };
+                if (vertexIndex >= 0 && vertexIndex < s.controlPoints.length) {
+                  s.controlPoints[vertexIndex] = worldPt;
+                }
+                geom.spline = s;
+              }
+              break;
+            }
           }
           drawingStore.updateFeatureGeometry(featureId, geom);
         }
@@ -2276,6 +2463,9 @@ export default function CanvasViewport() {
               setCursorStyle('default');
             }
           }
+        } else if (toolStore.state.activeTool === 'ERASE') {
+          // Erase tool: yellow when nothing under cursor, red when hovering erasable element
+          setCursorStyle(hit ? SVG_CURSOR_ERASE_ACTIVE : SVG_CURSOR_ERASE_IDLE);
         } else if (hit && !toolStore.state.activeTool.startsWith('DRAW_')) {
           // For modification tools: show pointer cursor when hovering a selectable element
           setCursorStyle('pointer');
@@ -2604,6 +2794,29 @@ export default function CanvasViewport() {
         const g = f.geometry;
         if (g.type === 'POINT') return g.point ? [g.point] : [];
         if (g.type === 'LINE') return [g.start!, g.end!].filter(Boolean);
+        if (g.type === 'CIRCLE' && g.circle) {
+          const { center, radius } = g.circle;
+          return [
+            { x: center.x - radius, y: center.y - radius },
+            { x: center.x + radius, y: center.y + radius },
+          ];
+        }
+        if (g.type === 'ELLIPSE' && g.ellipse) {
+          const { center, radiusX, radiusY } = g.ellipse;
+          const r = Math.max(radiusX, radiusY);
+          return [
+            { x: center.x - r, y: center.y - r },
+            { x: center.x + r, y: center.y + r },
+          ];
+        }
+        if (g.type === 'ARC' && g.arc) {
+          const { center, radius } = g.arc;
+          return [
+            { x: center.x - radius, y: center.y - radius },
+            { x: center.x + radius, y: center.y + radius },
+          ];
+        }
+        if (g.type === 'SPLINE' && g.spline) return g.spline.controlPoints;
         return g.vertices ?? [];
       });
       if (allPts.length > 0) vpStore.zoomToExtents(computeBounds(allPts));

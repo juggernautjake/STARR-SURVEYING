@@ -159,7 +159,7 @@ export interface DrawingSettings {
 
 // --- FEATURES ---
 
-export type FeatureType = 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON' | 'ARC' | 'SPLINE' | 'MIXED_GEOMETRY';
+export type FeatureType = 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON' | 'CIRCLE' | 'ELLIPSE' | 'ARC' | 'SPLINE' | 'MIXED_GEOMETRY';
 
 export interface Feature {
   id: string;
@@ -181,6 +181,50 @@ export interface FeatureGeometry {
   start?: Point2D;
   end?: Point2D;
   vertices?: Point2D[];
+
+  // ── True curve parametric data ──
+  /** Circle: center + radius (type='POLYGON', shapeType='CIRCLE') */
+  circle?: CircleGeometry;
+  /** Ellipse: center + radii + rotation (type='POLYGON', shapeType='ELLIPSE') */
+  ellipse?: EllipseGeometry;
+  /** Arc: center + radius + angles (type='ARC') */
+  arc?: ArcGeometry;
+  /** Cubic bezier spline segments (type='SPLINE') */
+  spline?: SplineGeometry;
+}
+
+// ── TRUE CURVE GEOMETRY DEFINITIONS ──
+
+/** A mathematically perfect circle defined by center and radius. */
+export interface CircleGeometry {
+  center: Point2D;
+  radius: number;
+}
+
+/** A mathematically perfect ellipse defined by center, semi-axes, and rotation. */
+export interface EllipseGeometry {
+  center: Point2D;
+  radiusX: number;         // Semi-major axis (before rotation)
+  radiusY: number;         // Semi-minor axis (before rotation)
+  rotation: number;        // Rotation in radians (0 = axes aligned with world axes)
+}
+
+/** A circular arc defined by center, radius, and angular span. */
+export interface ArcGeometry {
+  center: Point2D;
+  radius: number;
+  startAngle: number;      // Radians, measured from east (math convention)
+  endAngle: number;        // Radians
+  anticlockwise: boolean;  // true = CCW, false = CW
+}
+
+/** A cubic bezier spline with one or more segments. */
+export interface SplineGeometry {
+  /** Control points: for N segments, there are 3N+1 points.
+   *  Segment i uses points[3i], points[3i+1], points[3i+2], points[3i+3]. */
+  controlPoints: Point2D[];
+  /** Whether the spline forms a closed loop. */
+  isClosed: boolean;
 }
 
 export interface FeatureStyle {
