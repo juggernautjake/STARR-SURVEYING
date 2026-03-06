@@ -13,6 +13,7 @@ import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
 import { SubdivisionIntelligenceEngine } from './services/subdivision-intelligence.js';
 import { runAdjacentResearch, type FullCrossValidationReport } from './services/adjacent-research-orchestrator.js';
+import { runROWIntegration, type ROWReport } from './services/row-integration-engine.js';
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
@@ -941,7 +942,151 @@ app.get('/research/adjacent/:projectId', requireAuth, rateLimit(60, 60_000), (re
   res.json({ status: 'complete', projectId, result: state.result });
 });
 
-// ── POST /research/reconcile ──────────────────────────────────────────────
+// ── POST /research/row ────────────────────────────────────────────────────────
+// Phase 6: TxDOT ROW & Public Infrastructure Integration.
+// Reads property_intelligence.json (Phase 3 output), queries TxDOT ArcGIS and
+// optionally RPAM/Texas Digital Archive for every road bordering the property.
+// Resolves deed-vs-plat road boundary discrepancies using authoritative TxDOT geometry.
+//
+// Long-running (up to ~5 minutes). Returns HTTP 202 immediately.
+// Results are persisted to /tmp/analysis/{projectId}/row_data.json.
+
+// In-memory job state for Phase 6 (does not persist across PM2 restarts)
+const activeROWJobs = new Map<
+  string,
+  { status: 'running' | 'complete' | 'failed'; result?: ROWReport }
+>();
+
+app.post('/research/row', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const { projectId, intelligencePath } = req.body as {
+    projectId?: string;
+    intelligencePath?: string;
+  };
+
+  if (!projectId || typeof projectId !== 'string' || projectId.trim() === '') {
+    res.status(400).json({ error: 'Missing or empty required field: projectId' });
+    return;
+  }
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId — use only letters, numbers, hyphens, underscores' });
+    return;
+  }
+
+  const resolvedIntelPath = intelligencePath
+    ?? `/tmp/analysis/${projectId}/property_intelligence.json`;
+
+  if (!fs.existsSync(resolvedIntelPath)) {
+    res.status(400).json({
+      error: `property_intelligence.json not found at: ${resolvedIntelPath}`,
+      hint: 'Run Phase 3 (POST /research/analyze) before Phase 6.',
+    });
+    return;
+  }
+
+  // Reject if already running
+  const existing = activeROWJobs.get(projectId);
+  if (existing?.status === 'running') {
+    res.status(409).json({
+      error: 'Phase 6 ROW integration already running for this project',
+      hint: `Poll GET /research/row/${projectId} for status`,
+    });
+    return;
+  }
+
+  // ── Create a minimal PipelineLogger compatible wrapper for the engine ─────
+  // The ROWIntegrationEngine requires a PipelineLogger. We use a console-based wrapper.
+  const makeLogger = () => ({
+    info: (layer: string, msg: string) => console.log(`[ROW/${layer}] ${msg}`),
+    warn: (layer: string, msg: string) => console.warn(`[ROW/${layer}] ${msg}`),
+    error: (layer: string, msg: string) => console.error(`[ROW/${layer}] ${msg}`),
+    startAttempt: (meta: Record<string, unknown>) => {
+      const t = { step: (s: string) => console.log(`[ROW] ${s}`) };
+      return Object.assign(
+        (result: Record<string, unknown>) => {
+          if (result.status === 'fail') {
+            console.warn(`[ROW] Attempt failed: ${result.error ?? JSON.stringify(result)}`);
+          }
+        },
+        t,
+      );
+    },
+  });
+
+  // Respond 202 immediately
+  activeROWJobs.set(projectId, { status: 'running' });
+  res.status(202).json({
+    status: 'accepted',
+    projectId,
+    pollUrl: `/research/row/${projectId}`,
+    note: 'Phase 6 ROW integration runs in ~2-5 minutes.',
+  });
+
+  // Run async (detached from response)
+  const logger = makeLogger();
+  runROWIntegration(projectId, resolvedIntelPath, logger as never)
+    .then((report) => {
+      activeROWJobs.set(projectId, { status: 'complete', result: report });
+      console.log(
+        `[ROW] Phase 6 complete for ${projectId}: ` +
+        `${report.roads.length} road(s), status=${report.status}`,
+      );
+    })
+    .catch((err) => {
+      console.error(`[ROW] Phase 6 failed for ${projectId}:`, err);
+      activeROWJobs.set(projectId, { status: 'failed' });
+    });
+});
+
+// ── GET /research/row/:projectId ─────────────────────────────────────────────
+// Phase 6: Check status of a ROW integration job, or retrieve completed result.
+
+app.get('/research/row/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const state = activeROWJobs.get(projectId);
+
+  if (!state) {
+    // Check disk for completed result from a previous run
+    const diskPath = `/tmp/analysis/${projectId}/row_data.json`;
+    if (fs.existsSync(diskPath)) {
+      try {
+        const result = JSON.parse(fs.readFileSync(diskPath, 'utf-8')) as ROWReport;
+        res.json({ status: 'complete', result });
+        return;
+      } catch {
+        res.status(500).json({ error: 'Failed to parse row_data.json' });
+        return;
+      }
+    }
+    res.status(404).json({
+      error: `No ROW integration found for project: ${projectId}`,
+      hint: 'Start with POST /research/row',
+    });
+    return;
+  }
+
+  if (state.status === 'running') {
+    res.json({
+      status: 'in_progress',
+      projectId,
+      message: 'TxDOT ROW query in progress. Usually completes in 2-5 minutes.',
+    });
+    return;
+  }
+
+  if (state.status === 'failed') {
+    res.status(500).json({ status: 'failed', projectId, hint: 'Check worker logs: pm2 logs starr-worker' });
+    return;
+  }
+
+  res.json({ status: 'complete', projectId, result: state.result });
+});
 // Phase 7: Geometric Reconciliation & Multi-Source Cross-Validation.
 // Consumes every data source from Phases 3-6, treats each as an independent
 // "reading" of every boundary call, and produces a single reconciled boundary.
@@ -1260,6 +1405,8 @@ app.listen(PORT, () => {
   console.log('  GET    /research/subdivision/:projectId  ← Phase 4: subdivision status/result');
   console.log('  POST   /research/adjacent                ← Phase 5: adjacent property research & cross-validation');
   console.log('  GET    /research/adjacent/:projectId     ← Phase 5: adjacent status/result');
+  console.log('  POST   /research/row                    ← Phase 6: TxDOT ROW & public infrastructure integration');
+  console.log('  GET    /research/row/:projectId         ← Phase 6: ROW integration status/result');
   console.log('  POST   /research/reconcile               ← Phase 7: geometric reconciliation');
   console.log('  GET    /research/reconcile/:projectId    ← Phase 7: reconciliation status/result');
   console.log('  POST   /research/confidence              ← Phase 8: confidence scoring');

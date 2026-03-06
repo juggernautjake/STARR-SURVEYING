@@ -3,15 +3,16 @@
 //   A: Find deed via instrument# hint, grantee name, or grantor name
 //   B: Download watermarked preview images via KofileClerkAdapter
 //   C: Extract metes & bounds via Claude Vision AI
-//   D: Trace chain of title 1-2 generations back
+//   D: Trace chain of title 1-2 generations back (with AI boundary comparison)
 //
 // Spec §5.4 — Adjacent Property Research Worker
 //
 // NOTES:
 //   - ANTHROPIC_API_KEY must be set for Steps C and AI deed selection
-//   - Rate limit: 3-5 seconds between county clerk navigations
+//   - Rate limit: configurable via CLERK_RATE_LIMIT_MS env var (default: 3000ms)
 //   - AI model is read from RESEARCH_AI_MODEL env var (defaults to claude-sonnet-4-5-20250929)
 //   - This worker is designed for sequential execution (not parallel) to avoid rate-limit violations
+//   - All HTTP AI calls check response.ok before parsing JSON (Phase 3/4 pattern)
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -21,6 +22,14 @@ import type { AdjacentResearchTask } from './adjacent-queue-builder.js';
 // ── AI Model ──────────────────────────────────────────────────────────────────
 // Always read from environment — never hardcode a model name
 const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+
+// ── Rate limit ────────────────────────────────────────────────────────────────
+// Minimum milliseconds between county clerk page navigations.
+// Set CLERK_RATE_LIMIT_MS to override. Default: 3000ms (per spec §5.4).
+const RATE_LIMIT_BASE_MS = (() => {
+  const val = parseInt(process.env.CLERK_RATE_LIMIT_MS ?? '3000', 10);
+  return isNaN(val) || val < 500 ? 3000 : val; // enforce minimum 500ms
+})();
 
 // ── Output Types ─────────────────────────────────────────────────────────────
 
@@ -410,7 +419,25 @@ Reply with ONLY the number (1, 2, 3...) or "NONE" if no match.`;
         }),
       });
 
-      const data = (await response.json()) as { content?: Array<{ text?: string }> };
+      // Check HTTP status before parsing
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        console.warn(
+          `[AdjacentWorker] AI deed selection HTTP ${response.status}: ${errBody.slice(0, 200)}`,
+        );
+        return null;
+      }
+
+      const data = (await response.json()) as {
+        content?: Array<{ type?: string; text?: string }>;
+        error?: { message?: string };
+      };
+
+      if (data.error) {
+        console.warn(`[AdjacentWorker] AI deed selection API error: ${data.error.message ?? JSON.stringify(data.error)}`);
+        return null;
+      }
+
       const answer = (data.content?.[0]?.text ?? '').trim();
 
       if (answer === 'NONE') return null;
@@ -537,8 +564,31 @@ CRITICAL:
         }),
       });
 
-      const data = (await response.json()) as { content?: Array<{ text?: string }> };
+      // Always check HTTP status before parsing — avoids silent failures on rate limits / auth errors
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        console.warn(
+          `[AdjacentWorker] AI extraction HTTP ${response.status} ${response.statusText}: ${errBody.slice(0, 200)}`,
+        );
+        return null;
+      }
+
+      const data = (await response.json()) as {
+        content?: Array<{ type?: string; text?: string }>;
+        error?: { message?: string };
+      };
+
+      // Handle Anthropic API-level errors (e.g., context-length exceeded)
+      if (data.error) {
+        console.warn(`[AdjacentWorker] AI extraction API error: ${data.error.message ?? JSON.stringify(data.error)}`);
+        return null;
+      }
+
       const text = data.content?.[0]?.text ?? '';
+      if (!text) {
+        console.warn('[AdjacentWorker] AI extraction returned empty response');
+        return null;
+      }
 
       const parsed = JSON.parse(text.replace(/```json?|```/g, '').trim()) as {
         metesAndBounds?: AdjacentBoundaryCall[];
@@ -568,6 +618,13 @@ CRITICAL:
     startDeed: ClerkDocumentResult,
     generations: number,
   ): Promise<ChainEntry[]> {
+    // The most recent deed's metes-and-bounds text (used for boundary comparison)
+    // We store the raw document text/description to compare against predecessors.
+    // If the adapter returns a legalDescription field, use it; otherwise use instrument summary.
+    const getDescription = (doc: ClerkDocumentResult): string =>
+      (doc as unknown as Record<string, unknown>).legalDescription as string
+      ?? `${doc.documentType} dated ${doc.recordingDate} Grantors: ${doc.grantors.join(', ')} Grantees: ${doc.grantees.join(', ')}`;
+
     const chain: ChainEntry[] = [
       {
         grantor:                    startDeed.grantors.join(', '),
@@ -579,6 +636,7 @@ CRITICAL:
     ];
 
     let currentGrantors = startDeed.grantors;
+    let previousDescription = getDescription(startDeed);
 
     for (let gen = 0; gen < generations && currentGrantors.length > 0; gen++) {
       const grantor = currentGrantors[0];
@@ -599,14 +657,24 @@ CRITICAL:
 
         if (sorted.length > 0) {
           const pred = sorted[0];
+          const predDescription = getDescription(pred);
+
+          // Detect if the boundary description changed between this deed and the previous one.
+          // Uses AI comparison if API key is available; falls back to heuristic comparison.
+          const changed = await this.detectBoundaryDescriptionChange(
+            previousDescription,
+            predDescription,
+          );
+
           chain.push({
             grantor:                    pred.grantors.join(', '),
             grantee:                    pred.grantees.join(', '),
             date:                       pred.recordingDate,
             instrument:                 pred.instrumentNumber,
-            boundaryDescriptionChanged: false, // TODO: requires AI comparison of deed text
+            boundaryDescriptionChanged: changed,
           });
           currentGrantors = pred.grantors;
+          previousDescription = predDescription;
         } else {
           break;
         }
@@ -620,14 +688,108 @@ CRITICAL:
     return chain;
   }
 
+  /**
+   * Detect whether the boundary description changed between two consecutive deeds.
+   *
+   * Priority:
+   *   1. If ANTHROPIC_API_KEY set: use Claude to compare the two descriptions.
+   *   2. Otherwise: use heuristic keyword comparison (number of bearing references, acreage).
+   *
+   * Returns true if a meaningful change is detected, false otherwise.
+   * Never throws — returns false on any error to avoid stopping the chain trace.
+   */
+  private async detectBoundaryDescriptionChange(
+    previousDesc: string,
+    currentDesc: string,
+  ): Promise<boolean> {
+    // If both descriptions are identical, skip AI call (common in early-generation deeds
+    // that copy the full metes-and-bounds verbatim)
+    if (previousDesc.trim() === currentDesc.trim()) return false;
+
+    // Heuristic: if descriptions are short summaries (no bearing data), cannot compare
+    const hasBearingData = (desc: string) => /N\s+\d|S\s+\d|bearing|metes|bounds/i.test(desc);
+    if (!hasBearingData(previousDesc) || !hasBearingData(currentDesc)) {
+      // Cannot determine from instrument summaries alone — assume no change
+      return false;
+    }
+
+    // With API key: ask Claude to compare
+    if (this.apiKey) {
+      try {
+        const prompt = `Compare these two property deed descriptions and determine if the boundary description (metes and bounds) changed between them.
+
+DEED 1 (predecessor/older):
+${previousDesc.slice(0, 1500)}
+
+DEED 2 (successor/newer):
+${currentDesc.slice(0, 1500)}
+
+Did the boundary description change? Answer ONLY "YES" or "NO".
+YES = the metes-and-bounds calls (bearings, distances) are meaningfully different.
+NO = the calls are essentially the same (same boundary, possibly different phrasing).`;
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': this.apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: AI_MODEL,
+            max_tokens: 10,
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        });
+
+        if (!response.ok) {
+          // Rate limited or auth error — fall through to heuristic
+          console.warn(`[AdjacentWorker] boundaryDescriptionChanged AI call HTTP ${response.status}`);
+          return false;
+        }
+
+        const data = (await response.json()) as {
+          content?: Array<{ type?: string; text?: string }>;
+          error?: { message?: string };
+        };
+
+        if (data.error) {
+          console.warn(`[AdjacentWorker] boundaryDescriptionChanged AI error: ${data.error.message}`);
+          return false;
+        }
+
+        const answer = (data.content?.[0]?.text ?? '').trim().toUpperCase();
+        return answer.startsWith('YES');
+      } catch (e) {
+        console.warn('[AdjacentWorker] boundaryDescriptionChanged AI call failed:', e);
+        return false;
+      }
+    }
+
+    // Heuristic fallback (no API key): compare normalized bearing strings
+    // If the set of bearings in both descriptions overlaps > 80%, assume unchanged
+    const extractBearings = (desc: string): string[] =>
+      (desc.match(/[NS]\s*\d+[°\s]+\d+['']\s*\d*[""]?\s*[EW]/gi) ?? [])
+        .map((b) => b.replace(/\s+/g, '').toUpperCase());
+
+    const bearings1 = new Set(extractBearings(previousDesc));
+    const bearings2 = new Set(extractBearings(currentDesc));
+    if (bearings1.size === 0 || bearings2.size === 0) return false;
+
+    const intersection = [...bearings1].filter((b) => bearings2.has(b)).length;
+    const overlapRatio = intersection / Math.max(bearings1.size, bearings2.size);
+    return overlapRatio < 0.8; // < 80% overlap → boundary likely changed
+  }
+
   // ── Rate limiting ─────────────────────────────────────────────────────────────
 
   /**
-   * Minimum 3 seconds between county clerk navigations to avoid rate-limit violations.
-   * Adds a random jitter of 0-2 seconds on top.
+   * Minimum delay between county clerk navigations to avoid rate-limit violations.
+   * Base delay read from CLERK_RATE_LIMIT_MS env var (default: 3000ms).
+   * Adds a random jitter of 0-2 seconds on top to avoid detectable patterns.
    */
   private async rateLimit(): Promise<void> {
-    const delay = 3000 + Math.random() * 2000;
+    const delay = RATE_LIMIT_BASE_MS + Math.random() * 2000;
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
 }

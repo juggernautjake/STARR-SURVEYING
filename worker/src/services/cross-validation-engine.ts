@@ -61,15 +61,30 @@ export interface CrossValidationResult {
 
 /**
  * Maximum bearing difference (in decimal degrees) for a call to be considered
- * a plausible match during cross-validation. Calls exceeding this threshold
- * are outside the MARGINAL category and are not matched.
- * Value: 0.5° = 30 arc-minutes (MARGINAL threshold from adjacent-research.ts).
+ * a plausible match during cross-validation.
+ *
+ * Using 45° so that calls with large bearing differences (>30 arc-min) are still
+ * FOUND as potential matches and classified as 'discrepancy' instead of 'unverified'.
+ *
+ * Per spec: bearing diff > 30 arc-minutes = DISCREPANCY (not unverified).
+ * 'unverified' is reserved for calls where NO corresponding neighbor call exists at all.
+ *
+ * Note: The score function (0.5 - bearingDiff) * 40 + ... produces negative scores
+ * for large bearing diffs, so MIN_MATCH_SCORE (20) prevents false positives while
+ * allowing genuine discrepancy calls to be matched.
  */
-const MAX_BEARING_DIFF_FOR_MATCH_DEG = 0.5;
+const MAX_BEARING_DIFF_FOR_MATCH_DEG = 45.0;
 
 /**
  * Minimum composite match score for a candidate call to be selected as the best match.
  * Prevents false positives when no good match exists.
+ *
+ * Score formula: (0.5 - bearingDiff) * 40 + max(0, 50 - distanceDiff) * 2
+ * At 45° bearing diff: score from bearing alone = (0.5 - 45) * 40 = -1780 → very negative
+ * The distance component (max 100) is not enough to rescue a completely wrong bearing.
+ * At 0.6° bearing diff (just over MARGINAL): score = (0.5-0.6)*40 + 100 = -4 + 100 = 96 → matches
+ *
+ * Threshold of 20: accepts matches where bearing and/or distance are close enough.
  */
 const MIN_MATCH_SCORE = 20;
 
