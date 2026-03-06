@@ -242,10 +242,16 @@ export abstract class CADAdapter {
     // ── Pattern 5: Subdivision keyword (no explicit lot/block) ──────────────────
     // Intentionally omits "ACRES" — a metes-and-bounds acreage description
     // (e.g. "WILLIAM HARTRICK SURVEY, 12.358 ACRES") is NOT a subdivision.
+    //
+    // Guard: skip when the description also contains any metes-and-bounds marker
+    // (SURVEY, ABSTRACT, "A-NNN" abstract number, or a decimal acreage quantity).
+    // This prevents false positives like "JOHNSON RANCH SURVEY, A-488" from
+    // being flagged as a subdivision just because "RANCH" appears.
+    const METES_AND_BOUNDS_INDICATORS = /\bSURVEY\b|\bABSTRACT\b|\bA-\d+|\d+\.?\d*\s*ACRES?\b/i;
     const additionPattern =
       /(.+(?:ADDITION|SUBDIVISION|ESTATES|HEIGHTS|PARK|RANCH))/i;
     const addMatch = upper.match(additionPattern);
-    if (addMatch) {
+    if (addMatch && !METES_AND_BOUNDS_INDICATORS.test(upper)) {
       return {
         isSubdivision:   true,
         subdivisionName: addMatch[1].trim(),
