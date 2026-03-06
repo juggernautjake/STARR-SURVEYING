@@ -75,6 +75,17 @@ export function featureBounds(feature: Feature): BoundingBox {
       }
       return computeBounds(geom.vertices ?? []);
     }
+    case 'IMAGE':
+      if (geom.image) {
+        const { position: p, width: w, height: h } = geom.image;
+        return { minX: p.x, minY: p.y, maxX: p.x + w, maxY: p.y + h };
+      }
+      return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    case 'TEXT':
+      if (geom.point) {
+        return { minX: geom.point.x, minY: geom.point.y, maxX: geom.point.x, maxY: geom.point.y };
+      }
+      return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
     default:
       return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   }

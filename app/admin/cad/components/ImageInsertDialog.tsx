@@ -38,7 +38,7 @@ function getImageDimensions(dataUrl: string): Promise<{ w: number; h: number }> 
   });
 }
 
-function sanitiseName(raw: string): string {
+function sanitizeName(raw: string): string {
   return raw.replace(/\.[^.]+$/, '') || 'Untitled Image';
 }
 
@@ -77,7 +77,7 @@ export default function ImageInsertDialog({ worldX, worldY, onClose, onInsert }:
         return;
       }
       const dataUrl = await readFileAsDataUrl(file);
-      await processDataUrl(dataUrl, sanitiseName(file.name));
+      await processDataUrl(dataUrl, sanitizeName(file.name));
     },
     [processDataUrl],
   );

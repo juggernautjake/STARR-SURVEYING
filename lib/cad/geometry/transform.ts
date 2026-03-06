@@ -111,6 +111,35 @@ export function transformFeature(
         };
       }
       break;
+    case 'IMAGE':
+      if (geom.image) {
+        // Transform all 4 corners of the image bounding box, then recompute position/width/height
+        const img = geom.image;
+        const bl = transformFn({ x: img.position.x,             y: img.position.y             });
+        const br = transformFn({ x: img.position.x + img.width, y: img.position.y             });
+        const tr = transformFn({ x: img.position.x + img.width, y: img.position.y + img.height });
+        const tl = transformFn({ x: img.position.x,             y: img.position.y + img.height });
+        // Recompute axis-aligned bounding box
+        const minX = Math.min(bl.x, br.x, tr.x, tl.x);
+        const minY = Math.min(bl.y, br.y, tr.y, tl.y);
+        const maxX = Math.max(bl.x, br.x, tr.x, tl.x);
+        const maxY = Math.max(bl.y, br.y, tr.y, tl.y);
+        // Compute rotation angle change (angle of the bottom edge after transform)
+        const rotDelta = Math.atan2(br.y - bl.y, br.x - bl.x);
+        geom.image = {
+          ...img,
+          position: { x: minX, y: minY },
+          width:  Math.max(maxX - minX, 0.001),
+          height: Math.max(maxY - minY, 0.001),
+          rotation: img.rotation + rotDelta,
+        };
+      }
+      break;
+    case 'TEXT':
+      if (geom.point) {
+        geom.point = transformFn(geom.point);
+      }
+      break;
   }
 
   return { ...feature, geometry: geom };

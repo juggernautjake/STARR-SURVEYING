@@ -20,7 +20,7 @@ export default function DrawingRotationDialog({ onClose }: Props) {
 
   const parsedDeg = parseFloat(inputVal);
   const isValid = !isNaN(parsedDeg) && isFinite(parsedDeg);
-  const normalised = isValid ? ((parsedDeg % 360) + 360) % 360 : currentDeg;
+  const normalized = isValid ? ((parsedDeg % 360) + 360) % 360 : currentDeg;
 
   const apply = useCallback(
     (deg: number) => {
@@ -75,7 +75,7 @@ export default function DrawingRotationDialog({ onClose }: Props) {
               />
               <Tooltip label="Rotate 1° counter-clockwise">
                 <button
-                  onClick={() => { apply(normalised - 1); setInputVal(String(((normalised - 1 + 360) % 360))); }}
+                  onClick={() => { apply(normalized - 1); setInputVal(String(((normalized - 1 + 360) % 360))); }}
                   className="p-1.5 rounded bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-300 hover:text-white transition-colors"
                 >
                   <RotateCcw size={15} />
@@ -83,7 +83,7 @@ export default function DrawingRotationDialog({ onClose }: Props) {
               </Tooltip>
               <Tooltip label="Rotate 1° clockwise">
                 <button
-                  onClick={() => { apply(normalised + 1); setInputVal(String((normalised + 1) % 360)); }}
+                  onClick={() => { apply(normalized + 1); setInputVal(String((normalized + 1) % 360)); }}
                   className="p-1.5 rounded bg-gray-700 hover:bg-gray-600 border border-gray-600 text-gray-300 hover:text-white transition-colors"
                 >
                   <RotateCw size={15} />
@@ -104,7 +104,7 @@ export default function DrawingRotationDialog({ onClose }: Props) {
                   key={a}
                   onClick={() => { apply(a); setInputVal(String(a)); }}
                   className={`px-2.5 py-1 text-xs rounded border transition-colors ${
-                    Math.abs(normalised - a) < 0.01
+                    Math.abs(normalized - a) < 0.01
                       ? 'bg-blue-600 border-blue-500 text-white'
                       : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white'
                   }`}

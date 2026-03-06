@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { FileText, Upload } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
+import { PHASE3_DEFAULT_LAYERS } from '@/lib/cad/styles/default-layers';
 
 interface Props {
   onClose: () => void;
@@ -36,7 +37,7 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
     drawingStore.updateDocumentName(drawingName.trim() || 'Untitled Drawing');
     drawingStore.updateSettings({ paperSize, paperOrientation: orientation, drawingScale: scale });
 
-    // Add one default layer so drawing can start immediately
+    // Add one default working layer
     const layerId = generateId();
     drawingStore.addLayer({
       id: layerId,
@@ -54,6 +55,13 @@ export default function NewDrawingDialog({ onClose, onImport }: Props) {
       isProtected: false,
       autoAssignCodes: [],
     });
+
+    // Add the SURVEY-INFO protected layer (title block / north arrow)
+    const surveyInfoDef = PHASE3_DEFAULT_LAYERS.find((l) => l.id === 'SURVEY-INFO');
+    if (surveyInfoDef) {
+      drawingStore.addLayer({ ...surveyInfoDef, groupId: null });
+    }
+
     drawingStore.setActiveLayer(layerId);
 
     onClose();

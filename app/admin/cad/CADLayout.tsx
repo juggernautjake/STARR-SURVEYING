@@ -381,7 +381,7 @@ export default function CADLayout() {
 
         {/* Right sidebar: property panel + traverse panel + image panel (toggleable) */}
         {(showPropertyPanel || showTraversePanel || showImagePanel) && (
-          <div className="flex bg-gray-800 border-l border-gray-700 flex-shrink-0 cad-slide-right" style={{ width: showImagePanel ? 208 : 192 }}>
+          <div className="flex bg-gray-800 border-l border-gray-700 flex-shrink-0 cad-slide-right w-48">
             <div className="flex flex-col flex-1 min-w-0">
               {showPropertyPanel && <PropertyPanel />}
               {showTraversePanel && (

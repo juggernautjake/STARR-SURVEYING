@@ -35,6 +35,11 @@ export function pasteFromClipboard(
     } else if (geom.type === 'LINE') {
       if (geom.start) geom.start = { x: geom.start.x + offsetX, y: geom.start.y + offsetY };
       if (geom.end) geom.end = { x: geom.end.x + offsetX, y: geom.end.y + offsetY };
+    } else if (geom.type === 'IMAGE' && geom.image) {
+      geom.image = {
+        ...geom.image,
+        position: { x: geom.image.position.x + offsetX, y: geom.image.position.y + offsetY },
+      };
     } else if (geom.vertices) {
       geom.vertices = geom.vertices.map((v) => ({ x: v.x + offsetX, y: v.y + offsetY }));
     }

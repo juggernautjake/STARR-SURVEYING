@@ -186,6 +186,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     TextStyleClass: new (style?: Partial<import('pixi.js').ITextStyle>) => import('pixi.js').TextStyle;
     SpriteClass: new (texture?: import('pixi.js').Texture) => import('pixi.js').Sprite;
     TextureClass: { from: (src: string) => import('pixi.js').Texture };
+    ContainerClass: new () => import('pixi.js').Container;
+    /** Per-layer PixiJS sub-containers for per-layer rotation. Lazy-created. */
+    _layerContainers: Map<string, import('pixi.js').Container>;
   } | null>(null);
 
   const drawingStore = useDrawingStore();
@@ -448,6 +451,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           TextStyleClass: PIXI.TextStyle,
           SpriteClass: PIXI.Sprite,
           TextureClass: PIXI.Texture,
+          ContainerClass: PIXI.Container,
+          _layerContainers: new Map(),
         };
 
         viewportStore.setScreenSize(width, height);
@@ -792,24 +797,62 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const pixi = pixiRef.current;
     if (!pixi) return;
 
+    const doc = useDrawingStore.getState().document;
     const visibleFeatures = drawingStore.getVisibleFeatures();
     const visibleIds = new Set(visibleFeatures.map((f) => f.id));
+
+    // Lazily-maintained per-layer sub-containers (for per-layer rotation)
+    const layerContainers = pixi._layerContainers;
 
     // Remove graphics for features no longer visible
     for (const [id, g] of pixi.featureGraphics) {
       if (!visibleIds.has(id)) {
-        pixi.featureLayer.removeChild(g);
+        g.parent?.removeChild(g);
         g.destroy();
         pixi.featureGraphics.delete(id);
       }
     }
 
+    // Update per-layer container rotations (paper-center pivot)
+    const { paperW, paperH } = getPaperDimensions();
+    const { sx: pcSx, sy: pcSy } = w2s(paperW / 2, paperH / 2);
+    for (const [layerId, lc] of layerContainers) {
+      const layer = doc.layers[layerId];
+      const layerRotDeg = layer?.rotationDeg ?? 0;
+      if (!layerRotDeg) {
+        lc.pivot.set(0, 0);
+        lc.position.set(0, 0);
+        lc.rotation = 0;
+      } else {
+        lc.pivot.set(pcSx, pcSy);
+        lc.position.set(pcSx, pcSy);
+        lc.rotation = (layerRotDeg * Math.PI) / 180;
+      }
+    }
+
     for (const feature of visibleFeatures) {
+      const layer = doc.layers[feature.layerId];
+      const layerRotDeg = layer?.rotationDeg ?? 0;
+
+      // Determine parent container
+      let parentContainer: import('pixi.js').Container = pixi.featureLayer;
+      if (layerRotDeg) {
+        if (!layerContainers.has(feature.layerId)) {
+          const lc = new pixi.ContainerClass();
+          pixi.featureLayer.addChild(lc);
+          layerContainers.set(feature.layerId, lc);
+        }
+        parentContainer = layerContainers.get(feature.layerId)!;
+      }
+
       let g = pixi.featureGraphics.get(feature.id);
       if (!g) {
         g = new pixi.GraphicsClass();
         pixi.featureGraphics.set(feature.id, g);
-        pixi.featureLayer.addChild(g);
+        parentContainer.addChild(g);
+      } else if (g.parent !== parentContainer) {
+        g.parent?.removeChild(g);
+        parentContainer.addChild(g);
       }
 
       drawFeature(g, feature);
@@ -1063,7 +1106,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const naCx = naColX + naColW / 2;
     const naCy = boxTop + tbH / 2;
     const rotDeg = doc.settings.drawingRotationDeg ?? 0;
-    // North arrow compensates for drawing rotation: if drawing is 25° CW, 
+    // North arrow compensates for drawing rotation: if drawing is 25° CW,
     // the arrow points 25° CW from screen-up to show where true north is.
     const arrowRad = (rotDeg * Math.PI) / 180;
     drawNorthArrow(g, naCx, naCy, northArrowPx * 0.45, arrowRad, tb.northArrowStyle ?? 'DETAILED', pixi);
@@ -4635,6 +4678,46 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+        onDrop={(e) => {
+          e.preventDefault();
+          const imageId = e.dataTransfer.getData('application/starr-image-id');
+          if (!imageId) return;
+          const rect = canvasRef.current!.getBoundingClientRect();
+          const sx = e.clientX - rect.left;
+          const sy = e.clientY - rect.top;
+          const worldPt = screenToDrawingWorld(sx, sy);
+          const projImg = drawingStore.getProjectImage(imageId);
+          if (!projImg) return;
+          const drawingScale = drawingStore.document.settings.drawingScale ?? 50;
+          const defaultWidthIn = 4;
+          const worldW = defaultWidthIn * drawingScale;
+          const worldH = worldW * (projImg.originalHeight / projImg.originalWidth);
+          const featureId = generateId();
+          const { activeLayerId, getActiveLayerStyle } = drawingStore;
+          const layerStyle = getActiveLayerStyle();
+          const feature: Feature = {
+            id: featureId,
+            type: 'IMAGE',
+            geometry: {
+              type: 'IMAGE',
+              image: {
+                imageId,
+                position: { x: worldPt.wx, y: worldPt.wy },
+                width: worldW,
+                height: worldH,
+                rotation: 0,
+                mirrorX: false,
+                mirrorY: false,
+              },
+            },
+            layerId: activeLayerId,
+            style: { ...DEFAULT_FEATURE_STYLE, ...layerStyle },
+            properties: { imageName: projImg.name },
+          };
+          drawingStore.addFeature(feature);
+          undoStore.pushUndo(makeAddFeatureEntry(feature));
+        }}
       />
       {snapLabel && (
         <div
