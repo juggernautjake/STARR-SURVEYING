@@ -164,6 +164,19 @@ export abstract class ClerkAdapter {
       }
     }
 
+    // Priority 5: Legal description (least precise — use only as last resort when
+    // no other identifiers are available and a supporting system exists)
+    if (query.legalDescription) {
+      try {
+        const r = await this.searchByLegalDescription(query.legalDescription, {
+          documentTypes: query.expectedType ? [query.expectedType] : undefined,
+        });
+        results.push(...r);
+      } catch (e) {
+        console.warn(`[${this.countyName}] Legal description search failed:`, e);
+      }
+    }
+
     // De-duplicate by instrument number
     const seen = new Set<string>();
     return results.filter((r) => {

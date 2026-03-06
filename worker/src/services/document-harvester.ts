@@ -7,9 +7,9 @@
 //
 // Supported clerk systems:
 //   Kofile/PublicSearch — ~80+ Texas counties (Bell, Williamson, Travis, …)
+//   CountyFusion/Cott   — ~40+ Texas counties (index-only, no free images)
+//   Tyler/Odyssey       — ~30+ Texas counties (varies by county config)
 //   TexasFile           — universal fallback for all 254 counties (index-only)
-//   CountyFusion/Cott   — ~40+ counties (TODO: CottSystemsAdapter)
-//   Tyler/Odyssey       — ~30+ counties (TODO: TylerClerkAdapter)
 //
 // Spec §2.5 — Document Harvesting Orchestrator
 
@@ -38,6 +38,7 @@ export interface HarvestInput {
   propertyId: string;
   owner: string;
   county: string;
+  /** 5-digit Texas FIPS code — required for routing to the correct adapter */
   countyFIPS: string;
   subdivisionName?: string;
   relatedPropertyIds?: string[];
@@ -87,13 +88,30 @@ export interface HarvestResult {
 // ── DocumentHarvester ─────────────────────────────────────────────────────────
 
 export class DocumentHarvester {
-  private adapter: ClerkAdapter | null = null;
+  // ── Per-harvest mutable state — reset at the start of each harvest() call ─────
+  //
+  // Using per-call local tracking avoids state bleed when the same harvester
+  // instance is reused across multiple projects.
   private errors: string[] = [];
   private searchCount = 0;
   private failedSearchCount = 0;
+  /** Active clerk adapter — set at the start and torn down in the finally block */
+  private adapter: ClerkAdapter | null = null;
 
   async harvest(input: HarvestInput): Promise<HarvestResult> {
+    // ── Reset per-harvest state ────────────────────────────────────────────────
+    // Ensures a reused DocumentHarvester instance starts clean for each project.
+    // this.adapter is reset here so that if getClerkAdapter() below throws, the
+    // finally block's null check correctly prevents calling destroySession() on a
+    // stale adapter from a previous run.
+    this.errors = [];
+    this.searchCount = 0;
+    this.failedSearchCount = 0;
+    this.adapter = null;
+
     const startTime = Date.now();
+    const phaseTimings: Record<string, number> = {};
+
     const allDocs: {
       target:      HarvestedDocument[];
       subdivision: HarvestedDocument[];
@@ -112,30 +130,35 @@ export class DocumentHarvester {
     // Global deduplication set — same instrument# may appear in multiple searches
     const seenInstruments = new Set<string>();
 
-    // Select and initialise the clerk adapter for this county
+    // Select the clerk adapter for this county.  Routing: Kofile → CountyFusion
+    // → Tyler → TexasFile.  The adapter is stored on the instance so private
+    // helpers can access it without passing it as a parameter.
     this.adapter = this.getClerkAdapter(input.countyFIPS, input.county);
-    await this.adapter.initSession();
 
+    // initSession() is inside the try block so the finally-block destroySession()
+    // always runs even if browser launch fails (prevents process handle leaks).
     try {
+      await this.adapter.initSession();
+
       // ═══════════════════════════════════════════════════════════════
       //  PHASE A: TARGET PROPERTY DOCUMENTS
       // ═══════════════════════════════════════════════════════════════
 
+      const phaseAStart = Date.now();
       console.log(`\n${'='.repeat(60)}`);
       console.log(`  HARVESTING: ${input.owner} (${input.county} County)`);
+      console.log(`  FIPS: ${input.countyFIPS} | Project: ${input.projectId}`);
       console.log(`${'='.repeat(60)}\n`);
 
       // A1: Known instrument numbers from Phase 1 CAD detail page
       if (input.deedReferences?.length) {
+        console.log(`[Harvest/A] ${input.deedReferences.length} known instrument(s) from Phase 1`);
         for (const ref of input.deedReferences) {
           console.log(
-            `[Harvest] Looking up known instrument: ${ref.instrumentNumber} (${ref.type})...`,
+            `[Harvest/A1] Instrument: ${ref.instrumentNumber} (${ref.type})`,
           );
           if (seenInstruments.has(ref.instrumentNumber)) continue;
-          const docs = await this.searchAndDownload(
-            ref.instrumentNumber,
-            'target',
-          );
+          const docs = await this.searchAndDownload(ref.instrumentNumber, 'target');
           docs.forEach((d) => { seenInstruments.add(d.instrumentNumber); });
           allDocs.target.push(...docs);
           await this.rateLimit();
@@ -143,9 +166,7 @@ export class DocumentHarvester {
       }
 
       // A2: Grantee search — finds all documents recorded TO this owner
-      console.log(
-        `[Harvest] Searching all documents for grantee: ${input.owner}...`,
-      );
+      console.log(`[Harvest/A2] Grantee search: ${input.owner}`);
       const granteeResults = await this.searchByName(input.owner, 'grantee');
       for (const { result } of filterAndRankResults(granteeResults, scoringCtx)) {
         if (seenInstruments.has(result.instrumentNumber)) continue;
@@ -156,9 +177,7 @@ export class DocumentHarvester {
       }
 
       // A3: Grantor search — finds conveyances, easement grants, etc. BY this owner
-      console.log(
-        `[Harvest] Searching all documents for grantor: ${input.owner}...`,
-      );
+      console.log(`[Harvest/A3] Grantor search: ${input.owner}`);
       const grantorResults = await this.searchByName(input.owner, 'grantor');
       for (const { result } of filterAndRankResults(grantorResults, scoringCtx)) {
         if (seenInstruments.has(result.instrumentNumber)) continue;
@@ -168,41 +187,61 @@ export class DocumentHarvester {
         await this.rateLimit();
       }
 
+      phaseTimings.targetMs = Date.now() - phaseAStart;
+      console.log(
+        `[Harvest/A] Done — ${allDocs.target.length} target docs in ${phaseTimings.targetMs}ms`,
+      );
+
       // ═══════════════════════════════════════════════════════════════
       //  PHASE B: SUBDIVISION DOCUMENTS
       // ═══════════════════════════════════════════════════════════════
 
       if (input.subdivisionName) {
-        console.log(`\n[Harvest] === SUBDIVISION: ${input.subdivisionName} ===`);
+        const phaseBStart = Date.now();
+        console.log(`\n[Harvest/B] === SUBDIVISION: ${input.subdivisionName} ===`);
 
         // B1: Master plat
-        const platResults = await this.adapter.searchByGranteeName(
-          input.subdivisionName,
-          { documentTypes: ['plat', 'replat', 'amended_plat'] },
-        );
-        this.searchCount++;
+        console.log(`[Harvest/B1] Plat search for subdivision`);
+        try {
+          const platResults = await this.adapter.searchByGranteeName(
+            input.subdivisionName,
+            { documentTypes: ['plat', 'replat', 'amended_plat'] },
+          );
+          this.searchCount++;
 
-        for (const result of platResults) {
-          if (seenInstruments.has(result.instrumentNumber)) continue;
-          const docs = await this.downloadDocumentImages(result, 'subdivision');
-          docs.forEach((d) => { d.relevanceNote = 'Subdivision plat'; seenInstruments.add(d.instrumentNumber); });
-          allDocs.subdivision.push(...docs);
-          await this.rateLimit();
+          for (const result of platResults) {
+            if (seenInstruments.has(result.instrumentNumber)) continue;
+            const docs = await this.downloadDocumentImages(result, 'subdivision');
+            docs.forEach((d) => { d.relevanceNote = 'Subdivision plat'; seenInstruments.add(d.instrumentNumber); });
+            allDocs.subdivision.push(...docs);
+            await this.rateLimit();
+          }
+        } catch (e) {
+          this.failedSearchCount++;
+          this.errors.push(`Subdivision plat search failed: ${e}`);
+          console.warn(`[Harvest/B1] Plat search failed:`, e);
         }
 
         // B2: Restrictive covenants / CC&Rs
-        const covenantResults = await this.adapter.searchByGranteeName(
-          input.subdivisionName,
-          { documentTypes: ['restrictive_covenant', 'deed_restriction', 'ccr'] },
-        );
-        this.searchCount++;
+        console.log(`[Harvest/B2] Restrictive covenant search`);
+        try {
+          const covenantResults = await this.adapter.searchByGranteeName(
+            input.subdivisionName,
+            { documentTypes: ['restrictive_covenant', 'deed_restriction', 'ccr'] },
+          );
+          this.searchCount++;
 
-        for (const result of covenantResults) {
-          if (seenInstruments.has(result.instrumentNumber)) continue;
-          const docs = await this.downloadDocumentImages(result, 'subdivision');
-          docs.forEach((d) => { d.relevanceNote = 'Restrictive covenants'; seenInstruments.add(d.instrumentNumber); });
-          allDocs.subdivision.push(...docs);
-          await this.rateLimit();
+          for (const result of covenantResults) {
+            if (seenInstruments.has(result.instrumentNumber)) continue;
+            const docs = await this.downloadDocumentImages(result, 'subdivision');
+            docs.forEach((d) => { d.relevanceNote = 'Restrictive covenants'; seenInstruments.add(d.instrumentNumber); });
+            allDocs.subdivision.push(...docs);
+            await this.rateLimit();
+          }
+        } catch (e) {
+          this.failedSearchCount++;
+          this.errors.push(`Subdivision covenant search failed: ${e}`);
+          console.warn(`[Harvest/B2] Covenant search failed:`, e);
         }
 
         // B3: Easement dedications
@@ -224,10 +263,16 @@ export class DocumentHarvester {
               allDocs.subdivision.push(...docs);
               await this.rateLimit();
             }
-          } catch {
+          } catch (e) {
             // Non-fatal — continue with other easement term variants
+            console.warn(`[Harvest/B3] Easement search for "${term}" failed:`, e);
           }
         }
+
+        phaseTimings.subdivisionMs = Date.now() - phaseBStart;
+        console.log(
+          `[Harvest/B] Done — ${allDocs.subdivision.length} subdivision docs in ${phaseTimings.subdivisionMs}ms`,
+        );
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -235,11 +280,20 @@ export class DocumentHarvester {
       // ═══════════════════════════════════════════════════════════════
 
       if (input.adjacentOwners?.length) {
+        const phaseCStart = Date.now();
+        console.log(`\n[Harvest/C] === ADJACENT: ${input.adjacentOwners.length} owner(s) ===`);
+
         for (const adjOwner of input.adjacentOwners) {
-          console.log(`\n[Harvest] === ADJACENT: ${adjOwner} ===`);
+          console.log(`[Harvest/C] Processing adjacent owner: ${adjOwner}`);
           allDocs.adjacent[adjOwner] = [];
 
-          const adjResults = await this.searchByName(adjOwner, 'grantee');
+          // Search both grantee and grantor directions to find all recorded
+          // documents for the adjacent parcel (grantee finds acquisitions;
+          // grantor finds conveyances, easement grants, etc.)
+          const adjGranteeResults = await this.searchByName(adjOwner, 'grantee');
+          const adjGrantorResults = await this.searchByName(adjOwner, 'grantor');
+
+          const adjResults = deduplicate([...adjGranteeResults, ...adjGrantorResults]);
 
           // Score with the adjacent owner as the focal point, filter (skip < 20),
           // sort by relevance, cap at 5 downloads per adjacent owner
@@ -247,6 +301,10 @@ export class DocumentHarvester {
             adjResults,
             { ...scoringCtx, targetOwner: adjOwner },
             5,
+          );
+
+          console.log(
+            `[Harvest/C] ${adjOwner}: ${adjResults.length} raw → ${ranked.length} ranked`,
           );
 
           for (const { result } of ranked) {
@@ -260,10 +318,22 @@ export class DocumentHarvester {
             await this.rateLimit();
           }
         }
+
+        phaseTimings.adjacentMs = Date.now() - phaseCStart;
+        const adjTotal = Object.values(allDocs.adjacent).reduce((s, a) => s + a.length, 0);
+        console.log(
+          `[Harvest/C] Done — ${adjTotal} adjacent docs in ${phaseTimings.adjacentMs}ms`,
+        );
       }
 
     } finally {
-      await this.adapter.destroySession();
+      // destroySession() is always called — even if initSession() failed — to
+      // prevent orphaned browser processes.
+      if (this.adapter) {
+        await this.adapter.destroySession().catch((e) => {
+          console.warn(`[Harvest] destroySession() failed (non-fatal):`, e);
+        });
+      }
     }
 
     // ── Build summary index ──────────────────────────────────────────────────
@@ -275,6 +345,12 @@ export class DocumentHarvester {
     ];
 
     const totalPages = allDocFlat.reduce((sum, d) => sum + d.images.length, 0);
+    const totalMs = Date.now() - startTime;
+
+    console.log(
+      `\n[Harvest] COMPLETE — ${allDocFlat.length} docs, ${totalPages} pages, ` +
+      `${this.errors.length} error(s), ${totalMs}ms`,
+    );
 
     return {
       status: this.errors.length === 0 ? 'complete' : 'partial',
@@ -288,7 +364,7 @@ export class DocumentHarvester {
         failedSearches:    this.failedSearchCount,
         searchesPerformed: this.searchCount,
       },
-      timing: { totalMs: Date.now() - startTime },
+      timing: { totalMs, ...phaseTimings },
       errors: this.errors,
     };
   }
@@ -307,6 +383,7 @@ export class DocumentHarvester {
     } catch (e) {
       this.failedSearchCount++;
       this.errors.push(`Search failed for ${type} "${name}": ${e}`);
+      console.warn(`[Harvest] ${type} search failed for "${name}":`, e);
       return [];
     }
   }
@@ -320,6 +397,7 @@ export class DocumentHarvester {
       const results = await this.adapter!.searchByInstrumentNumber(instrumentNo);
 
       if (results.length === 0) {
+        console.warn(`[Harvest] No record found for instrument# ${instrumentNo}`);
         this.errors.push(`No document found for instrument# ${instrumentNo}`);
         return [];
       }
@@ -328,6 +406,7 @@ export class DocumentHarvester {
     } catch (e) {
       this.failedSearchCount++;
       this.errors.push(`Failed to retrieve instrument# ${instrumentNo}: ${e}`);
+      console.warn(`[Harvest] Instrument# ${instrumentNo} retrieval failed:`, e);
       return [];
     }
   }
@@ -360,6 +439,9 @@ export class DocumentHarvester {
       this.errors.push(
         `Image download failed for ${result.instrumentNumber}: ${e}`,
       );
+      console.warn(
+        `[Harvest] Image download failed for ${result.instrumentNumber}:`, e,
+      );
       return [];
     }
   }
@@ -367,8 +449,11 @@ export class DocumentHarvester {
   /**
    * Select the best available clerk adapter for a given county.
    * Routes via ClerkRegistry: Kofile → CountyFusion → Tyler → TexasFile.
+   *
+   * Protected so test subclasses can inject a mock adapter without
+   * requiring `@ts-expect-error`.
    */
-  private getClerkAdapter(
+  protected getClerkAdapter(
     countyFIPS: string,
     countyName: string,
   ): ClerkAdapter {
@@ -378,9 +463,27 @@ export class DocumentHarvester {
   /**
    * Polite rate-limiting between clerk system requests.
    * 3–5 second random delay to avoid overwhelming county servers.
+   *
+   * Protected so test subclasses can replace this with a no-op to speed
+   * up unit tests without suppressing type errors.
    */
-  private async rateLimit(): Promise<void> {
+  protected async rateLimit(): Promise<void> {
     const delay = 3_000 + Math.random() * 2_000;
     await new Promise<void>((resolve) => { setTimeout(resolve, delay); });
   }
+}
+
+// ── Module-level deduplication helper ──────────────────────────────────────────
+
+/**
+ * Remove duplicate ClerkDocumentResult entries by instrumentNumber.
+ * Used to merge grantee + grantor result lists before scoring.
+ */
+function deduplicate(results: ClerkDocumentResult[]): ClerkDocumentResult[] {
+  const seen = new Set<string>();
+  return results.filter((r) => {
+    if (seen.has(r.instrumentNumber)) return false;
+    seen.add(r.instrumentNumber);
+    return true;
+  });
 }

@@ -37,6 +37,11 @@ export interface HarvestInput {
     instrumentNumber: string;
     type: string;
   }>;
+  /**
+   * Adjacent property owner names from Phase 1 CAD adjacency data.
+   * The harvester will search for and download documents for each named owner.
+   */
+  adjacentOwners?: string[];
 }
 
 // ── Individual harvested document ─────────────────────────────────────────────

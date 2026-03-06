@@ -426,6 +426,22 @@ app.post('/research/harvest', requireAuth, async (req: Request, res: Response) =
     return;
   }
 
+  // countyFIPS is required for clerk adapter routing; default to empty string
+  // falls back to TexasFile but we warn so operators can see the gap.
+  if (!input.countyFIPS) {
+    console.warn(
+      `[Harvest] countyFIPS not provided for project ${input.projectId} — ` +
+      `falling back to TexasFile universal adapter`,
+    );
+    input.countyFIPS = '';
+  }
+
+  // Validate FIPS format: either empty (TexasFile fallback) or 5-digit Texas code
+  if (input.countyFIPS && !/^\d{5}$/.test(input.countyFIPS)) {
+    res.status(400).json({ error: 'countyFIPS must be a 5-digit FIPS code (e.g. "48027")' });
+    return;
+  }
+
   // Validate projectId to safe characters — prevents path traversal
   if (!/^[a-zA-Z0-9_-]+$/.test(input.projectId)) {
     res.status(400).json({
