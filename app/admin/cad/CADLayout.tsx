@@ -21,6 +21,7 @@ import DisplayPreferencesPanel, { DisplayPrefsToggleButton } from './components/
 import OrientationDialog from './components/OrientationDialog';
 import HiddenItemsPanel from './components/HiddenItemsPanel';
 import LayerPreferencesPanel from './components/LayerPreferencesPanel';
+import FeatureLabelPreferencesPanel from './components/FeatureLabelPreferencesPanel';
 import { useUIStore, useDrawingStore, useSelectionStore, useUndoStore } from '@/lib/cad/store';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -101,6 +102,7 @@ export default function CADLayout() {
   const [showOrientationDialog, setShowOrientationDialog] = useState(false);
   const [showHiddenItems, setShowHiddenItems] = useState(false);
   const [layerPrefsLayerId, setLayerPrefsLayerId] = useState<string | null>(null);
+  const [featureLabelPrefsId, setFeatureLabelPrefsId] = useState<string | null>(null);
   const [recoveryPayload, setRecoveryPayload] = useState<{
     savedAt: string;
     document: unknown;
@@ -169,6 +171,16 @@ export default function CADLayout() {
     };
     window.addEventListener('cad:openLayerPrefs', handler);
     return () => window.removeEventListener('cad:openLayerPrefs', handler);
+  }, []);
+
+  // Listen for feature label preferences open event
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { featureId } = (e as CustomEvent).detail as { featureId: string };
+      setFeatureLabelPrefsId(featureId);
+    };
+    window.addEventListener('cad:openFeatureLabelPrefs', handler);
+    return () => window.removeEventListener('cad:openFeatureLabelPrefs', handler);
   }, []);
 
   // Listen for hidden items panel toggle event
@@ -308,6 +320,14 @@ export default function CADLayout() {
               layerId={layerPrefsLayerId}
               open={!!layerPrefsLayerId}
               onClose={() => setLayerPrefsLayerId(null)}
+            />
+          )}
+          {/* Feature Label Preferences panel — anchored to right side of canvas */}
+          {featureLabelPrefsId && drawingStore.getFeature(featureLabelPrefsId) && (
+            <FeatureLabelPreferencesPanel
+              featureId={featureLabelPrefsId}
+              open={!!featureLabelPrefsId}
+              onClose={() => setFeatureLabelPrefsId(null)}
             />
           )}
           {/* Hidden Items panel — anchored to left side of canvas */}

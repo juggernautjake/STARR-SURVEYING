@@ -31,6 +31,7 @@ import {
   Navigation,
   SeparatorHorizontal,
   RefreshCw,
+  Type,
 } from 'lucide-react';
 import { useToolStore, useSelectionStore, useViewportStore, useDrawingStore } from '@/lib/cad/store';
 import {
@@ -379,6 +380,16 @@ function buildToolGroups(
       variants: [
         { tool: 'INVERSE', label: 'Inverse (bearing & distance)', description: 'Click point A then point B — bearing and distance are shown in the status bar and command bar.', shortcut: 'INV', icon: <ArrowRightLeft size={14} /> },
         { tool: 'FORWARD_POINT', label: 'Forward Point', description: 'Click a base point, type bearing and distance in the command bar to place a new point.', shortcut: 'FP', icon: <Navigation size={14} /> },
+      ],
+    },
+    {
+      mainTool: 'DRAW_TEXT',
+      label: 'Text',
+      description: 'Click to place a text annotation. Font size scales with drawing scale. Right-click for options.',
+      shortcut: 'TX',
+      icon: <Type size={16} />,
+      variants: [
+        { tool: 'DRAW_TEXT', label: 'Text Annotation', description: 'Click where you want the text. Type your text and press Enter to place it.', shortcut: 'TX', icon: <Type size={14} /> },
       ],
     },
   ];

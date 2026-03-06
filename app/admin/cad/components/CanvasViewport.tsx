@@ -138,8 +138,6 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
 };
 
 const MIN_LABEL_FONT_SIZE_PX = 4;
-const AZIMUTH_PRECISION = 8;
-const DISTANCE_PRECISION = 6;
 
 // ─────────────────────────────────────────────
 // CanvasViewport Component
@@ -2031,8 +2029,8 @@ export default function CanvasViewport() {
           layerId: activeLayerId,
           style,
           properties: {
-            azimuth: lineAzimuth.toFixed(AZIMUTH_PRECISION),
-            distance: lineDist.toFixed(DISTANCE_PRECISION),
+            azimuth: lineAzimuth,
+            distance: lineDist,
           },
         };
       }
@@ -2146,8 +2144,8 @@ export default function CanvasViewport() {
       },
       properties: {
         polylineGroupId: groupId,
-        azimuth: segAzimuth.toFixed(AZIMUTH_PRECISION),
-        distance: segDist.toFixed(DISTANCE_PRECISION),
+        azimuth: segAzimuth,
+        distance: segDist,
       },
     };
   }
