@@ -1,5 +1,5 @@
 // lib/cad/constants.ts — Default values for the Starr CAD engine
-import type { DrawingSettings, FeatureStyle, SnapType, DisplayPreferences, LayerDisplayPreferences, TextLabelStyle } from './types';
+import type { DrawingSettings, FeatureStyle, SnapType, DisplayPreferences, LayerDisplayPreferences, TextLabelStyle, TitleBlockConfig } from './types';
 import { PHASE3_DEFAULT_LAYERS } from './styles/default-layers';
 
 export { PHASE3_DEFAULT_LAYERS as DEFAULT_LAYERS };
@@ -72,6 +72,28 @@ export const DEFAULT_DRAWING_SETTINGS: DrawingSettings = {
   autoSaveIntervalSec: 120,
 
   displayPreferences: { ...DEFAULT_DISPLAY_PREFERENCES },
+
+  // Drawing view rotation (visual only)
+  drawingRotationDeg: 0,
+
+  // Title block — populated with sensible survey defaults
+  titleBlock: {
+    visible: true,
+    northArrowStyle: 'DETAILED',
+    northArrowSizeIn: 1.5,
+    infoBoxStyle: 'STANDARD',
+    firmName: '',
+    surveyorName: '',
+    surveyorLicense: '',
+    projectName: '',
+    projectNumber: '',
+    clientName: '',
+    surveyDate: '',
+    scaleLabel: '',
+    sheetNumber: '1',
+    totalSheets: '1',
+    notes: '',
+  } satisfies TitleBlockConfig,
 };
 
 export const DEFAULT_FEATURE_STYLE: FeatureStyle = {

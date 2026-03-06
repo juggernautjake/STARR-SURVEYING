@@ -33,7 +33,7 @@ interface MenuDef {
   items: MenuEntry[];
 }
 
-export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog }: { onOpenImport?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void }) {
+export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTraversePanel, onOpenCurveCalculator, onOpenOrientationDialog, onOpenDrawingRotation, onOpenTitleBlock, onToggleImagePanel }: { onOpenImport?: () => void; onTogglePointTable?: () => void; onToggleTraversePanel?: () => void; onOpenCurveCalculator?: () => void; onOpenOrientationDialog?: () => void; onOpenDrawingRotation?: () => void; onOpenTitleBlock?: () => void; onToggleImagePanel?: () => void }) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -219,6 +219,19 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
           label: 'Toggle Traverse Panel',
           action: () => { onToggleTraversePanel?.(); setOpenMenu(null); },
         },
+        {
+          label: 'Project Images…',
+          shortcut: 'IM',
+          action: () => { onToggleImagePanel?.(); setOpenMenu(null); },
+        },
+        { separator: true },
+        {
+          label: drawingStore.document.settings.titleBlock?.visible ? 'Hide Title Block' : 'Show Title Block',
+          action: () => {
+            drawingStore.updateTitleBlock({ visible: !drawingStore.document.settings.titleBlock?.visible });
+            setOpenMenu(null);
+          },
+        },
       ],
     },
     {
@@ -228,6 +241,16 @@ export default function MenuBar({ onOpenImport, onTogglePointTable, onToggleTrav
           label: 'Adjust Orientation…',
           shortcut: 'OA',
           action: () => { onOpenOrientationDialog?.(); setOpenMenu(null); },
+        },
+        {
+          label: 'Rotate Drawing View…',
+          shortcut: 'RV',
+          action: () => { onOpenDrawingRotation?.(); setOpenMenu(null); },
+        },
+        { separator: true },
+        {
+          label: 'Title Block & North Arrow…',
+          action: () => { onOpenTitleBlock?.(); setOpenMenu(null); },
         },
         { separator: true },
         {

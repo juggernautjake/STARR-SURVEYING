@@ -32,6 +32,7 @@ import {
   SeparatorHorizontal,
   RefreshCw,
   Type,
+  ImageIcon,
 } from 'lucide-react';
 import { useToolStore, useSelectionStore, useViewportStore, useDrawingStore } from '@/lib/cad/store';
 import {
@@ -390,6 +391,16 @@ function buildToolGroups(
       icon: <Type size={16} />,
       variants: [
         { tool: 'DRAW_TEXT', label: 'Text Annotation', description: 'Click where you want the text. Type your text and press Enter to place it.', shortcut: 'TX', icon: <Type size={14} /> },
+      ],
+    },
+    {
+      mainTool: 'DRAW_IMAGE',
+      label: 'Image',
+      description: 'Click on the canvas to insert an image. Supports PNG, JPG, SVG, GIF, WebP. Resize, rotate, and mirror after placing.',
+      shortcut: 'IM',
+      icon: <ImageIcon size={16} />,
+      variants: [
+        { tool: 'DRAW_IMAGE', label: 'Insert Image', description: 'Click where you want the image. A dialog will open to select or paste an image file.', shortcut: 'IM', icon: <ImageIcon size={14} /> },
       ],
     },
   ];

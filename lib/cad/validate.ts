@@ -47,10 +47,17 @@ export function validateAndMigrateDocument(raw: unknown): DrawingDocument {
   const savedDisplayPrefs = (rawSettings.displayPreferences && typeof rawSettings.displayPreferences === 'object')
     ? { ...DEFAULT_DISPLAY_PREFERENCES, ...(rawSettings.displayPreferences as Record<string, unknown>) }
     : { ...DEFAULT_DISPLAY_PREFERENCES };
+  // Back-fill titleBlock — merge defaults then overlay saved values
+  const savedTitleBlock = (rawSettings.titleBlock && typeof rawSettings.titleBlock === 'object')
+    ? { ...DEFAULT_DRAWING_SETTINGS.titleBlock, ...(rawSettings.titleBlock as Record<string, unknown>) }
+    : { ...DEFAULT_DRAWING_SETTINGS.titleBlock };
   const settings = {
     ...DEFAULT_DRAWING_SETTINGS,
     ...rawSettings,
     displayPreferences: savedDisplayPrefs,
+    titleBlock: savedTitleBlock,
+    // Ensure drawingRotationDeg defaults to 0 for older documents
+    drawingRotationDeg: typeof rawSettings.drawingRotationDeg === 'number' ? rawSettings.drawingRotationDeg : 0,
   };
 
   // Ensure layerOrder only references layers that actually exist
@@ -166,11 +173,15 @@ export function validateAndMigrateDocument(raw: unknown): DrawingDocument {
     codeStyleOverrides: (r.codeStyleOverrides && typeof r.codeStyleOverrides === 'object' && !Array.isArray(r.codeStyleOverrides))
       ? (r.codeStyleOverrides as DrawingDocument['codeStyleOverrides'])
       : {},
-  // Back-fill: spread DEFAULT_GLOBAL_STYLE_CONFIG first so all required keys are
-  // always present, then overlay whatever was saved (safe migration pattern).
-  globalStyleConfig: (r.globalStyleConfig && typeof r.globalStyleConfig === 'object')
-    ? { ...DEFAULT_GLOBAL_STYLE_CONFIG, ...(r.globalStyleConfig as Partial<DrawingDocument['globalStyleConfig']>) }
-    : { ...DEFAULT_GLOBAL_STYLE_CONFIG },
-    settings:         settings as DrawingDocument['settings'],
+    // Back-fill: spread DEFAULT_GLOBAL_STYLE_CONFIG first so all required keys are
+    // always present, then overlay whatever was saved (safe migration pattern).
+    globalStyleConfig: (r.globalStyleConfig && typeof r.globalStyleConfig === 'object')
+      ? { ...DEFAULT_GLOBAL_STYLE_CONFIG, ...(r.globalStyleConfig as Partial<DrawingDocument['globalStyleConfig']>) }
+      : { ...DEFAULT_GLOBAL_STYLE_CONFIG },
+    // Back-fill project images (added after initial release)
+    projectImages: (r.projectImages && typeof r.projectImages === 'object' && !Array.isArray(r.projectImages))
+      ? (r.projectImages as DrawingDocument['projectImages'])
+      : {},
+    settings: settings as DrawingDocument['settings'],
   };
 }

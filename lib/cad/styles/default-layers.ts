@@ -46,6 +46,8 @@ export const PHASE3_DEFAULT_LAYERS: Layer[] = [
   { id: 'ANNOTATION',    name: 'Annotation',          visible: true, locked: false, frozen: false, color: '#000000', lineWeight: 0.75, lineTypeId: 'SOLID',        opacity: 1, groupId: 'grp-annot',    sortOrder: 0, isDefault: true, isProtected: false, autoAssignCodes: [] },
   { id: 'TITLE-BLOCK',   name: 'Title Block',         visible: true, locked: false, frozen: false, color: '#000000', lineWeight: 0.35, lineTypeId: 'SOLID',        opacity: 1, groupId: 'grp-annot',    sortOrder: 1, isDefault: true, isProtected: false, autoAssignCodes: [] },
   { id: 'MISC',          name: 'Miscellaneous',       visible: true, locked: false, frozen: false, color: '#000000', lineWeight: 0.18, lineTypeId: 'SOLID',        opacity: 1, groupId: 'grp-annot',    sortOrder: 2, isDefault: true, isProtected: false, autoAssignCodes: ['MS01','MS02','MS03','MS04'] },
+  // ── Survey Info (always present, protected) ──
+  { id: 'SURVEY-INFO',   name: 'Survey Info',         visible: true, locked: false, frozen: false, color: '#000000', lineWeight: 0.35, lineTypeId: 'SOLID',        opacity: 1, groupId: 'grp-annot',    sortOrder: 3, isDefault: true, isProtected: true,  autoAssignCodes: [] },
 ];
 
 /** Get 22 default layers as a Record<id, Layer> */
