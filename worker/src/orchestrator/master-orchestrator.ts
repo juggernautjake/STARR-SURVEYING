@@ -22,6 +22,7 @@ import type {
   PipelineOptions,
   CheckpointData,
 } from '../types/reports.js';
+import type { ConfidenceReport } from '../types/confidence.js';
 import { defaultReportConfig } from '../types/reports.js';
 import { SVGBoundaryRenderer } from '../reports/svg-renderer.js';
 import { PNGRasterizer } from '../reports/png-rasterizer.js';
@@ -347,7 +348,7 @@ export class MasterOrchestrator {
       crossValidation: adjacent,
       rowData: txdot,
       reconciliation: reconciliation || { reconciledCalls: [], corners: [] },
-      confidence: confidence || { overallScore: 0, overallGrade: 'N/A' },
+      confidence: (confidence ?? null) as ConfidenceReport,
       purchases,
       reconciliationV2,
     };
@@ -492,13 +493,13 @@ export class MasterOrchestrator {
       metadata: {
         propertyName: data.discovery?.ownerName || '',
         address: data.address,
-        overallConfidence: data.confidence?.overallScore || 0,
-        overallGrade: data.confidence?.overallGrade || 'N/A',
+        overallConfidence: data.confidence?.overallConfidence?.score || 0,
+        overallGrade: data.confidence?.overallConfidence?.grade || 'N/A',
         totalCalls: calls.length,
         reconciledCalls: calls.filter((c: any) => (c.confidence || 0) >= 60)
           .length,
         closureRatio: recon?.closureError?.ratio || 'N/A',
-        totalDocumentCost: data.purchases?.billing?.totalSpent || 0,
+        totalDocumentCost: data.purchases?.billing?.totalCharged || 0,
         pipelineDuration: (Date.now() - startTime) / 1000,
         phaseDurations: Object.entries(checkpoint.phaseDurations).map(
           ([phase, seconds]) => ({

@@ -419,7 +419,7 @@ describe('LegalDescriptionGenerator', () => {
 
   it('28. footer contains confidence grade when confidence is available', () => {
     const data = makeDataWithCalls(1);
-    data.confidence = { overallScore: 85, overallGrade: 'A' } as any;
+    data.confidence = { overallConfidence: { score: 85, grade: 'A', label: 'High', summary: '' } } as any;
     const result = gen.generate(data);
     expect(result).toContain('85%');
     expect(result).toContain('Grade A');

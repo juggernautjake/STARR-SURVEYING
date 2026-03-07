@@ -161,8 +161,8 @@ export class PDFReportGenerator {
     doc.moveDown(3);
 
     // Confidence badge
-    const grade = data.confidence?.overallGrade || 'N/A';
-    const score = data.confidence?.overallScore || 0;
+    const grade = data.confidence?.overallConfidence?.grade || 'N/A';
+    const score = data.confidence?.overallConfidence?.score || 0;
     const gradeColor = this.gradeColor(grade);
 
     doc.fontSize(16).font('Helvetica-Bold').text('Overall Confidence', {
@@ -233,7 +233,7 @@ export class PDFReportGenerator {
       ['Total Boundary Calls', `${totalCalls}`],
       ['High-Confidence Calls (≥80%)', `${highConfCalls} of ${totalCalls}`],
       ['Closure Ratio', `${closureRatio}`],
-      ['Overall Confidence', `${data.confidence?.overallScore || 0}% (Grade ${data.confidence?.overallGrade || 'N/A'})`],
+      ['Overall Confidence', `${data.confidence?.overallConfidence?.score || 0}% (Grade ${data.confidence?.overallConfidence?.grade || 'N/A'})`],
       ['Legal Description', data.discovery?.legalDescription || 'N/A'],
       ['Subdivision', data.discovery?.subdivision || 'Metes & Bounds'],
       ['Documents Analyzed', `${(data.documents?.target?.length || 0) + (data.documents?.txdot?.length || 0)}`],
@@ -242,11 +242,11 @@ export class PDFReportGenerator {
     if (data.purchases) {
       metrics.push([
         'Official Documents Purchased',
-        `${data.purchases.purchased?.length || 0}`,
+        `${data.purchases.purchases?.length || 0}`,
       ]);
       metrics.push([
         'Total Purchase Cost',
-        `$${data.purchases.billing?.totalSpent?.toFixed(2) || '0.00'}`,
+        `$${data.purchases.billing?.totalCharged?.toFixed(2) || '0.00'}`,
       ]);
     }
 
@@ -402,13 +402,12 @@ export class PDFReportGenerator {
     doc.fontSize(11).font('Helvetica-Bold').text('Overall Scores');
     doc.moveDown(0.5);
 
-    const scores = [
-      ['Document Quality', conf.documentQuality?.score],
-      ['Extraction Confidence', conf.extractionConfidence?.score],
-      ['Cross-Validation', conf.crossValidation?.score],
-      ['Closure Analysis', conf.closureAnalysis?.score],
-      ['Monument Evidence', conf.monumentEvidence?.score],
-      ['Overall Score', conf.overallScore],
+    // Overall scores — computed from available ConfidenceReport arrays
+    const scores: [string, number | undefined][] = [
+      ['Avg Call Confidence', this.avgScore(conf.callConfidence)],
+      ['Avg Lot Confidence', this.avgScore(conf.lotConfidence)],
+      ['Avg Boundary Confidence', this.avgScore(conf.boundaryConfidence)],
+      ['Overall Score', conf.overallConfidence?.score],
     ];
 
     for (const [label, score] of scores) {
@@ -442,29 +441,25 @@ export class PDFReportGenerator {
     doc.text('Flags & Warnings');
     doc.moveDown(0.5);
 
-    const flags = conf.flags || [];
+    // Flags — derived from critical/moderate discrepancies
+    const flags = (conf.discrepancies || [])
+      .filter((d) => d.status === 'unresolved')
+      .map((d) => ({
+        severity: d.severity === 'critical' ? 'critical' : d.severity === 'moderate' ? 'warning' : 'info',
+        message: `[${d.category}] ${d.title}: ${d.description}`,
+      }));
     if (flags.length === 0) {
-      doc.fontSize(9).font('Helvetica').text('No flags raised.');
+      doc.fontSize(9).font('Helvetica').text('No unresolved discrepancy flags.');
     } else {
+      const severityIcon: Record<string, string> = { critical: '⚠', warning: '△', info: 'ℹ' };
+      const severityColor: Record<string, string> = { critical: '#CC0000', warning: '#CC6600', info: '#333333' };
       for (const flag of flags) {
         const severity = flag.severity || 'info';
-        const icon =
-          severity === 'critical'
-            ? '⚠'
-            : severity === 'warning'
-              ? '△'
-              : 'ℹ';
         doc
           .fontSize(9)
           .font('Helvetica')
-          .fillColor(
-            severity === 'critical'
-              ? '#CC0000'
-              : severity === 'warning'
-                ? '#CC6600'
-                : '#333333',
-          )
-          .text(`${icon} [${severity.toUpperCase()}] ${flag.message}`);
+          .fillColor(severityColor[severity] ?? '#333333')
+          .text(`${severityIcon[severity] ?? 'ℹ'} [${severity.toUpperCase()}] ${flag.message}`);
         doc.moveDown(0.3);
       }
     }
@@ -564,7 +559,7 @@ export class PDFReportGenerator {
     const purchases = data.purchases;
     if (!purchases) return;
 
-    const purchased = purchases.purchased || [];
+    const purchased = purchases.purchases || [];
     const billing = purchases.billing;
 
     doc.fontSize(11).font('Helvetica-Bold').text('Purchase Results');
@@ -584,7 +579,7 @@ export class PDFReportGenerator {
         .font('Helvetica')
         .fillColor('#666666')
         .text(
-          `Vendor: ${p.vendor} | Pages: ${p.pages} | Cost: $${p.totalCost?.toFixed(2)} | ` +
+          `Source: ${p.source} | Pages: ${p.pages} | Cost: $${p.totalCost?.toFixed(2)} | ` +
           `Status: ${p.status}`,
         );
 
@@ -599,9 +594,9 @@ export class PDFReportGenerator {
       doc.moveDown(0.3);
 
       doc.fontSize(10).font('Helvetica');
-      doc.text(`Total Spent: $${billing.totalSpent?.toFixed(2) || '0.00'}`);
-      doc.text(`Budget: $${billing.budget?.toFixed(2) || '50.00'}`);
-      doc.text(`Remaining: $${billing.remainingBudget?.toFixed(2) || '0.00'}`);
+      doc.text(`Total Spent: $${billing.totalCharged?.toFixed(2) || '0.00'}`);
+      doc.text(`Tax & Fees: $${billing.taxOrFees?.toFixed(2) || '0.00'}`);
+      doc.text(`Remaining Balance: $${billing.remainingBalance?.toFixed(2) || '0.00'}`);
       doc.text(`Documents Purchased: ${purchased.length}`);
       doc.text(
         `Total Pages: ${purchased.reduce((s: number, p: any) => s + (p.pages || 0), 0)}`,
@@ -685,5 +680,11 @@ export class PDFReportGenerator {
     if (score >= 60) return '#CC9900';
     if (score >= 40) return '#CC6600';
     return '#CC0000';
+  }
+
+  /** Average score from any array of objects with a `.score` number field. */
+  private avgScore(items?: Array<{ score: number }>): number | undefined {
+    if (!items?.length) return undefined;
+    return Math.round(items.reduce((s, c) => s + c.score, 0) / items.length);
   }
 }
