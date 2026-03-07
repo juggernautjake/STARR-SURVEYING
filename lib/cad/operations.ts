@@ -523,7 +523,13 @@ function buildOffsetFeatures(
 }
 
 /**
- * Tessellate a cubic bezier spline into world points for approximate offsetting.
+ * Tessellate a cubic bezier spline into world-space points for approximate offsetting.
+ *
+ * The control points follow SplineGeometry layout: for N segments there are 3N+1 points.
+ * Segment i uses controlPoints[3i], [3i+1], [3i+2], [3i+3] (adjacent segments share an
+ * endpoint). Each segment is sampled at 24 uniformly-spaced t values using the standard
+ * cubic Bernstein formula. The first point of each segment after the first is skipped to
+ * avoid duplicate shared endpoints in the output polyline.
  */
 function tessellateSpline(controlPoints: Point2D[]): Point2D[] {
   const pts: Point2D[] = [];

@@ -2700,13 +2700,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (newArc) {
             const c = w2s(newArc.center.x, newArc.center.y);
             const radiusPx = newArc.radius * useViewportStore.getState().zoom;
-            // Draw arc preview using approximate line segments
+            // Draw arc preview using approximate line segments.
+            // ArcGeometry uses math convention (CCW positive, east = 0). For a CCW arc
+            // we sweep from startAngle toward larger angles; for CW we reverse the range
+            // by swapping start/end so the loop always marches from the smaller angle value
+            // to the larger. The y-axis is then flipped for screen coordinates.
             const steps = 32;
             let startA = newArc.startAngle;
             let endA = newArc.endAngle;
             if (newArc.anticlockwise) {
+              // CCW: ensure endA > startA (add a full turn if needed)
               if (endA <= startA) endA += Math.PI * 2;
             } else {
+              // CW: reverse the arc so we can still iterate startA → endA
               if (startA <= endA) startA += Math.PI * 2;
               [startA, endA] = [endA, startA];
             }
