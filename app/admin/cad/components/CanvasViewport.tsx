@@ -63,6 +63,10 @@ const MAX_GRID_ITERATIONS = 500; // max grid lines per axis to prevent performan
 // Prevents duplicate zero-length segments on double-click.
 const MIN_SEGMENT_LENGTH_BASE = 0.001;
 
+// Inline title-block field editor overlay dimensions
+const TB_EDITOR_MIN_WIDTH = 160;         // minimum pixel width of the editor input
+const TB_EDITOR_RIGHT_MARGIN = 260;      // minimum pixels from viewport right edge
+
 // Grey background color rendered outside the paper boundary
 const CANVAS_SURROUND_COLOR = 0x808080;
 
@@ -224,6 +228,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     signatureBlock:   { screenX: number; screenY: number; w: number; h: number } | null;
     officialSealLabel:{ screenX: number; screenY: number; w: number; h: number } | null;
   }>({ northArrow: null, titleBlock: null, scaleBar: null, signatureBlock: null, officialSealLabel: null });
+  // Screen bounding boxes of each individually-editable title block field (rebuilt each frame)
+  const tbFieldBoundsRef = useRef<Array<{
+    key: keyof import('@/lib/cad/types').TitleBlockConfig;
+    label: string;
+    /** Value pre-filled in the inline editor (may differ from the display text). */
+    editValue: string;
+    screenX: number; screenY: number; w: number; h: number;
+  }>>([]);
   // Drag state for title-block overlay elements
   const tbDragRef = useRef<{
     element: 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel';
@@ -269,6 +281,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const [textInputState, setTextInputState] = useState<{ sx: number; sy: number; wx: number; wy: number } | null>(null);
   // Label attribute editor state (double-click on a bearing/distance label)
   const [labelEditState, setLabelEditState] = useState<{ featureId: string; labelId: string; sx: number; sy: number } | null>(null);
+  // Inline title-block field editor (single click on a title block data cell)
+  const [tbFieldEditState, setTbFieldEditState] = useState<{
+    key: keyof import('@/lib/cad/types').TitleBlockConfig;
+    label: string;
+    value: string;
+    screenX: number; screenY: number; w: number; h: number;
+  } | null>(null);
   // Interactive rotate/scale HUD: drives the InteractiveOpPanel
   const [interactivePanel, setInteractivePanel] = useState<{
     type: 'ROTATE' | 'SCALE';
@@ -1094,6 +1113,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     return null;
   }
 
+  /** Returns the editable title-block field hit at screen coords, or null. */
+  function hitTestTBField(sx: number, sy: number) {
+    for (const b of tbFieldBoundsRef.current) {
+      if (sx >= b.screenX && sx <= b.screenX + b.w && sy >= b.screenY && sy <= b.screenY + b.h) {
+        return b;
+      }
+    }
+    return null;
+  }
+
   // ─────────────────────────────────────────────────────────────────
   // Render: Title Block (bottom-right), Signature Block (bottom-left),
   //         North Arrow (top-right), and Scale Bar
@@ -1108,7 +1137,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const tbTexts = pixi.titleBlockLayer.children.filter(
       (c) => c !== g && (c as { _isTitleBlockText?: boolean })._isTitleBlockText,
     );
-    for (const t of tbTexts) pixi.titleBlockLayer.removeChild(t);
+    // Destroy (not just removeChild) to release GPU texture memory and prevent leaks
+    for (const t of tbTexts) (t as import('pixi.js').Text).destroy();
 
     // Reset bounds so stale hits don't persist
     tbBoundsRef.current.northArrow      = null;
@@ -1116,6 +1146,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbBoundsRef.current.scaleBar        = null;
     tbBoundsRef.current.signatureBlock  = null;
     tbBoundsRef.current.officialSealLabel = null;
+    // Reset editable field bounds
+    tbFieldBoundsRef.current = [];
 
     const doc = useDrawingStore.getState().document;
     const tb  = doc.settings.titleBlock;
@@ -1223,7 +1255,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     g.moveTo(tbScrLeft,  tbScrTop + headerH);
     g.lineTo(tbScrRight, tbScrTop + headerH);
 
-    // Firm name (white, bold)
+    // Firm name (white, bold) — left side of header
     const hFontSz  = Math.max(headerH * 0.52, 7);
     const firmTxt  = mkTBText((tb.firmName || 'SURVEY FIRM').toUpperCase(), {
       fontFamily: 'Arial', fontSize: hFontSz, fill: 0xffffff,
@@ -1231,8 +1263,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     });
     firmTxt.anchor.set(0, 0.5);
     firmTxt.position.set(tbScrLeft + 10, tbScrTop + headerH / 2);
+    // Track header fields for click-to-edit (split the header roughly in half)
+    const headerSplitX = tbScrLeft + tbW * 0.55;
+    tbFieldBoundsRef.current.push({ key: 'firmName',   label: 'Firm Name',   editValue: tb.firmName   || '', screenX: tbScrLeft,    screenY: tbScrTop, w: headerSplitX - tbScrLeft,  h: headerH });
+    tbFieldBoundsRef.current.push({ key: 'surveyType', label: 'Survey Type', editValue: tb.surveyType || '', screenX: headerSplitX, screenY: tbScrTop, w: tbScrRight - headerSplitX, h: headerH });
 
-    // Right subtitle (italic, muted blue)
+    // Right subtitle (italic, muted blue) — survey type
     const subTxt = mkTBText((tb.surveyType || 'BOUNDARY SURVEY').toUpperCase(), {
       fontFamily: 'Arial', fontSize: Math.max(hFontSz * 0.70, 5.5),
       fill: 0x6a9fcc, fontStyle: 'italic', letterSpacing: 0.5,
@@ -1253,44 +1289,59 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     g.moveTo(midX, dataTop);
     g.lineTo(midX, tbScrBottom);
 
-    // ── Field-cell renderer ─────────────────────────────────────────
+    // ── Field-cell renderer — draws label + value and registers editable bounds ─
+    // editValue: the value pre-filled in the editor (defaults to displayValue when omitted)
     function drawCell(
       label: string,
-      value: string,
+      displayValue: string,
+      storeKey: keyof import('@/lib/cad/types').TitleBlockConfig,
       cellLeft: number,
       cellTop: number,
       cellW: number,
       cellH: number,
+      editValue?: string,
     ) {
       const pad   = 6;
-      const lblSz = Math.max(cellH * 0.27, 5.5);
-      const valSz = Math.max(cellH * 0.43, 7.5);
+      const lblSz = Math.max(cellH * 0.26, 5.5);
+      const valSz = Math.max(cellH * 0.42, 7.5);
       const lbl = mkTBText(label.toUpperCase(), {
-        fontFamily: 'Arial', fontSize: lblSz, fill: 0x2c4a6e,
+        fontFamily: 'Arial', fontSize: lblSz, fill: 0x3a5f8a,
         fontWeight: 'bold', letterSpacing: 0.5,
       });
-      lbl.position.set(cellLeft + pad, cellTop + 3);
-      const val = mkTBText(value || '—', {
+      lbl.position.set(cellLeft + pad, cellTop + 4);
+      const val = mkTBText(displayValue || '—', {
         fontFamily: 'Arial', fontSize: valSz,
-        fill: value ? 0x111111 : 0xcccccc,
-        fontWeight: value ? 'bold' : 'normal',
+        fill: displayValue ? 0x111111 : 0xaaaaaa,
+        fontWeight: displayValue ? 'bold' : 'normal',
         wordWrap: true, wordWrapWidth: cellW - pad * 2,
       });
-      val.position.set(cellLeft + pad, cellTop + lblSz + 5);
+      val.position.set(cellLeft + pad, cellTop + lblSz + 6);
+      // Register bounds for click-to-edit; editValue is what gets pre-filled in the input
+      tbFieldBoundsRef.current.push({
+        key: storeKey, label,
+        screenX: cellLeft, screenY: cellTop, w: cellW, h: cellH,
+        editValue: editValue ?? displayValue,
+      });
     }
 
     const ds         = drawingScale ?? 50;
     const scaleLabel = tb.scaleLabel || `1" = ${ds}'`;
 
-    drawCell('PROJECT',        tb.projectName     || '', tbScrLeft, dataTop,             halfTbW, rowH);
-    drawCell('JOB NO.',        tb.projectNumber   || '', midX,      dataTop,             halfTbW, rowH);
-    drawCell('CLIENT / OWNER', tb.clientName      || '', tbScrLeft, dataTop + rowH,      halfTbW, rowH);
-    drawCell('DATE',           tb.surveyDate      || '', midX,      dataTop + rowH,      halfTbW, rowH);
-    drawCell('PREPARED BY',    tb.surveyorName    || '', tbScrLeft, dataTop + 2 * rowH,  halfTbW, rowH);
-    drawCell('LICENSE NO.',    tb.surveyorLicense || '', midX,      dataTop + 2 * rowH,  halfTbW, rowH);
-    drawCell('SCALE',          scaleLabel,              tbScrLeft, dataTop + 3 * rowH,  halfTbW, rowH);
-    drawCell('SHEET', `${tb.sheetNumber || '1'} OF ${tb.totalSheets || '1'}`,
-      midX, dataTop + 3 * rowH, halfTbW, rowH);
+    drawCell('PROJECT',        tb.projectName     || '', 'projectName',     tbScrLeft, dataTop,             halfTbW, rowH);
+    drawCell('JOB NO.',        tb.projectNumber   || '', 'projectNumber',   midX,      dataTop,             halfTbW, rowH);
+    drawCell('CLIENT / OWNER', tb.clientName      || '', 'clientName',      tbScrLeft, dataTop + rowH,      halfTbW, rowH);
+    drawCell('DATE',           tb.surveyDate      || '', 'surveyDate',      midX,      dataTop + rowH,      halfTbW, rowH);
+    drawCell('PREPARED BY',    tb.surveyorName    || '', 'surveyorName',    tbScrLeft, dataTop + 2 * rowH,  halfTbW, rowH);
+    drawCell('LICENSE NO.',    tb.surveyorLicense || '', 'surveyorLicense', midX,      dataTop + 2 * rowH,  halfTbW, rowH);
+    // SCALE: display the resolved label but pre-fill editor with the stored value so
+    // clearing the field restores auto-computed behaviour (tb.scaleLabel === '').
+    drawCell('SCALE', scaleLabel, 'scaleLabel', tbScrLeft, dataTop + 3 * rowH, halfTbW, rowH, tb.scaleLabel || '');
+    // SHEET: display "X OF Y" composite but only the sheet number is edited here;
+    // total sheets can be changed via the sidebar panel.
+    drawCell(
+      'SHEET', `${tb.sheetNumber || '1'} OF ${tb.totalSheets || '1'}`, 'sheetNumber',
+      midX, dataTop + 3 * rowH, halfTbW, rowH, tb.sheetNumber || '',
+    );
 
     // ────────────────────────────────────────────────────────────────
     // SIGNATURE / SEAL BLOCK  (bottom-left of page, draggable)
@@ -1384,10 +1435,35 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       g.drawRect(osHitX, osHitY, osTxtW + 8, osTxtH + 8);
     }
 
-    // "AUTHORIZED SIGNATURE" — above the signature line
-    mkTBText('AUTHORIZED SIGNATURE', {
-      fontFamily: 'Arial', fontSize: sLblSz, fill: 0x2c4a6e, fontWeight: 'bold', letterSpacing: 0.4,
-    }).position.set(sigLineX1, sigLineY - sLblSz - 5);
+    // ── "AUTHORIZED SIGNATURE" — bordered box spanning the full right column ──
+    // The box fully contains the label text with clear padding, and the
+    // signature line sits just below it.
+    const authColLeft  = sigLeft + sealColW;
+    const authBoxPadX  = 5;
+    const authBoxPadY  = 4;
+    const authBoxW     = sigBoxW - sealColW - authBoxPadX * 2;
+    const authFontSz   = Math.max(sLblSz * 0.88, 4.5);
+    const authBoxH     = authFontSz + authBoxPadY * 2;
+    const authBoxLeft  = authColLeft + authBoxPadX;
+    const authBoxTop   = sigLineY - authBoxH - 6;
+    // Bordered box
+    g.lineStyle(1.5, 0x2c4a6e, 1);
+    g.drawRect(authBoxLeft, authBoxTop, authBoxW, authBoxH);
+    // Centered label inside the box
+    const authTxt = mkTBText('AUTHORIZED SIGNATURE', {
+      fontFamily: 'Arial', fontSize: authFontSz, fill: 0x2c4a6e,
+      fontWeight: 'bold', letterSpacing: 0.3, align: 'center',
+      wordWrap: true, wordWrapWidth: authBoxW - 4,
+    });
+    authTxt.anchor.set(0.5, 0.5);
+    authTxt.position.set(authBoxLeft + authBoxW / 2, authBoxTop + authBoxH / 2);
+
+    // ── "DATE:" label below signature line in the right column ───────
+    const dateLblSz = Math.max(sLblSz * 0.80, 4);
+    const dateLbl = mkTBText('DATE:', {
+      fontFamily: 'Arial', fontSize: dateLblSz, fill: 0x555555, fontWeight: 'bold',
+    });
+    dateLbl.position.set(sigLineX1, sigLineY + 4);
 
     // ────────────────────────────────────────────────────────────────
     // NORTH ARROW  (top-right, no box — just the star + "N" label)
@@ -3514,10 +3590,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             element: tbHit, startSX: sx, startSY: sy,
             origPosX, origPosY, livePosX: origPosX, livePosY: origPosY,
           };
+          // Mark this TB element as "selected" so LayerPanel keeps SURVEY-INFO highlighted
+          selectionStore.setSelectedTBElem(tbHit);
           setCursorStyle('grabbing');
           return;
         }
       }
+      // Clicking outside all TB elements clears TB selection
+      selectionStore.setSelectedTBElem(null);
 
       // Check grip first (when SELECT tool active and something selected)
       if (activeTool === 'SELECT' && selectionStore.selectedIds.size > 0) {
@@ -3534,6 +3614,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       switch (activeTool) {
         case 'SELECT': {
+          // We've confirmed no TB element was hit (those return early above), so clear TB selection
+          selectionStore.setSelectedTBElem(null);
           // Check label hit first — labels are on top of features visually
           const labelHit = hitTestLabel(sx, sy);
           if (labelHit) {
@@ -4350,9 +4432,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const tbHover = toolStore.state.activeTool === 'SELECT' ? hitTestTBElement(sx, sy) : null;
         if (tbHover !== hoveredTBElemRef.current) {
           hoveredTBElemRef.current = tbHover;
+          // Sync to selection store so LayerPanel can highlight SURVEY-INFO layer
+          selectionStore.setHoveredTBElem(tbHover);
         }
         if (tbHover) {
-          setCursorStyle('grab');
+          // Show 'text' cursor when hovering over an editable field, 'grab' for drag-only elements
+          const fieldHover = (tbHover === 'titleBlock' || tbHover === 'signatureBlock')
+            ? hitTestTBField(sx, sy)
+            : null;
+          setCursorStyle(fieldHover ? 'text' : 'grab');
         }
 
         // Check label hover first (labels render on top of features)
@@ -4369,7 +4457,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         const hit = hitTest(sx, sy);
-        hoveredIdRef.current = hit;
+        // Sync hovered feature to selection store (drives LayerPanel per-layer + per-item highlighting)
+        if (hit !== hoveredIdRef.current) {
+          hoveredIdRef.current = hit;
+          selectionStore.setHovered(hit);
+        }
         // Update cursor style for SELECT tool
         if (toolStore.state.activeTool === 'SELECT') {
           if (!gripDragRef.current && !tbHover) {
@@ -4401,7 +4493,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         if (hoveredLabelKeyRef.current !== null) {
           hoveredLabelKeyRef.current = null;
         }
-        hoveredIdRef.current = null;
+        if (hoveredIdRef.current !== null) {
+          hoveredIdRef.current = null;
+          selectionStore.setHovered(null);
+        }
+        if (hoveredTBElemRef.current !== null) {
+          hoveredTBElemRef.current = null;
+          selectionStore.setHoveredTBElem(null);
+        }
       }
 
       // Box select: update end point
@@ -4540,9 +4639,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (element === 'scaleBar')         drawingStore.updateTitleBlock({ scaleBarPos: pos });
           if (element === 'signatureBlock')   drawingStore.updateTitleBlock({ signatureBlockPos: pos });
           if (element === 'officialSealLabel')drawingStore.updateTitleBlock({ officialSealLabelPos: pos });
+        } else if (element === 'titleBlock' || element === 'signatureBlock') {
+          // Single click (no drag) on the title/signature block → open field editor
+          const fieldHit = hitTestTBField(sx, sy);
+          if (fieldHit) {
+            setTbFieldEditState({
+              key: fieldHit.key, label: fieldHit.label,
+              // Use the pre-computed editValue (may differ from the display text, e.g. SHEET / SCALE)
+              value: fieldHit.editValue,
+              screenX: fieldHit.screenX, screenY: fieldHit.screenY,
+              w: fieldHit.w, h: fieldHit.h,
+            });
+          }
         }
         tbDragRef.current = null;
         hoveredTBElemRef.current = null;
+        selectionStore.setHoveredTBElem(null);
         setCursorStyle('default');
         return;
       }
@@ -5253,6 +5365,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
+        onMouseLeave={() => {
+          // Clear hover state when cursor exits the canvas
+          if (hoveredIdRef.current !== null) {
+            hoveredIdRef.current = null;
+            selectionStore.setHovered(null);
+          }
+          if (hoveredTBElemRef.current !== null) {
+            hoveredTBElemRef.current = null;
+            selectionStore.setHoveredTBElem(null);
+          }
+          hoveredLabelKeyRef.current = null;
+          setSnapLabel(null);
+          setHud(null);
+        }}
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
         onDrop={(e) => {
           e.preventDefault();
@@ -5386,6 +5512,49 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           <div className="text-[9px] text-gray-400 mt-0.5 px-0.5">Enter to place · Esc to cancel</div>
         </div>
       )}
+
+      {/* Title-block field inline editor — single click on a title block data cell */}
+      {tbFieldEditState && (() => {
+        const canvasRect = canvasRef.current?.getBoundingClientRect();
+        const offsetX    = canvasRect?.left ?? 0;
+        const offsetY    = canvasRect?.top  ?? 0;
+        const editorLeft = Math.max(4, Math.min(
+          offsetX + tbFieldEditState.screenX,
+          (typeof window !== 'undefined' ? window.innerWidth : 800) - TB_EDITOR_RIGHT_MARGIN,
+        ));
+        const editorTop  = offsetY + tbFieldEditState.screenY + tbFieldEditState.h / 2 - 12;
+        return (
+          <div
+            className="fixed z-50 bg-gray-900 border border-blue-400 rounded shadow-2xl p-1.5 flex flex-col gap-0.5"
+            style={{ left: editorLeft, top: editorTop, minWidth: Math.max(tbFieldEditState.w, TB_EDITOR_MIN_WIDTH) }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="text-[9px] text-blue-400 font-semibold uppercase tracking-wider px-0.5 pb-0.5">
+              {tbFieldEditState.label}
+            </div>
+            <input
+              autoFocus
+              className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-blue-400 w-full"
+              style={{ caretColor: '#60a5fa' }}
+              defaultValue={tbFieldEditState.value}
+              placeholder={`Enter ${tbFieldEditState.label.toLowerCase()}…`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
+                  setTbFieldEditState(null);
+                } else if (e.key === 'Escape') {
+                  setTbFieldEditState(null);
+                }
+              }}
+              onBlur={(e) => {
+                drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
+                setTbFieldEditState(null);
+              }}
+            />
+            <div className="text-[8px] text-gray-500 px-0.5">Enter to save · Esc to cancel</div>
+          </div>
+        );
+      })()}
 
       {/* Label attribute editor (double-click on bearing/distance label) */}
       {labelEditState && (() => {
