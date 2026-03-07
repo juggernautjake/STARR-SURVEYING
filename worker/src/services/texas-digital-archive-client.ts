@@ -311,6 +311,3 @@ export async function searchTexasDigitalArchive(
   const client = new TexasDigitalArchiveClient();
   return client.searchROWRecords(highway, county, district, logger);
 }
-
-// Export the path helper for Phase 6 orchestrator
-export { path };

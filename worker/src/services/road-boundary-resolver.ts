@@ -327,6 +327,7 @@ Respond ONLY with this JSON (no markdown):
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
+        signal: AbortSignal.timeout(30_000), // 30-second timeout per spec §6.11
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': this.apiKey,

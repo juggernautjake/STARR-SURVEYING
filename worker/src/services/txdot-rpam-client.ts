@@ -245,6 +245,7 @@ Respond in plain text. Be specific about what you observe. If the map has not lo
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
+        signal: AbortSignal.timeout(30_000), // 30-second timeout per spec §6.11
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': this.apiKey,
