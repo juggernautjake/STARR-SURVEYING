@@ -1387,10 +1387,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     g.moveTo(sigLeft + sealColW, sigTop);
     g.lineTo(sigLeft + sealColW, sigTop + sigBoxH);
 
-    // Signature line in right column at ~62% height
+    // Signature line in right column at ~48% height – leaves top half open for the actual signature
     const sigLineX1 = sigLeft + sealColW + 8;
     const sigLineX2 = sigLeft + sigBoxW  - 8;
-    const sigLineY  = sigTop  + sigBoxH  * 0.62;
+    const sigLineY  = sigTop  + sigBoxH  * 0.48;
     g.lineStyle(1, 0x000000, 1);
     g.moveTo(sigLineX1, sigLineY);
     g.lineTo(sigLineX2, sigLineY);
@@ -1436,8 +1436,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     // ── "AUTHORIZED SIGNATURE" — bordered box spanning the full right column ──
-    // The box fully contains the label text with clear padding, and the
-    // signature line sits just below it.
+    // The box sits below the signature line with clear padding so the label
+    // identifies the line without crowding the signature space above.
     const authColLeft  = sigLeft + sealColW;
     const authBoxPadX  = 5;
     const authBoxPadY  = 4;
@@ -1445,7 +1445,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const authFontSz   = Math.max(sLblSz * 0.88, 4.5);
     const authBoxH     = authFontSz + authBoxPadY * 2;
     const authBoxLeft  = authColLeft + authBoxPadX;
-    const authBoxTop   = sigLineY - authBoxH - 6;
+    const authBoxTop   = sigLineY + 5;
     // Bordered box
     g.lineStyle(1.5, 0x2c4a6e, 1);
     g.drawRect(authBoxLeft, authBoxTop, authBoxW, authBoxH);
@@ -1458,12 +1458,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     authTxt.anchor.set(0.5, 0.5);
     authTxt.position.set(authBoxLeft + authBoxW / 2, authBoxTop + authBoxH / 2);
 
-    // ── "DATE:" label below signature line in the right column ───────
+    // ── "DATE:" label below auth label in the right column ───────
     const dateLblSz = Math.max(sLblSz * 0.80, 4);
     const dateLbl = mkTBText('DATE:', {
       fontFamily: 'Arial', fontSize: dateLblSz, fill: 0x555555, fontWeight: 'bold',
     });
-    dateLbl.position.set(sigLineX1, sigLineY + 4);
+    dateLbl.position.set(sigLineX1, authBoxTop + authBoxH + 5);
 
     // ────────────────────────────────────────────────────────────────
     // NORTH ARROW  (top-right, no box — just the star + "N" label)
@@ -3556,9 +3556,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               origPosX = tb.scaleBarPos.x;
               origPosY = tb.scaleBarPos.y;
             } else {
-              const sigWIn = Math.min(2.8, pw * 0.27);
-              origPosX = sigWIn + 0.20 + margin / inchToPx;  // sig width + innerGap
-              origPosY = margin / inchToPx;
+              // Read from last-rendered bounds to match the actual rendered position
+              // (origPosX/Y remain 0,0 if bounds haven't been drawn yet, which is safe)
+              const b = tbBoundsRef.current.scaleBar;
+              if (b) {
+                origPosX = (b.screenX - tl.sx) / inchToPx;
+                origPosY = (br.sy - b.screenY - b.h) / inchToPx;
+              }
             }
           } else if (tbHit === 'signatureBlock') {
             if (tb?.signatureBlockPos) {
@@ -4843,7 +4847,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
+      // Do not steal keyboard events from active text inputs / textareas
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      if (e.code === 'Space' && !isTyping) {
         e.preventDefault();
         isSpaceDownRef.current = true;
         setCursorStyle('grab');
@@ -5532,26 +5539,54 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             <div className="text-[9px] text-blue-400 font-semibold uppercase tracking-wider px-0.5 pb-0.5">
               {tbFieldEditState.label}
             </div>
-            <input
-              autoFocus
-              className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-blue-400 w-full"
-              style={{ caretColor: '#60a5fa' }}
-              defaultValue={tbFieldEditState.value}
-              placeholder={`Enter ${tbFieldEditState.label.toLowerCase()}…`}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
-                  setTbFieldEditState(null);
-                } else if (e.key === 'Escape') {
-                  setTbFieldEditState(null);
-                }
-              }}
-              onBlur={(e) => {
-                drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
-                setTbFieldEditState(null);
-              }}
-            />
-            <div className="text-[8px] text-gray-500 px-0.5">Enter to save · Esc to cancel</div>
+            {tbFieldEditState.key === 'scaleLabel' ? (() => {
+              const currentDs = drawingStore.document.settings.drawingScale ?? 50;
+              const scaleOptions = Array.from({ length: 17 }, (_, i) => 20 + i * 5);
+              const currentValue = tbFieldEditState.value || `1" = ${currentDs}'`;
+              return (
+                <>
+                  <select
+                    autoFocus
+                    className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-blue-400 w-full cursor-pointer"
+                    defaultValue={currentValue}
+                    onChange={(e) => {
+                      drawingStore.updateTitleBlock({ scaleLabel: e.currentTarget.value });
+                      setTbFieldEditState(null);
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setTbFieldEditState(null); }}
+                    onBlur={() => setTbFieldEditState(null)}
+                  >
+                    {scaleOptions.map(n => (
+                      <option key={n} value={`1" = ${n}'`}>{`1" = ${n}'`}</option>
+                    ))}
+                  </select>
+                  <div className="text-[8px] text-gray-500 px-0.5">Select a scale · Esc to cancel</div>
+                </>
+              );
+            })() : (
+              <>
+                <input
+                  autoFocus
+                  className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-blue-400 w-full"
+                  style={{ caretColor: '#60a5fa' }}
+                  defaultValue={tbFieldEditState.value}
+                  placeholder={`Enter ${tbFieldEditState.label.toLowerCase()}…`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
+                      setTbFieldEditState(null);
+                    } else if (e.key === 'Escape') {
+                      setTbFieldEditState(null);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
+                    setTbFieldEditState(null);
+                  }}
+                />
+                <div className="text-[8px] text-gray-500 px-0.5">Enter to save · Esc to cancel</div>
+              </>
+            )}
           </div>
         );
       })()}
