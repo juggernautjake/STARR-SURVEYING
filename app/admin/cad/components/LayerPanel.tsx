@@ -20,6 +20,9 @@ function nextLayerColor(): string {
   return color;
 }
 
+/** Number of default survey info elements always present in the SURVEY-INFO layer. */
+const SURVEY_INFO_ELEM_COUNT = 4;
+
 interface ContextMenu {
   layerId: string;
   x: number;
@@ -309,10 +312,10 @@ export default function LayerPanel() {
                   </span>
                 )}
 
-                {/* Feature count badge */}
-                {layerFeatures.length > 0 && (
+              {/* Feature count badge */}
+                {(layer.id === 'SURVEY-INFO' ? SURVEY_INFO_ELEM_COUNT : layerFeatures.length) > 0 && (
                   <span className="ml-auto text-[9px] text-gray-500 shrink-0 pr-1">
-                    {layerFeatures.length}
+                    {layer.id === 'SURVEY-INFO' ? SURVEY_INFO_ELEM_COUNT : layerFeatures.length}
                   </span>
                 )}
               </div>
@@ -320,6 +323,31 @@ export default function LayerPanel() {
               {/* Expanded feature tree */}
               {isExpanded && (
                 <div className="ml-4 border-l border-gray-700">
+                  {/* Special: SURVEY-INFO layer always shows default survey elements */}
+                  {layer.id === 'SURVEY-INFO' && (() => {
+                    const tb = doc.settings?.titleBlock;
+                    const tbVisible = tb?.visible !== false;
+                    const surveyElements = [
+                      { key: 'titleBlock',      label: 'Title Block',         visible: tbVisible },
+                      { key: 'signatureBlock',  label: 'Seal / Signature Block', visible: tbVisible },
+                      { key: 'scaleBar',        label: 'Graphic Scale',       visible: tbVisible && (tb?.scaleBarVisible !== false) },
+                      { key: 'northArrow',      label: 'Compass / North Arrow', visible: tbVisible },
+                    ];
+                    return (
+                      <>
+                        {surveyElements.map((el) => (
+                          <div
+                            key={el.key}
+                            className="flex items-center gap-1 pl-2 pr-1 py-0.5 text-[10px] text-gray-400"
+                            title={el.visible ? 'Visible' : 'Hidden (title block is hidden)'}
+                          >
+                            <span className={`truncate ${el.visible ? '' : 'line-through opacity-50'}`}>{el.label}</span>
+                            {!el.visible && <span className="text-gray-600 text-[9px] ml-auto">hidden</span>}
+                          </div>
+                        ))}
+                      </>
+                    );
+                  })()}
                   {/* Groups */}
                   {layerGroups.map((group) => {
                     const groupFeatures = (group.featureIds ?? [])
@@ -404,7 +432,7 @@ export default function LayerPanel() {
                     );
                   })}
 
-                  {layerFeatures.length === 0 && (
+                  {layer.id !== 'SURVEY-INFO' && layerFeatures.length === 0 && (
                     <div className="pl-2 py-0.5 text-[10px] text-gray-600 italic">No features</div>
                   )}
                 </div>

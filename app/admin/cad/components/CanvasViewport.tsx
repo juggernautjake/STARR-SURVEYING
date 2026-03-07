@@ -215,19 +215,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Hovered label key (featureId:labelId or text:featureId) for blue highlight
   const hoveredLabelKeyRef = useRef<string | null>(null);
   // Hovered title-block overlay element
-  const hoveredTBElemRef = useRef<'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'rplsLabel' | 'officialSealLabel' | null>(null);
+  const hoveredTBElemRef = useRef<'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | null>(null);
   // Screen bounding boxes of each TB element (updated each render frame)
   const tbBoundsRef = useRef<{
     northArrow:       { screenX: number; screenY: number; w: number; h: number } | null;
     titleBlock:       { screenX: number; screenY: number; w: number; h: number } | null;
     scaleBar:         { screenX: number; screenY: number; w: number; h: number } | null;
     signatureBlock:   { screenX: number; screenY: number; w: number; h: number } | null;
-    rplsLabel:        { screenX: number; screenY: number; w: number; h: number } | null;
     officialSealLabel:{ screenX: number; screenY: number; w: number; h: number } | null;
-  }>({ northArrow: null, titleBlock: null, scaleBar: null, signatureBlock: null, rplsLabel: null, officialSealLabel: null });
+  }>({ northArrow: null, titleBlock: null, scaleBar: null, signatureBlock: null, officialSealLabel: null });
   // Drag state for title-block overlay elements
   const tbDragRef = useRef<{
-    element: 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'rplsLabel' | 'officialSealLabel';
+    element: 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel';
     startSX: number;
     startSY: number;
     origPosX: number;  // paper-inch BL pos at drag start
@@ -1069,7 +1068,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────────────────────────
   // Helper: hit-test screen (sx,sy) against a TB element bounding box
   // ─────────────────────────────────────────────────────────────────
-  function hitTestTBElement(sx: number, sy: number): 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'rplsLabel' | 'officialSealLabel' | null {
+  function hitTestTBElement(sx: number, sy: number): 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel' | null {
     const b = tbBoundsRef.current;
     if (b.northArrow) {
       const { screenX, screenY, w, h } = b.northArrow;
@@ -1084,10 +1083,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'scaleBar';
     }
     // Test sub-elements before the container so they take priority
-    if (b.rplsLabel) {
-      const { screenX, screenY, w, h } = b.rplsLabel;
-      if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'rplsLabel';
-    }
     if (b.officialSealLabel) {
       const { screenX, screenY, w, h } = b.officialSealLabel;
       if (sx >= screenX && sx <= screenX + w && sy >= screenY && sy <= screenY + h) return 'officialSealLabel';
@@ -1120,7 +1115,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbBoundsRef.current.titleBlock      = null;
     tbBoundsRef.current.scaleBar        = null;
     tbBoundsRef.current.signatureBlock  = null;
-    tbBoundsRef.current.rplsLabel       = null;
     tbBoundsRef.current.officialSealLabel = null;
 
     const doc = useDrawingStore.getState().document;
@@ -1239,7 +1233,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     firmTxt.position.set(tbScrLeft + 10, tbScrTop + headerH / 2);
 
     // Right subtitle (italic, muted blue)
-    const subTxt = mkTBText('BOUNDARY SURVEY', {
+    const subTxt = mkTBText((tb.surveyType || 'BOUNDARY SURVEY').toUpperCase(), {
       fontFamily: 'Arial', fontSize: Math.max(hFontSz * 0.70, 5.5),
       fill: 0x6a9fcc, fontStyle: 'italic', letterSpacing: 0.5,
     });
@@ -1342,15 +1336,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     g.moveTo(sigLeft + sealColW, sigTop);
     g.lineTo(sigLeft + sealColW, sigTop + sigBoxH);
 
-    // Concentric seal circles — centered vertically in upper 65% of block
-    const sCx = sigLeft + sealColW / 2;
-    const sCy = sigTop  + sigBoxH  * 0.42;
-    const sCircR = sealColW * 0.36;
-    g.lineStyle(0.75, 0x000000, 0.8);
-    g.drawCircle(sCx, sCy, sCircR);
-    g.lineStyle(0.4, 0x000000, 0.4);
-    g.drawCircle(sCx, sCy, sCircR * 1.22);
-
     // Signature line in right column at ~62% height
     const sigLineX1 = sigLeft + sealColW + 8;
     const sigLineX2 = sigLeft + sigBoxW  - 8;
@@ -1361,31 +1346,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     // Font sizes relative to box height, with sensible floor values
     const sLblSz = Math.max(sigBoxH * 0.13, 5);
-    const sValSz = Math.max(sigBoxH * 0.15, 5.5);
-    const sigAreaW = sigBoxW - sealColW - 16; // usable width in right column
 
-    // "RPLS" in seal center
-    const rplsTxt = mkTBText('RPLS', {
-      fontFamily: 'Arial', fontSize: sLblSz, fill: 0x777777, letterSpacing: 0.5,
-    });
-    rplsTxt.anchor.set(0.5, 0.5);
-    rplsTxt.position.set(sCx, sCy);
-
-    // ── "OFFICIAL SEAL" label — inside seal column, below circle ────
-    // Default position: centered in seal column, below the circle but well within the border.
+    // ── "OFFICIAL SEAL" label — centered vertically in seal column ────
+    const sCx = sigLeft + sealColW / 2;
     const officialSealDefaultX = sCx;
-    const officialSealDefaultY = sigTop + sigBoxH * 0.68;
+    const officialSealDefaultY = sigTop + sigBoxH * 0.5;
     let officialSealRenderX: number;
     let officialSealRenderY: number;
-    let officialSealIsFloating = false;
     if (drag?.element === 'officialSealLabel') {
       officialSealRenderX = tl.sx + drag.livePosX * inchToPx;
       officialSealRenderY = br.sy - drag.livePosY * inchToPx;
-      officialSealIsFloating = true;
     } else if (tb.officialSealLabelPos) {
       officialSealRenderX = tl.sx + tb.officialSealLabelPos.x * inchToPx;
       officialSealRenderY = br.sy - tb.officialSealLabelPos.y * inchToPx;
-      officialSealIsFloating = true;
     } else {
       officialSealRenderX = officialSealDefaultX;
       officialSealRenderY = officialSealDefaultY;
@@ -1393,67 +1366,28 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const officialSealHovered  = hoveredTBElemRef.current === 'officialSealLabel';
     const officialSealDragging = drag?.element === 'officialSealLabel';
-    const osTxt = mkTBText('OFFICIAL SEAL', {
+    const osTxt = mkTBText('OFFICIAL\nSEAL', {
       fontFamily: 'Arial', fontSize: sLblSz, fill: 0x555555, letterSpacing: 0.3,
       fontWeight: 'bold',
-      // Constrain to seal column width (or unconstrained when floating)
-      wordWrap: !officialSealIsFloating, wordWrapWidth: sealColW - 8,
       align: 'center',
     });
-    osTxt.anchor.set(0.5, 0);
+    osTxt.anchor.set(0.5, 0.5);
     osTxt.position.set(officialSealRenderX, officialSealRenderY);
     // Compute bounds for hit-testing (centered anchor means left = x - w/2)
     const osTxtW = Math.min(sealColW, sLblSz * 8);
-    const osTxtH = sLblSz * 2.2; // approximate with possible wrap
+    const osTxtH = sLblSz * 2.5;
     const osHitX = officialSealRenderX - osTxtW / 2 - 4;
-    const osHitY = officialSealRenderY - 4;
+    const osHitY = officialSealRenderY - osTxtH / 2 - 4;
     tbBoundsRef.current.officialSealLabel = { screenX: osHitX, screenY: osHitY, w: osTxtW + 8, h: osTxtH + 8 };
     if (officialSealHovered || officialSealDragging) {
       g.lineStyle(1.5, 0x0088ff, 0.85);
       g.drawRect(osHitX, osHitY, osTxtW + 8, osTxtH + 8);
     }
 
-    // ── "REGISTERED PROFESSIONAL LAND SURVEYOR" ─────────────────────
-    // Default: top of right column, word-wrapped to available width
-    const rplsDefaultX = sigLineX1;
-    const rplsDefaultY = sigTop + 5;
-    let rplsRenderX: number;
-    let rplsRenderY: number;
-    let rplsIsFloating = false;
-    if (drag?.element === 'rplsLabel') {
-      rplsRenderX = tl.sx + drag.livePosX * inchToPx;
-      rplsRenderY = br.sy - drag.livePosY * inchToPx;
-      rplsIsFloating = true;
-    } else if (tb.rplsLabelPos) {
-      rplsRenderX = tl.sx + tb.rplsLabelPos.x * inchToPx;
-      rplsRenderY = br.sy - tb.rplsLabelPos.y * inchToPx;
-      rplsIsFloating = true;
-    } else {
-      rplsRenderX = rplsDefaultX;
-      rplsRenderY = rplsDefaultY;
-    }
-
-    const rplsHovered  = hoveredTBElemRef.current === 'rplsLabel';
-    const rplsDragging = drag?.element === 'rplsLabel';
-    const rplsTitleTxt = mkTBText('REGISTERED PROFESSIONAL LAND SURVEYOR', {
-      fontFamily: 'Arial', fontSize: sValSz, fill: 0x444444, fontStyle: 'italic',
-      wordWrap: true,
-      wordWrapWidth: rplsIsFloating ? sigAreaW * 1.5 : sigAreaW,
-    });
-    rplsTitleTxt.position.set(rplsRenderX, rplsRenderY);
-    // Approximate bounding box for hit-testing
-    const rplsTxtW = rplsIsFloating ? sigAreaW * 1.5 : sigAreaW;
-    const rplsTxtH = sValSz * 3.5; // allow up to 3 wrapped lines
-    tbBoundsRef.current.rplsLabel = { screenX: rplsRenderX - 4, screenY: rplsRenderY - 4, w: rplsTxtW + 8, h: rplsTxtH + 8 };
-    if (rplsHovered || rplsDragging) {
-      g.lineStyle(1.5, 0x0088ff, 0.85);
-      g.drawRect(rplsRenderX - 4, rplsRenderY - 4, rplsTxtW + 8, rplsTxtH + 8);
-    }
-
-    // "AUTHORIZED SIGNATURE"
+    // "AUTHORIZED SIGNATURE" — above the signature line
     mkTBText('AUTHORIZED SIGNATURE', {
       fontFamily: 'Arial', fontSize: sLblSz, fill: 0x2c4a6e, fontWeight: 'bold', letterSpacing: 0.4,
-    }).position.set(sigLineX1, sigLineY + 3);
+    }).position.set(sigLineX1, sigLineY - sLblSz - 5);
 
     // ────────────────────────────────────────────────────────────────
     // NORTH ARROW  (top-right, no box — just the star + "N" label)
@@ -1611,7 +1545,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // Units label — placed to the right of the bar on a second line so it
       // never overlaps the last distance tick label.
-      const unitsLbl = mkTBText('FEET', {
+      const unitsLbl = mkTBText(' FEET', {
         fontFamily: 'Arial', fontSize: lblBelowSz, fill: 0x444444, fontStyle: 'italic',
       });
       unitsLbl.anchor.set(0, 0);
@@ -3562,18 +3496,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 origPosY = (br.sy - b.screenY - b.h) / inchToPx;
               }
             }
-          } else if (tbHit === 'rplsLabel') {
-            if (tb?.rplsLabelPos) {
-              origPosX = tb.rplsLabelPos.x;
-              origPosY = tb.rplsLabelPos.y;
-            } else {
-              // Read from last-rendered bounds (+4 offsets cancel the hit-test padding)
-              const b = tbBoundsRef.current.rplsLabel;
-              if (b) {
-                origPosX = (b.screenX + 4 - tl.sx) / inchToPx;
-                origPosY = (br.sy - (b.screenY + 4)) / inchToPx;
-              }
-            }
           } else if (tbHit === 'officialSealLabel') {
             if (tb?.officialSealLabelPos) {
               origPosX = tb.officialSealLabelPos.x;
@@ -4617,7 +4539,6 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (element === 'titleBlock')       drawingStore.updateTitleBlock({ titleBlockPos: pos });
           if (element === 'scaleBar')         drawingStore.updateTitleBlock({ scaleBarPos: pos });
           if (element === 'signatureBlock')   drawingStore.updateTitleBlock({ signatureBlockPos: pos });
-          if (element === 'rplsLabel')        drawingStore.updateTitleBlock({ rplsLabelPos: pos });
           if (element === 'officialSealLabel')drawingStore.updateTitleBlock({ officialSealLabelPos: pos });
         }
         tbDragRef.current = null;

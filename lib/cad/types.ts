@@ -219,6 +219,8 @@ export interface TitleBlockConfig {
   sheetNumber: string;
   totalSheets: string;
   notes: string;
+  /** Type of survey shown in the title block header, e.g. "BOUNDARY SURVEY". Default: "BOUNDARY SURVEY" */
+  surveyType?: string;
 
   // ── Moveable element positions (paper-inch from paper bottom-left; null = use default) ──
   /** North arrow box position (bottom-left corner, paper inches from paper BL). null = top-right default. */
@@ -229,8 +231,6 @@ export interface TitleBlockConfig {
   scaleBarPos?: { x: number; y: number } | null;
   /** Signature/seal block position (bottom-left corner, paper inches from paper BL). null = bottom-left default. */
   signatureBlockPos?: { x: number; y: number } | null;
-  /** "REGISTERED PROFESSIONAL LAND SURVEYOR" label position (bottom-left, paper inches from paper BL). null = inside signature block. */
-  rplsLabelPos?: { x: number; y: number } | null;
   /** "OFFICIAL SEAL" label position (bottom-left, paper inches from paper BL). null = inside signature block. */
   officialSealLabelPos?: { x: number; y: number } | null;
 
