@@ -1318,18 +1318,22 @@ app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Re
 
   res.status(202).json({ status: 'accepted', projectId });
 
+  // Use PipelineLogger (no bare console.* calls) — consistent with Phase 6/7/8 pattern
+  const { PipelineLogger: PL9 } = await import('./lib/logger.js');
+  const purchaseLog = new PL9(projectId);
+
   try {
     let confReport: any;
     try {
       confReport = JSON.parse(fs.readFileSync(confidenceReportPath, 'utf-8'));
     } catch (e) {
-      console.error(`[Purchase] Failed to read confidence report: ${e}`);
+      purchaseLog.error('Purchase', `Failed to read confidence report: ${String(e)}`);
       return;
     }
     const recommendations = confReport.documentPurchaseRecommendations || [];
 
     if (recommendations.length === 0) {
-      console.log(`[Purchase] No documents recommended for purchase`);
+      purchaseLog.info('Purchase', 'No documents recommended for purchase');
       const emptyReport = {
         status: 'no_purchases_needed',
         projectId,
@@ -1380,20 +1384,22 @@ app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Re
     );
 
     const purchased = result.purchases.filter(p => p.status === 'purchased');
-    console.log(
-      `[Purchase] Complete: ${purchased.length}/${result.purchases.length} purchased, $${result.billing.totalCharged.toFixed(2)} spent`,
+    purchaseLog.info(
+      'Purchase',
+      `Complete: ${purchased.length}/${result.purchases.length} purchased, $${result.billing.totalCharged.toFixed(2)} spent`,
     );
 
     if (result.reanalysis.documentReanalyses.length > 0 && autoReanalyze !== false) {
       const totalChanged = result.reanalysis.documentReanalyses.reduce(
         (s, r) => s + r.callsChanged, 0,
       );
-      console.log(
-        `[Purchase] Re-analysis changed ${totalChanged} calls. Re-reconciliation triggered.`,
+      purchaseLog.info(
+        'Purchase',
+        `Re-analysis changed ${totalChanged} calls. Re-reconciliation triggered.`,
       );
     }
   } catch (error) {
-    console.error(`[Purchase] Failed for ${projectId}:`, error);
+    purchaseLog.error('Purchase', 'Orchestration failed', error instanceof Error ? error : new Error(String(error)));
   }
 });
 

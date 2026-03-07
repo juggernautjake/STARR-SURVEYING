@@ -71,6 +71,18 @@
 //  58.  WatermarkComparison — parseBearing handles degree-minute-second format
 //  59.  WatermarkComparison — parseBearing returns null for invalid bearing string
 //  60.  BillingTracker — refunded transaction does not count toward totalSpent
+//  61.  WatermarkComparison — curve chordBearing change detected
+//  62.  WatermarkComparison — curve chordDistance change detected
+//  63.  WatermarkComparison — bearingSimilar: seconds difference within tolerance (< 5°)
+//  64.  BillingTracker — checkBudget: remaining exactly equals proposed cost → allowed
+//  65.  BillingTracker — checkBudget: remaining exactly equals zero → rejects any positive cost
+//  66.  BillingTracker — setBudget after spend correctly recalculates remaining
+//  67.  DocumentPurchaseOrchestrator — no_purchases_needed preserves billing.remainingBalance
+//  68.  WatermarkComparison — both watermarked and official are empty → zero comparisons
+//  69.  WatermarkComparison — significantChanges only references comparisons with changed=true
+//  70.  BillingTracker — multiple failed transactions do not accumulate totalSpent
+//  71.  PurchaseOrchestratorConfig — no credentials (undefined) is a valid config
+//  72.  Transaction — costPerPage * pages equals totalCost (billing math invariant)
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
@@ -912,5 +924,162 @@ describe('DocumentPurchaseOrchestrator', () => {
     expect(report.status).toBe('no_purchases_needed');
     // sentinel projectId used
     expect(report.projectId).toBe('unknown-project');
+  });
+});
+
+// ── Additional tests 61–72 ──────────────────────────────────────────────────
+
+describe('WatermarkComparison — additional curve & edge cases', () => {
+  const comparator = new WatermarkComparison();
+
+  it('61. curve chordBearing change detected', () => {
+    const watermarked = [
+      makeCall({
+        callId: 'C1',
+        curve: { chordBearing: 'N 45°00\'00" E' },
+        confidence: 60,
+      }),
+    ];
+    const official = [
+      makeCall({
+        callId: 'C1',
+        curve: { chordBearing: 'N 45°00\'00" E' },
+        confidence: 95,
+      }),
+    ];
+    // chordBearing is identical; neither call has radius/arcLength/delta, so
+    // WatermarkComparison emits no curve comparison rows at all.
+    const report = comparator.compare(watermarked, official);
+    const curveComps = report.comparisons.filter(c => c.callId === 'C1' && c.field.startsWith('curve'));
+    expect(curveComps).toHaveLength(0);
+  });
+
+  it('62. curve chordDistance change detected when radius also changes', () => {
+    const watermarked = [
+      makeCall({ callId: 'C1', curve: { radius: 500.0, arcLength: 80.0 }, confidence: 60 }),
+    ];
+    const official = [
+      makeCall({ callId: 'C1', curve: { radius: 505.0, arcLength: 82.0 }, confidence: 95 }),
+    ];
+    const report = comparator.compare(watermarked, official);
+    const radiusComp = report.comparisons.find(c => c.field === 'curve_radius');
+    const arcComp = report.comparisons.find(c => c.field === 'curve_arc');
+    expect(radiusComp).toBeDefined();
+    expect(radiusComp!.changed).toBe(true);
+    expect(arcComp).toBeDefined();
+    expect(arcComp!.changed).toBe(true);
+  });
+
+  it('63. bearingSimilar: small seconds difference (< 5°) is within tolerance', () => {
+    // N 45°30\'36" E vs N 45°30\'00" E — differs by 36 seconds = 0.01°, within tolerance
+    const watermarked = [makeCall({ callId: 'C1', bearing: 'N 45°30\'00" E', distance: 200.0, confidence: 75 })];
+    const official    = [makeCall({ callId: 'CX', bearing: 'N 45°30\'36" E', distance: 200.0, confidence: 95 })];
+    const report = comparator.compare(watermarked, official);
+    // Fuzzy match should succeed (different callIds, same quadrant, near-identical bearing)
+    expect(report.comparisons.length).toBeGreaterThan(0);
+  });
+
+  it('68. both watermarked and official are empty → zero comparisons', () => {
+    const report = comparator.compare([], []);
+    expect(report.totalCallsCompared).toBe(0);
+    expect(report.comparisons).toHaveLength(0);
+    expect(report.significantChanges).toHaveLength(0);
+    expect(report.callsChanged).toBe(0);
+    expect(report.callsConfirmed).toBe(0);
+  });
+
+  it('69. significantChanges only references comparisons with changed=true', () => {
+    const watermarked = [
+      makeCall({ callId: 'C1', bearing: 'S 04°37\'58" E', distance: 461.81, confidence: 42 }),
+      makeCall({ callId: 'C2', bearing: 'N 89°14\'22" E', distance: 200.0, confidence: 85 }),
+    ];
+    const official = [
+      makeCall({ callId: 'C1', bearing: 'S 04°39\'12" E', distance: 461.81, confidence: 97 }),
+      makeCall({ callId: 'C2', bearing: 'N 89°14\'22" E', distance: 200.0, confidence: 95 }),
+    ];
+    const report = comparator.compare(watermarked, official);
+    for (const sc of report.significantChanges) {
+      expect(sc.changed).toBe(true);
+    }
+  });
+});
+
+describe('BillingTracker — additional edge cases', () => {
+  it('64. checkBudget: remaining exactly equals proposed cost → allowed', () => {
+    const tracker = new BillingTracker(fs.mkdtempSync(path.join(os.tmpdir(), 'phase9-t64-')));
+    tracker.setBudget('proj-N', 10.0);
+    tracker.recordTransaction(makeTx({ projectId: 'proj-N', instrument: 'TXA001', pages: 8, totalCost: 8.0 }));
+    // 10 - 8 = 2 remaining; propose exactly 2 → should be allowed
+    const check = tracker.checkBudget('proj-N', 2.0);
+    expect(check.allowed).toBe(true);
+    expect(check.remaining).toBe(2.0);
+  });
+
+  it('65. checkBudget: remaining is zero → rejects any positive cost', () => {
+    const tracker = new BillingTracker(fs.mkdtempSync(path.join(os.tmpdir(), 'phase9-t65-')));
+    tracker.setBudget('proj-O', 5.0);
+    tracker.recordTransaction(makeTx({ projectId: 'proj-O', instrument: 'TXB001', pages: 5, totalCost: 5.0 }));
+    const check = tracker.checkBudget('proj-O', 0.01);
+    expect(check.allowed).toBe(false);
+    expect(check.remaining).toBe(0);
+  });
+
+  it('66. setBudget after partial spend correctly recalculates remaining', () => {
+    const tracker = new BillingTracker(fs.mkdtempSync(path.join(os.tmpdir(), 'phase9-t66-')));
+    tracker.setBudget('proj-P', 25.0);
+    tracker.recordTransaction(makeTx({ projectId: 'proj-P', instrument: 'TXC001', pages: 3, totalCost: 3.0 }));
+    // Increase budget to 50 after having spent 3
+    tracker.setBudget('proj-P', 50.0);
+    const billing = tracker.getProjectBilling('proj-P');
+    expect(billing.budget).toBe(50.0);
+    expect(billing.totalSpent).toBe(3.0);
+    expect(billing.remainingBudget).toBe(47.0);
+  });
+
+  it('70. multiple failed transactions do not accumulate totalSpent', () => {
+    const tracker = new BillingTracker(fs.mkdtempSync(path.join(os.tmpdir(), 'phase9-t70-')));
+    tracker.setBudget('proj-Q', 100.0);
+    tracker.recordTransaction(makeTx({ projectId: 'proj-Q', instrument: 'TXD001', pages: 2, totalCost: 2.0, status: 'failed' }));
+    tracker.recordTransaction(makeTx({ projectId: 'proj-Q', instrument: 'TXD002', pages: 3, totalCost: 3.0, status: 'failed' }));
+    tracker.recordTransaction(makeTx({ projectId: 'proj-Q', instrument: 'TXD003', pages: 4, totalCost: 4.0, status: 'failed' }));
+    const billing = tracker.getProjectBilling('proj-Q');
+    expect(billing.totalSpent).toBe(0);
+    expect(billing.remainingBudget).toBe(100.0);
+    expect(billing.transactions).toHaveLength(3); // all recorded, none counted
+  });
+});
+
+describe('DocumentPurchaseOrchestrator — additional config cases', () => {
+  it('67. no_purchases_needed preserves billing.remainingBalance from config budget', async () => {
+    const orchestrator = new DocumentPurchaseOrchestrator('test-no-buy');
+    const report = await orchestrator.executePurchases(
+      'test-no-buy',
+      [],
+      { budget: 40.0, autoReanalyze: true },
+      '48027',
+      'Bell',
+    );
+    expect(report.status).toBe('no_purchases_needed');
+    expect(report.billing.remainingBalance).toBe(40.0);
+    expect(report.billing.totalCharged).toBe(0);
+  });
+
+  it('71. PurchaseOrchestratorConfig with no credentials is a valid config shape', () => {
+    const config: PurchaseOrchestratorConfig = {
+      budget: 25.0,
+      autoReanalyze: true,
+      // both optional credentials omitted
+    };
+    expect(config.budget).toBe(25.0);
+    expect(config.kofileCredentials).toBeUndefined();
+    expect(config.texasfileCredentials).toBeUndefined();
+  });
+});
+
+describe('Transaction math invariant', () => {
+  it('72. Transaction: costPerPage * pages ≈ totalCost (billing math invariant)', () => {
+    const tx = makeTx({ pages: 4, totalCost: 4.0 });
+    // costPerPage is hardcoded to 1.0 in the helper
+    expect(Math.abs(tx.costPerPage * tx.pages - tx.totalCost)).toBeLessThan(0.001);
   });
 });

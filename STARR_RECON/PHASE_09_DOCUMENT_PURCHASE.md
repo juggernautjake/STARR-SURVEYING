@@ -6,15 +6,33 @@
 |---|---|
 | Phase Duration | Weeks 24–26 |
 | Depends On | Phase 2 (ClerkAdapter), Phase 3 (AI Extraction), Phase 7 (Reconciliation), Phase 8 (Confidence Scoring) |
-| Status | Implementation Complete v1.1 |
+| Status | Implementation Complete v1.2 |
 
 ---
 
 ## Current State of the Codebase
 
-**Phase Status: ✅ COMPLETE v1.1**
+**Phase Status: ✅ COMPLETE v1.2**
 
 All Phase 9 code has been implemented and tested.
+
+### v1.2 Changes (March 2026)
+
+- **PipelineLogger** in `POST /research/purchase` route (`index.ts`): replaced all bare `console.log/error` calls with `PipelineLogger` — consistent with Phase 6/7/8 pattern
+- **Removed unused `TxDOTRowResult` import** from `reanalysis.ts` — dead import eliminated
+- **74 unit tests** (up from 62) in `__tests__/recon/phase9-purchase.test.ts` — 12 new tests added:
+  - 61: WatermarkComparison — curve chordBearing no-op (no radius/arc → no curve comparison emitted)
+  - 62: WatermarkComparison — curve radius AND arcLength changed simultaneously
+  - 63: WatermarkComparison — bearingSimilar tolerates small-seconds differences (< 5°)
+  - 64: BillingTracker — checkBudget allows purchase when remaining == proposed cost exactly
+  - 65: BillingTracker — checkBudget rejects when remaining == 0
+  - 66: BillingTracker — setBudget after partial spend correctly recalculates remaining
+  - 67: DocumentPurchaseOrchestrator — no_purchases_needed preserves billing.remainingBalance
+  - 68: WatermarkComparison — empty watermarked + empty official → zero comparisons
+  - 69: WatermarkComparison — significantChanges contains only changed=true entries
+  - 70: BillingTracker — multiple failed transactions do not accumulate totalSpent
+  - 71: PurchaseOrchestratorConfig — no credentials (undefined) is a valid config shape
+  - 72: Transaction math invariant — costPerPage × pages ≈ totalCost
 
 ### v1.1 Changes (March 2026)
 
@@ -44,7 +62,7 @@ All Phase 9 code has been implemented and tested.
 | `worker/src/services/reanalysis.ts` | Re-runs AI extraction on purchased (clean) documents | ✅ Complete |
 | `worker/src/types/purchase.ts` | Phase 9 TypeScript types (`PurchaseReport`, `PurchaseRecord`, etc.) | ✅ Complete |
 | `worker/purchase.sh` | CLI wrapper for Phase 9 | ✅ Complete |
-| `__tests__/recon/phase9-purchase.test.ts` | 62 unit tests for Phase 9 pure-logic components | ✅ Complete |
+| `__tests__/recon/phase9-purchase.test.ts` | 74 unit tests for Phase 9 pure-logic components | ✅ Complete |
 
 ### API Endpoint
 
@@ -686,11 +704,11 @@ The ROI is exceptional: a $2 plat purchase can resolve 10+ watermark-ambiguous r
 - [x] Triggers Phase 7 re-reconciliation after re-analysis
 - [x] Full purchase + re-analysis cycle completes within 5 minutes for 2-3 documents
 - [x] Handles purchase failures gracefully (retry with alternate vendor)
-- [x] PipelineLogger used for all structured logging (no bare console.* calls)
+- [x] PipelineLogger used for all structured logging (no bare console.* calls) — including index.ts route (v1.2)
 - [x] AbortSignal.timeout(30s) on AI fetch calls
 - [x] Rate limiting: POST 5/60s, GET 60/60s
 - [x] JSON.parse wrapped in try/catch throughout
-- [x] 62 unit tests passing
+- [x] 74 unit tests passing (62 original + 12 new in v1.2)
 
 ---
 
