@@ -1,10 +1,10 @@
 # STARR RECON — Phase 6: TxDOT ROW & Public Infrastructure Integration
 
 **Product:** Starr Compass — AI Property Research (STARR RECON)
-**Version:** 1.3 | **Last Updated:** March 2026
+**Version:** 1.4 | **Last Updated:** March 2026
 **Phase Duration:** Weeks 16–18
 **Depends On:** Phase 1 (`PropertyIdentity` with coordinates), Phase 3 (`property_intelligence.json` with road list), Phase 4 (`subdivision.json` with road dedications)
-**Status:** ✅ COMPLETE v1.3 (March 2026) — All 6 new service files built, `txdot-row.ts` updated, routes added to `index.ts`, `row.sh` CLI script created, 40 unit tests pass. v1.3 changes: PipelineLogger integrated into POST /research/row (no bare console.log); GET /research/row/:projectId now returns error detail in failed response; `BoundaryCall.callId` optional field added to types/index.ts for Phase 7 cross-reference; reading-aggregator.ts updated with county_road_default source + maintainedBy field in ROWReportInput. See §Known Limitations for items requiring live testing.
+**Status:** ✅ COMPLETE v1.4 (March 2026) — All 6 new service files built, `txdot-row.ts` updated, routes added to `index.ts`, `row.sh` CLI script created, **65 unit tests pass**. v1.4 changes: `AbortSignal.timeout(30_000)` added to all AI fetch calls in `road-boundary-resolver.ts` and `txdot-rpam-client.ts` (spec §6.11 requirement); dead `export { path }` removed from `texas-digital-archive-client.ts`; indentation bug fixed in `row-integration-engine.ts`; `runROWIntegration()` now validates empty `projectId` (throws with clear message); 25 additional unit tests added (tests 36–60) covering: acceptance-criteria road classifier paths (`Kent Oakley Rd`, `SL`, `CO RD`, `Loop`), additional county defaults (McLennan, Bexar), orchestrator no-roads path, error-handling (missing file, empty projectId), and resolver no-API-key fallback. See §Known Limitations for items requiring live testing.
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
 ---
@@ -261,6 +261,14 @@ The Phase 3 `property_intelligence.json` file contains a `roads: RoadInfo[]` arr
 - **`BoundaryCall.callId` optional field**: Added `callId?: string` to `BoundaryCall` in `worker/src/types/index.ts`. Used by Phase 7 `reading-aggregator.ts` for cross-source call matching. When present, used as the call identifier; when absent, falls back to `call_${sequence}`.
 - **`county_road_default` source in ReadingAggregator**: `worker/src/services/reading-aggregator.ts` now generates `county_road_default` readings for county-maintained roads from Phase 6 ROW report (when `maintainedBy === 'county'` and `rowData.rowWidth` is set). This closes a gap in the Phase 7 data flow.
 - **`ROWReportInput.maintainedBy`**: Added `maintainedBy` field to `ROWReportInput` interface in `reading-aggregator.ts` so Phase 7 can distinguish TxDOT vs county roads from the Phase 6 output.
+
+#### v1.4 Changes (March 2026)
+
+- **`AbortSignal.timeout(30_000)` on all AI HTTP calls**: Added 30-second timeout to the `fetch()` call in `road-boundary-resolver.ts` (`runAIResolution`) and `txdot-rpam-client.ts` (`aiAnalyzeRPAM`). This was a spec §6.11 requirement ("All external HTTP requests use `AbortSignal.timeout(30000)`") that was previously unimplemented, which could cause the worker to hang indefinitely if the Anthropic API was slow or unresponsive.
+- **Removed dead `export { path }` from `texas-digital-archive-client.ts`**: The bottom of the file was exporting Node's `path` module. This export was never used by any consumer (row-integration-engine.ts imports `path` directly) and could confuse developers.
+- **Fixed indentation bug in `row-integration-engine.ts`**: Lines 407-410 (`buildROWDataFromFeatures` call inside `processRoad`) had incorrect 4-space indentation instead of 8 spaces. No runtime impact, but fixed for code clarity.
+- **Empty `projectId` validation in `runROWIntegration()`**: The standalone `runROWIntegration()` function now throws `Error('runROWIntegration: projectId must be a non-empty string')` when called with an empty string. The API route (`index.ts`) already validated this via regex, but the underlying function had no guard.
+- **25 additional unit tests (tests 36–60)**: Extended `__tests__/recon/phase6-row.test.ts` from 40 to 65 tests. New coverage: acceptance-criteria road names (`Kent Oakley Rd → city_street`, `SL 340 → spur`, `CO RD 45 → county_road`, `Loop 121 → LP`), additional county defaults (McLennan, Bexar, empty string), `getTxDOTRoads` edge cases, `buildBoundsFromCenter` edge cases (zero buffer, ordering), `analyzeTxDOTGeometry` edge cases (2-vertex path, 2° boundary), `resolve()` no-API-key fallback, `analyze()` no-roads path, `runROWIntegration()` error handling (missing file, empty projectId), and `ROWDataSource` shape.
 
 ---
 

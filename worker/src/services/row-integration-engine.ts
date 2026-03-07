@@ -405,8 +405,8 @@ export class ROWIntegrationEngine {
       let rpamResult: RPAMResult | null = null;
 
       if (roadRowFeatures.length > 0) {
-    // Build ROW data from ArcGIS features
-    rowData = this.buildROWDataFromFeatures(roadRowFeatures, roadCenterlineFeatures, this.logger);
+        // Build ROW data from ArcGIS features
+        rowData = this.buildROWDataFromFeatures(roadRowFeatures, roadCenterlineFeatures, this.logger);
       } else if (bounds) {
         // No ArcGIS features for this road — try RPAM Playwright fallback
         this.logger.info(
@@ -668,6 +668,10 @@ export async function runROWIntegration(
   intelligencePath: string,
   logger: PipelineLogger,
 ): Promise<ROWReport> {
+  if (!projectId || typeof projectId !== 'string' || projectId.trim() === '') {
+    throw new Error('runROWIntegration: projectId must be a non-empty string');
+  }
+
   if (!fs.existsSync(intelligencePath)) {
     throw new Error(`Intelligence file not found: ${intelligencePath}`);
   }
