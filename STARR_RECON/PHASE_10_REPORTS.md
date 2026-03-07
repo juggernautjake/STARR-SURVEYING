@@ -6,9 +6,25 @@ Phase 10 is the capstone delivery phase of the STARR RECON pipeline. It consumes
 
 ## Current State of the Codebase
 
-**Phase Status: ✅ COMPLETE**
+**Phase Status: ✅ COMPLETE v1.1** _(as of March 2026)_
 
-All Phase 10 modules have been implemented.
+All Phase 10 modules have been implemented and hardened with v1.1 bug fixes.
+
+### v1.1 Changes
+
+- **Bug fix**: `SVGBoundaryRenderer` constructor now receives `config` parameter (was missing in `MasterOrchestrator.generateDeliverables()`)
+- **Bug fix**: `svgRenderer.render()` now receives correct `{model, confidence, discovery, rowData, crossValidation}` shape (was incorrectly passed `ProjectData` + `ReportConfig` directly)
+- **Bug fix**: `loadCheckpoint()` wraps `JSON.parse` in try/catch — corrupt checkpoint files now reset to fresh start instead of crashing the pipeline
+- **Bug fix**: `loadProjectData.loadJson()` wraps `JSON.parse` in try/catch — corrupt phase output files return `null` instead of throwing
+- **Bug fix**: `getStatus()` guards `fs.readdirSync` with try/catch for non-existent deliverable directories
+- **Bug fix**: `listProjects()` guards each `fs.statSync` with try/catch for race conditions
+- **PipelineLogger**: Replaces all bare `console.log/warn/error` calls in `master-orchestrator.ts` (consistent with Phases 6–9)
+- **PipelineLogger**: Added to `report-routes.ts` for all route handlers
+- **Rate limiting**: `routeRateLimit` added to all Phase 10 Express routes (POST: 5/min, GET: 60/min), implemented locally in `report-routes.ts` to avoid circular imports
+- **JSON.parse safety**: GET routes in `report-routes.ts` now use `safeReadJson()` helper with try/catch — corrupt manifest files return 500 instead of crashing
+- **Empty projectId guard**: Both POST routes validate `projectId.trim()` and return 400 if empty
+- **`PNGRasterizer.extractWidth()`**: Changed from `private` to public for testability
+- **`report-routes.ts` refactor**: Rate limiting is self-contained via local `routeRateLimit()` function
 
 ### Implemented Files
 
@@ -24,6 +40,7 @@ All Phase 10 modules have been implemented.
 | `worker/src/routes/report-routes.ts` | Express API routes for report generation and deliverable access | ✅ Complete |
 | `worker/src/types/reports.ts` | Phase 10 TypeScript types (`ProjectData`, `ReportManifest`, etc.) | ✅ Complete |
 | `worker/report.sh` | Interactive CLI wrapper | ✅ Complete |
+| `__tests__/recon/phase10-reports.test.ts` | Unit tests: 84 tests covering all pure-logic aspects | ✅ Complete |
 
 ### API Endpoints
 
@@ -279,3 +296,97 @@ worker/
 10. All deliverables written to configurable output directory
 11. Manifest JSON tracks all generated files and metadata
 12. Report includes purchase summary when Phase 9 data is available
+
+---
+
+## What Needs External Input / Cannot Be Fully Implemented Without More Info
+
+The following aspects cannot be completed without external resources or decisions:
+
+### PDF Generation (`pdf-generator.ts`)
+- **pdfkit package** must be installed in `worker/package.json` (`pdfkit ^0.13.0`, `@types/pdfkit`)
+- `writeCoverPage()`, `writeDrawingPage()` reference `svgPath.replace(/.svg$/, '.png')` — the PNG path convention assumes the rasterizer writes to the same directory; if the user changes the output path, this breaks
+- **Logo embedding** (`config.pdf.logoPath`) is a placeholder — requires actual logo file path to be set via `COMPANY_LOGO_PATH` env var
+
+### PNG Rasterization (`png-rasterizer.ts`)
+- **`@resvg/resvg-js`** is a native Rust module — must be installed and may require prebuilt binaries per platform
+- Fallback to `rsvg-convert`, `inkscape`, `convert` (ImageMagick) requires those tools to be installed on the server
+- Without any of these installed, PNG generation fails silently (deliverable is `null` in manifest)
+
+### CLI (`starr-research.ts`)
+- **`commander` package** must be installed in `worker/package.json`
+- The CLI's `--base-url` defaults to `http://localhost:3100` — in production this must be set to the actual worker API URL
+- `process.env.COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_RPLS`, `COMPANY_LOGO_PATH` must be configured for PDF branding
+
+### DXF Coordinate System
+- DXF output uses NAD83 Texas Central Zone (4203) as coordinate system hint but does not project raw lat/lng to State Plane coordinates — it uses the northing/easting from `reconciliation.corners` which must already be in State Plane US Survey Feet. If corners come in decimal degrees, a proj4/PROJ transformation step is needed before DXF export.
+
+### Legal Description
+- `formatAcreage()` is a placeholder — returns `'the acreage hereinabove described'` instead of a computed value. The actual acreage computation (from boundary closure polygon area) requires a proper Shoelace/Gauss algorithm applied to the reconciled corners in State Plane coordinates.
+- POB reference tie (`recon.pobReference`) must be populated by Phase 7 reconciliation — if not set, the POB description omits the reference tie.
+
+### Report Routes Background Execution
+- `POST /research/run` returns `202 Accepted` and runs the pipeline in the background. In the current Node.js single-process model, background execution uses `async/await` in the request handler. For production, a proper job queue (BullMQ, pg-boss, etc.) should be used to persist job state across server restarts.
+
+---
+
+## Phase 11 Setup
+
+Phase 11 is the **Field Operations Interface** — the bridge from AI research to actual survey fieldwork.
+
+### Anticipated Phase 11 Scope
+
+| Module | Purpose |
+|--------|---------|
+| Field Visit Planner | Generates prioritized monument search list from confidence scores |
+| GPS Export | Creates LandXML / GPX waypoint files for field navigation |
+| Field Notes Template | Auto-fills RPLS field notes from reconciled boundary data |
+| Discrepancy Resolution Tracker | Links unresolved discrepancies to specific field tasks |
+| Monument Verification Matrix | Before/after tracking of found vs. set monuments |
+| Boundary Certificate Generator | Draft RPLS boundary survey certificate from Phase 10 legal description |
+| Phase 11 Express Routes | `POST /research/field`, `GET /research/field/:projectId` |
+
+### Data Available for Phase 11 (from Phase 10 outputs)
+
+Phase 10 exports the following data that Phase 11 will consume:
+
+```typescript
+// From manifest.metadata (ReportManifest)
+metadata.overallConfidence   // Overall confidence score
+metadata.closureRatio        // Closure quality
+metadata.phaseDurations      // Audit trail
+
+// From ProjectData (all phases merged)
+data.reconciliation.corners        // GPS-quality survey corners
+data.reconciliation.monuments      // Monument descriptions
+data.confidence.callConfidence     // Per-call scores (prioritize field search)
+data.confidence.discrepancySummary // What needs field resolution
+data.surveyorDecision              // readyForField flag + estimatedFieldTime
+data.purchases                     // Acquired documents for field use
+```
+
+### Phase 11 Integration Point
+
+Phase 10 already provides the `PipelineOptions.onProgress` callback and the `ReportManifest` output structure. Phase 11 can register for progress events and consume the manifest as its input.
+
+The master orchestrator's `PHASES` array should be extended with:
+```typescript
+{ phase: 10, name: 'Report Generation',  endpoint: '/research/report',  critical: false },
+{ phase: 11, name: 'Field Operations',   endpoint: '/research/field',   critical: false },
+```
+
+Phase 11 is non-critical — if field data export fails, the pipeline still delivers Phase 10 reports.
+
+### Files to Create for Phase 11
+
+```
+worker/src/services/field-visit-planner.ts
+worker/src/services/gps-exporter.ts           ← LandXML + GPX
+worker/src/services/field-notes-generator.ts
+worker/src/services/discrepancy-tracker.ts
+worker/src/services/monument-verification.ts
+worker/src/routes/field-routes.ts
+worker/field.sh
+__tests__/recon/phase11-field.test.ts
+STARR_RECON/PHASE_11_FIELD_OPERATIONS.md
+```

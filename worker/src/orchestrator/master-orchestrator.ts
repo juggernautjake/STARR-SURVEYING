@@ -3,6 +3,14 @@
 // phase failure tolerance, and deliverable generation.
 //
 // Spec §10.9 — Master Pipeline Orchestrator
+//
+// v1.1 fixes:
+//   - SVGBoundaryRenderer constructor now receives config (was missing)
+//   - svgRenderer.render() receives correct {model, confidence, discovery, ...} shape
+//   - loadCheckpoint() wraps JSON.parse in try/catch (corrupt checkpoint recovery)
+//   - loadProjectData.loadJson() wraps JSON.parse in try/catch (corrupt data recovery)
+//   - PipelineLogger replaces bare console.log/warn/error throughout
+//   - getStatus() guards against fs.readdirSync on non-existent deliverables dir
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -20,6 +28,7 @@ import { PNGRasterizer } from '../reports/png-rasterizer.js';
 import { DXFExporter } from '../reports/dxf-exporter.js';
 import { PDFReportGenerator } from '../reports/pdf-generator.js';
 import { LegalDescriptionGenerator } from '../reports/legal-description-generator.js';
+import { PipelineLogger } from '../lib/logger.js';
 
 // ── Phase Definitions ───────────────────────────────────────────────────────
 
@@ -58,6 +67,7 @@ export class MasterOrchestrator {
   async runPipeline(options: PipelineOptions): Promise<ReportManifest> {
     const projectId = options.projectId || `STARR-${randomUUID().slice(0, 8).toUpperCase()}`;
     const startTime = Date.now();
+    const logger = new PipelineLogger(projectId);
 
     const reportConfig = defaultReportConfig(options.reportConfig);
     reportConfig.outputDir = options.outputDir;
@@ -72,10 +82,10 @@ export class MasterOrchestrator {
       lastUpdated: new Date().toISOString(),
     };
 
-    console.log(`\n${'═'.repeat(60)}`);
-    console.log(`  STARR RECON Pipeline — Project ${projectId}`);
-    console.log(`  Address: ${options.address}`);
-    console.log(`${'═'.repeat(60)}\n`);
+    logger.info(
+      'orchestrator',
+      `STARR RECON Pipeline — Project ${projectId} | address: ${options.address}`,
+    );
 
     // ── Execute phases ────────────────────────────────────────────────
     const phasesToRun = PHASES.filter((p) => {
@@ -89,7 +99,7 @@ export class MasterOrchestrator {
       const phaseStart = Date.now();
 
       options.onProgress?.(phaseDef.phase, phaseDef.name, 'starting');
-      console.log(`\n▶ Phase ${phaseDef.phase}: ${phaseDef.name}`);
+      logger.info('orchestrator', `▶ Phase ${phaseDef.phase}: ${phaseDef.name}`);
 
       try {
         const result = await this.executePhase(
@@ -108,7 +118,8 @@ export class MasterOrchestrator {
         this.saveCheckpoint(checkpoint);
 
         options.onProgress?.(phaseDef.phase, phaseDef.name, 'completed');
-        console.log(
+        logger.info(
+          'orchestrator',
           `  ✓ Phase ${phaseDef.phase} completed (${checkpoint.phaseDurations[phaseDef.phase].toFixed(1)}s)`,
         );
       } catch (err: any) {
@@ -119,15 +130,18 @@ export class MasterOrchestrator {
 
         if (phaseDef.critical) {
           options.onProgress?.(phaseDef.phase, phaseDef.name, 'failed');
-          console.error(
+          logger.error(
+            'orchestrator',
             `  ✗ Phase ${phaseDef.phase} FAILED (critical): ${err.message}`,
+            err,
           );
           throw new Error(
             `Pipeline failed at critical Phase ${phaseDef.phase} (${phaseDef.name}): ${err.message}`,
           );
         } else {
           options.onProgress?.(phaseDef.phase, phaseDef.name, 'skipped');
-          console.warn(
+          logger.warn(
+            'orchestrator',
             `  ⚠ Phase ${phaseDef.phase} failed (non-critical, continuing): ${err.message}`,
           );
         }
@@ -135,23 +149,23 @@ export class MasterOrchestrator {
     }
 
     // ── Generate deliverables ─────────────────────────────────────────
-    console.log(`\n▶ Generating deliverables...`);
+    logger.info('orchestrator', `▶ Generating deliverables...`);
     const projectData = await this.loadProjectData(projectId);
     const manifest = await this.generateDeliverables(
       projectData,
       reportConfig,
       checkpoint,
       startTime,
+      logger,
     );
 
     // ── Cleanup checkpoint ────────────────────────────────────────────
     this.removeCheckpoint(projectId);
 
-    console.log(`\n${'═'.repeat(60)}`);
-    console.log(`  Pipeline Complete — Project ${projectId}`);
-    console.log(`  Duration: ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
-    console.log(`  Output: ${reportConfig.outputDir}`);
-    console.log(`${'═'.repeat(60)}\n`);
+    logger.info(
+      'orchestrator',
+      `Pipeline Complete — Project ${projectId} | duration: ${((Date.now() - startTime) / 1000).toFixed(1)}s | output: ${reportConfig.outputDir}`,
+    );
 
     return manifest;
   }
@@ -277,13 +291,21 @@ export class MasterOrchestrator {
 
   async loadProjectData(projectId: string): Promise<ProjectData> {
     const projectDir = path.join(this.outputDir, projectId);
+    const logger = new PipelineLogger(projectId);
 
+    // BUG FIX v1.1: wrap JSON.parse in try/catch — corrupt project files must not crash
     const loadJson = (filename: string): any => {
       const filePath = path.join(projectDir, filename);
-      if (fs.existsSync(filePath)) {
+      if (!fs.existsSync(filePath)) return null;
+      try {
         return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      } catch (e) {
+        logger.warn(
+          'orchestrator',
+          `Failed to parse ${filename} for ${projectId} — using null: ${String(e)}`,
+        );
+        return null;
       }
-      return null;
     };
 
     const discovery = loadJson('discovery.json');
@@ -338,7 +360,11 @@ export class MasterOrchestrator {
     config: ReportConfig,
     checkpoint: CheckpointData,
     startTime: number,
+    logger?: PipelineLogger,
   ): Promise<ReportManifest> {
+    // Use a project-scoped logger; fall back to a fresh one if not provided
+    const log = logger || new PipelineLogger(data.projectId);
+
     fs.mkdirSync(config.outputDir, { recursive: true });
 
     const deliverables: ReportManifest['deliverables'] = {
@@ -353,12 +379,19 @@ export class MasterOrchestrator {
     // ── SVG ─────────────────────────────────────────────────────────
     if (config.formats.includes('svg') || config.formats.includes('png') || config.formats.includes('pdf')) {
       try {
-        const svgRenderer = new SVGBoundaryRenderer();
-        const svgContent = svgRenderer.render(data, config);
+        // BUG FIX v1.1: pass config to constructor; pass correct data shape to render()
+        const svgRenderer = new SVGBoundaryRenderer(config);
+        const svgContent = svgRenderer.render({
+          model: data.reconciliationV2 || data.reconciliation,
+          confidence: data.confidence,
+          discovery: data.discovery,
+          rowData: data.rowData,
+          crossValidation: data.crossValidation,
+        });
         const svgPath = path.join(config.outputDir, `${data.projectId}_boundary.svg`);
         fs.writeFileSync(svgPath, svgContent);
         deliverables.svg = svgPath;
-        console.log(`  ✓ SVG: ${svgPath}`);
+        log.info('deliverables', `  ✓ SVG: ${svgPath}`);
 
         // ── PNG ───────────────────────────────────────────────────
         if (config.formats.includes('png') || config.formats.includes('pdf')) {
@@ -370,13 +403,13 @@ export class MasterOrchestrator {
             );
             await pngRasterizer.rasterize(svgContent, pngPath);
             deliverables.png = pngPath;
-            console.log(`  ✓ PNG: ${pngPath}`);
+            log.info('deliverables', `  ✓ PNG: ${pngPath}`);
           } catch (err: any) {
-            console.warn(`  ⚠ PNG generation failed: ${err.message}`);
+            log.warn('deliverables', `  ⚠ PNG generation failed: ${err.message}`);
           }
         }
       } catch (err: any) {
-        console.warn(`  ⚠ SVG generation failed: ${err.message}`);
+        log.warn('deliverables', `  ⚠ SVG generation failed: ${err.message}`);
       }
     }
 
@@ -390,9 +423,9 @@ export class MasterOrchestrator {
         );
         dxfExporter.export(data, config, dxfPath);
         deliverables.dxf = dxfPath;
-        console.log(`  ✓ DXF: ${dxfPath}`);
+        log.info('deliverables', `  ✓ DXF: ${dxfPath}`);
       } catch (err: any) {
-        console.warn(`  ⚠ DXF generation failed: ${err.message}`);
+        log.warn('deliverables', `  ⚠ DXF generation failed: ${err.message}`);
       }
     }
 
@@ -407,9 +440,9 @@ export class MasterOrchestrator {
         );
         fs.writeFileSync(txtPath, legalText);
         deliverables.txt = txtPath;
-        console.log(`  ✓ TXT: ${txtPath}`);
+        log.info('deliverables', `  ✓ TXT: ${txtPath}`);
       } catch (err: any) {
-        console.warn(`  ⚠ Legal description generation failed: ${err.message}`);
+        log.warn('deliverables', `  ⚠ Legal description generation failed: ${err.message}`);
       }
     }
 
@@ -422,9 +455,9 @@ export class MasterOrchestrator {
         );
         fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2));
         deliverables.json = jsonPath;
-        console.log(`  ✓ JSON: ${jsonPath}`);
+        log.info('deliverables', `  ✓ JSON: ${jsonPath}`);
       } catch (err: any) {
-        console.warn(`  ⚠ JSON export failed: ${err.message}`);
+        log.warn('deliverables', `  ⚠ JSON export failed: ${err.message}`);
       }
     }
 
@@ -438,9 +471,9 @@ export class MasterOrchestrator {
         );
         await pdfGen.generate(data, config, deliverables.svg, pdfPath);
         deliverables.pdf = pdfPath;
-        console.log(`  ✓ PDF: ${pdfPath}`);
+        log.info('deliverables', `  ✓ PDF: ${pdfPath}`);
       } catch (err: any) {
-        console.warn(`  ⚠ PDF generation failed: ${err.message}`);
+        log.warn('deliverables', `  ⚠ PDF generation failed: ${err.message}`);
       }
     }
 
@@ -483,7 +516,7 @@ export class MasterOrchestrator {
       `${data.projectId}_manifest.json`,
     );
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-    console.log(`  ✓ Manifest: ${manifestPath}`);
+    log.info('deliverables', `  ✓ Manifest: ${manifestPath}`);
 
     return manifest;
   }
@@ -523,9 +556,17 @@ export class MasterOrchestrator {
   } {
     const checkpoint = this.loadCheckpoint(projectId);
     const outputDir = path.join(this.outputDir, projectId);
-    const hasDeliverables =
-      fs.existsSync(outputDir) &&
-      fs.readdirSync(outputDir).some((f) => f.endsWith('_manifest.json'));
+
+    // Guard: readdirSync throws if dir doesn't exist
+    let hasDeliverables = false;
+    try {
+      hasDeliverables =
+        fs.existsSync(outputDir) &&
+        fs.readdirSync(outputDir).some((f) => f.endsWith('_manifest.json'));
+    } catch {
+      // Non-critical — treat as no deliverables
+      hasDeliverables = false;
+    }
 
     return {
       exists: !!checkpoint || hasDeliverables,
@@ -538,11 +579,19 @@ export class MasterOrchestrator {
 
   listProjects(): string[] {
     if (!fs.existsSync(this.outputDir)) return [];
-    return fs
-      .readdirSync(this.outputDir)
-      .filter((f) =>
-        fs.statSync(path.join(this.outputDir, f)).isDirectory(),
-      );
+    try {
+      return fs
+        .readdirSync(this.outputDir)
+        .filter((f) => {
+          try {
+            return fs.statSync(path.join(this.outputDir, f)).isDirectory();
+          } catch {
+            return false;
+          }
+        });
+    } catch {
+      return [];
+    }
   }
 
   // ── Clean Project ───────────────────────────────────────────────────────
@@ -551,7 +600,8 @@ export class MasterOrchestrator {
     const projectDir = path.join(this.outputDir, projectId);
     if (fs.existsSync(projectDir)) {
       fs.rmSync(projectDir, { recursive: true, force: true });
-      console.log(`[Orchestrator] Cleaned project: ${projectId}`);
+      const logger = new PipelineLogger(projectId);
+      logger.info('orchestrator', `Cleaned project: ${projectId}`);
     }
     this.removeCheckpoint(projectId);
   }
@@ -560,10 +610,19 @@ export class MasterOrchestrator {
 
   private loadCheckpoint(projectId: string): CheckpointData | null {
     const cpPath = path.join(this.outputDir, projectId, '.checkpoint.json');
-    if (fs.existsSync(cpPath)) {
-      return JSON.parse(fs.readFileSync(cpPath, 'utf-8'));
+    if (!fs.existsSync(cpPath)) return null;
+
+    // BUG FIX v1.1: wrap JSON.parse in try/catch — corrupt checkpoint must not crash pipeline
+    try {
+      return JSON.parse(fs.readFileSync(cpPath, 'utf-8')) as CheckpointData;
+    } catch (e) {
+      const logger = new PipelineLogger(projectId);
+      logger.warn(
+        'orchestrator',
+        `Corrupt checkpoint file for ${projectId} — resetting to fresh start: ${String(e)}`,
+      );
+      return null;
     }
-    return null;
   }
 
   private saveCheckpoint(checkpoint: CheckpointData): void {
