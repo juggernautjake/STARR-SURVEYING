@@ -28,6 +28,7 @@ import { ChainOfTitleBuilder } from './chain-of-title/chain-builder.js';
 import { BatchProcessor } from './batch/batch-processor.js';
 import { UsageTracker } from './analytics/usage-tracker.js';
 import { getClerkByCountyName } from './adapters/clerk-registry.js';
+import { SiteHealthMonitor } from './infra/site-health-monitor.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -1700,6 +1701,134 @@ app.get(
   },
 );
 
+// ── Site Health Monitor ───────────────────────────────────────────────────
+// Probes all county CAD portals and clerk systems to detect selector drift.
+// Broadcasts alerts when sites change or go down.
+
+const siteHealthMonitor = new SiteHealthMonitor({
+  onAlert: (alert) => {
+    console.warn(`[SiteHealth ALERT] [${alert.severity}] ${alert.message}`);
+    // TODO: integrate with WebSocket broadcast to admin dashboard
+    // TODO: integrate with email/Slack notifications
+  },
+});
+
+/**
+ * GET /admin/health/sites
+ * Returns the full health summary for all monitored sites.
+ */
+app.get('/admin/health/sites', requireAuth, (_req: Request, res: Response) => {
+  res.json(siteHealthMonitor.getSummary());
+});
+
+/**
+ * GET /admin/health/sites/:vendor
+ * Returns health results for a specific vendor (bis, hcad, tad, kofile, etc).
+ */
+app.get('/admin/health/sites/:vendor', requireAuth, (req: Request, res: Response) => {
+  const { vendor } = req.params;
+  const summary = siteHealthMonitor.getSummary();
+  const vendorSites = summary.sites.filter(s => s.vendor === vendor);
+  res.json({
+    vendor,
+    totalSites: vendorSites.length,
+    healthy:   vendorSites.filter(s => s.status === 'healthy').length,
+    degraded:  vendorSites.filter(s => s.status === 'degraded').length,
+    down:      vendorSites.filter(s => s.status === 'down').length,
+    sites: vendorSites,
+  });
+});
+
+/**
+ * POST /admin/health/check-all
+ * Trigger a full health check of all sites immediately.
+ * Returns the complete health summary.
+ */
+app.post(
+  '/admin/health/check-all',
+  requireAuth,
+  rateLimit(1, 300_000), // At most once per 5 min
+  async (_req: Request, res: Response) => {
+    try {
+      const summary = await siteHealthMonitor.checkAll();
+      res.json(summary);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
+
+/**
+ * POST /admin/health/check/:siteId
+ * Trigger a health check for a specific site.
+ */
+app.post(
+  '/admin/health/check/:siteId',
+  requireAuth,
+  rateLimit(10, 60_000),
+  async (req: Request, res: Response) => {
+    const { siteId } = req.params;
+    try {
+      const result = await siteHealthMonitor.checkOne(siteId);
+      if (!result) {
+        res.status(404).json({ error: `Site "${siteId}" not found in registry` });
+        return;
+      }
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
+
+/**
+ * POST /admin/health/check-vendor/:vendor
+ * Trigger health checks for all sites of a specific vendor.
+ */
+app.post(
+  '/admin/health/check-vendor/:vendor',
+  requireAuth,
+  rateLimit(2, 300_000),
+  async (req: Request, res: Response) => {
+    const { vendor } = req.params;
+    try {
+      const results = await siteHealthMonitor.checkVendor(vendor);
+      if (results.length === 0) {
+        res.status(404).json({ error: `No sites found for vendor "${vendor}"` });
+        return;
+      }
+      res.json({
+        vendor,
+        checked: results.length,
+        healthy: results.filter(r => r.status === 'healthy').length,
+        degraded: results.filter(r => r.status === 'degraded').length,
+        down: results.filter(r => r.status === 'down').length,
+        sites: results,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
+
+/**
+ * GET /admin/health/alerts
+ * Returns recent health alerts. Optional ?since=ISO timestamp query param.
+ */
+app.get('/admin/health/alerts', requireAuth, (req: Request, res: Response) => {
+  const since = req.query.since as string | undefined;
+  res.json(siteHealthMonitor.getAlerts(since));
+});
+
+/**
+ * DELETE /admin/health/alerts
+ * Clear all health alerts.
+ */
+app.delete('/admin/health/alerts', requireAuth, (_req: Request, res: Response) => {
+  siteHealthMonitor.clearAlerts();
+  res.json({ message: 'Alerts cleared' });
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -1751,10 +1880,16 @@ app.listen(PORT, () => {
   console.log('  GET    /research/active');
   console.log('  DELETE /research/result/:projectId');
   console.log('');
-  console.log('[Server] Supported search modes:');
-  console.log('  - By address:     { address, county }');
-  console.log('  - By property ID: { propertyId, county }');
-  console.log('  - By owner name:  { ownerName, county }');
-  console.log('  - With files:     { ..., userFiles: [{ filename, mimeType, data }] }');
+  console.log('[Server] Site Health Monitor:');
+  console.log('  GET    /admin/health/sites              ← All site health status');
+  console.log('  GET    /admin/health/sites/:vendor      ← Vendor-specific health');
+  console.log('  POST   /admin/health/check-all          ← Trigger full health check');
+  console.log('  POST   /admin/health/check/:siteId      ← Check single site');
+  console.log('  POST   /admin/health/check-vendor/:v    ← Check all sites for vendor');
+  console.log('  GET    /admin/health/alerts             ← Recent health alerts');
+  console.log('  DELETE /admin/health/alerts             ← Clear alerts');
   console.log('');
+
+  // Start periodic health checks (every 30 minutes)
+  siteHealthMonitor.startPeriodicChecks(30 * 60 * 1000);
 });

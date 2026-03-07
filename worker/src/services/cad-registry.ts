@@ -59,7 +59,20 @@ export interface CADConfig {
 
 // ── BIS helpers ────────────────────────────────────────────────────────────────
 
-/** Build a CADConfig for any BIS Consultants eSearch county from its base URL */
+/**
+ * Build a CADConfig for any BIS Consultants eSearch county from its base URL.
+ *
+ * BIS v2.0 (verified 2026-03-07) HTML form uses:
+ *   - Tabs: Owner (#home-page-tabs), Address, ID, ARB Search, Advanced
+ *   - Owner:   input#OwnerName[name="OwnerName"]
+ *   - Address: input#StreetNumber + input#StreetName (split fields!)
+ *   - Submit:  onclick="AdvancedSearch();" or onclick="Search();"
+ *   - Type:    select#PropertyType (Real, Personal, Mineral, Auto, Mobile Home)
+ *   - Year:    select#Year[name="Year"]
+ *
+ * The API endpoint (/api/search) may use different field names (situs_street,
+ * owner_name).  The hybrid search method tries API first, then Playwright.
+ */
 function bisConfig(baseUrl: string, name: string, customNotes?: string): CADConfig {
   return {
     name,
@@ -68,8 +81,8 @@ function bisConfig(baseUrl: string, name: string, customNotes?: string): CADConf
     apiUrl:           `${baseUrl}/api/search`,
     detailUrlPattern: `${baseUrl}/Property/View/{propertyId}`,
     searchMethod:     'hybrid',
-    addressField:     'situs_street',
-    ownerField:       'owner_name',
+    addressField:     'situs_street',   // API param name (HTML form uses StreetNumber + StreetName)
+    ownerField:       'owner_name',     // API param name (HTML form uses OwnerName)
     resultSelector:   '.search-result-row',
     propertyIdField:  'PropertyId',
     cadSystem:        'bis_consultants',
@@ -140,36 +153,52 @@ reg('48453', {
 });
 
 // HARRIS COUNTY — Custom HCAD (Houston — largest TX county)
+// VERIFIED 2026-03-07: HCAD rebuilt as Blazor SPA.  Old quicksearch.asp is gone.
+// Search uses radio name="filterOptions" + class "inputSearch" (no name attr).
 reg('48201', {
   name:             'Harris County Appraisal District (HCAD)',
   vendor:           'hcad',
-  searchUrl:        'https://public.hcad.org/records/quicksearch.asp',
+  searchUrl:        'https://public.hcad.org',
   detailUrlPattern: 'https://public.hcad.org/records/details.asp?cession=1&search={propertyId}',
   searchMethod:     'playwright',
-  addressField:     'search_str',
-  ownerField:       'search_str',
-  resultSelector:   '.searchResults tr',
+  addressField:     'inputSearch',   // CSS class — new Blazor SPA has no name attr
+  ownerField:       'inputSearch',   // same input, mode selected via radio
+  resultSelector:   'table.table tbody tr',  // best guess for Blazor table; AI OCR fallback covers drift
   propertyIdField:  'acct',
   cadSystem:        'hcad',
   customNotes: [
-    'HCAD uses account numbers.',
-    'Address format: 1234 MAIN ST (no city/zip needed).',
-    'Separate search modes for address vs. owner name — same field "search_str" but different form action.',
+    'HCAD rebuilt as Blazor SPA (verified 2026-03-07).',
+    'Radio: name="filterOptions", values: PROPERTYADDRESS / OWNERNAME / ACCOUNTNUMBER.',
+    'Input: class "inputSearch" (no name attribute).',
+    'Submit: button.btn-primary.buttonFontsize (type="button", JS-driven).',
+    'Account format: 13-digit ending in 000 for real property.',
+    'Detail URL pattern retained from legacy — needs live verification.',
   ].join(' '),
 });
 
 // TARRANT COUNTY — Custom TAD (Fort Worth)
+// VERIFIED 2026-03-07: TAD is a Laravel app with dropdown searchType + input#query.
+// Deprecation notice: "current Property Search will no longer be available in 2027".
 reg('48439', {
   name:             'Tarrant Appraisal District (TAD)',
   vendor:           'tad',
   searchUrl:        'https://www.tad.org/property-search/',
   detailUrlPattern: 'https://www.tad.org/property/{propertyId}/',
   searchMethod:     'playwright',
-  addressField:     'address',
-  ownerField:       'owner_name',
-  resultSelector:   '.search-results-table tr',
+  addressField:     'query',       // input#query[name="query"] — same field for all search types
+  ownerField:       'query',       // searchType dropdown selects mode (PropertyAddress vs OwnerName)
+  resultSelector:   'table tbody tr',  // best guess; AI OCR fallback covers drift
   propertyIdField:  'account_num',
   cadSystem:        'tad',
+  customNotes: [
+    'TAD is a Laravel app (verified 2026-03-07, NOT React).',
+    'Dropdown: select#search-type[name="searchType"] with values PropertyAddress, OwnerName, AccountNumber, etc.',
+    'Input: input#query[name="query"].',
+    'Submit: button.btn-tad-light-blue[type="submit"].',
+    'Property type checkboxes: name="filter[]", values R/C/M/P.',
+    'CSRF token: hidden input name="_token".',
+    'Deprecation warning: site says search will be removed in 2027.',
+  ].join(' '),
 });
 
 // DALLAS COUNTY — DCAD (custom TrueAutomation variant)
