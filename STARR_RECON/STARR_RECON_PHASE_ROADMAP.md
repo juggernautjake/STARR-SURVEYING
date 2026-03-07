@@ -334,10 +334,10 @@ starr-software/                     # Turborepo monorepo root
 | 10 | Production Reports & Exports | 🟢 COMPLETE | 1,438 | All prior | 27–30 |
 | 11 | Product Expansion & Platform | 🟢 COMPLETE | 1,700+ | All prior | 31–52 |
 | 12 | Drawing Templates & Export | 🟢 COMPLETE | 124 | Phase 10 | 53 |
-| 13 | Interactive UI, Additional Data Sources & Production Hardening | 🟢 COMPLETE | 1,000+ | Phases 1–12 | 54–56 |
+| 13 | Interactive UI, Additional Data Sources & Production Hardening | 🟢 COMPLETE | 1,100+ | Phases 1–12 | 54–56 |
 | — | **TOTAL** | — | **17,246+** | — | — |
 
-> **Current Status (March 2026):** All 13 phases are COMPLETE. 1435 unit tests pass. The full pipeline runs end-to-end for Bell, Harris, and Tarrant counties. Phase 13 added: Interactive Boundary Viewer, Document Library UI, USGS topographic data client, TX Comptroller property tax client, Zod phase-boundary schema validation, and Billing Dashboard. Production deployment requires live testing with real county portals and Stripe/Redis infrastructure.
+> **Current Status (March 2026):** All 13 phases are COMPLETE. 1455 unit tests pass. The full pipeline runs end-to-end for Bell, Harris, and Tarrant counties. Phase 13 v1.1 added: Next.js API routes for boundary viewer assembly (with traverse walk), topo/tax proxy routes with Supabase caching, global document library API, billing dashboard API, and document download proxy. Schema validation integrated into master-orchestrator. Supabase tables for topo/tax results added. Production deployment requires live testing with real county portals and Stripe/Redis infrastructure.
 
 ---
 
@@ -380,7 +380,7 @@ starr-software/                     # Turborepo monorepo root
 `lib/research/export.service.ts` (renderToPng, renderToPdf, renderToDxf), `app/admin/research/components/ExportPanel.tsx` updated — PNG at 300 DPI, PDF via jsPDF, DXF via dxf-writer with AutoCAD layer mapping.
 
 #### Phase 13 — COMPLETE ✅
-`sources/usgs-client.ts` (USGS 3DEP elevation + contours + NHD water features), `sources/comptroller-client.ts` (TX Comptroller PTAD tax rates + standard exemptions), `infra/schema-validator.ts` (Zod phase-boundary validation for all 12 phases), `app/admin/research/[projectId]/boundary/page.tsx` (interactive SVG boundary viewer with pan/zoom/click-to-inspect/layer-toggles), `app/admin/research/[projectId]/documents/page.tsx` (project document library with preview + download), `app/admin/research/library/page.tsx` (global cross-project document library), `app/admin/research/billing/page.tsx` (subscription/usage/invoices/purchases dashboard) — Interactive UI completion and production hardening.
+`sources/usgs-client.ts` (USGS 3DEP elevation + contours + NHD water features), `sources/comptroller-client.ts` (TX Comptroller PTAD tax rates + standard exemptions), `infra/schema-validator.ts` (Zod phase-boundary validation for all 12 phases), `app/admin/research/[projectId]/boundary/page.tsx` (interactive SVG boundary viewer with pan/zoom/click-to-inspect/layer-toggles), `app/admin/research/[projectId]/documents/page.tsx` (project document library with preview + download), `app/admin/research/library/page.tsx` (global cross-project document library), `app/admin/research/billing/page.tsx` (subscription/usage/invoices/purchases dashboard) — Interactive UI completion and production hardening. **v1.1:** `app/api/admin/research/[projectId]/boundary/route.ts` (traverse walk → SVG coordinates, merge calls+confidence+discrepancies), `app/api/admin/research/[projectId]/topo/route.ts` (USGS proxy with Supabase caching), `app/api/admin/research/[projectId]/tax/route.ts` (TX Comptroller proxy with Supabase caching), `app/api/admin/research/library/route.ts` (global library with pagination+stats), `app/api/admin/research/billing/route.ts` (Stripe invoices + usage metrics), `app/api/admin/research/[projectId]/documents/[docId]/download/route.ts` (signed URL download proxy), `seeds/092_phase13_tables.sql` (research_topo + research_tax), Phase 13 Express routes in `worker/src/index.ts`, schema validation in `master-orchestrator.ts`. 80 unit tests.
 
 ### What Still Needs External Input (Cannot Be Fully Tested Without)
 

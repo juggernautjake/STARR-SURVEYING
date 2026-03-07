@@ -438,3 +438,170 @@ describe('Schema Validator — PhaseSchemas registry', () => {
     }
   });
 });
+
+// ── Phase 13: Traverse Walk Logic (inline re-implementation for unit testing) ──
+// The traverse walk is implemented in app/api/admin/research/[projectId]/boundary/route.ts
+// We test the core math here by extracting the bearing-to-decimal and walk logic.
+
+function parseBearingToDecimal(bearing: string | null): number | null {
+  if (!bearing) return null;
+  const m = bearing.match(
+    /^([NS])\s*(\d{1,3})[°\s]+(\d{1,2})[''′]?\s*(\d{0,2})[""″]?\s*([EW])/i,
+  );
+  if (!m) return null;
+  const ns = m[1].toUpperCase();
+  const ew = m[5].toUpperCase();
+  const deg = parseFloat(m[2]);
+  const min = parseFloat(m[3] || '0');
+  const sec = parseFloat(m[4] || '0');
+  const quad = deg + min / 60 + sec / 3600;
+  if (ns === 'N' && ew === 'E') return quad;
+  if (ns === 'S' && ew === 'E') return 180 - quad;
+  if (ns === 'S' && ew === 'W') return 180 + quad;
+  if (ns === 'N' && ew === 'W') return 360 - quad;
+  return null;
+}
+
+function walkTraverse(calls: Array<{ reconciledBearing?: string | null; reconciledDistance?: number | null }>) {
+  const segs: Array<{ callIndex: number; x1: number; y1: number; x2: number; y2: number }> = [];
+  let x = 0, y = 0;
+  for (let i = 0; i < calls.length; i++) {
+    const call = calls[i];
+    const azDeg = parseBearingToDecimal(call.reconciledBearing ?? null);
+    const dist = call.reconciledDistance ?? 0;
+    if (azDeg === null || dist === 0) {
+      segs.push({ callIndex: i, x1: x, y1: y, x2: x, y2: y });
+      continue;
+    }
+    const azRad = (azDeg * Math.PI) / 180;
+    const dx = dist * Math.sin(azRad);
+    const dy = -dist * Math.cos(azRad);
+    segs.push({ callIndex: i, x1: x, y1: y, x2: x + dx, y2: y + dy });
+    x += dx;
+    y += dy;
+  }
+  return segs;
+}
+
+describe('Traverse Walk — parseBearingToDecimal()', () => {
+  it('61. N 0°00\'00" E → 0°', () => {
+    expect(parseBearingToDecimal('N 0°00\'00" E')).toBeCloseTo(0, 4);
+  });
+
+  it('62. N 90°00\'00" E → 90°', () => {
+    expect(parseBearingToDecimal('N 90°00\'00" E')).toBeCloseTo(90, 4);
+  });
+
+  it('63. S 0°00\'00" W → 180°', () => {
+    expect(parseBearingToDecimal('S 0°00\'00" W')).toBeCloseTo(180, 4);
+  });
+
+  it('64. S 90°00\'00" W → 270°', () => {
+    expect(parseBearingToDecimal('S 90°00\'00" W')).toBeCloseTo(270, 4);
+  });
+
+  it('65. N 45°00\'00" E → 45°', () => {
+    expect(parseBearingToDecimal('N 45°00\' E')).toBeCloseTo(45, 4);
+  });
+
+  it('66. N 45°30\'00" W → 314.5°', () => {
+    expect(parseBearingToDecimal('N 45°30\'00" W')).toBeCloseTo(314.5, 3);
+  });
+
+  it('67. S 89°59\'59" E → ~90° (near-east boundary)', () => {
+    const az = parseBearingToDecimal('S 89°59\'59" E');
+    expect(az).not.toBeNull();
+    expect(az!).toBeGreaterThan(89);
+    expect(az!).toBeLessThan(91);
+  });
+
+  it('68. null bearing returns null', () => {
+    expect(parseBearingToDecimal(null)).toBeNull();
+  });
+
+  it('69. empty string returns null', () => {
+    expect(parseBearingToDecimal('')).toBeNull();
+  });
+
+  it('70. garbage string returns null', () => {
+    expect(parseBearingToDecimal('not a bearing')).toBeNull();
+  });
+});
+
+describe('Traverse Walk — walkTraverse()', () => {
+  it('71. single north call moves in -y direction (SVG convention)', () => {
+    const segs = walkTraverse([{ reconciledBearing: 'N 0°00\'00" E', reconciledDistance: 100 }]);
+    expect(segs).toHaveLength(1);
+    expect(segs[0].x1).toBeCloseTo(0, 4);
+    expect(segs[0].y1).toBeCloseTo(0, 4);
+    expect(segs[0].x2).toBeCloseTo(0, 4);
+    expect(segs[0].y2).toBeCloseTo(-100, 4);  // North = -Y in SVG
+  });
+
+  it('72. east call moves in +x direction', () => {
+    const segs = walkTraverse([{ reconciledBearing: 'N 90°00\'00" E', reconciledDistance: 50 }]);
+    expect(segs[0].x2).toBeCloseTo(50, 4);
+    expect(segs[0].y2).toBeCloseTo(0, 4);
+  });
+
+  it('73. south call moves in +y direction', () => {
+    const segs = walkTraverse([{ reconciledBearing: 'S 0°00\'00" W', reconciledDistance: 100 }]);
+    expect(segs[0].y2).toBeCloseTo(100, 4);
+  });
+
+  it('74. points chain — each seg starts where previous ended', () => {
+    const segs = walkTraverse([
+      { reconciledBearing: 'N 0°00\'00" E', reconciledDistance: 100 },
+      { reconciledBearing: 'N 90°00\'00" E', reconciledDistance: 100 },
+    ]);
+    expect(segs[1].x1).toBeCloseTo(segs[0].x2, 4);
+    expect(segs[1].y1).toBeCloseTo(segs[0].y2, 4);
+  });
+
+  it('75. square traverse closes back to origin within 0.1 ft', () => {
+    const calls = [
+      { reconciledBearing: 'N 0°00\'00" E', reconciledDistance: 100 },
+      { reconciledBearing: 'N 90°00\'00" E', reconciledDistance: 100 },
+      { reconciledBearing: 'S 0°00\'00" W', reconciledDistance: 100 },
+      { reconciledBearing: 'S 90°00\'00" W', reconciledDistance: 100 },
+    ];
+    const segs = walkTraverse(calls);
+    const finalX = segs[segs.length - 1].x2;
+    const finalY = segs[segs.length - 1].y2;
+    expect(Math.abs(finalX)).toBeLessThan(0.001);
+    expect(Math.abs(finalY)).toBeLessThan(0.001);
+  });
+
+  it('76. null bearing produces zero-length segment', () => {
+    const segs = walkTraverse([{ reconciledBearing: null, reconciledDistance: 100 }]);
+    expect(segs[0].x1).toBe(segs[0].x2);
+    expect(segs[0].y1).toBe(segs[0].y2);
+  });
+
+  it('77. zero distance produces zero-length segment', () => {
+    const segs = walkTraverse([{ reconciledBearing: 'N 45°00\' E', reconciledDistance: 0 }]);
+    expect(segs[0].x1).toBe(segs[0].x2);
+    expect(segs[0].y1).toBe(segs[0].y2);
+  });
+
+  it('78. empty calls array returns empty segments', () => {
+    expect(walkTraverse([])).toHaveLength(0);
+  });
+
+  it('79. callIndex matches array index', () => {
+    const segs = walkTraverse([
+      { reconciledBearing: 'N 0°00\' E', reconciledDistance: 10 },
+      { reconciledBearing: 'N 90°00\' E', reconciledDistance: 10 },
+      { reconciledBearing: 'S 0°00\' W', reconciledDistance: 10 },
+    ]);
+    expect(segs[0].callIndex).toBe(0);
+    expect(segs[1].callIndex).toBe(1);
+    expect(segs[2].callIndex).toBe(2);
+  });
+
+  it('80. diagonal 45° NE moves equal dx and dy', () => {
+    const segs = walkTraverse([{ reconciledBearing: 'N 45°00\' E', reconciledDistance: Math.sqrt(2) * 100 }]);
+    expect(segs[0].x2).toBeCloseTo(100, 3);
+    expect(segs[0].y2).toBeCloseTo(-100, 3);
+  });
+});

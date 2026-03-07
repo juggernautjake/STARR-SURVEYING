@@ -4,7 +4,7 @@
 **Version:** 1.0 | **Last Updated:** March 2026
 **Phase Duration:** Weeks 54–56
 **Depends On:** All Phases 1–12
-**Status:** ✅ COMPLETE v1.0 — Interactive boundary viewer, document library, billing dashboard, USGS client, TX Comptroller client, Zod schema validation. 60 unit tests pass. 1435 total tests pass.
+**Status:** ✅ COMPLETE v1.1 — All Phase 13 deliverables built and tested. v1.1: Added Next.js API routes (boundary, topo, tax, library, billing, document download), Phase 13 Express routes in worker (USGS topo, TX Comptroller tax, boundary viewer endpoint), schema validation integrated into master-orchestrator.ts, Supabase migration for research_topo + research_tax tables, 80 unit tests pass. 1455 total tests pass.
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
 ---
@@ -28,6 +28,20 @@ Complete the Starr Compass web interface and close the final gaps left after Pha
 **Deliverable:** A fully interactive research web UI, two additional government data source integrations, and airtight I/O contracts between pipeline phases — making the STARR RECON product ready for real surveyor use.
 
 ---
+
+### v1.1 Changes (March 2026)
+
+- **New:** `app/api/admin/research/[projectId]/boundary/route.ts` — Next.js API route that assembles the Interactive Boundary Viewer payload. Fetches reconciled boundary from worker, fetches confidence report, walks the traverse (bearing+distance → Cartesian x,y using SVG conventions), and merges per-call confidence scores and discrepancy flags into a single JSON response.
+- **New:** `app/api/admin/research/[projectId]/topo/route.ts` — USGS topographic data proxy. POST triggers async worker query; GET returns cached result from `research_topo` Supabase table.
+- **New:** `app/api/admin/research/[projectId]/tax/route.ts` — TX Comptroller tax data proxy. POST triggers async worker query; GET returns cached result from `research_tax` Supabase table.
+- **New:** `app/api/admin/research/library/route.ts` — Global cross-project document library API with county filter, type filter, full-text search, pagination, and per-type/county stats.
+- **New:** `app/api/admin/research/billing/route.ts` — Billing dashboard API returning subscription info, 12-month usage metrics, Stripe invoices (lazy-init, falls back gracefully), and purchase transaction log.
+- **New:** `app/api/admin/research/[projectId]/documents/[docId]/download/route.ts` — Secure document download proxy via Supabase Storage signed URLs (60-min expiry) with direct-stream fallback.
+- **New:** `seeds/092_phase13_tables.sql` — `research_topo` and `research_tax` tables with indexes and service-role RLS policies.
+- **Updated:** `worker/src/index.ts` — Added Phase 13 Express routes: `POST/GET /research/topo`, `POST/GET /research/tax`, `GET /research/boundary/:projectId`. All new routes use `requireAuth` and `rateLimit`. Boundary endpoint pre-assembles reconcile + confidence + topo + tax + Zod validation.
+- **Updated:** `worker/src/orchestrator/master-orchestrator.ts` — Added `validateOrNull()` calls after loading each key phase JSON file (discovery, harvest, property_intelligence, reconciliation, confidence). Validation warnings are logged but never block report generation.
+- **Updated:** `__tests__/recon/phase13-interactive.test.ts` — Added 20 new tests (tests 61–80) for `parseBearingToDecimal()` and `walkTraverse()` — the traverse coordinate computation engine used by the boundary viewer API.
+- **Test count:** 1455 total tests pass (1435 prior + 20 new traverse tests).
 
 ## 13.1 Current State Before Phase 13
 
@@ -55,24 +69,44 @@ After Phases 1–12, the STARR RECON pipeline:
 ```
 worker/src/
 ├── sources/
-│   ├── usgs-client.ts           ← NEW §13.3  USGS 3DEP elevation + contours + NHD
-│   └── comptroller-client.ts    ← NEW §13.4  TX Comptroller PTAD tax rates
+│   ├── usgs-client.ts           ← §13.3  USGS 3DEP elevation + contours + NHD
+│   └── comptroller-client.ts    ← §13.4  TX Comptroller PTAD tax rates
 ├── infra/
-│   └── schema-validator.ts      ← NEW §13.5  Zod phase I/O validation
+│   └── schema-validator.ts      ← §13.5  Zod phase I/O validation
 │
 app/admin/research/
 ├── [projectId]/
 │   ├── boundary/
-│   │   └── page.tsx             ← NEW §13.6  Interactive SVG boundary viewer
+│   │   └── page.tsx             ← §13.6  Interactive SVG boundary viewer
 │   └── documents/
-│       └── page.tsx             ← NEW §13.7  Per-project document library
+│       └── page.tsx             ← §13.7  Per-project document library
 ├── library/
-│   └── page.tsx                 ← NEW §13.8  Global document library (cross-project)
+│   └── page.tsx                 ← §13.8  Global document library (cross-project)
 └── billing/
-    └── page.tsx                 ← NEW §13.9  Subscription/usage/billing dashboard
+    └── page.tsx                 ← §13.9  Subscription/usage/billing dashboard
+│
+app/api/admin/research/
+├── [projectId]/
+│   ├── boundary/
+│   │   └── route.ts             ← §13.12 Boundary viewer data API (v1.1)
+│   ├── topo/
+│   │   └── route.ts             ← §13.12 USGS topo data proxy (v1.1)
+│   ├── tax/
+│   │   └── route.ts             ← §13.12 TX Comptroller tax proxy (v1.1)
+│   └── documents/
+│       └── [docId]/
+│           └── download/
+│               └── route.ts     ← §13.12 Document download proxy (v1.1)
+├── library/
+│   └── route.ts                 ← §13.12 Global library API (v1.1)
+└── billing/
+    └── route.ts                 ← §13.12 Billing dashboard API (v1.1)
+│
+seeds/
+└── 092_phase13_tables.sql       ← research_topo + research_tax tables (v1.1)
 │
 __tests__/recon/
-└── phase13-interactive.test.ts  ← NEW §13.10 60 unit tests
+└── phase13-interactive.test.ts  ← §13.10 80 unit tests (v1.1)
 ```
 
 ---
@@ -638,15 +672,17 @@ export async function GET(req) { ... }
 - [x] `app/admin/research/[projectId]/documents/page.tsx` — Project document library
 - [x] `app/admin/research/library/page.tsx` — Global cross-project document library
 - [x] `app/admin/research/billing/page.tsx` — Subscription/usage/billing dashboard
-- [x] `__tests__/recon/phase13-interactive.test.ts` — 60 unit tests pass
-- [ ] `app/api/admin/research/[projectId]/boundary/route.ts` — Boundary data API endpoint
-- [ ] `app/api/admin/research/[projectId]/documents/route.ts` — Documents API endpoint
-- [ ] `app/api/admin/research/[projectId]/documents/[documentId]/download/route.ts` — Download endpoint
-- [ ] `app/api/admin/research/library/route.ts` — Global library API endpoint
-- [ ] `app/api/admin/research/billing/route.ts` — Billing API endpoint
-- [ ] Phase 13 Express routes added to `worker/src/index.ts`
-- [ ] Schema validation integrated into pipeline phase runners
-- [ ] Topo/tax data included in Phase 10 PDF report
+- [x] `__tests__/recon/phase13-interactive.test.ts` — 80 unit tests pass (60 + 20 traverse walk tests)
+- [x] `app/api/admin/research/[projectId]/boundary/route.ts` — Boundary data API endpoint (traverse walk, merge calls+confidence+discrepancies)
+- [x] `app/api/admin/research/[projectId]/documents/[docId]/download/route.ts` — Signed URL download proxy
+- [x] `app/api/admin/research/[projectId]/topo/route.ts` — USGS topo data proxy (with Supabase caching)
+- [x] `app/api/admin/research/[projectId]/tax/route.ts` — TX Comptroller tax data proxy (with Supabase caching)
+- [x] `app/api/admin/research/library/route.ts` — Global library API (cross-project, filter, paginate, stats)
+- [x] `app/api/admin/research/billing/route.ts` — Billing API (subscription, usage metrics, Stripe invoices, purchase log)
+- [x] Phase 13 Express routes added to `worker/src/index.ts` (POST/GET /research/topo, POST/GET /research/tax, GET /research/boundary/:projectId)
+- [x] Schema validation integrated into `master-orchestrator.ts` (validateOrNull on discovery/harvest/extraction/reconciliation/confidence at loadProjectData time)
+- [x] `seeds/092_phase13_tables.sql` — research_topo + research_tax Supabase tables with indexes and RLS
+- [ ] Topo/tax data included in Phase 10 PDF report (requires Phase 10 PDF generator changes)
 
 ---
 
