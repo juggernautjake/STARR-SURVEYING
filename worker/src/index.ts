@@ -1444,8 +1444,14 @@ app.use(createReportRoutes(requireAuth));
 
 // ── Phase 11: Data Source Routes ────────────────────────────────────────────
 
-// Global analytics tracker (single instance for Phase 11)
-const usageTracker = new UsageTracker('/tmp/analytics');
+// Configurable paths for Phase 11 output directories
+const ANALYTICS_DIR = process.env.ANALYTICS_DIR || '/tmp/analytics';
+const ANALYSIS_DIR = process.env.ANALYSIS_DIR || '/tmp/analysis';
+const BATCH_DIR = process.env.BATCH_DIR || '/tmp/batch';
+
+// Module-level singleton instances (avoid repeated instantiation per request)
+const usageTracker = new UsageTracker(ANALYTICS_DIR);
+const p11BatchProcessor = new BatchProcessor(BATCH_DIR);
 
 /**
  * POST /research/flood-zone
@@ -1483,7 +1489,7 @@ app.post(
       const result = await client.queryFloodZones({ centroid, polygon });
 
       // Save to project directory
-      const outDir = path.join('/tmp/analysis', projectId);
+      const outDir = path.join(ANALYSIS_DIR, projectId);
       fs.mkdirSync(outDir, { recursive: true });
       fs.writeFileSync(
         path.join(outDir, 'flood_zone.json'),
@@ -1510,7 +1516,7 @@ app.get(
   rateLimit(60, 60_000),
   (req: Request, res: Response) => {
     const { projectId } = req.params;
-    const filePath = path.join('/tmp/analysis', projectId, 'flood_zone.json');
+    const filePath = path.join(ANALYSIS_DIR, projectId, 'flood_zone.json');
     if (!fs.existsSync(filePath)) {
       res.status(404).json({ error: `No flood zone data for project ${projectId}` });
       return;
@@ -1558,7 +1564,7 @@ app.post(
     try {
       const builder = new ChainOfTitleBuilder(
         maxDepth || 5,
-        '/tmp/analysis',
+        ANALYSIS_DIR,
       );
       const result = await builder.buildChain(
         projectId,
@@ -1588,7 +1594,7 @@ app.get(
   (req: Request, res: Response) => {
     const { projectId } = req.params;
     const filePath = path.join(
-      '/tmp/analysis',
+      ANALYSIS_DIR,
       projectId,
       'chain_of_title.json',
     );
@@ -1632,8 +1638,7 @@ app.post(
     }
 
     try {
-      const processor = new BatchProcessor('/tmp/batch');
-      const batch = await processor.createBatch(userId, properties, options || {});
+      const batch = await p11BatchProcessor.createBatch(userId, properties, options || {});
       usageTracker.track({
         eventType: 'pipeline_started',
         userId,
@@ -1658,8 +1663,7 @@ app.get(
   async (req: Request, res: Response) => {
     const { batchId } = req.params;
     try {
-      const processor = new BatchProcessor('/tmp/batch');
-      const batch = await processor.checkBatchStatus(batchId);
+      const batch = await p11BatchProcessor.checkBatchStatus(batchId);
       res.json(batch);
     } catch (err: any) {
       res.status(404).json({ error: err.message });

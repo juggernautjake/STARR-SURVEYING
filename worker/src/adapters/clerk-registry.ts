@@ -73,7 +73,7 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
     notes: 'Kofile PublicSearch — same adapter as Bell, URL needs verification.',
   },
   {
-    fips: '099',
+    fips: '281',
     county: 'Lampasas',
     system: 'kofile',
     status: 'stub',
