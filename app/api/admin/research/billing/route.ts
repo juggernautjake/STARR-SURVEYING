@@ -169,7 +169,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         propertyAddress: meta.property_address as string ?? null,
         vendor: meta.vendor as string ?? null,
         vendorCostUsd: Number(meta.vendor_cost_usd ?? 0),
-        serviceFeeusd: Number(meta.service_fee_usd ?? 0),
+        serviceFeeUsd: Number(meta.service_fee_usd ?? 0),
         totalUsd: Number(e.cost_usd ?? 0),
         status: (meta.status as string) ?? 'completed',
       };

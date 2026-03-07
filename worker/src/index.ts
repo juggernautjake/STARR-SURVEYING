@@ -1752,6 +1752,14 @@ app.post('/research/topo', requireAuth, rateLimit(5, 60_000), async (req: Reques
     fs.writeFileSync(`${outDir}/topo.json`, JSON.stringify(topo, null, 2));
   } catch (err) {
     console.error(`[TOPO] Error for project ${projectId}:`, err);
+    // Write error state so GET /research/topo/:projectId can distinguish
+    // "never queried" (file absent) from "query failed" (error file present)
+    const outDir = `/tmp/analysis/${projectId}`;
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(
+      `${outDir}/topo_error.json`,
+      JSON.stringify({ status: 'error', error: String(err), timestamp: new Date().toISOString() }),
+    );
   }
 });
 
@@ -1766,7 +1774,16 @@ app.get('/research/topo/:projectId', requireAuth, rateLimit(60, 60_000), (req: R
     return;
   }
   const resultPath = `/tmp/analysis/${projectId}/topo.json`;
+  const errorPath  = `/tmp/analysis/${projectId}/topo_error.json`;
   if (!fs.existsSync(resultPath)) {
+    // Check whether a query was attempted but failed
+    if (fs.existsSync(errorPath)) {
+      try {
+        const errState = JSON.parse(fs.readFileSync(errorPath, 'utf-8')) as unknown;
+        res.status(500).json({ status: 'error', projectId, detail: errState });
+        return;
+      } catch { /* fall through to not_queried */ }
+    }
     res.status(404).json({ status: 'not_queried', projectId });
     return;
   }
@@ -1820,6 +1837,14 @@ app.post('/research/tax', requireAuth, rateLimit(5, 60_000), async (req: Request
     fs.writeFileSync(`${outDir}/tax.json`, JSON.stringify(tax, null, 2));
   } catch (err) {
     console.error(`[TAX] Error for project ${projectId}:`, err);
+    // Write error state so GET /research/tax/:projectId can distinguish
+    // "never queried" from "query attempted but failed"
+    const outDir = `/tmp/analysis/${projectId}`;
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(
+      `${outDir}/tax_error.json`,
+      JSON.stringify({ status: 'error', error: String(err), timestamp: new Date().toISOString() }),
+    );
   }
 });
 
@@ -1834,7 +1859,15 @@ app.get('/research/tax/:projectId', requireAuth, rateLimit(60, 60_000), (req: Re
     return;
   }
   const resultPath = `/tmp/analysis/${projectId}/tax.json`;
+  const errorPath  = `/tmp/analysis/${projectId}/tax_error.json`;
   if (!fs.existsSync(resultPath)) {
+    if (fs.existsSync(errorPath)) {
+      try {
+        const errState = JSON.parse(fs.readFileSync(errorPath, 'utf-8')) as unknown;
+        res.status(500).json({ status: 'error', projectId, detail: errState });
+        return;
+      } catch { /* fall through to not_queried */ }
+    }
     res.status(404).json({ status: 'not_queried', projectId });
     return;
   }

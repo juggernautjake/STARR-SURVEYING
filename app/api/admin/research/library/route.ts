@@ -116,7 +116,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     if (d.document_type) byType[d.document_type] = (byType[d.document_type] ?? 0) + 1;
     const proj = projectById.get(d.research_project_id);
     if (proj?.county) byCounty[proj.county] = (byCounty[proj.county] ?? 0) + 1;
-    if (d.source_type === 'user_upload') totalPurchased++;
+    // Purchased documents are those retrieved from clerk/vendor systems, not user-uploaded files
+    if (d.source_type === 'property_search' || d.source_type === 'linked_reference') totalPurchased++;
   }
 
   const total = count ?? filteredDocs.length;

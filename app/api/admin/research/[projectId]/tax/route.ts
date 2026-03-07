@@ -25,6 +25,21 @@ function extractProjectId(req: NextRequest): string | null {
   return parts?.[0] || null;
 }
 
+// ── Typed response helpers ────────────────────────────────────────────────────
+interface TaxResponse {
+  tax?: {
+    county_fips?: string;
+    county_name?: string;
+    appraisal_district_name?: string;
+    appraisal_district_url?: string | null;
+    tax_year?: number;
+    combined_rate?: number;
+    taxing_units?: unknown[];
+    errors?: string[];
+  };
+  error?: string;
+}
+
 /* POST — Trigger property tax rate query */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -62,29 +77,29 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     signal: AbortSignal.timeout(30_000),
   });
 
-  const data = await workerRes.json() as Record<string, unknown>;
+  const data = await workerRes.json() as TaxResponse;
   if (!workerRes.ok) {
     return NextResponse.json(
-      { error: (data as { error?: string }).error || 'Worker error', workerStatus: workerRes.status },
+      { error: data.error || 'Worker error', workerStatus: workerRes.status },
       { status: workerRes.status >= 500 ? 502 : workerRes.status },
     );
   }
 
   // Persist result to Supabase
-  const tax = data.tax as Record<string, unknown> | undefined;
+  const tax = data.tax;
   if (tax) {
     await supabaseAdmin.from('research_tax').insert({
       research_project_id: projectId,
       created_by: session.user.email,
-      county_fips: tax.county_fips as string | null,
-      county_name: tax.county_name as string | null,
-      appraisal_district_name: tax.appraisal_district_name as string | null,
-      appraisal_district_url: tax.appraisal_district_url as string | null,
-      tax_year: tax.tax_year as number | null,
-      combined_rate: tax.combined_rate as number | null,
-      taxing_unit_count: (tax.taxing_units as unknown[] | null)?.length ?? 0,
-      result: tax,
-      errors: tax.errors as string[] ?? [],
+      county_fips: tax.county_fips ?? null,
+      county_name: tax.county_name ?? null,
+      appraisal_district_name: tax.appraisal_district_name ?? null,
+      appraisal_district_url: tax.appraisal_district_url ?? null,
+      tax_year: tax.tax_year ?? null,
+      combined_rate: tax.combined_rate ?? null,
+      taxing_unit_count: tax.taxing_units?.length ?? 0,
+      result: tax as object,
+      errors: tax.errors ?? [],
     });
   }
 

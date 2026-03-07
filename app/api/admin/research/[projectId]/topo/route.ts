@@ -25,6 +25,23 @@ function extractProjectId(req: NextRequest): string | null {
   return parts?.[0] || null;
 }
 
+// ── Typed response helpers ────────────────────────────────────────────────────
+interface TopoResponse {
+  topo?: {
+    query_lat?: number;
+    query_lon?: number;
+    query_radius_m?: number;
+    elevation?: { elevation_ft?: number; data_source?: string } | null;
+    contours?: unknown[];
+    water_features?: unknown[];
+    slope_pct?: number | null;
+    aspect_deg?: number | null;
+    elevation_range_ft?: number | null;
+    errors?: string[];
+  };
+  error?: string;
+}
+
 /* POST — Trigger topographic data query */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -65,32 +82,32 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     signal: AbortSignal.timeout(45_000),
   });
 
-  const data = await workerRes.json() as Record<string, unknown>;
+  const data = await workerRes.json() as TopoResponse;
   if (!workerRes.ok) {
     return NextResponse.json(
-      { error: (data as { error?: string }).error || 'Worker error', workerStatus: workerRes.status },
+      { error: data.error || 'Worker error', workerStatus: workerRes.status },
       { status: workerRes.status >= 500 ? 502 : workerRes.status },
     );
   }
 
   // Persist result to Supabase
-  const topo = data.topo as Record<string, unknown> | undefined;
+  const topo = data.topo;
   if (topo) {
     await supabaseAdmin.from('research_topo').insert({
       research_project_id: projectId,
       created_by: session.user.email,
-      query_lat: topo.query_lat as number | null,
-      query_lon: topo.query_lon as number | null,
-      query_radius_m: (topo.query_radius_m as number) ?? 200,
-      elevation_ft: (topo.elevation as Record<string, number> | null)?.elevation_ft ?? null,
-      elevation_data_source: (topo.elevation as Record<string, string> | null)?.data_source ?? null,
-      contour_count: (topo.contours as unknown[] | null)?.length ?? 0,
-      water_feature_count: (topo.water_features as unknown[] | null)?.length ?? 0,
-      slope_pct: topo.slope_pct as number | null,
-      aspect_deg: topo.aspect_deg as number | null,
-      elevation_range_ft: topo.elevation_range_ft as number | null,
-      result: topo,
-      errors: topo.errors as string[] ?? [],
+      query_lat: topo.query_lat ?? null,
+      query_lon: topo.query_lon ?? null,
+      query_radius_m: topo.query_radius_m ?? 200,
+      elevation_ft: topo.elevation?.elevation_ft ?? null,
+      elevation_data_source: topo.elevation?.data_source ?? null,
+      contour_count: topo.contours?.length ?? 0,
+      water_feature_count: topo.water_features?.length ?? 0,
+      slope_pct: topo.slope_pct ?? null,
+      aspect_deg: topo.aspect_deg ?? null,
+      elevation_range_ft: topo.elevation_range_ft ?? null,
+      result: topo as object,
+      errors: topo.errors ?? [],
     });
   }
 

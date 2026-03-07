@@ -47,7 +47,13 @@ function parseBearingToDecimal(bearing: string | null): number | null {
   const min = parseFloat(m[3] || '0');
   const sec = parseFloat(m[4] || '0');
   const quad = deg + min / 60 + sec / 3600;
-  // Convert quadrant bearing to azimuth (clockwise from North)
+  // Convert quadrant bearing to azimuth (clockwise from North, 0-360°).
+  // Quadrant bearings use the form N/S + degrees + E/W, measuring the angle
+  // from either North or South toward either East or West.
+  // NE quadrant: azimuth = quad
+  // SE quadrant: azimuth = 180° - quad (flip about E-W axis)
+  // SW quadrant: azimuth = 180° + quad
+  // NW quadrant: azimuth = 360° - quad
   if (ns === 'N' && ew === 'E') return quad;
   if (ns === 'S' && ew === 'E') return 180 - quad;
   if (ns === 'S' && ew === 'W') return 180 + quad;
