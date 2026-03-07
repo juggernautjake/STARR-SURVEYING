@@ -180,7 +180,7 @@ export class ConfidenceScoringEngine {
     // ── STEP 5: Discrepancy Analysis ─────────────────────────────────────
 
     logger.info('Confidence', 'Step 5: Analyzing discrepancies...');
-    const discAnalyzer = new DiscrepancyAnalyzer();
+    const discAnalyzer = new DiscrepancyAnalyzer(undefined, projectId);
     const { reports: discrepancies, aiCalls: discAiCalls } =
       await discAnalyzer.analyzeDiscrepancies(
         allCalls,

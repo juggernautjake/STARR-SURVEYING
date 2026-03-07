@@ -1234,17 +1234,25 @@ app.post('/research/confidence', requireAuth, async (req: Request, res: Response
     const engine = new ConfidenceScoringEngine();
     const report = await engine.score(projectId, reconciledPath);
 
-    console.log(
-      `[Confidence] Complete: Overall ${report.overallConfidence?.score} (${report.overallConfidence?.grade})`,
+    // Use PipelineLogger (no bare console.log) — consistent with Phase 6/7 pattern
+    const { PipelineLogger: PL } = await import('./lib/logger.js');
+    const confLogger = new PL(projectId);
+    confLogger.info(
+      'Confidence',
+      `Complete: Overall ${report.overallConfidence?.score} (${report.overallConfidence?.grade})`,
     );
-    console.log(
-      `[Confidence] Discrepancies: ${report.discrepancySummary?.unresolved} unresolved, ${report.discrepancySummary?.resolved} resolved`,
+    confLogger.info(
+      'Confidence',
+      `Discrepancies: ${report.discrepancySummary?.unresolved} unresolved, ${report.discrepancySummary?.resolved} resolved`,
     );
-    console.log(
-      `[Confidence] ${report.surveyorDecisionMatrix?.readyForField ? '✓ READY FOR FIELD' : '✗ NOT ready — purchase documents first'}`,
+    confLogger.info(
+      'Confidence',
+      `${report.surveyorDecisionMatrix?.readyForField ? '✓ READY FOR FIELD' : '✗ NOT ready — purchase documents first'}`,
     );
   } catch (error) {
-    console.error(`[Confidence] Failed for ${projectId}:`, error);
+    const { PipelineLogger: PL } = await import('./lib/logger.js');
+    const confLogger = new PL(projectId);
+    confLogger.error('Confidence', `Failed for ${projectId}`, error);
   }
 });
 

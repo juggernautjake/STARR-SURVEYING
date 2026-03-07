@@ -16,6 +16,7 @@
 //   - AbortSignal.timeout(30_000) on AI fetch to prevent hanging
 //   - All detection methods return null instead of throwing
 //   - AI failures are logged and fall back gracefully (no re-throw)
+//   - Uses PipelineLogger for structured logging (no bare console calls)
 
 import type { ReconciledCall } from '../types/reconciliation.js';
 import type {
@@ -23,6 +24,7 @@ import type {
   DiscrepancyReport,
   DiscrepancyCategory,
 } from '../types/confidence.js';
+import { PipelineLogger } from '../lib/logger.js';
 
 const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
 
@@ -38,9 +40,11 @@ const DATUM_SHIFT_MIN_AFFECTED_CALLS = 3;
 
 export class DiscrepancyAnalyzer {
   private apiKey: string;
+  private logger: PipelineLogger;
 
-  constructor(apiKey?: string) {
+  constructor(apiKey?: string, projectId?: string) {
     this.apiKey = apiKey || process.env.ANTHROPIC_API_KEY || '';
+    this.logger = new PipelineLogger(projectId || 'unknown-project');
   }
 
   async analyzeDiscrepancies(
@@ -143,7 +147,7 @@ export class DiscrepancyAnalyzer {
         aiCalls++;
       } catch (e) {
         // Non-fatal: AI failure leaves default empty analysis in place
-        console.warn('[Discrepancy] AI root-cause analysis failed:', e);
+        this.logger.warn('Discrepancy', `AI root-cause analysis failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 
@@ -564,7 +568,7 @@ Return ONLY valid JSON array.`;
     } catch (e) {
       // Non-fatal — discrepancies retain their default empty analysis fields.
       // Log the error for diagnostics but do not re-throw.
-      console.warn('[Discrepancy] AI root-cause analysis parse/fetch failed:', e);
+      this.logger.warn('Discrepancy', `AI root-cause analysis parse/fetch failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 

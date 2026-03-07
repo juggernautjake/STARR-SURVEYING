@@ -3,7 +3,7 @@
 **Starr Software — AI Property Research Pipeline**
 **Phase Duration:** Weeks 22–23
 **Depends On:** Phase 7 (ReconciledBoundaryModel with per-call readings, reconciliation metadata, closure results)
-**Status:** ✅ COMPLETE v1.1 — Implementation delivered, all 40 unit tests pass
+**Status:** ✅ COMPLETE v1.2 — Implementation delivered, all 60 unit tests pass
 
 ---
 
@@ -25,12 +25,13 @@ A `ConfidenceScoringEngine` that consumes the reconciled model and produces a la
 |---------|------|---------|
 | v1.0 | Mar 2026 | Initial implementation (20 tests) |
 | v1.1 | Mar 2026 | PipelineLogger; SurveyorDecision new fields (overallRisk, pathTo90, estimatedFieldTime, summary); DiscrepancySummary.estimatedResolutionCost → numeric; datum_shift detection; AbortSignal.timeout on AI fetch; GET endpoint try/catch; projectId empty-string guard; 40 unit tests |
+| v1.2 | Mar 2026 | Logging hardening (PipelineLogger in DiscrepancyAnalyzer and POST route); projectId threaded to analyzer; 20 new edge-case unit tests (41-60); "What Still Needs Input" section added to docs |
 
 ---
 
 ## Current State of the Codebase
 
-**Phase Status: ✅ COMPLETE v1.1**
+**Phase Status: ✅ COMPLETE v1.2**
 
 All Phase 8 code has been implemented and hardened.
 
@@ -50,6 +51,40 @@ All Phase 8 code has been implemented and hardened.
 ### API Endpoint
 
 `POST /research/confidence` and `GET /research/confidence/:projectId` — live in `worker/src/index.ts`
+
+---
+
+## What Still Needs External Input / Attention
+
+The following items are **fully implemented in code** but require environment-level configuration or real data to exercise end-to-end:
+
+### 1. `ANTHROPIC_API_KEY` Required for AI Discrepancy Analysis
+
+**What it does:** `DiscrepancyAnalyzer.aiRootCauseAnalysis()` sends unresolved discrepancies to Claude for root-cause analysis, impact assessment, and resolution recommendations.
+
+**Current state:** The code checks for `ANTHROPIC_API_KEY` in the environment (or `RESEARCH_AI_MODEL` for model override). If the key is absent, the AI step is silently skipped and discrepancies retain minimal default analysis fields — this is intentional and graceful.
+
+**Action needed:** Set `ANTHROPIC_API_KEY` in the droplet's `/root/starr-worker/.env` file to enable live AI analysis.
+
+**Impact if missing:** Phase 8 still produces a complete `ConfidenceReport` with all scoring, discrepancy detection, purchase recommendations, and surveyor decision. Only the AI-generated `possibleCauses`, `likelyCorrectValue`, and `impactAssessment.acreageImpact` fields will be empty on new discrepancies.
+
+### 2. AI Model Name May Need Updating
+
+**Current default:** `claude-sonnet-4-5-20250929` (set via `RESEARCH_AI_MODEL` env var, or hardcoded default in `discrepancy-analyzer.ts`).
+
+**Action needed:** Verify this model name is available in your Anthropic account. If you have access to a newer Claude model, update `RESEARCH_AI_MODEL` in your `.env` file.
+
+### 3. Phase 8 → Phase 9 Thread Not Yet Wired
+
+Phase 9 (Document Purchase) is defined in `worker/src/index.ts` as `POST /research/purchase`, and it accepts a `confidenceReportPath`. However, Phase 9 does **not** automatically trigger after Phase 8 completes — they must be run sequentially by the operator.
+
+**Action needed:** If you want a fully automated pipeline (Phase 8 → Phase 9 → Phase 7 re-run), a pipeline orchestrator that chains these phases will need to be built. This would be Phase 11 (pipeline orchestration) scope.
+
+### 4. Phase 8 → Phase 10 Output Not Yet Integrated
+
+Phase 10 (Reports & Exports) is expected to consume `confidence_report.json` to color boundary lines by confidence level and include discrepancy summaries in PDF output. This integration has not yet been implemented in Phase 10 code.
+
+**Action needed:** When implementing Phase 10, wire up `confidence_report.json` → colored boundary rendering and discrepancy appendix.
 
 ---
 
