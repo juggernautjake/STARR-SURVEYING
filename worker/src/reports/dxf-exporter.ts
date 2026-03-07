@@ -641,8 +641,8 @@ export class DXFExporter {
     lines.push('  1', 'NAD83 Texas Central Zone (4203) | US Survey Feet');
 
     // Confidence
-    const grade = data.confidence?.overallGrade || 'N/A';
-    const score = data.confidence?.overallScore || 0;
+    const grade = data.confidence?.overallConfidence?.grade || 'N/A';
+    const score = data.confidence?.overallConfidence?.score || 0;
     lines.push('  0', 'TEXT');
     lines.push('  8', 'TITLE');
     lines.push(

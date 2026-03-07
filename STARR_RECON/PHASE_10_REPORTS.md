@@ -6,9 +6,21 @@ Phase 10 is the capstone delivery phase of the STARR RECON pipeline. It consumes
 
 ## Current State of the Codebase
 
-**Phase Status: ✅ COMPLETE v1.1** _(as of March 2026)_
+**Phase Status: ✅ COMPLETE v1.2** _(as of March 2026)_
 
-All Phase 10 modules have been implemented and hardened with v1.1 bug fixes.
+All Phase 10 modules have been implemented and hardened with v1.2 type-safety fixes.
+
+### v1.2 Changes
+
+- **Build fix** (`master-orchestrator.ts`): `data.confidence?.overallScore` → `data.confidence?.overallConfidence?.score`; `data.confidence?.overallGrade` → `data.confidence?.overallConfidence?.grade` — these properties do not exist on `ConfidenceReport`; the correct path is through the nested `overallConfidence: OverallConfidence` object
+- **Build fix** (`master-orchestrator.ts`): `data.purchases?.billing?.totalSpent` → `data.purchases?.billing?.totalCharged` — `PurchaseBillingSummary` uses `totalCharged` not `totalSpent`
+- **Build fix** (`master-orchestrator.ts`): Confidence fallback object now uses correct `ConfidenceReport` shape (`overallConfidence: { score, grade, label, summary }`) cast via `as ConfidenceReport`; also added `import type { ConfidenceReport }` 
+- **Build fix** (`dxf-exporter.ts`): Same `overallScore`/`overallGrade` → `overallConfidence?.score`/`overallConfidence?.grade` fix
+- **Build fix** (`legal-description-generator.ts`): Same `overallScore`/`overallGrade` fix
+- **Build fix** (`pdf-generator.ts`): All `overallScore`/`overallGrade` fixed; `purchased` field → `purchases`; `vendor` → `source`; `totalSpent`/`budget`/`remainingBudget` → `totalCharged`/`taxOrFees`/`remainingBalance`; removed non-existent sub-score fields (`documentQuality`, `extractionConfidence`, `crossValidation`, `closureAnalysis`, `monumentEvidence`) — replaced with computed averages from actual `callConfidence[]`, `lotConfidence[]`, `boundaryConfidence[]` arrays; `conf.flags` → derived from `conf.discrepancies` (unresolved ones)
+- **Refactor** (`pdf-generator.ts`): Extracted `avgScore()` helper method to replace 3× duplicated averaging logic; severity lookup tables replace nested ternary chains
+- **Dependencies**: Added `pdfkit`, `@types/pdfkit`, `@resvg/resvg-js` to root `package.json` so Next.js type-checking can resolve these modules in the worker
+- **Test fix** (`__tests__/recon/phase10-reports.test.ts`): Test 28 now uses `{ overallConfidence: { score: 85, grade: 'A', ... } }` shape instead of invalid `{ overallScore, overallGrade }`
 
 ### v1.1 Changes
 
@@ -304,12 +316,12 @@ worker/
 The following aspects cannot be completed without external resources or decisions:
 
 ### PDF Generation (`pdf-generator.ts`)
-- **pdfkit package** must be installed in `worker/package.json` (`pdfkit ^0.13.0`, `@types/pdfkit`)
+- **pdfkit package** ✅ installed in root `package.json` (`pdfkit ^0.17.2`, `@types/pdfkit ^0.17.5`) — v1.2 fix
 - `writeCoverPage()`, `writeDrawingPage()` reference `svgPath.replace(/.svg$/, '.png')` — the PNG path convention assumes the rasterizer writes to the same directory; if the user changes the output path, this breaks
 - **Logo embedding** (`config.pdf.logoPath`) is a placeholder — requires actual logo file path to be set via `COMPANY_LOGO_PATH` env var
 
 ### PNG Rasterization (`png-rasterizer.ts`)
-- **`@resvg/resvg-js`** is a native Rust module — must be installed and may require prebuilt binaries per platform
+- **`@resvg/resvg-js`** ✅ installed in root `package.json` (`@resvg/resvg-js ^2.6.2`) — v1.2 fix; also installed in `worker/package.json` for runtime use
 - Fallback to `rsvg-convert`, `inkscape`, `convert` (ImageMagick) requires those tools to be installed on the server
 - Without any of these installed, PNG generation fails silently (deliverable is `null` in manifest)
 

@@ -279,10 +279,10 @@ export class LegalDescriptionGenerator {
       'All distances are in US Survey Feet unless otherwise noted.',
     );
 
-    if (data.confidence?.overallGrade) {
+    if (data.confidence?.overallConfidence?.grade) {
       lines.push('');
       lines.push(
-        `Research Confidence: ${data.confidence.overallScore}% (Grade ${data.confidence.overallGrade})`,
+        `Research Confidence: ${data.confidence.overallConfidence.score}% (Grade ${data.confidence.overallConfidence.grade})`,
       );
     }
 
