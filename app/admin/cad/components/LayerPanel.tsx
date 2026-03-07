@@ -51,8 +51,11 @@ export default function LayerPanel() {
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
 
   // Track selected and hovered feature IDs for layer highlighting
-  const selectedIds = selectionStore.selectedIds;
-  const hoveredId   = selectionStore.hoveredId;
+  const selectedIds    = selectionStore.selectedIds;
+  const hoveredId      = selectionStore.hoveredId;
+  // Title-block element hover / selection — drives SURVEY-INFO layer highlight
+  const hoveredTBElem  = selectionStore.hoveredTBElem;
+  const selectedTBElem = selectionStore.selectedTBElem;
 
   function handleToggleVisibility(layer: Layer) {
     store.updateLayer(layer.id, { visible: !layer.visible });
@@ -198,7 +201,9 @@ export default function LayerPanel() {
           // Check if any feature on this layer is selected or hovered
           const hasSelectedFeature = layerFeatures.some((f) => selectedIds.has(f.id));
           const hasHoveredFeature  = !!hoveredId && layerFeatures.some((f) => f.id === hoveredId);
-          const isHighlighted = hasSelectedFeature || hasHoveredFeature;
+          // SURVEY-INFO layer is highlighted when any title-block element is hovered or selected
+          const hasTBActivity = layer.id === 'SURVEY-INFO' && (hoveredTBElem !== null || selectedTBElem !== null);
+          const isHighlighted = hasSelectedFeature || hasHoveredFeature || hasTBActivity;
 
           // Groups on this layer
           const layerGroups = Object.values(doc.featureGroups ?? {}).filter((g) => g.layerId === layer.id);
@@ -328,23 +333,33 @@ export default function LayerPanel() {
                     const tb = doc.settings?.titleBlock;
                     const tbVisible = tb?.visible !== false;
                     const surveyElements = [
-                      { key: 'titleBlock',      label: 'Title Block',         visible: tbVisible },
+                      { key: 'titleBlock',      label: 'Title Block',            visible: tbVisible },
                       { key: 'signatureBlock',  label: 'Seal / Signature Block', visible: tbVisible },
-                      { key: 'scaleBar',        label: 'Graphic Scale',       visible: tbVisible && (tb?.scaleBarVisible !== false) },
-                      { key: 'northArrow',      label: 'Compass / North Arrow', visible: tbVisible },
+                      { key: 'scaleBar',        label: 'Graphic Scale',          visible: tbVisible && (tb?.scaleBarVisible !== false) },
+                      { key: 'northArrow',      label: 'Compass / North Arrow',  visible: tbVisible },
                     ];
                     return (
                       <>
-                        {surveyElements.map((el) => (
-                          <div
-                            key={el.key}
-                            className="flex items-center gap-1 pl-2 pr-1 py-0.5 text-[10px] text-gray-400"
-                            title={el.visible ? 'Visible' : 'Hidden (title block is hidden)'}
-                          >
-                            <span className={`truncate ${el.visible ? '' : 'line-through opacity-50'}`}>{el.label}</span>
-                            {!el.visible && <span className="text-gray-600 text-[9px] ml-auto">hidden</span>}
-                          </div>
-                        ))}
+                        {surveyElements.map((el) => {
+                          const isElHovered  = hoveredTBElem  === el.key;
+                          const isElSelected = selectedTBElem === el.key;
+                          return (
+                            <div
+                              key={el.key}
+                              className={`flex items-center gap-1 pl-2 pr-1 py-0.5 text-[10px] transition-colors ${
+                                isElSelected
+                                  ? 'text-blue-300 bg-blue-900/20'
+                                  : isElHovered
+                                  ? 'text-blue-200'
+                                  : 'text-gray-400'
+                              }`}
+                              title={el.visible ? 'Visible' : 'Hidden (title block is hidden)'}
+                            >
+                              <span className={`truncate ${el.visible ? '' : 'line-through opacity-50'}`}>{el.label}</span>
+                              {!el.visible && <span className="text-gray-600 text-[9px] ml-auto">hidden</span>}
+                            </div>
+                          );
+                        })}
                       </>
                     );
                   })()}
