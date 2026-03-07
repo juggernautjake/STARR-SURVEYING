@@ -13,6 +13,8 @@
 //   Step 7: Billing & audit trail
 //
 // Spec §9.7 — Purchase Orchestrator
+// v1.1: PipelineLogger replaces bare console.* calls; AbortSignal.timeout on AI fetch;
+//        JSON.parse try/catch on intelligence file; projectId validation guard
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -20,10 +22,10 @@ import { KofilePurchaseAdapter } from './purchase-adapters/kofile-purchase-adapt
 import { TexasFilePurchaseAdapter } from './purchase-adapters/texasfile-purchase-adapter.js';
 import { WatermarkComparison, type ExtractedCall } from './watermark-comparison.js';
 import { BillingTracker } from './billing-tracker.js';
+import { PipelineLogger } from '../lib/logger.js';
 import type {
   PurchaseOrchestratorConfig,
   DocumentPurchaseResult,
-  ComparisonReport,
   DocumentReanalysis,
   DiscrepancyResolution,
   ReconciliationUpdate,
@@ -38,9 +40,11 @@ import type { PurchaseRecommendation } from '../types/confidence.js';
 export class DocumentPurchaseOrchestrator {
   private billing: BillingTracker;
   private apiKey: string;
+  private logger: PipelineLogger;
 
-  constructor() {
-    this.billing = new BillingTracker();
+  constructor(projectId: string = 'unknown-project') {
+    this.logger = new PipelineLogger(projectId || 'unknown-project');
+    this.billing = new BillingTracker('/tmp/billing', projectId || 'unknown-project');
     this.apiKey = process.env.ANTHROPIC_API_KEY || '';
   }
 
@@ -53,6 +57,12 @@ export class DocumentPurchaseOrchestrator {
     countyFIPS: string,
     countyName: string,
   ): Promise<PurchaseReport> {
+    // Guard against empty projectId
+    if (!projectId) {
+      projectId = 'unknown-project';
+      this.logger.warn('Purchase', 'executePurchases called with empty projectId — using sentinel');
+    }
+
     const startTime = Date.now();
     const purchaseStart = Date.now();
     const errors: string[] = [];
@@ -121,6 +131,7 @@ export class DocumentPurchaseOrchestrator {
           countyName,
           config.kofileCredentials,
           outputDir,
+          projectId,
         );
         await kofileAdapter.initSession();
       }
@@ -131,6 +142,7 @@ export class DocumentPurchaseOrchestrator {
         texasFileAdapter = new TexasFilePurchaseAdapter(
           config.texasfileCredentials,
           outputDir,
+          projectId,
         );
         await texasFileAdapter.initSession();
       }
@@ -143,12 +155,14 @@ export class DocumentPurchaseOrchestrator {
             countyName,
             config.kofileCredentials,
             outputDir,
+            projectId,
           );
           await kofileAdapter.initSession();
         } else if (config.texasfileCredentials) {
           texasFileAdapter = new TexasFilePurchaseAdapter(
             config.texasfileCredentials,
             outputDir,
+            projectId,
           );
           await texasFileAdapter.initSession();
         }
@@ -162,8 +176,9 @@ export class DocumentPurchaseOrchestrator {
           parseFloat(rec.estimatedCost.replace(/[^0-9.]/g, '')) || 5;
         const budgetCheck = this.billing.checkBudget(projectId, estCostNum);
         if (!budgetCheck.allowed) {
-          console.log(
-            `[Purchase] Budget exceeded — skipping ${rec.instrument} ($${estCostNum} needed, $${budgetCheck.remaining.toFixed(2)} remaining)`,
+          this.logger.warn(
+            'Purchase',
+            `Budget exceeded — skipping ${rec.instrument} ($${estCostNum} needed, $${budgetCheck.remaining.toFixed(2)} remaining)`,
           );
           purchases.push({
             instrument: rec.instrument,
@@ -212,7 +227,7 @@ export class DocumentPurchaseOrchestrator {
               result.status === 'failed' &&
               texasFileAdapter
             ) {
-              console.log(`[Purchase] Kofile failed, trying TexasFile...`);
+              this.logger.info('Purchase', `Kofile failed for ${rec.instrument}, trying TexasFile...`);
               result = await texasFileAdapter.purchaseDocument(
                 countyName,
                 rec.instrument,
@@ -226,7 +241,7 @@ export class DocumentPurchaseOrchestrator {
               rec.documentType,
             );
           } else {
-            console.warn(`[Purchase] No adapter available for ${rec.source}`);
+            this.logger.warn('Purchase', `No adapter available for ${rec.source}`);
             purchases.push({
               instrument: rec.instrument,
               documentType: rec.documentType,
@@ -278,8 +293,9 @@ export class DocumentPurchaseOrchestrator {
             config.autoReanalyze &&
             result.downloadedImages.length > 0
           ) {
-            console.log(
-              `[Purchase] Re-analyzing ${rec.instrument} with official images...`,
+            this.logger.info(
+              'Purchase',
+              `Re-analyzing ${rec.instrument} with official images...`,
             );
             const reanalysis = await this.reanalyzeDocument(
               result.downloadedImages,
@@ -299,7 +315,7 @@ export class DocumentPurchaseOrchestrator {
       }
     } catch (error: any) {
       errors.push(`Purchase orchestration error: ${error.message}`);
-      console.error(`[Purchase] Orchestration error:`, error);
+      this.logger.error('Purchase', 'Orchestration error', error);
     } finally {
       if (kofileAdapter) await kofileAdapter.destroySession();
       if (texasFileAdapter) await texasFileAdapter.destroySession();
@@ -317,8 +333,9 @@ export class DocumentPurchaseOrchestrator {
         (s, r) => s + r.callsChanged,
         0,
       );
-      console.log(
-        `[Purchase] Re-analysis changed ${totalChanged} calls. Triggering Phase 7 re-reconciliation.`,
+      this.logger.info(
+        'Purchase',
+        `Re-analysis changed ${totalChanged} calls. Triggering Phase 7 re-reconciliation.`,
       );
 
       // Load existing reconciliation for before/after comparison
@@ -431,8 +448,9 @@ export class DocumentPurchaseOrchestrator {
     fs.mkdirSync(path.dirname(reportPath), { recursive: true });
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
 
-    console.log(
-      `[Purchase] Complete: ${purchasedCount}/${purchases.length} purchased, $${totalCharged.toFixed(2)} spent`,
+    this.logger.info(
+      'Purchase',
+      `Complete: ${purchasedCount}/${purchases.length} purchased, $${totalCharged.toFixed(2)} spent`,
     );
 
     return report;
@@ -490,6 +508,8 @@ export class DocumentPurchaseOrchestrator {
           'x-api-key': this.apiKey,
           'anthropic-version': '2023-06-01',
         },
+        // 30-second timeout to prevent hanging on slow API responses
+        signal: AbortSignal.timeout(30_000),
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 8000,
@@ -509,12 +529,26 @@ export class DocumentPurchaseOrchestrator {
         content?: { text?: string }[];
       };
       const text = data.content?.[0]?.text || '';
-      const parsed = JSON.parse(text.replace(/```json?|```/g, '').trim());
+
+      // Guard against malformed AI response
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text.replace(/```json?|```/g, '').trim());
+      } catch (parseErr) {
+        this.logger.warn('Purchase', `Re-analysis JSON parse failed for ${instrumentNumber}: ${String(parseErr)}`);
+        return null;
+      }
 
       // Load watermarked readings for comparison
       const intelPath = `/tmp/analysis/${projectId}/property_intelligence.json`;
       if (fs.existsSync(intelPath)) {
-        const intel = JSON.parse(fs.readFileSync(intelPath, 'utf-8'));
+        let intel: any;
+        try {
+          intel = JSON.parse(fs.readFileSync(intelPath, 'utf-8'));
+        } catch (intelErr) {
+          this.logger.warn('Purchase', `Failed to read property_intelligence.json for ${projectId}: ${String(intelErr)}`);
+          return null;
+        }
         const watermarkedCalls = this.extractCallsFromIntelligence(intel);
         const officialCalls: ExtractedCall[] =
           parsed.calls || parsed.metesAndBounds || [];
@@ -552,7 +586,7 @@ export class DocumentPurchaseOrchestrator {
 
       return null;
     } catch (error: any) {
-      console.warn(`[Purchase] Re-analysis failed:`, error.message);
+      this.logger.warn('Purchase', `Re-analysis failed for ${instrumentNumber}: ${error.message}`);
       return null;
     }
   }

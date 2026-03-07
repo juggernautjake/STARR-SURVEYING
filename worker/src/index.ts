@@ -1290,7 +1290,7 @@ app.get('/research/confidence/:projectId', requireAuth, rateLimit(60, 60_000), (
 // Long-running (up to ~5 minutes). Returns HTTP 202 immediately.
 // Results are persisted to /tmp/analysis/{projectId}/purchase_report.json.
 
-app.post('/research/purchase', requireAuth, async (req: Request, res: Response) => {
+app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
   const { projectId, confidenceReportPath, budget, autoReanalyze, paymentMethod } = req.body as {
     projectId?: string;
     confidenceReportPath?: string;
@@ -1319,7 +1319,13 @@ app.post('/research/purchase', requireAuth, async (req: Request, res: Response) 
   res.status(202).json({ status: 'accepted', projectId });
 
   try {
-    const confReport = JSON.parse(fs.readFileSync(confidenceReportPath, 'utf-8'));
+    let confReport: any;
+    try {
+      confReport = JSON.parse(fs.readFileSync(confidenceReportPath, 'utf-8'));
+    } catch (e) {
+      console.error(`[Purchase] Failed to read confidence report: ${e}`);
+      return;
+    }
     const recommendations = confReport.documentPurchaseRecommendations || [];
 
     if (recommendations.length === 0) {
@@ -1351,7 +1357,7 @@ app.post('/research/purchase', requireAuth, async (req: Request, res: Response) 
     const countyFIPS = confReport.propertyContext?.countyFIPS || '48027';
     const countyName = confReport.propertyContext?.county || 'Bell';
 
-    const orchestrator = new DocumentPurchaseOrchestrator();
+    const orchestrator = new DocumentPurchaseOrchestrator(projectId);
     const result = await orchestrator.executePurchases(
       projectId,
       recommendations,
@@ -1394,7 +1400,7 @@ app.post('/research/purchase', requireAuth, async (req: Request, res: Response) 
 // ── GET /research/purchase/:projectId ─────────────────────────────────────
 // Returns the purchase report or in_progress status.
 
-app.get('/research/purchase/:projectId', requireAuth, (req: Request, res: Response) => {
+app.get('/research/purchase/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
   const { projectId } = req.params;
 
   if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
@@ -1405,8 +1411,12 @@ app.get('/research/purchase/:projectId', requireAuth, (req: Request, res: Respon
   const resultPath = `/tmp/analysis/${projectId}/purchase_report.json`;
 
   if (fs.existsSync(resultPath)) {
-    const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
-    res.json(result);
+    try {
+      const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to read purchase report', details: String(e) });
+    }
   } else {
     res.json({ status: 'in_progress' });
   }

@@ -3,6 +3,7 @@
 // and generates per-project invoices.
 //
 // Spec §9.6 — Billing & Transaction Tracker
+// v1.1: PipelineLogger replaces bare console.log calls
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -11,14 +12,17 @@ import type {
   ProjectBilling,
   BillingInvoice,
 } from '../types/purchase.js';
+import { PipelineLogger } from '../lib/logger.js';
 
 // ── Billing Tracker ─────────────────────────────────────────────────────────
 
 export class BillingTracker {
   private billingDir: string;
+  private logger: PipelineLogger;
 
-  constructor(billingDir: string = '/tmp/billing') {
+  constructor(billingDir: string = '/tmp/billing', projectId: string = 'billing') {
     this.billingDir = billingDir;
+    this.logger = new PipelineLogger(projectId);
     fs.mkdirSync(billingDir, { recursive: true });
   }
 
@@ -33,8 +37,9 @@ export class BillingTracker {
     billing.remainingBudget = billing.budget - billing.totalSpent;
     this.saveProjectBilling(billing);
 
-    console.log(
-      `[Billing] Recorded: ${tx.transactionId} — $${tx.totalCost.toFixed(2)} (${tx.instrument})`,
+    this.logger.info(
+      'Billing',
+      `Recorded: ${tx.transactionId} — $${tx.totalCost.toFixed(2)} (${tx.instrument})`,
     );
   }
 
@@ -81,8 +86,9 @@ export class BillingTracker {
     };
 
     fs.writeFileSync(invoicePath, JSON.stringify(invoice, null, 2));
-    console.log(
-      `[Billing] Invoice generated: ${invoicePath} — $${billing.totalSpent.toFixed(2)} spent of $${billing.budget.toFixed(2)} budget`,
+    this.logger.info(
+      'Billing',
+      `Invoice generated: ${invoicePath} — $${billing.totalSpent.toFixed(2)} spent of $${billing.budget.toFixed(2)} budget`,
     );
     return invoicePath;
   }
@@ -98,7 +104,12 @@ export class BillingTracker {
   private loadProjectBilling(projectId: string): ProjectBilling {
     const filePath = path.join(this.billingDir, `${projectId}.json`);
     if (fs.existsSync(filePath)) {
-      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      try {
+        return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as ProjectBilling;
+      } catch (e) {
+        // Corrupt billing file — reset to defaults and log warning
+        this.logger.warn('Billing', `Failed to parse billing file for ${projectId}: ${String(e)} — resetting`);
+      }
     }
     const defaultBudget = parseFloat(
       process.env.DEFAULT_PURCHASE_BUDGET || '50',
