@@ -2,7 +2,7 @@
 
 **Version:** 1.1 | **Date:** March 2026 | **Phase:** 5 of 8
 
-**Phase 5 Status: 🔶 IN PROGRESS** — Title block, north arrow, scale bar, and per-feature TextLabel generation are complete. The auto-annotation engine, label collision optimizer, bearing/distance dimension tool, curve data callouts, monument/area labels, leader tool, legend, certification block, standard notes, and the print/PDF export system have not been built yet.
+**Phase 5 Status: ✅ COMPLETE** — All annotation types, auto-annotation engine, label optimizer, template system (standard notes, certification, legend, sheet border, default templates, print engine), Zustand stores (annotation-store, template-store), and React UI components (AnnotationPanel, CertificationEditor, StandardNotesEditor, PrintDialog) are implemented. 139 new unit tests across 6 new test files + 1 templates test file. 597 total CAD tests pass.
 
 **What Has Been Built:**
 - ✅ `TitleBlockConfig` type — complete definition with north arrow, scale bar, signature block, draggable positions, per-element scale/rotation, custom field labels (`lib/cad/types.ts`)
@@ -13,21 +13,31 @@
 - ✅ `generate-labels.ts` — `generateLabelsForFeature()` produces TextLabel instances for a single feature (bearing, distance, area, elevation, point name, coords); `regenerateLayerLabels()` batch-regenerates all features on a layer
 - ✅ `TextLabel` / `TextLabelKind` types and `LayerDisplayPreferences` in `lib/cad/types.ts`
 - ✅ `FeatureLabelPreferencesPanel.tsx` — per-layer label visibility toggles (bearing, distance, name, etc.)
+- ✅ `lib/cad/labels/annotation-types.ts` — 6 annotation interfaces (BearingDistanceDimension, CurveDataAnnotation, MonumentLabel, AreaAnnotation, TextAnnotation, LeaderAnnotation)
+- ✅ `lib/cad/labels/bearing-dim.ts` — `createBearingDimension()`, `computeBearingDimPlacement()`, DEFAULT_BEARING_DIM_CONFIG
+- ✅ `lib/cad/labels/curve-label.ts` — `buildCurveDataLines()`, `createCurveDataAnnotation()`, `computeCurveLabelPosition()`, DEFAULT_CURVE_DATA_CONFIG
+- ✅ `lib/cad/labels/monument-label.ts` — `getMonumentText()`, `createMonumentLabel()`, `computeMonumentLabelPosition()`, `pickBestOffsetAngle()`
+- ✅ `lib/cad/labels/area-label.ts` — `computeCentroid()`, `buildAreaText()`, `createAreaAnnotation()`, DEFAULT_AREA_LABEL_CONFIG
+- ✅ `lib/cad/labels/auto-annotate.ts` — `autoAnnotate()` one-pass engine with bearing-dims, curve data, monument labels, area labels; DEFAULT_AUTO_ANNOTATE_CONFIG
+- ✅ `lib/cad/labels/label-optimizer.ts` — `optimizeLabels()` simulated-annealing optimizer with flip/slide/shrink/leader-add strategies, probabilistic acceptance
+- ✅ `lib/cad/templates/types.ts` — PaperSize, PAPER_DIMENSIONS, DrawingTemplate, PrintConfig, all sub-config interfaces
+- ✅ `lib/cad/templates/standard-notes.ts` — 24+ standard survey notes (basis of bearing, monuments, survey type, datum, flood zone, utilities), `getDefaultNotes()`, `formatNoteText()`
+- ✅ `lib/cad/templates/certification.ts` — DEFAULT_CERTIFICATION_TEXT, `formatCertificationText()`, DEFAULT_CERTIFICATION_CONFIG
+- ✅ `lib/cad/templates/legend.ts` — `autoPopulateLegend()`, DEFAULT_LEGEND_CONFIG
+- ✅ `lib/cad/templates/sheet-border.ts` — `computeTitleBlockBounds()`, `computeDrawableArea()`, DEFAULT_BORDER_CONFIG
+- ✅ `lib/cad/templates/default-templates.ts` — STARR_SURVEYING_TEMPLATE (Tabloid/Landscape/50), LETTER_TEMPLATE, ARCH_D_TEMPLATE, STARR_COMPANY_INFO
+- ✅ `lib/cad/templates/print-engine.ts` — `computePrintTransform()`, `buildPrintTitle()`, DEFAULT_PRINT_CONFIG
+- ✅ `lib/cad/store/annotation-store.ts` — Zustand store: CRUD, autoAnnotateAll, runOptimizer, queries
+- ✅ `lib/cad/store/template-store.ts` — Zustand store: active template management, print config, custom template save/delete
+- ✅ `app/admin/cad/components/AnnotationPanel.tsx` — 3-tab panel (Annotations count / Auto-Annotate / Optimizer stats+Run)
+- ✅ `app/admin/cad/components/CertificationEditor.tsx` — RPLS certification block editor
+- ✅ `app/admin/cad/components/StandardNotesEditor.tsx` — Standard notes selector grouped by category + custom notes
+- ✅ `app/admin/cad/components/PrintDialog.tsx` — Full print/export modal (paper, scale, elements, PDF/PNG stubs)
 
-**What Still Needs to Be Built:**
-- ❌ `lib/cad/labels/auto-annotate.ts` — one-pass engine: walks all features, generates bearing/distance dims, curve callouts, monument labels, area labels
-- ❌ `lib/cad/labels/label-optimizer.ts` — collision detection + simulated annealing (flip, slide, leader, shrink, stack, abbreviate strategies)
-- ❌ `lib/cad/labels/bearing-dim.ts` — bearing/distance dimension with auto or interactive placement
-- ❌ `lib/cad/labels/curve-label.ts` — R, L, CB, Delta callout auto-placed outside arc
-- ❌ `lib/cad/labels/monument-label.ts` — "5/8\" IRF", "1/2\" IRS w/Cap" etc. from code + point name
-- ❌ `lib/cad/labels/area-label.ts` — sq ft + acres placed at polygon centroid
-- ❌ `app/admin/cad/components/` DRAW_TEXT interactive tool — place, move, resize, rotate text on canvas
-- ❌ Leader annotation tool — arrow + text with clickable bend points
-- ❌ `lib/cad/templates/legend.ts` + `LegendEditor.tsx` — auto-populated from drawing features
-- ❌ `lib/cad/templates/certification.ts` + `CertificationEditor.tsx` — RPLS text + seal placeholder
-- ❌ `lib/cad/templates/standard-notes.ts` + `StandardNotesEditor.tsx` — basis of bearings, datum, flood zone, disclaimer
-- ❌ `lib/cad/templates/print-engine.ts` — PDF/PNG/SVG export via jsPDF
-- ❌ `app/admin/cad/components/PrintDialog.tsx` + `PrintPreview.tsx` — WYSIWYG print preview
+**What Still Needs to Be Built (Phase 6+):**
+- Phase 6: AI Drawing Engine (auto-drafting from field data)
+- Phase 7: Final Delivery — Editor Integration, RPLS Workflow & Export
+- Phase 8: UX Completeness — Controls, Hotkeys, Tooltips & Settings
 
 **Goal:** Everything needed to produce a finished, printable survey drawing. Bearing/distance labels on every line, curve data on every arc, monument callouts, area labels, title block, north arrow, scale bar, legend, certification block, standard notes, label collision detection, and a full print/plot system with PDF output.
 

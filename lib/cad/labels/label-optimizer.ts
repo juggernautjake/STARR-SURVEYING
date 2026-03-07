@@ -264,11 +264,24 @@ export function optimizeLabels(
     if (newPlacement) {
       placements.set(moverId, newPlacement);
       resolved++;
+    } else {
+      // Probabilistic acceptance: at high temperature, occasionally accept a
+      // random slide even without full collision resolution (simulated annealing).
+      // As temperature drops toward 0 the acceptance probability falls to ~0.
+      if (temperature > 1 && Math.random() < Math.exp(-1 / temperature)) {
+        const current = placements.get(moverId)!;
+        const jitter = moverRect.halfWidth * 0.2;
+        const jitterPlacement: LabelPlacement = {
+          ...current,
+          offsetX: current.offsetX + (Math.random() - 0.5) * jitter * 2,
+          offsetY: current.offsetY + (Math.random() - 0.5) * jitter * 2,
+          strategy: 'SLID',
+        };
+        placements.set(moverId, jitterPlacement);
+      }
     }
 
-  // TODO: use temperature for probabilistic acceptance of worse placements (simulated annealing extension)
     temperature *= config.coolingRate;
-    void temperature;
   }
 
   // Flag remaining collisions for manual review

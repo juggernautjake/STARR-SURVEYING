@@ -42,8 +42,9 @@ export function getMonumentText(point: SurveyPoint): { full: string; abbreviated
     return { full: desc, abbreviated: desc.substring(0, 12) };
   }
 
-  // Iron rod size
-  const rodSize = numCode === 7 ? '5/8"' : numCode === 2 ? '1/2"' : numCode === 4 ? '3/4"' : '1/2"';
+  // Iron rod size lookup
+  const ROD_SIZES: Record<number, string> = { 2: '1/2"', 4: '3/4"', 7: '5/8"' };
+  const rodSize = ROD_SIZES[numCode] ?? '1/2"';
   const rodType = action === 'FOUND' ? 'IRF' : 'IRS';
   const hasCap = code.includes('CAP') || (numCode >= 5 && numCode <= 9);
   const capSuffix = hasCap && action !== 'FOUND' ? ' w/Cap' : '';

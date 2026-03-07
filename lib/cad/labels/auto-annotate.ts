@@ -10,6 +10,7 @@ import { createMonumentLabel, DEFAULT_MONUMENT_LABEL_CONFIG } from './monument-l
 import type { MonumentLabelConfig } from './monument-label';
 import { createAreaAnnotation, DEFAULT_AREA_LABEL_CONFIG } from './area-label';
 import type { AreaLabelConfig } from './area-label';
+import { inverseBearingDistance } from '../geometry/bearing';
 
 export interface AutoAnnotateConfig {
   bearingDim: BearingDimConfig;
@@ -95,25 +96,29 @@ export function autoAnnotate(
         const L = arc.radius * delta;
         const C = 2 * arc.radius * Math.sin(delta / 2);
         const T = arc.radius * Math.tan(delta / 2);
+        // Compute chord bearing (azimuth) from PC → PT
+        const pcPt: Point2D = {
+          x: arc.center.x + arc.radius * Math.cos(arc.startAngle),
+          y: arc.center.y + arc.radius * Math.sin(arc.startAngle),
+        };
+        const ptPt: Point2D = {
+          x: arc.center.x + arc.radius * Math.cos(arc.endAngle),
+          y: arc.center.y + arc.radius * Math.sin(arc.endAngle),
+        };
+        const CB = inverseBearingDistance(pcPt, ptPt).azimuth;
         const roughParams = {
           R: arc.radius,
           delta,
           L,
           C,
-          CB: 0,
+          CB,
           T,
           E: arc.radius * (1 / Math.cos(delta / 2) - 1),
           M: arc.radius * (1 - Math.cos(delta / 2)),
           D: (180 / Math.PI) * (100 / arc.radius),
           direction: 'LEFT' as const,
-          pc: {
-            x: arc.center.x + arc.radius * Math.cos(arc.startAngle),
-            y: arc.center.y + arc.radius * Math.sin(arc.startAngle),
-          },
-          pt: {
-            x: arc.center.x + arc.radius * Math.cos(arc.endAngle),
-            y: arc.center.y + arc.radius * Math.sin(arc.endAngle),
-          },
+          pc: pcPt,
+          pt: ptPt,
           pi: arc.center,
           rp: arc.center,
           mpc: {
