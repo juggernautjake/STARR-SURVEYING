@@ -24,6 +24,8 @@ import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } fro
 import { inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
 import { cadLog } from '@/lib/cad/logger';
+import { computeSideFromCursor, computeDistanceToFeature, isOffsetableFeature, offsetPolyline, offsetArc, offsetCircle } from '@/lib/cad/geometry/offset';
+import { applyInteractiveOffset } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
   drawEllipse as drawEllipseCurve,
@@ -121,6 +123,8 @@ const SVG_CURSOR_ROTATE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 
 const SVG_CURSOR_BOX_SELECT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Crect x='4' y='4' width='16' height='16' fill='none' stroke='%230088ff' stroke-width='1.5' stroke-dasharray='3 2'/%3E%3Cline x1='12' y1='0' x2='12' y2='8' stroke='white' stroke-width='1'/%3E%3Cline x1='12' y1='16' x2='12' y2='24' stroke='white' stroke-width='1'/%3E%3Cline x1='0' y1='12' x2='8' y2='12' stroke='white' stroke-width='1'/%3E%3Cline x1='16' y1='12' x2='24' y2='12' stroke='white' stroke-width='1'/%3E%3C/svg%3E") 12 12, crosshair`;
 
+const SVG_CURSOR_OFFSET = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M4 12 h16' fill='none' stroke='white' stroke-width='1.5' stroke-dasharray='3 2'/%3E%3Cpath d='M4 7 h16' fill='none' stroke='white' stroke-width='1.5'/%3E%3Cpath d='M4 17 h16' fill='none' stroke='white' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='2' fill='white'/%3E%3C/svg%3E") 12 12, crosshair`;
+
 const TOOL_CURSORS: Partial<Record<string, string>> = {
   SELECT: 'default',
   BOX_SELECT: SVG_CURSOR_BOX_SELECT,
@@ -146,6 +150,7 @@ const TOOL_CURSORS: Partial<Record<string, string>> = {
   MIRROR: 'col-resize',
   SCALE: 'nwse-resize',
   ERASE: SVG_CURSOR_ERASE_IDLE,
+  OFFSET: SVG_CURSOR_OFFSET,
 };
 
 const MIN_LABEL_FONT_SIZE_PX = 4;
@@ -1246,10 +1251,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const innerGapIn = 0.20;                              // gap between bottom-band elements
     const tbWIn      = Math.min(5.5, pw * 0.47);         // title block width
     const tbHIn      = Math.min(2.2, tbWIn * 0.42);      // title block height
-    const sigBoxWIn  = Math.min(2.8, pw * 0.27);         // signature box width
-    // Taller sig box so the RPLS label, seal circle, and authorized-signature line
-    // all have breathing room without overlapping the border.
-    const sigBoxHIn  = Math.min(1.6, sigBoxWIn * 0.60);  // signature box height
+    // Signature block spans from left margin almost to the title block left edge.
+    const marginIn   = 0.1;                               // page margin in paper-inches
+    const sigBoxWIn  = Math.max(3.5, pw - 2 * marginIn - innerGapIn - tbWIn);
+    const sigBoxHIn  = Math.min(1.8, ph * 0.16);          // signature box height
     const naRadiusPx = (tb.northArrowSizeIn ?? 1.5) * inchToPx * 0.44; // star radius in screen px
     // Vertical distance from star center to top of the N label
     // (N label center = starCenter - radius*(1+nOffset/radius) ≈ starCenter - radius*1.55)
@@ -1542,16 +1547,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     sigg.moveTo(sigLeft + sealColW, sigTop);
     sigg.lineTo(sigLeft + sealColW, sigTop + sigBoxH);
 
-    // Signature line in right column at ~48% height – leaves top half open for the actual signature
+    // Signature line in right column at ~52% height – leaves top half open for the actual signature
     const sigLineX1 = sigLeft + sealColW + 8;
     const sigLineX2 = sigLeft + sigBoxW  - 8;
-    const sigLineY  = sigTop  + sigBoxH  * 0.48;
+    const sigLineY  = sigTop  + sigBoxH  * 0.52;
     sigg.lineStyle(1, 0x000000, 1);
     sigg.moveTo(sigLineX1, sigLineY);
     sigg.lineTo(sigLineX2, sigLineY);
 
     // Font sizes relative to box height, with sensible floor values
-    const sLblSz = Math.max(sigBoxH * 0.13, 5);
+    const sLblSz = Math.max(sigBoxH * 0.12, 5);
 
     // ── "OFFICIAL SEAL" label — centered vertically in seal column ────
     const sCx = sigLeft + sealColW / 2;
@@ -1590,35 +1595,30 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       g.drawRect(osHitX, osHitY, osTxtW + 8, osTxtH + 8);
     }
 
-    // ── "AUTHORIZED SIGNATURE" — bordered box spanning the full right column ──
-    // The box sits below the signature line with clear padding so the label
-    // identifies the line without crowding the signature space above.
-    const authColLeft  = sigLeft + sealColW;
-    const authBoxPadX  = 5;
-    const authBoxPadY  = 4;
-    const authBoxW     = sigBoxW - sealColW - authBoxPadX * 2;
+    // ── "AUTHORIZED SIGNATURE" — single-line label directly below the signature line ──
     const authFontSz   = Math.max(sLblSz * 0.88, 4.5);
-    const authBoxH     = authFontSz + authBoxPadY * 2;
-    const authBoxLeft  = authColLeft + authBoxPadX;
-    const authBoxTop   = sigLineY + 5;
-    // Bordered box
-    sigg.lineStyle(1.5, 0x2c4a6e, 1);
-    sigg.drawRect(authBoxLeft, authBoxTop, authBoxW, authBoxH);
-    // Centered label inside the box
+    const authLabelY   = sigLineY + 4;
     const authTxt = mkTBTextSig('AUTHORIZED SIGNATURE', {
       fontFamily: 'Arial', fontSize: authFontSz, fill: 0x2c4a6e,
-      fontWeight: 'bold', letterSpacing: 0.3, align: 'center',
-      wordWrap: true, wordWrapWidth: authBoxW - 4,
+      fontWeight: 'bold', letterSpacing: 0.3, align: 'left',
     });
-    authTxt.anchor.set(0.5, 0.5);
-    authTxt.position.set(authBoxLeft + authBoxW / 2, authBoxTop + authBoxH / 2);
+    authTxt.anchor.set(0, 0);
+    authTxt.position.set(sigLineX1, authLabelY);
 
-    // ── "DATE:" label below auth label in the right column ───────
+    // ── Date write-in line ──────────────────────────────────────────────────
+    // Sits at ~80% of the box height, giving clear space below the sig line
+    const dateLineY  = sigTop + sigBoxH * 0.80;
+    sigg.lineStyle(1, 0x000000, 1);
+    sigg.moveTo(sigLineX1, dateLineY);
+    sigg.lineTo(sigLineX2, dateLineY);
+
+    // ── "DATE" label below the date line ──────────────────────────────────
     const dateLblSz = Math.max(sLblSz * 0.80, 4);
-    const dateLbl = mkTBTextSig('DATE:', {
+    const dateLbl = mkTBTextSig('DATE', {
       fontFamily: 'Arial', fontSize: dateLblSz, fill: 0x555555, fontWeight: 'bold',
     });
-    dateLbl.position.set(sigLineX1, authBoxTop + authBoxH + 5);
+    dateLbl.anchor.set(0, 0);
+    dateLbl.position.set(sigLineX1, dateLineY + 4);
 
     // ────────────────────────────────────────────────────────────────
     // NORTH ARROW  (top-right, no box — just the star + "N" label)
@@ -2627,6 +2627,108 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       g.lineStyle(1.5, 0xff00ff, 0.7);
       g.moveTo(ax, ay);
       g.lineTo(bx, by);
+      return;
+    }
+
+    // ── OFFSET preview ────────────────────────────────────────────────────
+    if (activeTool === 'OFFSET') {
+      const offsetState = useToolStore.getState().state;
+      const { offsetSourceId, offsetDistance, offsetSide, offsetCornerHandling } = offsetState;
+
+      if (!offsetSourceId) {
+        // Phase 1: Highlight hovered offsettable features
+        return;
+      }
+
+      // Phase 2: Show offset preview
+      const sourceFeat = useDrawingStore.getState().getFeature(offsetSourceId);
+      if (!sourceFeat) return;
+
+      const dynamicDist = offsetDistance > 0
+        ? offsetDistance
+        : computeDistanceToFeature(sourceFeat, previewPoint);
+
+      if (dynamicDist <= 0) return;
+
+      // Determine side(s) for preview
+      const autoSide = computeSideFromCursor(sourceFeat, previewPoint);
+      const previewSides: Array<'LEFT' | 'RIGHT'> = offsetSide === 'BOTH'
+        ? ['LEFT', 'RIGHT']
+        : offsetDistance === 0
+          ? [autoSide]
+          : [offsetSide as 'LEFT' | 'RIGHT'];
+
+      const baseConfig = { distance: dynamicDist, cornerHandling: offsetCornerHandling as 'MITER' | 'ROUND' | 'CHAMFER', miterLimit: 4, maintainLink: false, targetLayerId: null };
+
+      g.lineStyle(1.5, 0x00ccff, 0.75);
+
+      for (const side of previewSides) {
+        const cfg = { ...baseConfig, side };
+        const sg = sourceFeat.geometry;
+
+        // Draw offset preview geometry
+        if (sg.type === 'LINE' && sg.start && sg.end) {
+          const verts = offsetPolyline([sg.start, sg.end], cfg);
+          if (verts.length >= 2) {
+            const s = w2s(verts[0].x, verts[0].y);
+            const e = w2s(verts[1].x, verts[1].y);
+            g.moveTo(s.sx, s.sy);
+            g.lineTo(e.sx, e.sy);
+          }
+        } else if ((sg.type === 'POLYLINE' || sg.type === 'POLYGON') && sg.vertices) {
+          const verts = offsetPolyline(sg.vertices, cfg);
+          if (verts.length >= 2) {
+            const p0 = w2s(verts[0].x, verts[0].y);
+            g.moveTo(p0.sx, p0.sy);
+            for (let i = 1; i < verts.length; i++) {
+              const p = w2s(verts[i].x, verts[i].y);
+              g.lineTo(p.sx, p.sy);
+            }
+            if (sg.type === 'POLYGON') {
+              g.lineTo(p0.sx, p0.sy);
+            }
+          }
+        } else if (sg.type === 'CIRCLE' && sg.circle) {
+          const newCircle = offsetCircle(sg.circle, cfg);
+          if (newCircle) {
+            const c = w2s(newCircle.center.x, newCircle.center.y);
+            const radiusPx = newCircle.radius * useViewportStore.getState().zoom;
+            g.drawCircle(c.sx, c.sy, radiusPx);
+          }
+        } else if (sg.type === 'ARC' && sg.arc) {
+          const newArc = offsetArc(sg.arc, cfg);
+          if (newArc) {
+            const c = w2s(newArc.center.x, newArc.center.y);
+            const radiusPx = newArc.radius * useViewportStore.getState().zoom;
+            // Draw arc preview using approximate line segments
+            const steps = 32;
+            let startA = newArc.startAngle;
+            let endA = newArc.endAngle;
+            if (newArc.anticlockwise) {
+              if (endA <= startA) endA += Math.PI * 2;
+            } else {
+              if (startA <= endA) startA += Math.PI * 2;
+              [startA, endA] = [endA, startA];
+            }
+            const spanAngle = endA - startA;
+            for (let i = 0; i <= steps; i++) {
+              const t = i / steps;
+              const angle = startA + spanAngle * t;
+              const px = c.sx + radiusPx * Math.cos(angle);
+              const py = c.sy - radiusPx * Math.sin(angle); // y-flip for screen coords
+              if (i === 0) g.moveTo(px, py);
+              else g.lineTo(px, py);
+            }
+          }
+        }
+      }
+
+      // Draw distance indicator label near cursor
+      const { sx: cx, sy: cy } = w2s(previewPoint.x, previewPoint.y);
+      g.beginFill(0x00ccff, 0.85);
+      g.drawCircle(cx, cy, 4);
+      g.endFill();
+
       return;
     }
 
@@ -4342,6 +4444,51 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           }
           break;
         }
+
+        case 'OFFSET': {
+          const { offsetSourceId, offsetDistance, offsetSide, offsetCornerHandling } = toolState;
+
+          if (!offsetSourceId) {
+            // Phase 1: Select the feature to offset
+            const hit = hitTest(sx, sy);
+            if (hit) {
+              const f = drawingStore.getFeature(hit);
+              if (f && isOffsetableFeature(f)) {
+                toolStore.setOffsetSourceId(hit);
+                selectionStore.select(hit, 'REPLACE');
+              }
+            }
+          } else {
+            // Phase 2: Commit the offset at the current cursor position
+            const sourceFeat = drawingStore.getFeature(offsetSourceId);
+            if (!sourceFeat) {
+              toolStore.setOffsetSourceId(null);
+              break;
+            }
+
+            // Determine effective distance (dynamic from cursor or locked value)
+            const effectiveDist = offsetDistance > 0
+              ? offsetDistance
+              : computeDistanceToFeature(sourceFeat, worldPt);
+
+            if (effectiveDist <= 0) break;
+
+            // Determine side — when BOTH is chosen use the cursor side for visual feedback
+            // but still apply BOTH sides; when LEFT/RIGHT forced, use that.
+            let effectiveSide: 'LEFT' | 'RIGHT' | 'BOTH' = offsetSide;
+            if (offsetSide !== 'BOTH' && offsetDistance === 0) {
+              // In dynamic distance mode, auto-determine side from cursor
+              effectiveSide = computeSideFromCursor(sourceFeat, worldPt);
+            }
+
+            applyInteractiveOffset(offsetSourceId, effectiveDist, effectiveSide, offsetCornerHandling);
+
+            // Reset source selection so user can pick the next feature
+            toolStore.setOffsetSourceId(null);
+            selectionStore.deselectAll();
+          }
+          break;
+        }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5046,6 +5193,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         interactiveOpRef.current = null;
         setInteractivePanel(null);
         setCursorStyle(TOOL_CURSORS[toolStore.state.activeTool] ?? 'default');
+        e.stopPropagation();
+      }
+      // Cancel offset source selection on Escape (so user can re-pick)
+      if (e.key === 'Escape' && toolStore.state.activeTool === 'OFFSET' && toolStore.state.offsetSourceId) {
+        toolStore.setOffsetSourceId(null);
+        useSelectionStore.getState().deselectAll();
         e.stopPropagation();
       }
     };

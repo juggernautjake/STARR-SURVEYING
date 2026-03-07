@@ -5,7 +5,7 @@ import { generateId } from './types';
 import type { Feature, Point2D } from './types';
 import { rotate, mirror, scale, transformFeature, translate } from './geometry/transform';
 import { computeBounds } from './geometry/bounds';
-import { offsetPolyline } from './geometry/offset';
+import { offsetPolyline, offsetArc, offsetCircle } from './geometry/offset';
 import { useDrawingStore } from './store/drawing-store';
 import { useSelectionStore } from './store/selection-store';
 import { useUndoStore, makeBatchEntry, makeAddFeatureEntry, makeRemoveFeatureEntry } from './store/undo-store';
@@ -387,31 +387,85 @@ export function offsetSelectionByDistance(distance: number): void {
   if (ids.length === 0 || distance === 0) return;
 
   const addOps: { type: 'ADD_FEATURE'; data: Feature }[] = [];
+  const side: 'LEFT' | 'RIGHT' = distance >= 0 ? 'LEFT' : 'RIGHT';
+  const absDist = Math.abs(distance);
 
   for (const id of ids) {
     const f = drawingStore.getFeature(id);
     if (!f) continue;
     const g = f.geometry;
 
-    let verts: Point2D[] | null = null;
-    if (g.type === 'LINE' && g.start && g.end) {
-      verts = [g.start, g.end];
-    } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices) {
-      verts = g.vertices;
+    const newFeatures = buildOffsetFeatures(f, absDist, side, 'MITER', false);
+    for (const nf of newFeatures) {
+      drawingStore.addFeature(nf);
+      addOps.push({ type: 'ADD_FEATURE', data: nf });
     }
+  }
 
-    if (!verts || verts.length < 2) continue;
+  if (addOps.length > 0) {
+    undoStore.pushUndo(makeBatchEntry(`Offset ${distance > 0 ? '+' : ''}${distance.toFixed(2)}`, addOps));
+  }
+}
 
-    const offsetVerts = offsetPolyline(verts, {
-      distance: Math.abs(distance),
-      side: distance >= 0 ? 'LEFT' : 'RIGHT',
-      cornerHandling: 'MITER',
-      miterLimit: 4,
-      maintainLink: false,
-      targetLayerId: null,
-    });
-    if (offsetVerts.length < 2) continue;
+/**
+ * Apply an offset to a single feature and add the result to the drawing.
+ * @param sourceId  Feature to offset
+ * @param distance  Offset distance (must be > 0)
+ * @param side      'LEFT' | 'RIGHT' | 'BOTH'
+ * @param cornerHandling  Corner join style
+ */
+export function applyInteractiveOffset(
+  sourceId: string,
+  distance: number,
+  side: 'LEFT' | 'RIGHT' | 'BOTH',
+  cornerHandling: 'MITER' | 'ROUND' | 'CHAMFER',
+): void {
+  if (distance <= 0) return;
+  const drawingStore = useDrawingStore.getState();
+  const undoStore = useUndoStore.getState();
+  const f = drawingStore.getFeature(sourceId);
+  if (!f) return;
 
+  const addOps: { type: 'ADD_FEATURE'; data: Feature }[] = [];
+
+  const sides: Array<'LEFT' | 'RIGHT'> = side === 'BOTH' ? ['LEFT', 'RIGHT'] : [side];
+  for (const s of sides) {
+    const newFeatures = buildOffsetFeatures(f, distance, s, cornerHandling, false);
+    for (const nf of newFeatures) {
+      drawingStore.addFeature(nf);
+      addOps.push({ type: 'ADD_FEATURE', data: nf });
+    }
+  }
+
+  if (addOps.length > 0) {
+    undoStore.pushUndo(makeBatchEntry(`Offset ${distance.toFixed(2)}`, addOps));
+  }
+}
+
+/**
+ * Internal: produce 0 or more offset Feature objects from a source feature.
+ * Returns an empty array if the geometry type is unsupported or offset is invalid.
+ */
+function buildOffsetFeatures(
+  f: Feature,
+  distance: number,
+  side: 'LEFT' | 'RIGHT',
+  cornerHandling: 'MITER' | 'ROUND' | 'CHAMFER',
+  maintainLink: boolean,
+): Feature[] {
+  const g = f.geometry;
+  const baseConfig = { distance, side, cornerHandling, miterLimit: 4, maintainLink, targetLayerId: null };
+
+  // LINE / POLYLINE / POLYGON
+  let verts: Point2D[] | null = null;
+  if (g.type === 'LINE' && g.start && g.end) {
+    verts = [g.start, g.end];
+  } else if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices) {
+    verts = g.vertices;
+  }
+  if (verts && verts.length >= 2) {
+    const offsetVerts = offsetPolyline(verts, baseConfig);
+    if (offsetVerts.length < 2) return [];
     const newFeature: Feature = {
       ...JSON.parse(JSON.stringify(f)),
       id: generateId(),
@@ -423,13 +477,72 @@ export function offsetSelectionByDistance(distance: number): void {
           : { vertices: offsetVerts }),
       },
     };
-    drawingStore.addFeature(newFeature);
-    addOps.push({ type: 'ADD_FEATURE', data: newFeature });
+    return [newFeature];
   }
 
-  if (addOps.length > 0) {
-    undoStore.pushUndo(makeBatchEntry(`Offset ${distance > 0 ? '+' : ''}${distance.toFixed(2)}`, addOps));
+  // CIRCLE
+  if (g.type === 'CIRCLE' && g.circle) {
+    const newCircle = offsetCircle(g.circle, baseConfig);
+    if (!newCircle) return [];
+    const newFeature: Feature = {
+      ...JSON.parse(JSON.stringify(f)),
+      id: generateId(),
+      geometry: { ...f.geometry, circle: newCircle },
+    };
+    return [newFeature];
   }
+
+  // ARC
+  if (g.type === 'ARC' && g.arc) {
+    const newArc = offsetArc(g.arc, baseConfig);
+    if (!newArc) return [];
+    const newFeature: Feature = {
+      ...JSON.parse(JSON.stringify(f)),
+      id: generateId(),
+      geometry: { ...f.geometry, arc: newArc },
+    };
+    return [newFeature];
+  }
+
+  // SPLINE — tessellate to polyline, offset, store as POLYLINE
+  if (g.type === 'SPLINE' && g.spline && g.spline.controlPoints.length >= 4) {
+    const pts = tessellateSpline(g.spline.controlPoints);
+    if (pts.length < 2) return [];
+    const offsetVerts = offsetPolyline(pts, baseConfig);
+    if (offsetVerts.length < 2) return [];
+    const newFeature: Feature = {
+      ...JSON.parse(JSON.stringify(f)),
+      id: generateId(),
+      type: 'POLYLINE',
+      geometry: { type: 'POLYLINE', vertices: offsetVerts },
+    };
+    return [newFeature];
+  }
+
+  return [];
+}
+
+/**
+ * Tessellate a cubic bezier spline into world points for approximate offsetting.
+ */
+function tessellateSpline(controlPoints: Point2D[]): Point2D[] {
+  const pts: Point2D[] = [];
+  const segCount = Math.floor((controlPoints.length - 1) / 3);
+  for (let seg = 0; seg < segCount; seg++) {
+    const p0 = controlPoints[seg * 3];
+    const p1 = controlPoints[seg * 3 + 1];
+    const p2 = controlPoints[seg * 3 + 2];
+    const p3 = controlPoints[seg * 3 + 3];
+    const steps = 24;
+    for (let i = seg === 0 ? 0 : 1; i <= steps; i++) {
+      const t = i / steps;
+      const mt = 1 - t;
+      const x = mt * mt * mt * p0.x + 3 * mt * mt * t * p1.x + 3 * mt * t * t * p2.x + t * t * t * p3.x;
+      const y = mt * mt * mt * p0.y + 3 * mt * mt * t * p1.y + 3 * mt * t * t * p2.y + t * t * t * p3.y;
+      pts.push({ x, y });
+    }
+  }
+  return pts;
 }
 
 // ─────────────────────────────────────────────
