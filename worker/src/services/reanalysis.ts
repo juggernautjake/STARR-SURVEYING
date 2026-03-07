@@ -17,7 +17,6 @@ import type { PipelineLogger } from '../lib/logger.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
-import type { TxDOTRowResult } from './txdot-row.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
