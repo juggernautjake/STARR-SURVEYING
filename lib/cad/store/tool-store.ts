@@ -10,7 +10,7 @@ interface ToolStore {
   popDrawingPoint: () => void;
   setPreviewPoint: (point: Point2D | null) => void;
   clearDrawingPoints: () => void;
-  setBasePoint: (point: Point2D) => void;
+  setBasePoint: (point: Point2D | null) => void;
   setDisplacement: (point: Point2D) => void;
   setRotateCenter: (point: Point2D) => void;
   setRotateAngle: (angle: number) => void;
@@ -21,6 +21,10 @@ interface ToolStore {
   setPolarAngle: (angle: number) => void;
   setCopyMode: (enabled: boolean) => void;
   setDrawStyle: (style: Partial<ToolState['drawStyle']>) => void;
+  setOffsetSourceId: (id: string | null) => void;
+  setOffsetDistance: (dist: number) => void;
+  setOffsetSide: (side: 'LEFT' | 'RIGHT' | 'BOTH') => void;
+  setOffsetCornerHandling: (mode: 'MITER' | 'ROUND' | 'CHAMFER') => void;
   resetToolState: () => void;
 }
 
@@ -49,6 +53,10 @@ const defaultToolState: ToolState = {
   boxEnd: null,
   isBoxSelecting: false,
   drawStyle: { ...defaultDrawStyle },
+  offsetSourceId: null,
+  offsetDistance: 0,
+  offsetSide: 'LEFT',
+  offsetCornerHandling: 'MITER',
 };
 
 export const useToolStore = create<ToolStore>((set) => ({
@@ -66,6 +74,10 @@ export const useToolStore = create<ToolStore>((set) => ({
         copyMode: s.state.copyMode,
         regularPolygonSides: s.state.regularPolygonSides,
         drawStyle: s.state.drawStyle, // Preserve draw style across tool switches
+        // Preserve offset parameters across tool switches so user settings persist
+        offsetDistance: s.state.offsetDistance,
+        offsetSide: s.state.offsetSide,
+        offsetCornerHandling: s.state.offsetCornerHandling,
       },
     })),
 
@@ -123,6 +135,18 @@ export const useToolStore = create<ToolStore>((set) => ({
   setDrawStyle: (style) =>
     set((s) => ({ state: { ...s.state, drawStyle: { ...s.state.drawStyle, ...style } } })),
 
+  setOffsetSourceId: (id) =>
+    set((s) => ({ state: { ...s.state, offsetSourceId: id } })),
+
+  setOffsetDistance: (dist) =>
+    set((s) => ({ state: { ...s.state, offsetDistance: Math.max(0, dist) } })),
+
+  setOffsetSide: (side) =>
+    set((s) => ({ state: { ...s.state, offsetSide: side } })),
+
+  setOffsetCornerHandling: (mode) =>
+    set((s) => ({ state: { ...s.state, offsetCornerHandling: mode } })),
+
   resetToolState: () =>
     set((s) => ({
       state: {
@@ -133,6 +157,9 @@ export const useToolStore = create<ToolStore>((set) => ({
         polarAngle: s.state.polarAngle,
         regularPolygonSides: s.state.regularPolygonSides,
         drawStyle: s.state.drawStyle,
+        offsetDistance: s.state.offsetDistance,
+        offsetSide: s.state.offsetSide,
+        offsetCornerHandling: s.state.offsetCornerHandling,
       },
     })),
 }));

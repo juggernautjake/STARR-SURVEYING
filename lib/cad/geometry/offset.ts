@@ -1,7 +1,8 @@
 // lib/cad/geometry/offset.ts — Parallel offset engine
-import type { Point2D, OffsetConfig, ArcDefinition } from '../types';
+import type { Point2D, OffsetConfig, ArcDefinition, CircleGeometry, ArcGeometry, Feature } from '../types';
 import { lineLineIntersection } from './intersection';
 import { tessellateArc } from './arc-render';
+import { pointToSegmentDistance } from './point';
 
 export const OFFSET_PRESETS: { id: string; label: string; config: Partial<OffsetConfig> }[] = [
   { id: 'UE_7.5',     label: "Utility Easement (7.5')",   config: { distance: 7.5,  cornerHandling: 'ROUND' } },
@@ -98,4 +99,112 @@ export function offsetPolyline(
   result.push(offsetSegs[offsetSegs.length - 1][1]);
 
   return result;
+}
+
+/**
+ * Create a parallel arc offset by moving the radius inward or outward.
+ * LEFT = outward (larger radius), RIGHT = inward (smaller radius).
+ */
+export function offsetArc(arc: ArcGeometry, config: OffsetConfig): ArcGeometry | null {
+  const delta = config.side === 'LEFT' ? config.distance : -config.distance;
+  const newRadius = arc.radius + delta;
+  if (newRadius <= 0) return null;
+  return { ...arc, radius: newRadius };
+}
+
+/**
+ * Create a parallel circle by adjusting the radius.
+ * LEFT = outward (larger), RIGHT = inward (smaller).
+ */
+export function offsetCircle(circle: CircleGeometry, config: OffsetConfig): CircleGeometry | null {
+  const delta = config.side === 'LEFT' ? config.distance : -config.distance;
+  const newRadius = circle.radius + delta;
+  if (newRadius <= 0) return null;
+  return { ...circle, radius: newRadius };
+}
+
+/**
+ * Determine which side of a feature the cursor is on.
+ * Returns 'LEFT' or 'RIGHT' based on cursor position relative to the feature geometry.
+ */
+export function computeSideFromCursor(feature: Feature, cursor: Point2D): 'LEFT' | 'RIGHT' {
+  const g = feature.geometry;
+
+  if (g.type === 'LINE' && g.start && g.end) {
+    const dx = g.end.x - g.start.x;
+    const dy = g.end.y - g.start.y;
+    const cross = dx * (cursor.y - g.start.y) - dy * (cursor.x - g.start.x);
+    return cross >= 0 ? 'LEFT' : 'RIGHT';
+  }
+
+  if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices && g.vertices.length >= 2) {
+    // Find the closest segment and use its direction
+    let minDist = Infinity;
+    let bestIdx = 0;
+    const len = g.type === 'POLYGON' ? g.vertices.length : g.vertices.length - 1;
+    for (let i = 0; i < len; i++) {
+      const j = (i + 1) % g.vertices.length;
+      const d = pointToSegmentDistance(cursor, g.vertices[i], g.vertices[j]);
+      if (d < minDist) { minDist = d; bestIdx = i; }
+    }
+    const j = (bestIdx + 1) % g.vertices.length;
+    const v0 = g.vertices[bestIdx], v1 = g.vertices[j];
+    const dx = v1.x - v0.x;
+    const dy = v1.y - v0.y;
+    const cross = dx * (cursor.y - v0.y) - dy * (cursor.x - v0.x);
+    return cross >= 0 ? 'LEFT' : 'RIGHT';
+  }
+
+  if (g.type === 'CIRCLE' && g.circle) {
+    const dist = Math.hypot(cursor.x - g.circle.center.x, cursor.y - g.circle.center.y);
+    return dist >= g.circle.radius ? 'LEFT' : 'RIGHT';
+  }
+
+  if (g.type === 'ARC' && g.arc) {
+    const dist = Math.hypot(cursor.x - g.arc.center.x, cursor.y - g.arc.center.y);
+    return dist >= g.arc.radius ? 'LEFT' : 'RIGHT';
+  }
+
+  return 'LEFT';
+}
+
+/**
+ * Compute the perpendicular distance from the cursor to the nearest point on a feature.
+ * Returns 0 for unsupported geometry types.
+ */
+export function computeDistanceToFeature(feature: Feature, cursor: Point2D): number {
+  const g = feature.geometry;
+
+  if (g.type === 'LINE' && g.start && g.end) {
+    return pointToSegmentDistance(cursor, g.start, g.end);
+  }
+
+  if ((g.type === 'POLYLINE' || g.type === 'POLYGON') && g.vertices && g.vertices.length >= 2) {
+    let minDist = Infinity;
+    const len = g.type === 'POLYGON' ? g.vertices.length : g.vertices.length - 1;
+    for (let i = 0; i < len; i++) {
+      const j = (i + 1) % g.vertices.length;
+      const d = pointToSegmentDistance(cursor, g.vertices[i], g.vertices[j]);
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  }
+
+  if (g.type === 'CIRCLE' && g.circle) {
+    return Math.abs(Math.hypot(cursor.x - g.circle.center.x, cursor.y - g.circle.center.y) - g.circle.radius);
+  }
+
+  if (g.type === 'ARC' && g.arc) {
+    return Math.abs(Math.hypot(cursor.x - g.arc.center.x, cursor.y - g.arc.center.y) - g.arc.radius);
+  }
+
+  return 0;
+}
+
+/**
+ * Returns true if this feature type supports the offset operation.
+ */
+export function isOffsetableFeature(feature: Feature): boolean {
+  const t = feature.geometry.type;
+  return t === 'LINE' || t === 'POLYLINE' || t === 'POLYGON' || t === 'CIRCLE' || t === 'ARC' || t === 'SPLINE';
 }

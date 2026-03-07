@@ -518,6 +518,12 @@ export interface ToolState {
     opacity: number | null;     // null = use active layer opacity
     lineType: string;           // 'SOLID' | 'DASHED' | 'DOTTED' | 'DOT_DASH' | 'LONG_DASH'
   };
+
+  // Offset tool state
+  offsetSourceId: string | null;   // Feature being offset (null = awaiting selection)
+  offsetDistance: number;          // Distance; 0 = dynamic (follow cursor)
+  offsetSide: 'LEFT' | 'RIGHT' | 'BOTH'; // Which side(s) to create offset on
+  offsetCornerHandling: 'MITER' | 'ROUND' | 'CHAMFER'; // Corner join style
 }
 
 // --- UNDO ---

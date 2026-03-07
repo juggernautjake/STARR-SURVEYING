@@ -14,8 +14,10 @@ import {
   deleteSelection,
   duplicateSelection,
   computeSelectionCentroid,
+  applyInteractiveOffset,
 } from '@/lib/cad/operations';
 import { BUILTIN_LINE_TYPES } from '@/lib/cad/styles/linetype-library';
+import { OFFSET_PRESETS } from '@/lib/cad/geometry/offset';
 
 // Line weight constraints
 const MIN_LINE_WEIGHT = 0.1;
@@ -124,6 +126,7 @@ export default function ToolOptionsBar() {
   const showScaleFactor = activeTool === 'SCALE';
   const showSelectAll = activeTool === 'SELECT' || activeTool === 'BOX_SELECT';
   const showLineStyle = activeTool === 'DRAW_LINE' || activeTool === 'DRAW_POLYLINE';
+  const showOffset = activeTool === 'OFFSET';
 
   // Local state for text inputs
   const selCount = selectionStore.selectedIds.size;
@@ -482,6 +485,118 @@ export default function ToolOptionsBar() {
         </>
       )}
 
+      {/* ── OFFSET tool options ─────────────────────────────────────────────── */}
+      {showOffset && (
+        <>
+          <Sep />
+          {/* Phase indicator */}
+          <span className={`text-[11px] font-medium px-2 h-6 flex items-center rounded border whitespace-nowrap
+            ${ts.offsetSourceId
+              ? 'bg-blue-700/40 border-blue-500 text-blue-300'
+              : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+          >
+            {ts.offsetSourceId ? '⟳ Click side to place offset' : '① Click object to offset'}
+          </span>
+          {ts.offsetSourceId && (
+            <Tooltip label="Cancel Selection" description="Deselect the current offset source and pick a new object." side="bottom" delay={400}>
+              <button
+                className="px-2 h-6 rounded text-[11px] bg-gray-700 border border-gray-600 text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+                onClick={() => toolStore.setOffsetSourceId(null)}
+              >
+                ✕
+              </button>
+            </Tooltip>
+          )}
+          <Sep />
+          {/* Distance input */}
+          <Tooltip
+            label="Offset Distance"
+            description="Distance to offset. Set to 0 to pick the distance dynamically by mouse position."
+            side="bottom"
+            delay={400}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">Dist:</span>
+              <input
+                type="number"
+                min={0}
+                step={0.5}
+                className="w-16 h-6 bg-gray-700 text-white text-[11px] rounded px-1.5 outline-none font-mono text-center border border-gray-600 focus:border-blue-500"
+                value={ts.offsetDistance}
+                title={ts.offsetDistance === 0 ? 'Dynamic (follow cursor)' : `${ts.offsetDistance} units`}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v)) toolStore.setOffsetDistance(v);
+                }}
+              />
+            </div>
+          </Tooltip>
+          <Sep />
+          {/* Side selector */}
+          <Tooltip label="Offset Side" description="Which side of the object to create the offset on. 'Both' creates offsets on both sides simultaneously." side="bottom" delay={400}>
+            <div className="flex items-center gap-0.5">
+              {(['LEFT', 'RIGHT', 'BOTH'] as const).map((s) => (
+                <button
+                  key={s}
+                  className={`px-2 h-6 rounded text-[11px] border transition-colors whitespace-nowrap
+                    ${ts.offsetSide === s
+                      ? 'bg-blue-600 border-blue-500 text-white'
+                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                  onClick={() => toolStore.setOffsetSide(s)}
+                  title={s === 'LEFT' ? 'Left / outside' : s === 'RIGHT' ? 'Right / inside' : 'Both sides'}
+                >
+                  {s === 'LEFT' ? '◁ Left' : s === 'RIGHT' ? 'Right ▷' : '⇔ Both'}
+                </button>
+              ))}
+            </div>
+          </Tooltip>
+          <Sep />
+          {/* Corner handling */}
+          <Tooltip label="Corner Style" description="How corners are joined in the offset polyline: Miter (sharp), Round (arc), or Chamfer (beveled)." side="bottom" delay={400}>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">Corner:</span>
+              <div className="flex items-center gap-0.5">
+                {(['MITER', 'ROUND', 'CHAMFER'] as const).map((m) => (
+                  <button
+                    key={m}
+                    className={`px-2 h-6 rounded text-[11px] border transition-colors
+                      ${ts.offsetCornerHandling === m
+                        ? 'bg-indigo-600 border-indigo-500 text-white'
+                        : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'}`}
+                    onClick={() => toolStore.setOffsetCornerHandling(m)}
+                  >
+                    {m === 'MITER' ? '⌐ Miter' : m === 'ROUND' ? '◜ Round' : '/ Chamfer'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Tooltip>
+          <Sep />
+          {/* Presets */}
+          <OffsetPresetsDropdown />
+          {/* Quick-apply when a source is selected */}
+          {ts.offsetSourceId && ts.offsetDistance > 0 && (
+            <>
+              <Sep />
+              <Tooltip label="Apply Offset" description="Apply the offset to the selected object with the current settings." side="bottom" delay={400}>
+                <button
+                  className="px-2.5 h-6 rounded text-[11px] bg-blue-700 border border-blue-600 text-white hover:bg-blue-600 transition-colors whitespace-nowrap"
+                  onClick={() => {
+                    const { offsetSourceId: sid, offsetDistance: dist, offsetSide: side, offsetCornerHandling: corner } = toolStore.state;
+                    if (sid && dist > 0) {
+                      applyInteractiveOffset(sid, dist, side, corner);
+                      toolStore.setOffsetSourceId(null);
+                    }
+                  }}
+                >
+                  Apply
+                </button>
+              </Tooltip>
+            </>
+          )}
+        </>
+      )}
+
       {/* ── SELECT tool helpers ───────────────────────────────────────────── */}
       {showSelectAll && (
         <>
@@ -764,6 +879,38 @@ function QuickScaleInput({ copyMode }: { copyMode: boolean }) {
 }
 
 // ─────────────────────────────────────────────
+// Offset presets dropdown
+// ─────────────────────────────────────────────
+function OffsetPresetsDropdown() {
+  const toolStore = useToolStore();
+
+  function applyPreset(presetId: string) {
+    const preset = OFFSET_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    if (preset.config.distance !== undefined) toolStore.setOffsetDistance(preset.config.distance);
+    if (preset.config.cornerHandling) toolStore.setOffsetCornerHandling(preset.config.cornerHandling);
+  }
+
+  return (
+    <Tooltip label="Offset Presets" description="Load a common surveying offset distance and corner style." side="bottom" delay={400}>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[11px] text-gray-400 shrink-0">Preset:</span>
+        <select
+          className="h-6 bg-gray-700 text-white text-[11px] rounded px-1 outline-none border border-gray-600 focus:border-blue-500 max-w-[160px]"
+          defaultValue=""
+          onChange={(e) => { if (e.target.value) applyPreset(e.target.value); }}
+        >
+          <option value="">— choose —</option>
+          {OFFSET_PRESETS.map((p) => (
+            <option key={p.id} value={p.id}>{p.label}</option>
+          ))}
+        </select>
+      </div>
+    </Tooltip>
+  );
+}
+
+// ─────────────────────────────────────────────
 // Display name map
 // ─────────────────────────────────────────────
 const TOOL_DISPLAY_NAMES: Record<string, string> = {
@@ -786,4 +933,5 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   MIRROR: 'Mirror',
   SCALE: 'Scale',
   ERASE: 'Erase',
+  OFFSET: 'Offset',
 };
