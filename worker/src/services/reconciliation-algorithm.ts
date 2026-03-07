@@ -98,8 +98,14 @@ export class ReconciliationAlgorithm {
       }))
       .filter((b) => b.parsed !== null && isFinite(b.decimal));
 
+    // Guard: if no bearings can be parsed (e.g., all bearing strings are in an
+    // unrecognised format), fall back to unresolved rather than returning a
+    // weighted_consensus call with reconciledBearing=null.
+    if (bearingValues.length === 0) {
+      return this.buildUnresolvedCall(set, readings, previousConfidence);
+    }
+
     // Use the dominant reading's quadrant as the output quadrant.
-    // If no parseable bearing exists, fall back to 'NE' (will be flagged as unresolved).
     const quadrant =
       (bearingValues[0]?.parsed?.ns || 'N') +
       (bearingValues[0]?.parsed?.ew || 'E');
@@ -149,8 +155,11 @@ export class ReconciliationAlgorithm {
     const dominant = [...readings].sort((a, b) => b.weight - a.weight)[0];
 
     // Final confidence: boosted by number of agreeing sources.
-    // Use totalW for bearing readings since that's what we averaged over.
-    const weightDenom = totalW > 0 ? totalW : 1;
+    // Use the sum of ALL straight-readings weights as the denominator so that
+    // readings whose bearings failed to parse (excluded from bearingValues) do
+    // not inflate the weighted-average confidence.
+    const allReadingsW = readings.reduce((s, r) => s + r.weight, 0);
+    const weightDenom = allReadingsW > 0 ? allReadingsW : 1;
     const sourceCount = new Set(readings.map((r) => r.source)).size;
     const agreementBonus = Math.min(25, sourceCount * 5);
     const finalConfidence = Math.min(
