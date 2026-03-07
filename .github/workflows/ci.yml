@@ -1,0 +1,89 @@
+# .github/workflows/ci.yml
+# STARR RECON — Continuous Integration
+#
+# Runs on every push and pull request to main/develop.
+# Steps:
+#   1. Install Node.js dependencies
+#   2. Type-check TypeScript (tsc --noEmit)
+#   3. Lint (next lint)
+#   4. Run all Vitest unit tests
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop, 'feature/**', 'copilot/**']
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Type-check, Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Type-check TypeScript
+        run: npm run type-check
+        env:
+          # Provide stub values so imports that read env vars don't crash
+          NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co'
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder'
+          SUPABASE_SERVICE_ROLE_KEY: 'placeholder'
+          ANTHROPIC_API_KEY: 'placeholder'
+          NEXTAUTH_SECRET: 'placeholder'
+          NEXTAUTH_URL: 'http://localhost:3000'
+
+      - name: Lint
+        run: npm run lint
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co'
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder'
+
+      - name: Run unit tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co'
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder'
+          SUPABASE_SERVICE_ROLE_KEY: 'placeholder'
+          ANTHROPIC_API_KEY: 'placeholder'
+          NEXTAUTH_SECRET: 'placeholder'
+          NEXTAUTH_URL: 'http://localhost:3000'
+
+  # Worker package tests (Phase 1-11 backend pipeline)
+  worker-test:
+    name: Worker Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install worker dependencies
+        run: npm ci
+        working-directory: worker
+
+      - name: Build worker TypeScript
+        run: npm run build
+        working-directory: worker
+        env:
+          NODE_ENV: test

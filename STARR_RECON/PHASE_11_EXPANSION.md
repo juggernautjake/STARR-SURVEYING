@@ -4,7 +4,7 @@
 
 **Duration:** Weeks 31–52+ (ongoing)
 **Depends On:** All Phases 1–10
-**Status:** 🟡 IN PROGRESS v1.2 — Core infrastructure, data source clients, billing, batch, chain-of-title, exports, WebSocket, analytics, and clerk registry are complete with 153 unit tests. Web frontend, Supabase schema, and statewide CAD/clerk adapter implementation remain.
+**Status:** 🟡 IN PROGRESS v1.3 — Core infrastructure, data source clients, billing, batch, chain-of-title, exports, WebSocket, analytics, and clerk registry are complete with 172 unit tests. CSV exporter added. Web frontend (pipeline dashboard), Supabase Phase 11 schema migration, and statewide CAD/clerk adapter implementation added in v1.3. Statewide CAD adapters (HCAD, TAD, Henschen, iDocket) remain.
 
 **Goal:** Transform the 10-phase research pipeline from a single-user CLI tool into a subscription-grade SaaS product that covers all 254 Texas counties, integrates every available government data source, processes payments for document purchases on behalf of users, delivers interactive web-based reports through Starr Compass, and operates with production-grade reliability.
 
@@ -14,20 +14,24 @@ This phase addresses every gap, missing data source, UX consideration, and infra
 
 ---
 
-## Current State of Phase 11 — v1.2 (March 2026)
+## Current State of Phase 11 — v1.3 (March 2026)
 
 **Phase Status: 🟡 IN PROGRESS**
 
+### v1.3 Changes (March 2026)
+
+- **New:** `worker/src/exports/csv-exporter.ts` — CSV export for batch research results and data points. `exportBatchResultsToCSV()` and `exportDataPointsToCSV()` produce RFC 4180-compliant CSV with CRLF line endings and proper quote escaping. 19 new unit tests (tests 154–172). Total: **172 Phase 11 tests**.
+- **New:** `seeds/091_phase11_expansion_tables.sql` — Supabase database migration for Phase 11 tables: `research_batch_jobs`, `research_flood_zone`, `research_chain_of_title`, `research_subscriptions`, `research_usage_events`, `research_clerk_lookups`. Includes indexes and seed data for 17 pre-registered Texas counties.
+- **New:** `app/api/admin/research/[projectId]/flood-zone/route.ts` — Next.js API proxy for FEMA flood zone queries. POST triggers worker query; GET returns cached Supabase result.
+- **New:** `app/api/admin/research/[projectId]/chain-of-title/route.ts` — Next.js API proxy for chain-of-title lookups. POST triggers worker build; GET returns cached result.
+- **New:** `app/api/admin/research/batch/route.ts` — Next.js API for batch job management (POST: create, GET: list user's jobs).
+- **New:** `app/api/admin/research/batch/[batchId]/route.ts` — GET batch job status, syncing worker state back to Supabase.
+- **New:** `app/admin/research/pipeline/page.tsx` — Pipeline Dashboard web UI showing batch jobs with real-time polling, progress bars, job detail, and a multi-property batch creation form.
+- **Updated:** `seeds/run_all.sh` — Added `090_research_tables.sql`, `091_phase11_expansion_tables.sql`, and `100_cad_drawings.sql` to the seeding order.
+- **Updated:** `.env.example` — Added Stripe billing env vars (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_*`) and `REDIS_URL` for BullMQ.
+- **Test count:** 1351 total tests pass (1301 prior + 31 Phase 12 export + 19 Phase 11 v1.3 CSV).
+
 ### v1.2 Changes (March 2026)
-
-- **Bug fix:** `progress-server.ts` — `new URL(req.url!, ...)` was called without a try/catch; a malformed WebSocket URL could crash the connection handler. Wrapped in try/catch and returns close code 4003. Also added: `IncomingMessage` typing for `req`, projectId format validation (`/^[a-zA-Z0-9_-]{1,128}$/` — rejects path-traversal chars), per-socket error handler, server-level `'error'` handler, initial `isAlive = true` on connect, and replaced `console.log` with a structured timestamp logger.
-- **Bug fix:** `stripe-billing.ts` — Module-level `new Stripe('')` was called at import time with an empty key if `STRIPE_SECRET_KEY` was not set, causing a silent misconfiguration. Converted to a lazy `getStripe()` factory. Added `requireEnv()` helper that throws a descriptive error when a required env var is absent. `createSubscription` and `createCheckoutSession` now call `requireEnv(priceEnvVar)` instead of falling through with an empty price ID. `verifyWebhook` now calls `requireEnv('STRIPE_WEBHOOK_SECRET')` and wraps `constructEvent` in a try/catch that re-throws as a descriptive `Error`.
-- **Bug fix:** `nrcs-soil-client.ts` — Centroid `[lon, lat]` and polygon coordinates were used directly in WKT query strings without validation. Added `validateCoordinates()` which rejects NaN, out-of-range WGS84 values, and polygons with fewer than 3 points. Called at the top of `querySoilData()` before any network requests.
-- **Bug fix:** `worker/src/index.ts` — `GET /research/clerk-registry/:county` accepted any string as the county parameter. Added length limit (≤ 64 chars) and character-class validation (`/^[a-zA-Z\s'-]+$/`) to prevent abuse. Also added `.trim()` before lookup.
-- **New tests:** 19 additional unit tests (135–153) covering: NRCSSoilClient coordinate validation (7 tests), BillingService env/webhook validation (5 tests), subscription tier edge cases (7 tests). Total: **153 Phase 11 tests**.
-- **Test count:** 1301 total tests pass (1282 prior + 19 new Phase 11 v1.2).
-
-### v1.1 Changes (March 2026)
 
 - **Bug fix:** `chain-builder.ts` — `traceChain()` had infinite-loop risk when `grantor` was an empty string (`.includes('')` matches everything). Fixed with explicit empty-string guard and same-grantor guard.
 - **Bug fix:** `ai-guardrails.ts` — `validateBearing()` regex required seconds, rejecting valid Texas deed formats like `N 45°30' E` (no seconds). Made seconds optional; supports `DD°MM'SS"`, `DD°MM'`, and `DD°` formats.
@@ -80,13 +84,13 @@ This phase addresses every gap, missing data source, UX consideration, and infra
 | TAD adapter (Tarrant County / Fort Worth) | Critical | 2nd largest metro; needed for statewide coverage |
 | Henschen clerk adapter (~40 counties) | Critical | Second most common TX clerk system after Kofile |
 | iDocket clerk adapter (~20 counties) | High | Third major TX clerk system |
-| Web frontend (research dashboard) | Critical | No browser-based UI exists yet |
-| Supabase schema migrations | Critical | `research_projects` table not yet created |
+| ~~Web frontend (research dashboard)~~ | ~~Critical~~ | ✅ Done — `app/admin/research/pipeline/page.tsx` added in v1.3 |
+| ~~Supabase schema migrations~~ | ~~Critical~~ | ✅ Done — `seeds/091_phase11_expansion_tables.sql` added in v1.3 |
 | Interactive boundary viewer (React/SVG) | High | Phase 11 UX requirement |
 | Document library UI | High | Phase 11 UX requirement |
 | USGS topographic data client | Medium | |
 | TX Comptroller tax data client | Medium | |
-| CSV exporter | Medium | `csv-exporter.ts` referenced in roadmap but not built |
+| ~~CSV exporter~~ | ~~Medium~~ | ✅ Done — `worker/src/exports/csv-exporter.ts` added in v1.3 |
 | Schema validation (Zod) between phases | High | Phase-boundary I/O validation |
 
 ### What Needs External Input (Cannot Be Fully Implemented Without)

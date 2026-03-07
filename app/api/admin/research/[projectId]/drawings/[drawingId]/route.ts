@@ -9,6 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { getDrawingWithElements } from '@/lib/research/drawing.service';
 import { renderDrawingSVG } from '@/lib/research/svg.renderer';
+import { renderToPng, renderToPdf, renderToDxf } from '@/lib/research/export.service';
 import { compareDrawingToSources } from '@/lib/research/comparison.service';
 import type { ExportFormat, ViewMode } from '@/types/research';
 
@@ -237,13 +238,44 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         });
       }
 
-      case 'png':
-      case 'pdf':
-      case 'dxf':
+      case 'png': {
+        const pngBuffer = await renderToPng(result.drawing, result.elements, viewMode, showTitleBlock);
+        const data = pngBuffer.toString('base64');
         return NextResponse.json({
-          error: `${format.toUpperCase()} export is not yet available. Use SVG or JSON export.`,
-          available_formats: ['svg', 'json'],
-        }, { status: 501 });
+          export: {
+            format: 'png',
+            filename: `${drawingName}.png`,
+            blob_data: data,
+            size_bytes: pngBuffer.length,
+          },
+        });
+      }
+
+      case 'pdf': {
+        const pdfBuffer = await renderToPdf(result.drawing, result.elements, viewMode, showTitleBlock);
+        const data = pdfBuffer.toString('base64');
+        return NextResponse.json({
+          export: {
+            format: 'pdf',
+            filename: `${drawingName}.pdf`,
+            blob_data: data,
+            size_bytes: pdfBuffer.length,
+          },
+        });
+      }
+
+      case 'dxf': {
+        const dxfBuffer = renderToDxf(result.drawing, result.elements);
+        const data = dxfBuffer.toString('base64');
+        return NextResponse.json({
+          export: {
+            format: 'dxf',
+            filename: `${drawingName}.dxf`,
+            blob_data: data,
+            size_bytes: dxfBuffer.length,
+          },
+        });
+      }
 
       default:
         return NextResponse.json({ error: `Unsupported format: ${format}` }, { status: 400 });

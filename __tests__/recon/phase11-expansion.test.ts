@@ -216,6 +216,11 @@ import {
 
 import { exportToRW5 } from '../../worker/src/exports/rw5-exporter.js';
 import { exportToJobXML } from '../../worker/src/exports/jobxml-exporter.js';
+import {
+  exportBatchResultsToCSV,
+  exportDataPointsToCSV,
+  csvField,
+} from '../../worker/src/exports/csv-exporter.js';
 
 import {
   getClerkByCountyName,
@@ -1638,5 +1643,116 @@ describe('Subscription Tiers — additional edge cases (billing/subscription-tie
 
   it('153. isWithinReportLimit returns false for FREE_TRIAL when over 2 reports', () => {
     expect(isWithinReportLimit('FREE_TRIAL', 3)).toBe(false);
+  });
+});
+
+// ── CSV Exporter Tests (exports/csv-exporter.ts) ─────────────────────────────
+
+describe('CSV Exporter (exports/csv-exporter.ts)', () => {
+  it('154. csvField passes through plain strings unchanged', () => {
+    expect(csvField('hello')).toBe('hello');
+  });
+
+  it('155. csvField wraps strings containing commas in quotes', () => {
+    expect(csvField('Bell County, TX')).toBe('"Bell County, TX"');
+  });
+
+  it('156. csvField doubles internal quotes', () => {
+    expect(csvField('He said "hello"')).toBe('"He said ""hello"""');
+  });
+
+  it('157. csvField wraps strings with newlines in quotes', () => {
+    expect(csvField('line1\nline2')).toBe('"line1\nline2"');
+  });
+
+  it('158. exportBatchResultsToCSV returns a non-empty string', () => {
+    const rows = [{ address: '123 Main St', county: 'Bell', state: 'TX', status: 'completed' }];
+    const csv = exportBatchResultsToCSV(rows);
+    expect(typeof csv).toBe('string');
+    expect(csv.length).toBeGreaterThan(0);
+  });
+
+  it('159. exportBatchResultsToCSV includes header row', () => {
+    const csv = exportBatchResultsToCSV([]);
+    expect(csv).toContain('Property Address');
+    expect(csv).toContain('County');
+    expect(csv).toContain('Status');
+  });
+
+  it('160. exportBatchResultsToCSV includes data row values', () => {
+    const rows = [{ address: '123 Main St', county: 'Bell', state: 'TX', status: 'completed', confidence: 85 }];
+    const csv = exportBatchResultsToCSV(rows);
+    expect(csv).toContain('123 Main St');
+    expect(csv).toContain('Bell');
+    expect(csv).toContain('85');
+  });
+
+  it('161. exportBatchResultsToCSV uses CRLF line endings', () => {
+    const csv = exportBatchResultsToCSV([]);
+    expect(csv).toContain('\r\n');
+  });
+
+  it('162. exportBatchResultsToCSV includes optional project name header', () => {
+    const csv = exportBatchResultsToCSV([], 'Smith Property');
+    expect(csv).toContain('Smith Property');
+  });
+
+  it('163. exportBatchResultsToCSV renders boolean flood_insurance_required as Yes/No', () => {
+    const rows = [{ address: 'X', county: 'Y', state: 'TX', status: 'completed', flood_insurance_required: true }];
+    const csv = exportBatchResultsToCSV(rows);
+    expect(csv).toContain('Yes');
+  });
+
+  it('164. exportBatchResultsToCSV renders false boolean as No', () => {
+    const rows = [{ address: 'X', county: 'Y', state: 'TX', status: 'completed', flood_insurance_required: false }];
+    const csv = exportBatchResultsToCSV(rows);
+    expect(csv).toContain('No');
+  });
+
+  it('165. exportBatchResultsToCSV handles null values as empty cells', () => {
+    const rows = [{ address: 'X', county: 'Y', state: 'TX', status: 'completed', confidence: null }];
+    const csv = exportBatchResultsToCSV(rows);
+    // null confidence should produce an empty cell, not the word null
+    expect(csv).not.toContain('null');
+  });
+
+  it('166. exportBatchResultsToCSV quotes addresses containing commas', () => {
+    const rows = [{ address: '123 Main St, Apt 4', county: 'Bell', state: 'TX', status: 'completed' }];
+    const csv = exportBatchResultsToCSV(rows);
+    expect(csv).toContain('"123 Main St, Apt 4"');
+  });
+
+  it('167. exportDataPointsToCSV returns a non-empty string', () => {
+    const rows = [{ data_type: 'bearing', value_text: 'N 45°30\'00" E', confidence_score: 90, verified: false }];
+    const csv = exportDataPointsToCSV(rows);
+    expect(csv.length).toBeGreaterThan(0);
+  });
+
+  it('168. exportDataPointsToCSV includes Data Type header', () => {
+    const csv = exportDataPointsToCSV([]);
+    expect(csv).toContain('Data Type');
+    expect(csv).toContain('Confidence %');
+  });
+
+  it('169. exportDataPointsToCSV includes data values', () => {
+    const rows = [{ data_type: 'bearing', value_text: 'N 45°30\'00" E', confidence_score: 92, verified: true }];
+    const csv = exportDataPointsToCSV(rows);
+    expect(csv).toContain('bearing');
+    expect(csv).toContain('92');
+  });
+
+  it('170. exportDataPointsToCSV renders verified=true as Yes', () => {
+    const rows = [{ data_type: 'distance', value_numeric: 120.5, confidence_score: 80, verified: true }];
+    const csv = exportDataPointsToCSV(rows);
+    expect(csv).toContain('Yes');
+  });
+
+  it('171. exportDataPointsToCSV handles empty rows array', () => {
+    expect(() => exportDataPointsToCSV([])).not.toThrow();
+  });
+
+  it('172. exportDataPointsToCSV includes optional project name', () => {
+    const csv = exportDataPointsToCSV([], 'Smith Plat');
+    expect(csv).toContain('Smith Plat');
   });
 });
