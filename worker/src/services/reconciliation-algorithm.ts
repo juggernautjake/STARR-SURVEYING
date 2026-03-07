@@ -87,43 +87,53 @@ export class ReconciliationAlgorithm {
     readings: WeightedReading[],
     previousConfidence: number,
   ): ReconciledCall {
-    // Compute weighted average bearing (in decimal degrees, then convert back)
+    // Compute weighted average bearing (in decimal degrees, then convert back to DMS).
+    // Guard against readings with no parseable bearing (e.g., interior lines
+    // that only have a distance) — filter them out before computing the average.
     const bearingValues = readings
       .map((r) => ({
         decimal: this.bearingToDecimal(r.bearing!),
         weight: r.weight,
         parsed: this.parseBearing(r.bearing!),
       }))
-      .filter((b) => b.parsed !== null);
+      .filter((b) => b.parsed !== null && isFinite(b.decimal));
 
+    // Use the dominant reading's quadrant as the output quadrant.
+    // If no parseable bearing exists, fall back to 'NE' (will be flagged as unresolved).
     const quadrant =
       (bearingValues[0]?.parsed?.ns || 'N') +
       (bearingValues[0]?.parsed?.ew || 'E');
 
-    // Weighted average of decimal bearing
+    // Weighted average of decimal bearing degrees.
+    // Guard against division by zero when all weights are 0.
     const totalW = bearingValues.reduce((s, b) => s + b.weight, 0);
     const avgDecimal =
-      bearingValues.reduce((s, b) => s + b.decimal * b.weight, 0) / totalW;
+      totalW > 0
+        ? bearingValues.reduce((s, b) => s + b.decimal * b.weight, 0) / totalW
+        : null;
 
-    // Convert back to DMS
-    const reconciledBearing = this.decimalToBearingDMS(avgDecimal, quadrant);
+    // Convert back to DMS — null if we had no valid bearings
+    const reconciledBearing =
+      avgDecimal != null && isFinite(avgDecimal)
+        ? this.decimalToBearingDMS(avgDecimal, quadrant)
+        : null;
 
-    // Weighted average distance
-    const distReadings = readings.filter((r) => r.distance != null);
+    // Weighted average distance (all readings already normalized to feet).
+    const distReadings = readings.filter((r) => r.distance != null && isFinite(r.distance!));
     const totalDW = distReadings.reduce((s, r) => s + r.weight, 0);
     const avgDistance =
       totalDW > 0
         ? distReadings.reduce((s, r) => s + r.distance! * r.weight, 0) / totalDW
         : null;
 
-    // Compute spreads
+    // Compute spreads — guard against empty arrays
     const bearingSpreadDeg =
-      bearingValues.length > 0
+      bearingValues.length > 1
         ? Math.max(...bearingValues.map((b) => b.decimal)) -
           Math.min(...bearingValues.map((b) => b.decimal))
         : 0;
     const distanceSpread =
-      distReadings.length > 0
+      distReadings.length > 1
         ? Math.max(...distReadings.map((r) => r.distance!)) -
           Math.min(...distReadings.map((r) => r.distance!))
         : 0;
@@ -138,13 +148,15 @@ export class ReconciliationAlgorithm {
     // Dominant source = highest weight
     const dominant = [...readings].sort((a, b) => b.weight - a.weight)[0];
 
-    // Final confidence: boosted by number of agreeing sources
+    // Final confidence: boosted by number of agreeing sources.
+    // Use totalW for bearing readings since that's what we averaged over.
+    const weightDenom = totalW > 0 ? totalW : 1;
     const sourceCount = new Set(readings.map((r) => r.source)).size;
     const agreementBonus = Math.min(25, sourceCount * 5);
     const finalConfidence = Math.min(
       98,
       Math.round(
-        readings.reduce((s, r) => s + r.confidence * r.weight, 0) / totalW +
+        readings.reduce((s, r) => s + r.confidence * r.weight, 0) / weightDenom +
           agreementBonus,
       ),
     );

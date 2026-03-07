@@ -84,7 +84,8 @@ export class PurchaseRecommender {
           confidenceImpact: `+${confGain} overall`,
           callsImproved: disc.affectedCalls.length,
           reason: `Resolves ${disc.severity} discrepancy: ${disc.title}`,
-          priority: disc.resolution.priority + 1,
+          // Priority derived from severity: critical=1, moderate=2, minor=3
+          priority: disc.severity === 'critical' ? 1 : disc.severity === 'moderate' ? 2 : 3,
           roi: Math.round((confGain / estCost) * 10) / 10,
         });
       }

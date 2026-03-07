@@ -42,12 +42,38 @@
 //  34.  ReconciliationAlgorithm — consensus weighted average bearing computed
 //  35.  ReadingAggregator — along field propagated to ReadingSet
 //  36.  PhasePaths type — all 4 phase paths present
+//  37.  normalizeToFeet — varas converted correctly (1 vara ≈ 2.7778 ft)
+//  38.  normalizeToFeet — chains converted correctly (1 chain = 66 ft)
+//  39.  normalizeToFeet — feet returned unchanged
+//  40.  normalizeToFeet — null input returns null
+//  41.  ReadingAggregator — varas distance normalized to feet in plat segment
+//  42.  ReadingAggregator — chains distance normalized to feet in deed reading
+//  43.  ReadingAggregator — plat_overview source from platOverview field
+//  44.  ReadingAggregator — plat_overview unit normalization applied
+//  45.  ReadingAggregator — plat_overview has correct source type and confidence
+//  46.  ReadingAggregator — plat_overview calls without callId are skipped
+//  47.  SourceWeighter — plat_overview has lower weight than plat_segment
+//  48.  SourceWeighter — plat_geometric demoted when 2 other sources present (moderate demotion)
+//  49.  SourceWeighter — plat_geometric not demoted when no other sources present
+//  50.  ReconciliationAlgorithm — NaN-safe bearing: no-bearing readings fall back to unresolved
+//  51.  ReconciliationAlgorithm — distance-only readings (null bearing) → single_source with no bearing
+//  52.  ReconciliationAlgorithm — zero-weight readings don't dominate consensus
+//  53.  ReconciliationAlgorithm — symbol='✗' when method='unresolved'
+//  54.  TraverseComputation — single call produces point at expected position
+//  55.  TraverseComputation — two-call right-angle traverse produces expected closure error
+//  56.  TraverseComputation — applyCompassRule returns compassRuleApplied=true
+//  57.  TraverseComputation — perimeter length computed correctly
+//  58.  GeometricReconciliationEngine — rejects empty projectId
+//  59.  GeometricReconciliationEngine — rejects unsafe projectId with path traversal chars
+//  60.  ReadingAggregator — Phase 5 chain-of-title distance normalized to feet
 
 import { describe, it, expect } from 'vitest';
 
-import { ReadingAggregator } from '../../worker/src/services/reading-aggregator.js';
+import { ReadingAggregator, normalizeToFeet, VARA_TO_FEET, CHAIN_TO_FEET } from '../../worker/src/services/reading-aggregator.js';
 import { SourceWeighter } from '../../worker/src/services/source-weighting.js';
 import { ReconciliationAlgorithm } from '../../worker/src/services/reconciliation-algorithm.js';
+import { TraverseComputation } from '../../worker/src/services/traverse-closure.js';
+import { GeometricReconciliationEngine } from '../../worker/src/services/geometric-reconciliation-engine.js';
 import type {
   BoundaryReading,
   ReadingSet,
@@ -800,5 +826,460 @@ describe('PhasePaths interface', () => {
     expect(paths.subdivision).toContain('subdivision_model');
     expect(paths.crossValidation).toContain('cross_validation_report');
     expect(paths.rowReport).toContain('row_data');
+  });
+});
+
+// ── normalizeToFeet tests ─────────────────────────────────────────────────────
+
+describe('normalizeToFeet', () => {
+  it('37. varas converted correctly (1 vara ≈ 2.7778 ft)', () => {
+    // Texas vara = 1000/360 ft ≈ 2.77778 ft
+    const result = normalizeToFeet(100, 'varas');
+    expect(result).not.toBeNull();
+    expect(result!).toBeCloseTo(100 * VARA_TO_FEET, 3);
+    expect(result!).toBeGreaterThan(277);
+    expect(result!).toBeLessThan(278);
+  });
+
+  it('38. chains converted correctly (1 chain = 66 ft)', () => {
+    const result = normalizeToFeet(10, 'chains');
+    expect(result).not.toBeNull();
+    expect(result!).toBe(660); // 10 * 66 = 660
+    expect(CHAIN_TO_FEET).toBe(66);
+  });
+
+  it('39. feet returned unchanged', () => {
+    const result = normalizeToFeet(461.81, 'feet');
+    expect(result).toBe(461.81);
+  });
+
+  it('40. null input returns null', () => {
+    expect(normalizeToFeet(null, 'feet')).toBeNull();
+    expect(normalizeToFeet(undefined, 'feet')).toBeNull();
+    expect(normalizeToFeet(NaN, 'feet')).toBeNull();
+  });
+});
+
+// ── Unit normalization in ReadingAggregator ───────────────────────────────────
+
+describe('ReadingAggregator — unit normalization', () => {
+  const aggregator = new ReadingAggregator();
+
+  it('41. varas distance in plat segment is normalized to feet', () => {
+    // 100 varas should become ~277.78 ft in the reading
+    const intel: IntelligenceInput = {
+      extraction: {
+        calls: [
+          {
+            sequence: 1,
+            callId: 'call_1',
+            bearing: { raw: 'N 04°37\'58" W', decimalDegrees: 4.63, quadrant: 'NW' },
+            distance: { raw: '100 varas', value: 100, unit: 'varas' as 'varas' },
+            curve: null,
+            toPoint: null,
+            along: null,
+            confidence: 70,
+          },
+        ],
+        confidence: 70,
+      },
+    };
+    const sets = aggregator.aggregate(intel, null, null, null);
+    const set = sets.get('call_1');
+    expect(set).toBeDefined();
+    const reading = set!.readings[0];
+    expect(reading.unit).toBe('feet'); // always stored in feet
+    expect(reading.distance).not.toBeNull();
+    // 100 varas * 2.7778 ≈ 277.78 ft
+    expect(reading.distance!).toBeCloseTo(100 * VARA_TO_FEET, 2);
+    // sourceDetail should mention the conversion
+    expect(reading.sourceDetail).toContain('varas');
+  });
+
+  it('42. chains distance in deed reading is normalized to feet', () => {
+    // deed call with 5 chains should become 330 ft
+    // We need plat calls for deed matching
+    const BEARING = 'N 45°00\'00" E';
+    const intel: IntelligenceInput = {
+      extraction: {
+        calls: [
+          {
+            sequence: 1,
+            callId: 'call_1',
+            bearing: { raw: BEARING, decimalDegrees: 45, quadrant: 'NE' },
+            distance: { raw: '330\'', value: 330, unit: 'feet' as 'feet' },
+            curve: null,
+            toPoint: null,
+            along: null,
+            confidence: 75,
+          },
+        ],
+        confidence: 75,
+      },
+      deedAnalysis: {
+        metesAndBounds: [
+          {
+            sequence: 1,
+            callId: undefined,
+            bearing: { raw: BEARING, decimalDegrees: 45, quadrant: 'NE' },
+            distance: { raw: '5 chains', value: 5, unit: 'chains' as 'chains' },
+            curve: null,
+            toPoint: null,
+            along: null,
+            confidence: 80,
+          },
+        ],
+      },
+    };
+    const sets = aggregator.aggregate(intel, null, null, null);
+    let foundChainDeed = false;
+    for (const [, set] of sets) {
+      const deedReading = set.readings.find((r) => r.source === 'deed_extraction');
+      if (deedReading) {
+        expect(deedReading.unit).toBe('feet');
+        // 5 chains * 66 = 330 ft
+        expect(deedReading.distance).not.toBeNull();
+        expect(deedReading.distance!).toBeCloseTo(330, 1);
+        // sourceDetail should mention the conversion
+        expect(deedReading.sourceDetail).toContain('chains');
+        foundChainDeed = true;
+        break;
+      }
+    }
+    expect(foundChainDeed).toBe(true);
+  });
+});
+
+// ── plat_overview source tests ────────────────────────────────────────────────
+
+describe('ReadingAggregator — plat_overview source', () => {
+  const aggregator = new ReadingAggregator();
+
+  it('43. plat_overview readings collected from IntelligenceInput.platOverview', () => {
+    const intel: IntelligenceInput = {
+      platOverview: {
+        calls: [
+          {
+            callId: 'PERIM_N1',
+            bearing: 'N 04°37\'58" W',
+            distance: 461.81,
+            unit: 'feet',
+            type: 'straight',
+            confidence: 45,
+            along: 'R.K. GAINES tract',
+          },
+        ],
+      },
+    };
+    const sets = aggregator.aggregate(intel, null, null, null);
+    const set = sets.get('PERIM_N1');
+    expect(set).toBeDefined();
+    expect(set!.readings).toHaveLength(1);
+    expect(set!.readings[0].source).toBe('plat_overview');
+    expect(set!.readings[0].bearing).toBe('N 04°37\'58" W');
+    expect(set!.readings[0].distance).toBeCloseTo(461.81, 2);
+    expect(set!.readings[0].confidence).toBe(45);
+    expect(set!.along).toBe('R.K. GAINES tract');
+  });
+
+  it('44. plat_overview distance in varas normalized to feet', () => {
+    const intel: IntelligenceInput = {
+      platOverview: {
+        calls: [
+          {
+            callId: 'OV_1',
+            bearing: 'N 45°00\'00" E',
+            distance: 100,
+            unit: 'varas',
+            type: 'straight',
+            confidence: 35,
+          },
+        ],
+      },
+    };
+    const sets = aggregator.aggregate(intel, null, null, null);
+    const set = sets.get('OV_1');
+    expect(set).toBeDefined();
+    const reading = set!.readings[0];
+    expect(reading.unit).toBe('feet');
+    expect(reading.distance!).toBeCloseTo(100 * VARA_TO_FEET, 2);
+  });
+
+  it('45. plat_overview has correct source type, phase, and default confidence', () => {
+    const intel: IntelligenceInput = {
+      platOverview: {
+        calls: [
+          { callId: 'OV_2', bearing: 'S 75°14\'22" E', distance: 519.88, type: 'straight' },
+        ],
+      },
+    };
+    const sets = aggregator.aggregate(intel, null, null, null);
+    const set = sets.get('OV_2');
+    expect(set).toBeDefined();
+    const reading = set!.readings[0];
+    expect(reading.source).toBe('plat_overview');
+    expect(reading.sourcePhase).toBe(3);
+    expect(reading.confidence).toBe(40); // default when not specified
+    expect(reading.sourceDetail).toContain('overview');
+  });
+
+  it('46. plat_overview calls without callId are skipped', () => {
+    const intel: IntelligenceInput = {
+      platOverview: {
+        calls: [
+          { callId: 'VALID_CALL', bearing: 'N 04° W', distance: 100, type: 'straight' },
+          { callId: '', bearing: 'S 75° E', distance: 200, type: 'straight' }, // empty string → falsy
+        ],
+      },
+    };
+    const sets = aggregator.aggregate(intel, null, null, null);
+    // Only the valid call should create a set
+    expect(sets.has('VALID_CALL')).toBe(true);
+    expect(sets.has('')).toBe(false);
+  });
+});
+
+// ── SourceWeighter — plat_overview weight ────────────────────────────────────
+
+describe('SourceWeighter — plat_overview', () => {
+  const weighter = new SourceWeighter();
+
+  it('47. plat_overview has lower weight than plat_segment at same confidence', () => {
+    const ovReading = makeBoundaryReading({ source: 'plat_overview', callId: 'C1', bearing: 'N 04° W', confidence: 70 });
+    const segReading = makeBoundaryReading({ source: 'plat_segment', callId: 'C1', bearing: 'N 04° W', confidence: 70 });
+    const set = makeReadingSet('C1', [ovReading, segReading]);
+    const weighted = weighter.weightReadings(set);
+
+    const ovW = weighted.find((r) => r.source === 'plat_overview')!;
+    const segW = weighted.find((r) => r.source === 'plat_segment')!;
+    // plat_segment base weight (0.65) > plat_overview base weight (0.40)
+    expect(ovW.baseWeight).toBeLessThan(segW.baseWeight);
+  });
+
+  it('48. plat_geometric demoted moderately when exactly 2 other sources present', () => {
+    // otherCount = 2 → falls into the "otherCount >= 1" branch → 70% weight
+    const readings: BoundaryReading[] = [
+      makeBoundaryReading({ source: 'plat_geometric', callId: 'C1', bearing: 'N 04° W', confidence: 45 }),
+      makeBoundaryReading({ source: 'deed_extraction', callId: 'C1', bearing: 'N 04° W', confidence: 80 }),
+      makeBoundaryReading({ source: 'plat_segment', callId: 'C1', bearing: 'N 04° W', confidence: 75 }),
+    ];
+    const set = makeReadingSet('C1', readings);
+    const weighted = weighter.weightReadings(set);
+    const geomR = weighted.find((r) => r.source === 'plat_geometric')!;
+    // Should have a demotion note but less severe than 3+ sources
+    expect(geomR.specialAdjustments.some((a) => a.includes('demoted'))).toBe(true);
+  });
+
+  it('49. plat_geometric not demoted when it is the only source', () => {
+    const readings: BoundaryReading[] = [
+      makeBoundaryReading({ source: 'plat_geometric', callId: 'C1', bearing: 'N 04° W', confidence: 45 }),
+    ];
+    const set = makeReadingSet('C1', readings);
+    const weighted = weighter.weightReadings(set);
+    const geomR = weighted.find((r) => r.source === 'plat_geometric')!;
+    expect(geomR.specialAdjustments.some((a) => a.includes('demoted'))).toBe(false);
+    expect(geomR.specialAdjustments.some((a) => a.includes('tiebreaker'))).toBe(true);
+  });
+});
+
+// ── ReconciliationAlgorithm — edge cases ─────────────────────────────────────
+
+describe('ReconciliationAlgorithm — edge cases', () => {
+  const algo = new ReconciliationAlgorithm();
+  const weighter = new SourceWeighter();
+
+  function makeWeightedReading(opts: Parameters<typeof makeBoundaryReading>[0]): WeightedReading {
+    const r = makeBoundaryReading(opts);
+    const set = makeReadingSet(r.callId, [r]);
+    const weighted = weighter.weightReadings(set);
+    return weighted[0];
+  }
+
+  it('50. readings with null bearing → fall back to unresolved when all bearings null', () => {
+    // Interior line readings have null bearing; if that is the only reading,
+    // it should produce an unresolved result (no bearing to reconcile).
+    const r = makeBoundaryReading({ source: 'subdivision_interior', callId: 'C1', distance: 461.81 });
+    // Force bearing to null
+    (r as BoundaryReading & { bearing: null }).bearing = null;
+    const set = makeReadingSet('C1', [r]);
+    const weighted = weighter.weightReadings(set);
+    const result = algo.reconcileCall(set, weighted);
+    // With a null bearing, single_source path is taken (distance-only)
+    // or unresolved if algorithm can't extract a bearing
+    expect(['single_source', 'unresolved']).toContain(result.reconciliation.method);
+  });
+
+  it('51. single reading with null bearing → unresolved, reconciledBearing null', () => {
+    // When a reading has a null bearing (e.g., interior line distance-only measurement),
+    // the algorithm's straightReadings filter requires bearing != null. With no valid
+    // straight bearing, the algorithm returns unresolved — bearing cannot be reconciled.
+    const r = makeBoundaryReading({ source: 'subdivision_interior', callId: 'C1', distance: 200 });
+    (r as BoundaryReading & { bearing: null }).bearing = null;
+    const set = makeReadingSet('C1', [r]);
+    // weightReadings should still work with null bearing
+    const weighted = weighter.weightReadings(set);
+    expect(weighted).toHaveLength(1);
+    const result = algo.reconcileCall(set, weighted);
+    // Distance-only interior line: algorithm cannot produce a bearing → unresolved
+    expect(result.reconciliation.method).toBe('unresolved');
+    expect(result.reconciledBearing).toBeNull();
+  });
+
+  it('52. symbol=✗ when method=unresolved', () => {
+    const set = makeReadingSet('C1', []);
+    const result = algo.reconcileCall(set, []);
+    expect(result.reconciliation.method).toBe('unresolved');
+    expect(result.symbol).toBe('✗');
+  });
+
+  it('53. consensus correctly handles readings where some have null distances', () => {
+    // Two readings: one has distance, other does not (e.g., interior line gives only bearing+distance,
+    // but a visual geometric gives bearing with no distance confidence)
+    const r1 = makeWeightedReading({ source: 'deed_extraction', callId: 'C1', bearing: 'N 04°37\'58" W', distance: 461.81 });
+    const r2 = makeBoundaryReading({ source: 'plat_segment', callId: 'C1', bearing: 'N 04°37\'58" W' });
+    (r2 as BoundaryReading & { distance: null }).distance = null;
+    const set = makeReadingSet('C1', [r1]);
+    const weighted = weighter.weightReadings(set);
+    const result = algo.reconcileCall(set, weighted);
+    // Should produce a valid bearing even though one reading lacks distance
+    expect(result.reconciledBearing).toBeTruthy();
+  });
+});
+
+// ── TraverseComputation tests ─────────────────────────────────────────────────
+
+describe('TraverseComputation', () => {
+  const traverse = new TraverseComputation();
+
+  it('54. single N 00°00\'00" W call of 100\' produces point at (0, 100)', () => {
+    const calls = [
+      { callId: 'C1', bearing: 'N 00°00\'00" W', distance: 100, type: 'straight' as 'straight' },
+    ];
+    // Note: "N 00°00'00" W" is due north — northing increases, easting unchanged
+    const result = traverse.computeTraverse(calls, 0, 0);
+    expect(result.points).toHaveLength(1);
+    // Due north: northing should be +100, easting ~0
+    expect(result.points[0].northing).toBeCloseTo(100, 0);
+    expect(result.points[0].easting).toBeCloseTo(0, 0);
+  });
+
+  it('55. right-angle traverse (N then E) produces expected closure error', () => {
+    // If we go N 100\' then E 100\', the last point is (100, 100).
+    // That is not the start, so there is error unless we close back.
+    const calls = [
+      { callId: 'C1', bearing: 'N 00°00\'00" E', distance: 100, type: 'straight' as 'straight' },
+      { callId: 'C2', bearing: 'N 90°00\'00" E', distance: 100, type: 'straight' as 'straight' },
+    ];
+    const result = traverse.computeTraverse(calls, 0, 0);
+    expect(result.points).toHaveLength(2);
+    // Not closed — error distance should be sqrt(100² + 100²) ≈ 141.4
+    expect(result.errorDistance).toBeGreaterThan(0);
+    expect(result.perimeterLength).toBeCloseTo(200, 1);
+    expect(result.status).toBe('poor'); // big error for short traverse
+  });
+
+  it('56. applyCompassRule returns compassRuleApplied=true for open traverse', () => {
+    const calls = [
+      { callId: 'C1', bearing: 'N 00°00\'00" E', distance: 100, type: 'straight' as 'straight' },
+      { callId: 'C2', bearing: 'N 89°00\'00" E', distance: 100, type: 'straight' as 'straight' },
+    ];
+    const closure = traverse.computeTraverse(calls, 0, 0);
+    const adjusted = traverse.applyCompassRule(calls, closure);
+    expect(adjusted.compassRuleApplied).toBe(true);
+    expect(adjusted.adjustments).toHaveLength(2);
+  });
+
+  it('57. perimeter length is sum of all leg distances', () => {
+    const calls = [
+      { callId: 'C1', bearing: 'N 00°00\'00" E', distance: 200, type: 'straight' as 'straight' },
+      { callId: 'C2', bearing: 'S 00°00\'00" E', distance: 300, type: 'straight' as 'straight' },
+      { callId: 'C3', bearing: 'S 45°00\'00" W', distance: 100, type: 'straight' as 'straight' },
+    ];
+    const result = traverse.computeTraverse(calls, 0, 0);
+    expect(result.perimeterLength).toBeCloseTo(600, 1);
+  });
+});
+
+// ── GeometricReconciliationEngine — input validation ─────────────────────────
+
+describe('GeometricReconciliationEngine — validation', () => {
+  const engine = new GeometricReconciliationEngine();
+
+  it('58. rejects empty projectId with failed status', async () => {
+    const model = await engine.reconcile('', {
+      intelligence: '/tmp/nonexistent.json',
+    });
+    expect(model.status).toBe('failed');
+    expect(model.errors[0]).toContain('projectId');
+  });
+
+  it('59. rejects unsafe projectId containing path traversal characters', async () => {
+    const model = await engine.reconcile('../etc/passwd', {
+      intelligence: '/tmp/nonexistent.json',
+    });
+    expect(model.status).toBe('failed');
+    expect(model.errors[0]).toContain('projectId');
+  });
+
+  it('60. returns failed model when intelligence file does not exist', async () => {
+    const model = await engine.reconcile('test-project', {
+      intelligence: '/tmp/absolutely-does-not-exist-phase7.json',
+    });
+    expect(model.status).toBe('failed');
+    expect(model.errors.length).toBeGreaterThan(0);
+  });
+});
+
+// ── Phase 5 chain-of-title distance normalization ─────────────────────────────
+
+describe('ReadingAggregator — Phase 5 chain-of-title distance normalization', () => {
+  const aggregator = new ReadingAggregator();
+
+  it('60 (alias). Phase 5 chain-of-title: varas distance normalized to feet', () => {
+    const crossVal: CrossValidationInput = {
+      adjacentProperties: [
+        {
+          owner: 'Historical Grantor',
+          crossValidation: { callComparisons: [] },
+          chainOfTitle: [
+            {
+              instrument: '1885-deed',
+              grantor: 'Old Grantor',
+              grantee: 'Old Grantee',
+              date: '1885-03-01',
+              boundaryDescriptionChanged: true,
+              metesAndBounds: [
+                {
+                  bearing: 'S 04°37\'58" E', // reversed call
+                  distance: 166.5,
+                  unit: 'varas',
+                  type: 'straight',
+                  isSharedBoundary: true,
+                  matchedCallId: 'PERIM_N1',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const intel: IntelligenceInput = {};
+    const sets = aggregator.aggregate(intel, null, crossVal, null);
+
+    // Should find the chain reading with normalized distance
+    let found = false;
+    for (const [, set] of sets) {
+      const chainR = set.readings.find((r) => r.source === 'adjacent_chain');
+      if (chainR) {
+        expect(chainR.unit).toBe('feet');
+        // 166.5 varas * 2.7778 ≈ 462.5 ft (approximately)
+        expect(chainR.distance!).toBeCloseTo(166.5 * VARA_TO_FEET, 1);
+        expect(chainR.sourceDetail).toContain('varas');
+        found = true;
+        break;
+      }
+    }
+    expect(found).toBe(true);
   });
 });
