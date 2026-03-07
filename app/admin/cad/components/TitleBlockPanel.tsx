@@ -193,6 +193,7 @@ export default function TitleBlockPanel({ open, onClose }: Props) {
               {(
                 [
                   ['firmName',         'Firm Name'],
+                  ['surveyType',       'Survey Type'],
                   ['surveyorName',     'Surveyor'],
                   ['surveyorLicense',  'License #'],
                   ['projectName',      'Project'],
