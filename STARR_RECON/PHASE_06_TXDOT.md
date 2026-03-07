@@ -1,10 +1,10 @@
 # STARR RECON — Phase 6: TxDOT ROW & Public Infrastructure Integration
 
 **Product:** Starr Compass — AI Property Research (STARR RECON)
-**Version:** 1.2 | **Last Updated:** March 2026
+**Version:** 1.3 | **Last Updated:** March 2026
 **Phase Duration:** Weeks 16–18
 **Depends On:** Phase 1 (`PropertyIdentity` with coordinates), Phase 3 (`property_intelligence.json` with road list), Phase 4 (`subdivision.json` with road dedications)
-**Status:** ✅ COMPLETE v1.2 (March 2026) — All 6 new service files built, `txdot-row.ts` updated, routes added to `index.ts`, `row.sh` CLI script created, 40 unit tests pass. See §Known Limitations for items requiring live testing.
+**Status:** ✅ COMPLETE v1.3 (March 2026) — All 6 new service files built, `txdot-row.ts` updated, routes added to `index.ts`, `row.sh` CLI script created, 40 unit tests pass. v1.3 changes: PipelineLogger integrated into POST /research/row (no bare console.log); GET /research/row/:projectId now returns error detail in failed response; `BoundaryCall.callId` optional field added to types/index.ts for Phase 7 cross-reference; reading-aggregator.ts updated with county_road_default source + maintainedBy field in ROWReportInput. See §Known Limitations for items requiring live testing.
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
 ---
@@ -253,6 +253,14 @@ The Phase 3 `property_intelligence.json` file contains a `roads: RoadInfo[]` arr
 - **Texas Digital Archive**: The TDA URL (`tsl.access.preservica.com`) needs verification. Many rural Bell County roads have no digitized records — empty results are expected and normal.
 - **Deed/plat BoundaryCall extraction**: `ROWIntegrationEngine.processRoad()` passes empty `deedCalls[]` and `platCalls[]` to `RoadBoundaryResolver.resolve()` because the full Phase 3 `BoundaryCall[]` arrays are not threaded through. A future enhancement should pass them from `property_intelligence.json`.
 - **PDF download from TDA**: When a ROW map PDF is found in TDA, the download URL is noted but the actual PDF is not downloaded. Implement with Phase 7 if needed.
+
+#### v1.3 Changes (March 2026)
+
+- **PipelineLogger in index.ts**: `POST /research/row` now uses real `PipelineLogger` (dynamic import, same pattern as adjacent/analyze routes) instead of a bare `console.log` wrapper. This aligns with spec §6.11 implementation rule: "All Phase 6 service code: use PipelineLogger — no bare console.log".
+- **Error detail in failed response**: `GET /research/row/:projectId` now returns `errors[]` array when status is `failed`, making it easier to diagnose failures without checking PM2 logs.
+- **`BoundaryCall.callId` optional field**: Added `callId?: string` to `BoundaryCall` in `worker/src/types/index.ts`. Used by Phase 7 `reading-aggregator.ts` for cross-source call matching. When present, used as the call identifier; when absent, falls back to `call_${sequence}`.
+- **`county_road_default` source in ReadingAggregator**: `worker/src/services/reading-aggregator.ts` now generates `county_road_default` readings for county-maintained roads from Phase 6 ROW report (when `maintainedBy === 'county'` and `rowData.rowWidth` is set). This closes a gap in the Phase 7 data flow.
+- **`ROWReportInput.maintainedBy`**: Added `maintainedBy` field to `ROWReportInput` interface in `reading-aggregator.ts` so Phase 7 can distinguish TxDOT vs county roads from the Phase 6 output.
 
 ---
 

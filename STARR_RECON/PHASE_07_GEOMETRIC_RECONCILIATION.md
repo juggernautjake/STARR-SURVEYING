@@ -3,7 +3,7 @@
 **Starr Software — AI Property Research Pipeline**
 **Phase Duration:** Weeks 19–21
 **Depends On:** Phase 3 (PropertyIntelligence — AI extraction + geometric analysis), Phase 4 (SubdivisionModel — interior lines, area reconciliation), Phase 5 (CrossValidationReport — adjacent deed comparisons), Phase 6 (ROWReport — TxDOT road boundary resolution)
-**Status:** ✅ SPEC COMPLETE — Implementation delivered
+**Status:** ✅ COMPLETE v1.1 (March 2026) — All service files implemented, 36 unit tests added in `__tests__/recon/phase7-reconciliation.test.ts`. v1.1 changes: `BoundaryCall.callId` optional field added to types (Phase 6 v1.3); `reading-aggregator.ts` now generates `county_road_default` readings and accepts `maintainedBy` in `ROWReportInput`.
 
 ---
 

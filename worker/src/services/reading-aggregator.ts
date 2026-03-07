@@ -77,10 +77,13 @@ export interface ROWReportInput {
   roads?: {
     name: string;
     controlSection?: string;
+    maintainedBy?: 'txdot' | 'county' | 'city' | 'private' | 'unknown';
     propertyBoundaryResolution?: {
       txdotConfirms?: 'curved' | 'straight';
     };
     rowData?: {
+      source?: string;
+      rowWidth?: number | null;
       curves?: { radius: number; arcLength?: number; direction?: 'left' | 'right' }[];
     };
   }[];
@@ -314,6 +317,12 @@ export class ReadingAggregator {
   }
 
   // ── Source 6: TxDOT ROW ─────────────────────────────────────────────────
+  //
+  // Generates two types of readings:
+  //   a) txdot_row — authoritative geometry when TxDOT confirms straight/curved
+  //   b) county_road_default — for county-maintained roads without TxDOT data
+  //      Creates a virtual reading set for the road boundary call, used by
+  //      Phase 7 as a low-weight baseline for county road boundaries.
 
   private collectROWReadings(
     rowReport: ROWReportInput,
@@ -321,51 +330,76 @@ export class ReadingAggregator {
   ): void {
     for (const road of rowReport.roads || []) {
       const resolution = road.propertyBoundaryResolution;
-      if (!resolution) continue;
-
       const roadName = road.name.toUpperCase();
 
-      for (const [callId, set] of sets) {
-        const isAlongThisRoad = set.along && set.along.toUpperCase().includes(roadName);
-        if (!isAlongThisRoad) continue;
+      // ── Case A: TxDOT-confirmed geometry ──────────────────────────────────
+      if (resolution) {
+        for (const [callId, set] of sets) {
+          const isAlongThisRoad = set.along && set.along.toUpperCase().includes(roadName);
+          if (!isAlongThisRoad) continue;
 
-        if (resolution.txdotConfirms === 'curved' && road.rowData?.curves) {
-          for (const curve of road.rowData.curves) {
-            set.readings.push({
-              source: 'txdot_row',
-              callId,
-              bearing: null,
-              distance: null,
-              unit: 'feet',
-              type: 'curve',
-              curve: {
-                radius: curve.radius,
-                arcLength: curve.arcLength,
-                direction: curve.direction,
-              },
-              confidence: 95,
-              sourcePhase: 6,
-              sourceDetail: `TxDOT ROW — ${road.name} (CSJ: ${road.controlSection || 'n/a'})`,
-            });
-          }
-        } else if (resolution.txdotConfirms === 'straight') {
-          const existingStraight = set.readings.find(
-            (r) => r.type === 'straight' && r.bearing,
-          );
-          if (existingStraight) {
-            set.readings.push({
-              source: 'txdot_row',
-              callId,
-              bearing: existingStraight.bearing,
-              distance: existingStraight.distance,
-              unit: 'feet',
-              type: 'straight',
-              confidence: 90,
-              sourcePhase: 6,
-              sourceDetail: `TxDOT confirms straight alignment — ${road.name}`,
-            });
+          if (resolution.txdotConfirms === 'curved' && road.rowData?.curves) {
+            for (const curve of road.rowData.curves) {
+              set.readings.push({
+                source: 'txdot_row',
+                callId,
+                bearing: null,
+                distance: null,
+                unit: 'feet',
+                type: 'curve',
+                curve: {
+                  radius: curve.radius,
+                  arcLength: curve.arcLength,
+                  direction: curve.direction,
+                },
+                confidence: 95,
+                sourcePhase: 6,
+                sourceDetail: `TxDOT ROW — ${road.name} (CSJ: ${road.controlSection || 'n/a'})`,
+              });
+            }
+          } else if (resolution.txdotConfirms === 'straight') {
+            const existingStraight = set.readings.find(
+              (r) => r.type === 'straight' && r.bearing,
+            );
+            if (existingStraight) {
+              set.readings.push({
+                source: 'txdot_row',
+                callId,
+                bearing: existingStraight.bearing,
+                distance: existingStraight.distance,
+                unit: 'feet',
+                type: 'straight',
+                confidence: 90,
+                sourcePhase: 6,
+                sourceDetail: `TxDOT confirms straight alignment — ${road.name}`,
+              });
+            }
           }
         }
+      }
+
+      // ── Case B: County/city/private road with no TxDOT resolution ─────────
+      // For county-maintained roads, Phase 6 applied county default ROW widths.
+      // Create a virtual reading so downstream phases know the ROW assumption.
+      // Only adds a reading if the road is county-maintained and has rowData.
+      if (
+        !resolution &&
+        road.maintainedBy === 'county' &&
+        road.rowData?.rowWidth
+      ) {
+        const virtualCallId = `row_county_${road.name.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '').toLowerCase()}`;
+        const set = this.getOrCreateSet(sets, virtualCallId, road.name);
+        set.readings.push({
+          source: 'county_road_default',
+          callId: virtualCallId,
+          bearing: null,
+          distance: null,
+          unit: 'feet',
+          type: 'straight',
+          confidence: 20, // low confidence — generic assumption
+          sourcePhase: 6,
+          sourceDetail: `County ROW default — ${road.name} (${road.rowData.rowWidth}' standard)`,
+        });
       }
     }
   }
