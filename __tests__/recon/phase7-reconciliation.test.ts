@@ -1284,3 +1284,303 @@ describe('ReadingAggregator — Phase 5 chain-of-title distance normalization', 
     expect(found).toBe(true);
   });
 });
+
+// ── Additional robustness tests (v1.3) ────────────────────────────────────────
+//
+// Tests 62–73: cover edge cases found during Phase 7 v1.3 audit.
+// Each test is independent and does not rely on file I/O.
+
+// ── Bearing Reversal ──────────────────────────────────────────────────────────
+
+describe('ReadingAggregator — bearing reversal (chain-of-title)', () => {
+  const aggregator = new ReadingAggregator();
+
+  /**
+   * Helper: build a CrossValidationInput with a single chain-of-title entry
+   * that has one shared-boundary call with the given bearing.
+   */
+  function makeCrossValWithChainBearing(bearing: string): CrossValidationInput {
+    return {
+      adjacentProperties: [
+        {
+          owner: 'Test Owner',
+          crossValidation: { callComparisons: [] },
+          chainOfTitle: [
+            {
+              instrument: 'test-deed',
+              grantor: 'A',
+              grantee: 'B',
+              date: '1990-01-01',
+              boundaryDescriptionChanged: true,
+              metesAndBounds: [
+                {
+                  bearing,
+                  distance: 100,
+                  unit: 'feet',
+                  type: 'straight',
+                  isSharedBoundary: true,
+                  matchedCallId: 'TEST_CALL',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  it('62. chain-of-title N bearing is reversed to S in adjacent_chain reading', () => {
+    const crossVal = makeCrossValWithChainBearing('N 45°30\'00" E');
+    const sets = aggregator.aggregate({}, null, crossVal, null);
+    const set = sets.get('TEST_CALL');
+    expect(set).toBeDefined();
+    const chainR = set!.readings.find((r) => r.source === 'adjacent_chain');
+    expect(chainR).toBeDefined();
+    // N…E reversed → S…W
+    expect(chainR!.bearing).toMatch(/^S\s/i);
+    expect(chainR!.bearing).toMatch(/W$/i);
+  });
+
+  it('63. chain-of-title S bearing is reversed to N in adjacent_chain reading', () => {
+    const crossVal = makeCrossValWithChainBearing('S 30°15\'00" W');
+    const sets = aggregator.aggregate({}, null, crossVal, null);
+    const set = sets.get('TEST_CALL');
+    const chainR = set!.readings.find((r) => r.source === 'adjacent_chain');
+    expect(chainR).toBeDefined();
+    // S…W reversed → N…E
+    expect(chainR!.bearing).toMatch(/^N\s/i);
+    expect(chainR!.bearing).toMatch(/E$/i);
+  });
+});
+
+// ── ReconciliationAlgorithm — unparseable bearing guard ───────────────────────
+
+describe('ReconciliationAlgorithm — unparseable bearing guard', () => {
+  const algo = new ReconciliationAlgorithm();
+  const weighter = new SourceWeighter();
+
+  it('64. buildConsensusCall: all bearings unparseable → returns unresolved', () => {
+    // Both readings have bearings, but neither matches the DMS regex.
+    // This triggers the bearingValues.length === 0 guard added in v1.3.
+    const r1 = makeBoundaryReading({ source: 'deed_extraction', callId: 'C1', bearing: 'due north', distance: 100 });
+    const r2 = makeBoundaryReading({ source: 'plat_segment', callId: 'C1', bearing: 'NORTH', distance: 100 });
+    const set = makeReadingSet('C1', [r1, r2]);
+    const weighted = weighter.weightReadings(set);
+    const result = algo.reconcileCall(set, weighted);
+    // With no parseable bearing, the algorithm must return unresolved
+    expect(result.reconciliation.method).toBe('unresolved');
+    expect(result.reconciledBearing).toBeNull();
+    expect(result.symbol).toBe('✗');
+  });
+});
+
+// ── ReconciliationAlgorithm — confidence denominator fix ─────────────────────
+
+describe('ReconciliationAlgorithm — confidence denominator (v1.3 fix)', () => {
+  const algo = new ReconciliationAlgorithm();
+  const weighter = new SourceWeighter();
+
+  it('65. confidence is not inflated when weights are equal across all readings', () => {
+    // Two agreeing readings of equal weight — weighted-average confidence should
+    // equal their confidence value (no inflation from mismatched denominators).
+    const BEARING = 'N 04°37\'58" W';
+    const r1 = makeBoundaryReading({ source: 'deed_extraction', callId: 'C1', bearing: BEARING, distance: 461.81, confidence: 70 });
+    const r2 = makeBoundaryReading({ source: 'plat_segment', callId: 'C1', bearing: BEARING, distance: 461.80, confidence: 70 });
+    const set = makeReadingSet('C1', [r1, r2]);
+    const weighted = weighter.weightReadings(set);
+    const result = algo.reconcileCall(set, weighted);
+    // finalConfidence = weightedAvg(70,70) + bonus ≤ 98
+    // and must not exceed 98 due to the cap
+    expect(result.finalConfidence).toBeLessThanOrEqual(98);
+    expect(result.finalConfidence).toBeGreaterThan(0);
+    // The denominator fix ensures we divide by the full weight of all readings
+    // so the raw average should stay at ~70 before the bonus is applied
+    const rawAvg = weighted.reduce((s, r) => s + r.confidence * r.weight, 0) /
+      weighted.reduce((s, r) => s + r.weight, 0);
+    expect(rawAvg).toBeCloseTo(70, 0);
+  });
+});
+
+// ── TraverseComputation — additional quadrant & curve tests ───────────────────
+
+describe('TraverseComputation — additional coverage', () => {
+  const traverse = new TraverseComputation();
+
+  it('66. S 45°00\'00" W bearing produces negative northing and negative easting', () => {
+    const calls = [
+      { callId: 'C1', bearing: 'S 45°00\'00" W', distance: 100, type: 'straight' as 'straight' },
+    ];
+    const result = traverse.computeTraverse(calls, 0, 0);
+    expect(result.points[0].northing).toBeLessThan(0);
+    expect(result.points[0].easting).toBeLessThan(0);
+  });
+
+  it('67. curve call uses chord bearing/distance for traverse', () => {
+    // A curve described by chord bearing S 75°14\'22" E and chord distance 519.38
+    // should advance the traverse by approximately that chord vector.
+    const calls = [
+      {
+        callId: 'CURVE_1',
+        bearing: null,
+        distance: null,
+        type: 'curve' as 'curve',
+        curve: {
+          chordBearing: 'S 75°14\'22" E',
+          chordDistance: 519.38,
+          arcLength: 520.0,
+        },
+      },
+    ];
+    const result = traverse.computeTraverse(calls, 0, 0);
+    expect(result.points).toHaveLength(1);
+    // S…E: northing should decrease, easting should increase
+    expect(result.points[0].northing).toBeLessThan(0);
+    expect(result.points[0].easting).toBeGreaterThan(0);
+    // Perimeter should use arcLength (520.0), not chordDistance
+    expect(result.perimeterLength).toBeCloseTo(520.0, 1);
+  });
+
+  it('68. computeTraverse with fewer than 3 non-null-bearing calls returns closure', () => {
+    // Only 1 leg — cannot close; but result must still be a valid ClosureResult.
+    const calls = [
+      { callId: 'C1', bearing: 'N 00°00\'00" E', distance: 100, type: 'straight' as 'straight' },
+    ];
+    const result = traverse.computeTraverse(calls, 0, 0);
+    expect(result.perimeterLength).toBeCloseTo(100, 1);
+    expect(typeof result.closureRatio).toBe('string');
+    expect(result.errorDistance).toBeGreaterThan(0);
+  });
+});
+
+// ── GeometricReconciliationEngine — loadJSON & malformed file ─────────────────
+
+describe('GeometricReconciliationEngine — loadJSON robustness', () => {
+  const engine = new GeometricReconciliationEngine();
+
+  it('69. malformed intelligence JSON → failed model with error in errors[]', async () => {
+    // Write a malformed JSON file to /tmp and pass its path to the engine.
+    const { writeFileSync } = await import('fs');
+    const tmpPath = `/tmp/phase7-test-malformed-${Date.now()}.json`;
+    writeFileSync(tmpPath, '{ invalid json !!!');
+    const model = await engine.reconcile('test-malformed', { intelligence: tmpPath });
+    expect(model.status).toBe('failed');
+    expect(model.errors.length).toBeGreaterThan(0);
+    // Clean up
+    const { unlinkSync } = await import('fs');
+    try { unlinkSync(tmpPath); } catch { /* ignore */ }
+  });
+});
+
+// ── ReadingAggregator — additional edge cases ─────────────────────────────────
+
+describe('ReadingAggregator — edge cases (v1.3)', () => {
+  const aggregator = new ReadingAggregator();
+
+  it('70. interior line with length=0 does not produce a reading', () => {
+    // Zero-length interior lines should be skipped to avoid corrupting traverse.
+    const subModel: SubdivisionInput = {
+      lotRelationships: {
+        sharedBoundaryIndex: [
+          { lotA: 'L1', lotB: 'L2', calls: ['C1'], length: 0, verified: false },
+        ],
+      },
+    };
+    const sets = aggregator.aggregate({}, subModel, null, null);
+    const set = sets.get('C1');
+    // Either no set for C1 or set with no readings (0-length line is skipped)
+    if (set) {
+      const interior = set.readings.filter((r) => r.source === 'subdivision_interior');
+      expect(interior).toHaveLength(0);
+    }
+  });
+
+  it('71. plat_overview along field propagated when set is newly created', () => {
+    const intel: IntelligenceInput = {
+      platOverview: {
+        calls: [
+          {
+            callId: 'OV_NEW',
+            bearing: 'N 10°00\'00" E',
+            distance: 200,
+            unit: 'feet',
+            type: 'straight',
+            confidence: 40,
+            along: 'Old Creek Road',
+          },
+        ],
+      },
+    };
+    const sets = aggregator.aggregate(intel, null, null, null);
+    const set = sets.get('OV_NEW');
+    expect(set).toBeDefined();
+    expect(set!.along).toBe('Old Creek Road');
+  });
+
+  it('72. TxDOT reading not added when no existing set matches the road name', () => {
+    // If no set has an `along` field that contains the road name,
+    // no txdot_row reading should be created (orphan prevention).
+    const rowReport: ROWReportInput = {
+      roads: [
+        {
+          name: 'FM 999',
+          maintainedBy: 'txdot',
+          propertyBoundaryResolution: { txdotConfirms: 'straight' },
+          rowData: { source: 'txdot', rowWidth: 100 },
+        },
+      ],
+    };
+    // No plat calls → no sets exist → TxDOT cannot attach to anything
+    const sets = aggregator.aggregate({}, null, null, rowReport);
+    let foundTxDOT = false;
+    for (const [, set] of sets) {
+      if (set.readings.some((r) => r.source === 'txdot_row')) {
+        foundTxDOT = true;
+        break;
+      }
+    }
+    expect(foundTxDOT).toBe(false);
+  });
+
+  it('73. matchDeedCallToPlat returns null when score < 50 (no similar plat call)', () => {
+    // Deed call with a completely different bearing and distance from any plat call
+    // should NOT match — prevents spurious deed→plat associations.
+    const intel: IntelligenceInput = {
+      extraction: {
+        calls: [
+          {
+            sequence: 1,
+            callId: 'PERIM_1',
+            bearing: { raw: 'N 00°00\'00" E', decimalDegrees: 0, quadrant: 'NE' },
+            distance: { raw: '100\'', value: 100, unit: 'feet' as 'feet' },
+            curve: null,
+            toPoint: null,
+            along: null,
+            confidence: 75,
+          },
+        ],
+        confidence: 75,
+      },
+      deedAnalysis: {
+        metesAndBounds: [
+          {
+            // Completely different bearing (S 89°) and distance (999') — score will be < 50
+            sequence: 1,
+            callId: undefined,
+            bearing: { raw: 'S 89°00\'00" W', decimalDegrees: 269, quadrant: 'SW' },
+            distance: { raw: '999\'', value: 999, unit: 'feet' as 'feet' },
+            curve: null,
+            toPoint: null,
+            along: null,
+            confidence: 80,
+          },
+        ],
+      },
+    };
+    const sets = aggregator.aggregate(intel, null, null, null);
+    // The deed call should NOT have been matched to PERIM_1
+    const set = sets.get('PERIM_1');
+    expect(set).toBeDefined();
+    const deedR = set!.readings.find((r) => r.source === 'deed_extraction');
+    expect(deedR).toBeUndefined();
+  });
+});

@@ -1153,12 +1153,18 @@ app.post('/research/reconcile', requireAuth, async (req: Request, res: Response)
 
     const before = result.closureOptimization?.beforeReconciliation || 'n/a';
     const after = result.closureOptimization?.afterCompassRule || 'n/a';
-    console.log(`[Reconcile] Complete: closure ${before} → ${after}`);
-    console.log(
-      `[Reconcile] Avg confidence: ${result.reconciledPerimeter?.previousAverageConfidence}% → ${result.reconciledPerimeter?.averageConfidence}%`,
+    // Use PipelineLogger (no bare console.log) — consistent with Phase 6 pattern
+    const { PipelineLogger: PL } = await import('./lib/logger.js');
+    const reconLogger = new PL(projectId);
+    reconLogger.info('Reconcile', `Complete: closure ${before} → ${after}`);
+    reconLogger.info(
+      'Reconcile',
+      `Avg confidence: ${result.reconciledPerimeter?.previousAverageConfidence}% → ${result.reconciledPerimeter?.averageConfidence}%`,
     );
   } catch (error) {
-    console.error(`[Reconcile] Failed for ${projectId}:`, error);
+    const { PipelineLogger: PL } = await import('./lib/logger.js');
+    const reconLogger = new PL(projectId);
+    reconLogger.error('Reconcile', `Failed for ${projectId}`, error);
   }
 });
 
@@ -1176,8 +1182,18 @@ app.get('/research/reconcile/:projectId', requireAuth, (req: Request, res: Respo
   const resultPath = `/tmp/analysis/${projectId}/reconciled_boundary.json`;
 
   if (fs.existsSync(resultPath)) {
-    const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
-    res.json(result);
+    try {
+      const raw = fs.readFileSync(resultPath, 'utf-8');
+      const result = JSON.parse(raw) as unknown;
+      res.json(result);
+    } catch (e) {
+      // Malformed JSON (e.g., partial write during reconciliation) — return 500
+      // rather than crashing the Express request handler
+      res.status(500).json({
+        error: 'Reconciliation result file is corrupt or unreadable',
+        detail: String(e),
+      });
+    }
   } else {
     res.json({ status: 'in_progress' });
   }

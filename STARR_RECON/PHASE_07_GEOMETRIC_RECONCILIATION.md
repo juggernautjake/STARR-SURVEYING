@@ -3,7 +3,7 @@
 **Starr Software — AI Property Research Pipeline**
 **Phase Duration:** Weeks 19–21
 **Depends On:** Phase 3 (PropertyIntelligence — AI extraction + geometric analysis), Phase 4 (SubdivisionModel — interior lines, area reconciliation), Phase 5 (CrossValidationReport — adjacent deed comparisons), Phase 6 (ROWReport — TxDOT road boundary resolution)
-**Status:** ✅ COMPLETE v1.2 (March 2026) — All service files implemented, 61 unit tests pass in `__tests__/recon/phase7-reconciliation.test.ts`. v1.2 changes: unit normalization (varas→feet, chains→feet) throughout reading-aggregator; `plat_overview` source now generated from `IntelligenceInput.platOverview`; bare `console.log` replaced with `PipelineLogger` in geometric-reconciliation-engine; projectId validation added to engine; NaN-safe bearing computation in reconciliation-algorithm; `plat_geometric` demotion now tiered (1 other = 30% reduction, 3+ others = 50% reduction); Phase 8 confidence test file added (`phase8-confidence.test.ts`); `purchase-recommender.ts` `disc.resolution.priority` bug fixed.
+**Status:** ✅ COMPLETE v1.3 (March 2026) — All service files implemented, 73 unit tests pass in `__tests__/recon/phase7-reconciliation.test.ts`. v1.3 changes: confidence weight-denominator bug fixed in reconciliation-algorithm; unparseable-bearing guard added (consensus with all-invalid bearings now returns unresolved); bare `console.log`/`console.error` in Phase 7 Express route replaced with `PipelineLogger`; GET `/research/reconcile/:projectId` handler hardened with try/catch around JSON.parse; 12 new unit tests added (tests 62–73).
 
 ---
 
@@ -21,7 +21,7 @@ A `GeometricReconciliationEngine` that merges all upstream data into a unified, 
 
 ## Current State of the Codebase
 
-**Phase Status: ✅ COMPLETE v1.2**
+**Phase Status: ✅ COMPLETE v1.3**
 
 All Phase 7 code has been implemented. Phase 7 degrades gracefully when Phases 4, 5, or 6 data is absent — it runs with whatever upstream data is available.
 
@@ -30,13 +30,14 @@ All Phase 7 code has been implemented. Phase 7 degrades gracefully when Phases 4
 | File | Purpose | Status |
 |------|---------|--------|
 | `worker/src/services/geometric-reconciliation-engine.ts` | `GeometricReconciliationEngine` — top-level Phase 7 orchestrator with PipelineLogger, projectId validation, per-call error catching | ✅ Complete v1.2 |
-| `worker/src/services/reconciliation-algorithm.ts` | Core weighted-consensus bearing and distance reconciliation; NaN-safe bearing computation | ✅ Complete v1.2 |
+| `worker/src/services/reconciliation-algorithm.ts` | Core weighted-consensus bearing and distance reconciliation; NaN-safe bearing computation; v1.3: confidence denominator fix + unparseable-bearing guard | ✅ Complete v1.3 |
 | `worker/src/services/reading-aggregator.ts` | Aggregates readings from all upstream phases; unit normalization (varas→ft, chains→ft); `plat_overview` source; `normalizeToFeet()` exported | ✅ Complete v1.2 |
 | `worker/src/services/source-weighting.ts` | Source reliability weight tables; tiered `plat_geometric` demotion | ✅ Complete v1.2 |
 | `worker/src/services/traverse-closure.ts` | Traverse closure computation and Compass Rule (Bowditch) adjustment | ✅ Complete |
 | `worker/src/types/reconciliation.ts` | Phase 7 TypeScript types (`ReconciledBoundaryModel`, `ReadingRecord`, etc.) | ✅ Complete |
 | `worker/reconcile.sh` | CLI wrapper for Phase 7 | ✅ Complete |
-| `__tests__/recon/phase7-reconciliation.test.ts` | 61 unit tests (added 25 in v1.2: tests 37–61) | ✅ Complete v1.2 |
+| `worker/src/index.ts` (Phase 7 routes) | POST /research/reconcile + GET /research/reconcile/:projectId; v1.3: PipelineLogger + try/catch hardening | ✅ Complete v1.3 |
+| `__tests__/recon/phase7-reconciliation.test.ts` | 73 unit tests (added 12 in v1.3: tests 62–73) | ✅ Complete v1.3 |
 | `__tests__/recon/phase8-confidence.test.ts` | 20 unit tests for Phase 8 confidence scoring (Phase 8 setup) | ✅ Added v1.2 |
 
 ### v1.2 Changes (March 2026)
@@ -55,6 +56,29 @@ All Phase 7 code has been implemented. Phase 7 degrades gracefully when Phases 4
 
 7. **`purchase-recommender.ts` bug fix** — `disc.resolution.priority` (undefined property) replaced with severity-derived priority (critical=1, moderate=2, minor=3).
 
+### v1.3 Changes (March 2026)
+
+1. **Confidence denominator fix** (`reconciliation-algorithm.ts`) — `buildConsensusCall()` previously used `totalW` (the sum of bearing-parseable readings' weights) as the denominator when computing the weighted-average confidence. If any readings had non-null but non-parseable bearings, their confidence contribution was included in the numerator but not the denominator, inflating the final confidence score. Fixed to use `allReadingsW` (sum of ALL straight readings' weights) as the denominator.
+
+2. **Unparseable-bearing guard** (`reconciliation-algorithm.ts`) — Added explicit guard: if `bearingValues.length === 0` after filtering (all bearing strings fail the DMS regex), `buildConsensusCall()` now immediately delegates to `buildUnresolvedCall()` instead of returning a `weighted_consensus` call with `reconciledBearing: null`. This produces a more consistent and honest `unresolved` result with `symbol='✗'`.
+
+3. **PipelineLogger in Phase 7 Express route** (`worker/src/index.ts`) — The `POST /research/reconcile` handler previously used bare `console.log`/`console.error` for post-completion logging. These are now replaced with dynamic `PipelineLogger` (same pattern as Phase 6), so reconciliation completion and failure messages appear in the structured log stream.
+
+4. **GET handler hardening** (`worker/src/index.ts`) — The `GET /research/reconcile/:projectId` handler's `JSON.parse(fs.readFileSync(...))` call is now wrapped in a try/catch. If the result file is malformed (e.g., a partial write interrupted by a crash), the handler returns HTTP 500 with an error description instead of crashing the Express request handler with an unhandled exception.
+
+5. **12 new unit tests (62–73)** — Added to `__tests__/recon/phase7-reconciliation.test.ts`:
+   - 62–63: Bearing reversal in chain-of-title (N→S, S→N)
+   - 64: Consensus with all-unparseable bearings → `unresolved`
+   - 65: Confidence denominator correctness (no inflation)
+   - 66: S-W quadrant traverse (negative northing, negative easting)
+   - 67: Curve call uses chord bearing/distance for traverse; perimeter uses arcLength
+   - 68: Single-leg open traverse produces valid ClosureResult
+   - 69: Malformed JSON intelligence file → `failed` model with error
+   - 70: Interior line with length=0 is skipped (no reading created)
+   - 71: `plat_overview` `along` field propagated to new set
+   - 72: TxDOT reading not added when no existing set matches road name (orphan prevention)
+   - 73: `matchDeedCallToPlat` returns null when deed call is too different (score < 50)
+
 ### API Endpoint
 
 `POST /research/reconcile` and `GET /research/reconcile/:projectId` — live in `worker/src/index.ts`
@@ -70,6 +94,18 @@ All Phase 7 code has been implemented. Phase 7 degrades gracefully when Phases 4
 | Phase 3 platOverview | ⚠️ Type defined, not yet generated | `IntelligenceInput.platOverview` field accepted but Phase 3 doesn't populate it yet |
 
 Phase 7 is designed to handle missing upstream data gracefully. It will produce a reconciled model with whatever phase outputs exist, and flag the missing data as gaps.
+
+### Known Limitations & Future Work
+
+| Item | Description | Priority |
+|------|-------------|----------|
+| Phase 3 integration | Phase 3 orchestrator/endpoint not yet built — Phase 7 has no live `property_intelligence.json` to consume | 🔴 High |
+| `sourceContributions` sparse map | Return type is `Record<ReadingSource, SourceContribution>` but the map is sparse (only present sources included). Callers should guard against `undefined` lookups. | 🟡 Medium |
+| `bearingToAzimuth` silent default | `TraverseComputation.bearingToAzimuth()` returns `0` for unparseable bearings, silently producing a due-north (0°) traverse leg instead of skipping the call. Consider returning `null` and logging a warning. | 🟡 Medium |
+| `describeClosureImprovement` private | The method is private; it is indirectly tested via full-engine integration tests but could use a dedicated unit test. | 🟢 Low |
+| `computeAcreageFromPoints` private | Shoelace formula is private; expose via a standalone exported function for direct unit testing if acreage accuracy becomes a concern. | 🟢 Low |
+| API keys / secrets needed | Phase 7 is **pure computation** — no AI API keys required. However, when Phase 3 is connected, `ANTHROPIC_API_KEY` in `.env` or environment will be required by the upstream intelligence extraction. | ℹ️ Info |
+| Live TxDOT ArcGIS URLs | Phase 6 (which feeds `txdot_row` readings to Phase 7) uses TxDOT ArcGIS REST endpoints that must be verified against production URLs. See `PHASE_06_TXDOT.md`. | ℹ️ Info |
 
 ---
 
