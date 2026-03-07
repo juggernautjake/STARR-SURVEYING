@@ -9,20 +9,22 @@
 /**
  * Validate that AI-extracted bearing is in valid range.
  * Texas surveyor bearing format: [N|S] DD°MM'SS" [E|W]
+ * Also accepts: [N|S] DD°MM' [E|W]  (no seconds) and [N|S] DD° [E|W] (degrees only)
  */
 export function validateBearing(
   bearing: string,
 ): { valid: boolean; error?: string } {
+  // Full DMS: N DD°MM'SS" E   (seconds may be omitted)
   const match = bearing.match(
-    /^([NS])\s*(\d+)[°]\s*(\d+)[''′]\s*([\d.]+)[""″]?\s*([EW])$/i,
+    /^([NS])\s*(\d+)[°]\s*(?:(\d+)[''′](?:\s*([\d.]+)[""″]?)?)?\s*([EW])$/i,
   );
   if (!match) {
     return { valid: false, error: `Invalid bearing format: "${bearing}"` };
   }
 
   const deg = parseInt(match[2]);
-  const min = parseInt(match[3]);
-  const sec = parseFloat(match[4]);
+  const min = match[3] !== undefined ? parseInt(match[3]) : 0;
+  const sec = match[4] !== undefined ? parseFloat(match[4]) : 0;
 
   if (deg < 0 || deg > 90) {
     return { valid: false, error: `Degrees out of range (0-90): ${deg}` };

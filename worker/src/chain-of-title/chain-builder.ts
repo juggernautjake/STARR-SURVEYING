@@ -150,6 +150,9 @@ export class ChainOfTitleBuilder {
     let depth = 0;
 
     while (depth < this.maxDepth) {
+      // Guard: empty grantee name would match everything via includes(''), stop tracing
+      if (!targetGrantee) break;
+
       // Find the deed where this person is the grantee
       const link = allLinks.find(
         (l) =>
@@ -163,7 +166,10 @@ export class ChainOfTitleBuilder {
       chain.push(link);
 
       // Trace backward: the grantor of this deed is who we look for next
-      targetGrantee = this.normalizeOwnerName(link.grantor);
+      const nextGrantee = this.normalizeOwnerName(link.grantor);
+      // Guard: same grantor as current grantee would cause infinite loop
+      if (!nextGrantee || nextGrantee === targetGrantee) break;
+      targetGrantee = nextGrantee;
       depth++;
     }
 

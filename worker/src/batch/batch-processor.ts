@@ -8,7 +8,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import type { BatchJob } from '../types/expansion.js';
-import { enqueueResearch, getJobStatus } from '../infra/job-queue.js';
+// NOTE: job-queue is dynamically imported inside methods to avoid
+// top-level Redis connection attempts at module load time.
+// This also makes batch-processor importable without a running Redis server.
 import type { ReportFormat } from '../types/reports.js';
 
 // ── Batch Processor ─────────────────────────────────────────────────────────
@@ -70,10 +72,14 @@ export class BatchProcessor {
 
   /**
    * Start processing a batch by enqueueing all properties.
+   * Dynamically imports job-queue to avoid top-level Redis connection.
    */
   async startBatch(batchId: string): Promise<BatchJob> {
     const batch = this.loadBatch(batchId);
     if (!batch) throw new Error(`Batch ${batchId} not found`);
+
+    // Dynamic import to avoid Redis connection at module load time
+    const { enqueueResearch } = await import('../infra/job-queue.js');
 
     batch.status = 'processing';
 
@@ -115,10 +121,14 @@ export class BatchProcessor {
 
   /**
    * Check the status of a batch job.
+   * Dynamically imports job-queue to avoid top-level Redis connection.
    */
   async checkBatchStatus(batchId: string): Promise<BatchJob> {
     const batch = this.loadBatch(batchId);
     if (!batch) throw new Error(`Batch ${batchId} not found`);
+
+    // Dynamic import to avoid Redis connection at module load time
+    const { getJobStatus } = await import('../infra/job-queue.js');
 
     let allDone = true;
     let anyFailed = false;
@@ -231,6 +241,8 @@ export class BatchProcessor {
       } else if (char === ',' && !inQuotes) {
         result.push(current);
         current = '';
+      } else if (char === '\r') {
+        // Skip carriage-return (Windows CRLF line endings)
       } else {
         current += char;
       }
@@ -285,7 +297,12 @@ export class BatchProcessor {
   private loadBatch(batchId: string): BatchJob | null {
     const filePath = path.join(this.outputDir, `${batchId}.json`);
     if (!fs.existsSync(filePath)) return null;
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    try {
+      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    } catch {
+      // Corrupt or unreadable batch file — return null gracefully
+      return null;
+    }
   }
 
   listBatches(): BatchJob[] {

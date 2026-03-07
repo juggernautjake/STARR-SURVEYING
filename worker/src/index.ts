@@ -18,6 +18,16 @@ import { GeometricReconciliationEngine } from './services/geometric-reconciliati
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 import { createReportRoutes } from './routes/report-routes.js';
+// Phase 11 imports
+import { FEMANFHLClient } from './sources/fema-nfhl-client.js';
+import { GLOClient } from './sources/glo-client.js';
+import { TCEQClient } from './sources/tceq-client.js';
+import { RRCClient } from './sources/rrc-client.js';
+import { NRCSSoilClient } from './sources/nrcs-soil-client.js';
+import { ChainOfTitleBuilder } from './chain-of-title/chain-builder.js';
+import { BatchProcessor } from './batch/batch-processor.js';
+import { UsageTracker } from './analytics/usage-tracker.js';
+import { getClerkByCountyName } from './adapters/clerk-registry.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -1432,6 +1442,250 @@ app.get('/research/purchase/:projectId', requireAuth, rateLimit(60, 60_000), (re
 
 app.use(createReportRoutes(requireAuth));
 
+// ── Phase 11: Data Source Routes ────────────────────────────────────────────
+
+// Global analytics tracker (single instance for Phase 11)
+const usageTracker = new UsageTracker('/tmp/analytics');
+
+/**
+ * POST /research/flood-zone
+ * Query FEMA NFHL flood zone data for a property.
+ * Body: { projectId, centroid: [lon, lat], polygon?: [[lon,lat],...] }
+ */
+app.post(
+  '/research/flood-zone',
+  requireAuth,
+  rateLimit(5, 60_000),
+  async (req: Request, res: Response) => {
+    const logger = new (await import('./lib/logger.js')).PipelineLogger(
+      req.body?.projectId || 'unknown',
+    );
+    const { projectId, centroid, polygon } = req.body || {};
+
+    if (!projectId) {
+      res.status(400).json({ error: 'projectId is required' });
+      return;
+    }
+    if (!centroid || !Array.isArray(centroid) || centroid.length !== 2) {
+      res.status(400).json({ error: 'centroid [lon, lat] is required' });
+      return;
+    }
+
+    const attempt = logger.startAttempt({
+      layer: 'Phase11_FloodZone',
+      source: 'FEMA NFHL',
+      method: 'POST /research/flood-zone',
+      input: projectId,
+    });
+
+    try {
+      const client = new FEMANFHLClient();
+      const result = await client.queryFloodZones({ centroid, polygon });
+
+      // Save to project directory
+      const outDir = path.join('/tmp/analysis', projectId);
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(outDir, 'flood_zone.json'),
+        JSON.stringify(result, null, 2),
+      );
+
+      attempt({ status: 'success', dataPointsFound: result.zones.length });
+      res.json({ projectId, floodZone: result });
+    } catch (err: any) {
+      attempt({ status: 'fail', error: err.message });
+      logger.error('Phase11_FloodZone', 'FEMA NFHL query failed', err);
+      res.status(500).json({ error: err.message, attempts: logger.getAttempts() });
+    }
+  },
+);
+
+/**
+ * GET /research/flood-zone/:projectId
+ * Retrieve saved flood zone data for a project.
+ */
+app.get(
+  '/research/flood-zone/:projectId',
+  requireAuth,
+  rateLimit(60, 60_000),
+  (req: Request, res: Response) => {
+    const { projectId } = req.params;
+    const filePath = path.join('/tmp/analysis', projectId, 'flood_zone.json');
+    if (!fs.existsSync(filePath)) {
+      res.status(404).json({ error: `No flood zone data for project ${projectId}` });
+      return;
+    }
+    try {
+      res.json(JSON.parse(fs.readFileSync(filePath, 'utf-8')));
+    } catch {
+      res.status(500).json({ error: 'Failed to read flood zone data' });
+    }
+  },
+);
+
+/**
+ * POST /research/chain-of-title
+ * Build deep chain of title for a property.
+ * Body: { projectId, currentOwner, documents, extractionData, maxDepth? }
+ */
+app.post(
+  '/research/chain-of-title',
+  requireAuth,
+  rateLimit(5, 60_000),
+  async (req: Request, res: Response) => {
+    const logger = new (await import('./lib/logger.js')).PipelineLogger(
+      req.body?.projectId || 'unknown',
+    );
+    const { projectId, currentOwner, documents, extractionData, maxDepth } =
+      req.body || {};
+
+    if (!projectId) {
+      res.status(400).json({ error: 'projectId is required' });
+      return;
+    }
+    if (!currentOwner) {
+      res.status(400).json({ error: 'currentOwner is required' });
+      return;
+    }
+
+    const attempt = logger.startAttempt({
+      layer: 'Phase11_ChainOfTitle',
+      source: 'Document Database',
+      method: 'POST /research/chain-of-title',
+      input: projectId,
+    });
+
+    try {
+      const builder = new ChainOfTitleBuilder(
+        maxDepth || 5,
+        '/tmp/analysis',
+      );
+      const result = await builder.buildChain(
+        projectId,
+        currentOwner,
+        documents || [],
+        extractionData || {},
+      );
+
+      attempt({ status: 'success', dataPointsFound: result.chain.length });
+      res.json({ projectId, chainOfTitle: result });
+    } catch (err: any) {
+      attempt({ status: 'fail', error: err.message });
+      logger.error('Phase11_ChainOfTitle', 'Chain of title build failed', err);
+      res.status(500).json({ error: err.message, attempts: logger.getAttempts() });
+    }
+  },
+);
+
+/**
+ * GET /research/chain-of-title/:projectId
+ * Retrieve saved chain of title for a project.
+ */
+app.get(
+  '/research/chain-of-title/:projectId',
+  requireAuth,
+  rateLimit(60, 60_000),
+  (req: Request, res: Response) => {
+    const { projectId } = req.params;
+    const filePath = path.join(
+      '/tmp/analysis',
+      projectId,
+      'chain_of_title.json',
+    );
+    if (!fs.existsSync(filePath)) {
+      res.status(404).json({
+        error: `No chain of title data for project ${projectId}`,
+      });
+      return;
+    }
+    try {
+      res.json(JSON.parse(fs.readFileSync(filePath, 'utf-8')));
+    } catch {
+      res.status(500).json({ error: 'Failed to read chain of title data' });
+    }
+  },
+);
+
+/**
+ * POST /research/batch
+ * Create a new batch research job.
+ * Body: { userId, properties: [{address, county?, label?}], options? }
+ */
+app.post(
+  '/research/batch',
+  requireAuth,
+  rateLimit(3, 60_000),
+  async (req: Request, res: Response) => {
+    const { userId, properties, options } = req.body || {};
+
+    if (!userId) {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
+    if (!Array.isArray(properties) || properties.length === 0) {
+      res.status(400).json({ error: 'properties array is required and must be non-empty' });
+      return;
+    }
+    if (properties.length > 500) {
+      res.status(400).json({ error: 'Batch size limit is 500 properties' });
+      return;
+    }
+
+    try {
+      const processor = new BatchProcessor('/tmp/batch');
+      const batch = await processor.createBatch(userId, properties, options || {});
+      usageTracker.track({
+        eventType: 'pipeline_started',
+        userId,
+        projectId: batch.batchId,
+        county: 'batch',
+      });
+      res.json({ batchId: batch.batchId, status: batch.status });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
+
+/**
+ * GET /research/batch/:batchId
+ * Get batch job status.
+ */
+app.get(
+  '/research/batch/:batchId',
+  requireAuth,
+  rateLimit(60, 60_000),
+  async (req: Request, res: Response) => {
+    const { batchId } = req.params;
+    try {
+      const processor = new BatchProcessor('/tmp/batch');
+      const batch = await processor.checkBatchStatus(batchId);
+      res.json(batch);
+    } catch (err: any) {
+      res.status(404).json({ error: err.message });
+    }
+  },
+);
+
+/**
+ * GET /research/clerk-registry/:county
+ * Look up the clerk system for a Texas county.
+ */
+app.get(
+  '/research/clerk-registry/:county',
+  requireAuth,
+  rateLimit(60, 60_000),
+  (req: Request, res: Response) => {
+    const { county } = req.params;
+    if (!county) {
+      res.status(400).json({ error: 'county name is required' });
+      return;
+    }
+    const entry = getClerkByCountyName(county);
+    res.json(entry);
+  },
+);
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -1469,6 +1723,13 @@ app.listen(PORT, () => {
   console.log('  POST   /research/report                 ← Phase 10: generate reports');
   console.log('  GET    /research/deliverables/:projectId← Phase 10: list deliverables');
   console.log('  GET    /research/download/:id/:format   ← Phase 10: download file');
+  console.log('  POST   /research/flood-zone             ← Phase 11: FEMA flood zone query');
+  console.log('  GET    /research/flood-zone/:projectId  ← Phase 11: flood zone result');
+  console.log('  POST   /research/chain-of-title         ← Phase 11: deep chain of title');
+  console.log('  GET    /research/chain-of-title/:projectId ← Phase 11: chain of title result');
+  console.log('  POST   /research/batch                  ← Phase 11: batch processing job');
+  console.log('  GET    /research/batch/:batchId         ← Phase 11: batch status');
+  console.log('  GET    /research/clerk-registry/:county ← Phase 11: clerk system lookup');
   console.log('  POST   /research/full-pipeline');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');
