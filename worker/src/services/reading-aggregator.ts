@@ -15,8 +15,10 @@ import type { BoundaryReading, ReadingSet } from '../types/reconciliation.js';
 
 // ── Unit Conversion Constants ───────────────────────────────────────────────
 
-/** Texas vara (the standard used in historic Texas surveys) — exactly 33⅓ inches */
-export const VARA_TO_FEET = 1000 / 360; // ≈ 2.7778 ft per vara
+/** Texas vara (the standard used in historic Texas surveys) — exactly 33⅓ inches.
+ *  1 vara = 33⅓ inches = 33.333... / 12 feet = 1000/360 feet ≈ 2.77778 ft.
+ *  The exact rational form 1000/360 is used to avoid rounding the repeating decimal. */
+export const VARA_TO_FEET = 1000 / 360; // ≈ 2.77778 ft per vara
 
 /** Gunter's surveyor's chain — exactly 66 feet */
 export const CHAIN_TO_FEET = 66;

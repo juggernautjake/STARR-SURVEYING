@@ -65,7 +65,8 @@
 //  57.  TraverseComputation — perimeter length computed correctly
 //  58.  GeometricReconciliationEngine — rejects empty projectId
 //  59.  GeometricReconciliationEngine — rejects unsafe projectId with path traversal chars
-//  60.  ReadingAggregator — Phase 5 chain-of-title distance normalized to feet
+//  60.  GeometricReconciliationEngine — returns failed model when intelligence file does not exist
+//  61.  ReadingAggregator — Phase 5 chain-of-title distance normalized to feet
 
 import { describe, it, expect } from 'vitest';
 
@@ -1235,7 +1236,7 @@ describe('GeometricReconciliationEngine — validation', () => {
 describe('ReadingAggregator — Phase 5 chain-of-title distance normalization', () => {
   const aggregator = new ReadingAggregator();
 
-  it('60 (alias). Phase 5 chain-of-title: varas distance normalized to feet', () => {
+  it('61. Phase 5 chain-of-title: varas distance normalized to feet', () => {
     const crossVal: CrossValidationInput = {
       adjacentProperties: [
         {

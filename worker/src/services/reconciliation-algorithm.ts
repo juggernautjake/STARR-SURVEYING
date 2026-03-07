@@ -126,7 +126,7 @@ export class ReconciliationAlgorithm {
         ? distReadings.reduce((s, r) => s + r.distance! * r.weight, 0) / totalDW
         : null;
 
-    // Compute spreads — guard against empty arrays
+    // Compute spreads — requires at least 2 values; 0 or 1-element arrays produce spread=0
     const bearingSpreadDeg =
       bearingValues.length > 1
         ? Math.max(...bearingValues.map((b) => b.decimal)) -
