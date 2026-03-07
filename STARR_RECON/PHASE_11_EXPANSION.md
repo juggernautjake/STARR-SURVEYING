@@ -4,7 +4,7 @@
 
 **Duration:** Weeks 31–52+ (ongoing)
 **Depends On:** All Phases 1–10
-**Status:** 🟠 IN PROGRESS — Foundation code in place for many modules; web frontend, Supabase schema, and statewide adapter coverage are the primary remaining gaps.
+**Status:** 🟡 IN PROGRESS v1.1 — Core infrastructure, data source clients, billing, batch, chain-of-title, exports, WebSocket, analytics, and clerk registry are complete with 134 unit tests. Web frontend, Supabase schema, and statewide CAD/clerk adapter implementation remain.
 
 **Goal:** Transform the 10-phase research pipeline from a single-user CLI tool into a subscription-grade SaaS product that covers all 254 Texas counties, integrates every available government data source, processes payments for document purchases on behalf of users, delivers interactive web-based reports through Starr Compass, and operates with production-grade reliability.
 
@@ -14,36 +14,54 @@ This phase addresses every gap, missing data source, UX consideration, and infra
 
 ---
 
-## Current State of Phase 11
+## Current State of Phase 11 — v1.1 (March 2026)
 
-**Phase Status: 🟠 IN PROGRESS**
+**Phase Status: 🟡 IN PROGRESS**
 
-A significant amount of Phase 11 foundation code has been built. The following modules are complete or have working implementations:
+### v1.1 Changes (March 2026)
+
+- **Bug fix:** `chain-builder.ts` — `traceChain()` had infinite-loop risk when `grantor` was an empty string (`.includes('')` matches everything). Fixed with explicit empty-string guard and same-grantor guard.
+- **Bug fix:** `ai-guardrails.ts` — `validateBearing()` regex required seconds, rejecting valid Texas deed formats like `N 45°30' E` (no seconds). Made seconds optional; supports `DD°MM'SS"`, `DD°MM'`, and `DD°` formats.
+- **Bug fix:** `batch-processor.ts` — CSV parser did not strip `\r` from Windows CRLF line endings, producing trailing carriage-returns in field values. Fixed. Also added `try/catch` to `loadBatch()` for corrupt JSON files.
+- **Bug fix:** `usage-tracker.ts` — `loadEvents()` did not wrap `fs.readFileSync()` in try/catch. Added per-file error protection.
+- **New:** `worker/src/adapters/clerk-registry.ts` — FIPS/county-name to clerk system routing. Maps 17 representative Texas counties; gracefully falls back to TexasFile aggregator for any unregistered county. Exported functions: `getClerkByFIPS`, `getClerkByCountyName`, `getCountiesForSystem`, `getAdapterCoverage`, `requiresManualRetrieval`.
+- **New:** Phase 11 API routes added to `worker/src/index.ts`:
+  - `POST /research/flood-zone` — FEMA NFHL flood zone query
+  - `GET  /research/flood-zone/:projectId` — Retrieve flood zone result
+  - `POST /research/chain-of-title` — Deep chain of title
+  - `GET  /research/chain-of-title/:projectId` — Retrieve chain of title
+  - `POST /research/batch` — Create batch research job
+  - `GET  /research/batch/:batchId` — Check batch status
+  - `GET  /research/clerk-registry/:county` — Lookup clerk system for county
+- **New:** `__tests__/recon/phase11-expansion.test.ts` — 134 unit tests covering all Phase 11 pure-logic modules.
+- **Dependencies added:** `bullmq@^5.0.0`, `ioredis@^5.3.0`, `stripe@^14.0.0` added to root `package.json` (required for job queue and billing modules).
+- **Test count:** 1282 total tests pass (1148 prior + 134 Phase 11).
 
 ### Built Foundation Code
 
-| Module | File | Status |
-|--------|------|--------|
-| FEMA NFHL Integration | `worker/src/sources/fema-nfhl-client.ts` | ✅ Complete |
-| Texas GLO Integration | `worker/src/sources/glo-client.ts` | ✅ Complete |
-| TCEQ Integration | `worker/src/sources/tceq-client.ts` | ✅ Complete |
-| Texas RRC Integration | `worker/src/sources/rrc-client.ts` | ✅ Complete |
-| USDA NRCS Soil Survey | `worker/src/sources/nrcs-soil-client.ts` | ✅ Complete |
-| Retry/Circuit Breaker | `worker/src/infra/resilience.ts` | ✅ Complete |
-| AI Response Validation | `worker/src/infra/ai-guardrails.ts` | ✅ Complete |
-| BullMQ Job Queue | `worker/src/infra/job-queue.ts` | ✅ Complete |
-| Pino Structured Logging | `worker/src/lib/logger.ts` | ✅ Complete |
-| Rate Limiter | `worker/src/lib/rate-limiter.ts` | ✅ Complete |
-| Stripe Billing | `worker/src/billing/stripe-billing.ts` | ✅ Complete |
-| Subscription Tiers | `worker/src/billing/subscription-tiers.ts` | ✅ Complete |
-| Usage/Token Tracking | `worker/src/analytics/usage-tracker.ts` | ✅ Complete |
-| Batch Processing | `worker/src/batch/batch-processor.ts` | ✅ Complete |
-| Chain of Title | `worker/src/chain-of-title/chain-builder.ts` | ✅ Complete |
-| RW5 Survey Export | `worker/src/exports/rw5-exporter.ts` | ✅ Complete |
-| Trimble JobXML Export | `worker/src/exports/jobxml-exporter.ts` | ✅ Complete |
-| WebSocket Progress Server | `worker/src/websocket/progress-server.ts` | ✅ Complete |
-| AI Prompt Registry | `worker/src/ai/prompt-registry.ts` | ✅ Complete |
-| Phase 11 TypeScript Types | `worker/src/types/expansion.ts` | ✅ Complete |
+| Module | File | Status | Tests |
+|--------|------|--------|-------|
+| FEMA NFHL Integration | `worker/src/sources/fema-nfhl-client.ts` | ✅ Complete | Live API (unit tests mock-free) |
+| Texas GLO Integration | `worker/src/sources/glo-client.ts` | ✅ Complete | Live API |
+| TCEQ Integration | `worker/src/sources/tceq-client.ts` | ✅ Complete | Live API |
+| Texas RRC Integration | `worker/src/sources/rrc-client.ts` | ✅ Complete | Live API |
+| USDA NRCS Soil Survey | `worker/src/sources/nrcs-soil-client.ts` | ✅ Complete | Live API |
+| Retry/Circuit Breaker | `worker/src/infra/resilience.ts` | ✅ Complete + Tested | Tests 77–89 |
+| AI Response Validation | `worker/src/infra/ai-guardrails.ts` | ✅ Complete + Tested | Tests 1–30 |
+| BullMQ Job Queue | `worker/src/infra/job-queue.ts` | ✅ Complete | Requires Redis |
+| Pino Structured Logging | `worker/src/lib/logger.ts` | ✅ Complete | Used across pipeline |
+| Rate Limiter | `worker/src/lib/rate-limiter.ts` | ✅ Complete | Used across pipeline |
+| Stripe Billing | `worker/src/billing/stripe-billing.ts` | ✅ Complete | Requires Stripe keys |
+| Subscription Tiers | `worker/src/billing/subscription-tiers.ts` | ✅ Complete + Tested | Tests 31–49 |
+| Usage/Token Tracking | `worker/src/analytics/usage-tracker.ts` | ✅ Complete + Tested | Tests 116–123 |
+| Batch Processing | `worker/src/batch/batch-processor.ts` | ✅ Complete + Tested | Tests 90–101 |
+| Chain of Title | `worker/src/chain-of-title/chain-builder.ts` | ✅ Complete + Tested | Tests 102–115 |
+| RW5 Survey Export | `worker/src/exports/rw5-exporter.ts` | ✅ Complete + Tested | Tests 50–58 |
+| Trimble JobXML Export | `worker/src/exports/jobxml-exporter.ts` | ✅ Complete + Tested | Tests 59–66 |
+| WebSocket Progress Server | `worker/src/websocket/progress-server.ts` | ✅ Complete | Requires HTTP server |
+| AI Prompt Registry | `worker/src/ai/prompt-registry.ts` | ✅ Complete + Tested | Tests 124–134 |
+| Phase 11 TypeScript Types | `worker/src/types/expansion.ts` | ✅ Complete | Used across all modules |
+| Clerk Registry | `worker/src/adapters/clerk-registry.ts` | ✅ Complete + Tested | Tests 67–76 |
 
 ### Not Yet Built (High Priority)
 
@@ -53,7 +71,6 @@ A significant amount of Phase 11 foundation code has been built. The following m
 | TAD adapter (Tarrant County / Fort Worth) | Critical | 2nd largest metro; needed for statewide coverage |
 | Henschen clerk adapter (~40 counties) | Critical | Second most common TX clerk system after Kofile |
 | iDocket clerk adapter (~20 counties) | High | Third major TX clerk system |
-| `clerk-registry.ts` (FIPS → adapter routing) | Critical | Needed to route Phase 2 to correct adapter |
 | Web frontend (research dashboard) | Critical | No browser-based UI exists yet |
 | Supabase schema migrations | Critical | `research_projects` table not yet created |
 | Interactive boundary viewer (React/SVG) | High | Phase 11 UX requirement |
@@ -63,9 +80,26 @@ A significant amount of Phase 11 foundation code has been built. The following m
 | CSV exporter | Medium | `csv-exporter.ts` referenced in roadmap but not built |
 | Schema validation (Zod) between phases | High | Phase-boundary I/O validation |
 
+### What Needs External Input (Cannot Be Fully Implemented Without)
+
+| Item | Missing Information |
+|------|---------------------|
+| FEMA NFHL live URL verification | ArcGIS REST layer indices may have changed — need live test against FEMA servers |
+| GLO ArcGIS live URL | `gisweb.glo.texas.gov/glomapserver` URL needs live verification |
+| TCEQ GIS service URLs | Service paths need verification against current TCEQ ArcGIS portal |
+| RRC GIS service URLs | `gis.rrc.texas.gov` path needs verification |
+| Stripe price IDs | `STRIPE_PRICE_SURVEYOR_PRO` and `STRIPE_PRICE_FIRM_UNLIMITED` env vars need real Stripe dashboard values |
+| Redis connection | BullMQ job queue requires running Redis; `REDIS_URL` env var |
+| Supabase credentials | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` for multi-tenant user storage |
+| Henschen adapter URLs | Per-county URLs for ~40 Henschen counties |
+| iDocket session pattern | iDocket SPA authentication flow needs investigation |
+| HCAD account number search | Harris County Appraisal District uses account numbers, not addresses |
+| WebSocket auth | Production Supabase JWT validation in `validateToken()` of progress-server.ts |
+| NRCS SDA SQL | SDA tabular query may need schema updates for current NRCS data model |
+
 ### Gap Analysis Updates
 
-The comprehensive gap analysis in §11.1 below was written before the Phase 11 foundation code was built. Many items listed as "Critical" gaps (retry/circuit breaker, structured logging, AI response validation, job queue, Stripe billing, batch processing) have since been addressed. The remaining critical gaps are: statewide CAD/clerk adapter coverage, web frontend, and Supabase schema.
+The comprehensive gap analysis in §11.1 below was written before the Phase 11 foundation code was built. Many items listed as "Critical" gaps (retry/circuit breaker, structured logging, AI response validation, job queue, Stripe billing, batch processing) have since been addressed in v1.1. The remaining critical gaps are: statewide CAD/clerk adapter implementation, web frontend, and Supabase schema.
 
 ---
 

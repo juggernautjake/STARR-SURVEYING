@@ -237,10 +237,14 @@ export class UsageTracker {
       if (startDate && fileDate < startDate) continue;
       if (endDate && fileDate > endDate) continue;
 
-      const content = fs.readFileSync(
-        path.join(this.logDir, file),
-        'utf-8',
-      );
+      const filePath = path.join(this.logDir, file);
+      let content: string;
+      try {
+        content = fs.readFileSync(filePath, 'utf-8');
+      } catch {
+        // Skip unreadable file
+        continue;
+      }
       for (const line of content.trim().split('\n')) {
         if (line) {
           try {
