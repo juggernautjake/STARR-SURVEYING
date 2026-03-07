@@ -1468,3 +1468,175 @@ describe('PromptRegistry (ai/prompt-registry.ts)', () => {
     expect(DEFAULT_PROMPTS.every((p) => p.status === 'active')).toBe(true);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// v1.2 Bug-fix tests — NRCSSoilClient coordinate validation (sources/nrcs-soil-client.ts)
+// Tests 135–141
+// ═══════════════════════════════════════════════════════════════════════════════
+
+import { NRCSSoilClient } from '../../worker/src/sources/nrcs-soil-client.js';
+
+describe('NRCSSoilClient coordinate validation (sources/nrcs-soil-client.ts)', () => {
+  const client = new NRCSSoilClient();
+
+  it('135. rejects NaN longitude', async () => {
+    await expect(
+      client.querySoilData({ centroid: [NaN, 30.0] }),
+    ).rejects.toThrow(/Invalid centroid/);
+  });
+
+  it('136. rejects NaN latitude', async () => {
+    await expect(
+      client.querySoilData({ centroid: [-98.5, NaN] }),
+    ).rejects.toThrow(/Invalid centroid/);
+  });
+
+  it('137. rejects longitude > 180', async () => {
+    await expect(
+      client.querySoilData({ centroid: [200, 30.0] }),
+    ).rejects.toThrow(/longitude out of range/);
+  });
+
+  it('138. rejects longitude < -180', async () => {
+    await expect(
+      client.querySoilData({ centroid: [-200, 30.0] }),
+    ).rejects.toThrow(/longitude out of range/);
+  });
+
+  it('139. rejects latitude > 90', async () => {
+    await expect(
+      client.querySoilData({ centroid: [-98.5, 100] }),
+    ).rejects.toThrow(/latitude out of range/);
+  });
+
+  it('140. rejects polygon with fewer than 3 points', async () => {
+    await expect(
+      client.querySoilData({
+        centroid: [-98.5, 30.0],
+        polygon: [[-98.5, 30.0], [-98.4, 30.0]],
+      }),
+    ).rejects.toThrow(/at least 3 coordinate pairs/);
+  });
+
+  it('141. rejects polygon with out-of-range coordinate', async () => {
+    await expect(
+      client.querySoilData({
+        centroid: [-98.5, 30.0],
+        polygon: [[-98.5, 30.0], [-98.4, 30.0], [200, 30.0]],
+      }),
+    ).rejects.toThrow(/out of WGS84 range/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// v1.2 Bug-fix tests — BillingService requireEnv validation (billing/stripe-billing.ts)
+// Tests 142–146
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// We test the module-level requireEnv helper indirectly through BillingService.
+// BillingService.verifyWebhook() calls requireEnv('STRIPE_WEBHOOK_SECRET').
+
+import { BillingService } from '../../worker/src/billing/stripe-billing.js';
+
+describe('BillingService env validation (billing/stripe-billing.ts)', () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    // Restore env and reset the lazy Stripe client so next test gets a fresh one.
+    Object.keys(process.env).forEach((k) => delete (process.env as any)[k]);
+    Object.assign(process.env, originalEnv);
+  });
+
+  it('142. verifyWebhook throws when STRIPE_WEBHOOK_SECRET is missing', () => {
+    delete process.env.STRIPE_WEBHOOK_SECRET;
+    delete process.env.STRIPE_SECRET_KEY;
+    const svc = new BillingService();
+    expect(() => svc.verifyWebhook('payload', 'sig')).toThrow(
+      /STRIPE_WEBHOOK_SECRET/,
+    );
+  });
+
+  it('143. verifyWebhook throws when signature is invalid (with secret set)', () => {
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_fake';
+    process.env.STRIPE_SECRET_KEY = 'sk_test_fake';
+    const svc = new BillingService();
+    // Stripe will throw a signature verification error — we ensure it is
+    // re-thrown as a descriptive Error rather than an unhandled exception.
+    expect(() => svc.verifyWebhook('payload', 'bad-sig')).toThrow(
+      /Webhook signature verification failed/,
+    );
+  });
+
+  it('144. handleWebhook returns unhandled for unknown event types', async () => {
+    const svc = new BillingService();
+    const result = await svc.handleWebhook({ type: 'unknown.event', data: { object: {} } } as any);
+    expect(result.action).toBe('unhandled');
+    expect(result.data.type).toBe('unknown.event');
+  });
+
+  it('145. handleWebhook returns update_subscription for subscription.updated', async () => {
+    const svc = new BillingService();
+    const fakeEvent = {
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          customer: 'cus_123',
+          id: 'sub_456',
+          status: 'active',
+          current_period_end: 1800000000,
+        },
+      },
+    } as any;
+    const result = await svc.handleWebhook(fakeEvent);
+    expect(result.action).toBe('update_subscription');
+    expect(result.data.subscriptionId).toBe('sub_456');
+  });
+
+  it('146. handleWebhook returns cancel_subscription for subscription.deleted', async () => {
+    const svc = new BillingService();
+    const fakeEvent = {
+      type: 'customer.subscription.deleted',
+      data: {
+        object: { customer: 'cus_123', id: 'sub_789' },
+      },
+    } as any;
+    const result = await svc.handleWebhook(fakeEvent);
+    expect(result.action).toBe('cancel_subscription');
+    expect(result.data.subscriptionId).toBe('sub_789');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// v1.2 Robustness tests — subscription tier edge cases
+// Tests 147–153
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Subscription Tiers — additional edge cases (billing/subscription-tiers.ts)', () => {
+  it('147. canAccessDataSource returns true for FIRM_UNLIMITED (data_sources=all)', () => {
+    expect(canAccessDataSource('FIRM_UNLIMITED', 'any_source')).toBe(true);
+  });
+
+  it('148. canAccessDataSource returns true for ENTERPRISE (data_sources=all)', () => {
+    expect(canAccessDataSource('ENTERPRISE', 'any_source')).toBe(true);
+  });
+
+  it('149. canAccessDataSource returns false for FREE_TRIAL accessing txdot', () => {
+    expect(canAccessDataSource('FREE_TRIAL', 'txdot')).toBe(false);
+  });
+
+  it('150. canExportFormat returns true for FIRM_UNLIMITED for rw5 format', () => {
+    expect(canExportFormat('FIRM_UNLIMITED', 'rw5')).toBe(true);
+  });
+
+  it('151. canExportFormat returns false for FREE_TRIAL for rw5 format', () => {
+    expect(canExportFormat('FREE_TRIAL', 'rw5')).toBe(false);
+  });
+
+  it('152. isWithinReportLimit always true for FIRM_UNLIMITED (unlimited reports)', () => {
+    expect(isWithinReportLimit('FIRM_UNLIMITED', 9999)).toBe(true);
+  });
+
+  it('153. isWithinReportLimit returns false for FREE_TRIAL when over 2 reports', () => {
+    expect(isWithinReportLimit('FREE_TRIAL', 3)).toBe(false);
+  });
+});

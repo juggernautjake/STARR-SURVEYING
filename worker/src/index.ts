@@ -1685,7 +1685,14 @@ app.get(
       res.status(400).json({ error: 'county name is required' });
       return;
     }
-    const entry = getClerkByCountyName(county);
+    // Reject unusually long or non-alphanumeric county names to prevent abuse.
+    // Also reject consecutive special characters (spaces, hyphens, apostrophes).
+    if (county.length > 64 || !/^[a-zA-Z\s'-]+$/.test(county) ||
+        /[\s'-]{2,}/.test(county)) {
+      res.status(400).json({ error: 'county name contains invalid characters or is too long' });
+      return;
+    }
+    const entry = getClerkByCountyName(county.trim());
     res.json(entry);
   },
 );

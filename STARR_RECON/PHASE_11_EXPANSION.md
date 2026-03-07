@@ -4,7 +4,7 @@
 
 **Duration:** Weeks 31–52+ (ongoing)
 **Depends On:** All Phases 1–10
-**Status:** 🟡 IN PROGRESS v1.1 — Core infrastructure, data source clients, billing, batch, chain-of-title, exports, WebSocket, analytics, and clerk registry are complete with 134 unit tests. Web frontend, Supabase schema, and statewide CAD/clerk adapter implementation remain.
+**Status:** 🟡 IN PROGRESS v1.2 — Core infrastructure, data source clients, billing, batch, chain-of-title, exports, WebSocket, analytics, and clerk registry are complete with 153 unit tests. Web frontend, Supabase schema, and statewide CAD/clerk adapter implementation remain.
 
 **Goal:** Transform the 10-phase research pipeline from a single-user CLI tool into a subscription-grade SaaS product that covers all 254 Texas counties, integrates every available government data source, processes payments for document purchases on behalf of users, delivers interactive web-based reports through Starr Compass, and operates with production-grade reliability.
 
@@ -14,9 +14,18 @@ This phase addresses every gap, missing data source, UX consideration, and infra
 
 ---
 
-## Current State of Phase 11 — v1.1 (March 2026)
+## Current State of Phase 11 — v1.2 (March 2026)
 
 **Phase Status: 🟡 IN PROGRESS**
+
+### v1.2 Changes (March 2026)
+
+- **Bug fix:** `progress-server.ts` — `new URL(req.url!, ...)` was called without a try/catch; a malformed WebSocket URL could crash the connection handler. Wrapped in try/catch and returns close code 4003. Also added: `IncomingMessage` typing for `req`, projectId format validation (`/^[a-zA-Z0-9_-]{1,128}$/` — rejects path-traversal chars), per-socket error handler, server-level `'error'` handler, initial `isAlive = true` on connect, and replaced `console.log` with a structured timestamp logger.
+- **Bug fix:** `stripe-billing.ts` — Module-level `new Stripe('')` was called at import time with an empty key if `STRIPE_SECRET_KEY` was not set, causing a silent misconfiguration. Converted to a lazy `getStripe()` factory. Added `requireEnv()` helper that throws a descriptive error when a required env var is absent. `createSubscription` and `createCheckoutSession` now call `requireEnv(priceEnvVar)` instead of falling through with an empty price ID. `verifyWebhook` now calls `requireEnv('STRIPE_WEBHOOK_SECRET')` and wraps `constructEvent` in a try/catch that re-throws as a descriptive `Error`.
+- **Bug fix:** `nrcs-soil-client.ts` — Centroid `[lon, lat]` and polygon coordinates were used directly in WKT query strings without validation. Added `validateCoordinates()` which rejects NaN, out-of-range WGS84 values, and polygons with fewer than 3 points. Called at the top of `querySoilData()` before any network requests.
+- **Bug fix:** `worker/src/index.ts` — `GET /research/clerk-registry/:county` accepted any string as the county parameter. Added length limit (≤ 64 chars) and character-class validation (`/^[a-zA-Z\s'-]+$/`) to prevent abuse. Also added `.trim()` before lookup.
+- **New tests:** 19 additional unit tests (135–153) covering: NRCSSoilClient coordinate validation (7 tests), BillingService env/webhook validation (5 tests), subscription tier edge cases (7 tests). Total: **153 Phase 11 tests**.
+- **Test count:** 1301 total tests pass (1282 prior + 19 new Phase 11 v1.2).
 
 ### v1.1 Changes (March 2026)
 
@@ -51,14 +60,14 @@ This phase addresses every gap, missing data source, UX consideration, and infra
 | BullMQ Job Queue | `worker/src/infra/job-queue.ts` | ✅ Complete | Requires Redis |
 | Pino Structured Logging | `worker/src/lib/logger.ts` | ✅ Complete | Used across pipeline |
 | Rate Limiter | `worker/src/lib/rate-limiter.ts` | ✅ Complete | Used across pipeline |
-| Stripe Billing | `worker/src/billing/stripe-billing.ts` | ✅ Complete | Requires Stripe keys |
-| Subscription Tiers | `worker/src/billing/subscription-tiers.ts` | ✅ Complete + Tested | Tests 31–49 |
+| Stripe Billing | `worker/src/billing/stripe-billing.ts` | ✅ Complete + Tested | Tests 142–146 |
+| Subscription Tiers | `worker/src/billing/subscription-tiers.ts` | ✅ Complete + Tested | Tests 31–49, 147–153 |
 | Usage/Token Tracking | `worker/src/analytics/usage-tracker.ts` | ✅ Complete + Tested | Tests 116–123 |
 | Batch Processing | `worker/src/batch/batch-processor.ts` | ✅ Complete + Tested | Tests 90–101 |
 | Chain of Title | `worker/src/chain-of-title/chain-builder.ts` | ✅ Complete + Tested | Tests 102–115 |
 | RW5 Survey Export | `worker/src/exports/rw5-exporter.ts` | ✅ Complete + Tested | Tests 50–58 |
 | Trimble JobXML Export | `worker/src/exports/jobxml-exporter.ts` | ✅ Complete + Tested | Tests 59–66 |
-| WebSocket Progress Server | `worker/src/websocket/progress-server.ts` | ✅ Complete | Requires HTTP server |
+| WebSocket Progress Server | `worker/src/websocket/progress-server.ts` | ✅ Complete + Hardened | Requires HTTP server |
 | AI Prompt Registry | `worker/src/ai/prompt-registry.ts` | ✅ Complete + Tested | Tests 124–134 |
 | Phase 11 TypeScript Types | `worker/src/types/expansion.ts` | ✅ Complete | Used across all modules |
 | Clerk Registry | `worker/src/adapters/clerk-registry.ts` | ✅ Complete + Tested | Tests 67–76 |

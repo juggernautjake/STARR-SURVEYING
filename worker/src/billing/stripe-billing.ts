@@ -3,14 +3,46 @@
 // and document purchase pass-through billing.
 //
 // Spec §11.8.2 — Stripe Integration
+//
+// NOTE: STRIPE_SECRET_KEY, STRIPE_PRICE_SURVEYOR_PRO,
+//       STRIPE_PRICE_FIRM_UNLIMITED, and STRIPE_WEBHOOK_SECRET must be set
+//       in environment variables before using this service.  Missing keys are
+//       detected at call time and throw a descriptive error so callers can
+//       surface them rather than sending an empty string to Stripe.
 
 import Stripe from 'stripe';
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Require an env var at call time.  Throws with a clear message when the var
+ * is absent so callers don't silently send empty strings to Stripe.
+ */
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `[BillingService] Missing required environment variable: ${name}. ` +
+        'Set this in your deployment environment before using BillingService.',
+    );
+  }
+  return value;
+}
+
 // ── Stripe Client ───────────────────────────────────────────────────────────
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-12-18.acacia' as any,
-});
+// The Stripe SDK is instantiated lazily so that the module can be imported
+// during tests without a real STRIPE_SECRET_KEY.
+let _stripe: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!_stripe) {
+    _stripe = new Stripe(requireEnv('STRIPE_SECRET_KEY'), {
+      apiVersion: '2024-12-18.acacia' as any,
+    });
+  }
+  return _stripe;
+}
 
 // ── Billing Service ─────────────────────────────────────────────────────────
 
@@ -24,7 +56,7 @@ export class BillingService {
     email: string,
     name: string,
   ): Promise<string> {
-    const customer = await stripe.customers.create({
+    const customer = await getStripe().customers.create({
       email,
       name,
       metadata: { userId, platform: 'starr_software' },
@@ -34,19 +66,23 @@ export class BillingService {
 
   /**
    * Create a subscription for a user.
+   *
+   * @throws if STRIPE_PRICE_SURVEYOR_PRO or STRIPE_PRICE_FIRM_UNLIMITED env
+   *         vars are not set.
    */
   async createSubscription(
     customerId: string,
     tier: 'SURVEYOR_PRO' | 'FIRM_UNLIMITED',
   ): Promise<Stripe.Subscription> {
-    const priceIds: Record<string, string> = {
-      SURVEYOR_PRO: process.env.STRIPE_PRICE_SURVEYOR_PRO || '',
-      FIRM_UNLIMITED: process.env.STRIPE_PRICE_FIRM_UNLIMITED || '',
+    const priceEnvMap: Record<string, string> = {
+      SURVEYOR_PRO: 'STRIPE_PRICE_SURVEYOR_PRO',
+      FIRM_UNLIMITED: 'STRIPE_PRICE_FIRM_UNLIMITED',
     };
+    const priceId = requireEnv(priceEnvMap[tier]);
 
-    return stripe.subscriptions.create({
+    return getStripe().subscriptions.create({
       customer: customerId,
-      items: [{ price: priceIds[tier] }],
+      items: [{ price: priceId }],
       payment_behavior: 'default_incomplete',
       expand: ['latest_invoice.payment_intent'],
     });
@@ -60,11 +96,11 @@ export class BillingService {
     cancelAtPeriodEnd: boolean = true,
   ): Promise<Stripe.Subscription> {
     if (cancelAtPeriodEnd) {
-      return stripe.subscriptions.update(subscriptionId, {
+      return getStripe().subscriptions.update(subscriptionId, {
         cancel_at_period_end: true,
       });
     }
-    return stripe.subscriptions.cancel(subscriptionId);
+    return getStripe().subscriptions.cancel(subscriptionId);
   }
 
   /**
@@ -81,7 +117,7 @@ export class BillingService {
       PREMIUM_REPORT: 14900,
     };
 
-    return stripe.paymentIntents.create({
+    return getStripe().paymentIntents.create({
       amount: amounts[reportType],
       currency: 'usd',
       customer: customerId,
@@ -108,7 +144,7 @@ export class BillingService {
     const serviceFee = serviceFeePerPage * totalPages;
     const totalAmount = Math.round((documentCost + serviceFee) * 100); // cents
 
-    return stripe.paymentIntents.create({
+    return getStripe().paymentIntents.create({
       amount: totalAmount,
       currency: 'usd',
       customer: customerId,
@@ -130,7 +166,7 @@ export class BillingService {
     subscriptionItemId: string,
     quantity: number,
   ): Promise<void> {
-    await stripe.subscriptionItems.createUsageRecord(subscriptionItemId, {
+    await getStripe().subscriptionItems.createUsageRecord(subscriptionItemId, {
       quantity,
       action: 'increment',
       timestamp: Math.floor(Date.now() / 1000),
@@ -144,7 +180,7 @@ export class BillingService {
     customerId: string,
     limit: number = 10,
   ): Promise<Stripe.Invoice[]> {
-    const invoices = await stripe.invoices.list({
+    const invoices = await getStripe().invoices.list({
       customer: customerId,
       limit,
     });
@@ -157,11 +193,14 @@ export class BillingService {
   async getSubscription(
     subscriptionId: string,
   ): Promise<Stripe.Subscription> {
-    return stripe.subscriptions.retrieve(subscriptionId);
+    return getStripe().subscriptions.retrieve(subscriptionId);
   }
 
   /**
    * Create a checkout session for initial subscription.
+   *
+   * @throws if STRIPE_PRICE_SURVEYOR_PRO or STRIPE_PRICE_FIRM_UNLIMITED env
+   *         vars are not set.
    */
   async createCheckoutSession(
     customerId: string,
@@ -169,15 +208,16 @@ export class BillingService {
     successUrl: string,
     cancelUrl: string,
   ): Promise<Stripe.Checkout.Session> {
-    const priceIds: Record<string, string> = {
-      SURVEYOR_PRO: process.env.STRIPE_PRICE_SURVEYOR_PRO || '',
-      FIRM_UNLIMITED: process.env.STRIPE_PRICE_FIRM_UNLIMITED || '',
+    const priceEnvMap: Record<string, string> = {
+      SURVEYOR_PRO: 'STRIPE_PRICE_SURVEYOR_PRO',
+      FIRM_UNLIMITED: 'STRIPE_PRICE_FIRM_UNLIMITED',
     };
+    const priceId = requireEnv(priceEnvMap[tier]);
 
-    return stripe.checkout.sessions.create({
+    return getStripe().checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
-      line_items: [{ price: priceIds[tier], quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: successUrl,
       cancel_url: cancelUrl,
     });
@@ -249,12 +289,22 @@ export class BillingService {
 
   /**
    * Verify Stripe webhook signature.
+   *
+   * Wraps `stripe.webhooks.constructEvent` so that signature failures throw a
+   * descriptive error that callers can catch and respond to with 400 Bad Request
+   * rather than letting an unhandled exception crash the request handler.
+   *
+   * @throws {Error} if STRIPE_WEBHOOK_SECRET is not set or the signature is invalid.
    */
   verifyWebhook(
     payload: string | Buffer,
     signature: string,
   ): Stripe.Event {
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
-    return stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+    const webhookSecret = requireEnv('STRIPE_WEBHOOK_SECRET');
+    try {
+      return getStripe().webhooks.constructEvent(payload, signature, webhookSecret);
+    } catch (err: any) {
+      throw new Error(`Webhook signature verification failed: ${err.message}`);
+    }
   }
 }
