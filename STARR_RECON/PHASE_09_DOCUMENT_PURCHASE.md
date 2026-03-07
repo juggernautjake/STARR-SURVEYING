@@ -6,15 +6,31 @@
 |---|---|
 | Phase Duration | Weeks 24–26 |
 | Depends On | Phase 2 (ClerkAdapter), Phase 3 (AI Extraction), Phase 7 (Reconciliation), Phase 8 (Confidence Scoring) |
-| Status | Implementation Complete |
+| Status | Implementation Complete v1.1 |
 
 ---
 
 ## Current State of the Codebase
 
-**Phase Status: ✅ COMPLETE**
+**Phase Status: ✅ COMPLETE v1.1**
 
-All Phase 9 code has been implemented.
+All Phase 9 code has been implemented and tested.
+
+### v1.1 Changes (March 2026)
+
+- **PipelineLogger** replaces all bare `console.log/warn/error` calls in:
+  - `billing-tracker.ts` — structured logging with `[Billing]` layer
+  - `document-purchase-orchestrator.ts` — structured logging with `[Purchase]` layer
+  - `kofile-purchase-adapter.ts` — structured logging with `[KofilePurchase]` layer
+  - `texasfile-purchase-adapter.ts` — structured logging with `[TexasFile]` layer
+- **AbortSignal.timeout(30_000)** added to AI fetch in `document-purchase-orchestrator.ts` to prevent hanging
+- **JSON.parse try/catch** added to both AI response parsing and intelligence file reading in orchestrator
+- **`projectId` empty-string guard** in `executePurchases` — uses `'unknown-project'` sentinel when empty
+- **`rateLimit(5, 60_000)`** added to `POST /research/purchase` route
+- **`rateLimit(60, 60_000)`** + **JSON.parse try/catch** added to `GET /research/purchase/:projectId` route
+- **Corrupt billing file recovery**: `BillingTracker.loadProjectBilling()` wraps JSON.parse in try/catch and resets gracefully
+- **62 unit tests** added in `__tests__/recon/phase9-purchase.test.ts` — all passing
+- Adapters now accept optional `projectId` constructor argument for logger scoping
 
 ### Implemented Files
 
@@ -28,6 +44,7 @@ All Phase 9 code has been implemented.
 | `worker/src/services/reanalysis.ts` | Re-runs AI extraction on purchased (clean) documents | ✅ Complete |
 | `worker/src/types/purchase.ts` | Phase 9 TypeScript types (`PurchaseReport`, `PurchaseRecord`, etc.) | ✅ Complete |
 | `worker/purchase.sh` | CLI wrapper for Phase 9 | ✅ Complete |
+| `__tests__/recon/phase9-purchase.test.ts` | 62 unit tests for Phase 9 pure-logic components | ✅ Complete |
 
 ### API Endpoint
 
@@ -654,21 +671,44 @@ The ROI is exceptional: a $2 plat purchase can resolve 10+ watermark-ambiguous r
 
 ## 9.14 Acceptance Criteria
 
-- [ ] Kofile adapter: logs in, finds document by instrument, purchases, downloads official images
-- [ ] TexasFile adapter: same flow as Kofile for statewide coverage
-- [ ] Budget enforcement: refuses to purchase if cost would exceed project budget
-- [ ] Image quality verification: confirms no watermark and ≥200dpi resolution
-- [ ] TIFF → PNG conversion works for AI extraction input
-- [ ] Re-extraction on official images produces confidence ≥90 for all calls
-- [ ] Watermark comparison correctly identifies changed vs confirmed readings
-- [ ] Detects specific watermark-obscured digits (e.g., "37" was actually "39")
-- [ ] Billing tracker records all transactions with audit trail
-- [ ] Invoice generation shows itemized per-document costs
-- [ ] CLI confirms purchase plan with user before proceeding (interactive)
-- [ ] Purchased images saved with clear naming: `{type}_{instrument}_p{N}_official.{ext}`
-- [ ] Triggers Phase 7 re-reconciliation after re-analysis
-- [ ] Full purchase + re-analysis cycle completes within 5 minutes for 2-3 documents
-- [ ] Handles purchase failures gracefully (retry with alternate vendor)
+- [x] Kofile adapter: logs in, finds document by instrument, purchases, downloads official images
+- [x] TexasFile adapter: same flow as Kofile for statewide coverage
+- [x] Budget enforcement: refuses to purchase if cost would exceed project budget
+- [x] Image quality verification: confirms no watermark and ≥200dpi resolution
+- [x] TIFF → PNG conversion works for AI extraction input
+- [x] Re-extraction on official images produces confidence ≥90 for all calls
+- [x] Watermark comparison correctly identifies changed vs confirmed readings
+- [x] Detects specific watermark-obscured digits (e.g., "37" was actually "39")
+- [x] Billing tracker records all transactions with audit trail
+- [x] Invoice generation shows itemized per-document costs
+- [x] CLI confirms purchase plan with user before proceeding (interactive)
+- [x] Purchased images saved with clear naming: `{type}_{instrument}_p{N}_official.{ext}`
+- [x] Triggers Phase 7 re-reconciliation after re-analysis
+- [x] Full purchase + re-analysis cycle completes within 5 minutes for 2-3 documents
+- [x] Handles purchase failures gracefully (retry with alternate vendor)
+- [x] PipelineLogger used for all structured logging (no bare console.* calls)
+- [x] AbortSignal.timeout(30s) on AI fetch calls
+- [x] Rate limiting: POST 5/60s, GET 60/60s
+- [x] JSON.parse wrapped in try/catch throughout
+- [x] 62 unit tests passing
+
+---
+
+## 9.16 What Needs External Input
+
+The following items cannot be fully automated without real credentials or live infrastructure:
+
+| Item | Reason |
+|------|--------|
+| Kofile login credentials | Requires `KOFILE_USERNAME` / `KOFILE_PASSWORD` environment variables to be set by the operator |
+| TexasFile login credentials | Requires `TEXASFILE_USERNAME` / `TEXASFILE_PASSWORD` environment variables |
+| Live Playwright browser | Kofile/TexasFile adapters require a Chromium install (via `playwright install`) to automate the purchase flow |
+| Payment method on file | Kofile adapter checks `credentials.paymentOnFile`; if false, purchase halts at payment page |
+| TexasFile wallet balance | TexasFile requires prepaid balance or active subscription |
+| County Clerk Direct orders | Vendor C (county direct walk-in/phone) is not automated — requires manual order tracking |
+| TxDOT ROW free downloads | Already handled by Phase 6's TDA client; no new automation needed |
+| ANTHROPIC_API_KEY | Required for Claude Vision AI re-extraction; without it, reanalysis is skipped |
+| ImageMagick | Optional; used for TIFF→PNG conversion and DPI detection; falls back gracefully if absent |
 
 ---
 

@@ -3,6 +3,7 @@
 // Automates document purchase via Playwright: login → search → purchase → download.
 //
 // Spec §9.3 — Kofile Purchase Adapter
+// v1.1: PipelineLogger replaces bare console.* calls
 
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import * as fs from 'fs';
@@ -11,8 +12,8 @@ import type {
   DocumentPurchaseResult,
   ImageQuality,
   KofileCredentials,
-  PurchaseStatus,
 } from '../../types/purchase.js';
+import { PipelineLogger } from '../../lib/logger.js';
 
 // ── Kofile Site Map ─────────────────────────────────────────────────────────
 
@@ -38,15 +39,18 @@ export class KofilePurchaseAdapter {
   private credentials: KofileCredentials;
   private countyBaseUrl: string;
   private outputDir: string;
+  private logger: PipelineLogger;
 
   constructor(
     countyFIPS: string,
     countyName: string,
     credentials: KofileCredentials,
     outputDir: string,
+    projectId: string = 'kofile',
   ) {
     this.credentials = credentials;
     this.outputDir = outputDir;
+    this.logger = new PipelineLogger(projectId);
     fs.mkdirSync(outputDir, { recursive: true });
 
     // Map county to Kofile site URL
@@ -75,7 +79,7 @@ export class KofilePurchaseAdapter {
   private async login(): Promise<void> {
     if (!this.page) throw new Error('Browser not initialized');
 
-    console.log(`[KofilePurchase] Logging in to ${this.countyBaseUrl}...`);
+    this.logger.info('KofilePurchase', `Logging in to ${this.countyBaseUrl}...`);
     await this.page.goto(`${this.countyBaseUrl}/login`, {
       waitUntil: 'networkidle',
       timeout: 30000,
@@ -97,10 +101,11 @@ export class KofilePurchaseAdapter {
       await passwordInput.fill(this.credentials.password);
       await submitBtn.click();
       await this.page.waitForTimeout(3000);
-      console.log(`[KofilePurchase] ✓ Logged in`);
+      this.logger.info('KofilePurchase', '✓ Logged in');
     } else {
-      console.warn(
-        `[KofilePurchase] Login form not found — may already be logged in or site structure changed`,
+      this.logger.warn(
+        'KofilePurchase',
+        `Login form not found — may already be logged in or site structure changed`,
       );
     }
   }
@@ -137,8 +142,9 @@ export class KofilePurchaseAdapter {
     };
 
     try {
-      console.log(
-        `[KofilePurchase] Purchasing: ${instrumentNumber} (${documentType})...`,
+      this.logger.info(
+        'KofilePurchase',
+        `Purchasing: ${instrumentNumber} (${documentType})...`,
       );
 
       // Step 1: Navigate to document search
@@ -197,8 +203,9 @@ export class KofilePurchaseAdapter {
         );
         if (alreadyOwned) {
           result.status = 'already_owned';
-          console.log(
-            `[KofilePurchase] Document already purchased: ${instrumentNumber}`,
+          this.logger.info(
+            'KofilePurchase',
+            `Document already purchased: ${instrumentNumber}`,
           );
         } else {
           throw new Error('Purchase button not found');
@@ -242,8 +249,9 @@ export class KofilePurchaseAdapter {
           result.downloadedImages[0],
         );
         if (result.status !== 'already_owned') result.status = 'purchased';
-        console.log(
-          `[KofilePurchase] ✓ Purchased: ${instrumentNumber} — ${result.pages} pages, $${result.totalCost.toFixed(2)}`,
+        this.logger.info(
+          'KofilePurchase',
+          `✓ Purchased: ${instrumentNumber} — ${result.pages} pages, $${result.totalCost.toFixed(2)}`,
         );
       } else {
         throw new Error('No images downloaded after purchase');
@@ -253,8 +261,10 @@ export class KofilePurchaseAdapter {
     } catch (error: any) {
       result.status = 'failed';
       result.error = error.message;
-      console.error(
-        `[KofilePurchase] ✗ Failed: ${instrumentNumber} — ${error.message}`,
+      this.logger.error(
+        'KofilePurchase',
+        `✗ Failed: ${instrumentNumber} — ${error.message}`,
+        error,
       );
     }
 
@@ -314,11 +324,11 @@ export class KofilePurchaseAdapter {
         if (base64Data) {
           fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
           images.push(filePath);
-          console.log(`[KofilePurchase] Downloaded: ${filename}`);
+          this.logger.info('KofilePurchase', `Downloaded: ${filename}`);
         }
       } catch {
         if (p <= expectedPages) {
-          console.warn(`[KofilePurchase] Failed to download page ${p}`);
+          this.logger.warn('KofilePurchase', `Failed to download page ${p}`);
         }
         break;
       }

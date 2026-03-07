@@ -4,6 +4,7 @@
 // Used as fallback when county-specific Kofile adapter is unavailable.
 //
 // Spec §9.4 — TexasFile Purchase Adapter
+// v1.1: PipelineLogger replaces bare console.* calls
 
 import { chromium, type Browser, type Page } from 'playwright';
 import * as fs from 'fs';
@@ -13,6 +14,7 @@ import type {
   ImageQuality,
   TexasFileCredentials,
 } from '../../types/purchase.js';
+import { PipelineLogger } from '../../lib/logger.js';
 
 // ── TexasFile Purchase Adapter ──────────────────────────────────────────────
 
@@ -21,10 +23,16 @@ export class TexasFilePurchaseAdapter {
   private page: Page | null = null;
   private credentials: TexasFileCredentials;
   private outputDir: string;
+  private logger: PipelineLogger;
 
-  constructor(credentials: TexasFileCredentials, outputDir: string) {
+  constructor(
+    credentials: TexasFileCredentials,
+    outputDir: string,
+    projectId: string = 'texasfile',
+  ) {
     this.credentials = credentials;
     this.outputDir = outputDir;
+    this.logger = new PipelineLogger(projectId);
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
@@ -40,7 +48,7 @@ export class TexasFilePurchaseAdapter {
     });
     this.page = await context.newPage();
 
-    console.log(`[TexasFile] Logging in...`);
+    this.logger.info('TexasFile', 'Logging in...');
     await this.page.goto('https://www.texasfile.com/login', {
       waitUntil: 'networkidle',
       timeout: 30000,
@@ -60,7 +68,7 @@ export class TexasFilePurchaseAdapter {
       await passInput.fill(this.credentials.password);
       await loginBtn.click();
       await this.page.waitForTimeout(3000);
-      console.log(`[TexasFile] ✓ Logged in`);
+      this.logger.info('TexasFile', '✓ Logged in');
     }
   }
 
@@ -201,7 +209,7 @@ export class TexasFilePurchaseAdapter {
       result.transactionId = `TF-${instrumentNumber}-${Date.now()}`;
     } catch (error: any) {
       result.error = error.message;
-      console.error(`[TexasFile] ✗ Failed: ${error.message}`);
+      this.logger.error('TexasFile', `✗ Failed: ${error.message}`, error);
     }
 
     return result;
