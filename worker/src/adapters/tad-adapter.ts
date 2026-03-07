@@ -3,35 +3,28 @@
 //
 // Tarrant County (Fort Worth) is the 3rd most populous county in Texas and
 // runs its own custom CAD portal at https://www.tad.org — it does NOT run
-// BIS, TrueAutomation, or Tyler Technologies in the same way as other counties.
+// BIS, TrueAutomation, or Tyler Technologies.
 //
-// TAD-specific notes (from spec §3 and empirical inspection):
-//   • Property identifiers are called "account numbers" (numeric)
-//   • Address search and owner name search are on the same form, separated
-//     by a search-type selector / radio button
-//   • Results render as a styled HTML table with class ".search-results-table"
-//   • Detail pages live at https://www.tad.org/property/{accountNumber}/
-//   • TAD pages require JavaScript (React-based SPA as of 2024-2025) —
-//     Playwright is therefore always used; no JSON API discovered
-//   • TAD may show a CAPTCHA for high-volume queries — AI OCR handles it
+// TAD-specific notes (verified 2026-03-07):
+//   • Property identifiers are "account numbers" (numeric)
+//   • TAD is a Laravel app (NOT React — the 2024 redesign used Laravel/Blade)
+//   • Search form uses:
+//       – Dropdown: select#search-type[name="searchType"] with values
+//         "PropertyAddress", "OwnerName", "AccountNumber", etc.
+//       – Text input: input#query[name="query"]
+//       – Submit: button.btn-tad-light-blue[type="submit"]
+//       – Form action: POST to "search-results" (relative URL)
+//       – CSRF token: hidden input name="_token" (Laravel)
+//   • Property type checkboxes: name="filter[]", values R/C/M/P
+//   • Deprecation notice on site: "current Property Search will no longer
+//     be available in 2027" — a new search is being built.
+//   • Detail page URL pattern not yet confirmed.
+//   • AI OCR fallback handles results parsing when DOM selectors drift.
 //
 // Spec §1.5 — TAD Adapter
 //
-// STATUS: ⚠️  NEEDS LIVE TESTING
-//   TAD's website underwent a React redesign in late 2024.  The selectors and
-//   form field names in this file were derived from publicly available TAD
-//   documentation and inspection of the portal at https://www.tad.org.
-//   They must be verified against the live site before relying on this adapter
-//   in production.  The AI OCR fallback (aiParseScreen) will handle any
-//   selector drift in the meantime.
-//
-// TODO (before marking Phase 1 TAD ✅):
-//   • Confirm search form field names on live site (currently "address" / "owner_name")
-//   • Confirm results table CSS class (currently ".search-results-table tr")
-//   • Confirm account number format and detail URL pattern
-//   • Confirm whether TAD has moved to a React SPA that needs waitForLoadState
-//   • Add integration test against a known Tarrant County address
-//   • Test CAPTCHA handling (TAD may block automated searches without rate limiting)
+// VERIFIED: 2026-03-07 — Search form selectors confirmed against live site.
+// PENDING:  Results table selector + detail page URL pattern need verification.
 
 import {
   CADAdapter,
@@ -44,18 +37,28 @@ import type { AddressVariant } from '../services/address-normalizer.js';
 
 export class TADAdapter extends CADAdapter {
 
+  // ── TAD selectors (verified 2026-03-07) ───────────────────────────────────
+  private static readonly SEARCH_TYPE_DROPDOWN = 'select#search-type, select[name="searchType"]';
+  private static readonly SEARCH_INPUT         = 'input#query, input[name="query"]';
+  private static readonly SEARCH_SUBMIT        = 'button.btn-tad-light-blue[type="submit"], button[type="submit"]';
+  // Property type checkboxes — ensure "Real" is checked, optionally uncheck "Personal"
+  private static readonly CHECKBOX_RESIDENTIAL  = 'input#residential[value="R"]';
+  private static readonly CHECKBOX_PERSONAL     = 'input#personal-property[value="P"]';
+  // Results — try multiple selectors since we haven't captured results HTML yet
+  private static readonly RESULT_SELECTORS = [
+    '.search-results-table tr',   // original guess
+    'table.table tbody tr',       // Bootstrap pattern
+    '.property-results tr',       // common pattern
+    'table tbody tr',             // generic fallback
+  ];
+
   // ── searchByAddress ──────────────────────────────────────────────────────────
 
   /**
    * Search TAD by situs address.
    *
-   * TAD address search quirks:
-   *   • Uses a React SPA — wait for network idle and possible JS hydration
-   *   • City/zip may or may not be needed (stripping is safe)
-   *   • Fort Worth addresses are mostly standard (no FM/RM roads)
-   *   • Highway addresses may appear as "I-35W", "US 287", etc.
-   *
-   * Tries each address variant in order (most → least specific).
+   * TAD uses a dropdown to select search type ("PropertyAddress") and a single
+   * input#query field for the search text.  Form POSTs to "search-results".
    */
   async searchByAddress(variants: AddressVariant[]): Promise<PropertySearchResult[]> {
     await this.initBrowser();
@@ -63,41 +66,15 @@ export class TADAdapter extends CADAdapter {
 
     for (const variant of variants) {
       try {
-        // Navigate to the TAD property search page
         await this.page.goto(this.config.searchUrl, {
           waitUntil: 'networkidle',
           timeout: 30000,
         });
 
-        // TAD SPA may need an extra moment to hydrate React components
-        await this.page.waitForTimeout(1500);
-
-        // Fill the address search field
-        // TAD uses input[name="address"] or input[placeholder*="address"]
-        await this.page.fill(
-          [
-            `input[name="${this.config.addressField}"]`,
-            'input[placeholder*="address" i]',
-            'input[placeholder*="street" i]',
-          ].join(', '),
-          variant.searchString,
-        );
-
-        // Submit via the search button
-        await this.page.click(
-          'button[type="submit"], input[type="submit"], button:has-text("Search")',
-        ).catch(() => this.page!.keyboard.press('Enter'));
-
-        // Wait for either results table or "no results" indicator
-        await this.page
-          .waitForSelector(
-            `${this.config.resultSelector}, .no-results, text=No results found`,
-            { timeout: 20000 },
-          )
-          .catch(() => {});
+        await this.fillAndSubmitSearch('PropertyAddress', variant.searchString);
 
         // Check for empty results
-        const noResults = await this.page.$('.no-results, *:has-text("No results found")');
+        const noResults = await this.page.$('.no-results, .alert-warning, *:has-text("No results found")');
         if (noResults) continue;
 
         const results = await this.parseSearchResultsDOM();
@@ -130,9 +107,8 @@ export class TADAdapter extends CADAdapter {
   /**
    * Search TAD by owner name.
    *
-   * TAD uses a separate input field (name="owner_name") for owner searches.
-   * On some TAD page versions, this field shares the same form as address
-   * search; on others, there is a separate "Owner Name" tab or section.
+   * Uses the same form as address search — selects "OwnerName" from the
+   * searchType dropdown instead of "PropertyAddress".
    */
   async searchByOwner(ownerName: string): Promise<PropertySearchResult[]> {
     await this.initBrowser();
@@ -144,35 +120,7 @@ export class TADAdapter extends CADAdapter {
         timeout: 30000,
       });
 
-      await this.page.waitForTimeout(1500);
-
-      // Try clicking an "Owner Name" tab if present
-      await this.page
-        .click('button:has-text("Owner"), a:has-text("Owner Name"), [data-tab="owner"]')
-        .catch(() => {
-          // No tab — fall through to direct field fill
-        });
-
-      // Fill the owner name field
-      await this.page.fill(
-        [
-          `input[name="${this.config.ownerField}"]`,
-          'input[placeholder*="owner" i]',
-          'input[placeholder*="name" i]',
-        ].join(', '),
-        ownerName,
-      );
-
-      await this.page.click(
-        'button[type="submit"], input[type="submit"], button:has-text("Search")',
-      ).catch(() => this.page!.keyboard.press('Enter'));
-
-      await this.page
-        .waitForSelector(
-          `${this.config.resultSelector}, .no-results, text=No results found`,
-          { timeout: 20000 },
-        )
-        .catch(() => {});
+      await this.fillAndSubmitSearch('OwnerName', ownerName);
 
       const results = await this.parseSearchResultsDOM();
       if (results.length > 0) return results;
@@ -254,10 +202,70 @@ export class TADAdapter extends CADAdapter {
     return this.searchByOwner(subdivisionName);
   }
 
+  // ── Private: fill and submit the TAD search form ────────────────────────────
+
+  /**
+   * Shared helper: select search type from dropdown, fill query, submit.
+   *
+   * TAD's form (verified 2026-03-07):
+   *   - Dropdown: select#search-type[name="searchType"]
+   *   - Input:    input#query[name="query"]
+   *   - Submit:   button.btn-tad-light-blue[type="submit"]
+   *   - CSRF:     hidden input name="_token" (Laravel)
+   *
+   * @param searchType - Value for the searchType dropdown (e.g. "PropertyAddress", "OwnerName")
+   * @param query      - Search text to enter
+   */
+  private async fillAndSubmitSearch(searchType: string, query: string): Promise<void> {
+    if (!this.page) throw new Error('Browser not initialized');
+
+    // Select search type from dropdown
+    await this.page.selectOption(TADAdapter.SEARCH_TYPE_DROPDOWN, searchType).catch(() => {
+      console.warn(`[TAD] Could not select searchType "${searchType}" from dropdown`);
+    });
+
+    // Ensure Residential checkbox is checked, uncheck Personal Property
+    await this.page.$eval(TADAdapter.CHECKBOX_RESIDENTIAL, (el: HTMLInputElement) => {
+      if (!el.checked) el.click();
+    }).catch(() => {});
+    await this.page.$eval(TADAdapter.CHECKBOX_PERSONAL, (el: HTMLInputElement) => {
+      if (el.checked) el.click();
+    }).catch(() => {});
+
+    // Fill search input
+    const inputEl = await this.page.$(TADAdapter.SEARCH_INPUT);
+    if (inputEl) {
+      await inputEl.fill(query);
+    } else {
+      console.warn('[TAD] Search input not found, trying legacy selectors');
+      await this.page.fill('input[placeholder*="Search" i]', query);
+    }
+
+    // Submit form
+    await this.page.click(TADAdapter.SEARCH_SUBMIT)
+      .catch(() => this.page!.keyboard.press('Enter'));
+
+    // Wait for results — form POSTs to search-results page
+    await this.page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+
+    // Try each known result selector
+    for (const sel of TADAdapter.RESULT_SELECTORS) {
+      try {
+        await this.page.waitForSelector(sel, { timeout: 5000 });
+        break;
+      } catch {
+        // Try next
+      }
+    }
+  }
+
   // ── Private: DOM extraction from search results ────────────────────────────────
 
   /**
    * Parse the TAD search results table from the DOM.
+   *
+   * Tries multiple result selectors since the results HTML structure
+   * hasn't been captured yet.
    *
    * Typical column order (may vary by TAD site version):
    *   Column 0: Account number (link to detail page)
@@ -270,7 +278,17 @@ export class TADAdapter extends CADAdapter {
     if (!this.page) return [];
 
     const results: PropertySearchResult[] = [];
-    const rows = await this.page.$$(this.config.resultSelector);
+
+    // Try each known result selector until one produces rows
+    let rows: Awaited<ReturnType<typeof this.page.$$>> = [];
+    for (const sel of TADAdapter.RESULT_SELECTORS) {
+      rows = await this.page.$$(sel);
+      if (rows.length > 0) {
+        console.log(`[TAD] Found ${rows.length} rows with selector "${sel}"`);
+        break;
+      }
+    }
+    if (rows.length === 0) return [];
 
     for (const row of rows) {
       // Skip header rows

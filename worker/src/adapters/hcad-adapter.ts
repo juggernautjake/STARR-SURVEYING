@@ -6,29 +6,23 @@
 // TrueAutomation, or Tyler Technologies.  This adapter handles HCAD's unique
 // search and detail workflows.
 //
-// HCAD-specific notes (from spec §3 and empirical testing):
+// HCAD-specific notes:
 //   • Account numbers are the primary identifier (13-digit format: XXXXXXXXXX000)
-//   • Address search uses a single "search_str" field
-//   • The same field is used for owner search (different form action)
 //   • No city/zip needed — just street number + name
-//   • Results are rendered as an HTML table with class ".searchResults"
-//   • Detail pages live at /records/details.asp?cession=1&search={accountNumber}
-//   • HCAD uses "cession" (session) IDs that expire — we always start fresh
+//   • HCAD's portal was redesigned as a Blazor SPA (verified 2026-03-07):
+//       – Radio buttons: name="filterOptions", values: PROPERTYADDRESS / OWNERNAME
+//       – Search input:  class "inputSearch" (no name attribute)
+//       – Submit button: button.btn-primary.buttonFontsize (type="button", JS-driven)
+//       – Results load dynamically via Blazor SignalR
+//   • The old quicksearch.asp / ".searchResults tr" interface is GONE.
+//   • Detail pages may still work at /records/details.asp but this needs verification.
+//   • AI OCR fallback (aiParseScreen) covers results parsing when DOM selectors drift.
 //
 // Spec §1.5 — HCAD Adapter
 //
-// STATUS: ⚠️  NEEDS LIVE TESTING
-//   The selectors, form action URLs, and field names in this file were derived
-//   from publicly available HCAD documentation and inspection of the portal at
-//   https://public.hcad.org.  They must be verified against the live site
-//   before relying on this adapter in production.  The AI OCR fallback
-//   (aiParseScreen) will handle any selector drift in the meantime.
-//
-// TODO (before marking Phase 1 HCAD ✅):
-//   • Confirm address search field name on live site (currently "search_str")
-//   • Confirm results table CSS class (currently ".searchResults tr")
-//   • Confirm account number format and detail URL pattern
-//   • Add integration test against a known Harris County address
+// VERIFIED: 2026-03-07 — Search form selectors confirmed against live site.
+// PENDING:  Results table selector (results HTML structure not yet captured).
+//           AI OCR is used as primary results parser until DOM selectors are confirmed.
 
 import {
   CADAdapter,
@@ -57,13 +51,29 @@ export class HCADAdapter extends CADAdapter {
 
   // ── searchByAddress ──────────────────────────────────────────────────────────
 
+  // ── Blazor SPA selectors (verified 2026-03-07) ─────────────────────────────
+  // The new HCAD portal uses a Blazor app with these selectors:
+  private static readonly RADIO_ADDRESS  = 'input#PROPERTYADDRESS, input[value="PROPERTYADDRESS"]';
+  private static readonly RADIO_OWNER    = 'input#OWNERNAME, input[value="OWNERNAME"]';
+  private static readonly RADIO_ACCOUNT  = 'input#ACCOUNTNUMBER, input[value="ACCOUNTNUMBER"]';
+  private static readonly SEARCH_INPUT   = 'input.inputSearch, input[type="search"].searchTerm';
+  private static readonly SEARCH_SUBMIT  = 'button.btn-primary.buttonFontsize';
+  // Results selector — Blazor renders results dynamically.  We try several
+  // common patterns; AI OCR is the primary fallback.
+  private static readonly RESULT_SELECTORS = [
+    '.searchResults tr',          // legacy (pre-2026)
+    'table.table tbody tr',       // Bootstrap table pattern
+    '.search-result-row',         // BIS-style card rows
+    'div.result-item',            // card/div-based results
+  ];
+
   /**
    * Search HCAD by situs address.
    *
    * HCAD address search quirks:
    *   • Strip city/zip — HCAD only uses street number + name
    *   • No FM/RM prefix needed — Houston rarely uses FM roads
-   *   • Input field: name="search_str" on form action /records/quicksearch.asp
+   *   • New Blazor SPA uses radio name="filterOptions" and class "inputSearch"
    *
    * Tries each address variant in order (most → least specific) and returns
    * the first non-empty result set.
@@ -74,38 +84,13 @@ export class HCADAdapter extends CADAdapter {
 
     for (const variant of variants) {
       try {
-        // Navigate to the HCAD quick search page
         await this.page.goto(this.config.searchUrl, {
           waitUntil: 'networkidle',
           timeout: 30000,
         });
 
-        // HCAD address format: "1234 MAIN ST" — strip everything after the
-        // street suffix since HCAD doesn't use city/zip in the search
         const stripped = this.stripCityState(variant.searchString);
-
-        // Fill the search field and submit the address search form
-        // The radio button selects "Address" search mode
-        await this.page
-          .click('input[value="A"], input[name="search_type"][value="A"]')
-          .catch(() => {
-            // Some HCAD page versions omit the radio — default is address search
-          });
-
-        await this.page.fill(
-          `input[name="${this.config.addressField}"]`,
-          stripped,
-        );
-
-        // Submit via the search button
-        await this.page.click(
-          'input[type="submit"][value*="Search"], button[type="submit"]',
-        ).catch(() => this.page!.keyboard.press('Enter'));
-
-        // Wait for the results table
-        await this.page
-          .waitForSelector(this.config.resultSelector, { timeout: 20000 })
-          .catch(() => {});
+        await this.fillAndSubmitSearch(HCADAdapter.RADIO_ADDRESS, stripped);
 
         const results = await this.parseSearchResultsDOM();
         if (results.length > 0) {
@@ -137,9 +122,8 @@ export class HCADAdapter extends CADAdapter {
   /**
    * Search HCAD by owner name.
    *
-   * HCAD uses the same "search_str" field for both address and owner search;
-   * the search type is toggled by a radio button.  This method selects the
-   * "Owner Name" radio before submitting.
+   * Uses the same search input as address search but selects the OWNERNAME
+   * radio button first (new Blazor interface uses name="filterOptions").
    */
   async searchByOwner(ownerName: string): Promise<PropertySearchResult[]> {
     await this.initBrowser();
@@ -151,23 +135,7 @@ export class HCADAdapter extends CADAdapter {
         timeout: 30000,
       });
 
-      // Select "Owner Name" search mode radio button
-      await this.page
-        .click('input[value="O"], input[name="search_type"][value="O"]')
-        .catch(() => {});
-
-      await this.page.fill(
-        `input[name="${this.config.ownerField}"]`,
-        ownerName,
-      );
-
-      await this.page.click(
-        'input[type="submit"][value*="Search"], button[type="submit"]',
-      ).catch(() => this.page!.keyboard.press('Enter'));
-
-      await this.page
-        .waitForSelector(this.config.resultSelector, { timeout: 20000 })
-        .catch(() => {});
+      await this.fillAndSubmitSearch(HCADAdapter.RADIO_OWNER, ownerName);
 
       const results = await this.parseSearchResultsDOM();
       if (results.length > 0) return results;
@@ -251,6 +219,68 @@ export class HCADAdapter extends CADAdapter {
     return this.searchByOwner(subdivisionName);
   }
 
+  // ── Private: fill and submit the search form ─────────────────────────────────
+
+  /**
+   * Shared helper: select a radio button, fill the search input, and submit.
+   *
+   * The new Blazor SPA uses:
+   *   - Radio buttons with name="filterOptions" (e.g. value="PROPERTYADDRESS")
+   *   - A single search input with class "inputSearch" (no name attribute)
+   *   - A submit button with type="button" (JS-driven, not form submit)
+   *
+   * Falls back to the legacy selectors if the new ones aren't found.
+   */
+  private async fillAndSubmitSearch(radioSelector: string, query: string): Promise<void> {
+    if (!this.page) throw new Error('Browser not initialized');
+
+    // Select search mode via radio button
+    await this.page.click(radioSelector).catch(() => {
+      // Radio might not exist or may be pre-selected — continue anyway
+      console.warn(`[HCAD] Radio selector "${radioSelector}" not found, continuing`);
+    });
+
+    // Fill the search input — try new Blazor selector first, then legacy
+    const inputSelector = HCADAdapter.SEARCH_INPUT;
+    const inputEl = await this.page.$(inputSelector);
+    if (inputEl) {
+      await inputEl.fill(query);
+    } else {
+      // Legacy fallback: input[name="search_str"]
+      console.warn('[HCAD] New inputSearch not found, trying legacy search_str');
+      await this.page.fill('input[name="search_str"]', query);
+    }
+
+    // Click submit — try new Blazor button first, then legacy
+    const submitEl = await this.page.$(HCADAdapter.SEARCH_SUBMIT);
+    if (submitEl) {
+      await submitEl.click();
+    } else {
+      // Legacy fallback
+      await this.page.click(
+        'input[type="submit"][value*="Search"], button[type="submit"]',
+      ).catch(() => this.page!.keyboard.press('Enter'));
+    }
+
+    // Wait for results to load — Blazor apps load asynchronously.
+    // Try each known result selector, then fall back to a timed wait.
+    let foundResults = false;
+    for (const sel of HCADAdapter.RESULT_SELECTORS) {
+      try {
+        await this.page.waitForSelector(sel, { timeout: 8000 });
+        foundResults = true;
+        break;
+      } catch {
+        // Try next selector
+      }
+    }
+    if (!foundResults) {
+      // None of the known selectors matched — wait for the Blazor app to
+      // finish rendering, then rely on AI OCR to parse whatever appeared.
+      await this.page.waitForTimeout(5000);
+    }
+  }
+
   // ── Private: strip city/state from address ────────────────────────────────────
 
   /**
@@ -270,7 +300,11 @@ export class HCADAdapter extends CADAdapter {
 
   /**
    * Parse the HCAD search results table from the DOM.
-   * Table structure (typical):
+   *
+   * Tries multiple CSS selectors since HCAD's portal layout has changed
+   * (Blazor SPA as of 2026).  Falls through to AI OCR if no rows are found.
+   *
+   * Expected column order (when a table is present):
    *   Column 1: Account number (link to detail page)
    *   Column 2: Address
    *   Column 3: Owner name
@@ -282,8 +316,16 @@ export class HCADAdapter extends CADAdapter {
 
     const results: PropertySearchResult[] = [];
 
-    // Grab all data rows (skip the header row)
-    const rows = await this.page.$$(this.config.resultSelector);
+    // Try each known result selector until one produces rows
+    let rows: Awaited<ReturnType<typeof this.page.$$>> = [];
+    for (const sel of HCADAdapter.RESULT_SELECTORS) {
+      rows = await this.page.$$(sel);
+      if (rows.length > 0) {
+        console.log(`[HCAD] Found ${rows.length} rows with selector "${sel}"`);
+        break;
+      }
+    }
+    if (rows.length === 0) return [];
 
     for (const row of rows) {
       // Skip header rows (cells with <th>)
