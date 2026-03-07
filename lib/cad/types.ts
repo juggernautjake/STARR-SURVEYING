@@ -239,6 +239,44 @@ export interface TitleBlockConfig {
   scaleBarVisible?: boolean;
   /** Length of the scale bar in paper inches. Default: 2.0 */
   scaleBarLengthIn?: number;
+  /** Number of checkered segments in the scale bar. Default: 4 */
+  scaleBarSegments?: number;
+  /** Units label shown below the scale bar. Default: "FEET" */
+  scaleBarUnits?: string;
+
+  // ── Per-element scale factors (multiplied on top of intrinsic sizing; default 1.0) ──
+  // Clamped to [TB_ELEM_SCALE_MIN, TB_ELEM_SCALE_MAX] (0.5 – 2.5) at render time.
+  /** Scale multiplier for the title block box. Default: 1.0 */
+  titleBlockScale?: number;
+  /** Scale multiplier for the signature/seal block. Default: 1.0 */
+  signatureBlockScale?: number;
+  /** Scale multiplier for the graphic scale bar. Default: 1.0 */
+  scaleBarScale?: number;
+  /** Scale multiplier for the north arrow symbol. Default: 1.0 */
+  northArrowScale?: number;
+
+  // ── Per-element rotation in degrees (clockwise on screen; default 0) ──
+  /** Rotation in degrees for the title block box. Default: 0 */
+  titleBlockRotationDeg?: number;
+  /** Rotation in degrees for the signature/seal block. Default: 0 */
+  signatureBlockRotationDeg?: number;
+  /** Rotation in degrees for the graphic scale bar. Default: 0 */
+  scaleBarRotationDeg?: number;
+  /** Rotation offset in degrees for the north arrow (added to drawing rotation). Default: 0 */
+  northArrowRotationOffsetDeg?: number;
+
+  // ── Custom field labels shown in the title block data rows ──
+  // Keys match the drawCell label argument; value overrides the displayed label.
+  fieldLabels?: Partial<{
+    project:    string;
+    jobNo:      string;
+    client:     string;
+    date:       string;
+    preparedBy: string;
+    licenseNo:  string;
+    scale:      string;
+    sheet:      string;
+  }>;
 }
 
 // --- FEATURES ---

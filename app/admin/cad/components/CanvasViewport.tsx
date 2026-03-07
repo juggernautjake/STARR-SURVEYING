@@ -51,6 +51,9 @@ import { useKeyboard } from '../hooks/useKeyboard';
 import FeatureContextMenu from './FeatureContextMenu';
 import InteractiveOpPanel from './InteractiveOpPanel';
 import ImageInsertDialog from './ImageInsertDialog';
+import TitleBlockEditorModal from './TitleBlockEditorModal';
+import ScaleBarEditorModal from './ScaleBarEditorModal';
+import { TB_ELEM_SCALE_MIN, TB_ELEM_SCALE_MAX } from './TitleBlockEditorModal';
 import type { ProjectImage } from '@/lib/cad/types';
 
 // ─────────────────────────────────────────────
@@ -174,6 +177,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     /** Sits above drawingRotContainer — title block does NOT rotate with the drawing */
     titleBlockLayer: import('pixi.js').Container;
     titleBlockGraphics: import('pixi.js').Graphics;
+    /** Per-element containers that carry rotation and scale for each TB element. */
+    tbTitleBlockContainer: import('pixi.js').Container;
+    tbScaleBarContainer: import('pixi.js').Container;
+    tbSignatureContainer: import('pixi.js').Container;
+    tbNorthArrowContainer: import('pixi.js').Container;
+    /** Each container's own Graphics object (drawn in local space). */
+    tbTitleBlockGraphics: import('pixi.js').Graphics;
+    tbScaleBarGraphics: import('pixi.js').Graphics;
+    tbSignatureGraphics: import('pixi.js').Graphics;
+    tbNorthArrowGraphics: import('pixi.js').Graphics;
     featureGraphics: Map<string, import('pixi.js').Graphics>;
     labelTexts: Map<string, import('pixi.js').Text>;
     /** PixiJS Sprites for IMAGE features, keyed by featureId */
@@ -288,6 +301,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     value: string;
     screenX: number; screenY: number; w: number; h: number;
   } | null>(null);
+  // Title block element right-click context menu
+  type TBElemType = 'northArrow' | 'titleBlock' | 'scaleBar' | 'signatureBlock' | 'officialSealLabel';
+  const [tbContextMenu, setTbContextMenu] = useState<{
+    x: number; y: number;
+    element: TBElemType;
+  } | null>(null);
+  // Title block full editor modal
+  const [tbEditorOpen, setTbEditorOpen] = useState<{ focusElement?: 'titleBlock' | 'signatureBlock' | 'northArrow' } | null>(null);
+  // Scale bar editor modal
+  const [scaleBarEditorOpen, setScaleBarEditorOpen] = useState(false);
   // Interactive rotate/scale HUD: drives the InteractiveOpPanel
   const [interactivePanel, setInteractivePanel] = useState<{
     type: 'ROTATE' | 'SCALE';
@@ -444,6 +467,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // titleBlockLayer is NOT rotated — title block is paper-fixed
         const titleBlockLayer = new PIXI.Container();
 
+        // Per-element sub-containers that hold their own Graphics + Text children.
+        // Each container can be independently rotated and scaled.
+        const tbTitleBlockContainer = new PIXI.Container();
+        const tbScaleBarContainer   = new PIXI.Container();
+        const tbSignatureContainer  = new PIXI.Container();
+        const tbNorthArrowContainer = new PIXI.Container();
+        const tbTitleBlockGraphics  = new PIXI.Graphics();
+        const tbScaleBarGraphics    = new PIXI.Graphics();
+        const tbSignatureGraphics   = new PIXI.Graphics();
+        const tbNorthArrowGraphics  = new PIXI.Graphics();
+        tbTitleBlockContainer.addChild(tbTitleBlockGraphics);
+        tbScaleBarContainer.addChild(tbScaleBarGraphics);
+        tbSignatureContainer.addChild(tbSignatureGraphics);
+        tbNorthArrowContainer.addChild(tbNorthArrowGraphics);
+
         app.stage.addChild(paperLayer, drawingRotContainer, titleBlockLayer);
 
         const paperGraphics = new PIXI.Graphics();
@@ -461,8 +499,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const previewGraphics = new PIXI.Graphics();
         toolPreviewLayer.addChild(previewGraphics);
 
+        // The master titleBlockGraphics (for shared / hover overlay drawing)
         const titleBlockGraphics = new PIXI.Graphics();
-        titleBlockLayer.addChild(titleBlockGraphics);
+        // Order: element containers first (drawn under hover highlights), then shared graphics on top
+        titleBlockLayer.addChild(
+          tbTitleBlockContainer, tbScaleBarContainer, tbSignatureContainer, tbNorthArrowContainer,
+          titleBlockGraphics,
+        );
 
         pixiRef.current = {
           app,
@@ -476,6 +519,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           toolPreviewLayer,
           titleBlockLayer,
           titleBlockGraphics,
+          tbTitleBlockContainer,
+          tbScaleBarContainer,
+          tbSignatureContainer,
+          tbNorthArrowContainer,
+          tbTitleBlockGraphics,
+          tbScaleBarGraphics,
+          tbSignatureGraphics,
+          tbNorthArrowGraphics,
           featureGraphics: new Map(),
           labelTexts: new Map(),
           imageSprites: new Map(),
@@ -1130,15 +1181,37 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   function renderTitleBlock() {
     const pixi = pixiRef.current;
     if (!pixi) return;
-    const g = pixi.titleBlockGraphics;
+    const g = pixi.titleBlockGraphics;   // shared overlay / hover graphics
 
-    // Always clear first so nothing lingers when hidden
+    // ── Clear shared overlay graphics
     g.clear();
-    const tbTexts = pixi.titleBlockLayer.children.filter(
-      (c) => c !== g && (c as { _isTitleBlockText?: boolean })._isTitleBlockText,
-    );
-    // Destroy (not just removeChild) to release GPU texture memory and prevent leaks
-    for (const t of tbTexts) (t as import('pixi.js').Text).destroy();
+
+    // ── Clear per-element containers: destroy text children, clear graphics
+    const elemContainers = [
+      { ctr: pixi.tbTitleBlockContainer, gfx: pixi.tbTitleBlockGraphics },
+      { ctr: pixi.tbScaleBarContainer,   gfx: pixi.tbScaleBarGraphics },
+      { ctr: pixi.tbSignatureContainer,  gfx: pixi.tbSignatureGraphics },
+      { ctr: pixi.tbNorthArrowContainer, gfx: pixi.tbNorthArrowGraphics },
+    ] as const;
+    for (const { ctr, gfx } of elemContainers) {
+      gfx.clear();
+      for (const child of [...ctr.children]) {
+        if (child !== gfx && (child as { _isTitleBlockText?: boolean })._isTitleBlockText) {
+          (child as import('pixi.js').Text).destroy();
+        }
+      }
+    }
+    // Also destroy any text directly on titleBlockLayer (legacy path)
+    for (const c of [...pixi.titleBlockLayer.children]) {
+      if (
+        c !== g &&
+        c !== pixi.tbTitleBlockContainer && c !== pixi.tbScaleBarContainer &&
+        c !== pixi.tbSignatureContainer  && c !== pixi.tbNorthArrowContainer &&
+        (c as { _isTitleBlockText?: boolean })._isTitleBlockText
+      ) {
+        (c as import('pixi.js').Text).destroy();
+      }
+    }
 
     // Reset bounds so stale hits don't persist
     tbBoundsRef.current.northArrow      = null;
@@ -1185,17 +1258,66 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const NA_ELEM_TOTAL_H  = naRadiusPx * 2.78; // full height: N label top → S tip
     const NA_HIT_PAD       = 7;             // hover bounding-box padding (px)
 
-    // ── Shared text helper ──────────────────────────────────────────
+    // ── Per-element scale factors (clamped to safe range) ──────────
+    const clampScale = (v: number | undefined) =>
+      Math.max(TB_ELEM_SCALE_MIN, Math.min(TB_ELEM_SCALE_MAX, v ?? 1.0));
+    const tbScale   = clampScale(tb.titleBlockScale);
+    const sigScale  = clampScale(tb.signatureBlockScale);
+    const sbScale   = clampScale(tb.scaleBarScale);
+    const naScale   = clampScale(tb.northArrowScale);
+
+    // ── Shared text helpers — route text to the right container ────
     const pixiCtx = pixi; // non-nullable capture for use in nested closures
-    function mkTBText(
+    function mkTBTextIn(
+      container: import('pixi.js').Container,
       content: string,
       style: Partial<import('pixi.js').ITextStyle>,
     ) {
       const t = new pixiCtx.TextClass(content, new pixiCtx.TextStyleClass(style));
       (t as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
       t.resolution = res;
-      pixiCtx.titleBlockLayer.addChild(t);
+      container.addChild(t);
       return t;
+    }
+    // Legacy helper for code paths that haven't been updated yet
+    function mkTBText(
+      content: string,
+      style: Partial<import('pixi.js').ITextStyle>,
+    ) {
+      return mkTBTextIn(pixiCtx.titleBlockLayer, content, style);
+    }
+
+    // ── Helper: apply rotation+scale to a container around its center ──
+    // Setting pivot=position=center makes the container rotate and scale
+    // around that screen-space point rather than its (0,0) local origin.
+    function applyContainerTransform(
+      ctr: import('pixi.js').Container,
+      cx: number, cy: number,
+      scaleFactor: number, rotationDeg: number,
+    ) {
+      const rotRad = (rotationDeg ?? 0) * (Math.PI / 180);
+      ctr.pivot.set(cx, cy);
+      ctr.position.set(cx, cy);
+      ctr.scale.set(scaleFactor);
+      ctr.rotation = rotRad;
+    }
+
+    // ── Helper: compute screen-space AABB of a rotated/scaled rect ──
+    // Returns the smallest axis-aligned bounding box of the transformed rect.
+    function rotatedAabb(
+      cx: number, cy: number,   // center in screen space
+      w: number, h: number,     // UN-SCALED half-extents (will be × scaleFactor)
+      scaleFactor: number,
+      rotationDeg: number,
+    ) {
+      const rotRad = (rotationDeg ?? 0) * (Math.PI / 180);
+      const cos = Math.abs(Math.cos(rotRad));
+      const sin = Math.abs(Math.sin(rotRad));
+      const sw = w * scaleFactor;
+      const sh = h * scaleFactor;
+      const hw = (sw * cos + sh * sin) / 2;
+      const hh = (sw * sin + sh * cos) / 2;
+      return { screenX: cx - hw, screenY: cy - hh, w: hw * 2, h: hh * 2 };
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -1228,16 +1350,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const halfTbW    = tbW / 2;
     const dataTop    = tbScrTop + headerH;
 
-    // Store bounds
-    tbBoundsRef.current.titleBlock = { screenX: tbScrLeft, screenY: tbScrTop, w: tbW, h: tbH };
+    // Store bounds — use AABB of the rotated rectangle
+    const tbCenterX = tbScrLeft + tbW / 2;
+    const tbCenterY = tbScrTop  + tbH / 2;
+    tbBoundsRef.current.titleBlock = rotatedAabb(tbCenterX, tbCenterY, tbW, tbH, tbScale, tb.titleBlockRotationDeg ?? 0);
     const tbHovered  = hoveredTBElemRef.current === 'titleBlock';
     const tbDragging = drag?.element === 'titleBlock';
 
+    // Draw title block into its dedicated container (local coords relative to container origin)
+    const tbc = pixi.tbTitleBlockContainer;
+    const tbg = pixi.tbTitleBlockGraphics;
+    // Position the container at the element center so rotation is around the center
+    applyContainerTransform(tbc, tbCenterX, tbCenterY, tbScale, tb.titleBlockRotationDeg ?? 0);
+    // All drawing uses absolute screen coords — the container transform handles the rest
+    const mkTBTextTB = (content: string, style: Partial<import('pixi.js').ITextStyle>) =>
+      mkTBTextIn(tbc, content, style);
+
     // ── Outer double border ─────────────────────────────────────────
-    g.lineStyle(2.5, 0x000000, 1);
-    g.drawRect(tbScrLeft, tbScrTop, tbW, tbH);
-    g.lineStyle(0.6, 0x000000, 0.55);
-    g.drawRect(tbScrLeft + 4, tbScrTop + 4, tbW - 8, tbH - 8);
+    tbg.lineStyle(2.5, 0x000000, 1);
+    tbg.drawRect(tbScrLeft, tbScrTop, tbW, tbH);
+    tbg.lineStyle(0.6, 0x000000, 0.55);
+    tbg.drawRect(tbScrLeft + 4, tbScrTop + 4, tbW - 8, tbH - 8);
 
     // ── Blue hover / drag highlight ─────────────────────────────────
     if (tbHovered || tbDragging) {
@@ -1246,18 +1379,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     // ── Header bar (dark navy) ──────────────────────────────────────
-    g.lineStyle(0);
-    g.beginFill(0x1a2b4a, 1);
-    g.drawRect(tbScrLeft, tbScrTop, tbW, headerH);
-    g.endFill();
+    tbg.lineStyle(0);
+    tbg.beginFill(0x1a2b4a, 1);
+    tbg.drawRect(tbScrLeft, tbScrTop, tbW, headerH);
+    tbg.endFill();
     // Accent line under header
-    g.lineStyle(1.5, 0x3d6ea6, 0.9);
-    g.moveTo(tbScrLeft,  tbScrTop + headerH);
-    g.lineTo(tbScrRight, tbScrTop + headerH);
+    tbg.lineStyle(1.5, 0x3d6ea6, 0.9);
+    tbg.moveTo(tbScrLeft,  tbScrTop + headerH);
+    tbg.lineTo(tbScrRight, tbScrTop + headerH);
 
     // Firm name (white, bold) — left side of header
     const hFontSz  = Math.max(headerH * 0.52, 7);
-    const firmTxt  = mkTBText((tb.firmName || 'SURVEY FIRM').toUpperCase(), {
+    const firmTxt  = mkTBTextTB((tb.firmName || 'SURVEY FIRM').toUpperCase(), {
       fontFamily: 'Arial', fontSize: hFontSz, fill: 0xffffff,
       fontWeight: 'bold', letterSpacing: 2,
     });
@@ -1269,7 +1402,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     tbFieldBoundsRef.current.push({ key: 'surveyType', label: 'Survey Type', editValue: tb.surveyType || '', screenX: headerSplitX, screenY: tbScrTop, w: tbScrRight - headerSplitX, h: headerH });
 
     // Right subtitle (italic, muted blue) — survey type
-    const subTxt = mkTBText((tb.surveyType || 'BOUNDARY SURVEY').toUpperCase(), {
+    const subTxt = mkTBTextTB((tb.surveyType || 'BOUNDARY SURVEY').toUpperCase(), {
       fontFamily: 'Arial', fontSize: Math.max(hFontSz * 0.70, 5.5),
       fill: 0x6a9fcc, fontStyle: 'italic', letterSpacing: 0.5,
     });
@@ -1277,22 +1410,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     subTxt.position.set(tbScrRight - 10, tbScrTop + headerH / 2);
 
     // ── Horizontal row dividers ─────────────────────────────────────
-    g.lineStyle(1, 0x000000, 0.85);
+    tbg.lineStyle(1, 0x000000, 0.85);
     for (let i = 1; i < numRows; i++) {
       const ry = dataTop + i * rowH;
-      g.moveTo(tbScrLeft, ry);
-      g.lineTo(tbScrRight, ry);
+      tbg.moveTo(tbScrLeft, ry);
+      tbg.lineTo(tbScrRight, ry);
     }
 
     // ── Vertical mid-divider ────────────────────────────────────────
-    g.lineStyle(0.75, 0x000000, 0.7);
-    g.moveTo(midX, dataTop);
-    g.lineTo(midX, tbScrBottom);
+    tbg.lineStyle(0.75, 0x000000, 0.7);
+    tbg.moveTo(midX, dataTop);
+    tbg.lineTo(midX, tbScrBottom);
 
     // ── Field-cell renderer — draws label + value and registers editable bounds ─
     // editValue: the value pre-filled in the editor (defaults to displayValue when omitted)
+    const fl = tb.fieldLabels ?? {};
     function drawCell(
-      label: string,
+      defaultLabel: string,
       displayValue: string,
       storeKey: keyof import('@/lib/cad/types').TitleBlockConfig,
       cellLeft: number,
@@ -1301,15 +1435,28 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       cellH: number,
       editValue?: string,
     ) {
+      // Allow custom label override
+      const flKey = ({
+        'PROJECT':        'project',
+        'JOB NO.':        'jobNo',
+        'CLIENT / OWNER': 'client',
+        'DATE':           'date',
+        'PREPARED BY':    'preparedBy',
+        'LICENSE NO.':    'licenseNo',
+        'SCALE':          'scale',
+        'SHEET':          'sheet',
+      } as Record<string, keyof NonNullable<typeof fl>>)[defaultLabel];
+      const label = (flKey && fl[flKey]) ? fl[flKey]! : defaultLabel;
+
       const pad   = 6;
       const lblSz = Math.max(cellH * 0.26, 5.5);
       const valSz = Math.max(cellH * 0.42, 7.5);
-      const lbl = mkTBText(label.toUpperCase(), {
+      const lbl = mkTBTextTB(label.toUpperCase(), {
         fontFamily: 'Arial', fontSize: lblSz, fill: 0x3a5f8a,
         fontWeight: 'bold', letterSpacing: 0.5,
       });
       lbl.position.set(cellLeft + pad, cellTop + 4);
-      const val = mkTBText(displayValue || '—', {
+      const val = mkTBTextTB(displayValue || '—', {
         fontFamily: 'Arial', fontSize: valSz,
         fill: displayValue ? 0x111111 : 0xaaaaaa,
         fontWeight: displayValue ? 'bold' : 'normal',
@@ -1365,16 +1512,24 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       sigTop  = br.sy - margin - sigBoxH;
     }
 
-    // Store signature block bounds
-    tbBoundsRef.current.signatureBlock = { screenX: sigLeft, screenY: sigTop, w: sigBoxW, h: sigBoxH };
+    // Apply signature-block container transform
+    const sigCenterX = sigLeft + sigBoxW / 2;
+    const sigCenterY = sigTop  + sigBoxH / 2;
+    applyContainerTransform(pixi.tbSignatureContainer, sigCenterX, sigCenterY, sigScale, tb.signatureBlockRotationDeg ?? 0);
+    const mkTBTextSig = (content: string, style: Partial<import('pixi.js').ITextStyle>) =>
+      mkTBTextIn(pixi.tbSignatureContainer, content, style);
+    const sigg = pixi.tbSignatureGraphics;
+
+    // Store signature block bounds (AABB of rotated rectangle)
+    tbBoundsRef.current.signatureBlock = rotatedAabb(sigCenterX, sigCenterY, sigBoxW, sigBoxH, sigScale, tb.signatureBlockRotationDeg ?? 0);
     const sigHovered  = hoveredTBElemRef.current === 'signatureBlock';
     const sigDragging = drag?.element === 'signatureBlock';
 
     // Outer double border
-    g.lineStyle(2, 0x000000, 1);
-    g.drawRect(sigLeft, sigTop, sigBoxW, sigBoxH);
-    g.lineStyle(0.5, 0x000000, 0.5);
-    g.drawRect(sigLeft + 3, sigTop + 3, sigBoxW - 6, sigBoxH - 6);
+    sigg.lineStyle(2, 0x000000, 1);
+    sigg.drawRect(sigLeft, sigTop, sigBoxW, sigBoxH);
+    sigg.lineStyle(0.5, 0x000000, 0.5);
+    sigg.drawRect(sigLeft + 3, sigTop + 3, sigBoxW - 6, sigBoxH - 6);
 
     // ── Blue hover / drag highlight ─────────────────────────────────
     if (sigHovered || sigDragging) {
@@ -1383,17 +1538,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     // Seal column divider
-    g.lineStyle(1, 0x000000, 0.85);
-    g.moveTo(sigLeft + sealColW, sigTop);
-    g.lineTo(sigLeft + sealColW, sigTop + sigBoxH);
+    sigg.lineStyle(1, 0x000000, 0.85);
+    sigg.moveTo(sigLeft + sealColW, sigTop);
+    sigg.lineTo(sigLeft + sealColW, sigTop + sigBoxH);
 
-    // Signature line in right column at ~62% height
+    // Signature line in right column at ~48% height – leaves top half open for the actual signature
     const sigLineX1 = sigLeft + sealColW + 8;
     const sigLineX2 = sigLeft + sigBoxW  - 8;
-    const sigLineY  = sigTop  + sigBoxH  * 0.62;
-    g.lineStyle(1, 0x000000, 1);
-    g.moveTo(sigLineX1, sigLineY);
-    g.lineTo(sigLineX2, sigLineY);
+    const sigLineY  = sigTop  + sigBoxH  * 0.48;
+    sigg.lineStyle(1, 0x000000, 1);
+    sigg.moveTo(sigLineX1, sigLineY);
+    sigg.lineTo(sigLineX2, sigLineY);
 
     // Font sizes relative to box height, with sensible floor values
     const sLblSz = Math.max(sigBoxH * 0.13, 5);
@@ -1417,7 +1572,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const officialSealHovered  = hoveredTBElemRef.current === 'officialSealLabel';
     const officialSealDragging = drag?.element === 'officialSealLabel';
-    const osTxt = mkTBText('OFFICIAL\nSEAL', {
+    const osTxt = mkTBTextSig('OFFICIAL\nSEAL', {
       fontFamily: 'Arial', fontSize: sLblSz, fill: 0x555555, letterSpacing: 0.3,
       fontWeight: 'bold',
       align: 'center',
@@ -1436,8 +1591,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     // ── "AUTHORIZED SIGNATURE" — bordered box spanning the full right column ──
-    // The box fully contains the label text with clear padding, and the
-    // signature line sits just below it.
+    // The box sits below the signature line with clear padding so the label
+    // identifies the line without crowding the signature space above.
     const authColLeft  = sigLeft + sealColW;
     const authBoxPadX  = 5;
     const authBoxPadY  = 4;
@@ -1445,12 +1600,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const authFontSz   = Math.max(sLblSz * 0.88, 4.5);
     const authBoxH     = authFontSz + authBoxPadY * 2;
     const authBoxLeft  = authColLeft + authBoxPadX;
-    const authBoxTop   = sigLineY - authBoxH - 6;
+    const authBoxTop   = sigLineY + 5;
     // Bordered box
-    g.lineStyle(1.5, 0x2c4a6e, 1);
-    g.drawRect(authBoxLeft, authBoxTop, authBoxW, authBoxH);
+    sigg.lineStyle(1.5, 0x2c4a6e, 1);
+    sigg.drawRect(authBoxLeft, authBoxTop, authBoxW, authBoxH);
     // Centered label inside the box
-    const authTxt = mkTBText('AUTHORIZED SIGNATURE', {
+    const authTxt = mkTBTextSig('AUTHORIZED SIGNATURE', {
       fontFamily: 'Arial', fontSize: authFontSz, fill: 0x2c4a6e,
       fontWeight: 'bold', letterSpacing: 0.3, align: 'center',
       wordWrap: true, wordWrapWidth: authBoxW - 4,
@@ -1458,27 +1613,30 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     authTxt.anchor.set(0.5, 0.5);
     authTxt.position.set(authBoxLeft + authBoxW / 2, authBoxTop + authBoxH / 2);
 
-    // ── "DATE:" label below signature line in the right column ───────
+    // ── "DATE:" label below auth label in the right column ───────
     const dateLblSz = Math.max(sLblSz * 0.80, 4);
-    const dateLbl = mkTBText('DATE:', {
+    const dateLbl = mkTBTextSig('DATE:', {
       fontFamily: 'Arial', fontSize: dateLblSz, fill: 0x555555, fontWeight: 'bold',
     });
-    dateLbl.position.set(sigLineX1, sigLineY + 4);
+    dateLbl.position.set(sigLineX1, authBoxTop + authBoxH + 5);
 
     // ────────────────────────────────────────────────────────────────
     // NORTH ARROW  (top-right, no box — just the star + "N" label)
     // ────────────────────────────────────────────────────────────────
     // Uses named constants NA_CENTER_OFFSET, NA_ELEM_TOTAL_H, NA_HIT_PAD defined above.
-    const naElemW  = naRadiusPx * 2.0;
+    // Apply naScale to the radius so the entire arrow grows/shrinks proportionally.
+    const naRadiusScaled = naRadiusPx * naScale;
+    const NA_ELEM_TOTAL_H_SC = naRadiusScaled * 2.78;
+    const naElemW  = naRadiusScaled * 2.0;
 
     let naScrLeft: number;
     let naScrTop: number;
     if (drag?.element === 'northArrow') {
       naScrLeft = tl.sx + drag.livePosX * inchToPx;
-      naScrTop  = br.sy - (drag.livePosY * inchToPx + NA_ELEM_TOTAL_H);
+      naScrTop  = br.sy - (drag.livePosY * inchToPx + NA_ELEM_TOTAL_H_SC);
     } else if (tb.northArrowPos) {
       naScrLeft = tl.sx + tb.northArrowPos.x * inchToPx;
-      naScrTop  = br.sy - (tb.northArrowPos.y * inchToPx + NA_ELEM_TOTAL_H);
+      naScrTop  = br.sy - (tb.northArrowPos.y * inchToPx + NA_ELEM_TOTAL_H_SC);
     } else {
       // Default: top-right, N label sits just inside the top margin
       naScrLeft = br.sx - margin - naElemW;
@@ -1486,12 +1644,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     // Star center — N label is above the center, so offset down by NA_CENTER_OFFSET × radius
-    const naCx   = naScrLeft + naRadiusPx;
-    const naCy   = naScrTop  + naRadiusPx * NA_CENTER_OFFSET;
+    const naCx   = naScrLeft + naRadiusScaled;
+    const naCy   = naScrTop  + naRadiusScaled * NA_CENTER_OFFSET;
+
+    // Apply north arrow container transform (rotation is handled inside drawNorthArrow itself, so
+    // only use the container for scale — rotation offset applied at arrow draw time)
+    const nac = pixi.tbNorthArrowContainer;
+    // NOTE: naScale already applied to naRadiusScaled; we set container scale to 1 to avoid double-scaling.
+    // Container position is set to (0,0) — the north arrow is drawn at its natural position.
+    nac.pivot.set(0, 0);
+    nac.position.set(0, 0);
+    nac.scale.set(1);
+    nac.rotation = 0;
+    const mkTBTextNA = (content: string, style: Partial<import('pixi.js').ITextStyle>) =>
+      mkTBTextIn(nac, content, style);
+    const nag = pixi.tbNorthArrowGraphics;
 
     tbBoundsRef.current.northArrow = {
       screenX: naScrLeft - NA_HIT_PAD, screenY: naScrTop - NA_HIT_PAD,
-      w: naElemW + 2 * NA_HIT_PAD, h: NA_ELEM_TOTAL_H + 2 * NA_HIT_PAD,
+      w: naElemW + 2 * NA_HIT_PAD, h: NA_ELEM_TOTAL_H_SC + 2 * NA_HIT_PAD,
     };
     const naHovered  = hoveredTBElemRef.current === 'northArrow';
     const naDragging = drag?.element === 'northArrow';
@@ -1501,15 +1672,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       g.lineStyle(2, 0x0088ff, 0.85);
       g.drawRect(
         naScrLeft - NA_HIT_PAD, naScrTop - NA_HIT_PAD,
-        naElemW + 2 * NA_HIT_PAD, NA_ELEM_TOTAL_H + 2 * NA_HIT_PAD,
+        naElemW + 2 * NA_HIT_PAD, NA_ELEM_TOTAL_H_SC + 2 * NA_HIT_PAD,
       );
     }
 
     // Draw star + N label (drawNorthArrow places "N" above the north tip)
     const rotDeg   = doc.settings.drawingRotationDeg ?? 0;
-    const arrowRad = (rotDeg * Math.PI) / 180;
-    drawNorthArrow(g, naCx, naCy, naRadiusPx, arrowRad,
-      tb.northArrowStyle ?? 'STARR', pixi, mkTBText);
+    const rotOffset = tb.northArrowRotationOffsetDeg ?? 0;
+    const arrowRad = ((rotDeg + rotOffset) * Math.PI) / 180;
+    drawNorthArrow(nag, naCx, naCy, naRadiusScaled, arrowRad,
+      tb.northArrowStyle ?? 'STARR', pixi, mkTBTextNA);
     // NOTE: no separate "NORTH" label — just the N inside drawNorthArrow
 
     // ────────────────────────────────────────────────────────────────
@@ -1533,10 +1705,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Find a nice segment length (round number of feet/world units)
       const targetWorldFt = effectiveLenIn * ds;
       const niceSteps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000];
-      const rawSeg    = targetWorldFt / 4;
+      const numSegs   = Math.max(2, Math.min(8, tb.scaleBarSegments ?? 4));
+      const rawSeg    = targetWorldFt / numSegs;
       let segFt       = niceSteps[0];
       for (const s of niceSteps) { if (s <= rawSeg) segFt = s; }
-      const numSegs   = 4;
       const totalFt   = segFt * numSegs;
       const barLenPx  = (totalFt / ds) * inchToPx;
       const barH      = Math.max(0.12 * inchToPx, 6);
@@ -1561,7 +1733,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const sbScrTop = sbScrBottom - sbTotalH;
       const barTop   = sbScrTop + lblAboveH + 4;
 
-      tbBoundsRef.current.scaleBar = { screenX: sbScrLeft, screenY: sbScrTop, w: barLenPx, h: sbTotalH };
+      // Apply scale-bar container transform
+      const sbCenterX = sbScrLeft + barLenPx / 2;
+      const sbCenterY = sbScrTop  + sbTotalH / 2;
+      applyContainerTransform(pixi.tbScaleBarContainer, sbCenterX, sbCenterY, sbScale, tb.scaleBarRotationDeg ?? 0);
+      const sbc = pixi.tbScaleBarContainer;
+      const sbg = pixi.tbScaleBarGraphics;
+      const mkTBTextSB = (content: string, style: Partial<import('pixi.js').ITextStyle>) =>
+        mkTBTextIn(sbc, content, style);
+
+      tbBoundsRef.current.scaleBar = rotatedAabb(sbCenterX, sbCenterY, barLenPx, sbTotalH, sbScale, tb.scaleBarRotationDeg ?? 0);
       const sbHovered  = hoveredTBElemRef.current === 'scaleBar';
       const sbDragging = drag?.element === 'scaleBar';
 
@@ -1573,7 +1754,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // "GRAPHIC SCALE" label above
       const gsLblSz = Math.max(barH * 0.9, 6);
-      const gsTxt = mkTBText('GRAPHIC SCALE', {
+      const gsTxt = mkTBTextSB('GRAPHIC SCALE', {
         fontFamily: 'Arial', fontSize: gsLblSz, fill: 0x111111, fontWeight: 'bold', letterSpacing: 0.5,
       });
       gsTxt.anchor.set(0.5, 1);
@@ -1584,44 +1765,44 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       for (let i = 0; i < numSegs; i++) {
         const segLeft = sbScrLeft + i * segPx;
         const fill    = i % 2 === 0 ? 0x000000 : 0xffffff;
-        g.lineStyle(0);
-        g.beginFill(fill, 1);
-        g.drawRect(segLeft, barTop, segPx, barH);
-        g.endFill();
+        sbg.lineStyle(0);
+        sbg.beginFill(fill, 1);
+        sbg.drawRect(segLeft, barTop, segPx, barH);
+        sbg.endFill();
       }
       // Outer border around entire bar
-      g.lineStyle(1, 0x000000, 1);
-      g.drawRect(sbScrLeft, barTop, barLenPx, barH);
+      sbg.lineStyle(1, 0x000000, 1);
+      sbg.drawRect(sbScrLeft, barTop, barLenPx, barH);
       // Segment dividers
-      g.lineStyle(0.5, 0x000000, 0.7);
+      sbg.lineStyle(0.5, 0x000000, 0.7);
       for (let i = 1; i < numSegs; i++) {
         const divX = sbScrLeft + i * segPx;
-        g.moveTo(divX, barTop);
-        g.lineTo(divX, barTop + barH);
+        sbg.moveTo(divX, barTop);
+        sbg.lineTo(divX, barTop + barH);
       }
 
       // Tick marks + distance labels below bar
       const tickH   = barH * 0.5;
       const lblBelowSz = Math.max(barH * 0.85, 5.5);
-      g.lineStyle(0.75, 0x000000, 1);
+      sbg.lineStyle(0.75, 0x000000, 1);
       for (let i = 0; i <= numSegs; i++) {
         const tickX = sbScrLeft + i * segPx;
-        g.moveTo(tickX, barTop + barH);
-        g.lineTo(tickX, barTop + barH + tickH);
+        sbg.moveTo(tickX, barTop + barH);
+        sbg.lineTo(tickX, barTop + barH + tickH);
         const distFt   = i * segFt;
         const distLabel = distFt >= 1000
           ? `${Math.round(distFt / 1000 * 10) / 10}K`
           : String(distFt);
-        const lbl = mkTBText(distLabel, {
+        const lbl = mkTBTextSB(distLabel, {
           fontFamily: 'Arial', fontSize: lblBelowSz, fill: 0x111111,
         });
         lbl.anchor.set(0.5, 0);
         lbl.position.set(tickX, barTop + barH + tickH + 1);
       }
 
-      // Units label — placed to the right of the bar on a second line so it
-      // never overlaps the last distance tick label.
-      const unitsLbl = mkTBText(' FEET', {
+      // Units label — right of bar, italic
+      const unitsLabel = ` ${(tb.scaleBarUnits ?? 'FEET').trim() || 'FEET'}`;
+      const unitsLbl = mkTBTextSB(unitsLabel, {
         fontFamily: 'Arial', fontSize: lblBelowSz, fill: 0x444444, fontStyle: 'italic',
       });
       unitsLbl.anchor.set(0, 0);
@@ -3529,7 +3710,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           let origPosY = 0;
           if (tbHit === 'northArrow') {
             const northArrowSizeIn  = tb?.northArrowSizeIn ?? 1.5;
-            const naRadiusPxD       = northArrowSizeIn * inchToPx * 0.44;
+            const naScaleD          = Math.max(TB_ELEM_SCALE_MIN, Math.min(TB_ELEM_SCALE_MAX, tb?.northArrowScale ?? 1.0));
+            const naRadiusPxD       = northArrowSizeIn * inchToPx * 0.44 * naScaleD;
             const naTotalHD         = naRadiusPxD * 2.78; // NA_ELEM_TOTAL_H equivalent
             const naElemWD          = naRadiusPxD * 2.0;
             if (tb?.northArrowPos) {
@@ -3556,9 +3738,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               origPosX = tb.scaleBarPos.x;
               origPosY = tb.scaleBarPos.y;
             } else {
-              const sigWIn = Math.min(2.8, pw * 0.27);
-              origPosX = sigWIn + 0.20 + margin / inchToPx;  // sig width + innerGap
-              origPosY = margin / inchToPx;
+              // Read from last-rendered bounds to match the actual rendered position
+              // (origPosX/Y remain 0,0 if bounds haven't been drawn yet, which is safe)
+              const b = tbBoundsRef.current.scaleBar;
+              if (b) {
+                origPosX = (b.screenX - tl.sx) / inchToPx;
+                origPosY = (br.sy - b.screenY - b.h) / inchToPx;
+              }
             }
           } else if (tbHit === 'signatureBlock') {
             if (tb?.signatureBlockPos) {
@@ -4843,7 +5029,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // ─────────────────────────────────────────────
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
+      // Do not steal keyboard events from active text inputs / textareas
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      if (e.code === 'Space' && !isTyping) {
         e.preventDefault();
         isSpaceDownRef.current = true;
         setCursorStyle('grab');
@@ -5306,7 +5495,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         return;
       }
 
-      // Right-click with SELECT tool (or any non-drawing tool): show context menu
+      // Right-click with SELECT tool (or any non-drawing tool): check TB elements first
+      const tbHitElem = hitTestTBElement(sx, sy);
+      if (tbHitElem) {
+        setTbContextMenu({ x: e.clientX, y: e.clientY, element: tbHitElem });
+        return;
+      }
       const hit = hitTest(sx, sy);
       // If hit a feature not yet selected, select it first
       if (hit && !selectionStore.selectedIds.has(hit)) {
@@ -5480,6 +5674,90 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         />
       )}
 
+      {/* Title-block element right-click context menu */}
+      {tbContextMenu && (() => {
+        const isScaleBar   = tbContextMenu.element === 'scaleBar';
+        const isTitleBlock = tbContextMenu.element === 'titleBlock';
+        const isSig        = tbContextMenu.element === 'signatureBlock';
+        const isNA         = tbContextMenu.element === 'northArrow';
+        const isSeal       = tbContextMenu.element === 'officialSealLabel';
+        const focusEl = isTitleBlock ? 'titleBlock' : isSig || isSeal ? 'signatureBlock' : isNA ? 'northArrow' : undefined;
+        return (
+          <div
+            className="fixed z-[150] bg-gray-900 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[200px] text-xs"
+            style={{ left: tbContextMenu.x, top: tbContextMenu.y }}
+            onMouseLeave={() => setTbContextMenu(null)}
+          >
+            <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-700 mb-1">
+              {isScaleBar ? 'Graphic Scale Bar' : isTitleBlock ? 'Title Block' : isSig ? 'Signature / Seal Block' : isNA ? 'North Arrow' : 'Official Seal Label'}
+            </div>
+            {isScaleBar && (
+              <button
+                className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+                onClick={() => { setScaleBarEditorOpen(true); setTbContextMenu(null); }}
+              >
+                ✏️ Edit Scale Bar…
+              </button>
+            )}
+            {(isTitleBlock || isSig || isNA || isSeal) && (
+              <button
+                className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+                onClick={() => { setTbEditorOpen({ focusElement: focusEl }); setTbContextMenu(null); }}
+              >
+                ✏️ Edit Title Block…
+              </button>
+            )}
+            <div className="border-t border-gray-700 my-1" />
+            <button
+              className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+              onClick={() => {
+                drawingStore.updateTitleBlock({
+                  titleBlockPos: null, scaleBarPos: null, signatureBlockPos: null,
+                  northArrowPos: null, officialSealLabelPos: null,
+                });
+                setTbContextMenu(null);
+              }}
+            >
+              ↩ Reset All Positions
+            </button>
+            <button
+              className="w-full text-left px-3 py-1.5 text-gray-200 hover:bg-blue-600/30 hover:text-white transition-colors flex items-center gap-2"
+              onClick={() => {
+                drawingStore.updateTitleBlock({
+                  titleBlockScale: 1.0, signatureBlockScale: 1.0, scaleBarScale: 1.0, northArrowScale: 1.0,
+                  titleBlockRotationDeg: 0, signatureBlockRotationDeg: 0, scaleBarRotationDeg: 0,
+                  northArrowRotationOffsetDeg: 0,
+                });
+                setTbContextMenu(null);
+              }}
+            >
+              ↩ Reset All Scale &amp; Rotation
+            </button>
+            <button
+              className="w-full text-left px-3 py-1.5 text-gray-500 hover:bg-gray-700 transition-colors flex items-center gap-2 mt-1 border-t border-gray-700"
+              onClick={() => setTbContextMenu(null)}
+            >
+              ✕ Cancel
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* Title Block full editor modal */}
+      {tbEditorOpen && (
+        <TitleBlockEditorModal
+          focusElement={tbEditorOpen.focusElement}
+          onClose={() => setTbEditorOpen(null)}
+        />
+      )}
+
+      {/* Scale Bar editor modal */}
+      {scaleBarEditorOpen && (
+        <ScaleBarEditorModal
+          onClose={() => setScaleBarEditorOpen(false)}
+        />
+      )}
+
       {/* DRAW_TEXT inline input overlay */}
       {textInputState && (
         <div
@@ -5532,26 +5810,54 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             <div className="text-[9px] text-blue-400 font-semibold uppercase tracking-wider px-0.5 pb-0.5">
               {tbFieldEditState.label}
             </div>
-            <input
-              autoFocus
-              className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-blue-400 w-full"
-              style={{ caretColor: '#60a5fa' }}
-              defaultValue={tbFieldEditState.value}
-              placeholder={`Enter ${tbFieldEditState.label.toLowerCase()}…`}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
-                  setTbFieldEditState(null);
-                } else if (e.key === 'Escape') {
-                  setTbFieldEditState(null);
-                }
-              }}
-              onBlur={(e) => {
-                drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
-                setTbFieldEditState(null);
-              }}
-            />
-            <div className="text-[8px] text-gray-500 px-0.5">Enter to save · Esc to cancel</div>
+            {tbFieldEditState.key === 'scaleLabel' ? (() => {
+              const currentDs = drawingStore.document.settings.drawingScale ?? 50;
+              const scaleOptions = Array.from({ length: 17 }, (_, i) => 20 + i * 5);
+              const currentValue = tbFieldEditState.value || `1" = ${currentDs}'`;
+              return (
+                <>
+                  <select
+                    autoFocus
+                    className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-blue-400 w-full cursor-pointer"
+                    defaultValue={currentValue}
+                    onChange={(e) => {
+                      drawingStore.updateTitleBlock({ scaleLabel: e.currentTarget.value });
+                      setTbFieldEditState(null);
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setTbFieldEditState(null); }}
+                    onBlur={() => setTbFieldEditState(null)}
+                  >
+                    {scaleOptions.map(n => (
+                      <option key={n} value={`1" = ${n}'`}>{`1" = ${n}'`}</option>
+                    ))}
+                  </select>
+                  <div className="text-[8px] text-gray-500 px-0.5">Select a scale · Esc to cancel</div>
+                </>
+              );
+            })() : (
+              <>
+                <input
+                  autoFocus
+                  className="bg-gray-800 border border-gray-600 text-white text-xs px-2 py-1 rounded outline-none focus:border-blue-400 w-full"
+                  style={{ caretColor: '#60a5fa' }}
+                  defaultValue={tbFieldEditState.value}
+                  placeholder={`Enter ${tbFieldEditState.label.toLowerCase()}…`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
+                      setTbFieldEditState(null);
+                    } else if (e.key === 'Escape') {
+                      setTbFieldEditState(null);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    drawingStore.updateTitleBlock({ [tbFieldEditState.key]: e.currentTarget.value });
+                    setTbFieldEditState(null);
+                  }}
+                />
+                <div className="text-[8px] text-gray-500 px-0.5">Enter to save · Esc to cancel</div>
+              </>
+            )}
           </div>
         );
       })()}
