@@ -163,7 +163,7 @@ reg('48201', {
   searchMethod:     'playwright',
   addressField:     'inputSearch',   // CSS class — new Blazor SPA has no name attr
   ownerField:       'inputSearch',   // same input, mode selected via radio
-  resultSelector:   'table.table tbody tr',  // best guess for Blazor table; AI OCR fallback covers drift
+  resultSelector:   'tr.resulttr.dataTableGridText',  // verified 2026-03-07: jQuery DataTables
   propertyIdField:  'acct',
   cadSystem:        'hcad',
   customNotes: [
@@ -171,8 +171,10 @@ reg('48201', {
     'Radio: name="filterOptions", values: PROPERTYADDRESS / OWNERNAME / ACCOUNTNUMBER.',
     'Input: class "inputSearch" (no name attribute).',
     'Submit: button.btn-primary.buttonFontsize (type="button", JS-driven).',
+    'Results: jQuery DataTables — table.data-table, tr.resulttr.dataTableGridText.',
+    'Cols: Account (td.resulttd > b), Owner, Address, Type (label.blue-rounded-text).',
+    'Detail: Blazor components — #OwnerInfoComponent, #ValuationComponent, #PropertyComponent, #StatusComponent.',
     'Account format: 13-digit ending in 000 for real property.',
-    'Detail URL pattern retained from legacy — needs live verification.',
   ].join(' '),
 });
 
@@ -182,12 +184,12 @@ reg('48201', {
 reg('48439', {
   name:             'Tarrant Appraisal District (TAD)',
   vendor:           'tad',
-  searchUrl:        'https://www.tad.org/property-search/',
-  detailUrlPattern: 'https://www.tad.org/property/{propertyId}/',
+  searchUrl:        'https://www.tad.org/search-results',
+  detailUrlPattern: 'https://www.tad.org/property?account={propertyId}',
   searchMethod:     'playwright',
   addressField:     'query',       // input#query[name="query"] — same field for all search types
   ownerField:       'query',       // searchType dropdown selects mode (PropertyAddress vs OwnerName)
-  resultSelector:   'table tbody tr',  // best guess; AI OCR fallback covers drift
+  resultSelector:   'tr.property-header',  // verified 2026-03-07
   propertyIdField:  'account_num',
   cadSystem:        'tad',
   customNotes: [
@@ -197,7 +199,11 @@ reg('48439', {
     'Submit: button.btn-tad-light-blue[type="submit"].',
     'Property type checkboxes: name="filter[]", values R/C/M/P.',
     'CSRF token: hidden input name="_token".',
-    'Deprecation warning: site says search will be removed in 2027.',
+    'Results: table.table.table-bordered.table-hover.search-results, tr.property-header[data-account-number].',
+    'Cells: td[data-label="Property Address|Property City|Primary Owner Name|Market Value"].',
+    'Type icons: i.fa-solid.fa-building (Commercial), i.fa-solid.fa-dolly (BPP).',
+    'Detail URL: /property?account={id}.',
+    'Deprecation warning: site says search will be removed in 2027; new at tarrant.prodigycad.com.',
   ].join(' '),
 });
 

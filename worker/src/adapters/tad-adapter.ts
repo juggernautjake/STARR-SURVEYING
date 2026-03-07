@@ -23,8 +23,10 @@
 //
 // Spec §1.5 — TAD Adapter
 //
-// VERIFIED: 2026-03-07 — Search form selectors confirmed against live site.
-// PENDING:  Results table selector + detail page URL pattern need verification.
+// VERIFIED: 2026-03-07 — Search form + results + detail selectors confirmed.
+// Results: table.table.table-bordered.table-hover.search-results
+// Rows: tr.property-header[data-account-number], td[data-label="..."]
+// Detail URL: https://www.tad.org/property?account={account_number}
 
 import {
   CADAdapter,
@@ -44,12 +46,21 @@ export class TADAdapter extends CADAdapter {
   // Property type checkboxes — ensure "Real" is checked, optionally uncheck "Personal"
   private static readonly CHECKBOX_RESIDENTIAL  = 'input#residential[value="R"]';
   private static readonly CHECKBOX_PERSONAL     = 'input#personal-property[value="P"]';
-  // Results — try multiple selectors since we haven't captured results HTML yet
+  // Results selectors (verified 2026-03-07):
+  // Table: table.table.table-bordered.table-hover.search-results
+  // Rows: tr.property-header with data-account-number attribute
+  // Cells use data-label attributes: "Property Address", "Property City",
+  //   "Primary Owner Name", "Market Value"
+  // Account #: td > a[href="property?account={id}"]
+  // Type icons: i.fa-solid.fa-building (Commercial), i.fa-solid.fa-dolly (BPP)
+  // Expanded details: Current Owner, Legal Description, Agent, State Code, etc.
+  private static readonly RESULT_TABLE     = 'table.search-results, table.table.table-bordered.table-hover';
+  private static readonly RESULT_ROW       = 'tr.property-header';
   private static readonly RESULT_SELECTORS = [
-    '.search-results-table tr',   // original guess
-    'table.table tbody tr',       // Bootstrap pattern
-    '.property-results tr',       // common pattern
-    'table tbody tr',             // generic fallback
+    'tr.property-header',                              // primary (verified 2026-03-07)
+    'table.search-results tbody tr',                   // table-level fallback
+    'table.table.table-bordered.table-hover tbody tr', // full class chain
+    'table.table tbody tr',                            // generic Bootstrap
   ];
 
   // ── searchByAddress ──────────────────────────────────────────────────────────
@@ -138,11 +149,11 @@ export class TADAdapter extends CADAdapter {
   /**
    * Fetch full property detail from the TAD detail page.
    *
-   * TAD detail page: https://www.tad.org/property/{accountNumber}/
+   * TAD detail page: https://www.tad.org/property?account={accountNumber}
    *
-   * The page is a React SPA — we wait for the data sections to appear before
-   * parsing.  AI OCR is used as the primary fallback given that the React
-   * component tree can change between TAD site deployments.
+   * The page is a Laravel/Blade app — we wait for data sections to appear
+   * before parsing.  AI OCR is used as the primary fallback given that the
+   * layout can change between TAD site deployments.
    */
   async getPropertyDetail(propertyId: string): Promise<PropertyDetail> {
     await this.initBrowser();
@@ -248,14 +259,26 @@ export class TADAdapter extends CADAdapter {
     // Wait for results — form POSTs to search-results page
     await this.page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
 
-    // Try each known result selector
-    for (const sel of TADAdapter.RESULT_SELECTORS) {
-      try {
-        await this.page.waitForSelector(sel, { timeout: 5000 });
-        break;
-      } catch {
-        // Try next
+    // Primary: wait for the TAD results table or row selector
+    let foundResults = false;
+    try {
+      await this.page.waitForSelector('table.search-results, tr.property-header', { timeout: 8000 });
+      foundResults = true;
+    } catch {
+      // Try fallback selectors
+      for (const sel of TADAdapter.RESULT_SELECTORS) {
+        try {
+          await this.page.waitForSelector(sel, { timeout: 5000 });
+          foundResults = true;
+          break;
+        } catch {
+          // Try next
+        }
       }
+    }
+    if (!foundResults) {
+      // Give page extra time to render, then rely on AI OCR
+      await this.page.waitForTimeout(3000);
     }
   }
 
@@ -264,15 +287,16 @@ export class TADAdapter extends CADAdapter {
   /**
    * Parse the TAD search results table from the DOM.
    *
-   * Tries multiple result selectors since the results HTML structure
-   * hasn't been captured yet.
-   *
-   * Typical column order (may vary by TAD site version):
-   *   Column 0: Account number (link to detail page)
-   *   Column 1: Owner name
-   *   Column 2: Property address
-   *   Column 3: Legal description
-   *   Column 4: Acreage / land area
+   * TAD results page (verified 2026-03-07):
+   *   - Table: table.table.table-bordered.table-hover.search-results
+   *   - Result rows: tr.property-header with data-account-number attribute
+   *   - Account #: first td > a[href="property?account={id}"]
+   *   - Property Address: td[data-label="Property Address"]
+   *   - Property City: td[data-label="Property City"]
+   *   - Primary Owner: td[data-label="Primary Owner Name"]
+   *   - Market Value: td[data-label="Market Value"] (e.g. "$849,119 (2025)")
+   *   - Type icons: i.fa-solid.fa-building (Commercial), i.fa-solid.fa-dolly (BPP)
+   *   - Expanded inline details include Legal Description, State Code, etc.
    */
   private async parseSearchResultsDOM(): Promise<PropertySearchResult[]> {
     if (!this.page) return [];
@@ -295,41 +319,63 @@ export class TADAdapter extends CADAdapter {
       const isHeader = await row.$('th');
       if (isHeader) continue;
 
-      const cells = await row.$$('td');
-      if (cells.length < 3) continue;
+      // Primary strategy: use data-account-number attribute on tr.property-header
+      let accountNumber = await row.getAttribute('data-account-number') ?? '';
 
-      // Account number — may be in a link or the raw cell text
-      const accountLink = await cells[0]?.$('a');
-      let accountNumber = '';
-      if (accountLink) {
-        const href = await accountLink.getAttribute('href') ?? '';
-        // TAD detail URLs: /property/1234567890/
-        const m = href.match(/\/property\/([^/]+)/i);
-        accountNumber = m ? m[1] : await accountLink.innerText().then(t => t.trim());
-      } else {
-        accountNumber = await cells[0]?.innerText().then(t => t.trim()) ?? '';
+      // Fallback: extract from link href (property?account={id})
+      if (!accountNumber) {
+        const accountLink = await row.$('td a[href*="property?account="], td a[href*="property/"]');
+        if (accountLink) {
+          const href = await accountLink.getAttribute('href') ?? '';
+          const m = href.match(/account=([^&]+)/i) || href.match(/\/property\/([^/?]+)/i);
+          accountNumber = m ? decodeURIComponent(m[1]) : await accountLink.innerText().then(t => t.trim());
+        }
+      }
+
+      // Last fallback: first td text
+      if (!accountNumber) {
+        const firstTd = await row.$('td');
+        if (firstTd) accountNumber = await firstTd.innerText().then(t => t.trim());
       }
 
       if (!accountNumber) continue;
 
-      const owner    = await cells[1]?.innerText().then(t => t.trim()) ?? '';
-      const address  = await cells[2]?.innerText().then(t => t.trim()) ?? '';
-      const legalDesc= cells.length > 3
-        ? await cells[3]?.innerText().then(t => t.trim()) ?? ''
-        : '';
-      const acreStr  = cells.length > 4
-        ? await cells[4]?.innerText().then(t => t.trim()) ?? ''
-        : '';
+      // Use data-label attributes for reliable field extraction
+      const addressCell = await row.$('td[data-label="Property Address"]');
+      const cityCell    = await row.$('td[data-label="Property City"]');
+      const ownerCell   = await row.$('td[data-label="Primary Owner Name"]');
+      const valueCell   = await row.$('td[data-label="Market Value"]');
+
+      const address  = addressCell ? await addressCell.innerText().then(t => t.trim()) : '';
+      const city     = cityCell    ? await cityCell.innerText().then(t => t.trim()) : '';
+      const owner    = ownerCell   ? await ownerCell.innerText().then(t => t.trim()) : '';
+      const valueStr = valueCell   ? await valueCell.innerText().then(t => t.trim()) : '';
+
+      // Combine address + city
+      const fullAddress = city ? `${address}, ${city}` : address;
+
+      // Parse market value — format: "$849,119 (2025)"
+      const marketValue = parseFloat(valueStr.replace(/[$,]/g, '').replace(/\s*\(\d{4}\)/, '')) || undefined;
+
+      // Determine property type from icon classes
+      let propertyType: 'real' | 'personal' = 'real';
+      const bppIcon = await row.$('i.fa-solid.fa-dolly, i.fa-dolly');
+      if (bppIcon) {
+        propertyType = 'personal';
+      }
+      // Also check if account is numeric-only (real property)
+      if (!/^\d+$/.test(accountNumber)) {
+        propertyType = 'personal';
+      }
 
       results.push({
         propertyId:       accountNumber,
         owner,
-        situsAddress:     address,
-        legalDescription: legalDesc,
-        acreage:          parseFloat(acreStr) || undefined,
-        // TAD mixes real and personal property in its results table;
-        // real property accounts are numeric-only
-        propertyType:     /^\d+$/.test(accountNumber) ? 'real' : 'personal',
+        situsAddress:     fullAddress,
+        legalDescription: '',  // Not in main results row — available in expanded details
+        acreage:          undefined,
+        assessedValue:    marketValue,
+        propertyType,
         matchScore:       50,
       });
     }
@@ -393,8 +439,14 @@ Return ONLY the JSON array, no explanation.`,
   /**
    * Extract property detail from the TAD detail page DOM.
    *
-   * TAD uses a React SPA with data sections rendered as labeled cards or
-   * tables.  We try multiple selector strategies for each field.
+   * TAD uses a Laravel/Blade app with data-label attributes on table cells
+   * (verified 2026-03-07). The expanded inline details on the search results
+   * page include fields like:
+   *   - Current Owner, Primary Owner Address, Legal Description
+   *   - Agent, State Code, Business Name, Georeference
+   *   - Instrument, Site Class, Site Number, Site Name, Number of Parcels
+   *
+   * The detail page at /property?account={id} shows more comprehensive data.
    */
   private async extractDetailFromDOM(propertyId: string): Promise<PropertyDetail> {
     if (!this.page) throw new Error('Browser not initialized');
@@ -412,19 +464,19 @@ Return ONLY the JSON array, no explanation.`,
     };
 
     /**
-     * Helper: try multiple label strings and return the first matching value
-     * found in the DOM using adjacent-cell or child-text strategies.
+     * Helper: try data-label attributes first (TAD pattern), then fall back
+     * to text-based strategies.
      */
     const extractField = async (labels: string[]): Promise<string> => {
       for (const label of labels) {
         try {
-          // Strategy 1: <td> label → adjacent <td> value
-          const tdNext = await this.page!.$(`td:has-text("${label}") + td`);
-          if (tdNext) {
-            const val = await tdNext.innerText();
+          // Strategy 1: TAD data-label attribute (primary — verified 2026-03-07)
+          const labeled = await this.page!.$(`[data-label="${label}"], td[data-label="${label}"]`);
+          if (labeled) {
+            const val = await labeled.innerText();
             if (val.trim()) return val.trim();
           }
-          // Strategy 2: <th> → adjacent <td>
+          // Strategy 2: th → adjacent td
           const th = await this.page!.$(`th:has-text("${label}")`);
           if (th) {
             const sibling = await th.evaluateHandle(
@@ -436,10 +488,10 @@ Return ONLY the JSON array, no explanation.`,
               if (val.trim()) return val.trim();
             }
           }
-          // Strategy 3: React data-label attribute pattern
-          const labeled = await this.page!.$(`[data-label="${label}"]`);
-          if (labeled) {
-            const val = await labeled.innerText();
+          // Strategy 3: td label → adjacent td value
+          const tdNext = await this.page!.$(`td:has-text("${label}") + td`);
+          if (tdNext) {
+            const val = await tdNext.innerText();
             if (val.trim()) return val.trim();
           }
           // Strategy 4: text-based search with label prefix
@@ -456,21 +508,25 @@ Return ONLY the JSON array, no explanation.`,
       return '';
     };
 
-    detail.owner               = await extractField(['Owner Name', 'Owner', 'Property Owner']);
-    detail.ownerMailingAddress = await extractField(['Mailing Address', 'Mail Address', 'Owner Address']) || undefined;
-    detail.situsAddress        = await extractField(['Property Location', 'Site Address', 'Situs Address', 'Address']);
+    detail.owner               = await extractField(['Current Owner', 'Primary Owner Name', 'Owner Name', 'Owner']);
+    detail.ownerMailingAddress = await extractField(['Primary Owner Address', 'Mailing Address', 'Owner Address']) || undefined;
+    detail.situsAddress        = await extractField(['Property Address', 'Property Location', 'Site Address', 'Situs Address']);
     detail.legalDescription    = await extractField(['Legal Description', 'Legal Desc', 'Legal']);
-    detail.geoId               = await extractField(['Account Number', 'Acct No', 'Account No']) || propertyId;
+    detail.geoId               = await extractField(['Account Number', 'Account No', 'Acct No']) || propertyId;
     detail.abstractSurvey      = await extractField(['Abstract/Survey', 'Abstract', 'Survey']) || undefined;
 
     const acreStr  = await extractField(['Acreage', 'Acres', 'Land Area', 'Land Acres']);
     detail.acreage = parseFloat(acreStr.replace(/[^\d.]/g, '')) || 0;
 
-    const valueStr       = await extractField(['Total Appraised Value', 'Appraised Value', 'Total Value', 'Market Value']);
-    detail.assessedValue = parseFloat(valueStr.replace(/[$,]/g, '')) || undefined;
+    const valueStr       = await extractField(['Market Value', 'Total Appraised Value', 'Appraised Value', 'Total Value']);
+    detail.assessedValue = parseFloat(valueStr.replace(/[$,]/g, '').replace(/\s*\(\d{4}\)/, '')) || undefined;
 
     const yearStr  = await extractField(['Tax Year', 'Year']);
     detail.taxYear = parseInt(yearStr) || undefined;
+
+    // TAD-specific fields
+    const stateCode = await extractField(['State Code']);
+    if (stateCode) detail.abstractSurvey = detail.abstractSurvey || stateCode;
 
     return detail;
   }
