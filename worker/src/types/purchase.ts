@@ -5,7 +5,22 @@
 
 // ── Purchase Configuration ──────────────────────────────────────────────────
 
-export type PurchaseVendor = 'kofile' | 'texasfile' | 'county_direct' | 'txdot';
+export type PurchaseVendor =
+  | 'kofile'
+  | 'kofile_pay'
+  | 'texasfile'
+  | 'tyler_pay'
+  | 'henschen_pay'
+  | 'idocket_pay'
+  | 'fidlar_pay'
+  | 'govos_direct'
+  | 'landex'
+  | 'cs_lexi'
+  | 'county_direct'
+  | 'county_direct_pay'
+  | 'txdot'
+  | 'txdot_docs'
+  | 'glo_archives';
 
 export type PurchaseStatus =
   | 'purchased'
@@ -18,7 +33,17 @@ export type PurchaseStatus =
 export type PaymentMethodId =
   | 'account_balance'
   | 'credit_card'
-  | 'texasfile_wallet';
+  | 'debit_card'
+  | 'texasfile_wallet'
+  | 'kofile_wallet'
+  | 'tyler_wallet'
+  | 'henschen_account'
+  | 'idocket_subscription'
+  | 'fidlar_account'
+  | 'govos_credit_card'
+  | 'landex_api'
+  | 'cs_lexi_account'
+  | 'stripe_passthrough'; // Starr charges user, then pays platform
 
 export interface KofileCredentials {
   username: string;
@@ -32,11 +57,63 @@ export interface TexasFileCredentials {
   accountType: 'pay_per_page' | 'subscription';
 }
 
+export interface TylerPayCredentials {
+  username: string;
+  password: string;
+  /** Base URL for Tyler/Odyssey county system (varies per county) */
+  baseUrl?: string;
+}
+
+export interface HenschenPayCredentials {
+  username: string;
+  password: string;
+  /** Per-county Henschen portal URL */
+  portalUrl?: string;
+}
+
+export interface IDocketPayCredentials {
+  username: string;
+  password: string;
+}
+
+export interface FidlarPayCredentials {
+  username: string;
+  password: string;
+}
+
+export interface GovOSDirectCredentials {
+  /** GovOS allows guest checkout (no account); supply credit card token */
+  creditCardToken?: string;
+  accountUsername?: string;
+  accountPassword?: string;
+}
+
+export interface LandExCredentials {
+  apiKey: string;
+  accountId: string;
+}
+
+export interface CSLexiCredentials {
+  username: string;
+  password: string;
+}
+
 export interface PurchaseOrchestratorConfig {
   kofileCredentials?: KofileCredentials;
   texasfileCredentials?: TexasFileCredentials;
+  tylerPayCredentials?: TylerPayCredentials;
+  henschenPayCredentials?: HenschenPayCredentials;
+  idocketPayCredentials?: IDocketPayCredentials;
+  fidlarPayCredentials?: FidlarPayCredentials;
+  govosDirectCredentials?: GovOSDirectCredentials;
+  landexCredentials?: LandExCredentials;
+  csLexiCredentials?: CSLexiCredentials;
   budget: number;
   autoReanalyze: boolean;
+  /** If true (default), always try free/watermarked images before paid */
+  tryFreeFirst?: boolean;
+  /** Max cost per document in USD; skip if exceeded */
+  maxCostPerDocument?: number;
 }
 
 // ── Image Quality ───────────────────────────────────────────────────────────
