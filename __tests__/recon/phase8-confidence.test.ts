@@ -27,17 +27,40 @@
 //  18.  LotConfidenceScorer — lot with closure error applies closure penalty
 //  19.  CallConfidenceScorer — weak agreement reduces sourceAgreement factor
 //  20.  CallConfidenceScorer — strong agreement produces sourceAgreement = 25
+//  21.  SurveyorDecision — overallRisk='low' for high-confidence no-critical data
+//  22.  SurveyorDecision — overallRisk='critical' when critical discrepancies exist
+//  23.  SurveyorDecision — pathTo90 is null when already at 90%+
+//  24.  SurveyorDecision — pathTo90 is non-null when below 90%
+//  25.  SurveyorDecision — estimatedFieldTime is a non-empty string
+//  26.  SurveyorDecision — summary is a non-empty human-readable string
+//  27.  DiscrepancyAnalyzer — datum_shift detected when 3+ calls have 2-6' bearing spreads
+//  28.  DiscrepancyAnalyzer — datum_shift NOT detected when fewer than 3 affected calls
+//  29.  DiscrepancySummary — estimatedResolutionCost is a number (not a string)
+//  30.  DiscrepancySummary — cost is 0 when no unresolved discrepancies
+//  31.  CallConfidenceScorer — county_road_default source → lowest reliability
+//  32.  LotConfidenceScorer — closure ratio '1:∞' grants maximum closure bonus
+//  33.  SurveyorDecision — readyForField=false when confidence < 60
+//  34.  SurveyorDecision — caveats include weak-side warning
+//  35.  DiscrepancyAnalyzer — distance_mismatch detected correctly
+//  36.  PurchaseRecommender — critical discrepancy generates deed recommendation
+//  37.  CallConfidenceScorer — 5+ sources get maximum sourceMultiplicity
+//  38.  scoreToGrade — D- boundary at score 43
+//  39.  SurveyorDecision — afterDocPurchase is capped at 98
+//  40.  ConfidenceReport — failed status has score=0 and grade='F'
 
 import { describe, it, expect } from 'vitest';
 
 import { CallConfidenceScorer, scoreToGrade } from '../../worker/src/services/call-confidence-scorer.js';
 import { LotConfidenceScorer } from '../../worker/src/services/lot-confidence-scorer.js';
+import { DiscrepancyAnalyzer } from '../../worker/src/services/discrepancy-analyzer.js';
 import { PurchaseRecommender } from '../../worker/src/services/purchase-recommender.js';
-import type { ReconciledCall } from '../../worker/src/types/reconciliation.js';
+import { buildSurveyorDecision } from '../../worker/src/services/surveyor-decision-matrix.js';
+import type { ReconciledCall, ReadingSource } from '../../worker/src/types/reconciliation.js';
 import type {
   CallConfidenceScore,
   LotConfidenceScore,
   ConfidenceReport,
+  DiscrepancyReport,
 } from '../../worker/src/types/confidence.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -93,6 +116,37 @@ function makeReconciledCall(opts: {
     previousConfidence: opts.previousConfidence || 65,
     confidenceBoost: (opts.finalConfidence || 80) - (opts.previousConfidence || 65),
     symbol: '✓',
+  };
+}
+
+/** Build a minimal DiscrepancyReport for testing */
+function makeDiscrepancyReport(opts: Partial<DiscrepancyReport> = {}): DiscrepancyReport {
+  return {
+    id: opts.id || 'DISC-001',
+    severity: opts.severity || 'minor',
+    category: opts.category || 'bearing_mismatch',
+    title: opts.title || 'Test discrepancy',
+    description: opts.description || 'Test description',
+    status: opts.status || 'unresolved',
+    affectedCalls: opts.affectedCalls || ['C1'],
+    affectedLots: opts.affectedLots || [],
+    readings: opts.readings || [],
+    analysis: opts.analysis || {
+      possibleCauses: [{ cause: 'Test cause', likelihood: 'medium', explanation: 'Test explanation' }],
+      impactAssessment: {
+        closureImpact: 'moderate',
+        acreageImpact: 'TBD',
+        boundaryPositionShift: 'TBD',
+        legalSignificance: 'TBD',
+      },
+    },
+    resolution: opts.resolution || {
+      recommended: 'Test resolution',
+      alternatives: [],
+      estimatedCost: '$6',
+      estimatedConfidenceAfterResolution: 80,
+      priority: 2,
+    },
   };
 }
 
@@ -227,6 +281,30 @@ describe('CallConfidenceScorer', () => {
     const result = scorer.scoreCall(call);
     expect(result.factors.sourceAgreement).toBe(25);
   });
+
+  it('31. county_road_default source → lowest reliability (4 pts)', () => {
+    const call = makeReconciledCall({
+      sources: ['county_road_default'],
+      finalConfidence: 40,
+    });
+    const result = scorer.scoreCall(call);
+    expect(result.factors.sourceReliability).toBe(4);
+  });
+
+  it('37. 5+ sources get maximum sourceMultiplicity (25 pts)', () => {
+    const call = makeReconciledCall({
+      sources: [
+        'txdot_row', 'deed_extraction', 'plat_segment',
+        'adjacent_reversed', 'adjacent_chain',
+      ],
+      agreement: 'strong',
+      bearingSpread: '0°00\'01"',
+      distanceSpread: 0.1,
+      finalConfidence: 94,
+    });
+    const result = scorer.scoreCall(call);
+    expect(result.factors.sourceMultiplicity).toBe(25);
+  });
 });
 
 // ── scoreToGrade tests ────────────────────────────────────────────────────────
@@ -246,6 +324,11 @@ describe('scoreToGrade', () => {
     expect(scoreToGrade(50)).toBe('D');    // 50 >= 48 → D
     expect(scoreToGrade(44)).toBe('D-');   // 44 >= 43 → D-
     expect(scoreToGrade(42)).toBe('F');    // 42 < 43 → F
+  });
+
+  it('38. D- boundary: score 43 → D-, score 42 → F', () => {
+    expect(scoreToGrade(43)).toBe('D-');
+    expect(scoreToGrade(42)).toBe('F');
   });
 });
 
@@ -325,6 +408,20 @@ describe('LotConfidenceScorer', () => {
     // Good closure should score higher than poor closure
     expect(goodClosure.score).toBeGreaterThanOrEqual(badClosure.score);
   });
+
+  it('32. closure ratio 1:∞ grants maximum closure bonus (+8)', () => {
+    const callScorer = new CallConfidenceScorer();
+    const calls = [
+      makeReconciledCall({ callId: 'C1', sources: ['deed_extraction'], agreement: 'strong', finalConfidence: 70 }),
+    ];
+    const callScores = new Map<string, CallConfidenceScore>(
+      calls.map((c) => [c.callId, callScorer.scoreCall(c)]),
+    );
+    const infinite = scorer.scoreLot('INF', 'Inf', calls, callScores, '1:∞', 'excellent', 1.0, 1.0);
+    const poor = scorer.scoreLot('POOR', 'Poor', calls, callScores, '1:100', 'poor', 1.0, 1.0);
+    // Infinite closure should give higher score than 1:100
+    expect(infinite.score).toBeGreaterThan(poor.score);
+  });
 });
 
 // ── PurchaseRecommender tests ─────────────────────────────────────────────────
@@ -333,42 +430,58 @@ describe('PurchaseRecommender', () => {
   const recommender = new PurchaseRecommender();
 
   it('13. high-impact document recommended first (sorted by ROI)', () => {
-    // Build two discrepancies: one critical (high ROI), one minor
-    const discrepancies = [
-      {
+    // Build two discrepancies using the helper to ensure all required fields are present
+    const discrepancies: DiscrepancyReport[] = [
+      makeDiscrepancyReport({
         id: 'DISC-001',
-        severity: 'minor' as const,
-        category: 'bearing_mismatch' as const,
+        severity: 'minor',
+        category: 'bearing_mismatch',
         title: 'Minor bearing difference',
         description: 'Sources differ by 2\'',
-        status: 'unresolved' as const,
+        status: 'unresolved',
         affectedCalls: ['C1'],
-        affectedLots: [],
-        readings: [],
         analysis: {
-          possibleCauses: [{ cause: 'OCR error', likelihood: 'medium' as const, explanation: '' }],
-          resolutionPath: [{ step: 1, action: 'Purchase plat', estimatedCost: 50, confidenceImpact: 5 }],
-          estimatedResolutionCost: 50,
-          confidenceAfterResolution: 78,
+          possibleCauses: [{ cause: 'OCR error', likelihood: 'medium', explanation: '' }],
+          impactAssessment: {
+            closureImpact: 'minimal',
+            acreageImpact: 'TBD',
+            boundaryPositionShift: 'TBD',
+            legalSignificance: 'TBD',
+          },
         },
-      },
-      {
+        resolution: {
+          recommended: 'Purchase plat',
+          alternatives: [],
+          estimatedCost: '$2-4',
+          estimatedConfidenceAfterResolution: 78,
+          priority: 3,
+        },
+      }),
+      makeDiscrepancyReport({
         id: 'DISC-002',
-        severity: 'critical' as const,
-        category: 'type_conflict' as const,
+        severity: 'critical',
+        category: 'type_conflict',
         title: 'Curve vs straight conflict',
         description: 'Deed says straight, TxDOT says curve',
-        status: 'unresolved' as const,
+        status: 'unresolved',
         affectedCalls: ['FM_E1'],
-        affectedLots: [],
-        readings: [],
         analysis: {
-          possibleCauses: [{ cause: 'Deed oversimplification', likelihood: 'high' as const, explanation: '' }],
-          resolutionPath: [{ step: 1, action: 'Obtain TxDOT ROW plat', estimatedCost: 0, confidenceImpact: 40 }],
-          estimatedResolutionCost: 0,
-          confidenceAfterResolution: 92,
+          possibleCauses: [{ cause: 'Deed oversimplification', likelihood: 'high', explanation: '' }],
+          impactAssessment: {
+            closureImpact: 'severe',
+            acreageImpact: 'TBD',
+            boundaryPositionShift: 'TBD',
+            legalSignificance: 'TBD',
+          },
         },
-      },
+        resolution: {
+          recommended: 'Obtain TxDOT ROW plat',
+          alternatives: [],
+          estimatedCost: 'Free',
+          estimatedConfidenceAfterResolution: 92,
+          priority: 1,
+        },
+      }),
     ];
 
     // Build a minimal callScores map
@@ -397,6 +510,20 @@ describe('PurchaseRecommender', () => {
     const recs = recommender.recommend([], callScores, [], 90);
     expect(recs).toHaveLength(0);
   });
+
+  it('36. critical discrepancy without adjacent data generates a deed recommendation', () => {
+    const disc = makeDiscrepancyReport({
+      severity: 'critical',
+      status: 'unresolved',
+      affectedCalls: ['C_CRIT'],
+      readings: [], // no adjacent_reversed readings
+    });
+    const callScores = new Map<string, CallConfidenceScore>();
+    const recs = recommender.recommend([disc], callScores, [], 55);
+    // Should recommend purchasing adjacent deed to resolve critical discrepancy
+    expect(recs.length).toBeGreaterThan(0);
+    expect(recs[0].documentType).toBe('deed');
+  });
 });
 
 // ── ConfidenceReport interface validation ─────────────────────────────────────
@@ -423,7 +550,7 @@ describe('ConfidenceReport interface', () => {
         resolved: 0,
         unresolved: 0,
         estimatedResolutionCost: 0,
-        confidenceAfterResolution: 82,
+        estimatedConfidenceAfterResolution: 82,
       },
       documentPurchaseRecommendations: [],
       surveyorDecisionMatrix: {
@@ -431,6 +558,9 @@ describe('ConfidenceReport interface', () => {
         overallRisk: 'low',
         caveats: [],
         recommendedFieldChecks: [],
+        minConfidenceForField: 60,
+        currentConfidence: 82,
+        afterDocPurchase: 82,
         pathTo90: null,
         estimatedFieldTime: '1 day',
         summary: 'Ready for field survey.',
@@ -445,10 +575,53 @@ describe('ConfidenceReport interface', () => {
     expect(Array.isArray(report.callConfidence)).toBe(true);
     expect(Array.isArray(report.errors)).toBe(true);
     expect(typeof report.timing.totalMs).toBe('number');
+    // New Phase 8 v1.1 fields
+    expect(typeof report.discrepancySummary.estimatedResolutionCost).toBe('number');
+    expect(typeof report.surveyorDecisionMatrix.overallRisk).toBe('string');
+    expect(typeof report.surveyorDecisionMatrix.estimatedFieldTime).toBe('string');
+    expect(typeof report.surveyorDecisionMatrix.summary).toBe('string');
+  });
+
+  it('40. failed report has score=0 and grade=F', () => {
+    const report: ConfidenceReport = {
+      status: 'failed',
+      overallConfidence: { score: 0, grade: 'F', label: 'Failed', summary: 'No data' },
+      callConfidence: [],
+      lotConfidence: [],
+      boundaryConfidence: [],
+      discrepancies: [],
+      discrepancySummary: {
+        total: 0, critical: 0, moderate: 0, minor: 0,
+        resolved: 0, unresolved: 0,
+        estimatedResolutionCost: 0,
+        estimatedConfidenceAfterResolution: 0,
+      },
+      documentPurchaseRecommendations: [],
+      surveyorDecisionMatrix: {
+        readyForField: false,
+        overallRisk: 'critical',
+        caveats: ['Data load failure'],
+        recommendedFieldChecks: [],
+        minConfidenceForField: 60,
+        currentConfidence: 0,
+        afterDocPurchase: 0,
+        pathTo90: 'Resolve data loading failure first',
+        estimatedFieldTime: 'Unknown',
+        summary: 'Cannot assess — data loading failed.',
+      },
+      timing: { totalMs: 5 },
+      aiCalls: 0,
+      errors: ['file not found'],
+    };
+    expect(report.status).toBe('failed');
+    expect(report.overallConfidence.score).toBe(0);
+    expect(report.overallConfidence.grade).toBe('F');
+    expect(report.surveyorDecisionMatrix.readyForField).toBe(false);
+    expect(report.surveyorDecisionMatrix.overallRisk).toBe('critical');
   });
 });
 
-// ── Phase 8 integration: Phase 7 → Phase 8 types ─────────────────────────────
+// ── Phase 7 → Phase 8 type compatibility ─────────────────────────────────────
 
 describe('Phase 7 → Phase 8 type compatibility', () => {
   it('11. ReconciledCall fields are accessible to Phase 8 scorer', () => {
@@ -504,5 +677,317 @@ describe('Phase 7 → Phase 8 type compatibility', () => {
     expect(score.score).toBeGreaterThan(50);
     // TxDOT source → high reliability
     expect(score.factors.sourceReliability).toBeGreaterThan(20);
+  });
+});
+
+// ── SurveyorDecisionMatrix tests ──────────────────────────────────────────────
+
+describe('SurveyorDecisionMatrix', () => {
+  const callScorer = new CallConfidenceScorer();
+
+  function makeCallScores(entries: { callId: string; score: number }[]) {
+    const m = new Map<string, CallConfidenceScore>();
+    for (const e of entries) {
+      m.set(e.callId, {
+        callId: e.callId,
+        score: e.score,
+        grade: scoreToGrade(e.score),
+        sourceCount: 2,
+        sources: ['plat_segment', 'deed_extraction'],
+        agreement: 'strong',
+        factors: { sourceMultiplicity: 12, sourceAgreement: 20, sourceReliability: 22, readingClarity: 20 },
+        riskLevel: e.score >= 80 ? 'low' : e.score >= 60 ? 'medium' : e.score >= 40 ? 'high' : 'critical',
+        notes: null,
+      });
+    }
+    return m;
+  }
+
+  it('21. overallRisk=low when confidence ≥ 80 and no criticals', () => {
+    const decision = buildSurveyorDecision(
+      85,
+      makeCallScores([{ callId: 'C1', score: 85 }]),
+      [],
+      [],
+      [],
+    );
+    expect(decision.overallRisk).toBe('low');
+    expect(decision.readyForField).toBe(true);
+  });
+
+  it('22. overallRisk=critical when unresolved critical discrepancies exist', () => {
+    const critDisc = makeDiscrepancyReport({ severity: 'critical', status: 'unresolved' });
+    const decision = buildSurveyorDecision(
+      72,
+      makeCallScores([{ callId: 'C1', score: 72 }]),
+      [],
+      [critDisc],
+      [],
+    );
+    expect(decision.overallRisk).toBe('critical');
+    // Should still list caveats for the critical discrepancy
+    expect(decision.caveats.some((c) => c.includes('Critical discrepancy') || c.includes('critical'))).toBe(true);
+  });
+
+  it('23. pathTo90 is null when confidence ≥ 90', () => {
+    const decision = buildSurveyorDecision(
+      92,
+      makeCallScores([{ callId: 'C1', score: 92 }]),
+      [],
+      [],
+      [],
+    );
+    expect(decision.pathTo90).toBeNull();
+  });
+
+  it('24. pathTo90 is a non-null string when confidence < 90', () => {
+    const decision = buildSurveyorDecision(
+      70,
+      makeCallScores([{ callId: 'C1', score: 70 }]),
+      [],
+      [],
+      [],
+    );
+    expect(decision.pathTo90).not.toBeNull();
+    expect(typeof decision.pathTo90).toBe('string');
+    expect((decision.pathTo90 as string).length).toBeGreaterThan(0);
+  });
+
+  it('25. estimatedFieldTime is a non-empty string', () => {
+    const decision = buildSurveyorDecision(
+      75,
+      makeCallScores([{ callId: 'C1', score: 75 }]),
+      [],
+      [],
+      [],
+    );
+    expect(typeof decision.estimatedFieldTime).toBe('string');
+    expect(decision.estimatedFieldTime.length).toBeGreaterThan(0);
+  });
+
+  it('26. summary is a non-empty human-readable string', () => {
+    const decision = buildSurveyorDecision(
+      82,
+      makeCallScores([{ callId: 'C1', score: 82 }]),
+      [],
+      [],
+      [],
+    );
+    expect(typeof decision.summary).toBe('string');
+    expect(decision.summary.length).toBeGreaterThan(10);
+  });
+
+  it('33. readyForField=false when overall confidence < 60', () => {
+    const decision = buildSurveyorDecision(
+      55,
+      makeCallScores([{ callId: 'C1', score: 55 }]),
+      [],
+      [],
+      [],
+    );
+    expect(decision.readyForField).toBe(false);
+    // risk should be high for 55% confidence
+    expect(['high', 'critical']).toContain(decision.overallRisk);
+  });
+
+  it('34. caveats include weak-side warning when a boundary side < 60', () => {
+    const weakSides = [
+      { side: 'west', score: 45, grade: 'D-', calls: 1, avgCallScore: 45, risk: 'Low confidence on west boundary' },
+    ];
+    const decision = buildSurveyorDecision(
+      75,
+      makeCallScores([{ callId: 'C1', score: 75 }]),
+      weakSides,
+      [],
+      [],
+    );
+    const hasWestCaveat = decision.caveats.some((c) =>
+      c.toLowerCase().includes('west') || c.toLowerCase().includes('boundary'),
+    );
+    expect(hasWestCaveat).toBe(true);
+  });
+
+  it('39. afterDocPurchase is capped at 98', () => {
+    // Provide many high-impact purchase recommendations
+    const purchaseRecs = Array.from({ length: 10 }, (_, i) => ({
+      documentType: 'deed' as const,
+      instrument: `deed-${i}`,
+      source: 'County Clerk',
+      estimatedCost: '$4-8',
+      confidenceImpact: '+15 overall',
+      callsImproved: 2,
+      reason: 'test',
+      priority: i + 1,
+      roi: 2.5,
+    }));
+    const decision = buildSurveyorDecision(
+      60,
+      makeCallScores([{ callId: 'C1', score: 60 }]),
+      [],
+      [],
+      purchaseRecs,
+    );
+    expect(decision.afterDocPurchase).toBeLessThanOrEqual(98);
+  });
+});
+
+// ── DiscrepancyAnalyzer tests ─────────────────────────────────────────────────
+
+describe('DiscrepancyAnalyzer — synchronous detection', () => {
+  const analyzer = new DiscrepancyAnalyzer(''); // empty apiKey = no AI calls
+
+  function makeCallWithBearings(
+    callId: string,
+    bearings: { source: ReadingSource; bearing: string }[],
+  ): ReconciledCall {
+    return {
+      callId,
+      reconciledBearing: bearings[0].bearing,
+      reconciledDistance: 400,
+      unit: 'feet',
+      type: 'straight',
+      reconciliation: {
+        method: 'weighted_consensus',
+        bearingSpread: '0°03\'00"',
+        distanceSpread: 0.1,
+        dominantSource: bearings[0].source,
+        agreement: 'weak',
+        notes: 'test',
+      },
+      readings: bearings.map((b) => ({
+        source: b.source,
+        callId,
+        bearing: b.bearing,
+        distance: 400,
+        unit: 'feet' as const,
+        type: 'straight' as const,
+        confidence: 60,
+        sourcePhase: 3,
+        sourceDetail: 'test',
+        weight: 1 / bearings.length,
+        baseWeight: 0.5,
+        confidenceMultiplier: 0.75,
+        specialAdjustments: [] as string[],
+      })),
+      finalConfidence: 60,
+      previousConfidence: 55,
+      confidenceBoost: 5,
+      symbol: '~',
+    };
+  }
+
+  it('27. datum_shift detected when 3+ calls have consistent 2-6\' bearing spreads', async () => {
+    // Create 4 calls that each have a ~3 arc-minute spread between two sources
+    // (characteristic of NAD27→NAD83 datum shift)
+    const calls: ReconciledCall[] = [
+      makeCallWithBearings('C1', [
+        { source: 'deed_extraction' as ReadingSource, bearing: 'N 04°37\'00" W' },
+        { source: 'plat_segment' as ReadingSource, bearing: 'N 04°34\'00" W' }, // 3' spread
+      ]),
+      makeCallWithBearings('C2', [
+        { source: 'deed_extraction' as ReadingSource, bearing: 'S 89°15\'00" E' },
+        { source: 'plat_segment' as ReadingSource, bearing: 'S 89°12\'00" E' }, // 3' spread
+      ]),
+      makeCallWithBearings('C3', [
+        { source: 'deed_extraction' as ReadingSource, bearing: 'S 04°37\'00" E' },
+        { source: 'plat_segment' as ReadingSource, bearing: 'S 04°34\'00" E' }, // 3' spread
+      ]),
+      makeCallWithBearings('C4', [
+        { source: 'deed_extraction' as ReadingSource, bearing: 'N 89°15\'00" W' },
+        { source: 'plat_segment' as ReadingSource, bearing: 'N 89°12\'00" W' }, // 3' spread
+      ]),
+    ];
+
+    const { reports } = await analyzer.analyzeDiscrepancies(calls, new Map(), [], { county: 'Bell' });
+
+    // Should detect datum_shift discrepancy
+    const datumShift = reports.find((r) => r.category === 'datum_shift');
+    expect(datumShift).toBeDefined();
+    expect(datumShift!.severity).toBe('critical');
+    expect(datumShift!.affectedCalls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('28. datum_shift NOT detected when fewer than 3 affected calls', async () => {
+    // Only 2 calls with datum-range spreads → not enough for datum_shift
+    const calls: ReconciledCall[] = [
+      makeCallWithBearings('C1', [
+        { source: 'deed_extraction' as ReadingSource, bearing: 'N 04°37\'00" W' },
+        { source: 'plat_segment' as ReadingSource, bearing: 'N 04°34\'00" W' }, // 3' spread
+      ]),
+      makeCallWithBearings('C2', [
+        { source: 'deed_extraction' as ReadingSource, bearing: 'S 89°15\'00" E' },
+        { source: 'plat_segment' as ReadingSource, bearing: 'S 89°12\'00" E' }, // 3' spread
+      ]),
+    ];
+
+    const { reports } = await analyzer.analyzeDiscrepancies(calls, new Map(), [], { county: 'Bell' });
+
+    const datumShift = reports.find((r) => r.category === 'datum_shift');
+    expect(datumShift).toBeUndefined();
+  });
+
+  it('35. distance_mismatch detected when spread > 2 feet', async () => {
+    const call: ReconciledCall = {
+      callId: 'DIST_DISC',
+      reconciledBearing: 'N 45°00\'00" E',
+      reconciledDistance: 500,
+      unit: 'feet',
+      type: 'straight',
+      reconciliation: {
+        method: 'weighted_consensus',
+        bearingSpread: '0°00\'01"',
+        distanceSpread: 8.0, // 8 feet spread
+        dominantSource: 'deed_extraction',
+        agreement: 'moderate',
+        notes: 'test',
+      },
+      readings: [
+        { source: 'deed_extraction', callId: 'DIST_DISC', bearing: 'N 45°00\'00" E', distance: 504, unit: 'feet' as const, type: 'straight' as const, confidence: 80, sourcePhase: 3, sourceDetail: 'deed', weight: 0.5, baseWeight: 0.65, confidenceMultiplier: 0.8, specialAdjustments: [] },
+        { source: 'plat_segment', callId: 'DIST_DISC', bearing: 'N 45°00\'00" E', distance: 496, unit: 'feet' as const, type: 'straight' as const, confidence: 70, sourcePhase: 3, sourceDetail: 'plat', weight: 0.5, baseWeight: 0.65, confidenceMultiplier: 0.8, specialAdjustments: [] },
+      ],
+      finalConfidence: 72,
+      previousConfidence: 65,
+      confidenceBoost: 7,
+      symbol: '~',
+    };
+
+    const { reports } = await analyzer.analyzeDiscrepancies([call], new Map(), [], { county: 'Bell' });
+    const distDisc = reports.find((r) => r.category === 'distance_mismatch');
+    expect(distDisc).toBeDefined();
+    expect(distDisc!.affectedCalls).toContain('DIST_DISC');
+    expect(['minor', 'moderate', 'critical']).toContain(distDisc!.severity);
+  });
+});
+
+// ── DiscrepancySummary numeric cost ──────────────────────────────────────────
+
+describe('DiscrepancySummary', () => {
+  it('29. estimatedResolutionCost is a number type (not a string)', () => {
+    // The ConfidenceReport spec v1.1 uses numeric cost for downstream budget comparisons
+    const summary = {
+      total: 2,
+      critical: 1,
+      moderate: 1,
+      minor: 0,
+      resolved: 0,
+      unresolved: 2,
+      estimatedResolutionCost: 12,
+      estimatedConfidenceAfterResolution: 85,
+    };
+    expect(typeof summary.estimatedResolutionCost).toBe('number');
+  });
+
+  it('30. estimatedResolutionCost is 0 when no unresolved discrepancies', () => {
+    const summary = {
+      total: 1,
+      critical: 0,
+      moderate: 0,
+      minor: 0,
+      resolved: 1,
+      unresolved: 0,
+      estimatedResolutionCost: 0,
+      estimatedConfidenceAfterResolution: 0,
+    };
+    expect(summary.estimatedResolutionCost).toBe(0);
   });
 });

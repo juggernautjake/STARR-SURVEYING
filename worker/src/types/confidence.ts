@@ -124,7 +124,8 @@ export interface DiscrepancySummary {
   minor: number;
   resolved: number;
   unresolved: number;
-  estimatedResolutionCost: string;
+  /** Numeric estimated cost in USD (low-end estimate). Use 0 when no purchases needed. */
+  estimatedResolutionCost: number;
   estimatedConfidenceAfterResolution: number;
 }
 
@@ -146,11 +147,22 @@ export interface PurchaseRecommendation {
 
 export interface SurveyorDecision {
   readyForField: boolean;
+  /** Aggregate risk level based on overall confidence and unresolved criticals. */
+  overallRisk: 'low' | 'medium' | 'high' | 'critical';
   caveats: string[];
   recommendedFieldChecks: { location: string; reason: string }[];
   minConfidenceForField: number;
   currentConfidence: number;
   afterDocPurchase: number;
+  /**
+   * Ordered action list to reach 90%+ confidence.
+   * null when already at 90%+.
+   */
+  pathTo90: string | null;
+  /** Rough estimate of field time required (e.g. "1 day", "2-3 days"). */
+  estimatedFieldTime: string;
+  /** Human-readable one-paragraph summary of the overall decision. */
+  summary: string;
 }
 
 // ── Final ConfidenceReport (the Phase 8 deliverable) ─────────────────────────
