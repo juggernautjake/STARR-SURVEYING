@@ -183,5 +183,9 @@ export function validateAndMigrateDocument(raw: unknown): DrawingDocument {
       ? (r.projectImages as DrawingDocument['projectImages'])
       : {},
     settings: settings as DrawingDocument['settings'],
+    // Back-fill feature groups (added after initial release)
+    featureGroups: (r.featureGroups && typeof r.featureGroups === 'object' && !Array.isArray(r.featureGroups))
+      ? (r.featureGroups as DrawingDocument['featureGroups'])
+      : {},
   };
 }
