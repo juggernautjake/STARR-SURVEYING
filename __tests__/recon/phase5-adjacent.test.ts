@@ -45,7 +45,7 @@ import { AdjacentQueueBuilder } from '../../worker/src/services/adjacent-queue-b
 import { CrossValidationEngine } from '../../worker/src/services/cross-validation-engine.js';
 import type { AdjacentResearchResult } from '../../worker/src/services/adjacent-research-worker.js';
 import type { CrossValidationResult } from '../../worker/src/services/cross-validation-engine.js';
-import type { PropertyIntelligence } from '../../worker/src/models/property-intelligence.js';
+import type { PropertyIntelligence, P3BoundaryCall } from '../../worker/src/models/property-intelligence.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -60,8 +60,21 @@ function makeIntelligence(overrides: Partial<PropertyIntelligence> = {}): Proper
 }
 
 /** Build a P3BoundaryCall-compatible object */
-function makeP3Call(callId: string, bearing: string, distance: number, along?: string) {
-  return { callId, bearing, distance, along: along ?? null, type: 'straight' as const };
+function makeP3Call(callId: string, bearing: string, distance: number, along?: string): P3BoundaryCall {
+  return {
+    callId,
+    sequenceNumber: 1,
+    bearing,
+    distance,
+    unit: 'feet',
+    along,
+    type: 'straight',
+    confidence: 50,
+    confidenceSymbol: '?',
+    sources: [],
+    allReadings: [],
+    bestReading: `${bearing} ${distance}ft`,
+  };
 }
 
 /** Build an AdjacentBoundaryCall-compatible object */

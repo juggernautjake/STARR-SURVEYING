@@ -234,7 +234,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     parsedUserFiles = [];
     for (const file of userFiles) {
       if (file && typeof file === 'object' && 'filename' in file && 'data' in file) {
-        const f = file as Record<string, unknown>;
+        // `file` is narrowed from `unknown` via property guards above; the
+        // double-cast to Record<string, unknown> lets us safely read arbitrary
+        // keys before constructing the typed UserFile below.
+        const f = file as unknown as Record<string, unknown>;
         parsedUserFiles.push({
           filename: String(f.filename),
           mimeType: String(f.mimeType ?? 'application/octet-stream'),
@@ -1486,7 +1489,7 @@ app.post(
 
     try {
       const client = new FEMANFHLClient();
-      const result = await client.queryFloodZones({ centroid, polygon });
+      const result = await client.queryFloodZones({ centroid: centroid as [number, number], polygon });
 
       // Save to project directory
       const outDir = path.join(ANALYSIS_DIR, projectId);
