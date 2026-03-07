@@ -1607,8 +1607,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     authTxt.position.set(sigLineX1, authLabelY);
 
     // ── Date write-in line ──────────────────────────────────────────────────
-    // Sits at ~88% of the box height, giving clear space below the sig line
-    const dateLineY  = sigTop + sigBoxH * 0.88;
+    // Sits at ~82% of the box height, giving clear space below the sig line
+    const dateLineY  = sigTop + sigBoxH * 0.82;
     sigg.lineStyle(1, 0x000000, 1);
     sigg.moveTo(sigLineX1, dateLineY);
     sigg.lineTo(sigLineX2, dateLineY);
