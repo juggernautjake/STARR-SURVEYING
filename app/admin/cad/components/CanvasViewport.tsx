@@ -1251,9 +1251,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const innerGapIn = 0.20;                              // gap between bottom-band elements
     const tbWIn      = Math.min(5.5, pw * 0.47);         // title block width
     const tbHIn      = Math.min(2.2, tbWIn * 0.42);      // title block height
-    // Signature block spans from left margin almost to the title block left edge.
+    // Signature block: fixed width independent of title block position.
     const marginIn   = 0.1;                               // page margin in paper-inches
-    const sigBoxWIn  = Math.max(3.5, pw - 2 * marginIn - innerGapIn - tbWIn);
+    const sigBoxWIn  = 4.5;                               // fixed 4.5" — plenty of room for a signature
     const sigBoxHIn  = Math.min(1.8, ph * 0.16);          // signature box height
     const naRadiusPx = (tb.northArrowSizeIn ?? 1.5) * inchToPx * 0.44; // star radius in screen px
     // Vertical distance from star center to top of the N label
@@ -1547,10 +1547,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     sigg.moveTo(sigLeft + sealColW, sigTop);
     sigg.lineTo(sigLeft + sealColW, sigTop + sigBoxH);
 
-    // Signature line in right column at ~52% height – leaves top half open for the actual signature
+    // Signature line in right column at ~40% height – leaves more room above for the actual signature
+    // and more space below for the date write-in area
     const sigLineX1 = sigLeft + sealColW + 8;
     const sigLineX2 = sigLeft + sigBoxW  - 8;
-    const sigLineY  = sigTop  + sigBoxH  * 0.52;
+    const sigLineY  = sigTop  + sigBoxH  * 0.40;
     sigg.lineStyle(1, 0x000000, 1);
     sigg.moveTo(sigLineX1, sigLineY);
     sigg.lineTo(sigLineX2, sigLineY);
@@ -1606,8 +1607,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     authTxt.position.set(sigLineX1, authLabelY);
 
     // ── Date write-in line ──────────────────────────────────────────────────
-    // Sits at ~80% of the box height, giving clear space below the sig line
-    const dateLineY  = sigTop + sigBoxH * 0.80;
+    // Sits at ~88% of the box height, giving clear space below the sig line
+    const dateLineY  = sigTop + sigBoxH * 0.88;
     sigg.lineStyle(1, 0x000000, 1);
     sigg.moveTo(sigLineX1, dateLineY);
     sigg.lineTo(sigLineX2, dateLineY);
