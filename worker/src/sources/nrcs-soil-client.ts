@@ -30,6 +30,10 @@ export class NRCSSoilClient {
   }): Promise<SoilResult> {
     const { centroid, polygon } = params;
 
+    // Validate centroid — reject values that are NaN, out of WGS84 range, or
+    // that could inject unexpected characters into the WKT query string.
+    this.validateCoordinates(centroid, polygon);
+
     // Step 1: Get map unit keys at the location
     const mapUnitKeys = await this.getMapUnitKeys(centroid, polygon);
 
@@ -226,6 +230,53 @@ export class NRCSSoilClient {
   }
 
   // ── Normalization Helpers ───────────────────────────────────────────────
+
+  /**
+   * Validate centroid and polygon coordinates before inserting them into
+   * WKT query strings.  Throws on invalid input so that the error surfaces
+   * early with a clear message rather than producing a corrupt query.
+   */
+  private validateCoordinates(
+    centroid: [number, number],
+    polygon?: number[][],
+  ): void {
+    const [lon, lat] = centroid;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      throw new Error(
+        `[NRCS] Invalid centroid: coordinates must be finite numbers (got ${lon}, ${lat})`,
+      );
+    }
+    if (lon < -180 || lon > 180) {
+      throw new Error(
+        `[NRCS] Centroid longitude out of range: ${lon} (must be -180 to 180)`,
+      );
+    }
+    if (lat < -90 || lat > 90) {
+      throw new Error(
+        `[NRCS] Centroid latitude out of range: ${lat} (must be -90 to 90)`,
+      );
+    }
+    if (polygon) {
+      if (polygon.length < 3) {
+        throw new Error(
+          `[NRCS] Polygon must have at least 3 coordinate pairs (got ${polygon.length})`,
+        );
+      }
+      for (let i = 0; i < polygon.length; i++) {
+        const [pLon, pLat] = polygon[i];
+        if (!Number.isFinite(pLon) || !Number.isFinite(pLat)) {
+          throw new Error(
+            `[NRCS] Polygon coordinate [${i}] contains non-finite values`,
+          );
+        }
+        if (pLon < -180 || pLon > 180 || pLat < -90 || pLat > 90) {
+          throw new Error(
+            `[NRCS] Polygon coordinate [${i}] (${pLon}, ${pLat}) is out of WGS84 range`,
+          );
+        }
+      }
+    }
+  }
 
   private normalizeHydGroup(
     group: string | null,
