@@ -1,8 +1,13 @@
 // worker/src/reports/png-rasterizer.ts — Phase 10 Module 2
 // Converts SVG boundary drawings to high-resolution PNG rasters.
-// Uses resvg-js (preferred), falling back to rsvg-convert or Inkscape CLI.
+// Uses resvg-js (preferred), falling back to rsvg-convert, Inkscape CLI,
+// and finally ImageMagick.
 //
 // Spec §10.5 — PNG Rasterization
+//
+// v1.1 fixes:
+//   - Structured console output (prefixed with [PNG]) for searchable log filtering
+//   - extractWidth() exposed internally for testability
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -166,7 +171,8 @@ export class PNGRasterizer {
 
   // ── Helpers ────────────────────────────────────────────────────────────
 
-  private extractWidth(svgContent: string): number {
+  /** Extracts the numeric width value from an SVG string. Returns 1200 if not found. */
+  extractWidth(svgContent: string): number {
     const match = svgContent.match(/width="(\d+)"/);
     return match ? parseInt(match[1]) : 1200;
   }
