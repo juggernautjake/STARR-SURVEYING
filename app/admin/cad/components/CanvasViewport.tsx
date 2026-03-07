@@ -1148,8 +1148,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const tbWIn      = Math.min(5.5, pw * 0.47);         // title block width
     const tbHIn      = Math.min(2.2, tbWIn * 0.42);      // title block height
     const sigBoxWIn  = Math.min(2.8, pw * 0.27);         // signature box width
-    // Taller sig box so wrapped text fits cleanly at any scale/zoom
-    const sigBoxHIn  = Math.min(1.1, sigBoxWIn * 0.42);  // signature box height
+    // Taller sig box so the RPLS label, seal circle, and authorized-signature line
+    // all have breathing room without overlapping the border.
+    const sigBoxHIn  = Math.min(1.6, sigBoxWIn * 0.60);  // signature box height
     const naRadiusPx = (tb.northArrowSizeIn ?? 1.5) * inchToPx * 0.44; // star radius in screen px
     // Vertical distance from star center to top of the N label
     // (N label center = starCenter - radius*(1+nOffset/radius) ≈ starCenter - radius*1.55)
@@ -1302,8 +1303,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // ────────────────────────────────────────────────────────────────
     const sigBoxW  = sigBoxWIn * inchToPx;
     const sigBoxH  = sigBoxHIn * inchToPx;
-    // Seal column is a square occupying the left portion of the block
-    const sealColW = Math.min(sigBoxH, sigBoxW * 0.30);
+    // Make the seal column a true square: width equals the full box height.
+    const sealColW = sigBoxH;
 
     // ── Resolve position: drag → stored → default bottom-left ──────
     let sigLeft: number;
@@ -1371,9 +1372,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     rplsTxt.position.set(sCx, sCy);
 
     // ── "OFFICIAL SEAL" label — inside seal column, below circle ────
-    // Default position: centered in seal column, just below the circle
+    // Default position: centered in seal column, below the circle but well within the border.
     const officialSealDefaultX = sCx;
-    const officialSealDefaultY = sigTop + sigBoxH * 0.76;
+    const officialSealDefaultY = sigTop + sigBoxH * 0.68;
     let officialSealRenderX: number;
     let officialSealRenderY: number;
     let officialSealIsFloating = false;
@@ -1502,27 +1503,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // NOTE: no separate "NORTH" label — just the N inside drawNorthArrow
 
     // ────────────────────────────────────────────────────────────────
-    // GRAPHIC SCALE BAR  (bottom-center or custom pos)
+    // GRAPHIC SCALE BAR  (default: centered above the title block)
     // ────────────────────────────────────────────────────────────────
     if (tb.scaleBarVisible !== false) {
       const gapPx          = innerGapIn * inchToPx;
       const hasCustomSbPos = !!(drag?.element === 'scaleBar' || tb.scaleBarPos);
 
-      // Compute default left anchor so we can constrain bar length
-      const defaultSbLeft = tl.sx + margin + sigBoxWIn * inchToPx + gapPx;
-      // Available px between sig block right-edge and title block left-edge (minus gap)
+      // Constrain target length to title block width for the default position
       const MIN_SCALE_BAR_WIDTH_IN      = 0.5; // minimum bar width if space is very tight
-      const SCALE_BAR_AVAIL_SPACE_RATIO = 0.95; // use 95% of available — leaves a small breathing gap
-      const availSbPx = Math.max(
-        (br.sx - margin - tbW) - gapPx - defaultSbLeft,
-        MIN_SCALE_BAR_WIDTH_IN * inchToPx,
-      );
+      const SCALE_BAR_AVAIL_SPACE_RATIO = 0.90; // use 90% of title block width
+      const availSbPx = Math.max(tbW * SCALE_BAR_AVAIL_SPACE_RATIO, MIN_SCALE_BAR_WIDTH_IN * inchToPx);
 
       // Constrain target length to available space for default positions
       const userTargetLenIn = tb.scaleBarLengthIn ?? 2.0;
       const effectiveLenIn  = hasCustomSbPos
         ? userTargetLenIn
-        : Math.min(userTargetLenIn, (availSbPx * SCALE_BAR_AVAIL_SPACE_RATIO) / inchToPx);
+        : Math.min(userTargetLenIn, (availSbPx) / inchToPx);
 
       // Find a nice segment length (round number of feet/world units)
       const targetWorldFt = effectiveLenIn * ds;
@@ -1534,7 +1530,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const totalFt   = segFt * numSegs;
       const barLenPx  = (totalFt / ds) * inchToPx;
       const barH      = Math.max(0.12 * inchToPx, 6);
-      const sbTotalH  = barH + Math.max(0.20 * inchToPx, 10) * 2 + 4; // bar + labels above & below
+      const lblAboveH = Math.max(0.20 * inchToPx, 10);
+      const lblBelowH = Math.max(0.22 * inchToPx, 12); // slightly more room below for units label
+      const sbTotalH  = lblAboveH + barH + lblBelowH + 4; // bar + labels above & below
 
       let sbScrLeft: number;
       let sbScrBottom: number;
@@ -1545,12 +1543,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         sbScrLeft   = tl.sx + tb.scaleBarPos.x * inchToPx;
         sbScrBottom = br.sy - tb.scaleBarPos.y * inchToPx;
       } else {
-        sbScrLeft   = defaultSbLeft;
-        sbScrBottom = br.sy - margin;
+        // Default: centered above the title block with a small gap
+        sbScrLeft   = tbScrLeft + (tbW - barLenPx) / 2;
+        sbScrBottom = tbScrTop - gapPx;
       }
 
       const sbScrTop = sbScrBottom - sbTotalH;
-      const barTop   = sbScrTop + Math.max(0.20 * inchToPx, 10) + 4;
+      const barTop   = sbScrTop + lblAboveH + 4;
 
       tbBoundsRef.current.scaleBar = { screenX: sbScrLeft, screenY: sbScrTop, w: barLenPx, h: sbTotalH };
       const sbHovered  = hoveredTBElemRef.current === 'scaleBar';
@@ -1610,11 +1609,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         lbl.position.set(tickX, barTop + barH + tickH + 1);
       }
 
-      // Units label
+      // Units label — placed to the right of the bar on a second line so it
+      // never overlaps the last distance tick label.
       const unitsLbl = mkTBText('FEET', {
         fontFamily: 'Arial', fontSize: lblBelowSz, fill: 0x444444, fontStyle: 'italic',
       });
-      unitsLbl.position.set(sbScrLeft + barLenPx + 4, barTop + barH + tickH + 1);
+      unitsLbl.anchor.set(0, 0);
+      unitsLbl.position.set(sbScrLeft + barLenPx + 6, barTop + barH + tickH + 1);
     }
   }
 
@@ -3007,19 +3008,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       .map((f) => f.id);
 
     // Group expansion: when CROSSING_EXPAND_GROUPS, expand selection to include
-    // all members of any polyline/polygon group that has at least one selected member
+    // all members of any polyline/polygon group OR feature group that has at least one selected member
     if (mode === 'CROSSING_EXPAND_GROUPS' && matchedIds.length > 0) {
-      const groupIds = new Set<string>();
+      const polylineGroupIds = new Set<string>();
+      const featureGroupIds  = new Set<string>();
       for (const id of matchedIds) {
         const f = drawingStore.getFeature(id);
-        const gid = f?.properties?.polylineGroupId as string | undefined;
-        if (gid) groupIds.add(gid);
+        const pgid = f?.properties?.polylineGroupId as string | undefined;
+        if (pgid) polylineGroupIds.add(pgid);
+        if (f?.featureGroupId) featureGroupIds.add(f.featureGroupId);
       }
-      if (groupIds.size > 0) {
+      if (polylineGroupIds.size > 0 || featureGroupIds.size > 0) {
         const expanded = new Set(matchedIds);
         for (const f of drawingStore.getVisibleFeatures()) {
-          const gid = f.properties?.polylineGroupId as string | undefined;
-          if (gid && groupIds.has(gid)) {
+          const pgid = f.properties?.polylineGroupId as string | undefined;
+          if (pgid && polylineGroupIds.has(pgid)) {
+            const layer = drawingStore.getLayer(f.layerId);
+            if (!layer?.locked) expanded.add(f.id);
+          }
+          if (f.featureGroupId && featureGroupIds.has(f.featureGroupId)) {
             const layer = drawingStore.getLayer(f.layerId);
             if (!layer?.locked) expanded.add(f.id);
           }
@@ -3031,28 +3038,38 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // WINDOW_FULL_ONLY: also expand to full groups, but only if ALL group members are enclosed
     if (mode === 'WINDOW_FULL_ONLY' && matchedIds.length > 0) {
       const matchedSet = new Set(matchedIds);
-      const groupIds = new Set<string>();
+      const polylineGroupIds = new Set<string>();
+      const featureGroupIds  = new Set<string>();
       for (const id of matchedIds) {
         const f = drawingStore.getFeature(id);
-        const gid = f?.properties?.polylineGroupId as string | undefined;
-        if (gid) groupIds.add(gid);
+        const pgid = f?.properties?.polylineGroupId as string | undefined;
+        if (pgid) polylineGroupIds.add(pgid);
+        if (f?.featureGroupId) featureGroupIds.add(f.featureGroupId);
       }
-      // For each group, check if ALL members are in the box — if not, remove partial group members
-      if (groupIds.size > 0) {
-        for (const gid of groupIds) {
+      // For each polyline group, check if ALL members are in the box
+      if (polylineGroupIds.size > 0) {
+        for (const gid of polylineGroupIds) {
           const groupMembers = drawingStore.getVisibleFeatures().filter(
             (f) => f.properties?.polylineGroupId === gid
           );
           const allInBox = groupMembers.every((f) => matchedSet.has(f.id));
           if (!allInBox) {
-            // Remove partial group members from selection
-            for (const f of groupMembers) {
-              matchedSet.delete(f.id);
-            }
+            for (const f of groupMembers) matchedSet.delete(f.id);
           }
         }
-        return Array.from(matchedSet);
       }
+      // For each feature group, check if ALL members are in the box
+      if (featureGroupIds.size > 0) {
+        for (const gid of featureGroupIds) {
+          const group = drawingStore.getFeatureGroup(gid);
+          const groupMembers = (group?.featureIds ?? []).map((id) => drawingStore.getFeature(id)).filter(Boolean) as Feature[];
+          const allInBox = groupMembers.every((f) => matchedSet.has(f.id));
+          if (!allInBox) {
+            for (const f of groupMembers) matchedSet.delete(f.id);
+          }
+        }
+      }
+      if (polylineGroupIds.size > 0 || featureGroupIds.size > 0) return Array.from(matchedSet);
     }
 
     return matchedIds;
@@ -3636,16 +3653,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           if (hit) {
             clickHitFeatureRef.current = true;
             const hitFeature = drawingStore.getFeature(hit);
-            const groupId = hitFeature?.properties?.polylineGroupId as string | undefined;
+            const polylineGid = hitFeature?.properties?.polylineGroupId as string | undefined;
+            const featureGid  = hitFeature?.featureGroupId ?? undefined;
             const groupMode = drawingStore.document.settings.groupSelectMode ?? 'GROUP_FIRST';
             let featureIds: string[];
 
-            if (groupId && !e.shiftKey) {
+            if (polylineGid && !e.shiftKey) {
               if (groupMode === 'GROUP_FIRST') {
                 // GROUP_FIRST: first click selects entire group.
                 // If the group is already selected, clicking a specific segment
                 // narrows selection to just that segment (drill-down behavior).
-                const groupIds = getPolylineGroupIds(groupId);
+                const groupIds = getPolylineGroupIds(polylineGid);
                 const allGroupSelected = groupIds.every((id) => selectionStore.selectedIds.has(id));
                 if (allGroupSelected) {
                   // Already selected whole group — drill down to individual segment
@@ -3662,6 +3680,19 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
                 const mode = e.shiftKey ? 'TOGGLE' : 'REPLACE';
                 selectionStore.select(hit, mode);
                 featureIds = [hit];
+              }
+            } else if (featureGid && !e.shiftKey && groupMode === 'GROUP_FIRST') {
+              // Feature group (named group): same GROUP_FIRST drill-down behavior.
+              const group = drawingStore.getFeatureGroup(featureGid);
+              const groupMemberIds = group?.featureIds ?? [];
+              const allGroupSelected = groupMemberIds.length > 0 &&
+                groupMemberIds.every((id) => selectionStore.selectedIds.has(id));
+              if (allGroupSelected) {
+                selectionStore.select(hit, 'REPLACE');
+                featureIds = [hit];
+              } else {
+                featureIds = groupMemberIds.filter((id) => !!drawingStore.getFeature(id));
+                selectionStore.selectMultiple(featureIds, 'REPLACE');
               }
             } else {
               const mode = e.shiftKey ? 'TOGGLE' : 'REPLACE';

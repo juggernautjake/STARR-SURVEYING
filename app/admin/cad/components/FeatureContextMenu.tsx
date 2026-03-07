@@ -18,6 +18,8 @@ import {
   EyeOff,
   ChevronRight,
   Check,
+  Box,
+  BoxSelect,
 } from 'lucide-react';
 import {
   useDrawingStore,
@@ -236,6 +238,54 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
       drawingStore.updateLayer(lid as string, { visible: false });
     }
   }
+
+  // ── Helper: group selected features ─────────────────────────────────────
+  function handleGroupSelected() {
+    const ids = Array.from(selectionStore.selectedIds);
+    if (ids.length < 2) return;
+    // Check all selected features are on the same layer
+    const firstFeature = drawingStore.getFeature(ids[0]);
+    if (!firstFeature) return;
+    const layerId = firstFeature.layerId;
+    const crossLayer = ids.some((id) => drawingStore.getFeature(id)?.layerId !== layerId);
+    if (crossLayer) {
+      window.alert('Cannot group elements from different layers.\nAll elements in a group must be on the same layer.');
+      return;
+    }
+    const name = window.prompt('Group name (optional):');
+    if (name === null) return; // cancelled
+    drawingStore.groupFeatures(ids, name.trim() || undefined);
+    onClose();
+  }
+
+  // ── Helper: ungroup selected feature group ───────────────────────────────
+  function handleUngroup() {
+    const ids = Array.from(selectionStore.selectedIds);
+    const groupIds = new Set<string>();
+    for (const id of ids) {
+      const f = drawingStore.getFeature(id);
+      if (f?.featureGroupId) groupIds.add(f.featureGroupId);
+    }
+    for (const gid of groupIds) {
+      drawingStore.ungroupFeatures(gid);
+    }
+    onClose();
+  }
+
+  // ── Helper: select entire feature group ──────────────────────────────────
+  function handleSelectFeatureGroup() {
+    if (!feature?.featureGroupId) return;
+    const group = drawingStore.getFeatureGroup(feature.featureGroupId);
+    if (group) selectionStore.selectMultiple(group.featureIds, 'REPLACE');
+    onClose();
+  }
+
+  // Derived grouping state for menu display
+  const selFeatureGroupIds = new Set(
+    selIds.map((id) => drawingStore.getFeature(id)?.featureGroupId).filter(Boolean)
+  );
+  const canGroup   = selIds.length >= 2;
+  const canUngroup = selFeatureGroupIds.size > 0;
 
   // ── Helper: select polyline group ────────────────────────────────────────
   function handleSelectGroup() {
@@ -486,6 +536,44 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
               } as MenuItemDef,
             ]
           : []),
+        { separator: true, id: 's3g' },
+        // ── Feature group actions ──────────────────────────────────────────
+        ...(feature.featureGroupId
+          ? [
+              {
+                id: 'selectFeatureGroup',
+                label: 'Select All in Group',
+                icon: <BoxSelect size={12} />,
+                action: handleSelectFeatureGroup,
+              } as MenuItemDef,
+              {
+                id: 'ungroupFeatures',
+                label: 'Ungroup',
+                icon: <Box size={12} />,
+                action: handleUngroup,
+              } as MenuItemDef,
+            ]
+          : []),
+        ...(canGroup
+          ? [
+              {
+                id: 'groupFeatures',
+                label: `Group Selected (${selCount})`,
+                icon: <BoxSelect size={12} />,
+                action: handleGroupSelected,
+              } as MenuItemDef,
+            ]
+          : []),
+        ...(canUngroup && !feature.featureGroupId
+          ? [
+              {
+                id: 'ungroupFeatures2',
+                label: 'Ungroup Selected',
+                icon: <Box size={12} />,
+                action: handleUngroup,
+              } as MenuItemDef,
+            ]
+          : []),
         { separator: true, id: 's3' },
         {
           id: 'zoomToSel',
@@ -674,6 +762,23 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
     };
     items.splice(2, 0, actionCopy);
     items.splice(3, 0, actionExpandGroups);
+    // Add group/ungroup for multi-selection
+    if (canGroup) {
+      items.splice(4, 0, {
+        id: 'groupEmpty',
+        label: `Group Selected (${selCount})`,
+        icon: <BoxSelect size={12} />,
+        action: handleGroupSelected,
+      } as MenuItemDef);
+    }
+    if (canUngroup) {
+      items.splice(canGroup ? 5 : 4, 0, {
+        id: 'ungroupEmpty',
+        label: 'Ungroup Selected',
+        icon: <Box size={12} />,
+        action: handleUngroup,
+      } as MenuItemDef);
+    }
     items.push({ separator: true, id: 'del_sep' });
     items.push(actionDelete);
   }

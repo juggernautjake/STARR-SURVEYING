@@ -1,6 +1,6 @@
 // lib/cad/store/drawing-store.ts — Central store for all drawing data
 import { create } from 'zustand';
-import type { DrawingDocument, Feature, Layer, DrawingSettings, TextLabel, LayerDisplayPreferences, ProjectImage, TitleBlockConfig } from '../types';
+import type { DrawingDocument, Feature, FeatureGroup, Layer, DrawingSettings, TextLabel, LayerDisplayPreferences, ProjectImage, TitleBlockConfig } from '../types';
 import { generateId } from '../types';
 import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../constants';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
@@ -17,6 +17,7 @@ function createDefaultDocument(): DrawingDocument {
     features: {},
     layers: {},
     layerOrder: [],
+    featureGroups: {},
     layerGroups: {},
     layerGroupOrder: [],
     customSymbols: [],
@@ -79,6 +80,21 @@ interface DrawingStore {
 
   // Title block
   updateTitleBlock: (updates: Partial<TitleBlockConfig>) => void;
+
+  // Feature group actions
+  /**
+   * Group the given feature IDs into a named group.
+   * All features must be on the same layer; returns null if they are not.
+   */
+  groupFeatures: (featureIds: string[], name?: string) => FeatureGroup | null;
+  /** Remove a feature group (features remain but are ungrouped). */
+  ungroupFeatures: (groupId: string) => void;
+  /** Rename a feature group. */
+  renameFeatureGroup: (groupId: string, name: string) => void;
+  /** Get a feature group by id. */
+  getFeatureGroup: (groupId: string) => FeatureGroup | undefined;
+  /** Get all feature groups for a layer. */
+  getLayerGroups: (layerId: string) => FeatureGroup[];
 
   // Queries
   getFeature: (id: string) => Feature | undefined;
@@ -235,8 +251,11 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     set({ document: doc, activeLayerId: '', isDirty: false });
   },
 
-  loadDocument: (doc) =>
-    set({ document: doc, activeLayerId: doc.layerOrder[0] ?? '', isDirty: false }),
+  loadDocument: (doc) => {
+    // Backwards-compat: older saved documents may not have featureGroups
+    const normalized: DrawingDocument = { ...doc, featureGroups: doc.featureGroups ?? {} };
+    set({ document: normalized, activeLayerId: doc.layerOrder[0] ?? '', isDirty: false });
+  },
 
   updateDocumentName: (name) =>
     set((state) => ({
@@ -410,6 +429,88 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     })),
 
   markClean: () => set({ isDirty: false }),
+
+  // ── Feature group actions ────────────────────────────────────────────────────
+
+  groupFeatures: (featureIds, name) => {
+    const state = get();
+    const features = featureIds.map((id) => state.document.features[id]).filter(Boolean);
+    if (features.length < 2) return null;
+    // All features must be on the same layer
+    const layerId = features[0].layerId;
+    if (features.some((f) => f.layerId !== layerId)) return null;
+    const groupId = generateId();
+    // Generate a unique group name: prefer the user-supplied name, else use
+    // a short UUID fragment so names remain unique even after groups are deleted.
+    const defaultName = `Group ${groupId.substring(0, 6).toUpperCase()}`;
+    const group: FeatureGroup = {
+      id: groupId,
+      name: name || defaultName,
+      layerId,
+      featureIds: featureIds.filter((id) => !!state.document.features[id]),
+    };
+    const updatedFeatures = { ...state.document.features };
+    for (const id of group.featureIds) {
+      if (updatedFeatures[id]) {
+        updatedFeatures[id] = { ...updatedFeatures[id], featureGroupId: groupId };
+      }
+    }
+    set((s) => ({
+      document: {
+        ...s.document,
+        features: updatedFeatures,
+        featureGroups: { ...s.document.featureGroups, [groupId]: group },
+        modified: new Date().toISOString(),
+      },
+      isDirty: true,
+    }));
+    return group;
+  },
+
+  ungroupFeatures: (groupId) =>
+    set((state) => {
+      const group = state.document.featureGroups[groupId];
+      if (!group) return state;
+      const updatedFeatures = { ...state.document.features };
+      for (const id of group.featureIds) {
+        if (updatedFeatures[id]) {
+          updatedFeatures[id] = { ...updatedFeatures[id], featureGroupId: null };
+        }
+      }
+      const updatedGroups = { ...state.document.featureGroups };
+      delete updatedGroups[groupId];
+      return {
+        document: {
+          ...state.document,
+          features: updatedFeatures,
+          featureGroups: updatedGroups,
+          modified: new Date().toISOString(),
+        },
+        isDirty: true,
+      };
+    }),
+
+  renameFeatureGroup: (groupId, name) =>
+    set((state) => {
+      const group = state.document.featureGroups[groupId];
+      if (!group) return state;
+      return {
+        document: {
+          ...state.document,
+          featureGroups: {
+            ...state.document.featureGroups,
+            [groupId]: { ...group, name },
+          },
+          modified: new Date().toISOString(),
+        },
+        isDirty: true,
+      };
+    }),
+
+  getFeatureGroup: (groupId) => get().document.featureGroups[groupId],
+
+  getLayerGroups: (layerId) =>
+    Object.values(get().document.featureGroups).filter((g) => g.layerId === layerId),
 
   getFeature: (id) => get().document.features[id],
 

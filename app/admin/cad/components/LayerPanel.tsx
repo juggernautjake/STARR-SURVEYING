@@ -2,8 +2,9 @@
 // app/admin/cad/components/LayerPanel.tsx — Layer list panel
 
 import { useState, useRef } from 'react';
-import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, RotateCw } from 'lucide-react';
+import { Eye, EyeOff, Lock, LockOpen, Plus, Settings, EyeOff as EyeOffIcon, RotateCw, ChevronDown, ChevronRight, Layers, X } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
+import { useSelectionStore } from '@/lib/cad/store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer } from '@/lib/cad/types';
 
@@ -27,6 +28,7 @@ interface ContextMenu {
 
 export default function LayerPanel() {
   const store = useDrawingStore();
+  const selectionStore = useSelectionStore();
   const { document: doc, activeLayerId } = store;
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -36,8 +38,18 @@ export default function LayerPanel() {
   /** When set, a small rotation input is shown in the context menu for this layer. */
   const [rotatingLayerId, setRotatingLayerId] = useState<string | null>(null);
   const [rotationInputVal, setRotationInputVal] = useState('0');
+  /** Layers that are expanded (showing feature tree). */
+  const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set());
+  /** Currently renaming group id. */
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+  const [renameGroupValue, setRenameGroupValue] = useState('');
+  const renameGroupRef = useRef<HTMLInputElement>(null);
 
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
+
+  // Track selected and hovered feature IDs for layer highlighting
+  const selectedIds = selectionStore.selectedIds;
+  const hoveredId   = selectionStore.hoveredId;
 
   function handleToggleVisibility(layer: Layer) {
     store.updateLayer(layer.id, { visible: !layer.visible });
@@ -126,6 +138,46 @@ export default function LayerPanel() {
     window.dispatchEvent(new CustomEvent('cad:toggleHiddenItems'));
   }
 
+  function toggleLayerExpand(layerId: string) {
+    setExpandedLayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(layerId)) next.delete(layerId);
+      else next.add(layerId);
+      return next;
+    });
+  }
+
+  /** Click on a feature row in the tree to select it on canvas. */
+  function handleFeatureClick(featureId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    const mode = e.ctrlKey || e.metaKey ? 'TOGGLE' : 'REPLACE';
+    selectionStore.select(featureId, mode);
+  }
+
+  /** Click on a group row to select all group members. */
+  function handleGroupClick(groupId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    const group = doc.featureGroups?.[groupId];
+    if (!group) return;
+    const mode = e.ctrlKey || e.metaKey ? 'ADD' : 'REPLACE';
+    selectionStore.selectMultiple(group.featureIds, mode);
+  }
+
+  function startRenameGroup(groupId: string) {
+    const group = doc.featureGroups?.[groupId];
+    if (!group) return;
+    setRenamingGroupId(groupId);
+    setRenameGroupValue(group.name);
+    setTimeout(() => renameGroupRef.current?.select(), 0);
+  }
+
+  function commitRenameGroup() {
+    if (renamingGroupId && renameGroupValue.trim()) {
+      store.renameFeatureGroup(renamingGroupId, renameGroupValue.trim());
+    }
+    setRenamingGroupId(null);
+  }
+
   return (
     <div
       className="flex flex-col h-full text-gray-200 text-xs"
@@ -136,104 +188,230 @@ export default function LayerPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {layers.map((layer) => (
-          <div
-            key={layer.id}
-            draggable
-            onDragStart={(e) => {
-              dragLayerIdRef.current = layer.id;
-              e.dataTransfer.effectAllowed = 'move';
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              const fromId = dragLayerIdRef.current;
-              dragLayerIdRef.current = null;
-              if (!fromId || fromId === layer.id) return;
-              const order = [...doc.layerOrder];
-              const fromIdx = order.indexOf(fromId);
-              const toIdx = order.indexOf(layer.id);
-              if (fromIdx === -1 || toIdx === -1) return;
-              order.splice(fromIdx, 1);
-              order.splice(toIdx, 0, fromId);
-              store.reorderLayers(order);
-            }}
-            className={`flex items-center gap-1 px-1 py-1 cursor-pointer transition-colors duration-100 hover:bg-gray-700 ${
-              activeLayerId === layer.id ? 'bg-gray-700' : ''
-            }`}
-            onClick={() => handleSetActive(layer.id)}
-            onContextMenu={(e) => handleContextMenu(e, layer.id)}
-          >
-            {/* Visibility toggle */}
-            <button
-              className="flex-shrink-0 text-gray-400 hover:text-white p-0.5 transition-colors duration-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleToggleVisibility(layer);
-              }}
-              title={layer.visible ? 'Hide layer' : 'Show layer'}
-            >
-              {layer.visible ? <Eye size={12} /> : <EyeOff size={12} />}
-            </button>
+        {layers.map((layer) => {
+          const isExpanded = expandedLayers.has(layer.id);
+          // All features on this layer
+          const layerFeatures = Object.values(doc.features).filter((f) => f.layerId === layer.id && !f.hidden);
+          // Check if any feature on this layer is selected or hovered
+          const hasSelectedFeature = layerFeatures.some((f) => selectedIds.has(f.id));
+          const hasHoveredFeature  = !!hoveredId && layerFeatures.some((f) => f.id === hoveredId);
+          const isHighlighted = hasSelectedFeature || hasHoveredFeature;
 
-            {/* Lock toggle */}
-            <button
-              className={`flex-shrink-0 p-0.5 transition-colors duration-100 ${layer.locked ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-600 hover:text-gray-300'}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleToggleLock(layer);
-              }}
-              title={layer.locked ? 'Unlock layer' : 'Lock layer'}
-            >
-              {layer.locked ? <Lock size={12} /> : <LockOpen size={12} />}
-            </button>
+          // Groups on this layer
+          const layerGroups = Object.values(doc.featureGroups ?? {}).filter((g) => g.layerId === layer.id);
+          // Ungrouped features
+          const ungroupedFeatures = layerFeatures.filter((f) => !f.featureGroupId);
 
-            {/* Color swatch */}
-            <div
-              className="w-3 h-3 rounded-sm flex-shrink-0 border border-gray-500"
-              style={{ backgroundColor: layer.color }}
-            />
-
-            {/* Layer preferences button */}
-            <button
-              className="flex-shrink-0 text-gray-600 hover:text-blue-400 p-0.5 transition-colors duration-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                openLayerPreferences(layer.id);
-              }}
-              title="Layer display preferences"
-            >
-              <Settings size={10} />
-            </button>
-
-            {/* Layer name */}
-            {renamingId === layer.id ? (
-              <input
-                ref={renameRef}
-                className="flex-1 bg-gray-600 text-white text-xs px-1 rounded outline-none min-w-0"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onBlur={commitRename}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitRename();
-                  if (e.key === 'Escape') setRenamingId(null);
+          return (
+            <div key={layer.id}>
+              {/* Layer row */}
+              <div
+                draggable
+                onDragStart={(e) => {
+                  dragLayerIdRef.current = layer.id;
+                  e.dataTransfer.effectAllowed = 'move';
                 }}
-                onClick={(e) => e.stopPropagation()}
-                autoFocus
-              />
-            ) : (
-              <span
-                className={`flex-1 truncate ${activeLayerId === layer.id ? 'font-bold text-white' : ''}`}
-                onDoubleClick={() => startRename(layer.id)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const fromId = dragLayerIdRef.current;
+                  dragLayerIdRef.current = null;
+                  if (!fromId || fromId === layer.id) return;
+                  const order = [...doc.layerOrder];
+                  const fromIdx = order.indexOf(fromId);
+                  const toIdx = order.indexOf(layer.id);
+                  if (fromIdx === -1 || toIdx === -1) return;
+                  order.splice(fromIdx, 1);
+                  order.splice(toIdx, 0, fromId);
+                  store.reorderLayers(order);
+                }}
+                className={`flex items-center gap-1 px-1 py-1 cursor-pointer transition-colors duration-100 hover:bg-gray-700 ${
+                  activeLayerId === layer.id ? 'bg-gray-700' : ''
+                } ${isHighlighted ? 'ring-1 ring-blue-500 ring-inset' : ''}`}
+                onClick={() => handleSetActive(layer.id)}
+                onContextMenu={(e) => handleContextMenu(e, layer.id)}
               >
-                {layer.name}
-              </span>
-            )}
-          </div>
-        ))}
+                {/* Expand/collapse toggle */}
+                <button
+                  className="flex-shrink-0 text-gray-500 hover:text-gray-300 p-0.5"
+                  onClick={(e) => { e.stopPropagation(); toggleLayerExpand(layer.id); }}
+                  title={isExpanded ? 'Collapse layer' : 'Expand layer'}
+                >
+                  {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                </button>
+
+                {/* Visibility toggle */}
+                <button
+                  className="flex-shrink-0 text-gray-400 hover:text-white p-0.5 transition-colors duration-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleVisibility(layer);
+                  }}
+                  title={layer.visible ? 'Hide layer' : 'Show layer'}
+                >
+                  {layer.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+                </button>
+
+                {/* Lock toggle */}
+                <button
+                  className={`flex-shrink-0 p-0.5 transition-colors duration-100 ${layer.locked ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-600 hover:text-gray-300'}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleLock(layer);
+                  }}
+                  title={layer.locked ? 'Unlock layer' : 'Lock layer'}
+                >
+                  {layer.locked ? <Lock size={12} /> : <LockOpen size={12} />}
+                </button>
+
+                {/* Color swatch */}
+                <div
+                  className="w-3 h-3 rounded-sm flex-shrink-0 border border-gray-500"
+                  style={{ backgroundColor: layer.color }}
+                />
+
+                {/* Layer preferences button */}
+                <button
+                  className="flex-shrink-0 text-gray-600 hover:text-blue-400 p-0.5 transition-colors duration-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openLayerPreferences(layer.id);
+                  }}
+                  title="Layer display preferences"
+                >
+                  <Settings size={10} />
+                </button>
+
+                {/* Layer name */}
+                {renamingId === layer.id ? (
+                  <input
+                    ref={renameRef}
+                    className="flex-1 bg-gray-600 text-white text-xs px-1 rounded outline-none min-w-0"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitRename();
+                      if (e.key === 'Escape') setRenamingId(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                  />
+                ) : (
+                  <span
+                    className={`flex-1 truncate ${activeLayerId === layer.id ? 'font-bold text-white' : ''} ${isHighlighted ? 'text-blue-300' : ''}`}
+                    onDoubleClick={() => startRename(layer.id)}
+                  >
+                    {layer.name}
+                  </span>
+                )}
+
+                {/* Feature count badge */}
+                {layerFeatures.length > 0 && (
+                  <span className="ml-auto text-[9px] text-gray-500 shrink-0 pr-1">
+                    {layerFeatures.length}
+                  </span>
+                )}
+              </div>
+
+              {/* Expanded feature tree */}
+              {isExpanded && (
+                <div className="ml-4 border-l border-gray-700">
+                  {/* Groups */}
+                  {layerGroups.map((group) => {
+                    const groupFeatures = (group.featureIds ?? [])
+                      .map((id) => doc.features[id])
+                      .filter(Boolean);
+                    const groupSelected = groupFeatures.some((f) => selectedIds.has(f.id));
+                    const groupHovered  = !!hoveredId && groupFeatures.some((f) => f.id === hoveredId);
+
+                    return (
+                      <div key={group.id}>
+                        {/* Group header row */}
+                        <div
+                          className={`flex items-center gap-1 px-1 py-0.5 cursor-pointer hover:bg-gray-700 transition-colors ${
+                            groupSelected || groupHovered ? 'text-blue-300' : 'text-gray-400'
+                          }`}
+                          onClick={(e) => handleGroupClick(group.id, e)}
+                          onDoubleClick={() => startRenameGroup(group.id)}
+                          title="Click to select group. Double-click to rename."
+                        >
+                          <Layers size={9} className="text-gray-600 shrink-0" />
+                          {renamingGroupId === group.id ? (
+                            <input
+                              ref={renameGroupRef}
+                              className="flex-1 bg-gray-600 text-white text-xs px-1 rounded outline-none min-w-0"
+                              value={renameGroupValue}
+                              onChange={(e) => setRenameGroupValue(e.target.value)}
+                              onBlur={commitRenameGroup}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') commitRenameGroup();
+                                if (e.key === 'Escape') setRenamingGroupId(null);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                            />
+                          ) : (
+                            <span className="text-[10px] font-semibold truncate">{group.name}</span>
+                          )}
+                          <button
+                            className="ml-auto text-gray-600 hover:text-red-400 shrink-0 p-0.5"
+                            onClick={(e) => { e.stopPropagation(); store.ungroupFeatures(group.id); }}
+                            title="Ungroup"
+                          >
+                            <X size={9} />
+                          </button>
+                        </div>
+                        {/* Group members */}
+                        {groupFeatures.map((feat) => {
+                          const isSelected = selectedIds.has(feat.id);
+                          const isHovered  = hoveredId === feat.id;
+                          return (
+                            <div
+                              key={feat.id}
+                              className={`flex items-center gap-1 pl-4 pr-1 py-0.5 cursor-pointer hover:bg-gray-750 transition-colors text-[10px] ${
+                                isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
+                              }`}
+                              onClick={(e) => handleFeatureClick(feat.id, e)}
+                              title={feat.id}
+                            >
+                              <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+
+                  {/* Ungrouped features */}
+                  {ungroupedFeatures.map((feat) => {
+                    const isSelected = selectedIds.has(feat.id);
+                    const isHovered  = hoveredId === feat.id;
+                    return (
+                      <div
+                        key={feat.id}
+                        className={`flex items-center gap-1 pl-2 pr-1 py-0.5 cursor-pointer hover:bg-gray-700 transition-colors text-[10px] ${
+                          isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
+                        }`}
+                        onClick={(e) => handleFeatureClick(feat.id, e)}
+                        title={feat.id}
+                      >
+                        <span className="truncate">{feat.type}{feat.properties?.name ? ` – ${feat.properties.name}` : ''}</span>
+                      </div>
+                    );
+                  })}
+
+                  {layerFeatures.length === 0 && (
+                    <div className="pl-2 py-0.5 text-[10px] text-gray-600 italic">No features</div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* New Layer + Hidden Items buttons */}
@@ -353,3 +531,4 @@ export default function LayerPanel() {
     </div>
   );
 }
+

@@ -69,6 +69,19 @@ export interface ProjectImage {
   addedAt: string;        // ISO 8601 timestamp
 }
 
+/**
+ * A named group of features on the same layer.  Features in a group
+ * move / rotate / scale together when any member is manipulated.
+ * Users can ungroup at any time via the right-click context menu.
+ */
+export interface FeatureGroup {
+  id: string;
+  name: string;
+  /** All members must share this layerId. */
+  layerId: string;
+  featureIds: string[];
+}
+
 export interface DrawingDocument {
   id: string;
   name: string;
@@ -80,6 +93,9 @@ export interface DrawingDocument {
   features: Record<string, Feature>; // featureId -> Feature
   layers: Record<string, Layer>; // layerId -> Layer
   layerOrder: string[]; // Layer IDs in render order (bottom to top)
+
+  /** Named feature groups (same-layer only). featureGroupId -> FeatureGroup. */
+  featureGroups: Record<string, FeatureGroup>;
 
   // Phase 3 additions
   layerGroups: Record<string, import('./styles/types').LayerGroup>;
@@ -236,6 +252,9 @@ export interface Feature {
   layerId: string;
   style: FeatureStyle;
   properties: Record<string, string | number | boolean>;
+
+  /** ID of the FeatureGroup this feature belongs to, or null/undefined if ungrouped. */
+  featureGroupId?: string | null;
 
   /** Text labels generated from layer display preferences. */
   textLabels?: TextLabel[];
