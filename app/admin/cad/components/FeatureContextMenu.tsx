@@ -252,6 +252,15 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
       window.alert('Cannot group elements from different layers.\nAll elements in a group must be on the same layer.');
       return;
     }
+    // Check if any selected feature is already a member of a group
+    const alreadyGrouped = ids.filter((id) => !!drawingStore.getFeature(id)?.featureGroupId);
+    if (alreadyGrouped.length > 0) {
+      window.alert(
+        `${alreadyGrouped.length} element(s) are already part of a group.\n` +
+        'Remove them from their current group first (right-click → Ungroup or use the Layer Panel).'
+      );
+      return;
+    }
     const name = window.prompt('Group name (optional):');
     if (name === null) return; // cancelled
     drawingStore.groupFeatures(ids, name.trim() || undefined);
@@ -284,7 +293,8 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   const selFeatureGroupIds = new Set(
     selIds.map((id) => drawingStore.getFeature(id)?.featureGroupId).filter(Boolean)
   );
-  const canGroup   = selIds.length >= 2;
+  const anyAlreadyGrouped = selIds.some((id) => !!drawingStore.getFeature(id)?.featureGroupId);
+  const canGroup   = selIds.length >= 2 && !anyAlreadyGrouped;
   const canUngroup = selFeatureGroupIds.size > 0;
 
   // ── Helper: select polyline group ────────────────────────────────────────

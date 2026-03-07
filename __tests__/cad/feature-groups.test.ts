@@ -127,6 +127,55 @@ describe('FeatureGroup — drawing store', () => {
     expect(updatedF2?.featureGroupId).toBe(group.id);
   });
 
+  it('groupFeatures returns null when any feature is already in a group', () => {
+    const store = useDrawingStore.getState();
+    const layerId = store.activeLayerId;
+    const f1 = makeFeature(generateId(), layerId);
+    const f2 = makeFeature(generateId(), layerId);
+    const f3 = makeFeature(generateId(), layerId);
+    store.addFeature(f1);
+    store.addFeature(f2);
+    store.addFeature(f3);
+
+    // f1 and f2 are in a group
+    store.groupFeatures([f1.id, f2.id], 'Existing Group');
+
+    // Trying to group f1 (already grouped) with f3 should fail
+    const result = store.groupFeatures([f1.id, f3.id], 'New Group');
+    expect(result).toBeNull();
+
+    // The original group should still exist and f3 should not be in any group
+    const { document: doc } = useDrawingStore.getState();
+    expect(doc.features[f3.id]?.featureGroupId).toBeFalsy();
+    const groups = Object.values(doc.featureGroups);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].name).toBe('Existing Group');
+  });
+
+  it('groupFeatures returns null when ALL features are already grouped', () => {
+    const store = useDrawingStore.getState();
+    const layerId = store.activeLayerId;
+    const f1 = makeFeature(generateId(), layerId);
+    const f2 = makeFeature(generateId(), layerId);
+    const f3 = makeFeature(generateId(), layerId);
+    const f4 = makeFeature(generateId(), layerId);
+    store.addFeature(f1);
+    store.addFeature(f2);
+    store.addFeature(f3);
+    store.addFeature(f4);
+
+    store.groupFeatures([f1.id, f2.id], 'Group A');
+    store.groupFeatures([f3.id, f4.id], 'Group B');
+
+    // Attempting to cross-group members from A and B should fail
+    const result = store.groupFeatures([f1.id, f3.id], 'Cross Group');
+    expect(result).toBeNull();
+
+    // Original groups unchanged
+    const { document: doc } = useDrawingStore.getState();
+    expect(Object.values(doc.featureGroups)).toHaveLength(2);
+  });
+
   it('ungroupFeatures removes groupId from members and deletes the group', () => {
     const store = useDrawingStore.getState();
     const layerId = store.activeLayerId;
@@ -142,6 +191,74 @@ describe('FeatureGroup — drawing store', () => {
     expect(doc.featureGroups[group.id]).toBeUndefined();
     expect(doc.features[f1.id]?.featureGroupId).toBeFalsy();
     expect(doc.features[f2.id]?.featureGroupId).toBeFalsy();
+  });
+
+  it('removeFeatureFromGroup removes one feature and leaves the rest grouped', () => {
+    const store = useDrawingStore.getState();
+    const layerId = store.activeLayerId;
+    const f1 = makeFeature(generateId(), layerId);
+    const f2 = makeFeature(generateId(), layerId);
+    const f3 = makeFeature(generateId(), layerId);
+    store.addFeature(f1);
+    store.addFeature(f2);
+    store.addFeature(f3);
+
+    const group = store.groupFeatures([f1.id, f2.id, f3.id])!;
+    store.removeFeatureFromGroup(f1.id);
+
+    const { document: doc } = useDrawingStore.getState();
+    expect(doc.features[f1.id]?.featureGroupId).toBeFalsy();
+    expect(doc.features[f2.id]?.featureGroupId).toBe(group.id);
+    expect(doc.features[f3.id]?.featureGroupId).toBe(group.id);
+    expect(doc.featureGroups[group.id]?.featureIds).not.toContain(f1.id);
+    expect(doc.featureGroups[group.id]?.featureIds).toHaveLength(2);
+  });
+
+  it('removeFeatureFromGroup dissolves the group when only 1 member would remain', () => {
+    const store = useDrawingStore.getState();
+    const layerId = store.activeLayerId;
+    const f1 = makeFeature(generateId(), layerId);
+    const f2 = makeFeature(generateId(), layerId);
+    store.addFeature(f1);
+    store.addFeature(f2);
+
+    const group = store.groupFeatures([f1.id, f2.id])!;
+    store.removeFeatureFromGroup(f1.id);
+
+    const { document: doc } = useDrawingStore.getState();
+    // Group dissolved: both features ungrouped
+    expect(doc.featureGroups[group.id]).toBeUndefined();
+    expect(doc.features[f1.id]?.featureGroupId).toBeFalsy();
+    expect(doc.features[f2.id]?.featureGroupId).toBeFalsy();
+  });
+
+  it('removeFeatureFromGroup is a no-op for a feature not in any group', () => {
+    const store = useDrawingStore.getState();
+    const layerId = store.activeLayerId;
+    const f1 = makeFeature(generateId(), layerId);
+    store.addFeature(f1);
+
+    // Should not throw
+    expect(() => store.removeFeatureFromGroup(f1.id)).not.toThrow();
+    const { document: doc } = useDrawingStore.getState();
+    expect(doc.features[f1.id]?.featureGroupId).toBeFalsy();
+  });
+
+  it('after ungrouping, features can be regrouped freely', () => {
+    const store = useDrawingStore.getState();
+    const layerId = store.activeLayerId;
+    const f1 = makeFeature(generateId(), layerId);
+    const f2 = makeFeature(generateId(), layerId);
+    store.addFeature(f1);
+    store.addFeature(f2);
+
+    const g1 = store.groupFeatures([f1.id, f2.id])!;
+    store.ungroupFeatures(g1.id);
+
+    // Now regroup — should succeed
+    const g2 = store.groupFeatures([f1.id, f2.id], 'Regrouped');
+    expect(g2).not.toBeNull();
+    expect(g2!.name).toBe('Regrouped');
   });
 
   it('renameFeatureGroup changes the group name', () => {
@@ -198,4 +315,28 @@ describe('FeatureGroup — drawing store', () => {
     expect(group.name).toBeTruthy();
     expect(typeof group.name).toBe('string');
   });
+
+  it('loadDocument normalizes stale featureGroupId references', () => {
+    const store = useDrawingStore.getState();
+    const layerId = store.activeLayerId;
+    const f1 = makeFeature(generateId(), layerId);
+    const f2 = makeFeature(generateId(), layerId);
+
+    // Manually craft a document with a stale featureGroupId (group doesn't exist)
+    const staleDoc = {
+      ...store.document,
+      features: {
+        [f1.id]: { ...f1, featureGroupId: 'nonexistent-group' },
+        [f2.id]: { ...f2, featureGroupId: null },
+      },
+      featureGroups: {},
+    };
+
+    store.loadDocument(staleDoc as never);
+
+    const { document: doc } = useDrawingStore.getState();
+    expect(doc.features[f1.id]?.featureGroupId).toBeFalsy();
+    expect(doc.features[f2.id]?.featureGroupId).toBeFalsy();
+  });
 });
+
