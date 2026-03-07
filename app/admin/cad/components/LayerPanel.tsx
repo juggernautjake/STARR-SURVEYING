@@ -20,6 +20,9 @@ function nextLayerColor(): string {
   return color;
 }
 
+/** Number of default survey info elements always present in the SURVEY-INFO layer. */
+const SURVEY_INFO_ELEM_COUNT = 4;
+
 interface ContextMenu {
   layerId: string;
   x: number;
@@ -309,10 +312,10 @@ export default function LayerPanel() {
                   </span>
                 )}
 
-                {/* Feature count badge */}
-                {(layer.id === 'SURVEY-INFO' ? 4 : layerFeatures.length) > 0 && (
+              {/* Feature count badge */}
+                {(layer.id === 'SURVEY-INFO' ? SURVEY_INFO_ELEM_COUNT : layerFeatures.length) > 0 && (
                   <span className="ml-auto text-[9px] text-gray-500 shrink-0 pr-1">
-                    {layer.id === 'SURVEY-INFO' ? 4 : layerFeatures.length}
+                    {layer.id === 'SURVEY-INFO' ? SURVEY_INFO_ELEM_COUNT : layerFeatures.length}
                   </span>
                 )}
               </div>
@@ -342,9 +345,6 @@ export default function LayerPanel() {
                             {!el.visible && <span className="text-gray-600 text-[9px] ml-auto">hidden</span>}
                           </div>
                         ))}
-                        {layerFeatures.length === 0 && surveyElements.length === 0 && (
-                          <div className="pl-2 py-0.5 text-[10px] text-gray-600 italic">No features</div>
-                        )}
                       </>
                     );
                   })()}
