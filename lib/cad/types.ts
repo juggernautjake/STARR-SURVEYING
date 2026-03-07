@@ -211,6 +211,12 @@ export interface TitleBlockConfig {
   titleBlockPos?: { x: number; y: number } | null;
   /** Scale bar position (bottom-left corner, paper inches from paper BL). null = bottom-center default. */
   scaleBarPos?: { x: number; y: number } | null;
+  /** Signature/seal block position (bottom-left corner, paper inches from paper BL). null = bottom-left default. */
+  signatureBlockPos?: { x: number; y: number } | null;
+  /** "REGISTERED PROFESSIONAL LAND SURVEYOR" label position (bottom-left, paper inches from paper BL). null = inside signature block. */
+  rplsLabelPos?: { x: number; y: number } | null;
+  /** "OFFICIAL SEAL" label position (bottom-left, paper inches from paper BL). null = inside signature block. */
+  officialSealLabelPos?: { x: number; y: number } | null;
 
   // ── Scale bar ──
   /** Show the checkered graphic scale bar. Default: true */
