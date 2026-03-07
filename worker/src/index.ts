@@ -994,24 +994,9 @@ app.post('/research/row', requireAuth, rateLimit(5, 60_000), async (req: Request
     return;
   }
 
-  // ── Create a minimal PipelineLogger compatible wrapper for the engine ─────
-  // The ROWIntegrationEngine requires a PipelineLogger. We use a console-based wrapper.
-  const makeLogger = () => ({
-    info: (layer: string, msg: string) => console.log(`[ROW/${layer}] ${msg}`),
-    warn: (layer: string, msg: string) => console.warn(`[ROW/${layer}] ${msg}`),
-    error: (layer: string, msg: string) => console.error(`[ROW/${layer}] ${msg}`),
-    startAttempt: (meta: Record<string, unknown>) => {
-      const t = { step: (s: string) => console.log(`[ROW] ${s}`) };
-      return Object.assign(
-        (result: Record<string, unknown>) => {
-          if (result.status === 'fail') {
-            console.warn(`[ROW] Attempt failed: ${result.error ?? JSON.stringify(result)}`);
-          }
-        },
-        t,
-      );
-    },
-  });
+  // ── Create a PipelineLogger for the engine ─────────────────────────────────
+  // Phase 6 requires PipelineLogger (no bare console.log) per spec §6.11 implementation rules.
+  // Dynamic import used for consistency with adjacent and analysis route patterns.
 
   // Respond 202 immediately
   activeROWJobs.set(projectId, { status: 'running' });
@@ -1022,20 +1007,37 @@ app.post('/research/row', requireAuth, rateLimit(5, 60_000), async (req: Request
     note: 'Phase 6 ROW integration runs in ~2-5 minutes.',
   });
 
-  // Run async (detached from response)
-  const logger = makeLogger();
-  runROWIntegration(projectId, resolvedIntelPath, logger as never)
-    .then((report) => {
-      activeROWJobs.set(projectId, { status: 'complete', result: report });
-      console.log(
-        `[ROW] Phase 6 complete for ${projectId}: ` +
-        `${report.roads.length} road(s), status=${report.status}`,
-      );
-    })
-    .catch((err) => {
-      console.error(`[ROW] Phase 6 failed for ${projectId}:`, err);
-      activeROWJobs.set(projectId, { status: 'failed' });
-    });
+  // Run async (detached from response) using PipelineLogger
+  import('./lib/logger.js').then(({ PipelineLogger }) => {
+    const logger = new PipelineLogger(projectId);
+    return runROWIntegration(projectId, resolvedIntelPath, logger)
+      .then((report) => {
+        activeROWJobs.set(projectId, { status: 'complete', result: report });
+        logger.info(
+          'ROW',
+          `Phase 6 complete for ${projectId}: ${report.roads.length} road(s), status=${report.status}`,
+        );
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('ROW', `Phase 6 failed for ${projectId}: ${msg}`, err);
+        activeROWJobs.set(projectId, {
+          status: 'failed',
+          result: {
+            status: 'failed',
+            roads: [],
+            resolvedDiscrepancies: [],
+            timing: { totalMs: 0 },
+            sources: [],
+            errors: [msg],
+          },
+        });
+      });
+  }).catch((importErr: unknown) => {
+    // Fallback if logger import fails — should never happen in production
+    console.error(`[ROW] Logger import failed for ${projectId}:`, importErr);
+    activeROWJobs.set(projectId, { status: 'failed' });
+  });
 });
 
 // ── GET /research/row/:projectId ─────────────────────────────────────────────
@@ -1081,7 +1083,12 @@ app.get('/research/row/:projectId', requireAuth, rateLimit(60, 60_000), (req: Re
   }
 
   if (state.status === 'failed') {
-    res.status(500).json({ status: 'failed', projectId, hint: 'Check worker logs: pm2 logs starr-worker' });
+    res.status(500).json({
+      status: 'failed',
+      projectId,
+      errors: state.result?.errors ?? [],
+      hint: 'Check worker logs: pm2 logs starr-worker',
+    });
     return;
   }
 

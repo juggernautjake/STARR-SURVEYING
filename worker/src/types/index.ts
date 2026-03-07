@@ -169,6 +169,12 @@ export type BoundaryDescription = ExtractedBoundaryData;
 
 export interface BoundaryCall {
   sequence: number;
+  /**
+   * Optional string ID assigned by Phase 7 ReadingAggregator for cross-source matching.
+   * When present, used instead of `sequence` for call identification.
+   * Format: "PERIM_N1", "LOT1_S2", etc.
+   */
+  callId?: string;
   bearing: {
     raw: string;
     decimalDegrees: number;
