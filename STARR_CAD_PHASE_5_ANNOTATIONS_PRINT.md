@@ -1,6 +1,33 @@
 # STARR CAD — Phase 5: Annotations, Dimensions, Templates & Print
 
-**Version:** 1.0 | **Date:** March 2026 | **Phase:** 5 of 7
+**Version:** 1.1 | **Date:** March 2026 | **Phase:** 5 of 8
+
+**Phase 5 Status: 🔶 IN PROGRESS** — Title block, north arrow, scale bar, and per-feature TextLabel generation are complete. The auto-annotation engine, label collision optimizer, bearing/distance dimension tool, curve data callouts, monument/area labels, leader tool, legend, certification block, standard notes, and the print/PDF export system have not been built yet.
+
+**What Has Been Built:**
+- ✅ `TitleBlockConfig` type — complete definition with north arrow, scale bar, signature block, draggable positions, per-element scale/rotation, custom field labels (`lib/cad/types.ts`)
+- ✅ `TitleBlockPanel.tsx` — config panel with north arrow style, scale bar settings, metadata fields, visibility toggles (241 lines)
+- ✅ `TitleBlockEditorModal.tsx` — per-element editor for scale, rotation, custom field label overrides
+- ✅ `ScaleBarEditorModal.tsx` — segment count, units, length, scale, rotation with SVG live preview
+- ✅ Title block PIXI rendering in `CanvasViewport.tsx` — 5 north arrow styles (SIMPLE, COMPASS_ROSE, DETAILED, TRADITIONAL, STARR), checkered graphic scale bar, drag support for all 6 elements
+- ✅ `generate-labels.ts` — `generateLabelsForFeature()` produces TextLabel instances for a single feature (bearing, distance, area, elevation, point name, coords); `regenerateLayerLabels()` batch-regenerates all features on a layer
+- ✅ `TextLabel` / `TextLabelKind` types and `LayerDisplayPreferences` in `lib/cad/types.ts`
+- ✅ `FeatureLabelPreferencesPanel.tsx` — per-layer label visibility toggles (bearing, distance, name, etc.)
+
+**What Still Needs to Be Built:**
+- ❌ `lib/cad/labels/auto-annotate.ts` — one-pass engine: walks all features, generates bearing/distance dims, curve callouts, monument labels, area labels
+- ❌ `lib/cad/labels/label-optimizer.ts` — collision detection + simulated annealing (flip, slide, leader, shrink, stack, abbreviate strategies)
+- ❌ `lib/cad/labels/bearing-dim.ts` — bearing/distance dimension with auto or interactive placement
+- ❌ `lib/cad/labels/curve-label.ts` — R, L, CB, Delta callout auto-placed outside arc
+- ❌ `lib/cad/labels/monument-label.ts` — "5/8\" IRF", "1/2\" IRS w/Cap" etc. from code + point name
+- ❌ `lib/cad/labels/area-label.ts` — sq ft + acres placed at polygon centroid
+- ❌ `app/admin/cad/components/` DRAW_TEXT interactive tool — place, move, resize, rotate text on canvas
+- ❌ Leader annotation tool — arrow + text with clickable bend points
+- ❌ `lib/cad/templates/legend.ts` + `LegendEditor.tsx` — auto-populated from drawing features
+- ❌ `lib/cad/templates/certification.ts` + `CertificationEditor.tsx` — RPLS text + seal placeholder
+- ❌ `lib/cad/templates/standard-notes.ts` + `StandardNotesEditor.tsx` — basis of bearings, datum, flood zone, disclaimer
+- ❌ `lib/cad/templates/print-engine.ts` — PDF/PNG/SVG export via jsPDF
+- ❌ `app/admin/cad/components/PrintDialog.tsx` + `PrintPreview.tsx` — WYSIWYG print preview
 
 **Goal:** Everything needed to produce a finished, printable survey drawing. Bearing/distance labels on every line, curve data on every arc, monument callouts, area labels, title block, north arrow, scale bar, legend, certification block, standard notes, label collision detection, and a full print/plot system with PDF output.
 

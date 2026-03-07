@@ -1,6 +1,8 @@
 # STARR CAD — Phase 2: Data Import & Point Code System
 
-**Version:** 1.0 | **Date:** March 2026 | **Phase:** 2 of 7
+**Version:** 1.1 | **Date:** March 2026 | **Phase:** 2 of 8
+
+**Phase 2 Status: ✅ COMPLETE** — All acceptance tests pass. Implementation lives in `lib/cad/codes/` (code library, lookup, suffix parsing, grouping, auto-connect), `lib/cad/import/` (CSV/RW5/JobXML parsers, pipeline, validation), `lib/cad/store/` (point-store, import-store), and `app/admin/cad/components/` (ImportDialog, PointTablePanel). Accessible at `/admin/cad` via File → Import.
 
 **Goal:** Import field data from any format (CSV, RW5, JobXML), automatically classify every point by its dual-code (alpha + numeric), parse point names for fnd/set/calc suffixes with fuzzy matching and recalculation detection, group related points (calc/set/found), build auto-connected line strings from B/E suffixes, and validate all data.
 
