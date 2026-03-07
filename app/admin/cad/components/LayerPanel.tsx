@@ -43,6 +43,8 @@ export default function LayerPanel() {
   const [rotationInputVal, setRotationInputVal] = useState('0');
   /** Layers that are expanded (showing feature tree). */
   const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set());
+  /** Feature groups that are expanded (showing group members). */
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   /** Currently renaming group id. */
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameGroupValue, setRenameGroupValue] = useState('');
@@ -149,6 +151,15 @@ export default function LayerPanel() {
       const next = new Set(prev);
       if (next.has(layerId)) next.delete(layerId);
       else next.add(layerId);
+      return next;
+    });
+  }
+
+  function toggleGroupExpand(groupId: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
       return next;
     });
   }
@@ -370,6 +381,7 @@ export default function LayerPanel() {
                       .filter(Boolean);
                     const groupSelected = groupFeatures.some((f) => selectedIds.has(f.id));
                     const groupHovered  = !!hoveredId && groupFeatures.some((f) => f.id === hoveredId);
+                    const isGroupExpanded = expandedGroups.has(group.id);
 
                     return (
                       <div key={group.id}>
@@ -382,6 +394,15 @@ export default function LayerPanel() {
                           onDoubleClick={() => startRenameGroup(group.id)}
                           title="Click to select group. Double-click to rename."
                         >
+                          {/* Expand/collapse toggle for group members */}
+                          <button
+                            className="flex-shrink-0 text-gray-500 hover:text-gray-300 p-0.5"
+                            onClick={(e) => { e.stopPropagation(); toggleGroupExpand(group.id); }}
+                            title={isGroupExpanded ? 'Collapse group' : 'Expand group'}
+                            aria-label={isGroupExpanded ? 'Collapse group' : 'Expand group'}
+                          >
+                            {isGroupExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                          </button>
                           <Layers size={9} className="text-gray-600 shrink-0" />
                           {renamingGroupId === group.id ? (
                             <input
@@ -400,22 +421,25 @@ export default function LayerPanel() {
                           ) : (
                             <span className="text-[10px] font-semibold truncate">{group.name}</span>
                           )}
+                          <span className="ml-auto text-[9px] text-gray-600 shrink-0 pr-0.5">
+                            {groupFeatures.length}
+                          </span>
                           <button
-                            className="ml-auto text-gray-600 hover:text-red-400 shrink-0 p-0.5"
+                            className="text-gray-600 hover:text-red-400 shrink-0 p-0.5"
                             onClick={(e) => { e.stopPropagation(); store.ungroupFeatures(group.id); }}
                             title="Ungroup"
                           >
                             <X size={9} />
                           </button>
                         </div>
-                        {/* Group members */}
-                        {groupFeatures.map((feat) => {
+                        {/* Group members — only visible when group is expanded */}
+                        {isGroupExpanded && groupFeatures.map((feat) => {
                           const isSelected = selectedIds.has(feat.id);
                           const isHovered  = hoveredId === feat.id;
                           return (
                             <div
                               key={feat.id}
-                              className={`flex items-center gap-1 pl-4 pr-1 py-0.5 cursor-pointer hover:bg-gray-750 transition-colors text-[10px] ${
+                              className={`flex items-center gap-1 pl-6 pr-1 py-0.5 cursor-pointer hover:bg-gray-750 transition-colors text-[10px] ${
                                 isSelected ? 'text-blue-300 bg-blue-900/20' : isHovered ? 'text-blue-200' : 'text-gray-500'
                               }`}
                               onClick={(e) => handleFeatureClick(feat.id, e)}
