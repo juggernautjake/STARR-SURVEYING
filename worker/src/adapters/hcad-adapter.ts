@@ -20,9 +20,9 @@
 //
 // Spec §1.5 — HCAD Adapter
 //
-// VERIFIED: 2026-03-07 — Search form selectors confirmed against live site.
-// PENDING:  Results table selector (results HTML structure not yet captured).
-//           AI OCR is used as primary results parser until DOM selectors are confirmed.
+// VERIFIED: 2026-03-07 — Search form + results + detail selectors confirmed.
+// Results page uses jQuery DataTables: table.data-table, tr.resulttr.dataTableGridText
+// Detail page uses Blazor components: #OwnerInfoComponent, #ValuationComponent, etc.
 
 import {
   CADAdapter,
@@ -58,14 +58,27 @@ export class HCADAdapter extends CADAdapter {
   private static readonly RADIO_ACCOUNT  = 'input#ACCOUNTNUMBER, input[value="ACCOUNTNUMBER"]';
   private static readonly SEARCH_INPUT   = 'input.inputSearch, input[type="search"].searchTerm';
   private static readonly SEARCH_SUBMIT  = 'button.btn-primary.buttonFontsize';
-  // Results selector — Blazor renders results dynamically.  We try several
-  // common patterns; AI OCR is the primary fallback.
+  // Results selector — HCAD uses jQuery DataTables plugin (verified 2026-03-07).
+  // Results are inside div.dataTables_wrapper > table.data-table.
+  // Each result row: tr.resulttr.dataTableGridText (clickable, cursor: pointer).
+  // Columns: Account (td.resulttd > b), Owner (td.resulttd), Address (td.resulttd),
+  //          Type (td.resulttd > label.blue-rounded-text: "Personal"|"Commercial")
+  private static readonly RESULT_ROW_SELECTOR = 'tr.resulttr.dataTableGridText';
+  private static readonly RESULT_TABLE        = 'table.data-table';
+  // Fallback selectors in case class names change
   private static readonly RESULT_SELECTORS = [
-    '.searchResults tr',          // legacy (pre-2026)
-    'table.table tbody tr',       // Bootstrap table pattern
-    '.search-result-row',         // BIS-style card rows
-    'div.result-item',            // card/div-based results
+    'tr.resulttr.dataTableGridText',          // primary (verified 2026-03-07)
+    'tr.resulttr',                            // without grid text class
+    'div.dataTables_wrapper table tbody tr',   // DataTables wrapper fallback
+    'table.data-table tbody tr',              // direct table fallback
   ];
+  // Detail page Blazor component selectors (verified 2026-03-07)
+  private static readonly DETAIL_OWNER_INFO   = '#OwnerInfoComponent';
+  private static readonly DETAIL_VALUATION    = '#ValuationComponent';
+  private static readonly DETAIL_VALUE_HISTORY= '#ValueHistoryComponent';
+  private static readonly DETAIL_JURISDICTIONS= '#JurisdictionsComponent';
+  private static readonly DETAIL_PROPERTY     = '#PropertyComponent';
+  private static readonly DETAIL_STATUS       = '#StatusComponent';
 
   /**
    * Search HCAD by situs address.
@@ -171,8 +184,13 @@ export class HCADAdapter extends CADAdapter {
     );
 
     await this.page.goto(detailUrl, { waitUntil: 'networkidle', timeout: 30000 });
-    // HCAD pages can take longer to fully render their detail tables
-    await this.page.waitForTimeout(2000);
+    // Wait for Blazor components to render (OwnerInfo is first to appear)
+    try {
+      await this.page.waitForSelector('#OwnerInfoComponent, #ValuationComponent', { timeout: 10000 });
+    } catch {
+      // Components didn't appear — fall through to AI OCR
+      await this.page.waitForTimeout(3000);
+    }
 
     // Save a screenshot for the AI OCR fallback
     const screenshotPath = `/tmp/hcad_detail_${propertyId}.png`;
@@ -262,16 +280,25 @@ export class HCADAdapter extends CADAdapter {
       ).catch(() => this.page!.keyboard.press('Enter'));
     }
 
-    // Wait for results to load — Blazor apps load asynchronously.
-    // Try each known result selector, then fall back to a timed wait.
+    // Wait for results to load — Blazor renders DataTables asynchronously.
+    // Primary: wait for the DataTables wrapper or result rows to appear.
     let foundResults = false;
-    for (const sel of HCADAdapter.RESULT_SELECTORS) {
-      try {
-        await this.page.waitForSelector(sel, { timeout: 8000 });
-        foundResults = true;
-        break;
-      } catch {
-        // Try next selector
+    try {
+      // First try waiting for the DataTables wrapper (appears once results load)
+      await this.page.waitForSelector('div.dataTables_wrapper, table.data-table', { timeout: 10000 });
+      foundResults = true;
+      // Give DataTables a moment to populate rows
+      await this.page.waitForTimeout(1000);
+    } catch {
+      // DataTables wrapper didn't appear — try individual result selectors
+      for (const sel of HCADAdapter.RESULT_SELECTORS) {
+        try {
+          await this.page.waitForSelector(sel, { timeout: 5000 });
+          foundResults = true;
+          break;
+        } catch {
+          // Try next selector
+        }
       }
     }
     if (!foundResults) {
@@ -301,15 +328,13 @@ export class HCADAdapter extends CADAdapter {
   /**
    * Parse the HCAD search results table from the DOM.
    *
-   * Tries multiple CSS selectors since HCAD's portal layout has changed
-   * (Blazor SPA as of 2026).  Falls through to AI OCR if no rows are found.
-   *
-   * Expected column order (when a table is present):
-   *   Column 1: Account number (link to detail page)
-   *   Column 2: Address
-   *   Column 3: Owner name
-   *   Column 4: Legal description
-   *   Column 5: Acreage
+   * HCAD uses jQuery DataTables (verified 2026-03-07):
+   *   - Table: table.data-table inside div.dataTables_wrapper
+   *   - Rows: tr.resulttr.dataTableGridText (clickable)
+   *   - Column 0: Account number in bold — td.resulttd > b (e.g. <b>0077396</b>)
+   *   - Column 1: Owner name — td.resulttd (left-aligned)
+   *   - Column 2: Address — td.resulttd (e.g. "3401 LOUISIANA ST # 400, HOUSTON, TX 77002")
+   *   - Column 3: Type — td.resulttd > label.blue-rounded-text ("Personal"|"Commercial")
    */
   private async parseSearchResultsDOM(): Promise<PropertySearchResult[]> {
     if (!this.page) return [];
@@ -328,41 +353,62 @@ export class HCADAdapter extends CADAdapter {
     if (rows.length === 0) return [];
 
     for (const row of rows) {
-      // Skip header rows (cells with <th>)
+      // Skip header rows
       const isHeader = await row.$('th');
       if (isHeader) continue;
 
-      const cells = await row.$$('td');
-      if (cells.length < 3) continue;
+      const cells = await row.$$('td.resulttd');
+      // Fall back to generic td if .resulttd not found
+      const tdCells = cells.length >= 3 ? cells : await row.$$('td');
+      if (tdCells.length < 3) continue;
 
-      // Column 0: account number — often inside an anchor tag
-      const accountLink = await cells[0]?.$('a');
+      // Column 0: Account number — inside a <b> tag within td.resulttd
       let accountNumber = '';
-      if (accountLink) {
-        // Try to get the href first: /records/details.asp?...&search=1234567890000
-        const href = await accountLink.getAttribute('href') ?? '';
-        const m = href.match(/search=([^&]+)/i);
-        accountNumber = m ? decodeURIComponent(m[1]) : await accountLink.innerText().then(t => t.trim());
+      const boldEl = await tdCells[0]?.$('b');
+      if (boldEl) {
+        accountNumber = await boldEl.innerText().then(t => t.trim());
       } else {
-        accountNumber = await cells[0]?.innerText().then(t => t.trim()) ?? '';
+        // Fallback: try link or raw text
+        const linkEl = await tdCells[0]?.$('a');
+        if (linkEl) {
+          accountNumber = await linkEl.innerText().then(t => t.trim());
+        } else {
+          accountNumber = await tdCells[0]?.innerText().then(t => t.trim()) ?? '';
+        }
       }
 
       if (!accountNumber) continue;
 
-      const address  = await cells[1]?.innerText().then(t => t.trim()) ?? '';
-      const owner    = await cells[2]?.innerText().then(t => t.trim()) ?? '';
-      const legalDesc= await cells[3]?.innerText().then(t => t.trim()) ?? '';
-      const acreStr  = await cells[4]?.innerText().then(t => t.trim()) ?? '';
+      // Column 1: Owner name (left-aligned text)
+      const owner = await tdCells[1]?.innerText().then(t => t.trim()) ?? '';
+
+      // Column 2: Address (e.g. "3401 LOUISIANA ST # 400, HOUSTON, TX 77002")
+      const address = await tdCells[2]?.innerText().then(t => t.trim()) ?? '';
+
+      // Column 3: Type — label.blue-rounded-text contains "Personal" or "Commercial"
+      let propertyType: 'real' | 'personal' = 'real';
+      if (tdCells.length > 3) {
+        const typeLabel = await tdCells[3]?.$('label.blue-rounded-text');
+        if (typeLabel) {
+          const typeText = await typeLabel.innerText().then(t => t.trim().toLowerCase());
+          if (typeText === 'personal') {
+            propertyType = 'personal';
+          }
+        }
+      }
+
+      // Also check account number suffix: real property ends in 000
+      if (!accountNumber.endsWith('000')) {
+        propertyType = 'personal';
+      }
 
       results.push({
         propertyId:       accountNumber,
         owner,
         situsAddress:     address,
-        legalDescription: legalDesc,
-        acreage:          parseFloat(acreStr) || undefined,
-        // Filter: HCAD mixes real property and personal property in results;
-        // real property accounts end in 000 (personal property use other suffixes).
-        propertyType:     accountNumber.endsWith('000') ? 'real' : 'personal',
+        legalDescription: '',  // Not shown in results table — fetched from detail page
+        acreage:          undefined,
+        propertyType,
         matchScore:       50,
       });
     }
@@ -426,9 +472,16 @@ Return ONLY the JSON array, no explanation.`,
   /**
    * Extract property detail fields from the HCAD detail page DOM.
    *
-   * HCAD detail pages use a <table>-heavy layout with label/value pairs.
-   * Labels may appear as bold text in the left cell of a two-column row, or
-   * as a "th" element.  We try several CSS selector strategies.
+   * HCAD detail page is a Blazor SPA with distinct component sections
+   * (verified 2026-03-07):
+   *   - #OwnerInfoComponent: account, owner name, situs address, mailing address
+   *   - #ValuationComponent: assessed values (may show "Pending")
+   *   - #ValueHistoryComponent: bar chart (canvas#BarChart)
+   *   - #JurisdictionsComponent: tax districts, exemptions, rates
+   *   - #PropertyComponent: description, square ft, SIC code
+   *   - #StatusComponent: value notice date, protest deadline, ARB status
+   *   - Year dropdown: 2022–2026
+   *   - Location table: State Class Code, Property Type, Key Map
    */
   private async extractDetailFromDOM(propertyId: string): Promise<PropertyDetail> {
     if (!this.page) throw new Error('Browser not initialized');
@@ -445,21 +498,34 @@ Return ONLY the JSON array, no explanation.`,
       improvements:      [],
     };
 
+    // Wait for Blazor components to render
+    try {
+      await this.page.waitForSelector(HCADAdapter.DETAIL_OWNER_INFO, { timeout: 10000 });
+    } catch {
+      // Component didn't appear — may still have data via generic selectors
+    }
+
     /**
-     * Helper: look for a label string in the DOM and return the associated
-     * value from the adjacent cell or sibling element.
+     * Helper: extract text from within a specific Blazor component container,
+     * searching for label/value pairs. Falls back to page-wide search.
      */
-    const extractField = async (labels: string[]): Promise<string> => {
+    const extractFromComponent = async (
+      componentSelector: string,
+      labels: string[],
+    ): Promise<string> => {
+      const component = await this.page!.$(componentSelector);
+      const scope = component ?? this.page!;
+
       for (const label of labels) {
         try {
-          // Strategy 1: label cell followed by value cell in same row
-          const td = await this.page!.$(`td:has-text("${label}") + td`);
+          // Strategy 1: td label → adjacent td value (HCAD uses table layout)
+          const td = await scope.$(`td:has-text("${label}") + td`);
           if (td) {
             const val = await td.innerText();
             if (val.trim()) return val.trim();
           }
-          // Strategy 2: th followed by td
-          const th = await this.page!.$(`th:has-text("${label}")`);
+          // Strategy 2: th → adjacent td
+          const th = await scope.$(`th:has-text("${label}")`);
           if (th) {
             const sibling = await th.evaluateHandle(
               (el: Element) => el.nextElementSibling,
@@ -470,34 +536,47 @@ Return ONLY the JSON array, no explanation.`,
               if (val.trim()) return val.trim();
             }
           }
-          // Strategy 3: text match anywhere, return parent text minus the label
-          const anyEl = await this.page!.$(`*:has-text("${label}:")`);
-          if (anyEl) {
-            const text = await anyEl.innerText();
+          // Strategy 3: labeled span/div pattern (Blazor often uses these)
+          const labelEl = await scope.$(`*:has-text("${label}:")`);
+          if (labelEl) {
+            const text = await labelEl.innerText();
             const val = text.replace(new RegExp(`${label}:?\\s*`, 'i'), '').trim();
             if (val) return val;
           }
         } catch {
-          // Try next label variant
+          // Try next label
         }
       }
       return '';
     };
 
-    detail.owner               = await extractField(['Owner Name', 'Owner', 'Name of Owner']);
-    detail.ownerMailingAddress = await extractField(['Mailing Address', 'Mail Address']) || undefined;
-    detail.situsAddress        = await extractField(['Site Address', 'Situs Address', 'Property Address', 'Location']);
-    detail.legalDescription    = await extractField(['Legal Description', 'Legal Desc', 'Legal']);
-    detail.geoId               = await extractField(['Account No', 'Account Number', 'Acct']) || propertyId;
+    // Extract from #OwnerInfoComponent
+    detail.owner               = await extractFromComponent(HCADAdapter.DETAIL_OWNER_INFO, ['Owner Name', 'Owner', 'Name of Owner']);
+    detail.ownerMailingAddress = await extractFromComponent(HCADAdapter.DETAIL_OWNER_INFO, ['Mailing Address', 'Mail Address']) || undefined;
+    detail.situsAddress        = await extractFromComponent(HCADAdapter.DETAIL_OWNER_INFO, ['Site Address', 'Situs Address', 'Property Address', 'Location']);
+    detail.geoId               = await extractFromComponent(HCADAdapter.DETAIL_OWNER_INFO, ['Account No', 'Account Number', 'Account', 'Acct']) || propertyId;
 
-    const acreStr  = await extractField(['Land Area', 'Acres', 'Acreage', 'Total Acres']);
+    // Extract from #PropertyComponent
+    detail.legalDescription    = await extractFromComponent(HCADAdapter.DETAIL_PROPERTY, ['Legal Description', 'Legal Desc', 'Description', 'Legal']);
+    const sqftStr              = await extractFromComponent(HCADAdapter.DETAIL_PROPERTY, ['Square Ft', 'Square Feet', 'Sq Ft', 'Building Area']);
+    const acreStr              = await extractFromComponent(HCADAdapter.DETAIL_PROPERTY, ['Land Area', 'Acres', 'Acreage', 'Total Acres']);
     detail.acreage = parseFloat(acreStr.replace(/[^\d.]/g, '')) || 0;
 
-    const valueStr       = await extractField(['Total Appraised', 'Appraised Value', 'Market Value', 'Total Value']);
+    // Extract from #ValuationComponent
+    const valueStr       = await extractFromComponent(HCADAdapter.DETAIL_VALUATION, ['Total Appraised', 'Appraised Value', 'Market Value', 'Total Value', 'Assessed Value']);
     detail.assessedValue = parseFloat(valueStr.replace(/[$,]/g, '')) || undefined;
 
-    const yearStr  = await extractField(['Tax Year', 'Year']);
+    // Extract tax year from dropdown or status
+    const yearStr  = await extractFromComponent(HCADAdapter.DETAIL_STATUS, ['Tax Year', 'Year']);
     detail.taxYear = parseInt(yearStr) || undefined;
+
+    // Try to get improvements from square footage
+    if (sqftStr) {
+      const sqft = parseFloat(sqftStr.replace(/[^\d.]/g, ''));
+      if (sqft > 0) {
+        detail.improvements = [{ type: 'Building', sqft, yearBuilt: 0 }];
+      }
+    }
 
     return detail;
   }
