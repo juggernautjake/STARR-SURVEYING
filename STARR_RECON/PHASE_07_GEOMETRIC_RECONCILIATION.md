@@ -3,7 +3,7 @@
 **Starr Software — AI Property Research Pipeline**
 **Phase Duration:** Weeks 19–21
 **Depends On:** Phase 3 (PropertyIntelligence — AI extraction + geometric analysis), Phase 4 (SubdivisionModel — interior lines, area reconciliation), Phase 5 (CrossValidationReport — adjacent deed comparisons), Phase 6 (ROWReport — TxDOT road boundary resolution)
-**Status:** ✅ COMPLETE v1.1 (March 2026) — All service files implemented, 36 unit tests added in `__tests__/recon/phase7-reconciliation.test.ts`. v1.1 changes: `BoundaryCall.callId` optional field added to types (Phase 6 v1.3); `reading-aggregator.ts` now generates `county_road_default` readings and accepts `maintainedBy` in `ROWReportInput`.
+**Status:** ✅ COMPLETE v1.2 (March 2026) — All service files implemented, 61 unit tests pass in `__tests__/recon/phase7-reconciliation.test.ts`. v1.2 changes: unit normalization (varas→feet, chains→feet) throughout reading-aggregator; `plat_overview` source now generated from `IntelligenceInput.platOverview`; bare `console.log` replaced with `PipelineLogger` in geometric-reconciliation-engine; projectId validation added to engine; NaN-safe bearing computation in reconciliation-algorithm; `plat_geometric` demotion now tiered (1 other = 30% reduction, 3+ others = 50% reduction); Phase 8 confidence test file added (`phase8-confidence.test.ts`); `purchase-recommender.ts` `disc.resolution.priority` bug fixed.
 
 ---
 
@@ -21,20 +21,39 @@ A `GeometricReconciliationEngine` that merges all upstream data into a unified, 
 
 ## Current State of the Codebase
 
-**Phase Status: ✅ COMPLETE**
+**Phase Status: ✅ COMPLETE v1.2**
 
-All Phase 7 code has been implemented. Note: Phase 7's full potential is limited by the fact that Phases 3, 5, and 6 are not yet fully implemented — the reconciliation engine runs with whatever upstream data is available and degrades gracefully when Phase 4, 5, or 6 data is absent.
+All Phase 7 code has been implemented. Phase 7 degrades gracefully when Phases 4, 5, or 6 data is absent — it runs with whatever upstream data is available.
 
 ### Implemented Files
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `worker/src/services/geometric-reconciliation-engine.ts` | `GeometricReconciliationEngine` — top-level Phase 7 orchestrator | ✅ Complete |
-| `worker/src/services/reconciliation-algorithm.ts` | Core weighted-consensus bearing and distance reconciliation | ✅ Complete |
-| `worker/src/services/reading-aggregator.ts` | Aggregates readings from all upstream phase outputs | ✅ Complete |
-| `worker/src/services/source-weighting.ts` | Source reliability weight tables and weighting logic | ✅ Complete |
+| `worker/src/services/geometric-reconciliation-engine.ts` | `GeometricReconciliationEngine` — top-level Phase 7 orchestrator with PipelineLogger, projectId validation, per-call error catching | ✅ Complete v1.2 |
+| `worker/src/services/reconciliation-algorithm.ts` | Core weighted-consensus bearing and distance reconciliation; NaN-safe bearing computation | ✅ Complete v1.2 |
+| `worker/src/services/reading-aggregator.ts` | Aggregates readings from all upstream phases; unit normalization (varas→ft, chains→ft); `plat_overview` source; `normalizeToFeet()` exported | ✅ Complete v1.2 |
+| `worker/src/services/source-weighting.ts` | Source reliability weight tables; tiered `plat_geometric` demotion | ✅ Complete v1.2 |
+| `worker/src/services/traverse-closure.ts` | Traverse closure computation and Compass Rule (Bowditch) adjustment | ✅ Complete |
 | `worker/src/types/reconciliation.ts` | Phase 7 TypeScript types (`ReconciledBoundaryModel`, `ReadingRecord`, etc.) | ✅ Complete |
 | `worker/reconcile.sh` | CLI wrapper for Phase 7 | ✅ Complete |
+| `__tests__/recon/phase7-reconciliation.test.ts` | 61 unit tests (added 25 in v1.2: tests 37–61) | ✅ Complete v1.2 |
+| `__tests__/recon/phase8-confidence.test.ts` | 20 unit tests for Phase 8 confidence scoring (Phase 8 setup) | ✅ Added v1.2 |
+
+### v1.2 Changes (March 2026)
+
+1. **Unit normalization** — `normalizeToFeet(value, unit)` function exported from reading-aggregator. All distances in `BoundaryReading` are now stored in feet regardless of source unit. Old surveys using varas (Texas vara = 33⅓ in = 2.7778 ft) and chains (Gunter's chain = 66 ft) are converted at collection time. This prevents traverse arithmetic errors.
+
+2. **`plat_overview` source** — New `IntelligenceInput.platOverview` field accepted. When Phase 3 includes a full-plat holistic analysis pass, those readings become `plat_overview` (weight 0.40) rather than duplicating `plat_segment` (weight 0.65). Calls without a `callId` are silently skipped.
+
+3. **PipelineLogger** — `geometric-reconciliation-engine.ts` now uses `PipelineLogger` instead of bare `console.log`. Every step (load, aggregate, weight, reconcile, closure, compass rule, save) emits a structured log entry. Per-call errors are caught and logged without aborting the pipeline.
+
+4. **ProjectId validation** — `GeometricReconciliationEngine.reconcile()` now validates `projectId` before any file I/O (must be non-empty; only `[a-zA-Z0-9_-]` allowed). Returns a `failed` model on invalid input.
+
+5. **NaN-safe bearing computation** — `ReconciliationAlgorithm.buildConsensusCall()` guards against: empty bearing arrays, zero total weight (division by zero), and `Infinity`/`NaN` average decimals. If no valid bearings exist, `reconciledBearing` is `null` rather than `"undefined°"`.
+
+6. **Tiered `plat_geometric` demotion** — `SourceWeighter` now demotes geometric readings in proportion to the number of other sources (1 other = 30% reduction, 3+ others = 50% reduction) rather than a binary switch at `length > 2`.
+
+7. **`purchase-recommender.ts` bug fix** — `disc.resolution.priority` (undefined property) replaced with severity-derived priority (critical=1, moderate=2, minor=3).
 
 ### API Endpoint
 
@@ -48,6 +67,7 @@ All Phase 7 code has been implemented. Note: Phase 7's full potential is limited
 | Phase 4 Subdivision | ✅ Complete | `subdivision_model.json` available |
 | Phase 5 Adjacent Research | 🟠 Orchestrator missing | `cross_validation_report.json` not generated yet |
 | Phase 6 TxDOT ROW | 🟠 Orchestrator missing | `row_data.json` not generated yet |
+| Phase 3 platOverview | ⚠️ Type defined, not yet generated | `IntelligenceInput.platOverview` field accepted but Phase 3 doesn't populate it yet |
 
 Phase 7 is designed to handle missing upstream data gracefully. It will produce a reconciled model with whatever phase outputs exist, and flag the missing data as gaps.
 

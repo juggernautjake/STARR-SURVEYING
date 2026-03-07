@@ -80,10 +80,18 @@ export class SourceWeighter {
         adjustments.push('High-confidence adjacent match — boosted 10%');
       }
 
-      // Geometric readings are only useful as tiebreakers
+      // Geometric readings are only useful as tiebreakers.
+      // Demote when 3+ other readings exist (i.e., 4+ total including this one)
+      // so that imprecise visual measurements don't dominate the consensus.
       if (reading.source === 'plat_geometric') {
-        if (set.readings.length > 2) {
+        const otherCount = set.readings.filter((r) => r.source !== 'plat_geometric').length;
+        if (otherCount >= 3) {
           finalWeight *= 0.5;
+          adjustments.push(
+            'Geometric reading demoted — 3+ better sources available',
+          );
+        } else if (otherCount >= 1) {
+          finalWeight *= 0.7;
           adjustments.push(
             'Geometric reading demoted — better sources available',
           );

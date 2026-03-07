@@ -5,6 +5,13 @@
 // reconciled boundary description with source provenance and closure optimization.
 //
 // Spec §7.1–7.7 — Phase 7: Geometric Reconciliation & Multi-Source Cross-Validation
+//
+// Error Handling Strategy:
+//   - Phase 3 intelligence is REQUIRED; returns failed model if missing.
+//   - Phases 4-6 are OPTIONAL; gracefully omitted when files are missing.
+//   - Empty / unsafe projectId values are rejected before any file I/O.
+//   - All JSON parse errors are caught and recorded in the errors[] array.
+//   - The engine always returns a valid ReconciledBoundaryModel — never throws.
 
 import fs from 'fs';
 import path from 'path';
@@ -18,6 +25,7 @@ import {
 import { SourceWeighter } from './source-weighting.js';
 import { ReconciliationAlgorithm } from './reconciliation-algorithm.js';
 import { TraverseComputation, type TraverseCall } from './traverse-closure.js';
+import { PipelineLogger } from '../lib/logger.js';
 import type {
   PhasePaths,
   ReconciledBoundaryModel,
@@ -42,7 +50,21 @@ export class GeometricReconciliationEngine {
     const startTime = Date.now();
     const errors: string[] = [];
 
-    console.log(`[Reconcile] Starting reconciliation for ${projectId}`);
+    // ── Validate projectId ───────────────────────────────────────────────
+    // Must be non-empty and safe for use in file paths. The route handler also
+    // validates this, but the engine is callable directly from tests/CLI.
+    if (!projectId || projectId.trim() === '') {
+      return this.failedModel('projectId is required and may not be empty', startTime);
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+      return this.failedModel(
+        'projectId may only contain alphanumeric characters, hyphens, and underscores',
+        startTime,
+      );
+    }
+
+    const logger = new PipelineLogger(projectId);
+    logger.info('Reconcile', `Starting Phase 7 reconciliation for ${projectId}`);
 
     // ── Load Phase Outputs ───────────────────────────────────────────────
 
@@ -88,13 +110,14 @@ export class GeometricReconciliationEngine {
       crossValidation ? 'Phase 5 (cross-validation)' : null,
       rowReport ? 'Phase 6 (TxDOT ROW)' : null,
     ].filter(Boolean);
-    console.log(
-      `[Reconcile] Loaded ${sourcesLoaded.length} sources: ${sourcesLoaded.join(', ')}`,
+    logger.info(
+      'Reconcile',
+      `Loaded ${sourcesLoaded.length} sources: ${sourcesLoaded.join(', ')}`,
     );
 
     // ── STEP 1: Reading Aggregation ──────────────────────────────────────
 
-    console.log('[Reconcile] Step 1: Aggregating readings...');
+    logger.info('Reconcile', 'Step 1: Aggregating readings from all sources...');
     const aggregator = new ReadingAggregator();
     const readingSets = aggregator.aggregate(
       intelligence,
@@ -107,13 +130,14 @@ export class GeometricReconciliationEngine {
       (s, set) => s + set.readings.length,
       0,
     );
-    console.log(
-      `[Reconcile] Aggregated ${totalReadings} readings across ${readingSets.size} calls`,
+    logger.info(
+      'Reconcile',
+      `Aggregated ${totalReadings} readings across ${readingSets.size} calls`,
     );
 
     // ── STEP 2: Source Weighting ─────────────────────────────────────────
 
-    console.log('[Reconcile] Step 2: Weighting sources...');
+    logger.info('Reconcile', 'Step 2: Weighting sources by reliability...');
     const weighter = new SourceWeighter();
     const weightedSets = new Map<string, ReturnType<typeof weighter.weightReadings>>();
 
@@ -123,23 +147,29 @@ export class GeometricReconciliationEngine {
 
     // ── STEP 3: Reconciliation ───────────────────────────────────────────
 
-    console.log('[Reconcile] Step 3: Reconciling calls...');
+    logger.info('Reconcile', 'Step 3: Reconciling calls (weighted consensus / authoritative override)...');
     const algorithm = new ReconciliationAlgorithm();
     const reconciledCalls: ReconciledCall[] = [];
 
     for (const [callId, set] of readingSets) {
       const weighted = weightedSets.get(callId)!;
-      const reconciled = algorithm.reconcileCall(set, weighted);
-      reconciledCalls.push(reconciled);
+      try {
+        const reconciled = algorithm.reconcileCall(set, weighted);
+        reconciledCalls.push(reconciled);
+      } catch (err) {
+        // Defensive: catch any unexpected error per-call and continue
+        const msg = `Error reconciling call ${callId}: ${err}`;
+        errors.push(msg);
+        logger.warn('Reconcile', msg);
+      }
     }
 
-    console.log(
-      `[Reconcile] Reconciled ${reconciledCalls.length} calls`,
-    );
+    logger.info('Reconcile', `Reconciled ${reconciledCalls.length} calls`);
 
     // ── Separate perimeter and lot calls ─────────────────────────────────
 
-    // Perimeter calls are those from Phase 3 extraction or plat perimeter
+    // Perimeter calls are those from Phase 3 extraction or plat perimeter.
+    // Lot calls are from Phase 4 subdivision interior lots.
     const perimeterCalls = this.identifyPerimeterCalls(
       reconciledCalls,
       intelligence,
@@ -152,7 +182,7 @@ export class GeometricReconciliationEngine {
 
     // ── STEP 4: Traverse Closure — Before Reconciliation ─────────────────
 
-    console.log('[Reconcile] Step 4: Computing traverse closure...');
+    logger.info('Reconcile', 'Step 4: Computing traverse closure...');
     const traverse = new TraverseComputation();
 
     // Pre-reconciliation closure (using Phase 3 plat_segment readings only)
@@ -163,13 +193,14 @@ export class GeometricReconciliationEngine {
     const postCalls = this.reconciledToTraverseCalls(perimeterCalls);
     const postClosure = traverse.computeTraverse(postCalls);
 
-    console.log(
-      `[Reconcile] Closure: ${preClosure.closureRatio} → ${postClosure.closureRatio}`,
+    logger.info(
+      'Reconcile',
+      `Closure: ${preClosure.closureRatio} → ${postClosure.closureRatio}`,
     );
 
     // ── STEP 5: Compass Rule Adjustment ──────────────────────────────────
 
-    console.log('[Reconcile] Step 5: Applying Compass Rule...');
+    logger.info('Reconcile', 'Step 5: Applying Compass Rule (Bowditch) adjustment...');
     const compassResult = traverse.applyCompassRule(postCalls, postClosure);
 
     // ── Build Reconciled Perimeter ────────────────────────────────────────
@@ -276,8 +307,9 @@ export class GeometricReconciliationEngine {
     // ── Assemble Final Model ─────────────────────────────────────────────
 
     const totalMs = Date.now() - startTime;
-    console.log(
-      `[Reconcile] Complete: ${reconciledCalls.length} calls reconciled, ` +
+    logger.info(
+      'Reconcile',
+      `Complete: ${reconciledCalls.length} calls reconciled, ` +
         `closure ${preClosure.closureRatio} → ${compassResult.closureRatio}, ` +
         `confidence ${prevAvgConfidence}% → ${avgConfidence}% ` +
         `in ${(totalMs / 1000).toFixed(1)}s`,
@@ -293,7 +325,7 @@ export class GeometricReconciliationEngine {
       closureOptimization,
       unresolvedConflicts,
       timing: { totalMs },
-      aiCalls: 0, // Phase 7 doesn't make AI calls — it's pure computation
+      aiCalls: 0, // Phase 7 is pure computation — no AI calls
       errors,
     };
 
@@ -304,9 +336,11 @@ export class GeometricReconciliationEngine {
     try {
       fs.mkdirSync(outputDir, { recursive: true });
       fs.writeFileSync(outputPath, JSON.stringify(model, null, 2));
-      console.log(`[Reconcile] Saved to ${outputPath}`);
+      logger.info('Reconcile', `Saved to ${outputPath}`);
     } catch (e) {
-      console.error(`[Reconcile] Failed to save model:`, e);
+      const msg = `Failed to save reconciled model: ${e}`;
+      errors.push(msg);
+      logger.error('Reconcile', msg, e);
     }
 
     return model;
