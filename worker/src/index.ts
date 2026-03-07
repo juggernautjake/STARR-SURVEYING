@@ -1251,7 +1251,7 @@ app.post('/research/confidence', requireAuth, async (req: Request, res: Response
 // ── GET /research/confidence/:projectId ──────────────────────────────────
 // Returns the confidence report or in_progress status.
 
-app.get('/research/confidence/:projectId', requireAuth, (req: Request, res: Response) => {
+app.get('/research/confidence/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
   const { projectId } = req.params;
 
   if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
@@ -1262,8 +1262,12 @@ app.get('/research/confidence/:projectId', requireAuth, (req: Request, res: Resp
   const resultPath = `/tmp/analysis/${projectId}/confidence_report.json`;
 
   if (fs.existsSync(resultPath)) {
-    const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
-    res.json(result);
+    try {
+      const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to read confidence report', details: String(e) });
+    }
   } else {
     res.json({ status: 'in_progress' });
   }

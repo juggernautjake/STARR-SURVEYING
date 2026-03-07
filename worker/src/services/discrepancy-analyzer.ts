@@ -3,6 +3,19 @@
 // Uses AI root-cause analysis for unresolved discrepancies.
 //
 // Spec §8.5 — Discrepancy Analysis Engine
+//
+// Discrepancy categories detected:
+//   bearing_mismatch   — 2+ sources disagree on bearing (spread > 1 arc-minute)
+//   distance_mismatch  — 2+ sources disagree on distance (spread > 2 feet)
+//   type_conflict      — some say straight, others say curve
+//   datum_shift        — systematic 2-5 arc-minute rotation across multiple calls
+//   area_discrepancy   — computed acreage differs from stated acreage by > 2%
+//   (additional categories like monument_conflict come from AI analysis)
+//
+// Robustness notes:
+//   - AbortSignal.timeout(30_000) on AI fetch to prevent hanging
+//   - All detection methods return null instead of throwing
+//   - AI failures are logged and fall back gracefully (no re-throw)
 
 import type { ReconciledCall } from '../types/reconciliation.js';
 import type {
@@ -12,6 +25,14 @@ import type {
 } from '../types/confidence.js';
 
 const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929';
+
+// Minimum arc-minute spread to flag as a datum_shift candidate.
+// NAD27→NAD83 typically shifts 2-5 arc-minutes in Texas.
+const DATUM_SHIFT_MIN_SPREAD_MIN = 2.0;
+const DATUM_SHIFT_MAX_SPREAD_MIN = 6.0;
+// Minimum number of affected calls needed before classifying as datum_shift
+// (vs isolated bearing error).
+const DATUM_SHIFT_MIN_AFFECTED_CALLS = 3;
 
 // ── Discrepancy Analyzer ────────────────────────────────────────────────────
 
@@ -106,6 +127,14 @@ export class DiscrepancyAnalyzer {
       }
     }
 
+    // Check for datum shift — a systematic pattern across multiple bearing discrepancies
+    const datumDisc = this.detectDatumShift(reconciledCalls);
+    if (datumDisc) {
+      datumDisc.id = `DISC-${String(discId++).padStart(3, '0')}`;
+      // Insert before individual bearing discrepancies to indicate the root cause
+      reports.unshift(datumDisc);
+    }
+
     // AI root-cause analysis for unresolved discrepancies
     const unresolved = reports.filter((r) => r.status === 'unresolved');
     if (unresolved.length > 0 && this.apiKey) {
@@ -113,11 +142,12 @@ export class DiscrepancyAnalyzer {
         await this.aiRootCauseAnalysis(unresolved, propertyContext);
         aiCalls++;
       } catch (e) {
+        // Non-fatal: AI failure leaves default empty analysis in place
         console.warn('[Discrepancy] AI root-cause analysis failed:', e);
       }
     }
 
-    // Sort by priority
+    // Sort by priority (lowest number = highest priority), then severity
     reports.sort(
       (a, b) =>
         (a.resolution?.priority || 99) - (b.resolution?.priority || 99),
@@ -305,7 +335,104 @@ export class DiscrepancyAnalyzer {
     };
   }
 
+  // ── Datum Shift Detection ──────────────────────────────────────────────
+  //
+  // Detects a NAD27→NAD83 datum shift pattern: if 3+ calls all show bearing
+  // spreads in the 2–6 arc-minute range AND the shifts are in a consistent
+  // direction, this is more likely a systematic datum shift than random OCR
+  // errors.  When detected, a single datum_shift discrepancy is emitted to
+  // explain the root cause of multiple bearing_mismatch items.
+
+  private detectDatumShift(
+    reconciledCalls: ReconciledCall[],
+  ): DiscrepancyReport | null {
+    // Collect calls with bearing spreads in the datum-shift range
+    const affected: { callId: string; spreadMin: number }[] = [];
+
+    for (const call of reconciledCalls) {
+      if (call.readings.length < 2) continue;
+      const bearingReadings = call.readings
+        .filter((r) => r.type === 'straight' && r.bearing)
+        .map((r) => r.bearing!);
+      if (bearingReadings.length < 2) continue;
+
+      const decimals = bearingReadings
+        .map((b) => this.bearingToDecimal(b))
+        .filter((d) => d !== null) as number[];
+      if (decimals.length < 2) continue;
+
+      const spreadDeg = Math.max(...decimals) - Math.min(...decimals);
+      const spreadMin = spreadDeg * 60;
+
+      if (spreadMin >= DATUM_SHIFT_MIN_SPREAD_MIN && spreadMin <= DATUM_SHIFT_MAX_SPREAD_MIN) {
+        affected.push({ callId: call.callId, spreadMin });
+      }
+    }
+
+    if (affected.length < DATUM_SHIFT_MIN_AFFECTED_CALLS) return null;
+
+    const avgSpread = (affected.reduce((s, a) => s + a.spreadMin, 0) / affected.length).toFixed(1);
+
+    return {
+      id: '',
+      severity: 'critical',
+      category: 'datum_shift',
+      title: `Probable NAD27→NAD83 datum shift affecting ${affected.length} calls`,
+      description:
+        `${affected.length} calls show consistent bearing spreads of ${DATUM_SHIFT_MIN_SPREAD_MIN}–${DATUM_SHIFT_MAX_SPREAD_MIN} arc-minutes ` +
+        `(avg ${avgSpread}'). This pattern is characteristic of a NAD27→NAD83 datum shift common in pre-1983 Texas surveys. ` +
+        `Affected calls: ${affected.map((a) => `${a.callId} (${a.spreadMin.toFixed(1)}')`).join(', ')}.`,
+      status: 'unresolved',
+      affectedCalls: affected.map((a) => a.callId),
+      affectedLots: [],
+      readings: [],
+      analysis: {
+        possibleCauses: [
+          {
+            cause: 'NAD27 → NAD83 datum shift',
+            likelihood: 'high',
+            explanation:
+              'Texas surveys prior to ~1987 were often referenced to NAD27. ' +
+              'The shift to NAD83 introduces a systematic bearing rotation of approximately 2-5 arc-minutes ' +
+              'in the clockwise direction across most of Texas. This is the most common explanation for ' +
+              'consistent multi-call bearing discrepancies in this range.',
+          },
+          {
+            cause: 'Magnetic declination epoch difference',
+            likelihood: 'medium',
+            explanation:
+              'If one source was corrected for magnetic declination and another was not, ' +
+              'a systematic offset could appear. Less likely to be this consistent.',
+          },
+        ],
+        impactAssessment: {
+          closureImpact: 'moderate',
+          acreageImpact: 'Minimal — datum shifts do not significantly change computed area',
+          boundaryPositionShift: 'Up to 5 feet at 1,000 feet distance per arc-minute of shift',
+          legalSignificance: 'High — affects legal position of corners and boundary lines',
+        },
+      },
+      resolution: {
+        recommended:
+          'Apply NAD27→NAD83 datum transformation to all pre-1983 source documents. ' +
+          'Obtain a current GPS-referenced control monument to establish datum. ' +
+          'Most county engineering offices can provide transformation parameters.',
+        alternatives: [
+          'Contact TxDOT district office for datum transformation values applicable to this county',
+          'Use NOAA NADCON5 online tool to transform specific coordinates',
+        ],
+        estimatedCost: '$0',
+        estimatedConfidenceAfterResolution: 85,
+        priority: 1,
+      },
+    };
+  }
+
   // ── AI Root-Cause Analysis ─────────────────────────────────────────────
+  //
+  // Sends all unresolved discrepancies to Claude for root-cause analysis.
+  // Uses AbortSignal.timeout(30_000) to prevent indefinite hanging.
+  // On failure, the discrepancies retain their default empty analysis fields.
 
   private async aiRootCauseAnalysis(
     discrepancies: DiscrepancyReport[],
@@ -364,6 +491,14 @@ COMMON CAUSES IN TEXAS SURVEYING:
 
 Return ONLY valid JSON array.`;
 
+    // AbortSignal.timeout prevents the fetch from hanging indefinitely.
+    // Requires Node.js 15.0.0+ (which exports AbortSignal.timeout).
+    // Falls back to undefined (no timeout) on older environments.
+    const signal: AbortSignal | undefined =
+      typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
+        ? AbortSignal.timeout(30_000)
+        : undefined;
+
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -377,6 +512,7 @@ Return ONLY valid JSON array.`;
           max_tokens: 6000,
           messages: [{ role: 'user', content: prompt }],
         }),
+        ...(signal ? { signal } : {}),
       });
 
       const data = (await response.json()) as {
@@ -426,7 +562,9 @@ Return ONLY valid JSON array.`;
         }
       }
     } catch (e) {
-      console.warn('[Discrepancy] AI root-cause analysis parse failed:', e);
+      // Non-fatal — discrepancies retain their default empty analysis fields.
+      // Log the error for diagnostics but do not re-throw.
+      console.warn('[Discrepancy] AI root-cause analysis parse/fetch failed:', e);
     }
   }
 

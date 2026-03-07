@@ -4,9 +4,16 @@
 // boundary-side, and overall confidence scoring plus discrepancy intelligence.
 //
 // Spec §8.1–8.9 — Phase 8: Confidence Scoring & Discrepancy Intelligence
+//
+// Robustness notes:
+//  - Uses PipelineLogger (no bare console.log) — consistent with Phase 6/7 pattern
+//  - Validates projectId and reconciledPath before proceeding
+//  - Gracefully handles missing context files (intelligence, subdivision, ROW)
+//  - Returns a partial report (not a throw) on non-fatal errors
 
 import fs from 'fs';
 import path from 'path';
+import { PipelineLogger } from '../lib/logger.js';
 import { CallConfidenceScorer, scoreToGrade } from './call-confidence-scorer.js';
 import { LotConfidenceScorer } from './lot-confidence-scorer.js';
 import { DiscrepancyAnalyzer } from './discrepancy-analyzer.js';
@@ -56,7 +63,13 @@ export class ConfidenceScoringEngine {
     const errors: string[] = [];
     let aiCalls = 0;
 
-    console.log(`[Confidence] Starting scoring for ${projectId}`);
+    // Guard: non-empty projectId required
+    if (!projectId || projectId.trim() === '') {
+      return this.failedReport('projectId must not be empty', startTime);
+    }
+
+    const logger = new PipelineLogger(projectId);
+    logger.info('Confidence', `Starting Phase 8 confidence scoring for ${projectId}`);
 
     // ── Load reconciled model ────────────────────────────────────────────
 
@@ -92,19 +105,21 @@ export class ConfidenceScoringEngine {
 
     // ── STEP 1: Per-Call Confidence Scoring ───────────────────────────────
 
-    console.log('[Confidence] Step 1: Scoring individual calls...');
+    logger.info('Confidence', 'Step 1: Scoring individual calls...');
     const callScorer = new CallConfidenceScorer();
     const callScores = callScorer.scoreAllCalls(allCalls);
 
     const callConfidence = [...callScores.values()];
-    console.log(
-      `[Confidence] Scored ${callConfidence.length} calls, ` +
-        `avg=${Math.round(callConfidence.reduce((s, c) => s + c.score, 0) / callConfidence.length)}`,
+    const avgCallScore = callConfidence.length > 0
+      ? Math.round(callConfidence.reduce((s, c) => s + c.score, 0) / callConfidence.length)
+      : 0;
+    logger.info('Confidence',
+      `Scored ${callConfidence.length} calls, avg=${avgCallScore}`,
     );
 
     // ── STEP 2: Per-Lot Confidence Scoring ───────────────────────────────
 
-    console.log('[Confidence] Step 2: Scoring lots...');
+    logger.info('Confidence', 'Step 2: Scoring lots...');
     const lotScorer = new LotConfidenceScorer();
     const lotConfidence: LotConfidenceScore[] = [];
 
@@ -145,7 +160,7 @@ export class ConfidenceScoringEngine {
 
     // ── STEP 3: Per-Boundary-Side Confidence ─────────────────────────────
 
-    console.log('[Confidence] Step 3: Scoring boundary sides...');
+    logger.info('Confidence', 'Step 3: Scoring boundary sides...');
     const callDirections = this.inferCallDirections(allCalls);
     const boundaryConfidence = lotScorer.scoreBoundarySides(
       callScores,
@@ -154,7 +169,7 @@ export class ConfidenceScoringEngine {
 
     // ── STEP 4: Overall Property Confidence ──────────────────────────────
 
-    console.log('[Confidence] Step 4: Computing overall confidence...');
+    logger.info('Confidence', 'Step 4: Computing overall confidence...');
     const overallConfidence = this.computeOverallConfidence(
       callConfidence,
       lotConfidence,
@@ -164,7 +179,7 @@ export class ConfidenceScoringEngine {
 
     // ── STEP 5: Discrepancy Analysis ─────────────────────────────────────
 
-    console.log('[Confidence] Step 5: Analyzing discrepancies...');
+    logger.info('Confidence', 'Step 5: Analyzing discrepancies...');
     const discAnalyzer = new DiscrepancyAnalyzer();
     const { reports: discrepancies, aiCalls: discAiCalls } =
       await discAnalyzer.analyzeDiscrepancies(
@@ -181,10 +196,15 @@ export class ConfidenceScoringEngine {
 
     // Build discrepancy summary
     const discrepancySummary = this.buildDiscrepancySummary(discrepancies);
+    logger.info('Confidence',
+      `Discrepancies: ${discrepancySummary.critical} critical, ` +
+      `${discrepancySummary.moderate} moderate, ${discrepancySummary.minor} minor, ` +
+      `${discrepancySummary.resolved} resolved`,
+    );
 
     // ── STEP 6: Document Purchase Recommendations ────────────────────────
 
-    console.log('[Confidence] Step 6: Computing purchase recommendations...');
+    logger.info('Confidence', 'Step 6: Computing purchase recommendations...');
     const purchaser = new PurchaseRecommender();
     const purchaseRecs = purchaser.recommend(
       discrepancies,
@@ -195,7 +215,7 @@ export class ConfidenceScoringEngine {
 
     // ── STEP 7: Surveyor Decision Matrix ─────────────────────────────────
 
-    console.log('[Confidence] Step 7: Building decision matrix...');
+    logger.info('Confidence', 'Step 7: Building decision matrix...');
     const surveyorDecision = buildSurveyorDecision(
       overallConfidence.score,
       callScores,
@@ -207,8 +227,8 @@ export class ConfidenceScoringEngine {
     // ── Assemble Final Report ────────────────────────────────────────────
 
     const totalMs = Date.now() - startTime;
-    console.log(
-      `[Confidence] Complete: Overall ${overallConfidence.score} (${overallConfidence.grade}), ` +
+    logger.info('Confidence',
+      `Complete: Overall ${overallConfidence.score} (${overallConfidence.grade}), ` +
         `${discrepancySummary.unresolved} unresolved discrepancies, ` +
         `${surveyorDecision.readyForField ? '✓ READY' : '✗ NOT READY'} ` +
         `in ${(totalMs / 1000).toFixed(1)}s`,
@@ -236,9 +256,11 @@ export class ConfidenceScoringEngine {
     try {
       fs.mkdirSync(outputDir, { recursive: true });
       fs.writeFileSync(outputPath, JSON.stringify(report, null, 2));
-      console.log(`[Confidence] Saved to ${outputPath}`);
+      logger.info('Confidence', `Saved confidence report to ${outputPath}`);
     } catch (e) {
-      console.error(`[Confidence] Failed to save report:`, e);
+      const saveErr = e instanceof Error ? e.message : String(e);
+      logger.warn('Confidence', `Failed to save report: ${saveErr}`);
+      errors.push(`Save failed: ${saveErr}`);
     }
 
     return report;
@@ -392,17 +414,18 @@ export class ConfidenceScoringEngine {
       (d) => d.status === 'unresolved',
     ).length;
 
-    // Estimate total resolution cost
+    // Estimate total resolution cost as a numeric value (low-end, USD).
+    // Cost strings like '$6', '$4-8', or 'Free' are parsed to their low-end.
     const costs = discrepancies
       .filter((d) => d.status === 'unresolved')
       .map((d) => {
+        if (d.resolution.estimatedCost === 'Free' || d.resolution.estimatedCost === '$0') return 0;
         const m = d.resolution.estimatedCost.match(/\$(\d+)/);
         return m ? parseInt(m[1]) : 5;
       });
-    const totalCostLow = costs.reduce((s, c) => s + c, 0);
-    const totalCostHigh = Math.round(totalCostLow * 1.8);
+    const estimatedResolutionCost = costs.reduce((s, c) => s + c, 0);
 
-    // Estimate confidence after resolving all
+    // Best-case confidence after resolving all unresolved discrepancies
     const maxAfter = discrepancies
       .filter((d) => d.status === 'unresolved')
       .reduce(
@@ -418,10 +441,7 @@ export class ConfidenceScoringEngine {
       minor,
       resolved,
       unresolved,
-      estimatedResolutionCost:
-        totalCostLow > 0
-          ? `$${totalCostLow}-${totalCostHigh}`
-          : '$0',
+      estimatedResolutionCost,
       estimatedConfidenceAfterResolution: maxAfter || 0,
     };
   }
@@ -596,17 +616,21 @@ export class ConfidenceScoringEngine {
         minor: 0,
         resolved: 0,
         unresolved: 0,
-        estimatedResolutionCost: '$0',
+        estimatedResolutionCost: 0,
         estimatedConfidenceAfterResolution: 0,
       },
       documentPurchaseRecommendations: [],
       surveyorDecisionMatrix: {
         readyForField: false,
+        overallRisk: 'critical',
         caveats: [reason],
         recommendedFieldChecks: [],
         minConfidenceForField: 60,
         currentConfidence: 0,
         afterDocPurchase: 0,
+        pathTo90: 'Resolve the data loading failure before proceeding',
+        estimatedFieldTime: 'Unknown',
+        summary: `Cannot assess field readiness: ${reason}`,
       },
       timing: { totalMs: Date.now() - startTime },
       aiCalls: 0,
