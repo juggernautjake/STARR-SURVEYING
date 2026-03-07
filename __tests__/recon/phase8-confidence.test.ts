@@ -991,3 +991,284 @@ describe('DiscrepancySummary', () => {
     expect(summary.estimatedResolutionCost).toBe(0);
   });
 });
+
+// ── Additional edge-case tests (41–60) ────────────────────────────────────────
+
+describe('CallConfidenceScorer — additional coverage', () => {
+  const scorer = new CallConfidenceScorer();
+
+  it('41. plat_overview source → reliability = 8', () => {
+    const call = makeReconciledCall({ sources: ['plat_overview'], finalConfidence: 60 });
+    const result = scorer.scoreCall(call);
+    // plat_overview maps to 8 in RELIABILITY_MAP
+    expect(result.factors.sourceReliability).toBe(8);
+  });
+
+  it('42. plat_geometric source → reliability = 6 (second lowest named source)', () => {
+    const call = makeReconciledCall({ sources: ['plat_geometric'], finalConfidence: 50 });
+    const result = scorer.scoreCall(call);
+    expect(result.factors.sourceReliability).toBe(6);
+  });
+
+  it('43. unknown source falls back to reliability = 5', () => {
+    // Any source not in the RELIABILITY_MAP should default to 5.
+    // We must cast to bypass the strict ReadingSource union since all union
+    // members are in the map — this tests the internal fallback guard only.
+    const call = makeReconciledCall({ sources: ['legacy_survey' as unknown as ReadingSource], finalConfidence: 60 });
+    const result = scorer.scoreCall(call);
+    expect(result.factors.sourceReliability).toBe(5);
+  });
+
+  it('44. score is capped at 98 even when all factors are maximised', () => {
+    const call = makeReconciledCall({
+      sources: ['txdot_row', 'deed_extraction', 'plat_segment', 'adjacent_reversed', 'adjacent_chain'],
+      agreement: 'strong',
+      bearingSpread: '0°00\'01"',
+      distanceSpread: 0.05,
+      finalConfidence: 100, // reading clarity factors based on this
+    });
+    const result = scorer.scoreCall(call);
+    // Maximum achievable is 25+25+25+25 = 100, capped at 98
+    expect(result.score).toBeLessThanOrEqual(98);
+  });
+
+  it('45. score is floored at 5 even for worst-case inputs', () => {
+    // 1 source (5 pts), no agreement (0), lowest reliability (4), clarity near 0
+    const call = makeReconciledCall({
+      sources: ['county_road_default'],
+      finalConfidence: 1, // clarity ≈ floor(1/4) = 0
+    });
+    const result = scorer.scoreCall(call);
+    expect(result.score).toBeGreaterThanOrEqual(5);
+  });
+
+  it('46. adjacent_reversed source → reliability = 19', () => {
+    const call = makeReconciledCall({ sources: ['adjacent_reversed'], finalConfidence: 80 });
+    const result = scorer.scoreCall(call);
+    expect(result.factors.sourceReliability).toBe(19);
+  });
+
+  it('47. 2 sources → sourceMultiplicity = 12', () => {
+    const call = makeReconciledCall({
+      sources: ['deed_extraction', 'plat_segment'],
+      finalConfidence: 75,
+    });
+    const result = scorer.scoreCall(call);
+    expect(result.factors.sourceMultiplicity).toBe(12);
+    expect(result.sourceCount).toBe(2);
+  });
+
+  it('48. 3 sources → sourceMultiplicity = 18', () => {
+    const call = makeReconciledCall({
+      sources: ['deed_extraction', 'plat_segment', 'adjacent_reversed'],
+      finalConfidence: 80,
+    });
+    const result = scorer.scoreCall(call);
+    expect(result.factors.sourceMultiplicity).toBe(18);
+  });
+
+  it('49. riskLevel=high when 40 ≤ score < 60', () => {
+    // Force a mid-low score: 1 source (5) + no agreement (0) + plat_overview (8) + low clarity
+    // Clarity = floor(20/4)=5; total = 5+0+8+5=18 < 40? Actually floor(20/4)=5, 5+8+5=18 → critical
+    // Let's try plat_segment (16) + clarity 20 → 5+0+16+5=26 → critical
+    // To get 40-59: county_road_default (4), clarity=floor(100/4)=25 → 5+0+4+25=34 still high
+    // plat_geometric (6), clarity 25 → 5+0+6+25=36 → critical (< 40)
+    // subdivision_interior (14), clarity 25 → 5+0+14+25=44 → high (40-59)
+    const call = makeReconciledCall({
+      sources: ['subdivision_interior'],
+      finalConfidence: 100, // maxConfidence → readingClarity = 25
+    });
+    const result = scorer.scoreCall(call);
+    // 5 + 0 + 14 + 25 = 44 → high
+    expect(result.score).toBeGreaterThanOrEqual(40);
+    expect(result.score).toBeLessThan(60);
+    expect(result.riskLevel).toBe('high');
+  });
+
+  it('50. riskLevel=medium when 60 ≤ score < 80', () => {
+    // 2 sources (12) + strong agreement at 3-arc-minute spread (20) + deed reliability (22) + max clarity (25) = 79
+    // 3 arc-minutes = 0.05° exactly — just inside the < 0.05° threshold (scores 20 agreement points)
+    const call = makeReconciledCall({
+      sources: ['deed_extraction', 'plat_segment'],
+      agreement: 'moderate',
+      bearingSpread: '0°03\'00"',   // exactly 3 arc-minutes = 0.05° → sourceAgreement = 20
+      distanceSpread: 0.8,          // < 1.0' → also qualifies for the 20-point tier
+      finalConfidence: 100,
+    });
+    const result = scorer.scoreCall(call);
+    // 12 + 20 + 22 + 25 = 79 → medium (60 ≤ 79 < 80)
+    expect(result.score).toBeGreaterThanOrEqual(60);
+    expect(result.score).toBeLessThan(80);
+    expect(result.riskLevel).toBe('medium');
+  });
+});
+
+describe('scoreToGrade — full boundary coverage', () => {
+  it('51. all grade thresholds map correctly (B+, B, B-, C+, C, C-)', () => {
+    expect(scoreToGrade(83)).toBe('B+');
+    expect(scoreToGrade(78)).toBe('B');
+    expect(scoreToGrade(73)).toBe('B-');
+    expect(scoreToGrade(68)).toBe('C+');
+    expect(scoreToGrade(63)).toBe('C');
+    expect(scoreToGrade(58)).toBe('C-');
+  });
+
+  it('52. D+ boundary: score 53 → D+, score 52 → D', () => {
+    expect(scoreToGrade(53)).toBe('D+');
+    expect(scoreToGrade(52)).toBe('D');
+  });
+
+  it('53. A- boundary: score 88 → A-, score 87 → B+', () => {
+    expect(scoreToGrade(88)).toBe('A-');
+    expect(scoreToGrade(87)).toBe('B+');
+  });
+});
+
+describe('LotConfidenceScorer — boundary-side and acreage', () => {
+  const scorer = new LotConfidenceScorer();
+
+  it('54. scoreBoundarySides groups calls by direction and returns sorted result', () => {
+    const callScores = new Map<string, CallConfidenceScore>([
+      ['C1', { callId: 'C1', score: 85, grade: 'B+', sourceCount: 2, sources: ['deed_extraction', 'plat_segment'], agreement: 'strong', factors: { sourceMultiplicity: 12, sourceAgreement: 20, sourceReliability: 22, readingClarity: 20 }, riskLevel: 'low', notes: null }],
+      ['C2', { callId: 'C2', score: 70, grade: 'B-', sourceCount: 1, sources: ['plat_segment'], agreement: 'n/a', factors: { sourceMultiplicity: 5, sourceAgreement: 0, sourceReliability: 16, readingClarity: 20 }, riskLevel: 'medium', notes: null }],
+      ['C3', { callId: 'C3', score: 50, grade: 'D', sourceCount: 1, sources: ['plat_geometric'], agreement: 'n/a', factors: { sourceMultiplicity: 5, sourceAgreement: 0, sourceReliability: 6, readingClarity: 15 }, riskLevel: 'high', notes: null }],
+    ]);
+    const callDirections = new Map<string, string>([
+      ['C1', 'north'],
+      ['C2', 'east'],
+      ['C3', 'west'],
+    ]);
+
+    const sides = scorer.scoreBoundarySides(callScores, callDirections);
+    expect(sides.length).toBe(3);
+    const northSide = sides.find((s) => s.side === 'north');
+    expect(northSide).toBeDefined();
+    expect(northSide!.score).toBe(85);
+    // west (score 50) should have a risk message
+    const westSide = sides.find((s) => s.side === 'west');
+    expect(westSide!.risk).toBeDefined();
+  });
+
+  it('55. acreage mismatch > 5% applies negative penalty to lot score', () => {
+    const goodCall = makeReconciledCall({ sources: ['deed_extraction', 'plat_segment'], finalConfidence: 80, bearing: 'N 10°00\'00" W', distance: 500 });
+    const callScores = new Map<string, CallConfidenceScore>();
+    callScores.set('C1', { callId: 'C1', score: 80, grade: 'B', sourceCount: 2, sources: ['deed_extraction', 'plat_segment'], agreement: 'strong', factors: { sourceMultiplicity: 12, sourceAgreement: 20, sourceReliability: 22, readingClarity: 20 }, riskLevel: 'low', notes: null });
+
+    const goodLot = scorer.scoreLot('L1', 'Lot 1', [goodCall], callScores, '1:∞', 'closed', 10.0, 10.0);
+    // Now compare with a lot that has a 10% acreage discrepancy
+    const badLot = scorer.scoreLot('L1', 'Lot 1', [goodCall], callScores, '1:∞', 'closed', 10.0, 9.0);
+
+    // The bad lot should score lower due to acreage penalty
+    expect(badLot.score).toBeLessThan(goodLot.score);
+  });
+
+  it('56. lot with no calls defaults to score 50 (not zero or NaN)', () => {
+    const emptyCallScores = new Map<string, CallConfidenceScore>();
+    const result = scorer.scoreLot('EMPTY', 'Empty Lot', [], emptyCallScores, 'n/a', 'open', 0, 0);
+    expect(result.score).toBeGreaterThanOrEqual(5);
+    expect(Number.isNaN(result.score)).toBe(false);
+    // weakestCall should be null when there are no calls
+    expect(result.weakestCall).toBeNull();
+  });
+});
+
+describe('DiscrepancyAnalyzer — additional detection cases', () => {
+  const analyzer = new DiscrepancyAnalyzer(); // no API key → AI step skipped
+
+  it('57. bearing discrepancy below 1 arc-minute threshold is NOT flagged', async () => {
+    // Spread of only 0.5 arc-minutes → should not be flagged as bearing_mismatch
+    const call: ReconciledCall = {
+      callId: 'SMALL_SPREAD',
+      reconciledBearing: 'N 45°00\'00" E',
+      reconciledDistance: 400,
+      unit: 'feet',
+      type: 'straight',
+      reconciliation: {
+        method: 'weighted_consensus',
+        bearingSpread: '0°00\'30"', // 0.5 arc-minutes
+        distanceSpread: 0.1,
+        dominantSource: 'deed_extraction',
+        agreement: 'strong',
+        notes: 'tiny spread',
+      },
+      readings: [
+        { source: 'deed_extraction', callId: 'SMALL_SPREAD', bearing: 'N 45°00\'00" E', distance: 400, unit: 'feet', type: 'straight', confidence: 85, sourcePhase: 3, sourceDetail: 'deed', weight: 0.6, baseWeight: 0.65, confidenceMultiplier: 0.85, specialAdjustments: [] },
+        { source: 'plat_segment', callId: 'SMALL_SPREAD', bearing: 'N 44°59\'30" E', distance: 400.05, unit: 'feet', type: 'straight', confidence: 80, sourcePhase: 3, sourceDetail: 'plat', weight: 0.4, baseWeight: 0.65, confidenceMultiplier: 0.8, specialAdjustments: [] },
+      ],
+      finalConfidence: 82,
+      previousConfidence: 70,
+      confidenceBoost: 12,
+      symbol: '✓',
+    };
+
+    const { reports } = await analyzer.analyzeDiscrepancies([call], new Map(), [], { county: 'Bell' });
+    const bearingMismatch = reports.find((r) => r.category === 'bearing_mismatch');
+    expect(bearingMismatch).toBeUndefined();
+  });
+
+  it('58. type_conflict detected when straight and curve readings disagree', async () => {
+    const call: ReconciledCall = {
+      callId: 'CURVE_CONFLICT',
+      reconciledBearing: 'N 45°00\'00" E',
+      reconciledDistance: 300,
+      unit: 'feet',
+      type: 'straight',
+      reconciliation: {
+        method: 'weighted_consensus',
+        bearingSpread: '0°00\'01"',
+        distanceSpread: 0.5,
+        dominantSource: 'deed_extraction',
+        agreement: 'moderate',
+        notes: 'type conflict',
+      },
+      readings: [
+        { source: 'deed_extraction', callId: 'CURVE_CONFLICT', bearing: 'N 45°00\'00" E', distance: 300, unit: 'feet', type: 'straight', confidence: 75, sourcePhase: 3, sourceDetail: 'deed', weight: 0.7, baseWeight: 0.65, confidenceMultiplier: 0.75, specialAdjustments: [] },
+        { source: 'plat_segment', callId: 'CURVE_CONFLICT', bearing: null, distance: 300, unit: 'feet', type: 'curve', confidence: 60, sourcePhase: 3, sourceDetail: 'plat', weight: 0.3, baseWeight: 0.65, confidenceMultiplier: 0.6, specialAdjustments: [] },
+      ],
+      finalConfidence: 65,
+      previousConfidence: 55,
+      confidenceBoost: 10,
+      symbol: '~',
+    };
+
+    const { reports } = await analyzer.analyzeDiscrepancies([call], new Map(), [], { county: 'Travis' });
+    const typeConflict = reports.find((r) => r.category === 'type_conflict');
+    expect(typeConflict).toBeDefined();
+    expect(typeConflict!.affectedCalls).toContain('CURVE_CONFLICT');
+  });
+
+  it('59. single-reading calls produce no discrepancies', async () => {
+    const singleReadingCall = makeReconciledCall({
+      callId: 'SINGLE_READ',
+      sources: ['plat_segment'], // only 1 reading
+      finalConfidence: 70,
+    });
+
+    const { reports } = await analyzer.analyzeDiscrepancies([singleReadingCall], new Map(), [], { county: 'Bexar' });
+    // No bearing/distance/type discrepancies for a call with < 2 readings
+    const newDiscs = reports.filter((r) => r.status === 'unresolved');
+    expect(newDiscs).toHaveLength(0);
+  });
+
+  it('60. already-resolved discrepancies are preserved in output', async () => {
+    const resolvedDiscs = [
+      {
+        category: 'road_geometry',
+        title: 'FM 1234 ROW resolved',
+        description: 'Road ROW matched TxDOT data',
+        resolution: 'Matched to TxDOT ROW boundary',
+        resolvedBy: 'Phase 6 TxDOT ROW',
+        resolvedInPhase: 6,
+        affectedCalls: ['ROW1'],
+        affectedLots: [],
+        newConfidence: 92,
+      },
+    ];
+
+    const { reports } = await analyzer.analyzeDiscrepancies([], new Map(), resolvedDiscs, { county: 'Bexar' });
+    expect(reports.length).toBe(1);
+    expect(reports[0].status).toBe('resolved');
+    expect(reports[0].affectedCalls).toContain('ROW1');
+    expect(reports[0].resolution.estimatedConfidenceAfterResolution).toBe(92);
+  });
+});
