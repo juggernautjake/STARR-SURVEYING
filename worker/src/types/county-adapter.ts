@@ -287,7 +287,7 @@ export function getCountyAdapter(countyName: string): CountyAdapter {
 
   // Lazy-import named adapters to avoid loading Playwright until needed
   const NAMED_ADAPTERS: Record<string, () => CountyAdapter> = {
-    'bell': () => new BellCountyAdapterShim(name),
+    'bell': () => new BellCountyAdapterShim(),
     // Phase 4:
     // 'williamson': () => new WilliamsonCountyAdapter(),
     // 'travis':     () => new TravisCountyAdapter(),
