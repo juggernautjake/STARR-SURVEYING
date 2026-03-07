@@ -31,7 +31,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PipelineLogger } from '../lib/logger.js';
 import { PaidPlatformRegistry } from './paid-platform-registry.js';
-import { getClerkAdapter } from './clerk-registry.js';
+import { getClerkAdapter, getClerkSystem } from './clerk-registry.js';
 import type {
   DocumentAccessRequest,
   DocumentAccessResult,
@@ -112,10 +112,6 @@ export class DocumentAccessOrchestrator {
     };
 
     // ── Tier 0 / 1: Free access ─────────────────────────────────────────
-
-    if (this.config.tryFreeFirst && !request.freeOnly === false || request.freeOnly) {
-      // Always try free first
-    }
 
     if (this.config.tryFreeFirst || request.freeOnly) {
       tiersAttempted.push('free_preview');
@@ -548,9 +544,6 @@ export class DocumentAccessOrchestrator {
   private getFreePlatformName(
     countyFIPS: string,
   ): 'kofile_free' | 'countyfusion_index' | 'tyler_index' | 'henschen_index' | 'idocket_index' | 'fidlar_index' | 'texasfile_index' {
-    // KOFILE_FIPS_SET is local — check by importing dynamically would create
-    // a circular dep. Use the clerk-registry's getClerkSystem instead.
-    const { getClerkSystem } = require('./clerk-registry.js') as typeof import('./clerk-registry.js');
     const system = getClerkSystem(countyFIPS);
     switch (system) {
       case 'kofile':       return 'kofile_free';
