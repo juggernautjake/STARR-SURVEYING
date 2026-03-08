@@ -35,6 +35,14 @@ import { SiteHealthMonitor } from './infra/site-health-monitor.js';
 import { USGSClient } from './sources/usgs-client.js';
 import { TXComptrollerClient } from './sources/comptroller-client.js';
 import { validateOrNull } from './infra/schema-validator.js';
+// Phase 15 imports
+import { TylerPayAdapter } from './services/purchase-adapters/tyler-pay-adapter.js';
+import { HenschenPayAdapter } from './services/purchase-adapters/henschen-pay-adapter.js';
+import { IDocketPayAdapter } from './services/purchase-adapters/idocket-pay-adapter.js';
+import { FidlarPayAdapter } from './services/purchase-adapters/fidlar-pay-adapter.js';
+import { GovOSGuestAdapter } from './services/purchase-adapters/govos-guest-adapter.js';
+import { LandExApiAdapter } from './services/purchase-adapters/landex-api-adapter.js';
+import { NotificationService } from './services/notification-service.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -2195,6 +2203,203 @@ app.get('/research/access/result/:projectId/:instrumentNumber', requireAuth, rat
   }
 });
 
+// ── Phase 15: Purchase Automation Routes ────────────────────────────────────
+
+const notificationService = new NotificationService();
+
+/**
+ * POST /research/purchase/automated
+ * Purchase a document using a specific Phase 15 paid platform adapter.
+ * Body: { projectId, countyFIPS, countyName, instrumentNumber, documentType, platform, credentials? }
+ */
+app.post('/research/purchase/automated', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const {
+    projectId, countyFIPS, countyName, instrumentNumber, documentType, platform,
+  } = req.body as {
+    projectId?: string;
+    countyFIPS?: string;
+    countyName?: string;
+    instrumentNumber?: string;
+    documentType?: string;
+    platform?: string;
+  };
+
+  if (!projectId || !countyFIPS || !instrumentNumber || !documentType || !platform) {
+    res.status(400).json({ error: 'projectId, countyFIPS, instrumentNumber, documentType, platform are required' });
+    return;
+  }
+
+  const outputDir = `/tmp/documents/${projectId}/paid`;
+  let result: Awaited<ReturnType<LandExApiAdapter['purchaseDocument']>>;
+
+  try {
+    if (platform === 'tyler_pay') {
+      const adapter = new TylerPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.TYLER_PAY_USERNAME ?? '',
+          password: process.env.TYLER_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'henschen_pay') {
+      const adapter = new HenschenPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.HENSCHEN_PAY_USERNAME ?? '',
+          password: process.env.HENSCHEN_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'idocket_pay') {
+      const adapter = new IDocketPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.IDOCKET_PAY_USERNAME ?? '',
+          password: process.env.IDOCKET_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'fidlar_pay') {
+      const adapter = new FidlarPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.FIDLAR_PAY_USERNAME ?? '',
+          password: process.env.FIDLAR_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'govos_direct') {
+      const adapter = new GovOSGuestAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          creditCardToken: process.env.GOVOS_CREDIT_CARD_TOKEN,
+          accountUsername: process.env.GOVOS_ACCOUNT_USERNAME,
+          accountPassword: process.env.GOVOS_ACCOUNT_PASSWORD,
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'landex') {
+      const adapter = new LandExApiAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          apiKey: process.env.LANDEX_API_KEY ?? '',
+          accountId: process.env.LANDEX_ACCOUNT_ID ?? '',
+        },
+        outputDir, projectId,
+      );
+      result = await adapter.purchaseDocument(instrumentNumber, documentType);
+
+    } else {
+      res.status(400).json({ error: `Unknown platform: ${platform}. Valid: tyler_pay, henschen_pay, idocket_pay, fidlar_pay, govos_direct, landex` });
+      return;
+    }
+
+    res.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: 'Purchase automation failed', details: msg });
+  }
+});
+
+/**
+ * GET /research/purchase/platforms/status
+ * Returns which Phase 15 purchase adapters are currently configured (have credentials).
+ */
+app.get('/research/purchase/platforms/status', requireAuth, rateLimit(60, 60_000), (_req: Request, res: Response) => {
+  res.json({
+    platforms: {
+      tyler_pay:    { configured: !!(process.env.TYLER_PAY_USERNAME && process.env.TYLER_PAY_PASSWORD) },
+      henschen_pay: { configured: !!(process.env.HENSCHEN_PAY_USERNAME && process.env.HENSCHEN_PAY_PASSWORD) },
+      idocket_pay:  { configured: !!(process.env.IDOCKET_PAY_USERNAME && process.env.IDOCKET_PAY_PASSWORD) },
+      fidlar_pay:   { configured: !!(process.env.FIDLAR_PAY_USERNAME && process.env.FIDLAR_PAY_PASSWORD) },
+      govos_direct: { configured: !!(process.env.GOVOS_ACCOUNT_USERNAME || process.env.GOVOS_CREDIT_CARD_TOKEN) },
+      landex:       { configured: !!(process.env.LANDEX_API_KEY && process.env.LANDEX_ACCOUNT_ID) },
+    },
+    notifications: {
+      email: notificationService.isEmailConfigured,
+      sms:   notificationService.isSmsConfigured,
+    },
+  });
+});
+
+/**
+ * POST /research/notifications/test
+ * Send a test notification to verify email/SMS configuration.
+ * Body: { recipientEmail, recipientPhone?, eventType }
+ */
+app.post('/research/notifications/test', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const { recipientEmail, recipientPhone, eventType } = req.body as {
+    recipientEmail?: string;
+    recipientPhone?: string;
+    eventType?: string;
+  };
+
+  if (!recipientEmail) {
+    res.status(400).json({ error: 'recipientEmail is required' });
+    return;
+  }
+
+  try {
+    const result = await notificationService.send({
+      eventType: (eventType as any) ?? 'pipeline_complete',
+      recipientEmail,
+      recipientPhone: recipientPhone ?? undefined,
+      channel: recipientPhone ? 'both' : 'email',
+      projectId: 'test',
+      data: {
+        address: '1234 Test St, Belton TX 76513',
+        countyName: 'Bell',
+        confidenceScore: 94,
+        runtimeMinutes: 12,
+        documentCount: 7,
+        reportUrl: 'https://starrsurveying.com/admin/research/test',
+      },
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Notification test failed', details: String(err) });
+  }
+});
+
+/**
+ * GET /research/landex/estimate
+ * Estimate LandEx cost for a document before purchasing.
+ * Query: ?documentType=warranty_deed&pages=2
+ */
+app.get('/research/landex/estimate', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const documentType = (req.query.documentType as string) ?? 'deed';
+  const pages = parseInt((req.query.pages as string) ?? '2', 10);
+  const estimatedCost = LandExApiAdapter.estimateCost(documentType, pages);
+  res.json({
+    documentType,
+    pages,
+    estimatedCostUsd: estimatedCost,
+    platform: 'landex',
+    notes: 'Estimate only — actual cost may vary based on document type and county',
+  });
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -2243,6 +2448,10 @@ app.listen(PORT, () => {
   console.log('  GET    /research/access/plan/:fips      ← Phase 14: county access plan');
   console.log('  POST   /research/access/document        ← Phase 14: free-first document fetch');
   console.log('  GET    /research/access/result/:id/:instr ← Phase 14: cached access result');
+  console.log('  POST   /research/purchase/automated     ← Phase 15: Tyler/Henschen/iDocket/Fidlar/GovOS/LandEx');
+  console.log('  GET    /research/purchase/platforms/status ← Phase 15: adapter configuration status');
+  console.log('  POST   /research/notifications/test     ← Phase 15: test email/SMS notification');
+  console.log('  GET    /research/landex/estimate        ← Phase 15: LandEx cost estimate');
   console.log('  POST   /research/topo                   ← Phase 13: USGS topographic data');
   console.log('  GET    /research/topo/:projectId        ← Phase 13: topographic result');
   console.log('  POST   /research/tax                    ← Phase 13: TX Comptroller tax data');
