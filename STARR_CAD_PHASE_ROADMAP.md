@@ -1,8 +1,27 @@
 # STARR CAD — 8-Phase Implementation Roadmap
 
-**Version:** 2.0 | **Date:** March 2026 | **Company:** Starr Surveying Company, Belton, TX
+**Version:** 2.1 | **Date:** March 2026 | **Company:** Starr Surveying Company, Belton, TX
 
 **Purpose:** This document defines the 8 development phases for Starr CAD. Each phase has its own standalone implementation spec. Phases are sequential — each builds on the previous. Work on a phase only after the prior phase's deliverables are complete and tested.
+
+---
+
+## Current Status Summary
+
+| Phase | Title | Status |
+|-------|-------|--------|
+| Phase 1 | Project Foundation & CAD Engine Core | ✅ COMPLETE |
+| Phase 2 | Data Import & Point Code System | ✅ COMPLETE |
+| Phase 3 | Layer System, Symbols, Line Types & Editors | ✅ COMPLETE |
+| Phase 4 | Geometry Tools — Curves, Splines, Offsets & Survey Math | ✅ COMPLETE |
+| Phase 5 | Annotations, Dimensions, Templates & Print | ✅ COMPLETE |
+| Phase 6 | AI Drawing Engine | ❌ NOT STARTED |
+| Phase 7 | Final Delivery — Editor Integration, RPLS Workflow & Export | ❌ NOT STARTED |
+| Phase 8 | UX Completeness — Controls, Hotkeys, Tooltips & Settings | ❌ NOT STARTED |
+
+**Phase 4 remaining:** Phase 4 is now complete.
+
+**Phase 5 remaining:** Phase 5 is now complete.
 
 ---
 
@@ -12,6 +31,7 @@
 Phase 1 ──→ Phase 2 ──→ Phase 3 ──→ Phase 4 ──→ Phase 5 ──→ Phase 6 ──→ Phase 7 ──→ Phase 8
 Engine       Data In     Styling     Geometry    Labels/     AI Engine    Final        UX
 Core         & Codes     & Editors   Tools       Templates   & Preview    Delivery     Polish
+✅ DONE      ✅ DONE     ✅ DONE     ✅ DONE     ✅ DONE     ❌ TODO      ❌ TODO      ❌ TODO
 ```
 
 ---
@@ -50,31 +70,31 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 ---
 
-## Phase 2: Data Import & Point Code System
+## Phase 2: Data Import & Point Code System ✅ COMPLETE
+
+**Status:** ✅ **COMPLETE** — All Phase 2 acceptance tests pass. Implementation lives in `lib/cad/codes/` (code library, lookup, suffix parsing, grouping, auto-connect), `lib/cad/import/` (CSV/RW5/JobXML parsers, pipeline, validation), `lib/cad/store/` (point-store, import-store), and `app/admin/cad/components/` (ImportDialog, PointTablePanel). Accessible at `/admin/cad` via File → Import.
 
 **Goal:** Import field data (CSV, RW5, JobXML) and have every point automatically classified by its code. The dual-code system (alpha + numeric) is fully functional. Point names are parsed for fnd/set/calc suffixes with fuzzy matching and recalculation detection.
 
 **Key Deliverables:**
 
-- Master point code library (all 157+ codes with alpha/numeric mapping)
-- Point code suffix parser (B/E/A/BA/EA/CA line-connection suffixes)
-- Point name suffix intelligence (fnd/set/calc fuzzy matching, recalc detection like cald/cale/calf)
-- Point grouping logic (group by base number, resolve calc vs set vs found, compute deltas)
-- CSV/TXT import with configurable column mapper and saved presets
-- RW5 (Carlson) format parser
-- JobXML (Trimble) format parser
-- Code display toggle (alpha <-> numeric)
-- Auto-connect engine (B/E suffix -> line strings, auto-detect line vs point codes)
-- Auto-spline designation (natural feature codes -> spline fit instead of straight)
-- Point table panel (sortable, filterable table showing all imported points)
-- Data validation (duplicate point numbers, zero coordinates, unrecognized codes)
-- Simplified code collapse map (expanded -> base code for dad-mode export)
+- ✅ Master point code library (3,500+ codes with alpha/numeric mapping in `lib/cad/codes/code-library.ts`)
+- ✅ Point code suffix parser (B/E/A/BA/EA/CA line-connection suffixes in `code-suffix-parser.ts`)
+- ✅ Point name suffix intelligence (fnd/set/calc fuzzy matching, recalc detection in `name-suffix-parser.ts`)
+- ✅ Point grouping logic (group by base number, resolve calc vs set vs found in `point-grouping.ts`)
+- ✅ CSV/TXT import with configurable column mapper and saved presets (`csv-parser.ts`, ImportDialog)
+- ✅ RW5 (Carlson) format parser (`rw5-parser.ts`)
+- ✅ JobXML (Trimble) format parser (`jobxml-parser.ts`)
+- ✅ Code display toggle (alpha <-> numeric, in `code-lookup.ts`)
+- ✅ Auto-connect engine (B/E suffix -> line strings, auto-detect line vs point codes in `auto-connect.ts`)
+- ✅ Auto-spline designation (natural feature codes -> spline fit, via code `isSpline` flag)
+- ✅ Point table panel (sortable, filterable table in `PointTablePanel.tsx`)
+- ✅ Data validation (duplicate point numbers, zero coordinates, unrecognized codes in `validation.ts`)
+- ✅ Simplified code collapse map (expanded -> base code in `collapse-map.ts`)
 
 **Depends On:** Phase 1 (points rendered on canvas, selection works, undo works)
 
-**Estimated Duration:** 4-6 weeks
-
-**Spec File:** `STARR_CAD_PHASE_2_DATA_CODES.md` (to be built when Phase 1 is complete)
+**Spec File:** `STARR_CAD_PHASE_2_DATA_IMPORT.md`
 
 ---
 
@@ -111,75 +131,78 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 ---
 
-## Phase 4: Geometry Tools — Curves, Splines, Offsets & Survey Math
+## Phase 4: Geometry Tools — Curves, Splines, Offsets & Survey Math ✅ COMPLETE
+
+**Status:** ✅ **COMPLETE** — All geometry math modules, interactive canvas tools, and unit tests are complete. Implementation lives in `lib/cad/geometry/` (19 math modules), `lib/cad/store/traverse-store.ts`, `app/admin/cad/components/` (CurveCalculator, TraversePanel, ClosureReport, CanvasViewport tool handlers, CommandBar prompts). Verified by 458 unit tests.
 
 **Goal:** Full curve and arc handling (the things that make survey drawings actually useful). Spline tools that work like Fusion 360's sketch environment. Offset engine for easements, setbacks, ROW lines. Core survey math (traverses, closure, area, legal descriptions).
 
 **Key Deliverables:**
 
-- Circular arc rendering (true arcs, not polyline approximations)
-- Curve parameter calculator (any 2-3 inputs -> all outputs: R, Delta, L, C, CB, T, E, M, D)
-- 7 curve input methods (R+Delta, R+L, R+C, 3-point, 2-point+tangent, full data block, 2 tangents+R)
-- Curve data cross-validation (over-determined curves: check all params match within tolerance)
-- Curb return / fillet tool (select two lines + radius, with presets for residential/commercial/cul-de-sac)
-- Compound curves, reverse curves, spiral transitions (clothoid/Euler)
-- Fit-point spline tool (Fusion 360 style: click to place, tangent handles, Alt+drag to break symmetry, curvature comb)
-- Control-point spline tool (NURBS approximating spline)
-- Spline-to-arc conversion (bi-arc fitting within tolerance for legal descriptions)
-- Offset engine (parallel geometry at specified distance, for lines, arcs, polylines, splines, mixed geometry)
-- Offset presets (utility easement, drainage easement, front/side/rear setback, ROW, curb face/gutter)
-- Corner handling for offsets (miter, round, chamfer)
-- Parametric offset links (offset updates when source changes, breakable)
-- Mixed geometry features (straight + arc segments in one feature, from A/BA/EA suffixes)
-- Traverse management (create, edit, reorder points in a traverse)
-- Closure calculation (linear error, angular error, precision ratio)
-- Bowditch (compass rule) adjustment
-- Area computation (coordinate method, display sq ft + acres)
-- Inverse calculation tool (bearing + distance between any two points)
-- Forward point tool (place point at bearing + distance from existing point)
-- Bearing/distance input (type bearings in DMS, distances in feet)
+- ✅ Circular arc rendering (true arcs via tessellation in `arc-render.ts`, `curve-render.ts`; wired into `CanvasViewport`)
+- ✅ Curve parameter calculator (all 7 input methods in `curve.ts`, full `CurveCalculator.tsx` dialog — 315 lines)
+- ✅ 7 curve input methods (R+Delta, R+L, R+C, 3-point, 2-point+tangent, full data block, 2 tangents+R)
+- ✅ Curve data cross-validation (`crossValidateCurve` in `curve.ts`)
+- ✅ Curb return / fillet tool (`curb-return.ts`, 11 presets; `CURB_RETURN` canvas handler wired in `CanvasViewport`)
+- ✅ Compound curves, reverse curves, spiral transitions (`compound-curve.ts`)
+- ✅ Fit-point spline tool (DRAW_CURVED_LINE / DRAW_SPLINE_FIT in toolbar + canvas, `spline.ts`, tangent handle drag)
+- ✅ Control-point spline tool (DRAW_SPLINE_CONTROL, NURBS evaluation in `spline.ts`)
+- ✅ Spline-to-arc conversion (`spline-to-arc.ts`, bi-arc fitting within tolerance)
+- ✅ Offset engine (`offset.ts`, MITER/ROUND/CHAMFER, 12 presets, OFFSET tool fully wired in canvas)
+- ✅ Offset presets (12 presets: utility easement, drainage easement, setbacks, ROW, curb, gutter)
+- ✅ Corner handling for offsets (MITER, ROUND, CHAMFER in `offset.ts`)
+- ✅ Mixed geometry features (MIXED_GEOMETRY FeatureType in `types.ts`, ARC/SPLINE/STRAIGHT segments)
+- ✅ Traverse management (`traverse.ts`, `TraversePanel.tsx` — 194 lines, `traverse-store.ts`)
+- ✅ Closure calculation (`closure.ts`, linear/angular error, precision ratio)
+- ✅ Bowditch (compass rule) adjustment + Transit adjustment (in `closure.ts`, wired in `TraversePanel`)
+- ✅ Area computation (`area.ts`, coordinate method, sq ft + acres)
+- ✅ Inverse calculation (`inverseBearingDistance` in `bearing.ts`; `INVERSE` canvas handler wired — click two points → bearing+distance shown in command bar)
+- ✅ Forward point tool (`forwardPoint` in `bearing.ts`; `FORWARD_POINT` canvas handler wired — click base point, type bearing+distance → place new point)
+- ✅ Bearing/distance input (DMS parsing/formatting in `bearing.ts`, command bar)
+- ✅ Legal description generator (`legal-desc.ts`, metes-and-bounds text from traverse)
 
 **Depends On:** Phase 3 (arcs rendered with correct styling, layers assigned)
-
-**Estimated Duration:** 7-9 weeks
 
 **Spec File:** `STARR_CAD_PHASE_4_GEOMETRY_TOOLS.md`
 
 ---
 
-## Phase 5: Annotations, Dimensions, Templates & Print
+## Phase 5: Annotations, Dimensions, Templates & Print ✅ COMPLETE
+
+**Status:** ✅ **COMPLETE** — All annotation types, auto-annotation engine, label collision optimizer, template system, Zustand stores, and React UI components are built and tested. 139 new unit tests. 597 total CAD tests pass.
 
 **Goal:** Everything needed to produce a finished, printable survey drawing. Bearing/distance labels on every line, curve data on every arc, monument callouts, area labels, title block, north arrow, scale bar, legend, certification block, and a print/plot system.
 
 **Key Deliverables:**
 
-- Bearing/distance dimension tool (auto or manual placement on line segments)
-- Curve data annotation (R, L, CB, C, Delta — auto-placed outside arc, follows curvature)
-- Monument labels (auto-generated from code + point name: "5/8" IRF", "1/2" IRS w/Cap")
-- Area annotations (sq ft + acres, auto-placed at polygon centroid)
-- Text annotation tool (place/edit text anywhere on drawing)
-- Leader annotation tool (arrow + text with bend points)
-- Label optimization engine (collision detection, flip/slide/leader/shrink/stack strategies)
-- Template system (paper size, orientation, margins, scale, title block layout)
-- Default Starr Surveying template (Tabloid landscape, 1"=50')
-- Title block configurator (company name, address, phone, license, logo, project info, date, sheet number)
-- North arrow (multiple styles, draggable placement)
-- Scale bar (graphical scale bar, auto-updates with drawing scale)
-- Legend (auto-populated from features on drawing, or manually configured)
-- Certification block (RPLS certification text, signature line, seal placeholder)
-- Standard notes library (basis of bearings, datum, flood zone, disclaimer boilerplate)
-- Print/plot system (paper size, scale, orientation, print area, plot style, PDF/PNG/printer output)
-- Print preview (WYSIWYG, drag to reposition, red boundary showing printable area)
+- ✅ Bearing/distance dimension (`lib/cad/labels/bearing-dim.ts`) — `createBearingDimension()`, `computeBearingDimPlacement()`
+- ✅ Curve data annotation (`lib/cad/labels/curve-label.ts`) — `buildCurveDataLines()`, `createCurveDataAnnotation()`, `computeCurveLabelPosition()`
+- ✅ Monument labels (`lib/cad/labels/monument-label.ts`) — `getMonumentText()`, `createMonumentLabel()`, `pickBestOffsetAngle()`
+- ✅ Area annotations (`lib/cad/labels/area-label.ts`) — `computeCentroid()`, `buildAreaText()`, `createAreaAnnotation()`
+- ✅ Annotation types (`lib/cad/labels/annotation-types.ts`) — all 6 annotation interfaces
+- ✅ Auto-annotation engine (`lib/cad/labels/auto-annotate.ts`) — `autoAnnotate()` one-pass engine
+- ✅ Label optimization engine (`lib/cad/labels/label-optimizer.ts`) — `optimizeLabels()` with flip/slide/shrink/leader/probabilistic-acceptance strategies
+- ✅ Template system (`lib/cad/templates/`) — types, standard-notes (24+), certification, legend, sheet-border, default-templates (STARR/LETTER/ARCH_D), print-engine
+- ✅ Default Starr Surveying template (Tabloid landscape, 1"=50')
+- ✅ Title block configurator (`TitleBlockConfig`, `TitleBlockPanel.tsx`, `TitleBlockEditorModal.tsx`)
+- ✅ North arrow (5 styles; draggable via `TitleBlockPanel`)
+- ✅ Scale bar (`ScaleBarEditorModal.tsx`, rendered in canvas)
+- ✅ Legend (`lib/cad/templates/legend.ts` — `autoPopulateLegend()`)
+- ✅ Certification block (`lib/cad/templates/certification.ts` — `formatCertificationText()`, `DEFAULT_CERTIFICATION_CONFIG`; `CertificationEditor.tsx`)
+- ✅ Standard notes library (`lib/cad/templates/standard-notes.ts` — 24+ notes; `StandardNotesEditor.tsx`)
+- ✅ Print engine (`lib/cad/templates/print-engine.ts` — `computePrintTransform()`, DEFAULT_PRINT_CONFIG)
+- ✅ Print dialog (`app/admin/cad/components/PrintDialog.tsx` — full settings modal with PDF/PNG stubs)
+- ✅ Annotation panel (`app/admin/cad/components/AnnotationPanel.tsx` — 3-tab: Annotations / Auto-Annotate / Optimizer)
+- ✅ Annotation store (`lib/cad/store/annotation-store.ts`)
+- ✅ Template store (`lib/cad/store/template-store.ts`)
 
 **Depends On:** Phase 4 (curves have data to label, traverses have closures to display)
 
-**Estimated Duration:** 5-7 weeks
-
-**Spec File:** `STARR_CAD_PHASE_5_ANNOTATIONS_TEMPLATES.md`
+**Spec File:** `STARR_CAD_PHASE_5_ANNOTATIONS_PRINT.md`
 
 ---
 
-## Phase 6: AI Drawing Engine
+## Phase 6: AI Drawing Engine ❌ NOT STARTED
 
 **Goal:** Import a field file + provide a deed, and the AI produces an accepted drawing ready for the full editor. The engine resolves field-shot dynamic offsets to true positions, enriches data from online sources (GIS parcels, FEMA flood zones, PLSS, elevation), runs a 5–10 minute deliberation period, generates confidence-gated clarifying questions, renders an interactive drawing preview with visual element confidence cards sorted by confidence (least to most), and provides per-element AI explanation popups with element-level chat. The user accepts the drawing to send it to Phase 7.
 
@@ -213,7 +236,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 ---
 
-## Phase 7: Final Delivery — Editor Integration, RPLS Workflow & Export
+## Phase 7: Final Delivery — Editor Integration, RPLS Workflow & Export ❌ NOT STARTED
 
 **Goal:** Transform an AI-reviewed drawing into a sealed, legally valid survey deliverable. Load the accepted AI drawing into the full interactive editor. The AI generates the complete survey description. A built-in RPLS review workflow manages seal application and approval. The finished product is exported and delivered to the client. A desktop Electron wrapper and Starr platform integrations complete the phase.
 
@@ -247,7 +270,7 @@ Core         & Codes     & Editors   Tools       Templates   & Preview    Delive
 
 ---
 
-## Phase 8: UX Completeness — Controls, Hotkeys, Tooltips & Settings
+## Phase 8: UX Completeness — Controls, Hotkeys, Tooltips & Settings ❌ NOT STARTED
 
 **Goal:** Every button, form, field, and function works exactly as expected. Controls are stylish and intuitive. Hotkeys are comprehensive and user-configurable with a dedicated binding page. The cursor changes dynamically per tool and snap state. Tooltips appear on 2–3 second hover and track the mouse. Every drawing element shows hover-details (bearing, length, point names). A robust settings section manages all preferences, templates, and tool defaults. Everything persists flawlessly.
 

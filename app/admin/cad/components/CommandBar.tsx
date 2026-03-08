@@ -1,7 +1,7 @@
 'use client';
 // app/admin/cad/components/CommandBar.tsx — Bottom command input
 
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -14,6 +14,7 @@ import {
 } from '@/lib/cad/store';
 import type { ParsedCommand, Feature } from '@/lib/cad/types';
 import { featureBounds, computeBounds } from '@/lib/cad/geometry/bounds';
+import { parseBearing } from '@/lib/cad/geometry/bearing';
 
 // ─────────────────────────────────────────────
 // Command parser
@@ -109,6 +110,33 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
         : 'Specify second point of mirror line — click or type x,y. Esc to cancel.';
     case 'ERASE':
       return 'Click features to erase them, or select features first then press Delete';
+    case 'OFFSET':
+      return drawingPointsCount === 0
+        ? 'Click the feature to offset'
+        : 'Click the side to offset toward, or type a distance and press Enter';
+    case 'INVERSE':
+      return drawingPointsCount === 0
+        ? 'Click first point (or snap to a feature endpoint)'
+        : 'Click second point — bearing and distance will be displayed here';
+    case 'FORWARD_POINT':
+      return drawingPointsCount === 0
+        ? 'Click base point — then type "bearing distance" (e.g. N45-30-15E 150.00) and press Enter'
+        : 'Type bearing and distance (e.g. N45-30-15E 150.00) and press Enter to place point';
+    case 'CURB_RETURN':
+      return drawingPointsCount === 0
+        ? 'Click first line for curb return'
+        : drawingPointsCount === 1
+          ? 'Click second line — then type radius in feet and press Enter'
+          : 'Type radius in feet (e.g. 25) and press Enter — append "T" to trim lines (e.g. 25T)';
+    case 'DRAW_CURVED_LINE':
+    case 'DRAW_SPLINE_FIT':
+      return drawingPointsCount === 0
+        ? 'Click to place fit points for a smooth spline — double-click or Enter to finish'
+        : `${drawingPointsCount} fit point${drawingPointsCount !== 1 ? 's' : ''} — continue clicking or double-click/Enter to finish  [U] removes last pt`;
+    case 'DRAW_SPLINE_CONTROL':
+      return drawingPointsCount === 0
+        ? 'Click to place NURBS control points — double-click or Enter to finish (min 4 pts)'
+        : `${drawingPointsCount} control point${drawingPointsCount !== 1 ? 's' : ''} — continue clicking or double-click/Enter to finish  [U] removes last pt`;
     default:
       return 'Type a command (e.g. line, polyline, move, rotate) or coordinates (x,y or @dx,dy)';
   }
@@ -116,6 +144,7 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
 
 export default function CommandBar() {
   const [input, setInput] = useState('');
+  const [outputMsg, setOutputMsg] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const drawingStore = useDrawingStore();
@@ -124,6 +153,23 @@ export default function CommandBar() {
   const viewportStore = useViewportStore();
   const undoStore = useUndoStore();
   const uiStore = useUIStore();
+
+  // Listen for cad:commandOutput events from CanvasViewport (e.g. INVERSE result)
+  useEffect(() => {
+    let clearTimer: number | null = null;
+    const handler = (e: Event) => {
+      const { text } = (e as CustomEvent<{ text: string }>).detail;
+      if (clearTimer !== null) window.clearTimeout(clearTimer);
+      setOutputMsg(text);
+      // Auto-clear after 8 seconds
+      clearTimer = window.setTimeout(() => setOutputMsg(null), 8000);
+    };
+    window.addEventListener('cad:commandOutput', handler);
+    return () => {
+      window.removeEventListener('cad:commandOutput', handler);
+      if (clearTimer !== null) window.clearTimeout(clearTimer);
+    };
+  }, []);
 
   const toolState = toolStore.state;
   const hint = getPromptHint(
@@ -174,11 +220,42 @@ export default function CommandBar() {
             toolStore.resetToolState();
           }
         }
+        // Curb return: pure number = radius, append "T" (e.g. "25T") handled below
+        if (toolState.activeTool === 'CURB_RETURN' && toolState.drawingPoints.length >= 2) {
+          const { value: numericValue } = parsed.value as { value: number };
+          window.dispatchEvent(new CustomEvent('cad:curbReturn', { detail: { radius: numericValue, trim: false } }));
+        }
         return;
       }
 
       if (parsed.type === 'COMMAND') {
         const { name } = parsed.value as { name: string; args: string[] };
+
+        // Forward Point: raw input like "N45-30-15E 150.00" — bearing + distance
+        if (toolState.activeTool === 'FORWARD_POINT' && toolState.drawingPoints.length >= 1) {
+          const raw = input.trim();
+          // Pattern: bearing followed by whitespace and a number
+          const fpMatch = raw.match(/^(.+?)\s+([\d.]+)$/);
+          if (fpMatch) {
+            const bearingAz = parseBearing(fpMatch[1].trim());
+            const distance = parseFloat(fpMatch[2]);
+            if (bearingAz !== null && !isNaN(distance) && distance > 0) {
+              window.dispatchEvent(new CustomEvent('cad:forwardPoint', { detail: { bearing: bearingAz, distance } }));
+              return;
+            }
+          }
+        }
+
+        // Curb return: command like "25T" (radius + T for trim)
+        if (toolState.activeTool === 'CURB_RETURN' && toolState.drawingPoints.length >= 2) {
+          const trimMatch = name.match(/^([\d.]+)t$/i);
+          if (trimMatch) {
+            const radius = parseFloat(trimMatch[1]);
+            window.dispatchEvent(new CustomEvent('cad:curbReturn', { detail: { radius, trim: true } }));
+            return;
+          }
+        }
+
         executeCommand(name);
       }
 
@@ -380,22 +457,31 @@ export default function CommandBar() {
   };
 
   return (
-    <div className="flex items-center bg-gray-900 border-t border-gray-700 px-2 py-1 gap-2 text-xs transition-colors duration-150">
-      <span className="text-gray-400 shrink-0">Command:</span>
-      <form onSubmit={handleSubmit} className="flex-1">
-        <input
-          ref={inputRef}
-          className="w-full bg-transparent text-white outline-none placeholder-gray-600 transition-colors duration-150"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onFocus={() => uiStore.setCommandBarFocused(true)}
-          onBlur={() => uiStore.setCommandBarFocused(false)}
-          onKeyDown={handleKeyDown}
-          placeholder={hint}
-          autoComplete="off"
-          spellCheck={false}
-        />
-      </form>
+    <div className="flex flex-col bg-gray-900 border-t border-gray-700 text-xs transition-colors duration-150">
+      {outputMsg && (
+        <div className="flex items-center gap-2 px-2 py-1 bg-gray-800 border-b border-gray-700 text-green-400 font-mono">
+          <span className="shrink-0 text-gray-500">↳</span>
+          <span>{outputMsg}</span>
+          <button onClick={() => setOutputMsg(null)} className="ml-auto text-gray-600 hover:text-gray-400 text-xs">✕</button>
+        </div>
+      )}
+      <div className="flex items-center px-2 py-1 gap-2">
+        <span className="text-gray-400 shrink-0">Command:</span>
+        <form onSubmit={handleSubmit} className="flex-1">
+          <input
+            ref={inputRef}
+            className="w-full bg-transparent text-white outline-none placeholder-gray-600 transition-colors duration-150"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onFocus={() => uiStore.setCommandBarFocused(true)}
+            onBlur={() => uiStore.setCommandBarFocused(false)}
+            onKeyDown={handleKeyDown}
+            placeholder={hint}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </form>
+      </div>
     </div>
   );
 }
