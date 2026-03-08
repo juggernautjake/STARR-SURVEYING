@@ -303,7 +303,8 @@ describe('Schema Validator — safeParse', () => {
     const result = safeParse('discovery', { countyFips: '123' });
     if (!result.success) {
       // Zod v4 uses .issues; Zod v3 used .errors — check either
-      const issues = (result.error as unknown as { issues?: unknown[] }).issues ?? result.error.errors;
+      const issues = (result.error as unknown as { issues?: unknown[]; errors?: unknown[] }).issues
+        ?? (result.error as unknown as { errors?: unknown[] }).errors;
       expect(Array.isArray(issues)).toBe(true);
       expect((issues as unknown[]).length).toBeGreaterThan(0);
     }

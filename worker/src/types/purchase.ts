@@ -126,21 +126,49 @@ export interface ImageQuality {
   qualityScore: number;    // 0-100
 }
 
+/** Phase 15 image quality shape returned by automated purchase adapters. */
+export interface AutomatedImageQuality {
+  overallScore: number;     // 0–100
+  resolution: number;       // DPI (e.g. 300)
+  hasWatermark: boolean;
+  isReadable: boolean;
+  pageCount: number;
+}
+
 // ── Purchase Result (per-document) ──────────────────────────────────────────
 
 export interface DocumentPurchaseResult {
-  instrument: string;
+  // ── Phase 9 fields (classic purchase orchestrator) ─────────────────────
+  instrument?: string;
   documentType: string;
-  source: string;
-  status: PurchaseStatus;
+  source?: string;
+  status?: PurchaseStatus;
   pages: number;
-  costPerPage: number;
-  totalCost: number;
-  paymentMethod: PaymentMethodId;
-  transactionId: string | null;
-  downloadedImages: string[];
-  imageQuality: ImageQuality;
+  costPerPage?: number;
+  totalCost?: number;
+  paymentMethod: PaymentMethodId | string;
+  transactionId?: string | null;
+  downloadedImages?: string[];
+  imageQuality?: ImageQuality;
   error?: string;
+
+  // ── Phase 15 fields (automated purchase adapters) ──────────────────────
+  /** Whether the purchase attempt succeeded */
+  success?: boolean;
+  /** Platform identifier */
+  vendor?: PurchaseVendor;
+  /** Instrument number purchased */
+  instrumentNumber?: string;
+  /** Downloaded file paths on the worker droplet */
+  imagePaths?: string[];
+  /** Total cost in USD */
+  totalCostUsd?: number;
+  /** Structured image quality from Phase 15 adapters */
+  quality?: AutomatedImageQuality;
+  /** ISO timestamp when documents were downloaded */
+  downloadedAt?: string;
+  /** Elapsed time of the purchase operation in ms */
+  elapsedMs?: number;
 }
 
 // ── Watermark Comparison ────────────────────────────────────────────────────

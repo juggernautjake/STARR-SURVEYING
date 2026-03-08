@@ -135,9 +135,9 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
     fips: '029',
     county: 'Bexar',
     system: 'bexar_custom',
-    status: 'stub',
-    baseUrl: 'https://www.bexar.org/2504/County-Clerk',
-    notes: 'Bexar County has a custom web portal. San Antonio metro.',
+    status: 'implemented',
+    baseUrl: 'https://bexar.tx.publicsearch.us',
+    notes: 'Bexar County uses Kofile/GovOS PublicSearch portal. Phase 15: BexarClerkAdapter implemented.',
   },
 
   // ── Travis County (Austin — TrueAutomation/TCAD area) ───────────────────

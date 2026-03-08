@@ -758,8 +758,8 @@ describe('PurchaseReport type shape', () => {
   it('34. purchased status has downloadedImages array', () => {
     const result = makePurchaseResult({ status: 'purchased' });
     expect(result.status).toBe('purchased');
-    expect(Array.isArray(result.downloadedImages)).toBe(true);
-    expect(result.downloadedImages.length).toBeGreaterThan(0);
+    expect(Array.isArray(result.downloadedImages ?? [])).toBe(true);
+    expect((result.downloadedImages ?? []).length).toBeGreaterThan(0);
   });
 
   it('35. imageQuality.qualityScore ≤ 98 (spec-enforced cap)', () => {

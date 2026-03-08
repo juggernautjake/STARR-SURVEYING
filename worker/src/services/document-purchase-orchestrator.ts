@@ -279,26 +279,26 @@ export class DocumentPurchaseOrchestrator {
             documentType: rec.documentType,
             source: rec.source,
             pages: result.pages,
-            costPerPage: result.totalCost / Math.max(result.pages, 1),
-            totalCost: result.totalCost,
+            costPerPage: (result.totalCost ?? 0) / Math.max(result.pages, 1),
+            totalCost: result.totalCost ?? 0,
             paymentMethod: 'account_balance',
             timestamp: new Date().toISOString(),
             status: 'completed',
           };
           this.billing.recordTransaction(tx);
-          totalCharged += result.totalCost;
+          totalCharged += result.totalCost ?? 0;
 
           // ── Step 4: Re-extract from official images ──────────────────
           if (
             config.autoReanalyze &&
-            result.downloadedImages.length > 0
+            (result.downloadedImages ?? []).length > 0
           ) {
             this.logger.info(
               'Purchase',
               `Re-analyzing ${rec.instrument} with official images...`,
             );
             const reanalysis = await this.reanalyzeDocument(
-              result.downloadedImages,
+              result.downloadedImages ?? [],
               rec.documentType,
               rec.instrument,
               projectId,

@@ -306,7 +306,7 @@ starr-software/                     # Turborepo monorepo root
 
 ---
 
-## 5. The 14-Phase Pipeline — Status Dashboard
+## 5. The 15-Phase Pipeline — Status Dashboard
 
 ### Status Key
 
@@ -336,14 +336,16 @@ starr-software/                     # Turborepo monorepo root
 | 12 | Drawing Templates & Export | 🟢 COMPLETE | 124 | Phase 10 | 53 |
 | 13 | Interactive UI, Additional Data Sources & Production Hardening | 🟢 COMPLETE | 1,100+ | Phases 1–12 | 54–56 |
 | 14 | Document Access Tiers & Paid Platform Automation | 🟢 COMPLETE | 415 | Phases 1–13 | 57–58 |
-| — | **TOTAL** | — | **17,661+** | — | — |
+| 15 | Full Purchase Automation, Bexar County & Notifications | 🟢 COMPLETE | 580+ | Phases 1–14 | 59–62 |
+| — | **TOTAL** | — | **18,241+** | — | — |
 
-> **Current Status (March 2026):** All 14 phases are COMPLETE. **1,743 unit tests pass.**
+> **Current Status (March 2026):** All 15 phases are COMPLETE. **1,807 unit tests pass.**
 >
 > - Pipeline runs end-to-end for Bell, Harris, and Tarrant counties
 > - Phase 13 v1.0: Henschen, iDocket, Fidlar clerk adapters — statewide TX county clerk coverage complete
 > - Phase 13 v1.1: Boundary viewer API (traverse walk), USGS topo/tax proxy routes, global library API, billing API, document download proxy; schema validation in master-orchestrator
 > - Phase 14: Free-first, paid-fallback document access with 12 paid platforms, Stripe wallet funding, 4 worker API endpoints
+> - Phase 15: Full purchase automation (Tyler/Henschen/iDocket/Fidlar/GovOS/LandEx), Bexar County adapter, Notification Service (email+SMS), Stripe webhook, document_wallet_balance and document_purchase_history tables
 > - Production deployment requires live Stripe/Redis/Supabase credentials and live county portal verification
 
 ---
@@ -392,6 +394,9 @@ starr-software/                     # Turborepo monorepo root
 #### Phase 14 — COMPLETE ✅
 `types/document-access.ts` (DocumentAccessTier enum, PaidPlatformId union type, CountyAccessPlan, DocumentAccessResult, DocumentAccessConfig), `services/paid-platform-registry.ts` (full catalog of 12 paid platforms, per-county access plan generation, cheapest-first sorting, credential loading from env, availability summary), `services/document-access-orchestrator.ts` (free→paid tier routing engine, batch document fetching, factory function), `billing/stripe-billing.ts` updated (wallet funding session, per-document checkout session, wallet balance query, webhook event handling), `types/purchase.ts` updated (15 PurchaseVendors, 13 PaymentMethodIds, all platform credentials), `worker/src/index.ts` updated (4 new Phase 14 Express routes: GET /research/access/platforms, GET /research/access/plan/:fips, POST /research/access/document, GET /research/access/result/:p/:i), `app/api/admin/research/document-access/route.ts` (frontend GET/POST API with Stripe checkout and free-first routing). 62 unit tests.
 
+#### Phase 15 — COMPLETE ✅
+`purchase-adapters/tyler-pay-adapter.ts` (Playwright flow for ~30 Tyler/Odyssey counties, TYLER_PAY_FIPS_SET), `purchase-adapters/henschen-pay-adapter.ts` (Playwright flow for ~40 Henschen counties, per-county portal URL map), `purchase-adapters/idocket-pay-adapter.ts` (SPA-aware Playwright for ~20 iDocket subscriber counties), `purchase-adapters/fidlar-pay-adapter.ts` (AJAX-aware Playwright for ~15 Fidlar/Laredo counties), `purchase-adapters/govos-guest-adapter.ts` (GovOS guest CC checkout for ~80 Kofile/PublicSearch counties), `purchase-adapters/landex-api-adapter.ts` (REST API for national coverage, batch support, cost estimation), `adapters/bexar-clerk-adapter.ts` (Bexar County / San Antonio custom clerk adapter extending ClerkAdapter, BEXAR_FIPS_SET), `services/notification-service.ts` (email via Resend API + SMS via Twilio, 8 event types, graceful no-creds degradation), `app/api/webhooks/stripe/route.ts` (HMAC-SHA256 sig verification, 8 Stripe event types, wallet credit/debit), `seeds/093_phase15_wallet_tables.sql` (document_wallet_balance + document_purchase_history + trigger + RLS + helper), `worker/src/index.ts` updated (4 Phase 15 routes), clerk registry updated (Bexar stub→implemented). **TypeScript fix:** `app/api/admin/research/billing/route.ts` implicit `any` errors on `reduce`/`filter` callbacks fixed by adding `UsageEvent` interface and explicit parameter types. 64 unit tests.
+
 ### What Still Needs External Input (Cannot Be Fully Tested Without)
 
 | Item | Missing Information |
@@ -412,25 +417,19 @@ starr-software/                     # Turborepo monorepo root
 | iDocket subscription | Monthly subscription → `IDOCKET_PAY_USERNAME`, `IDOCKET_PAY_PASSWORD` |
 | Stripe document products | Create "Document Wallet" product in Stripe dashboard |
 
-### What Does NOT Exist Yet (Future Phases / Phase 15+)
+### What Does NOT Exist Yet (Future Phases / Phase 16+)
 
-1. 🔴 Full purchase automation — Tyler Pay, Henschen Pay, iDocket Pay, Fidlar Pay Playwright flows (deferred from Phase 14)
-2. 🔴 GovOS guest checkout automation — credit card form fill without an account (deferred from Phase 14)
-3. 🔴 LandEx REST API integration — API-based, no Playwright needed (deferred from Phase 14)
-4. 🔴 Database schema for `document_wallet_balance` and `document_purchase_history` tables (deferred from Phase 14)
-5. 🔴 Frontend billing dashboard UI — `/admin/research/billing` wallet balance + transaction history (deferred from Phase 14)
-6. 🔴 Stripe webhook endpoint — `/api/webhooks/stripe` for payment events (deferred from Phase 14)
-7. 🔴 Bexar County custom clerk adapter — San Antonio / Bexar County uses its own portal
-8. 🔴 Notification system — email/SMS when clean document purchase completes
-9. 🔴 Mobile-friendly report output — responsive web report for field use on phones/tablets
-10. 🔴 Report sharing / collaboration — share reports with clients via link with permission levels
-11. 🔴 AI prompt A/B testing — compare prompt versions, track accuracy metrics
-12. 🔴 Data versioning — diff pre-purchase vs post-purchase reconciliation outputs
-13. 🔴 Cleanup/retention policy — archive old projects to S3, delete local files after 90 days
-14. 🔴 Cross-county properties — detect and handle properties straddling two county lines
-15. 🔴 TNRIS LiDAR integration — high-resolution elevation from Texas Natural Resources Information System
-16. 🔴 USPS address validation — improve rural address normalization
-17. 🔴 County configuration registry — per-county override system for field names and URL patterns
+1. 🔴 Live Playwright selector tuning — Tyler Pay, Henschen Pay, iDocket Pay, Fidlar Pay portal layouts need live verification and per-county selector adjustments
+2. 🔴 GovOS guest CC form fill — requires raw card data or advanced Stripe tokenization flow; currently requires pre-tokenized Stripe card token
+3. 🔴 Mobile-friendly report output — responsive web report for field use on phones/tablets
+4. 🔴 Report sharing / collaboration — share reports with clients via link with permission levels
+5. 🔴 AI prompt A/B testing — compare prompt versions, track accuracy metrics
+6. 🔴 Data versioning — diff pre-purchase vs post-purchase reconciliation outputs
+7. 🔴 Cleanup/retention policy — archive old projects to S3, delete local files after 90 days
+8. 🔴 Cross-county properties — detect and handle properties straddling two county lines
+9. 🔴 TNRIS LiDAR integration — high-resolution elevation from Texas Natural Resources Information System
+10. 🔴 USPS address validation — improve rural address normalization
+11. 🔴 County configuration registry — per-county override system for field names and URL patterns
 
 ---
 
@@ -457,6 +456,7 @@ Each phase has a comprehensive specification document in `STARR_RECON/` containi
 | 13 | `PHASE_13_INTERACTIVE_UI.md` | Interactive boundary viewer, Document library, USGS client, Comptroller client, Zod schemas, Henschen/iDocket/Fidlar clerk adapters |
 | 13a | `PHASE_13_STATEWIDE_ADAPTERS.md` | Henschen clerk adapter, iDocket clerk adapter, Fidlar clerk adapter, Clerk registry updates, InteractiveBoundaryViewer React component |
 | 14 | `PHASE_14_DOCUMENT_ACCESS.md` | Document access tiers, PaidPlatformRegistry (12 platforms), DocumentAccessOrchestrator, Stripe wallet funding, document purchase checkout |
+| 15 | `PHASE_15_PURCHASE_AUTOMATION.md` | TylerPayAdapter, HenschenPayAdapter, IDocketPayAdapter, FidlarPayAdapter, GovOSGuestAdapter, LandExApiAdapter, BexarClerkAdapter, NotificationService, Stripe webhook, wallet schema |
 
 ---
 

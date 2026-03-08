@@ -35,6 +35,14 @@ import { SiteHealthMonitor } from './infra/site-health-monitor.js';
 import { USGSClient } from './sources/usgs-client.js';
 import { TXComptrollerClient } from './sources/comptroller-client.js';
 import { validateOrNull } from './infra/schema-validator.js';
+// Phase 15 imports
+import { TylerPayAdapter } from './services/purchase-adapters/tyler-pay-adapter.js';
+import { HenschenPayAdapter } from './services/purchase-adapters/henschen-pay-adapter.js';
+import { IDocketPayAdapter } from './services/purchase-adapters/idocket-pay-adapter.js';
+import { FidlarPayAdapter } from './services/purchase-adapters/fidlar-pay-adapter.js';
+import { GovOSGuestAdapter } from './services/purchase-adapters/govos-guest-adapter.js';
+import { LandExApiAdapter } from './services/purchase-adapters/landex-api-adapter.js';
+import { NotificationService } from './services/notification-service.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -2195,6 +2203,289 @@ app.get('/research/access/result/:projectId/:instrumentNumber', requireAuth, rat
   }
 });
 
+// ── Phase 15: Purchase Automation Routes ────────────────────────────────────
+
+const notificationService = new NotificationService();
+
+/**
+ * POST /research/purchase/automated
+ * Purchase a document using a specific Phase 15 paid platform adapter.
+ * Body: { projectId, countyFIPS, countyName, instrumentNumber, documentType, platform, credentials? }
+ */
+app.post('/research/purchase/automated', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const {
+    projectId, countyFIPS, countyName, instrumentNumber, documentType, platform,
+  } = req.body as {
+    projectId?: string;
+    countyFIPS?: string;
+    countyName?: string;
+    instrumentNumber?: string;
+    documentType?: string;
+    platform?: string;
+  };
+
+  if (!projectId || !countyFIPS || !instrumentNumber || !documentType || !platform) {
+    res.status(400).json({ error: 'projectId, countyFIPS, instrumentNumber, documentType, platform are required' });
+    return;
+  }
+
+  const outputDir = `/tmp/documents/${projectId}/paid`;
+  let result: Awaited<ReturnType<LandExApiAdapter['purchaseDocument']>>;
+
+  try {
+    if (platform === 'tyler_pay') {
+      const adapter = new TylerPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.TYLER_PAY_USERNAME ?? '',
+          password: process.env.TYLER_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'henschen_pay') {
+      const adapter = new HenschenPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.HENSCHEN_PAY_USERNAME ?? '',
+          password: process.env.HENSCHEN_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'idocket_pay') {
+      const adapter = new IDocketPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.IDOCKET_PAY_USERNAME ?? '',
+          password: process.env.IDOCKET_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'fidlar_pay') {
+      const adapter = new FidlarPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.FIDLAR_PAY_USERNAME ?? '',
+          password: process.env.FIDLAR_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'govos_direct') {
+      const adapter = new GovOSGuestAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          creditCardToken: process.env.GOVOS_CREDIT_CARD_TOKEN,
+          accountUsername: process.env.GOVOS_ACCOUNT_USERNAME,
+          accountPassword: process.env.GOVOS_ACCOUNT_PASSWORD,
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'landex') {
+      const adapter = new LandExApiAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          apiKey: process.env.LANDEX_API_KEY ?? '',
+          accountId: process.env.LANDEX_ACCOUNT_ID ?? '',
+        },
+        outputDir, projectId,
+      );
+      result = await adapter.purchaseDocument(instrumentNumber, documentType);
+
+    } else {
+      res.status(400).json({ error: `Unknown platform: ${platform}. Valid: tyler_pay, henschen_pay, idocket_pay, fidlar_pay, govos_direct, landex` });
+      return;
+    }
+
+    res.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: 'Purchase automation failed', details: msg });
+  }
+});
+
+/**
+ * GET /research/purchase/platforms/status
+ * Returns which Phase 15 purchase adapters are currently configured (have credentials).
+ */
+app.get('/research/purchase/platforms/status', requireAuth, rateLimit(60, 60_000), (_req: Request, res: Response) => {
+  res.json({
+    platforms: {
+      tyler_pay:    { configured: !!(process.env.TYLER_PAY_USERNAME && process.env.TYLER_PAY_PASSWORD) },
+      henschen_pay: { configured: !!(process.env.HENSCHEN_PAY_USERNAME && process.env.HENSCHEN_PAY_PASSWORD) },
+      idocket_pay:  { configured: !!(process.env.IDOCKET_PAY_USERNAME && process.env.IDOCKET_PAY_PASSWORD) },
+      fidlar_pay:   { configured: !!(process.env.FIDLAR_PAY_USERNAME && process.env.FIDLAR_PAY_PASSWORD) },
+      govos_direct: { configured: !!(process.env.GOVOS_ACCOUNT_USERNAME || process.env.GOVOS_CREDIT_CARD_TOKEN) },
+      landex:       { configured: !!(process.env.LANDEX_API_KEY && process.env.LANDEX_ACCOUNT_ID) },
+    },
+    notifications: {
+      email: notificationService.isEmailConfigured,
+      sms:   notificationService.isSmsConfigured,
+    },
+  });
+});
+
+/**
+ * POST /research/notifications/test
+ * Send a test notification to verify email/SMS configuration.
+ * Body: { recipientEmail, recipientPhone?, eventType }
+ */
+app.post('/research/notifications/test', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const { recipientEmail, recipientPhone, eventType } = req.body as {
+    recipientEmail?: string;
+    recipientPhone?: string;
+    eventType?: string;
+  };
+
+  if (!recipientEmail) {
+    res.status(400).json({ error: 'recipientEmail is required' });
+    return;
+  }
+
+  try {
+    const result = await notificationService.send({
+      eventType: (eventType as any) ?? 'pipeline_complete',
+      recipientEmail,
+      recipientPhone: recipientPhone ?? undefined,
+      channel: recipientPhone ? 'both' : 'email',
+      projectId: 'test',
+      data: {
+        address: '1234 Test St, Belton TX 76513',
+        countyName: 'Bell',
+        confidenceScore: 94,
+        runtimeMinutes: 12,
+        documentCount: 7,
+        reportUrl: 'https://starrsurveying.com/admin/research/test',
+      },
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Notification test failed', details: String(err) });
+  }
+});
+
+/**
+ * GET /research/landex/estimate
+ * Estimate LandEx cost for a document before purchasing.
+ * Query: ?documentType=warranty_deed&pages=2
+ */
+app.get('/research/landex/estimate', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const documentType = (req.query.documentType as string) ?? 'deed';
+  const pages = parseInt((req.query.pages as string) ?? '2', 10);
+  const estimatedCost = LandExApiAdapter.estimateCost(documentType, pages);
+  res.json({
+    documentType,
+    pages,
+    estimatedCostUsd: estimatedCost,
+    platform: 'landex',
+    notes: 'Estimate only — actual cost may vary based on document type and county',
+  });
+});
+
+// ── Phase 19: TNRIS LiDAR & Cross-County Detection ────────────────────────
+
+/**
+ * GET /research/lidar/counties
+ * List all Texas counties with LiDAR coverage on TNRIS.
+ */
+app.get('/research/lidar/counties', requireAuth, rateLimit(30, 60_000), async (_req: Request, res: Response) => {
+  try {
+    const { TNRISLiDARClient } = await import('./sources/tnris-lidar-client.js');
+    const client = new TNRISLiDARClient();
+    const counties = await client.listCoveredCounties();
+    res.json({ counties, count: counties.length, dataSource: 'TNRIS', apiConfigured: client.isConfigured });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /research/lidar/:projectId
+ * Fetch LiDAR data for the centroid of a research project.
+ */
+app.get('/research/lidar/:projectId', requireAuth, rateLimit(20, 60_000), async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const lat = parseFloat((req.query.lat as string) ?? '0');
+  const lon = parseFloat((req.query.lon as string) ?? '0');
+  const radiusM = parseInt((req.query.radiusM as string) ?? '500', 10);
+
+  if (!lat || !lon) {
+    res.status(400).json({ error: 'lat and lon query parameters are required' });
+    return;
+  }
+
+  try {
+    const { TNRISLiDARClient } = await import('./sources/tnris-lidar-client.js');
+    const client = new TNRISLiDARClient();
+    const result = await client.fetchLiDARData(lat, lon, radiusM);
+    res.json({ projectId, lidar: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /research/cross-county/detect
+ * Detect whether a property straddles county lines.
+ * Body: { lat, lon, boundaryCalls: [{bearing, distance}], primaryCountyFIPS }
+ */
+app.post('/research/cross-county/detect', requireAuth, rateLimit(30, 60_000), async (req: Request, res: Response) => {
+  const { lat, lon, boundaryCalls = [], primaryCountyFIPS } = req.body as {
+    lat?: number; lon?: number;
+    boundaryCalls?: { bearing: string; distance: number }[];
+    primaryCountyFIPS?: string;
+  };
+
+  if (!lat || !lon || !primaryCountyFIPS) {
+    res.status(400).json({ error: 'lat, lon, and primaryCountyFIPS are required' });
+    return;
+  }
+
+  try {
+    const { CrossCountyResolver } = await import('./services/cross-county-resolver.js');
+    const resolver = new CrossCountyResolver();
+    const detection = resolver.detectCrossCounty(lat, lon, boundaryCalls, primaryCountyFIPS);
+    res.json({ detection });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /research/cross-county/:projectId
+ * Get the cross-county research plan for a project (if previously detected).
+ */
+app.get('/research/cross-county/:projectId', requireAuth, rateLimit(60, 60_000), async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  try {
+    const { CrossCountyResolver } = await import('./services/cross-county-resolver.js');
+    const resolver = new CrossCountyResolver();
+    // Without DB integration, return available county adjacency info
+    const adjInfo = resolver.getAdjacentCounties('48027');
+    res.json({ projectId, adjacentCounties: adjInfo, note: 'Use POST /research/cross-county/detect for live detection' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -2243,6 +2534,14 @@ app.listen(PORT, () => {
   console.log('  GET    /research/access/plan/:fips      ← Phase 14: county access plan');
   console.log('  POST   /research/access/document        ← Phase 14: free-first document fetch');
   console.log('  GET    /research/access/result/:id/:instr ← Phase 14: cached access result');
+  console.log('  POST   /research/purchase/automated     ← Phase 15: Tyler/Henschen/iDocket/Fidlar/GovOS/LandEx');
+  console.log('  GET    /research/purchase/platforms/status ← Phase 15: adapter configuration status');
+  console.log('  POST   /research/notifications/test     ← Phase 15: test email/SMS notification');
+  console.log('  GET    /research/landex/estimate        ← Phase 15: LandEx cost estimate');
+  console.log('  GET    /research/lidar/counties         ← Phase 19: Texas counties with LiDAR coverage');
+  console.log('  GET    /research/lidar/:projectId       ← Phase 19: LiDAR elevation data for project');
+  console.log('  POST   /research/cross-county/detect    ← Phase 19: detect cross-county property');
+  console.log('  GET    /research/cross-county/:projectId ← Phase 19: cross-county research plan');
   console.log('  POST   /research/topo                   ← Phase 13: USGS topographic data');
   console.log('  GET    /research/topo/:projectId        ← Phase 13: topographic result');
   console.log('  POST   /research/tax                    ← Phase 13: TX Comptroller tax data');

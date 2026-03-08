@@ -177,7 +177,8 @@ export interface TylerPayCreds {
 export interface HenschenPayCreds {
   username: string;
   password: string;
-  countyCode: string;
+  /** 3-digit county code — optional when building from env vars */
+  countyCode?: string;
 }
 
 export interface IDocketPayCreds {

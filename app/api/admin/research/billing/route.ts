@@ -30,6 +30,16 @@ function getStripe() {
   }
 }
 
+// ── Usage event shape (matches research_usage_events table columns) ───────────
+interface UsageEvent {
+  event_type: string;
+  model: string | null;
+  total_tokens: number | null;
+  cost_usd: number | null;
+  created_at: string;
+  metadata: Record<string, unknown> | null;
+}
+
 // ── Tier display helpers ──────────────────────────────────────────────────────
 const TIER_DISPLAY: Record<string, { label: string; color: string; monthlyUsd: number; reportLimit: number | null }> = {
   free:             { label: 'Free',             color: 'gray',   monthlyUsd: 0,   reportLimit: 3 },
@@ -84,16 +94,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .gte('created_at', twelveMonthsAgo.toISOString())
     .order('created_at', { ascending: false });
 
-  const events = usageEvents ?? [];
-  const totalTokens = events.reduce((s, e) => s + (e.total_tokens ?? 0), 0);
-  const totalAiCostUsd = events.reduce((s, e) => s + Number(e.cost_usd ?? 0), 0);
-  const aiCallCount = events.filter(e => e.event_type === 'ai_call').length;
-  const apiLookupCount = events.filter(e => e.event_type === 'api_lookup').length;
-  const docFetchCount = events.filter(e => e.event_type === 'document_fetch').length;
+  const events: UsageEvent[] = (usageEvents ?? []) as UsageEvent[];
+  const totalTokens = events.reduce((s: number, e: UsageEvent) => s + (e.total_tokens ?? 0), 0);
+  const totalAiCostUsd = events.reduce((s: number, e: UsageEvent) => s + Number(e.cost_usd ?? 0), 0);
+  const aiCallCount = events.filter((e: UsageEvent) => e.event_type === 'ai_call').length;
+  const apiLookupCount = events.filter((e: UsageEvent) => e.event_type === 'api_lookup').length;
+  const docFetchCount = events.filter((e: UsageEvent) => e.event_type === 'document_fetch').length;
 
   // Group by calendar month for bar chart
   const monthlyUsage: Record<string, { month: string; tokenCount: number; costUsd: number; callCount: number }> = {};
-  for (const e of events) {
+  for (const e of events as UsageEvent[]) {
     const m = new Date(e.created_at).toISOString().slice(0, 7); // YYYY-MM
     if (!monthlyUsage[m]) monthlyUsage[m] = { month: m, tokenCount: 0, costUsd: 0, callCount: 0 };
     monthlyUsage[m].tokenCount += e.total_tokens ?? 0;
@@ -156,11 +166,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   // 5. Purchase transactions — from research_usage_events where event_type='document_fetch'
-  const purchases = events
-    .filter(e => e.event_type === 'document_fetch')
+  const purchases = (events as UsageEvent[])
+    .filter((e: UsageEvent) => e.event_type === 'document_fetch')
     .slice(0, 50)
-    .map(e => {
-      const meta = e.metadata as Record<string, unknown> ?? {};
+    .map((e: UsageEvent) => {
+      const meta = (e.metadata as Record<string, unknown>) ?? {};
       return {
         date: e.created_at,
         eventType: 'document_fetch' as const,
@@ -175,7 +185,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       };
     });
 
-  const totalSpentUsd = purchases.reduce((s, p) => s + p.totalUsd, 0);
+  const totalSpentUsd = purchases.reduce((s: number, p) => s + p.totalUsd, 0);
 
   return NextResponse.json({
     subscription,
