@@ -398,12 +398,12 @@ export class DocumentAccessOrchestrator {
               request.instrumentNumber,
               request.documentType,
             );
-            result.imagePaths   = pr.downloadedImages;
+            result.imagePaths   = pr.downloadedImages ?? [];
             result.pages        = pr.pages;
-            result.costUSD      = pr.totalCost;
-            result.transactionId = pr.transactionId;
-            result.qualityScore  = pr.imageQuality.qualityScore;
-            result.isWatermarked = pr.imageQuality.hasWatermark;
+            result.costUSD      = pr.totalCost ?? 0;
+            result.transactionId = pr.transactionId ?? null;
+            result.qualityScore  = pr.imageQuality?.qualityScore ?? 0;
+            result.isWatermarked = pr.imageQuality?.hasWatermark ?? false;
             result.status = pr.status === 'purchased' ? 'success_paid' : 'failed_all_tiers';
             if (pr.error) result.errors.push(pr.error);
           } finally {
@@ -432,12 +432,12 @@ export class DocumentAccessOrchestrator {
               request.instrumentNumber,
               request.documentType,
             );
-            result.imagePaths    = pr.downloadedImages;
+            result.imagePaths    = pr.downloadedImages ?? [];
             result.pages         = pr.pages;
-            result.costUSD       = pr.totalCost;
-            result.transactionId = pr.transactionId;
-            result.qualityScore  = pr.imageQuality.qualityScore;
-            result.isWatermarked = pr.imageQuality.hasWatermark;
+            result.costUSD       = pr.totalCost ?? 0;
+            result.transactionId = pr.transactionId ?? null;
+            result.qualityScore  = pr.imageQuality?.qualityScore ?? 0;
+            result.isWatermarked = pr.imageQuality?.hasWatermark ?? false;
             result.status = pr.status === 'purchased' ? 'success_paid' : 'failed_all_tiers';
             if (pr.error) result.errors.push(pr.error);
           } finally {

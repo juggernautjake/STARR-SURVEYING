@@ -13,7 +13,7 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { DocumentPurchaseResult, ImageQuality, HenschenPayCredentials } from '../../types/purchase.js';
+import type { DocumentPurchaseResult, AutomatedImageQuality, HenschenPayCredentials } from '../../types/purchase.js';
 import { PipelineLogger } from '../../lib/logger.js';
 import { HENSCHEN_FIPS_SET } from '../../adapters/henschen-clerk-adapter.js';
 

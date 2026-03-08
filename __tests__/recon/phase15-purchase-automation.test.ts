@@ -130,7 +130,6 @@ vi.mock('playwright', () => ({
           url: vi.fn().mockReturnValue('https://example.com'),
         }),
         close: vi.fn().mockResolvedValue(undefined),
-        newPage: vi.fn().mockResolvedValue({}),
       }),
       newPage: vi.fn().mockResolvedValue({}),
       close: vi.fn().mockResolvedValue(undefined),
@@ -679,7 +678,7 @@ describe('Phase 15 — DocumentPurchaseResult type system (types/purchase.ts)', 
     expect(result.imagePaths).toHaveLength(1);
     expect(result.pages).toBe(2);
     expect(result.totalCostUsd).toBe(1.50);
-    expect(result.quality.overallScore).toBe(90);
+    expect(result.quality?.overallScore).toBe(90);
   });
 });
 
@@ -689,10 +688,7 @@ describe('Phase 15 — Document Wallet Schema (seeds/093_phase15_wallet_tables.s
   const SQL_PATH = path.resolve(__dirname, '../../seeds/093_phase15_wallet_tables.sql');
 
   it('59. seeds/093_phase15_wallet_tables.sql file exists', () => {
-    // Bypass the fs mock for this test by using the real fs
-    const { existsSync } = vi.importActual('fs') as typeof import('fs');
-    // Since we can't call importActual synchronously in this context,
-    // we check the path relative to the test file
+    // Pure path string check — no fs I/O needed
     const resolvedPath = path.resolve(
       new URL('../../seeds/093_phase15_wallet_tables.sql', import.meta.url).pathname
     );

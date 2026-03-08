@@ -13,7 +13,7 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { DocumentPurchaseResult, ImageQuality, TylerPayCredentials } from '../../types/purchase.js';
+import type { DocumentPurchaseResult, AutomatedImageQuality, TylerPayCredentials } from '../../types/purchase.js';
 import { PipelineLogger } from '../../lib/logger.js';
 
 // ── Tyler/Odyssey County Portal Map ─────────────────────────────────────────
@@ -219,7 +219,7 @@ export class TylerPayAdapter {
     return paths;
   }
 
-  private _estimateQuality(_imagePath: string): ImageQuality {
+  private _estimateQuality(_imagePath: string): AutomatedImageQuality {
     // Clean purchased documents get high quality scores
     return { overallScore: 92, resolution: 300, hasWatermark: false, isReadable: true, pageCount: 1 };
   }

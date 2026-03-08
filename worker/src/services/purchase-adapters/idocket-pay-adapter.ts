@@ -13,7 +13,7 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { DocumentPurchaseResult, ImageQuality, IDocketPayCredentials } from '../../types/purchase.js';
+import type { DocumentPurchaseResult, AutomatedImageQuality, IDocketPayCredentials } from '../../types/purchase.js';
 import { PipelineLogger } from '../../lib/logger.js';
 import { IDOCKET_FIPS_SET } from '../../adapters/idocket-clerk-adapter.js';
 

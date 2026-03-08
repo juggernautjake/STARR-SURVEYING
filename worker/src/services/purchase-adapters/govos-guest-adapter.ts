@@ -14,7 +14,7 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { DocumentPurchaseResult, ImageQuality, GovOSDirectCredentials } from '../../types/purchase.js';
+import type { DocumentPurchaseResult, AutomatedImageQuality, GovOSDirectCredentials } from '../../types/purchase.js';
 import { PipelineLogger } from '../../lib/logger.js';
 
 // ── GovOS County Site Map (same as Kofile free preview) ──────────────────────

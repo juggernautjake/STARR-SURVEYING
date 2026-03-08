@@ -180,8 +180,7 @@ export class TXComptrollerClient {
 
     const rows = await retryWithBackoff(
       () => fetchJSONArray(url.toString()),
-      this.retryCount,
-      this.retryDelay,
+      { maxAttempts: this.retryCount, baseDelayMs: this.retryDelay },
     );
 
     return rows.map(row => parsePTADRow(row, taxYear));

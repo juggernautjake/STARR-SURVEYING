@@ -290,8 +290,11 @@ export function safeParse<P extends PhaseName>(
  */
 export function formatZodError(err: z.ZodError): string {
   // Zod v4 uses .issues; Zod v3 used .errors
-  const items: Array<{ path: (string | number)[]; message: string }> =
-    ((err as unknown as { issues?: typeof items }).issues ?? err.errors) ?? [];
+  type ErrItem = { path: (string | number)[]; message: string };
+  const items: ErrItem[] =
+    ((err as unknown as { issues?: ErrItem[]; errors?: ErrItem[] }).issues
+    ?? (err as unknown as { errors?: ErrItem[] }).errors)
+    ?? [];
   return items
     .map(e => `  [${e.path.join('.')}] ${e.message}`)
     .join('\n');

@@ -210,11 +210,10 @@ export class USGSClient {
 
     const json = await retryWithBackoff(
       () => fetchJSON(url.toString()),
-      this.retryCount,
-      this.retryDelay,
+      { maxAttempts: this.retryCount, baseDelayMs: this.retryDelay },
     );
 
-    const el = parseFloat(json?.value ?? json?.elevation ?? '');
+    const el = parseFloat(String(json?.value ?? json?.elevation ?? ''));
     if (isNaN(el)) {
       throw new Error(`USGS EPQS returned non-numeric elevation: ${JSON.stringify(json)}`);
     }
@@ -244,11 +243,10 @@ export class USGSClient {
 
     const json = await retryWithBackoff(
       () => fetchJSONPost(USGS_CONTOURS_URL, body),
-      this.retryCount,
-      this.retryDelay,
+      { maxAttempts: this.retryCount, baseDelayMs: this.retryDelay },
     );
 
-    const features: Array<Record<string, unknown>> = json?.features ?? [];
+    const features: Array<Record<string, unknown>> = (json as Record<string, unknown> | null)?.features as Array<Record<string, unknown>> ?? [];
     return features.map(f => {
       const attrs = (f.attributes ?? {}) as Record<string, unknown>;
       const elev = Number(attrs['ContourElevation'] ?? attrs['Contour'] ?? 0);
@@ -275,8 +273,8 @@ export class USGSClient {
     };
 
     const [flowlineJson, waterbodyJson] = await Promise.allSettled([
-      retryWithBackoff(() => fetchJSONPost(USGS_NHD_FLOWLINE_URL, buildArcGISQueryParams(baseParams)), this.retryCount, this.retryDelay),
-      retryWithBackoff(() => fetchJSONPost(USGS_NHD_WATERBODY_URL, buildArcGISQueryParams(baseParams)), this.retryCount, this.retryDelay),
+      retryWithBackoff(() => fetchJSONPost(USGS_NHD_FLOWLINE_URL, buildArcGISQueryParams(baseParams)), { maxAttempts: this.retryCount, baseDelayMs: this.retryDelay }),
+      retryWithBackoff(() => fetchJSONPost(USGS_NHD_WATERBODY_URL, buildArcGISQueryParams(baseParams)), { maxAttempts: this.retryCount, baseDelayMs: this.retryDelay }),
     ]);
 
     const features: WaterFeature[] = [];
