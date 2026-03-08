@@ -12,8 +12,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { PipelineVersionStore } from '@/../worker/src/services/pipeline-version-store.js';
-import { PipelineDiffEngine } from '@/../worker/src/services/pipeline-diff-engine.js';
+import { PipelineVersionStore } from '@/worker/src/services/pipeline-version-store';
+import { PipelineDiffEngine } from '@/worker/src/services/pipeline-diff-engine';
 
 function extractProjectId(req: NextRequest): string | null {
   const parts = req.nextUrl.pathname.split('/research/')[1]?.split('/');
