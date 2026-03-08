@@ -10,7 +10,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { createHash } from 'crypto';
-import type { ShareOptions } from '@/../worker/src/services/report-share-service.js';
+import type { ShareOptions } from '@/worker/src/services/report-share-service';
 
 function hashPassword(pw: string): string {
   return createHash('sha256').update(pw).digest('hex');
