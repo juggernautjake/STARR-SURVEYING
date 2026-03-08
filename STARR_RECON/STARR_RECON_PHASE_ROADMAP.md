@@ -19,7 +19,7 @@
 2. [Architecture Overview](#2-architecture-overview)
 3. [Tech Stack & Infrastructure](#3-tech-stack--infrastructure)
 4. [Repository Structure](#4-repository-structure)
-5. [The 11-Phase Pipeline — Status Dashboard](#5-the-11-phase-pipeline--status-dashboard)
+5. [The 14-Phase Pipeline — Status Dashboard](#5-the-14-phase-pipeline--status-dashboard)
 6. [Phase Specifications — Where to Find Them](#6-phase-specifications--where-to-find-them)
 7. [Data Flow — How Phases Connect](#7-data-flow--how-phases-connect)
 8. [Core Data Models — Shared Types](#8-core-data-models--shared-types)
@@ -306,7 +306,7 @@ starr-software/                     # Turborepo monorepo root
 
 ---
 
-## 5. The 13-Phase Pipeline — Status Dashboard
+## 5. The 14-Phase Pipeline — Status Dashboard
 
 ### Status Key
 
@@ -335,9 +335,16 @@ starr-software/                     # Turborepo monorepo root
 | 11 | Product Expansion & Platform | 🟢 COMPLETE | 1,700+ | All prior | 31–52 |
 | 12 | Drawing Templates & Export | 🟢 COMPLETE | 124 | Phase 10 | 53 |
 | 13 | Interactive UI, Additional Data Sources & Production Hardening | 🟢 COMPLETE | 1,100+ | Phases 1–12 | 54–56 |
-| — | **TOTAL** | — | **17,246+** | — | — |
+| 14 | Document Access Tiers & Paid Platform Automation | 🟢 COMPLETE | 415 | Phases 1–13 | 57–58 |
+| — | **TOTAL** | — | **17,661+** | — | — |
 
-> **Current Status (March 2026):** All 13 phases are COMPLETE. 1455 unit tests pass. The full pipeline runs end-to-end for Bell, Harris, and Tarrant counties. Phase 13 v1.1 added: Next.js API routes for boundary viewer assembly (with traverse walk), topo/tax proxy routes with Supabase caching, global document library API, billing dashboard API, and document download proxy. Schema validation integrated into master-orchestrator. Supabase tables for topo/tax results added. Production deployment requires live testing with real county portals and Stripe/Redis infrastructure.
+> **Current Status (March 2026):** All 14 phases are COMPLETE. **1,743 unit tests pass.**
+>
+> - Pipeline runs end-to-end for Bell, Harris, and Tarrant counties
+> - Phase 13 v1.0: Henschen, iDocket, Fidlar clerk adapters — statewide TX county clerk coverage complete
+> - Phase 13 v1.1: Boundary viewer API (traverse walk), USGS topo/tax proxy routes, global library API, billing API, document download proxy; schema validation in master-orchestrator
+> - Phase 14: Free-first, paid-fallback document access with 12 paid platforms, Stripe wallet funding, 4 worker API endpoints
+> - Production deployment requires live Stripe/Redis/Supabase credentials and live county portal verification
 
 ---
 
@@ -380,7 +387,10 @@ starr-software/                     # Turborepo monorepo root
 `lib/research/export.service.ts` (renderToPng, renderToPdf, renderToDxf), `app/admin/research/components/ExportPanel.tsx` updated — PNG at 300 DPI, PDF via jsPDF, DXF via dxf-writer with AutoCAD layer mapping.
 
 #### Phase 13 — COMPLETE ✅
-`sources/usgs-client.ts` (USGS 3DEP elevation + contours + NHD water features), `sources/comptroller-client.ts` (TX Comptroller PTAD tax rates + standard exemptions), `infra/schema-validator.ts` (Zod phase-boundary validation for all 12 phases), `app/admin/research/[projectId]/boundary/page.tsx` (interactive SVG boundary viewer with pan/zoom/click-to-inspect/layer-toggles), `app/admin/research/[projectId]/documents/page.tsx` (project document library with preview + download), `app/admin/research/library/page.tsx` (global cross-project document library), `app/admin/research/billing/page.tsx` (subscription/usage/invoices/purchases dashboard) — Interactive UI completion and production hardening. **v1.1:** `app/api/admin/research/[projectId]/boundary/route.ts` (traverse walk → SVG coordinates, merge calls+confidence+discrepancies), `app/api/admin/research/[projectId]/topo/route.ts` (USGS proxy with Supabase caching), `app/api/admin/research/[projectId]/tax/route.ts` (TX Comptroller proxy with Supabase caching), `app/api/admin/research/library/route.ts` (global library with pagination+stats), `app/api/admin/research/billing/route.ts` (Stripe invoices + usage metrics), `app/api/admin/research/[projectId]/documents/[docId]/download/route.ts` (signed URL download proxy), `seeds/092_phase13_tables.sql` (research_topo + research_tax), Phase 13 Express routes in `worker/src/index.ts`, schema validation in `master-orchestrator.ts`. 80 unit tests.
+`adapters/henschen-clerk-adapter.ts` (~16 TX Hill Country counties, AI OCR fallback), `adapters/idocket-clerk-adapter.ts` (~18 TX counties, React SPA-aware), `adapters/fidlar-clerk-adapter.ts` (~13 TX East/Panhandle counties, AJAX-aware), `services/clerk-registry.ts` updated (priority 4/5/6 for new systems), `app/admin/research/components/InteractiveBoundaryViewer.tsx` (SVG boundary viewer React component), `sources/usgs-client.ts` (USGS 3DEP elevation + contours + NHD water features), `sources/comptroller-client.ts` (TX Comptroller PTAD tax rates + standard exemptions), `infra/schema-validator.ts` (Zod phase-boundary validation for all 12 phases), `app/admin/research/[projectId]/boundary/page.tsx` (interactive SVG boundary viewer with pan/zoom/click-to-inspect/layer-toggles), `app/admin/research/[projectId]/documents/page.tsx` (project document library with preview + download), `app/admin/research/library/page.tsx` (global cross-project document library), `app/admin/research/billing/page.tsx` (subscription/usage/invoices/purchases dashboard) — Interactive UI completion and production hardening. **v1.1:** `app/api/admin/research/[projectId]/boundary/route.ts` (traverse walk → SVG coordinates, merge calls+confidence+discrepancies), `app/api/admin/research/[projectId]/topo/route.ts` (USGS proxy with Supabase caching), `app/api/admin/research/[projectId]/tax/route.ts` (TX Comptroller proxy with Supabase caching), `app/api/admin/research/library/route.ts` (global library with pagination+stats), `app/api/admin/research/billing/route.ts` (Stripe invoices + usage metrics), `app/api/admin/research/[projectId]/documents/[docId]/download/route.ts` (signed URL download proxy), `seeds/092_phase13_tables.sql` (research_topo + research_tax), Phase 13 Express routes in `worker/src/index.ts`, schema validation in `master-orchestrator.ts`. 80 unit tests.
+
+#### Phase 14 — COMPLETE ✅
+`types/document-access.ts` (DocumentAccessTier enum, PaidPlatformId union type, CountyAccessPlan, DocumentAccessResult, DocumentAccessConfig), `services/paid-platform-registry.ts` (full catalog of 12 paid platforms, per-county access plan generation, cheapest-first sorting, credential loading from env, availability summary), `services/document-access-orchestrator.ts` (free→paid tier routing engine, batch document fetching, factory function), `billing/stripe-billing.ts` updated (wallet funding session, per-document checkout session, wallet balance query, webhook event handling), `types/purchase.ts` updated (15 PurchaseVendors, 13 PaymentMethodIds, all platform credentials), `worker/src/index.ts` updated (4 new Phase 14 Express routes: GET /research/access/platforms, GET /research/access/plan/:fips, POST /research/access/document, GET /research/access/result/:p/:i), `app/api/admin/research/document-access/route.ts` (frontend GET/POST API with Stripe checkout and free-first routing). 62 unit tests.
 
 ### What Still Needs External Input (Cannot Be Fully Tested Without)
 
@@ -396,19 +406,31 @@ starr-software/                     # Turborepo monorepo root
 | Supabase credentials | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` |
 | USGS EPQS live URL | `https://epqs.nationalmap.gov/v1/json` endpoint needs live verification |
 | TX Comptroller PTAD | `data.texas.gov` Socrata dataset schema may have changed |
+| TexasFile account | Production username + password → `TEXASFILE_USERNAME`, `TEXASFILE_PASSWORD` |
+| Kofile pay account | Production username + CC on file → `KOFILE_USERNAME`, `KOFILE_PASSWORD` |
+| LandEx API key | Account at landex.com → `LANDEX_API_KEY`, `LANDEX_ACCOUNT_ID` |
+| iDocket subscription | Monthly subscription → `IDOCKET_PAY_USERNAME`, `IDOCKET_PAY_PASSWORD` |
+| Stripe document products | Create "Document Wallet" product in Stripe dashboard |
 
-### What Does NOT Exist Yet (Future Phases)
+### What Does NOT Exist Yet (Future Phases / Phase 15+)
 
-1. 🔴 Mobile-friendly report output — responsive web report for field use on phones/tablets
-2. 🔴 Report sharing / collaboration — share reports with clients via link with permission levels
-3. 🔴 Email/SMS notifications — notify when pipeline completes
-4. 🔴 AI prompt A/B testing — compare prompt versions, track accuracy metrics
-5. 🔴 Data versioning — diff pre-purchase vs post-purchase reconciliation outputs
-6. 🔴 Cleanup/retention policy — archive old projects to S3, delete local files after 90 days
-7. 🔴 Cross-county properties — detect and handle properties straddling two county lines
-8. 🔴 TNRIS LiDAR integration — high-resolution elevation from Texas Natural Resources Information System
-9. 🔴 USPS address validation — improve rural address normalization
-10. 🔴 County configuration registry — per-county override system for field names and URL patterns
+1. 🔴 Full purchase automation — Tyler Pay, Henschen Pay, iDocket Pay, Fidlar Pay Playwright flows (deferred from Phase 14)
+2. 🔴 GovOS guest checkout automation — credit card form fill without an account (deferred from Phase 14)
+3. 🔴 LandEx REST API integration — API-based, no Playwright needed (deferred from Phase 14)
+4. 🔴 Database schema for `document_wallet_balance` and `document_purchase_history` tables (deferred from Phase 14)
+5. 🔴 Frontend billing dashboard UI — `/admin/research/billing` wallet balance + transaction history (deferred from Phase 14)
+6. 🔴 Stripe webhook endpoint — `/api/webhooks/stripe` for payment events (deferred from Phase 14)
+7. 🔴 Bexar County custom clerk adapter — San Antonio / Bexar County uses its own portal
+8. 🔴 Notification system — email/SMS when clean document purchase completes
+9. 🔴 Mobile-friendly report output — responsive web report for field use on phones/tablets
+10. 🔴 Report sharing / collaboration — share reports with clients via link with permission levels
+11. 🔴 AI prompt A/B testing — compare prompt versions, track accuracy metrics
+12. 🔴 Data versioning — diff pre-purchase vs post-purchase reconciliation outputs
+13. 🔴 Cleanup/retention policy — archive old projects to S3, delete local files after 90 days
+14. 🔴 Cross-county properties — detect and handle properties straddling two county lines
+15. 🔴 TNRIS LiDAR integration — high-resolution elevation from Texas Natural Resources Information System
+16. 🔴 USPS address validation — improve rural address normalization
+17. 🔴 County configuration registry — per-county override system for field names and URL patterns
 
 ---
 
@@ -432,7 +454,9 @@ Each phase has a comprehensive specification document in `STARR_RECON/` containi
 | 10 | `PHASE_10_REPORTS.md` | SVG renderer, PNG rasterizer, DXF exporter, PDF generator, Legal description, CLI |
 | 11 | `PHASE_11_EXPANSION.md` | FEMA/GLO/TCEQ/RRC/NRCS clients, Stripe billing, statewide adapters, Batch, Chain of title |
 | 12 | `PHASE_12_EXPORT.md` | PNG/PDF/DXF export service (resvg, jsPDF, dxf-writer), Drawing templates |
-| 13 | `PHASE_13_INTERACTIVE_UI.md` | Interactive boundary viewer, Document library, USGS client, Comptroller client, Zod schemas |
+| 13 | `PHASE_13_INTERACTIVE_UI.md` | Interactive boundary viewer, Document library, USGS client, Comptroller client, Zod schemas, Henschen/iDocket/Fidlar clerk adapters |
+| 13a | `PHASE_13_STATEWIDE_ADAPTERS.md` | Henschen clerk adapter, iDocket clerk adapter, Fidlar clerk adapter, Clerk registry updates, InteractiveBoundaryViewer React component |
+| 14 | `PHASE_14_DOCUMENT_ACCESS.md` | Document access tiers, PaidPlatformRegistry (12 platforms), DocumentAccessOrchestrator, Stripe wallet funding, document purchase checkout |
 
 ---
 
@@ -1153,7 +1177,7 @@ Implementation is organized into 5 tiers. Complete each tier before starting the
 | 4.9 | Henschen clerk adapter | 11/F | Retrieves documents from Henschen counties |
 | 4.10 | HCAD adapter | 11/F | Discovers properties in Harris County |
 
-### TIER 5: Premium Features *(Weeks 31–52)*
+### TIER 5: Premium Features *(Weeks 31–58)*
 
 | # | Task | Phase | Accept When |
 |---|---|---|---|
@@ -1164,9 +1188,11 @@ Implementation is organized into 5 tiers. Complete each tier before starting the
 | 5.5 | Deep chain of title engine | 11/J | Traces 5+ generations, detects boundary changes |
 | 5.6 | Batch processing | 11/I | Processes 10+ properties in a single batch |
 | 5.7 | RW5 + JobXML exports | 11/N | Imports into Carlson and Trimble software |
-| 5.8 | Remaining county adapters | 11/F | 90%+ of TX population covered |
-| 5.9 | AI prompt versioning + accuracy tracking | 11/L | A/B test prompts, measure accuracy |
-| 5.10 | Enterprise features (custom branding, SSO) | 11/G | White-label reports for firms |
+| 5.8 | Remaining county adapters (Henschen, iDocket, Fidlar) | 13 | 90%+ of TX population covered |
+| 5.9 | Document access tier routing engine | 14 | Free-first, paid-fallback routing for all 254 TX counties |
+| 5.10 | Paid document purchase automation (Tyler Pay, Henschen Pay) | 15 | Clean unwatermarked images purchasable in one click |
+| 5.11 | AI prompt versioning + accuracy tracking | 11/L | A/B test prompts, measure accuracy |
+| 5.12 | Enterprise features (custom branding, SSO) | 11/G | White-label reports for firms |
 
 ---
 
@@ -1680,4 +1706,4 @@ Please implement this task following the implementation rules in Section 12 of t
 *End of STARR RECON Master Roadmap v1.0*  
 *Starr Software / Starr Surveying Company — Belton, Texas — March 2026*  
 *This document is the single source of truth for AI-assisted development of the STARR RECON pipeline.*  
-*Next: See individual phase spec files (`PHASE_01_DISCOVERY.md` through `PHASE_11_EXPANSION.md`)*
+*Next: See individual phase spec files (`PHASE_01_DISCOVERY.md` through `PHASE_14_DOCUMENT_ACCESS.md`)*

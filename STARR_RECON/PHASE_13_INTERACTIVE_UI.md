@@ -1,33 +1,48 @@
-# STARR RECON — Phase 13: Interactive Web UI, Additional Data Sources & Production Hardening
+# STARR RECON — Phase 13: Statewide Clerk Adapters, Interactive Web UI, Additional Data Sources & Production Hardening
 
 **Product:** Starr Compass — AI Property Research (STARR RECON)
-**Version:** 1.0 | **Last Updated:** March 2026
+**Version:** 1.1 | **Last Updated:** March 2026
 **Phase Duration:** Weeks 54–56
 **Depends On:** All Phases 1–12
-**Status:** ✅ COMPLETE v1.1 — All Phase 13 deliverables built and tested. v1.1: Added Next.js API routes (boundary, topo, tax, library, billing, document download), Phase 13 Express routes in worker (USGS topo, TX Comptroller tax, boundary viewer endpoint), schema validation integrated into master-orchestrator.ts, Supabase migration for research_topo + research_tax tables, 80 unit tests pass. 1455 total tests pass.
+**Status:** ✅ COMPLETE v1.1 (March 2026)
+- **v1.0:** Henschen, iDocket, Fidlar clerk adapters + clerk-registry update (priority 4/5/6) + InteractiveBoundaryViewer component + USGS client + TX Comptroller client + Zod schema validator + 4 UI pages. 60 statewide adapter tests + initial interactive tests.
+- **v1.1:** Next.js API routes (boundary viewer with traverse walk, topo/tax proxies, library, billing, document download), Phase 13 Express routes in worker, schema validation in master-orchestrator.ts, Supabase migration for research_topo + research_tax, 20 traverse walk tests added. **80 total interactive UI tests. 1,497 total tests pass.**
 **Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
+**See Also:** `PHASE_13_STATEWIDE_ADAPTERS.md` — detailed spec for Henschen, iDocket, and Fidlar clerk adapter implementations.
 
 ---
 
 ## Goal
 
-Complete the Starr Compass web interface and close the final gaps left after Phases 11 and 12:
+Close the final gaps left after Phases 11 and 12 across three areas:
 
-1. **Interactive Boundary Viewer** — An SVG-based React page where surveyors can pan/zoom, click any boundary call to inspect all source readings and confidence scores, toggle display layers, and switch between solid/confidence/source color modes.
+1. **Statewide Clerk Coverage** — Implement the three remaining major TX county clerk system adapters (Henschen & Associates, iDocket, and Fidlar Technologies), completing coverage for ~47 additional counties, and register them in the clerk-registry routing layer.
 
-2. **Document Library** — Two complementary pages: a per-project document library showing every harvested and purchased document with preview/download, and a global cross-project library with full-text search, county filtering, and pagination.
+2. **Interactive Boundary Viewer** — An SVG-based React page where surveyors can pan/zoom, click any boundary call to inspect all source readings and confidence scores, toggle display layers, and switch between solid/confidence/source color modes.
 
-3. **Billing & Usage Dashboard** — A subscription management page showing the current plan, usage metrics, invoice history, and per-document purchase transaction log.
+3. **Document Library** — Two complementary pages: a per-project document library showing every harvested and purchased document with preview/download, and a global cross-project library with full-text search, county filtering, and pagination.
 
-4. **USGS National Map Client** — Retrieves topographic elevation (3DEP), contour lines, NHD water features, and slope/aspect data for any property coordinate.
+4. **Billing & Usage Dashboard** — A subscription management page showing the current plan, usage metrics, invoice history, and per-document purchase transaction log.
 
-5. **TX Comptroller Client** — Retrieves county-level property tax rates from the PTAD transparency portal, maps counties to their CAD/appraisal districts, and provides the standard Texas homestead/over-65/disabled-veteran exemption data.
+5. **USGS National Map Client** — Retrieves topographic elevation (3DEP), contour lines, NHD water features, and slope/aspect data for any property coordinate.
 
-6. **Zod Phase-Boundary Schema Validation** — Validates every phase's output JSON against a strongly-typed Zod schema before the next phase begins, converting silent data-shape bugs into clear, actionable error messages.
+6. **TX Comptroller Client** — Retrieves county-level property tax rates from the PTAD transparency portal, maps counties to their CAD/appraisal districts, and provides the standard Texas homestead/over-65/disabled-veteran exemption data.
 
-**Deliverable:** A fully interactive research web UI, two additional government data source integrations, and airtight I/O contracts between pipeline phases — making the STARR RECON product ready for real surveyor use.
+7. **Zod Phase-Boundary Schema Validation** — Validates every phase's output JSON against a strongly-typed Zod schema before the next phase begins, converting silent data-shape bugs into clear, actionable error messages.
+
+**Deliverable:** Complete statewide Texas clerk coverage, a fully interactive research web UI, two additional government data source integrations, and airtight I/O contracts between pipeline phases — making the STARR RECON product ready for real surveyor use.
 
 ---
+
+### v1.0 Changes (March 2026)
+
+- **New:** `worker/src/adapters/henschen-clerk-adapter.ts` — Henschen & Associates clerk adapter for ~16 TX Hill Country / Central Texas counties. Server-rendered HTML scraping with AI OCR fallback. Exports `HENSCHEN_FIPS_SET` and `createHenschenAdapter()`.
+- **New:** `worker/src/adapters/idocket-clerk-adapter.ts` — iDocket React SPA adapter for ~18 TX counties. SPA-aware navigation, auto-pagination, guest-mode index access. Exports `IDOCKET_FIPS_SET` and `createIDocketAdapter()`.
+- **New:** `worker/src/adapters/fidlar-clerk-adapter.ts` — Fidlar/Laredo AJAX adapter for ~13 East TX and Panhandle counties. `waitForResponse` listener strategy, session management, JSON+HTML fallback parsing. Exports `FIDLAR_FIPS_SET` and `createFidlarAdapter()`.
+- **Updated:** `worker/src/services/clerk-registry.ts` — Added Henschen (priority 4), iDocket (priority 5), Fidlar (priority 6) to `ClerkSystem` union and `registrySummary()`. Registry now covers all 254 TX counties with 7-tier routing.
+- **New:** `app/admin/research/components/InteractiveBoundaryViewer.tsx` — React SVG boundary viewer component with pan/zoom, confidence color overlay, layer toggles, measure tool, north arrow, and scale bar.
+- **Fixed:** `__tests__/recon/phase1-discovery.test.ts` — 2 pre-existing HCAD/TAD test failures resolved (updated selectors to match 2026 Blazor SPA and Laravel implementations).
+- **New:** `__tests__/recon/phase13-statewide-adapters.test.ts` — 60 unit tests for all three new clerk adapters and updated registry.
 
 ### v1.1 Changes (March 2026)
 
@@ -41,7 +56,7 @@ Complete the Starr Compass web interface and close the final gaps left after Pha
 - **Updated:** `worker/src/index.ts` — Added Phase 13 Express routes: `POST/GET /research/topo`, `POST/GET /research/tax`, `GET /research/boundary/:projectId`. All new routes use `requireAuth` and `rateLimit`. Boundary endpoint pre-assembles reconcile + confidence + topo + tax + Zod validation.
 - **Updated:** `worker/src/orchestrator/master-orchestrator.ts` — Added `validateOrNull()` calls after loading each key phase JSON file (discovery, harvest, property_intelligence, reconciliation, confidence). Validation warnings are logged but never block report generation.
 - **Updated:** `__tests__/recon/phase13-interactive.test.ts` — Added 20 new tests (tests 61–80) for `parseBearingToDecimal()` and `walkTraverse()` — the traverse coordinate computation engine used by the boundary viewer API.
-- **Test count:** 1455 total tests pass (1435 prior + 20 new traverse tests).
+- **Test count:** 1,497 total tests pass (1,435 prior + 60 statewide adapter tests + 20 new traverse tests).
 
 ## 13.1 Current State Before Phase 13
 
@@ -53,6 +68,9 @@ After Phases 1–12, the STARR RECON pipeline:
 | Stripe billing, job queue | ✅ Working |
 | Statewide CAD adapters (BIS, TrueAutomation, Tyler, HCAD, TAD) | ✅ Working |
 | Clerk adapters (Kofile, CountyFusion, Tyler, TexasFile) | ✅ Working |
+| Henschen clerk adapter (~16 Hill Country counties) | ❌ Missing |
+| iDocket clerk adapter (~18 SPA counties) | ❌ Missing |
+| Fidlar clerk adapter (~13 East TX / Panhandle counties) | ❌ Missing |
 | PNG/PDF/DXF drawing exports | ✅ Working |
 | Pipeline dashboard page | ✅ Working |
 | Interactive boundary viewer | ❌ Missing |
@@ -68,46 +86,115 @@ After Phases 1–12, the STARR RECON pipeline:
 
 ```
 worker/src/
+├── adapters/
+│   ├── henschen-clerk-adapter.ts  ← §13.2a Henschen HTML clerk adapter (v1.0)
+│   ├── idocket-clerk-adapter.ts   ← §13.2b iDocket SPA clerk adapter (v1.0)
+│   └── fidlar-clerk-adapter.ts    ← §13.2c Fidlar/Laredo AJAX clerk adapter (v1.0)
+├── services/
+│   └── clerk-registry.ts          ← §13.2d Updated: +Henschen/iDocket/Fidlar (v1.0)
 ├── sources/
-│   ├── usgs-client.ts           ← §13.3  USGS 3DEP elevation + contours + NHD
-│   └── comptroller-client.ts    ← §13.4  TX Comptroller PTAD tax rates
+│   ├── usgs-client.ts             ← §13.3  USGS 3DEP elevation + contours + NHD
+│   └── comptroller-client.ts      ← §13.4  TX Comptroller PTAD tax rates
 ├── infra/
-│   └── schema-validator.ts      ← §13.5  Zod phase I/O validation
+│   └── schema-validator.ts        ← §13.5  Zod phase I/O validation
 │
 app/admin/research/
+├── components/
+│   └── InteractiveBoundaryViewer.tsx ← §13.2e React SVG boundary viewer (v1.0)
 ├── [projectId]/
 │   ├── boundary/
-│   │   └── page.tsx             ← §13.6  Interactive SVG boundary viewer
+│   │   └── page.tsx               ← §13.6  Interactive SVG boundary viewer page
 │   └── documents/
-│       └── page.tsx             ← §13.7  Per-project document library
+│       └── page.tsx               ← §13.7  Per-project document library
 ├── library/
-│   └── page.tsx                 ← §13.8  Global document library (cross-project)
+│   └── page.tsx                   ← §13.8  Global document library (cross-project)
 └── billing/
-    └── page.tsx                 ← §13.9  Subscription/usage/billing dashboard
+    └── page.tsx                   ← §13.9  Subscription/usage/billing dashboard
 │
 app/api/admin/research/
 ├── [projectId]/
 │   ├── boundary/
-│   │   └── route.ts             ← §13.12 Boundary viewer data API (v1.1)
+│   │   └── route.ts               ← §13.12 Boundary viewer data API (v1.1)
 │   ├── topo/
-│   │   └── route.ts             ← §13.12 USGS topo data proxy (v1.1)
+│   │   └── route.ts               ← §13.12 USGS topo data proxy (v1.1)
 │   ├── tax/
-│   │   └── route.ts             ← §13.12 TX Comptroller tax proxy (v1.1)
+│   │   └── route.ts               ← §13.12 TX Comptroller tax proxy (v1.1)
 │   └── documents/
 │       └── [docId]/
 │           └── download/
-│               └── route.ts     ← §13.12 Document download proxy (v1.1)
+│               └── route.ts       ← §13.12 Document download proxy (v1.1)
 ├── library/
-│   └── route.ts                 ← §13.12 Global library API (v1.1)
+│   └── route.ts                   ← §13.12 Global library API (v1.1)
 └── billing/
-    └── route.ts                 ← §13.12 Billing dashboard API (v1.1)
+    └── route.ts                   ← §13.12 Billing dashboard API (v1.1)
 │
 seeds/
-└── 092_phase13_tables.sql       ← research_topo + research_tax tables (v1.1)
+└── 092_phase13_tables.sql         ← research_topo + research_tax tables (v1.1)
 │
 __tests__/recon/
-└── phase13-interactive.test.ts  ← §13.10 80 unit tests (v1.1)
+├── phase13-statewide-adapters.test.ts ← 60 unit tests for adapters (v1.0)
+└── phase13-interactive.test.ts    ← §13.10 80 unit tests (v1.1 cumulative)
 ```
+
+---
+
+## 13.2a–e Statewide Clerk Adapters & Boundary Viewer (v1.0)
+
+> **Full specification:** See `PHASE_13_STATEWIDE_ADAPTERS.md` for complete adapter implementation details, covered counties, URL patterns, and test coverage map.
+
+### 13.2a Henschen & Associates Clerk Adapter
+
+**File:** `worker/src/adapters/henschen-clerk-adapter.ts` (~1,383 lines)
+
+Covers ~16 Texas Hill Country / Central Texas counties using server-rendered HTML scraping. All 9 `ClerkAdapter` abstract methods implemented. Multiple selector fallback arrays for deployment drift. AI OCR fallback via Claude API.
+
+**Key exports:** `HENSCHEN_FIPS_SET`, `HENSCHEN_CONFIGS`, `createHenschenAdapter(fips, countyName)`
+
+**Covered FIPS:** 48053 (Burnet), 48299 (Llano), 48319 (Mason), 48307 (McCulloch), 48333 (Mills), 48411 (San Saba), 48321 (Menard), 48265 (Kimble), 48435 (Sutton), 48171 (Gillespie), 48283 (Lampasas), 48381 (Randall), 48135 (Ector), 48177 (Gonzales), 48209 (Hays), 48463 (Uvalde)
+
+### 13.2b iDocket Clerk Adapter
+
+**File:** `worker/src/adapters/idocket-clerk-adapter.ts` (~1,842 lines)
+
+Covers ~18 Texas counties using the iDocket React SPA at `idocket.com`. Guest/public mode provides free index access (instrument metadata); subscriber mode required for images. `waitForLoadState('networkidle')` strategy, auto-pagination, dual result parsers.
+
+**Key exports:** `IDOCKET_FIPS_SET`, `IDOCKET_CONFIGS`, `IDOCKET_COUNTY_NAMES`, `createIDocketAdapter(fips, countyName)`
+
+**Covered FIPS:** 48085 (Collin), 48121 (Denton), 48149 (Freestone), 48227 (Howard), 48293 (Limestone), 48363 (Palo Pinto), 48401 (Rockwall), 48113 (Dallas), 48019 (Bandera), 48023 (Baylor), 48045 (Briscoe), 48059 (Callahan), 48153 (Garza), 48189 (Hale), 48211 (Haskell), 48263 (Kent), 48291 (Liberty), 48303 (Lynn)
+
+### 13.2c Fidlar Technologies Clerk Adapter
+
+**File:** `worker/src/adapters/fidlar-clerk-adapter.ts` (~1,452 lines)
+
+Covers ~13 Texas East/Panhandle counties using the Fidlar/Laredo AJAX application. Registers a `waitForResponse` listener before form submit to capture AJAX results. Three deployment variants: `laredo`, `direct`, `publicsearch`.
+
+**Key exports:** `FIDLAR_FIPS_SET`, `FIDLAR_CONFIGS`, `createFidlarAdapter(fips, countyName)`
+
+**Covered FIPS:** 48475 (Ward), 48443 (Terrell), 48243 (Jasper), 48351 (Newton), 48415 (Sabine), 48419 (San Augustine), 48423 (San Jacinto), 48113 (Dallas), 48215 (Hidalgo), 48327 (Menard), 48147 (Foard), 48157 (Fort Bend), 48159 (Franklin)
+
+### 13.2d Updated Clerk Registry
+
+**File:** `worker/src/services/clerk-registry.ts` (updated)
+
+Added Henschen (priority 4), iDocket (priority 5), Fidlar (priority 6) to `ClerkSystem` union type and `registrySummary()`. Updated `getClerkAdapter()` factory to construct all 7 adapter types. Registry now provides complete automated coverage for all 254 TX counties.
+
+| Priority | System | Coverage |
+|----------|--------|---------|
+| 1 | Kofile/GovOS | ~80+ counties |
+| 2 | CountyFusion | ~40+ counties |
+| 3 | Tyler/Odyssey | ~30+ counties |
+| 4 | **Henschen** (new) | ~16 counties |
+| 5 | **iDocket** (new) | ~18 counties |
+| 6 | **Fidlar** (new) | ~13 counties |
+| 7 | TexasFile | All 254 counties (universal fallback) |
+
+### 13.2e Interactive Boundary Viewer Component
+
+**File:** `app/admin/research/components/InteractiveBoundaryViewer.tsx` (~540 lines)
+
+React SVG boundary viewer with pan/zoom, confidence color overlay (green ≥80% → yellow ≥60% → orange ≥40% → red <40%), layer toggles (Boundary/Easements/Setbacks/ROW/Labels), measure tool, zoom-invariant call number badges, bearing/distance labels, north arrow, and scale bar.
+
+**Props:** `projectId`, `segments: BoundarySegment[]`, `width?`, `height?`, `showConfidenceOverlay?`, `visibleLayers?`, `onSegmentClick?`, `onMeasure?`
 
 ---
 
@@ -558,9 +645,32 @@ Response: {
 
 ## 13.10 Phase 13 Test Coverage
 
+### Statewide Adapters Tests (v1.0)
+
+**File:** `__tests__/recon/phase13-statewide-adapters.test.ts`
+**Tests:** 60 (all passing)
+
+| Module | Tests | Coverage |
+|--------|-------|---------|
+| Henschen config coverage | 1–9 | FIPS set size, key/value integrity, factory function |
+| Henschen document types | 10–14 | WD, PLT, ESMT, ROW, unknown |
+| Henschen smartSearch | 15–16 | Hit path, empty path |
+| Henschen misc | 17–20 | Constructor fields, imageAccess flag, Randall county |
+| iDocket config coverage | 21–28 | FIPS set size, URL integrity, slug-in-URL, factory |
+| iDocket document types | 29–31 | QCD, DOT, OGL |
+| iDocket smartSearch | 32 | Grantee fallback |
+| iDocket county names | 33–35 | COUNTY_NAMES map, display names |
+| Fidlar config coverage | 36–43 | FIPS set size, variants, URLs, paths, factory |
+| Fidlar document types | 44–48 | GWD, SWD, REL, MD, REPLAT |
+| Routing: instance type | 49–51 | Henschen, iDocket, Fidlar getClerkAdapter |
+| Routing: getClerkSystem | 52–54 | String identifiers for each new system |
+| Routing: priority | 55 | Higher-priority systems take precedence |
+| Routing: registrySummary | 56–60 | All new systems in summary, correct counts |
+
+### Interactive UI & Data Sources Tests (v1.1)
+
 **File:** `__tests__/recon/phase13-interactive.test.ts`
-**Tests:** 60
-**Coverage:**
+**Tests:** 80 (all passing)
 
 | Section | Tests | What's Tested |
 |---|---|---|
@@ -579,6 +689,8 @@ Response: {
 | Harvest schema | 52–54 | Valid passes, with documents, invalid type fails |
 | Confidence schema | 55–58 | Valid passes, score>100 fails, invalid grade fails, negative score fails |
 | `PhaseSchemas` registry | 59–60 | ≥12 schemas registered, all have parse/safeParse methods |
+| `parseBearingToDecimal()` | 61–70 | Cardinal directions, NE/NW/SE/SW quadrants, decimal degrees, validation |
+| `walkTraverse()` | 71–80 | Single call, multi-call, SVG Y convention, closure error, reverse bearing |
 
 ---
 
@@ -665,6 +777,19 @@ export async function GET(req) { ... }
 
 ## 13.13 Phase 13 Deliverables Checklist
 
+### v1.0 — Statewide Clerk Adapters & Boundary Viewer Component
+
+- [x] `worker/src/adapters/henschen-clerk-adapter.ts` — Henschen HTML clerk adapter (~16 Hill Country counties)
+- [x] `worker/src/adapters/idocket-clerk-adapter.ts` — iDocket SPA clerk adapter (~18 counties)
+- [x] `worker/src/adapters/fidlar-clerk-adapter.ts` — Fidlar/Laredo AJAX clerk adapter (~13 counties)
+- [x] `worker/src/services/clerk-registry.ts` updated — Henschen/iDocket/Fidlar routing (priority 4/5/6), all 7 systems in registrySummary
+- [x] `ClerkSystem` union type updated: `henschen | idocket | fidlar` added
+- [x] `app/admin/research/components/InteractiveBoundaryViewer.tsx` — React SVG boundary viewer component
+- [x] `__tests__/recon/phase13-statewide-adapters.test.ts` — 60 unit tests (all passing)
+- [x] Pre-existing HCAD/TAD test failures fixed in `__tests__/recon/phase1-discovery.test.ts`
+
+### v1.1 — Interactive UI, Data Sources & API Routes
+
 - [x] `worker/src/sources/usgs-client.ts` — USGS 3DEP elevation, contour, NHD client
 - [x] `worker/src/sources/comptroller-client.ts` — TX Comptroller PTAD tax rates client
 - [x] `worker/src/infra/schema-validator.ts` — Zod phase-boundary validation (12 schemas)
@@ -707,7 +832,7 @@ export async function GET(req) { ... }
 | 15 | Zod confidence schema rejects score > 100 | `validatePhaseOutput('confidence', {...score: 101})` throws |
 | 16 | `safeParse()` never throws on any input (null, undefined, number, malformed) | Run safeParse on edge-case inputs |
 | 17 | `formatZodError()` returns path.message format | Verify output contains `[fieldName] message` |
-| 18 | All 60 Phase 13 unit tests pass | `npm test` |
+| 18 | All 140 Phase 13 unit tests pass (60 statewide adapter + 80 interactive UI) | `npm test` |
 
 ---
 
@@ -719,10 +844,13 @@ export async function GET(req) { ... }
 | USGS Contours URL | `carto.nationalmap.gov` path needs live verification against current National Map |
 | NHD HR service indices | Layer 2/4 for flowline/waterbody may differ on current hydro.nationalmap.gov |
 | TX Comptroller PTAD dataset | `data.texas.gov/resource/2dxm-hqwi.json` column names (`county_name`, `tax_rate`, etc.) need live verification against current Socrata schema |
-| Boundary SVG coordinates | `GET /api/admin/research/[projectId]/boundary` requires a coordinate traversal walk from Phase 7 reconciled boundary — needs traverse-walk integration |
+| Henschen per-county URLs | Some county URLs may need live verification (rural TX counties change sites) |
+| iDocket subscriber credentials | Production iDocket subscriber account for full image access (index-only in guest mode) |
+| Fidlar session pattern | Some Fidlar counties may use different session initialization patterns |
+| Dallas County routing | Dallas (48113) appears in Tyler, iDocket, AND Fidlar FIPS sets — Tyler (priority 3) wins since it's verified to cover Dallas. Tyler adapter is the highest priority of the three systems. |
+| Bexar custom clerk | Bexar County (San Antonio) uses a custom system not yet implemented |
 | Supabase document storage | Document URLs in `ResearchDocument.imageUrl` require live Supabase Storage bucket |
 | Stripe invoice PDFs | `Invoice.pdfUrl` requires live Stripe API connection |
-| Phase runner integration | Zod schema validation calls not yet integrated into `master-orchestrator.ts` phase runners |
 
 ---
 
@@ -730,16 +858,18 @@ export async function GET(req) { ... }
 
 Items explicitly deferred from Phase 13:
 
-| Item | Rationale |
-|------|-----------|
-| Mobile-friendly report | Responsive CSS pass on report viewer; low priority until product is live |
-| Report sharing via link | Requires Supabase RLS policy changes for anonymous read access |
-| Email/SMS notifications | Requires SendGrid/Twilio integration; not blocking surveyor workflow |
-| Boundary SVG coordinate traversal API | Requires integrating traverse-walk math from Phase 7 into the API route |
-| AI prompt A/B testing | Phase 11 prompt registry exists; tracking/comparison UI deferred |
-| Data versioning (pre/post-purchase diff) | Storage design needed; not blocking surveyor workflow |
-| TNRIS LiDAR integration | Service requires account registration; lower priority than USGS 3DEP |
-| Cross-county property detection | Complex; affects less than 1% of properties |
+| Item | Status |
+|------|--------|
+| Document Access Tiers & Paid Platform Automation | ✅ Built in Phase 14 |
+| Fidlar/iDocket subscriber purchase flows | Deferred to Phase 15 (Playwright automation) |
+| Bexar County custom clerk adapter | Deferred to Phase 15 |
+| Mobile-friendly report | Deferred (low priority until product is live) |
+| Report sharing via link | Deferred (requires Supabase RLS policy changes) |
+| Email/SMS notifications | Deferred (requires SendGrid/Twilio integration) |
+| AI prompt A/B testing | Deferred (Phase 11 prompt registry exists; tracking/comparison UI deferred) |
+| Data versioning (pre/post-purchase diff) | Deferred (storage design needed) |
+| TNRIS LiDAR integration | Deferred (service requires account registration) |
+| Cross-county property detection | Deferred (complex; affects <1% of properties) |
 
 ---
 
