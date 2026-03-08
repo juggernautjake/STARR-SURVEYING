@@ -17,6 +17,8 @@ import { runROWIntegration, type ROWReport } from './services/row-integration-en
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
+import { PaidPlatformRegistry } from './services/paid-platform-registry.js';
+import { createDocumentAccessOrchestrator } from './services/document-access-orchestrator.js';
 import { createReportRoutes } from './routes/report-routes.js';
 // Phase 11 imports
 import { FEMANFHLClient } from './sources/fema-nfhl-client.js';
@@ -2062,6 +2064,137 @@ app.delete('/admin/health/alerts', requireAuth, (_req: Request, res: Response) =
   res.json({ message: 'Alerts cleared' });
 });
 
+// ── Phase 14: Document Access Tier Routes ──────────────────────────────────
+
+/**
+ * GET /research/access/platforms
+ * Returns all available paid document platforms and their availability summary.
+ * Also shows which platforms are currently configured (have credentials set).
+ */
+app.get('/research/access/platforms', requireAuth, rateLimit(60, 60_000), (_req: Request, res: Response) => {
+  const configuredPlatforms = PaidPlatformRegistry.getConfiguredPlatforms();
+  const summary = PaidPlatformRegistry.getAvailabilitySummary(configuredPlatforms);
+  res.json({ summary, configuredPlatforms });
+});
+
+/**
+ * GET /research/access/plan/:countyFIPS
+ * Returns the complete document access plan for a specific Texas county:
+ *  - Free tier options (watermarked preview vs index-only)
+ *  - All paid platforms that cover this county (sorted cheapest-first)
+ *  - Recommended platform
+ *
+ * Example: GET /research/access/plan/48027  → Bell County plan
+ */
+app.get('/research/access/plan/:countyFIPS', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { countyFIPS } = req.params;
+
+  if (!/^\d{5}$/.test(countyFIPS)) {
+    res.status(400).json({ error: 'countyFIPS must be a 5-digit code (e.g. 48027)' });
+    return;
+  }
+
+  const countyName = req.query.county as string | undefined ?? 'Unknown';
+  const plan = PaidPlatformRegistry.getAccessPlan(countyFIPS, countyName);
+  res.json(plan);
+});
+
+/**
+ * POST /research/access/document
+ * Fetch a specific document using the best available tier (free-first, then paid).
+ *
+ * Body: DocumentAccessRequest
+ *   { projectId, countyFIPS, countyName, instrumentNumber, documentType,
+ *     freeOnly?, maxCostPerDocument?, preferredPlatform? }
+ *
+ * Returns: DocumentAccessResult with imagePaths, tier, costUSD, isWatermarked, etc.
+ */
+app.post('/research/access/document', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const {
+    projectId, countyFIPS, countyName, instrumentNumber,
+    documentType, freeOnly, maxCostPerDocument, preferredPlatform,
+    stripeCustomerId,
+  } = req.body as {
+    projectId?: string;
+    countyFIPS?: string;
+    countyName?: string;
+    instrumentNumber?: string;
+    documentType?: string;
+    freeOnly?: boolean;
+    maxCostPerDocument?: number;
+    preferredPlatform?: string;
+    stripeCustomerId?: string;
+  };
+
+  if (!projectId || !countyFIPS || !instrumentNumber || !documentType) {
+    res.status(400).json({
+      error: 'projectId, countyFIPS, instrumentNumber, and documentType are required',
+    });
+    return;
+  }
+
+  const logger = new (await import('./lib/logger.js')).PipelineLogger(projectId);
+  logger.info('DocAccess', `POST /research/access/document — ${instrumentNumber} (${countyName ?? countyFIPS})`);
+
+  try {
+    const orchestrator = createDocumentAccessOrchestrator(projectId, {
+      tryFreeFirst: true,
+      maxCostPerDocument: maxCostPerDocument ?? 10.00,
+      outputDir: `/tmp/documents/${projectId}`,
+    });
+
+    const result = await orchestrator.getDocument({
+      projectId,
+      countyFIPS,
+      countyName: countyName ?? 'Unknown',
+      instrumentNumber,
+      documentType,
+      freeOnly: freeOnly ?? false,
+      maxCostPerDocument: maxCostPerDocument ?? 10.00,
+      preferredPlatform: preferredPlatform as any ?? undefined,
+      stripeCustomerId: stripeCustomerId ?? undefined,
+    });
+
+    // Persist result
+    const outPath = `/tmp/analysis/${projectId}/access_${instrumentNumber.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, JSON.stringify(result, null, 2));
+
+    res.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error('DocAccess', msg);
+    res.status(500).json({ error: 'Document access failed', details: msg });
+  }
+});
+
+/**
+ * GET /research/access/result/:projectId/:instrumentNumber
+ * Retrieve a previously cached document access result.
+ */
+app.get('/research/access/result/:projectId/:instrumentNumber', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { projectId, instrumentNumber } = req.params;
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const safeName = (instrumentNumber ?? '').replace(/[^a-zA-Z0-9]/g, '_');
+  const resultPath = `/tmp/analysis/${projectId}/access_${safeName}.json`;
+
+  if (fs.existsSync(resultPath)) {
+    try {
+      const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to read access result', details: String(e) });
+    }
+  } else {
+    res.status(404).json({ error: 'No cached result for this document' });
+  }
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -2106,6 +2239,10 @@ app.listen(PORT, () => {
   console.log('  POST   /research/batch                  ← Phase 11: batch processing job');
   console.log('  GET    /research/batch/:batchId         ← Phase 11: batch status');
   console.log('  GET    /research/clerk-registry/:county ← Phase 11: clerk system lookup');
+  console.log('  GET    /research/access/platforms       ← Phase 14: paid platform catalog');
+  console.log('  GET    /research/access/plan/:fips      ← Phase 14: county access plan');
+  console.log('  POST   /research/access/document        ← Phase 14: free-first document fetch');
+  console.log('  GET    /research/access/result/:id/:instr ← Phase 14: cached access result');
   console.log('  POST   /research/topo                   ← Phase 13: USGS topographic data');
   console.log('  GET    /research/topo/:projectId        ← Phase 13: topographic result');
   console.log('  POST   /research/tax                    ← Phase 13: TX Comptroller tax data');

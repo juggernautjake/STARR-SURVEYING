@@ -1,18 +1,25 @@
 // worker/src/services/clerk-registry.ts
-// Phase 2: ClerkRegistry — routes a Texas county FIPS code to the correct
-// county clerk adapter class.
+// Phase 2 / Phase 13: ClerkRegistry — routes a Texas county FIPS code to the
+// correct county clerk adapter class.
 //
 // Priority order (highest to lowest):
-//   1. Kofile/PublicSearch  — ~80+ Texas counties (`*.tx.publicsearch.us`)
-//   2. CountyFusion/Cott    — ~40+ Texas counties (Kofile-hosted CountyFusion)
-//   3. Tyler/Odyssey        — ~30+ Texas counties (various deployments)
-//   4. TexasFile            — universal fallback for all 254 counties
+//   1. Kofile/PublicSearch    — ~80+ Texas counties (`*.tx.publicsearch.us`)
+//   2. CountyFusion/Cott      — ~40+ Texas counties (Kofile-hosted CountyFusion)
+//   3. Tyler/Odyssey           — ~30+ Texas counties (various deployments)
+//   4. Henschen & Associates   — ~40 Texas counties (Hill Country + Central TX)
+//   5. iDocket                 — ~20 Texas counties (React SPA)
+//   6. Fidlar Technologies     — ~15 Texas counties (Laredo product line)
+//   7. TexasFile               — universal fallback for all 254 counties
 //
 // Spec §2.10 — ClerkRegistry (FIPS → adapter routing)
+// Phase 13 §2.11–2.13 — Henschen, iDocket, Fidlar adapters added.
 
 import { KofileClerkAdapter } from '../adapters/kofile-clerk-adapter.js';
 import { CountyFusionAdapter, COUNTYFUSION_FIPS_SET } from '../adapters/countyfusion-adapter.js';
 import { TylerClerkAdapter, TYLER_FIPS_SET } from '../adapters/tyler-clerk-adapter.js';
+import { HenschenClerkAdapter, HENSCHEN_FIPS_SET } from '../adapters/henschen-clerk-adapter.js';
+import { IDocketClerkAdapter, IDOCKET_FIPS_SET } from '../adapters/idocket-clerk-adapter.js';
+import { FidlarClerkAdapter, FIDLAR_FIPS_SET } from '../adapters/fidlar-clerk-adapter.js';
 import { TexasFileAdapter } from '../adapters/texasfile-adapter.js';
 import type { ClerkAdapter } from '../adapters/clerk-adapter.js';
 
@@ -124,7 +131,22 @@ export function getClerkAdapter(
     return new TylerClerkAdapter(countyFIPS, countyName);
   }
 
-  // Priority 4: TexasFile universal fallback (all 254 Texas counties)
+  // Priority 4: Henschen & Associates (~40 Hill Country / Central TX counties)
+  if (HENSCHEN_FIPS_SET.has(countyFIPS)) {
+    return new HenschenClerkAdapter(countyFIPS, countyName);
+  }
+
+  // Priority 5: iDocket (~20 counties — React SPA)
+  if (IDOCKET_FIPS_SET.has(countyFIPS)) {
+    return new IDocketClerkAdapter(countyFIPS, countyName);
+  }
+
+  // Priority 6: Fidlar Technologies / Laredo (~15 East TX + Panhandle counties)
+  if (FIDLAR_FIPS_SET.has(countyFIPS)) {
+    return new FidlarClerkAdapter(countyFIPS, countyName);
+  }
+
+  // Priority 7: TexasFile universal fallback (all 254 Texas counties)
   return new TexasFileAdapter(countyFIPS, countyName);
 }
 
@@ -135,10 +157,13 @@ export function getClerkSystem(countyFIPS: string): ClerkSystem {
   if (KOFILE_FIPS_SET.has(countyFIPS))       return 'kofile';
   if (COUNTYFUSION_FIPS_SET.has(countyFIPS)) return 'countyfusion';
   if (TYLER_FIPS_SET.has(countyFIPS))        return 'tyler';
+  if (HENSCHEN_FIPS_SET.has(countyFIPS))     return 'henschen';
+  if (IDOCKET_FIPS_SET.has(countyFIPS))      return 'idocket';
+  if (FIDLAR_FIPS_SET.has(countyFIPS))       return 'fidlar';
   return 'texasfile';
 }
 
-export type ClerkSystem = 'kofile' | 'countyfusion' | 'tyler' | 'texasfile';
+export type ClerkSystem = 'kofile' | 'countyfusion' | 'tyler' | 'henschen' | 'idocket' | 'fidlar' | 'texasfile';
 
 /**
  * Return whether a given county has free document image preview.
@@ -158,7 +183,14 @@ export function registrySummary(): Record<ClerkSystem, number> {
     kofile:       KOFILE_FIPS_SET.size,
     countyfusion: COUNTYFUSION_FIPS_SET.size,
     tyler:        TYLER_FIPS_SET.size,
-    // TexasFile covers all 254; show the remainder not covered by the others
-    texasfile: 254 - KOFILE_FIPS_SET.size - COUNTYFUSION_FIPS_SET.size - TYLER_FIPS_SET.size,
+    henschen:     HENSCHEN_FIPS_SET.size,
+    idocket:      IDOCKET_FIPS_SET.size,
+    fidlar:       FIDLAR_FIPS_SET.size,
+    // TexasFile covers all 254; show the remainder not covered by named systems
+    texasfile: Math.max(
+      0,
+      254 - KOFILE_FIPS_SET.size - COUNTYFUSION_FIPS_SET.size - TYLER_FIPS_SET.size
+        - HENSCHEN_FIPS_SET.size - IDOCKET_FIPS_SET.size - FIDLAR_FIPS_SET.size,
+    ),
   };
 }
