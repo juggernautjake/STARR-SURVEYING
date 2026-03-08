@@ -1,7 +1,7 @@
 // app/admin/research/components/PropertySearchPanel.tsx
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { PropertySearchResult, PropertySearchResponse, SearchSource } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
 
@@ -98,6 +98,85 @@ export default function PropertySearchPanel({
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showAddressIssues, setShowAddressIssues] = useState(true);
+
+  // Lite pipeline (one-click research — no external worker required)
+  const [liteRunning, setLiteRunning] = useState(false);
+  const [liteStage, setLiteStage] = useState<string | null>(null);
+  const [liteError, setLiteError] = useState('');
+  const [liteSummary, setLiteSummary] = useState<{
+    links_found?: number;
+    map_images_captured?: number;
+    documents_imported?: number;
+    documents_analyzed?: number;
+    data_points_extracted?: number;
+    discrepancies_found?: number;
+    confidence_score?: number;
+    owner_name?: string;
+    legal_description?: string;
+    acreage?: string;
+    flood_zone?: string;
+  } | null>(null);
+  const liteRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopLitePolling = useCallback(() => {
+    if (liteRef.current) { clearInterval(liteRef.current); liteRef.current = null; }
+  }, []);
+
+  // Clean up lite polling interval on unmount to prevent memory leaks
+  useEffect(() => () => stopLitePolling(), [stopLitePolling]);
+
+  const pollLiteStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/lite-pipeline`);
+      if (!res.ok) return;
+      const data = await res.json() as { status: string; stage?: string; error?: string; summary?: typeof liteSummary };
+      setLiteStage(data.stage || null);
+      if (data.status === 'running') {
+        setLiteRunning(true);
+      } else {
+        setLiteRunning(false);
+        stopLitePolling();
+        if (data.summary) setLiteSummary(data.summary);
+        if (data.error) setLiteError(data.error);
+        else onImported?.();
+      }
+    } catch { /* keep polling */ }
+  }, [projectId, stopLitePolling, onImported]);
+
+  async function handleOneClickResearch() {
+    if (liteRunning) return;
+    if (!address.trim() && !county.trim()) {
+      setLiteError('Enter a property address to start one-click research.');
+      return;
+    }
+    setLiteRunning(true);
+    setLiteError('');
+    setLiteStage('Starting…');
+    setLiteSummary(null);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/lite-pipeline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address: address.trim() || undefined,
+          county: county.trim() || undefined,
+          owner_name: ownerName.trim() || undefined,
+          parcel_id: parcelId.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        setLiteError(err.error || 'Failed to start research');
+        setLiteRunning(false);
+        return;
+      }
+      stopLitePolling();
+      liteRef.current = setInterval(pollLiteStatus, 4_000);
+    } catch {
+      setLiteError('Network error starting one-click research.');
+      setLiteRunning(false);
+    }
+  }
 
   // Deep research pipeline state
   const [pipelineRunning, setPipelineRunning] = useState(false);
@@ -399,11 +478,103 @@ export default function PropertySearchPanel({
           <div className="research-search__error">{searchError}</div>
         )}
 
+        {/* ── One-Click Research (Lite Pipeline) ── */}
+        <div style={{ marginBottom: '1rem', padding: '1rem', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#065F46', marginBottom: '0.2rem' }}>
+                🚀 One-Click Research
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#047857' }}>
+                Automatically searches all county records, FEMA, TxDOT, captures map images, and runs AI analysis — no external worker required.
+              </div>
+            </div>
+            <button
+              style={{
+                padding: '0.5rem 1.25rem', borderRadius: 6, border: 'none', cursor: liteRunning ? 'default' : 'pointer',
+                background: liteRunning ? '#6B7280' : '#059669', color: '#fff', fontWeight: 700, fontSize: '0.875rem',
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+              onClick={handleOneClickResearch}
+              disabled={liteRunning || searching || pipelineRunning}
+            >
+              {liteRunning ? '⏳ Running…' : '▶ Start Research'}
+            </button>
+          </div>
+
+          {/* Lite pipeline status */}
+          {(liteRunning || liteStage || liteSummary || liteError) && (
+            <div style={{ marginTop: '0.75rem' }}>
+              {liteRunning && liteStage && (
+                <div style={{ fontSize: '0.82rem', color: '#065F46', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#059669', animation: 'pulse 1.5s infinite' }} />
+                  {liteStage}
+                </div>
+              )}
+              {liteError && (
+                <div style={{ fontSize: '0.82rem', color: '#DC2626', marginTop: '0.25rem' }}>⚠ {liteError}</div>
+              )}
+              {liteSummary && !liteRunning && (
+                <div style={{ marginTop: '0.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.5rem' }}>
+                  {liteSummary.links_found !== undefined && (
+                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                      <strong>{liteSummary.links_found}</strong> record links found
+                    </div>
+                  )}
+                  {liteSummary.documents_imported !== undefined && (
+                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                      <strong>{liteSummary.documents_imported}</strong> documents imported
+                    </div>
+                  )}
+                  {liteSummary.data_points_extracted !== undefined && (
+                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                      <strong>{liteSummary.data_points_extracted}</strong> data points extracted
+                    </div>
+                  )}
+                  {liteSummary.discrepancies_found !== undefined && liteSummary.discrepancies_found > 0 && (
+                    <div style={{ background: '#FEF3C7', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #FDE68A', fontSize: '0.8rem' }}>
+                      <strong>{liteSummary.discrepancies_found}</strong> discrepancies found
+                    </div>
+                  )}
+                  {liteSummary.confidence_score !== undefined && (
+                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                      <strong>{liteSummary.confidence_score}%</strong> confidence
+                    </div>
+                  )}
+                  {liteSummary.acreage && (
+                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                      Area: <strong>{liteSummary.acreage}</strong>
+                    </div>
+                  )}
+                  {liteSummary.flood_zone && (
+                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                      Flood Zone: <strong>{liteSummary.flood_zone}</strong>
+                    </div>
+                  )}
+                </div>
+              )}
+              {liteSummary?.legal_description && !liteRunning && (
+                <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: '#fff', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                  <strong>Legal Description: </strong>
+                  {liteSummary.legal_description.length > 300
+                    ? liteSummary.legal_description.slice(0, 300) + '...'
+                    : liteSummary.legal_description}
+                </div>
+              )}
+              {!liteRunning && liteSummary && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: '#065F46', fontWeight: 600 }}>
+                  ✓ Research complete — review the Extracted Data and Survey Plan tabs above.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="research-search__actions">
           <button
             className="research-page__new-btn"
             onClick={handleSearch}
-            disabled={searching || pipelineRunning}
+            disabled={searching || pipelineRunning || liteRunning}
           >
             {searching ? 'Searching all sources...' : 'Search Public Records'}
           </button>
@@ -411,10 +582,10 @@ export default function PropertySearchPanel({
           <button
             className="research-page__new-btn research-search__deep-btn"
             onClick={handleDeepResearch}
-            disabled={pipelineRunning || searching}
-            title="Uses AI-powered browser automation to scrape county CAD and clerk records, capture document pages at high resolution, and extract boundary data"
+            disabled={pipelineRunning || searching || liteRunning}
+            title="Uses AI-powered browser automation to scrape county CAD and clerk records, capture document pages at high resolution, and extract boundary data. Requires WORKER_URL + WORKER_API_KEY environment variables."
           >
-            {pipelineRunning ? 'Deep Research Running...' : 'Run Deep Research'}
+            {pipelineRunning ? 'Deep Research Running...' : 'Run Deep Research (Worker)'}
           </button>
         </div>
 
