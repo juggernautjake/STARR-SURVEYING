@@ -29,6 +29,10 @@ import { BatchProcessor } from './batch/batch-processor.js';
 import { UsageTracker } from './analytics/usage-tracker.js';
 import { getClerkByCountyName } from './adapters/clerk-registry.js';
 import { SiteHealthMonitor } from './infra/site-health-monitor.js';
+// Phase 13 imports
+import { USGSClient } from './sources/usgs-client.js';
+import { TXComptrollerClient } from './sources/comptroller-client.js';
+import { validateOrNull } from './infra/schema-validator.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -1701,6 +1705,235 @@ app.get(
   },
 );
 
+// ── Phase 13: USGS Topographic Data ──────────────────────────────────────────
+//
+// POST /research/topo  — Query USGS National Map for elevation, contours, NHD
+// GET  /research/topo/:projectId — Return saved topographic result
+
+const usgsClient = new USGSClient();
+
+/**
+ * POST /research/topo
+ * Queries USGS 3DEP elevation, contour lines, and NHD water features
+ * for the specified coordinates.  Saves result to the project output directory.
+ */
+app.post('/research/topo', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const { projectId, lat, lon, radiusM } = req.body as {
+    projectId?: string;
+    lat?: number;
+    lon?: number;
+    radiusM?: number;
+  };
+
+  if (!projectId) {
+    res.status(400).json({ error: 'projectId is required' });
+    return;
+  }
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+  if (typeof lat !== 'number' || typeof lon !== 'number') {
+    res.status(400).json({ error: 'lat and lon are required numeric fields' });
+    return;
+  }
+  if (lat < 25.8 || lat > 36.5 || lon < -106.65 || lon > -93.5) {
+    res.status(400).json({ error: 'Coordinates appear outside Texas bounds' });
+    return;
+  }
+
+  res.status(202).json({ message: 'Topographic data query started', projectId });
+
+  // Run async — save result to project output directory
+  try {
+    const topo = await usgsClient.getTopoData(projectId, lat, lon, radiusM ?? 200);
+    const outDir = `/tmp/analysis/${projectId}`;
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(`${outDir}/topo.json`, JSON.stringify(topo, null, 2));
+  } catch (err) {
+    console.error(`[TOPO] Error for project ${projectId}:`, err);
+    // Write error state so GET /research/topo/:projectId can distinguish
+    // "never queried" (file absent) from "query failed" (error file present)
+    const outDir = `/tmp/analysis/${projectId}`;
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(
+      `${outDir}/topo_error.json`,
+      JSON.stringify({ status: 'error', error: String(err), timestamp: new Date().toISOString() }),
+    );
+  }
+});
+
+/**
+ * GET /research/topo/:projectId
+ * Returns saved topographic result from disk.
+ */
+app.get('/research/topo/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+  const resultPath = `/tmp/analysis/${projectId}/topo.json`;
+  const errorPath  = `/tmp/analysis/${projectId}/topo_error.json`;
+  if (!fs.existsSync(resultPath)) {
+    // Check whether a query was attempted but failed
+    if (fs.existsSync(errorPath)) {
+      try {
+        const errState = JSON.parse(fs.readFileSync(errorPath, 'utf-8')) as unknown;
+        res.status(500).json({ status: 'error', projectId, detail: errState });
+        return;
+      } catch { /* fall through to not_queried */ }
+    }
+    res.status(404).json({ status: 'not_queried', projectId });
+    return;
+  }
+  try {
+    const topo = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+    res.json({ projectId, topo });
+  } catch {
+    res.status(500).json({ error: 'Topographic result file is corrupt or unreadable' });
+  }
+});
+
+// ── Phase 13: TX Comptroller Tax Data ────────────────────────────────────────
+//
+// POST /research/tax  — Query TX Comptroller PTAD for county tax rates
+// GET  /research/tax/:projectId — Return saved tax rate result
+
+const comptrollerClient = new TXComptrollerClient();
+
+/**
+ * POST /research/tax
+ * Queries TX Comptroller PTAD for taxing unit rates by county FIPS code.
+ * Saves result to the project output directory.
+ */
+app.post('/research/tax', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const { projectId, countyFips, taxYear } = req.body as {
+    projectId?: string;
+    countyFips?: string;
+    taxYear?: number;
+  };
+
+  if (!projectId) {
+    res.status(400).json({ error: 'projectId is required' });
+    return;
+  }
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+  if (!countyFips || !/^\d{5}$/.test(countyFips)) {
+    res.status(400).json({ error: 'countyFips must be a 5-digit string (e.g. "48027")' });
+    return;
+  }
+
+  res.status(202).json({ message: 'Tax data query started', projectId });
+
+  // Run async
+  try {
+    const tax = await comptrollerClient.getTaxData(projectId, countyFips, taxYear);
+    const outDir = `/tmp/analysis/${projectId}`;
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(`${outDir}/tax.json`, JSON.stringify(tax, null, 2));
+  } catch (err) {
+    console.error(`[TAX] Error for project ${projectId}:`, err);
+    // Write error state so GET /research/tax/:projectId can distinguish
+    // "never queried" from "query attempted but failed"
+    const outDir = `/tmp/analysis/${projectId}`;
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(
+      `${outDir}/tax_error.json`,
+      JSON.stringify({ status: 'error', error: String(err), timestamp: new Date().toISOString() }),
+    );
+  }
+});
+
+/**
+ * GET /research/tax/:projectId
+ * Returns saved tax rate result from disk.
+ */
+app.get('/research/tax/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+  const resultPath = `/tmp/analysis/${projectId}/tax.json`;
+  const errorPath  = `/tmp/analysis/${projectId}/tax_error.json`;
+  if (!fs.existsSync(resultPath)) {
+    if (fs.existsSync(errorPath)) {
+      try {
+        const errState = JSON.parse(fs.readFileSync(errorPath, 'utf-8')) as unknown;
+        res.status(500).json({ status: 'error', projectId, detail: errState });
+        return;
+      } catch { /* fall through to not_queried */ }
+    }
+    res.status(404).json({ status: 'not_queried', projectId });
+    return;
+  }
+  try {
+    const tax = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+    res.json({ projectId, tax });
+  } catch {
+    res.status(500).json({ error: 'Tax result file is corrupt or unreadable' });
+  }
+});
+
+// ── Phase 13: Boundary Viewer Data ───────────────────────────────────────────
+//
+// GET /research/boundary/:projectId — Combine reconcile + confidence data for
+// the Interactive Boundary Viewer.  Clients can also call /research/reconcile
+// and /research/confidence directly, but this endpoint pre-merges them.
+
+/**
+ * GET /research/boundary/:projectId
+ * Returns merged reconcile + confidence payload for the boundary viewer.
+ */
+app.get('/research/boundary/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const reconPath   = `/tmp/analysis/${projectId}/reconciled_boundary.json`;
+  const confPath    = `/tmp/analysis/${projectId}/confidence_report.json`;
+  const topoPath    = `/tmp/analysis/${projectId}/topo.json`;
+  const taxPath     = `/tmp/analysis/${projectId}/tax.json`;
+
+  if (!fs.existsSync(reconPath)) {
+    res.json({ status: 'not_ready', message: 'Boundary reconciliation not yet complete', projectId });
+    return;
+  }
+
+  try {
+    const rawRecon = fs.readFileSync(reconPath, 'utf-8');
+    const rawConf  = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf-8') : null;
+    const rawTopo  = fs.existsSync(topoPath) ? fs.readFileSync(topoPath, 'utf-8') : null;
+    const rawTax   = fs.existsSync(taxPath)  ? fs.readFileSync(taxPath,  'utf-8') : null;
+
+    const recon = JSON.parse(rawRecon) as unknown;
+    const conf  = rawConf ? (JSON.parse(rawConf)  as unknown) : null;
+    const topo  = rawTopo ? (JSON.parse(rawTopo)  as unknown) : null;
+    const tax   = rawTax  ? (JSON.parse(rawTax)   as unknown) : null;
+
+    // Validate reconciliation output before returning
+    const validatedRecon = validateOrNull('reconciliation', recon, (msg) => {
+      console.warn(`[Boundary] Phase 7 schema warning for ${projectId}: ${msg}`);
+    });
+
+    res.json({
+      projectId,
+      reconciliation: validatedRecon ?? recon,
+      confidence: conf,
+      topo,
+      tax,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to assemble boundary data', detail: String(err) });
+  }
+});
+
 // ── Site Health Monitor ───────────────────────────────────────────────────
 // Probes all county CAD portals and clerk systems to detect selector drift.
 // Broadcasts alerts when sites change or go down.
@@ -1873,6 +2106,11 @@ app.listen(PORT, () => {
   console.log('  POST   /research/batch                  ← Phase 11: batch processing job');
   console.log('  GET    /research/batch/:batchId         ← Phase 11: batch status');
   console.log('  GET    /research/clerk-registry/:county ← Phase 11: clerk system lookup');
+  console.log('  POST   /research/topo                   ← Phase 13: USGS topographic data');
+  console.log('  GET    /research/topo/:projectId        ← Phase 13: topographic result');
+  console.log('  POST   /research/tax                    ← Phase 13: TX Comptroller tax data');
+  console.log('  GET    /research/tax/:projectId         ← Phase 13: tax rate result');
+  console.log('  GET    /research/boundary/:projectId    ← Phase 13: boundary viewer data');
   console.log('  POST   /research/full-pipeline');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');

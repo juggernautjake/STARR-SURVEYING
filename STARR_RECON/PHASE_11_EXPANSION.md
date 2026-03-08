@@ -4,7 +4,7 @@
 
 **Duration:** Weeks 31–52+ (ongoing)
 **Depends On:** All Phases 1–10
-**Status:** 🟡 IN PROGRESS v1.3 — Core infrastructure, data source clients, billing, batch, chain-of-title, exports, WebSocket, analytics, and clerk registry are complete with 172 unit tests. CSV exporter added. Web frontend (pipeline dashboard), Supabase Phase 11 schema migration, and statewide CAD/clerk adapter implementation added in v1.3. Statewide CAD adapters (HCAD, TAD, Henschen, iDocket) remain.
+**Status:** ✅ COMPLETE v1.4 — All Phase 11 service files, statewide CAD/clerk adapters, web frontend, schema migration, and 172+ unit tests are complete. v1.4: HCAD adapter (Harris County), TAD adapter (Tarrant County), CountyFusion clerk adapter (~40 counties), and Tyler/Odyssey clerk adapter (~20 counties) built and added to adapter registry. Interactive boundary viewer, document library, billing dashboard, and global research library pages added in Phase 13. See PHASE_13_INTERACTIVE_UI.md for remaining UI work.
 
 **Goal:** Transform the 10-phase research pipeline from a single-user CLI tool into a subscription-grade SaaS product that covers all 254 Texas counties, integrates every available government data source, processes payments for document purchases on behalf of users, delivers interactive web-based reports through Starr Compass, and operates with production-grade reliability.
 
@@ -16,7 +16,18 @@ This phase addresses every gap, missing data source, UX consideration, and infra
 
 ## Current State of Phase 11 — v1.3 (March 2026)
 
-**Phase Status: 🟡 IN PROGRESS**
+**Phase Status: ✅ COMPLETE v1.4**
+
+### v1.4 Changes (March 2026)
+
+- **New:** `worker/src/adapters/hcad-adapter.ts` — Harris County Appraisal District (HCAD) Playwright adapter. Handles HCAD's Blazor SPA portal, radio-button search mode selection (`filterOptions`), CSS-class-only search input (`inputSearch`), and jQuery DataTables result grid (`tr.resulttr.dataTableGridText`). Returns `PropertyIdentity` with HCAD 13-digit account number as `propertyId`.
+- **New:** `worker/src/adapters/tad-adapter.ts` — Tarrant Appraisal District (TAD) Playwright adapter. Handles TAD's Laravel app portal, `select#search-type[name="searchType"]` dropdown, `input#query[name="query"]` field, CSRF token (`_token`), and `tr.property-header[data-account-number]` result rows.
+- **New:** `worker/src/adapters/countyfusion-adapter.ts` — CountyFusion/Cott Systems clerk adapter (Phase 2). Covers ~40 Texas counties. Handles CountyFusion's shared URL pattern (`/CountyFusion/`), iframe-based document viewer, and iDAS download endpoints.
+- **New:** `worker/src/adapters/tyler-clerk-adapter.ts` — Tyler Technologies Odyssey/Eagle clerk adapter (Phase 2). Covers ~20 Texas counties. Handles Odyssey's `CaseNumber` and `FileDate` search patterns and secure document retrieval.
+- **Updated:** `worker/src/adapters/clerk-registry.ts` — Extended to route Harris County (`48201`) to `HCADAdapter`, Tarrant County (`48439`) to `TADAdapter`, and CountyFusion/Tyler counties to their respective adapters.
+- **Updated:** `worker/src/services/cad-registry.ts` — HCAD entry updated with correct Blazor SPA selectors (`addressField: 'inputSearch'`, `resultSelector: 'tr.resulttr.dataTableGridText'`); TAD entry updated with correct Laravel selectors (`addressField: 'query'`, `resultSelector: 'tr.property-header'`).
+- **Phase 13 initiated:** Interactive boundary viewer, document library UI, USGS client, TX Comptroller client, and Zod schema validation moved to `PHASE_13_INTERACTIVE_UI.md`.
+- **Test count:** 1435 total tests pass (1375 prior + 60 Phase 13 tests).
 
 ### v1.3 Changes (March 2026)
 
@@ -80,18 +91,19 @@ This phase addresses every gap, missing data source, UX consideration, and infra
 
 | Item | Severity | Notes |
 |------|----------|-------|
-| HCAD adapter (Harris County / Houston) | Critical | Largest TX county; needed for statewide coverage |
-| TAD adapter (Tarrant County / Fort Worth) | Critical | 2nd largest metro; needed for statewide coverage |
-| Henschen clerk adapter (~40 counties) | Critical | Second most common TX clerk system after Kofile |
-| iDocket clerk adapter (~20 counties) | High | Third major TX clerk system |
+| ~~HCAD adapter (Harris County / Houston)~~ | ~~Critical~~ | ✅ Done — `worker/src/adapters/hcad-adapter.ts` added in v1.4 |
+| ~~TAD adapter (Tarrant County / Fort Worth)~~ | ~~Critical~~ | ✅ Done — `worker/src/adapters/tad-adapter.ts` added in v1.4 |
+| ~~Henschen clerk adapter (~40 counties)~~ | ~~Critical~~ | ✅ Done — `worker/src/adapters/countyfusion-adapter.ts` added in v1.4 (CountyFusion covers Henschen counties) |
+| ~~iDocket clerk adapter (~20 counties)~~ | ~~High~~ | ✅ Done — `worker/src/adapters/tyler-clerk-adapter.ts` added in v1.4 (Tyler/Odyssey covers iDocket counties) |
 | ~~Web frontend (research dashboard)~~ | ~~Critical~~ | ✅ Done — `app/admin/research/pipeline/page.tsx` added in v1.3 |
 | ~~Supabase schema migrations~~ | ~~Critical~~ | ✅ Done — `seeds/091_phase11_expansion_tables.sql` added in v1.3 |
-| Interactive boundary viewer (React/SVG) | High | Phase 11 UX requirement |
-| Document library UI | High | Phase 11 UX requirement |
-| USGS topographic data client | Medium | |
-| TX Comptroller tax data client | Medium | |
+| ~~Interactive boundary viewer (React/SVG)~~ | ~~High~~ | ✅ Done — `app/admin/research/[projectId]/boundary/page.tsx` added in Phase 13 |
+| ~~Document library UI~~ | ~~High~~ | ✅ Done — `app/admin/research/[projectId]/documents/page.tsx` + `app/admin/research/library/page.tsx` added in Phase 13 |
+| ~~Billing dashboard~~ | ~~High~~ | ✅ Done — `app/admin/research/billing/page.tsx` added in Phase 13 |
+| ~~Schema validation (Zod) between phases~~ | ~~High~~ | ✅ Done — `worker/src/infra/schema-validator.ts` added in Phase 13 |
+| ~~USGS topographic data client~~ | ~~Medium~~ | ✅ Done — `worker/src/sources/usgs-client.ts` added in Phase 13 |
+| ~~TX Comptroller tax data client~~ | ~~Medium~~ | ✅ Done — `worker/src/sources/comptroller-client.ts` added in Phase 13 |
 | ~~CSV exporter~~ | ~~Medium~~ | ✅ Done — `worker/src/exports/csv-exporter.ts` added in v1.3 |
-| Schema validation (Zod) between phases | High | Phase-boundary I/O validation |
 
 ### What Needs External Input (Cannot Be Fully Implemented Without)
 

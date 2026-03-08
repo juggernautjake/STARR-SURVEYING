@@ -30,6 +30,7 @@ import { DXFExporter } from '../reports/dxf-exporter.js';
 import { PDFReportGenerator } from '../reports/pdf-generator.js';
 import { LegalDescriptionGenerator } from '../reports/legal-description-generator.js';
 import { PipelineLogger } from '../lib/logger.js';
+import { validateOrNull } from '../infra/schema-validator.js';
 
 // ── Phase Definitions ───────────────────────────────────────────────────────
 
@@ -319,6 +320,16 @@ export class MasterOrchestrator {
     const confidence = loadJson('confidence_report.json');
     const purchases = loadJson('purchase_report.json');
     const reconciliationV2 = loadJson('reconciled_boundary_v2.json');
+
+    // Phase 13: validate key phase outputs — logs a warning if schema doesn't match
+    // but never blocks report generation (non-fatal, uses validateOrNull)
+    const warn = (phase: string, msg: string) =>
+      logger.warn('schema', `[Phase ${phase}] ${msg}`);
+    if (discovery)     validateOrNull('discovery',             discovery,     m => warn('1', m));
+    if (harvest)       validateOrNull('harvest',               harvest,       m => warn('2', m));
+    if (extraction)    validateOrNull('property_intelligence', extraction,    m => warn('3', m));
+    if (reconciliation) validateOrNull('reconciliation',       reconciliation, m => warn('7', m));
+    if (confidence)    validateOrNull('confidence',            confidence,    m => warn('8', m));
 
     return {
       projectId,

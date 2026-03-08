@@ -577,13 +577,15 @@ describe('CAD registry vendor coverage', () => {
 
   it('HCAD config has correct addressField and resultSelector', () => {
     const cfg = getCADConfig('48201')!;
-    expect(cfg.addressField).toBe('search_str');
-    expect(cfg.resultSelector).toContain('searchResults');
+    // HCAD rebuilt as Blazor SPA (verified 2026-03-07): no name attr, uses CSS class 'inputSearch'
+    expect(cfg.addressField).toBe('inputSearch');
+    expect(cfg.resultSelector).toContain('resulttr');
   });
 
   it('TAD config has correct addressField and resultSelector', () => {
     const cfg = getCADConfig('48439')!;
-    expect(cfg.addressField).toBe('address');
-    expect(cfg.resultSelector).toContain('search-results-table');
+    // TAD is a Laravel app (verified 2026-03-07): search input is input#query[name="query"]
+    expect(cfg.addressField).toBe('query');
+    expect(cfg.resultSelector).toContain('property-header');
   });
 });
