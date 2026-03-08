@@ -2400,6 +2400,92 @@ app.get('/research/landex/estimate', requireAuth, rateLimit(60, 60_000), (req: R
   });
 });
 
+// ── Phase 19: TNRIS LiDAR & Cross-County Detection ────────────────────────
+
+/**
+ * GET /research/lidar/counties
+ * List all Texas counties with LiDAR coverage on TNRIS.
+ */
+app.get('/research/lidar/counties', requireAuth, rateLimit(30, 60_000), async (_req: Request, res: Response) => {
+  try {
+    const { TNRISLiDARClient } = await import('./sources/tnris-lidar-client.js');
+    const client = new TNRISLiDARClient();
+    const counties = await client.listCoveredCounties();
+    res.json({ counties, count: counties.length, dataSource: 'TNRIS', apiConfigured: client.isConfigured });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /research/lidar/:projectId
+ * Fetch LiDAR data for the centroid of a research project.
+ */
+app.get('/research/lidar/:projectId', requireAuth, rateLimit(20, 60_000), async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const lat = parseFloat((req.query.lat as string) ?? '0');
+  const lon = parseFloat((req.query.lon as string) ?? '0');
+  const radiusM = parseInt((req.query.radiusM as string) ?? '500', 10);
+
+  if (!lat || !lon) {
+    res.status(400).json({ error: 'lat and lon query parameters are required' });
+    return;
+  }
+
+  try {
+    const { TNRISLiDARClient } = await import('./sources/tnris-lidar-client.js');
+    const client = new TNRISLiDARClient();
+    const result = await client.fetchLiDARData(lat, lon, radiusM);
+    res.json({ projectId, lidar: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /research/cross-county/detect
+ * Detect whether a property straddles county lines.
+ * Body: { lat, lon, boundaryCalls: [{bearing, distance}], primaryCountyFIPS }
+ */
+app.post('/research/cross-county/detect', requireAuth, rateLimit(30, 60_000), async (req: Request, res: Response) => {
+  const { lat, lon, boundaryCalls = [], primaryCountyFIPS } = req.body as {
+    lat?: number; lon?: number;
+    boundaryCalls?: { bearing: string; distance: number }[];
+    primaryCountyFIPS?: string;
+  };
+
+  if (!lat || !lon || !primaryCountyFIPS) {
+    res.status(400).json({ error: 'lat, lon, and primaryCountyFIPS are required' });
+    return;
+  }
+
+  try {
+    const { CrossCountyResolver } = await import('./services/cross-county-resolver.js');
+    const resolver = new CrossCountyResolver();
+    const detection = resolver.detectCrossCounty(lat, lon, boundaryCalls, primaryCountyFIPS);
+    res.json({ detection });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /research/cross-county/:projectId
+ * Get the cross-county research plan for a project (if previously detected).
+ */
+app.get('/research/cross-county/:projectId', requireAuth, rateLimit(60, 60_000), async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  try {
+    const { CrossCountyResolver } = await import('./services/cross-county-resolver.js');
+    const resolver = new CrossCountyResolver();
+    // Without DB integration, return available county adjacency info
+    const adjInfo = resolver.getAdjacentCounties('48027');
+    res.json({ projectId, adjacentCounties: adjInfo, note: 'Use POST /research/cross-county/detect for live detection' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -2452,6 +2538,10 @@ app.listen(PORT, () => {
   console.log('  GET    /research/purchase/platforms/status ← Phase 15: adapter configuration status');
   console.log('  POST   /research/notifications/test     ← Phase 15: test email/SMS notification');
   console.log('  GET    /research/landex/estimate        ← Phase 15: LandEx cost estimate');
+  console.log('  GET    /research/lidar/counties         ← Phase 19: Texas counties with LiDAR coverage');
+  console.log('  GET    /research/lidar/:projectId       ← Phase 19: LiDAR elevation data for project');
+  console.log('  POST   /research/cross-county/detect    ← Phase 19: detect cross-county property');
+  console.log('  GET    /research/cross-county/:projectId ← Phase 19: cross-county research plan');
   console.log('  POST   /research/topo                   ← Phase 13: USGS topographic data');
   console.log('  GET    /research/topo/:projectId        ← Phase 13: topographic result');
   console.log('  POST   /research/tax                    ← Phase 13: TX Comptroller tax data');
