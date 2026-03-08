@@ -3,6 +3,9 @@
 **Starr Software — AI Property Research Pipeline Phase**
 
 **Status:** ✅ COMPLETE v1.0 (March 2026)
+**Phase Duration:** Weeks 57–58
+**Depends On:** Phases 1–13
+**Maintained By:** Jacob, Starr Surveying Company, Belton, Texas (Bell County)
 
 **Goal:** Establish a formal free-first, paid-fallback document access architecture that:
 1. Always tries free public access tiers first (watermarked previews, index-only metadata)
@@ -386,18 +389,68 @@ Step 4: After payment, STARR auto-fetches clean images
 - [x] Worker Express routes: POST /research/access/document, GET /research/access/result/:p/:i
 - [x] Next.js API route: GET/POST /api/admin/research/document-access
 - [x] 62 unit tests — all passing
-- [x] 1,497 total tests pass (62 new + 1,435 pre-existing)
+- [x] 1,743 total tests pass (62 new + 1,681 pre-existing)
 
 ### Deferred to Phase 15
 
-- [ ] Full purchase automation for Tyler Pay, Henschen Pay, iDocket Pay, Fidlar Pay (Playwright flows for each)
+- [ ] Full purchase automation for Tyler Pay (Playwright form-fill + confirmation flow)
+- [ ] Full purchase automation for Henschen Pay (Playwright form-fill + image download)
+- [ ] Full purchase automation for iDocket Pay (subscriber auth + full image download)
+- [ ] Full purchase automation for Fidlar Pay (session + payment form + image retrieval)
 - [ ] GovOS guest checkout automation (credit card form fill without account)
-- [ ] LandEx REST API integration (API-based, no Playwright needed)
-- [ ] Database schema for `document_wallet_balance` and `document_purchase_history` tables
-- [ ] Frontend billing dashboard UI (`/admin/research/billing`) showing wallet balance + transaction history
-- [ ] Webhook endpoint for Stripe events (`/api/webhooks/stripe`)
-- [ ] Notification system: email/SMS when clean document purchase completes
-- [ ] Bexar County (San Antonio) custom clerk adapter
+- [ ] LandEx REST API integration (pure API — no Playwright needed, straightforward to automate)
+- [ ] Database schema migration: `document_wallet_balance` and `document_purchase_history` Supabase tables
+- [ ] Frontend billing dashboard UI at `/admin/research/billing` — wallet balance + transaction history + "Add Funds" button
+- [ ] Stripe webhook endpoint at `/api/webhooks/stripe` for `payment_intent.succeeded` and `checkout.session.completed` events
+- [ ] Notification system: email/SMS alert when clean document purchase completes and re-analysis finishes
+- [ ] Bexar County custom clerk adapter (San Antonio — uses its own custom portal)
+- [ ] Statewide coverage gap dashboard — admin page showing which counties have which access tiers
+
+---
+
+## Setup for Phase 15
+
+Next phase candidates in priority order based on remaining Phase 14 gaps and user value:
+
+1. **Playwright Purchase Automation (Tyler Pay, Henschen Pay)** — Highest ROI. Tyler covers ~30 counties (Dallas, Tarrant, etc.), Henschen covers ~40 counties. Together they unlock clean images for most high-volume TX counties. Implement via `purchase-adapters/tyler-pay-adapter.ts` and `purchase-adapters/henschen-pay-adapter.ts`, calling from `DocumentAccessOrchestrator`.
+
+2. **LandEx REST API Integration** — Pure REST API integration (`purchase-adapters/landex-api-adapter.ts`). No Playwright. Covers national records as a cross-state fallback. Requires `LANDEX_API_KEY` and `LANDEX_ACCOUNT_ID`.
+
+3. **Document Wallet Database** — Supabase migration for `document_wallet_balance` (one row per user, `balance_cents` integer) and `document_purchase_history` (per-transaction log). Integrate with `BillingService.handleDocumentPaymentEvent()` to update wallet on `wallet_funded` events.
+
+4. **Wallet UI / Billing Dashboard** — React page at `/admin/research/billing` showing wallet balance, "Add Funds" button (triggers `fund_wallet` action), and transaction history table. Connects to `GET /api/admin/research/document-access` (no params → platform summary) and Supabase `document_purchase_history`.
+
+5. **Stripe Webhook Endpoint** — Next.js API route at `/api/webhooks/stripe` that verifies `stripe-signature` header, routes `payment_intent.succeeded` → `handleDocumentPaymentEvent()`, and updates Supabase wallet balance.
+
+6. **iDocket / Fidlar Pay Automation** — iDocket subscriber login + image download flow; Fidlar session + payment page automation. Lower priority than Tyler/Henschen since they cover fewer high-volume counties.
+
+7. **Bexar County Custom Clerk Adapter** — San Antonio (Bexar County, FIPS 48029) is the 4th largest TX metro and doesn't use Kofile, Tyler, Henschen, iDocket, or Fidlar. Requires investigation of their current clerk portal technology.
+
+### Architecture Reference for Phase 15 Automation
+
+```
+DocumentAccessOrchestrator
+  │
+  ├── Tier 0: KofileClerkAdapter.getDocumentImages()  ← already implemented
+  │
+  ├── Tier 2: PaidPlatformRegistry.getRankedPlatforms()
+  │            │
+  │            ├── TylerPayAdapter (new in Phase 15)
+  │            │    ├── login(username, password)
+  │            │    ├── searchInstrument(fips, number)
+  │            │    └── purchaseAndDownload(pages, stripeToken)
+  │            │
+  │            ├── HenschenPayAdapter (new in Phase 15)
+  │            │    └── (similar pattern)
+  │            │
+  │            ├── LandExApiAdapter (new in Phase 15, REST only)
+  │            │    ├── POST /api/v1/documents/search
+  │            │    └── POST /api/v1/documents/purchase
+  │            │
+  │            └── TexasFileAdapter (existing Phase 9)
+  │
+  └── Stripe wallet deduction after successful purchase
+```
 
 ---
 
