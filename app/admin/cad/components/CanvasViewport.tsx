@@ -21,10 +21,11 @@ import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel, CircleGeometry, EllipseGeometry, ArcGeometry, SplineGeometry } from '@/lib/cad/types';
 import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { formatDistance, formatCoordinates, formatAngle, formatSurveyAngle } from '@/lib/cad/geometry/units';
-import { inverseBearingDistance } from '@/lib/cad/geometry/bearing';
+import { inverseBearingDistance, forwardPoint, formatBearing } from '@/lib/cad/geometry/bearing';
 import { generateLabelsForFeature } from '@/lib/cad/labels';
 import { cadLog } from '@/lib/cad/logger';
 import { computeSideFromCursor, computeDistanceToFeature, isOffsetableFeature, offsetPolyline, offsetArc, offsetCircle } from '@/lib/cad/geometry/offset';
+import { computeCurbReturn } from '@/lib/cad/geometry/curb-return';
 import { applyInteractiveOffset } from '@/lib/cad/operations';
 import {
   drawCircle as drawCircleCurve,
@@ -4496,6 +4497,72 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           }
           break;
         }
+
+        case 'INVERSE': {
+          // Click A → click B: show bearing and distance in the command bar output area.
+          const { drawingPoints: dpts } = toolState;
+          if (dpts.length === 0) {
+            // First click: record the from-point
+            toolStore.addDrawingPoint(worldPt);
+          } else {
+            // Second click: compute and display result
+            const from = dpts[0];
+            const { azimuth, distance } = inverseBearingDistance(from, worldPt);
+            const bearingStr = formatBearing(azimuth);
+            const distStr = distance.toFixed(2);
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: `INVERSE — Bearing: ${bearingStr}  Distance: ${distStr}′` },
+            }));
+            toolStore.clearDrawingPoints();
+          }
+          break;
+        }
+
+        case 'FORWARD_POINT': {
+          // Click base point → command bar accepts "bearing distance" → places new point.
+          const { drawingPoints: dpts } = toolState;
+          if (dpts.length === 0) {
+            // First click: record the base point and prompt for bearing+distance
+            toolStore.addDrawingPoint(worldPt);
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'Base point set — type bearing and distance in command bar (e.g. N45-30-15E 150.00)' },
+            }));
+          }
+          // Actual point placement is handled via cad:forwardPoint event from CommandBar
+          break;
+        }
+
+        case 'CURB_RETURN': {
+          // Click line 1 → click line 2 → radius prompt → create arc feature + trim lines.
+          const { drawingPoints: dpts } = toolState;
+          if (dpts.length === 0) {
+            // First click: hit-test for a line/polyline
+            const hit = hitTest(sx, sy);
+            const feat = hit ? drawingStore.getFeature(hit) : null;
+            if (feat && (feat.geometry.type === 'LINE' || feat.geometry.type === 'POLYLINE')) {
+              toolStore.addDrawingPoint(worldPt);
+              selectionStore.select(feat.id, 'REPLACE');
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: 'First line selected — click second line' },
+              }));
+            }
+          } else if (dpts.length === 1) {
+            // Second click: hit-test for a different line/polyline
+            const hit = hitTest(sx, sy);
+            const feat = hit ? drawingStore.getFeature(hit) : null;
+            const selIds = Array.from(selectionStore.selectedIds);
+            const firstId = selIds[0] ?? null;
+            if (feat && feat.id !== firstId && (feat.geometry.type === 'LINE' || feat.geometry.type === 'POLYLINE')) {
+              toolStore.addDrawingPoint(worldPt);
+              selectionStore.selectMultiple([firstId, feat.id].filter(Boolean) as string[], 'REPLACE');
+              window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+                detail: { text: 'Second line selected — type radius in command bar and press Enter' },
+              }));
+            }
+          }
+          // Arc creation is handled via cad:curbReturn event (dispatched by CommandBar with radius)
+          break;
+        }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5425,6 +5492,96 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
     window.addEventListener('cad:startInteractiveScale', onStartInteractiveScale);
 
+    // ── Forward Point: command bar dispatches bearing+distance after user types them ──
+    const onForwardPoint = (e: Event) => {
+      const { bearing, distance } = (e as CustomEvent<{ bearing: number; distance: number }>).detail;
+      const tStore = useToolStore.getState();
+      if (tStore.state.activeTool !== 'FORWARD_POINT') return;
+      const dpts = tStore.state.drawingPoints;
+      if (dpts.length === 0) return;
+      const basePt = dpts[0];
+      const newPt = forwardPoint(basePt, bearing, distance);
+      const dwgStore = useDrawingStore.getState();
+      const feature: Feature = {
+        id: generateId(),
+        type: 'POINT',
+        geometry: { type: 'POINT', point: newPt },
+        layerId: dwgStore.activeLayerId,
+        style: { ...DEFAULT_FEATURE_STYLE },
+        properties: {},
+      };
+      dwgStore.addFeature(feature);
+      useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+      tStore.clearDrawingPoints();
+    };
+
+    // ── Curb Return: command bar dispatches radius after user types it ──
+    const onCurbReturn = (e: Event) => {
+      const { radius, trim } = (e as CustomEvent<{ radius: number; trim: boolean }>).detail;
+      const toolState = useToolStore.getState().state;
+      if (toolState.activeTool !== 'CURB_RETURN') return;
+      const selIds = Array.from(useSelectionStore.getState().selectedIds);
+      if (selIds.length < 2) return;
+      const dwgStore = useDrawingStore.getState();
+      const feat1 = dwgStore.getFeature(selIds[0]);
+      const feat2 = dwgStore.getFeature(selIds[1]);
+      if (!feat1 || !feat2) return;
+      // Extract endpoints from the two features
+      const verts1 = feat1.geometry.type === 'LINE'
+        ? [feat1.geometry.start, feat1.geometry.end].filter((p): p is Point2D => p != null)
+        : (feat1.geometry.vertices ?? []);
+      const verts2 = feat2.geometry.type === 'LINE'
+        ? [feat2.geometry.start, feat2.geometry.end].filter((p): p is Point2D => p != null)
+        : (feat2.geometry.vertices ?? []);
+      if (verts1.length < 2 || verts2.length < 2) return;
+      const result = computeCurbReturn({
+        line1Start: verts1[verts1.length - 2],
+        line1End:   verts1[verts1.length - 1],
+        line2Start: verts2[0],
+        line2End:   verts2[1],
+        radius,
+        trimOriginals: trim,
+      });
+      if (!result) return;
+      // Create arc feature from the result
+      const { curve } = result;
+      // Convert CurveParameters to ArcGeometry (anticlockwise = CCW = LEFT curve)
+      const arcFeature: Feature = {
+        id: generateId(),
+        type: 'ARC',
+        geometry: {
+          type: 'ARC',
+          arc: {
+            center: curve.rp,
+            radius: curve.R,
+            startAngle: Math.atan2(curve.pc.y - curve.rp.y, curve.pc.x - curve.rp.x),
+            endAngle:   Math.atan2(curve.pt.y - curve.rp.y, curve.pt.x - curve.rp.x),
+            anticlockwise: curve.direction === 'LEFT',
+          },
+        },
+        layerId: dwgStore.activeLayerId,
+        style: { ...DEFAULT_FEATURE_STYLE },
+        properties: {},
+      };
+      const ops: { type: 'ADD_FEATURE'; data: Feature }[] = [{ type: 'ADD_FEATURE', data: arcFeature }];
+      dwgStore.addFeature(arcFeature);
+      // Optionally trim the original lines
+      if (trim && result.trimmedLine1) {
+        const updated1: Feature = { ...feat1, geometry: { ...feat1.geometry, start: result.trimmedLine1.start, end: result.trimmedLine1.end } };
+        dwgStore.updateFeatureGeometry(feat1.id, updated1.geometry);
+      }
+      if (trim && result.trimmedLine2) {
+        const updated2: Feature = { ...feat2, geometry: { ...feat2.geometry, start: result.trimmedLine2.start, end: result.trimmedLine2.end } };
+        dwgStore.updateFeatureGeometry(feat2.id, updated2.geometry);
+      }
+      useUndoStore.getState().pushUndo(makeBatchEntry(`Curb Return R=${radius}′`, ops));
+      useSelectionStore.getState().deselectAll();
+      useToolStore.getState().clearDrawingPoints();
+    };
+
+    window.addEventListener('cad:forwardPoint', onForwardPoint);
+    window.addEventListener('cad:curbReturn', onCurbReturn);
+
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -5434,6 +5591,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('cad:scale', onScale);
       window.removeEventListener('cad:startInteractiveRotate', onStartInteractiveRotate);
       window.removeEventListener('cad:startInteractiveScale', onStartInteractiveScale);
+      window.removeEventListener('cad:forwardPoint', onForwardPoint);
+      window.removeEventListener('cad:curbReturn', onCurbReturn);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolStore]);
