@@ -26,6 +26,7 @@ import DrawingSaveDialog from '../components/DrawingSaveDialog';
 import VerificationPanel from '../components/VerificationPanel';
 import ExportPanel from '../components/ExportPanel';
 import TemplateManager from '../components/TemplateManager';
+import SurveyPlanPanel from '../components/SurveyPlanPanel';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS } from '@/types/research';
 
@@ -60,7 +61,7 @@ export default function ResearchProjectPage() {
   const [showAnalysisLogs, setShowAnalysisLogs] = useState(false);
 
   // Review state
-  const [reviewTab, setReviewTab] = useState<'data' | 'discrepancies' | 'ai_logs'>('data');
+  const [reviewTab, setReviewTab] = useState<'data' | 'discrepancies' | 'ai_logs' | 'survey_plan'>('data');
   const [showBriefing, setShowBriefing] = useState(true);
   const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
@@ -1739,6 +1740,12 @@ export default function ResearchProjectPage() {
             >
               🔍 AI Logs
             </button>
+            <button
+              className={`research-review__tab ${reviewTab === 'survey_plan' ? 'research-review__tab--active' : ''}`}
+              onClick={() => setReviewTab('survey_plan')}
+            >
+              📋 Survey Plan
+            </button>
           </div>
 
           {/* Tab content */}
@@ -1794,6 +1801,11 @@ export default function ResearchProjectPage() {
               </div>
             );
           })()}
+          {reviewTab === 'survey_plan' && (
+            <div style={{ padding: '0.5rem 0' }}>
+              <SurveyPlanPanel projectId={projectId} />
+            </div>
+          )}
         </div>
       )}
 
@@ -2142,6 +2154,17 @@ export default function ResearchProjectPage() {
               showUITooltips={showUITooltips}
             />
           )}
+
+          {/* Survey Field Plan — always visible on the Complete step */}
+          <div style={{ marginTop: '2rem' }}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#111827', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              📋 Field Survey Plan
+              <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#6B7280', background: '#F3F4F6', padding: '2px 8px', borderRadius: 10 }}>AI Generated</span>
+            </h2>
+            <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '1.25rem' }}>
+              <SurveyPlanPanel projectId={projectId} />
+            </div>
+          </div>
         </>
       )}
 

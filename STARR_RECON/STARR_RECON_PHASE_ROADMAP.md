@@ -337,16 +337,14 @@ starr-software/                     # Turborepo monorepo root
 | 13 | Interactive UI, Additional Data Sources & Production Hardening | 🟢 COMPLETE | 1,100+ | Phases 1–12 | 54–56 |
 | 14 | Document Access Tiers & Paid Platform Automation | 🟢 COMPLETE | 415 | Phases 1–13 | 57–58 |
 | 15 | Full Purchase Automation, Bexar County & Notifications | 🟢 COMPLETE | 580+ | Phases 1–14 | 59–62 |
-| — | **TOTAL** | — | **18,241+** | — | — |
+| 16 | Working Prototype: Survey Plan Generator & Lite Pipeline | 🟢 COMPLETE | 300+ | Phases 1–15 | 63 |
+| — | **TOTAL** | — | **18,541+** | — | — |
 
-> **Current Status (March 2026):** All 15 phases are COMPLETE. **1,807 unit tests pass.**
+> **Current Status (March 2026):** All 16 phases are COMPLETE. **2,077 unit tests pass.**
 >
+> - Phase 16: One-Click Research (lite pipeline without external worker), AI survey field plan generator, SurveyPlanPanel UI component with 9 tabs (summary, checklist, equipment, field steps, monuments, boundary, discrepancies, sources, timeline), Survey Plan tab added to Review step, plain-English field plan with confidence scoring
 > - Pipeline runs end-to-end for Bell, Harris, and Tarrant counties
-> - Phase 13 v1.0: Henschen, iDocket, Fidlar clerk adapters — statewide TX county clerk coverage complete
-> - Phase 13 v1.1: Boundary viewer API (traverse walk), USGS topo/tax proxy routes, global library API, billing API, document download proxy; schema validation in master-orchestrator
-> - Phase 14: Free-first, paid-fallback document access with 12 paid platforms, Stripe wallet funding, 4 worker API endpoints
 > - Phase 15: Full purchase automation (Tyler/Henschen/iDocket/Fidlar/GovOS/LandEx), Bexar County adapter, Notification Service (email+SMS), Stripe webhook, document_wallet_balance and document_purchase_history tables
-> - Production deployment requires live Stripe/Redis/Supabase credentials and live county portal verification
 
 ---
 
@@ -397,6 +395,9 @@ starr-software/                     # Turborepo monorepo root
 #### Phase 15 — COMPLETE ✅
 `purchase-adapters/tyler-pay-adapter.ts` (Playwright flow for ~30 Tyler/Odyssey counties, TYLER_PAY_FIPS_SET), `purchase-adapters/henschen-pay-adapter.ts` (Playwright flow for ~40 Henschen counties, per-county portal URL map), `purchase-adapters/idocket-pay-adapter.ts` (SPA-aware Playwright for ~20 iDocket subscriber counties), `purchase-adapters/fidlar-pay-adapter.ts` (AJAX-aware Playwright for ~15 Fidlar/Laredo counties), `purchase-adapters/govos-guest-adapter.ts` (GovOS guest CC checkout for ~80 Kofile/PublicSearch counties), `purchase-adapters/landex-api-adapter.ts` (REST API for national coverage, batch support, cost estimation), `adapters/bexar-clerk-adapter.ts` (Bexar County / San Antonio custom clerk adapter extending ClerkAdapter, BEXAR_FIPS_SET), `services/notification-service.ts` (email via Resend API + SMS via Twilio, 8 event types, graceful no-creds degradation), `app/api/webhooks/stripe/route.ts` (HMAC-SHA256 sig verification, 8 Stripe event types, wallet credit/debit), `seeds/093_phase15_wallet_tables.sql` (document_wallet_balance + document_purchase_history + trigger + RLS + helper), `worker/src/index.ts` updated (4 Phase 15 routes), clerk registry updated (Bexar stub→implemented). **TypeScript fix:** `app/api/admin/research/billing/route.ts` implicit `any` errors on `reduce`/`filter` callbacks fixed by adding `UsageEvent` interface and explicit parameter types. 64 unit tests.
 
+#### Phase 16 — COMPLETE ✅ (Working Prototype)
+`lib/research/survey-plan.service.ts` (AI-powered field survey plan generator — `generateSurveyPlan()` builds plain-English field plan from all extracted data: boundary calls, monuments, easements, flood zone, TxDOT ROW, discrepancies), `app/api/admin/research/[projectId]/survey-plan/route.ts` (GET endpoint — returns survey plan at any project stage), `app/admin/research/components/SurveyPlanPanel.tsx` (full-featured React component with 9-tab sidebar: Summary, Pre-Field Checklist, Equipment, Field Steps, Monument Recovery, Boundary Reconstruction, Discrepancies, Data Sources, Timeline), `app/api/admin/research/[projectId]/lite-pipeline/route.ts` (POST/GET inline pipeline that runs without the external worker: geocode → search 10+ sources → capture USGS map images → import records → run AI analysis → collect summary), `lib/research/prompts.ts` updated (SURVEY_PLAN_GENERATOR prompt v1.0.0), `app/admin/research/[projectId]/page.tsx` updated (Survey Plan tab added to Review step, SurveyPlanPanel added to Complete step), `app/admin/research/components/PropertySearchPanel.tsx` updated (One-Click Research button and status display for lite pipeline). **50 unit tests.** 2,077 total tests pass.
+
 ### What Still Needs External Input (Cannot Be Fully Tested Without)
 
 | Item | Missing Information |
@@ -417,19 +418,19 @@ starr-software/                     # Turborepo monorepo root
 | iDocket subscription | Monthly subscription → `IDOCKET_PAY_USERNAME`, `IDOCKET_PAY_PASSWORD` |
 | Stripe document products | Create "Document Wallet" product in Stripe dashboard |
 
-### What Does NOT Exist Yet (Future Phases / Phase 16+)
+### What Does NOT Exist Yet (Future Phases / Phase 17+)
 
 1. 🔴 Live Playwright selector tuning — Tyler Pay, Henschen Pay, iDocket Pay, Fidlar Pay portal layouts need live verification and per-county selector adjustments
 2. 🔴 GovOS guest CC form fill — requires raw card data or advanced Stripe tokenization flow; currently requires pre-tokenized Stripe card token
 3. 🔴 Mobile-friendly report output — responsive web report for field use on phones/tablets
-4. 🔴 Report sharing / collaboration — share reports with clients via link with permission levels
-5. 🔴 AI prompt A/B testing — compare prompt versions, track accuracy metrics
-6. 🔴 Data versioning — diff pre-purchase vs post-purchase reconciliation outputs
-7. 🔴 Cleanup/retention policy — archive old projects to S3, delete local files after 90 days
-8. 🔴 Cross-county properties — detect and handle properties straddling two county lines
-9. 🔴 TNRIS LiDAR integration — high-resolution elevation from Texas Natural Resources Information System
-10. 🔴 USPS address validation — improve rural address normalization
-11. 🔴 County configuration registry — per-county override system for field names and URL patterns
+4. 🔴 AI prompt A/B testing — compare prompt versions, track accuracy metrics
+5. 🔴 Data versioning — diff pre-purchase vs post-purchase reconciliation outputs
+6. 🔴 Cleanup/retention policy — archive old projects to S3, delete local files after 90 days
+7. 🔴 Cross-county properties — detect and handle properties straddling two county lines
+8. 🔴 TNRIS LiDAR integration — high-resolution elevation from Texas Natural Resources Information System
+9. 🔴 USPS address validation — improve rural address normalization
+10. 🔴 County configuration registry — per-county override system for field names and URL patterns
+11. 🔴 Screenshot capture of actual county portal pages — requires the deployed Research Worker with Playwright
 
 ---
 
@@ -1428,7 +1429,113 @@ This is the **primary source of extraction errors** and is the entire reason Pha
 
 ---
 
-## 15. Environment Variables Reference
+## 15. Getting Started — Prototype Setup Guide
+
+This section tells you exactly what to set up to get STARR RECON working as a prototype.
+
+### What Works Right Now (Without Any Extra Setup)
+
+The **One-Click Research** button in every research project's Property Search panel runs a complete pipeline entirely within the Next.js server:
+
+1. Geocodes the property address (Nominatim — free, no key)
+2. Searches 10+ public record sources: county CAD, county clerk, FEMA, TxDOT ROW, USGS, Texas GLO, RRC, etc.
+3. Captures satellite and topo map images from USGS National Map (free, no key)
+4. Imports all discovered records as project documents
+5. Runs AI analysis on all documents to extract deed calls, monuments, easements, flood zone, etc.
+6. After analysis: the **Survey Plan** tab generates a comprehensive AI-powered field survey plan in plain English
+
+### Required Environment Variables (Minimum to Run)
+
+Set these in your `.env.local` (Next.js app) file:
+
+```bash
+# ── REQUIRED: Supabase ───────────────────────────────────────────────────────
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+
+# ── REQUIRED: AI Analysis (Anthropic Claude) ─────────────────────────────────
+# Get your key at: https://console.anthropic.com/
+ANTHROPIC_API_KEY=sk-ant-...
+
+# ── REQUIRED: Authentication ─────────────────────────────────────────────────
+NEXTAUTH_SECRET=your-random-secret-string
+NEXTAUTH_URL=http://localhost:3000
+```
+
+### Optional Environment Variables (Enable More Features)
+
+```bash
+# ── Worker (Playwright-based deep scraping) ──────────────────────────────────
+# Deploy worker/ as a separate Node.js server on DigitalOcean or Railway.
+# Without these, the "Run Deep Research (Worker)" button shows a 503 error.
+# The "One-Click Research" button does NOT need these.
+WORKER_URL=https://your-worker.example.com
+WORKER_API_KEY=your-worker-api-key
+
+# ── Stripe (Billing & Document Purchases) ────────────────────────────────────
+# Not needed for the prototype — only for paid document downloads and subscriptions
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_SURVEYOR_PRO=price_...
+STRIPE_PRICE_FIRM_UNLIMITED=price_...
+
+# ── County Clerk Credentials (Document Access) ───────────────────────────────
+# Not needed for the prototype — only for purchased document downloads
+KOFILE_USERNAME=your-kofile-email
+KOFILE_PASSWORD=your-kofile-password
+TEXASFILE_USERNAME=your-texasfile-username
+TEXASFILE_PASSWORD=your-texasfile-password
+
+# ── Notifications ────────────────────────────────────────────────────────────
+# Not needed for the prototype — only for email/SMS notifications
+RESEND_API_KEY=re_...
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_FROM_PHONE=+1...
+
+# ── Redis (Job Queue) ────────────────────────────────────────────────────────
+# Not needed for the prototype — only for the worker's BullMQ job queue
+REDIS_URL=redis://localhost:6379
+```
+
+### Step-by-Step: Running Your First Property Research
+
+1. **Set up Supabase:** Create a project at supabase.com, run all the seed migrations in `seeds/` (001 through 093), copy your credentials into `.env.local`
+2. **Set ANTHROPIC_API_KEY:** Get an API key from console.anthropic.com
+3. **Start the app:** `npm run dev`
+4. **Create a research project:** Go to Admin → Research → New Project, enter the property address and county
+5. **Click "▶ Start Research"** (One-Click Research button): The system will automatically search all public record sources, capture map images, and run AI analysis
+6. **View the Survey Plan:** Once analysis is complete, click the "📋 Survey Plan" tab to see the AI-generated field survey plan
+7. **View the Briefing:** The "📋 Survey Briefing" panel at the top of the Review step summarizes all extracted data in plain English
+8. **Generate a Drawing:** Click "Generate Drawing" to create an AI-assisted plat drawing from the extracted boundary calls
+
+### What Each Button Does
+
+| Button | Requires | What it does |
+|---|---|---|
+| **▶ Start Research** (One-Click) | `ANTHROPIC_API_KEY` + Supabase | Full automated pipeline: geocode → search → import → analyze → survey plan |
+| **Search Public Records** | Nothing | Returns URL links to county CAD, deed records, FEMA, TxDOT, USGS |
+| **Run Deep Research (Worker)** | `WORKER_URL` + `WORKER_API_KEY` | Full Playwright-based scraping pipeline on the DigitalOcean worker |
+| **📋 Survey Plan tab** | `ANTHROPIC_API_KEY` | AI-generated field survey plan with equipment list, procedures, monument strategy |
+| **Generate Drawing** | Analyzed data points | Creates SVG/DXF plat drawing from deed calls |
+| **Export PDF/DXF** | Drawing generated | Exports the drawing for delivery |
+
+### Deploying the Research Worker (Optional but Recommended)
+
+The research worker (`worker/`) enables Playwright-based browser automation for deeper scraping. Without it, the system still works via the One-Click Research pipeline, but won't attempt to fill in search forms, click through portals, or take screenshots of individual deed pages.
+
+To deploy the worker:
+1. Provision a DigitalOcean Droplet (2 vCPU, 4 GB RAM minimum; Playwright needs headless Chromium)
+2. Clone the repo, `cd worker && npm install && npx playwright install chromium`
+3. Copy your environment variables (see Section 16 below)
+4. `npm start` — runs on port 3100 by default
+5. Set `WORKER_URL=https://your-droplet-ip:3100` and `WORKER_API_KEY=your-secret` in your Next.js `.env.local`
+
+---
+
+## 16. Environment Variables Reference
 
 All variables must be set in `/root/starr-worker/.env` on the DigitalOcean droplet. **Never hardcode any value in source code.**
 
