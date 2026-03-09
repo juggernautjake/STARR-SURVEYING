@@ -131,6 +131,7 @@ export default function ResearchProjectPage() {
   // Export state
   const [isExporting, setIsExporting] = useState(false);
   const [lastExport, setLastExport] = useState<{ format: string; filename: string } | null>(null);
+  const [isOpeningInCAD, setIsOpeningInCAD] = useState(false);
 
   // Project editing state
   const [showEditProject, setShowEditProject] = useState(false);
@@ -1139,6 +1140,29 @@ export default function ResearchProjectPage() {
       }
     } catch {
       showToast('Failed to update project status', 'error');
+    }
+  }
+
+  /**
+   * Convert the current RECON drawing to a STARR CAD document and open it in
+   * the CAD editor.  The converted DrawingDocument is stored in localStorage so
+   * the CAD editor can pick it up on load without needing a shared API.
+   */
+  async function handleOpenInCAD() {
+    setIsOpeningInCAD(true);
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/export-to-cad`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || 'Failed to export drawing to CAD');
+      }
+      const data = await res.json() as { document: unknown };
+      if (!data.document) throw new Error('No CAD document returned from server');
+      localStorage.setItem('starr-cad-pending-recon', JSON.stringify(data.document));
+      router.push('/admin/cad');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed to open in CAD Editor', 'error');
+      setIsOpeningInCAD(false);
     }
   }
 
@@ -2215,6 +2239,22 @@ export default function ResearchProjectPage() {
                 )}
               </div>
 
+              {/* Open in CAD Editor — available throughout the drawing step */}
+              <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  style={{
+                    background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: 6,
+                    padding: '0.4rem 1rem', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer',
+                    opacity: isOpeningInCAD ? 0.7 : 1,
+                  }}
+                  onClick={handleOpenInCAD}
+                  disabled={isOpeningInCAD}
+                  title="Convert this drawing to a full STARR CAD document and open it for editing"
+                >
+                  {isOpeningInCAD ? '⏳ Opening…' : '✏️ Open in CAD Editor'}
+                </button>
+              </div>
+
               {/* Save/Export dialog */}
               <DrawingSaveDialog
                 isOpen={showSaveDialog !== null}
@@ -2278,8 +2318,10 @@ export default function ResearchProjectPage() {
               drawingName={activeDrawing.name}
               comparison={comparisonResult}
               onExport={handleExportDrawing}
+              onOpenInCAD={handleOpenInCAD}
               onMarkComplete={handleMarkComplete}
               isExporting={isExporting}
+              isOpeningInCAD={isOpeningInCAD}
               lastExport={lastExport}
               showUITooltips={showUITooltips}
             />
