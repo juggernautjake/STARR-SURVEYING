@@ -95,39 +95,42 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
     baseUrl: null,
   },
 
-  // ── Harris County (HCAD — custom system) ─────────────────────────────────
+  // ── Harris County (custom ASP.NET — cclerk.hctx.net) ────────────────────
   {
     fips: '201',
     county: 'Harris',
     system: 'harris_custom',
     status: 'stub',
-    baseUrl: 'https://www.harriscountyclerk.org',
+    baseUrl: 'https://www.cclerk.hctx.net/Applications/WebSearch/RP.aspx',
     notes:
-      'Harris County uses a custom legacy system. ' +
-      '4.7M residents (~16% of TX population). ' +
-      'Account-number based search. HIGH PRIORITY to implement.',
+      'Harris County uses ASP.NET Web Forms at cclerk.hctx.net. ' +
+      'Real Property search at /Applications/WebSearch/RP.aspx. ' +
+      'Search by grantor/grantee name, legal description fields. ' +
+      'NO address search — requires name or instrument number. ' +
+      'Requires __VIEWSTATE harvesting for POST. ' +
+      '4.7M residents (~16% of TX population). HIGH PRIORITY.',
   },
 
-  // ── Dallas County (custom) ────────────────────────────────────────────────
+  // ── Dallas County — now on publicsearch.us ──────────────────────────────
   {
     fips: '113',
     county: 'Dallas',
-    system: 'dallas_custom',
+    system: 'kofile',
     status: 'stub',
-    baseUrl: 'https://www.dallascountyclerk.org',
-    notes: 'Dallas County uses its own online portal. Needs custom adapter.',
+    baseUrl: 'https://dallas.tx.publicsearch.us',
+    notes: 'Dallas County migrated to Kofile PublicSearch (verified 2026-03-09).',
   },
 
-  // ── Tarrant County (TAD — custom) ────────────────────────────────────────
+  // ── Tarrant County — now on publicsearch.us ────────────────────────────
   {
     fips: '439',
     county: 'Tarrant',
-    system: 'tarrant_custom',
+    system: 'kofile',
     status: 'stub',
-    baseUrl: 'https://www.tarrantcounty.com/en/clerk.html',
+    baseUrl: 'https://tarrant.tx.publicsearch.us',
     notes:
-      'Tarrant County uses TAD-adjacent custom system. ' +
-      '2.1M residents. HIGH PRIORITY.',
+      'Tarrant County migrated to Kofile PublicSearch (verified 2026-03-09). ' +
+      '2.1M residents.',
   },
 
   // ── Bexar County (San Antonio — custom) ──────────────────────────────────

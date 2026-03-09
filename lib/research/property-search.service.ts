@@ -539,6 +539,16 @@ const PUBLICSEARCH_BY_COUNTY: Record<string, string> = {
   grimes:     'grimes.tx.publicsearch.us',
   washington: 'washington.tx.publicsearch.us',
   fayette:    'fayette.tx.publicsearch.us',
+  // Major metro counties (verified on publicsearch.us 2026-03-09)
+  dallas:     'dallas.tx.publicsearch.us',
+  tarrant:    'tarrant.tx.publicsearch.us',
+  collin:     'collin.tx.publicsearch.us',
+  denton:     'denton.tx.publicsearch.us',
+  bexar:      'bexar.tx.publicsearch.us',
+  montgomery: 'montgomery.tx.publicsearch.us',
+  fort_bend:  'fortbend.tx.publicsearch.us',
+  nueces:     'nueces.tx.publicsearch.us',
+  potter:     'potter.tx.publicsearch.us',
 };
 
 /** Build the deed-search URL for the county clerk publicsearch.us portal. */
