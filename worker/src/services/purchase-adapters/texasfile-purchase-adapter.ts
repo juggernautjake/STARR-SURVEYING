@@ -188,19 +188,19 @@ export class TexasFilePurchaseAdapter {
 
         if (download) {
           await download.saveAs(filePath);
-          result.downloadedImages.push(filePath);
+          (result.downloadedImages ??= []).push(filePath);
         }
 
         await this.page.waitForTimeout(1000);
       }
 
-      result.pages = result.downloadedImages.length;
+      result.pages = (result.downloadedImages ?? []).length;
       result.costPerPage = 1.0;
-      if (result.pages > 0 && result.totalCost === 0) {
+      if (result.pages > 0 && (result.totalCost ?? 0) === 0) {
         result.totalCost = result.pages * 1.0;
       }
       result.status =
-        result.downloadedImages.length > 0 ? 'purchased' : 'failed';
+        (result.downloadedImages ?? []).length > 0 ? 'purchased' : 'failed';
       result.imageQuality = {
         format: 'TIFF',
         hasWatermark: false,

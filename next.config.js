@@ -13,7 +13,7 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '50mb',
     },
-    serverComponentsExternalPackages: ['playwright', 'playwright-core', '@sparticuz/chromium'],
+    serverComponentsExternalPackages: ['playwright', 'playwright-core', '@sparticuz/chromium', '@resvg/resvg-js'],
   },
   // Note: Per-route body size limits are configured via route segment config
   // exports in individual API route files (e.g., export const maxDuration = 60)

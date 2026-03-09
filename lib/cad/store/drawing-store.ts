@@ -85,10 +85,17 @@ interface DrawingStore {
   /**
    * Group the given feature IDs into a named group.
    * All features must be on the same layer; returns null if they are not.
+   * Returns null if any feature is already a member of another group — the
+   * caller must remove the feature from its current group first.
    */
   groupFeatures: (featureIds: string[], name?: string) => FeatureGroup | null;
   /** Remove a feature group (features remain but are ungrouped). */
   ungroupFeatures: (groupId: string) => void;
+  /**
+   * Remove a single feature from its current group.
+   * If the removal leaves fewer than 2 members the entire group is dissolved.
+   */
+  removeFeatureFromGroup: (featureId: string) => void;
   /** Rename a feature group. */
   renameFeatureGroup: (groupId: string, name: string) => void;
   /** Get a feature group by id. */
@@ -253,7 +260,20 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
 
   loadDocument: (doc) => {
     // Backwards-compat: older saved documents may not have featureGroups
-    const normalized: DrawingDocument = { ...doc, featureGroups: doc.featureGroups ?? {} };
+    const featureGroups = doc.featureGroups ?? {};
+    // Build the set of feature IDs that are actually listed in a group's featureIds.
+    const groupedFeatureIds = new Set<string>();
+    for (const g of Object.values(featureGroups)) {
+      for (const fid of g.featureIds) groupedFeatureIds.add(fid);
+    }
+    // Clear stale featureGroupId references on features that aren't in any group.
+    const features = { ...doc.features };
+    for (const [fid, feat] of Object.entries(features)) {
+      if (feat.featureGroupId && !groupedFeatureIds.has(fid)) {
+        features[fid] = { ...feat, featureGroupId: null };
+      }
+    }
+    const normalized: DrawingDocument = { ...doc, featureGroups, features };
     set({ document: normalized, activeLayerId: doc.layerOrder[0] ?? '', isDirty: false });
   },
 
@@ -439,6 +459,8 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     // All features must be on the same layer
     const layerId = features[0].layerId;
     if (features.some((f) => f.layerId !== layerId)) return null;
+    // Reject if any feature already belongs to a group — it must be removed first
+    if (features.some((f) => f.featureGroupId)) return null;
     const groupId = generateId();
     // Generate a unique group name: prefer the user-supplied name, else use
     // a short UUID fragment so names remain unique even after groups are deleted.
@@ -479,6 +501,54 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       }
       const updatedGroups = { ...state.document.featureGroups };
       delete updatedGroups[groupId];
+      return {
+        document: {
+          ...state.document,
+          features: updatedFeatures,
+          featureGroups: updatedGroups,
+          modified: new Date().toISOString(),
+        },
+        isDirty: true,
+      };
+    }),
+
+  removeFeatureFromGroup: (featureId) =>
+    set((state) => {
+      const feature = state.document.features[featureId];
+      if (!feature?.featureGroupId) return state;
+      const groupId = feature.featureGroupId;
+      const group = state.document.featureGroups[groupId];
+      if (!group) {
+        // Group reference is stale — just clear the feature's pointer
+        return {
+          document: {
+            ...state.document,
+            features: {
+              ...state.document.features,
+              [featureId]: { ...feature, featureGroupId: null },
+            },
+            modified: new Date().toISOString(),
+          },
+          isDirty: true,
+        };
+      }
+      const remainingIds = group.featureIds.filter((id) => id !== featureId);
+      const updatedFeatures = {
+        ...state.document.features,
+        [featureId]: { ...feature, featureGroupId: null },
+      };
+      const updatedGroups = { ...state.document.featureGroups };
+      if (remainingIds.length < 2) {
+        // Dissolve the group — too few members to remain a group
+        for (const id of remainingIds) {
+          if (updatedFeatures[id]) {
+            updatedFeatures[id] = { ...updatedFeatures[id], featureGroupId: null };
+          }
+        }
+        delete updatedGroups[groupId];
+      } else {
+        updatedGroups[groupId] = { ...group, featureIds: remainingIds };
+      }
       return {
         document: {
           ...state.document,

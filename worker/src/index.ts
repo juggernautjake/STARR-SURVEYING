@@ -11,12 +11,15 @@ import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './
 import { runPipeline } from './services/pipeline.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
+import { syncHarvestToSupabase } from './services/harvest-supabase-sync.js';
 import { SubdivisionIntelligenceEngine } from './services/subdivision-intelligence.js';
 import { runAdjacentResearch, type FullCrossValidationReport } from './services/adjacent-research-orchestrator.js';
 import { runROWIntegration, type ROWReport } from './services/row-integration-engine.js';
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
+import { PaidPlatformRegistry } from './services/paid-platform-registry.js';
+import { createDocumentAccessOrchestrator } from './services/document-access-orchestrator.js';
 import { createReportRoutes } from './routes/report-routes.js';
 // Phase 11 imports
 import { FEMANFHLClient } from './sources/fema-nfhl-client.js';
@@ -29,6 +32,18 @@ import { BatchProcessor } from './batch/batch-processor.js';
 import { UsageTracker } from './analytics/usage-tracker.js';
 import { getClerkByCountyName } from './adapters/clerk-registry.js';
 import { SiteHealthMonitor } from './infra/site-health-monitor.js';
+// Phase 13 imports
+import { USGSClient } from './sources/usgs-client.js';
+import { TXComptrollerClient } from './sources/comptroller-client.js';
+import { validateOrNull } from './infra/schema-validator.js';
+// Phase 15 imports
+import { TylerPayAdapter } from './services/purchase-adapters/tyler-pay-adapter.js';
+import { HenschenPayAdapter } from './services/purchase-adapters/henschen-pay-adapter.js';
+import { IDocketPayAdapter } from './services/purchase-adapters/idocket-pay-adapter.js';
+import { FidlarPayAdapter } from './services/purchase-adapters/fidlar-pay-adapter.js';
+import { GovOSGuestAdapter } from './services/purchase-adapters/govos-guest-adapter.js';
+import { LandExApiAdapter } from './services/purchase-adapters/landex-api-adapter.js';
+import { NotificationService } from './services/notification-service.js';
 
 // ── Server Setup ───────────────────────────────────────────────────────────
 
@@ -235,7 +250,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     parsedUserFiles = [];
     for (const file of userFiles) {
       if (file && typeof file === 'object' && 'filename' in file && 'data' in file) {
-        const f = file as Record<string, unknown>;
+        // `file` is narrowed from `unknown` via property guards above; the
+        // double-cast to Record<string, unknown> lets us safely read arbitrary
+        // keys before constructing the typed UserFile below.
+        const f = file as unknown as Record<string, unknown>;
         parsedUserFiles.push({
           filename: String(f.filename),
           mimeType: String(f.mimeType ?? 'application/octet-stream'),
@@ -518,7 +536,26 @@ app.post('/research/harvest', requireAuth, async (req: Request, res: Response) =
       `${result.documentIndex.totalPagesDownloaded} pages`,
     );
 
-    // TODO: Update Supabase with harvest results for the frontend dashboard
+    // Sync harvest results to Supabase: insert research_documents rows and
+    // upload any downloaded images to Supabase Storage.
+    try {
+      const syncResult = await syncHarvestToSupabase(input.projectId, result);
+      if (syncResult.errors.length > 0) {
+        console.warn(
+          `[Harvest] Supabase sync completed with ${syncResult.errors.length} warning(s) ` +
+          `for ${input.projectId}:`,
+          syncResult.errors.slice(0, 5),
+        );
+      }
+      console.log(
+        `[Harvest] Supabase sync: ${syncResult.documentsInserted} docs inserted, ` +
+        `${syncResult.imagesUploaded} images uploaded for project ${input.projectId}`,
+      );
+    } catch (syncErr) {
+      // Never let a sync failure crash the harvest — the filesystem result is
+      // still written above and the frontend can poll for it.
+      console.error(`[Harvest] Supabase sync failed for ${input.projectId}:`, syncErr);
+    }
   } catch (error) {
     console.error(`[Harvest] Failed for ${input.projectId}:`, error);
   }
@@ -1487,7 +1524,7 @@ app.post(
 
     try {
       const client = new FEMANFHLClient();
-      const result = await client.queryFloodZones({ centroid, polygon });
+      const result = await client.queryFloodZones({ centroid: centroid as [number, number], polygon });
 
       // Save to project directory
       const outDir = path.join(ANALYSIS_DIR, projectId);
@@ -1698,6 +1735,235 @@ app.get(
   },
 );
 
+// ── Phase 13: USGS Topographic Data ──────────────────────────────────────────
+//
+// POST /research/topo  — Query USGS National Map for elevation, contours, NHD
+// GET  /research/topo/:projectId — Return saved topographic result
+
+const usgsClient = new USGSClient();
+
+/**
+ * POST /research/topo
+ * Queries USGS 3DEP elevation, contour lines, and NHD water features
+ * for the specified coordinates.  Saves result to the project output directory.
+ */
+app.post('/research/topo', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const { projectId, lat, lon, radiusM } = req.body as {
+    projectId?: string;
+    lat?: number;
+    lon?: number;
+    radiusM?: number;
+  };
+
+  if (!projectId) {
+    res.status(400).json({ error: 'projectId is required' });
+    return;
+  }
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+  if (typeof lat !== 'number' || typeof lon !== 'number') {
+    res.status(400).json({ error: 'lat and lon are required numeric fields' });
+    return;
+  }
+  if (lat < 25.8 || lat > 36.5 || lon < -106.65 || lon > -93.5) {
+    res.status(400).json({ error: 'Coordinates appear outside Texas bounds' });
+    return;
+  }
+
+  res.status(202).json({ message: 'Topographic data query started', projectId });
+
+  // Run async — save result to project output directory
+  try {
+    const topo = await usgsClient.getTopoData(projectId, lat, lon, radiusM ?? 200);
+    const outDir = `/tmp/analysis/${projectId}`;
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(`${outDir}/topo.json`, JSON.stringify(topo, null, 2));
+  } catch (err) {
+    console.error(`[TOPO] Error for project ${projectId}:`, err);
+    // Write error state so GET /research/topo/:projectId can distinguish
+    // "never queried" (file absent) from "query failed" (error file present)
+    const outDir = `/tmp/analysis/${projectId}`;
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(
+      `${outDir}/topo_error.json`,
+      JSON.stringify({ status: 'error', error: String(err), timestamp: new Date().toISOString() }),
+    );
+  }
+});
+
+/**
+ * GET /research/topo/:projectId
+ * Returns saved topographic result from disk.
+ */
+app.get('/research/topo/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+  const resultPath = `/tmp/analysis/${projectId}/topo.json`;
+  const errorPath  = `/tmp/analysis/${projectId}/topo_error.json`;
+  if (!fs.existsSync(resultPath)) {
+    // Check whether a query was attempted but failed
+    if (fs.existsSync(errorPath)) {
+      try {
+        const errState = JSON.parse(fs.readFileSync(errorPath, 'utf-8')) as unknown;
+        res.status(500).json({ status: 'error', projectId, detail: errState });
+        return;
+      } catch { /* fall through to not_queried */ }
+    }
+    res.status(404).json({ status: 'not_queried', projectId });
+    return;
+  }
+  try {
+    const topo = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+    res.json({ projectId, topo });
+  } catch {
+    res.status(500).json({ error: 'Topographic result file is corrupt or unreadable' });
+  }
+});
+
+// ── Phase 13: TX Comptroller Tax Data ────────────────────────────────────────
+//
+// POST /research/tax  — Query TX Comptroller PTAD for county tax rates
+// GET  /research/tax/:projectId — Return saved tax rate result
+
+const comptrollerClient = new TXComptrollerClient();
+
+/**
+ * POST /research/tax
+ * Queries TX Comptroller PTAD for taxing unit rates by county FIPS code.
+ * Saves result to the project output directory.
+ */
+app.post('/research/tax', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const { projectId, countyFips, taxYear } = req.body as {
+    projectId?: string;
+    countyFips?: string;
+    taxYear?: number;
+  };
+
+  if (!projectId) {
+    res.status(400).json({ error: 'projectId is required' });
+    return;
+  }
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+  if (!countyFips || !/^\d{5}$/.test(countyFips)) {
+    res.status(400).json({ error: 'countyFips must be a 5-digit string (e.g. "48027")' });
+    return;
+  }
+
+  res.status(202).json({ message: 'Tax data query started', projectId });
+
+  // Run async
+  try {
+    const tax = await comptrollerClient.getTaxData(projectId, countyFips, taxYear);
+    const outDir = `/tmp/analysis/${projectId}`;
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(`${outDir}/tax.json`, JSON.stringify(tax, null, 2));
+  } catch (err) {
+    console.error(`[TAX] Error for project ${projectId}:`, err);
+    // Write error state so GET /research/tax/:projectId can distinguish
+    // "never queried" from "query attempted but failed"
+    const outDir = `/tmp/analysis/${projectId}`;
+    if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(
+      `${outDir}/tax_error.json`,
+      JSON.stringify({ status: 'error', error: String(err), timestamp: new Date().toISOString() }),
+    );
+  }
+});
+
+/**
+ * GET /research/tax/:projectId
+ * Returns saved tax rate result from disk.
+ */
+app.get('/research/tax/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+  const resultPath = `/tmp/analysis/${projectId}/tax.json`;
+  const errorPath  = `/tmp/analysis/${projectId}/tax_error.json`;
+  if (!fs.existsSync(resultPath)) {
+    if (fs.existsSync(errorPath)) {
+      try {
+        const errState = JSON.parse(fs.readFileSync(errorPath, 'utf-8')) as unknown;
+        res.status(500).json({ status: 'error', projectId, detail: errState });
+        return;
+      } catch { /* fall through to not_queried */ }
+    }
+    res.status(404).json({ status: 'not_queried', projectId });
+    return;
+  }
+  try {
+    const tax = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+    res.json({ projectId, tax });
+  } catch {
+    res.status(500).json({ error: 'Tax result file is corrupt or unreadable' });
+  }
+});
+
+// ── Phase 13: Boundary Viewer Data ───────────────────────────────────────────
+//
+// GET /research/boundary/:projectId — Combine reconcile + confidence data for
+// the Interactive Boundary Viewer.  Clients can also call /research/reconcile
+// and /research/confidence directly, but this endpoint pre-merges them.
+
+/**
+ * GET /research/boundary/:projectId
+ * Returns merged reconcile + confidence payload for the boundary viewer.
+ */
+app.get('/research/boundary/:projectId', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const reconPath   = `/tmp/analysis/${projectId}/reconciled_boundary.json`;
+  const confPath    = `/tmp/analysis/${projectId}/confidence_report.json`;
+  const topoPath    = `/tmp/analysis/${projectId}/topo.json`;
+  const taxPath     = `/tmp/analysis/${projectId}/tax.json`;
+
+  if (!fs.existsSync(reconPath)) {
+    res.json({ status: 'not_ready', message: 'Boundary reconciliation not yet complete', projectId });
+    return;
+  }
+
+  try {
+    const rawRecon = fs.readFileSync(reconPath, 'utf-8');
+    const rawConf  = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf-8') : null;
+    const rawTopo  = fs.existsSync(topoPath) ? fs.readFileSync(topoPath, 'utf-8') : null;
+    const rawTax   = fs.existsSync(taxPath)  ? fs.readFileSync(taxPath,  'utf-8') : null;
+
+    const recon = JSON.parse(rawRecon) as unknown;
+    const conf  = rawConf ? (JSON.parse(rawConf)  as unknown) : null;
+    const topo  = rawTopo ? (JSON.parse(rawTopo)  as unknown) : null;
+    const tax   = rawTax  ? (JSON.parse(rawTax)   as unknown) : null;
+
+    // Validate reconciliation output before returning
+    const validatedRecon = validateOrNull('reconciliation', recon, (msg) => {
+      console.warn(`[Boundary] Phase 7 schema warning for ${projectId}: ${msg}`);
+    });
+
+    res.json({
+      projectId,
+      reconciliation: validatedRecon ?? recon,
+      confidence: conf,
+      topo,
+      tax,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to assemble boundary data', detail: String(err) });
+  }
+});
+
 // ── Site Health Monitor ───────────────────────────────────────────────────
 // Probes all county CAD portals and clerk systems to detect selector drift.
 // Broadcasts alerts when sites change or go down.
@@ -1826,6 +2092,420 @@ app.delete('/admin/health/alerts', requireAuth, (_req: Request, res: Response) =
   res.json({ message: 'Alerts cleared' });
 });
 
+// ── Phase 14: Document Access Tier Routes ──────────────────────────────────
+
+/**
+ * GET /research/access/platforms
+ * Returns all available paid document platforms and their availability summary.
+ * Also shows which platforms are currently configured (have credentials set).
+ */
+app.get('/research/access/platforms', requireAuth, rateLimit(60, 60_000), (_req: Request, res: Response) => {
+  const configuredPlatforms = PaidPlatformRegistry.getConfiguredPlatforms();
+  const summary = PaidPlatformRegistry.getAvailabilitySummary(configuredPlatforms);
+  res.json({ summary, configuredPlatforms });
+});
+
+/**
+ * GET /research/access/plan/:countyFIPS
+ * Returns the complete document access plan for a specific Texas county:
+ *  - Free tier options (watermarked preview vs index-only)
+ *  - All paid platforms that cover this county (sorted cheapest-first)
+ *  - Recommended platform
+ *
+ * Example: GET /research/access/plan/48027  → Bell County plan
+ */
+app.get('/research/access/plan/:countyFIPS', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { countyFIPS } = req.params;
+
+  if (!/^\d{5}$/.test(countyFIPS)) {
+    res.status(400).json({ error: 'countyFIPS must be a 5-digit code (e.g. 48027)' });
+    return;
+  }
+
+  const countyName = req.query.county as string | undefined ?? 'Unknown';
+  const plan = PaidPlatformRegistry.getAccessPlan(countyFIPS, countyName);
+  res.json(plan);
+});
+
+/**
+ * POST /research/access/document
+ * Fetch a specific document using the best available tier (free-first, then paid).
+ *
+ * Body: DocumentAccessRequest
+ *   { projectId, countyFIPS, countyName, instrumentNumber, documentType,
+ *     freeOnly?, maxCostPerDocument?, preferredPlatform? }
+ *
+ * Returns: DocumentAccessResult with imagePaths, tier, costUSD, isWatermarked, etc.
+ */
+app.post('/research/access/document', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const {
+    projectId, countyFIPS, countyName, instrumentNumber,
+    documentType, freeOnly, maxCostPerDocument, preferredPlatform,
+    stripeCustomerId,
+  } = req.body as {
+    projectId?: string;
+    countyFIPS?: string;
+    countyName?: string;
+    instrumentNumber?: string;
+    documentType?: string;
+    freeOnly?: boolean;
+    maxCostPerDocument?: number;
+    preferredPlatform?: string;
+    stripeCustomerId?: string;
+  };
+
+  if (!projectId || !countyFIPS || !instrumentNumber || !documentType) {
+    res.status(400).json({
+      error: 'projectId, countyFIPS, instrumentNumber, and documentType are required',
+    });
+    return;
+  }
+
+  const logger = new (await import('./lib/logger.js')).PipelineLogger(projectId);
+  logger.info('DocAccess', `POST /research/access/document — ${instrumentNumber} (${countyName ?? countyFIPS})`);
+
+  try {
+    const orchestrator = createDocumentAccessOrchestrator(projectId, {
+      tryFreeFirst: true,
+      maxCostPerDocument: maxCostPerDocument ?? 10.00,
+      outputDir: `/tmp/documents/${projectId}`,
+    });
+
+    const result = await orchestrator.getDocument({
+      projectId,
+      countyFIPS,
+      countyName: countyName ?? 'Unknown',
+      instrumentNumber,
+      documentType,
+      freeOnly: freeOnly ?? false,
+      maxCostPerDocument: maxCostPerDocument ?? 10.00,
+      preferredPlatform: preferredPlatform as any ?? undefined,
+      stripeCustomerId: stripeCustomerId ?? undefined,
+    });
+
+    // Persist result
+    const outPath = `/tmp/analysis/${projectId}/access_${instrumentNumber.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(outPath, JSON.stringify(result, null, 2));
+
+    res.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error('DocAccess', msg);
+    res.status(500).json({ error: 'Document access failed', details: msg });
+  }
+});
+
+/**
+ * GET /research/access/result/:projectId/:instrumentNumber
+ * Retrieve a previously cached document access result.
+ */
+app.get('/research/access/result/:projectId/:instrumentNumber', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const { projectId, instrumentNumber } = req.params;
+
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const safeName = (instrumentNumber ?? '').replace(/[^a-zA-Z0-9]/g, '_');
+  const resultPath = `/tmp/analysis/${projectId}/access_${safeName}.json`;
+
+  if (fs.existsSync(resultPath)) {
+    try {
+      const result = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as unknown;
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to read access result', details: String(e) });
+    }
+  } else {
+    res.status(404).json({ error: 'No cached result for this document' });
+  }
+});
+
+// ── Phase 15: Purchase Automation Routes ────────────────────────────────────
+
+const notificationService = new NotificationService();
+
+/**
+ * POST /research/purchase/automated
+ * Purchase a document using a specific Phase 15 paid platform adapter.
+ * Body: { projectId, countyFIPS, countyName, instrumentNumber, documentType, platform, credentials? }
+ */
+app.post('/research/purchase/automated', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const {
+    projectId, countyFIPS, countyName, instrumentNumber, documentType, platform,
+  } = req.body as {
+    projectId?: string;
+    countyFIPS?: string;
+    countyName?: string;
+    instrumentNumber?: string;
+    documentType?: string;
+    platform?: string;
+  };
+
+  if (!projectId || !countyFIPS || !instrumentNumber || !documentType || !platform) {
+    res.status(400).json({ error: 'projectId, countyFIPS, instrumentNumber, documentType, platform are required' });
+    return;
+  }
+
+  const outputDir = `/tmp/documents/${projectId}/paid`;
+  let result: Awaited<ReturnType<LandExApiAdapter['purchaseDocument']>>;
+
+  try {
+    if (platform === 'tyler_pay') {
+      const adapter = new TylerPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.TYLER_PAY_USERNAME ?? '',
+          password: process.env.TYLER_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'henschen_pay') {
+      const adapter = new HenschenPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.HENSCHEN_PAY_USERNAME ?? '',
+          password: process.env.HENSCHEN_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'idocket_pay') {
+      const adapter = new IDocketPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.IDOCKET_PAY_USERNAME ?? '',
+          password: process.env.IDOCKET_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'fidlar_pay') {
+      const adapter = new FidlarPayAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          username: process.env.FIDLAR_PAY_USERNAME ?? '',
+          password: process.env.FIDLAR_PAY_PASSWORD ?? '',
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'govos_direct') {
+      const adapter = new GovOSGuestAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          creditCardToken: process.env.GOVOS_CREDIT_CARD_TOKEN,
+          accountUsername: process.env.GOVOS_ACCOUNT_USERNAME,
+          accountPassword: process.env.GOVOS_ACCOUNT_PASSWORD,
+        },
+        outputDir, projectId,
+      );
+      await adapter.initSession();
+      try { result = await adapter.purchaseDocument(instrumentNumber, documentType); }
+      finally { await adapter.destroySession(); }
+
+    } else if (platform === 'landex') {
+      const adapter = new LandExApiAdapter(
+        countyFIPS, countyName ?? 'Unknown',
+        {
+          apiKey: process.env.LANDEX_API_KEY ?? '',
+          accountId: process.env.LANDEX_ACCOUNT_ID ?? '',
+        },
+        outputDir, projectId,
+      );
+      result = await adapter.purchaseDocument(instrumentNumber, documentType);
+
+    } else {
+      res.status(400).json({ error: `Unknown platform: ${platform}. Valid: tyler_pay, henschen_pay, idocket_pay, fidlar_pay, govos_direct, landex` });
+      return;
+    }
+
+    res.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: 'Purchase automation failed', details: msg });
+  }
+});
+
+/**
+ * GET /research/purchase/platforms/status
+ * Returns which Phase 15 purchase adapters are currently configured (have credentials).
+ */
+app.get('/research/purchase/platforms/status', requireAuth, rateLimit(60, 60_000), (_req: Request, res: Response) => {
+  res.json({
+    platforms: {
+      tyler_pay:    { configured: !!(process.env.TYLER_PAY_USERNAME && process.env.TYLER_PAY_PASSWORD) },
+      henschen_pay: { configured: !!(process.env.HENSCHEN_PAY_USERNAME && process.env.HENSCHEN_PAY_PASSWORD) },
+      idocket_pay:  { configured: !!(process.env.IDOCKET_PAY_USERNAME && process.env.IDOCKET_PAY_PASSWORD) },
+      fidlar_pay:   { configured: !!(process.env.FIDLAR_PAY_USERNAME && process.env.FIDLAR_PAY_PASSWORD) },
+      govos_direct: { configured: !!(process.env.GOVOS_ACCOUNT_USERNAME || process.env.GOVOS_CREDIT_CARD_TOKEN) },
+      landex:       { configured: !!(process.env.LANDEX_API_KEY && process.env.LANDEX_ACCOUNT_ID) },
+    },
+    notifications: {
+      email: notificationService.isEmailConfigured,
+      sms:   notificationService.isSmsConfigured,
+    },
+  });
+});
+
+/**
+ * POST /research/notifications/test
+ * Send a test notification to verify email/SMS configuration.
+ * Body: { recipientEmail, recipientPhone?, eventType }
+ */
+app.post('/research/notifications/test', requireAuth, rateLimit(5, 60_000), async (req: Request, res: Response) => {
+  const { recipientEmail, recipientPhone, eventType } = req.body as {
+    recipientEmail?: string;
+    recipientPhone?: string;
+    eventType?: string;
+  };
+
+  if (!recipientEmail) {
+    res.status(400).json({ error: 'recipientEmail is required' });
+    return;
+  }
+
+  try {
+    const result = await notificationService.send({
+      eventType: (eventType as any) ?? 'pipeline_complete',
+      recipientEmail,
+      recipientPhone: recipientPhone ?? undefined,
+      channel: recipientPhone ? 'both' : 'email',
+      projectId: 'test',
+      data: {
+        address: '1234 Test St, Belton TX 76513',
+        countyName: 'Bell',
+        confidenceScore: 94,
+        runtimeMinutes: 12,
+        documentCount: 7,
+        reportUrl: 'https://starrsurveying.com/admin/research/test',
+      },
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Notification test failed', details: String(err) });
+  }
+});
+
+/**
+ * GET /research/landex/estimate
+ * Estimate LandEx cost for a document before purchasing.
+ * Query: ?documentType=warranty_deed&pages=2
+ */
+app.get('/research/landex/estimate', requireAuth, rateLimit(60, 60_000), (req: Request, res: Response) => {
+  const documentType = (req.query.documentType as string) ?? 'deed';
+  const pages = parseInt((req.query.pages as string) ?? '2', 10);
+  const estimatedCost = LandExApiAdapter.estimateCost(documentType, pages);
+  res.json({
+    documentType,
+    pages,
+    estimatedCostUsd: estimatedCost,
+    platform: 'landex',
+    notes: 'Estimate only — actual cost may vary based on document type and county',
+  });
+});
+
+// ── Phase 19: TNRIS LiDAR & Cross-County Detection ────────────────────────
+
+/**
+ * GET /research/lidar/counties
+ * List all Texas counties with LiDAR coverage on TNRIS.
+ */
+app.get('/research/lidar/counties', requireAuth, rateLimit(30, 60_000), async (_req: Request, res: Response) => {
+  try {
+    const { TNRISLiDARClient } = await import('./sources/tnris-lidar-client.js');
+    const client = new TNRISLiDARClient();
+    const counties = await client.listCoveredCounties();
+    res.json({ counties, count: counties.length, dataSource: 'TNRIS', apiConfigured: client.isConfigured });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /research/lidar/:projectId
+ * Fetch LiDAR data for the centroid of a research project.
+ */
+app.get('/research/lidar/:projectId', requireAuth, rateLimit(20, 60_000), async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const lat = parseFloat((req.query.lat as string) ?? '0');
+  const lon = parseFloat((req.query.lon as string) ?? '0');
+  const radiusM = parseInt((req.query.radiusM as string) ?? '500', 10);
+
+  if (!lat || !lon) {
+    res.status(400).json({ error: 'lat and lon query parameters are required' });
+    return;
+  }
+
+  try {
+    const { TNRISLiDARClient } = await import('./sources/tnris-lidar-client.js');
+    const client = new TNRISLiDARClient();
+    const result = await client.fetchLiDARData(lat, lon, radiusM);
+    res.json({ projectId, lidar: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /research/cross-county/detect
+ * Detect whether a property straddles county lines.
+ * Body: { lat, lon, boundaryCalls: [{bearing, distance}], primaryCountyFIPS }
+ */
+app.post('/research/cross-county/detect', requireAuth, rateLimit(30, 60_000), async (req: Request, res: Response) => {
+  const { lat, lon, boundaryCalls = [], primaryCountyFIPS } = req.body as {
+    lat?: number; lon?: number;
+    boundaryCalls?: { bearing: string; distance: number }[];
+    primaryCountyFIPS?: string;
+  };
+
+  if (!lat || !lon || !primaryCountyFIPS) {
+    res.status(400).json({ error: 'lat, lon, and primaryCountyFIPS are required' });
+    return;
+  }
+
+  try {
+    const { CrossCountyResolver } = await import('./services/cross-county-resolver.js');
+    const resolver = new CrossCountyResolver();
+    const detection = resolver.detectCrossCounty(lat, lon, boundaryCalls, primaryCountyFIPS);
+    res.json({ detection });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /research/cross-county/:projectId
+ * Get the cross-county research plan for a project (if previously detected).
+ */
+app.get('/research/cross-county/:projectId', requireAuth, rateLimit(60, 60_000), async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  try {
+    const { CrossCountyResolver } = await import('./services/cross-county-resolver.js');
+    const resolver = new CrossCountyResolver();
+    // Without DB integration, return available county adjacency info
+    const adjInfo = resolver.getAdjacentCounties('48027');
+    res.json({ projectId, adjacentCounties: adjInfo, note: 'Use POST /research/cross-county/detect for live detection' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Start Server ───────────────────────────────────────────────────────────
 
 validateEnvironment();
@@ -1870,6 +2550,23 @@ app.listen(PORT, () => {
   console.log('  POST   /research/batch                  ← Phase 11: batch processing job');
   console.log('  GET    /research/batch/:batchId         ← Phase 11: batch status');
   console.log('  GET    /research/clerk-registry/:county ← Phase 11: clerk system lookup');
+  console.log('  GET    /research/access/platforms       ← Phase 14: paid platform catalog');
+  console.log('  GET    /research/access/plan/:fips      ← Phase 14: county access plan');
+  console.log('  POST   /research/access/document        ← Phase 14: free-first document fetch');
+  console.log('  GET    /research/access/result/:id/:instr ← Phase 14: cached access result');
+  console.log('  POST   /research/purchase/automated     ← Phase 15: Tyler/Henschen/iDocket/Fidlar/GovOS/LandEx');
+  console.log('  GET    /research/purchase/platforms/status ← Phase 15: adapter configuration status');
+  console.log('  POST   /research/notifications/test     ← Phase 15: test email/SMS notification');
+  console.log('  GET    /research/landex/estimate        ← Phase 15: LandEx cost estimate');
+  console.log('  GET    /research/lidar/counties         ← Phase 19: Texas counties with LiDAR coverage');
+  console.log('  GET    /research/lidar/:projectId       ← Phase 19: LiDAR elevation data for project');
+  console.log('  POST   /research/cross-county/detect    ← Phase 19: detect cross-county property');
+  console.log('  GET    /research/cross-county/:projectId ← Phase 19: cross-county research plan');
+  console.log('  POST   /research/topo                   ← Phase 13: USGS topographic data');
+  console.log('  GET    /research/topo/:projectId        ← Phase 13: topographic result');
+  console.log('  POST   /research/tax                    ← Phase 13: TX Comptroller tax data');
+  console.log('  GET    /research/tax/:projectId         ← Phase 13: tax rate result');
+  console.log('  GET    /research/boundary/:projectId    ← Phase 13: boundary viewer data');
   console.log('  POST   /research/full-pipeline');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');

@@ -577,13 +577,23 @@ describe('CAD registry vendor coverage', () => {
 
   it('HCAD config has correct addressField and resultSelector', () => {
     const cfg = getCADConfig('48201')!;
-    expect(cfg.addressField).toBe('search_str');
-    expect(cfg.resultSelector).toContain('searchResults');
+    // HCAD rebuilt as Blazor SPA (verified 2026-03-07); search input is
+    // identified by CSS class "inputSearch" rather than a name attribute.
+    expect(cfg.addressField).toBe('inputSearch');
+    // Results rendered by jQuery DataTables: tr.resulttr.dataTableGridText
+    // HCAD rebuilt as Blazor SPA (verified 2026-03-07): no name attr, uses CSS class 'inputSearch'
+    expect(cfg.addressField).toBe('inputSearch');
+    expect(cfg.resultSelector).toContain('resulttr');
   });
 
   it('TAD config has correct addressField and resultSelector', () => {
     const cfg = getCADConfig('48439')!;
-    expect(cfg.addressField).toBe('address');
-    expect(cfg.resultSelector).toContain('search-results-table');
+    // TAD is a Laravel app (verified 2026-03-07); all search types share the
+    // single input#query field (search type selected via dropdown).
+    expect(cfg.addressField).toBe('query');
+    // Results: tr.property-header rows (verified 2026-03-07)
+    // TAD is a Laravel app (verified 2026-03-07): search input is input#query[name="query"]
+    expect(cfg.addressField).toBe('query');
+    expect(cfg.resultSelector).toContain('property-header');
   });
 });

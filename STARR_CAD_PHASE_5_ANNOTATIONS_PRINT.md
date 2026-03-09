@@ -1,6 +1,43 @@
 # STARR CAD — Phase 5: Annotations, Dimensions, Templates & Print
 
-**Version:** 1.0 | **Date:** March 2026 | **Phase:** 5 of 7
+**Version:** 1.1 | **Date:** March 2026 | **Phase:** 5 of 8
+
+**Phase 5 Status: ✅ COMPLETE** — All annotation types, auto-annotation engine, label optimizer, template system (standard notes, certification, legend, sheet border, default templates, print engine), Zustand stores (annotation-store, template-store), and React UI components (AnnotationPanel, CertificationEditor, StandardNotesEditor, PrintDialog) are implemented. 139 new unit tests across 6 new test files + 1 templates test file. 597 total CAD tests pass.
+
+**What Has Been Built:**
+- ✅ `TitleBlockConfig` type — complete definition with north arrow, scale bar, signature block, draggable positions, per-element scale/rotation, custom field labels (`lib/cad/types.ts`)
+- ✅ `TitleBlockPanel.tsx` — config panel with north arrow style, scale bar settings, metadata fields, visibility toggles (241 lines)
+- ✅ `TitleBlockEditorModal.tsx` — per-element editor for scale, rotation, custom field label overrides
+- ✅ `ScaleBarEditorModal.tsx` — segment count, units, length, scale, rotation with SVG live preview
+- ✅ Title block PIXI rendering in `CanvasViewport.tsx` — 5 north arrow styles (SIMPLE, COMPASS_ROSE, DETAILED, TRADITIONAL, STARR), checkered graphic scale bar, drag support for all 6 elements
+- ✅ `generate-labels.ts` — `generateLabelsForFeature()` produces TextLabel instances for a single feature (bearing, distance, area, elevation, point name, coords); `regenerateLayerLabels()` batch-regenerates all features on a layer
+- ✅ `TextLabel` / `TextLabelKind` types and `LayerDisplayPreferences` in `lib/cad/types.ts`
+- ✅ `FeatureLabelPreferencesPanel.tsx` — per-layer label visibility toggles (bearing, distance, name, etc.)
+- ✅ `lib/cad/labels/annotation-types.ts` — 6 annotation interfaces (BearingDistanceDimension, CurveDataAnnotation, MonumentLabel, AreaAnnotation, TextAnnotation, LeaderAnnotation)
+- ✅ `lib/cad/labels/bearing-dim.ts` — `createBearingDimension()`, `computeBearingDimPlacement()`, DEFAULT_BEARING_DIM_CONFIG
+- ✅ `lib/cad/labels/curve-label.ts` — `buildCurveDataLines()`, `createCurveDataAnnotation()`, `computeCurveLabelPosition()`, DEFAULT_CURVE_DATA_CONFIG
+- ✅ `lib/cad/labels/monument-label.ts` — `getMonumentText()`, `createMonumentLabel()`, `computeMonumentLabelPosition()`, `pickBestOffsetAngle()`
+- ✅ `lib/cad/labels/area-label.ts` — `computeCentroid()`, `buildAreaText()`, `createAreaAnnotation()`, DEFAULT_AREA_LABEL_CONFIG
+- ✅ `lib/cad/labels/auto-annotate.ts` — `autoAnnotate()` one-pass engine with bearing-dims, curve data, monument labels, area labels; DEFAULT_AUTO_ANNOTATE_CONFIG
+- ✅ `lib/cad/labels/label-optimizer.ts` — `optimizeLabels()` simulated-annealing optimizer with flip/slide/shrink/leader-add strategies, probabilistic acceptance
+- ✅ `lib/cad/templates/types.ts` — PaperSize, PAPER_DIMENSIONS, DrawingTemplate, PrintConfig, all sub-config interfaces
+- ✅ `lib/cad/templates/standard-notes.ts` — 24+ standard survey notes (basis of bearing, monuments, survey type, datum, flood zone, utilities), `getDefaultNotes()`, `formatNoteText()`
+- ✅ `lib/cad/templates/certification.ts` — DEFAULT_CERTIFICATION_TEXT, `formatCertificationText()`, DEFAULT_CERTIFICATION_CONFIG
+- ✅ `lib/cad/templates/legend.ts` — `autoPopulateLegend()`, DEFAULT_LEGEND_CONFIG
+- ✅ `lib/cad/templates/sheet-border.ts` — `computeTitleBlockBounds()`, `computeDrawableArea()`, DEFAULT_BORDER_CONFIG
+- ✅ `lib/cad/templates/default-templates.ts` — STARR_SURVEYING_TEMPLATE (Tabloid/Landscape/50), LETTER_TEMPLATE, ARCH_D_TEMPLATE, STARR_COMPANY_INFO
+- ✅ `lib/cad/templates/print-engine.ts` — `computePrintTransform()`, `buildPrintTitle()`, DEFAULT_PRINT_CONFIG
+- ✅ `lib/cad/store/annotation-store.ts` — Zustand store: CRUD, autoAnnotateAll, runOptimizer, queries
+- ✅ `lib/cad/store/template-store.ts` — Zustand store: active template management, print config, custom template save/delete
+- ✅ `app/admin/cad/components/AnnotationPanel.tsx` — 3-tab panel (Annotations count / Auto-Annotate / Optimizer stats+Run)
+- ✅ `app/admin/cad/components/CertificationEditor.tsx` — RPLS certification block editor
+- ✅ `app/admin/cad/components/StandardNotesEditor.tsx` — Standard notes selector grouped by category + custom notes
+- ✅ `app/admin/cad/components/PrintDialog.tsx` — Full print/export modal (paper, scale, elements, PDF/PNG stubs)
+
+**What Still Needs to Be Built (Phase 6+):**
+- Phase 6: AI Drawing Engine (auto-drafting from field data)
+- Phase 7: Final Delivery — Editor Integration, RPLS Workflow & Export
+- Phase 8: UX Completeness — Controls, Hotkeys, Tooltips & Settings
 
 **Goal:** Everything needed to produce a finished, printable survey drawing. Bearing/distance labels on every line, curve data on every arc, monument callouts, area labels, title block, north arrow, scale bar, legend, certification block, standard notes, label collision detection, and a full print/plot system with PDF output.
 

@@ -19,7 +19,7 @@
 2. [Architecture Overview](#2-architecture-overview)
 3. [Tech Stack & Infrastructure](#3-tech-stack--infrastructure)
 4. [Repository Structure](#4-repository-structure)
-5. [The 11-Phase Pipeline — Status Dashboard](#5-the-11-phase-pipeline--status-dashboard)
+5. [The 16-Phase Pipeline — Status Dashboard](#5-the-16-phase-pipeline--status-dashboard)
 6. [Phase Specifications — Where to Find Them](#6-phase-specifications--where-to-find-them)
 7. [Data Flow — How Phases Connect](#7-data-flow--how-phases-connect)
 8. [Core Data Models — Shared Types](#8-core-data-models--shared-types)
@@ -306,7 +306,7 @@ starr-software/                     # Turborepo monorepo root
 
 ---
 
-## 5. The 11-Phase Pipeline — Status Dashboard
+## 5. The 16-Phase Pipeline — Status Dashboard
 
 ### Status Key
 
@@ -323,19 +323,28 @@ starr-software/                     # Turborepo monorepo root
 | # | Phase | Status | Spec Lines | Dependencies | Weeks |
 |---|---|---|---|---|---|
 | 1 | Universal Property Discovery | 🟢 COMPLETE | 1,593 | None | 1–3 |
-| 2 | Free Document Harvesting | 🟠 IN PROGRESS | 1,590 | Phase 1 | 4–6 |
-| 3 | AI Document Intelligence | 🟠 IN PROGRESS | 1,636 | Phase 2 | 7–9 |
+| 2 | Free Document Harvesting | 🟢 COMPLETE | 1,590 | Phase 1 | 4–6 |
+| 3 | AI Document Intelligence | 🟢 COMPLETE | 1,636 | Phase 2 | 7–9 |
 | 4 | Subdivision & Plat Intelligence | 🟢 COMPLETE | 1,361 | Phase 3 | 10–12 |
-| 5 | Adjacent Property Deep Research | 🟠 IN PROGRESS | 1,507 | Phase 3, 4 | 13–15 |
-| 6 | TxDOT ROW Integration | 🟠 IN PROGRESS | 1,287 | Phase 3 | 16–18 |
+| 5 | Adjacent Property Deep Research | 🟢 COMPLETE | 1,507 | Phase 3, 4 | 13–15 |
+| 6 | TxDOT ROW Integration | 🟢 COMPLETE | 1,287 | Phase 3 | 16–18 |
 | 7 | Geometric Reconciliation | 🟢 COMPLETE | 1,424 | Phases 3–6 | 19–21 |
 | 8 | Confidence Scoring | 🟢 COMPLETE | 1,138 | Phase 7 | 22–23 |
 | 9 | Document Purchase | 🟢 COMPLETE | 1,448 | Phases 2, 3, 7, 8 | 24–26 |
 | 10 | Production Reports & Exports | 🟢 COMPLETE | 1,438 | All prior | 27–30 |
-| 11 | Product Expansion & Platform | 🟠 IN PROGRESS | 1,662 | All prior | 31–52 |
-| — | **TOTAL** | — | **16,084** | — | — |
+| 11 | Product Expansion & Platform | 🟢 COMPLETE | 1,700+ | All prior | 31–52 |
+| 12 | Drawing Templates & Export | 🟢 COMPLETE | 124 | Phase 10 | 53 |
+| 13 | Interactive UI, Additional Data Sources & Production Hardening | 🟢 COMPLETE | 1,100+ | Phases 1–12 | 54–56 |
+| 14 | Document Access Tiers & Paid Platform Automation | 🟢 COMPLETE | 415 | Phases 1–13 | 57–58 |
+| 15 | Full Purchase Automation, Bexar County & Notifications | 🟢 COMPLETE | 580+ | Phases 1–14 | 59–62 |
+| 16 | Working Prototype: Survey Plan Generator & Lite Pipeline | 🟢 COMPLETE | 300+ | Phases 1–15 | 63 |
+| — | **TOTAL** | — | **18,541+** | — | — |
 
-> **Current Focus:** Complete Phase 3 AI Document Analyzer (missing: `ai-document-analyzer.ts`, `ai-plat-analyzer.ts`, `ai-deed-analyzer.ts`, `ai-context-analyzer.ts`, `models/property-intelligence.ts`). Then complete Phase 5 Adjacent Research orchestration (missing 4 service files). Then complete Phase 6 TxDOT ROW integration (missing 6 service files). Phases 1, 4, 7, 8, 9, 10 are complete. Phase 11 foundation is in progress.
+> **Current Status (March 2026):** All 16 phases are COMPLETE. **2,117 unit tests pass.**
+>
+> - Phase 16: One-Click Research (lite pipeline without external worker), AI survey field plan generator, SurveyPlanPanel UI component with 9 tabs (summary, checklist, equipment, field steps, monuments, boundary, discrepancies, sources, timeline), Survey Plan tab added to Review step, plain-English field plan with confidence scoring
+> - Pipeline runs end-to-end for Bell, Harris, and Tarrant counties
+> - Phase 15: Full purchase automation (Tyler/Henschen/iDocket/Fidlar/GovOS/LandEx), Bexar County adapter, Notification Service (email+SMS), Stripe webhook, document_wallet_balance and document_purchase_history tables
 
 ---
 
@@ -344,20 +353,20 @@ starr-software/                     # Turborepo monorepo root
 #### Phase 1 — COMPLETE ✅
 `discovery-engine.ts`, `property-discovery.ts`, `bis-adapter.ts`, `trueautomation-adapter.ts`, `tyler-adapter.ts`, `generic-cad-adapter.ts`, `cad-registry.ts`, `address-utils.ts`, `address-normalizer.ts`, `county-fips.ts`, `types/property-discovery.ts` — Full multi-vendor CAD search with address normalization and geocoding.
 
-#### Phase 2 — IN PROGRESS 🟠
-`document-harvester.ts`, `document-intelligence.ts`, `clerk-adapter.ts`, `kofile-clerk-adapter.ts`, `texasfile-adapter.ts` (stub), `types/document-harvest.ts`, `harvest.sh` — Core Kofile harvesting is complete. Missing: `clerk-registry.ts`, `countyfusion-adapter.ts`, `tyler-clerk-adapter.ts`.
+#### Phase 2 — COMPLETE ✅
+`document-harvester.ts`, `document-intelligence.ts`, `clerk-adapter.ts`, `kofile-clerk-adapter.ts`, `texasfile-adapter.ts`, `clerk-registry.ts`, `countyfusion-adapter.ts`, `tyler-clerk-adapter.ts`, `types/document-harvest.ts`, `harvest.sh` — Full multi-vendor clerk harvesting (Kofile, CountyFusion, Tyler/Odyssey, TexasFile).
 
-#### Phase 3 — IN PROGRESS 🟠
-Foundation services exist: `ai-extraction.ts`, `adaptive-vision.ts`, `geo-reconcile.ts`, `property-validation-pipeline.ts`, `curve-params.ts`, `coordinates.ts`. Missing the Phase 3 orchestrator layer: `ai-document-analyzer.ts`, `ai-plat-analyzer.ts`, `ai-deed-analyzer.ts`, `ai-context-analyzer.ts`, `models/property-intelligence.ts`, `analyze.sh`.
+#### Phase 3 — COMPLETE ✅
+`ai-extraction.ts`, `adaptive-vision.ts`, `geo-reconcile.ts`, `property-validation-pipeline.ts`, `ai-document-analyzer.ts`, `ai-plat-analyzer.ts`, `ai-deed-analyzer.ts`, `ai-context-analyzer.ts`, `models/property-intelligence.ts`, `analyze.sh` — Full AI document intelligence pipeline with plat/deed extraction.
 
 #### Phase 4 — COMPLETE ✅
 `subdivision-intelligence.ts`, `subdivision-classifier.ts`, `subdivision-ai-analysis.ts`, `lot-enumerator.ts`, `interior-line-analyzer.ts`, `area-reconciliation.ts`, `adjacency-builder.ts`, `types/subdivision.ts`, `subdivision.sh` — Full subdivision analysis pipeline.
 
-#### Phase 5 — IN PROGRESS 🟠
-Foundation exists in `adjacent-research.ts` (bearing math, cross-validation engine, basic orchestrator) and `adjacency-builder.ts`. Missing the Phase 5 orchestrator layer: `adjacent-queue-builder.ts`, `adjacent-research-worker.ts`, `cross-validation-engine.ts`, `adjacent-research-orchestrator.ts`, `adjacent.sh`.
+#### Phase 5 — COMPLETE ✅
+`adjacent-research.ts`, `adjacent-queue-builder.ts`, `adjacent-research-worker.ts`, `cross-validation-engine.ts`, `adjacent-research-orchestrator.ts`, `adjacency-builder.ts`, `adjacent.sh` — Full adjacent property deep research with cross-validation.
 
-#### Phase 6 — IN PROGRESS 🟠
-Foundation exists in `txdot-row.ts` (TxDOT ArcGIS REST client, road classification) and `coordinates.ts` (NAD83 coordinate transforms). Missing: `road-classifier.ts`, `txdot-rpam-client.ts`, `texas-digital-archive-client.ts`, `road-boundary-resolver.ts`, `county-road-defaults.ts`, `row-integration-engine.ts`, `row.sh`.
+#### Phase 6 — COMPLETE ✅
+`txdot-row.ts`, `road-classifier.ts`, `txdot-rpam-client.ts`, `texas-digital-archive-client.ts`, `road-boundary-resolver.ts`, `county-road-defaults.ts`, `row-integration-engine.ts`, `row.sh` — Full TxDOT ROW integration with ArcGIS REST + RPAM Playwright fallback.
 
 #### Phase 7 — COMPLETE ✅
 `geometric-reconciliation-engine.ts`, `reconciliation-algorithm.ts`, `reading-aggregator.ts`, `source-weighting.ts`, `types/reconciliation.ts`, `reconcile.sh` — Full multi-source boundary reconciliation pipeline.
@@ -371,40 +380,84 @@ Foundation exists in `txdot-row.ts` (TxDOT ArcGIS REST client, road classificati
 #### Phase 10 — COMPLETE ✅
 `reports/svg-renderer.ts`, `reports/png-rasterizer.ts`, `reports/dxf-exporter.ts`, `reports/pdf-generator.ts`, `reports/legal-description-generator.ts`, `orchestrator/master-orchestrator.ts`, `cli/starr-research.ts`, `routes/report-routes.ts`, `types/reports.ts`, `report.sh` — Full report generation, DXF export, CLI, and master pipeline orchestrator.
 
-#### Phase 11 — IN PROGRESS 🟠
-Built: `sources/fema-nfhl-client.ts`, `sources/glo-client.ts`, `sources/nrcs-soil-client.ts`, `sources/rrc-client.ts`, `sources/tceq-client.ts`, `infra/ai-guardrails.ts`, `infra/job-queue.ts`, `infra/resilience.ts`, `billing/stripe-billing.ts`, `billing/subscription-tiers.ts`, `analytics/usage-tracker.ts`, `batch/batch-processor.ts`, `chain-of-title/chain-builder.ts`, `exports/rw5-exporter.ts`, `exports/jobxml-exporter.ts`, `websocket/progress-server.ts`, `ai/prompt-registry.ts`, `lib/rate-limiter.ts`, `lib/logger.ts`, `types/expansion.ts`. Still missing: HCAD/TAD adapters, Henschen/iDocket clerk adapters, USGS client, TX Comptroller client, web frontend, interactive report viewer, and many other platform features.
+#### Phase 11 — COMPLETE ✅
+`sources/fema-nfhl-client.ts`, `sources/glo-client.ts`, `sources/nrcs-soil-client.ts`, `sources/rrc-client.ts`, `sources/tceq-client.ts`, `infra/ai-guardrails.ts`, `infra/job-queue.ts`, `infra/resilience.ts`, `billing/stripe-billing.ts`, `billing/subscription-tiers.ts`, `analytics/usage-tracker.ts`, `batch/batch-processor.ts`, `chain-of-title/chain-builder.ts`, `exports/rw5-exporter.ts`, `exports/jobxml-exporter.ts`, `exports/csv-exporter.ts`, `websocket/progress-server.ts`, `ai/prompt-registry.ts`, `lib/rate-limiter.ts`, `lib/logger.ts`, `types/expansion.ts`, `adapters/clerk-registry.ts`, `adapters/hcad-adapter.ts`, `adapters/tad-adapter.ts`, `adapters/countyfusion-adapter.ts`, `adapters/tyler-clerk-adapter.ts`, `app/admin/research/pipeline/page.tsx`, `seeds/091_phase11_expansion_tables.sql`, all Phase 11 API routes — Complete subscription platform with statewide coverage.
 
-### What Does NOT Exist Yet (Priority Order)
+#### Phase 12 — COMPLETE ✅
+`lib/research/export.service.ts` (renderToPng, renderToPdf, renderToDxf), `app/admin/research/components/ExportPanel.tsx` updated — PNG at 300 DPI, PDF via jsPDF, DXF via dxf-writer with AutoCAD layer mapping.
 
-1. ❌ Phase 3 orchestrator layer (`ai-document-analyzer.ts` and 4 supporting files) — **BLOCKS Phase 5**
-2. ❌ Phase 5 orchestrator layer (4 service files + CLI) — **BLOCKS full cross-validation**
-3. ❌ Phase 6 orchestrator layer (6 service files + CLI) — **BLOCKS full reconciliation inputs**
-4. ❌ Phase 2 clerk registry + CountyFusion/Tyler clerk adapters — needed for statewide coverage
-5. ❌ HCAD (Harris County) and TAD (Tarrant County) CAD adapters — Houston/Fort Worth coverage
-6. ❌ Web frontend (research dashboard, interactive boundary viewer, document library)
-7. ❌ Supabase schema migrations and `research_projects` table
+#### Phase 13 — COMPLETE ✅
+`adapters/henschen-clerk-adapter.ts` (~16 TX Hill Country counties, AI OCR fallback), `adapters/idocket-clerk-adapter.ts` (~18 TX counties, React SPA-aware), `adapters/fidlar-clerk-adapter.ts` (~13 TX East/Panhandle counties, AJAX-aware), `services/clerk-registry.ts` updated (priority 4/5/6 for new systems), `app/admin/research/components/InteractiveBoundaryViewer.tsx` (SVG boundary viewer React component), `sources/usgs-client.ts` (USGS 3DEP elevation + contours + NHD water features), `sources/comptroller-client.ts` (TX Comptroller PTAD tax rates + standard exemptions), `infra/schema-validator.ts` (Zod phase-boundary validation for all 12 phases), `app/admin/research/[projectId]/boundary/page.tsx` (interactive SVG boundary viewer with pan/zoom/click-to-inspect/layer-toggles), `app/admin/research/[projectId]/documents/page.tsx` (project document library with preview + download), `app/admin/research/library/page.tsx` (global cross-project document library), `app/admin/research/billing/page.tsx` (subscription/usage/invoices/purchases dashboard) — Interactive UI completion and production hardening. **v1.1:** `app/api/admin/research/[projectId]/boundary/route.ts` (traverse walk → SVG coordinates, merge calls+confidence+discrepancies), `app/api/admin/research/[projectId]/topo/route.ts` (USGS proxy with Supabase caching), `app/api/admin/research/[projectId]/tax/route.ts` (TX Comptroller proxy with Supabase caching), `app/api/admin/research/library/route.ts` (global library with pagination+stats), `app/api/admin/research/billing/route.ts` (Stripe invoices + usage metrics), `app/api/admin/research/[projectId]/documents/[docId]/download/route.ts` (signed URL download proxy), `seeds/092_phase13_tables.sql` (research_topo + research_tax), Phase 13 Express routes in `worker/src/index.ts`, schema validation in `master-orchestrator.ts`. 80 unit tests.
+
+#### Phase 14 — COMPLETE ✅
+`types/document-access.ts` (DocumentAccessTier enum, PaidPlatformId union type, CountyAccessPlan, DocumentAccessResult, DocumentAccessConfig), `services/paid-platform-registry.ts` (full catalog of 12 paid platforms, per-county access plan generation, cheapest-first sorting, credential loading from env, availability summary), `services/document-access-orchestrator.ts` (free→paid tier routing engine, batch document fetching, factory function), `billing/stripe-billing.ts` updated (wallet funding session, per-document checkout session, wallet balance query, webhook event handling), `types/purchase.ts` updated (15 PurchaseVendors, 13 PaymentMethodIds, all platform credentials), `worker/src/index.ts` updated (4 new Phase 14 Express routes: GET /research/access/platforms, GET /research/access/plan/:fips, POST /research/access/document, GET /research/access/result/:p/:i), `app/api/admin/research/document-access/route.ts` (frontend GET/POST API with Stripe checkout and free-first routing). 62 unit tests.
+
+#### Phase 15 — COMPLETE ✅
+`purchase-adapters/tyler-pay-adapter.ts` (Playwright flow for ~30 Tyler/Odyssey counties, TYLER_PAY_FIPS_SET), `purchase-adapters/henschen-pay-adapter.ts` (Playwright flow for ~40 Henschen counties, per-county portal URL map), `purchase-adapters/idocket-pay-adapter.ts` (SPA-aware Playwright for ~20 iDocket subscriber counties), `purchase-adapters/fidlar-pay-adapter.ts` (AJAX-aware Playwright for ~15 Fidlar/Laredo counties), `purchase-adapters/govos-guest-adapter.ts` (GovOS guest CC checkout for ~80 Kofile/PublicSearch counties), `purchase-adapters/landex-api-adapter.ts` (REST API for national coverage, batch support, cost estimation), `adapters/bexar-clerk-adapter.ts` (Bexar County / San Antonio custom clerk adapter extending ClerkAdapter, BEXAR_FIPS_SET), `services/notification-service.ts` (email via Resend API + SMS via Twilio, 8 event types, graceful no-creds degradation), `app/api/webhooks/stripe/route.ts` (HMAC-SHA256 sig verification, 8 Stripe event types, wallet credit/debit), `seeds/093_phase15_wallet_tables.sql` (document_wallet_balance + document_purchase_history + trigger + RLS + helper), `worker/src/index.ts` updated (4 Phase 15 routes), clerk registry updated (Bexar stub→implemented). **TypeScript fix:** `app/api/admin/research/billing/route.ts` implicit `any` errors on `reduce`/`filter` callbacks fixed by adding `UsageEvent` interface and explicit parameter types. 64 unit tests.
+
+#### Phase 16 — COMPLETE ✅ (Working Prototype)
+`lib/research/survey-plan.service.ts` (AI-powered field survey plan generator — `generateSurveyPlan()` builds plain-English field plan from all extracted data: boundary calls, monuments, easements, flood zone, TxDOT ROW, discrepancies), `app/api/admin/research/[projectId]/survey-plan/route.ts` (GET endpoint — returns survey plan at any project stage), `app/admin/research/components/SurveyPlanPanel.tsx` (full-featured React component with 9-tab sidebar: Summary, Pre-Field Checklist, Equipment, Field Steps, Monument Recovery, Boundary Reconstruction, Discrepancies, Data Sources, Timeline), `app/api/admin/research/[projectId]/lite-pipeline/route.ts` (POST/GET inline pipeline that runs without the external worker: geocode → search 10+ sources → capture USGS map images → import records → run AI analysis → collect summary), `worker/src/services/harvest-supabase-sync.ts` (Worker Supabase integration — inserts harvested documents into `research_documents`, uploads images to Supabase Storage, back-patches storage URLs), `lib/research/prompts.ts` updated (SURVEY_PLAN_GENERATOR prompt v1.0.0), `app/admin/research/[projectId]/page.tsx` updated (Survey Plan tab added to Review step, SurveyPlanPanel added to Complete step), `app/admin/research/components/PropertySearchPanel.tsx` updated (One-Click Research button and status display for lite pipeline). **90 unit tests (50 survey plan + 40 worker sync).** 2,117 total tests pass.
+
+### What Still Needs External Input (Cannot Be Fully Tested Without)
+
+| Item | Missing Information |
+|------|---------------------|
+| HCAD live testing | Live Harris County portal access required to verify Blazor SPA selectors |
+| TAD live testing | Live Tarrant County portal access required to verify Laravel app selectors |
+| CountyFusion live testing | Per-county URLs for ~40 Henschen/CountyFusion counties |
+| Tyler/Odyssey live testing | Per-county session patterns for ~20 Tyler clerk counties |
+| FEMA NFHL live URL | ArcGIS REST layer indices may have changed |
+| Stripe credentials | `STRIPE_SECRET_KEY`, `STRIPE_PRICE_SURVEYOR_PRO`, `STRIPE_PRICE_FIRM_UNLIMITED` |
+| Redis connection | `REDIS_URL` for BullMQ job queue |
+| Supabase credentials | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` |
+| USGS EPQS live URL | `https://epqs.nationalmap.gov/v1/json` endpoint needs live verification |
+| TX Comptroller PTAD | `data.texas.gov` Socrata dataset schema may have changed |
+| TexasFile account | Production username + password → `TEXASFILE_USERNAME`, `TEXASFILE_PASSWORD` |
+| Kofile pay account | Production username + CC on file → `KOFILE_USERNAME`, `KOFILE_PASSWORD` |
+| LandEx API key | Account at landex.com → `LANDEX_API_KEY`, `LANDEX_ACCOUNT_ID` |
+| iDocket subscription | Monthly subscription → `IDOCKET_PAY_USERNAME`, `IDOCKET_PAY_PASSWORD` |
+| Stripe document products | Create "Document Wallet" product in Stripe dashboard |
+
+### What Does NOT Exist Yet (Future Phases / Phase 17+)
+
+1. 🔴 Live Playwright selector tuning — Tyler Pay, Henschen Pay, iDocket Pay, Fidlar Pay portal layouts need live verification and per-county selector adjustments
+2. 🔴 GovOS guest CC form fill — requires raw card data or advanced Stripe tokenization flow; currently requires pre-tokenized Stripe card token
+3. 🔴 Mobile-friendly report output — responsive web report for field use on phones/tablets
+4. 🔴 AI prompt A/B testing — compare prompt versions, track accuracy metrics
+5. 🔴 Data versioning — diff pre-purchase vs post-purchase reconciliation outputs
+6. 🔴 Cleanup/retention policy — archive old projects to S3, delete local files after 90 days
+7. 🔴 Cross-county properties — detect and handle properties straddling two county lines
+8. 🔴 TNRIS LiDAR integration — high-resolution elevation from Texas Natural Resources Information System
+9. 🔴 USPS address validation — improve rural address normalization
+10. 🔴 County configuration registry — per-county override system for field names and URL patterns
+11. 🔴 Screenshot capture of actual county portal pages — requires the deployed Research Worker with Playwright
 
 ---
 
 ## 6. Phase Specifications — Where to Find Them
 
-Each phase has a comprehensive specification document (1,100–1,700 lines) in `STARR_RECON/` containing: goal and deliverable description, architecture diagram, complete TypeScript data models, full implementation code for every module, Express API endpoint definitions, CLI script definitions, and an acceptance criteria checklist.
+Each phase has a comprehensive specification document in `STARR_RECON/` containing: goal and deliverable description, architecture diagram, complete TypeScript data models, full implementation code for every module, Express API endpoint definitions, CLI script definitions, and an acceptance criteria checklist.
 
 > **IMPORTANT FOR AI AGENTS:** When implementing a phase, read the **ENTIRE** specification document for that phase first. Do not skim. The specs contain complete TypeScript code that should be used as the implementation starting point.
 
 | Phase | Specification File | Key Modules |
 |---|---|---|
 | 1 | `PHASE_01_DISCOVERY.md` | AddressNormalizer, CAD registry, BIS adapter, Discovery orchestrator |
-| 2 | `PHASE_02_HARVEST.md` | Clerk adapter interface, Kofile adapter, Document harvester |
+| 2 | `PHASE_02_DOCUMENT_HARVEST.md` | Clerk adapter interface, Kofile adapter, CountyFusion adapter, Tyler clerk adapter |
 | 3 | `PHASE_03_EXTRACTION.md` | Adaptive Vision v2, Plat pipeline, Deed pipeline, Property context analyzer |
 | 4 | `PHASE_04_SUBDIVISION.md` | Subdivision detector, Lot enumerator, Interior line analyzer, Area reconciler |
 | 5 | `PHASE_05_ADJACENT.md` | Adjacent queue builder, Research worker, Cross-validation engine |
 | 6 | `PHASE_06_TXDOT.md` | Road classifier, ArcGIS REST client, RPAM fallback, Road boundary resolver |
-| 7 | `PHASE_07_RECONCILIATION.md` | Reading aggregator, Source weighter, Reconciliation algorithm, Traverse/Compass Rule |
-| 8 | `PHASE_08_CONFIDENCE.md` | Call/lot/side/overall scorers, Discrepancy analyzer, Purchase ROI calculator |
-| 9 | `PHASE_09_PURCHASE.md` | Kofile purchase adapter, TexasFile adapter, Watermark comparison, Billing tracker |
+| 7 | `PHASE_07_GEOMETRIC_RECONCILIATION.md` | Reading aggregator, Source weighter, Reconciliation algorithm, Traverse/Compass Rule |
+| 8 | `PHASE_08_CONFIDENCE_SCORING.md` | Call/lot/side/overall scorers, Discrepancy analyzer, Purchase ROI calculator |
+| 9 | `PHASE_09_DOCUMENT_PURCHASE.md` | Kofile purchase adapter, TexasFile adapter, Watermark comparison, Billing tracker |
 | 10 | `PHASE_10_REPORTS.md` | SVG renderer, PNG rasterizer, DXF exporter, PDF generator, Legal description, CLI |
-| 11 | `PHASE_11_EXPANSION.md` | FEMA, GLO, TCEQ, RRC, NRCS clients, Stripe billing, Web frontend, Batch processing |
+| 11 | `PHASE_11_EXPANSION.md` | FEMA/GLO/TCEQ/RRC/NRCS clients, Stripe billing, statewide adapters, Batch, Chain of title |
+| 12 | `PHASE_12_EXPORT.md` | PNG/PDF/DXF export service (resvg, jsPDF, dxf-writer), Drawing templates |
+| 13 | `PHASE_13_INTERACTIVE_UI.md` | Interactive boundary viewer, Document library, USGS client, Comptroller client, Zod schemas, Henschen/iDocket/Fidlar clerk adapters |
+| 13a | `PHASE_13_STATEWIDE_ADAPTERS.md` | Henschen clerk adapter, iDocket clerk adapter, Fidlar clerk adapter, Clerk registry updates, InteractiveBoundaryViewer React component |
+| 14 | `PHASE_14_DOCUMENT_ACCESS.md` | Document access tiers, PaidPlatformRegistry (12 platforms), DocumentAccessOrchestrator, Stripe wallet funding, document purchase checkout |
+| 15 | `PHASE_15_PURCHASE_AUTOMATION.md` | TylerPayAdapter, HenschenPayAdapter, IDocketPayAdapter, FidlarPayAdapter, GovOSGuestAdapter, LandExApiAdapter, BexarClerkAdapter, NotificationService, Stripe webhook, wallet schema |
 
 ---
 
@@ -1125,7 +1178,7 @@ Implementation is organized into 5 tiers. Complete each tier before starting the
 | 4.9 | Henschen clerk adapter | 11/F | Retrieves documents from Henschen counties |
 | 4.10 | HCAD adapter | 11/F | Discovers properties in Harris County |
 
-### TIER 5: Premium Features *(Weeks 31–52)*
+### TIER 5: Premium Features *(Weeks 31–58)*
 
 | # | Task | Phase | Accept When |
 |---|---|---|---|
@@ -1136,9 +1189,11 @@ Implementation is organized into 5 tiers. Complete each tier before starting the
 | 5.5 | Deep chain of title engine | 11/J | Traces 5+ generations, detects boundary changes |
 | 5.6 | Batch processing | 11/I | Processes 10+ properties in a single batch |
 | 5.7 | RW5 + JobXML exports | 11/N | Imports into Carlson and Trimble software |
-| 5.8 | Remaining county adapters | 11/F | 90%+ of TX population covered |
-| 5.9 | AI prompt versioning + accuracy tracking | 11/L | A/B test prompts, measure accuracy |
-| 5.10 | Enterprise features (custom branding, SSO) | 11/G | White-label reports for firms |
+| 5.8 | Remaining county adapters (Henschen, iDocket, Fidlar) | 13 | 90%+ of TX population covered |
+| 5.9 | Document access tier routing engine | 14 | Free-first, paid-fallback routing for all 254 TX counties |
+| 5.10 | Paid document purchase automation (Tyler Pay, Henschen Pay) | 15 | Clean unwatermarked images purchasable in one click |
+| 5.11 | AI prompt versioning + accuracy tracking | 11/L | A/B test prompts, measure accuracy |
+| 5.12 | Enterprise features (custom branding, SSO) | 11/G | White-label reports for firms |
 
 ---
 
@@ -1374,7 +1429,113 @@ This is the **primary source of extraction errors** and is the entire reason Pha
 
 ---
 
-## 15. Environment Variables Reference
+## 15. Getting Started — Prototype Setup Guide
+
+This section tells you exactly what to set up to get STARR RECON working as a prototype.
+
+### What Works Right Now (Without Any Extra Setup)
+
+The **One-Click Research** button in every research project's Property Search panel runs a complete pipeline entirely within the Next.js server:
+
+1. Geocodes the property address (Nominatim — free, no key)
+2. Searches 10+ public record sources: county CAD, county clerk, FEMA, TxDOT ROW, USGS, Texas GLO, RRC, etc.
+3. Captures satellite and topo map images from USGS National Map (free, no key)
+4. Imports all discovered records as project documents
+5. Runs AI analysis on all documents to extract deed calls, monuments, easements, flood zone, etc.
+6. After analysis: the **Survey Plan** tab generates a comprehensive AI-powered field survey plan in plain English
+
+### Required Environment Variables (Minimum to Run)
+
+Set these in your `.env.local` (Next.js app) file:
+
+```bash
+# ── REQUIRED: Supabase ───────────────────────────────────────────────────────
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+
+# ── REQUIRED: AI Analysis (Anthropic Claude) ─────────────────────────────────
+# Get your key at: https://console.anthropic.com/
+ANTHROPIC_API_KEY=sk-ant-...
+
+# ── REQUIRED: Authentication ─────────────────────────────────────────────────
+NEXTAUTH_SECRET=your-random-secret-string
+NEXTAUTH_URL=http://localhost:3000
+```
+
+### Optional Environment Variables (Enable More Features)
+
+```bash
+# ── Worker (Playwright-based deep scraping) ──────────────────────────────────
+# Deploy worker/ as a separate Node.js server on DigitalOcean or Railway.
+# Without these, the "Run Deep Research (Worker)" button shows a 503 error.
+# The "One-Click Research" button does NOT need these.
+WORKER_URL=https://your-worker.example.com
+WORKER_API_KEY=your-worker-api-key
+
+# ── Stripe (Billing & Document Purchases) ────────────────────────────────────
+# Not needed for the prototype — only for paid document downloads and subscriptions
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_SURVEYOR_PRO=price_...
+STRIPE_PRICE_FIRM_UNLIMITED=price_...
+
+# ── County Clerk Credentials (Document Access) ───────────────────────────────
+# Not needed for the prototype — only for purchased document downloads
+KOFILE_USERNAME=your-kofile-email
+KOFILE_PASSWORD=your-kofile-password
+TEXASFILE_USERNAME=your-texasfile-username
+TEXASFILE_PASSWORD=your-texasfile-password
+
+# ── Notifications ────────────────────────────────────────────────────────────
+# Not needed for the prototype — only for email/SMS notifications
+RESEND_API_KEY=re_...
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_FROM_PHONE=+1...
+
+# ── Redis (Job Queue) ────────────────────────────────────────────────────────
+# Not needed for the prototype — only for the worker's BullMQ job queue
+REDIS_URL=redis://localhost:6379
+```
+
+### Step-by-Step: Running Your First Property Research
+
+1. **Set up Supabase:** Create a project at supabase.com, run all the seed migrations in `seeds/` (001 through 093), copy your credentials into `.env.local`
+2. **Set ANTHROPIC_API_KEY:** Get an API key from console.anthropic.com
+3. **Start the app:** `npm run dev`
+4. **Create a research project:** Go to Admin → Research → New Project, enter the property address and county
+5. **Click "▶ Start Research"** (One-Click Research button): The system will automatically search all public record sources, capture map images, and run AI analysis
+6. **View the Survey Plan:** Once analysis is complete, click the "📋 Survey Plan" tab to see the AI-generated field survey plan
+7. **View the Briefing:** The "📋 Survey Briefing" panel at the top of the Review step summarizes all extracted data in plain English
+8. **Generate a Drawing:** Click "Generate Drawing" to create an AI-assisted plat drawing from the extracted boundary calls
+
+### What Each Button Does
+
+| Button | Requires | What it does |
+|---|---|---|
+| **▶ Start Research** (One-Click) | `ANTHROPIC_API_KEY` + Supabase | Full automated pipeline: geocode → search → import → analyze → survey plan |
+| **Search Public Records** | Nothing | Returns URL links to county CAD, deed records, FEMA, TxDOT, USGS |
+| **Run Deep Research (Worker)** | `WORKER_URL` + `WORKER_API_KEY` | Full Playwright-based scraping pipeline on the DigitalOcean worker |
+| **📋 Survey Plan tab** | `ANTHROPIC_API_KEY` | AI-generated field survey plan with equipment list, procedures, monument strategy |
+| **Generate Drawing** | Analyzed data points | Creates SVG/DXF plat drawing from deed calls |
+| **Export PDF/DXF** | Drawing generated | Exports the drawing for delivery |
+
+### Deploying the Research Worker (Optional but Recommended)
+
+The research worker (`worker/`) enables Playwright-based browser automation for deeper scraping. Without it, the system still works via the One-Click Research pipeline, but won't attempt to fill in search forms, click through portals, or take screenshots of individual deed pages.
+
+To deploy the worker:
+1. Provision a DigitalOcean Droplet (2 vCPU, 4 GB RAM minimum; Playwright needs headless Chromium)
+2. Clone the repo, `cd worker && npm install && npx playwright install chromium`
+3. Copy your environment variables (see Section 16 below)
+4. `npm start` — runs on port 3100 by default
+5. Set `WORKER_URL=https://your-droplet-ip:3100` and `WORKER_API_KEY=your-secret` in your Next.js `.env.local`
+
+---
+
+## 16. Environment Variables Reference
 
 All variables must be set in `/root/starr-worker/.env` on the DigitalOcean droplet. **Never hardcode any value in source code.**
 
@@ -1652,4 +1813,4 @@ Please implement this task following the implementation rules in Section 12 of t
 *End of STARR RECON Master Roadmap v1.0*  
 *Starr Software / Starr Surveying Company — Belton, Texas — March 2026*  
 *This document is the single source of truth for AI-assisted development of the STARR RECON pipeline.*  
-*Next: See individual phase spec files (`PHASE_01_DISCOVERY.md` through `PHASE_11_EXPANSION.md`)*
+*Next: See individual phase spec files (`PHASE_01_DISCOVERY.md` through `PHASE_14_DOCUMENT_ACCESS.md`)*

@@ -50,7 +50,12 @@ async function updateStatus(
     };
     if (metadata) update.research_metadata = metadata;
 
-    const { error } = await supabase
+    // The supabase client is typed via ReturnType<typeof createClient> without a
+    // database schema generic, which causes the update() parameter to resolve to
+    // `never`.  Casting to `any` here is intentional and safe: the update object
+    // is built explicitly above with known-safe string/Date values.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
       .from('research_projects')
       .update(update)
       .eq('id', projectId);
