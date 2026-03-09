@@ -27,6 +27,11 @@ import {
 } from '../../worker/src/services/address-normalizer.js';
 
 import {
+  parseCensusComponents,
+  generateVariants,
+} from '../../worker/src/services/address-utils.js';
+
+import {
   getCADConfig,
   buildDetailUrl,
   registeredCountyCount,
@@ -595,5 +600,218 @@ describe('CAD registry vendor coverage', () => {
     // TAD is a Laravel app (verified 2026-03-07): search input is input#query[name="query"]
     expect(cfg.addressField).toBe('query');
     expect(cfg.resultSelector).toContain('property-header');
+  });
+});
+
+// ── 7. parseCensusComponents — bug-fix coverage ────────────────────────────────
+// These tests cover two bugs found during the "3779 W FM 436 Belton" failure:
+//
+// BUG 1 (street number): Census returns fromAddress = segment start (e.g. 3701),
+//        not the actual input address number. The fix extracts the number from
+//        matchedAddress in tryCensus.
+//
+// BUG 2 (missing FM prefix): Census components sometimes return preQualifier=""
+//        with streetName="436", omitting the "FM" qualifier entirely. The fix
+//        re-extracts the TX road prefix from matchedAddress in tryCensus.
+//
+// Here we test parseCensusComponents (pure logic) and generateVariants to
+// ensure that correctly-normalised addresses produce the right search variants.
+
+describe('parseCensusComponents', () => {
+
+  it('handles normal Census response with FM in preQualifier', () => {
+    const parsed = parseCensusComponents({
+      fromAddress: '3779',
+      preDirection: 'W',
+      preQualifier: 'FM',
+      streetName: '436',
+      suffixType: '',
+      suffixDirection: '',
+      city: 'BELTON',
+      state: 'TX',
+      zip: '76513',
+    });
+    expect(parsed.streetNumber).toBe('3779');
+    expect(parsed.streetName).toMatch(/FM\s*436/i);
+    expect(parsed.preDirection).toBe('W');
+  });
+
+  it('handles Census response where FM is absent from preQualifier (the bug)', () => {
+    // Census sometimes returns preQualifier="" with streetName="436" for FM roads.
+    // parseCensusComponents alone cannot fix this — the tryCensus caller does.
+    // This test documents the raw component output so the behaviour is clear.
+    const parsed = parseCensusComponents({
+      fromAddress: '3701',   // segment start — NOT the actual house number
+      preDirection: 'W',
+      preQualifier: '',       // FM is missing!
+      streetName: '436',
+      suffixType: '',
+      suffixDirection: '',
+      city: 'BELTON',
+      state: 'TX',
+      zip: '76513',
+    });
+    // fromAddress is used as-is by parseCensusComponents — the caller patches it
+    expect(parsed.streetNumber).toBe('3701');
+    // Without FM in preQualifier, streetName will include the directional
+    expect(parsed.streetName).toContain('436');
+  });
+
+  it('correctly reconstructs TX road from preQualifier when provided', () => {
+    const parsed = parseCensusComponents({
+      fromAddress: '100',
+      preDirection: '',
+      preQualifier: 'FM',
+      streetName: '2222',
+      suffixType: '',
+      suffixDirection: '',
+      city: 'AUSTIN',
+      state: 'TX',
+      zip: '78731',
+    });
+    expect(parsed.streetName).toBe('FM 2222');
+    expect(parsed.streetNumber).toBe('100');
+  });
+
+  it('handles RM road in preQualifier', () => {
+    const parsed = parseCensusComponents({
+      fromAddress: '200',
+      preDirection: 'N',
+      preQualifier: 'RM',
+      streetName: '12',
+      suffixType: '',
+      suffixDirection: '',
+      city: 'WIMBERLEY',
+      state: 'TX',
+      zip: '78676',
+    });
+    expect(parsed.streetName).toBe('RM 12');
+    expect(parsed.preDirection).toBe('N');
+  });
+});
+
+// ── 8. generateVariants — correct search strings for FM roads ─────────────────
+// Validates that when Census correctly identifies a FM road (after the tryCensus
+// fix reconstructs it from matchedAddress), the variant engine produces search
+// strings that will actually find the property in Bell CAD.
+
+describe('generateVariants — FM road search strings', () => {
+
+  it('Tier-1 variant omits directional (proven Bell CAD format)', () => {
+    // "3779" + "FM 436" is the format that Bell CAD indexes.
+    const parsed = {
+      streetNumber: '3779',
+      streetName: 'FM 436',
+      streetType: '',
+      preDirection: 'W',
+      postDirection: null,
+      unit: null,
+      city: 'BELTON',
+      state: 'TX',
+      zip: '76513',
+    };
+    const variants = generateVariants(parsed);
+    const tier1 = variants.find(v => v.priority === 0);
+    expect(tier1).toBeDefined();
+    expect(tier1!.streetNumber).toBe('3779');
+    expect(tier1!.streetName).toBe('FM 436');
+    expect(tier1!.isPartial).toBe(false);
+  });
+
+  it('Tier-2 variant includes abbreviated directional', () => {
+    const parsed = {
+      streetNumber: '3779',
+      streetName: 'FM 436',
+      streetType: '',
+      preDirection: 'W',
+      postDirection: null,
+      unit: null,
+      city: null,
+      state: 'TX',
+      zip: null,
+    };
+    const variants = generateVariants(parsed);
+    const withDir = variants.find(v => v.streetName === 'W FM 436' && !v.isPartial);
+    expect(withDir).toBeDefined();
+    expect(withDir!.streetNumber).toBe('3779');
+  });
+
+  it('uses correct street number — not Census segment fromAddress', () => {
+    // Simulates address after the tryCensus Patch-1 fix:
+    // streetNumber is taken from matchedAddress ("3779"), not fromAddress ("3701").
+    const correctParsed = {
+      streetNumber: '3779',
+      streetName: 'FM 436',
+      streetType: '',
+      preDirection: 'W',
+      postDirection: null,
+      unit: null,
+      city: 'BELTON',
+      state: 'TX',
+      zip: '76513',
+    };
+    const variants = generateVariants(correctParsed);
+    const allNums = [...new Set(variants.map(v => v.streetNumber))];
+    expect(allNums).toEqual(['3779']);
+    expect(allNums).not.toContain('3701');
+  });
+
+  it('wrong street number (3701) would have produced incorrect variants', () => {
+    // Documents the pre-fix behaviour so the regression is clear.
+    const buggedParsed = {
+      streetNumber: '3701',   // Census fromAddress (segment start, not house number)
+      streetName: 'W 436',    // FM prefix was missing from components
+      streetType: '',
+      preDirection: null,
+      postDirection: null,
+      unit: null,
+      city: 'BELTON',
+      state: 'TX',
+      zip: '76513',
+    };
+    const variants = generateVariants(buggedParsed, '3779 W FM 436 Belton');
+    // Confirm the raw address manual-parse fallback at least gets FM 436
+    const fmVariant = variants.find(v => v.streetName === 'FM 436');
+    // All variants carry the wrong street number because generateVariants uses
+    // parsed.streetNumber, not rawAddress street number.
+    if (fmVariant) {
+      expect(fmVariant.streetNumber).toBe('3701');  // the bug
+    }
+    // Most importantly: no variant has both the correct number AND FM road
+    const correctVariant = variants.find(
+      v => v.streetNumber === '3779' && v.streetName === 'FM 436',
+    );
+    expect(correctVariant).toBeUndefined(); // proves why the fix was needed
+  });
+
+  it('Census patches together produce correct number+FM road (end-to-end fix)', () => {
+    // Simulates what tryCensus produces AFTER both patches are applied:
+    //   Patch 1 → streetNumber extracted from matchedAddress ("3779")
+    //   Patch 2 → streetName re-extracted from matchedAddress ("FM 436")
+    //             preDirection extracted from matchedAddress ("W")
+    const patchedParsed = {
+      streetNumber: '3779',      // Patch 1: from matchedAddress, not fromAddress
+      streetName: 'FM 436',     // Patch 2: FM prefix re-extracted from matchedAddress
+      streetType: '',
+      preDirection: 'W',         // Patch 2: directional re-extracted from matchedAddress
+      postDirection: null,
+      unit: null,
+      city: 'BELTON',
+      state: 'TX',
+      zip: '76513',
+    };
+    const variants = generateVariants(patchedParsed);
+
+    // Tier-1 (canonical, no dir): 3779 FM 436
+    const tier1 = variants.find(v => v.streetNumber === '3779' && v.streetName === 'FM 436' && !v.isPartial);
+    expect(tier1).toBeDefined();
+
+    // Tier-2 (canonical + dir): 3779 W FM 436
+    const tier2 = variants.find(v => v.streetNumber === '3779' && v.streetName === 'W FM 436' && !v.isPartial);
+    expect(tier2).toBeDefined();
+
+    // No variant carries the wrong street number from Census fromAddress
+    const wrongNum = variants.find(v => v.streetNumber === '3701');
+    expect(wrongNum).toBeUndefined();
   });
 });
