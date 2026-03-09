@@ -115,7 +115,7 @@ export class AiUsageTracker {
   // ── Recording ──────────────────────────────────────────────────────────────
 
   /** Record an AI API call and its outcome. */
-  record(entry: Omit<AiUsageEntry, 'timestamp' | 'estimatedCostUsd'> & { inputTokens?: number; outputTokens?: number }): void {
+  record(entry: Omit<AiUsageEntry, 'timestamp' | 'estimatedCostUsd' | 'inputTokens' | 'outputTokens'> & { inputTokens?: number; outputTokens?: number }): void {
     const inputTokens = entry.inputTokens ?? Math.round(ESTIMATED_TOKENS_PER_CALL * 0.6);
     const outputTokens = entry.outputTokens ?? Math.round(ESTIMATED_TOKENS_PER_CALL * 0.4);
     const totalTokens = inputTokens + outputTokens;
