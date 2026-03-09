@@ -7,7 +7,6 @@ import { usePageError } from '../../hooks/usePageError';
 import WorkflowStepper from '../components/WorkflowStepper';
 import DocumentUploadPanel from '../components/DocumentUploadPanel';
 import PropertySearchPanel from '../components/PropertySearchPanel';
-import BoundaryCallsPanel from '../components/BoundaryCallsPanel';
 import DocumentDeepAnalysisPanel from '../components/DocumentDeepAnalysisPanel';
 import DataPointsPanel from '../components/DataPointsPanel';
 import DiscrepancyPanel from '../components/DiscrepancyPanel';
@@ -61,7 +60,7 @@ export default function ResearchProjectPage() {
   const [showAnalysisLogs, setShowAnalysisLogs] = useState(false);
 
   // Review state
-  const [reviewTab, setReviewTab] = useState<'data' | 'discrepancies' | 'ai_logs' | 'survey_plan'>('data');
+  const [reviewTab, setReviewTab] = useState<'sources' | 'data' | 'discrepancies' | 'ai_logs' | 'survey_plan'>('sources');
   const [showBriefing, setShowBriefing] = useState(true);
   const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
@@ -1482,13 +1481,6 @@ export default function ResearchProjectPage() {
             documents={documents}
             onDocumentsChanged={() => { loadDocuments(); loadProject(); }}
           />
-          <BoundaryCallsPanel
-            projectId={projectId}
-            defaultAddress={project.property_address || ''}
-            defaultCounty={project.county || ''}
-            defaultParcelId={project.parcel_id || ''}
-            onImported={() => { loadDocuments(); loadProject(); }}
-          />
           <PropertySearchPanel
             projectId={projectId}
             defaultAddress={project.property_address || ''}
@@ -1502,10 +1494,12 @@ export default function ResearchProjectPage() {
       {project.status === 'configure' && (
         <div className="research-configure">
           <div className="research-configure__header">
-            <h2 className="research-configure__title">Configure &amp; Run Analysis</h2>
+            <h2 className="research-configure__title">Configure &amp; Run AI Analysis</h2>
             <p className="research-configure__desc">
-              The AI will analyze {extractedDocs.length} document{extractedDocs.length !== 1 ? 's' : ''} and extract
+              Your research documents are ready. The AI will analyze {extractedDocs.length} document{extractedDocs.length !== 1 ? 's' : ''} and extract
               surveying data including bearings, distances, monuments, curve data, legal descriptions, and more.
+              All research files, pages, summaries, and discrepancies found during Step 1 are preserved
+              and available in the Review step.
             </p>
           </div>
 
@@ -1720,8 +1714,17 @@ export default function ResearchProjectPage() {
             documents={documents}
           />
 
-          {/* Review tabs — Extracted Data · Discrepancies · AI Logs */}
+          {/* Review tabs — Research Sources · Extracted Data · Discrepancies · AI Logs · Survey Plan */}
           <div className="research-review__tabs">
+            <button
+              className={`research-review__tab ${reviewTab === 'sources' ? 'research-review__tab--active' : ''}`}
+              onClick={() => setReviewTab('sources')}
+            >
+              📎 Research Sources
+              {documents.length > 0 && (
+                <span className="research-review__tab-badge">{documents.length}</span>
+              )}
+            </button>
             <button
               className={`research-review__tab ${reviewTab === 'data' ? 'research-review__tab--active' : ''}`}
               onClick={() => setReviewTab('data')}
@@ -1752,6 +1755,130 @@ export default function ResearchProjectPage() {
           </div>
 
           {/* Tab content */}
+          {reviewTab === 'sources' && (() => {
+            const sourceTypeLabels: Record<string, { label: string; icon: string }> = {
+              property_search:  { label: 'Research — Web Sources', icon: '🔍' },
+              user_upload:      { label: 'User Uploaded', icon: '📤' },
+              linked_reference: { label: 'Linked References', icon: '🔗' },
+              manual_entry:     { label: 'Manual Entry', icon: '📝' },
+            };
+            const docTypeIcons: Record<string, string> = {
+              deed: '📜', plat: '🗺️', survey: '📐', legal_description: '⚖️',
+              title_commitment: '📋', easement: '🛤️', restrictive_covenant: '📄',
+              field_notes: '📓', subdivision_plat: '🏘️', metes_and_bounds: '📏',
+              county_record: '🏛️', appraisal_record: '💰', aerial_photo: '🛰️',
+              topo_map: '🗻', utility_map: '🔌', other: '📎',
+            };
+            const grouped = documents.reduce<Record<string, typeof documents>>((acc, doc) => {
+              const key = doc.source_type || 'other';
+              if (!acc[key]) acc[key] = [];
+              acc[key].push(doc);
+              return acc;
+            }, {});
+            const sourceOrder = ['property_search', 'user_upload', 'linked_reference', 'manual_entry'];
+            const sortedKeys = [
+              ...sourceOrder.filter(k => grouped[k]),
+              ...Object.keys(grouped).filter(k => !sourceOrder.includes(k)),
+            ];
+            if (documents.length === 0) {
+              return (
+                <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#9CA3AF' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>📭</div>
+                  <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>No research sources yet</div>
+                  <div style={{ fontSize: '0.85rem' }}>
+                    Go back to Step 1 and run the research to collect sources, links, and documents.
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingTop: '0.5rem' }}>
+                {sortedKeys.map(sourceKey => {
+                  const docs = grouped[sourceKey];
+                  const { label, icon } = sourceTypeLabels[sourceKey] || { label: sourceKey, icon: '📎' };
+                  return (
+                    <div key={sourceKey}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', paddingBottom: '0.4rem', borderBottom: '2px solid #E5E7EB' }}>
+                        <span style={{ fontSize: '1.1rem' }}>{icon}</span>
+                        <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1F2937' }}>{label}</h3>
+                        <span style={{ fontSize: '0.78rem', color: '#6B7280', background: '#F3F4F6', borderRadius: 10, padding: '1px 8px' }}>{docs.length}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                        {docs.map(doc => {
+                          const typeIcon = doc.document_type ? (docTypeIcons[doc.document_type] || '📎') : '📎';
+                          const typeName = doc.document_type
+                            ? doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+                            : 'Document';
+                          const title = doc.document_label || doc.original_filename || typeName;
+                          const hasViewable = !!(doc.pages_pdf_url || doc.storage_url);
+                          const excerpt = doc.extracted_text
+                            ? doc.extracted_text.slice(0, 220) + (doc.extracted_text.length > 220 ? '…' : '')
+                            : null;
+                          return (
+                            <div
+                              key={doc.id}
+                              style={{ background: '#FAFAFA', border: '1px solid #E5E7EB', borderRadius: '0.5rem', padding: '0.85rem 1rem', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}
+                            >
+                              <div style={{ fontSize: '1.5rem', lineHeight: 1, flexShrink: 0, marginTop: '0.1rem' }}>{typeIcon}</div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+                                  <span style={{ fontWeight: 700, fontSize: '0.92rem', color: '#111827' }}>{title}</span>
+                                  <span style={{ fontSize: '0.72rem', color: '#6B7280', background: '#F3F4F6', borderRadius: 8, padding: '1px 7px', flexShrink: 0 }}>{typeName}</span>
+                                  {doc.processing_status === 'analyzed' && (
+                                    <span style={{ fontSize: '0.72rem', color: '#059669', background: '#D1FAE5', borderRadius: 8, padding: '1px 7px', flexShrink: 0 }}>✓ Analyzed</span>
+                                  )}
+                                  {doc.processing_status === 'error' && (
+                                    <span style={{ fontSize: '0.72rem', color: '#DC2626', background: '#FEE2E2', borderRadius: 8, padding: '1px 7px', flexShrink: 0 }}>⚠ Error</span>
+                                  )}
+                                </div>
+                                {excerpt && (
+                                  <div style={{ fontSize: '0.82rem', color: '#4B5563', lineHeight: 1.55, marginBottom: '0.45rem', background: '#F8FAFC', borderLeft: '3px solid #BFDBFE', paddingLeft: '0.5rem', borderRadius: '0 4px 4px 0' }}>
+                                    {excerpt}
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.78rem', color: '#6B7280' }}>
+                                  {doc.recorded_date && <span>📅 {doc.recorded_date}</span>}
+                                  {doc.recording_info && <span>📋 {doc.recording_info}</span>}
+                                  {doc.page_count && <span>📄 {doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span>}
+                                  {doc.ocr_confidence && <span>🔬 OCR {Math.round(doc.ocr_confidence * 100)}%</span>}
+                                  {doc.file_size_bytes && <span>{(doc.file_size_bytes / 1024).toFixed(0)} KB</span>}
+                                  {doc.created_at && <span title={doc.created_at}>Added {new Date(doc.created_at).toLocaleDateString()}</span>}
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.55rem', flexWrap: 'wrap' }}>
+                                  {doc.source_url && (
+                                    <a
+                                      href={doc.source_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#1D4ED8', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '0.3rem', padding: '0.25rem 0.65rem', textDecoration: 'none', fontWeight: 500 }}
+                                    >
+                                      🔗 Open Source ↗
+                                    </a>
+                                  )}
+                                  {hasViewable && (
+                                    <button
+                                      onClick={() => {
+                                        setViewerDoc(doc);
+                                        setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
+                                        setViewerHighlight(undefined);
+                                      }}
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#7C3AED', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: '0.3rem', padding: '0.25rem 0.65rem', cursor: 'pointer', fontWeight: 500 }}
+                                    >
+                                      🖼️ View Pages / PDF
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
           {reviewTab === 'data' && (
             <DataPointsPanel
               projectId={projectId}
