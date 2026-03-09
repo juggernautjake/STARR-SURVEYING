@@ -41,6 +41,10 @@ import { KofileClerkAdapter } from '../../worker/src/adapters/kofile-clerk-adapt
 import { CountyFusionAdapter } from '../../worker/src/adapters/countyfusion-adapter.js';
 import { TylerClerkAdapter } from '../../worker/src/adapters/tyler-clerk-adapter.js';
 import { TexasFileAdapter } from '../../worker/src/adapters/texasfile-adapter.js';
+import {
+  extractKofilePartyNames,
+  normaliseKofileApiResponse,
+} from '../../worker/src/services/bell-clerk.js';
 
 // ── Mock adapter for smartSearch tests ───────────────────────────────────────
 
@@ -927,5 +931,190 @@ describe('ClerkAdapter.classifyDocumentType — additional types', () => {
   it('classifies MD abbreviation as oil_gas_lease', () => {
     // MD = Mineral Deed but mapped to oil_gas_lease in current schema
     expect(adapter.classifyDocumentType('MD')).toBe('oil_gas_lease');
+  });
+});
+
+// ── 13. Kofile search result parsing improvements (Stage 2 URL/instrument fixes) ──
+
+describe('Kofile instrument number regex patterns', () => {
+  // These patterns are used by searchClerkRecords() in bell-clerk.ts
+
+  it('matches Kofile YYYY-NNNNNNN instrument number format', () => {
+    const text = '01/15/2024 WD STARR SURVEYING PREVIOUS OWNER 2024-00001234';
+    const pattern = /\b(\d{4}-\d{5,})\b/;
+    const match = text.match(pattern);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('2024-00001234');
+  });
+
+  it('matches Kofile YYYY-NNNNNN (6-digit suffix)', () => {
+    const text = 'WARRANTY DEED 2019-012345';
+    const pattern = /\b(\d{4}-\d{5,})\b/;
+    const match = text.match(pattern);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('2019-012345');
+  });
+
+  it('matches plain 9+ digit instrument number', () => {
+    const text = '202400001234 WARRANTY DEED';
+    const pattern = /\b(\d{9,})\b/;
+    const match = text.match(pattern);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('202400001234');
+  });
+
+  it('does NOT match 4-digit year as Kofile instrument number', () => {
+    const text = 'Recording Year 2024 DEED';
+    const pattern = /\b(\d{4}-\d{5,})\b/;
+    expect(text.match(pattern)).toBeNull();
+  });
+
+  it('does NOT match 8-digit number as 9+ digit instrument', () => {
+    const text = '12345678 deed';
+    const pattern = /\b(\d{9,})\b/;
+    expect(text.match(pattern)).toBeNull();
+  });
+});
+
+describe('Kofile document URL construction', () => {
+  // Tests for the /doc/{id}/details URL pattern used in the improved Stage 2
+
+  const BASE_URL = 'https://bell.tx.publicsearch.us';
+
+  it('builds correct detail URL from instrument number', () => {
+    const instrumentNumber = '2024-00001234';
+    const url = `${BASE_URL}/doc/${encodeURIComponent(instrumentNumber)}/details`;
+    expect(url).toBe('https://bell.tx.publicsearch.us/doc/2024-00001234/details');
+  });
+
+  it('extracts instrument from /doc/{id}/details href', () => {
+    const href = '/doc/2024-00001234/details';
+    const match = href.match(/\/doc\/([^/]+)(?:\/details)?/i);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('2024-00001234');
+  });
+
+  it('extracts instrument from /doc/{id} href (no /details suffix)', () => {
+    const href = '/doc/2022-00056789';
+    const match = href.match(/\/doc\/([^/]+)(?:\/details)?/i);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('2022-00056789');
+  });
+
+  it('converts relative /doc href to absolute URL', () => {
+    const href = '/doc/2024-00001234/details';
+    const toAbsolute = (h: string): string =>
+      h.startsWith('http') ? h : `${BASE_URL}${h.startsWith('/') ? '' : '/'}${h}`;
+    const url = toAbsolute(href);
+    expect(url).toBe('https://bell.tx.publicsearch.us/doc/2024-00001234/details');
+  });
+
+  it('does NOT confuse old /results?q= fallback URL as valid', () => {
+    const oldFallback = `${BASE_URL}/results?department=RP&search=index&q=2024-00001234`;
+    // The old (broken) fallback is a search URL, not a detail URL
+    expect(oldFallback).not.toContain('/doc/');
+    // The new fallback is a detail URL
+    const newFallback = `${BASE_URL}/doc/2024-00001234/details`;
+    expect(newFallback).toContain('/doc/');
+    expect(newFallback).toContain('/details');
+  });
+});
+
+describe('Kofile API response normalisation', () => {
+  // Uses exported helpers from bell-clerk.ts to avoid duplication
+
+  type ApiDoc = Record<string, unknown>;
+
+  it('handles plain array response', () => {
+    const data = [{ id: '2024-00001234', docType: 'WD' }];
+    expect(normaliseKofileApiResponse(data)).toHaveLength(1);
+  });
+
+  it('handles {results: [...]} response shape', () => {
+    const data = { results: [{ id: '2024-00001234' }, { id: '2024-00001235' }] };
+    expect(normaliseKofileApiResponse(data)).toHaveLength(2);
+  });
+
+  it('handles {documents: [...]} response shape', () => {
+    const data = { documents: [{ id: 'abc' }, { id: 'def' }] };
+    expect(normaliseKofileApiResponse(data)).toHaveLength(2);
+  });
+
+  it('handles {data: [...]} response shape', () => {
+    const data = { data: [{ id: '111' }] };
+    expect(normaliseKofileApiResponse(data)).toHaveLength(1);
+  });
+
+  it('handles {records: [...]} response shape', () => {
+    const data = { records: [{ id: '222' }, { id: '333' }] };
+    expect(normaliseKofileApiResponse(data)).toHaveLength(2);
+  });
+
+  it('handles Elasticsearch hits.hits response shape', () => {
+    const data = {
+      hits: { total: 1, hits: [{ _source: { id: '2024-00001234', docType: 'WD' } }] },
+    };
+    const items = normaliseKofileApiResponse(data);
+    expect(items).toHaveLength(1);
+    expect(items[0].id).toBe('2024-00001234');
+  });
+
+  it('returns empty array for unknown response shape', () => {
+    expect(normaliseKofileApiResponse({ totalCount: 0 })).toHaveLength(0);
+    expect(normaliseKofileApiResponse(null)).toHaveLength(0);
+    expect(normaliseKofileApiResponse('string')).toHaveLength(0);
+  });
+
+  it('extracts names from a plain string value', () => {
+    expect(extractKofilePartyNames('STARR SURVEYING')).toEqual(['STARR SURVEYING']);
+  });
+
+  it('extracts names from array of strings', () => {
+    expect(extractKofilePartyNames(['NAME ONE', 'NAME TWO'])).toEqual(['NAME ONE', 'NAME TWO']);
+  });
+
+  it('extracts names from array of {name: ...} objects', () => {
+    expect(extractKofilePartyNames([{ name: 'JOHN DOE' }, { name: 'JANE DOE' }]))
+      .toEqual(['JOHN DOE', 'JANE DOE']);
+  });
+
+  it('extracts names from array of {partyName: ...} objects', () => {
+    expect(extractKofilePartyNames([{ partyName: 'STARR SURVEYING' }]))
+      .toEqual(['STARR SURVEYING']);
+  });
+
+  it('returns empty array for null or undefined', () => {
+    expect(extractKofilePartyNames(null)).toEqual([]);
+    expect(extractKofilePartyNames(undefined)).toEqual([]);
+  });
+
+  it('resolves document id using priority: id > documentId > instrumentNumber', () => {
+    const item: ApiDoc = {
+      id: 'DOC-001',
+      documentId: 'DOC-002',
+      instrumentNumber: 'INSTR-003',
+    };
+    const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? '').trim();
+    expect(id).toBe('DOC-001');
+  });
+
+  it('falls back to documentId when id is missing', () => {
+    const item: ApiDoc = { documentId: 'DOC-002', instrumentNumber: 'INSTR-003' };
+    const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? '').trim();
+    expect(id).toBe('DOC-002');
+  });
+
+  it('falls back to instrumentNumber when id and documentId are missing', () => {
+    const item: ApiDoc = { instrumentNumber: '2024-00001234' };
+    const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? '').trim();
+    expect(id).toBe('2024-00001234');
+  });
+
+  it('builds correct detail URL from extracted document id', () => {
+    const baseUrl = 'https://bell.tx.publicsearch.us';
+    const item: ApiDoc = { instrumentNumber: '2024-00001234' };
+    const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? '').trim();
+    const url = id ? `${baseUrl}/doc/${id}/details` : null;
+    expect(url).toBe('https://bell.tx.publicsearch.us/doc/2024-00001234/details');
   });
 });
