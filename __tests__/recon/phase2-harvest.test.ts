@@ -1240,3 +1240,101 @@ describe('fetchDocumentImages image format detection', () => {
     expect(matches).toBe(false);
   });
 });
+
+// ── 16. parseDeedReferences ────────────────────────────────────────────────────
+
+import { parseDeedReferences } from '../../worker/src/services/pipeline.js';
+
+describe('parseDeedReferences', () => {
+  it('extracts bare 10-digit instrument number', () => {
+    const result = parseDeedReferences('LOT 1 BLK 1 ASH FAMILY TRUST INST 2010043440');
+    expect(result.instrumentNumbers).toContain('2010043440');
+  });
+
+  it('extracts instrument number with Inst prefix', () => {
+    const result = parseDeedReferences('Instrument: 2010043440, recorded Bell County');
+    expect(result.instrumentNumbers).toContain('2010043440');
+  });
+
+  it('extracts instrument number with Doc prefix', () => {
+    const result = parseDeedReferences('Doc# 2023032044 Volume 7687');
+    expect(result.instrumentNumbers).toContain('2023032044');
+  });
+
+  it('extracts volume/page references', () => {
+    const result = parseDeedReferences('VOL 7687 PG 112 BELL COUNTY');
+    expect(result.volumePages).toContainEqual({ volume: '7687', page: '112' });
+  });
+
+  it('extracts volume/page with dots', () => {
+    const result = parseDeedReferences('Vol. 7687, Page 112');
+    expect(result.volumePages).toContainEqual({ volume: '7687', page: '112' });
+  });
+
+  it('extracts OPR volume/page', () => {
+    const result = parseDeedReferences('OPR/7687/112');
+    expect(result.volumePages).toContainEqual({ volume: '7687', page: '112' });
+  });
+
+  it('extracts plat cabinet/slide reference', () => {
+    const result = parseDeedReferences('Cabinet A Slide 5 Bell County Plat Records');
+    expect(result.platRefs).toContainEqual({ cabinet: 'A', slide: '5' });
+  });
+
+  it('extracts multiple instrument numbers', () => {
+    const result = parseDeedReferences('Inst 2010043440 and Inst 2023032044');
+    expect(result.instrumentNumbers).toHaveLength(2);
+    expect(result.instrumentNumbers).toContain('2010043440');
+    expect(result.instrumentNumbers).toContain('2023032044');
+  });
+
+  it('does not duplicate instrument numbers', () => {
+    const result = parseDeedReferences('Inst 2010043440 Inst 2010043440');
+    expect(result.instrumentNumbers).toHaveLength(1);
+  });
+
+  it('returns empty arrays for plain lot/block description without references', () => {
+    const result = parseDeedReferences('LOT 1 BLK 1 ASH FAMILY TRUST 12.358 AC ADDN A-22 A MANCHACA SVY');
+    expect(result.instrumentNumbers).toHaveLength(0);
+    expect(result.volumePages).toHaveLength(0);
+    expect(result.platRefs).toHaveLength(0);
+  });
+
+  it('ignores short numbers that are not instrument numbers', () => {
+    // Only 10-digit bare numbers or 7+ digit Inst-prefixed numbers qualify
+    const result = parseDeedReferences('LOT 5 BLK 12 SURVEY A-22');
+    expect(result.instrumentNumbers).toHaveLength(0);
+  });
+});
+
+// ── 17. legal description disclaimer filter ────────────────────────────────────
+
+describe('legal description disclaimer filter', () => {
+  // Mirrors the disclaimer detection logic added to enrichPropertyDetail and
+  // lookupByPropertyId in bell-cad.ts / pipeline.ts.
+  const isDisclaimer = (text: string): boolean =>
+    /appraisal district|should be verified|legal purpose/i.test(text);
+
+  it('identifies BIS disclaimer text', () => {
+    const disclaimer = 'Legal descriptions and acreage amounts are for Appraisal District use only and should be verified prior to using for legal purpose and or documents.';
+    expect(isDisclaimer(disclaimer)).toBe(true);
+  });
+
+  it('does not flag a valid legal description', () => {
+    const legal = 'LOT 1 BLK 1 ASH FAMILY TRUST 12.358 AC ADDN A-22 A MANCHACA SVY';
+    expect(isDisclaimer(legal)).toBe(false);
+  });
+
+  it('does not flag a short legal with metes and bounds', () => {
+    const legal = 'N 45°30\' W 210.5 FT TO POB — A-22 MANCHACA SURVEY BELL CO TX';
+    expect(isDisclaimer(legal)).toBe(false);
+  });
+
+  it('identifies "should be verified" substring', () => {
+    expect(isDisclaimer('This information should be verified before use')).toBe(true);
+  });
+
+  it('is case-insensitive', () => {
+    expect(isDisclaimer('APPRAISAL DISTRICT USE ONLY')).toBe(true);
+  });
+});

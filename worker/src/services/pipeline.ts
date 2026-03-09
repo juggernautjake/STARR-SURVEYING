@@ -12,6 +12,56 @@ import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
 import { bundleAndUploadPages } from './pages-to-pdf.js';
 
+// ── Deed Reference Parser ─────────────────────────────────────────────────
+
+/**
+ * Parse a BIS/CAD legal description for deed references that can be used to
+ * search the county clerk directly by instrument number, volume/page, or plat
+ * cabinet/slide. This gives us precise clerk search targets instead of the
+ * fragile owner-name SPA search.
+ *
+ * Examples of strings that are parsed:
+ *   "Inst 2010043440"  →  instrumentNumbers: ["2010043440"]
+ *   "Vol 7687 Pg 112"  →  volumePages: [{ volume: "7687", page: "112" }]
+ *   "OPR/7687/112"     →  volumePages: [{ volume: "7687", page: "112" }]
+ *   "Cabinet A Slide 5"→  platRefs: [{ cabinet: "A", slide: "5" }]
+ */
+export function parseDeedReferences(legalDescription: string): {
+  instrumentNumbers: string[];
+  volumePages: { volume: string; page: string }[];
+  platRefs: { cabinet: string; slide: string }[];
+} {
+  const instrumentNumbers: string[] = [];
+  const volumePages: { volume: string; page: string }[] = [];
+  const platRefs: { cabinet: string; slide: string }[] = [];
+
+  // Instrument numbers (7+ digit standalone numbers or Inst/Doc prefixed)
+  const instMatches = legalDescription.matchAll(/(?:Inst(?:rument)?|Doc(?:ument)?)[\s#:]*(\d{7,})/gi);
+  for (const m of instMatches) {
+    if (!instrumentNumbers.includes(m[1])) instrumentNumbers.push(m[1]);
+  }
+
+  // Bare 10-digit numbers that look like clerk instrument numbers (not part of longer numbers)
+  const bareMatches = legalDescription.matchAll(/\b(\d{10})\b/g);
+  for (const m of bareMatches) {
+    if (!instrumentNumbers.includes(m[1])) instrumentNumbers.push(m[1]);
+  }
+
+  // Volume/Page references: "Vol 7687 Pg 112" / "Vol. 7687, Page 112"
+  const vpMatches = legalDescription.matchAll(/Vol(?:ume)?\.?\s*(\d+)[,\s]*(?:Pg|Page)\.?\s*(\d+)/gi);
+  for (const m of vpMatches) volumePages.push({ volume: m[1], page: m[2] });
+
+  // OPR/volume/page format (Official Public Records): "OPR/7687/112"
+  const oprMatches = legalDescription.matchAll(/OPR\/(\d+)\/(\d+)/gi);
+  for (const m of oprMatches) volumePages.push({ volume: m[1], page: m[2] });
+
+  // Plat Cabinet/Slide references: "Cabinet A Slide 5" / "Cab. B, Sl. 12"
+  const platMatches = legalDescription.matchAll(/(?:Cabinet|Cab)\.?\s*([A-Z])[\s,]*(?:Slide|Sl)\.?\s*(\d+)/gi);
+  for (const m of platMatches) platRefs.push({ cabinet: m[1].toUpperCase(), slide: m[2] });
+
+  return { instrumentNumbers, volumePages, platRefs };
+}
+
 // ── Supabase Client (Lazy Init) ───────────────────────────────────────────
 
 let supabaseClient: Awaited<ReturnType<typeof import('@supabase/supabase-js').createClient>> | null = null;
@@ -231,15 +281,37 @@ async function lookupByPropertyId(
 
     const html = await response.text();
 
-    // Extract data from detail page
+    // Extract data from detail page.
+    // NOTE: The disclaimer text ("Legal descriptions...for Appraisal District use only")
+    // must be filtered out — it matches "Legal Description" but is not property-specific.
     const ownerMatch = html.match(/(?:Owner|Owner\s*Name)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i);
-    const legalMatch = html.match(/(?:Legal\s*Description|Legal\s*Desc)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i);
+
+    // BIS table-row pattern: <td>Legal Description</td><td>VALUE</td>
+    let legalDescription: string | null = null;
+    const bisLegalRow = html.match(
+      /<td[^>]*>\s*Legal\s*(?:Description|Descriptions|Desc\.?)\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i,
+    );
+    if (bisLegalRow) {
+      const raw = bisLegalRow[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (raw.length > 5 && !/appraisal district|should be verified|legal purpose/i.test(raw)) {
+        legalDescription = raw;
+      }
+    }
+    if (!legalDescription) {
+      const legalMatch = html.match(/(?:Legal\s*Description|Legal\s*Desc)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i);
+      if (legalMatch) {
+        const candidate = legalMatch[1].trim();
+        if (!/appraisal district|should be verified|legal purpose/i.test(candidate)) {
+          legalDescription = candidate;
+        }
+      }
+    }
+
     const acreageMatch = html.match(/(?:Acreage|Acres)\s*:?\s*(?:<[^>]*>\s*)*?([\d,.]+)/i);
     const geoIdMatch = html.match(/(?:GEO\s*ID|Geographic\s*ID)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i);
     const addressMatch = html.match(/(?:Situs|Address|Location)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i);
 
     const ownerName = ownerMatch?.[1]?.trim() ?? null;
-    const legalDescription = legalMatch?.[1]?.trim() ?? null;
     const acreage = acreageMatch ? parseFloat(acreageMatch[1].replace(/,/g, '')) : null;
 
     if (!ownerName && !legalDescription) {
@@ -476,63 +548,135 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     logger.info('Stage2', '═══ STAGE 2: Document Retrieval ═══');
     let documents: DocumentResult[] = [];
 
-    // Use the owner name from CAD result, or from user input, or AI-reformatted
+    // ── Stage 2 Primary Path: Instrument Number Search ──────────────────────
+    // Parse deed references from the CAD legal description. If we find instrument
+    // numbers we can search the clerk directly — this is fast, precise, and proven
+    // to work (Ash Trust instruments 2010043440 and 2023032044, March 4, 2026).
+    // This entirely bypasses the fragile React SPA owner-name search.
+    const legalDesc = propertyResult.legalDescription ?? '';
+    const deedRefs = parseDeedReferences(legalDesc);
+
+    let instrumentSearchSucceeded = false;
+
+    if (deedRefs.instrumentNumbers.length > 0 && input.county.toLowerCase() === 'bell') {
+      logger.info('Stage2', `Parsed ${deedRefs.instrumentNumbers.length} instrument number(s) from legal description: ${deedRefs.instrumentNumbers.join(', ')}`);
+
+      for (const instrNum of deedRefs.instrumentNumbers.slice(0, 5)) {
+        const expectedPages = /plat/i.test(legalDesc) ? 3 : 2;
+        try {
+          const downloadedPages = await fetchDocumentImages(instrNum, expectedPages, logger);
+          if (downloadedPages.length > 0) {
+            const docResult: DocumentResult = {
+              ref: {
+                instrumentNumber: instrNum,
+                volume: null,
+                page: null,
+                documentType: 'Deed (instrument search)',
+                recordingDate: null,
+                grantors: [],
+                grantees: [],
+                source: 'Bell County Clerk (instrument search)',
+                url: `https://bell.tx.publicsearch.us/doc/${instrNum}/details`,
+              },
+              textContent: null,
+              pages: downloadedPages,
+              ocrText: null,
+              extractedData: null,
+            };
+            documents.push(docResult);
+            instrumentSearchSucceeded = true;
+            logger.info('Stage2', `Instrument ${instrNum}: downloaded ${downloadedPages.length} page(s)`);
+
+            // Bundle pages into a PDF for frontend display
+            const pdfUrl = await bundleAndUploadPages(
+              downloadedPages,
+              input.projectId,
+              instrNum,
+              docResult.ref.documentType,
+            );
+            if (pdfUrl) {
+              docResult.pagesPdfUrl = pdfUrl;
+              logger.info('Stage2', `  PDF uploaded: ${pdfUrl}`);
+            }
+          } else {
+            logger.info('Stage2', `Instrument ${instrNum}: no pages downloaded`);
+          }
+        } catch (imgErr) {
+          logger.warn('Stage2', `Instrument search failed for ${instrNum}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+        }
+      }
+
+      if (instrumentSearchSucceeded) {
+        logger.info('Stage2', `Instrument search yielded ${documents.length} document(s) — skipping owner-name SPA search`);
+      } else {
+        logger.info('Stage2', 'Instrument search yielded no pages — falling back to owner-name search');
+      }
+    } else if (deedRefs.instrumentNumbers.length > 0) {
+      logger.info('Stage2', `Found instrument numbers in legal description but county is not Bell — skipping instrument search`);
+    } else {
+      logger.info('Stage2', 'No instrument numbers in legal description — proceeding to owner-name search');
+    }
+
+    // ── Stage 2 Fallback: Owner Name Search ─────────────────────────────────
+    // Only run owner-name search when instrument search found nothing.
+    // This is the fragile React SPA path — kept as a fallback for properties
+    // whose legal descriptions don't carry explicit instrument references.
     const ownerForClerk = propertyResult.ownerName ?? input.ownerName ?? null;
 
-    if (ownerForClerk) {
-      documents = await searchClerkRecords(input.county, ownerForClerk, logger);
-      logger.info('Stage2', `Retrieved ${documents.length} documents from clerk`);
+    if (!instrumentSearchSucceeded) {
+      if (ownerForClerk) {
+        const ownerDocs = await searchClerkRecords(input.county, ownerForClerk, logger);
+        logger.info('Stage2', `Owner-name search retrieved ${ownerDocs.length} documents from clerk`);
 
-      // ── Stage 2.5: Kofile Image Download ───────────────────────────────
-      // For Bell County Kofile documents that have an instrument number,
-      // intercept the signed PNG URLs from the viewer and download each page.
-      // This gives the AI full-resolution images instead of browser screenshots,
-      // and is the proven technique from the Ash Trust session (March 2026).
-      if (input.county.toLowerCase() === 'bell' && documents.length > 0) {
-        logger.info('Stage2.5', `Downloading page images for ${documents.length} Bell County documents`);
-        let imagesDownloaded = 0;
+        // ── Stage 2.5: Kofile Image Download for owner-name results ────────
+        // For Bell County documents that came back with an instrument number,
+        // intercept signed PNG URLs and download page images.
+        if (input.county.toLowerCase() === 'bell' && ownerDocs.length > 0) {
+          logger.info('Stage2.5', `Downloading page images for ${ownerDocs.length} Bell County documents`);
+          let imagesDownloaded = 0;
 
-        for (const doc of documents.slice(0, 5)) { // Limit to 5 docs
-          if (!doc.ref.instrumentNumber) continue;
+          for (const doc of ownerDocs.slice(0, 5)) {
+            if (!doc.ref.instrumentNumber) continue;
 
-          const expectedPages = /plat/i.test(doc.ref.documentType) ? 3 : 2;
-          try {
-            const downloadedPages = await fetchDocumentImages(
-              doc.ref.instrumentNumber,
-              expectedPages,
-              logger,
-            );
-            if (downloadedPages.length > 0) {
-              doc.pages = downloadedPages;
-              imagesDownloaded += downloadedPages.length;
-              logger.info('Stage2.5', `  ${doc.ref.documentType} ${doc.ref.instrumentNumber}: ${downloadedPages.length} pages`);
-
-              // Bundle pages into a PDF and upload to Supabase Storage so the
-              // frontend can display them in an embedded PDF viewer.
-              const pdfUrl = await bundleAndUploadPages(
-                downloadedPages,
-                input.projectId,
+            const expectedPages = /plat/i.test(doc.ref.documentType) ? 3 : 2;
+            try {
+              const downloadedPages = await fetchDocumentImages(
                 doc.ref.instrumentNumber,
-                doc.ref.documentType,
+                expectedPages,
+                logger,
               );
-              if (pdfUrl) {
-                doc.pagesPdfUrl = pdfUrl;
-                logger.info('Stage2.5', `  PDF uploaded: ${pdfUrl}`);
+              if (downloadedPages.length > 0) {
+                doc.pages = downloadedPages;
+                imagesDownloaded += downloadedPages.length;
+                logger.info('Stage2.5', `  ${doc.ref.documentType} ${doc.ref.instrumentNumber}: ${downloadedPages.length} pages`);
+
+                const pdfUrl = await bundleAndUploadPages(
+                  downloadedPages,
+                  input.projectId,
+                  doc.ref.instrumentNumber,
+                  doc.ref.documentType,
+                );
+                if (pdfUrl) {
+                  doc.pagesPdfUrl = pdfUrl;
+                  logger.info('Stage2.5', `  PDF uploaded: ${pdfUrl}`);
+                }
               }
+            } catch (imgErr) {
+              logger.warn('Stage2.5', `Image download failed for ${doc.ref.instrumentNumber}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
             }
-          } catch (imgErr) {
-            logger.warn('Stage2.5', `Image download failed for ${doc.ref.instrumentNumber}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+          }
+
+          if (imagesDownloaded > 0) {
+            logger.info('Stage2.5', `Image download complete: ${imagesDownloaded} total pages`);
+          } else {
+            logger.info('Stage2.5', 'No images downloaded — AI will use text extraction only');
           }
         }
 
-        if (imagesDownloaded > 0) {
-          logger.info('Stage2.5', `Image download complete: ${imagesDownloaded} total pages`);
-        } else {
-          logger.info('Stage2.5', 'No images downloaded — AI will use text extraction only');
-        }
+        documents = [...documents, ...ownerDocs];
+      } else {
+        logger.warn('Stage2', 'No owner name available — skipping owner-name clerk search');
       }
-    } else {
-      logger.warn('Stage2', 'No owner name available — skipping clerk search');
     }
 
     // Add user-uploaded documents
