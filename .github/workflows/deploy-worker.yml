@@ -1,0 +1,140 @@
+# .github/workflows/deploy-worker.yml
+# STARR RECON — Auto-deploy worker to DigitalOcean droplet
+#
+# Triggers: push to main (after CI passes)
+# Only deploys when worker/ files have changed.
+#
+# ── Required GitHub Secrets ─────────────────────────────────────────────────
+#
+#   DROPLET_SSH_KEY        — Private SSH key for the droplet (ed25519 or RSA)
+#   DROPLET_HOST           — Droplet IP address or hostname
+#   DROPLET_USER           — SSH user (default: root)
+#   DROPLET_WORKER_PATH    — Absolute path to worker on droplet (default: /root/starr-worker)
+#
+# ── Setup (one-time on the droplet) ────────────────────────────────────────
+#
+#   1. Generate a deploy key:
+#        ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/github_deploy -N ""
+#
+#   2. Add the PUBLIC key to the droplet's authorized_keys:
+#        cat ~/.ssh/github_deploy.pub >> ~/.ssh/authorized_keys
+#
+#   3. Add the PRIVATE key as a GitHub secret (DROPLET_SSH_KEY):
+#        cat ~/.ssh/github_deploy
+#        → Copy full output into GitHub → Settings → Secrets → DROPLET_SSH_KEY
+#
+#   4. Add the other secrets:
+#        DROPLET_HOST = your.droplet.ip.address
+#        DROPLET_USER = root
+#        DROPLET_WORKER_PATH = /root/starr-worker
+#
+#   5. Ensure the droplet has git, node 22+, npm, and pm2 installed:
+#        npm install -g pm2
+#
+#   6. Clone the repo on the droplet (first time only):
+#        cd /root && git clone https://github.com/juggernautjake/STARR-SURVEYING.git starr-worker
+#        cd starr-worker/worker && npm install && npm run build
+#        pm2 start dist/index.js --name starr-worker
+#        pm2 save
+#
+
+name: Deploy Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - '.github/workflows/deploy-worker.yml'
+
+  # Allow manual trigger from Actions tab
+  workflow_dispatch:
+
+# Only one deploy at a time
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+jobs:
+  # Gate: run worker tests before deploying
+  worker-test:
+    name: Worker Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: worker
+
+      - name: Build TypeScript
+        run: npm run build
+        working-directory: worker
+
+      - name: Run tests
+        run: npm test
+        working-directory: worker
+
+  deploy:
+    name: Deploy to Droplet
+    needs: worker-test
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER || 'root' }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            WORKER_PATH="${{ secrets.DROPLET_WORKER_PATH || '/root/starr-worker' }}"
+            cd "$WORKER_PATH"
+
+            echo "==> Pulling latest from main..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> Installing dependencies..."
+            cd worker
+            npm ci --production=false
+
+            echo "==> Building TypeScript..."
+            npm run build
+
+            echo "==> Restarting PM2 process..."
+            pm2 restart starr-worker --update-env || pm2 start dist/index.js --name starr-worker
+
+            echo "==> Waiting for health check..."
+            sleep 3
+
+            # Health check — verify the Express server is responding
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3100/health 2>/dev/null || echo "000")
+
+            if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "401" ]; then
+              echo "==> Deploy successful! Worker is healthy (HTTP $HTTP_STATUS)"
+            else
+              echo "==> WARNING: Health check returned HTTP $HTTP_STATUS"
+              echo "==> PM2 logs (last 20 lines):"
+              pm2 logs starr-worker --nostream --lines 20 || true
+              exit 1
+            fi
+
+            pm2 save
+            echo "==> Done. Deploy complete at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Deploy failed — notify
+        if: failure()
+        run: |
+          echo "::error::Worker deploy to droplet failed. Check the SSH step logs above."
+          echo "The previous version is still running on the droplet."
