@@ -16,9 +16,11 @@
 import {
   parseAddress,
   generateAddressVariants,
+  generateAiAddressVariants,
   geocodeAddress,
   lookupCountyFIPS,
 } from './address-normalizer.js';
+import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 import { getCADConfig, buildDetailUrl } from './cad-registry.js';
 import type { CADConfig } from './cad-registry.js';
 import { BISAdapter }            from '../adapters/bis-adapter.js';
@@ -149,6 +151,53 @@ export class PropertyDiscoveryEngine {
           { searchString: parsed.streetNumber, strategy: 'number_only', priority: 99 },
         ]);
         searchResults = broadResults;
+      }
+
+      // AI-generated variant fallback (Layer D) — only when all deterministic variants fail
+      if (searchResults.length === 0 && process.env.ANTHROPIC_API_KEY) {
+        const aiTracker = getGlobalAiTracker();
+        const { allowed, reason } = aiTracker.canMakeCall();
+
+        if (allowed) {
+          console.log('[Discovery] All variants exhausted — trying AI-generated variants...');
+          const t4 = Date.now();
+
+          const aiVariants = await generateAiAddressVariants(
+            address,
+            variants,
+            process.env.ANTHROPIC_API_KEY,
+          );
+
+          if (aiVariants.length > 0) {
+            searchResults = await this.adapter.searchByAddress(aiVariants);
+          }
+
+          const aiDuration = Date.now() - t4;
+          this.timing.ai_variant_search = aiDuration;
+
+          aiTracker.record({
+            service: 'variant-generation',
+            address,
+            success: searchResults.length > 0,
+            inputTokens: 500,
+            outputTokens: 300,
+          });
+
+          this.sources.push({
+            name:       'AI Address Variant Generation',
+            url:        'api.anthropic.com',
+            method:     'claude-sonnet',
+            success:    searchResults.length > 0,
+            durationMs: aiDuration,
+          });
+
+          if (searchResults.length > 0) {
+            this.warnings.push('Property found via AI-generated address variant — lower reliability');
+          }
+        } else {
+          console.log(`[Discovery] AI fallback skipped — circuit breaker: ${reason}`);
+          this.warnings.push(`AI variant fallback skipped: ${reason}`);
+        }
       }
 
       if (searchResults.length === 0) {
