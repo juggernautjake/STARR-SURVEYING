@@ -11,6 +11,7 @@ import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './
 import { runPipeline } from './services/pipeline.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
+import { syncHarvestToSupabase } from './services/harvest-supabase-sync.js';
 import { SubdivisionIntelligenceEngine } from './services/subdivision-intelligence.js';
 import { runAdjacentResearch, type FullCrossValidationReport } from './services/adjacent-research-orchestrator.js';
 import { runROWIntegration, type ROWReport } from './services/row-integration-engine.js';
@@ -535,7 +536,26 @@ app.post('/research/harvest', requireAuth, async (req: Request, res: Response) =
       `${result.documentIndex.totalPagesDownloaded} pages`,
     );
 
-    // TODO: Update Supabase with harvest results for the frontend dashboard
+    // Sync harvest results to Supabase: insert research_documents rows and
+    // upload any downloaded images to Supabase Storage.
+    try {
+      const syncResult = await syncHarvestToSupabase(input.projectId, result);
+      if (syncResult.errors.length > 0) {
+        console.warn(
+          `[Harvest] Supabase sync completed with ${syncResult.errors.length} warning(s) ` +
+          `for ${input.projectId}:`,
+          syncResult.errors.slice(0, 5),
+        );
+      }
+      console.log(
+        `[Harvest] Supabase sync: ${syncResult.documentsInserted} docs inserted, ` +
+        `${syncResult.imagesUploaded} images uploaded for project ${input.projectId}`,
+      );
+    } catch (syncErr) {
+      // Never let a sync failure crash the harvest — the filesystem result is
+      // still written above and the frontend can poll for it.
+      console.error(`[Harvest] Supabase sync failed for ${input.projectId}:`, syncErr);
+    }
   } catch (error) {
     console.error(`[Harvest] Failed for ${input.projectId}:`, error);
   }
