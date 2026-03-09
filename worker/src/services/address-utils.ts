@@ -347,8 +347,9 @@ function generateTexasRoadVariants(num: string, tx: TxRoadDetection, parsedDir: 
     if (dir) add(dir + ' HWY ' + route, 'dir+hwy_fallback');
   }
 
-  // TIER 8: Route number only (desperation)
-  add(route, 'route_number_only', true);
+  // TIER 8: Route number only — marked non-partial because some BIS CADs (e.g., Bell CAD) index
+  // FM/RM roads without the road-type prefix; the route number alone is specific enough.
+  add(route, 'route_number_only', false);
 
   return variants;
 }
