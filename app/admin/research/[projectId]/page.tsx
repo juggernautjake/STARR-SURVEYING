@@ -1493,6 +1493,7 @@ export default function ResearchProjectPage() {
             projectId={projectId}
             defaultAddress={project.property_address || ''}
             defaultCounty={project.county || ''}
+            defaultParcelId={project.parcel_id || ''}
             onImported={() => { loadDocuments(); loadProject(); }}
           />
         </>

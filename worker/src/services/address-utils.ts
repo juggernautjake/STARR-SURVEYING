@@ -557,11 +557,41 @@ async function tryCensus(address: string, logger: PipelineLogger): Promise<GeoRe
     if (!matches?.length) { tracker({ status: 'fail', error: 'No matches' }); return null; }
 
     const match = matches[0];
-    const matchedAddr = match.matchedAddress || '';
+    const matchedAddr = (match.matchedAddress || '').trim();
     const components = match.addressComponents || {};
     const coords = match.coordinates || {};
 
     const parsed = parseCensusComponents(components);
+
+    // PATCH 1: Census 'fromAddress' gives the street segment start (e.g., 3701),
+    // not the exact house number from the input (e.g., 3779). Extract the actual
+    // street number from the matchedAddress string instead.
+    const matchedNumMatch = matchedAddr.match(/^(\d+)/);
+    if (matchedNumMatch) {
+      parsed.streetNumber = matchedNumMatch[1];
+    }
+
+    // PATCH 2: Census components sometimes omit TX road qualifier (FM/RM/etc.)
+    // from 'preQualifier', leaving streetName as a bare number (e.g., "436" or
+    // "W 436"). When the parsed street name is not a recognised TX designated
+    // road, re-extract the full road designation from the matchedAddress string.
+    if (!detectTexasRoad(parsed.streetName)) {
+      const txRoadMatch = matchedAddr.match(
+        /^\d+\s+(?:[NSEW]\s+)?(FM|RM|RR|SH|US|IH|CR|PR|SPUR|LOOP|HWY|BUS)\s+(\d+)/i,
+      );
+      if (txRoadMatch) {
+        const prefix = txRoadMatch[1].toUpperCase();
+        const canonical = TX_PREFIX_LOOKUP.get(prefix) ?? prefix;
+        parsed.streetName = canonical + ' ' + txRoadMatch[2];
+        // Also capture the directional that precedes the road prefix, if present.
+        if (!parsed.preDirection) {
+          const dirMatch = matchedAddr.match(
+            /^\d+\s+([NSEW])\s+(?:FM|RM|RR|SH|US|IH|CR|PR|SPUR|LOOP|HWY|BUS)/i,
+          );
+          if (dirMatch) parsed.preDirection = dirMatch[1].toUpperCase();
+        }
+      }
+    }
 
     if (!parsed.streetNumber) { tracker({ status: 'fail', error: 'No street number' }); return null; }
 

@@ -60,6 +60,7 @@ interface PropertySearchPanelProps {
   projectId: string;
   defaultAddress?: string;
   defaultCounty?: string;
+  defaultParcelId?: string;
   onImported?: () => void;
 }
 
@@ -81,11 +82,12 @@ export default function PropertySearchPanel({
   projectId,
   defaultAddress,
   defaultCounty,
+  defaultParcelId,
   onImported,
 }: PropertySearchPanelProps) {
   const [address, setAddress] = useState(defaultAddress || '');
   const [county, setCounty] = useState(defaultCounty || '');
-  const [parcelId, setParcelId] = useState('');
+  const [parcelId, setParcelId] = useState(defaultParcelId || '');
   const [ownerName, setOwnerName] = useState('');
 
   const [searching, setSearching] = useState(false);
@@ -96,10 +98,9 @@ export default function PropertySearchPanel({
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ count: number; mapNote?: string } | null>(null);
 
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [showAddressIssues, setShowAddressIssues] = useState(true);
 
-  // Lite pipeline (one-click research — no external worker required)
+  // Lite pipeline state
   const [liteRunning, setLiteRunning] = useState(false);
   const [liteStage, setLiteStage] = useState<string | null>(null);
   const [liteError, setLiteError] = useState('');
@@ -117,6 +118,14 @@ export default function PropertySearchPanel({
     flood_zone?: string;
   } | null>(null);
   const liteRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Deep research pipeline state
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [pipelineStatus, setPipelineStatus] = useState<string | null>(null);
+  const [pipelineResult, setPipelineResult] = useState<PipelineStatusResponse | null>(null);
+  const [pipelineError, setPipelineError] = useState('');
+  const [showPipelineLog, setShowPipelineLog] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopLitePolling = useCallback(() => {
     if (liteRef.current) { clearInterval(liteRef.current); liteRef.current = null; }
@@ -143,16 +152,9 @@ export default function PropertySearchPanel({
     } catch { /* keep polling */ }
   }, [projectId, stopLitePolling, onImported]);
 
-  async function handleOneClickResearch() {
-    if (liteRunning) return;
-    if (!address.trim() && !county.trim()) {
-      setLiteError('Enter a property address to start one-click research.');
-      return;
-    }
+  async function startLitePipeline() {
     setLiteRunning(true);
-    setLiteError('');
     setLiteStage('Starting…');
-    setLiteSummary(null);
     try {
       const res = await fetch(`/api/admin/research/${projectId}/lite-pipeline`, {
         method: 'POST',
@@ -166,65 +168,102 @@ export default function PropertySearchPanel({
       });
       if (!res.ok) {
         const err = await res.json() as { error?: string };
-        setLiteError(err.error || 'Failed to start research');
+        setLiteError(err.error || 'Research failed');
         setLiteRunning(false);
         return;
       }
       stopLitePolling();
       liteRef.current = setInterval(pollLiteStatus, 4_000);
     } catch {
-      setLiteError('Network error starting one-click research.');
+      setLiteError('Network error starting research.');
       setLiteRunning(false);
     }
   }
 
-  // Deep research pipeline state
-  const [pipelineRunning, setPipelineRunning] = useState(false);
-  const [pipelineStatus, setPipelineStatus] = useState<string | null>(null);
-  const [pipelineResult, setPipelineResult] = useState<PipelineStatusResponse | null>(null);
-  const [pipelineError, setPipelineError] = useState('');
-  const [showPipelineLog, setShowPipelineLog] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  async function handleSearch() {
-    if (searching) return;
+  // Unified handler: runs public records search and deep/lite pipeline simultaneously.
+  async function handleInitiateResearch() {
+    const anyRunning = liteRunning || searching || pipelineRunning;
+    if (anyRunning) return;
     if (!address.trim() && !county.trim() && !parcelId.trim()) {
-      setSearchError('Enter an address, county, or parcel ID to search.');
+      setSearchError('Enter a property address, county, or parcel ID to start research.');
       return;
     }
 
-    setSearching(true);
+    // Clear previous results
     setSearchError('');
+    setLiteError('');
+    setPipelineError('');
     setSearchResponse(null);
     setSelected(new Set());
     setImportResult(null);
     setShowAddressIssues(true);
+    setLiteSummary(null);
+    setPipelineResult(null);
+    setPipelineStatus(null);
 
+    // Phase 1: Public records search (discovers and displays website links)
+    setSearching(true);
+    fetch(`/api/admin/research/${projectId}/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        address: address.trim() || undefined,
+        county: county.trim() || undefined,
+        parcel_id: parcelId.trim() || undefined,
+        owner_name: ownerName.trim() || undefined,
+      }),
+    }).then(async res => {
+      if (res.ok) {
+        const data = await res.json() as PropertySearchResponse;
+        setSearchResponse(data);
+      } else {
+        const err = await res.json() as { error?: string };
+        setSearchError(err.error || 'Records search failed');
+      }
+      setSearching(false);
+    }).catch(() => {
+      setSearchError('Network error searching public records.');
+      setSearching(false);
+    });
+
+    // Phase 2: Try deep research pipeline (navigates CAD/deed sites, takes screenshots, extracts data).
+    // Falls back to lite pipeline automatically when no worker is configured.
     try {
-      const res = await fetch(`/api/admin/research/${projectId}/search`, {
+      const res = await fetch(`/api/admin/research/${projectId}/pipeline`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           address: address.trim() || undefined,
           county: county.trim() || undefined,
-          parcel_id: parcelId.trim() || undefined,
-          owner_name: ownerName.trim() || undefined,
+          propertyId: parcelId.trim() || undefined,
+          ownerName: ownerName.trim() || undefined,
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json() as PropertySearchResponse;
-        setSearchResponse(data);
+      if (res.status === 503) {
+        // Worker not configured — fall back to lite pipeline
+        await startLitePipeline();
+      } else if (res.ok) {
+        setPipelineRunning(true);
+        setPipelineStatus('running');
+        stopPolling();
+        pollRef.current = setInterval(pollPipelineStatus, 5_000);
       } else {
-        const err = await res.json();
-        setSearchError(err.error || 'Search failed');
+        const err = await res.json() as { error?: string };
+        // If county missing, show specific error; otherwise fall back to lite
+        if (res.status === 400 && err.error?.toLowerCase().includes('county')) {
+          setPipelineError(err.error || 'County is required for deep research.');
+        } else {
+          await startLitePipeline();
+        }
       }
     } catch {
-      setSearchError('Network error — please try again.');
+      // Network error — fall back to lite pipeline
+      await startLitePipeline();
     }
-
-    setSearching(false);
   }
+
+  // Deep research pipeline state - NOTE: declared in state section above, not duplicated here
 
   // ── Deep Research Pipeline ──────────────────────────────────────────
 
@@ -261,50 +300,6 @@ export default function PropertySearchPanel({
       // Network error — keep polling
     }
   }, [projectId, stopPolling, onImported]);
-
-  async function handleDeepResearch() {
-    if (pipelineRunning) return;
-    if (!county.trim()) {
-      setPipelineError('County is required for deep research.');
-      return;
-    }
-
-    setPipelineRunning(true);
-    setPipelineError('');
-    setPipelineStatus('starting');
-    setPipelineResult(null);
-
-    try {
-      const res = await fetch(`/api/admin/research/${projectId}/pipeline`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          address: address.trim() || undefined,
-          county: county.trim(),
-          propertyId: parcelId.trim() || undefined,
-          ownerName: ownerName.trim() || undefined,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        setPipelineError(err.error || 'Failed to start deep research');
-        setPipelineRunning(false);
-        setPipelineStatus(null);
-        return;
-      }
-
-      setPipelineStatus('running');
-
-      // Start polling every 5 seconds
-      stopPolling();
-      pollRef.current = setInterval(pollPipelineStatus, 5_000);
-    } catch {
-      setPipelineError('Network error starting deep research.');
-      setPipelineRunning(false);
-      setPipelineStatus(null);
-    }
-  }
 
   function toggleResult(id: string) {
     setSelected((prev: Set<string>) => {
@@ -394,12 +389,22 @@ export default function PropertySearchPanel({
   const hasAddressIssues = searchResponse?.address_issues && searchResponse.address_issues.length > 0;
   const specificCount = searchResponse?.results.filter((r: PropertySearchResult) => r.is_property_specific).length || 0;
 
+  function researchButtonLabel(): string {
+    if (pipelineRunning) {
+      const stage = pipelineResult?.currentStage;
+      return `⏳ Researching${stage ? ` — ${stage}` : '…'}`;
+    }
+    if (liteRunning) return `⏳ ${liteStage || 'Researching…'}`;
+    if (searching) return '⏳ Searching public records…';
+    return '🔍 Initiate Research & Analysis';
+  }
+
   return (
     <div className="research-search">
       <div className="research-search__header">
-        <h3 className="research-search__title">Property Record Search</h3>
+        <h3 className="research-search__title">Research & Analysis</h3>
         <p className="research-search__desc">
-          Search Texas public records for property documents. The AI will analyze your address, identify potential issues, and search all relevant sources — Bell County GIS, county CAD, deed records, Texas GLO abstracts, FEMA, and more.
+          Enter the property details below and click <strong>Initiate Research &amp; Analysis</strong>. The AI will search all public records, navigate county CAD and deed/records office websites, capture screenshots of relevant documents, extract all available property information — including bearings, coordinates, acreage, and legal descriptions — and log any discrepancies found.
         </p>
       </div>
 
@@ -416,7 +421,7 @@ export default function PropertySearchPanel({
             placeholder="e.g. 1234 Main St, Belton, TX 76513"
             value={address}
             onChange={e => setAddress(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            onKeyDown={e => e.key === 'Enter' && handleInitiateResearch()}
           />
         </div>
 
@@ -449,292 +454,270 @@ export default function PropertySearchPanel({
           </div>
         </div>
 
-        {/* Advanced fields */}
-        <button
-          className="research-search__advanced-toggle"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          type="button"
-        >
-          {showAdvanced ? '▾ Hide' : '▸ More'} search options
-        </button>
+        <div className="research-search__field">
+          <label className="research-search__label" htmlFor="ps-owner">
+            Owner Name
+          </label>
+          <input
+            id="ps-owner"
+            className="research-search__input"
+            type="text"
+            placeholder="e.g. John Smith"
+            value={ownerName}
+            onChange={e => setOwnerName(e.target.value)}
+          />
+        </div>
 
-        {showAdvanced && (
-          <div className="research-search__field">
-            <label className="research-search__label" htmlFor="ps-owner">
-              Owner Name
-            </label>
-            <input
-              id="ps-owner"
-              className="research-search__input"
-              type="text"
-              placeholder="e.g. John Smith"
-              value={ownerName}
-              onChange={e => setOwnerName(e.target.value)}
-            />
+        {(searchError || liteError || pipelineError) && (
+          <div className="research-search__error">
+            {searchError || liteError || pipelineError}
           </div>
         )}
 
-        {searchError && (
-          <div className="research-search__error">{searchError}</div>
+        {/* ── Single Research Button ── */}
+        <div className="research-search__actions">
+          <button
+            className="research-page__new-btn"
+            onClick={handleInitiateResearch}
+            disabled={liteRunning || searching || pipelineRunning}
+            style={{ width: '100%', padding: '0.65rem 1.5rem', fontSize: '1rem' }}
+          >
+            {researchButtonLabel()}
+          </button>
+        </div>
+
+        {/* ── Unified status banner (visible while any pipeline is running) ── */}
+        {(searching || liteRunning || pipelineRunning) && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem', padding: '0.6rem 0.85rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8 }}>
+            {searching && (
+              <div style={{ fontSize: '0.82rem', color: '#1D4ED8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', animation: 'pulse 1.5s infinite' }} />
+                Searching county CAD, deed records, FEMA, TNRIS and more…
+              </div>
+            )}
+            {liteRunning && liteStage && (
+              <div style={{ fontSize: '0.82rem', color: '#065F46', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#059669', animation: 'pulse 1.5s infinite' }} />
+                {liteStage}
+              </div>
+            )}
+            {pipelineRunning && (
+              <div style={{ fontSize: '0.82rem', color: '#5B21B6', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#7C3AED', animation: 'pulse 1.5s infinite' }} />
+                Navigating county CAD and deed records, extracting data…
+                {pipelineResult?.currentStage && ` (${pipelineResult.currentStage})`}
+              </div>
+            )}
+          </div>
         )}
 
-        {/* ── One-Click Research (Lite Pipeline) ── */}
-        <div style={{ marginBottom: '1rem', padding: '1rem', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#065F46', marginBottom: '0.2rem' }}>
-                🚀 One-Click Research
-              </div>
-              <div style={{ fontSize: '0.8rem', color: '#047857' }}>
-                Automatically searches all county records, FEMA, TxDOT, captures map images, and runs AI analysis — no external worker required.
-              </div>
-            </div>
-            <button
-              style={{
-                padding: '0.5rem 1.25rem', borderRadius: 6, border: 'none', cursor: liteRunning ? 'default' : 'pointer',
-                background: liteRunning ? '#6B7280' : '#059669', color: '#fff', fontWeight: 700, fontSize: '0.875rem',
-                whiteSpace: 'nowrap', flexShrink: 0,
-              }}
-              onClick={handleOneClickResearch}
-              disabled={liteRunning || searching || pipelineRunning}
-            >
-              {liteRunning ? '⏳ Running…' : '▶ Start Research'}
-            </button>
-          </div>
+        {/* ── Research pipeline results (deep or lite) ── */}
+        {(liteSummary || pipelineStatus) && (
+          <div style={{ marginTop: '0.75rem' }}>
 
-          {/* Lite pipeline status */}
-          {(liteRunning || liteStage || liteSummary || liteError) && (
-            <div style={{ marginTop: '0.75rem' }}>
-              {liteRunning && liteStage && (
-                <div style={{ fontSize: '0.82rem', color: '#065F46', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#059669', animation: 'pulse 1.5s infinite' }} />
-                  {liteStage}
-                </div>
-              )}
-              {liteError && (
-                <div style={{ fontSize: '0.82rem', color: '#DC2626', marginTop: '0.25rem' }}>⚠ {liteError}</div>
-              )}
-              {liteSummary && !liteRunning && (
-                <div style={{ marginTop: '0.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.5rem' }}>
+            {/* Lite pipeline summary */}
+            {liteSummary && !liteRunning && (
+              <>
+                <div style={{ marginBottom: '0.4rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.5rem' }}>
                   {liteSummary.links_found !== undefined && (
-                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
                       <strong>{liteSummary.links_found}</strong> record links found
                     </div>
                   )}
                   {liteSummary.documents_imported !== undefined && (
-                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
                       <strong>{liteSummary.documents_imported}</strong> documents imported
                     </div>
                   )}
                   {liteSummary.data_points_extracted !== undefined && (
-                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
                       <strong>{liteSummary.data_points_extracted}</strong> data points extracted
                     </div>
                   )}
                   {liteSummary.discrepancies_found !== undefined && liteSummary.discrepancies_found > 0 && (
                     <div style={{ background: '#FEF3C7', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #FDE68A', fontSize: '0.8rem' }}>
-                      <strong>{liteSummary.discrepancies_found}</strong> discrepancies found
+                      ⚠ <strong>{liteSummary.discrepancies_found}</strong> discrepancies found
                     </div>
                   )}
                   {liteSummary.confidence_score !== undefined && (
-                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
                       <strong>{liteSummary.confidence_score}%</strong> confidence
                     </div>
                   )}
                   {liteSummary.acreage && (
-                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
                       Area: <strong>{liteSummary.acreage}</strong>
                     </div>
                   )}
                   {liteSummary.flood_zone && (
-                    <div style={{ background: '#fff', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
                       Flood Zone: <strong>{liteSummary.flood_zone}</strong>
                     </div>
                   )}
                 </div>
-              )}
-              {liteSummary?.legal_description && !liteRunning && (
-                <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: '#fff', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
-                  <strong>Legal Description: </strong>
-                  {liteSummary.legal_description.length > 300
-                    ? liteSummary.legal_description.slice(0, 300) + '...'
-                    : liteSummary.legal_description}
-                </div>
-              )}
-              {!liteRunning && liteSummary && (
-                <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: '#065F46', fontWeight: 600 }}>
+                {liteSummary.owner_name && (
+                  <div style={{ padding: '0.4rem 0.6rem', background: '#F0FDF4', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem', marginBottom: '0.35rem' }}>
+                    <strong>Owner:</strong> {liteSummary.owner_name}
+                  </div>
+                )}
+                {liteSummary.legal_description && (
+                  <div style={{ padding: '0.5rem 0.75rem', background: '#F0FDF4', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem', marginBottom: '0.35rem' }}>
+                    <strong>Legal Description: </strong>
+                    {liteSummary.legal_description.length > 300
+                      ? liteSummary.legal_description.slice(0, 300) + '...'
+                      : liteSummary.legal_description}
+                  </div>
+                )}
+                <div style={{ fontSize: '0.78rem', color: '#065F46', fontWeight: 600 }}>
                   ✓ Research complete — review the Extracted Data and Survey Plan tabs above.
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="research-search__actions">
-          <button
-            className="research-page__new-btn"
-            onClick={handleSearch}
-            disabled={searching || pipelineRunning || liteRunning}
-          >
-            {searching ? 'Searching all sources...' : 'Search Public Records'}
-          </button>
-
-          <button
-            className="research-page__new-btn research-search__deep-btn"
-            onClick={handleDeepResearch}
-            disabled={pipelineRunning || searching || liteRunning}
-            title="Uses AI-powered browser automation to scrape county CAD and clerk records, capture document pages at high resolution, and extract boundary data. Requires WORKER_URL + WORKER_API_KEY environment variables."
-          >
-            {pipelineRunning ? 'Deep Research Running...' : 'Run Deep Research (Worker)'}
-          </button>
-        </div>
-
-        {/* Deep Research Pipeline Status */}
-        {pipelineStatus && (
-          <div className={`research-search__pipeline research-search__pipeline--${pipelineStatus}`}>
-            <div className="research-search__pipeline-header">
-              <span className="research-search__pipeline-icon">
-                {pipelineStatus === 'running' || pipelineStatus === 'starting' ? '...' : pipelineStatus === 'success' || pipelineStatus === 'partial' ? 'OK' : '!!'}
-              </span>
-              <span className="research-search__pipeline-title">
-                {pipelineStatus === 'starting' && 'Starting deep research pipeline...'}
-                {pipelineStatus === 'running' && `Deep research running${pipelineResult?.currentStage ? ` (${pipelineResult.currentStage})` : ''}...`}
-                {pipelineStatus === 'success' && 'Deep research complete'}
-                {pipelineStatus === 'partial' && 'Deep research completed with partial results'}
-                {pipelineStatus === 'failed' && 'Deep research failed'}
-              </span>
-            </div>
-
-            {/* Results summary */}
-            {pipelineResult?.result && (
-              <div className="research-search__pipeline-results">
-                {pipelineResult.result.propertyId && (
-                  <div className="research-search__pipeline-field">
-                    <strong>Property ID:</strong> {pipelineResult.result.propertyId}
-                  </div>
-                )}
-                {pipelineResult.result.ownerName && (
-                  <div className="research-search__pipeline-field">
-                    <strong>Owner:</strong> {pipelineResult.result.ownerName}
-                  </div>
-                )}
-                {pipelineResult.result.legalDescription && (
-                  <div className="research-search__pipeline-field">
-                    <strong>Legal Description:</strong>
-                    <span className="research-search__pipeline-legal">
-                      {pipelineResult.result.legalDescription.length > 200
-                        ? pipelineResult.result.legalDescription.substring(0, 200) + '...'
-                        : pipelineResult.result.legalDescription}
-                    </span>
-                  </div>
-                )}
-                {pipelineResult.result.acreage && (
-                  <div className="research-search__pipeline-field">
-                    <strong>Acreage:</strong> {pipelineResult.result.acreage}
-                  </div>
-                )}
-                {pipelineResult.result.documentCount !== undefined && pipelineResult.result.documentCount > 0 && (
-                  <div className="research-search__pipeline-field">
-                    <strong>Documents found:</strong> {pipelineResult.result.documentCount}
-                  </div>
-                )}
-                {pipelineResult.result.boundary && (
-                  <div className="research-search__pipeline-field">
-                    <strong>Boundary:</strong> {pipelineResult.result.boundary.type}
-                    {' '} ({pipelineResult.result.boundary.callCount} calls,{' '}
-                    confidence: {Math.round((pipelineResult.result.boundary.confidence ?? 0) * 100)}%
-                    {pipelineResult.result.boundary.verified ? ' - Verified' : ''})
-                  </div>
-                )}
-                {pipelineResult.result.duration_ms && (
-                  <div className="research-search__pipeline-field">
-                    <strong>Duration:</strong> {(pipelineResult.result.duration_ms / 1000).toFixed(1)}s
-                  </div>
-                )}
-              </div>
+              </>
             )}
 
-            {/* Document list */}
-            {pipelineResult?.documents && pipelineResult.documents.length > 0 && (
-              <div className="research-search__pipeline-docs">
-                <strong>Documents:</strong>
-                <div className="research-search__pipeline-doc-list">
-                  {pipelineResult.documents.map((doc: PipelineDocument, i: number) => (
-                    <div key={i} className="research-search__pipeline-doc">
-                      <span className="research-search__pipeline-doc-type">{doc.ref?.documentType || 'Document'}</span>
-                      {doc.hasText && <span className="research-search__pipeline-doc-tag">Text</span>}
-                      {doc.hasImage && <span className="research-search__pipeline-doc-tag">Image</span>}
-                      {doc.hasOcr && <span className="research-search__pipeline-doc-tag">OCR</span>}
-                      {doc.extractedData && (
-                        <span className="research-search__pipeline-doc-tag research-search__pipeline-doc-tag--extracted">
-                          {doc.extractedData.type} ({Math.round((doc.extractedData.confidence ?? 0) * 100)}%)
-                        </span>
-                      )}
-                    </div>
-                  ))}
+            {/* Deep pipeline results */}
+            {pipelineStatus && (
+              <div className={`research-search__pipeline research-search__pipeline--${pipelineStatus}`}>
+                <div className="research-search__pipeline-header">
+                  <span className="research-search__pipeline-icon">
+                    {pipelineStatus === 'running' || pipelineStatus === 'starting' ? '...' : pipelineStatus === 'success' || pipelineStatus === 'partial' ? 'OK' : '!!'}
+                  </span>
+                  <span className="research-search__pipeline-title">
+                    {pipelineStatus === 'starting' && 'Starting research…'}
+                    {pipelineStatus === 'running' && `Research running${pipelineResult?.currentStage ? ` — ${pipelineResult.currentStage}` : ''}…`}
+                    {pipelineStatus === 'success' && 'Research complete'}
+                    {pipelineStatus === 'partial' && 'Research complete (partial results)'}
+                    {pipelineStatus === 'failed' && 'Research failed'}
+                  </span>
                 </div>
-              </div>
-            )}
 
-            {/* Pipeline Audit Log */}
-            {pipelineResult?.log && pipelineResult.log.length > 0 && (
-              <div className="research-search__pipeline-log-section">
-                <button
-                  className="research-search__advanced-toggle"
-                  onClick={() => setShowPipelineLog(!showPipelineLog)}
-                  type="button"
-                >
-                  {showPipelineLog ? '-- Hide' : '++ Show'} Pipeline Log ({pipelineResult.log.length} entries)
-                </button>
+                {/* Results summary */}
+                {pipelineResult?.result && (
+                  <div className="research-search__pipeline-results">
+                    {pipelineResult.result.propertyId && (
+                      <div className="research-search__pipeline-field">
+                        <strong>Property ID:</strong> {pipelineResult.result.propertyId}
+                      </div>
+                    )}
+                    {pipelineResult.result.ownerName && (
+                      <div className="research-search__pipeline-field">
+                        <strong>Owner:</strong> {pipelineResult.result.ownerName}
+                      </div>
+                    )}
+                    {pipelineResult.result.legalDescription && (
+                      <div className="research-search__pipeline-field">
+                        <strong>Legal Description:</strong>
+                        <span className="research-search__pipeline-legal">
+                          {pipelineResult.result.legalDescription.length > 200
+                            ? pipelineResult.result.legalDescription.substring(0, 200) + '...'
+                            : pipelineResult.result.legalDescription}
+                        </span>
+                      </div>
+                    )}
+                    {pipelineResult.result.acreage && (
+                      <div className="research-search__pipeline-field">
+                        <strong>Acreage:</strong> {pipelineResult.result.acreage}
+                      </div>
+                    )}
+                    {pipelineResult.result.documentCount !== undefined && pipelineResult.result.documentCount > 0 && (
+                      <div className="research-search__pipeline-field">
+                        <strong>Documents found:</strong> {pipelineResult.result.documentCount}
+                      </div>
+                    )}
+                    {pipelineResult.result.boundary && (
+                      <div className="research-search__pipeline-field">
+                        <strong>Boundary:</strong> {pipelineResult.result.boundary.type}
+                        {' '}({pipelineResult.result.boundary.callCount} calls,{' '}
+                        confidence: {Math.round((pipelineResult.result.boundary.confidence ?? 0) * 100)}%
+                        {pipelineResult.result.boundary.verified ? ' — Verified ✓' : ''})
+                      </div>
+                    )}
+                    {pipelineResult.result.duration_ms && (
+                      <div className="research-search__pipeline-field">
+                        <strong>Duration:</strong> {(pipelineResult.result.duration_ms / 1000).toFixed(1)}s
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                {showPipelineLog && (
-                  <div className="research-search__pipeline-log">
-                    {pipelineResult.log.map((entry: PipelineLogEntry, i: number) => (
-                      <div
-                        key={i}
-                        className={`research-search__pipeline-log-entry research-search__pipeline-log-entry--${entry.status}`}
-                      >
-                        <div className="research-search__pipeline-log-header">
-                          <span className="research-search__pipeline-log-badge">{entry.layer}</span>
-                          <span className="research-search__pipeline-log-source">{entry.source}</span>
-                          <span className="research-search__pipeline-log-method">{entry.method}</span>
-                          <span className={`research-search__pipeline-log-status research-search__pipeline-log-status--${entry.status}`}>
-                            {entry.status}
-                          </span>
-                          {entry.duration_ms > 0 && (
-                            <span className="research-search__pipeline-log-duration">{(entry.duration_ms / 1000).toFixed(1)}s</span>
+                {/* Document list */}
+                {pipelineResult?.documents && pipelineResult.documents.length > 0 && (
+                  <div className="research-search__pipeline-docs">
+                    <strong>Documents captured:</strong>
+                    <div className="research-search__pipeline-doc-list">
+                      {pipelineResult.documents.map((doc: PipelineDocument, i: number) => (
+                        <div key={i} className="research-search__pipeline-doc">
+                          <span className="research-search__pipeline-doc-type">{doc.ref?.documentType || 'Document'}</span>
+                          {doc.hasText && <span className="research-search__pipeline-doc-tag">Text</span>}
+                          {doc.hasImage && <span className="research-search__pipeline-doc-tag">Image</span>}
+                          {doc.hasOcr && <span className="research-search__pipeline-doc-tag">OCR</span>}
+                          {doc.extractedData && (
+                            <span className="research-search__pipeline-doc-tag research-search__pipeline-doc-tag--extracted">
+                              {doc.extractedData.type} ({Math.round((doc.extractedData.confidence ?? 0) * 100)}%)
+                            </span>
                           )}
                         </div>
-                        {entry.input && (
-                          <div className="research-search__pipeline-log-input">Input: {entry.input}</div>
-                        )}
-                        {entry.details && (
-                          <div className="research-search__pipeline-log-details">{entry.details}</div>
-                        )}
-                        {entry.error && (
-                          <div className="research-search__pipeline-log-error">Error: {entry.error}</div>
-                        )}
-                        {entry.dataPointsFound > 0 && (
-                          <div className="research-search__pipeline-log-data">Data points: {entry.dataPointsFound}</div>
-                        )}
-                        {entry.steps && entry.steps.length > 0 && (
-                          <div className="research-search__pipeline-log-steps">
-                            {entry.steps.map((step: string, j: number) => (
-                              <div key={j} className="research-search__pipeline-log-step">{step}</div>
-                            ))}
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pipeline Audit Log */}
+                {pipelineResult?.log && pipelineResult.log.length > 0 && (
+                  <div className="research-search__pipeline-log-section">
+                    <button
+                      className="research-search__advanced-toggle"
+                      onClick={() => setShowPipelineLog(!showPipelineLog)}
+                      type="button"
+                    >
+                      {showPipelineLog ? '-- Hide' : '++ Show'} Pipeline Log ({pipelineResult.log.length} entries)
+                    </button>
+
+                    {showPipelineLog && (
+                      <div className="research-search__pipeline-log">
+                        {pipelineResult.log.map((entry: PipelineLogEntry, i: number) => (
+                          <div
+                            key={i}
+                            className={`research-search__pipeline-log-entry research-search__pipeline-log-entry--${entry.status}`}
+                          >
+                            <div className="research-search__pipeline-log-header">
+                              <span className="research-search__pipeline-log-badge">{entry.layer}</span>
+                              <span className="research-search__pipeline-log-source">{entry.source}</span>
+                              <span className="research-search__pipeline-log-method">{entry.method}</span>
+                              <span className={`research-search__pipeline-log-status research-search__pipeline-log-status--${entry.status}`}>
+                                {entry.status}
+                              </span>
+                              {entry.duration_ms > 0 && (
+                                <span className="research-search__pipeline-log-duration">{(entry.duration_ms / 1000).toFixed(1)}s</span>
+                              )}
+                            </div>
+                            {entry.input && (
+                              <div className="research-search__pipeline-log-input">Input: {entry.input}</div>
+                            )}
+                            {entry.details && (
+                              <div className="research-search__pipeline-log-details">{entry.details}</div>
+                            )}
+                            {entry.error && (
+                              <div className="research-search__pipeline-log-error">Error: {entry.error}</div>
+                            )}
+                            {entry.dataPointsFound > 0 && (
+                              <div className="research-search__pipeline-log-data">Data points: {entry.dataPointsFound}</div>
+                            )}
+                            {entry.steps && entry.steps.length > 0 && (
+                              <div className="research-search__pipeline-log-steps">
+                                {entry.steps.map((step: string, j: number) => (
+                                  <div key={j} className="research-search__pipeline-log-step">{step}</div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
             )}
           </div>
-        )}
-
-        {pipelineError && (
-          <div className="research-search__error">{pipelineError}</div>
         )}
       </div>
 

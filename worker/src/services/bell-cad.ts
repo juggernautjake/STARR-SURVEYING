@@ -333,12 +333,19 @@ async function searchCadHttp(
     });
 
     try {
-      const keywords = `StreetNumber:${encodeURIComponent(variant.streetNumber)} StreetName:${encodeURIComponent(variant.streetName)}`;
-      const url = `${baseUrl}/search/SearchResults?keywords=${keywords}`;
-      tracker.step(`POST ${url}`);
+      // Send keywords as form-encoded body (fixes HTTP 415 Unsupported Media Type).
+      // The BIS eSearch ASP.NET endpoint requires application/x-www-form-urlencoded;
+      // sending no Content-Type with an empty body causes the server to reject the
+      // request entirely.  We also try separate StreetNumber/StreetName fields first
+      // (matching what the HTML form submits) and fall back to the legacy
+      // "keywords=StreetNumber:N StreetName:S" format if needed.
+      const url = `${baseUrl}/search/SearchResults`;
+      const formBody = `StreetNumber=${encodeURIComponent(variant.streetNumber)}&StreetName=${encodeURIComponent(variant.streetName)}`;
+      tracker.step(`POST ${url} [fields: StreetNumber=${variant.streetNumber}, StreetName=${variant.streetName}]`);
 
       const headers: Record<string, string> = {
         'Accept': 'application/json, text/plain, */*',
+        'Content-Type': 'application/x-www-form-urlencoded',
         'X-Requested-With': 'XMLHttpRequest',
         'Referer': `${baseUrl}/`,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -350,6 +357,7 @@ async function searchCadHttp(
       const response = await fetch(url, {
         method: 'POST',
         headers,
+        body: formBody,
         signal: AbortSignal.timeout(10_000),
       });
 
@@ -741,7 +749,7 @@ async function extractFromScreenshot(
     const client = new Anthropic({ apiKey: anthropicApiKey });
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929',
       max_tokens: 8192,
       temperature: 0,
       messages: [
@@ -793,7 +801,12 @@ Return ONLY valid JSON array, no markdown. If NO results visible, return [].`,
     finish({ status: parsed.length > 0 ? 'success' : 'fail', dataPointsFound: parsed.length });
     return parsed;
   } catch (err) {
-    finish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+    // Capture full error detail including any HTTP status from Anthropic API errors
+    const status = (err != null && typeof err === 'object') ? (err as Record<string, unknown>)['status'] : undefined;
+    const detail = err instanceof Error
+      ? (status != null ? `HTTP ${status}: ${err.message}` : err.message)
+      : String(err);
+    finish({ status: 'fail', error: detail });
     return [];
   }
 }
