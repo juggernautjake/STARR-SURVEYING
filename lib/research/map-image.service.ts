@@ -5,6 +5,10 @@
 // Images are stored in Supabase Storage as project documents so the AI
 // analysis phase can apply Claude Vision to extract visible boundary features.
 //
+// When multiple geocoding candidates are returned (common for ambiguous rural
+// addresses), satellite images are captured for each candidate so the AI or
+// user can identify the correct location.
+//
 // USGS National Map ArcGIS services used:
 //   Satellite: basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/export
 //   Topo:      basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/export
@@ -33,6 +37,12 @@ const PARCEL_RADIUS_DEG = 0.004;
 // Approximate meters per degree of latitude (equatorial value; acceptable for Texas)
 const METERS_PER_DEGREE = 111_000;
 
+// Max geocoding candidates to capture satellite images for
+const MAX_CANDIDATES = 3;
+
+// Minimum distance (in degrees, ~1.1km) between candidates to be considered distinct
+const MIN_CANDIDATE_DISTANCE_DEG = 0.01;
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface GeoPoint {
@@ -41,31 +51,54 @@ export interface GeoPoint {
   display_name: string;
 }
 
+export interface GeoCandidate extends GeoPoint {
+  /** Nominatim importance score (0–1, higher = more likely correct) */
+  importance: number;
+  /** OSM place type (e.g. "house", "road", "city") */
+  type: string;
+  /** Candidate index (1-based) */
+  candidateIndex: number;
+}
+
 export interface LocationImageResult {
   /** IDs of created research_documents rows (ready for analysis) */
   documentIds: string[];
-  /** Geocoded coordinates if resolution succeeded */
+  /** Best geocoded coordinates if resolution succeeded */
   geocoded: GeoPoint | null;
+  /** All geocoding candidates (multiple when location is ambiguous) */
+  candidates: GeoCandidate[];
   /** Public URL to the satellite image stored in Supabase (or null on failure) */
   satelliteDocumentId: string | null;
   /** Public URL to the topo map image stored in Supabase (or null on failure) */
   topoDocumentId: string | null;
   /** Static map preview URL safe to embed in the UI without storing */
   previewUrl: string | null;
+  /** Whether multiple candidate locations were captured */
+  multipleLocations: boolean;
 }
 
 // ── Geocoding ────────────────────────────────────────────────────────────────
 
+interface NominatimResult {
+  lat: string;
+  lon: string;
+  display_name: string;
+  importance: number;
+  type: string;
+  class: string;
+}
+
 /**
  * Geocode an address string to WGS-84 coordinates using Nominatim.
- * Returns null if the address cannot be resolved.
+ * Returns up to MAX_CANDIDATES results, filtered to only include
+ * geographically distinct locations.
  */
-export async function geocodeAddress(address: string): Promise<GeoPoint | null> {
+export async function geocodeAddressCandidates(address: string): Promise<GeoCandidate[]> {
   const query = address.includes(',') ? address : `${address}, Texas, USA`;
   const params = new URLSearchParams({
     q: query,
     format: 'json',
-    limit: '1',
+    limit: String(MAX_CANDIDATES + 2), // fetch extra to filter duplicates
     countrycodes: 'us',
     addressdetails: '0',
   });
@@ -79,19 +112,51 @@ export async function geocodeAddress(address: string): Promise<GeoPoint | null> 
       signal: AbortSignal.timeout(12_000),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) return [];
 
-    const data = await res.json() as Array<{ lat: string; lon: string; display_name: string }>;
-    if (!data || data.length === 0) return null;
+    const data = await res.json() as NominatimResult[];
+    if (!data || data.length === 0) return [];
 
-    return {
-      lat: parseFloat(data[0].lat),
-      lon: parseFloat(data[0].lon),
-      display_name: data[0].display_name,
-    };
+    // Filter to geographically distinct candidates
+    const candidates: GeoCandidate[] = [];
+    for (const item of data) {
+      const lat = parseFloat(item.lat);
+      const lon = parseFloat(item.lon);
+
+      // Skip if too close to an already-selected candidate
+      const tooClose = candidates.some(c =>
+        Math.abs(c.lat - lat) < MIN_CANDIDATE_DISTANCE_DEG &&
+        Math.abs(c.lon - lon) < MIN_CANDIDATE_DISTANCE_DEG
+      );
+      if (tooClose) continue;
+
+      candidates.push({
+        lat,
+        lon,
+        display_name: item.display_name,
+        importance: item.importance ?? 0,
+        type: item.type || item.class || 'unknown',
+        candidateIndex: candidates.length + 1,
+      });
+
+      if (candidates.length >= MAX_CANDIDATES) break;
+    }
+
+    return candidates;
   } catch {
-    return null;
+    return [];
   }
+}
+
+/**
+ * Geocode an address string to WGS-84 coordinates using Nominatim.
+ * Returns the single best match, or null if the address cannot be resolved.
+ * (Backward-compatible wrapper around geocodeAddressCandidates.)
+ */
+export async function geocodeAddress(address: string): Promise<GeoPoint | null> {
+  const candidates = await geocodeAddressCandidates(address);
+  if (candidates.length === 0) return null;
+  return { lat: candidates[0].lat, lon: candidates[0].lon, display_name: candidates[0].display_name };
 }
 
 // ── Static map URL builders ──────────────────────────────────────────────────
@@ -243,8 +308,13 @@ async function storeImageAsDocument(
  * Geocode an address, fetch USGS satellite + topo map images, and store them as
  * project documents in Supabase Storage.
  *
- * - Both images become `research_documents` rows ready for AI vision analysis.
- * - The satellite image uses NAIP 1-metre imagery (free, public USGS service).
+ * When geocoding returns multiple distinct candidates (common for ambiguous rural
+ * Texas addresses), satellite images are captured for EACH candidate location so
+ * the AI analysis or user can identify the correct property. The best candidate
+ * also gets a topo map image.
+ *
+ * - All images become `research_documents` rows ready for AI vision analysis.
+ * - The satellite images use NAIP 1-metre imagery (free, public USGS service).
  * - The topo image uses USGS 7.5-minute quads.
  * - Failures are non-fatal — partial results are returned.
  */
@@ -255,64 +325,101 @@ export async function captureLocationImages(
   const result: LocationImageResult = {
     documentIds: [],
     geocoded: null,
+    candidates: [],
     satelliteDocumentId: null,
     topoDocumentId: null,
     previewUrl: null,
+    multipleLocations: false,
   };
 
-  // Step 1 — Geocode
-  const geo = await geocodeAddress(address);
-  if (!geo) {
+  // Step 1 — Geocode with multiple candidates
+  const candidates = await geocodeAddressCandidates(address);
+  if (candidates.length === 0) {
     console.info('[MapImage] Geocoding failed for:', address);
     return result;
   }
 
-  result.geocoded = geo;
-  result.previewUrl = buildPreviewUrl(geo.lat, geo.lon);
+  result.candidates = candidates;
+  result.geocoded = { lat: candidates[0].lat, lon: candidates[0].lon, display_name: candidates[0].display_name };
+  result.previewUrl = buildPreviewUrl(candidates[0].lat, candidates[0].lon);
+  result.multipleLocations = candidates.length > 1;
 
-  // Step 2 — Fetch both images in parallel
-  const satUrl  = buildUSGSExportUrl(geo.lat, geo.lon, USGS_SATELLITE_SVC);
-  const topoUrl = buildUSGSExportUrl(geo.lat, geo.lon, USGS_TOPO_SVC);
+  if (candidates.length > 1) {
+    console.info(
+      `[MapImage] Found ${candidates.length} candidate locations for "${address}" — capturing satellite images for each`,
+    );
+  }
 
-  const [satBuffer, topoBuffer] = await Promise.all([
-    fetchMapImage(satUrl),
+  // Step 2 — Fetch satellite images for ALL candidates in parallel
+  const satFetches = candidates.map(c => ({
+    candidate: c,
+    url: buildUSGSExportUrl(c.lat, c.lon, USGS_SATELLITE_SVC),
+  }));
+  // Also fetch topo for the best candidate only
+  const topoUrl = buildUSGSExportUrl(candidates[0].lat, candidates[0].lon, USGS_TOPO_SVC);
+
+  const fetchPromises: Promise<Buffer | null>[] = [
+    ...satFetches.map(f => fetchMapImage(f.url)),
     fetchMapImage(topoUrl),
-  ]);
+  ];
+  const fetchResults = await Promise.all(fetchPromises);
 
-  // Step 3 — Store satellite image
-  if (satBuffer) {
+  const satBuffers = fetchResults.slice(0, candidates.length);
+  const topoBuffer = fetchResults[candidates.length];
+
+  // Step 3 — Store satellite images for each candidate
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
+    const buffer = satBuffers[i];
+    if (!buffer) continue;
+
+    const candidateLabel = candidates.length > 1
+      ? ` (Candidate ${candidate.candidateIndex} of ${candidates.length})`
+      : '';
+    const confidenceNote = candidates.length > 1
+      ? `\n\nIMPORTANT: This is candidate location ${candidate.candidateIndex} of ${candidates.length}.`
+        + ` Nominatim importance score: ${candidate.importance.toFixed(3)} (type: ${candidate.type}).`
+        + ` Compare all candidate satellite images to determine which shows the correct property.`
+        + (i === 0 ? ' This is the highest-confidence candidate.' : '')
+      : '';
+
     const satDesc = [
-      `USGS NAIP Satellite Imagery captured for property at: ${address}`,
-      `\nCoordinates: ${geo.lat.toFixed(6)}, ${geo.lon.toFixed(6)}`,
-      `\nDisplay name: ${geo.display_name}`,
+      `USGS NAIP Satellite Imagery captured for property at: ${address}${candidateLabel}`,
+      `\nCoordinates: ${candidate.lat.toFixed(6)}, ${candidate.lon.toFixed(6)}`,
+      `\nDisplay name: ${candidate.display_name}`,
       `\nImage covers approximately ±${Math.round(PARCEL_RADIUS_DEG * METERS_PER_DEGREE)}m around the geocoded point.`,
-      `\nSource URL: ${satUrl}`,
+      `\nSource URL: ${satFetches[i].url}`,
       `\nReview this image for: visible boundary features (fence lines, hedgerows, roads, driveways),`,
       ` structures (buildings, sheds, tanks, towers), natural features (creeks, ponds, vegetation),`,
       ` utility corridors (power lines, pipelines), and any other landmarks relevant to the survey.`,
+      confidenceNote,
     ].join('');
 
+    const label = `Satellite Imagery — ${address}${candidateLabel}`;
     const satDocId = await storeImageAsDocument(
       projectId,
-      satBuffer,
-      `Satellite Imagery — ${address}`,
+      buffer,
+      label,
       'aerial_photo',
-      satUrl,
+      satFetches[i].url,
       satDesc,
     );
 
     if (satDocId) {
-      result.satelliteDocumentId = satDocId;
       result.documentIds.push(satDocId);
+      // First candidate's satellite is the primary
+      if (i === 0) {
+        result.satelliteDocumentId = satDocId;
+      }
     }
   }
 
-  // Step 4 — Store topo map image
+  // Step 4 — Store topo map image (best candidate only)
   if (topoBuffer) {
     const topoDesc = [
       `USGS Topographic Map captured for property at: ${address}`,
-      `\nCoordinates: ${geo.lat.toFixed(6)}, ${geo.lon.toFixed(6)}`,
-      `\nDisplay name: ${geo.display_name}`,
+      `\nCoordinates: ${candidates[0].lat.toFixed(6)}, ${candidates[0].lon.toFixed(6)}`,
+      `\nDisplay name: ${candidates[0].display_name}`,
       `\nSource URL: ${topoUrl}`,
       `\nReview this image for: contour lines and elevation data, named roads and highways,`,
       ` named watercourses, section lines, township/range grid, benchmark locations,`,
@@ -332,6 +439,12 @@ export async function captureLocationImages(
       result.topoDocumentId = topoDocId;
       result.documentIds.push(topoDocId);
     }
+  }
+
+  if (result.multipleLocations) {
+    console.info(
+      `[MapImage] Stored ${result.documentIds.length} images for ${candidates.length} candidate locations`,
+    );
   }
 
   return result;

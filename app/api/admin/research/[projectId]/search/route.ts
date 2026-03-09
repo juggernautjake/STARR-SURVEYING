@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { searchPropertyRecords } from '@/lib/research/property-search.service';
-import { geocodeAddress, buildPreviewUrl, captureLocationImages } from '@/lib/research/map-image.service';
+import { geocodeAddress, buildPreviewUrl, captureLocationImages, type GeoCandidate } from '@/lib/research/map-image.service';
 import type { PropertySearchRequest } from '@/types/research';
 
 function extractProjectId(req: NextRequest): string | null {
@@ -160,9 +160,14 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     // Deliberately not awaited — runs in background and stores images as project documents
     captureLocationImages(projectId, addressToCapture).then(imageResult => {
       if (imageResult.documentIds.length > 0) {
+        const locInfo = imageResult.geocoded
+          ? `at ${imageResult.geocoded.lat.toFixed(4)}, ${imageResult.geocoded.lon.toFixed(4)}`
+          : '(geocoding failed)';
+        const multiInfo = imageResult.multipleLocations
+          ? ` (${imageResult.candidates.length} candidate locations — satellite images captured for each)`
+          : '';
         console.info(
-          `[Search Import] Stored ${imageResult.documentIds.length} map image(s) for project ${projectId}`,
-          imageResult.geocoded ? `at ${imageResult.geocoded.lat.toFixed(4)}, ${imageResult.geocoded.lon.toFixed(4)}` : '(geocoding failed)'
+          `[Search Import] Stored ${imageResult.documentIds.length} map image(s) for project ${projectId} ${locInfo}${multiInfo}`,
         );
       }
     }).catch(err => {
