@@ -396,9 +396,13 @@ export function generateAddressVariants(parsed: ParsedAddress): AddressVariant[]
     }
   }
 
-  // Street number only (broadest possible search — last resort)
+  // Street number only (broadest possible search — last resort, fixed priority 99)
   if (parsed.streetNumber) {
-    add(parsed.streetNumber, 'number_only');
+    const numKey = parsed.streetNumber.toLowerCase().trim();
+    if (!seen.has(numKey)) {
+      seen.add(numKey);
+      variants.push({ searchString: parsed.streetNumber, strategy: 'number_only', priority: 99 });
+    }
   }
 
   return variants.sort((a, b) => a.priority - b.priority);

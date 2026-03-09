@@ -655,10 +655,17 @@ async function searchCadPlaywright(
     // Navigate to the search page
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
-    // Click "By Address" tab
+    // Click "By Address" tab — BIS v2.0 uses Bootstrap tabs inside #home-page-tabs
     try {
       const tabSelectors = [
+        '#home-page-tabs a:has-text("Address")',
+        '#home-page-tabs li:has-text("Address") a',
+        'a[href*="address" i][data-bs-toggle="tab"]',
+        'a[href*="address" i][data-toggle="tab"]',
+        'a[data-bs-target*="address" i]',
+        'a[data-target*="address" i]',
         'text=By Address',
+        'a:has-text("By Address")',
         'a:has-text("Address")',
         '[data-tab="address"]',
         '.tab:has-text("Address")',
@@ -668,7 +675,7 @@ async function searchCadPlaywright(
       for (const sel of tabSelectors) {
         try {
           const tab = page.locator(sel).first();
-          if (await tab.isVisible({ timeout: 1_500 })) {
+          if (await tab.isVisible({ timeout: 2_000 })) {
             await tab.click();
             await page.waitForTimeout(800);
             break;
@@ -705,20 +712,23 @@ async function searchCadPlaywright(
 
     // Identify the input fields
     const numFieldSelectors = [
+      '#StreetNumber', '#txtStreetNumber',
       'input[name*="StreetNumber" i]', 'input[name*="streetnumber" i]',
       'input[id*="streetnum" i]', 'input[id*="StreetNumber" i]',
       'input[placeholder*="number" i]', 'input[placeholder*="Number" i]',
-      '#txtStreetNumber', '#StreetNumber',
     ];
     const nameFieldSelectors = [
+      '#StreetName', '#txtStreetName',
       'input[name*="StreetName" i]', 'input[name*="streetname" i]',
       'input[id*="streetname" i]', 'input[id*="StreetName" i]',
       'input[placeholder*="name" i]', 'input[placeholder*="Name" i]',
-      '#txtStreetName', '#StreetName',
     ];
+    // BIS v2.0 uses onclick="AdvancedSearch();" — include input[type="button"] and onclick selectors
     const searchBtnSelectors = [
+      'input[type="button"][value*="Search" i]',
       'button:has-text("Search")', 'input[type="submit"][value*="Search" i]',
       'button[type="submit"]', '.search-btn', '#btnSearch',
+      '[onclick*="AdvancedSearch"]', '[onclick*="Search()"]',
       'input[type="submit"]', 'a:has-text("Search")',
     ];
 
@@ -727,9 +737,11 @@ async function searchCadPlaywright(
       capturedResults = []; // Reset for each attempt
 
       try {
-        // Clear and fill fields
-        await page.evaluate(
+        // Clear and fill fields, returning which selectors matched
+        const fieldsFilled = await page.evaluate(
           ([num, name, numSels, nameSels]: [string, string, string[], string[]]) => {
+            let numFilled = false;
+            let nameFilled = false;
             for (const sel of numSels) {
               const el = document.querySelector(sel) as HTMLInputElement | null;
               if (el) {
@@ -737,6 +749,7 @@ async function searchCadPlaywright(
                 el.value = num;
                 el.dispatchEvent(new Event('input', { bubbles: true }));
                 el.dispatchEvent(new Event('change', { bubbles: true }));
+                numFilled = true;
                 break;
               }
             }
@@ -747,14 +760,28 @@ async function searchCadPlaywright(
                 el.value = name;
                 el.dispatchEvent(new Event('input', { bubbles: true }));
                 el.dispatchEvent(new Event('change', { bubbles: true }));
+                el.focus();
+                nameFilled = true;
                 break;
               }
             }
+            return { numFilled, nameFilled };
           },
           [variant.streetNumber, variant.streetName, numFieldSelectors, nameFieldSelectors] as [string, string, string[], string[]],
         );
 
-        // Click search
+        if (!fieldsFilled.numFilled && !fieldsFilled.nameFilled) {
+          // Neither field was found — page may not be showing the address tab yet; skip this variant
+          finish.step?.('[runtime] Address fields not found in DOM — skipping variant');
+          diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
+          continue;
+        }
+
+        if (!fieldsFilled.numFilled || !fieldsFilled.nameFilled) {
+          finish.step?.(`[runtime] Field fill partial: numFilled=${fieldsFilled.numFilled}, nameFilled=${fieldsFilled.nameFilled}`);
+        }
+
+        // Click search button
         let searchClicked = false;
         for (const sel of searchBtnSelectors) {
           try {
@@ -762,17 +789,38 @@ async function searchCadPlaywright(
             if (await btn.isVisible({ timeout: 1_500 })) {
               await btn.click();
               searchClicked = true;
+              finish.step?.(`[runtime] Search button clicked via selector: ${sel}`);
               break;
             }
           } catch { continue; }
         }
 
         if (!searchClicked) {
-          // Fall back to Enter key
-          finish.step?.(`[runtime] No search button found — pressing Enter`);
+          // Try calling AdvancedSearch() / Search() directly (BIS v2.0 onclick="AdvancedSearch();")
+          try {
+            const called = await page.evaluate(() => {
+              const w = window as unknown as Record<string, unknown>;
+              if (typeof w.AdvancedSearch === 'function') {
+                (w.AdvancedSearch as () => void)();
+                return 'AdvancedSearch';
+              }
+              if (typeof w.Search === 'function') {
+                (w.Search as () => void)();
+                return 'Search';
+              }
+              return null;
+            });
+            if (called) {
+              searchClicked = true;
+              finish.step?.(`[runtime] Called window.${called}() via JavaScript`);
+            }
+          } catch { /* ignore */ }
+        }
+
+        if (!searchClicked) {
+          // Last resort: name field was focused in evaluate above — press Enter
+          finish.step?.(`[runtime] No search button found — pressing Enter (name field filled: ${fieldsFilled.nameFilled})`);
           await page.keyboard.press('Enter');
-        } else {
-          finish.step?.(`[runtime] Search button clicked`);
         }
 
         // Wait for AJAX response with timeout — fixes race condition where
