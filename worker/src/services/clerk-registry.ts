@@ -78,10 +78,10 @@ const KOFILE_FIPS_SET = new Set<string>([
   '48105',  // Crockett
   '48451',  // Tom Green
 
-  // Coastal / SE Texas — Montgomery, Fort Bend verified on publicsearch.us 2026-03-09
+  // Coastal / SE Texas — Montgomery verified on publicsearch.us 2026-03-09
+  // Fort Bend, Brazoria, Galveston: DNS NXDOMAIN on publicsearch.us — NOT on this platform
   '48339',  // Montgomery
-  '48157',  // Fort Bend
-  '48039',  // Brazoria
+  '48039',  // Brazoria (note: NOT on publicsearch.us — uses TexasFile fallback)
   '48041',  // Brazos
   '48057',  // Calhoun
   '48469',  // Victoria

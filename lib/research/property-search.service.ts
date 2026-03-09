@@ -546,7 +546,7 @@ const PUBLICSEARCH_BY_COUNTY: Record<string, string> = {
   denton:     'denton.tx.publicsearch.us',
   bexar:      'bexar.tx.publicsearch.us',
   montgomery: 'montgomery.tx.publicsearch.us',
-  fort_bend:  'fortbend.tx.publicsearch.us',
+  // fort_bend: DNS NXDOMAIN — fortbend.tx.publicsearch.us does not exist (verified 2026-03-09)
   nueces:     'nueces.tx.publicsearch.us',
   potter:     'potter.tx.publicsearch.us',
 };
