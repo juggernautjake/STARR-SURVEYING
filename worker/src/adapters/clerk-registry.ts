@@ -185,14 +185,43 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
     notes: 'iDocket system. Adapter not yet built.',
   },
 
-  // ── Fort Bend County ──────────────────────────────────────────────────────
+  // ── Fort Bend County (custom ccweb portal) ────────────────────────────────
   {
     fips: '157',
     county: 'Fort Bend',
-    system: 'henschen',
+    system: 'fort_bend_custom',
     status: 'stub',
-    baseUrl: null,
-    notes: 'Henschen system. Adapter not yet built.',
+    baseUrl: 'http://ccweb.co.fort-bend.tx.us/',
+    notes:
+      'Fort Bend County uses a custom "ccweb" portal (NOT publicsearch.us, NOT Henschen). ' +
+      'Records from 1838 to present: deeds, plats, mortgages, easements, liens. ' +
+      'Verified 2026-03-09. Also has vital records at ccweb.co.fort-bend.tx.us/Birth/, /DEATH/, /Marriage/.',
+  },
+
+  // ── Galveston County (Fidlar AVA portal) ──────────────────────────────────
+  {
+    fips: '167',
+    county: 'Galveston',
+    system: 'fidlar',
+    status: 'stub',
+    baseUrl: 'https://ava.fidlar.com/TXGalveston/AvaWeb/',
+    notes:
+      'Galveston County uses Fidlar AVA portal for recorded documents. ' +
+      'Also searchable via TexasFile (1838–present). ' +
+      'Verified 2026-03-09. NOT on publicsearch.us.',
+  },
+
+  // ── Brazoria County (TexasFile) ───────────────────────────────────────────
+  {
+    fips: '039',
+    county: 'Brazoria',
+    system: 'texasfile',
+    status: 'stub',
+    baseUrl: 'https://www.texasfile.com/search/texas/brazoria-county/county-clerk-records/',
+    notes:
+      'Brazoria County records searchable via TexasFile (1829–present). ' +
+      'Supports name, instrument number, volume-page, and legal/property search. ' +
+      'Verified 2026-03-09. NOT on publicsearch.us.',
   },
 
   // ── Hidalgo County ────────────────────────────────────────────────────────

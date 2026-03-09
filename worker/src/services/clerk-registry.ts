@@ -79,9 +79,8 @@ const KOFILE_FIPS_SET = new Set<string>([
   '48451',  // Tom Green
 
   // Coastal / SE Texas — Montgomery verified on publicsearch.us 2026-03-09
-  // Fort Bend, Brazoria, Galveston: DNS NXDOMAIN on publicsearch.us — NOT on this platform
+  // Fort Bend (ccweb), Brazoria (TexasFile), Galveston (Fidlar): NOT on publicsearch.us
   '48339',  // Montgomery
-  '48039',  // Brazoria (note: NOT on publicsearch.us — uses TexasFile fallback)
   '48041',  // Brazos
   '48057',  // Calhoun
   '48469',  // Victoria

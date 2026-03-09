@@ -546,7 +546,9 @@ const PUBLICSEARCH_BY_COUNTY: Record<string, string> = {
   denton:     'denton.tx.publicsearch.us',
   bexar:      'bexar.tx.publicsearch.us',
   montgomery: 'montgomery.tx.publicsearch.us',
-  // fort_bend: DNS NXDOMAIN — fortbend.tx.publicsearch.us does not exist (verified 2026-03-09)
+  // fort_bend: ccweb.co.fort-bend.tx.us (custom portal, NOT publicsearch.us)
+  // galveston: ava.fidlar.com/TXGalveston/AvaWeb/ (Fidlar, NOT publicsearch.us)
+  // brazoria: texasfile.com/search/texas/brazoria-county/ (TexasFile, NOT publicsearch.us)
   nueces:     'nueces.tx.publicsearch.us',
   potter:     'potter.tx.publicsearch.us',
 };

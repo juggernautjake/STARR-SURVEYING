@@ -98,15 +98,8 @@ const COUNTYFUSION_CONFIGS: Record<string, CountyFusionConfig> = {
     grantorField: 'grantor',
     instrumentField: 'instrno',
   },
-  '48167': {  // Galveston County — publicsearch.us unreachable; keeping legacy URL
-    baseUrl: 'https://countyfusion3.kofiletech.com/countyweb/login.do?countyname=Galveston',
-    searchPath: '/countyweb/login.do',
-    superSearchPath: null,
-    countyDisplayName: 'Galveston County',
-    granteeField: 'grantee',
-    grantorField: 'grantor',
-    instrumentField: 'instrno',
-  },
+  // '48167': Galveston County — NOT on publicsearch.us or CountyFusion.
+  //   Uses Fidlar AVA portal: https://ava.fidlar.com/TXGalveston/AvaWeb/ (verified 2026-03-09)
   '48355': {  // Nueces County — now on publicsearch.us (verified 200 OK)
     baseUrl: 'https://nueces.tx.publicsearch.us',
     searchPath: '/results',
