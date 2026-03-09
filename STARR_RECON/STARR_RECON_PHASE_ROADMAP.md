@@ -19,7 +19,7 @@
 2. [Architecture Overview](#2-architecture-overview)
 3. [Tech Stack & Infrastructure](#3-tech-stack--infrastructure)
 4. [Repository Structure](#4-repository-structure)
-5. [The 14-Phase Pipeline — Status Dashboard](#5-the-14-phase-pipeline--status-dashboard)
+5. [The 16-Phase Pipeline — Status Dashboard](#5-the-16-phase-pipeline--status-dashboard)
 6. [Phase Specifications — Where to Find Them](#6-phase-specifications--where-to-find-them)
 7. [Data Flow — How Phases Connect](#7-data-flow--how-phases-connect)
 8. [Core Data Models — Shared Types](#8-core-data-models--shared-types)
@@ -306,7 +306,7 @@ starr-software/                     # Turborepo monorepo root
 
 ---
 
-## 5. The 15-Phase Pipeline — Status Dashboard
+## 5. The 16-Phase Pipeline — Status Dashboard
 
 ### Status Key
 
@@ -340,7 +340,7 @@ starr-software/                     # Turborepo monorepo root
 | 16 | Working Prototype: Survey Plan Generator & Lite Pipeline | 🟢 COMPLETE | 300+ | Phases 1–15 | 63 |
 | — | **TOTAL** | — | **18,541+** | — | — |
 
-> **Current Status (March 2026):** All 16 phases are COMPLETE. **2,077 unit tests pass.**
+> **Current Status (March 2026):** All 16 phases are COMPLETE. **2,117 unit tests pass.**
 >
 > - Phase 16: One-Click Research (lite pipeline without external worker), AI survey field plan generator, SurveyPlanPanel UI component with 9 tabs (summary, checklist, equipment, field steps, monuments, boundary, discrepancies, sources, timeline), Survey Plan tab added to Review step, plain-English field plan with confidence scoring
 > - Pipeline runs end-to-end for Bell, Harris, and Tarrant counties
@@ -396,7 +396,7 @@ starr-software/                     # Turborepo monorepo root
 `purchase-adapters/tyler-pay-adapter.ts` (Playwright flow for ~30 Tyler/Odyssey counties, TYLER_PAY_FIPS_SET), `purchase-adapters/henschen-pay-adapter.ts` (Playwright flow for ~40 Henschen counties, per-county portal URL map), `purchase-adapters/idocket-pay-adapter.ts` (SPA-aware Playwright for ~20 iDocket subscriber counties), `purchase-adapters/fidlar-pay-adapter.ts` (AJAX-aware Playwright for ~15 Fidlar/Laredo counties), `purchase-adapters/govos-guest-adapter.ts` (GovOS guest CC checkout for ~80 Kofile/PublicSearch counties), `purchase-adapters/landex-api-adapter.ts` (REST API for national coverage, batch support, cost estimation), `adapters/bexar-clerk-adapter.ts` (Bexar County / San Antonio custom clerk adapter extending ClerkAdapter, BEXAR_FIPS_SET), `services/notification-service.ts` (email via Resend API + SMS via Twilio, 8 event types, graceful no-creds degradation), `app/api/webhooks/stripe/route.ts` (HMAC-SHA256 sig verification, 8 Stripe event types, wallet credit/debit), `seeds/093_phase15_wallet_tables.sql` (document_wallet_balance + document_purchase_history + trigger + RLS + helper), `worker/src/index.ts` updated (4 Phase 15 routes), clerk registry updated (Bexar stub→implemented). **TypeScript fix:** `app/api/admin/research/billing/route.ts` implicit `any` errors on `reduce`/`filter` callbacks fixed by adding `UsageEvent` interface and explicit parameter types. 64 unit tests.
 
 #### Phase 16 — COMPLETE ✅ (Working Prototype)
-`lib/research/survey-plan.service.ts` (AI-powered field survey plan generator — `generateSurveyPlan()` builds plain-English field plan from all extracted data: boundary calls, monuments, easements, flood zone, TxDOT ROW, discrepancies), `app/api/admin/research/[projectId]/survey-plan/route.ts` (GET endpoint — returns survey plan at any project stage), `app/admin/research/components/SurveyPlanPanel.tsx` (full-featured React component with 9-tab sidebar: Summary, Pre-Field Checklist, Equipment, Field Steps, Monument Recovery, Boundary Reconstruction, Discrepancies, Data Sources, Timeline), `app/api/admin/research/[projectId]/lite-pipeline/route.ts` (POST/GET inline pipeline that runs without the external worker: geocode → search 10+ sources → capture USGS map images → import records → run AI analysis → collect summary), `lib/research/prompts.ts` updated (SURVEY_PLAN_GENERATOR prompt v1.0.0), `app/admin/research/[projectId]/page.tsx` updated (Survey Plan tab added to Review step, SurveyPlanPanel added to Complete step), `app/admin/research/components/PropertySearchPanel.tsx` updated (One-Click Research button and status display for lite pipeline). **50 unit tests.** 2,077 total tests pass.
+`lib/research/survey-plan.service.ts` (AI-powered field survey plan generator — `generateSurveyPlan()` builds plain-English field plan from all extracted data: boundary calls, monuments, easements, flood zone, TxDOT ROW, discrepancies), `app/api/admin/research/[projectId]/survey-plan/route.ts` (GET endpoint — returns survey plan at any project stage), `app/admin/research/components/SurveyPlanPanel.tsx` (full-featured React component with 9-tab sidebar: Summary, Pre-Field Checklist, Equipment, Field Steps, Monument Recovery, Boundary Reconstruction, Discrepancies, Data Sources, Timeline), `app/api/admin/research/[projectId]/lite-pipeline/route.ts` (POST/GET inline pipeline that runs without the external worker: geocode → search 10+ sources → capture USGS map images → import records → run AI analysis → collect summary), `worker/src/services/harvest-supabase-sync.ts` (Worker Supabase integration — inserts harvested documents into `research_documents`, uploads images to Supabase Storage, back-patches storage URLs), `lib/research/prompts.ts` updated (SURVEY_PLAN_GENERATOR prompt v1.0.0), `app/admin/research/[projectId]/page.tsx` updated (Survey Plan tab added to Review step, SurveyPlanPanel added to Complete step), `app/admin/research/components/PropertySearchPanel.tsx` updated (One-Click Research button and status display for lite pipeline). **90 unit tests (50 survey plan + 40 worker sync).** 2,117 total tests pass.
 
 ### What Still Needs External Input (Cannot Be Fully Tested Without)
 
