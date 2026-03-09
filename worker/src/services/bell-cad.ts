@@ -7,6 +7,7 @@
 import type { PropertyIdResult, PropertyValidation, NormalizedAddress, AddressVariant, SearchDiagnostics } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
+import { normalizeAddress } from './address-utils.js';
 
 // ── BIS Consultants eSearch Configuration ──────────────────────────────────
 
@@ -1248,4 +1249,23 @@ export async function searchBisCad(
   logger.error('Stage1', `All CAD search layers exhausted — property not found. Tried ${diagnostics.variantsTried.length} variants.`);
   diagnostics.searchDuration_ms = Date.now() - searchStart;
   return { property: null, diagnostics };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOOKUP WRAPPER — used by the new pipeline.ts orchestrator
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Simplified CAD lookup for Bell County.
+ * Normalizes the address, then searches Bell CAD via searchBisCad().
+ * Returns the best matching property or null if not found.
+ */
+export async function lookupBellCAD(
+  address: string,
+  logger: PipelineLogger,
+): Promise<PropertyIdResult | null> {
+  const normalized = await normalizeAddress(address, logger);
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+  const { property } = await searchBisCad('bell', normalized, apiKey, logger);
+  return property;
 }
