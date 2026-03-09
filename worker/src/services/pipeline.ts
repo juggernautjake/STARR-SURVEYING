@@ -10,6 +10,7 @@ import { searchClerkRecords, fetchDocumentImages } from './bell-clerk.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
+import { bundleAndUploadPages } from './pages-to-pdf.js';
 
 // ── Supabase Client (Lazy Init) ───────────────────────────────────────────
 
@@ -505,6 +506,19 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
               doc.pages = downloadedPages;
               imagesDownloaded += downloadedPages.length;
               logger.info('Stage2.5', `  ${doc.ref.documentType} ${doc.ref.instrumentNumber}: ${downloadedPages.length} pages`);
+
+              // Bundle pages into a PDF and upload to Supabase Storage so the
+              // frontend can display them in an embedded PDF viewer.
+              const pdfUrl = await bundleAndUploadPages(
+                downloadedPages,
+                input.projectId,
+                doc.ref.instrumentNumber,
+                doc.ref.documentType,
+              );
+              if (pdfUrl) {
+                doc.pagesPdfUrl = pdfUrl;
+                logger.info('Stage2.5', `  PDF uploaded: ${pdfUrl}`);
+              }
             }
           } catch (imgErr) {
             logger.warn('Stage2.5', `Image download failed for ${doc.ref.instrumentNumber}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);

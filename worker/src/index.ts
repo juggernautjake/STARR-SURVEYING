@@ -365,6 +365,9 @@ app.get('/research/status/:projectId', requireAuth, (req: Request, res: Response
         textLength: d.textContent?.length ?? 0,
         hasImage: !!d.imageBase64,
         hasOcr: !!d.ocrText,
+        pageCount: d.pages?.length ?? d.pageScreenshots?.length ?? 0,
+        /** Public PDF URL for embedded viewer — null if not uploaded yet */
+        pagesPdfUrl: d.pagesPdfUrl ?? null,
         fromUserUpload: d.fromUserUpload ?? false,
         processingErrors: d.processingErrors,
         extractedData: d.extractedData ? {
@@ -415,6 +418,8 @@ app.get('/research/result/:projectId/full', requireAuth, (req: Request, res: Res
       ocrText: d.ocrText,
       hasImage: !!d.imageBase64,
       imageFormat: d.imageFormat,
+      pageCount: d.pages?.length ?? d.pageScreenshots?.length ?? 0,
+      pagesPdfUrl: d.pagesPdfUrl ?? null,
       fromUserUpload: d.fromUserUpload,
       processingErrors: d.processingErrors,
       extractedData: d.extractedData,

@@ -1479,6 +1479,142 @@
   font-size: 0.88rem;
 }
 
+/* ── Viewer PDF tab additions ──────────────────────────────────────────── */
+
+/* Taller modal when showing PDF */
+.research-viewer--with-pdf {
+  max-height: 92vh;
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.research-viewer__tabs {
+  display: flex;
+  border-bottom: 1px solid #E5E7EB;
+  background: #F9FAFB;
+  flex-shrink: 0;
+}
+
+.research-viewer__tab {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #6B7280;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.research-viewer__tab:hover {
+  color: #1D4ED8;
+}
+
+.research-viewer__tab--active {
+  color: #1D4ED8;
+  border-bottom-color: #1D4ED8;
+  font-weight: 600;
+}
+
+.research-viewer__tab-btn {
+  background: none;
+  border: 1px solid #1D4ED8;
+  border-radius: 6px;
+  color: #1D4ED8;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.research-viewer__tab-btn:hover {
+  background: #EFF6FF;
+}
+
+.research-viewer__body--pdf {
+  flex: 1;
+  overflow: hidden;
+  padding: 0;
+}
+
+.research-viewer__pdf-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.research-viewer__pdf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 1rem;
+  background: #F3F4F6;
+  border-bottom: 1px solid #E5E7EB;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+.research-viewer__pdf-label {
+  color: #6B7280;
+  font-weight: 500;
+}
+
+.research-viewer__pdf-open-btn {
+  color: #1D4ED8;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.82rem;
+}
+.research-viewer__pdf-open-btn:hover {
+  text-decoration: underline;
+}
+
+.research-viewer__pdf-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  min-height: 600px;
+}
+
+.research-viewer__pdf-error {
+  padding: 2rem;
+  text-align: center;
+  color: #6B7280;
+  font-size: 0.88rem;
+}
+.research-viewer__pdf-link {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: #1D4ED8;
+  font-weight: 600;
+  text-decoration: none;
+}
+.research-viewer__pdf-link:hover {
+  text-decoration: underline;
+}
+
+/* View Pages button in document list */
+.research-upload__doc-pdf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1D4ED8;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s;
+  margin-top: 0.25rem;
+}
+.research-upload__doc-pdf-btn:hover {
+  background: #DBEAFE;
+}
+
 /* ── Property Search Panel ─────────────────────────────────────────────── */
 
 .research-search {

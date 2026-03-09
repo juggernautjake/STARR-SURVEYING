@@ -120,6 +120,8 @@ export interface DocumentResult {
   pages?: DocumentPage[];
   ocrText: string | null;
   extractedData: ExtractedBoundaryData | null;
+  /** Public URL of the PDF bundled from page images, stored in Supabase Storage */
+  pagesPdfUrl?: string | null;
   /** Legacy single-image fields — populated by old pipeline path */
   imageBase64?: string | null;
   imageFormat?: 'png' | 'jpg' | 'tiff' | 'pdf' | null;

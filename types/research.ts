@@ -59,6 +59,8 @@ export interface ResearchDocument {
   file_size_bytes?: number | null;
   storage_path?: string | null;
   storage_url?: string | null;
+  /** Public URL of PDF bundled from page images (set by worker pipeline) */
+  pages_pdf_url?: string | null;
   source_url?: string | null;
   document_type?: DocumentType | null;
   document_label?: string | null;

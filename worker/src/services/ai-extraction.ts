@@ -925,7 +925,7 @@ export async function extractDocuments(
     const docPages = doc.pages ?? [];
     if (!doc.extractedData && docPages.length > 0) {
       logger.info('Stage3', `  ${label}: Processing ${docPages.length} downloaded page images`);
-      const prompt = `You are analyzing county clerk records from ${docPages.length > 1 ? 'Texas' : 'Texas'}. These are ${docPages.length} page images from a ${doc.ref.documentType}${doc.ref.instrumentNumber ? ` (instrument ${doc.ref.instrumentNumber})` : ''}. Extract ALL data: 1) METES AND BOUNDS with every bearing and distance. 2) LOT BOUNDARIES. 3) POINT OF BEGINNING. 4) ACREAGE totals. 5) SURVEYOR info. 6) Full LEGAL DESCRIPTION. 7) CURVE DATA. 8) EASEMENTS. 9) Recording references. Be extremely precise with all numbers.`;
+      const prompt = `You are analyzing county clerk records from Texas. These are ${docPages.length} page image${docPages.length !== 1 ? 's' : ''} from a ${doc.ref.documentType}${doc.ref.instrumentNumber ? ` (instrument ${doc.ref.instrumentNumber})` : ''}. Extract ALL data: 1) METES AND BOUNDS with every bearing and distance. 2) LOT BOUNDARIES. 3) POINT OF BEGINNING. 4) ACREAGE totals. 5) SURVEYOR info. 6) Full LEGAL DESCRIPTION. 7) CURVE DATA. 8) EASEMENTS. 9) Recording references. Be extremely precise with all numbers.`;
       try {
         const { text, data } = await analyzeMultiPageDocument(docPages, '', prompt, logger);
         if (text) doc.ocrText = text;
