@@ -528,6 +528,88 @@ export async function geocodeAddress(address: string): Promise<GeocodedAddress |
 
 // ── Nominatim road name conversion ──────────────────────────────────────────
 
+// ── AI-Generated Address Variants ──────────────────────────────────────────
+
+/**
+ * Ask Claude to generate additional address search variants when deterministic
+ * variants all fail. Returns AddressVariant[] that can be passed directly to
+ * the CAD adapter's searchByAddress() method.
+ *
+ * This is a safety net — the deterministic engine handles 95% of cases.
+ * AI catches edge cases: local road nicknames, county-specific quirks,
+ * unusual abbreviation patterns, historical road name changes.
+ */
+export async function generateAiAddressVariants(
+  rawAddress: string,
+  alreadyTried: AddressVariant[],
+  anthropicApiKey: string,
+): Promise<AddressVariant[]> {
+  try {
+    const triedList = alreadyTried
+      .map((v) => `"${v.searchString}"`)
+      .join(', ');
+
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey: anthropicApiKey });
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 1024,
+      temperature: 0,
+      messages: [{
+        role: 'user',
+        content: `I'm searching a Texas county CAD (Central Appraisal District) database for a property at this address:
+
+"${rawAddress}"
+
+The CAD search takes a combined search string (street number + street name). I already tried these search strings and all returned 0 results:
+${triedList}
+
+Generate additional search string variants that the CAD system might use to index this address. Consider:
+- Texas road naming conventions (FM, SH, CR, RM, RR, US, IH roads)
+- Whether directionals (N/S/E/W) should be included, excluded, or repositioned
+- Whether road type prefixes should be abbreviated differently
+- Common local naming variations or alternate road names
+- Whether "RD", "ROAD", "HWY" suffixes might be used
+
+Return ONLY a JSON array of search strings. Example: ["3779 FM 436","3779 FARM MARKET 436","3779 HIGHWAY 436"]
+
+Important: Do NOT repeat strings already tried. Only return NEW variants.`,
+      }],
+    });
+
+    const text = response.content.find((c) => c.type === 'text');
+    if (!text || text.type !== 'text') return [];
+
+    const cleaned = text.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const aiResults = JSON.parse(cleaned) as string[];
+
+    if (!Array.isArray(aiResults) || aiResults.length === 0) return [];
+
+    const triedKeys = new Set(alreadyTried.map((v) => v.searchString.toLowerCase()));
+    const newVariants: AddressVariant[] = [];
+    let priority = 50;
+
+    for (const searchStr of aiResults) {
+      if (typeof searchStr !== 'string' || !searchStr.trim()) continue;
+      if (triedKeys.has(searchStr.toLowerCase())) continue;
+      triedKeys.add(searchStr.toLowerCase());
+
+      newVariants.push({
+        searchString: searchStr.trim(),
+        strategy: `ai_variant_${newVariants.length + 1}`,
+        priority: priority++,
+      });
+    }
+
+    return newVariants;
+  } catch {
+    return [];
+  }
+}
+
+// ── Nominatim road name conversion ──────────────────────────────────────────
+
 /** Convert Nominatim long-form road names to CAD-friendly abbreviations */
 function convertNominatimRoad(road: string): string {
   let result = road.trim();
