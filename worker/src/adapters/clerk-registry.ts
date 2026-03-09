@@ -17,16 +17,17 @@
 // ── Clerk System Types ───────────────────────────────────────────────────────
 
 export type ClerkSystem =
-  | 'kofile'       // Kofile/PublicSearch — fully implemented
-  | 'henschen'     // Henschen & Associates — stub
-  | 'idocket'      // iDocket — stub
-  | 'fidlar'       // Fidlar Technologies — stub
-  | 'texasfile'    // TexasFile aggregator (fallback purchase route)
-  | 'harris_custom'  // HCAD custom system — stub
-  | 'dallas_custom'  // Dallas County custom — stub
-  | 'tarrant_custom' // TAD/Tarrant custom — stub
-  | 'bexar_custom'   // Bexar County custom — stub
-  | 'manual';      // No online access — manual retrieval required
+  | 'kofile'           // Kofile/PublicSearch — fully implemented
+  | 'henschen'         // Henschen & Associates — stub
+  | 'idocket'          // iDocket — stub
+  | 'fidlar'           // Fidlar Technologies — stub
+  | 'texasfile'        // TexasFile aggregator (fallback purchase route)
+  | 'harris_custom'    // HCAD custom system — stub
+  | 'dallas_custom'    // Dallas County custom — stub
+  | 'tarrant_custom'   // TAD/Tarrant custom — stub
+  | 'bexar_custom'     // Bexar County custom — stub
+  | 'fort_bend_custom' // Fort Bend County custom ccweb portal — stub
+  | 'manual';          // No online access — manual retrieval required
 
 export type ClerkAdapterStatus =
   | 'implemented'    // Adapter built and tested
