@@ -6,6 +6,7 @@
 
 import type { PropertyIdResult, PropertyValidation, NormalizedAddress, AddressVariant, SearchDiagnostics } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
+import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 
 // ── BIS Consultants eSearch Configuration ──────────────────────────────────
 
@@ -1185,7 +1186,10 @@ export async function searchBisCad(
   // Layer 1D: AI-generated address variants (last resort before giving up)
   // When all deterministic variants fail, ask Claude to brainstorm additional
   // formats that a CAD system might use to index this address.
-  if (anthropicApiKey) {
+  const aiTracker = getGlobalAiTracker();
+  const { allowed: aiAllowed, reason: aiBlockReason } = aiTracker.canMakeCall();
+
+  if (anthropicApiKey && aiAllowed) {
     const aiVariants = await generateAiAddressVariants(
       normalized.raw,
       normalized.parsed,
@@ -1193,6 +1197,14 @@ export async function searchBisCad(
       anthropicApiKey,
       logger,
     );
+
+    aiTracker.record({
+      service: 'variant-generation',
+      address: normalized.raw,
+      success: aiVariants.length > 0,
+      inputTokens: 500,
+      outputTokens: 300,
+    });
 
     if (aiVariants.length > 0) {
       logger.info('Stage1D', `AI generated ${aiVariants.length} additional address variants — retrying HTTP search`);
@@ -1229,6 +1241,8 @@ export async function searchBisCad(
         }
       }
     }
+  } else if (anthropicApiKey && !aiAllowed) {
+    logger.warn('Stage1D', `AI variant fallback skipped — circuit breaker: ${aiBlockReason}`);
   }
 
   logger.error('Stage1', `All CAD search layers exhausted — property not found. Tried ${diagnostics.variantsTried.length} variants.`);
