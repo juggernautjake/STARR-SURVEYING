@@ -123,8 +123,31 @@ export default function CADLayout() {
     document: unknown;
   } | null>(null);
 
-  // On mount: check IndexedDB for a crash-recovery autosave
+  // On mount: check for a pending RECON import, then check IndexedDB for a crash-recovery autosave
   useEffect(() => {
+    // ── RECON → CAD import ──────────────────────────────────────────────────
+    // When the user clicks "Open in CAD Editor" in the RECON research interface,
+    // the converted DrawingDocument is stored in localStorage under this key.
+    // We pick it up here and load it, bypassing the normal autosave recovery flow.
+    const RECON_PENDING_KEY = 'starr-cad-pending-recon';
+    const pendingRecon = localStorage.getItem(RECON_PENDING_KEY);
+    if (pendingRecon) {
+      localStorage.removeItem(RECON_PENDING_KEY);
+      try {
+        const reconDoc = validateAndMigrateDocument(JSON.parse(pendingRecon));
+        drawingStore.loadDocument(reconDoc);
+        selectionStore.deselectAll();
+        undoStore.clear();
+        cadLog.info('ReconImport', `Loaded RECON drawing: ${reconDoc.name}`);
+        setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 200);
+        return; // Skip autosave-recovery check — the RECON import takes priority
+      } catch (err) {
+        cadLog.error('ReconImport', 'Failed to load pending RECON drawing — falling through to autosave', err);
+        // Fall through to the normal autosave flow below
+      }
+    }
+
+    // ── Existing crash-recovery autosave check ──────────────────────────────
     readAutosave().then((saved) => {
       if (!saved?.savedAt) {
         // No autosave — show new drawing dialog if starting blank

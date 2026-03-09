@@ -12,8 +12,10 @@ interface ExportPanelProps {
   drawingName: string;
   comparison: ComparisonResult | null;
   onExport: (format: ExportFormat, viewMode: ViewMode) => Promise<void>;
+  onOpenInCAD: () => Promise<void>;
   onMarkComplete: () => void;
   isExporting: boolean;
+  isOpeningInCAD?: boolean;
   lastExport: { format: string; filename: string } | null;
   showUITooltips?: boolean;
 }
@@ -80,8 +82,10 @@ export default function ExportPanel({
   drawingName,
   comparison,
   onExport,
+  onOpenInCAD,
   onMarkComplete,
   isExporting,
+  isOpeningInCAD = false,
   lastExport,
   showUITooltips = true,
 }: ExportPanelProps) {
@@ -90,6 +94,7 @@ export default function ExportPanel({
   const tips = showUITooltips;
 
   const selectedFormatInfo = FORMAT_OPTIONS.find(f => f.format === selectedFormat)!;
+  const busy = isExporting || isOpeningInCAD;
 
   return (
     <div className="research-export">
@@ -121,6 +126,29 @@ export default function ExportPanel({
           )}
         </div>
       )}
+
+      {/* Open in CAD Editor — primary action */}
+      <div className="research-export__section">
+        <h4 className="research-export__section-title">STARR CAD Editor</h4>
+        <Tooltip
+          text="Convert this drawing to a full STARR CAD document and open it in the CAD editor for professional editing, annotation, and finalisation."
+          enabled={tips}
+          position="top"
+        >
+          <button
+            className="research-export__export-btn"
+            style={{ background: '#1D4ED8', marginBottom: '0.5rem' }}
+            onClick={onOpenInCAD}
+            disabled={busy}
+          >
+            {isOpeningInCAD ? '⏳ Opening in CAD Editor…' : '✏️ Open in CAD Editor'}
+          </button>
+        </Tooltip>
+        <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0 0 0.25rem' }}>
+          Loads the survey drawing into STARR CAD where you can edit features, add annotations,
+          adjust styles, and produce a final deliverable.
+        </p>
+      </div>
 
       {/* Format Selection */}
       <div className="research-export__section">
@@ -170,7 +198,7 @@ export default function ExportPanel({
         <button
           className="research-export__export-btn"
           onClick={() => onExport(selectedFormat, selectedView)}
-          disabled={isExporting || !selectedFormatInfo.available}
+          disabled={busy || !selectedFormatInfo.available}
         >
           {isExporting ? 'Exporting...' : `Export as ${selectedFormatInfo.label}`}
         </button>
