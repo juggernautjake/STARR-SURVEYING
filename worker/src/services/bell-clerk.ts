@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import type { DocumentRef, DocumentResult, PageScreenshot, DocumentPage } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
+import type { Response as PlaywrightResponse } from 'playwright';
 
 // ── Kofile PublicSearch Configuration ──────────────────────────────────────
 
@@ -690,7 +691,13 @@ async function fetchDocumentDetail(
       return result;
     }
 
-    await page.waitForTimeout(2_500);
+    // For React SPAs (like Kofile), wait for network to go idle so content renders
+    try {
+      await page.waitForLoadState('networkidle', { timeout: 10_000 });
+    } catch {
+      // networkidle timeout is acceptable — fall back to a fixed delay
+      await page.waitForTimeout(3_000);
+    }
 
     // Validate the page actually has content
     const pageCheck = await isPageValid(page);
@@ -868,6 +875,20 @@ export function normaliseKofileApiResponse(data: unknown): Array<Record<string, 
 }
 
 /**
+ * Return true when an array of API items looks like Kofile document records.
+ *
+ * Used by the broadened API-response interceptor to accept JSON from any endpoint
+ * whose response *structure* matches a document list, regardless of its URL.
+ */
+export function looksLikeKofileDocuments(items: Array<Record<string, unknown>>): boolean {
+  return items.some((item) =>
+    'instrumentNumber' in item || 'docType' in item || 'documentType' in item ||
+    'docTypeDescription' in item || 'recordingDate' in item ||
+    'grantors' in item || 'grantees' in item,
+  );
+}
+
+/**
  * Search county clerk records for deeds and recorded documents.
  * Returns document references with content (text, images, PDFs).
  */
@@ -917,7 +938,7 @@ export async function searchClerkRecords(
     /** Docs captured from the Kofile JSON API for the CURRENT search name */
     let apiCapture: DocumentRef[] = [];
 
-    const handleApiResponse = async (response: import('playwright').Response): Promise<void> => {
+    const handleApiResponse = async (response: PlaywrightResponse): Promise<void> => {
       try {
         const url = response.url();
         const ct = response.headers()['content-type'] ?? '';
@@ -931,11 +952,16 @@ export async function searchClerkRecords(
           url.includes('/instrument/') ||
           url.includes('SearchResults') ||
           url.includes('searchresults');
-        if (!isSearchApi) return;
 
+        // Structural guard: even for unmatched URLs, accept JSON arrays that look
+        // like document records.  This handles Kofile deployments with non-standard paths.
         const data = await response.json() as unknown;
         const items = normaliseKofileApiResponse(data);
         if (items.length === 0) return;
+
+        // Structural check: require at least one document-like field.
+        // This lets us capture data from non-standard API URLs too.
+        if (!isSearchApi && !looksLikeKofileDocuments(items)) return;
 
         const newDocs: DocumentRef[] = items.map((item) => {
           // Kofile uses various field names for the document identifier
@@ -999,6 +1025,70 @@ export async function searchClerkRecords(
           documents = apiCapture;
           logger.info('Stage2A', `"${searchName}" found ${apiCapture.length} documents via API intercept`);
           break;
+        }
+
+        // ── Window/Redux state extraction (SSR/Next.js embedded data) ──────
+        // Kofile may embed search results in window.__NEXT_DATA__, window.__data,
+        // or a Redux store rather than making a separate AJAX call.
+        const windowDocs = await page.evaluate((): Array<Record<string, unknown>> | null => {
+          try {
+            const win = window as unknown as Record<string, unknown>;
+
+            // Next.js SSR state (most common on modern Kofile deployments)
+            const nextData = win.__NEXT_DATA__ as Record<string, unknown> | undefined;
+            if (nextData?.props) {
+              const pp = (nextData.props as Record<string, unknown>).pageProps as Record<string, unknown> | undefined;
+              for (const key of ['instruments', 'documents', 'results', 'records', 'data']) {
+                const arr = pp?.[key];
+                if (Array.isArray(arr) && arr.length > 0) return arr as Array<Record<string, unknown>>;
+              }
+            }
+
+            // Next.js script tag (embedded JSON)
+            const nextScript = document.querySelector('script#__NEXT_DATA__');
+            if (nextScript?.textContent) {
+              const parsed = JSON.parse(nextScript.textContent) as Record<string, unknown>;
+              const pp2 = ((parsed.props as Record<string, unknown>)?.pageProps) as Record<string, unknown> | undefined;
+              for (const key of ['instruments', 'documents', 'results', 'records']) {
+                const arr = pp2?.[key];
+                if (Array.isArray(arr) && arr.length > 0) return arr as Array<Record<string, unknown>>;
+              }
+            }
+
+            // Redux / legacy window state patterns
+            for (const stateKey of ['__data', '__INITIAL_STATE__', '__PRELOADED_STATE__', '__APP_STATE__']) {
+              const src = win[stateKey] as Record<string, unknown> | undefined;
+              if (!src) continue;
+              for (const key of ['instruments', 'documents', 'results', 'search', 'records']) {
+                const arr = (src[key] as Record<string, unknown>)?.results ?? src[key];
+                if (Array.isArray(arr) && arr.length > 0) return arr as Array<Record<string, unknown>>;
+              }
+            }
+          } catch { /* ignore */ }
+          return null;
+        });
+
+        if (windowDocs && windowDocs.length > 0) {
+          const items = normaliseKofileApiResponse(windowDocs);
+          if (items.length > 0) {
+            const docRefs: DocumentRef[] = items.map((item) => {
+              const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? item.docNumber ?? '').trim();
+              return {
+                instrumentNumber: id || null,
+                documentType: String(item.docTypeDescription ?? item.documentType ?? item.docType ?? item.type ?? 'Unknown').trim(),
+                recordingDate: String(item.recordingDate ?? item.documentDate ?? '').trim() || null,
+                grantors: extractKofilePartyNames(item.grantors ?? item.grantor ?? item.grantorParties),
+                grantees: extractKofilePartyNames(item.grantees ?? item.grantee ?? item.granteeParties),
+                source: config.name,
+                url: id ? `${baseUrl}/doc/${id}/details` : null,
+                volume: String(item.volume ?? '').trim() || null,
+                page: String(item.page ?? '').trim() || null,
+              };
+            });
+            documents = docRefs;
+            logger.info('Stage2A', `"${searchName}" found ${docRefs.length} documents via window state`);
+            break;
+          }
         }
 
         // Wait for results or "no results" message
@@ -1410,13 +1500,15 @@ export async function searchByInstrument(
 }
 
 /**
- * Download all page images for a document by intercepting signed PNG URLs.
+ * Download all page images for a document by intercepting signed image URLs.
  *
  * KEY TECHNIQUE: page.on('response') captures signed image URLs from
  * /files/documents/ paths as the Kofile viewer loads each page.
  * Then we download each image directly using the signed URL.
  *
  * This avoids screenshot latency and gets the full-resolution originals.
+ * Navigates directly to the document detail page (/doc/{id}/details) rather
+ * than the old search-then-click approach (saves ~16 seconds per document).
  */
 export async function fetchDocumentImages(
   instrumentNumber: string,
@@ -1441,40 +1533,82 @@ export async function fetchDocumentImages(
     const imageUrls: string[] = [];
     page.on('response', (res) => {
       const url = res.url();
-      if (url.includes('/files/documents/') && url.includes('.png')) {
+      // Match Kofile signed document image URLs (PNG, JPG, TIFF)
+      if (
+        (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
+        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+      ) {
         imageUrls.push(url);
         console.log(`[BELL-IMG] Captured: ${url.substring(0, 100)}...`);
       }
     });
 
-    const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
-    console.log(`[BELL-IMG] Navigating: ${searchUrl}`);
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(8000);
-
-    // Click first result to open the document viewer
+    // Navigate directly to the document viewer page (avoids search+click overhead)
+    const viewerUrl = `${BELL_CLERK_BASE}/doc/${encodeURIComponent(instrumentNumber)}/details`;
+    console.log(`[BELL-IMG] Navigating directly to viewer: ${viewerUrl}`);
     try {
-      await page.locator('tbody tr').last().click();
-      await page.waitForTimeout(8000);
-    } catch (e: any) {
-      console.log('[BELL-IMG] Could not click result:', e.message);
+      await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 45_000 });
+    } catch {
+      // networkidle timeout is acceptable — images may still be loading
+      await page.goto(viewerUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      await page.waitForTimeout(5_000);
     }
 
-    console.log(`[BELL-IMG] After page 1 load: ${imageUrls.length} URLs captured`);
+    // Wait up to 10 seconds for at least one image URL to appear
+    const imageWaitDeadline = Date.now() + 10_000;
+    while (imageUrls.length === 0 && Date.now() < imageWaitDeadline) {
+      await page.waitForTimeout(500);
+    }
+
+    console.log(`[BELL-IMG] After viewer load: ${imageUrls.length} URLs captured`);
+
+    // Fallback: if direct viewer didn't capture images, try search+click (legacy approach)
+    if (imageUrls.length === 0) {
+      console.log('[BELL-IMG] Direct viewer captured no images — falling back to search+click');
+      const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      await page.waitForTimeout(5_000);
+      try {
+        await page.locator('tbody tr').last().click();
+        await page.waitForTimeout(6_000);
+      } catch (e: any) {
+        console.log('[BELL-IMG] Search+click fallback: could not click result:', e.message);
+      }
+    }
+
+    // ── Helper: detect image format from URL extension ────────────────────
+    const detectFormat = (url: string): 'png' | 'jpg' | 'tiff' => {
+      if (/\.jpe?g(\?|$)/i.test(url)) return 'jpg';
+      if (/\.tiff?(\?|$)/i.test(url)) return 'tiff';
+      return 'png';
+    };
+
+    // ── Helper: download one image URL and push to pages array ────────────
+    const downloadPage = async (imgUrl: string, pageNum: number): Promise<boolean> => {
+      try {
+        const resp = await page.context().request.get(imgUrl);
+        if (resp.ok()) {
+          const buf = await resp.body();
+          pages.push({
+            pageNumber: pageNum,
+            imageBase64: buf.toString('base64'),
+            imageFormat: detectFormat(imgUrl),
+            width: 0,
+            height: 0,
+            signedUrl: imgUrl,
+          });
+          console.log(`[BELL-IMG] Page ${pageNum}: ${buf.length} bytes (${detectFormat(imgUrl)})`);
+          return true;
+        }
+      } catch (e: any) {
+        console.log(`[BELL-IMG] Page ${pageNum} download failed: ${e.message}`);
+      }
+      return false;
+    };
 
     // Download page 1
     if (imageUrls.length > 0) {
-      const p1Url = imageUrls[imageUrls.length - 1];
-      try {
-        const resp = await page.context().request.get(p1Url);
-        if (resp.ok()) {
-          const buf = await resp.body();
-          pages.push({ pageNumber: 1, imageBase64: buf.toString('base64'), imageFormat: 'png', width: 0, height: 0, signedUrl: p1Url });
-          console.log(`[BELL-IMG] Page 1: ${buf.length} bytes`);
-        }
-      } catch (e: any) {
-        console.log(`[BELL-IMG] Page 1 download failed: ${e.message}`);
-      }
+      await downloadPage(imageUrls[imageUrls.length - 1], 1);
     }
 
     // Navigate to subsequent pages using the next-page button
@@ -1501,33 +1635,18 @@ export async function fetchDocumentImages(
         break;
       }
 
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(5_000);
 
       if (imageUrls.length > urlCountBefore) {
-        const newUrl = imageUrls[imageUrls.length - 1];
-        try {
-          const resp = await page.context().request.get(newUrl);
-          if (resp.ok()) {
-            const buf = await resp.body();
-            pages.push({ pageNumber: pageNum, imageBase64: buf.toString('base64'), imageFormat: 'png', width: 0, height: 0, signedUrl: newUrl });
-            console.log(`[BELL-IMG] Page ${pageNum}: ${buf.length} bytes`);
-          }
-        } catch (e: any) {
-          console.log(`[BELL-IMG] Page ${pageNum} download failed: ${e.message}`);
-        }
+        await downloadPage(imageUrls[imageUrls.length - 1], pageNum);
       } else if (imageUrls.length > 0) {
-        // Construct URL for this page by replacing the page number in the first URL
-        const baseUrl = imageUrls[0];
-        const constructedUrl = baseUrl.replace(/_1\.png/, `_${pageNum}.png`);
-        try {
-          const resp = await page.context().request.get(constructedUrl);
-          if (resp.ok()) {
-            const buf = await resp.body();
-            pages.push({ pageNumber: pageNum, imageBase64: buf.toString('base64'), imageFormat: 'png', width: 0, height: 0, signedUrl: constructedUrl });
-            console.log(`[BELL-IMG] Page ${pageNum} (constructed URL): ${buf.length} bytes`);
-          }
-        } catch (e: any) {
-          console.log(`[BELL-IMG] Page ${pageNum} constructed URL failed: ${e.message}`);
+        // Construct URL for this page by replacing the page number in the seed URL
+        // Handles both _1.png and _1.jpg patterns
+        const seedUrl = imageUrls[0];
+        const constructedUrl = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_${pageNum}.$1`);
+        if (constructedUrl !== seedUrl) {
+          const ok = await downloadPage(constructedUrl, pageNum);
+          if (!ok) console.log(`[BELL-IMG] Page ${pageNum} constructed URL failed`);
         }
       }
     }

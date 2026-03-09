@@ -44,6 +44,7 @@ import { TexasFileAdapter } from '../../worker/src/adapters/texasfile-adapter.js
 import {
   extractKofilePartyNames,
   normaliseKofileApiResponse,
+  looksLikeKofileDocuments,
 } from '../../worker/src/services/bell-clerk.js';
 
 // ── Mock adapter for smartSearch tests ───────────────────────────────────────
@@ -1116,5 +1117,126 @@ describe('Kofile API response normalisation', () => {
     const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? '').trim();
     const url = id ? `${baseUrl}/doc/${id}/details` : null;
     expect(url).toBe('https://bell.tx.publicsearch.us/doc/2024-00001234/details');
+  });
+});
+
+// ── 14. Structural document detection in API intercept ────────────────────────
+
+describe('Structural document detection for broadened API intercept', () => {
+  // Uses the exported looksLikeKofileDocuments() helper from bell-clerk.ts
+
+  it('identifies document arrays by instrumentNumber field', () => {
+    expect(looksLikeKofileDocuments([{ instrumentNumber: '2024-00001234', docType: 'WD' }])).toBe(true);
+  });
+
+  it('identifies document arrays by docType field', () => {
+    expect(looksLikeKofileDocuments([{ docType: 'WD', recordingDate: '01/15/2024' }])).toBe(true);
+  });
+
+  it('identifies document arrays by docTypeDescription field', () => {
+    expect(looksLikeKofileDocuments([{ docTypeDescription: 'WARRANTY DEED' }])).toBe(true);
+  });
+
+  it('identifies document arrays by grantors/grantees fields', () => {
+    expect(looksLikeKofileDocuments([{ grantors: ['SELLER'], grantees: ['STARR SURVEYING'] }])).toBe(true);
+  });
+
+  it('rejects non-document arrays (e.g. config response)', () => {
+    expect(looksLikeKofileDocuments([{ status: 'ok', version: '1.0' }])).toBe(false);
+  });
+
+  it('rejects empty arrays', () => {
+    expect(looksLikeKofileDocuments([])).toBe(false);
+  });
+
+  it('rejects metadata-only responses', () => {
+    expect(looksLikeKofileDocuments([{ totalCount: 50, page: 1, pageSize: 25 }])).toBe(false);
+  });
+});
+
+// ── 15. fetchDocumentImages improvements ──────────────────────────────────────
+
+describe('fetchDocumentImages image format detection', () => {
+  // Mirrors the detectFormat helper inside fetchDocumentImages in bell-clerk.ts.
+  const detectFormat = (url: string): 'png' | 'jpg' | 'tiff' => {
+    if (/\.jpe?g(\?|$)/i.test(url)) return 'jpg';
+    if (/\.tiff?(\?|$)/i.test(url)) return 'tiff';
+    return 'png';
+  };
+
+  it('detects PNG from .png URL', () => {
+    expect(detectFormat('https://host/files/documents/doc_1.png')).toBe('png');
+  });
+
+  it('detects JPEG from .jpg URL', () => {
+    expect(detectFormat('https://host/files/documents/doc_1.jpg')).toBe('jpg');
+  });
+
+  it('detects JPEG from .jpeg URL', () => {
+    expect(detectFormat('https://host/files/documents/doc_1.jpeg?token=abc')).toBe('jpg');
+  });
+
+  it('defaults to png for unknown extension', () => {
+    // TIFF is explicitly handled — this test covers truly unknown types
+    expect(detectFormat('https://host/files/documents/doc_1.webp')).toBe('png');
+  });
+
+  it('detects TIFF from .tif URL', () => {
+    expect(detectFormat('https://host/files/documents/doc_1.tif')).toBe('tiff');
+    expect(detectFormat('https://host/files/documents/doc_1.tiff')).toBe('tiff');
+  });
+
+  it('page number substitution regex handles PNG', () => {
+    const seedUrl = 'https://host/files/documents/2024-00001234_1.png?token=abc';
+    const constructed = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_3.$1`);
+    expect(constructed).toBe('https://host/files/documents/2024-00001234_3.png?token=abc');
+  });
+
+  it('page number substitution regex handles JPG', () => {
+    const seedUrl = 'https://host/files/documents/2024-00001234_1.jpg?token=xyz';
+    const constructed = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_2.$1`);
+    expect(constructed).toBe('https://host/files/documents/2024-00001234_2.jpg?token=xyz');
+  });
+
+  it('page number substitution regex handles JPEG', () => {
+    const seedUrl = 'https://host/files/documents/2024_1.jpeg';
+    const constructed = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_4.$1`);
+    expect(constructed).toBe('https://host/files/documents/2024_4.jpeg');
+  });
+
+  it('direct viewer URL uses /doc/{id}/details pattern', () => {
+    const bellClerkBase = 'https://bell.tx.publicsearch.us';
+    const instrumentNumber = '2024-00001234';
+    const viewerUrl = `${bellClerkBase}/doc/${encodeURIComponent(instrumentNumber)}/details`;
+    expect(viewerUrl).toBe('https://bell.tx.publicsearch.us/doc/2024-00001234/details');
+    expect(viewerUrl).not.toContain('/results');
+    expect(viewerUrl).not.toContain('searchType=quickSearch');
+  });
+
+  it('image URL intercept pattern matches PNG', () => {
+    const url = 'https://bell.tx.publicsearch.us/files/documents/2024-001/page_1.png?signed=abc';
+    const matches = (
+      (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
+      /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+    );
+    expect(matches).toBe(true);
+  });
+
+  it('image URL intercept pattern matches JPG', () => {
+    const url = 'https://bell.tx.publicsearch.us/files/documents/2024-001/page_1.jpg';
+    const matches = (
+      (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
+      /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+    );
+    expect(matches).toBe(true);
+  });
+
+  it('image URL intercept pattern rejects unrelated URLs', () => {
+    const url = 'https://bell.tx.publicsearch.us/api/search/results.json';
+    const matches = (
+      (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
+      /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+    );
+    expect(matches).toBe(false);
   });
 });
