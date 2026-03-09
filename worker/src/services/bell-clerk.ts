@@ -862,20 +862,255 @@ export async function searchClerkRecords(
 
     for (const searchName of searchNames) {
       try {
+        // ── AJAX Response Interception ──────────────────────────────────
+        // Kofile PublicSearch is a React SPA. The initial HTML contains no
+        // results — data arrives via an asynchronous fetch/XHR that populates
+        // the Redux store. We intercept that JSON response to get clean,
+        // structured document data instead of scraping the rendered DOM.
+        interface KofileDoc {
+          docNumber?: string;
+          instrumentNumber?: string;
+          docType?: string;
+          docTypeCode?: string;
+          recordedDate?: string;
+          recordedDateStr?: string;
+          parties?: Array<{ name?: string; type?: string; role?: string }>;
+          grantors?: string[];
+          grantees?: string[];
+          pageCount?: number;
+          id?: string | number;
+          bookType?: string;
+          bookNumber?: string;
+          pageNumber?: string;
+          [key: string]: unknown;
+        }
+
+        let capturedDocs: KofileDoc[] = [];
+        let resolveCapture: ((docs: KofileDoc[]) => void) | null = null;
+        const capturePromise = new Promise<KofileDoc[]>((resolve) => {
+          resolveCapture = resolve;
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        page.on('response', async (response: any) => {
+          try {
+            const url = response.url();
+            const ct = response.headers()['content-type'] ?? '';
+            // Kofile SPA fetches results as JSON from various endpoints
+            if (!ct.includes('json')) return;
+            // Match search/result endpoints — the SPA calls back to the server
+            // which returns document data in JSON form
+            if (
+              url.includes('/results') ||
+              url.includes('/search') ||
+              url.includes('/documents') ||
+              url.includes('/api/')
+            ) {
+              const data = await response.json() as Record<string, unknown>;
+
+              // Strategy 1: Redux-shaped response with byHash/byOrder
+              const workspaces = data.documents as Record<string, unknown> | undefined;
+              if (workspaces) {
+                const wsEntries = Object.values(
+                  (workspaces as Record<string, unknown>).workspaces ?? workspaces,
+                );
+                for (const ws of wsEntries) {
+                  const wsData = (ws as Record<string, unknown>)?.data as Record<string, unknown> | undefined;
+                  if (wsData?.byHash && typeof wsData.byHash === 'object') {
+                    const docs = Object.values(wsData.byHash as Record<string, KofileDoc>);
+                    if (docs.length > 0) {
+                      capturedDocs = docs;
+                      if (resolveCapture) resolveCapture(docs);
+                      return;
+                    }
+                  }
+                }
+              }
+
+              // Strategy 2: Direct array of document objects
+              if (Array.isArray(data)) {
+                const docs = data as KofileDoc[];
+                if (docs.length > 0 && (docs[0].docNumber || docs[0].instrumentNumber || docs[0].docType)) {
+                  capturedDocs = docs;
+                  if (resolveCapture) resolveCapture(docs);
+                  return;
+                }
+              }
+
+              // Strategy 3: Wrapped array (e.g. { results: [...] })
+              for (const key of ['results', 'data', 'records', 'items', 'documents']) {
+                const arr = data[key];
+                if (Array.isArray(arr) && arr.length > 0) {
+                  const first = arr[0] as KofileDoc;
+                  if (first.docNumber || first.instrumentNumber || first.docType || first.recordedDate) {
+                    capturedDocs = arr as KofileDoc[];
+                    if (resolveCapture) resolveCapture(capturedDocs);
+                    return;
+                  }
+                }
+              }
+            }
+          } catch { /* ignore parse errors */ }
+        });
+
         // Try direct URL search first (more reliable than form interaction)
         const searchUrl = `${baseUrl}/results?department=RP&search=index%2CfullText&q=${encodeURIComponent(searchName)}`;
         logger.info('Stage2A', `Trying: ${searchUrl}`);
 
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-        await page.waitForTimeout(3_000);
 
-        // Wait for results or "no results" message
+        // Race: AJAX capture vs DOM rendering vs timeout
+        // The SPA loads results asynchronously — wait for AJAX or rendered DOM
         try {
-          await page.waitForSelector('.result-item, .search-result, table tbody tr, .document-row, .no-results, [class*="empty"]', { timeout: 15_000 });
+          await Promise.race([
+            capturePromise,
+            page.waitForSelector('table tbody tr, .result-item, .search-result, .document-row, [class*="result-"]', { timeout: 20_000 }),
+            page.waitForTimeout(20_000),
+          ]);
         } catch {
-          // Continue with whatever loaded
+          // Continue with whatever we have
         }
 
+        // Small extra wait to ensure AJAX response is fully processed
+        await page.waitForTimeout(2_000);
+
+        // ── Parse captured AJAX data ──────────────────────────────────
+        if (capturedDocs.length > 0) {
+          logger.info('Stage2A', `"${searchName}" captured ${capturedDocs.length} documents via AJAX intercept`);
+
+          for (const doc of capturedDocs) {
+            const instrNum = String(doc.docNumber ?? doc.instrumentNumber ?? '').trim();
+            const docType = String(doc.docType ?? doc.docTypeCode ?? '').trim();
+            const recDate = String(doc.recordedDate ?? doc.recordedDateStr ?? '').trim();
+
+            // Parse parties from Kofile's party array
+            const grantors: string[] = [];
+            const grantees: string[] = [];
+            if (Array.isArray(doc.parties)) {
+              for (const party of doc.parties) {
+                const name = String(party.name ?? '').trim();
+                if (!name) continue;
+                const role = String(party.type ?? party.role ?? '').toLowerCase();
+                if (role.includes('grantor') || role.includes('from') || role.includes('seller') || role === '1') {
+                  grantors.push(name);
+                } else if (role.includes('grantee') || role.includes('to') || role.includes('buyer') || role === '2') {
+                  grantees.push(name);
+                }
+              }
+            }
+            if (grantors.length === 0 && Array.isArray(doc.grantors)) {
+              grantors.push(...doc.grantors.map(String));
+            }
+            if (grantees.length === 0 && Array.isArray(doc.grantees)) {
+              grantees.push(...doc.grantees.map(String));
+            }
+
+            // Build document detail URL
+            const docId = instrNum || String(doc.id ?? '');
+            const docUrl = docId ? `${baseUrl}/doc/${docId}` : null;
+
+            documents.push({
+              instrumentNumber: instrNum || null,
+              volume: doc.bookNumber ? String(doc.bookNumber) : null,
+              page: doc.pageNumber ? String(doc.pageNumber) : null,
+              documentType: docType || 'Unknown',
+              recordingDate: recDate || null,
+              grantors,
+              grantees,
+              source: config.name,
+              url: docUrl,
+            });
+          }
+          // Remove the response listener before continuing
+          page.removeAllListeners('response');
+          break; // Got results via AJAX
+        }
+
+        // ── Fallback: Parse from Redux store in window.__data ────────
+        const storeExtracted = await page.evaluate((bUrl: string) => {
+          const docs: Array<{
+            type: string;
+            date: string;
+            instrumentNumber: string;
+            volume: string;
+            docPage: string;
+            grantors: string[];
+            grantees: string[];
+            url: string | null;
+          }> = [];
+
+          // Try to read document data from the Redux store (window.__data)
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const appData = (window as any).__data;
+            if (appData?.documents?.workspaces) {
+              const workspaces = appData.documents.workspaces;
+              for (const wsKey of Object.keys(workspaces)) {
+                const ws = workspaces[wsKey];
+                const byHash = ws?.data?.byHash;
+                if (byHash && typeof byHash === 'object') {
+                  for (const docKey of Object.keys(byHash)) {
+                    const d = byHash[docKey];
+                    if (!d) continue;
+                    const instrNum = String(d.docNumber ?? d.instrumentNumber ?? '').trim();
+                    const docType = String(d.docType ?? d.docTypeCode ?? '').trim();
+                    const recDate = String(d.recordedDate ?? d.recordedDateStr ?? '').trim();
+
+                    const grantors: string[] = [];
+                    const grantees: string[] = [];
+                    if (Array.isArray(d.parties)) {
+                      for (const party of d.parties) {
+                        const name = String(party.name ?? '').trim();
+                        if (!name) continue;
+                        const role = String(party.type ?? party.role ?? '').toLowerCase();
+                        if (role.includes('grantor') || role.includes('from') || role === '1') {
+                          grantors.push(name);
+                        } else {
+                          grantees.push(name);
+                        }
+                      }
+                    }
+
+                    const docUrl = instrNum ? `${bUrl}/doc/${instrNum}` : null;
+                    docs.push({
+                      type: docType || 'Unknown',
+                      date: recDate,
+                      instrumentNumber: instrNum,
+                      volume: String(d.bookNumber ?? ''),
+                      docPage: String(d.pageNumber ?? ''),
+                      grantors,
+                      grantees,
+                      url: docUrl,
+                    });
+                  }
+                }
+              }
+            }
+          } catch { /* window.__data not available or parsing failed */ }
+
+          return docs;
+        }, baseUrl);
+
+        if (storeExtracted.length > 0) {
+          logger.info('Stage2A', `"${searchName}" extracted ${storeExtracted.length} documents from Redux store`);
+          for (const doc of storeExtracted) {
+            documents.push({
+              instrumentNumber: doc.instrumentNumber || null,
+              volume: doc.volume || null,
+              page: doc.docPage || null,
+              documentType: doc.type,
+              recordingDate: doc.date || null,
+              grantors: doc.grantors,
+              grantees: doc.grantees,
+              source: config.name,
+              url: doc.url,
+            });
+          }
+          page.removeAllListeners('response');
+          break;
+        }
+
+        // ── Fallback: DOM scraping (original approach, improved) ─────
         // Check for "no results"
         const noResults = await page.evaluate(() => {
           const text = document.body.textContent?.toLowerCase() ?? '';
@@ -884,10 +1119,11 @@ export async function searchClerkRecords(
 
         if (noResults) {
           logger.info('Stage2A', `"${searchName}" returned no results — trying next variant`);
+          page.removeAllListeners('response');
           continue;
         }
 
-        // Extract document listings
+        // DOM extraction: handle both labeled-field pages and table-cell pages
         const extracted = await page.evaluate((bUrl: string) => {
           const docs: Array<{
             type: string;
@@ -901,27 +1137,29 @@ export async function searchClerkRecords(
             text: string;
           }> = [];
 
-          // Strategy 1: Result items/rows
+          // Strategy 1: Table rows (common in Kofile SPA after render)
           const rows = document.querySelectorAll(
-            '.result-item, .search-result, table tbody tr, .document-row, [class*="result-"]',
+            'table tbody tr, .result-item, .search-result, .document-row, [class*="result-"]',
           );
 
           rows.forEach((row) => {
             const text = row.textContent?.trim() ?? '';
             if (text.length < 10) return;
 
-            // Find all links
+            // Find links: Kofile uses /doc/INSTRUMENT_NUMBER pattern
             const links = Array.from(row.querySelectorAll('a[href]'));
             let url: string | null = null;
+            let linkInstrumentNum = '';
             for (const link of links) {
               const href = link.getAttribute('href') ?? '';
-              // Prefer detail page links
-              if (href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/\d{4,}/)) {
+              if (href.includes('/doc/') || href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/\d{4,}/)) {
                 url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+                // Extract instrument number from /doc/XXXXX URL
+                const docMatch = href.match(/\/doc\/(\d+)/);
+                if (docMatch) linkInstrumentNum = docMatch[1];
                 break;
               }
             }
-            // Fallback: any link that's not a search/filter link
             if (!url && links.length > 0) {
               for (const link of links) {
                 const href = link.getAttribute('href') ?? '';
@@ -932,10 +1170,14 @@ export async function searchClerkRecords(
               }
             }
 
-            // Parse document fields
+            // Extract data from table cells (Kofile renders data in <td> elements)
+            const cells = Array.from(row.querySelectorAll('td, [class*="cell"], [role="cell"]'));
+            const cellTexts = cells.map((c) => c.textContent?.trim() ?? '').filter(Boolean);
+
+            // Parse with regex patterns (labeled fields)
             const typePatterns = [
               /(?:Type|Document Type|Doc Type)\s*:?\s*([^\n|]+)/i,
-              /\b(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Plat|Amended Plat|Easement|Right[- ]of[- ]Way|Quit Claim|Deed of Trust|Release|Mineral Deed)\b/i,
+              /\b(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Plat|Amended Plat|Easement|Right[- ]of[- ]Way|Quit Claim|Deed of Trust|Release|Mineral Deed|Affidavit|Restriction|Covenant)\b/i,
             ];
             const datePatterns = [
               /(?:Date|Recorded|Filed|Recording Date)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i,
@@ -950,22 +1192,76 @@ export async function searchClerkRecords(
             const grantorPatterns = [/(?:Grantor|From|Seller)\s*:?\s*([^\n|;]+)/i];
             const granteePatterns = [/(?:Grantee|To|Buyer)\s*:?\s*([^\n|;]+)/i];
 
-            const findMatch = (patterns: RegExp[]): string => {
+            const findMatch = (patterns: RegExp[], source: string): string => {
               for (const p of patterns) {
-                const m = text.match(p);
+                const m = source.match(p);
                 if (m) return (m[1] ?? m[0]).trim();
               }
               return '';
             };
 
+            // Try cell-by-cell extraction first (Kofile table columns)
+            let instrNum = linkInstrumentNum;
+            let docType = '';
+            let recDate = '';
+            const grantors: string[] = [];
+            const grantees: string[] = [];
+            let volume = '';
+            let pg = '';
+
+            // If we have distinct table cells, parse them positionally
+            // Kofile typical column order: Date | Instrument# | Type | Grantor | Grantee
+            if (cellTexts.length >= 3) {
+              for (const cellText of cellTexts) {
+                // Date cell
+                if (!recDate) {
+                  const dateMatch = cellText.match(/^(\d{1,2}\/\d{1,2}\/\d{4})$/);
+                  if (dateMatch) { recDate = dateMatch[1]; continue; }
+                }
+                // Instrument number cell (long numeric)
+                if (!instrNum) {
+                  const instrMatch = cellText.match(/^(\d{8,13})$/);
+                  if (instrMatch) { instrNum = instrMatch[1]; continue; }
+                }
+                // Document type cell (known keywords)
+                if (!docType) {
+                  const typeKw = /^(DEED|WARRANTY DEED|SPECIAL WARRANTY|GENERAL WARRANTY|PLAT|EASEMENT|RIGHT OF WAY|DEED OF TRUST|RELEASE|QUIT CLAIM|AFFIDAVIT|RESTRICTION|COVENANT|ASSIGNMENT|TRANSFER|LIEN|MORTGAGE|SURVEY|MINERAL DEED|OIL|GAS|MLD|DOT|WD|SWD|GWD|DWW|QCD|PLT|ESMT|ROW|RC)$/i;
+                  if (typeKw.test(cellText.trim())) { docType = cellText.trim(); continue; }
+                }
+                // Volume/Page cell
+                const volPgMatch = cellText.match(/(?:Vol\.?\s*)?(\d+)\s*[/,]\s*(?:Pg\.?\s*)?(\d+)/i);
+                if (volPgMatch && !volume) { volume = volPgMatch[1]; pg = volPgMatch[2]; }
+              }
+            }
+
+            // Fallback to full-text regex extraction
+            if (!instrNum) instrNum = findMatch(instrPatterns, text);
+            if (!docType) docType = findMatch(typePatterns, text);
+            if (!recDate) recDate = findMatch(datePatterns, text);
+            if (!volume) volume = findMatch(volPatterns, text);
+            if (!pg) pg = findMatch(pgPatterns, text);
+            if (grantors.length === 0) {
+              const g = findMatch(grantorPatterns, text);
+              if (g) grantors.push(g);
+            }
+            if (grantees.length === 0) {
+              const g = findMatch(granteePatterns, text);
+              if (g) grantees.push(g);
+            }
+
+            // Construct doc URL from instrument number if not found in links
+            if (!url && instrNum) {
+              url = `${bUrl}/doc/${instrNum}`;
+            }
+
             docs.push({
-              type: findMatch(typePatterns) || 'Unknown',
-              date: findMatch(datePatterns),
-              instrumentNumber: findMatch(instrPatterns),
-              volume: findMatch(volPatterns),
-              docPage: findMatch(pgPatterns),
-              grantors: findMatch(grantorPatterns) ? [findMatch(grantorPatterns)] : [],
-              grantees: findMatch(granteePatterns) ? [findMatch(granteePatterns)] : [],
+              type: docType || 'Unknown',
+              date: recDate,
+              instrumentNumber: instrNum,
+              volume,
+              docPage: pg,
+              grantors,
+              grantees,
               url,
               text: text.substring(0, 500),
             });
@@ -988,105 +1284,12 @@ export async function searchClerkRecords(
               url: doc.url,
             });
           }
-          logger.info('Stage2A', `"${searchName}" found ${extracted.length} documents`);
+          logger.info('Stage2A', `"${searchName}" found ${extracted.length} documents via DOM`);
+          page.removeAllListeners('response');
           break; // Got results, no need to try more name variants
         }
 
-        // Check for pagination — try to get more results
-        try {
-          const hasMorePages = await page.evaluate(() => {
-            return !!document.querySelector('.pagination a, .next-page, [aria-label="Next"]');
-          });
-          if (hasMorePages) {
-            logger.info('Stage2A', 'More pages available — loading additional results');
-            // Click "next" up to 2 more times
-            for (let pageNum = 0; pageNum < 2; pageNum++) {
-              try {
-                const nextBtn = page.locator('.pagination a:has-text("Next"), .next-page, [aria-label="Next"], .pagination li:last-child a').first();
-                if (await nextBtn.isVisible({ timeout: 2_000 })) {
-                  await nextBtn.click();
-                  await page.waitForTimeout(3_000);
-
-                  // Re-use the same full extraction logic for paginated results
-                  const moreExtracted = await page.evaluate((bUrl: string) => {
-                    const docs: Array<{
-                      type: string;
-                      date: string;
-                      instrumentNumber: string;
-                      volume: string;
-                      docPage: string;
-                      grantors: string[];
-                      grantees: string[];
-                      url: string | null;
-                      text: string;
-                    }> = [];
-                    const rows = document.querySelectorAll('.result-item, .search-result, table tbody tr, .document-row, [class*="result-"]');
-                    rows.forEach((row) => {
-                      const text = row.textContent?.trim() ?? '';
-                      if (text.length < 10) return;
-
-                      const links = Array.from(row.querySelectorAll('a[href]'));
-                      let url: string | null = null;
-                      for (const link of links) {
-                        const href = link.getAttribute('href') ?? '';
-                        if (href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/\d{4,}/)) {
-                          url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-                          break;
-                        }
-                      }
-                      if (!url && links.length > 0) {
-                        for (const link of links) {
-                          const href = link.getAttribute('href') ?? '';
-                          if (!href.includes('search') && !href.includes('filter') && !href.includes('#') && href.length > 5) {
-                            url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-                            break;
-                          }
-                        }
-                      }
-
-                      const findMatch = (patterns: RegExp[]): string => {
-                        for (const p of patterns) {
-                          const m = text.match(p);
-                          if (m) return (m[1] ?? m[0]).trim();
-                        }
-                        return '';
-                      };
-
-                      docs.push({
-                        type: findMatch([/(?:Type|Document Type)\s*:?\s*([^\n|]+)/i, /\b(Warranty Deed|Plat|Easement|Deed of Trust|Deed)\b/i]) || 'Unknown',
-                        date: findMatch([/(?:Date|Recorded|Filed)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i, /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/]),
-                        instrumentNumber: findMatch([/(?:Instrument|Inst\.?\s*#?)\s*:?\s*([\d\-]+)/i, /\b(\d{8,})\b/]),
-                        volume: findMatch([/(?:Volume|Vol\.?)\s*:?\s*(\d+)/i]),
-                        docPage: findMatch([/(?:Page|Pg\.?)\s*:?\s*(\d+)/i]),
-                        grantors: findMatch([/(?:Grantor|From)\s*:?\s*([^\n|;]+)/i]) ? [findMatch([/(?:Grantor|From)\s*:?\s*([^\n|;]+)/i])] : [],
-                        grantees: findMatch([/(?:Grantee|To)\s*:?\s*([^\n|;]+)/i]) ? [findMatch([/(?:Grantee|To)\s*:?\s*([^\n|;]+)/i])] : [],
-                        url,
-                        text: text.substring(0, 500),
-                      });
-                    });
-                    return docs;
-                  }, baseUrl);
-
-                  for (const doc of moreExtracted) {
-                    documents.push({
-                      instrumentNumber: doc.instrumentNumber || null,
-                      volume: doc.volume || null,
-                      page: doc.docPage || null,
-                      documentType: doc.type,
-                      recordingDate: doc.date || null,
-                      grantors: doc.grantors,
-                      grantees: doc.grantees,
-                      source: config.name,
-                      url: doc.url,
-                    });
-                  }
-                  logger.info('Stage2A', `Pagination page ${pageNum + 2}: found ${moreExtracted.length} more documents`);
-                }
-              } catch { break; }
-            }
-          }
-        } catch { /* pagination check failed */ }
-
+        page.removeAllListeners('response');
       } catch (err) {
         logger.warn('Stage2A', `Search with "${searchName}" failed: ${err instanceof Error ? err.message : String(err)}`);
       }
