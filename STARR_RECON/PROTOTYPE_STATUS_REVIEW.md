@@ -219,7 +219,7 @@ psql $DATABASE_URL -f seeds/090_research_tables.sql
 # ... (run all seeds in order)
 
 # 4. Create Supabase Storage bucket
-# In Supabase dashboard: Storage → New bucket → "research-documents" (public)
+# In Supabase dashboard: Storage → New bucket → "research-documents" {public)
 
 # 5. Start the Next.js app
 npm run dev

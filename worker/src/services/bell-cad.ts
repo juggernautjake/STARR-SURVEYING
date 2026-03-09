@@ -924,11 +924,124 @@ function pickBestResult(
   return scored[0].result;
 }
 
+// ── Layer 1D: AI-Generated Address Variants ─────────────────────────────────
+
+/**
+ * When all deterministic address variants fail, ask Claude to generate
+ * additional plausible search formats for a Texas address.
+ *
+ * This catches edge cases the regex-based system can't anticipate:
+ * - Local road nicknames
+ * - County-specific formatting quirks
+ * - Unusual abbreviation patterns
+ * - Historical road name changes
+ */
+async function generateAiAddressVariants(
+  rawAddress: string,
+  parsed: { streetNumber: string; streetName: string; streetType: string; city: string | null },
+  alreadyTried: AddressVariant[],
+  anthropicApiKey: string,
+  logger: PipelineLogger,
+): Promise<AddressVariant[]> {
+  const tracker = logger.startAttempt({
+    layer: 'Stage1D',
+    source: 'Claude',
+    method: 'ai-variant-generation',
+    input: rawAddress,
+  });
+
+  try {
+    const triedList = alreadyTried
+      .filter((v) => !v.isPartial)
+      .map((v) => `"${v.streetNumber}" + "${v.streetName}"`)
+      .join(', ');
+
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey: anthropicApiKey });
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 1024,
+      temperature: 0,
+      messages: [{
+        role: 'user',
+        content: `I'm searching a Texas county CAD (Central Appraisal District) database for a property at this address:
+
+"${rawAddress}"
+
+The CAD search takes a StreetNumber and StreetName. I already tried these combinations and all returned 0 results:
+${triedList}
+
+Generate additional StreetName variants that the CAD system might use to index this address. Consider:
+- Texas road naming conventions (FM, SH, CR, RM, RR, US, IH roads)
+- Whether directionals (N/S/E/W) should be included, excluded, or moved
+- Whether road type prefixes should be abbreviated differently
+- Whether the CAD might store the road name in a completely different format
+- Whether there are common local naming variations
+
+Return ONLY a JSON array of objects with "streetNumber" and "streetName" fields.
+Example: [{"streetNumber":"3779","streetName":"FM 436"},{"streetNumber":"3779","streetName":"FARM MARKET 436"}]
+
+Important: Do NOT repeat variants already tried. Only return NEW variants not in the list above.`,
+      }],
+    });
+
+    const text = response.content.find((c) => c.type === 'text');
+    if (!text || text.type !== 'text') {
+      tracker({ status: 'fail', error: 'No response from Claude' });
+      return [];
+    }
+
+    const cleaned = text.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const aiResults = JSON.parse(cleaned) as Array<{ streetNumber: string; streetName: string }>;
+
+    if (!Array.isArray(aiResults) || aiResults.length === 0) {
+      tracker({ status: 'fail', error: 'Empty or invalid AI response' });
+      return [];
+    }
+
+    // Convert to AddressVariant format, dedup against already-tried
+    const triedKeys = new Set(
+      alreadyTried.map((v) => `${v.streetNumber}|${v.streetName}`.toLowerCase()),
+    );
+
+    const newVariants: AddressVariant[] = [];
+    let priority = 50; // Start after deterministic variants
+
+    for (const item of aiResults) {
+      if (!item.streetNumber || !item.streetName) continue;
+      const key = `${item.streetNumber}|${item.streetName}`.toLowerCase();
+      if (triedKeys.has(key)) continue;
+      triedKeys.add(key);
+
+      newVariants.push({
+        streetNumber: item.streetNumber,
+        streetName: item.streetName,
+        format: `ai-variant-${newVariants.length + 1}`,
+        query: `${item.streetNumber} ${item.streetName}`,
+        priority: priority++,
+        isPartial: false,
+      });
+    }
+
+    tracker({
+      status: newVariants.length > 0 ? 'success' : 'fail',
+      dataPointsFound: newVariants.length,
+      details: `AI generated ${aiResults.length} variants, ${newVariants.length} novel after dedup`,
+    });
+
+    return newVariants;
+  } catch (err) {
+    tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+    return [];
+  }
+}
+
 // ── Main Search Function ───────────────────────────────────────────────────
 
 /**
  * Search for a property in a BIS Consultants eSearch CAD system.
- * Tries HTTP → Playwright → Vision OCR in sequence (layered fallback).
+ * Tries HTTP → Playwright → Vision OCR → AI variants in sequence (layered fallback).
  * All results are validated against the original search address.
  */
 export async function searchBisCad(
@@ -1064,6 +1177,55 @@ export async function searchBisCad(
             },
             diagnostics,
           };
+        }
+      }
+    }
+  }
+
+  // Layer 1D: AI-generated address variants (last resort before giving up)
+  // When all deterministic variants fail, ask Claude to brainstorm additional
+  // formats that a CAD system might use to index this address.
+  if (anthropicApiKey) {
+    const aiVariants = await generateAiAddressVariants(
+      normalized.raw,
+      normalized.parsed,
+      diagnostics.variantsTried.map((v) => v.variant),
+      anthropicApiKey,
+      logger,
+    );
+
+    if (aiVariants.length > 0) {
+      logger.info('Stage1D', `AI generated ${aiVariants.length} additional address variants — retrying HTTP search`);
+
+      const aiHttpResults = await searchCadHttp(config.baseUrl, aiVariants, logger, diagnostics);
+      if (aiHttpResults && aiHttpResults.length > 0) {
+        const best = pickBestResult(aiHttpResults, normalized, logger);
+        if (best) {
+          const propId = getProp(best, 'propertyId', 'PropertyId') ?? '';
+          const validation = validatePropertyResult(best, normalized, logger);
+          validation.multipleResults = aiHttpResults.length > 1;
+
+          if (validation.confidence >= 0.2) {
+            const detail = await enrichPropertyDetail(config.baseUrl, propId, logger);
+            diagnostics.searchDuration_ms = Date.now() - searchStart;
+
+            return {
+              property: {
+                propertyId: propId,
+                geoId: getProp(best, 'geoId', 'GeoId'),
+                ownerName: getProp(best, 'ownerName', 'OwnerName'),
+                legalDescription: detail.legalDescription ?? getProp(best, 'legalDescription', 'LegalDescription'),
+                acreage: detail.acreage ?? getNumProp(best, 'acreage', 'Acreage'),
+                propertyType: detail.propertyType ?? getProp(best, 'propertyType', 'PropertyType'),
+                situsAddress: getProp(best, 'address', 'Address', 'situsAddress', 'SitusAddress'),
+                source: config.name,
+                layer: 'Stage1D',
+                matchConfidence: validation.confidence,
+                validationNotes: [...validation.issues, 'Found via AI-generated address variant'],
+              },
+              diagnostics,
+            };
+          }
         }
       }
     }
