@@ -221,6 +221,7 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
     notes:
       'Brazoria County records searchable via TexasFile (1829–present). ' +
       'Supports name, instrument number, volume-page, and legal/property search. ' +
+      'Official county portal (requires login): brazoriacountytx-web.tylerhost.net/web/user/disclaimer. ' +
       'Verified 2026-03-09. NOT on publicsearch.us.',
   },
 
