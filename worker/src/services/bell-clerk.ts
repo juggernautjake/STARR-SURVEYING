@@ -1569,7 +1569,7 @@ export async function fetchDocumentImages(
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
       await page.waitForTimeout(5_000);
       try {
-        await page.locator('tbody tr').last().click();
+        await page.locator('tbody tr').first().click();
         await page.waitForTimeout(6_000);
       } catch (e: any) {
         console.log('[BELL-IMG] Search+click fallback: could not click result:', e.message);
