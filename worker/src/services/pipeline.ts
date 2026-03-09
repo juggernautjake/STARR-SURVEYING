@@ -6,7 +6,7 @@ import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyI
 import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bell-cad.js';
-import { searchClerkRecords } from './bell-clerk.js';
+import { searchClerkRecords, fetchDocumentImages } from './bell-clerk.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
@@ -481,6 +481,42 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     if (ownerForClerk) {
       documents = await searchClerkRecords(input.county, ownerForClerk, logger);
       logger.info('Stage2', `Retrieved ${documents.length} documents from clerk`);
+
+      // ── Stage 2.5: Kofile Image Download ───────────────────────────────
+      // For Bell County Kofile documents that have an instrument number,
+      // intercept the signed PNG URLs from the viewer and download each page.
+      // This gives the AI full-resolution images instead of browser screenshots,
+      // and is the proven technique from the Ash Trust session (March 2026).
+      if (input.county.toLowerCase() === 'bell' && documents.length > 0) {
+        logger.info('Stage2.5', `Downloading page images for ${documents.length} Bell County documents`);
+        let imagesDownloaded = 0;
+
+        for (const doc of documents.slice(0, 5)) { // Limit to 5 docs
+          if (!doc.ref.instrumentNumber) continue;
+
+          const expectedPages = /plat/i.test(doc.ref.documentType) ? 3 : 2;
+          try {
+            const downloadedPages = await fetchDocumentImages(
+              doc.ref.instrumentNumber,
+              expectedPages,
+              logger,
+            );
+            if (downloadedPages.length > 0) {
+              doc.pages = downloadedPages;
+              imagesDownloaded += downloadedPages.length;
+              logger.info('Stage2.5', `  ${doc.ref.documentType} ${doc.ref.instrumentNumber}: ${downloadedPages.length} pages`);
+            }
+          } catch (imgErr) {
+            logger.warn('Stage2.5', `Image download failed for ${doc.ref.instrumentNumber}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+          }
+        }
+
+        if (imagesDownloaded > 0) {
+          logger.info('Stage2.5', `Image download complete: ${imagesDownloaded} total pages`);
+        } else {
+          logger.info('Stage2.5', 'No images downloaded — AI will use text extraction only');
+        }
+      }
     } else {
       logger.warn('Stage2', 'No owner name available — skipping clerk search');
     }
@@ -614,3 +650,6 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     return result;
   }
 }
+
+/** Alias for runPipeline — used by newer pipeline orchestration code. */
+export { runPipeline as runResearchPipeline };

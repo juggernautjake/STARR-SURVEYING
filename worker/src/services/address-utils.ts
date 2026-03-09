@@ -1,1213 +1,608 @@
-// worker/src/services/address-utils.ts — Stage 0: Address Normalization
-// Geocodes raw addresses via Nominatim → Census → manual parse, then generates
-// 15+ search variants (including partial/fuzzy) for county CAD queries.
-// Every variant costs almost nothing to try, so we generate aggressively.
-
-import type { NormalizedAddress, AddressVariant, ParsedAddress } from '../types/index.js';
-import { PipelineLogger } from '../lib/logger.js';
-import { countyToFIPS } from '../lib/county-fips.js';
-
-// ── Road Abbreviation Maps ─────────────────────────────────────────────────
-
-/** Long-form → short-form for Texas road types (from geocoders) */
-const ROAD_EXPANSIONS: Record<string, string> = {
-  'Farm-to-Market Road': 'FM',
-  'Farm to Market Road': 'FM',
-  'Farm-to-Market': 'FM',
-  'Farm to Market': 'FM',
-  'State Highway': 'SH',
-  'State Hwy': 'SH',
-  'County Road': 'CR',
-  'Ranch Road': 'RR',
-  'Ranch-to-Market Road': 'RM',
-  'Ranch to Market Road': 'RM',
-  'Ranch-to-Market': 'RM',
-  'US Highway': 'US',
-  'U.S. Highway': 'US',
-  'United States Highway': 'US',
-  'Interstate Highway': 'IH',
-  'Interstate': 'IH',
-  'Business Route': 'BR',
-  'Spur': 'SPUR',
-  'Loop': 'LOOP',
-  'Park Road': 'PR',
-  'Recreational Road': 'RE',
-};
-
-/** Short-form → all possible expansions (for trying reversed lookups) */
-const ROAD_SHORT_TO_LONG: Record<string, string[]> = {
-  FM: ['FM', 'Farm to Market Road', 'Farm-to-Market Road', 'Farm to Market', 'FM RD', 'FM Road'],
-  SH: ['SH', 'State Highway', 'State Hwy', 'Highway'],
-  CR: ['CR', 'County Road', 'County Rd', 'Co Road', 'Co Rd'],
-  RR: ['RR', 'Ranch Road', 'Ranch Rd'],
-  RM: ['RM', 'Ranch to Market Road', 'Ranch-to-Market Road', 'Ranch to Market'],
-  US: ['US', 'US Highway', 'US Hwy', 'Hwy'],
-  IH: ['IH', 'Interstate', 'Interstate Highway', 'I'],
-  HWY: ['HWY', 'Highway', 'Hwy'],
-};
-
-/** Street type abbreviations ↔ expansions (bidirectional) */
-const STREET_TYPE_MAP: Record<string, string[]> = {
-  St: ['St', 'Street', 'ST', 'STR'],
-  Ave: ['Ave', 'Avenue', 'AV', 'AVE'],
-  Blvd: ['Blvd', 'Boulevard', 'BLVD'],
-  Dr: ['Dr', 'Drive', 'DR', 'DRV'],
-  Ln: ['Ln', 'Lane', 'LN'],
-  Rd: ['Rd', 'Road', 'RD'],
-  Ct: ['Ct', 'Court', 'CT'],
-  Cir: ['Cir', 'Circle', 'CIR'],
-  Pl: ['Pl', 'Place', 'PL'],
-  Way: ['Way', 'WAY', 'WY'],
-  Trl: ['Trl', 'Trail', 'TRL'],
-  Ter: ['Ter', 'Terrace', 'TER'],
-  Pkwy: ['Pkwy', 'Parkway', 'PKWY'],
-  Hwy: ['Hwy', 'Highway', 'HWY'],
-  Loop: ['Loop', 'LOOP', 'LP'],
-  Pass: ['Pass', 'PASS'],
-  Run: ['Run', 'RUN'],
-  Xing: ['Xing', 'Crossing', 'XING'],
-  Cv: ['Cv', 'Cove', 'CV'],
-  Pt: ['Pt', 'Point', 'PT'],
-  Holw: ['Holw', 'Hollow', 'HOLW'],
-};
-
-/** Ordinal number words → digits and vice versa */
-const ORDINALS: Record<string, string> = {
-  first: '1st', second: '2nd', third: '3rd', fourth: '4th', fifth: '5th',
-  sixth: '6th', seventh: '7th', eighth: '8th', ninth: '9th', tenth: '10th',
-  eleventh: '11th', twelfth: '12th', thirteenth: '13th',
-};
-const ORDINALS_REVERSE: Record<string, string> = {};
-for (const [word, digit] of Object.entries(ORDINALS)) {
-  ORDINALS_REVERSE[digit.toLowerCase()] = word.charAt(0).toUpperCase() + word.slice(1);
-}
-
-/** Directional patterns */
-const DIRECTIONS: Record<string, string[]> = {
-  N: ['N', 'North', 'No'],
-  S: ['S', 'South', 'So'],
-  E: ['E', 'East'],
-  W: ['W', 'West'],
-  NE: ['NE', 'Northeast', 'North East'],
-  NW: ['NW', 'Northwest', 'North West'],
-  SE: ['SE', 'Southeast', 'South East'],
-  SW: ['SW', 'Southwest', 'South West'],
-};
-
-const DIRECTIONAL_ABBREV_RE = /^(North|South|East|West|Northeast|Northwest|Southeast|Southwest|NE|NW|SE|SW|N|S|E|W)\b/i;
-const DIRECTIONAL_SUFFIX_RE = /\b(North|South|East|West|Northeast|Northwest|Southeast|Southwest|NE|NW|SE|SW|N|S|E|W)$/i;
-
-// ── Texas City → County Mapping ────────────────────────────────────────────
-// Covers ~143 Texas counties within 200-mile radius of Belton (Bell County)
-// Organized by concentric rings from Bell County center
-
-const CITY_TO_COUNTY: Record<string, string> = {
-  // ═══ RING 0: Bell County (center) ═══
-  belton: 'Bell', temple: 'Bell', killeen: 'Bell', harker_heights: 'Bell',
-  copperas_cove: 'Bell', nolanville: 'Bell', salado: 'Bell', rogers: 'Bell',
-  troy: 'Bell', holland: 'Bell', little_river_academy: 'Bell', morgans_point_resort: 'Bell',
-
-  // ═══ RING 1: Adjacent counties (~0-30 mi) ═══
-  // Coryell County
-  gatesville: 'Coryell', evant: 'Coryell', oglesby: 'Coryell', flat: 'Coryell',
-  // McLennan County
-  waco: 'McLennan', woodway: 'McLennan', hewitt: 'McLennan',
-  robinson: 'McLennan', mcgregor: 'McLennan', lorena: 'McLennan',
-  china_spring: 'McLennan', west: 'McLennan', mart: 'McLennan',
-  moody: 'McLennan', bruceville_eddy: 'McLennan', lacy_lakeview: 'McLennan',
-  // Falls County
-  marlin: 'Falls', rosebud: 'Falls', lott: 'Falls',
-  // Milam County
-  cameron: 'Milam', rockdale: 'Milam', thorndale: 'Milam', milano: 'Milam',
-  // Williamson County
-  georgetown: 'Williamson', round_rock: 'Williamson', cedar_park: 'Williamson',
-  leander: 'Williamson', taylor: 'Williamson', liberty_hill: 'Williamson',
-  hutto: 'Williamson', jarrell: 'Williamson', florence: 'Williamson',
-  granger: 'Williamson', bartlett: 'Williamson', thrall: 'Williamson',
-  // Burnet County
-  burnet: 'Burnet', marble_falls: 'Burnet', bertram: 'Burnet',
-  granite_shoals: 'Burnet', cottonwood_shores: 'Burnet',
-  // Lampasas County
-  lampasas: 'Lampasas', lometa: 'Lampasas', kempner: 'Lampasas',
-  // Hamilton County
-  hamilton: 'Hamilton', hico: 'Hamilton',
-
-  // ═══ RING 2: ~30-60 mi ═══
-  // Travis County
-  austin: 'Travis', pflugerville: 'Travis', del_valle: 'Travis',
-  manor: 'Travis', bee_cave: 'Travis', lakeway: 'Travis',
-  west_lake_hills: 'Travis', rollingwood: 'Travis',
-  // Bosque County
-  meridian: 'Bosque', clifton: 'Bosque', valley_mills: 'Bosque',
-  // Hill County
-  hillsboro: 'Hill', whitney: 'Hill', itasca: 'Hill',
-  // Limestone County
-  groesbeck: 'Limestone', mexia: 'Limestone',
-  // Robertson County
-  hearne: 'Robertson', calvert: 'Robertson', franklin: 'Robertson',
-  // Lee County
-  giddings: 'Lee', lexington: 'Lee',
-  // Llano County
-  llano: 'Llano', kingsland: 'Llano', horseshoe_bay: 'Llano',
-  // Mills County
-  goldthwaite: 'Mills', mullin: 'Mills',
-  // San Saba County
-  san_saba: 'San Saba', richland_springs: 'San Saba',
-  // Bastrop County
-  bastrop: 'Bastrop', elgin: 'Bastrop', smithville: 'Bastrop',
-  // Hays County
-  san_marcos: 'Hays', kyle: 'Hays', buda: 'Hays',
-  wimberley: 'Hays', dripping_springs: 'Hays',
-
-  // ═══ RING 3: ~60-100 mi ═══
-  // Brazos County
-  bryan: 'Brazos', college_station: 'Brazos',
-  // Burleson County
-  caldwell_burleson: 'Burleson', somerville: 'Burleson',
-  // Blanco County
-  johnson_city: 'Blanco', blanco: 'Blanco',
-  // Comal County
-  new_braunfels: 'Comal', bulverde: 'Comal', canyon_lake: 'Comal',
-  garden_ridge: 'Comal', spring_branch: 'Comal',
-  // Guadalupe County
-  seguin: 'Guadalupe', cibolo: 'Guadalupe', schertz_guadalupe: 'Guadalupe',
-  // Freestone County
-  fairfield: 'Freestone', teague: 'Freestone',
-  // Navarro County
-  corsicana: 'Navarro', kerens: 'Navarro', dawson: 'Navarro',
-  // Somervell County
-  glen_rose: 'Somervell',
-  // Comanche County
-  comanche: 'Comanche', de_leon: 'Comanche',
-  // Brown County
-  brownwood: 'Brown', early: 'Brown', bangs: 'Brown',
-  // McCulloch County
-  brady: 'McCulloch', rochelle: 'McCulloch',
-  // Mason County
-  mason: 'Mason',
-  // Leon County
-  centerville: 'Leon', buffalo: 'Leon', jewett: 'Leon',
-  // Madison County
-  madisonville: 'Madison', midway: 'Madison',
-  // Washington County
-  brenham: 'Washington', chappell_hill: 'Washington', burton: 'Washington',
-  // Fayette County
-  la_grange: 'Fayette', schulenburg: 'Fayette', flatonia: 'Fayette',
-  // Caldwell County
-  lockhart: 'Caldwell', luling: 'Caldwell', martindale: 'Caldwell',
-  // Erath County
-  stephenville: 'Erath', dublin: 'Erath',
-  // Johnson County
-  cleburne: 'Johnson', burleson_johnson: 'Johnson', joshua: 'Johnson',
-  alvarado: 'Johnson', grandview: 'Johnson',
-  // Hood County
-  granbury: 'Hood', tolar: 'Hood', cresson: 'Hood',
-  // Gonzales County
-  gonzales: 'Gonzales', nixon: 'Gonzales', waelder: 'Gonzales',
-
-  // ═══ RING 4: ~100-140 mi ═══
-  // Bexar County
-  san_antonio: 'Bexar', converse: 'Bexar', live_oak_bexar: 'Bexar',
-  universal_city: 'Bexar', schertz: 'Bexar', helotes: 'Bexar',
-  // Dallas County
-  dallas: 'Dallas', garland: 'Dallas', irving: 'Dallas', mesquite: 'Dallas',
-  grand_prairie: 'Dallas', richardson: 'Dallas', desoto: 'Dallas', duncanville: 'Dallas',
-  // Tarrant County
-  fort_worth: 'Tarrant', arlington: 'Tarrant', north_richland_hills: 'Tarrant',
-  euless: 'Tarrant', bedford: 'Tarrant', hurst: 'Tarrant', grapevine: 'Tarrant',
-  keller: 'Tarrant', mansfield: 'Tarrant', southlake: 'Tarrant',
-  // Ellis County
-  waxahachie: 'Ellis', midlothian: 'Ellis', ennis: 'Ellis', red_oak: 'Ellis',
-  // Kaufman County
-  kaufman: 'Kaufman', terrell: 'Kaufman', forney: 'Kaufman',
-  // Collin County
-  plano: 'Collin', mckinney: 'Collin', frisco: 'Collin',
-  allen: 'Collin', wylie: 'Collin', celina: 'Collin', prosper: 'Collin',
-  // Denton County
-  denton: 'Denton', lewisville: 'Denton', flower_mound: 'Denton',
-  little_elm: 'Denton', corinth: 'Denton', argyle: 'Denton',
-  // Parker County
-  weatherford: 'Parker', aledo: 'Parker', willow_park: 'Parker', hudson_oaks: 'Parker',
-  // Palo Pinto County
-  mineral_wells: 'Palo Pinto', palo_pinto: 'Palo Pinto', gordon: 'Palo Pinto',
-  // Eastland County
-  eastland: 'Eastland', cisco: 'Eastland', ranger: 'Eastland', gorman: 'Eastland',
-  // Callahan County
-  baird: 'Callahan', clyde: 'Callahan', cross_plains: 'Callahan',
-  // Coleman County
-  coleman: 'Coleman', santa_anna: 'Coleman',
-  // Kendall County
-  boerne: 'Kendall', comfort: 'Kendall', fair_oaks_ranch: 'Kendall',
-  // Kerr County
-  kerrville: 'Kerr', ingram: 'Kerr', center_point: 'Kerr', hunt: 'Kerr',
-  // Gillespie County
-  fredericksburg: 'Gillespie', stonewall_gillespie: 'Gillespie',
-  // Kimble County
-  junction: 'Kimble', london: 'Kimble',
-  // Menard County
-  menard: 'Menard',
-  // Concho County
-  paint_rock: 'Concho', eden: 'Concho',
-  // Grimes County
-  anderson: 'Grimes', navasota: 'Grimes', todd_mission: 'Grimes',
-  // Walker County
-  huntsville: 'Walker', riverside: 'Walker', new_waverly: 'Walker',
-  // Waller County
-  hempstead: 'Waller', waller: 'Waller', prairie_view: 'Waller',
-  // Colorado County
-  columbus: 'Colorado', eagle_lake: 'Colorado', weimar: 'Colorado',
-  // Lavaca County
-  hallettsville: 'Lavaca', yoakum: 'Lavaca', shiner: 'Lavaca',
-  // DeWitt County
-  cuero: 'DeWitt', yorktown: 'DeWitt',
-  // Wilson County
-  floresville: 'Wilson', la_vernia: 'Wilson', stockdale: 'Wilson',
-  // Anderson County
-  palestine: 'Anderson', elkhart: 'Anderson', frankston: 'Anderson',
-  // Henderson County
-  athens: 'Henderson', gun_barrel_city: 'Henderson', mabank: 'Henderson',
-  // Rockwall County
-  rockwall: 'Rockwall', royse_city: 'Rockwall', heath: 'Rockwall',
-  // Runnels County
-  ballinger: 'Runnels', winters: 'Runnels',
-  // Houston County
-  crockett: 'Houston', grapeland: 'Houston',
-
-  // ═══ RING 5: ~140-175 mi ═══
-  // Taylor County
-  abilene: 'Taylor', merkel: 'Taylor', tuscola: 'Taylor',
-  // Stephens County
-  breckenridge: 'Stephens',
-  // Shackelford County
-  albany: 'Shackelford',
-  // Jack County
-  jacksboro: 'Jack',
-  // Wise County
-  decatur: 'Wise', bridgeport: 'Wise', alvord: 'Wise', rhome: 'Wise',
-  // Grayson County
-  sherman: 'Grayson', denison: 'Grayson', whitesboro: 'Grayson', van_alstyne: 'Grayson',
-  // Hunt County
-  greenville: 'Hunt', commerce: 'Hunt', caddo_mills: 'Hunt',
-  // Van Zandt County
-  canton: 'Van Zandt', grand_saline: 'Van Zandt', wills_point: 'Van Zandt',
-  // Rains County
-  emory: 'Rains', point: 'Rains',
-  // Smith County
-  tyler: 'Smith', whitehouse: 'Smith', lindale: 'Smith', bullard: 'Smith',
-  // Cherokee County
-  rusk: 'Cherokee', jacksonville: 'Cherokee', alto: 'Cherokee',
-  // Montgomery County
-  conroe: 'Montgomery', the_woodlands: 'Montgomery', magnolia: 'Montgomery',
-  willis: 'Montgomery', new_caney: 'Montgomery', porter: 'Montgomery',
-  // Harris County
-  houston: 'Harris', pasadena: 'Harris', baytown: 'Harris', katy: 'Harris',
-  sugar_land_harris: 'Harris', pearland_harris: 'Harris', spring: 'Harris',
-  cypress: 'Harris', humble: 'Harris', tomball: 'Harris',
-  // Fort Bend County
-  sugar_land: 'Fort Bend', missouri_city: 'Fort Bend', richmond: 'Fort Bend',
-  rosenberg: 'Fort Bend', fulshear: 'Fort Bend',
-  // Brazoria County
-  pearland: 'Brazoria', alvin: 'Brazoria', lake_jackson: 'Brazoria',
-  angleton: 'Brazoria', clute: 'Brazoria', manvel: 'Brazoria',
-  // Austin County
-  bellville: 'Austin', sealy: 'Austin', wallis: 'Austin',
-  // Victoria County
-  victoria: 'Victoria',
-  // Karnes County
-  karnes_city: 'Karnes', kenedy: 'Karnes', runge: 'Karnes',
-  // Medina County
-  hondo: 'Medina', castroville: 'Medina', devine: 'Medina', natalia: 'Medina',
-  // Bandera County
-  bandera: 'Bandera', pipe_creek: 'Bandera',
-  // Atascosa County
-  jourdanton: 'Atascosa', pleasanton: 'Atascosa', poteet: 'Atascosa', lytle: 'Atascosa',
-  // Goliad County
-  goliad: 'Goliad',
-  // Jackson County
-  edna: 'Jackson', ganado: 'Jackson',
-  // San Jacinto County
-  coldspring: 'San Jacinto', shepherd: 'San Jacinto',
-  // Polk County
-  livingston: 'Polk', corrigan: 'Polk', onalaska: 'Polk',
-  // Trinity County
-  groveton: 'Trinity', trinity: 'Trinity',
-  // Tom Green County
-  san_angelo: 'Tom Green', wall: 'Tom Green', grape_creek: 'Tom Green',
-  // Nolan County
-  sweetwater: 'Nolan', roscoe: 'Nolan',
-  // Coke County
-  robert_lee: 'Coke', bronte: 'Coke',
-  // Schleicher County
-  eldorado: 'Schleicher',
-  // Sutton County
-  sonora: 'Sutton',
-  // Edwards County
-  rocksprings: 'Edwards',
-  // Real County
-  leakey: 'Real', camp_wood: 'Real',
-  // Uvalde County
-  uvalde: 'Uvalde', sabinal: 'Uvalde',
-
-  // ═══ RING 6: ~175-200 mi (outer edge) ═══
-  // Wichita County
-  wichita_falls: 'Wichita', burkburnett: 'Wichita', iowa_park: 'Wichita',
-  // Clay County
-  henrietta: 'Clay',
-  // Archer County
-  archer_city: 'Archer', holliday: 'Archer',
-  // Baylor County
-  seymour: 'Baylor',
-  // Throckmorton County
-  throckmorton: 'Throckmorton',
-  // Jones County
-  anson: 'Jones', stamford_jones: 'Jones', hamlin: 'Jones',
-  // Haskell County
-  haskell: 'Haskell',
-  // Knox County
-  benjamin: 'Knox', munday: 'Knox',
-  // Fisher County
-  roby: 'Fisher', rotan: 'Fisher',
-  // Stonewall County
-  aspermont: 'Stonewall',
-  // Irion County
-  mertzon: 'Irion',
-  // Cooke County
-  gainesville: 'Cooke', muenster: 'Cooke', valley_view: 'Cooke',
-  // Montague County
-  montague: 'Montague', bowie_montague: 'Montague', nocona: 'Montague',
-  // Fannin County
-  bonham: 'Fannin', leonard: 'Fannin', honey_grove: 'Fannin',
-  // Delta County
-  cooper: 'Delta',
-  // Hopkins County
-  sulphur_springs: 'Hopkins', como: 'Hopkins',
-  // Wood County
-  quitman: 'Wood', mineola: 'Wood', winnsboro: 'Wood',
-  // Upshur County
-  gilmer: 'Upshur', big_sandy: 'Upshur',
-  // Gregg County
-  longview: 'Gregg', kilgore: 'Gregg', gladewater: 'Gregg',
-  // Rusk County
-  henderson: 'Rusk', overton: 'Rusk', tatum: 'Rusk',
-  // Nacogdoches County
-  nacogdoches: 'Nacogdoches', garrison: 'Nacogdoches',
-  // Angelina County
-  lufkin: 'Angelina', diboll: 'Angelina', hudson: 'Angelina',
-  // Panola County
-  carthage: 'Panola',
-  // Shelby County
-  center: 'Shelby', timpson: 'Shelby',
-  // San Augustine County
-  san_augustine: 'San Augustine',
-  // Galveston County
-  galveston: 'Galveston', texas_city: 'Galveston', league_city: 'Galveston',
-  dickinson: 'Galveston', friendswood: 'Galveston', santa_fe_galveston: 'Galveston',
-  // Chambers County
-  anahuac: 'Chambers', winnie: 'Chambers', mont_belvieu: 'Chambers',
-  // Liberty County
-  liberty: 'Liberty', dayton: 'Liberty', cleveland: 'Liberty',
-  // Wharton County
-  wharton: 'Wharton', el_campo: 'Wharton', east_bernard: 'Wharton',
-  // Matagorda County
-  bay_city: 'Matagorda', palacios: 'Matagorda',
-  // Calhoun County
-  port_lavaca: 'Calhoun', point_comfort: 'Calhoun', seadrift: 'Calhoun',
-  // Refugio County
-  refugio: 'Refugio', woodsboro: 'Refugio',
-  // Bee County
-  beeville: 'Bee', pettus: 'Bee',
-  // Live Oak County
-  george_west: 'Live Oak', three_rivers: 'Live Oak',
-  // San Patricio County
-  sinton: 'San Patricio', portland: 'San Patricio', ingleside: 'San Patricio',
-  aransas_pass: 'San Patricio', taft: 'San Patricio', odem: 'San Patricio',
-  // McMullen County
-  tilden: 'McMullen',
-  // Frio County
-  pearsall: 'Frio', dilley: 'Frio',
-  // La Salle County
-  cotulla: 'La Salle', encinal: 'La Salle',
-  // Dimmit County
-  carrizo_springs: 'Dimmit', big_wells: 'Dimmit',
-  // Young County
-  graham: 'Young', olney: 'Young',
-  // Nueces County (borderline ~225 mi but commonly searched)
-  corpus_christi: 'Nueces', robstown: 'Nueces', port_aransas: 'Nueces',
-};
-
 /**
- * Detect county from city name (fuzzy match).
+ * address-utils.ts — Texas Address Normalization & Variant Engine
+ * Starr Software — Drop-in replacement
+ *
+ * Uses project interfaces from ../types/index.ts and ../lib/logger.ts
  */
-export function detectCountyFromCity(city: string | null): string | null {
-  if (!city) return null;
-  const normalized = city.toLowerCase().replace(/[\s-]+/g, '_').replace(/[^a-z_]/g, '');
-  return CITY_TO_COUNTY[normalized] ?? null;
+
+import { ParsedAddress, AddressVariant, NormalizedAddress } from '../types/index.js';
+import { PipelineLogger } from '../lib/logger.js';
+
+// ━━ TEXAS ROAD PREFIX REGISTRY ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+interface TxRoadDef {
+  canonical: string;
+  fullNames: string[];
+  inputVariations: string[];
 }
 
-// ── Nominatim Geocoder (Layer 0A) ──────────────────────────────────────────
+const TX_ROAD_DEFS: TxRoadDef[] = [
+  { canonical: 'FM', fullNames: ['Farm to Market', 'Farm-to-Market', 'Farm to Market Road', 'Farm-to-Market Road', 'Farm Road', 'Farm Rd'], inputVariations: ['FM', 'FM RD', 'FM ROAD', 'FMR'] },
+  { canonical: 'RM', fullNames: ['Ranch to Market', 'Ranch-to-Market', 'Ranch to Market Road'], inputVariations: ['RM', 'RM RD', 'RM ROAD'] },
+  { canonical: 'RR', fullNames: ['Ranch Road', 'Ranch Rd'], inputVariations: ['RR', 'RR RD'] },
+  { canonical: 'SH', fullNames: ['State Highway', 'State Hwy', 'State Route', 'St Hwy'], inputVariations: ['SH', 'ST HWY', 'STATE HWY'] },
+  { canonical: 'US', fullNames: ['US Highway', 'U.S. Highway', 'US Hwy'], inputVariations: ['US', 'US HWY', 'USH'] },
+  { canonical: 'IH', fullNames: ['Interstate Highway', 'Interstate', 'Interstate Hwy'], inputVariations: ['IH', 'INTERSTATE', 'INT'] },
+  { canonical: 'CR', fullNames: ['County Road', 'County Rd', 'Co Road', 'Co Rd'], inputVariations: ['CR', 'CO RD', 'COUNTY RD'] },
+  { canonical: 'SL', fullNames: ['State Loop', 'Loop'], inputVariations: ['SL', 'LOOP', 'LP'] },
+  { canonical: 'SS', fullNames: ['State Spur', 'Spur'], inputVariations: ['SS', 'SPUR', 'SP'] },
+  { canonical: 'PR', fullNames: ['Park Road', 'Park Rd'], inputVariations: ['PR', 'PARK RD'] },
+  { canonical: 'RE', fullNames: ['Recreational Road'], inputVariations: ['RE', 'REC RD'] },
+  { canonical: 'BI', fullNames: ['Business Interstate'], inputVariations: ['BI', 'BUS I', 'BUS IH'] },
+  { canonical: 'BU', fullNames: ['Business US', 'Business US Highway'], inputVariations: ['BU', 'BUS US'] },
+  { canonical: 'BS', fullNames: ['Business State Highway'], inputVariations: ['BS', 'BUS SH'] },
+  { canonical: 'BF', fullNames: ['Business FM'], inputVariations: ['BF', 'BUS FM'] },
+];
 
-interface NominatimResult {
-  display_name: string;
-  lat: string;
-  lon: string;
-  address: {
-    house_number?: string;
-    road?: string;
-    city?: string;
-    town?: string;
-    village?: string;
-    hamlet?: string;
-    state?: string;
-    postcode?: string;
-    county?: string;
-    country_code?: string;
-  };
-}
-
-async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries: number,
-  logger: PipelineLogger,
-  label: string,
-): Promise<Response | null> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      if (attempt > 0) {
-        const delay = 2_000 * Math.pow(2, attempt - 1);
-        logger.info('Retry', `${label}: retry ${attempt}/${maxRetries} after ${delay}ms`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-      const response = await fetch(url, options);
-      return response;
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      if (attempt === maxRetries) {
-        logger.warn('Retry', `${label}: all ${maxRetries + 1} attempts failed: ${errMsg}`);
-        return null;
-      }
-    }
+const TX_PREFIX_LOOKUP = new Map<string, string>();
+for (const def of TX_ROAD_DEFS) {
+  TX_PREFIX_LOOKUP.set(def.canonical.toUpperCase(), def.canonical);
+  for (const v of def.inputVariations) {
+    TX_PREFIX_LOOKUP.set(v.toUpperCase().replace(/\./g, ''), def.canonical);
+    TX_PREFIX_LOOKUP.set(v.toUpperCase(), def.canonical);
   }
+}
+
+const TX_SPELLED_OUT_PATTERNS: Array<{ pattern: RegExp; canonical: string }> = [];
+for (const def of TX_ROAD_DEFS) {
+  for (const fullName of def.fullNames) {
+    const escaped = fullName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s-]+');
+    TX_SPELLED_OUT_PATTERNS.push({
+      pattern: new RegExp('^' + escaped + '\\s+(\\d+)', 'i'),
+      canonical: def.canonical,
+    });
+  }
+}
+TX_SPELLED_OUT_PATTERNS.sort((a, b) => b.pattern.source.length - a.pattern.source.length);
+
+function getTxRoadDef(canonical: string): TxRoadDef | undefined {
+  return TX_ROAD_DEFS.find(d => d.canonical === canonical);
+}
+
+// ━━ DIRECTIONALS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const DIR_MAP: Record<string, { abbrev: string; full: string }> = {
+  'N': { abbrev: 'N', full: 'NORTH' }, 'S': { abbrev: 'S', full: 'SOUTH' },
+  'E': { abbrev: 'E', full: 'EAST' },  'W': { abbrev: 'W', full: 'WEST' },
+  'NE': { abbrev: 'NE', full: 'NORTHEAST' }, 'NW': { abbrev: 'NW', full: 'NORTHWEST' },
+  'SE': { abbrev: 'SE', full: 'SOUTHEAST' }, 'SW': { abbrev: 'SW', full: 'SOUTHWEST' },
+  'NORTH': { abbrev: 'N', full: 'NORTH' }, 'SOUTH': { abbrev: 'S', full: 'SOUTH' },
+  'EAST': { abbrev: 'E', full: 'EAST' },  'WEST': { abbrev: 'W', full: 'WEST' },
+  'NORTHEAST': { abbrev: 'NE', full: 'NORTHEAST' }, 'NORTHWEST': { abbrev: 'NW', full: 'NORTHWEST' },
+  'SOUTHEAST': { abbrev: 'SE', full: 'SOUTHEAST' }, 'SOUTHWEST': { abbrev: 'SW', full: 'SOUTHWEST' },
+};
+
+function isDirectional(w: string): boolean { return w.toUpperCase() in DIR_MAP; }
+function abbrDir(w: string): string { return DIR_MAP[w.toUpperCase()]?.abbrev ?? w; }
+function expandDir(w: string): string { return DIR_MAP[w.toUpperCase()]?.full ?? w; }
+
+// ━━ STREET TYPE HANDLING ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const STREET_TYPE_MAP: Record<string, string[]> = {
+  'St': ['Street','St','Str'], 'Dr': ['Drive','Dr','Drv'], 'Ave': ['Avenue','Ave','Av'],
+  'Blvd': ['Boulevard','Blvd'], 'Ln': ['Lane','Ln'], 'Rd': ['Road','Rd'],
+  'Ct': ['Court','Ct'], 'Cir': ['Circle','Cir'], 'Pl': ['Place','Pl'],
+  'Way': ['Way'], 'Pkwy': ['Parkway','Pkwy'], 'Trl': ['Trail','Trl'],
+  'Loop': ['Loop','Lp'], 'Hwy': ['Highway','Hwy'], 'Cv': ['Cove','Cv'],
+  'Run': ['Run'], 'Pass': ['Pass'], 'Xing': ['Crossing','Xing'],
+  'Bnd': ['Bend','Bnd'], 'Trce': ['Trace','Trce'], 'Vw': ['View','Vw'],
+  'Ter': ['Terrace','Ter'], 'Spgs': ['Springs','Spgs'],
+};
+
+const ABBREV_MAP = new Map<string, string>();
+for (const [abbr, forms] of Object.entries(STREET_TYPE_MAP)) {
+  for (const f of forms) ABBREV_MAP.set(f.toLowerCase(), abbr);
+}
+
+function abbreviateType(t: string): string { return ABBREV_MAP.get(t.toLowerCase()) ?? t; }
+function expandType(abbr: string): string | null { return STREET_TYPE_MAP[abbreviateType(abbr)]?.[0] ?? null; }
+function isStreetType(w: string): boolean { return ABBREV_MAP.has(w.toLowerCase()); }
+
+// ━━ TEXAS ROAD DETECTION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+interface TxRoadDetection {
+  canonical: string;
+  routeNumber: string;
+  directional: string | null;
+}
+
+function detectTexasRoad(input: string): TxRoadDetection | null {
+  const s = input.trim();
+  if (!s) return null;
+
+  // 1. Check spelled-out forms
+  for (const { pattern, canonical } of TX_SPELLED_OUT_PATTERNS) {
+    const m = s.match(pattern);
+    if (m) return { canonical, routeNumber: m[m.length - 1], directional: null };
+  }
+
+  // 2. Tokenize
+  const normalized = s.replace(/\./g, '').replace(/-/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+  const tokens = normalized.split(' ');
+
+  for (let i = 0; i < tokens.length; i++) {
+    const canonical = TX_PREFIX_LOOKUP.get(tokens[i]);
+    if (!canonical) continue;
+
+    let routeIdx = -1;
+    for (let j = i + 1; j < tokens.length && j <= i + 2; j++) {
+      if (/^\d+$/.test(tokens[j])) { routeIdx = j; break; }
+      if (/^(RD|ROAD)$/i.test(tokens[j])) continue;
+      if (isDirectional(tokens[j])) continue;
+      break;
+    }
+    if (routeIdx === -1) continue;
+
+    let dir: string | null = null;
+    if (i > 0 && isDirectional(tokens[i - 1])) dir = abbrDir(tokens[i - 1]);
+    if (!dir && routeIdx + 1 < tokens.length && isDirectional(tokens[routeIdx + 1])) dir = abbrDir(tokens[routeIdx + 1]);
+
+    return { canonical, routeNumber: tokens[routeIdx], directional: dir };
+  }
+
+  // 3. I-35 style
+  const ih = normalized.match(/^(?:([NSEW]|NORTH|SOUTH|EAST|WEST)\s+)?I[- ]?(\d+)$/);
+  if (ih) return { canonical: 'IH', routeNumber: ih[2], directional: ih[1] ? abbrDir(ih[1]) : null };
+
   return null;
 }
 
-async function geocodeNominatim(address: string, logger: PipelineLogger): Promise<{
-  success: boolean;
-  road: string | null;
-  houseNumber: string | null;
-  city: string | null;
-  county: string | null;
-  state: string | null;
-  zip: string | null;
-  lat: number | null;
-  lon: number | null;
-}> {
-  const tracker = logger.startAttempt({
-    layer: 'Stage0A',
-    source: 'Nominatim',
-    method: 'geocode',
-    input: address,
-  });
+// ━━ NOMINATIM ROAD PARSER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  const fail = { success: false, road: null, houseNumber: null, city: null, county: null, state: null, zip: null, lat: null, lon: null };
+export function parseNominatimRoad(road: string): { name: string; type: string } {
+  const tx = detectTexasRoad(road);
+  if (tx) return { name: tx.canonical + ' ' + tx.routeNumber, type: '' };
 
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&addressdetails=1&limit=3&countrycodes=us`;
-    tracker.step(`GET ${url}`);
-
-    const response = await fetchWithRetry(url, {
-      headers: { 'User-Agent': 'StarrResearchPipeline/5.0 (property-research)' },
-      signal: AbortSignal.timeout(15_000),
-    }, 2, logger, 'Nominatim');
-
-    if (!response || !response.ok) {
-      tracker.step(`Nominatim failed: ${response ? `HTTP ${response.status}` : 'no response'}`);
-      tracker({ status: 'fail', error: response ? `HTTP ${response.status}` : 'Network error' });
-      return fail;
-    }
-
-    const results = (await response.json()) as NominatimResult[];
-    tracker.step(`Nominatim returned ${results.length} result(s)`);
-    if (!results.length) {
-      tracker({ status: 'fail', error: 'No results' });
-      return fail;
-    }
-
-    // Pick best result: prefer one with house_number
-    const best = results.find((r) => r.address.house_number) ?? results[0];
-    const addr = best.address;
-    tracker.step(`Best result: road="${addr.road}", house="${addr.house_number}", city="${addr.city ?? addr.town}", county="${addr.county}"`);
-
-    tracker({
-      status: 'success',
-      dataPointsFound: results.length,
-      details: `Road: ${addr.road ?? 'N/A'}, House: ${addr.house_number ?? 'N/A'}, County: ${addr.county ?? 'N/A'}`,
-    });
-
-    return {
-      success: true,
-      road: addr.road ?? null,
-      houseNumber: addr.house_number ?? null,
-      city: addr.city ?? addr.town ?? addr.village ?? addr.hamlet ?? null,
-      county: addr.county ? addr.county.replace(/\s*County$/i, '').trim() : null,
-      state: addr.state ?? null,
-      zip: addr.postcode ?? null,
-      lat: parseFloat(best.lat),
-      lon: parseFloat(best.lon),
-    };
-  } catch (err) {
-    tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
-    return fail;
+  const words = road.trim().split(/\s+/);
+  if (words.length >= 2) {
+    const last = words[words.length - 1].replace(/\.$/, '');
+    if (isStreetType(last)) return { name: words.slice(0, -1).join(' '), type: abbreviateType(last) };
   }
+  return { name: road, type: '' };
 }
 
-// ── US Census Geocoder (Layer 0B) ──────────────────────────────────────────
+// ━━ CENSUS POST-PROCESSING ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-interface CensusResult {
-  result: {
-    addressMatches: Array<{
-      matchedAddress: string;
-      coordinates: { x: number; y: number };
-      addressComponents: {
-        fromAddress: string;
-        toAddress: string;
-        preQualifier: string;
-        preDirection: string;
-        preType: string;
-        streetName: string;
-        suffixType: string;
-        suffixDirection: string;
-        suffixQualifier: string;
-        city: string;
-        state: string;
-        zip: string;
-      };
-    }>;
-  };
-}
+export function parseCensusComponents(components: Record<string, string>): ParsedAddress {
+  const streetNumber = (components.fromAddress || '').replace(/[^0-9]/g, '');
+  const preDir = (components.preDirection || '').trim();
+  const preQual = (components.preQualifier || '').trim();
+  const streetName = (components.streetName || '').trim();
+  const suffixType = (components.suffixType || '').trim();
+  const suffixDir = (components.suffixDirection || '').trim();
 
-async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
-  success: boolean;
-  streetName: string | null;
-  preDirection: string | null;
-  preQualifier: string | null;
-  preType: string | null;
-  suffixType: string | null;
-  suffixDirection: string | null;
-  fromAddress: string | null;
-  city: string | null;
-  state: string | null;
-  zip: string | null;
-  lat: number | null;
-  lon: number | null;
-  matchedAddress: string | null;
-}> {
-  const censusTracker = logger.startAttempt({
-    layer: 'Stage0B',
-    source: 'Census',
-    method: 'geocode',
-    input: address,
-  });
+  // Detect TX designated road: Census puts prefix in preQualifier
+  const qualCanonical = TX_PREFIX_LOOKUP.get(preQual.toUpperCase().replace(/\./g, ''));
 
-  const fail = { success: false, streetName: null, preDirection: null, preQualifier: null, preType: null, suffixType: null, suffixDirection: null, fromAddress: null, city: null, state: null, zip: null, lat: null, lon: null, matchedAddress: null };
-
-  try {
-    const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${encodeURIComponent(address)}&benchmark=Public_AR_Current&format=json`;
-    censusTracker.step(`GET ${url}`);
-
-    const response = await fetchWithRetry(url, {
-      signal: AbortSignal.timeout(20_000),
-    }, 2, logger, 'Census');
-
-    if (!response || !response.ok) {
-      censusTracker.step(`Census failed: ${response ? `HTTP ${response.status}` : 'no response'}`);
-      censusTracker({ status: 'fail', error: response ? `HTTP ${response.status}` : 'Network error' });
-      return fail;
-    }
-
-    const data = (await response.json()) as CensusResult;
-    const matches = data.result?.addressMatches;
-
-    if (!matches?.length) {
-      censusTracker.step('Census returned 0 address matches');
-      censusTracker({ status: 'fail', error: 'No address matches' });
-      return fail;
-    }
-
-    const match = matches[0];
-    const comp = match.addressComponents;
-    censusTracker.step(`Census matched: "${match.matchedAddress}" | street="${comp.streetName}", preDir="${comp.preDirection}", type="${comp.suffixType}", city="${comp.city}"`);
-
-    censusTracker({
-      status: 'success',
-      dataPointsFound: matches.length,
-      details: `Matched: ${match.matchedAddress}, Street: ${comp.streetName}, Type: ${comp.suffixType}`,
-    });
-
+  if (qualCanonical && /^\d+$/.test(streetName)) {
     return {
-      success: true,
-      streetName: comp.streetName || null,
-      preDirection: comp.preDirection || null,
-      preQualifier: comp.preQualifier || null,
-      preType: comp.preType || null,
-      suffixType: comp.suffixType || null,
-      suffixDirection: comp.suffixDirection || null,
-      fromAddress: comp.fromAddress || null,
-      city: comp.city || null,
-      state: comp.state || null,
-      zip: comp.zip || null,
-      lat: match.coordinates.y,
-      lon: match.coordinates.x,
-      matchedAddress: match.matchedAddress,
-    };
-  } catch (err) {
-    censusTracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
-    return fail;
-  }
-}
-
-// ── Road String Parser ─────────────────────────────────────────────────────
-
-/**
- * Convert geocoder road output to CAD-friendly format.
- * "Farm-to-Market Road 436" → "FM 436"
- * "State Highway 195" → "SH 195"
- * "County Road 281" → "CR 281"
- */
-export function parseRoadString(road: string): string {
-  let result = road.trim();
-
-  // Sort by length (longest first) so "Farm-to-Market Road" matches before "Farm-to-Market"
-  const sorted = Object.entries(ROAD_EXPANSIONS)
-    .sort((a, b) => b[0].length - a[0].length);
-
-  for (const [longForm, abbrev] of sorted) {
-    const re = new RegExp(longForm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    if (re.test(result)) {
-      result = result.replace(re, abbrev);
-      break;
-    }
-  }
-
-  // Clean up double spaces
-  return result.replace(/\s+/g, ' ').trim();
-}
-
-// ── Manual Address Parser (Layer 0C) ───────────────────────────────────────
-
-/**
- * Regex-based address parser as fallback when geocoding fails.
- * Handles standard US formats and Texas-specific patterns.
- */
-export function parseAddressManually(raw: string): ParsedAddress {
-  const cleaned = raw.trim().replace(/\s+/g, ' ');
-
-  // Extract unit/suite first
-  const unitMatch = cleaned.match(/(?:,?\s*)?(?:Apt\.?|Suite|Ste\.?|Unit|#|Bldg\.?|Building)\s*[#]?\s*(\S+)/i);
-  const withoutUnit = unitMatch ? cleaned.replace(unitMatch[0], '').trim() : cleaned;
-
-  // Try full address: NUMBER STREET, CITY, STATE ZIP
-  const fullMatch = withoutUnit.match(
-    /^(\d+[-\w]*)\s+(.+?)\s*,\s*([^,]+)\s*,\s*([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/i,
-  );
-
-  if (fullMatch) {
-    const [, num, street, city, state, zip] = fullMatch;
-    const { name, type, preDir, postDir } = parseStreetParts(street);
-
-    return {
-      streetNumber: num,
-      streetName: name,
-      streetType: type,
-      preDirection: preDir,
-      postDirection: postDir,
-      unit: unitMatch?.[1] ?? null,
-      city: city.trim(),
-      state: state.toUpperCase(),
-      zip: zip ?? null,
+      streetNumber,
+      streetName: qualCanonical + ' ' + streetName,
+      streetType: '',
+      preDirection: preDir || null,
+      postDirection: suffixDir || null,
+      unit: null,
+      city: (components.city || '').trim() || null,
+      state: (components.state || '').trim() || null,
+      zip: (components.zip || '').trim() || null,
     };
   }
 
-  // Try without city/state: NUMBER STREET
-  const simpleMatch = withoutUnit.match(/^(\d+[-\w]*)\s+(.+)/);
-  if (simpleMatch) {
-    const rawStreet = simpleMatch[2].replace(/,.*$/, '').trim();
-    const { name, type, preDir, postDir } = parseStreetParts(rawStreet);
-
-    // Try to extract city/state from remainder
-    const remainder = simpleMatch[2].includes(',')
-      ? simpleMatch[2].substring(simpleMatch[2].indexOf(',') + 1).trim()
-      : '';
-    const csMatch = remainder.match(/^([^,]+),\s*([A-Z]{2})\s*(\d{5})?$/i);
-
-    return {
-      streetNumber: simpleMatch[1],
-      streetName: name,
-      streetType: type,
-      preDirection: preDir,
-      postDirection: postDir,
-      unit: unitMatch?.[1] ?? null,
-      city: csMatch?.[1]?.trim() ?? null,
-      state: csMatch?.[2]?.toUpperCase() ?? null,
-      zip: csMatch?.[3] ?? null,
-    };
-  }
+  // Standard address
+  let fullName = '';
+  if (preDir) fullName += preDir + ' ';
+  if (preQual) fullName += preQual + ' ';
+  fullName += streetName;
+  fullName = fullName.trim();
 
   return {
-    streetNumber: '',
-    streetName: cleaned,
-    streetType: '',
+    streetNumber,
+    streetName: fullName,
+    streetType: suffixType,
     preDirection: null,
-    postDirection: null,
+    postDirection: suffixDir || null,
     unit: null,
-    city: null,
-    state: null,
-    zip: null,
+    city: (components.city || '').trim() || null,
+    state: (components.state || '').trim() || null,
+    zip: (components.zip || '').trim() || null,
   };
 }
 
-/**
- * Separate a street string into name, type, pre-direction, post-direction.
- */
-function parseStreetParts(street: string): {
-  name: string;
-  type: string;
-  preDir: string | null;
-  postDir: string | null;
-} {
-  let remaining = street.trim();
-  let preDir: string | null = null;
-  let postDir: string | null = null;
-  let type = '';
+// ━━ ADDRESS PARSERS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  // Extract pre-directional
-  const preDirMatch = remaining.match(DIRECTIONAL_ABBREV_RE);
-  if (preDirMatch) {
-    preDir = normalizeDirection(preDirMatch[1]);
-    remaining = remaining.substring(preDirMatch[0].length).trim();
-  }
+export function parseAddress(raw: string): ParsedAddress {
+  return manualParse(raw);
+}
 
-  // Extract post-directional
-  const postDirMatch = remaining.match(DIRECTIONAL_SUFFIX_RE);
-  if (postDirMatch) {
-    postDir = normalizeDirection(postDirMatch[1]);
-    remaining = remaining.substring(0, remaining.length - postDirMatch[0].length).trim();
-  }
+/** Kept for backward compatibility with callers that used the old export name. */
+export function parseAddressManually(raw: string): ParsedAddress {
+  return manualParse(raw);
+}
 
-  // Extract street type from end
-  const words = remaining.split(/\s+/);
-  if (words.length >= 2) {
-    const lastWord = words[words.length - 1];
-    for (const [, variants] of Object.entries(STREET_TYPE_MAP)) {
-      if (variants.some((v) => v.toLowerCase() === lastWord.toLowerCase())) {
-        type = lastWord;
-        words.pop();
-        break;
-      }
+export function manualParse(raw: string): ParsedAddress {
+  let addr = raw.trim().replace(/\s+/g, ' ');
+
+  let city: string | null = null;
+  let state: string | null = null;
+  let zip: string | null = null;
+
+  const full = addr.match(/^(.+?),\s*([^,]+?),\s*([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/i);
+  if (full) {
+    addr = full[1].trim(); city = full[2].trim(); state = full[3].toUpperCase(); zip = full[4] || null;
+  } else {
+    const short = addr.match(/^(.+?),\s*([^,]+?)\s+([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/i);
+    if (short) {
+      addr = short[1].trim(); city = short[2].trim(); state = short[3].toUpperCase(); zip = short[4] || null;
     }
   }
 
-  return { name: words.join(' '), type, preDir, postDir };
-}
+  const streetNumber = addr.match(/^(\d+)\s/)?.[1] || addr.split(' ')[0] || '';
+  const streetPart = addr.replace(/^\d+\s+/, '');
 
-function normalizeDirection(dir: string): string {
-  const upper = dir.toUpperCase().replace(/\s+/g, '');
-  for (const [abbrev, variants] of Object.entries(DIRECTIONS)) {
-    if (variants.some((v) => v.toUpperCase() === upper)) return abbrev;
+  // Check for Texas designated road
+  const tx = detectTexasRoad(streetPart);
+  if (tx) {
+    return {
+      streetNumber,
+      streetName: tx.canonical + ' ' + tx.routeNumber,
+      streetType: '',
+      preDirection: tx.directional,
+      postDirection: null,
+      unit: null, city, state, zip,
+    };
   }
-  return upper;
-}
 
-/** Expand a directional abbreviation to its full word: "W" → "WEST", "N" → "NORTH" */
-function expandDirectionalWord(dir: string): string {
-  const upper = dir.toUpperCase().trim();
-  for (const [, variants] of Object.entries(DIRECTIONS)) {
-    if (variants.some((v) => v.toUpperCase() === upper)) {
-      // Return the longest variant (the full word)
-      return variants.reduce((a, b) => a.length > b.length ? a : b).toUpperCase();
+  // Standard street parsing
+  const parts = addr.split(' ');
+  let streetName = '';
+  let streetType = '';
+  let unit: string | null = null;
+  let preDirection: string | null = null;
+
+  const unitIdx = parts.findIndex(p => /^(apt|unit|ste|suite|#)\.?$/i.test(p));
+  if (unitIdx > 0) {
+    unit = parts.slice(unitIdx).join(' ');
+    const sParts = parts.slice(1, unitIdx);
+    const lastP = sParts[sParts.length - 1];
+    if (lastP && isStreetType(lastP)) streetType = abbreviateType(sParts.pop()!);
+    streetName = sParts.join(' ');
+  } else {
+    const rest = parts.slice(1);
+    if (rest.length >= 2 && isDirectional(rest[0])) {
+      preDirection = abbrDir(rest[0]);
+    }
+    const lastWord = rest[rest.length - 1];
+    if (rest.length >= 2 && lastWord && isStreetType(lastWord)) {
+      streetType = abbreviateType(lastWord);
+      streetName = rest.slice(0, -1).join(' ');
+    } else {
+      streetName = rest.join(' ');
     }
   }
-  return upper;
+
+  return { streetNumber, streetName, streetType, preDirection, postDirection: null, unit, city, state, zip };
 }
 
-// ── Directional Stripping for FM/SH/CR Roads ──────────────────────────────
+// ━━ VARIANT GENERATION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/** Texas state road type pattern */
-const TX_ROAD_TYPES = /\b(FM|SH|CR|RR|RM|HWY|US|IH|SPUR|LOOP|PR)\b/i;
-
-/**
- * Strip directional prefixes/suffixes from Texas state road names.
- * "W FM 436" → "FM 436", "FM 436 W" → "FM 436"
- */
-function stripDirectionalFromRoad(streetName: string): string {
-  // Only strip directionals from TX numbered roads
-  if (!TX_ROAD_TYPES.test(streetName)) return streetName;
-
-  let result = streetName;
-
-  // Strip leading directional
-  result = result.replace(/^(North|South|East|West|NE|NW|SE|SW|N|S|E|W)\s+/i, '');
-
-  // Strip trailing directional
-  result = result.replace(/\s+(North|South|East|West|NE|NW|SE|SW|N|S|E|W)$/i, '');
-
-  return result.trim();
+export function generateVariants(parsed: ParsedAddress, rawAddress?: string): AddressVariant[] {
+  const tx = detectTexasRoad(parsed.streetName);
+  if (tx) return generateTexasRoadVariants(parsed.streetNumber, tx, parsed.preDirection);
+  return generateStandardVariants(parsed, rawAddress);
 }
 
-// ── Variant Generation ─────────────────────────────────────────────────────
-
-/**
- * Generate 15+ search query variants from a normalized address.
- * CAD systems index addresses inconsistently, so we try every plausible format.
- * Includes partial/fuzzy searches as lower-priority fallbacks.
- */
-export function generateVariants(
-  streetNumber: string,
-  streetName: string,
-  streetType: string,
-  preDirection: string | null,
-  postDirection: string | null,
-  city: string | null,
-): AddressVariant[] {
+function generateTexasRoadVariants(num: string, tx: TxRoadDetection, parsedDir: string | null): AddressVariant[] {
   const variants: AddressVariant[] = [];
   const seen = new Set<string>();
+  const prefix = tx.canonical;
+  const route = tx.routeNumber;
+  const dir = tx.directional || parsedDir;
+  const def = getTxRoadDef(prefix);
   let priority = 0;
 
-  function add(num: string, name: string, format: string, partial: boolean = false): void {
-    // Normalize for dedup (but keep the original casing in the variant)
-    const key = `${num}|${name}`.toLowerCase().replace(/\s+/g, ' ').trim();
-    if (seen.has(key)) return;
-    if (!num && !partial) return; // Don't add empty-number exact variants
+  function add(name: string, format: string, isPartial = false) {
+    const key = (num + '|' + name).toUpperCase();
+    if (seen.has(key) || !num || !name) return;
     seen.add(key);
-    priority++;
-    variants.push({
-      streetNumber: num,
-      streetName: name,
-      format,
-      query: num ? `${num} ${name}` : name,
-      priority,
-      isPartial: partial,
-    });
+    variants.push({ streetNumber: num, streetName: name, format, priority: priority++, isPartial });
   }
 
-  const stripped = stripDirectionalFromRoad(streetName);
-  const upperStripped = stripped.toUpperCase();
+  // TIER 1: Canonical WITHOUT directional — PROVEN on Bell CAD
+  add(prefix + ' ' + route, 'canonical');
 
-  // ── EXACT VARIANTS (high priority) ───────────────────────────────
+  // TIER 2: Canonical WITH abbreviated directional
+  if (dir) add(dir + ' ' + prefix + ' ' + route, 'canonical+dir');
 
-  // 1. Geocoded/canonical form (directionals stripped from TX roads)
-  add(streetNumber, stripped, 'geocoded-canonical');
-
-  // 2. With street type appended
-  if (streetType) {
-    add(streetNumber, `${stripped} ${streetType}`, 'with-type');
-  }
-
-  // 3. Original with directional prefix (if different)
-  if (preDirection && streetName !== stripped) {
-    add(streetNumber, `${preDirection} ${stripped}`, 'with-pre-dir');
-  }
-
-  // 4. With post-directional
-  if (postDirection) {
-    add(streetNumber, `${stripped} ${postDirection}`, 'with-post-dir');
-  }
-
-  // 5. Texas designated road variants (FM, SH, CR, RR, RM, US, IH, HWY, SPUR, LOOP, PR)
-  const txRoadMatch = stripped.match(/^(FM|SH|CR|RR|RM|US|IH|HWY|SPUR|LOOP|PR)\s+(\d+.*)$/i);
-  if (txRoadMatch) {
-    const roadType = txRoadMatch[1].toUpperCase();
-    const roadNum = txRoadMatch[2];
-
-    // Canonical form without directional (HIGHEST priority — proven to work on Bell CAD)
-    add(streetNumber, `${roadType} ${roadNum}`, 'tx-road-base');
-
-    // With directional prefix
-    if (preDirection) {
-      add(streetNumber, `${preDirection} ${roadType} ${roadNum}`, 'tx-road-with-dir');
-    }
-
-    // RD/ROAD suffix variations
-    add(streetNumber, `${roadType} RD ${roadNum}`, 'tx-road-rd-prefix');
-    add(streetNumber, `${roadType} ${roadNum} RD`, 'tx-road-rd-suffix');
-    add(streetNumber, `${roadType} ROAD ${roadNum}`, 'tx-road-road-prefix');
-
-    // Dotted/spaced variations (e.g. F.M. 436, F M 436)
-    if (roadType.length === 2) {
-      add(streetNumber, `${roadType[0]}.${roadType[1]}. ${roadNum}`, 'tx-road-dotted');
-      add(streetNumber, `${roadType[0]} ${roadType[1]} ${roadNum}`, 'tx-road-spaced');
-    }
-
-    // All long-form expansions for this road type
-    const expansions = ROAD_SHORT_TO_LONG[roadType] ?? [];
-    for (const expansion of expansions) {
-      if (expansion !== roadType) {
-        add(streetNumber, `${expansion} ${roadNum}`, `tx-road-expanded-${expansion.toLowerCase().replace(/\s+/g, '-')}`);
-      }
-    }
-
-    // With directional + RD suffix
-    if (preDirection) {
-      add(streetNumber, `${preDirection} ${roadType} RD ${roadNum}`, 'tx-road-dir-rd');
-      // Spelled-out directional
-      const dirFull = expandDirectionalWord(preDirection);
-      if (dirFull !== preDirection) {
-        add(streetNumber, `${dirFull} ${roadType} ${roadNum}`, 'tx-road-dir-full');
-      }
-    }
-
-    // Trailing directional
-    if (preDirection) {
-      add(streetNumber, `${roadType} ${roadNum} ${preDirection}`, 'tx-road-trailing-dir');
-    }
-
-    // HWY as alternate prefix (for non-CR/LOOP/SPUR/PR roads)
-    if (!['CR', 'LOOP', 'SPUR', 'PR'].includes(roadType)) {
-      add(streetNumber, `HWY ${roadNum}`, 'tx-road-hwy-fallback');
-      if (preDirection) {
-        add(streetNumber, `${preDirection} HWY ${roadNum}`, 'tx-road-hwy-dir-fallback');
-      }
-    }
-
-    // Just the route number (desperation)
-    add(streetNumber, roadNum, 'tx-road-number-only');
-  }
-
-  // 6. Highway pattern variations: "HWY 195" ↔ "Highway 195" ↔ "US 195"
-  const hwyMatch = stripped.match(/^(Highway|Hwy|HWY|US|US Highway)\s+(\d+)$/i);
-  if (hwyMatch) {
-    const num = hwyMatch[2];
-    add(streetNumber, `HWY ${num}`, 'hwy-abbrev');
-    add(streetNumber, `Highway ${num}`, 'hwy-full');
-    add(streetNumber, `US ${num}`, 'us-abbrev');
-    add(streetNumber, `US HWY ${num}`, 'us-hwy');
-    add(streetNumber, `US Highway ${num}`, 'us-highway');
-  }
-
-  // 7. Street type alternation (Dr ↔ Drive, St ↔ Street, etc.)
-  if (streetType) {
-    for (const [, alts] of Object.entries(STREET_TYPE_MAP)) {
-      if (alts.some((a) => a.toLowerCase() === streetType.toLowerCase())) {
-        for (const alt of alts) {
-          if (alt.toLowerCase() !== streetType.toLowerCase()) {
-            add(streetNumber, `${stripped} ${alt}`, `type-alt-${alt.toLowerCase()}`);
-          }
-        }
-        break;
-      }
+  // TIER 3: Common abbreviation variants (no dir)
+  if (def) {
+    for (const v of def.inputVariations) {
+      if (v === prefix) continue;
+      add(v + ' ' + route, 'variation:' + v);
     }
   }
 
-  // 8. Without street type entirely
-  if (streetType) {
-    add(streetNumber, stripped, 'no-type');
+  // TIER 4: With RD/ROAD suffix
+  add(prefix + ' RD ' + route, 'canonical+RD');
+  add(prefix + ' ROAD ' + route, 'canonical+ROAD');
+
+  // TIER 5: Spelled-out forms
+  if (def) {
+    for (const fn of def.fullNames) add(fn + ' ' + route, 'full:' + fn);
   }
 
-  // 9. ALL CAPS variant (some CAD systems require uppercase)
-  if (upperStripped !== stripped) {
-    add(streetNumber, upperStripped, 'uppercase');
-    if (streetType) {
-      add(streetNumber, `${upperStripped} ${streetType.toUpperCase()}`, 'uppercase-with-type');
+  // TIER 6: Directional combinations
+  if (dir) {
+    const dirFull = expandDir(dir);
+    add(dirFull + ' ' + prefix + ' ' + route, 'full_dir+canonical');
+    add(dir + ' ' + prefix + ' RD ' + route, 'dir+canonical+RD');
+    add(prefix + ' ' + route + ' ' + dir, 'canonical+trailing_dir');
+    if (def) {
+      for (const v of def.inputVariations) add(dir + ' ' + v + ' ' + route, 'dir+variation:' + v);
     }
   }
 
-  // 10. No periods (some addresses have "St." or "Dr.")
-  const noPeriods = stripped.replace(/\./g, '');
-  if (noPeriods !== stripped) {
-    add(streetNumber, noPeriods, 'no-periods');
+  // TIER 7: HWY fallback
+  if (!['CR','SL','SS','PR','RE'].includes(prefix)) {
+    add('HWY ' + route, 'hwy_fallback');
+    if (dir) add(dir + ' HWY ' + route, 'dir+hwy_fallback');
   }
 
-  // 11. Ordinal expansion: "5th St" → "Fifth St", "Fifth St" → "5th St"
-  const words = stripped.split(/\s+/);
-  for (let i = 0; i < words.length; i++) {
-    const lower = words[i].toLowerCase();
-    if (ORDINALS[lower]) {
-      const expanded = [...words];
-      expanded[i] = ORDINALS[lower];
-      add(streetNumber, expanded.join(' '), 'ordinal-to-digit');
-      if (streetType) add(streetNumber, `${expanded.join(' ')} ${streetType}`, 'ordinal-to-digit-typed');
-    }
-    if (ORDINALS_REVERSE[lower]) {
-      const expanded = [...words];
-      expanded[i] = ORDINALS_REVERSE[lower];
-      add(streetNumber, expanded.join(' '), 'digit-to-ordinal');
-      if (streetType) add(streetNumber, `${expanded.join(' ')} ${streetType}`, 'digit-to-ordinal-typed');
-    }
-  }
-
-  // 12. Without directional for non-TX-roads too
-  if (preDirection) {
-    add(streetNumber, stripped, 'no-pre-dir');
-    if (streetType) add(streetNumber, `${stripped} ${streetType}`, 'no-pre-dir-typed');
-  }
-
-  // 13. Common misspelling: double space, hyphenation
-  const dehyphenated = stripped.replace(/-/g, ' ');
-  if (dehyphenated !== stripped) {
-    add(streetNumber, dehyphenated, 'dehyphenated');
-  }
-  const hyphenated = stripped.replace(/\s+/g, '-');
-  if (hyphenated !== stripped) {
-    add(streetNumber, hyphenated, 'hyphenated');
-  }
-
-  // ── PARTIAL / FUZZY SEARCHES (lower priority) ────────────────────
-
-  // 14. Street name only (no number) — catches nearby addresses
-  add('', stripped, 'partial-name-only', true);
-  if (streetType) {
-    add('', `${stripped} ${streetType}`, 'partial-name-typed', true);
-  }
-
-  // 15. Number range: try ±10 from the original number
-  const numInt = parseInt(streetNumber, 10);
-  if (!isNaN(numInt) && streetNumber.match(/^\d+$/)) {
-    // Try adjacent even/odd numbers
-    for (const offset of [2, -2, 4, -4]) {
-      const adjacent = numInt + offset;
-      if (adjacent > 0) {
-        add(String(adjacent), stripped, `partial-adjacent-${offset > 0 ? '+' : ''}${offset}`, true);
-      }
-    }
-  }
-
-  // 16. Just the house number (for rare CAD systems that search by number first)
-  if (streetNumber) {
-    add(streetNumber, '', 'partial-number-only', true);
-  }
+  // TIER 8: Route number only (desperation)
+  add(route, 'route_number_only', true);
 
   return variants;
 }
 
-// ── Main Normalize Function ────────────────────────────────────────────────
+function generateStandardVariants(parsed: ParsedAddress, rawAddress?: string): AddressVariant[] {
+  const variants: AddressVariant[] = [];
+  const seen = new Set<string>();
+  const num = parsed.streetNumber;
+  const name = parsed.streetName;
+  const type = parsed.streetType;
+  let priority = 0;
 
-/**
- * Normalize an address through Nominatim → Census → manual parse,
- * then generate 15+ search variants for CAD queries.
- * Also detects county from geocoding when possible.
- */
+  function add(sn: string, format: string, isPartial = false) {
+    const key = (num + '|' + sn).toUpperCase();
+    if (seen.has(key) || !num || !sn) return;
+    seen.add(key);
+    variants.push({ streetNumber: num, streetName: sn, format, priority: priority++, isPartial });
+  }
+
+  if (name && type) {
+    add(name + ' ' + abbreviateType(type), 'name+abbr_type');
+    const fullT = expandType(type);
+    if (fullT && fullT !== abbreviateType(type)) add(name + ' ' + fullT, 'name+full_type');
+  }
+
+  if (name) add(name, 'name_only');
+
+  // Without directional
+  if (name) {
+    const stripped = name.replace(/^(N|S|E|W|NE|NW|SE|SW|NORTH|SOUTH|EAST|WEST|NORTHEAST|NORTHWEST|SOUTHEAST|SOUTHWEST)\s+/i, '');
+    if (stripped !== name) {
+      if (type) add(stripped + ' ' + abbreviateType(type), 'no_dir+type');
+      add(stripped, 'no_dir');
+    }
+  }
+
+  if (rawAddress) {
+    const manual = manualParse(rawAddress);
+    if (manual.streetName && manual.streetName !== name) {
+      if (manual.streetType) add(manual.streetName + ' ' + abbreviateType(manual.streetType), 'manual+type');
+      add(manual.streetName, 'manual');
+    }
+  }
+
+  // Partial fallback
+  if (name) add(name.split(' ')[0] || name, 'partial', true);
+
+  return variants;
+}
+
+// ━━ FULL NORMALIZATION (with geocoding) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 export async function normalizeAddress(
   rawAddress: string,
   logger: PipelineLogger,
 ): Promise<NormalizedAddress> {
-  logger.info('Stage0', `Normalizing address: ${rawAddress}`);
+  const tag = '[ADDRESS]';
+  console.log(tag + ' Normalizing: "' + rawAddress + '"');
 
-  let lat: number | null = null;
-  let lon: number | null = null;
-  let detectedCounty: string | null = null;
-
-  // Layer 0A: Nominatim
-  const nom = await geocodeNominatim(rawAddress, logger);
-  if (nom.success && nom.road && nom.houseNumber) {
-    const parsedRoad = parseRoadString(nom.road);
-    const { name, type, preDir, postDir } = parseStreetParts(parsedRoad);
-
-    const parsed: ParsedAddress = {
-      streetNumber: nom.houseNumber,
-      streetName: name,
-      streetType: type,
-      preDirection: preDir,
-      postDirection: postDir,
-      unit: null,
-      city: nom.city,
-      state: nom.state,
-      zip: nom.zip,
-    };
-
-    lat = nom.lat;
-    lon = nom.lon;
-    detectedCounty = nom.county ?? detectCountyFromCity(nom.city);
-
-    const variants = generateVariants(parsed.streetNumber, parsed.streetName, parsed.streetType, preDir, postDir, parsed.city);
-
-    return {
-      raw: rawAddress,
-      canonical: `${parsed.streetNumber} ${parsed.streetName}${parsed.streetType ? ' ' + parsed.streetType : ''}`,
-      parsed,
-      geocoded: true,
-      source: 'nominatim',
-      variants,
-      lat,
-      lon,
-      detectedCounty,
-      countyFIPS: countyToFIPS(detectedCounty ?? '') ?? null,
-    };
-  }
-
-  // Layer 0B: Census Geocoder
-  const census = await geocodeCensus(rawAddress, logger);
-  if (census.success && census.streetName && census.fromAddress) {
-    // Census returns preQualifier="FM" and streetName="436" as separate fields.
-    // We must recombine them: "FM" + "436" → "FM 436"
-    let reconstructedStreet = census.streetName;
-    if (census.preQualifier) {
-      const upperQual = census.preQualifier.toUpperCase().trim();
-      // Check if preQualifier is a Texas road prefix (FM, SH, CR, etc.)
-      if (TX_ROAD_TYPES.test(upperQual) || ROAD_SHORT_TO_LONG[upperQual]) {
-        reconstructedStreet = `${upperQual} ${census.streetName}`;
-        logger.info('Stage0B', `Census preQualifier "${census.preQualifier}" recombined with streetName "${census.streetName}" → "${reconstructedStreet}"`);
-      }
-    }
-    // Also handle preType (some Census results use preType instead of preQualifier)
-    if (census.preType && !census.preQualifier) {
-      const upperType = census.preType.toUpperCase().trim();
-      if (TX_ROAD_TYPES.test(upperType) || ROAD_SHORT_TO_LONG[upperType]) {
-        reconstructedStreet = `${upperType} ${census.streetName}`;
-        logger.info('Stage0B', `Census preType "${census.preType}" recombined with streetName "${census.streetName}" → "${reconstructedStreet}"`);
-      }
-    }
-
-    const parsedRoad = parseRoadString(reconstructedStreet);
-
-    const parsed: ParsedAddress = {
-      streetNumber: census.fromAddress,
-      streetName: parsedRoad,
-      streetType: census.suffixType ?? '',
-      preDirection: census.preDirection || null,
-      postDirection: census.suffixDirection || null,
-      unit: null,
-      city: census.city,
-      state: census.state,
-      zip: census.zip,
-    };
-
-    lat = census.lat;
-    lon = census.lon;
-    detectedCounty = detectCountyFromCity(census.city);
-
-    const variants = generateVariants(parsed.streetNumber, parsed.streetName, parsed.streetType, parsed.preDirection, parsed.postDirection, parsed.city);
-
-    return {
-      raw: rawAddress,
-      canonical: census.matchedAddress ?? `${parsed.streetNumber} ${parsed.streetName}`,
-      parsed,
-      geocoded: true,
-      source: 'census',
-      variants,
-      lat,
-      lon,
-      detectedCounty,
-      countyFIPS: countyToFIPS(detectedCounty ?? '') ?? null,
-    };
-  }
-
-  // Layer 0C: Manual parse
-  logger.info('Stage0C', 'Falling back to manual address parsing');
-  const parsed = parseAddressManually(rawAddress);
-  detectedCounty = detectCountyFromCity(parsed.city);
-
-  const variants = generateVariants(parsed.streetNumber, parsed.streetName, parsed.streetType, parsed.preDirection, parsed.postDirection, parsed.city);
-
-  return {
+  const result: NormalizedAddress = {
     raw: rawAddress,
-    canonical: `${parsed.streetNumber} ${parsed.streetName}${parsed.streetType ? ' ' + parsed.streetType : ''}`,
-    parsed,
+    canonical: null,
+    parsed: manualParse(rawAddress),
     geocoded: false,
     source: 'manual',
-    variants,
+    variants: [],
     lat: null,
     lon: null,
-    detectedCounty,
-    countyFIPS: countyToFIPS(detectedCounty ?? '') ?? null,
+    detectedCounty: null,
+    countyFIPS: null,
   };
+
+  // Layer 0A: Nominatim
+  try {
+    const nom = await tryNominatim(rawAddress, logger);
+    if (nom) {
+      result.canonical = nom.displayName;
+      result.parsed = nom.parsed;
+      result.geocoded = true;
+      result.source = 'nominatim';
+      result.lat = nom.lat;
+      result.lon = nom.lon;
+      result.detectedCounty = nom.county;
+      result.countyFIPS = nom.countyFIPS;
+      console.log(tag + ' Nominatim -> "' + nom.displayName + '"');
+    }
+  } catch (e: any) {
+    console.log(tag + ' Nominatim error: ' + e.message);
+  }
+
+  // Layer 0B: Census
+  if (!result.geocoded) {
+    try {
+      const cen = await tryCensus(rawAddress, logger);
+      if (cen) {
+        result.canonical = cen.displayName;
+        result.parsed = cen.parsed;
+        result.geocoded = true;
+        result.source = 'census';
+        result.lat = cen.lat;
+        result.lon = cen.lon;
+        result.detectedCounty = cen.county;
+        result.countyFIPS = cen.countyFIPS;
+        console.log(tag + ' Census -> "' + cen.displayName + '"');
+      }
+    } catch (e: any) {
+      console.log(tag + ' Census error: ' + e.message);
+    }
+  }
+
+  if (!result.geocoded) {
+    console.log(tag + ' Geocoding failed -- using manual parse');
+  }
+
+  const p = result.parsed;
+  console.log(tag + '   Number: "' + p.streetNumber + '" Name: "' + p.streetName + '" Type: "' + p.streetType + '" PreDir: "' + (p.preDirection || '') + '"');
+
+  result.variants = generateVariants(result.parsed, rawAddress);
+  console.log(tag + ' Generated ' + result.variants.length + ' search variants:');
+  for (const v of result.variants) {
+    console.log(tag + '   [p' + v.priority + '|' + (v.format || '') + '] "' + v.streetNumber + '" + "' + v.streetName + '"');
+  }
+
+  return result;
+}
+
+// ━━ GEOCODERS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+interface GeoResult {
+  displayName: string;
+  parsed: ParsedAddress;
+  lat: number | null;
+  lon: number | null;
+  county: string | null;
+  countyFIPS: string | null;
+}
+
+async function tryNominatim(address: string, logger: PipelineLogger): Promise<GeoResult | null> {
+  const tracker = logger.startAttempt({ layer: 'Stage0A', source: 'Nominatim', method: 'geocode', input: address });
+
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(address) + '&format=json&addressdetails=1&limit=3&countrycodes=us';
+    tracker.step('GET ' + url);
+
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'StarrSurveyingWorker/5.1 (property-research)', 'Accept': 'application/json' },
+    });
+    if (!res.ok) { tracker({ status: 'fail', error: 'HTTP ' + res.status }); return null; }
+
+    const data: any[] = await res.json();
+    tracker.step('Nominatim returned ' + (data?.length || 0) + ' result(s)');
+    if (!data?.length) { tracker({ status: 'fail', error: 'No results' }); return null; }
+
+    const hit = data[0];
+    const a = hit.address || {};
+    const road = a.road || '';
+    const houseNumber = a.house_number || '';
+
+    if (!houseNumber) { tracker({ status: 'fail', error: 'No house number in result' }); return null; }
+
+    const roadParsed = parseNominatimRoad(road);
+    const tx = detectTexasRoad(road);
+
+    const parsed: ParsedAddress = {
+      streetNumber: houseNumber,
+      streetName: roadParsed.name,
+      streetType: roadParsed.type,
+      preDirection: tx?.directional || null,
+      postDirection: null,
+      unit: null,
+      city: a.city || a.town || a.village || a.hamlet || null,
+      state: a.state || null,
+      zip: a.postcode || null,
+    };
+
+    const county = a.county?.replace(/\s+County$/i, '') || null;
+
+    tracker({ status: 'success', dataPointsFound: 1, details: 'Matched: ' + houseNumber + ' ' + road });
+    return {
+      displayName: hit.display_name,
+      parsed,
+      lat: parseFloat(hit.lat) || null,
+      lon: parseFloat(hit.lon) || null,
+      county,
+      countyFIPS: null,
+    };
+  } catch (err: any) {
+    tracker({ status: 'fail', error: err.message });
+    return null;
+  }
+}
+
+async function tryCensus(address: string, logger: PipelineLogger): Promise<GeoResult | null> {
+  const tracker = logger.startAttempt({ layer: 'Stage0B', source: 'Census', method: 'geocode', input: address });
+
+  try {
+    const url = 'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=' + encodeURIComponent(address) + '&benchmark=Public_AR_Current&format=json';
+    tracker.step('GET ' + url);
+
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) { tracker({ status: 'fail', error: 'HTTP ' + res.status }); return null; }
+
+    const data: any = await res.json();
+    const matches = data?.result?.addressMatches;
+    tracker.step('Census returned ' + (matches?.length || 0) + ' match(es)');
+    if (!matches?.length) { tracker({ status: 'fail', error: 'No matches' }); return null; }
+
+    const match = matches[0];
+    const matchedAddr = match.matchedAddress || '';
+    const components = match.addressComponents || {};
+    const coords = match.coordinates || {};
+
+    const parsed = parseCensusComponents(components);
+
+    if (!parsed.streetNumber) { tracker({ status: 'fail', error: 'No street number' }); return null; }
+
+    const street = components.streetName || '';
+    const preDir = components.preDirection || '';
+    const preQual = components.preQualifier || '';
+    tracker.step('Census matched: "' + matchedAddr + '" | street="' + street + '", preDir="' + preDir + '", preQual="' + preQual + '"');
+
+    tracker({ status: 'success', dataPointsFound: 1, details: 'Matched: ' + matchedAddr });
+    return {
+      displayName: matchedAddr,
+      parsed,
+      lat: parseFloat(coords.y) || null,
+      lon: parseFloat(coords.x) || null,
+      county: null,
+      countyFIPS: null,
+    };
+  } catch (err: any) {
+    tracker({ status: 'fail', error: err.message });
+    return null;
+  }
+}
+
+// ━━ LEGACY EXPORTS (kept for backward compatibility) ━━━━━━━━━━━━━━━━━━━━━━
+
+/** @deprecated Use parseAddress() instead */
+export function parseRoadString(road: string): string {
+  const tx = detectTexasRoad(road);
+  if (tx) return tx.canonical + ' ' + tx.routeNumber;
+  return road;
+}
+
+/** @deprecated Use normalizeAddress() for county detection */
+export function detectCountyFromCity(city: string | null): string | null {
+  if (!city) return null;
+  const CITY_COUNTY: Record<string, string> = {
+    'KILLEEN': 'bell', 'TEMPLE': 'bell', 'BELTON': 'bell', 'COPPERAS COVE': 'coryell',
+    'GATESVILLE': 'coryell', 'WACO': 'mclennan', 'ROUND ROCK': 'williamson',
+    'CEDAR PARK': 'williamson', 'GEORGETOWN': 'williamson', 'AUSTIN': 'travis',
+    'SAN ANTONIO': 'bexar', 'HOUSTON': 'harris', 'DALLAS': 'dallas',
+    'FORT WORTH': 'tarrant', 'ARLINGTON': 'tarrant',
+  };
+  return CITY_COUNTY[city.toUpperCase()] ?? null;
 }
