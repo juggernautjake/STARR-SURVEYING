@@ -17,17 +17,20 @@ import { PipelineLogger } from '../../lib/logger.js';
 
 // ── Kofile Site Map ─────────────────────────────────────────────────────────
 
+// Correct URL format: {county}.tx.publicsearch.us (NOT {county}countytx)
+// Verified 2026-03-09: bell, williamson, bexar, collin, dallas, tarrant, denton → 200 OK.
+// Harris County does NOT use publicsearch.us — removed until correct URL confirmed.
 const KOFILE_SITES: Record<string, string> = {
-  '48027': 'https://bellcountytx.publicsearch.us',
-  '48491': 'https://williamsoncountytx.publicsearch.us',
-  '48453': 'https://traviscountytx.publicsearch.us',
+  '48027': 'https://bell.tx.publicsearch.us',
+  '48491': 'https://williamson.tx.publicsearch.us',
+  '48453': 'https://travis.tx.publicsearch.us',
   '48309': 'https://mclennan.tx.publicsearch.us',
-  '48029': 'https://bexarcountytx.publicsearch.us',
-  '48085': 'https://collincountytx.publicsearch.us',
-  '48113': 'https://dallascountytx.publicsearch.us',
-  '48439': 'https://tarrantcountytx.publicsearch.us',
-  '48201': 'https://harriscountytx.publicsearch.us',
-  '48121': 'https://dentoncountytx.publicsearch.us',
+  '48029': 'https://bexar.tx.publicsearch.us',
+  '48085': 'https://collin.tx.publicsearch.us',
+  '48113': 'https://dallas.tx.publicsearch.us',
+  '48439': 'https://tarrant.tx.publicsearch.us',
+  // '48201': Harris County — does not appear to use publicsearch.us
+  '48121': 'https://denton.tx.publicsearch.us',
 };
 
 // ── Kofile Purchase Adapter ─────────────────────────────────────────────────
@@ -56,7 +59,7 @@ export class KofilePurchaseAdapter {
     // Map county to Kofile site URL
     this.countyBaseUrl =
       KOFILE_SITES[countyFIPS] ||
-      `https://${countyName.toLowerCase().replace(/\s+/g, '')}countytx.publicsearch.us`;
+      `https://${countyName.toLowerCase().replace(/\s+/g, '')}.tx.publicsearch.us`;
   }
 
   // ── Session Management ──────────────────────────────────────────────────

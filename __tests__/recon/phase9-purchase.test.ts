@@ -134,7 +134,7 @@ function makeTx(opts: {
     projectId: opts.projectId ?? 'test-project',
     instrument: opts.instrument ?? 'TEST001',
     documentType: 'plat',
-    source: 'kofile:bellcountytx.publicsearch.us',
+    source: 'kofile:bell.tx.publicsearch.us',
     pages: opts.pages ?? 2,
     costPerPage: 1.0,
     totalCost: opts.totalCost ?? (opts.pages ?? 2) * 1.0,
@@ -149,7 +149,7 @@ function makePurchaseResult(opts: Partial<DocumentPurchaseResult> = {}): Documen
   return {
     instrument: opts.instrument ?? '2023032044',
     documentType: opts.documentType ?? 'plat',
-    source: opts.source ?? 'kofile:bellcountytx.publicsearch.us',
+    source: opts.source ?? 'kofile:bell.tx.publicsearch.us',
     status: opts.status ?? 'purchased',
     pages: opts.pages ?? 2,
     costPerPage: opts.costPerPage ?? 1.0,
@@ -740,7 +740,7 @@ describe('PurchaseReport type shape', () => {
     const result: DocumentPurchaseResult = {
       instrument: '2023032044',
       documentType: 'plat',
-      source: 'kofile:bellcountytx.publicsearch.us',
+      source: 'kofile:bell.tx.publicsearch.us',
       status: 'budget_exceeded',
       pages: 0,
       costPerPage: 0,

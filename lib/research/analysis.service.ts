@@ -167,16 +167,32 @@ function screenDocument(doc: ResearchDocument): DocScreenResult {
     return { action: 'analyze' };
   }
 
-  // Hard minimum for text-only documents
+  // Property-search documents are synthetic reference records (URL + metadata summary)
+  // created by the CAD lookup pipeline. They may be short but still contain valid
+  // property data (ID, owner, address, legal desc). Use a lower threshold and always
+  // try to enrich them via their source_url if they're thin.
+  const isPropertySearchDoc = doc.extracted_text_method === 'property_search'
+    || doc.source_type === 'property_search';
+
+  if (isPropertySearchDoc) {
+    // Even very short property-search docs (e.g., "Bell CAD - Property 123456")
+    // are worth analyzing. If too short, try enriching from source URL.
+    if (raw.length < 50 && doc.source_url) {
+      return { action: 'enrich', reason: `Property-search doc is thin (${raw.length} chars) — will fetch from source URL` };
+    }
+    if (raw.length < 50 && !doc.source_url) {
+      return { action: 'skip', reason: `Property-search doc too short (${raw.length} chars) with no source URL` };
+    }
+    // Anything >= 50 chars from property search is analyzable
+    return { action: 'analyze' };
+  }
+
+  // Hard minimum for text-only documents (non-property-search)
   if (raw.length < MIN_USEFUL_LENGTH) {
     return { action: 'skip', reason: `Content too short (${raw.length} chars — minimum ${MIN_USEFUL_LENGTH})` };
   }
 
-  // Documents created by the property-search pipeline are synthetic reference links
-  // (URL + description text), not scraped web pages.  The empty-page patterns were
-  // designed for actual browser captures and do not apply here — skip that check.
-  const isPropertySearchDoc = doc.extracted_text_method === 'property_search';
-
+  // Non-property-search documents: check for empty-page patterns
   if (!isPropertySearchDoc) {
     // Known-empty patterns — immediate skip
     for (const pat of EMPTY_DOC_PATTERNS) {
