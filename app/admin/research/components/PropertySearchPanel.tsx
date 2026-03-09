@@ -389,6 +389,16 @@ export default function PropertySearchPanel({
   const hasAddressIssues = searchResponse?.address_issues && searchResponse.address_issues.length > 0;
   const specificCount = searchResponse?.results.filter((r: PropertySearchResult) => r.is_property_specific).length || 0;
 
+  function researchButtonLabel(): string {
+    if (pipelineRunning) {
+      const stage = pipelineResult?.currentStage;
+      return `⏳ Researching${stage ? ` — ${stage}` : '…'}`;
+    }
+    if (liteRunning) return `⏳ ${liteStage || 'Researching…'}`;
+    if (searching) return '⏳ Searching public records…';
+    return '🔍 Initiate Research & Analysis';
+  }
+
   return (
     <div className="research-search">
       <div className="research-search__header">
@@ -472,9 +482,7 @@ export default function PropertySearchPanel({
             disabled={liteRunning || searching || pipelineRunning}
             style={{ width: '100%', padding: '0.65rem 1.5rem', fontSize: '1rem' }}
           >
-            {(liteRunning || pipelineRunning || searching)
-              ? (pipelineRunning ? `⏳ Researching${pipelineResult?.currentStage ? ` — ${pipelineResult.currentStage}` : '…'}` : liteRunning ? `⏳ ${liteStage || 'Researching…'}` : '⏳ Searching public records…')
-              : '🔍 Initiate Research & Analysis'}
+            {researchButtonLabel()}
           </button>
         </div>
 
