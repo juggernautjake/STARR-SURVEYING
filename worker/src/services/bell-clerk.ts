@@ -3,7 +3,8 @@
 // Features: concurrent document fetching, PDF download attempts, pagination,
 // better URL extraction, retry logic for transient failures.
 
-import type { DocumentRef, DocumentResult, PageScreenshot } from '../types/index.js';
+import * as fs from 'fs';
+import type { DocumentRef, DocumentResult, PageScreenshot, DocumentPage } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 
 // ── Kofile PublicSearch Configuration ──────────────────────────────────────
@@ -1169,4 +1170,327 @@ export async function searchClerkRecords(
     logger.error('Stage2', `Clerk search failed: ${errMsg}`, err);
     return [];
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KOFILE IMAGE INTERCEPTION — proven working (Ash Trust, March 4, 2026)
+// These functions intercept signed PNG URLs from the document viewer network
+// traffic instead of taking screenshots. This yields full-resolution originals.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BELL_CLERK_BASE = 'https://bell.tx.publicsearch.us';
+
+/**
+ * Search Bell County clerk records by owner name.
+ * Uses direct URL parameters rather than form interaction.
+ */
+export async function searchBellClerk(
+  ownerName: string,
+  logger: PipelineLogger,
+): Promise<DocumentRef[]> {
+  let browser: import('playwright').Browser | null = null;
+  const attempt = logger.attempt('2A', BELL_CLERK_BASE, 'PLAYWRIGHT_SEARCH', ownerName);
+
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      viewport: { width: 1280, height: 900 },
+    });
+    const page = await context.newPage();
+
+    const nameParts = _parseOwnerName(ownerName);
+    console.log('[BELL-CLERK] Searching for:', nameParts.searchQuery);
+
+    const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&limit=50&name=${encodeURIComponent(nameParts.searchQuery)}&recordType=WD,SWD,DWW,PLAT`;
+    await page.goto(searchUrl, { waitUntil: 'networkidle', timeout: 45000 });
+    await page.waitForTimeout(3000);
+
+    // Accept disclaimers if present
+    try {
+      const btn = await page.$('button:has-text("Accept"), button:has-text("OK"), button:has-text("I Agree"), button:has-text("Continue")');
+      if (btn) { await btn.click(); await page.waitForTimeout(1000); }
+    } catch { /* no dialog */ }
+
+    const documents = await _extractSearchResults(page);
+    await browser.close();
+
+    if (documents.length > 0) {
+      attempt.success(documents.length, `Found ${documents.length} records`);
+    } else {
+      attempt.fail('No deed/plat records found');
+    }
+    return documents;
+  } catch (err: any) {
+    console.error('[BELL-CLERK] Search failed:', err.message);
+    if (browser) await browser.close().catch(() => {});
+    attempt.fail(err.message);
+    return [];
+  }
+}
+
+/**
+ * Search Bell County clerk by instrument number.
+ */
+export async function searchByInstrument(
+  instrumentNumber: string,
+  logger: PipelineLogger,
+): Promise<DocumentRef | null> {
+  let browser: import('playwright').Browser | null = null;
+  const attempt = logger.attempt('2A-INST', BELL_CLERK_BASE, 'PLAYWRIGHT_INST', instrumentNumber);
+
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+
+    const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForTimeout(5000);
+
+    const documents = await _extractSearchResults(page);
+    await browser.close();
+
+    if (documents.length > 0) {
+      attempt.success(1, `Found instrument ${instrumentNumber}`);
+      return documents[0];
+    }
+
+    attempt.fail(`Instrument ${instrumentNumber} not found`);
+    return null;
+  } catch (err: any) {
+    if (browser) await browser.close().catch(() => {});
+    attempt.fail(err.message);
+    return null;
+  }
+}
+
+/**
+ * Download all page images for a document by intercepting signed PNG URLs.
+ *
+ * KEY TECHNIQUE: page.on('response') captures signed image URLs from
+ * /files/documents/ paths as the Kofile viewer loads each page.
+ * Then we download each image directly using the signed URL.
+ *
+ * This avoids screenshot latency and gets the full-resolution originals.
+ */
+export async function fetchDocumentImages(
+  instrumentNumber: string,
+  expectedPages: number,
+  logger: PipelineLogger,
+): Promise<DocumentPage[]> {
+  let browser: import('playwright').Browser | null = null;
+  const attempt = logger.attempt('2D-IMG', BELL_CLERK_BASE, 'PLAYWRIGHT_IMAGES', instrumentNumber);
+  const pages: DocumentPage[] = [];
+
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      viewport: { width: 1280, height: 900 },
+    });
+    const page = await context.newPage();
+
+    // Intercept signed image URLs from the Kofile viewer
+    const imageUrls: string[] = [];
+    page.on('response', (res) => {
+      const url = res.url();
+      if (url.includes('/files/documents/') && url.includes('.png')) {
+        imageUrls.push(url);
+        console.log(`[BELL-IMG] Captured: ${url.substring(0, 100)}...`);
+      }
+    });
+
+    const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+    console.log(`[BELL-IMG] Navigating: ${searchUrl}`);
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForTimeout(8000);
+
+    // Click first result to open the document viewer
+    try {
+      await page.locator('tbody tr').last().click();
+      await page.waitForTimeout(8000);
+    } catch (e: any) {
+      console.log('[BELL-IMG] Could not click result:', e.message);
+    }
+
+    console.log(`[BELL-IMG] After page 1 load: ${imageUrls.length} URLs captured`);
+
+    // Download page 1
+    if (imageUrls.length > 0) {
+      const p1Url = imageUrls[imageUrls.length - 1];
+      try {
+        const resp = await page.context().request.get(p1Url);
+        if (resp.ok()) {
+          const buf = await resp.body();
+          pages.push({ pageNumber: 1, imageBase64: buf.toString('base64'), imageFormat: 'png', width: 0, height: 0, signedUrl: p1Url });
+          console.log(`[BELL-IMG] Page 1: ${buf.length} bytes`);
+        }
+      } catch (e: any) {
+        console.log(`[BELL-IMG] Page 1 download failed: ${e.message}`);
+      }
+    }
+
+    // Navigate to subsequent pages using the next-page button
+    for (let pageNum = 2; pageNum <= Math.min(expectedPages, 10); pageNum++) {
+      const urlCountBefore = imageUrls.length;
+
+      const nextSelectors = [
+        'img[alt*="Next"]', 'img[alt*="next"]', 'button[title*="Next"]',
+        'a[title*="Next"]', 'img[src*="jump_triangle"]', '.page-next',
+        '[aria-label*="next" i]',
+      ];
+
+      let clicked = false;
+      for (const sel of nextSelectors) {
+        try {
+          const btns = await page.$$(sel);
+          const btn = btns.length > 1 ? btns[btns.length - 1] : btns[0];
+          if (btn) { await btn.click(); clicked = true; break; }
+        } catch { /* try next */ }
+      }
+
+      if (!clicked) {
+        console.log(`[BELL-IMG] No next-page button for page ${pageNum}`);
+        break;
+      }
+
+      await page.waitForTimeout(5000);
+
+      if (imageUrls.length > urlCountBefore) {
+        const newUrl = imageUrls[imageUrls.length - 1];
+        try {
+          const resp = await page.context().request.get(newUrl);
+          if (resp.ok()) {
+            const buf = await resp.body();
+            pages.push({ pageNumber: pageNum, imageBase64: buf.toString('base64'), imageFormat: 'png', width: 0, height: 0, signedUrl: newUrl });
+            console.log(`[BELL-IMG] Page ${pageNum}: ${buf.length} bytes`);
+          }
+        } catch (e: any) {
+          console.log(`[BELL-IMG] Page ${pageNum} download failed: ${e.message}`);
+        }
+      } else if (imageUrls.length > 0) {
+        // Construct URL for this page by replacing the page number in the first URL
+        const baseUrl = imageUrls[0];
+        const constructedUrl = baseUrl.replace(/_1\.png/, `_${pageNum}.png`);
+        try {
+          const resp = await page.context().request.get(constructedUrl);
+          if (resp.ok()) {
+            const buf = await resp.body();
+            pages.push({ pageNumber: pageNum, imageBase64: buf.toString('base64'), imageFormat: 'png', width: 0, height: 0, signedUrl: constructedUrl });
+            console.log(`[BELL-IMG] Page ${pageNum} (constructed URL): ${buf.length} bytes`);
+          }
+        } catch (e: any) {
+          console.log(`[BELL-IMG] Page ${pageNum} constructed URL failed: ${e.message}`);
+        }
+      }
+    }
+
+    page.removeAllListeners('response');
+    await browser.close();
+
+    if (pages.length > 0) {
+      attempt.success(pages.length, `Downloaded ${pages.length} page images`);
+    } else {
+      attempt.fail('No page images captured');
+    }
+    return pages;
+  } catch (err: any) {
+    console.error('[BELL-IMG] Image fetch failed:', err.message);
+    if (browser) await browser.close().catch(() => {});
+    attempt.fail(err.message);
+    return [];
+  }
+}
+
+/**
+ * Save page images to disk (for debugging / archival).
+ */
+export function savePageImages(
+  pages: DocumentPage[],
+  outputDir: string,
+  prefix: string,
+): string[] {
+  const paths: string[] = [];
+  for (const p of pages) {
+    const fname = `${outputDir}/${prefix}_p${p.pageNumber}.png`;
+    fs.writeFileSync(fname, Buffer.from(p.imageBase64, 'base64'));
+    paths.push(fname);
+    console.log(`[SAVE] ${fname} (${Math.round(p.imageBase64.length * 0.75 / 1024)}KB)`);
+  }
+  return paths;
+}
+
+// ── Helpers (private to this module section) ──────────────────────────────
+
+async function _extractSearchResults(
+  page: import('playwright').Page,
+): Promise<DocumentRef[]> {
+  const documents: DocumentRef[] = [];
+  const rows = await page.$$('table tbody tr, .result-row, .search-result');
+
+  for (const row of rows) {
+    try {
+      const text = await row.textContent() || '';
+      if (text.toLowerCase().includes('recording date') && text.toLowerCase().includes('document type')) continue;
+
+      const doc = _parseDocumentRow(text);
+      if (doc) {
+        const link = await row.$('a[href]');
+        if (link) {
+          const href = await link.getAttribute('href');
+          if (href) doc.url = href.startsWith('http') ? href : BELL_CLERK_BASE + href;
+        }
+        documents.push(doc);
+      }
+    } catch { /* skip */ }
+  }
+
+  return documents.filter(d => /deed|warranty|plat|conveyance/i.test(d.documentType));
+}
+
+function _parseDocumentRow(text: string): DocumentRef | null {
+  const typeMatch = text.match(
+    /(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Deed of Trust|Plat|Plat Amended|Quit Claim|Transfer)/i,
+  );
+  if (!typeMatch) return null;
+
+  const dateMatch   = text.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+  const instrMatch  = text.match(/(?:Inst(?:rument)?|Doc)[\s#:]*(\d{6,})/i) || text.match(/(\d{10,})/);
+  const volPageMatch = text.match(/Vol(?:ume)?[\s.]*(\d+)[\s,]*(?:Pg|Page)[\s.]*(\d+)/i);
+  const grantorMatch = text.match(/(?:Grantor|From)[\s:]*([^,\n]+)/i);
+  const granteeMatch = text.match(/(?:Grantee|To)[\s:]*([^,\n]+)/i);
+
+  return {
+    instrumentNumber: instrMatch ? instrMatch[1] : null,
+    volume:           volPageMatch ? volPageMatch[1] : null,
+    page:             volPageMatch ? volPageMatch[2] : null,
+    documentType:     typeMatch[1],
+    recordingDate:    dateMatch ? dateMatch[1] : null,
+    grantors:         grantorMatch ? [grantorMatch[1].trim()] : [],
+    grantees:         granteeMatch ? [granteeMatch[1].trim()] : [],
+    source:           'Bell County Clerk PublicSearch',
+    url:              null,
+  };
+}
+
+function _parseOwnerName(name: string): { lastName: string; firstName: string; searchQuery: string } {
+  if (name.includes(',')) {
+    const [last, first] = name.split(',').map(s => s.trim());
+    return { lastName: last, firstName: first, searchQuery: `${last}, ${first}` };
+  }
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    const last  = parts[parts.length - 1];
+    const first = parts.slice(0, -1).join(' ');
+    return { lastName: last, firstName: first, searchQuery: `${last}, ${first}` };
+  }
+  return { lastName: name, firstName: '', searchQuery: name };
 }

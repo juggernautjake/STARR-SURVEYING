@@ -3,7 +3,7 @@
 // Documents are screened, analyzed, verified, and scored.
 // Supports user-uploaded files alongside online-retrieved documents.
 
-import type { DocumentResult, ExtractedBoundaryData, BoundaryCall, DocumentReference, PageScreenshot } from '../types/index.js';
+import type { DocumentResult, ExtractedBoundaryData, BoundaryCall, DocumentReference, PageScreenshot, DocumentPage } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { adaptiveVisionOcr } from './adaptive-vision.js';
 
@@ -378,7 +378,8 @@ function safeNormalizeReference(raw: unknown): DocumentReference {
 
 // ── Layer 3A: Text Extraction ──────────────────────────────────────────────
 
-async function extractFromText(
+/** Internal text extraction — takes explicit apiKey and docLabel. */
+async function extractFromTextInternal(
   text: string,
   anthropicApiKey: string,
   logger: PipelineLogger,
@@ -454,7 +455,8 @@ Return your analysis as the specified JSON format.`,
  *  Anything larger (full-res plat scans) goes through adaptive-vision.ts. */
 const ADAPTIVE_VISION_THRESHOLD = 800_000;
 
-async function extractFromImage(
+/** Internal image extraction -- takes explicit apiKey, mediaType, and docLabel. */
+async function extractFromImageInternal(
   imageBase64: string,
   mediaType: 'image/png' | 'image/jpeg' | 'image/tiff' | 'application/pdf',
   anthropicApiKey: string,
@@ -513,7 +515,7 @@ async function extractFromImage(
     }
 
     // Pass 2: structured extraction from merged OCR text
-    const extracted = await extractFromText(ocrText, anthropicApiKey, logger, `${docLabel}-adaptive-ocr`);
+    const extracted = await extractFromTextInternal(ocrText, anthropicApiKey, logger, `${docLabel}-adaptive-ocr`);
     return { ocrText, extracted };
   }
 
@@ -573,7 +575,7 @@ async function extractFromImage(
     return { ocrText, extracted: null };
   }
 
-  const extracted = await extractFromText(ocrText, anthropicApiKey, logger, `${docLabel}-ocr`);
+  const extracted = await extractFromTextInternal(ocrText, anthropicApiKey, logger, `${docLabel}-ocr`);
   return { ocrText, extracted };
 }
 
@@ -722,7 +724,7 @@ async function extractFromPageScreenshots(
   if (pages.length === 1) {
     tracker.step('Single page — delegating to standard image extraction');
     tracker({ status: 'success', dataPointsFound: 1, details: 'Delegated to single-page extractor' });
-    return extractFromImage(pages[0].imageBase64, 'image/png', anthropicApiKey, logger, `${docLabel}-p1`);
+    return extractFromImageInternal(pages[0].imageBase64, 'image/png', anthropicApiKey, logger, `${docLabel}-p1`);
   }
 
   // For multi-page: OCR each page, then combine and extract
@@ -792,7 +794,7 @@ async function extractFromPageScreenshots(
   });
 
   // Now run structured extraction on the combined text
-  const extracted = await extractFromText(combinedText, anthropicApiKey, logger, `${docLabel}-multipage`);
+  const extracted = await extractFromTextInternal(combinedText, anthropicApiKey, logger, `${docLabel}-multipage`);
   return { ocrText: combinedText, extracted };
 }
 
@@ -851,14 +853,14 @@ export async function extractDocuments(
     logger.info('Stage3', `CAD legal description screening: ${screening}`);
 
     if (screening === 'analyze') {
-      const extracted = await extractFromText(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal');
+      const extracted = await extractFromTextInternal(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal');
       if (extracted) {
         const verified = await runVerification(legalDescriptionFromCad, extracted, 'CAD-legal');
         updateBest(verified);
       }
     } else if (screening === 'enrich') {
       // Still worth sending to Claude for lot/block info even if no metes & bounds
-      const extracted = await extractFromText(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal-enrich');
+      const extracted = await extractFromTextInternal(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal-enrich');
       if (extracted) {
         updateBest(extracted);
       }
@@ -885,14 +887,14 @@ export async function extractDocuments(
       }
 
       if (screening === 'analyze' || forceAnalyze) {
-        const extracted = await extractFromText(doc.textContent, anthropicApiKey, logger, label);
+        const extracted = await extractFromTextInternal(doc.textContent, anthropicApiKey, logger, label);
         if (extracted) {
           const verified = await runVerification(doc.textContent, extracted, label);
           doc.extractedData = verified;
           updateBest(verified);
         }
       } else if (screening === 'enrich') {
-        const extracted = await extractFromText(doc.textContent, anthropicApiKey, logger, `${label}-enrich`);
+        const extracted = await extractFromTextInternal(doc.textContent, anthropicApiKey, logger, `${label}-enrich`);
         if (extracted) {
           doc.extractedData = extracted;
           updateBest(extracted);
@@ -919,6 +921,20 @@ export async function extractDocuments(
       }
     }
 
+    // Route C: Downloaded page images via Kofile signed URL interception
+    const docPages = doc.pages ?? [];
+    if (!doc.extractedData && docPages.length > 0) {
+      logger.info('Stage3', `  ${label}: Processing ${docPages.length} downloaded page images`);
+      const prompt = `You are analyzing county clerk records from Texas. These are ${docPages.length} page image${docPages.length !== 1 ? 's' : ''} from a ${doc.ref.documentType}${doc.ref.instrumentNumber ? ` (instrument ${doc.ref.instrumentNumber})` : ''}. Extract ALL data: 1) METES AND BOUNDS with every bearing and distance. 2) LOT BOUNDARIES. 3) POINT OF BEGINNING. 4) ACREAGE totals. 5) SURVEYOR info. 6) Full LEGAL DESCRIPTION. 7) CURVE DATA. 8) EASEMENTS. 9) Recording references. Be extremely precise with all numbers.`;
+      try {
+        const { text, data } = await analyzeMultiPageDocument(docPages, '', prompt, logger);
+        if (text) doc.ocrText = text;
+        if (data) doc.extractedData = data;
+      } catch (pagesErr: any) {
+        logger.warn('Stage3', `  ${label}: Page images extraction failed: ${pagesErr.message}`);
+      }
+    }
+
     // Fall back to single image if no page screenshots or text extraction succeeded
     if (!doc.extractedData && doc.imageBase64) {
       const mediaType = doc.imageFormat === 'jpg' ? 'image/jpeg' as const
@@ -926,7 +942,7 @@ export async function extractDocuments(
         : doc.imageFormat === 'tiff' ? 'image/tiff' as const
         : 'image/png' as const;
 
-      const { ocrText, extracted } = await extractFromImage(
+      const { ocrText, extracted } = await extractFromImageInternal(
         doc.imageBase64, mediaType, anthropicApiKey, logger, label,
       );
 
@@ -944,7 +960,7 @@ export async function extractDocuments(
     }
 
     // Warn if document had no usable content at all
-    if (!doc.textContent && !doc.imageBase64 && (!doc.pageScreenshots || doc.pageScreenshots.length === 0)) {
+    if (!doc.textContent && !doc.imageBase64 && (!doc.pageScreenshots || doc.pageScreenshots.length === 0) && (!doc.pages || doc.pages.length === 0)) {
       logger.warn('Stage3', `${label}: WARNING — No text, images, or page screenshots to analyze`);
       if (!doc.processingErrors) doc.processingErrors = [];
       doc.processingErrors.push('No text or image content available for AI analysis');
@@ -959,4 +975,239 @@ export async function extractDocuments(
   logger.info('Stage3', `Extraction complete. Best: ${finalBoundary?.type ?? 'none'} (confidence: ${bestConfidence.toFixed(2)}, calls: ${finalBoundary?.calls.length ?? 0})`);
 
   return { documents, boundary: finalBoundary };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROVEN VISION PIPELINE — from Ash Trust sessions (March 4, 2026)
+// These lean exports are used by the new pipeline.ts orchestrator.
+// They complement (not replace) the extractDocuments() orchestrator above,
+// which is still used by reanalysis.ts, ai-deed-analyzer.ts, etc.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// DocumentPage is already imported at the top of this file.
+// Anthropic SDK is loaded via dynamic import (same as rest of this file).
+
+// Lazy Anthropic client instance — reads ANTHROPIC_API_KEY from env at call time.
+let _anthropicClient: any | null = null;
+async function getAnthropicClient(): Promise<any> {
+  if (!_anthropicClient) {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    _anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return _anthropicClient;
+}
+
+// ── System Prompts ─────────────────────────────────────────────────────────
+
+const VISION_OCR_SYSTEM_PROMPT = `You are an OCR specialist for Texas land surveying documents. Extract ALL text from this image with extreme precision. Pay special attention to:
+
+- Degree symbols (°), minute marks ('), second marks (")
+- Bearing notation: N 45°30'15" E
+- Distance values with decimal precision
+- Monument descriptions (iron rod, iron pin, set nail, found)
+- Legal description terms (thence, along, to a point, curve)
+- Recording references (Volume, Page, Cabinet, Slide, Instrument)
+- Owner names, grantor/grantee
+- Lot numbers, acreages, subdivision names
+- Curve data tables (radius, arc, chord, delta)
+- Surveyor name, license number, firm name
+
+Preserve the EXACT formatting of bearings and distances. Do NOT interpret or summarize — extract the raw text as written.
+
+Return ONLY the extracted text, nothing else.`;
+
+const PLAT_QUADRANT_PROMPT_PREFIX = `This is a quadrant of a subdivision plat for a property in Bell County, Texas. Extract EVERY piece of text you can read including: lot numbers, acreages, bearings (N/S degrees minutes seconds E/W), distances in feet, curve data (radius, arc length, chord bearing, chord distance, delta angle), point labels, road names, easement widths, surveyor info, title block text, monument descriptions, line table data, curve table data, and any notes. Be extremely precise with every number and measurement. If text is partially obscured by watermarks, note what you can read and flag uncertainty.`;
+
+/**
+ * NEW: Text extraction using lazy-init Anthropic client (no API key parameter).
+ * County is used as context in the extraction prompt.
+ */
+export async function extractFromText(
+  text: string,
+  county: string,
+  logger: PipelineLogger,
+): Promise<ExtractedBoundaryData | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+  return extractFromTextInternal(text, apiKey, logger, `text-${county || 'unknown'}`);
+}
+
+/**
+ * NEW: Two-pass Vision OCR extraction (OCR pass → structured extraction pass).
+ * Proven working on Ash Trust watermarked deed and plat images.
+ */
+export async function extractFromImage(
+  imageBase64: string,
+  imageFormat: string,
+  county: string,
+  logger: PipelineLogger,
+): Promise<{ ocrText: string; data: ExtractedBoundaryData | null }> {
+  const ocrAttempt = logger.attempt('3B-OCR', 'anthropic-api', 'CLAUDE_VISION_OCR', `${county}-image`);
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+
+  const mediaType: 'image/png' | 'image/jpeg' =
+    imageFormat === 'jpg' || imageFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
+
+  let ocrText = '';
+  try {
+    const client = await getAnthropicClient();
+    const ocrResponse = await client.messages.create({
+      model: AI_MODEL,
+      max_tokens: 8192,
+      system: VISION_OCR_SYSTEM_PROMPT,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+          { type: 'text', text: `Extract all text from this Texas property document. County: ${county}.` },
+        ],
+      }],
+    });
+
+    ocrText = ocrResponse.content
+      .filter((b: any) => b.type === 'text')
+      .map((b: any) => b.text as string)
+      .join('');
+
+    ocrAttempt.success(1, `OCR extracted ${ocrText.length} chars`);
+  } catch (err: any) {
+    ocrAttempt.fail(err.message);
+    return { ocrText: '', data: null };
+  }
+
+  if (ocrText.length < 50) {
+    return { ocrText, data: null };
+  }
+
+  const data = await extractFromTextInternal(ocrText, apiKey, logger, `vision-ocr-${county}`);
+  return { ocrText, data };
+}
+
+/**
+ * NEW: Quadrant-based high-resolution analysis.
+ * Splits large plat images (> 4000×6000) into quadrants for better Vision API
+ * throughput against watermarked docs. Proven on Ash Trust 7510×11897 plat.
+ */
+export async function analyzeDocumentQuadrants(
+  pages: DocumentPage[],
+  county: string,
+  documentType: string,
+  logger: PipelineLogger,
+): Promise<{ ocrTexts: string[]; combinedData: ExtractedBoundaryData | null }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+  const ocrTexts: string[] = [];
+  let bestData: ExtractedBoundaryData | null = null;
+  let bestConfidence = 0;
+  const quadrantLabels = ['TOP-LEFT', 'TOP-RIGHT', 'BOTTOM-LEFT', 'BOTTOM-RIGHT'];
+
+  for (const page of pages) {
+    if (page.width > 4000 || page.height > 6000) {
+      console.log(`[QUADRANT] Page ${page.pageNumber}: ${page.width}x${page.height} — splitting into quadrants`);
+
+      for (let q = 0; q < 4; q++) {
+        const attempt = logger.attempt(
+          `3C-Q${q}`, 'anthropic-api', 'CLAUDE_VISION_QUADRANT',
+          `Page ${page.pageNumber} ${quadrantLabels[q]}`,
+        );
+
+        try {
+          const client = await getAnthropicClient();
+          const mediaType: 'image/png' | 'image/jpeg' =
+            page.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png';
+          const focusPrompt = `${PLAT_QUADRANT_PROMPT_PREFIX}\n\nFocus specifically on the ${quadrantLabels[q]} portion of this image. This is page ${page.pageNumber} of a ${documentType} from ${county} County, Texas.`;
+
+          const response = await client.messages.create({
+            model: AI_MODEL,
+            max_tokens: 8000,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'image', source: { type: 'base64', media_type: mediaType, data: page.imageBase64 } },
+                { type: 'text', text: focusPrompt },
+              ],
+            }],
+          });
+
+          const text = response.content
+            .filter((b: any) => b.type === 'text')
+            .map((b: any) => b.text as string)
+            .join('');
+
+          ocrTexts.push(`=== Page ${page.pageNumber} ${quadrantLabels[q]} ===\n${text}`);
+          attempt.success(1, `Quadrant OCR: ${text.length} chars`);
+        } catch (err: any) {
+          attempt.fail(err.message);
+        }
+      }
+    } else {
+      // Standard single-pass for smaller images
+      const { ocrText, data } = await extractFromImage(
+        page.imageBase64, page.imageFormat, county, logger,
+      );
+      if (ocrText) ocrTexts.push(ocrText);
+      if (data && data.confidence > bestConfidence) {
+        bestData = data;
+        bestConfidence = data.confidence;
+      }
+    }
+  }
+
+  // Combined extraction pass
+  if (ocrTexts.length > 1) {
+    const combinedText = ocrTexts.join('\n\n');
+    console.log(`[QUADRANT] Combined OCR: ${combinedText.length} chars — running final extraction`);
+    const data = await extractFromTextInternal(combinedText, apiKey, logger, `quadrant-combined-${county}`);
+    if (data && data.confidence > bestConfidence) {
+      bestData = data;
+    }
+  }
+
+  return { ocrTexts, combinedData: bestData };
+}
+
+/**
+ * NEW: Send multiple document pages in a single Vision call.
+ * Proven working: extracted metes & bounds from 4-page Ash Trust deed+plat.
+ */
+export async function analyzeMultiPageDocument(
+  pages: DocumentPage[],
+  county: string,
+  prompt: string,
+  logger: PipelineLogger,
+): Promise<{ text: string; data: ExtractedBoundaryData | null }> {
+  const attempt = logger.attempt(
+    '3B-MULTI', 'anthropic-api', 'CLAUDE_VISION_MULTI', `${pages.length} pages`,
+  );
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+
+  try {
+    const client = await getAnthropicClient();
+
+    const imageContent: any[] = pages.map(p => ({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: p.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png',
+        data: p.imageBase64,
+      },
+    }));
+
+    const response = await client.messages.create({
+      model: AI_MODEL,
+      max_tokens: 8000,
+      messages: [{ role: 'user', content: [...imageContent, { type: 'text', text: prompt }] }],
+    });
+
+    const text = response.content
+      .filter((b: any) => b.type === 'text')
+      .map((b: any) => b.text as string)
+      .join('');
+
+    attempt.success(1, `Multi-page extraction: ${text.length} chars`);
+
+    const data = await extractFromTextInternal(text, apiKey, logger, `multi-page-${county}`);
+    return { text, data };
+  } catch (err: any) {
+    attempt.fail(err.message);
+    return { text: '', data: null };
+  }
 }

@@ -65,6 +65,8 @@ export default function ResearchProjectPage() {
   const [showBriefing, setShowBriefing] = useState(true);
   const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
+  /** Extra PDF URL from the worker pipeline result (populated after deep search) */
+  const [viewerPdfUrl, setViewerPdfUrl] = useState<string | null>(null);
 
   // Drawing state
   const [drawings, setDrawings] = useState<(RenderedDrawing & { element_count: number })[]>([]);
@@ -2200,6 +2202,20 @@ export default function ResearchProjectPage() {
                       : doc.processing_status}
                   </span>
                 </div>
+                {/* View Pages button — shown when PDF images are available */}
+                {(doc.pages_pdf_url || doc.storage_url) && (
+                  <button
+                    className="research-upload__doc-pdf-btn"
+                    onClick={() => {
+                      setViewerDoc(doc);
+                      setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
+                      setViewerHighlight(undefined);
+                    }}
+                    title="View document page images"
+                  >
+                    🖼️ View Pages
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -2210,8 +2226,9 @@ export default function ResearchProjectPage() {
       {viewerDoc && (
         <SourceDocumentViewer
           document={viewerDoc}
+          pagesPdfUrl={viewerPdfUrl}
           highlightText={viewerHighlight}
-          onClose={() => { setViewerDoc(null); setViewerHighlight(undefined); }}
+          onClose={() => { setViewerDoc(null); setViewerHighlight(undefined); setViewerPdfUrl(null); }}
         />
       )}
 

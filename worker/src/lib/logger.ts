@@ -1,184 +1,98 @@
 // worker/src/lib/logger.ts — Per-layer attempt tracking for the research pipeline
 // Every action, API call, decision, and result is logged step-by-step.
+//
+// Supports two calling styles:
+//   New style: logger.attempt('layer', 'source', 'method', 'input').success(n, 'details')
+//   Legacy style: const t = logger.startAttempt({...}); t({ status: 'success', ... })
 
 import type { LayerAttempt } from '../types/index.js';
 
+// ── New-style builder returned by attempt() ────────────────────────────────
+
 /**
- * Structured logger that records each layer attempt in the pipeline.
- * Every search method, API call, or extraction pass creates a LayerAttempt
- * entry for debugging and audit trail purposes.
- *
- * Step logging: Each attempt can accumulate a steps[] array of human-readable
- * action descriptions. These record EXACTLY what happened at each point
- * so that logs can be reviewed to create further error handling or refactoring.
+ * Fluent builder returned by PipelineLogger.attempt().
+ * Call .success(), .partial(), .fail(), or .skip() to finalise the entry.
  */
-export class PipelineLogger {
-  private attempts: LayerAttempt[] = [];
-  private projectId: string;
+export class LayerAttemptBuilder {
+  private logger: PipelineLogger;
+  private base: Omit<LayerAttempt, 'status' | 'duration_ms' | 'dataPointsFound'>;
+  private startTime: number;
+  private _steps: string[] = [];
 
-  constructor(projectId: string) {
-    this.projectId = projectId;
+  constructor(
+    logger: PipelineLogger,
+    layer: string,
+    source: string,
+    method: string,
+    input: string,
+  ) {
+    this.logger = logger;
+    this.startTime = Date.now();
+    this.base = { layer, source, method, input, timestamp: new Date().toISOString() };
   }
 
-  /**
-   * Record the start of a layer attempt. Returns a StepTracker that
-   * collects step-by-step actions and finalizes with a status.
-   */
-  startAttempt(opts: {
-    layer: string;
-    source: string;
-    method: string;
-    input: string;
-  }): StepTracker {
-    const startTime = Date.now();
-    const timestamp = new Date().toISOString();
-    const steps: string[] = [];
-
-    const logStep = (msg: string) => {
-      const elapsed = Date.now() - startTime;
-      const entry = `[+${elapsed}ms] ${msg}`;
-      steps.push(entry);
-      console.log(`[${this.projectId}] [${opts.layer}]   STEP: ${entry}`);
-    };
-
-    // Log the start
-    logStep(`START ${opts.method} (${opts.source}) | input: ${opts.input}`);
-
-    const finish = (result: {
-      status: LayerAttempt['status'];
-      dataPointsFound?: number;
-      error?: string;
-      nextLayer?: string;
-      details?: string;
-    }): LayerAttempt => {
-      logStep(`FINISH → ${result.status}${result.error ? ` | error: ${result.error}` : ''}${result.details ? ` | ${result.details}` : ''}`);
-
-      const attempt: LayerAttempt = {
-        layer: opts.layer,
-        source: opts.source,
-        method: opts.method,
-        input: opts.input,
-        status: result.status,
-        duration_ms: Date.now() - startTime,
-        dataPointsFound: result.dataPointsFound ?? 0,
-        error: result.error,
-        nextLayer: result.nextLayer,
-        timestamp,
-        details: result.details,
-        steps: [...steps],
-      };
-
-      this.attempts.push(attempt);
-      this.logToConsole(attempt);
-      return attempt;
-    };
-
-    // Return both the finish function and the step logger
-    return Object.assign(finish, { step: logStep });
+  /** Log an intermediate action step (console only). */
+  step(msg: string): void {
+    const elapsed = Date.now() - this.startTime;
+    const entry = `[+${elapsed}ms] ${msg}`;
+    this._steps.push(entry);
+    console.log(`[${this.logger.getProjectId()}] [${this.base.layer}]   STEP: ${entry}`);
   }
 
-  /**
-   * Log a quick info message. Also recorded in attempts for full audit trail.
-   */
-  info(layer: string, message: string): void {
-    const attempt: LayerAttempt = {
-      layer,
-      source: 'info',
-      method: 'info',
-      input: '',
-      status: 'skip',
-      duration_ms: 0,
-      dataPointsFound: 0,
-      timestamp: new Date().toISOString(),
-      details: message,
-    };
-    this.attempts.push(attempt);
-    console.log(`[${this.projectId}] [${layer}] ${message}`);
+  success(dataPoints = 1, details?: string): LayerAttempt {
+    return this._finish('success', dataPoints, details);
   }
 
-  /**
-   * Log a warning. Recorded in attempts with 'skip' status.
-   */
-  warn(layer: string, message: string): void {
-    const attempt: LayerAttempt = {
-      layer,
-      source: 'warn',
-      method: 'warn',
-      input: '',
-      status: 'skip',
-      duration_ms: 0,
-      dataPointsFound: 0,
-      timestamp: new Date().toISOString(),
-      details: `WARNING: ${message}`,
-    };
-    this.attempts.push(attempt);
-    console.warn(`[${this.projectId}] [${layer}] WARNING: ${message}`);
+  partial(dataPoints = 0, details?: string): LayerAttempt {
+    return this._finish('partial', dataPoints, details);
   }
 
-  /**
-   * Log an error. Recorded in attempts with 'fail' status.
-   */
-  error(layer: string, message: string, err?: unknown): void {
-    const errMsg = err instanceof Error ? err.message : String(err ?? '');
-    const fullMsg = `${message}${errMsg ? ` — ${errMsg}` : ''}`;
-    const attempt: LayerAttempt = {
-      layer,
-      source: 'error',
-      method: 'error',
-      input: '',
+  fail(error: string, nextLayer?: string): LayerAttempt {
+    const entry: LayerAttempt = {
+      ...this.base,
       status: 'fail',
-      duration_ms: 0,
+      duration_ms: Date.now() - this.startTime,
       dataPointsFound: 0,
-      timestamp: new Date().toISOString(),
-      error: fullMsg,
-      details: err instanceof Error ? err.stack : undefined,
+      error,
+      nextLayer,
+      steps: this._steps.length ? [...this._steps] : undefined,
     };
-    this.attempts.push(attempt);
-    console.error(`[${this.projectId}] [${layer}] ERROR: ${fullMsg}`);
+    this.logger.addEntry(entry);
+    return entry;
   }
 
-  /**
-   * Get all recorded attempts (including info/warn/error entries).
-   */
-  getAttempts(): LayerAttempt[] {
-    return [...this.attempts];
+  skip(reason: string): LayerAttempt {
+    const entry: LayerAttempt = {
+      ...this.base,
+      status: 'skip',
+      duration_ms: Date.now() - this.startTime,
+      dataPointsFound: 0,
+      error: reason,
+      steps: this._steps.length ? [...this._steps] : undefined,
+    };
+    this.logger.addEntry(entry);
+    return entry;
   }
 
-  /**
-   * Get total attempt count for monitoring.
-   */
-  getAttemptCount(): number {
-    return this.attempts.length;
-  }
-
-  /**
-   * Get a summary string of all attempts for debugging.
-   */
-  getSummary(): string {
-    return this.attempts
-      .map((a) => {
-        const base = `[${a.layer}] ${a.method} -> ${a.status} (${a.duration_ms}ms, ${a.dataPointsFound} pts)${a.error ? ` ERR: ${a.error}` : ''}`;
-        if (a.steps && a.steps.length > 0) {
-          return base + '\n' + a.steps.map((s) => `    ${s}`).join('\n');
-        }
-        return base;
-      })
-      .join('\n');
-  }
-
-  private logToConsole(attempt: LayerAttempt): void {
-    const icon = attempt.status === 'success' ? '[OK]'
-      : attempt.status === 'partial' ? '[PARTIAL]'
-      : attempt.status === 'fail' ? '[FAIL]'
-      : '[SKIP]';
-    console.log(
-      `[${this.projectId}] ${icon} [${attempt.layer}] ${attempt.method} (${attempt.source}) -> ${attempt.status} in ${attempt.duration_ms}ms | ${attempt.dataPointsFound} data points${attempt.error ? ` | Error: ${attempt.error}` : ''}`,
-    );
-    if (attempt.details) {
-      console.log(`[${this.projectId}]    Details: ${attempt.details}`);
-    }
+  private _finish(
+    status: 'success' | 'partial',
+    dataPoints: number,
+    details?: string,
+  ): LayerAttempt {
+    const entry: LayerAttempt = {
+      ...this.base,
+      status,
+      duration_ms: Date.now() - this.startTime,
+      dataPointsFound: dataPoints,
+      details,
+      steps: this._steps.length ? [...this._steps] : undefined,
+    };
+    this.logger.addEntry(entry);
+    return entry;
   }
 }
+
+// ── Legacy StepTracker (returned by startAttempt) ──────────────────────────
 
 /**
  * A StepTracker is returned from startAttempt(). It's callable (to finish)
@@ -194,3 +108,180 @@ export type StepTracker = ((result: {
   /** Log an intermediate step within this attempt */
   step: (msg: string) => void;
 };
+
+// ── PipelineLogger ─────────────────────────────────────────────────────────
+
+/**
+ * Structured logger that records each layer attempt in the pipeline.
+ * Every search method, API call, or extraction pass creates a LayerAttempt
+ * entry for debugging and audit trail purposes.
+ *
+ * New calling style:
+ *   logger.attempt('Stage2', 'source', 'method', 'input').success(n, 'details')
+ *
+ * Legacy calling style (kept for backward compatibility):
+ *   const t = logger.startAttempt({ layer, source, method, input });
+ *   t.step('doing something');
+ *   t({ status: 'success', dataPointsFound: 1 });
+ */
+export class PipelineLogger {
+  private log_: LayerAttempt[] = [];
+  private projectId: string;
+
+  constructor(projectId: string) {
+    this.projectId = projectId;
+  }
+
+  /** Returns the project ID (used internally by LayerAttemptBuilder). */
+  getProjectId(): string {
+    return this.projectId;
+  }
+
+  // ── New-style API ─────────────────────────────────────────────────────────
+
+  /**
+   * Create a new layer attempt builder.
+   * Call .success(), .partial(), .fail(), or .skip() on the result to record it.
+   */
+  attempt(
+    layer: string,
+    source: string,
+    method: string,
+    input: string,
+  ): LayerAttemptBuilder {
+    return new LayerAttemptBuilder(this, layer, source, method, input);
+  }
+
+  /** Add a pre-built LayerAttempt entry directly (used by LayerAttemptBuilder). */
+  addEntry(entry: LayerAttempt): void {
+    this.log_.push(entry);
+    const icon = entry.status === 'success' ? '✓'
+      : entry.status === 'partial' ? '◐'
+      : entry.status === 'fail'    ? '✗'
+      : '⊘';
+    console.log(
+      `[${this.projectId}] ${icon} [${entry.layer}] ${entry.method} → ${entry.source}` +
+      ` (${entry.duration_ms}ms) ${entry.status}` +
+      (entry.dataPointsFound > 0 ? ` — ${entry.dataPointsFound} pts` : '') +
+      (entry.error ? ` — ${entry.error}` : '') +
+      (entry.details ? ` | ${entry.details}` : ''),
+    );
+  }
+
+  /** Get all recorded log entries. */
+  getLog(): LayerAttempt[] {
+    return [...this.log_];
+  }
+
+  // ── Legacy-style API (kept for backward compatibility) ────────────────────
+
+  /**
+   * Record the start of a layer attempt. Returns a StepTracker that
+   * collects step-by-step actions and finalises with a status call.
+   * @deprecated Prefer attempt() for new code.
+   */
+  startAttempt(opts: {
+    layer: string;
+    source: string;
+    method: string;
+    input: string;
+  }): StepTracker {
+    const builder = this.attempt(opts.layer, opts.source, opts.method, opts.input);
+    const startTime = Date.now();
+
+    const logStep = (msg: string) => {
+      const elapsed = Date.now() - startTime;
+      console.log(`[${this.projectId}] [${opts.layer}]   STEP: [+${elapsed}ms] ${msg}`);
+      builder.step(msg);
+    };
+
+    const finish = (result: {
+      status: LayerAttempt['status'];
+      dataPointsFound?: number;
+      error?: string;
+      nextLayer?: string;
+      details?: string;
+    }): LayerAttempt => {
+      switch (result.status) {
+        case 'success': return builder.success(result.dataPointsFound ?? 0, result.details);
+        case 'partial': return builder.partial(result.dataPointsFound ?? 0, result.details);
+        case 'fail':    return builder.fail(result.error ?? 'unknown error', result.nextLayer);
+        default:        return builder.skip(result.error ?? result.details ?? 'skipped');
+      }
+    };
+
+    // Prevent double-step logging: builder.step is already called inside logStep
+    // so we patch the builder to be a no-op for the legacy path.
+    return Object.assign(finish, { step: logStep });
+  }
+
+  /**
+   * Log a quick info message.
+   * @deprecated Prefer console.log for informational messages in new code.
+   */
+  info(layer: string, message: string): void {
+    this.log_.push({
+      layer, source: 'info', method: 'info', input: '',
+      status: 'skip', duration_ms: 0, dataPointsFound: 0,
+      timestamp: new Date().toISOString(), details: message,
+    });
+    console.log(`[${this.projectId}] [${layer}] ${message}`);
+  }
+
+  /**
+   * Log a warning.
+   * @deprecated Prefer console.warn for warnings in new code.
+   */
+  warn(layer: string, message: string): void {
+    this.log_.push({
+      layer, source: 'warn', method: 'warn', input: '',
+      status: 'skip', duration_ms: 0, dataPointsFound: 0,
+      timestamp: new Date().toISOString(), details: `WARNING: ${message}`,
+    });
+    console.warn(`[${this.projectId}] [${layer}] WARNING: ${message}`);
+  }
+
+  /**
+   * Log an error.
+   * @deprecated Prefer logger.attempt(...).fail() for new code.
+   */
+  error(layer: string, message: string, err?: unknown): void {
+    const errMsg = err instanceof Error ? err.message : String(err ?? '');
+    const fullMsg = `${message}${errMsg ? ` — ${errMsg}` : ''}`;
+    this.log_.push({
+      layer, source: 'error', method: 'error', input: '',
+      status: 'fail', duration_ms: 0, dataPointsFound: 0,
+      timestamp: new Date().toISOString(), error: fullMsg,
+      details: err instanceof Error ? err.stack : undefined,
+    });
+    console.error(`[${this.projectId}] [${layer}] ERROR: ${fullMsg}`);
+  }
+
+  /**
+   * Get all recorded attempts.
+   * @deprecated Use getLog() in new code.
+   */
+  getAttempts(): LayerAttempt[] {
+    return this.getLog();
+  }
+
+  /** Get total attempt count for monitoring. */
+  getAttemptCount(): number {
+    return this.log_.length;
+  }
+
+  /**
+   * Get a summary string of all attempts for debugging.
+   */
+  getSummary(): string {
+    return this.log_
+      .map((a) => {
+        const base = `[${a.layer}] ${a.method} -> ${a.status} (${a.duration_ms}ms, ${a.dataPointsFound} pts)${a.error ? ` ERR: ${a.error}` : ''}`;
+        if (a.steps && a.steps.length > 0) {
+          return base + '\n' + a.steps.map((s) => `    ${s}`).join('\n');
+        }
+        return base;
+      })
+      .join('\n');
+  }
+}

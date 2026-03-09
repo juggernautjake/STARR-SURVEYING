@@ -26,10 +26,10 @@ export interface PipelineResult {
   documents: DocumentResult[];
   boundary: BoundaryDescription | null;
   validation: ValidationResult | null;
-  /** Phase 3.5: Geometric reconciliation — visual geometry vs OCR text */
-  reconciliation?: import('../services/geo-reconcile.js').ReconciliationResult;
   log: LayerAttempt[];
   duration_ms: number;
+  /** Phase 3.5: Geometric reconciliation — visual geometry vs OCR text */
+  reconciliation?: import('../services/geo-reconcile.js').ReconciliationResult;
   /** Search diagnostics: which variants were tried, which hit */
   searchDiagnostics?: SearchDiagnostics;
 }
@@ -116,19 +116,35 @@ export interface DocumentRef {
 export interface DocumentResult {
   ref: DocumentRef;
   textContent: string | null;
-  imageBase64: string | null;
-  imageFormat: 'png' | 'jpg' | 'tiff' | 'pdf' | null;
+  /** Downloaded page images from Kofile image interception */
+  pages?: DocumentPage[];
   ocrText: string | null;
   extractedData: ExtractedBoundaryData | null;
+  /** Public URL of the PDF bundled from page images, stored in Supabase Storage */
+  pagesPdfUrl?: string | null;
+  /** Legacy single-image fields — populated by old pipeline path */
+  imageBase64?: string | null;
+  imageFormat?: 'png' | 'jpg' | 'tiff' | 'pdf' | null;
   /** Whether this came from user upload vs online retrieval */
   fromUserUpload?: boolean;
   /** Processing errors that occurred */
   processingErrors?: string[];
-  /** High-resolution screenshots of each page of the document */
+  /** High-resolution screenshots of each page of the document (legacy capture) */
   pageScreenshots?: PageScreenshot[];
 }
 
-/** A single page screenshot captured from a document viewer */
+/** A downloaded document page image (Kofile image interception) */
+export interface DocumentPage {
+  pageNumber: number;
+  /** base64-encoded image data */
+  imageBase64: string;
+  imageFormat: 'png' | 'jpg' | 'tiff';
+  width: number;
+  height: number;
+  signedUrl: string | null;
+}
+
+/** A single page screenshot captured from a document viewer (legacy browser capture) */
 export interface PageScreenshot {
   pageNumber: number;
   /** base64-encoded PNG image at highest available resolution */
@@ -165,6 +181,7 @@ export interface ExtractedBoundaryData {
   verified?: boolean;
 }
 
+/** BoundaryDescription is an alias for ExtractedBoundaryData */
 export type BoundaryDescription = ExtractedBoundaryData;
 
 export interface BoundaryCall {
@@ -188,7 +205,7 @@ export interface BoundaryCall {
   curve: {
     radius: { raw: string; value: number };
     arcLength: { raw: string; value: number } | null;
-    chordBearing: { raw: string; decimalDegrees: number; quadrant: string } | null;
+    chordBearing: { raw: string; decimalDegrees: number; quadrant?: string } | null;
     chordDistance: { raw: string; value: number } | null;
     direction: 'left' | 'right';
     delta: { raw: string; decimalDegrees: number } | null;
@@ -199,13 +216,25 @@ export interface BoundaryCall {
 }
 
 export interface DocumentReference {
-  type: 'deed' | 'plat' | 'easement' | 'survey' | 'other';
+  /** Merged type union: supports both old ('deed','plat','easement','survey','other')
+   *  and new ('volume_page','instrument','abstract_survey') classification schemes. */
+  type: 'deed' | 'plat' | 'easement' | 'survey' | 'other' | 'volume_page' | 'instrument' | 'abstract_survey';
   volume: string | null;
   page: string | null;
   instrumentNumber: string | null;
-  cabinetSlide: string | null;
+  /** Legacy combined cabinet+slide field */
+  cabinetSlide?: string | null;
+  /** Cabinet identifier (plat cabinet) */
+  cabinet?: string | null;
+  /** Slide/sheet identifier */
+  slide?: string | null;
   county: string | null;
-  description: string | null;
+  /** Legacy description field */
+  description?: string | null;
+  /** Abstract number (for abstract/survey references) */
+  abstract?: string | null;
+  /** Survey name (for abstract/survey references) */
+  survey?: string | null;
 }
 
 // ── 5-Symbol Confidence Rating ────────────────────
@@ -255,7 +284,8 @@ export interface ValidationResult {
 export interface AddressVariant {
   streetNumber: string;
   streetName: string;
-  format: string;
+  /** Format identifier for this variant (e.g. 'canonical', 'variation:FM RD') */
+  format?: string;
   query?: string;
   /** Priority order — lower numbers are tried first */
   priority: number;
