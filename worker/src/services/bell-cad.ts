@@ -264,11 +264,50 @@ function validatePropertyResult(
   };
 }
 
-// ── Layer 1A: HTTP with Session Cookie Acquisition ─────────────────────────
+// ── Error Classification ──────────────────────────────────────────────────
+
+type ErrorCategory =
+  | 'timeout'          // Network or server timeout
+  | 'http_status'      // Non-2xx HTTP response
+  | 'html_structure'   // HTML parsing failed or unexpected DOM structure
+  | 'body_parsing'     // JSON/HTML body could not be parsed
+  | 'session_token'    // Session token acquisition or validation failed
+  | 'recaptcha'        // reCAPTCHA blocking the request
+  | 'network'          // DNS, connection reset, SSL errors
+  | 'ai_api'           // AI/Anthropic API error
+  | 'runtime'          // Code-level error (null ref, type error, etc.)
+  | 'unknown';
+
+function classifyError(err: unknown): { category: ErrorCategory; detail: string } {
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('aborted'))
+      return { category: 'timeout', detail: err.message };
+    if (msg.includes('enotfound') || msg.includes('econnrefused') || msg.includes('econnreset') || msg.includes('fetch failed') || msg.includes('ssl') || msg.includes('certificate'))
+      return { category: 'network', detail: err.message };
+    if (msg.includes('credit') || msg.includes('billing') || msg.includes('rate_limit') || msg.includes('overloaded'))
+      return { category: 'ai_api', detail: err.message };
+    if (msg.includes('json') || msg.includes('unexpected token') || msg.includes('parse'))
+      return { category: 'body_parsing', detail: err.message };
+    if (msg.includes('null') || msg.includes('undefined') || msg.includes('cannot read'))
+      return { category: 'runtime', detail: err.message };
+    return { category: 'unknown', detail: err.message };
+  }
+  return { category: 'unknown', detail: String(err) };
+}
+
+// ── Layer 1A: HTTP with BIS eSearch API (GET-based keyword search) ────────
 
 /**
- * Fix for HTTP 415: First load the search page to acquire session cookies,
- * then POST with those cookies attached.
+ * BIS eSearch sites (2025+) use a GET-based search flow:
+ *   1. GET /search/shouldUseRecaptcha → { shouldUseRecaptcha: bool }
+ *   2. GET /search/requestSessionToken → { searchSessionToken: "..." }
+ *   3. GET /search/result?keywords=StreetNumber:N StreetName:S&searchSessionToken=T
+ *
+ * The /search/result endpoint returns an HTML page with results rendered server-side.
+ * We parse the HTML to extract property data.
+ *
+ * If reCAPTCHA is required, this path won't work — fall through to Playwright.
  */
 async function searchCadHttp(
   baseUrl: string,
@@ -279,17 +318,59 @@ async function searchCadHttp(
   const exactVariants = variants.filter((v) => !v.isPartial).sort((a, b) => a.priority - b.priority);
   if (exactVariants.length === 0) return null;
 
-  // Step 1: Acquire session cookies by loading the search page
-  let sessionCookies: string | null = null;
-  const cookieTracker = logger.startAttempt({
-    layer: 'Stage1A-Cookie',
+  // Step 1: Check if reCAPTCHA is required (skip HTTP path entirely if so)
+  const recaptchaTracker = logger.startAttempt({
+    layer: 'Stage1A-Recaptcha',
     source: 'CAD-HTTP',
-    method: 'session-acquisition',
+    method: 'recaptcha-check',
     input: baseUrl,
   });
 
   try {
-    cookieTracker.step(`Fetching search page to acquire session cookies: ${baseUrl}`);
+    const recaptchaResp = await fetch(`${baseUrl}/search/shouldUseRecaptcha`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(8_000),
+    });
+
+    if (recaptchaResp.ok) {
+      const recaptchaData = await recaptchaResp.json() as { shouldUseRecaptcha?: boolean };
+      if (recaptchaData.shouldUseRecaptcha === true) {
+        recaptchaTracker({ status: 'fail', error: 'reCAPTCHA required — HTTP path cannot solve captcha', nextLayer: 'Stage1B' });
+        logger.warn('Stage1A', 'BIS site requires reCAPTCHA Enterprise — skipping HTTP path, falling through to Playwright');
+        return null;
+      }
+      recaptchaTracker({ status: 'success', details: 'reCAPTCHA NOT required — proceeding with HTTP' });
+    } else {
+      recaptchaTracker.step(`reCAPTCHA check returned HTTP ${recaptchaResp.status} — assuming not required`);
+      recaptchaTracker({ status: 'partial', details: `HTTP ${recaptchaResp.status} — proceeding anyway` });
+    }
+  } catch (err) {
+    const { category, detail } = classifyError(err);
+    recaptchaTracker({ status: 'fail', error: `[${category}] ${detail}` });
+    // If we can't even reach the server, no point trying variants
+    if (category === 'network' || category === 'timeout') {
+      logger.warn('Stage1A', `Cannot reach ${baseUrl} — [${category}] ${detail}`);
+      return null;
+    }
+  }
+
+  // Step 2: Acquire session token
+  let sessionToken: string | null = null;
+  let sessionCookies: string | null = null;
+
+  const tokenTracker = logger.startAttempt({
+    layer: 'Stage1A-Token',
+    source: 'CAD-HTTP',
+    method: 'session-token',
+    input: baseUrl,
+  });
+
+  try {
+    // First load homepage to acquire cookies
+    tokenTracker.step('Loading homepage for session cookies');
     const pageResponse = await fetch(baseUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -300,107 +381,235 @@ async function searchCadHttp(
     });
 
     if (pageResponse.ok) {
-      cookieTracker.step(`Page loaded: HTTP ${pageResponse.status}`);
-      // Extract Set-Cookie headers
       const setCookie = pageResponse.headers.get('set-cookie');
       if (setCookie) {
-        // Parse cookie names and values
         sessionCookies = setCookie
           .split(',')
           .map((c) => c.split(';')[0].trim())
           .filter((c) => c.includes('='))
           .join('; ');
-        cookieTracker.step(`Acquired session cookies: ${sessionCookies.substring(0, 80)}...`);
-      } else {
-        cookieTracker.step('No Set-Cookie headers in response');
+        tokenTracker.step(`Acquired cookies: ${sessionCookies.substring(0, 80)}...`);
       }
-      cookieTracker({ status: 'success', dataPointsFound: sessionCookies ? 1 : 0, details: `Cookies: ${sessionCookies ? 'acquired' : 'none'}` });
     } else {
-      cookieTracker.step(`Page load failed: HTTP ${pageResponse.status}`);
-      cookieTracker({ status: 'fail', error: `HTTP ${pageResponse.status}` });
+      tokenTracker.step(`Homepage returned HTTP ${pageResponse.status}`);
+    }
+
+    // Request session token
+    tokenTracker.step('Requesting search session token');
+    const headers: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Accept': 'application/json, text/plain, */*',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Referer': `${baseUrl}/`,
+    };
+    if (sessionCookies) headers['Cookie'] = sessionCookies;
+
+    const tokenResp = await fetch(`${baseUrl}/search/requestSessionToken`, {
+      headers,
+      signal: AbortSignal.timeout(8_000),
+    });
+
+    if (tokenResp.ok) {
+      const tokenData = await tokenResp.json() as { searchSessionToken?: string };
+      sessionToken = tokenData.searchSessionToken ?? null;
+      if (sessionToken) {
+        tokenTracker.step(`Got session token: ${sessionToken.substring(0, 30)}...`);
+        tokenTracker({ status: 'success', details: 'Session token acquired' });
+      } else {
+        tokenTracker({ status: 'fail', error: '[body_parsing] Token response missing searchSessionToken field' });
+      }
+    } else {
+      tokenTracker({ status: 'fail', error: `[http_status] Token endpoint returned HTTP ${tokenResp.status}` });
     }
   } catch (err) {
-    cookieTracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+    const { category, detail } = classifyError(err);
+    tokenTracker({ status: 'fail', error: `[${category}] ${detail}` });
   }
 
-  // Step 2: Try each variant with the session cookies
+  if (!sessionToken) {
+    logger.warn('Stage1A', 'Failed to acquire session token — cannot perform HTTP search');
+    return null;
+  }
+
+  // Step 3: Try each variant with GET /search/result?keywords=...&searchSessionToken=...
   for (const variant of exactVariants) {
     const tracker = logger.startAttempt({
       layer: 'Stage1A',
       source: 'CAD-HTTP',
-      method: 'POST',
+      method: 'GET-keyword-search',
       input: `${variant.streetNumber} ${variant.streetName} (${variant.format})`,
     });
 
     try {
-      // Send keywords as form-encoded body (fixes HTTP 415 Unsupported Media Type).
-      // The BIS eSearch ASP.NET endpoint requires application/x-www-form-urlencoded;
-      // sending no Content-Type with an empty body causes the server to reject the
-      // request entirely.  We also try separate StreetNumber/StreetName fields first
-      // (matching what the HTML form submits) and fall back to the legacy
-      // "keywords=StreetNumber:N StreetName:S" format if needed.
-      const url = `${baseUrl}/search/SearchResults`;
-      const formBody = `StreetNumber=${encodeURIComponent(variant.streetNumber)}&StreetName=${encodeURIComponent(variant.streetName)}`;
-      tracker.step(`POST ${url} [fields: StreetNumber=${variant.streetNumber}, StreetName=${variant.streetName}]`);
+      // Build keyword string in BIS format: StreetNumber:N StreetName:S
+      // Multi-word street names are quoted
+      const namePart = variant.streetName.includes(' ')
+        ? `StreetName:"${variant.streetName}"`
+        : `StreetName:${variant.streetName}`;
+      const keywords = `StreetNumber:${variant.streetNumber} ${namePart}`;
+      const encodedKeywords = encodeURIComponent(keywords);
+      const encodedToken = encodeURIComponent(sessionToken);
+      const url = `${baseUrl}/search/result?keywords=${encodedKeywords}&searchSessionToken=${encodedToken}`;
+
+      tracker.step(`GET ${url.substring(0, 120)}...`);
 
       const headers: Record<string, string> = {
-        'Accept': 'application/json, text/plain, */*',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Referer': `${baseUrl}/`,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Referer': `${baseUrl}/`,
       };
-      if (sessionCookies) {
-        headers['Cookie'] = sessionCookies;
-      }
+      if (sessionCookies) headers['Cookie'] = sessionCookies;
 
       const response = await fetch(url, {
-        method: 'POST',
         headers,
-        body: formBody,
-        signal: AbortSignal.timeout(10_000),
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15_000),
       });
 
+      tracker.step(`Response: HTTP ${response.status} ${response.statusText}`);
+
       if (!response.ok) {
-        tracker.step(`HTTP error: ${response.status} ${response.statusText}`);
-        tracker({ status: 'fail', error: `HTTP ${response.status} ${response.statusText}`, nextLayer: 'Stage1B' });
+        const body = await response.text().catch(() => '');
+        const isTokenError = body.includes('token validation') || body.includes('forbidden');
+        const isRecaptcha = body.includes('recaptcha') || body.includes('captcha');
+        const category: ErrorCategory = isTokenError ? 'session_token' : isRecaptcha ? 'recaptcha' : 'http_status';
+        tracker.step(`[${category}] Response body (first 200 chars): ${body.substring(0, 200)}`);
+        tracker({ status: 'fail', error: `[${category}] HTTP ${response.status}: ${body.substring(0, 100)}`, nextLayer: 'Stage1B' });
         diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
+
+        // If token validation failed, don't try more variants — token is bad
+        if (isTokenError) {
+          logger.warn('Stage1A', 'Session token rejected — stopping HTTP attempts');
+          break;
+        }
         continue;
       }
 
       const contentType = response.headers.get('content-type') ?? '';
-      tracker.step(`Response: HTTP ${response.status}, content-type: ${contentType}`);
-      if (!contentType.includes('json')) {
-        tracker({ status: 'fail', error: `Non-JSON response: ${contentType}`, nextLayer: 'Stage1B' });
-        diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
+      tracker.step(`Content-Type: ${contentType}`);
+
+      // Try JSON first (some BIS sites may still return JSON)
+      if (contentType.includes('json')) {
+        const data = await response.json() as { resultsList?: CadSearchResult[] } | CadSearchResult[];
+        const results = Array.isArray(data) ? data : data.resultsList ?? [];
+        tracker.step(`[body_parsing] Parsed JSON: ${results.length} results`);
+
+        diagnostics.variantsTried.push({
+          variant,
+          resultCount: results.length,
+          hitPropertyId: results.length > 0 ? getProp(results[0], 'propertyId', 'PropertyId') : null,
+        });
+
+        if (results.length > 0) {
+          tracker({ status: 'success', dataPointsFound: results.length, details: `${results.length} JSON results` });
+          return results;
+        }
+        tracker({ status: 'fail', error: '[body_parsing] JSON response contained 0 results' });
         continue;
       }
 
-      const data = await response.json() as { resultsList?: CadSearchResult[] } | CadSearchResult[];
-      const results = Array.isArray(data) ? data : data.resultsList ?? [];
+      // Parse HTML results page
+      if (contentType.includes('html')) {
+        const html = await response.text();
+        tracker.step(`[html_structure] Received ${html.length} chars of HTML`);
 
-      diagnostics.variantsTried.push({
-        variant,
-        resultCount: results.length,
-        hitPropertyId: results.length > 0 ? getProp(results[0], 'propertyId', 'PropertyId') : null,
-      });
+        const results = parseHtmlSearchResults(html, tracker);
+        diagnostics.variantsTried.push({
+          variant,
+          resultCount: results.length,
+          hitPropertyId: results.length > 0 ? getProp(results[0], 'propertyId', 'PropertyId') : null,
+        });
 
-      if (!results.length) {
-        tracker.step('Response parsed but contains 0 results');
-        tracker({ status: 'fail', error: 'No results', nextLayer: 'Stage1B' });
+        if (results.length > 0) {
+          tracker({ status: 'success', dataPointsFound: results.length, details: `${results.length} results from HTML` });
+          return results;
+        }
+
+        // Check for "no results" message
+        const noResults = /no\s+results?\s+found|0\s+results|no\s+records?\s+found/i.test(html);
+        tracker.step(noResults ? '[html_structure] Page says "no results"' : '[html_structure] No results found in HTML and no "no results" message');
+        tracker({ status: 'fail', error: noResults ? 'No results (server confirmed)' : '[html_structure] Could not extract results from HTML' });
         continue;
       }
 
-      tracker.step(`Found ${results.length} results. First ID: ${getProp(results[0], 'propertyId', 'PropertyId') ?? 'N/A'}`);
-      tracker({ status: 'success', dataPointsFound: results.length, details: `${results.length} results for variant "${variant.format}"` });
-      return results;
-    } catch (err) {
-      tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err), nextLayer: 'Stage1B' });
+      // Unexpected content type
+      tracker({ status: 'fail', error: `[body_parsing] Unexpected content-type: ${contentType}` });
       diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
+
+    } catch (err) {
+      const { category, detail } = classifyError(err);
+      tracker({ status: 'fail', error: `[${category}] ${detail}`, nextLayer: 'Stage1B' });
+      diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
+
+      // Network/timeout errors won't resolve with different variants
+      if (category === 'network' || category === 'timeout') {
+        logger.warn('Stage1A', `[${category}] ${detail} — stopping HTTP attempts`);
+        break;
+      }
     }
   }
 
   return null;
+}
+
+/**
+ * Parse BIS eSearch HTML results page to extract property records.
+ * The results page renders a table with property rows.
+ */
+function parseHtmlSearchResults(
+  html: string,
+  tracker: { step: (msg: string) => void },
+): CadSearchResult[] {
+  const results: CadSearchResult[] = [];
+
+  // Strategy 1: Find table rows with property links
+  // BIS results pages use <tr> elements with <a href="/Property/View?Id=XXXX">
+  const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  const linkPattern = /\/Property\/View\?(?:Id|id)=([^"&\s]+)/i;
+  const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+
+  let rowMatch;
+  let rowCount = 0;
+  while ((rowMatch = rowPattern.exec(html)) !== null) {
+    rowCount++;
+    const rowHtml = rowMatch[1];
+    const linkMatch = linkPattern.exec(rowHtml);
+    if (!linkMatch) continue;
+
+    const propertyId = linkMatch[1];
+
+    // Extract cell contents
+    const cells: string[] = [];
+    let cellMatch;
+    const cellRe = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+    while ((cellMatch = cellRe.exec(rowHtml)) !== null) {
+      cells.push(cellMatch[1].replace(/<[^>]*>/g, '').trim());
+    }
+
+    results.push({
+      propertyId,
+      ownerName: cells[1] ?? null,
+      address: cells[2] ?? null,
+      legalDescription: cells[3] ?? null,
+    } as CadSearchResult);
+  }
+
+  tracker.step(`[html_structure] Scanned ${rowCount} <tr> elements, found ${results.length} with property links`);
+
+  // Strategy 2: Broader link-based extraction if table parsing found nothing
+  if (results.length === 0) {
+    const allLinks = html.matchAll(/\/Property\/View\?(?:Id|id)=([^"&\s]+)/gi);
+    const seenIds = new Set<string>();
+    for (const m of allLinks) {
+      if (!seenIds.has(m[1])) {
+        seenIds.add(m[1]);
+        results.push({ propertyId: m[1] } as CadSearchResult);
+      }
+    }
+    tracker.step(`[html_structure] Fallback link scan found ${results.length} unique property IDs`);
+  }
+
+  return results;
 }
 
 // ── Layer 1B: Playwright Browser Automation ────────────────────────────────
@@ -470,20 +679,23 @@ async function searchCadPlaywright(
       // Tab might not exist
     }
 
-    // Set up AJAX response interception with promise-based capture
+    // Set up response interception for AJAX-based results (legacy BIS sites)
+    // AND navigation interception for newer BIS sites that redirect to /search/result
     let capturedResults: CadSearchResult[] = [];
     let resolveCapture: ((results: CadSearchResult[]) => void) | null = null;
 
     page.on('response', async (response) => {
       try {
         const url = response.url();
-        if (url.includes('SearchResults') || url.includes('searchresults') || url.includes('Search')) {
+        // Match both old (/SearchResults, /search/SearchResults) and new (/search/result) endpoints
+        if (url.includes('SearchResults') || url.includes('searchresults') || url.includes('/search/result') || url.includes('/Search/')) {
           const ct = response.headers()['content-type'] ?? '';
           if (ct.includes('json')) {
             const data = await response.json() as { resultsList?: CadSearchResult[] } | CadSearchResult[];
             const results = Array.isArray(data) ? data : data.resultsList ?? [];
             if (results.length > 0) {
               capturedResults = results;
+              finish.step?.(`[response_intercept] Captured ${results.length} JSON results from ${url.substring(0, 80)}`);
               if (resolveCapture) resolveCapture(results);
             }
           }
@@ -557,7 +769,10 @@ async function searchCadPlaywright(
 
         if (!searchClicked) {
           // Fall back to Enter key
+          finish.step?.(`[runtime] No search button found — pressing Enter`);
           await page.keyboard.press('Enter');
+        } else {
+          finish.step?.(`[runtime] Search button clicked`);
         }
 
         // Wait for AJAX response with timeout — fixes race condition where
@@ -568,17 +783,28 @@ async function searchCadPlaywright(
           if (capturedResults.length > 0) resolve(capturedResults);
         });
 
-        // Race between AJAX capture, DOM element appearance, and timeout
+        // BIS eSearch 2025+ navigates to /search/result (window.location.href),
+        // so we also need to watch for page navigation, not just AJAX responses.
+        const navigationPromise = page.waitForURL('**/search/result**', { timeout: 15_000 })
+          .then(() => {
+            finish.step?.(`[runtime] Page navigated to results URL: ${page.url()}`);
+            return 'navigated' as const;
+          })
+          .catch(() => 'no-navigation' as const);
+
+        // Race between AJAX capture, page navigation, DOM element appearance, and timeout
         try {
-          await Promise.race([
-            capturePromise,
-            page.waitForSelector('table tbody tr, .search-results tr, .result-row, .property-result, .resultsList', { timeout: 12_000 }),
-            page.waitForTimeout(12_000),
+          const raceResult = await Promise.race([
+            capturePromise.then(() => 'ajax-captured' as const),
+            navigationPromise,
+            page.waitForSelector('table tbody tr, .search-results tr, .result-row, .property-result, .resultsList', { timeout: 15_000 }).then(() => 'dom-found' as const),
+            page.waitForTimeout(15_000).then(() => 'timeout' as const),
           ]);
+          finish.step?.(`[runtime] Search wait resolved via: ${raceResult}`);
         } catch { /* timeout or selector not found — continue */ }
 
-        // Small settle delay for any late-arriving AJAX
-        await page.waitForTimeout(500);
+        // Small settle delay for any late-arriving content
+        await page.waitForTimeout(1000);
         resolveCapture = null;
 
         if (capturedResults.length > 0) {
@@ -595,11 +821,12 @@ async function searchCadPlaywright(
             });
           }
 
-          logger.info('Stage1B', `Variant "${variant.format}" found ${capturedResults.length} results via AJAX`);
+          logger.info('Stage1B', `Variant "${variant.format}" found ${capturedResults.length} results via AJAX intercept`);
           break;
         }
 
-        // If AJAX didn't capture, try DOM extraction
+        // If AJAX didn't capture, try DOM extraction (works for both old and new BIS sites)
+        finish.step?.(`[html_structure] Attempting DOM extraction from current page: ${page.url()}`);
         const domResults = await extractResultsFromDOM(page);
         if (domResults.length > 0) {
           capturedResults = domResults;
@@ -608,20 +835,34 @@ async function searchCadPlaywright(
             resultCount: domResults.length,
             hitPropertyId: getProp(domResults[0], 'propertyId', 'PropertyId'),
           });
-          logger.info('Stage1B', `Variant "${variant.format}" found ${domResults.length} results via DOM`);
+          logger.info('Stage1B', `Variant "${variant.format}" found ${domResults.length} results via DOM extraction`);
           break;
         }
 
-        // Check if "no results" message is shown (don't waste time on more variants of same name)
-        const noResultsShown = await page.evaluate(() => {
-          const body = document.body.textContent?.toLowerCase() ?? '';
-          return body.includes('no results') || body.includes('no records found') || body.includes('0 results');
+        // Log current page state for debugging
+        const pageState = await page.evaluate(() => {
+          const body = document.body;
+          return {
+            url: window.location.href,
+            title: document.title,
+            bodyLength: body?.textContent?.length ?? 0,
+            hasTable: !!document.querySelector('table'),
+            tableRowCount: document.querySelectorAll('table tbody tr').length,
+            hasPropertyLinks: !!document.querySelector('a[href*="/Property/View"]'),
+            propertyLinkCount: document.querySelectorAll('a[href*="/Property/View"]').length,
+            noResultsVisible: /no\s+results?|0\s+results|no\s+records?\s+found/i.test(body?.textContent ?? ''),
+            accessDenied: /access\s+denied|forbidden|token\s+validation/i.test(body?.textContent ?? ''),
+          };
         });
+
+        finish.step?.(`[html_structure] Page state: url=${pageState.url}, title="${pageState.title}", bodyLen=${pageState.bodyLength}, table=${pageState.hasTable}, rows=${pageState.tableRowCount}, propLinks=${pageState.propertyLinkCount}, noResults=${pageState.noResultsVisible}, denied=${pageState.accessDenied}`);
 
         diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
 
-        if (noResultsShown && !variant.isPartial) {
+        if (pageState.noResultsVisible && !variant.isPartial) {
           logger.info('Stage1B', `Variant "${variant.format}" returned "no results" — trying next`);
+        } else if (pageState.accessDenied) {
+          logger.warn('Stage1B', `[session_token] Variant "${variant.format}" got "access denied" — session/token may be invalid`);
         }
 
       } catch (err) {
@@ -674,15 +915,38 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
   return page.evaluate(() => {
     const results: Array<Record<string, string | null>> = [];
 
-    // Strategy 1: Table rows
-    const tableRows = document.querySelectorAll('table tbody tr');
-    if (tableRows.length > 0) {
+    // Strategy 1: Links to /Property/View?Id=... (most reliable across all BIS versions)
+    const propertyLinks = document.querySelectorAll('a[href*="/Property/View"]');
+    if (propertyLinks.length > 0) {
+      const seenIds = new Set<string>();
+      propertyLinks.forEach((link) => {
+        const href = link.getAttribute('href') ?? '';
+        const idMatch = href.match(/[?&](?:Id|id|ID)=([^&\s]+)/);
+        if (!idMatch || seenIds.has(idMatch[1])) return;
+        seenIds.add(idMatch[1]);
+
+        // Walk up to find the table row or parent container
+        const row = link.closest('tr') ?? link.closest('[class*="result"]') ?? link.parentElement;
+        const cells = row ? Array.from(row.querySelectorAll('td')) : [];
+        const text = row?.textContent?.trim() ?? link.textContent?.trim() ?? '';
+
+        results.push({
+          propertyId: idMatch[1],
+          ownerName: cells.length > 1 ? cells[1]?.textContent?.trim() ?? null : null,
+          address: cells.length > 2 ? cells[2]?.textContent?.trim() ?? null : text.substring(0, 200),
+          legalDescription: cells.length > 3 ? cells[3]?.textContent?.trim() ?? null : null,
+        });
+      });
+    }
+
+    // Strategy 2: Table rows with ID-like content (fallback for non-standard BIS layouts)
+    if (results.length === 0) {
+      const tableRows = document.querySelectorAll('table tbody tr');
       tableRows.forEach((row) => {
         const cells = Array.from(row.querySelectorAll('td'));
         const text = row.textContent?.trim() ?? '';
         const links = Array.from(row.querySelectorAll('a[href]'));
 
-        // Try to find property ID from link
         let propertyId: string | null = null;
         for (const link of links) {
           const href = link.getAttribute('href') ?? '';
@@ -690,7 +954,6 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
           if (match) { propertyId = match[1]; break; }
         }
 
-        // Try text-based extraction
         if (!propertyId) {
           const idMatch = text.match(/(?:Property\s*(?:ID|#)\s*:?\s*)(\d{4,})/i);
           if (idMatch) propertyId = idMatch[1];
@@ -707,7 +970,7 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
       });
     }
 
-    // Strategy 2: Result divs/cards
+    // Strategy 3: Result divs/cards
     if (results.length === 0) {
       const cards = document.querySelectorAll('.result-item, .property-result, .search-result-item, [class*="result"]');
       cards.forEach((card) => {
@@ -1089,7 +1352,7 @@ export async function searchBisCad(
 
   logger.info('Stage1', `Searching ${config.name} with ${variants.length} variants (${variants.filter((v) => !v.isPartial).length} exact, ${variants.filter((v) => v.isPartial).length} partial)`);
 
-  // Layer 1A: HTTP POST with session cookies
+  // Layer 1A: HTTP GET with session token (BIS eSearch keyword search)
   const httpResults = await searchCadHttp(config.baseUrl, variants, logger, diagnostics);
   if (httpResults && httpResults.length > 0) {
     const best = pickBestResult(httpResults, normalized, logger);
@@ -1163,9 +1426,22 @@ export async function searchBisCad(
     }
   }
 
-  // Layer 1C: Vision OCR from screenshot
-  if (screenshot && screenshot.length > 1000) {
+  // Layer 1C: Vision OCR from screenshot (check circuit breaker first)
+  const aiTracker1C = getGlobalAiTracker();
+  const { allowed: aiAllowed1C, reason: aiBlockReason1C } = aiTracker1C.canMakeCall();
+
+  if (screenshot && screenshot.length > 1000 && aiAllowed1C) {
     const visionResults = await extractFromScreenshot(screenshot, anthropicApiKey, logger);
+
+    // Record usage for circuit breaker
+    aiTracker1C.record({
+      service: 'vision-ocr',
+      address: normalized.raw,
+      success: visionResults.length > 0,
+      inputTokens: 2000, // Vision calls use more tokens
+      outputTokens: 1000,
+    });
+
     if (visionResults.length > 0) {
       const best = pickBestResult(visionResults, normalized, logger);
       if (best) {
@@ -1195,6 +1471,8 @@ export async function searchBisCad(
         }
       }
     }
+  } else if (screenshot && screenshot.length > 1000 && !aiAllowed1C) {
+    logger.warn('Stage1C', `[ai_api] Vision OCR skipped — circuit breaker: ${aiBlockReason1C}`);
   }
 
   // Layer 1D: AI-generated address variants (last resort before giving up)

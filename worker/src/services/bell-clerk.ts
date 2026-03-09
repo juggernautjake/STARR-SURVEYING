@@ -78,10 +78,12 @@ const KOFILE_CONFIGS: Record<string, KofileConfig> = {
   collin:      { subdomain: 'collin.tx.publicsearch.us', name: 'Collin County Clerk' },
   denton:      { subdomain: 'denton.tx.publicsearch.us', name: 'Denton County Clerk' },
   dallas:      { subdomain: 'dallas.tx.publicsearch.us', name: 'Dallas County Clerk' },
+  tarrant:     { subdomain: 'tarrant.tx.publicsearch.us', name: 'Tarrant County Clerk' },
   montgomery:  { subdomain: 'montgomery.tx.publicsearch.us', name: 'Montgomery County Clerk' },
-  fort_bend:   { subdomain: 'fortbend.tx.publicsearch.us', name: 'Fort Bend County Clerk' },
-  brazoria:    { subdomain: 'brazoria.tx.publicsearch.us', name: 'Brazoria County Clerk' },
-  galveston:   { subdomain: 'galveston.tx.publicsearch.us', name: 'Galveston County Clerk' },
+  // fort_bend, brazoria, galveston: DNS NXDOMAIN on publicsearch.us (verified 2026-03-09)
+  // These counties do NOT use publicsearch.us — need separate adapters.
+  nueces:      { subdomain: 'nueces.tx.publicsearch.us', name: 'Nueces County Clerk' },
+  potter:      { subdomain: 'potter.tx.publicsearch.us', name: 'Potter County Clerk' },
   victoria:    { subdomain: 'victoria.tx.publicsearch.us', name: 'Victoria County Clerk' },
   // ── Ring 6: (~175-200 mi) ────────────────────────────────────────
   grayson:     { subdomain: 'grayson.tx.publicsearch.us', name: 'Grayson County Clerk' },

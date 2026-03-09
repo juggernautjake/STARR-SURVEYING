@@ -44,79 +44,72 @@ interface CountyFusionConfig {
 
 /** Known CountyFusion county configurations keyed by 5-digit FIPS code. */
 const COUNTYFUSION_CONFIGS: Record<string, CountyFusionConfig> = {
-  '48201': {  // Harris County (also supports HCAD; CountyFusion for deed searches)
+  '48201': {  // Harris County — cclerk.hctx.net ASP.NET Web Forms
     baseUrl: 'https://www.cclerk.hctx.net',
-    searchPath: '/Applications/WebSearch/CS.aspx',
-    superSearchPath: '/Applications/WebSearch/SS.aspx',
+    searchPath: '/Applications/WebSearch/RP.aspx',
+    superSearchPath: null,
     countyDisplayName: 'Harris County',
-    granteeField: 'txtGrantee',
-    grantorField: 'txtGrantor',
-    instrumentField: 'txtInstrument',
+    granteeField: 'ctl00$ContentPlaceHolder1$txtOE',
+    grantorField: 'ctl00$ContentPlaceHolder1$txtOR',
+    instrumentField: 'ctl00$ContentPlaceHolder1$txtFileNo',
   },
-  '48439': {  // Tarrant County
-    baseUrl: 'https://www.tarrantcountytx.gov',
-    searchPath: '/county-clerk/real-property-records/search',
+  '48439': {  // Tarrant County — now on publicsearch.us
+    baseUrl: 'https://tarrant.tx.publicsearch.us',
+    searchPath: '/results',
     superSearchPath: null,
     countyDisplayName: 'Tarrant County',
     granteeField: 'grantee',
     grantorField: 'grantor',
     instrumentField: 'instrument',
   },
-  '48113': {  // Dallas County
-    baseUrl: 'https://countyfusion10.kofiletech.com/countyweb/login.do?countyname=Dallas',
-    searchPath: '/countyweb/login.do',
+  '48113': {  // Dallas County — now on publicsearch.us
+    baseUrl: 'https://dallas.tx.publicsearch.us',
+    searchPath: '/results',
     superSearchPath: null,
     countyDisplayName: 'Dallas County',
     granteeField: 'grantee',
     grantorField: 'grantor',
     instrumentField: 'instrno',
   },
-  '48085': {  // Collin County
-    baseUrl: 'https://countyfusion4.kofiletech.com/countyweb/login.do?countyname=Collin',
-    searchPath: '/countyweb/login.do',
+  '48085': {  // Collin County — now on publicsearch.us
+    baseUrl: 'https://collin.tx.publicsearch.us',
+    searchPath: '/results',
     superSearchPath: null,
     countyDisplayName: 'Collin County',
     granteeField: 'grantee',
     grantorField: 'grantor',
     instrumentField: 'instrno',
   },
-  '48121': {  // Denton County
-    baseUrl: 'https://countyfusion2.kofiletech.com/countyweb/login.do?countyname=Denton',
-    searchPath: '/countyweb/login.do',
+  '48121': {  // Denton County — now on publicsearch.us
+    baseUrl: 'https://denton.tx.publicsearch.us',
+    searchPath: '/results',
     superSearchPath: null,
     countyDisplayName: 'Denton County',
     granteeField: 'grantee',
     grantorField: 'grantor',
     instrumentField: 'instrno',
   },
-  '48339': {  // Montgomery County
-    baseUrl: 'https://countyfusion5.kofiletech.com/countyweb/login.do?countyname=Montgomery',
-    searchPath: '/countyweb/login.do',
+  '48339': {  // Montgomery County — now on publicsearch.us (verified 200 OK)
+    baseUrl: 'https://montgomery.tx.publicsearch.us',
+    searchPath: '/results',
     superSearchPath: null,
     countyDisplayName: 'Montgomery County',
     granteeField: 'grantee',
     grantorField: 'grantor',
     instrumentField: 'instrno',
   },
-  '48167': {  // Galveston County
-    baseUrl: 'https://countyfusion3.kofiletech.com/countyweb/login.do?countyname=Galveston',
-    searchPath: '/countyweb/login.do',
-    superSearchPath: null,
-    countyDisplayName: 'Galveston County',
-    granteeField: 'grantee',
-    grantorField: 'grantor',
-    instrumentField: 'instrno',
-  },
-  '48355': {  // Nueces County
-    baseUrl: 'https://countyfusion6.kofiletech.com/countyweb/login.do?countyname=Nueces',
-    searchPath: '/countyweb/login.do',
+  // '48167': Galveston County — NOT on publicsearch.us or CountyFusion.
+  //   Uses Fidlar AVA portal: https://ava.fidlar.com/TXGalveston/AvaWeb/ (verified 2026-03-09)
+  '48355': {  // Nueces County — now on publicsearch.us (verified 200 OK)
+    baseUrl: 'https://nueces.tx.publicsearch.us',
+    searchPath: '/results',
     superSearchPath: null,
     countyDisplayName: 'Nueces County',
     granteeField: 'grantee',
     grantorField: 'grantor',
     instrumentField: 'instrno',
   },
-  '48479': {  // Webb County
+  '48479': {  // Webb County — publicsearch.us unreachable; keeping legacy URL
     baseUrl: 'https://countyfusion7.kofiletech.com/countyweb/login.do?countyname=Webb',
     searchPath: '/countyweb/login.do',
     superSearchPath: null,
@@ -125,9 +118,9 @@ const COUNTYFUSION_CONFIGS: Record<string, CountyFusionConfig> = {
     grantorField: 'grantor',
     instrumentField: 'instrno',
   },
-  '48375': {  // Potter County
-    baseUrl: 'https://countyfusion8.kofiletech.com/countyweb/login.do?countyname=Potter',
-    searchPath: '/countyweb/login.do',
+  '48375': {  // Potter County — now on publicsearch.us (verified 200 OK)
+    baseUrl: 'https://potter.tx.publicsearch.us',
+    searchPath: '/results',
     superSearchPath: null,
     countyDisplayName: 'Potter County',
     granteeField: 'grantee',

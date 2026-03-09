@@ -95,39 +95,42 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
     baseUrl: null,
   },
 
-  // ── Harris County (HCAD — custom system) ─────────────────────────────────
+  // ── Harris County (custom ASP.NET — cclerk.hctx.net) ────────────────────
   {
     fips: '201',
     county: 'Harris',
     system: 'harris_custom',
     status: 'stub',
-    baseUrl: 'https://www.harriscountyclerk.org',
+    baseUrl: 'https://www.cclerk.hctx.net/Applications/WebSearch/RP.aspx',
     notes:
-      'Harris County uses a custom legacy system. ' +
-      '4.7M residents (~16% of TX population). ' +
-      'Account-number based search. HIGH PRIORITY to implement.',
+      'Harris County uses ASP.NET Web Forms at cclerk.hctx.net. ' +
+      'Real Property search at /Applications/WebSearch/RP.aspx. ' +
+      'Search by grantor/grantee name, legal description fields. ' +
+      'NO address search — requires name or instrument number. ' +
+      'Requires __VIEWSTATE harvesting for POST. ' +
+      '4.7M residents (~16% of TX population). HIGH PRIORITY.',
   },
 
-  // ── Dallas County (custom) ────────────────────────────────────────────────
+  // ── Dallas County — now on publicsearch.us ──────────────────────────────
   {
     fips: '113',
     county: 'Dallas',
-    system: 'dallas_custom',
+    system: 'kofile',
     status: 'stub',
-    baseUrl: 'https://www.dallascountyclerk.org',
-    notes: 'Dallas County uses its own online portal. Needs custom adapter.',
+    baseUrl: 'https://dallas.tx.publicsearch.us',
+    notes: 'Dallas County migrated to Kofile PublicSearch (verified 2026-03-09).',
   },
 
-  // ── Tarrant County (TAD — custom) ────────────────────────────────────────
+  // ── Tarrant County — now on publicsearch.us ────────────────────────────
   {
     fips: '439',
     county: 'Tarrant',
-    system: 'tarrant_custom',
+    system: 'kofile',
     status: 'stub',
-    baseUrl: 'https://www.tarrantcounty.com/en/clerk.html',
+    baseUrl: 'https://tarrant.tx.publicsearch.us',
     notes:
-      'Tarrant County uses TAD-adjacent custom system. ' +
-      '2.1M residents. HIGH PRIORITY.',
+      'Tarrant County migrated to Kofile PublicSearch (verified 2026-03-09). ' +
+      '2.1M residents.',
   },
 
   // ── Bexar County (San Antonio — custom) ──────────────────────────────────
@@ -182,14 +185,44 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
     notes: 'iDocket system. Adapter not yet built.',
   },
 
-  // ── Fort Bend County ──────────────────────────────────────────────────────
+  // ── Fort Bend County (custom ccweb portal) ────────────────────────────────
   {
     fips: '157',
     county: 'Fort Bend',
-    system: 'henschen',
+    system: 'fort_bend_custom',
     status: 'stub',
-    baseUrl: null,
-    notes: 'Henschen system. Adapter not yet built.',
+    baseUrl: 'http://ccweb.co.fort-bend.tx.us/',
+    notes:
+      'Fort Bend County uses a custom "ccweb" portal (NOT publicsearch.us, NOT Henschen). ' +
+      'Records from 1838 to present: deeds, plats, mortgages, easements, liens. ' +
+      'Verified 2026-03-09. Also has vital records at ccweb.co.fort-bend.tx.us/Birth/, /DEATH/, /Marriage/.',
+  },
+
+  // ── Galveston County (Fidlar AVA portal) ──────────────────────────────────
+  {
+    fips: '167',
+    county: 'Galveston',
+    system: 'fidlar',
+    status: 'stub',
+    baseUrl: 'https://ava.fidlar.com/TXGalveston/AvaWeb/',
+    notes:
+      'Galveston County uses Fidlar AVA portal for recorded documents. ' +
+      'Also searchable via TexasFile (1838–present). ' +
+      'Verified 2026-03-09. NOT on publicsearch.us.',
+  },
+
+  // ── Brazoria County (TexasFile) ───────────────────────────────────────────
+  {
+    fips: '039',
+    county: 'Brazoria',
+    system: 'texasfile',
+    status: 'stub',
+    baseUrl: 'https://www.texasfile.com/search/texas/brazoria-county/county-clerk-records/',
+    notes:
+      'Brazoria County records searchable via TexasFile (1829–present). ' +
+      'Supports name, instrument number, volume-page, and legal/property search. ' +
+      'Official county portal (requires login): brazoriacountytx-web.tylerhost.net/web/user/disclaimer. ' +
+      'Verified 2026-03-09. NOT on publicsearch.us.',
   },
 
   // ── Hidalgo County ────────────────────────────────────────────────────────

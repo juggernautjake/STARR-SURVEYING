@@ -51,7 +51,11 @@ const KOFILE_FIPS_SET = new Set<string>([
   '48325',  // Medina
   '48013',  // Atascosa
 
-  // North / DFW area
+  // North / DFW area — major counties verified on publicsearch.us 2026-03-09
+  '48113',  // Dallas
+  '48439',  // Tarrant
+  '48085',  // Collin
+  '48121',  // Denton
   '48497',  // Wise
   '48143',  // Erath
   '48139',  // Ellis
@@ -74,13 +78,15 @@ const KOFILE_FIPS_SET = new Set<string>([
   '48105',  // Crockett
   '48451',  // Tom Green
 
-  // Coastal / SE Texas
-  '48039',  // Brazoria
+  // Coastal / SE Texas — Montgomery verified on publicsearch.us 2026-03-09
+  // Fort Bend (ccweb), Brazoria (TexasFile), Galveston (Fidlar): NOT on publicsearch.us
+  '48339',  // Montgomery
   '48041',  // Brazos
   '48057',  // Calhoun
   '48469',  // Victoria
   '48481',  // Wharton
   '48477',  // Washington
+  '48355',  // Nueces
 
   // Panhandle / NW Texas
   '48375',  // Potter
