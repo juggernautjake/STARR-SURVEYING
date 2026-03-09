@@ -870,10 +870,18 @@ export async function searchClerkRecords(
         interface KofileDoc {
           docNumber?: string;
           instrumentNumber?: string;
+          documentNumber?: string;
+          number?: string;
           docType?: string;
           docTypeCode?: string;
+          documentType?: string;
+          typeCode?: string;
+          type?: string;
           recordedDate?: string;
           recordedDateStr?: string;
+          recordingDate?: string;
+          filingDate?: string;
+          date?: string;
           parties?: Array<{ name?: string; type?: string; role?: string }>;
           grantors?: string[];
           grantees?: string[];
@@ -904,7 +912,10 @@ export async function searchClerkRecords(
               url.includes('/results') ||
               url.includes('/search') ||
               url.includes('/documents') ||
-              url.includes('/api/')
+              url.includes('/api/') ||
+              url.includes('/graphql') ||
+              url.includes('/query') ||
+              url.includes('/workspace')
             ) {
               const data = await response.json() as Record<string, unknown>;
 
@@ -938,12 +949,59 @@ export async function searchClerkRecords(
               }
 
               // Strategy 3: Wrapped array (e.g. { results: [...] })
-              for (const key of ['results', 'data', 'records', 'items', 'documents']) {
+              for (const key of ['results', 'data', 'records', 'items', 'documents', 'searchResults']) {
                 const arr = data[key];
                 if (Array.isArray(arr) && arr.length > 0) {
                   const first = arr[0] as KofileDoc;
                   if (first.docNumber || first.instrumentNumber || first.docType || first.recordedDate) {
                     capturedDocs = arr as KofileDoc[];
+                    if (resolveCapture) resolveCapture(capturedDocs);
+                    return;
+                  }
+                }
+              }
+
+              // Strategy 4: Direct workspace data (Tyler PublicSearch returns
+              // { byHash: { id: docObj, ... }, byOrder: [...], numRecords: N }
+              // without the documents.workspaces wrapper)
+              if (data.byHash && typeof data.byHash === 'object' && !Array.isArray(data.byHash)) {
+                const docs = Object.values(data.byHash as Record<string, KofileDoc>);
+                if (docs.length > 0) {
+                  capturedDocs = docs;
+                  if (resolveCapture) resolveCapture(docs);
+                  return;
+                }
+              }
+
+              // Strategy 5: Nested workspace without 'documents' prefix
+              // e.g. { workspaces: { wsId: { data: { byHash: {...} } } } }
+              if (data.workspaces && typeof data.workspaces === 'object') {
+                const wsEntries = Object.values(data.workspaces as Record<string, Record<string, unknown>>);
+                for (const ws of wsEntries) {
+                  const wsData = ws?.data as Record<string, unknown> | undefined;
+                  if (wsData?.byHash && typeof wsData.byHash === 'object') {
+                    const docs = Object.values(wsData.byHash as Record<string, KofileDoc>);
+                    if (docs.length > 0) {
+                      capturedDocs = docs;
+                      if (resolveCapture) resolveCapture(docs);
+                      return;
+                    }
+                  }
+                }
+              }
+
+              // Strategy 6: Deep scan — any object with arrays of items
+              // that have date-like or number-like fields typical of documents
+              for (const key of Object.keys(data)) {
+                const val = data[key];
+                if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0] !== null) {
+                  const first = val[0] as Record<string, unknown>;
+                  // Check for typical document fields (using broader field names)
+                  const hasDocFields = first.docNumber || first.instrumentNumber || first.docType ||
+                    first.recordedDate || first.documentType || first.documentNumber ||
+                    first.recordingDate || first.filingDate || first.typeCode;
+                  if (hasDocFields) {
+                    capturedDocs = val as KofileDoc[];
                     if (resolveCapture) resolveCapture(capturedDocs);
                     return;
                   }
@@ -979,9 +1037,10 @@ export async function searchClerkRecords(
           logger.info('Stage2A', `"${searchName}" captured ${capturedDocs.length} documents via AJAX intercept`);
 
           for (const doc of capturedDocs) {
-            const instrNum = String(doc.docNumber ?? doc.instrumentNumber ?? '').trim();
-            const docType = String(doc.docType ?? doc.docTypeCode ?? '').trim();
-            const recDate = String(doc.recordedDate ?? doc.recordedDateStr ?? '').trim();
+            // Handle multiple field name conventions across Tyler/Kofile versions
+            const instrNum = String(doc.docNumber ?? doc.instrumentNumber ?? doc.documentNumber ?? doc.number ?? '').trim();
+            const docType = String(doc.docType ?? doc.docTypeCode ?? doc.documentType ?? doc.typeCode ?? doc.type ?? '').trim();
+            const recDate = String(doc.recordedDate ?? doc.recordedDateStr ?? doc.recordingDate ?? doc.filingDate ?? doc.date ?? '').trim();
 
             // Parse parties from Kofile's party array
             const grantors: string[] = [];
@@ -1027,6 +1086,9 @@ export async function searchClerkRecords(
         }
 
         // ── Fallback: Parse from Redux store in window.__data ────────
+        // Wait a bit extra for the store to be populated by async fetch
+        await page.waitForTimeout(3_000);
+
         const storeExtracted = await page.evaluate((bUrl: string) => {
           const docs: Array<{
             type: string;
@@ -1039,49 +1101,87 @@ export async function searchClerkRecords(
             url: string | null;
           }> = [];
 
+          // Helper to extract docs from a byHash object
+          const extractFromByHash = (byHash: Record<string, any>) => {
+            for (const docKey of Object.keys(byHash)) {
+              const d = byHash[docKey];
+              if (!d || typeof d !== 'object') continue;
+              const instrNum = String(d.docNumber ?? d.instrumentNumber ?? d.documentNumber ?? d.number ?? '').trim();
+              const docType = String(d.docType ?? d.docTypeCode ?? d.documentType ?? d.typeCode ?? d.type ?? '').trim();
+              const recDate = String(d.recordedDate ?? d.recordedDateStr ?? d.recordingDate ?? d.filingDate ?? d.date ?? '').trim();
+
+              const grantors: string[] = [];
+              const grantees: string[] = [];
+              if (Array.isArray(d.parties)) {
+                for (const party of d.parties) {
+                  const name = String(party.name ?? '').trim();
+                  if (!name) continue;
+                  const role = String(party.type ?? party.role ?? '').toLowerCase();
+                  if (role.includes('grantor') || role.includes('from') || role === '1') {
+                    grantors.push(name);
+                  } else {
+                    grantees.push(name);
+                  }
+                }
+              }
+
+              const docUrl = instrNum ? `${bUrl}/doc/${instrNum}` : null;
+              docs.push({
+                type: docType || 'Unknown',
+                date: recDate,
+                instrumentNumber: instrNum,
+                volume: String(d.bookNumber ?? ''),
+                docPage: String(d.pageNumber ?? ''),
+                grantors,
+                grantees,
+                url: docUrl,
+              });
+            }
+          };
+
           // Try to read document data from the Redux store (window.__data)
           try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const appData = (window as any).__data;
-            if (appData?.documents?.workspaces) {
+            if (!appData) return docs;
+
+            // Path 1: documents.workspaces.*.data.byHash (original Kofile)
+            if (appData.documents?.workspaces) {
               const workspaces = appData.documents.workspaces;
               for (const wsKey of Object.keys(workspaces)) {
                 const ws = workspaces[wsKey];
                 const byHash = ws?.data?.byHash;
-                if (byHash && typeof byHash === 'object') {
-                  for (const docKey of Object.keys(byHash)) {
-                    const d = byHash[docKey];
-                    if (!d) continue;
-                    const instrNum = String(d.docNumber ?? d.instrumentNumber ?? '').trim();
-                    const docType = String(d.docType ?? d.docTypeCode ?? '').trim();
-                    const recDate = String(d.recordedDate ?? d.recordedDateStr ?? '').trim();
+                if (byHash && typeof byHash === 'object' && Object.keys(byHash).length > 0) {
+                  extractFromByHash(byHash);
+                }
+              }
+            }
 
-                    const grantors: string[] = [];
-                    const grantees: string[] = [];
-                    if (Array.isArray(d.parties)) {
-                      for (const party of d.parties) {
-                        const name = String(party.name ?? '').trim();
-                        if (!name) continue;
-                        const role = String(party.type ?? party.role ?? '').toLowerCase();
-                        if (role.includes('grantor') || role.includes('from') || role === '1') {
-                          grantors.push(name);
-                        } else {
-                          grantees.push(name);
-                        }
-                      }
+            // Path 2: workspaces.*.data.byHash (without documents prefix)
+            if (docs.length === 0 && appData.workspaces) {
+              for (const wsKey of Object.keys(appData.workspaces)) {
+                const ws = appData.workspaces[wsKey];
+                const byHash = ws?.data?.byHash;
+                if (byHash && typeof byHash === 'object' && Object.keys(byHash).length > 0) {
+                  extractFromByHash(byHash);
+                }
+              }
+            }
+
+            // Path 3: Try reading from the live Redux store if available
+            if (docs.length === 0) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const store = (window as any).__REDUX_STORE__ ?? (window as any).__store__ ?? (window as any).store;
+              if (store?.getState) {
+                const state = store.getState();
+                const storeWorkspaces = state?.documents?.workspaces ?? state?.workspaces;
+                if (storeWorkspaces) {
+                  for (const wsKey of Object.keys(storeWorkspaces)) {
+                    const ws = storeWorkspaces[wsKey];
+                    const byHash = ws?.data?.byHash;
+                    if (byHash && typeof byHash === 'object' && Object.keys(byHash).length > 0) {
+                      extractFromByHash(byHash);
                     }
-
-                    const docUrl = instrNum ? `${bUrl}/doc/${instrNum}` : null;
-                    docs.push({
-                      type: docType || 'Unknown',
-                      date: recDate,
-                      instrumentNumber: instrNum,
-                      volume: String(d.bookNumber ?? ''),
-                      docPage: String(d.pageNumber ?? ''),
-                      grantors,
-                      grantees,
-                      url: docUrl,
-                    });
                   }
                 }
               }
@@ -1123,6 +1223,9 @@ export async function searchClerkRecords(
           continue;
         }
 
+        // Extra wait for Tyler PublicSearch React SPA to finish rendering
+        await page.waitForTimeout(3_000);
+
         // DOM extraction: handle both labeled-field pages and table-cell pages
         const extracted = await page.evaluate((bUrl: string) => {
           const docs: Array<{
@@ -1137,26 +1240,56 @@ export async function searchClerkRecords(
             text: string;
           }> = [];
 
-          // Strategy 1: Table rows (common in Kofile SPA after render)
+          // ── Tyler PublicSearch specific extraction ──
+          // Tyler uses React components with emotion/styled CSS classes.
+          // Result cards are clickable elements with nested data fields.
+          // Try to find result rows using broader selectors.
           const rows = document.querySelectorAll(
-            'table tbody tr, .result-item, .search-result, .document-row, [class*="result-"]',
+            'table tbody tr, .result-item, .search-result, .document-row, ' +
+            '[class*="result-"], [class*="Result"], [class*="card-"], [class*="Card"], ' +
+            '[data-testid*="result"], [data-testid*="document"], ' +
+            'a[href*="/doc/"], a[href*="/detail"]',
           );
 
-          rows.forEach((row) => {
+          // If we found very few rows with the above, try broader approach:
+          // look for clickable containers that have links to document details
+          let resultElements: Element[] = Array.from(rows);
+          if (resultElements.length === 0) {
+            // Broader: find all links that look like document detail links
+            const detailLinks = document.querySelectorAll(
+              'a[href*="/doc/"], a[href*="/detail/"], a[href*="/document/"]',
+            );
+            // Use each link's closest row-like ancestor
+            detailLinks.forEach((link) => {
+              const parent = link.closest('tr, [role="row"], [class*="result"], [class*="card"]') ?? link.parentElement?.parentElement ?? link.parentElement;
+              if (parent && !resultElements.includes(parent)) {
+                resultElements.push(parent);
+              }
+            });
+          }
+
+          resultElements.forEach((row) => {
             const text = row.textContent?.trim() ?? '';
             if (text.length < 10) return;
 
-            // Find links: Kofile uses /doc/INSTRUMENT_NUMBER pattern
+            // Find links: Kofile/Tyler uses /doc/INSTRUMENT_NUMBER or /detail/ID
             const links = Array.from(row.querySelectorAll('a[href]'));
+            // Also check if the row itself is a link
+            if (row.tagName === 'A' && row.getAttribute('href')) {
+              links.unshift(row as HTMLAnchorElement);
+            }
             let url: string | null = null;
             let linkInstrumentNum = '';
             for (const link of links) {
               const href = link.getAttribute('href') ?? '';
-              if (href.includes('/doc/') || href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/\d{4,}/)) {
+              if (href.includes('/doc/') || href.includes('/detail/') || href.includes('/details/') || href.includes('/document/') || href.includes('/view/') || href.match(/\/\d{4,}/)) {
                 url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-                // Extract instrument number from /doc/XXXXX URL
-                const docMatch = href.match(/\/doc\/(\d+)/);
+                // Extract instrument/doc number from URL patterns
+                const docMatch = href.match(/\/(?:doc|detail|document)\/(\d+)/);
                 if (docMatch) linkInstrumentNum = docMatch[1];
+                // Also try /results/detail/ID pattern
+                const detailMatch = href.match(/\/results\/detail\/(\d+)/);
+                if (detailMatch) linkInstrumentNum = detailMatch[1];
                 break;
               }
             }
@@ -1170,8 +1303,13 @@ export async function searchClerkRecords(
               }
             }
 
-            // Extract data from table cells (Kofile renders data in <td> elements)
+            // Extract data from table cells OR from child divs/spans
             const cells = Array.from(row.querySelectorAll('td, [class*="cell"], [role="cell"]'));
+            // For Tyler PublicSearch: also grab individual child div/span blocks
+            if (cells.length < 3) {
+              const childBlocks = Array.from(row.querySelectorAll(':scope > div, :scope > span, :scope > div > div, :scope > div > span'));
+              cells.push(...childBlocks);
+            }
             const cellTexts = cells.map((c) => c.textContent?.trim() ?? '').filter(Boolean);
 
             // Parse with regex patterns (labeled fields)
@@ -1209,24 +1347,27 @@ export async function searchClerkRecords(
             let volume = '';
             let pg = '';
 
-            // If we have distinct table cells, parse them positionally
+            // If we have distinct cells/blocks, parse them
             // Kofile typical column order: Date | Instrument# | Type | Grantor | Grantee
             if (cellTexts.length >= 3) {
               for (const cellText of cellTexts) {
-                // Date cell
+                // Date cell (exact or with label)
                 if (!recDate) {
-                  const dateMatch = cellText.match(/^(\d{1,2}\/\d{1,2}\/\d{4})$/);
+                  const dateMatch = cellText.match(/^(\d{1,2}\/\d{1,2}\/\d{4})$/) ??
+                    cellText.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
                   if (dateMatch) { recDate = dateMatch[1]; continue; }
                 }
-                // Instrument number cell (long numeric)
+                // Instrument number cell (long numeric, may have prefix)
                 if (!instrNum) {
-                  const instrMatch = cellText.match(/^(\d{8,13})$/);
+                  const instrMatch = cellText.match(/^(\d{8,13})$/) ??
+                    cellText.match(/(?:^|\s)(\d{8,13})(?:\s|$)/);
                   if (instrMatch) { instrNum = instrMatch[1]; continue; }
                 }
-                // Document type cell (known keywords)
+                // Document type cell (known keywords — check partial matches too)
                 if (!docType) {
-                  const typeKw = /^(DEED|WARRANTY DEED|SPECIAL WARRANTY|GENERAL WARRANTY|PLAT|EASEMENT|RIGHT OF WAY|DEED OF TRUST|RELEASE|QUIT CLAIM|AFFIDAVIT|RESTRICTION|COVENANT|ASSIGNMENT|TRANSFER|LIEN|MORTGAGE|SURVEY|MINERAL DEED|OIL|GAS|MLD|DOT|WD|SWD|GWD|DWW|QCD|PLT|ESMT|ROW|RC)$/i;
-                  if (typeKw.test(cellText.trim())) { docType = cellText.trim(); continue; }
+                  const typeKw = /\b(DEED|WARRANTY DEED|SPECIAL WARRANTY|GENERAL WARRANTY|PLAT|EASEMENT|RIGHT OF WAY|DEED OF TRUST|RELEASE|QUIT CLAIM|AFFIDAVIT|RESTRICTION|COVENANT|ASSIGNMENT|TRANSFER|LIEN|MORTGAGE|SURVEY|MINERAL DEED|OIL|GAS|MLD|DOT|WD|SWD|GWD|DWW|QCD|PLT|ESMT|ROW|RC|DEED WITHOUT WARRANTY|CONVEYANCE)\b/i;
+                  const typeMatch = cellText.match(typeKw);
+                  if (typeMatch) { docType = typeMatch[1].trim(); continue; }
                 }
                 // Volume/Page cell
                 const volPgMatch = cellText.match(/(?:Vol\.?\s*)?(\d+)\s*[/,]\s*(?:Pg\.?\s*)?(\d+)/i);
@@ -1254,17 +1395,21 @@ export async function searchClerkRecords(
               url = `${bUrl}/doc/${instrNum}`;
             }
 
-            docs.push({
-              type: docType || 'Unknown',
-              date: recDate,
-              instrumentNumber: instrNum,
-              volume,
-              docPage: pg,
-              grantors,
-              grantees,
-              url,
-              text: text.substring(0, 500),
-            });
+            // Only push if we extracted at least SOME useful data
+            // (prevents empty "Unknown" documents that waste fetching time)
+            if (instrNum || docType || url) {
+              docs.push({
+                type: docType || 'Unknown',
+                date: recDate,
+                instrumentNumber: instrNum,
+                volume,
+                docPage: pg,
+                grantors,
+                grantees,
+                url,
+                text: text.substring(0, 500),
+              });
+            }
           });
 
           return docs;
@@ -1287,6 +1432,46 @@ export async function searchClerkRecords(
           logger.info('Stage2A', `"${searchName}" found ${extracted.length} documents via DOM`);
           page.removeAllListeners('response');
           break; // Got results, no need to try more name variants
+        }
+
+        // ── Last resort: Log diagnostic info about what the DOM contains ──
+        const diagnostic = await page.evaluate(() => {
+          const allElements = document.querySelectorAll('[class*="result"], [class*="card"], [class*="document"], a[href*="/doc"]');
+          const sampleTexts: string[] = [];
+          const sampleLinks: string[] = [];
+          let i = 0;
+          allElements.forEach((el) => {
+            if (i >= 3) return;
+            const text = (el.textContent ?? '').trim().substring(0, 300);
+            if (text.length > 20) { sampleTexts.push(text); i++; }
+            const href = el.getAttribute('href');
+            if (href) sampleLinks.push(href);
+          });
+          // Also get all unique href patterns
+          const allLinks = Array.from(document.querySelectorAll('a[href]'));
+          const hrefPatterns = new Set<string>();
+          allLinks.forEach((a) => {
+            const href = a.getAttribute('href') ?? '';
+            // Generalize: replace numbers with {N}
+            const pattern = href.replace(/\d{4,}/g, '{N}');
+            if (pattern.length > 3 && !pattern.includes('google') && !pattern.includes('analytics')) {
+              hrefPatterns.add(pattern);
+            }
+          });
+          return {
+            elementCount: allElements.length,
+            sampleTexts,
+            sampleLinks: sampleLinks.slice(0, 5),
+            hrefPatterns: Array.from(hrefPatterns).slice(0, 10),
+            bodyTextLength: document.body.textContent?.length ?? 0,
+          };
+        });
+        logger.info('Stage2A', `DOM diagnostic: ${diagnostic.elementCount} candidate elements, body text length: ${diagnostic.bodyTextLength}`);
+        if (diagnostic.sampleTexts.length > 0) {
+          logger.info('Stage2A', `Sample text[0]: ${diagnostic.sampleTexts[0]?.substring(0, 200)}`);
+        }
+        if (diagnostic.hrefPatterns.length > 0) {
+          logger.info('Stage2A', `Link patterns: ${diagnostic.hrefPatterns.join(' | ')}`);
         }
 
         page.removeAllListeners('response');
