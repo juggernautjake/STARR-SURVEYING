@@ -590,6 +590,8 @@ async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
   success: boolean;
   streetName: string | null;
   preDirection: string | null;
+  preQualifier: string | null;
+  preType: string | null;
   suffixType: string | null;
   suffixDirection: string | null;
   fromAddress: string | null;
@@ -607,7 +609,7 @@ async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
     input: address,
   });
 
-  const fail = { success: false, streetName: null, preDirection: null, suffixType: null, suffixDirection: null, fromAddress: null, city: null, state: null, zip: null, lat: null, lon: null, matchedAddress: null };
+  const fail = { success: false, streetName: null, preDirection: null, preQualifier: null, preType: null, suffixType: null, suffixDirection: null, fromAddress: null, city: null, state: null, zip: null, lat: null, lon: null, matchedAddress: null };
 
   try {
     const url = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${encodeURIComponent(address)}&benchmark=Public_AR_Current&format=json`;
@@ -646,6 +648,8 @@ async function geocodeCensus(address: string, logger: PipelineLogger): Promise<{
       success: true,
       streetName: comp.streetName || null,
       preDirection: comp.preDirection || null,
+      preQualifier: comp.preQualifier || null,
+      preType: comp.preType || null,
       suffixType: comp.suffixType || null,
       suffixDirection: comp.suffixDirection || null,
       fromAddress: comp.fromAddress || null,
@@ -814,6 +818,18 @@ function normalizeDirection(dir: string): string {
   return upper;
 }
 
+/** Expand a directional abbreviation to its full word: "W" → "WEST", "N" → "NORTH" */
+function expandDirectionalWord(dir: string): string {
+  const upper = dir.toUpperCase().trim();
+  for (const [, variants] of Object.entries(DIRECTIONS)) {
+    if (variants.some((v) => v.toUpperCase() === upper)) {
+      // Return the longest variant (the full word)
+      return variants.reduce((a, b) => a.length > b.length ? a : b).toUpperCase();
+    }
+  }
+  return upper;
+}
+
 // ── Directional Stripping for FM/SH/CR Roads ──────────────────────────────
 
 /** Texas state road type pattern */
@@ -897,15 +913,30 @@ export function generateVariants(
     add(streetNumber, `${stripped} ${postDirection}`, 'with-post-dir');
   }
 
-  // 5. FM/SH/CR road with "RD" suffix
-  const fmMatch = stripped.match(/^(FM|SH|CR|RR|RM)\s+(\d+)$/i);
-  if (fmMatch) {
-    const roadType = fmMatch[1].toUpperCase();
-    const roadNum = fmMatch[2];
+  // 5. Texas designated road variants (FM, SH, CR, RR, RM, US, IH, HWY, SPUR, LOOP, PR)
+  const txRoadMatch = stripped.match(/^(FM|SH|CR|RR|RM|US|IH|HWY|SPUR|LOOP|PR)\s+(\d+.*)$/i);
+  if (txRoadMatch) {
+    const roadType = txRoadMatch[1].toUpperCase();
+    const roadNum = txRoadMatch[2];
+
+    // Canonical form without directional (HIGHEST priority — proven to work on Bell CAD)
     add(streetNumber, `${roadType} ${roadNum}`, 'tx-road-base');
+
+    // With directional prefix
+    if (preDirection) {
+      add(streetNumber, `${preDirection} ${roadType} ${roadNum}`, 'tx-road-with-dir');
+    }
+
+    // RD/ROAD suffix variations
     add(streetNumber, `${roadType} RD ${roadNum}`, 'tx-road-rd-prefix');
     add(streetNumber, `${roadType} ${roadNum} RD`, 'tx-road-rd-suffix');
     add(streetNumber, `${roadType} ROAD ${roadNum}`, 'tx-road-road-prefix');
+
+    // Dotted/spaced variations (e.g. F.M. 436, F M 436)
+    if (roadType.length === 2) {
+      add(streetNumber, `${roadType[0]}.${roadType[1]}. ${roadNum}`, 'tx-road-dotted');
+      add(streetNumber, `${roadType[0]} ${roadType[1]} ${roadNum}`, 'tx-road-spaced');
+    }
 
     // All long-form expansions for this road type
     const expansions = ROAD_SHORT_TO_LONG[roadType] ?? [];
@@ -914,6 +945,32 @@ export function generateVariants(
         add(streetNumber, `${expansion} ${roadNum}`, `tx-road-expanded-${expansion.toLowerCase().replace(/\s+/g, '-')}`);
       }
     }
+
+    // With directional + RD suffix
+    if (preDirection) {
+      add(streetNumber, `${preDirection} ${roadType} RD ${roadNum}`, 'tx-road-dir-rd');
+      // Spelled-out directional
+      const dirFull = expandDirectionalWord(preDirection);
+      if (dirFull !== preDirection) {
+        add(streetNumber, `${dirFull} ${roadType} ${roadNum}`, 'tx-road-dir-full');
+      }
+    }
+
+    // Trailing directional
+    if (preDirection) {
+      add(streetNumber, `${roadType} ${roadNum} ${preDirection}`, 'tx-road-trailing-dir');
+    }
+
+    // HWY as alternate prefix (for non-CR/LOOP/SPUR/PR roads)
+    if (!['CR', 'LOOP', 'SPUR', 'PR'].includes(roadType)) {
+      add(streetNumber, `HWY ${roadNum}`, 'tx-road-hwy-fallback');
+      if (preDirection) {
+        add(streetNumber, `${preDirection} HWY ${roadNum}`, 'tx-road-hwy-dir-fallback');
+      }
+    }
+
+    // Just the route number (desperation)
+    add(streetNumber, roadNum, 'tx-road-number-only');
   }
 
   // 6. Highway pattern variations: "HWY 195" ↔ "Highway 195" ↔ "US 195"
@@ -1080,7 +1137,27 @@ export async function normalizeAddress(
   // Layer 0B: Census Geocoder
   const census = await geocodeCensus(rawAddress, logger);
   if (census.success && census.streetName && census.fromAddress) {
-    const parsedRoad = parseRoadString(census.streetName);
+    // Census returns preQualifier="FM" and streetName="436" as separate fields.
+    // We must recombine them: "FM" + "436" → "FM 436"
+    let reconstructedStreet = census.streetName;
+    if (census.preQualifier) {
+      const upperQual = census.preQualifier.toUpperCase().trim();
+      // Check if preQualifier is a Texas road prefix (FM, SH, CR, etc.)
+      if (TX_ROAD_TYPES.test(upperQual) || ROAD_SHORT_TO_LONG[upperQual]) {
+        reconstructedStreet = `${upperQual} ${census.streetName}`;
+        logger.info('Stage0B', `Census preQualifier "${census.preQualifier}" recombined with streetName "${census.streetName}" → "${reconstructedStreet}"`);
+      }
+    }
+    // Also handle preType (some Census results use preType instead of preQualifier)
+    if (census.preType && !census.preQualifier) {
+      const upperType = census.preType.toUpperCase().trim();
+      if (TX_ROAD_TYPES.test(upperType) || ROAD_SHORT_TO_LONG[upperType]) {
+        reconstructedStreet = `${upperType} ${census.streetName}`;
+        logger.info('Stage0B', `Census preType "${census.preType}" recombined with streetName "${census.streetName}" → "${reconstructedStreet}"`);
+      }
+    }
+
+    const parsedRoad = parseRoadString(reconstructedStreet);
 
     const parsed: ParsedAddress = {
       streetNumber: census.fromAddress,
