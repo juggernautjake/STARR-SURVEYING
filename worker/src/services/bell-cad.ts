@@ -1259,6 +1259,7 @@ async function enrichPropertyDetail(
     //   Deed Date | Type | Description | Grantor | Grantee | Volume | Page | Number
     // The "Number" column (index 7) contains the instrument number (e.g., "2010043440").
     // Personal property records (Type:P) have an empty deed history table.
+    const seen = new Set<string>();
     const instrumentNumbers: string[] = [];
     // Find the deed history table section
     const deedHistoryMatch = html.match(/Property\s+Deed\s+History[\s\S]*?<tbody>([\s\S]*?)<\/tbody>/i);
@@ -1277,7 +1278,8 @@ async function enrichPropertyDetail(
         // Column 7 (0-indexed) = "Number" = instrument number
         if (cellTexts.length >= 8) {
           const instrNum = cellTexts[7].replace(/\s+/g, '');
-          if (/^\d{7,12}$/.test(instrNum) && !instrumentNumbers.includes(instrNum)) {
+          if (/^\d{7,12}$/.test(instrNum) && !seen.has(instrNum)) {
+            seen.add(instrNum);
             instrumentNumbers.push(instrNum);
           }
         }

@@ -370,12 +370,14 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     return emptyResult();
   }
 
-  logger.info('Pipeline', `Starting pipeline for: ${input.address}, ${input.county} County, ${input.state}`);
-  if (input.propertyId) logger.info('Pipeline', `Direct property ID provided: ${input.propertyId}`);
-  if (input.ownerName) logger.info('Pipeline', `Owner name provided: ${input.ownerName}`);
-  if (input.userFiles?.length) logger.info('Pipeline', `${input.userFiles.length} user file(s) uploaded`);
+  // Build one-line header: what we know before touching the network
+  const hints: string[] = [];
+  if (input.propertyId) hints.push(`ID:${input.propertyId}`);
+  if (input.ownerName)  hints.push(`owner:"${input.ownerName}"`);
+  if (input.userFiles?.length) hints.push(`${input.userFiles.length} file(s)`);
+  logger.info('Pipeline', `${input.county} County, ${input.state} — ${input.address}${hints.length ? ` [${hints.join(', ')}]` : ''}`);
 
-  await updateStatus(input.projectId, 'running', 'Pipeline started');
+  await updateStatus(input.projectId, 'running', 'Stage 0: Normalizing address…');
 
   try {
     // ═══════════════════════════════════════════════════════════════════
@@ -388,50 +390,59 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // STAGE 0: Address Normalization
+    // STAGE 0: Address Normalization + County Capability Discovery
     // ═══════════════════════════════════════════════════════════════════
 
-    logger.info('Stage0', '═══ STAGE 0: Address Normalization ═══');
     const normalized = await normalizeAddress(input.address, logger);
-    logger.info('Stage0', `Canonical: ${normalized.canonical ?? 'N/A'} (source: ${normalized.source}, ${normalized.variants.length} variants)`);
 
-    // Warn if detected county differs from user input
+    // Warn once if geocoder disagrees with the supplied county
     if (normalized.detectedCounty && normalized.detectedCounty.toLowerCase() !== input.county.toLowerCase()) {
-      logger.warn('Stage0', `Detected county "${normalized.detectedCounty}" differs from input "${input.county}" — using input`);
+      logger.warn('Stage0', `Geocoder detected county "${normalized.detectedCounty}" — input says "${input.county}" — using input`);
     }
 
-    await updateStatus(input.projectId, 'running', `Address normalized: ${normalized.canonical}. Searching CAD...`);
+    // County capability summary — computed once, reused for all stage gates.
+    // Replaces per-stage hasKofileConfig/hasPlatRepository calls and eliminates
+    // "skipping because county X has no Y" noise logs.
+    const cadConfig   = BIS_CONFIGS[input.county.toLowerCase()] ?? null;
+    const kofile      = hasKofileConfig(input.county);
+    const kofileBase  = getKofileBaseUrl(input.county) ?? '';
+    const platRepo    = hasPlatRepository(input.county);
+
+    const capParts = [
+      cadConfig  ? `CAD:${cadConfig.name}`                       : 'CAD:none',
+      kofile     ? `Clerk:Kofile(${kofileBase.replace('https://', '')})` : 'Clerk:none',
+      platRepo   ? 'Plat:repo'                                   : null,
+    ].filter(Boolean);
+    logger.info('Stage0', `${normalized.canonical ?? input.address} — ${input.county} County [${capParts.join(' · ')}]`);
+
+    await updateStatus(input.projectId, 'running', `Stage 1: Searching ${input.county} CAD…`);
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 1: Property Identification
     // ═══════════════════════════════════════════════════════════════════
 
-    logger.info('Stage1', '═══ STAGE 1: Property Identification ═══');
     let propertyResult: PropertyIdResult | null = null;
     let searchDiagnostics: SearchDiagnostics | undefined;
 
-    // Path A: Direct property ID lookup (user knows the ID)
+    // Path A: Direct property ID lookup (user already knows the ID)
     if (input.propertyId) {
-      logger.info('Stage1', `Using direct property ID: ${input.propertyId}`);
+      logger.info('Stage1', `Direct ID lookup: ${input.propertyId}`);
       propertyResult = await lookupByPropertyId(input.county, input.propertyId, logger);
     }
 
-    // Path B: Address-based search (with all variants)
+    // Path B: Address-based CAD search (tries HTTP → Playwright → Vision OCR layers)
     if (!propertyResult && normalized.variants.length > 0) {
       const cadResult = await searchBisCad(input.county, normalized, anthropicApiKey, logger);
       propertyResult = cadResult.property;
       searchDiagnostics = cadResult.diagnostics;
     }
 
-    // Path C: If user provided owner name and address search failed, try owner name search via clerk
+    // Path C: Owner-name search on CAD when address search fails
     if (!propertyResult && input.ownerName) {
-      logger.info('Stage1', `Address search failed — trying owner name search: "${input.ownerName}"`);
+      logger.info('Stage1', `Address search failed — trying owner name: "${input.ownerName}"`);
 
-      // Use AI to generate best search name formats
       const nameVariants = await aiFormatOwnerName(input.ownerName, anthropicApiKey, logger);
-      logger.info('Stage1', `AI generated ${nameVariants.length} name variants for clerk/CAD search`);
 
-      // Try Playwright search with owner name — wrapped in try/finally for cleanup
       const { chromium } = await import('playwright');
       let ownerBrowser = null;
       try {
@@ -440,17 +451,11 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         const page = await context.newPage();
 
         const ownerCadConfig = BIS_CONFIGS[input.county.toLowerCase()];
-        const ownerBaseUrl = ownerCadConfig?.baseUrl;
-
-        if (ownerBaseUrl) {
+        if (ownerCadConfig?.baseUrl) {
           for (const nameVariant of nameVariants.slice(0, 5)) {
             try {
-              logger.info('Stage1', `Owner search: trying "${nameVariant}" on ${ownerCadConfig.name}`);
+              await page.goto(ownerCadConfig.baseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
-              // Try the "By Owner" search on CAD
-              await page.goto(ownerBaseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-
-              // Click owner tab
               const ownerTabSelectors = ['text=By Owner', 'a:has-text("Owner")', '[data-tab="owner"]'];
               for (const sel of ownerTabSelectors) {
                 try {
@@ -463,7 +468,6 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                 } catch { continue; }
               }
 
-              // Fill owner name
               await page.evaluate((name: string) => {
                 const inputs = document.querySelectorAll('input[type="text"]');
                 const ownerInput = Array.from(inputs).find((el) => {
@@ -477,53 +481,46 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                 }
               }, nameVariant);
 
-              // Submit
               const btn = page.locator('button:has-text("Search"), input[type="submit"]').first();
               await btn.click({ timeout: 5_000 });
               await page.waitForTimeout(3_000);
 
-              // Check for results
               const resultText = await page.evaluate(() => {
                 const firstRow = document.querySelector('table tbody tr');
                 if (!firstRow) return null;
                 const link = firstRow.querySelector('a[href]');
                 const href = link?.getAttribute('href') ?? '';
                 const idMatch = href.match(/Id=(\w+)/);
-                return {
-                  id: idMatch?.[1] ?? null,
-                  text: firstRow.textContent?.trim() ?? '',
-                };
+                return { id: idMatch?.[1] ?? null };
               });
 
               if (resultText?.id) {
-                logger.info('Stage1', `Owner name "${nameVariant}" found property ID: ${resultText.id}`);
                 propertyResult = await lookupByPropertyId(input.county, resultText.id, logger);
-                if (propertyResult) break;
+                if (propertyResult) {
+                  logger.info('Stage1', `Owner search "${nameVariant}" → property ${resultText.id}`);
+                  break;
+                }
               }
             } catch (err) {
-              logger.warn('Stage1', `Owner search "${nameVariant}" failed: ${err instanceof Error ? err.message : String(err)}`);
+              logger.warn('Stage1', `Owner search "${nameVariant}": ${err instanceof Error ? err.message : String(err)}`);
             }
           }
         } else {
-          logger.warn('Stage1', `No CAD config for county "${input.county}" — cannot search by owner name`);
+          logger.warn('Stage1', `No CAD config for county "${input.county}"`);
         }
       } finally {
-        if (ownerBrowser) {
-          try { await ownerBrowser.close(); } catch { /* ignore */ }
-        }
+        if (ownerBrowser) await ownerBrowser.close().catch(() => undefined);
       }
     }
 
     if (!propertyResult) {
-      logger.error('Stage1', 'Property not found via any search method');
-      await updateStatus(input.projectId, 'failed', `Property not found at ${input.address} in ${input.county} County`);
+      logger.error('Stage1', `Not found: ${input.address} in ${input.county} County`);
+      await updateStatus(input.projectId, 'failed', `Stage 1: Property not found — ${input.address}, ${input.county} County`);
 
-      // Even without property info, we can still process user files
+      // Still extract from any user-supplied files
       if (userDocuments.length > 0) {
-        logger.info('Pipeline', 'No property found but processing user files...');
         const { documents: processed, boundary } = await extractDocuments(userDocuments, null, anthropicApiKey, logger);
         const validation = validateBoundary(boundary, null, logger);
-
         const result = emptyResult();
         result.status = boundary ? 'partial' : 'failed';
         result.documents = processed;
@@ -537,8 +534,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       return emptyResult();
     }
 
-    logger.info('Stage1', `Property: ID=${propertyResult.propertyId}, Owner=${propertyResult.ownerName}, Confidence=${propertyResult.matchConfidence.toFixed(2)}`);
-    await updateStatus(input.projectId, 'running', `Property found: ${propertyResult.propertyId} (${propertyResult.ownerName}). Searching clerk...`, {
+    logger.info('Stage1', `Found: ${propertyResult.ownerName} · ID ${propertyResult.propertyId} · conf ${propertyResult.matchConfidence.toFixed(2)}${propertyResult.acreage ? ` · ${propertyResult.acreage} ac` : ''}`);
+    await updateStatus(input.projectId, 'running', `Stage 2: Retrieving documents for ${propertyResult.ownerName}…`, {
       propertyId: propertyResult.propertyId,
       ownerName: propertyResult.ownerName,
     });
@@ -547,198 +544,136 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     // STAGE 2: Document Retrieval
     // ═══════════════════════════════════════════════════════════════════
 
-    logger.info('Stage2', '═══ STAGE 2: Document Retrieval ═══');
     let documents: DocumentResult[] = [];
 
-    // ── Stage 2 Primary Path: Instrument Number Search ──────────────────────
-    // Parse deed references from the CAD legal description. If we find instrument
-    // numbers we can search the clerk directly — this is fast, precise, and proven
-    // to work (Ash Trust instruments 2010043440 and 2023032044, March 4, 2026).
-    // This entirely bypasses the fragile React SPA owner-name search.
     const legalDesc = propertyResult.legalDescription ?? '';
-    const deedRefs = parseDeedReferences(legalDesc);
+    const deedRefs  = parseDeedReferences(legalDesc);
+
+    // Merge instrument numbers from both sources: legal description text +
+    // deed history table rows from the CAD detail page.
+    const allInstrumentNumbers = Array.from(new Set([
+      ...deedRefs.instrumentNumbers,
+      ...(propertyResult.instrumentNumbers ?? []),
+    ]));
 
     let instrumentSearchSucceeded = false;
 
-    if (deedRefs.instrumentNumbers.length > 0 && hasKofileConfig(input.county)) {
-      logger.info('Stage2', `Parsed ${deedRefs.instrumentNumbers.length} instrument number(s) from legal description: ${deedRefs.instrumentNumbers.join(', ')}`);
+    // ── Path A: Instrument number search (fast, precise, no SPA) ─────────
+    if (allInstrumentNumbers.length > 0 && kofile) {
+      const docsAdded: string[] = [];
+      const instrErrors: string[] = [];
 
-      const kofileBaseUrl = getKofileBaseUrl(input.county) ?? '';
-
-      for (const instrNum of deedRefs.instrumentNumbers.slice(0, 5)) {
+      for (const instrNum of allInstrumentNumbers.slice(0, 5)) {
         const expectedPages = /plat/i.test(legalDesc) ? 3 : 2;
         try {
-          const downloadedPages = await fetchDocumentImages(instrNum, expectedPages, logger);
-          if (downloadedPages.length > 0) {
+          const pages = await fetchDocumentImages(instrNum, expectedPages, logger);
+          if (pages.length > 0) {
             const docResult: DocumentResult = {
               ref: {
                 instrumentNumber: instrNum,
-                volume: null,
-                page: null,
+                volume: null, page: null,
                 documentType: 'Deed (instrument search)',
-                recordingDate: null,
-                grantors: [],
-                grantees: [],
-                source: `${input.county.charAt(0).toUpperCase() + input.county.slice(1).toLowerCase()} County Clerk (instrument search)`,
-                url: `${kofileBaseUrl}/doc/${instrNum}/details`,
+                recordingDate: null, grantors: [], grantees: [],
+                source: `${input.county.charAt(0).toUpperCase() + input.county.slice(1)} County Clerk`,
+                url: `${kofileBase}/doc/${instrNum}/details`,
               },
-              textContent: null,
-              pages: downloadedPages,
-              ocrText: null,
-              extractedData: null,
+              textContent: null, pages, ocrText: null, extractedData: null,
             };
             documents.push(docResult);
             instrumentSearchSucceeded = true;
-            logger.info('Stage2', `Instrument ${instrNum}: downloaded ${downloadedPages.length} page(s)`);
-
-            // Bundle pages into a PDF for frontend display
-            const pdfUrl = await bundleAndUploadPages(
-              downloadedPages,
-              input.projectId,
-              instrNum,
-              docResult.ref.documentType,
-            );
-            if (pdfUrl) {
-              docResult.pagesPdfUrl = pdfUrl;
-              logger.info('Stage2', `  PDF uploaded: ${pdfUrl}`);
-            }
-          } else {
-            logger.info('Stage2', `Instrument ${instrNum}: no pages downloaded`);
+            docsAdded.push(`${instrNum}(${pages.length}pp)`);
+            // Bundle pages → PDF non-fatally
+            bundleAndUploadPages(pages, input.projectId, instrNum, docResult.ref.documentType)
+              .then(url => { if (url) docResult.pagesPdfUrl = url; })
+              .catch(() => undefined);
           }
         } catch (imgErr) {
-          logger.warn('Stage2', `Instrument search failed for ${instrNum}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+          instrErrors.push(`${instrNum}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
         }
       }
 
-      if (instrumentSearchSucceeded) {
-        logger.info('Stage2', `Instrument search yielded ${documents.length} document(s) — skipping owner-name SPA search`);
-      } else {
-        logger.info('Stage2', 'Instrument search yielded no pages — falling back to owner-name search');
-      }
-    } else if (deedRefs.instrumentNumbers.length > 0) {
-      logger.info('Stage2', `Found instrument numbers in legal description but county "${input.county}" has no Kofile config — skipping instrument search`);
-    } else {
-      logger.info('Stage2', 'No instrument numbers in legal description — proceeding to owner-name search');
+      if (docsAdded.length > 0) logger.info('Stage2', `Instruments: ${docsAdded.join(', ')}`);
+      if (instrErrors.length > 0) logger.warn('Stage2', `Instrument errors: ${instrErrors.join(' | ')}`);
     }
 
-    // ── Stage 2A: County Plat Repository ────────────────────────────────────────
-    // Some counties publish free plat PDFs on their official websites.
-    // If the county has a plat repository configured and we have a subdivision
-    // name from the CAD legal description, try downloading the plat PDF directly.
-    // This runs after instrument search (to avoid redundancy) but before the
-    // fragile owner-name SPA search.
-    if (hasPlatRepository(input.county) && legalDesc) {
+    // ── Path B: County plat repository (free direct-download PDFs) ───────
+    if (platRepo && legalDesc) {
       const subdivisionName = extractSubdivisionName(legalDesc);
       if (subdivisionName) {
-        logger.info('Stage2A', `Extracted subdivision name: "${subdivisionName}" — searching plat repository`);
         try {
           const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger);
           if (platResult) {
-            logger.info('Stage2A', `Found plat "${platResult.name}" — adding as document`);
+            logger.info('Stage2A', `Plat: "${platResult.name}" (${platResult.source})`);
             documents.push({
               ref: {
-                instrumentNumber: null,
-                volume: null,
-                page: null,
+                instrumentNumber: null, volume: null, page: null,
                 documentType: 'Plat (county repository)',
-                recordingDate: null,
-                grantors: [],
-                grantees: [],
-                source: platResult.source,
-                url: platResult.url,
+                recordingDate: null, grantors: [], grantees: [],
+                source: platResult.source, url: platResult.url,
               },
-              textContent: null,
-              pages: [],
-              imageFormat: 'pdf',
-              imageBase64: platResult.base64,
+              textContent: null, pages: [],
+              imageFormat: 'pdf', imageBase64: platResult.base64,
               pagesPdfUrl: platResult.url,
-              ocrText: null,
-              extractedData: null,
+              ocrText: null, extractedData: null,
             });
           }
         } catch (platErr) {
-          logger.warn('Stage2A', `Plat repository lookup failed: ${platErr instanceof Error ? platErr.message : String(platErr)}`);
+          logger.warn('Stage2A', `Plat repo: ${platErr instanceof Error ? platErr.message : String(platErr)}`);
         }
-      } else {
-        logger.info('Stage2A', 'Could not extract subdivision name from legal description — skipping plat repository search');
       }
     }
 
-    // ── Stage 2 Fallback: Owner Name Search ─────────────────────────────────
-    // Only run owner-name search when instrument search found nothing.
-    // This is the fragile React SPA path — kept as a fallback for properties
-    // whose legal descriptions don't carry explicit instrument references.
+    // ── Path C: Owner-name SPA search (fallback) ──────────────────────────
     const ownerForClerk = propertyResult.ownerName ?? input.ownerName ?? null;
 
-    if (!instrumentSearchSucceeded) {
-      if (ownerForClerk) {
-        const ownerDocs = await searchClerkRecords(input.county, ownerForClerk, logger);
-        logger.info('Stage2', `Owner-name search retrieved ${ownerDocs.length} documents from clerk`);
-
-        // ── Stage 2.5: Kofile Image Download for owner-name results ────────
-        // For counties that use Kofile/PublicSearch, download page images for
-        // each document returned by the owner-name search.
-        if (hasKofileConfig(input.county) && ownerDocs.length > 0) {
-          logger.info('Stage2.5', `Downloading page images for ${ownerDocs.length} documents`);
-          let imagesDownloaded = 0;
-
-          for (const doc of ownerDocs.slice(0, 5)) {
-            if (!doc.ref.instrumentNumber) continue;
-
-            const expectedPages = /plat/i.test(doc.ref.documentType) ? 3 : 2;
-            try {
-              const downloadedPages = await fetchDocumentImages(
-                doc.ref.instrumentNumber,
-                expectedPages,
-                logger,
-              );
-              if (downloadedPages.length > 0) {
-                doc.pages = downloadedPages;
-                imagesDownloaded += downloadedPages.length;
-                logger.info('Stage2.5', `  ${doc.ref.documentType} ${doc.ref.instrumentNumber}: ${downloadedPages.length} pages`);
-
-                const pdfUrl = await bundleAndUploadPages(
-                  downloadedPages,
-                  input.projectId,
-                  doc.ref.instrumentNumber,
-                  doc.ref.documentType,
-                );
-                if (pdfUrl) {
-                  doc.pagesPdfUrl = pdfUrl;
-                  logger.info('Stage2.5', `  PDF uploaded: ${pdfUrl}`);
-                }
-              }
-            } catch (imgErr) {
-              logger.warn('Stage2.5', `Image download failed for ${doc.ref.instrumentNumber}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
-            }
-          }
-
-          if (imagesDownloaded > 0) {
-            logger.info('Stage2.5', `Image download complete: ${imagesDownloaded} total pages`);
-          } else {
-            logger.info('Stage2.5', 'No images downloaded — AI will use text extraction only');
-          }
-        }
-
-        documents = [...documents, ...ownerDocs];
-      } else {
-        logger.warn('Stage2', 'No owner name available — skipping owner-name clerk search');
+    if (!instrumentSearchSucceeded && ownerForClerk) {
+      let ownerDocs: DocumentResult[] = [];
+      try {
+        ownerDocs = await searchClerkRecords(input.county, ownerForClerk, logger);
+      } catch (clerkErr) {
+        logger.warn('Stage2', `Owner-name search failed: ${clerkErr instanceof Error ? clerkErr.message : String(clerkErr)}`);
       }
+
+      if (ownerDocs.length > 0 && kofile) {
+        let totalPages = 0;
+        const imgErrors: string[] = [];
+        for (const doc of ownerDocs.slice(0, 5)) {
+          if (!doc.ref.instrumentNumber) continue;
+          try {
+            const pages = await fetchDocumentImages(doc.ref.instrumentNumber, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
+            if (pages.length > 0) {
+              doc.pages = pages;
+              totalPages += pages.length;
+              bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber, doc.ref.documentType)
+                .then(url => { if (url) doc.pagesPdfUrl = url; })
+                .catch(() => undefined);
+            }
+          } catch (e) { imgErrors.push(`${doc.ref.instrumentNumber}: ${e instanceof Error ? e.message : String(e)}`); }
+        }
+        const imgNote = totalPages > 0 ? `${totalPages}pp` : '0pp';
+        logger.info('Stage2', `Owner-name: ${ownerDocs.length} doc(s), ${imgNote}${imgErrors.length ? ` [${imgErrors.length} img error(s)]` : ''}`);
+      } else if (ownerDocs.length > 0) {
+        logger.info('Stage2', `Owner-name: ${ownerDocs.length} doc(s) (text only)`);
+      } else {
+        logger.warn('Stage2', `No documents found for "${ownerForClerk}"`);
+      }
+      documents = [...documents, ...ownerDocs];
+    } else if (!instrumentSearchSucceeded && !ownerForClerk) {
+      logger.warn('Stage2', 'No instruments and no owner name — document retrieval skipped');
     }
 
-    // Add user-uploaded documents
-    if (userDocuments.length > 0) {
-      documents = [...documents, ...userDocuments];
-      logger.info('Stage2', `Added ${userDocuments.length} user files → ${documents.length} total documents`);
-    }
+    // Merge user-uploaded documents
+    if (userDocuments.length > 0) documents = [...documents, ...userDocuments];
 
-    await updateStatus(input.projectId, 'running', `${documents.length} documents. Running AI extraction...`);
+    const totalPages = documents.reduce((n, d) => n + (d.pages?.length ?? 0), 0);
+    const docSummary = `${documents.length} doc(s)${totalPages > 0 ? `, ${totalPages} pages` : ''}`;
+    logger.info('Stage2', `Total: ${docSummary}`);
+    await updateStatus(input.projectId, 'running', `Stage 3: AI extraction — ${docSummary}…`);
 
     // ═══════════════════════════════════════════════════════════════════
-    // STAGE 3: AI Extraction (multi-pass verification)
+    // STAGE 3: AI Extraction
     // ═══════════════════════════════════════════════════════════════════
 
-    logger.info('Stage3', '═══ STAGE 3: AI Extraction ═══');
     const { documents: processedDocs, boundary } = await extractDocuments(
       documents,
       propertyResult.legalDescription,
@@ -746,8 +681,11 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       logger,
     );
 
-    logger.info('Stage3', `Extraction complete. Boundary: ${boundary?.type ?? 'none'}, Calls: ${boundary?.calls.length ?? 0}`);
-    await updateStatus(input.projectId, 'running', 'Extraction complete. Running geometric reconciliation...');
+    const boundaryNote = boundary
+      ? `${boundary.type}, ${boundary.calls.length} calls`
+      : 'no boundary';
+    logger.info('Stage3', `Extraction: ${boundaryNote}`);
+    await updateStatus(input.projectId, 'running', `Stage 3.5: Geometric reconciliation…`);
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 3.5: Geometric Reconciliation

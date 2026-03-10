@@ -107,11 +107,11 @@ export function extractSubdivisionName(legalDescription: string): string | null 
 
 // ── Letter Page Fetching ─────────────────────────────────────────────────────
 
-function getLetter(subdivisionName: string): string {
+function getLetter(subdivisionName: string): string | null {
   const first = subdivisionName.trim()[0]?.toUpperCase() ?? '';
   if (/[A-Z]/.test(first)) return first.toLowerCase();
   if (/[0-9]/.test(first)) return '0-9';
-  return 'a'; // fallback
+  return null; // non-alphanumeric first char — cannot map to an index page
 }
 
 async function fetchPlatIndex(
@@ -173,8 +173,15 @@ function parsePlatLinks(html: string, config: PlatRepoConfig): PlatLink[] {
       pdfUrl = config.pdfBaseUrl + (rawHref.startsWith('/') ? '' : '/') + rawHref;
     }
 
-    // Strip cache-busting query params (e.g. ?t=202307271154110)
-    pdfUrl = pdfUrl.replace(/\?t=\d+(&t=\d+)*$/, '');
+    // Strip cache-busting query params (e.g. ?t=202307271154110&t=202307271154110)
+    try {
+      const u = new URL(pdfUrl);
+      u.searchParams.delete('t');
+      pdfUrl = u.toString();
+    } catch {
+      // If URL parsing fails, fall back to simple regex strip
+      pdfUrl = pdfUrl.replace(/([?&])t=\d+/g, '').replace(/^([^?]*)\?&/, '$1?').replace(/\?$/, '');
+    }
 
     const key = rawName.toUpperCase();
     if (!seen.has(key)) {
@@ -286,6 +293,10 @@ export async function searchCountyPlats(
   }
 
   const letter = getLetter(subdivisionName);
+  if (!letter) {
+    logger.warn('Stage2A', `Cannot map subdivision "${subdivisionName}" to plat index letter — starts with non-alphanumeric character`);
+    return [];
+  }
   const html = await fetchPlatIndex(config, letter, logger);
   if (!html) return [];
 
