@@ -1,24 +1,97 @@
 /**
- * Bell County Plat Repository Adapter
+ * County Plat Repository Adapter
  *
- * Searches the Bell County Clerk's public plat repository at bellcountytx.com.
- * Plats are organized alphabetically as PDFs hosted on cms3.revize.com.
+ * Generic adapter for searching county clerk plat repositories that publish
+ * alphabetical PDF indexes. Many Texas counties host plat records on their
+ * county website (often via Revize CMS) organized by letter with direct PDF links.
  *
- * URL structure:
- *   Index pages: https://www.bellcountytx.com/county_government/county_clerk/{letter}.php
- *   PDF files:   https://cms3.revize.com/revize/bellcountytx/county_government/county_clerk/docs/plats/{LETTER}/{NAME}.pdf
+ * The adapter is config-driven — each county's plat repository is described
+ * by a PlatRepoConfig entry in the PLAT_REPO_REGISTRY. Adding a new county
+ * only requires adding a new entry; no code changes needed.
  *
  * This adapter:
  *   1. Extracts subdivision/addition name from CAD legal description
- *   2. Fetches the appropriate alphabetical index page
- *   3. Fuzzy-matches plat names against the subdivision
- *   4. Returns matching plat PDF URL(s) and downloads them
+ *   2. Looks up the county's plat repository config
+ *   3. Fetches the appropriate alphabetical index page
+ *   4. Fuzzy-matches plat names against the subdivision
+ *   5. Downloads matching plat PDF(s)
  */
 
 import type { PipelineLogger } from '../lib/logger.js';
 
-const BASE_URL = 'https://www.bellcountytx.com/county_government/county_clerk';
-const REVIZE_BASE = 'https://cms3.revize.com/revize/bellcountytx';
+// ── Plat Repository Configuration ─────────────────────────────────────────────
+
+export interface PlatRepoConfig {
+  /** County name (lowercase key, e.g., 'bell') */
+  county: string;
+  /** Human-readable county name for logging */
+  countyDisplayName: string;
+  /**
+   * URL template for alphabetical index pages.
+   * Use {letter} as placeholder — replaced with lowercase letter (a-z) or '0-9'.
+   * Example: 'https://www.bellcountytx.com/county_government/county_clerk/{letter}.php'
+   */
+  indexUrlTemplate: string;
+  /**
+   * Base URL for resolving relative PDF hrefs found in the index pages.
+   * Example: 'https://cms3.revize.com/revize/bellcountytx'
+   */
+  pdfBaseUrl: string;
+  /**
+   * Path prefix to prepend when resolving relative hrefs that don't start
+   * with the expected prefix. Used as: `${pdfBaseUrl}/${relativePathPrefix}/${href}`
+   */
+  relativePathPrefix?: string;
+  /** Notes for documentation */
+  notes?: string;
+}
+
+/**
+ * Registry of county plat repositories.
+ * Key: lowercase county name (matches input.county.toLowerCase())
+ *
+ * To add a new county, add a new entry here. The adapter handles the rest.
+ */
+const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
+  bell: {
+    county: 'bell',
+    countyDisplayName: 'Bell County',
+    indexUrlTemplate: 'https://www.bellcountytx.com/county_government/county_clerk/{letter}.php',
+    pdfBaseUrl: 'https://cms3.revize.com/revize/bellcountytx',
+    relativePathPrefix: 'county_government/county_clerk',
+    notes: 'Revize CMS, plats organized A-Z + 0-9',
+  },
+  // Future counties can be added here:
+  // williamson: {
+  //   county: 'williamson',
+  //   countyDisplayName: 'Williamson County',
+  //   indexUrlTemplate: 'https://www.wilco.org/...',
+  //   pdfBaseUrl: 'https://...',
+  // },
+};
+
+/**
+ * Check whether a county has a plat repository configured.
+ */
+export function hasPlatRepository(county: string): boolean {
+  return county.toLowerCase() in PLAT_REPO_REGISTRY;
+}
+
+/**
+ * Get the plat repository config for a county, or null if none exists.
+ */
+export function getPlatRepoConfig(county: string): PlatRepoConfig | null {
+  return PLAT_REPO_REGISTRY[county.toLowerCase()] ?? null;
+}
+
+/**
+ * List all counties with configured plat repositories.
+ */
+export function listPlatRepoCounties(): string[] {
+  return Object.keys(PLAT_REPO_REGISTRY);
+}
+
+// ── Plat Match Types ──────────────────────────────────────────────────────────
 
 export interface PlatMatch {
   /** Name of the plat as listed on the index page */
@@ -28,6 +101,8 @@ export interface PlatMatch {
   /** How well the name matched (0-1) */
   matchScore: number;
 }
+
+// ── Subdivision Name Extraction ───────────────────────────────────────────────
 
 /**
  * Extract the subdivision/addition name from a CAD legal description.
@@ -70,13 +145,13 @@ export function extractSubdivisionName(legalDescription: string): string | null 
   return null;
 }
 
+// ── Internal Helpers ──────────────────────────────────────────────────────────
+
 /**
  * Determine which letter page(s) to fetch for a given subdivision name.
- * Returns letters to search (typically just the first letter, but can include alternates).
  */
 function getLetterPages(name: string): string[] {
   const first = name.charAt(0).toUpperCase();
-  // Handle numeric-prefixed names
   if (/\d/.test(first)) return ['0-9'];
   if (first >= 'A' && first <= 'Z') return [first.toLowerCase()];
   return [];
@@ -85,8 +160,12 @@ function getLetterPages(name: string): string[] {
 /**
  * Fetch a letter index page and extract all plat PDF links.
  */
-async function fetchPlatIndex(letter: string, logger: PipelineLogger): Promise<Array<{ name: string; pdfUrl: string }>> {
-  const url = `${BASE_URL}/${letter}.php`;
+async function fetchPlatIndex(
+  config: PlatRepoConfig,
+  letter: string,
+  logger: PipelineLogger,
+): Promise<Array<{ name: string; pdfUrl: string }>> {
+  const url = config.indexUrlTemplate.replace('{letter}', letter);
   logger.info('Stage2A-Plats', `Fetching plat index: ${url}`);
 
   try {
@@ -104,7 +183,7 @@ async function fetchPlatIndex(letter: string, logger: PipelineLogger): Promise<A
     }
 
     const html = await resp.text();
-    return parsePlatLinks(html, letter);
+    return parsePlatLinks(html, config);
   } catch (err) {
     logger.warn('Stage2A-Plats', `Failed to fetch index: ${err instanceof Error ? err.message : String(err)}`);
     return [];
@@ -113,13 +192,12 @@ async function fetchPlatIndex(letter: string, logger: PipelineLogger): Promise<A
 
 /**
  * Parse plat PDF links from the index page HTML.
- * Links are in <li><a href="...pdf">NAME</a></li> format.
+ * Links are in <li><a href="...pdf">NAME</a></li> format (common Revize CMS pattern).
  */
-function parsePlatLinks(html: string, _letter: string): Array<{ name: string; pdfUrl: string }> {
+function parsePlatLinks(html: string, config: PlatRepoConfig): Array<{ name: string; pdfUrl: string }> {
   const results: Array<{ name: string; pdfUrl: string }> = [];
   const seen = new Set<string>();
 
-  // Match <a> tags linking to PDF files in the plats directory
   const linkPattern = /<a\s[^>]*href=["']([^"']*\.pdf[^"']*)["'][^>]*>([^<]+)<\/a>/gi;
   let match;
 
@@ -130,16 +208,21 @@ function parsePlatLinks(html: string, _letter: string): Array<{ name: string; pd
     if (!name || seen.has(name.toUpperCase())) continue;
     seen.add(name.toUpperCase());
 
-    // Resolve relative URLs
-    if (href.startsWith('county_government/') || href.startsWith('/county_government/')) {
-      href = `${REVIZE_BASE}/${href.replace(/^\//, '')}`;
-    } else if (!href.startsWith('http')) {
-      href = `${REVIZE_BASE}/county_government/county_clerk/${href.replace(/^\//, '')}`;
+    // Resolve relative URLs using config
+    if (!href.startsWith('http')) {
+      const cleanHref = href.replace(/^\//, '');
+      const prefix = config.relativePathPrefix ?? '';
+      if (prefix && cleanHref.startsWith(prefix.replace(/^\//, ''))) {
+        href = `${config.pdfBaseUrl}/${cleanHref}`;
+      } else if (prefix) {
+        href = `${config.pdfBaseUrl}/${prefix}/${cleanHref}`;
+      } else {
+        href = `${config.pdfBaseUrl}/${cleanHref}`;
+      }
     }
 
     // Strip cache-busting timestamp query param
     const pdfUrl = href.split('?')[0];
-
     results.push({ name, pdfUrl });
   }
 
@@ -166,7 +249,6 @@ function scorePlatMatch(platName: string, targetName: string): number {
 
   if (tnTokens.length === 0 || pnTokens.length === 0) return 0;
 
-  // Count how many target tokens appear in the plat name
   let matchedTokens = 0;
   for (const token of tnTokens) {
     if (pnTokens.includes(token)) matchedTokens++;
@@ -174,7 +256,7 @@ function scorePlatMatch(platName: string, targetName: string): number {
 
   const tokenScore = matchedTokens / tnTokens.length;
 
-  // Boost if major words match (ignore common words like ADDITION, PHASE, etc.)
+  // Boost if significant (non-common) words match
   const commonWords = new Set(['ADDITION', 'ADDN', 'ADD', 'SUBDIVISION', 'SUBD', 'SUB',
     'ESTATES', 'ESTATE', 'PHASE', 'PH', 'SECTION', 'SEC', 'LOT', 'BLOCK', 'BLK',
     'ACRE', 'ACRES', 'THE', 'OF', 'AT', 'IN', 'A', 'AN']);
@@ -226,23 +308,33 @@ async function downloadPlatPdf(
   }
 }
 
+// ── Public API ────────────────────────────────────────────────────────────────
+
 /**
- * Search the Bell County plat repository for plats matching a subdivision name.
+ * Search a county's plat repository for plats matching a subdivision name.
  *
+ * @param county - County name (e.g., 'Bell')
  * @param subdivisionName - The subdivision/addition name from the CAD legal description
  * @param logger - Pipeline logger
  * @param minScore - Minimum match score to include (default 0.6)
- * @returns Matched plats sorted by score descending
+ * @returns Matched plats sorted by score descending, or empty array if county has no plat repo
  */
-export async function searchBellCountyPlats(
+export async function searchCountyPlats(
+  county: string,
   subdivisionName: string,
   logger: PipelineLogger,
   minScore = 0.6,
 ): Promise<PlatMatch[]> {
+  const config = getPlatRepoConfig(county);
+  if (!config) {
+    logger.info('Stage2A-Plats', `No plat repository configured for ${county} County`);
+    return [];
+  }
+
   const tracker = logger.startAttempt({
     layer: 'Stage2A',
-    source: 'BellCountyPlats',
-    method: 'bellcountytx.com plat repository',
+    source: `${config.countyDisplayName} Plats`,
+    method: `${config.countyDisplayName} plat repository`,
     input: subdivisionName,
   });
 
@@ -255,7 +347,7 @@ export async function searchBellCountyPlats(
 
     const allPlats: Array<{ name: string; pdfUrl: string }> = [];
     for (const letter of letters) {
-      const plats = await fetchPlatIndex(letter, logger);
+      const plats = await fetchPlatIndex(config, letter, logger);
       allPlats.push(...plats);
     }
 
@@ -266,7 +358,6 @@ export async function searchBellCountyPlats(
       return [];
     }
 
-    // Score and filter matches
     const scored = allPlats
       .map((p) => ({
         name: p.name,
@@ -301,21 +392,27 @@ export async function searchBellCountyPlats(
 /**
  * Full plat retrieval: search + download the best matching plat PDF.
  *
- * Returns the plat PDF as base64 + metadata, ready to be inserted into the
- * pipeline as a DocumentResult.
+ * @param county - County name (e.g., 'Bell')
+ * @param subdivisionName - The subdivision/addition name
+ * @param logger - Pipeline logger
+ * @returns The plat PDF as base64 + metadata, or null if no match / county has no repo
  */
 export async function fetchBestMatchingPlat(
+  county: string,
   subdivisionName: string,
   logger: PipelineLogger,
 ): Promise<{
   match: PlatMatch;
   pdfBase64: string;
   pdfSizeBytes: number;
+  source: string;
 } | null> {
-  const matches = await searchBellCountyPlats(subdivisionName, logger);
+  const config = getPlatRepoConfig(county);
+  if (!config) return null;
+
+  const matches = await searchCountyPlats(county, subdivisionName, logger);
   if (matches.length === 0) return null;
 
-  // Try to download the best match, fall back to next if download fails
   for (const match of matches.slice(0, 3)) {
     const pdf = await downloadPlatPdf(match.pdfUrl, logger);
     if (pdf) {
@@ -323,6 +420,7 @@ export async function fetchBestMatchingPlat(
         match,
         pdfBase64: pdf.base64,
         pdfSizeBytes: pdf.sizeBytes,
+        source: `${config.countyDisplayName} Clerk plat repository`,
       };
     }
   }

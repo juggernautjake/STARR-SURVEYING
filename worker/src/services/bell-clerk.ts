@@ -102,6 +102,23 @@ const KOFILE_CONFIGS: Record<string, KofileConfig> = {
   chambers:    { subdomain: 'chambers.tx.publicsearch.us', name: 'Chambers County Clerk' },
 };
 
+/**
+ * Check if a county has a Kofile/PublicSearch configuration.
+ * Used by the pipeline to determine if instrument search and image download are available.
+ */
+export function hasKofileConfig(county: string): boolean {
+  return county.toLowerCase() in KOFILE_CONFIGS;
+}
+
+/**
+ * Get the Kofile base URL for a county (e.g., 'https://bell.tx.publicsearch.us').
+ * Returns null if the county is not configured.
+ */
+export function getKofileBaseUrl(county: string): string | null {
+  const config = KOFILE_CONFIGS[county.toLowerCase()];
+  return config ? `https://${config.subdomain}` : null;
+}
+
 // ── Deed-Relevant Document Types ───────────────────────────────────────────
 
 const DEED_TYPE_PATTERNS = [

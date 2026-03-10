@@ -6,8 +6,8 @@ import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyI
 import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bell-cad.js';
-import { searchClerkRecords, fetchDocumentImages } from './bell-clerk.js';
-import { extractSubdivisionName, fetchBestMatchingPlat } from './bell-county-plats.js';
+import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl } from './bell-clerk.js';
+import { extractSubdivisionName, fetchBestMatchingPlat, hasPlatRepository } from './county-plats.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
@@ -559,7 +559,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     let instrumentSearchSucceeded = false;
 
-    if (deedRefs.instrumentNumbers.length > 0 && input.county.toLowerCase() === 'bell') {
+    if (deedRefs.instrumentNumbers.length > 0 && hasKofileConfig(input.county)) {
       logger.info('Stage2', `Parsed ${deedRefs.instrumentNumbers.length} instrument number(s) from legal description: ${deedRefs.instrumentNumbers.join(', ')}`);
 
       for (const instrNum of deedRefs.instrumentNumbers.slice(0, 5)) {
@@ -576,8 +576,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                 recordingDate: null,
                 grantors: [],
                 grantees: [],
-                source: 'Bell County Clerk (instrument search)',
-                url: `https://bell.tx.publicsearch.us/doc/${instrNum}/details`,
+                source: `${input.county} County Clerk (instrument search)`,
+                url: `${getKofileBaseUrl(input.county) ?? 'https://bell.tx.publicsearch.us'}/doc/${instrNum}/details`,
               },
               textContent: null,
               pages: downloadedPages,
@@ -613,23 +613,24 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         logger.info('Stage2', 'Instrument search yielded no pages — falling back to owner-name search');
       }
     } else if (deedRefs.instrumentNumbers.length > 0) {
-      logger.info('Stage2', `Found instrument numbers in legal description but county is not Bell — skipping instrument search`);
+      logger.info('Stage2', `Found instrument numbers in legal description but county "${input.county}" has no Kofile config — skipping instrument search`);
     } else {
       logger.info('Stage2', 'No instrument numbers in legal description — proceeding to owner-name search');
     }
 
-    // ── Stage 2A: Bell County Plat Repository Search ──────────────────────
-    // Search bellcountytx.com plat repository by subdivision/addition name.
+    // ── Stage 2A: County Plat Repository Search ────────────────────────────
+    // Search county clerk plat repository by subdivision/addition name.
     // This provides free direct PDF downloads of plat surveys with boundary data.
     // Runs regardless of instrument search result — plats are a separate data source.
-    if (input.county.toLowerCase() === 'bell') {
+    // Config-driven: only runs if the county has a plat repository in the registry.
+    if (hasPlatRepository(input.county)) {
       const subdivisionName = extractSubdivisionName(legalDesc);
       if (subdivisionName) {
         logger.info('Stage2A', `═══ STAGE 2A: Plat Repository Search ═══`);
         logger.info('Stage2A', `Subdivision name from legal description: "${subdivisionName}"`);
 
         try {
-          const platResult = await fetchBestMatchingPlat(subdivisionName, logger);
+          const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger);
           if (platResult) {
             logger.info('Stage2A', `Found plat: "${platResult.match.name}" (score=${platResult.match.matchScore.toFixed(2)}, ${platResult.pdfSizeBytes} bytes)`);
 
@@ -642,7 +643,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                 recordingDate: null,
                 grantors: [],
                 grantees: [subdivisionName],
-                source: 'Bell County Clerk plat repository (bellcountytx.com)',
+                source: platResult.source,
                 url: platResult.match.pdfUrl,
               },
               textContent: null,
@@ -679,7 +680,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         // ── Stage 2.5: Kofile Image Download for owner-name results ────────
         // For Bell County documents that came back with an instrument number,
         // intercept signed PNG URLs and download page images.
-        if (input.county.toLowerCase() === 'bell' && ownerDocs.length > 0) {
+        if (hasKofileConfig(input.county) && ownerDocs.length > 0) {
           logger.info('Stage2.5', `Downloading page images for ${ownerDocs.length} Bell County documents`);
           let imagesDownloaded = 0;
 
