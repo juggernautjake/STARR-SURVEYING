@@ -25,7 +25,7 @@ interface PipelineLogEntry {
   source: string;
   method: string;
   input: string;
-  status: string;
+  status: 'success' | 'fail' | 'skip' | 'partial';
   duration_ms: number;
   dataPointsFound: number;
   error?: string;

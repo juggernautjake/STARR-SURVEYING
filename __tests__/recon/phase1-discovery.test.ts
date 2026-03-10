@@ -923,7 +923,7 @@ describe('hasPlatRepository / getPlatRepoConfig / listPlatRepoCounties', () => {
     expect(cfg).not.toBeNull();
     expect(cfg?.indexUrlTemplate).toContain('bellcountytx.com');
     expect(cfg?.indexUrlTemplate).toContain('{letter}');
-    expect(cfg?.pdfBaseUrl).toContain('revize.com');
+    expect(cfg?.fileBaseUrl).toContain('revize.com');
   });
 
   it('getPlatRepoConfig returns null for unknown county', () => {
