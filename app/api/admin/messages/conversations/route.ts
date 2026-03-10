@@ -25,7 +25,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .is('left_at', null)
       .single();
 
-    if (!participant && !isAdmin(session.user.email)) {
+    if (!participant && !isAdmin(session.user.roles)) {
       return NextResponse.json({ error: 'Not a participant' }, { status: 403 });
     }
 
@@ -189,7 +189,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     .is('left_at', null)
     .single();
 
-  if (!participant && !isAdmin(session.user.email)) {
+  if (!participant && !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Not a participant' }, { status: 403 });
   }
 

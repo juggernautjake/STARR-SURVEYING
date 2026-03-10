@@ -41,6 +41,11 @@ import { KofileClerkAdapter } from '../../worker/src/adapters/kofile-clerk-adapt
 import { CountyFusionAdapter } from '../../worker/src/adapters/countyfusion-adapter.js';
 import { TylerClerkAdapter } from '../../worker/src/adapters/tyler-clerk-adapter.js';
 import { TexasFileAdapter } from '../../worker/src/adapters/texasfile-adapter.js';
+import {
+  extractKofilePartyNames,
+  normaliseKofileApiResponse,
+  looksLikeKofileDocuments,
+} from '../../worker/src/services/bell-clerk.js';
 
 // ── Mock adapter for smartSearch tests ───────────────────────────────────────
 
@@ -927,5 +932,409 @@ describe('ClerkAdapter.classifyDocumentType — additional types', () => {
   it('classifies MD abbreviation as oil_gas_lease', () => {
     // MD = Mineral Deed but mapped to oil_gas_lease in current schema
     expect(adapter.classifyDocumentType('MD')).toBe('oil_gas_lease');
+  });
+});
+
+// ── 13. Kofile search result parsing improvements (Stage 2 URL/instrument fixes) ──
+
+describe('Kofile instrument number regex patterns', () => {
+  // These patterns are used by searchClerkRecords() in bell-clerk.ts
+
+  it('matches Kofile YYYY-NNNNNNN instrument number format', () => {
+    const text = '01/15/2024 WD STARR SURVEYING PREVIOUS OWNER 2024-00001234';
+    const pattern = /\b(\d{4}-\d{5,})\b/;
+    const match = text.match(pattern);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('2024-00001234');
+  });
+
+  it('matches Kofile YYYY-NNNNNN (6-digit suffix)', () => {
+    const text = 'WARRANTY DEED 2019-012345';
+    const pattern = /\b(\d{4}-\d{5,})\b/;
+    const match = text.match(pattern);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('2019-012345');
+  });
+
+  it('matches plain 9+ digit instrument number', () => {
+    const text = '202400001234 WARRANTY DEED';
+    const pattern = /\b(\d{9,})\b/;
+    const match = text.match(pattern);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('202400001234');
+  });
+
+  it('does NOT match 4-digit year as Kofile instrument number', () => {
+    const text = 'Recording Year 2024 DEED';
+    const pattern = /\b(\d{4}-\d{5,})\b/;
+    expect(text.match(pattern)).toBeNull();
+  });
+
+  it('does NOT match 8-digit number as 9+ digit instrument', () => {
+    const text = '12345678 deed';
+    const pattern = /\b(\d{9,})\b/;
+    expect(text.match(pattern)).toBeNull();
+  });
+});
+
+describe('Kofile document URL construction', () => {
+  // Tests for the /doc/{id}/details URL pattern used in the improved Stage 2
+
+  const BASE_URL = 'https://bell.tx.publicsearch.us';
+
+  it('builds correct detail URL from instrument number', () => {
+    const instrumentNumber = '2024-00001234';
+    const url = `${BASE_URL}/doc/${encodeURIComponent(instrumentNumber)}/details`;
+    expect(url).toBe('https://bell.tx.publicsearch.us/doc/2024-00001234/details');
+  });
+
+  it('extracts instrument from /doc/{id}/details href', () => {
+    const href = '/doc/2024-00001234/details';
+    const match = href.match(/\/doc\/([^/]+)(?:\/details)?/i);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('2024-00001234');
+  });
+
+  it('extracts instrument from /doc/{id} href (no /details suffix)', () => {
+    const href = '/doc/2022-00056789';
+    const match = href.match(/\/doc\/([^/]+)(?:\/details)?/i);
+    expect(match).not.toBeNull();
+    expect(match![1]).toBe('2022-00056789');
+  });
+
+  it('converts relative /doc href to absolute URL', () => {
+    const href = '/doc/2024-00001234/details';
+    const toAbsolute = (h: string): string =>
+      h.startsWith('http') ? h : `${BASE_URL}${h.startsWith('/') ? '' : '/'}${h}`;
+    const url = toAbsolute(href);
+    expect(url).toBe('https://bell.tx.publicsearch.us/doc/2024-00001234/details');
+  });
+
+  it('does NOT confuse old /results?q= fallback URL as valid', () => {
+    const oldFallback = `${BASE_URL}/results?department=RP&search=index&q=2024-00001234`;
+    // The old (broken) fallback is a search URL, not a detail URL
+    expect(oldFallback).not.toContain('/doc/');
+    // The new fallback is a detail URL
+    const newFallback = `${BASE_URL}/doc/2024-00001234/details`;
+    expect(newFallback).toContain('/doc/');
+    expect(newFallback).toContain('/details');
+  });
+});
+
+describe('Kofile API response normalisation', () => {
+  // Uses exported helpers from bell-clerk.ts to avoid duplication
+
+  type ApiDoc = Record<string, unknown>;
+
+  it('handles plain array response', () => {
+    const data = [{ id: '2024-00001234', docType: 'WD' }];
+    expect(normaliseKofileApiResponse(data)).toHaveLength(1);
+  });
+
+  it('handles {results: [...]} response shape', () => {
+    const data = { results: [{ id: '2024-00001234' }, { id: '2024-00001235' }] };
+    expect(normaliseKofileApiResponse(data)).toHaveLength(2);
+  });
+
+  it('handles {documents: [...]} response shape', () => {
+    const data = { documents: [{ id: 'abc' }, { id: 'def' }] };
+    expect(normaliseKofileApiResponse(data)).toHaveLength(2);
+  });
+
+  it('handles {data: [...]} response shape', () => {
+    const data = { data: [{ id: '111' }] };
+    expect(normaliseKofileApiResponse(data)).toHaveLength(1);
+  });
+
+  it('handles {records: [...]} response shape', () => {
+    const data = { records: [{ id: '222' }, { id: '333' }] };
+    expect(normaliseKofileApiResponse(data)).toHaveLength(2);
+  });
+
+  it('handles Elasticsearch hits.hits response shape', () => {
+    const data = {
+      hits: { total: 1, hits: [{ _source: { id: '2024-00001234', docType: 'WD' } }] },
+    };
+    const items = normaliseKofileApiResponse(data);
+    expect(items).toHaveLength(1);
+    expect(items[0].id).toBe('2024-00001234');
+  });
+
+  it('returns empty array for unknown response shape', () => {
+    expect(normaliseKofileApiResponse({ totalCount: 0 })).toHaveLength(0);
+    expect(normaliseKofileApiResponse(null)).toHaveLength(0);
+    expect(normaliseKofileApiResponse('string')).toHaveLength(0);
+  });
+
+  it('extracts names from a plain string value', () => {
+    expect(extractKofilePartyNames('STARR SURVEYING')).toEqual(['STARR SURVEYING']);
+  });
+
+  it('extracts names from array of strings', () => {
+    expect(extractKofilePartyNames(['NAME ONE', 'NAME TWO'])).toEqual(['NAME ONE', 'NAME TWO']);
+  });
+
+  it('extracts names from array of {name: ...} objects', () => {
+    expect(extractKofilePartyNames([{ name: 'JOHN DOE' }, { name: 'JANE DOE' }]))
+      .toEqual(['JOHN DOE', 'JANE DOE']);
+  });
+
+  it('extracts names from array of {partyName: ...} objects', () => {
+    expect(extractKofilePartyNames([{ partyName: 'STARR SURVEYING' }]))
+      .toEqual(['STARR SURVEYING']);
+  });
+
+  it('returns empty array for null or undefined', () => {
+    expect(extractKofilePartyNames(null)).toEqual([]);
+    expect(extractKofilePartyNames(undefined)).toEqual([]);
+  });
+
+  it('resolves document id using priority: id > documentId > instrumentNumber', () => {
+    const item: ApiDoc = {
+      id: 'DOC-001',
+      documentId: 'DOC-002',
+      instrumentNumber: 'INSTR-003',
+    };
+    const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? '').trim();
+    expect(id).toBe('DOC-001');
+  });
+
+  it('falls back to documentId when id is missing', () => {
+    const item: ApiDoc = { documentId: 'DOC-002', instrumentNumber: 'INSTR-003' };
+    const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? '').trim();
+    expect(id).toBe('DOC-002');
+  });
+
+  it('falls back to instrumentNumber when id and documentId are missing', () => {
+    const item: ApiDoc = { instrumentNumber: '2024-00001234' };
+    const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? '').trim();
+    expect(id).toBe('2024-00001234');
+  });
+
+  it('builds correct detail URL from extracted document id', () => {
+    const baseUrl = 'https://bell.tx.publicsearch.us';
+    const item: ApiDoc = { instrumentNumber: '2024-00001234' };
+    const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? '').trim();
+    const url = id ? `${baseUrl}/doc/${id}/details` : null;
+    expect(url).toBe('https://bell.tx.publicsearch.us/doc/2024-00001234/details');
+  });
+});
+
+// ── 14. Structural document detection in API intercept ────────────────────────
+
+describe('Structural document detection for broadened API intercept', () => {
+  // Uses the exported looksLikeKofileDocuments() helper from bell-clerk.ts
+
+  it('identifies document arrays by instrumentNumber field', () => {
+    expect(looksLikeKofileDocuments([{ instrumentNumber: '2024-00001234', docType: 'WD' }])).toBe(true);
+  });
+
+  it('identifies document arrays by docType field', () => {
+    expect(looksLikeKofileDocuments([{ docType: 'WD', recordingDate: '01/15/2024' }])).toBe(true);
+  });
+
+  it('identifies document arrays by docTypeDescription field', () => {
+    expect(looksLikeKofileDocuments([{ docTypeDescription: 'WARRANTY DEED' }])).toBe(true);
+  });
+
+  it('identifies document arrays by grantors/grantees fields', () => {
+    expect(looksLikeKofileDocuments([{ grantors: ['SELLER'], grantees: ['STARR SURVEYING'] }])).toBe(true);
+  });
+
+  it('rejects non-document arrays (e.g. config response)', () => {
+    expect(looksLikeKofileDocuments([{ status: 'ok', version: '1.0' }])).toBe(false);
+  });
+
+  it('rejects empty arrays', () => {
+    expect(looksLikeKofileDocuments([])).toBe(false);
+  });
+
+  it('rejects metadata-only responses', () => {
+    expect(looksLikeKofileDocuments([{ totalCount: 50, page: 1, pageSize: 25 }])).toBe(false);
+  });
+});
+
+// ── 15. fetchDocumentImages improvements ──────────────────────────────────────
+
+describe('fetchDocumentImages image format detection', () => {
+  // Mirrors the detectFormat helper inside fetchDocumentImages in bell-clerk.ts.
+  const detectFormat = (url: string): 'png' | 'jpg' | 'tiff' => {
+    if (/\.jpe?g(\?|$)/i.test(url)) return 'jpg';
+    if (/\.tiff?(\?|$)/i.test(url)) return 'tiff';
+    return 'png';
+  };
+
+  it('detects PNG from .png URL', () => {
+    expect(detectFormat('https://host/files/documents/doc_1.png')).toBe('png');
+  });
+
+  it('detects JPEG from .jpg URL', () => {
+    expect(detectFormat('https://host/files/documents/doc_1.jpg')).toBe('jpg');
+  });
+
+  it('detects JPEG from .jpeg URL', () => {
+    expect(detectFormat('https://host/files/documents/doc_1.jpeg?token=abc')).toBe('jpg');
+  });
+
+  it('defaults to png for unknown extension', () => {
+    // TIFF is explicitly handled — this test covers truly unknown types
+    expect(detectFormat('https://host/files/documents/doc_1.webp')).toBe('png');
+  });
+
+  it('detects TIFF from .tif URL', () => {
+    expect(detectFormat('https://host/files/documents/doc_1.tif')).toBe('tiff');
+    expect(detectFormat('https://host/files/documents/doc_1.tiff')).toBe('tiff');
+  });
+
+  it('page number substitution regex handles PNG', () => {
+    const seedUrl = 'https://host/files/documents/2024-00001234_1.png?token=abc';
+    const constructed = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_3.$1`);
+    expect(constructed).toBe('https://host/files/documents/2024-00001234_3.png?token=abc');
+  });
+
+  it('page number substitution regex handles JPG', () => {
+    const seedUrl = 'https://host/files/documents/2024-00001234_1.jpg?token=xyz';
+    const constructed = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_2.$1`);
+    expect(constructed).toBe('https://host/files/documents/2024-00001234_2.jpg?token=xyz');
+  });
+
+  it('page number substitution regex handles JPEG', () => {
+    const seedUrl = 'https://host/files/documents/2024_1.jpeg';
+    const constructed = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_4.$1`);
+    expect(constructed).toBe('https://host/files/documents/2024_4.jpeg');
+  });
+
+  it('direct viewer URL uses /doc/{id}/details pattern', () => {
+    const bellClerkBase = 'https://bell.tx.publicsearch.us';
+    const instrumentNumber = '2024-00001234';
+    const viewerUrl = `${bellClerkBase}/doc/${encodeURIComponent(instrumentNumber)}/details`;
+    expect(viewerUrl).toBe('https://bell.tx.publicsearch.us/doc/2024-00001234/details');
+    expect(viewerUrl).not.toContain('/results');
+    expect(viewerUrl).not.toContain('searchType=quickSearch');
+  });
+
+  it('image URL intercept pattern matches PNG', () => {
+    const url = 'https://bell.tx.publicsearch.us/files/documents/2024-001/page_1.png?signed=abc';
+    const matches = (
+      (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
+      /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+    );
+    expect(matches).toBe(true);
+  });
+
+  it('image URL intercept pattern matches JPG', () => {
+    const url = 'https://bell.tx.publicsearch.us/files/documents/2024-001/page_1.jpg';
+    const matches = (
+      (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
+      /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+    );
+    expect(matches).toBe(true);
+  });
+
+  it('image URL intercept pattern rejects unrelated URLs', () => {
+    const url = 'https://bell.tx.publicsearch.us/api/search/results.json';
+    const matches = (
+      (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
+      /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+    );
+    expect(matches).toBe(false);
+  });
+});
+
+// ── 16. parseDeedReferences ────────────────────────────────────────────────────
+
+import { parseDeedReferences } from '../../worker/src/services/pipeline.js';
+
+describe('parseDeedReferences', () => {
+  it('extracts bare 10-digit instrument number', () => {
+    const result = parseDeedReferences('LOT 1 BLK 1 ASH FAMILY TRUST INST 2010043440');
+    expect(result.instrumentNumbers).toContain('2010043440');
+  });
+
+  it('extracts instrument number with Inst prefix', () => {
+    const result = parseDeedReferences('Instrument: 2010043440, recorded Bell County');
+    expect(result.instrumentNumbers).toContain('2010043440');
+  });
+
+  it('extracts instrument number with Doc prefix', () => {
+    const result = parseDeedReferences('Doc# 2023032044 Volume 7687');
+    expect(result.instrumentNumbers).toContain('2023032044');
+  });
+
+  it('extracts volume/page references', () => {
+    const result = parseDeedReferences('VOL 7687 PG 112 BELL COUNTY');
+    expect(result.volumePages).toContainEqual({ volume: '7687', page: '112' });
+  });
+
+  it('extracts volume/page with dots', () => {
+    const result = parseDeedReferences('Vol. 7687, Page 112');
+    expect(result.volumePages).toContainEqual({ volume: '7687', page: '112' });
+  });
+
+  it('extracts OPR volume/page', () => {
+    const result = parseDeedReferences('OPR/7687/112');
+    expect(result.volumePages).toContainEqual({ volume: '7687', page: '112' });
+  });
+
+  it('extracts plat cabinet/slide reference', () => {
+    const result = parseDeedReferences('Cabinet A Slide 5 Bell County Plat Records');
+    expect(result.platRefs).toContainEqual({ cabinet: 'A', slide: '5' });
+  });
+
+  it('extracts multiple instrument numbers', () => {
+    const result = parseDeedReferences('Inst 2010043440 and Inst 2023032044');
+    expect(result.instrumentNumbers).toHaveLength(2);
+    expect(result.instrumentNumbers).toContain('2010043440');
+    expect(result.instrumentNumbers).toContain('2023032044');
+  });
+
+  it('does not duplicate instrument numbers', () => {
+    const result = parseDeedReferences('Inst 2010043440 Inst 2010043440');
+    expect(result.instrumentNumbers).toHaveLength(1);
+  });
+
+  it('returns empty arrays for plain lot/block description without references', () => {
+    const result = parseDeedReferences('LOT 1 BLK 1 ASH FAMILY TRUST 12.358 AC ADDN A-22 A MANCHACA SVY');
+    expect(result.instrumentNumbers).toHaveLength(0);
+    expect(result.volumePages).toHaveLength(0);
+    expect(result.platRefs).toHaveLength(0);
+  });
+
+  it('ignores short numbers that are not instrument numbers', () => {
+    // Only 10-digit bare numbers or 7+ digit Inst-prefixed numbers qualify
+    const result = parseDeedReferences('LOT 5 BLK 12 SURVEY A-22');
+    expect(result.instrumentNumbers).toHaveLength(0);
+  });
+});
+
+// ── 17. legal description disclaimer filter ────────────────────────────────────
+
+describe('legal description disclaimer filter', () => {
+  // Mirrors the disclaimer detection logic added to enrichPropertyDetail and
+  // lookupByPropertyId in bell-cad.ts / pipeline.ts.
+  const isDisclaimer = (text: string): boolean =>
+    /appraisal district|should be verified|legal purpose/i.test(text);
+
+  it('identifies BIS disclaimer text', () => {
+    const disclaimer = 'Legal descriptions and acreage amounts are for Appraisal District use only and should be verified prior to using for legal purpose and or documents.';
+    expect(isDisclaimer(disclaimer)).toBe(true);
+  });
+
+  it('does not flag a valid legal description', () => {
+    const legal = 'LOT 1 BLK 1 ASH FAMILY TRUST 12.358 AC ADDN A-22 A MANCHACA SVY';
+    expect(isDisclaimer(legal)).toBe(false);
+  });
+
+  it('does not flag a short legal with metes and bounds', () => {
+    const legal = 'N 45°30\' W 210.5 FT TO POB — A-22 MANCHACA SURVEY BELL CO TX';
+    expect(isDisclaimer(legal)).toBe(false);
+  });
+
+  it('identifies "should be verified" substring', () => {
+    expect(isDisclaimer('This information should be verified before use')).toBe(true);
+  });
+
+  it('is case-insensitive', () => {
+    expect(isDisclaimer('APPRAISAL DISTRICT USE ONLY')).toBe(true);
   });
 });

@@ -14,7 +14,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const targetEmail = email || session.user.email;
 
   // Non-admins only see their own
-  if (!isAdmin(session.user.email) && targetEmail !== session.user.email) {
+  if (!isAdmin(session.user.roles) && targetEmail !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -36,7 +36,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const body = await req.json();
   const { user_email, new_rate, reason, effective_date, next_review_date, notes } = body;

@@ -170,7 +170,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Admin/teacher can create builtin flashcards
-  if (requestedSource === 'builtin' && canManageContent(session.user.email)) {
+  if (requestedSource === 'builtin' && canManageContent(session.user.roles)) {
     const { data, error } = await supabaseAdmin.from('flashcards').insert({
       term: term.trim(),
       definition: definition.trim(),
@@ -262,7 +262,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Admin/teacher editing builtin flashcards
-  if (source === 'builtin' && canManageContent(session.user.email)) {
+  if (source === 'builtin' && canManageContent(session.user.roles)) {
     const allowedFields = ['term', 'definition', 'hint_1', 'hint_2', 'hint_3', 'keywords', 'tags', 'module_id', 'lesson_id'];
     const cleanUpdates: Record<string, unknown> = {};
     for (const field of allowedFields) {

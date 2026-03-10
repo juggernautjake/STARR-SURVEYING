@@ -47,13 +47,13 @@ import { chromium } from 'playwright';
 describe('SiteHealthMonitor', () => {
 
   let monitor: SiteHealthMonitor;
-  let alertCallback: ReturnType<typeof vi.fn>;
+  let alertCallback: ReturnType<typeof vi.fn<(alert: SiteAlert) => void>>;
   let mockPage: any;
   let mockBrowser: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    alertCallback = vi.fn();
+    alertCallback = vi.fn<(alert: SiteAlert) => void>();
     monitor = new SiteHealthMonitor({ onAlert: alertCallback });
 
     // Get references to the mocked browser/page

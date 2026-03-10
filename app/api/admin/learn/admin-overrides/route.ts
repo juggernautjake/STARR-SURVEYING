@@ -10,7 +10,7 @@ import { notifyLearningAssignment } from '@/lib/notifications';
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
 
   const body = await req.json();
   const { action, user_email } = body;

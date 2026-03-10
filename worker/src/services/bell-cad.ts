@@ -449,12 +449,19 @@ async function searchCadHttp(
       const keywords = `StreetNumber:${variant.streetNumber} ${namePart}`;
       const encodedKeywords = encodeURIComponent(keywords);
       const encodedToken = encodeURIComponent(sessionToken);
-      const url = `${baseUrl}/search/result?keywords=${encodedKeywords}&searchSessionToken=${encodedToken}`;
+      // BUG 3 FIX: The working AJAX endpoint is /search/SearchResults (not /search/result).
+      // The former is the AJAX endpoint used by the Playwright form search; the latter
+      // is a legacy/incorrect path that returns no results.
+      const url = `${baseUrl}/search/SearchResults?keywords=${encodedKeywords}&searchSessionToken=${encodedToken}`;
 
       tracker.step(`GET ${url.substring(0, 120)}...`);
 
+      // BUG 3 FIX: Add X-Requested-With to signal this is an AJAX request (required by BIS).
+      // Accept JSON or HTML (the endpoint may return either).
+      // Do NOT include Content-Type on a GET request — BIS returns HTTP 415 if it's present.
       const headers: Record<string, string> = {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'X-Requested-With': 'XMLHttpRequest',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Referer': `${baseUrl}/`,
       };
@@ -488,10 +495,15 @@ async function searchCadHttp(
       const contentType = response.headers.get('content-type') ?? '';
       tracker.step(`Content-Type: ${contentType}`);
 
-      // Try JSON first (some BIS sites may still return JSON)
+      // Try JSON first — with X-Requested-With the /search/SearchResults endpoint
+      // returns structured JSON rather than an HTML page.
       if (contentType.includes('json')) {
-        const data = await response.json() as { resultsList?: CadSearchResult[] } | CadSearchResult[];
-        const results = Array.isArray(data) ? data : data.resultsList ?? [];
+        const data = await response.json() as
+          | { resultsList?: CadSearchResult[]; results?: CadSearchResult[]; data?: CadSearchResult[] }
+          | CadSearchResult[];
+        const results = Array.isArray(data)
+          ? data
+          : (data.resultsList ?? data.results ?? data.data ?? []);
         tracker.step(`[body_parsing] Parsed JSON: ${results.length} results`);
 
         diagnostics.variantsTried.push({
@@ -1170,26 +1182,51 @@ async function enrichPropertyDetail(
       }
     }
 
-    // Extract legal description (try multiple patterns)
+    // Extract legal description — BIS eSearch detail pages use labeled table rows.
+    // IMPORTANT: the disclaimer text ("Legal descriptions and acreage amounts are for
+    // Appraisal District use only...") must NOT be returned even if it matches the label.
     let legalDescription: string | null = null;
-    const legalPatterns = [
-      /(?:Legal\s*Description|Legal\s*Desc\.?)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i,
-      /class="[^"]*legal[^"]*"[^>]*>\s*([^<]+)/i,
-      /id="[^"]*legal[^"]*"[^>]*>\s*([^<]+)/i,
-    ];
-    for (const pattern of legalPatterns) {
-      const match = html.match(pattern);
-      if (match && match[1].trim().length > 5) {
-        legalDescription = match[1].trim();
-        break;
+
+    // Strategy 1: BIS table-row pattern — <td>Legal Description</td><td>VALUE</td>
+    // This is the most reliable selector for BIS eSearch platforms.
+    const bisTableMatch = html.match(
+      /<td[^>]*>\s*Legal\s*(?:Description|Descriptions|Desc\.?)\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i,
+    );
+    if (bisTableMatch) {
+      const rawValue = bisTableMatch[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (rawValue.length > 5 && !/appraisal district|should be verified|legal purpose/i.test(rawValue)) {
+        legalDescription = rawValue;
       }
     }
 
-    // Extract property type
+    // Strategy 2: Generic label + value patterns (filter out disclaimer matches)
+    if (!legalDescription) {
+      const legalPatterns = [
+        /(?:Legal\s*Description|Legal\s*Desc\.?)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i,
+        /class="[^"]*legal[^"]*"[^>]*>\s*([^<]+)/i,
+        /id="[^"]*legal[^"]*"[^>]*>\s*([^<]+)/i,
+      ];
+      for (const pattern of legalPatterns) {
+        const match = html.match(pattern);
+        if (match && match[1].trim().length > 5) {
+          const candidate = match[1].trim();
+          // Skip disclaimer/banner text — it is site-wide and not property-specific
+          if (/appraisal district|should be verified|legal purpose/i.test(candidate)) continue;
+          legalDescription = candidate;
+          break;
+        }
+      }
+    }
+
+    // Extract property type — use specific label to avoid matching generic "Type" tokens.
+    // The captured group ([^<]+) cannot contain raw `<` so no HTML tag stripping needed;
+    // just decode the common HTML entities for display.
     let propertyType: string | null = null;
-    const typeMatch = html.match(/(?:Property\s*Type|Prop\s*Type|Type)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i);
+    const typeMatch = html.match(/(?:Property\s*Type|Prop(?:erty)?\s*Type)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i);
     if (typeMatch && typeMatch[1].trim().length > 1) {
-      propertyType = typeMatch[1].trim();
+      propertyType = typeMatch[1]
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+        .trim();
     }
 
     const found = (acreage ? 1 : 0) + (legalDescription ? 1 : 0) + (propertyType ? 1 : 0);

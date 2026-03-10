@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import type { DocumentRef, DocumentResult, PageScreenshot, DocumentPage } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
+import type { Response as PlaywrightResponse } from 'playwright';
 
 // ── Kofile PublicSearch Configuration ──────────────────────────────────────
 
@@ -657,8 +658,9 @@ async function fetchDocumentDetail(
 
   if (!doc.url) {
     if (doc.instrumentNumber) {
-      doc.url = `${baseUrl}/results?department=RP&search=index&q=${encodeURIComponent(doc.instrumentNumber)}`;
-      logger.info('Stage2B', `${label}: Built fallback URL from instrument number`);
+      // Build a direct detail page URL using Kofile's /doc/{id}/details pattern
+      doc.url = `${baseUrl}/doc/${encodeURIComponent(doc.instrumentNumber)}/details`;
+      logger.info('Stage2B', `${label}: Built detail URL from instrument number: ${doc.url}`);
     } else {
       result.processingErrors.push('No URL or instrument number available');
       return result;
@@ -689,7 +691,13 @@ async function fetchDocumentDetail(
       return result;
     }
 
-    await page.waitForTimeout(2_500);
+    // For React SPAs (like Kofile), wait for network to go idle so content renders
+    try {
+      await page.waitForLoadState('networkidle', { timeout: 10_000 });
+    } catch {
+      // networkidle timeout is acceptable — fall back to a fixed delay
+      await page.waitForTimeout(3_000);
+    }
 
     // Validate the page actually has content
     const pageCheck = await isPageValid(page);
@@ -816,6 +824,71 @@ async function fetchDocumentDetail(
 // ── Main Clerk Search ──────────────────────────────────────────────────────
 
 /**
+ * Extract party names (grantors/grantees) from a Kofile API JSON field.
+ *
+ * Handles three common shapes:
+ *   - `"STARR SURVEYING"`  → ["STARR SURVEYING"]
+ *   - `["NAME ONE", "NAME TWO"]`  → ["NAME ONE", "NAME TWO"]
+ *   - `[{ name: "JOHN DOE" }, { partyName: "JANE DOE" }]`  → ["JOHN DOE", "JANE DOE"]
+ */
+export function extractKofilePartyNames(val: unknown): string[] {
+  if (!val) return [];
+  if (typeof val === 'string') return [val].filter(Boolean);
+  if (Array.isArray(val)) {
+    return (val as unknown[])
+      .map((v) =>
+        v && typeof v === 'object'
+          ? String((v as Record<string, unknown>).name ?? (v as Record<string, unknown>).partyName ?? v)
+          : String(v),
+      )
+      .filter(Boolean);
+  }
+  return [];
+}
+
+/**
+ * Normalise a Kofile/GovOS PublicSearch API response into a flat array of
+ * document records, handling the various response envelope shapes the system
+ * uses across deployments:
+ *   - plain array
+ *   - `{ results: [...] }` / `{ documents: [...] }` / `{ data: [...] }` / `{ records: [...] }`
+ *   - Elasticsearch `{ hits: { hits: [{ _source: {...} }] } }`
+ */
+export function normaliseKofileApiResponse(data: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(data)) return data as Array<Record<string, unknown>>;
+  if (data && typeof data === 'object') {
+    const d = data as Record<string, unknown>;
+    if (Array.isArray(d.results))    return d.results as Array<Record<string, unknown>>;
+    if (Array.isArray(d.documents))  return d.documents as Array<Record<string, unknown>>;
+    if (Array.isArray(d.data))       return d.data as Array<Record<string, unknown>>;
+    if (Array.isArray(d.records))    return d.records as Array<Record<string, unknown>>;
+    if (d.hits && typeof d.hits === 'object') {
+      const hits = d.hits as Record<string, unknown>;
+      if (Array.isArray(hits.hits)) {
+        return (hits.hits as Array<Record<string, unknown>>).map(
+          (h) => (h._source as Record<string, unknown>) ?? h,
+        );
+      }
+    }
+  }
+  return [];
+}
+
+/**
+ * Return true when an array of API items looks like Kofile document records.
+ *
+ * Used by the broadened API-response interceptor to accept JSON from any endpoint
+ * whose response *structure* matches a document list, regardless of its URL.
+ */
+export function looksLikeKofileDocuments(items: Array<Record<string, unknown>>): boolean {
+  return items.some((item) =>
+    'instrumentNumber' in item || 'docType' in item || 'documentType' in item ||
+    'docTypeDescription' in item || 'recordingDate' in item ||
+    'grantors' in item || 'grantees' in item,
+  );
+}
+
+/**
  * Search county clerk records for deeds and recorded documents.
  * Returns document references with content (text, images, PDFs).
  */
@@ -856,6 +929,75 @@ export async function searchClerkRecords(
     });
 
     const page = await context.newPage();
+
+    // ── Stage 2A: API response interception ──────────────────────────────────
+    // Kofile/GovOS PublicSearch is a React SPA: it fetches document data from a
+    // JSON API.  Intercept those responses to get clean structured data instead
+    // of trying to reverse-engineer the dynamic DOM.
+
+    /** Docs captured from the Kofile JSON API for the CURRENT search name */
+    let apiCapture: DocumentRef[] = [];
+
+    const handleApiResponse = async (response: PlaywrightResponse): Promise<void> => {
+      try {
+        const url = response.url();
+        const ct = response.headers()['content-type'] ?? '';
+        if (!ct.includes('json')) return;
+
+        // Match Kofile/GovOS PublicSearch AJAX endpoints:
+        //   /api/search/instrument, /api/public/..., /results (JSON), /SearchResults, etc.
+        const isSearchApi =
+          url.includes('/api/') ||
+          url.includes('/search/instrument') ||
+          url.includes('/instrument/') ||
+          url.includes('SearchResults') ||
+          url.includes('searchresults');
+
+        // Structural guard: even for unmatched URLs, accept JSON arrays that look
+        // like document records.  This handles Kofile deployments with non-standard paths.
+        const data = await response.json() as unknown;
+        const items = normaliseKofileApiResponse(data);
+        if (items.length === 0) return;
+
+        // Structural check: require at least one document-like field.
+        // This lets us capture data from non-standard API URLs too.
+        if (!isSearchApi && !looksLikeKofileDocuments(items)) return;
+
+        const newDocs: DocumentRef[] = items.map((item) => {
+          // Kofile uses various field names for the document identifier
+          const id = String(
+            item.id ?? item.documentId ?? item.instrumentNumber ?? item.docNumber ?? item.instrument ?? '',
+          ).trim();
+          const docType = String(
+            item.docTypeDescription ?? item.documentTypeDescription ??
+            item.documentType ?? item.docType ?? item.type ?? 'Unknown',
+          ).trim();
+          const date = String(
+            item.recordingDate ?? item.documentDate ?? item.filingDate ?? item.date ?? '',
+          ).trim();
+
+          return {
+            instrumentNumber: id || null,
+            documentType: docType,
+            recordingDate: date || null,
+            grantors: extractKofilePartyNames(item.grantors ?? item.grantor ?? item.grantorParties),
+            grantees: extractKofilePartyNames(item.grantees ?? item.grantee ?? item.granteeParties),
+            source: config.name,
+            // Kofile detail page URL pattern: /doc/{id}/details
+            url: id ? `${baseUrl}/doc/${id}/details` : null,
+            volume: String(item.volume ?? item.bookNumber ?? '').trim() || null,
+            page: String(item.page ?? item.pageNumber ?? '').trim() || null,
+          };
+        });
+
+        apiCapture = [...apiCapture, ...newDocs];
+        logger.info('Stage2A', `[api-intercept] Captured ${newDocs.length} docs from ${url.substring(0, 100)}`);
+      } catch (err) {
+        logger.info('Stage2A', `[api-intercept] Could not parse response from ${response.url().substring(0, 80)}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
+
+    page.on('response', (response) => { void handleApiResponse(response); });
 
     // Try each name variant until we get results
     let documents: DocumentRef[] = [];
@@ -1010,6 +1152,7 @@ export async function searchClerkRecords(
             }
           } catch { /* ignore parse errors */ }
         });
+        apiCapture = []; // Reset for each attempt
 
         // Try direct URL search first (more reliable than form interaction)
         const searchUrl = `${baseUrl}/results?department=RP&search=index%2CfullText&q=${encodeURIComponent(searchName)}`;
@@ -1236,6 +1379,7 @@ export async function searchClerkRecords(
         //   col-3: Grantor    col-4: Grantee     col-5: Doc Type
         //   col-6: Rec Date   col-7: Inst Number  col-8: Book/Vol/Page
         //   col-9: Property Description
+        // ── DOM extraction (fallback when API intercept missed data) ───────
         const extracted = await page.evaluate((bUrl: string) => {
           const docs: Array<{
             type: string;
@@ -1307,6 +1451,14 @@ export async function searchClerkRecords(
             '.result-item, .search-result, .document-row, ' +
             '[data-testid*="result"], [data-testid*="document"], ' +
             'a[href*="/doc/"], a[href*="/detail"]',
+          // Helper: build an absolute URL from a possibly-relative href
+          const toAbsolute = (href: string): string =>
+            href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+
+          // Strategy 1: Result items/rows (broad selector for various SPA frameworks)
+          const rows = document.querySelectorAll(
+            '.result-item, .result-row, .search-result, .document-result, ' +
+            'table tbody tr, .document-row, [class*="result-row"], [class*="ResultRow"]',
           );
           let resultElements: Element[] = Array.from(rows);
           if (resultElements.length === 0) {
@@ -1344,12 +1496,69 @@ export async function searchClerkRecords(
             const cells = Array.from(row.querySelectorAll('td, [class*="cell"], [role="cell"]'));
             const cellTexts = cells.map((c) => c.textContent?.trim() ?? '').filter(Boolean);
 
+            // ── URL / instrument number from link href ──────────────────────
+            // Kofile detail page pattern: /doc/{id}/details  (e.g. /doc/2024-00001234/details)
+            let url: string | null = null;
+            let hrefInstrument = '';
+
+            const links = Array.from(row.querySelectorAll('a'));
+            for (const link of links) {
+              const href = link.getAttribute('href') ?? '';
+              // Primary: Kofile /doc/{id}/details pattern
+              const docMatch = href.match(/\/doc\/([^/]+)(?:\/details)?/i);
+              if (docMatch) {
+                url = toAbsolute(href.includes('/details') ? href : `${href}/details`);
+                hrefInstrument = docMatch[1];
+                break;
+              }
+              // Secondary: any detail/view/document link or path with 4+ digit segment
+              if (href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/[\d]{4,}/)) {
+                url = toAbsolute(href);
+                break;
+              }
+            }
+            // Tertiary: any non-trivial link excluding navigation
+            if (!url && links.length > 0) {
+              for (const link of links) {
+                const href = link.getAttribute('href') ?? '';
+                if (!href.includes('results') && !href.includes('filter') && !href.includes('#') && href.length > 5) {
+                  url = toAbsolute(href);
+                  break;
+                }
+              }
+            }
+
+            // ── data-* attribute fallback for React/SPA rows ───────────────
+            const dataId = (row as HTMLElement).dataset?.id
+              ?? (row as HTMLElement).dataset?.documentId
+              ?? (row as HTMLElement).dataset?.instrumentNumber
+              ?? '';
+            if (!url && dataId) {
+              url = `${bUrl}/doc/${dataId}/details`;
+            }
+
+            // ── Parse document fields ──────────────────────────────────────
+            // Kofile column order (typical): RecDate | InstrNum | DocType | Grantor | Grantee | Vol/Pg
             const typePatterns = [
               /(?:Type|Document Type|Doc Type)\s*:?\s*([^\n|]+)/i,
               /\b(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Plat|Amended Plat|Easement|Right[- ]of[- ]Way|Quit Claim|Deed of Trust|Release|Mineral Deed|Affidavit|Restriction|Covenant)\b/i,
             ];
             const datePatterns = [/(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/];
             const instrPatterns = [/\b(\d{8,})\b/];
+            const datePatterns = [
+              /(?:Date|Recorded|Filed|Recording Date)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i,
+              /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/,
+            ];
+            const instrPatterns = [
+              /(?:Instrument|Inst\.?\s*#?|Document\s*#?|Doc\.?\s*#?)\s*:?\s*([\d\-]+)/i,
+              // Kofile instrument numbers: YYYY-NNNNNNN (e.g. 2024-00001234)
+              /\b(\d{4}-\d{5,})\b/,
+              /\b(\d{9,})\b/,
+            ];
+            const volPatterns = [/(?:Volume|Vol\.?|Book)\s*:?\s*(\d+)/i];
+            const pgPatterns = [/(?:Page|Pg\.?)\s*:?\s*(\d+)/i];
+            const grantorPatterns = [/(?:Grantor|From|Seller)\s*:?\s*([^\n|;]+)/i];
+            const granteePatterns = [/(?:Grantee|To|Buyer)\s*:?\s*([^\n|;]+)/i];
 
             const findMatch = (patterns: RegExp[], source: string): string => {
               for (const p of patterns) {
@@ -1380,6 +1589,21 @@ export async function searchClerkRecords(
                 text: text.substring(0, 500),
               });
             }
+            // Prefer instrument number from link href over text regex
+            const instrFromText = findMatch(instrPatterns);
+            const instrumentNumber = hrefInstrument || instrFromText || dataId || '';
+
+            docs.push({
+              type: findMatch(typePatterns) || 'Unknown',
+              date: findMatch(datePatterns),
+              instrumentNumber,
+              volume: findMatch(volPatterns),
+              docPage: findMatch(pgPatterns),
+              grantors: findMatch(grantorPatterns) ? [findMatch(grantorPatterns)] : [],
+              grantees: findMatch(granteePatterns) ? [findMatch(granteePatterns)] : [],
+              url,
+              text: text.substring(0, 500),
+            });
           });
 
           return docs;
@@ -1438,6 +1662,68 @@ export async function searchClerkRecords(
             const pattern = href.replace(/\d{4,}/g, '{N}');
             if (pattern.length > 3 && !pattern.includes('google') && !pattern.includes('analytics')) {
               hrefPatterns.add(pattern);
+        // Check for pagination — try to get more results via API intercept or DOM
+        try {
+          const hasMorePages = await page.evaluate(() => {
+            return !!document.querySelector('.pagination a, .next-page, [aria-label="Next"], button[aria-label*="next" i]');
+          });
+          if (hasMorePages) {
+            logger.info('Stage2A', 'More pages available — loading additional results');
+            for (let pageNum = 0; pageNum < 2; pageNum++) {
+              try {
+                apiCapture = []; // Reset for pagination intercept
+                const nextBtn = page.locator(
+                  '.pagination a:has-text("Next"), .next-page, [aria-label="Next"], button[aria-label*="next" i], .pagination li:last-child a',
+                ).first();
+                if (await nextBtn.isVisible({ timeout: 2_000 })) {
+                  await nextBtn.click();
+                  await page.waitForTimeout(3_000);
+
+                  // Prefer API-captured data over DOM scraping
+                  if (apiCapture.length > 0) {
+                    documents = [...documents, ...apiCapture];
+                    logger.info('Stage2A', `Pagination page ${pageNum + 2}: ${apiCapture.length} more via API intercept`);
+                  } else {
+                    const moreExtracted = await page.evaluate((bUrl: string) => {
+                      const docs: Array<{ type: string; date: string; instrumentNumber: string; volume: string; docPage: string; grantors: string[]; grantees: string[]; url: string | null; }> = [];
+                      const toAbsolute = (href: string): string => href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+                      const rows = document.querySelectorAll('.result-item, .result-row, .search-result, .document-result, table tbody tr, .document-row, [class*="result-row"], [class*="ResultRow"]');
+                      rows.forEach((row) => {
+                        const text = row.textContent?.trim() ?? '';
+                        if (text.length < 10) return;
+                        let url: string | null = null;
+                        let hrefInstrument = '';
+                        const links = Array.from(row.querySelectorAll('a'));
+                        for (const link of links) {
+                          const href = link.getAttribute('href') ?? '';
+                          const docMatch = href.match(/\/doc\/([^/]+)(?:\/details)?/i);
+                          if (docMatch) { url = toAbsolute(href.includes('/details') ? href : `${href}/details`); hrefInstrument = docMatch[1]; break; }
+                          if (href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/[\d]{4,}/)) { url = toAbsolute(href); break; }
+                        }
+                        const dataId = (row as HTMLElement).dataset?.id ?? (row as HTMLElement).dataset?.documentId ?? '';
+                        if (!url && dataId) url = `${bUrl}/doc/${dataId}/details`;
+                        const findMatch = (patterns: RegExp[]): string => { for (const p of patterns) { const m = text.match(p); if (m) return (m[1] ?? m[0]).trim(); } return ''; };
+                        const instrText = findMatch([/(?:Instrument|Inst\.?\s*#?)\s*:?\s*([\d\-]+)/i, /\b(\d{4}-\d{5,})\b/, /\b(\d{9,})\b/]);
+                        docs.push({
+                          type: findMatch([/(?:Type|Document Type)\s*:?\s*([^\n|]+)/i, /\b(Warranty Deed|Plat|Easement|Deed of Trust|Deed)\b/i]) || 'Unknown',
+                          date: findMatch([/(?:Date|Recorded|Filed)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i, /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/]),
+                          instrumentNumber: hrefInstrument || instrText || dataId,
+                          volume: findMatch([/(?:Volume|Vol\.?)\s*:?\s*(\d+)/i]),
+                          docPage: findMatch([/(?:Page|Pg\.?)\s*:?\s*(\d+)/i]),
+                          grantors: findMatch([/(?:Grantor|From)\s*:?\s*([^\n|;]+)/i]) ? [findMatch([/(?:Grantor|From)\s*:?\s*([^\n|;]+)/i])] : [],
+                          grantees: findMatch([/(?:Grantee|To)\s*:?\s*([^\n|;]+)/i]) ? [findMatch([/(?:Grantee|To)\s*:?\s*([^\n|;]+)/i])] : [],
+                          url,
+                        });
+                      });
+                      return docs;
+                    }, baseUrl);
+                    for (const doc of moreExtracted) {
+                      documents.push({ instrumentNumber: doc.instrumentNumber || null, volume: doc.volume || null, page: doc.docPage || null, documentType: doc.type, recordingDate: doc.date || null, grantors: doc.grantors, grantees: doc.grantees, source: config.name, url: doc.url });
+                    }
+                    logger.info('Stage2A', `Pagination page ${pageNum + 2}: found ${moreExtracted.length} more documents`);
+                  }
+                }
+              } catch { break; }
             }
           });
           return {
@@ -1645,13 +1931,15 @@ export async function searchByInstrument(
 }
 
 /**
- * Download all page images for a document by intercepting signed PNG URLs.
+ * Download all page images for a document by intercepting signed image URLs.
  *
  * KEY TECHNIQUE: page.on('response') captures signed image URLs from
  * /files/documents/ paths as the Kofile viewer loads each page.
  * Then we download each image directly using the signed URL.
  *
  * This avoids screenshot latency and gets the full-resolution originals.
+ * Navigates directly to the document detail page (/doc/{id}/details) rather
+ * than the old search-then-click approach (saves ~16 seconds per document).
  */
 export async function fetchDocumentImages(
   instrumentNumber: string,
@@ -1676,40 +1964,82 @@ export async function fetchDocumentImages(
     const imageUrls: string[] = [];
     page.on('response', (res) => {
       const url = res.url();
-      if (url.includes('/files/documents/') && url.includes('.png')) {
+      // Match Kofile signed document image URLs (PNG, JPG, TIFF)
+      if (
+        (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
+        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+      ) {
         imageUrls.push(url);
         console.log(`[BELL-IMG] Captured: ${url.substring(0, 100)}...`);
       }
     });
 
-    const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
-    console.log(`[BELL-IMG] Navigating: ${searchUrl}`);
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(8000);
-
-    // Click first result to open the document viewer
+    // Navigate directly to the document viewer page (avoids search+click overhead)
+    const viewerUrl = `${BELL_CLERK_BASE}/doc/${encodeURIComponent(instrumentNumber)}/details`;
+    console.log(`[BELL-IMG] Navigating directly to viewer: ${viewerUrl}`);
     try {
-      await page.locator('tbody tr').last().click();
-      await page.waitForTimeout(8000);
-    } catch (e: any) {
-      console.log('[BELL-IMG] Could not click result:', e.message);
+      await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 45_000 });
+    } catch {
+      // networkidle timeout is acceptable — images may still be loading
+      await page.goto(viewerUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      await page.waitForTimeout(5_000);
     }
 
-    console.log(`[BELL-IMG] After page 1 load: ${imageUrls.length} URLs captured`);
+    // Wait up to 10 seconds for at least one image URL to appear
+    const imageWaitDeadline = Date.now() + 10_000;
+    while (imageUrls.length === 0 && Date.now() < imageWaitDeadline) {
+      await page.waitForTimeout(500);
+    }
+
+    console.log(`[BELL-IMG] After viewer load: ${imageUrls.length} URLs captured`);
+
+    // Fallback: if direct viewer didn't capture images, try search+click (legacy approach)
+    if (imageUrls.length === 0) {
+      console.log('[BELL-IMG] Direct viewer captured no images — falling back to search+click');
+      const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      await page.waitForTimeout(5_000);
+      try {
+        await page.locator('tbody tr').first().click();
+        await page.waitForTimeout(6_000);
+      } catch (e: any) {
+        console.log('[BELL-IMG] Search+click fallback: could not click result:', e.message);
+      }
+    }
+
+    // ── Helper: detect image format from URL extension ────────────────────
+    const detectFormat = (url: string): 'png' | 'jpg' | 'tiff' => {
+      if (/\.jpe?g(\?|$)/i.test(url)) return 'jpg';
+      if (/\.tiff?(\?|$)/i.test(url)) return 'tiff';
+      return 'png';
+    };
+
+    // ── Helper: download one image URL and push to pages array ────────────
+    const downloadPage = async (imgUrl: string, pageNum: number): Promise<boolean> => {
+      try {
+        const resp = await page.context().request.get(imgUrl);
+        if (resp.ok()) {
+          const buf = await resp.body();
+          pages.push({
+            pageNumber: pageNum,
+            imageBase64: buf.toString('base64'),
+            imageFormat: detectFormat(imgUrl),
+            width: 0,
+            height: 0,
+            signedUrl: imgUrl,
+          });
+          console.log(`[BELL-IMG] Page ${pageNum}: ${buf.length} bytes (${detectFormat(imgUrl)})`);
+          return true;
+        }
+      } catch (e: any) {
+        console.log(`[BELL-IMG] Page ${pageNum} download failed: ${e.message}`);
+      }
+      return false;
+    };
 
     // Download page 1
     if (imageUrls.length > 0) {
-      const p1Url = imageUrls[imageUrls.length - 1];
-      try {
-        const resp = await page.context().request.get(p1Url);
-        if (resp.ok()) {
-          const buf = await resp.body();
-          pages.push({ pageNumber: 1, imageBase64: buf.toString('base64'), imageFormat: 'png', width: 0, height: 0, signedUrl: p1Url });
-          console.log(`[BELL-IMG] Page 1: ${buf.length} bytes`);
-        }
-      } catch (e: any) {
-        console.log(`[BELL-IMG] Page 1 download failed: ${e.message}`);
-      }
+      await downloadPage(imageUrls[imageUrls.length - 1], 1);
     }
 
     // Navigate to subsequent pages using the next-page button
@@ -1736,33 +2066,18 @@ export async function fetchDocumentImages(
         break;
       }
 
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(5_000);
 
       if (imageUrls.length > urlCountBefore) {
-        const newUrl = imageUrls[imageUrls.length - 1];
-        try {
-          const resp = await page.context().request.get(newUrl);
-          if (resp.ok()) {
-            const buf = await resp.body();
-            pages.push({ pageNumber: pageNum, imageBase64: buf.toString('base64'), imageFormat: 'png', width: 0, height: 0, signedUrl: newUrl });
-            console.log(`[BELL-IMG] Page ${pageNum}: ${buf.length} bytes`);
-          }
-        } catch (e: any) {
-          console.log(`[BELL-IMG] Page ${pageNum} download failed: ${e.message}`);
-        }
+        await downloadPage(imageUrls[imageUrls.length - 1], pageNum);
       } else if (imageUrls.length > 0) {
-        // Construct URL for this page by replacing the page number in the first URL
-        const baseUrl = imageUrls[0];
-        const constructedUrl = baseUrl.replace(/_1\.png/, `_${pageNum}.png`);
-        try {
-          const resp = await page.context().request.get(constructedUrl);
-          if (resp.ok()) {
-            const buf = await resp.body();
-            pages.push({ pageNumber: pageNum, imageBase64: buf.toString('base64'), imageFormat: 'png', width: 0, height: 0, signedUrl: constructedUrl });
-            console.log(`[BELL-IMG] Page ${pageNum} (constructed URL): ${buf.length} bytes`);
-          }
-        } catch (e: any) {
-          console.log(`[BELL-IMG] Page ${pageNum} constructed URL failed: ${e.message}`);
+        // Construct URL for this page by replacing the page number in the seed URL
+        // Handles both _1.png and _1.jpg patterns
+        const seedUrl = imageUrls[0];
+        const constructedUrl = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_${pageNum}.$1`);
+        if (constructedUrl !== seedUrl) {
+          const ok = await downloadPage(constructedUrl, pageNum);
+          if (!ok) console.log(`[BELL-IMG] Page ${pageNum} constructed URL failed`);
         }
       }
     }

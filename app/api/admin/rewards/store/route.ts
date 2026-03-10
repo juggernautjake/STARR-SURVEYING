@@ -7,7 +7,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 /* GET — Admin: list all store items + pending purchases + pay config */
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 
@@ -52,7 +52,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 /* POST — Admin: add or update store item */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 
@@ -88,7 +88,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 /* PUT — Admin: update any pay/rewards entity */
 export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 
@@ -164,7 +164,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 /* DELETE — Admin: delete entity */
 export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 

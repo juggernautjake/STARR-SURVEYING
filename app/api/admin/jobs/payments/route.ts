@@ -37,7 +37,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 
