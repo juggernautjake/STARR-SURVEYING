@@ -1004,103 +1004,356 @@ export async function searchClerkRecords(
 
     for (const searchName of searchNames) {
       try {
+        // ── AJAX Response Interception ──────────────────────────────────
+        // Kofile PublicSearch is a React SPA. The initial HTML contains no
+        // results — data arrives via an asynchronous fetch/XHR that populates
+        // the Redux store. We intercept that JSON response to get clean,
+        // structured document data instead of scraping the rendered DOM.
+        interface KofileDoc {
+          docNumber?: string;
+          instrumentNumber?: string;
+          documentNumber?: string;
+          number?: string;
+          docType?: string;
+          docTypeCode?: string;
+          documentType?: string;
+          typeCode?: string;
+          type?: string;
+          recordedDate?: string;
+          recordedDateStr?: string;
+          recordingDate?: string;
+          filingDate?: string;
+          date?: string;
+          parties?: Array<{ name?: string; type?: string; role?: string }>;
+          grantors?: string[];
+          grantees?: string[];
+          pageCount?: number;
+          id?: string | number;
+          bookType?: string;
+          bookNumber?: string;
+          pageNumber?: string;
+          [key: string]: unknown;
+        }
+
+        let capturedDocs: KofileDoc[] = [];
+        let resolveCapture: ((docs: KofileDoc[]) => void) | null = null;
+        const capturePromise = new Promise<KofileDoc[]>((resolve) => {
+          resolveCapture = resolve;
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        page.on('response', async (response: any) => {
+          try {
+            const url = response.url();
+            const ct = response.headers()['content-type'] ?? '';
+            // Kofile SPA fetches results as JSON from various endpoints
+            if (!ct.includes('json')) return;
+            // Match search/result endpoints — the SPA calls back to the server
+            // which returns document data in JSON form
+            if (
+              url.includes('/results') ||
+              url.includes('/search') ||
+              url.includes('/documents') ||
+              url.includes('/api/') ||
+              url.includes('/graphql') ||
+              url.includes('/query') ||
+              url.includes('/workspace')
+            ) {
+              const data = await response.json() as Record<string, unknown>;
+
+              // Strategy 1: Redux-shaped response with byHash/byOrder
+              const workspaces = data.documents as Record<string, unknown> | undefined;
+              if (workspaces) {
+                const wsEntries = Object.values(
+                  (workspaces as Record<string, unknown>).workspaces ?? workspaces,
+                );
+                for (const ws of wsEntries) {
+                  const wsData = (ws as Record<string, unknown>)?.data as Record<string, unknown> | undefined;
+                  if (wsData?.byHash && typeof wsData.byHash === 'object') {
+                    const docs = Object.values(wsData.byHash as Record<string, KofileDoc>);
+                    if (docs.length > 0) {
+                      capturedDocs = docs;
+                      if (resolveCapture) resolveCapture(docs);
+                      return;
+                    }
+                  }
+                }
+              }
+
+              // Strategy 2: Direct array of document objects
+              if (Array.isArray(data)) {
+                const docs = data as KofileDoc[];
+                if (docs.length > 0 && (docs[0].docNumber || docs[0].instrumentNumber || docs[0].docType)) {
+                  capturedDocs = docs;
+                  if (resolveCapture) resolveCapture(docs);
+                  return;
+                }
+              }
+
+              // Strategy 3: Wrapped array (e.g. { results: [...] })
+              for (const key of ['results', 'data', 'records', 'items', 'documents', 'searchResults']) {
+                const arr = data[key];
+                if (Array.isArray(arr) && arr.length > 0) {
+                  const first = arr[0] as KofileDoc;
+                  if (first.docNumber || first.instrumentNumber || first.docType || first.recordedDate) {
+                    capturedDocs = arr as KofileDoc[];
+                    if (resolveCapture) resolveCapture(capturedDocs);
+                    return;
+                  }
+                }
+              }
+
+              // Strategy 4: Direct workspace data (Tyler PublicSearch returns
+              // { byHash: { id: docObj, ... }, byOrder: [...], numRecords: N }
+              // without the documents.workspaces wrapper)
+              if (data.byHash && typeof data.byHash === 'object' && !Array.isArray(data.byHash)) {
+                const docs = Object.values(data.byHash as Record<string, KofileDoc>);
+                if (docs.length > 0) {
+                  capturedDocs = docs;
+                  if (resolveCapture) resolveCapture(docs);
+                  return;
+                }
+              }
+
+              // Strategy 5: Nested workspace without 'documents' prefix
+              // e.g. { workspaces: { wsId: { data: { byHash: {...} } } } }
+              if (data.workspaces && typeof data.workspaces === 'object') {
+                const wsEntries = Object.values(data.workspaces as Record<string, Record<string, unknown>>);
+                for (const ws of wsEntries) {
+                  const wsData = ws?.data as Record<string, unknown> | undefined;
+                  if (wsData?.byHash && typeof wsData.byHash === 'object') {
+                    const docs = Object.values(wsData.byHash as Record<string, KofileDoc>);
+                    if (docs.length > 0) {
+                      capturedDocs = docs;
+                      if (resolveCapture) resolveCapture(docs);
+                      return;
+                    }
+                  }
+                }
+              }
+
+              // Strategy 6: Deep scan — any object with arrays of items
+              // that have date-like or number-like fields typical of documents
+              for (const key of Object.keys(data)) {
+                const val = data[key];
+                if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0] !== null) {
+                  const first = val[0] as Record<string, unknown>;
+                  // Check for typical document fields (using broader field names)
+                  const hasDocFields = first.docNumber || first.instrumentNumber || first.docType ||
+                    first.recordedDate || first.documentType || first.documentNumber ||
+                    first.recordingDate || first.filingDate || first.typeCode;
+                  if (hasDocFields) {
+                    capturedDocs = val as KofileDoc[];
+                    if (resolveCapture) resolveCapture(capturedDocs);
+                    return;
+                  }
+                }
+              }
+            }
+          } catch { /* ignore parse errors */ }
+        });
         apiCapture = []; // Reset for each attempt
 
         // Try direct URL search first (more reliable than form interaction)
         const searchUrl = `${baseUrl}/results?department=RP&search=index%2CfullText&q=${encodeURIComponent(searchName)}`;
         logger.info('Stage2A', `Trying: ${searchUrl}`);
 
-        // Use networkidle so the React SPA has time to fetch and render data
-        await page.goto(searchUrl, { waitUntil: 'networkidle', timeout: 45_000 }).catch(async () => {
-          // networkidle can time out on SPAs with background polling — domcontentloaded is the safe fallback
-          await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-          await page.waitForTimeout(5_000);
-        });
+        await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
 
-        // Give the SPA a moment to render results after the network is idle
+        // Race: AJAX capture vs DOM rendering vs timeout
+        // The SPA loads results asynchronously — wait for AJAX or rendered DOM
+        try {
+          await Promise.race([
+            capturePromise,
+            page.waitForSelector('table tbody tr td.col-5, table tbody tr, .result-item, .search-result', { timeout: 20_000 }),
+            page.waitForTimeout(20_000),
+          ]);
+        } catch {
+          // Continue with whatever we have
+        }
+
+        // Small extra wait to ensure AJAX response is fully processed
         await page.waitForTimeout(2_000);
 
-        // ── If API interception captured data, use it directly ────────────
-        if (apiCapture.length > 0) {
-          documents = apiCapture;
-          logger.info('Stage2A', `"${searchName}" found ${apiCapture.length} documents via API intercept`);
+        // ── Parse captured AJAX data ──────────────────────────────────
+        if (capturedDocs.length > 0) {
+          logger.info('Stage2A', `"${searchName}" captured ${capturedDocs.length} documents via AJAX intercept`);
+
+          for (const doc of capturedDocs) {
+            // Handle multiple field name conventions across Tyler/Kofile versions
+            const instrNum = String(doc.docNumber ?? doc.instrumentNumber ?? doc.documentNumber ?? doc.number ?? '').trim();
+            const docType = String(doc.docType ?? doc.docTypeCode ?? doc.documentType ?? doc.typeCode ?? doc.type ?? '').trim();
+            const recDate = String(doc.recordedDate ?? doc.recordedDateStr ?? doc.recordingDate ?? doc.filingDate ?? doc.date ?? '').trim();
+
+            // Parse parties from Kofile's party array
+            const grantors: string[] = [];
+            const grantees: string[] = [];
+            if (Array.isArray(doc.parties)) {
+              for (const party of doc.parties) {
+                const name = String(party.name ?? '').trim();
+                if (!name) continue;
+                const role = String(party.type ?? party.role ?? '').toLowerCase();
+                if (role.includes('grantor') || role.includes('from') || role.includes('seller') || role === '1') {
+                  grantors.push(name);
+                } else if (role.includes('grantee') || role.includes('to') || role.includes('buyer') || role === '2') {
+                  grantees.push(name);
+                }
+              }
+            }
+            if (grantors.length === 0 && Array.isArray(doc.grantors)) {
+              grantors.push(...doc.grantors.map(String));
+            }
+            if (grantees.length === 0 && Array.isArray(doc.grantees)) {
+              grantees.push(...doc.grantees.map(String));
+            }
+
+            // Build document detail URL
+            const docId = instrNum || String(doc.id ?? '');
+            const docUrl = docId ? `${baseUrl}/doc/${docId}` : null;
+
+            documents.push({
+              instrumentNumber: instrNum || null,
+              volume: doc.bookNumber ? String(doc.bookNumber) : null,
+              page: doc.pageNumber ? String(doc.pageNumber) : null,
+              documentType: docType || 'Unknown',
+              recordingDate: recDate || null,
+              grantors,
+              grantees,
+              source: config.name,
+              url: docUrl,
+            });
+          }
+          // Remove the response listener before continuing
+          page.removeAllListeners('response');
+          break; // Got results via AJAX
+        }
+
+        // ── Fallback: Parse from Redux store in window.__data ────────
+        // Wait a bit extra for the store to be populated by async fetch
+        await page.waitForTimeout(3_000);
+
+        const storeExtracted = await page.evaluate((bUrl: string) => {
+          const docs: Array<{
+            type: string;
+            date: string;
+            instrumentNumber: string;
+            volume: string;
+            docPage: string;
+            grantors: string[];
+            grantees: string[];
+            url: string | null;
+          }> = [];
+
+          // Helper to extract docs from a byHash object
+          const extractFromByHash = (byHash: Record<string, any>) => {
+            for (const docKey of Object.keys(byHash)) {
+              const d = byHash[docKey];
+              if (!d || typeof d !== 'object') continue;
+              const instrNum = String(d.docNumber ?? d.instrumentNumber ?? d.documentNumber ?? d.number ?? '').trim();
+              const docType = String(d.docType ?? d.docTypeCode ?? d.documentType ?? d.typeCode ?? d.type ?? '').trim();
+              const recDate = String(d.recordedDate ?? d.recordedDateStr ?? d.recordingDate ?? d.filingDate ?? d.date ?? '').trim();
+
+              const grantors: string[] = [];
+              const grantees: string[] = [];
+              if (Array.isArray(d.parties)) {
+                for (const party of d.parties) {
+                  const name = String(party.name ?? '').trim();
+                  if (!name) continue;
+                  const role = String(party.type ?? party.role ?? '').toLowerCase();
+                  if (role.includes('grantor') || role.includes('from') || role === '1') {
+                    grantors.push(name);
+                  } else {
+                    grantees.push(name);
+                  }
+                }
+              }
+
+              const docUrl = instrNum ? `${bUrl}/doc/${instrNum}` : null;
+              docs.push({
+                type: docType || 'Unknown',
+                date: recDate,
+                instrumentNumber: instrNum,
+                volume: String(d.bookNumber ?? ''),
+                docPage: String(d.pageNumber ?? ''),
+                grantors,
+                grantees,
+                url: docUrl,
+              });
+            }
+          };
+
+          // Try to read document data from the Redux store (window.__data)
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const appData = (window as any).__data;
+            if (!appData) return docs;
+
+            // Path 1: documents.workspaces.*.data.byHash (original Kofile)
+            if (appData.documents?.workspaces) {
+              const workspaces = appData.documents.workspaces;
+              for (const wsKey of Object.keys(workspaces)) {
+                const ws = workspaces[wsKey];
+                const byHash = ws?.data?.byHash;
+                if (byHash && typeof byHash === 'object' && Object.keys(byHash).length > 0) {
+                  extractFromByHash(byHash);
+                }
+              }
+            }
+
+            // Path 2: workspaces.*.data.byHash (without documents prefix)
+            if (docs.length === 0 && appData.workspaces) {
+              for (const wsKey of Object.keys(appData.workspaces)) {
+                const ws = appData.workspaces[wsKey];
+                const byHash = ws?.data?.byHash;
+                if (byHash && typeof byHash === 'object' && Object.keys(byHash).length > 0) {
+                  extractFromByHash(byHash);
+                }
+              }
+            }
+
+            // Path 3: Try reading from the live Redux store if available
+            if (docs.length === 0) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const store = (window as any).__REDUX_STORE__ ?? (window as any).__store__ ?? (window as any).store;
+              if (store?.getState) {
+                const state = store.getState();
+                const storeWorkspaces = state?.documents?.workspaces ?? state?.workspaces;
+                if (storeWorkspaces) {
+                  for (const wsKey of Object.keys(storeWorkspaces)) {
+                    const ws = storeWorkspaces[wsKey];
+                    const byHash = ws?.data?.byHash;
+                    if (byHash && typeof byHash === 'object' && Object.keys(byHash).length > 0) {
+                      extractFromByHash(byHash);
+                    }
+                  }
+                }
+              }
+            }
+          } catch { /* window.__data not available or parsing failed */ }
+
+          return docs;
+        }, baseUrl);
+
+        if (storeExtracted.length > 0) {
+          logger.info('Stage2A', `"${searchName}" extracted ${storeExtracted.length} documents from Redux store`);
+          for (const doc of storeExtracted) {
+            documents.push({
+              instrumentNumber: doc.instrumentNumber || null,
+              volume: doc.volume || null,
+              page: doc.docPage || null,
+              documentType: doc.type,
+              recordingDate: doc.date || null,
+              grantors: doc.grantors,
+              grantees: doc.grantees,
+              source: config.name,
+              url: doc.url,
+            });
+          }
+          page.removeAllListeners('response');
           break;
         }
 
-        // ── Window/Redux state extraction (SSR/Next.js embedded data) ──────
-        // Kofile may embed search results in window.__NEXT_DATA__, window.__data,
-        // or a Redux store rather than making a separate AJAX call.
-        const windowDocs = await page.evaluate((): Array<Record<string, unknown>> | null => {
-          try {
-            const win = window as unknown as Record<string, unknown>;
-
-            // Next.js SSR state (most common on modern Kofile deployments)
-            const nextData = win.__NEXT_DATA__ as Record<string, unknown> | undefined;
-            if (nextData?.props) {
-              const pp = (nextData.props as Record<string, unknown>).pageProps as Record<string, unknown> | undefined;
-              for (const key of ['instruments', 'documents', 'results', 'records', 'data']) {
-                const arr = pp?.[key];
-                if (Array.isArray(arr) && arr.length > 0) return arr as Array<Record<string, unknown>>;
-              }
-            }
-
-            // Next.js script tag (embedded JSON)
-            const nextScript = document.querySelector('script#__NEXT_DATA__');
-            if (nextScript?.textContent) {
-              const parsed = JSON.parse(nextScript.textContent) as Record<string, unknown>;
-              const pp2 = ((parsed.props as Record<string, unknown>)?.pageProps) as Record<string, unknown> | undefined;
-              for (const key of ['instruments', 'documents', 'results', 'records']) {
-                const arr = pp2?.[key];
-                if (Array.isArray(arr) && arr.length > 0) return arr as Array<Record<string, unknown>>;
-              }
-            }
-
-            // Redux / legacy window state patterns
-            for (const stateKey of ['__data', '__INITIAL_STATE__', '__PRELOADED_STATE__', '__APP_STATE__']) {
-              const src = win[stateKey] as Record<string, unknown> | undefined;
-              if (!src) continue;
-              for (const key of ['instruments', 'documents', 'results', 'search', 'records']) {
-                const arr = (src[key] as Record<string, unknown>)?.results ?? src[key];
-                if (Array.isArray(arr) && arr.length > 0) return arr as Array<Record<string, unknown>>;
-              }
-            }
-          } catch { /* ignore */ }
-          return null;
-        });
-
-        if (windowDocs && windowDocs.length > 0) {
-          const items = normaliseKofileApiResponse(windowDocs);
-          if (items.length > 0) {
-            const docRefs: DocumentRef[] = items.map((item) => {
-              const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? item.docNumber ?? '').trim();
-              return {
-                instrumentNumber: id || null,
-                documentType: String(item.docTypeDescription ?? item.documentType ?? item.docType ?? item.type ?? 'Unknown').trim(),
-                recordingDate: String(item.recordingDate ?? item.documentDate ?? '').trim() || null,
-                grantors: extractKofilePartyNames(item.grantors ?? item.grantor ?? item.grantorParties),
-                grantees: extractKofilePartyNames(item.grantees ?? item.grantee ?? item.granteeParties),
-                source: config.name,
-                url: id ? `${baseUrl}/doc/${id}/details` : null,
-                volume: String(item.volume ?? '').trim() || null,
-                page: String(item.page ?? '').trim() || null,
-              };
-            });
-            documents = docRefs;
-            logger.info('Stage2A', `"${searchName}" found ${docRefs.length} documents via window state`);
-            break;
-          }
-        }
-
-        // Wait for results or "no results" message
-        try {
-          await page.waitForSelector(
-            '[href*="/doc/"], .result-item, .search-result, table tbody tr, .document-row, .no-results, [class*="empty"]',
-            { timeout: 10_000 },
-          );
-        } catch {
-          // Continue with whatever loaded
-        }
-
+        // ── Fallback: DOM scraping (original approach, improved) ─────
         // Check for "no results"
         const noResults = await page.evaluate(() => {
           const text = document.body.textContent?.toLowerCase() ?? '';
@@ -1109,9 +1362,23 @@ export async function searchClerkRecords(
 
         if (noResults) {
           logger.info('Stage2A', `"${searchName}" returned no results — trying next variant`);
+          page.removeAllListeners('response');
           continue;
         }
 
+        // Extra wait for Tyler PublicSearch React SPA to finish rendering
+        await page.waitForTimeout(3_000);
+
+        // DOM extraction: Tyler PublicSearch uses a standard <table> with
+        // column classes col-0 through col-9. Document ID is embedded in the
+        // checkbox input as id="table-checkbox-{docId}".
+        // Column mapping (from actual HTML inspection):
+        //   col-0: checkbox (contains document ID)
+        //   col-1: action menu
+        //   col-2: cart icon
+        //   col-3: Grantor    col-4: Grantee     col-5: Doc Type
+        //   col-6: Rec Date   col-7: Inst Number  col-8: Book/Vol/Page
+        //   col-9: Property Description
         // ── DOM extraction (fallback when API intercept missed data) ───────
         const extracted = await page.evaluate((bUrl: string) => {
           const docs: Array<{
@@ -1126,6 +1393,64 @@ export async function searchClerkRecords(
             text: string;
           }> = [];
 
+          // ── Strategy A: Tyler PublicSearch table with col-N classes ──
+          const tableRows = document.querySelectorAll('table tbody tr');
+          if (tableRows.length > 0) {
+            tableRows.forEach((row) => {
+              // Extract document ID from checkbox input
+              const checkbox = row.querySelector('input[id^="table-checkbox-"]') as HTMLInputElement | null;
+              const docId = checkbox?.id?.replace('table-checkbox-', '') ?? '';
+
+              // Extract by column class (most reliable)
+              const getCol = (n: number): string => {
+                const cell = row.querySelector(`td.col-${n}, td:nth-child(${n + 1})`);
+                return cell?.textContent?.trim() ?? '';
+              };
+
+              const grantor = getCol(3);
+              const grantee = getCol(4);
+              const docType = getCol(5);
+              const recDate = getCol(6);
+              const instrNum = getCol(7);
+              const bookVolPage = getCol(8);
+              const propDesc = getCol(9);
+
+              // Parse volume/page from "OPR/13355/58" format
+              let volume = '';
+              let pg = '';
+              const bvpMatch = bookVolPage.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+              if (bvpMatch) { volume = bvpMatch[1]; pg = bvpMatch[2]; }
+
+              // Construct detail URL from document ID (Tyler uses /detail/{docId})
+              let url: string | null = null;
+              if (docId) {
+                url = `${bUrl}/detail/${docId}`;
+              }
+
+              // Only push if we have meaningful data
+              if (instrNum || docType || docId) {
+                docs.push({
+                  type: docType || 'Unknown',
+                  date: recDate,
+                  instrumentNumber: instrNum || docId,
+                  volume,
+                  docPage: pg,
+                  grantors: grantor ? [grantor] : [],
+                  grantees: grantee ? [grantee] : [],
+                  url,
+                  text: [grantor, grantee, docType, recDate, instrNum, bookVolPage, propDesc]
+                    .filter(Boolean).join(' | ').substring(0, 500),
+                });
+              }
+            });
+            return docs;
+          }
+
+          // ── Strategy B: Fallback generic extraction for non-Tyler sites ──
+          const rows = document.querySelectorAll(
+            '.result-item, .search-result, .document-row, ' +
+            '[data-testid*="result"], [data-testid*="document"], ' +
+            'a[href*="/doc/"], a[href*="/detail"]',
           // Helper: build an absolute URL from a possibly-relative href
           const toAbsolute = (href: string): string =>
             href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
@@ -1135,10 +1460,41 @@ export async function searchClerkRecords(
             '.result-item, .result-row, .search-result, .document-result, ' +
             'table tbody tr, .document-row, [class*="result-row"], [class*="ResultRow"]',
           );
+          let resultElements: Element[] = Array.from(rows);
+          if (resultElements.length === 0) {
+            const detailLinks = document.querySelectorAll(
+              'a[href*="/doc/"], a[href*="/detail/"], a[href*="/document/"]',
+            );
+            detailLinks.forEach((link) => {
+              const parent = link.closest('tr, [role="row"], [class*="result"], [class*="card"]') ?? link.parentElement?.parentElement ?? link.parentElement;
+              if (parent && !resultElements.includes(parent)) {
+                resultElements.push(parent);
+              }
+            });
+          }
 
-          rows.forEach((row) => {
+          resultElements.forEach((row) => {
             const text = row.textContent?.trim() ?? '';
             if (text.length < 10) return;
+
+            const links = Array.from(row.querySelectorAll('a[href]'));
+            if (row.tagName === 'A' && row.getAttribute('href')) {
+              links.unshift(row as HTMLAnchorElement);
+            }
+            let url: string | null = null;
+            let linkInstrumentNum = '';
+            for (const link of links) {
+              const href = link.getAttribute('href') ?? '';
+              if (href.includes('/doc/') || href.includes('/detail/') || href.includes('/details/') || href.includes('/document/') || href.includes('/view/') || href.match(/\/\d{4,}/)) {
+                url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+                const docMatch = href.match(/\/(?:doc|detail|document)\/(\d+)/);
+                if (docMatch) linkInstrumentNum = docMatch[1];
+                break;
+              }
+            }
+
+            const cells = Array.from(row.querySelectorAll('td, [class*="cell"], [role="cell"]'));
+            const cellTexts = cells.map((c) => c.textContent?.trim() ?? '').filter(Boolean);
 
             // ── URL / instrument number from link href ──────────────────────
             // Kofile detail page pattern: /doc/{id}/details  (e.g. /doc/2024-00001234/details)
@@ -1185,8 +1541,10 @@ export async function searchClerkRecords(
             // Kofile column order (typical): RecDate | InstrNum | DocType | Grantor | Grantee | Vol/Pg
             const typePatterns = [
               /(?:Type|Document Type|Doc Type)\s*:?\s*([^\n|]+)/i,
-              /\b(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Plat|Amended Plat|Easement|Right[- ]of[- ]Way|Quit Claim|Deed of Trust|Release|Mineral Deed)\b/i,
+              /\b(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Plat|Amended Plat|Easement|Right[- ]of[- ]Way|Quit Claim|Deed of Trust|Release|Mineral Deed|Affidavit|Restriction|Covenant)\b/i,
             ];
+            const datePatterns = [/(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/];
+            const instrPatterns = [/\b(\d{8,})\b/];
             const datePatterns = [
               /(?:Date|Recorded|Filed|Recording Date)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i,
               /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/,
@@ -1202,14 +1560,35 @@ export async function searchClerkRecords(
             const grantorPatterns = [/(?:Grantor|From|Seller)\s*:?\s*([^\n|;]+)/i];
             const granteePatterns = [/(?:Grantee|To|Buyer)\s*:?\s*([^\n|;]+)/i];
 
-            const findMatch = (patterns: RegExp[]): string => {
+            const findMatch = (patterns: RegExp[], source: string): string => {
               for (const p of patterns) {
-                const m = text.match(p);
+                const m = source.match(p);
                 if (m) return (m[1] ?? m[0]).trim();
               }
               return '';
             };
 
+            let instrNum = linkInstrumentNum || findMatch(instrPatterns, text);
+            const docType = findMatch(typePatterns, text);
+            const recDate = findMatch(datePatterns, text);
+
+            if (!url && instrNum) {
+              url = `${bUrl}/doc/${instrNum}`;
+            }
+
+            if (instrNum || docType || url) {
+              docs.push({
+                type: docType || 'Unknown',
+                date: recDate,
+                instrumentNumber: instrNum,
+                volume: '',
+                docPage: '',
+                grantors: [],
+                grantees: [],
+                url,
+                text: text.substring(0, 500),
+              });
+            }
             // Prefer instrument number from link href over text regex
             const instrFromText = findMatch(instrPatterns);
             const instrumentNumber = hrefInstrument || instrFromText || dataId || '';
@@ -1244,10 +1623,45 @@ export async function searchClerkRecords(
               url: doc.url,
             });
           }
-          logger.info('Stage2A', `"${searchName}" found ${extracted.length} documents`);
+          logger.info('Stage2A', `"${searchName}" found ${extracted.length} documents via DOM`);
+          page.removeAllListeners('response');
           break; // Got results, no need to try more name variants
         }
 
+        // ── Last resort: Log diagnostic info about what the DOM contains ──
+        const diagnostic = await page.evaluate(() => {
+          const tableRows = document.querySelectorAll('table tbody tr');
+          const checkboxes = document.querySelectorAll('input[id^="table-checkbox-"]');
+          const allElements = document.querySelectorAll('[class*="result"], [class*="card"], [class*="document"], a[href*="/doc"]');
+          const sampleTexts: string[] = [];
+          const sampleLinks: string[] = [];
+          // Show first table row structure for debugging
+          if (tableRows.length > 0) {
+            const firstRow = tableRows[0];
+            const cells = firstRow.querySelectorAll('td');
+            cells.forEach((cell, idx) => {
+              const cls = cell.className;
+              const txt = (cell.textContent ?? '').trim().substring(0, 80);
+              sampleTexts.push(`td[${idx}] class="${cls}" text="${txt}"`);
+            });
+          }
+          let i = 0;
+          allElements.forEach((el) => {
+            if (i >= 3) return;
+            const text = (el.textContent ?? '').trim().substring(0, 300);
+            if (text.length > 20) { sampleTexts.push(text); i++; }
+            const href = el.getAttribute('href');
+            if (href) sampleLinks.push(href);
+          });
+          // Also get all unique href patterns
+          const allLinks = Array.from(document.querySelectorAll('a[href]'));
+          const hrefPatterns = new Set<string>();
+          allLinks.forEach((a) => {
+            const href = a.getAttribute('href') ?? '';
+            // Generalize: replace numbers with {N}
+            const pattern = href.replace(/\d{4,}/g, '{N}');
+            if (pattern.length > 3 && !pattern.includes('google') && !pattern.includes('analytics')) {
+              hrefPatterns.add(pattern);
         // Check for pagination — try to get more results via API intercept or DOM
         try {
           const hasMorePages = await page.evaluate(() => {
@@ -1311,9 +1725,26 @@ export async function searchClerkRecords(
                 }
               } catch { break; }
             }
-          }
-        } catch { /* pagination check failed */ }
+          });
+          return {
+            elementCount: allElements.length,
+            tableRowCount: tableRows.length,
+            checkboxCount: checkboxes.length,
+            sampleTexts,
+            sampleLinks: sampleLinks.slice(0, 5),
+            hrefPatterns: Array.from(hrefPatterns).slice(0, 10),
+            bodyTextLength: document.body.textContent?.length ?? 0,
+          };
+        });
+        logger.info('Stage2A', `DOM diagnostic: ${diagnostic.elementCount} candidate elements, ${diagnostic.tableRowCount} table rows, ${diagnostic.checkboxCount} checkboxes, body text length: ${diagnostic.bodyTextLength}`);
+        if (diagnostic.sampleTexts.length > 0) {
+          logger.info('Stage2A', `Sample text[0]: ${diagnostic.sampleTexts[0]?.substring(0, 200)}`);
+        }
+        if (diagnostic.hrefPatterns.length > 0) {
+          logger.info('Stage2A', `Link patterns: ${diagnostic.hrefPatterns.join(' | ')}`);
+        }
 
+        page.removeAllListeners('response');
       } catch (err) {
         logger.warn('Stage2A', `Search with "${searchName}" failed: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -1699,12 +2130,51 @@ async function _extractSearchResults(
       const text = await row.textContent() || '';
       if (text.toLowerCase().includes('recording date') && text.toLowerCase().includes('document type')) continue;
 
+      // Tyler PublicSearch: extract from table columns by class
+      const checkbox = await row.$('input[id^="table-checkbox-"]');
+      const docId = checkbox ? (await checkbox.getAttribute('id'))?.replace('table-checkbox-', '') ?? '' : '';
+      const getColText = async (n: number): Promise<string> => {
+        const cell = await row.$(`td.col-${n}, td:nth-child(${n + 1})`);
+        return cell ? ((await cell.textContent()) ?? '').trim() : '';
+      };
+      const colDocType = await getColText(5);
+      const colInstr = await getColText(7);
+
+      if (colDocType || colInstr) {
+        // Structured Tyler table row
+        const colDate = await getColText(6);
+        const colBVP = await getColText(8);
+        const colGrantor = await getColText(3);
+        const colGrantee = await getColText(4);
+        let volume = '';
+        let pg = '';
+        const bvpMatch = colBVP.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+        if (bvpMatch) { volume = bvpMatch[1]; pg = bvpMatch[2]; }
+
+        documents.push({
+          instrumentNumber: colInstr || null,
+          volume: volume || null,
+          page: pg || null,
+          documentType: colDocType || 'Unknown',
+          recordingDate: colDate || null,
+          grantors: colGrantor ? [colGrantor] : [],
+          grantees: colGrantee ? [colGrantee] : [],
+          source: 'Bell County Clerk PublicSearch',
+          url: docId ? `${BELL_CLERK_BASE}/detail/${docId}` : null,
+        });
+        continue;
+      }
+
+      // Fallback: parse from text content
       const doc = _parseDocumentRow(text);
       if (doc) {
         const link = await row.$('a[href]');
         if (link) {
           const href = await link.getAttribute('href');
           if (href) doc.url = href.startsWith('http') ? href : BELL_CLERK_BASE + href;
+        }
+        if (!doc.url && docId) {
+          doc.url = `${BELL_CLERK_BASE}/detail/${docId}`;
         }
         documents.push(doc);
       }
