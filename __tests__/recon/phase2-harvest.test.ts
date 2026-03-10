@@ -1312,7 +1312,7 @@ describe('parseDeedReferences', () => {
 
 describe('legal description disclaimer filter', () => {
   // Mirrors the disclaimer detection logic added to enrichPropertyDetail and
-  // lookupByPropertyId in bell-cad.ts / pipeline.ts.
+  // lookupByPropertyId in bis-cad.ts / pipeline.ts.
   const isDisclaimer = (text: string): boolean =>
     /appraisal district|should be verified|legal purpose/i.test(text);
 

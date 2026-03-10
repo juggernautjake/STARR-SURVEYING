@@ -11,7 +11,7 @@
 //   5. Cross-reference & validation       (acreage checks, ID format validation)
 
 import { normalizeAddress } from './address-utils.js';
-import { searchBisCad } from './bell-cad.js';
+import { searchBisCad } from './bis-cad.js';
 import { getCADConfig, buildDetailUrl } from './cad-registry.js';
 import { resolveCounty, countyToFIPS } from '../lib/county-fips.js';
 import type { PipelineLogger } from '../lib/logger.js';

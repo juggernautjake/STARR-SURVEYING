@@ -338,6 +338,7 @@ starr-software/                     # Turborepo monorepo root
 | 14 | Document Access Tiers & Paid Platform Automation | 🟢 COMPLETE | 415 | Phases 1–13 | 57–58 |
 | 15 | Full Purchase Automation, Bexar County & Notifications | 🟢 COMPLETE | 580+ | Phases 1–14 | 59–62 |
 | 16 | Working Prototype: Survey Plan Generator & Lite Pipeline | 🟢 COMPLETE | 300+ | Phases 1–15 | 63 |
+| 17 | BIS GIS Integration | 🔴 PLANNED | — | Phase 1 | TBD |
 | — | **TOTAL** | — | **18,541+** | — | — |
 
 > **Current Status (March 2026):** All 16 phases are COMPLETE. **2,117 unit tests pass.**
@@ -397,6 +398,9 @@ starr-software/                     # Turborepo monorepo root
 
 #### Phase 16 — COMPLETE ✅ (Working Prototype)
 `lib/research/survey-plan.service.ts` (AI-powered field survey plan generator — `generateSurveyPlan()` builds plain-English field plan from all extracted data: boundary calls, monuments, easements, flood zone, TxDOT ROW, discrepancies), `app/api/admin/research/[projectId]/survey-plan/route.ts` (GET endpoint — returns survey plan at any project stage), `app/admin/research/components/SurveyPlanPanel.tsx` (full-featured React component with 9-tab sidebar: Summary, Pre-Field Checklist, Equipment, Field Steps, Monument Recovery, Boundary Reconstruction, Discrepancies, Data Sources, Timeline), `app/api/admin/research/[projectId]/lite-pipeline/route.ts` (POST/GET inline pipeline that runs without the external worker: geocode → search 10+ sources → capture USGS map images → import records → run AI analysis → collect summary), `worker/src/services/harvest-supabase-sync.ts` (Worker Supabase integration — inserts harvested documents into `research_documents`, uploads images to Supabase Storage, back-patches storage URLs), `lib/research/prompts.ts` updated (SURVEY_PLAN_GENERATOR prompt v1.0.0), `app/admin/research/[projectId]/page.tsx` updated (Survey Plan tab added to Review step, SurveyPlanPanel added to Complete step), `app/admin/research/components/PropertySearchPanel.tsx` updated (One-Click Research button and status display for lite pipeline). **90 unit tests (50 survey plan + 40 worker sync).** 2,117 total tests pass.
+
+#### Phase 17 — PLANNED 🔴 (BIS GIS Integration)
+`worker/src/services/bis-cad.ts` — `searchBisGis()` HTTP-only ArcGIS REST query (Layer 1E) added; `GisPropertyData` interface; `FIELD_ALIASES` flexible field extraction; `gisBaseUrl` added to `BisConfig` interface and populated for 17 verified counties. Full Playwright UI scraping, parcel boundary geometry conversion, and Eagle Eye aerial capture remain as TODO items.
 
 ### What Still Needs External Input (Cannot Be Fully Tested Without)
 
