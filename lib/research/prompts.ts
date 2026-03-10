@@ -304,7 +304,7 @@ TEXAS CITY → COUNTY MAPPING (partial):
 - Lampasas → Lampasas
 
 BELL COUNTY PRIMARY SOURCES (in priority order):
-1. Bell County GIS portal (gis.co.bell.tx.us) — parcel boundaries, ownership
+1. Bell County GIS portal (gis.bisclient.com/bellcad) — parcel boundaries, ownership
 2. Bell County Appraisal District (propaccess.trueautomation.com, cid=14) — legal description, value
 3. Bell County Clerk (bellcountytx.com) — deed records, plat records
 4. TexasFile.com Bell County — deed search

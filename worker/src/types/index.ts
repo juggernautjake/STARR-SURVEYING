@@ -32,6 +32,12 @@ export interface PipelineResult {
   reconciliation?: import('../services/geo-reconcile.js').ReconciliationResult;
   /** Search diagnostics: which variants were tried, which hit */
   searchDiagnostics?: SearchDiagnostics;
+  /**
+   * Human-readable reason the pipeline failed (shown to the user in the frontend).
+   * Includes actionable guidance, e.g., "The county appraisal website is experiencing
+   * a temporary data access issue.  Please visit {url} to verify."
+   */
+  failureReason?: string;
 }
 
 // ── User File Upload ─────────────────────────────────
@@ -58,6 +64,12 @@ export interface SearchDiagnostics {
   partialSearches: Array<{ query: string; resultCount: number }>;
   /** Total time spent searching */
   searchDuration_ms: number;
+  /**
+   * Set when the CAD website itself is experiencing issues (e.g., database outages,
+   * "Temporary Data Access Issue" messages).  When present, "no results" should be
+   * interpreted as "unknown" rather than "property not found".
+   */
+  cadSiteError?: string;
 }
 
 // ── Stage 1: Property Identification ───────────────

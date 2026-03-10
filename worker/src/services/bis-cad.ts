@@ -16,13 +16,22 @@ interface BisConfig {
   name: string;
   /** BIS GIS viewer base URL — https://gis.bisclient.com/{county}cad/ */
   gisBaseUrl?: string;
+  /**
+   * Direct ArcGIS parcel layer query URLs (FeatureServer or MapServer).
+   * When provided, searchBisGis queries these directly instead of probing
+   * common service/layer combinations under gisBaseUrl.
+   * First entry is primary; rest are fallbacks.
+   */
+  gisParcelLayerUrls?: string[];
 }
 
 // BIS Consultants eSearch — all known counties within 200-mile radius of Bell County
 // organized in concentric rings from Belton, TX outward.
 export const BIS_CONFIGS: Record<string, BisConfig> = {
   // ── Ring 0: Bell County ──────────────────────────────────────────
-  bell:        { baseUrl: 'https://esearch.bellcad.org',          name: 'Bell CAD',            gisBaseUrl: 'https://gis.bisclient.com/bellcad/' },
+  bell:        { baseUrl: 'https://esearch.bellcad.org',          name: 'Bell CAD',            gisBaseUrl: 'https://gis.bisclient.com/bellcad/', gisParcelLayerUrls: [
+    'https://utility.arcgis.com/usrsvcs/servers/6efa79e05bde4b98851880b45f63ea52/rest/services/BellCADWebService/FeatureServer/0',
+  ] },
   // ── Ring 1: Adjacent to Bell (~0-30 mi) ──────────────────────────
   coryell:     { baseUrl: 'https://esearch.coryellcad.org',       name: 'Coryell CAD',         gisBaseUrl: 'https://gis.bisclient.com/coryellcad/' },
   mclennan:    { baseUrl: 'https://esearch.mclennancad.org',      name: 'McLennan CAD',        gisBaseUrl: 'https://gis.bisclient.com/mclennancad/' },
@@ -533,6 +542,22 @@ async function searchCadHttp(
         const html = await response.text();
         tracker.step(`[html_structure] Received ${html.length} chars of HTML`);
 
+        // Detect transient server-side data outages BEFORE parsing results.
+        // BIS eSearch returns HTTP 200 with an error message (not an HTTP error code)
+        // when its backend data source is temporarily unavailable.  Without this check
+        // the pipeline interprets the page as "no results" and burns through all
+        // remaining variants needlessly.
+        const transientError = /temporary\s+data\s+access\s+issue|experiencing\s+a\s+delay\s+accessing\s+third[- ]party\s+data|please\s+wait.*try\s+again/i.test(html);
+        if (transientError) {
+          tracker.step('[html_structure] Detected transient data access outage — server data unavailable');
+          tracker({ status: 'fail', error: '[html_structure] CAD backend data temporarily unavailable — aborting remaining variants' });
+          diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
+          diagnostics.cadSiteError = 'The county appraisal website is experiencing a temporary data access issue. The search could not be completed — results may exist but the database was unavailable.';
+          // Stop trying more variants — the issue is server-side, not address-related.
+          logger.warn('Stage1A', 'CAD backend reporting temporary data access issue — stopping HTTP search (will retry in Stage1B)');
+          break;
+        }
+
         const results = parseHtmlSearchResults(html, tracker);
         diagnostics.variantsTried.push({
           variant,
@@ -980,22 +1005,31 @@ async function searchCadPlaywright(
         // Log current page state for debugging
         const pageState = await page.evaluate(() => {
           const body = document.body;
+          const text = body?.textContent ?? '';
           return {
             url: window.location.href,
             title: document.title,
-            bodyLength: body?.textContent?.length ?? 0,
+            bodyLength: text.length,
             hasTable: !!document.querySelector('table'),
             tableRowCount: document.querySelectorAll('table tbody tr').length,
             hasPropertyLinks: !!document.querySelector('a[href*="/Property/View"]'),
             propertyLinkCount: document.querySelectorAll('a[href*="/Property/View"]').length,
-            noResultsVisible: /no\s+results?|0\s+results|no\s+records?\s+found/i.test(body?.textContent ?? ''),
-            accessDenied: /access\s+denied|forbidden|token\s+validation/i.test(body?.textContent ?? ''),
+            noResultsVisible: /no\s+results?|0\s+results|no\s+records?\s+found/i.test(text),
+            accessDenied: /access\s+denied|forbidden|token\s+validation/i.test(text),
+            transientDataError: /temporary\s+data\s+access\s+issue|experiencing\s+a\s+delay\s+accessing\s+third[- ]?party\s+data/i.test(text),
           };
         });
 
         finish.step?.(`[html_structure] Page state: url=${pageState.url}, title="${pageState.title}", bodyLen=${pageState.bodyLength}, table=${pageState.hasTable}, rows=${pageState.tableRowCount}, propLinks=${pageState.propertyLinkCount}, noResults=${pageState.noResultsVisible}, denied=${pageState.accessDenied}`);
 
         diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
+
+        // Detect transient backend outage — stop wasting time on more variants
+        if (pageState.transientDataError) {
+          logger.warn('Stage1B', 'CAD backend reporting temporary data access issue — aborting Playwright search');
+          diagnostics.cadSiteError = 'The county appraisal website is experiencing a temporary data access issue. The search could not be completed — results may exist but the database was unavailable.';
+          break;
+        }
 
         if (pageState.noResultsVisible && !variant.isPartial) {
           logger.info('Stage1B', `Variant "${variant.format}" returned "no results" — trying next`);
@@ -2257,6 +2291,39 @@ export async function searchBisCad(
     logger.warn('Stage1D', `AI variant fallback skipped — circuit breaker: ${aiBlockReason}`);
   }
 
+  // Layer 1A-Broad: Street-number-only search (broadened query without street name).
+  // When all named variants fail, the property may be indexed with a completely
+  // different street name in the CAD (e.g., rural tracts listed by abstract only).
+  // A broad search by street number alone can surface the correct record.
+  {
+    const streetNum = normalized.parsed.streetNumber;
+    if (streetNum) {
+      logger.info('Stage1A-Broad', `All named variants failed — trying street-number-only search: "${streetNum}"`);
+      const broadQuery = `StreetNumber:${streetNum} PropertyType:Real`;
+      const broadResults = await searchCadHttpRawKeyword(config.baseUrl, broadQuery, 'StreetNumber-only', logger);
+      if (broadResults && broadResults.length > 0 && broadResults.length <= 20) {
+        // Only proceed if results are reasonably scoped (not hundreds of matches)
+        const best = pickBestResult(broadResults, normalized, logger);
+        if (best) {
+          const propId = getProp(best, 'propertyId', 'PropertyId') ?? '';
+          const validation = validatePropertyResult(best, normalized, logger);
+          // Accept with slightly lower threshold since this is a broad search
+          if (validation.confidence >= 0.25 && propId) {
+            const bestOwnerId = getProp(best, 'ownerId', 'OwnerId') ?? undefined;
+            const detail = await enrichPropertyDetail(config.baseUrl, propId, logger, bestOwnerId);
+            diagnostics.searchDuration_ms = Date.now() - searchStart;
+            return {
+              property: buildResult(propId, detail, best, 'Stage1A-Broad', validation.confidence, [
+                ...validation.issues, 'Found via broadened street-number-only search',
+              ]),
+              diagnostics,
+            };
+          }
+        }
+      }
+    }
+  }
+
   // Layer 1A-2: Owner name HTTP search (after all address variants exhausted)
   if (options?.ownerName) {
     logger.info('Stage1A-2', `All address layers failed — trying owner name HTTP search: "${options.ownerName}"`);
@@ -2291,11 +2358,14 @@ export async function searchBisCad(
   }
 
   // Layer 1E: BIS GIS ArcGIS REST API (additional enrichment / last resort)
-  if (config.gisBaseUrl) {
-    const gisResult = await searchBisGis(config.gisBaseUrl, logger, {
+  if (config.gisBaseUrl || config.gisParcelLayerUrls?.length) {
+    const gisResult = await searchBisGis(config.gisBaseUrl ?? '', logger, {
       propertyId: options?.propertyId,
       address: normalized.raw,
       ownerName: options?.ownerName,
+      lat: normalized.lat,
+      lon: normalized.lon,
+      directLayerUrls: config.gisParcelLayerUrls,
     });
     if (gisResult?.propertyId || gisResult?.ownerName) {
       logger.info('Stage1E', `GIS lookup returned data — propertyId=${gisResult.propertyId ?? 'n/a'}`);
@@ -2462,6 +2532,12 @@ export async function searchBisGis(
     propertyId?: string;
     address?: string;
     ownerName?: string;
+    /** Pre-geocoded coordinates (from Census/Nominatim) — used for spatial
+     *  queries when the GIS geocoder is unavailable or returns no results. */
+    lat?: number | null;
+    lon?: number | null;
+    /** Direct ArcGIS layer URLs (FeatureServer/MapServer) — skip service discovery. */
+    directLayerUrls?: string[];
   },
 ): Promise<GisPropertyData | null> {
   const base = gisBaseUrl.endsWith('/') ? gisBaseUrl : `${gisBaseUrl}/`;
@@ -2470,6 +2546,63 @@ export async function searchBisGis(
   const COMMON_SERVICES = ['Parcels', 'ParcelData', 'Cadastral', 'PropertyData'];
   const COMMON_LAYERS = [0, 1, 2];
   const PROP_ID_FIELDS = FIELD_ALIASES.propertyId;
+
+  // ── Direct Layer URLs (preferred path — skips service/layer probing) ───────
+  if (options.directLayerUrls?.length) {
+    for (const layerUrl of options.directLayerUrls) {
+      const queryUrl = layerUrl.endsWith('/query') ? layerUrl : `${layerUrl}/query`;
+
+      // Try property ID query
+      if (options.propertyId) {
+        for (const field of PROP_ID_FIELDS) {
+          const fs = await queryArcGisLayer(queryUrl, {
+            where: `${field}='${options.propertyId}'`,
+            outFields: '*',
+            returnGeometry: 'true',
+          }, logger);
+          if (fs?.features && fs.features.length > 0) {
+            logger.info('Stage1E', `GIS: found via property ID (direct layer) field ${field}`);
+            return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
+          }
+        }
+      }
+
+      // Try spatial query with pre-geocoded coordinates
+      if (options.lat && options.lon) {
+        logger.info('Stage1E', `GIS: spatial query on direct layer using coords (${options.lat.toFixed(5)}, ${options.lon.toFixed(5)})`);
+        const delta = 0.0005;
+        const envelope = `${options.lon - delta},${options.lat - delta},${options.lon + delta},${options.lat + delta}`;
+        const fs = await queryArcGisLayer(queryUrl, {
+          geometry: envelope,
+          geometryType: 'esriGeometryEnvelope',
+          spatialRel: 'esriSpatialRelIntersects',
+          inSR: '4326',
+          outFields: '*',
+          returnGeometry: 'true',
+        }, logger);
+        if (fs?.features && fs.features.length > 0) {
+          logger.info('Stage1E', `GIS: found via spatial query on direct layer (${fs.features.length} feature(s))`);
+          return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
+        }
+      }
+
+      // Try owner name query
+      if (options.ownerName) {
+        const safeName = options.ownerName.replace(/'/g, "''");
+        for (const field of FIELD_ALIASES.ownerName) {
+          const fs = await queryArcGisLayer(queryUrl, {
+            where: `${field} LIKE '${safeName}%'`,
+            outFields: '*',
+            returnGeometry: 'true',
+          }, logger);
+          if (fs?.features && fs.features.length > 0) {
+            logger.info('Stage1E', `GIS: found via owner name on direct layer field ${field}`);
+            return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
+          }
+        }
+      }
+    }
+  }
 
   // ── Approach A: Query by Property ID ────────────────────────────────────
   if (options.propertyId) {
@@ -2527,6 +2660,33 @@ export async function searchBisGis(
             logger.info('Stage1E', `GIS: found via geocode spatial query in ${svc}/layer ${layer}`);
             return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
           }
+        }
+      }
+    }
+  }
+
+  // ── Approach B2: Spatial query using pre-geocoded coordinates ────────────
+  // When the GIS geocoder is unavailable (404) or returns no candidates,
+  // fall back to Census/Nominatim coordinates if available.
+  if (options.lat && options.lon) {
+    logger.info('Stage1E', `GIS: spatial query using pre-geocoded coords (${options.lat.toFixed(5)}, ${options.lon.toFixed(5)})`);
+    const delta = 0.0005;
+    const envelope = `${options.lon - delta},${options.lat - delta},${options.lon + delta},${options.lat + delta}`;
+
+    for (const svc of COMMON_SERVICES) {
+      for (const layer of COMMON_LAYERS) {
+        const layerUrl = `${arcgisBase}${svc}/MapServer/${layer}/query`;
+        const fs = await queryArcGisLayer(layerUrl, {
+          geometry: envelope,
+          geometryType: 'esriGeometryEnvelope',
+          spatialRel: 'esriSpatialRelIntersects',
+          inSR: '4326',
+          outFields: '*',
+          returnGeometry: 'true',
+        }, logger);
+        if (fs?.features && fs.features.length > 0) {
+          logger.info('Stage1E', `GIS: found via pre-geocoded spatial query in ${svc}/layer ${layer}`);
+          return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
         }
       }
     }

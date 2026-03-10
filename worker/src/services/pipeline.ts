@@ -677,6 +677,23 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const duration_ms = Date.now() - startTime;
     logger.info('Pipeline', `Pipeline ${status.toUpperCase()} in ${(duration_ms / 1000).toFixed(1)}s`);
 
+    // Build human-readable failure reason for the frontend when the pipeline fails.
+    let failureReason: string | undefined;
+    if (status === 'failed') {
+      if (searchDiagnostics?.cadSiteError) {
+        const cadName = cadConfig?.name ?? `${input.county} CAD`;
+        const cadUrl  = cadConfig?.baseUrl ?? 'the county appraisal website';
+        failureReason = `${cadName} is experiencing a temporary data access issue — the search could not be completed. ` +
+          `Please visit ${cadUrl} to verify the site is operational, then retry your search.`;
+      } else if (!propertyResult && searchDiagnostics && searchDiagnostics.variantsTried.length > 0) {
+        const cadName = cadConfig?.name ?? `${input.county} CAD`;
+        const cadUrl  = cadConfig?.baseUrl ?? 'the county appraisal website';
+        failureReason = `Property not found after trying ${searchDiagnostics.variantsTried.length} address variants on ${cadName}. ` +
+          `The property may be indexed differently (e.g., by legal description or owner name instead of street address). ` +
+          `Try searching manually at ${cadUrl} to find how the property is listed.`;
+      }
+    }
+
     const result: PipelineResult = {
       projectId: input.projectId,
       status,
@@ -692,6 +709,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       log: logger.getAttempts(),
       duration_ms,
       searchDiagnostics,
+      failureReason,
     };
 
     await updateStatus(input.projectId, status, `Pipeline ${status} in ${(duration_ms / 1000).toFixed(1)}s — Quality: ${validation.overallQuality}`, {

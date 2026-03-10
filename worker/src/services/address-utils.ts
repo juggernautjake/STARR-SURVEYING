@@ -377,6 +377,19 @@ function generateStandardVariants(parsed: ParsedAddress, rawAddress?: string): A
 
   if (name) add(name, 'name_only');
 
+  // Suffix swap: try the most common street suffixes in case the input suffix
+  // is wrong (e.g., user says "Leah Ln" but CAD has "LEAH AVE").
+  // Only add suffixes that differ from the provided type.
+  if (name && type) {
+    const COMMON_SUFFIXES = ['St', 'Ave', 'Dr', 'Rd', 'Ln', 'Blvd', 'Ct', 'Cir', 'Way', 'Pl'];
+    const givenAbbr = abbreviateType(type);
+    for (const alt of COMMON_SUFFIXES) {
+      if (alt !== givenAbbr) {
+        add(name + ' ' + alt, 'suffix_swap:' + alt);
+      }
+    }
+  }
+
   // Without directional
   if (name) {
     const stripped = name.replace(/^(N|S|E|W|NE|NW|SE|SW|NORTH|SOUTH|EAST|WEST|NORTHEAST|NORTHWEST|SOUTHEAST|SOUTHWEST)\s+/i, '');
@@ -460,6 +473,20 @@ export async function normalizeAddress(
     }
   }
 
+  // If Nominatim failed geocoding but extracted partial coords (road-level),
+  // use them as fallback lat/lon when we don't have coordinates yet.
+  if (!result.lat || !result.lon) {
+    const partial = (logger as any).__nominatimPartial as { lat: number | null; lon: number | null; county: string | null } | undefined;
+    if (partial?.lat && partial?.lon) {
+      result.lat = partial.lat;
+      result.lon = partial.lon;
+      if (!result.detectedCounty && partial.county) {
+        result.detectedCounty = partial.county;
+      }
+      console.log(tag + ' Using Nominatim road-level coordinates as fallback: ' + partial.lat + ', ' + partial.lon);
+    }
+  }
+
   if (!result.geocoded) {
     console.log(tag + ' Geocoding failed -- using manual parse');
   }
@@ -508,7 +535,27 @@ async function tryNominatim(address: string, logger: PipelineLogger): Promise<Ge
     // house_number on the first hit — subsequent results may include it.
     const hit = data.find((r: any) => r.address?.house_number) ?? null;
 
-    if (!hit) { tracker({ status: 'fail', error: 'No house number in any result' }); return null; }
+    if (!hit) {
+      // Even without a house number, extract lat/lon and county from the best
+      // road-level result.  These coordinates are approximate but useful for
+      // GIS spatial queries when the CAD keyword search fails (Stage 1E).
+      const roadHit = data[0];
+      if (roadHit) {
+        const ra = roadHit.address || {};
+        const county = ra.county?.replace(/\s+County$/i, '') || null;
+        tracker({ status: 'fail', error: 'No house number in any result' });
+        // Stash partial result on the logger so the pipeline can use coordinates
+        // even though full geocode "failed".
+        (logger as any).__nominatimPartial = {
+          lat: parseFloat(roadHit.lat) || null,
+          lon: parseFloat(roadHit.lon) || null,
+          county,
+        };
+        return null;
+      }
+      tracker({ status: 'fail', error: 'No house number in any result' });
+      return null;
+    }
 
     const a = hit.address || {};
     const road = a.road || '';
