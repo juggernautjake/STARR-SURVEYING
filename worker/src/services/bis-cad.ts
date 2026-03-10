@@ -459,19 +459,18 @@ async function searchCadHttp(
       const keywords = `StreetNumber:${variant.streetNumber} ${namePart} PropertyType:Real`;
       const encodedKeywords = encodeURIComponent(keywords);
       const encodedToken = encodeURIComponent(sessionToken);
-      // BUG 3 FIX: The working AJAX endpoint is /search/SearchResults (not /search/result).
-      // The former is the AJAX endpoint used by the Playwright form search; the latter
-      // is a legacy/incorrect path that returns no results.
-      const url = `${baseUrl}/search/SearchResults?keywords=${encodedKeywords}&searchSessionToken=${encodedToken}`;
+      // The search results endpoint is /search/result — the same URL the browser
+      // navigates to after form submission. /search/SearchResults was a legacy AJAX
+      // path that now returns the search home page instead of results.
+      const url = `${baseUrl}/search/result?keywords=${encodedKeywords}&searchSessionToken=${encodedToken}`;
 
       tracker.step(`GET ${url.substring(0, 120)}...`);
 
-      // BUG 3 FIX: Add X-Requested-With to signal this is an AJAX request (required by BIS).
-      // Accept JSON or HTML (the endpoint may return either).
+      // Accept JSON or HTML (the /search/result endpoint may return either).
       // Do NOT include Content-Type on a GET request — BIS returns HTTP 415 if it's present.
+      // Do NOT send X-Requested-With — /search/result is a full-page response, not an AJAX endpoint.
       const headers: Record<string, string> = {
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json,*/*;q=0.8',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Referer': `${baseUrl}/`,
       };
@@ -505,8 +504,7 @@ async function searchCadHttp(
       const contentType = response.headers.get('content-type') ?? '';
       tracker.step(`Content-Type: ${contentType}`);
 
-      // Try JSON first — with X-Requested-With the /search/SearchResults endpoint
-      // returns structured JSON rather than an HTML page.
+      // Try JSON first — some BIS deployments return structured JSON from /search/result.
       if (contentType.includes('json')) {
         const data = await response.json() as
           | { resultsList?: CadSearchResult[]; results?: CadSearchResult[]; data?: CadSearchResult[] }
@@ -710,36 +708,40 @@ async function searchCadPlaywright(
     // Navigate to the search page
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
-    // Click "By Address" tab — BIS v2.0 uses Bootstrap tabs inside #home-page-tabs
-    try {
-      const tabSelectors = [
-        '#home-page-tabs a:has-text("Address")',
-        '#home-page-tabs li:has-text("Address") a',
-        'a[href*="address" i][data-bs-toggle="tab"]',
-        'a[href*="address" i][data-toggle="tab"]',
-        'a[data-bs-target*="address" i]',
-        'a[data-target*="address" i]',
-        'text=By Address',
-        'a:has-text("By Address")',
-        'a:has-text("Address")',
-        '[data-tab="address"]',
-        '.tab:has-text("Address")',
-        'li:has-text("Address") a',
-        '#searchType_address',
-      ];
+    // "By Address" tab selectors — defined here so they can be reused when
+    // navigating back to the search form between variants.
+    const tabSelectors = [
+      '#home-page-tabs a:has-text("Address")',
+      '#home-page-tabs li:has-text("Address") a',
+      'a[href*="address" i][data-bs-toggle="tab"]',
+      'a[href*="address" i][data-toggle="tab"]',
+      'a[data-bs-target*="address" i]',
+      'a[data-target*="address" i]',
+      'text=By Address',
+      'a:has-text("By Address")',
+      'a:has-text("Address")',
+      '[data-tab="address"]',
+      '.tab:has-text("Address")',
+      'li:has-text("Address") a',
+      '#searchType_address',
+    ];
+
+    // Helper: click the "By Address" tab on the current page (if present).
+    const clickAddressTab = async () => {
       for (const sel of tabSelectors) {
         try {
           const tab = page.locator(sel).first();
           if (await tab.isVisible({ timeout: 2_000 })) {
             await tab.click();
             await page.waitForTimeout(800);
-            break;
+            return;
           }
         } catch { continue; }
       }
-    } catch {
-      // Tab might not exist
-    }
+    };
+
+    // Click "By Address" tab — BIS v2.0 uses Bootstrap tabs inside #home-page-tabs
+    try { await clickAddressTab(); } catch { /* Tab might not exist */ }
 
     // Set up response interception for AJAX-based results (legacy BIS sites)
     // AND navigation interception for newer BIS sites that redirect to /search/result
@@ -792,6 +794,13 @@ async function searchCadPlaywright(
       capturedResults = []; // Reset for each attempt
 
       try {
+        // If a previous variant navigated to results, go back to the search form
+        // so the address fields are available to fill in.
+        if (page.url().includes('/search/result') || !page.url().startsWith(baseUrl)) {
+          await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+          try { await clickAddressTab(); } catch { /* ignore */ }
+        }
+
         // Clear and fill fields, returning which selectors matched
         const fieldsFilled = await page.evaluate(
           ([num, name, numSels, nameSels]: [string, string, string[], string[]]) => {
@@ -916,6 +925,21 @@ async function searchCadPlaywright(
           ]);
           finish.step?.(`[runtime] Search wait resolved via: ${raceResult}`);
         } catch { /* timeout or selector not found — continue */ }
+
+        // After navigation to /search/result, explicitly wait for property result rows
+        // to appear. BIS eSearch may render results asynchronously after navigation,
+        // so we give the page up to 8 additional seconds to populate the results table.
+        if (capturedResults.length === 0 && page.url().includes('/search/result')) {
+          try {
+            await page.waitForSelector(
+              'tr[onclick*="redirectToPropertyDetails"], a[href*="/Property/View"], #ctl00_ContentPlaceHolder1_GridViewSearchResults tr',
+              { timeout: 8_000 },
+            );
+            finish.step?.('[runtime] Result rows appeared after navigation settle');
+          } catch {
+            finish.step?.('[runtime] No result rows appeared within 8s of navigation');
+          }
+        }
 
         // Small settle delay for any late-arriving content
         await page.waitForTimeout(1000);
@@ -1244,7 +1268,10 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
       });
     }
 
-    // Strategy 2: Table rows with ID-like content (fallback for non-standard BIS layouts)
+    // Strategy 2: Table rows that contain a recognised property ID link.
+    // Only rows where a link with an explicit ID parameter is present are included —
+    // this prevents navigation/toolbar rows (e.g. "Cart", "Close") from being
+    // mistaken for property results.
     if (results.length === 0) {
       const tableRows = document.querySelectorAll('table tbody tr');
       tableRows.forEach((row) => {
@@ -1267,9 +1294,12 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
         // Extract propertyType from class-named cell if present
         const typeCellByClass = row.querySelector('td._propertyType, td[class*="_propertyType"]') as HTMLTableCellElement | null;
 
-        if (propertyId || cells.length >= 2) {
+        // Only add rows where a real property ID was found via a link or explicit
+        // "Property ID:" label. Rows that merely have ≥2 cells can be navigation
+        // elements and must not be included.
+        if (propertyId) {
           results.push({
-            propertyId: propertyId ?? cells[0]?.textContent?.trim() ?? null,
+            propertyId,
             propertyType: typeCellByClass?.textContent?.trim() ?? null,
             ownerName: cells.length > 1 ? cells[1]?.textContent?.trim() ?? null : null,
             address: cells.length > 2 ? cells[2]?.textContent?.trim() ?? null : text.substring(0, 200),
@@ -1924,14 +1954,13 @@ async function searchCadHttpRawKeyword(
 
     // Perform the search
     const searchHeaders: Record<string, string> = {
-      'Accept': 'application/json, text/javascript, */*; q=0.01',
-      'X-Requested-With': 'XMLHttpRequest',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json,*/*;q=0.8',
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Referer': `${baseUrl}/`,
     };
     if (sessionCookies) searchHeaders['Cookie'] = sessionCookies;
 
-    const url = `${baseUrl}/search/SearchResults?keywords=${encodeURIComponent(keywords)}&searchSessionToken=${encodeURIComponent(sessionToken)}`;
+    const url = `${baseUrl}/search/result?keywords=${encodeURIComponent(keywords)}&searchSessionToken=${encodeURIComponent(sessionToken)}`;
     tracker.step(`GET ${url.substring(0, 120)}...`);
 
     const response = await fetch(url, {
