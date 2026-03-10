@@ -815,3 +815,122 @@ describe('generateVariants — FM road search strings', () => {
     expect(wrongNum).toBeUndefined();
   });
 });
+
+// ── County Plat Repository ────────────────────────────────────────────────────
+
+import {
+  extractSubdivisionName,
+  scorePlatMatch,
+  hasPlatRepository,
+  getPlatRepoConfig,
+  listPlatRepoCounties,
+} from '../../worker/src/services/county-plats.js';
+
+describe('extractSubdivisionName', () => {
+  it('extracts addition name from Bell CAD legal description', () => {
+    expect(extractSubdivisionName('ASH FAMILY TRUST 12.358 ACRE ADDITION, BLK 001, LOT 0002'))
+      .toBe('ASH FAMILY TRUST 12.358 ACRE ADDITION');
+  });
+
+  it('extracts estate name', () => {
+    expect(extractSubdivisionName('LOT 5 WILLIAMS CREEK ESTATES'))
+      ?.toMatch(/WILLIAMS CREEK ESTATES/i);
+  });
+
+  it('extracts name after LOT/BLK prefix', () => {
+    const result = extractSubdivisionName('LOT 3 BLK 2 STONECREEK PHASE 2');
+    expect(result).toBeTruthy();
+    expect(result).toMatch(/STONECREEK/i);
+  });
+
+  it('extracts subdivision name', () => {
+    expect(extractSubdivisionName('LOT 12 CEDAR RIDGE SUBDIVISION'))
+      ?.toMatch(/CEDAR RIDGE SUBDIVISION/i);
+  });
+
+  it('returns null for business personal property', () => {
+    expect(extractSubdivisionName('BUSINESS PERSONAL PROPERTY')).toBeNull();
+  });
+
+  it('returns null for mineral description', () => {
+    expect(extractSubdivisionName('MINERAL INTEREST TRACT A')).toBeNull();
+  });
+
+  it('returns null for raw survey reference', () => {
+    expect(extractSubdivisionName('SURVEY ABSTRACT 12')).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(extractSubdivisionName('')).toBeNull();
+  });
+
+  it('handles section names', () => {
+    const result = extractSubdivisionName('LOT 1 MEADOWBROOK SECTION 4');
+    expect(result).toBeTruthy();
+    expect(result).toMatch(/MEADOWBROOK/i);
+  });
+});
+
+describe('scorePlatMatch', () => {
+  it('returns 1.0 for exact match', () => {
+    expect(scorePlatMatch(
+      'ASH FAMILY TRUST 12.358 ACRE ADDITION',
+      'ASH FAMILY TRUST 12.358 ACRE ADDITION',
+    )).toBe(1.0);
+  });
+
+  it('returns 0.9 when one name contains the other', () => {
+    expect(scorePlatMatch(
+      'ASH FAMILY TRUST 12.358 ACRE ADDITION REPLAT',
+      'ASH FAMILY TRUST 12.358 ACRE ADDITION',
+    )).toBe(0.9);
+  });
+
+  it('scores high for near-match (missing acreage)', () => {
+    const score = scorePlatMatch(
+      'ASH FAMILY TRUST ADDITION',
+      'ASH FAMILY TRUST 12.358 ACRE ADDITION',
+    );
+    expect(score).toBeGreaterThan(0.5);
+  });
+
+  it('scores zero for completely unrelated names', () => {
+    expect(scorePlatMatch('WILLIAMS CREEK ESTATES', 'ASH FAMILY TRUST ADDITION')).toBe(0);
+  });
+
+  it('is case-insensitive', () => {
+    expect(scorePlatMatch(
+      'ash family trust addition',
+      'ASH FAMILY TRUST ADDITION',
+    )).toBe(1.0);
+  });
+});
+
+describe('hasPlatRepository / getPlatRepoConfig / listPlatRepoCounties', () => {
+  it('returns true for Bell County', () => {
+    expect(hasPlatRepository('bell')).toBe(true);
+    expect(hasPlatRepository('Bell')).toBe(true);
+    expect(hasPlatRepository('BELL')).toBe(true);
+  });
+
+  it('returns false for unknown county', () => {
+    expect(hasPlatRepository('harris')).toBe(false);
+    expect(hasPlatRepository('tarrant')).toBe(false);
+  });
+
+  it('getPlatRepoConfig returns config for Bell', () => {
+    const cfg = getPlatRepoConfig('bell');
+    expect(cfg).not.toBeNull();
+    expect(cfg?.indexUrlTemplate).toContain('bellcountytx.com');
+    expect(cfg?.indexUrlTemplate).toContain('{letter}');
+    expect(cfg?.pdfBaseUrl).toContain('revize.com');
+  });
+
+  it('getPlatRepoConfig returns null for unknown county', () => {
+    expect(getPlatRepoConfig('collin')).toBeNull();
+  });
+
+  it('listPlatRepoCounties includes bell', () => {
+    expect(listPlatRepoCounties()).toContain('bell');
+  });
+});

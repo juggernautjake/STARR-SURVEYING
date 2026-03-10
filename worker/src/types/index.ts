@@ -76,6 +76,11 @@ export interface PropertyIdResult {
   matchConfidence: number;
   /** Validation notes (mismatches, concerns) */
   validationNotes: string[];
+  /**
+   * Instrument numbers extracted from the deed history on the CAD detail page.
+   * When present these are used directly for clerk search, bypassing owner-name SPA search.
+   */
+  instrumentNumbers?: string[];
 }
 
 // ── Property Result Validation ───────────────────────

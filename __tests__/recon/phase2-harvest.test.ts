@@ -1339,3 +1339,44 @@ describe('legal description disclaimer filter', () => {
     expect(isDisclaimer('APPRAISAL DISTRICT USE ONLY')).toBe(true);
   });
 });
+
+// ── hasKofileConfig / getKofileBaseUrl ────────────────────────────────────────
+
+import { hasKofileConfig, getKofileBaseUrl } from '../../worker/src/services/bell-clerk.js';
+
+describe('hasKofileConfig', () => {
+  it('returns true for Bell County (lowercase)', () => {
+    expect(hasKofileConfig('bell')).toBe(true);
+  });
+
+  it('returns true for Bell County (mixed case)', () => {
+    expect(hasKofileConfig('Bell')).toBe(true);
+  });
+
+  it('returns true for other configured Kofile counties', () => {
+    expect(hasKofileConfig('williamson')).toBe(true);
+    expect(hasKofileConfig('mclennan')).toBe(true);
+  });
+
+  it('returns false for unconfigured county', () => {
+    expect(hasKofileConfig('harris')).toBe(false);
+    expect(hasKofileConfig('unknown')).toBe(false);
+  });
+});
+
+describe('getKofileBaseUrl', () => {
+  it('returns https URL for Bell County', () => {
+    const url = getKofileBaseUrl('bell');
+    expect(url).toBe('https://bell.tx.publicsearch.us');
+  });
+
+  it('returns https URL for Williamson County', () => {
+    const url = getKofileBaseUrl('williamson');
+    expect(url).toContain('https://');
+    expect(url).toContain('williamson');
+  });
+
+  it('returns null for unconfigured county', () => {
+    expect(getKofileBaseUrl('harris')).toBeNull();
+  });
+});

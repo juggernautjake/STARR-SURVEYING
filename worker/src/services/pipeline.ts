@@ -6,11 +6,12 @@ import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyI
 import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bell-cad.js';
-import { searchClerkRecords, fetchDocumentImages } from './bell-clerk.js';
+import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl } from './bell-clerk.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
 import { bundleAndUploadPages } from './pages-to-pdf.js';
+import { extractSubdivisionName, fetchBestMatchingPlat, hasPlatRepository } from './county-plats.js';
 
 // ── Deed Reference Parser ─────────────────────────────────────────────────
 
@@ -264,7 +265,8 @@ async function lookupByPropertyId(
 
   try {
     const year = new Date().getFullYear();
-    const url = `${baseUrl}/Property/View?Id=${propertyId}&year=${year}`;
+    // CRITICAL: Bell CAD uses path parameter, not query string — /Property/View/{id}?year={year}
+    const url = `${baseUrl}/Property/View/${propertyId}?year=${year}`;
 
     const response = await fetch(url, {
       headers: {
@@ -558,8 +560,10 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     let instrumentSearchSucceeded = false;
 
-    if (deedRefs.instrumentNumbers.length > 0 && input.county.toLowerCase() === 'bell') {
+    if (deedRefs.instrumentNumbers.length > 0 && hasKofileConfig(input.county)) {
       logger.info('Stage2', `Parsed ${deedRefs.instrumentNumbers.length} instrument number(s) from legal description: ${deedRefs.instrumentNumbers.join(', ')}`);
+
+      const kofileBaseUrl = getKofileBaseUrl(input.county) ?? '';
 
       for (const instrNum of deedRefs.instrumentNumbers.slice(0, 5)) {
         const expectedPages = /plat/i.test(legalDesc) ? 3 : 2;
@@ -575,8 +579,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                 recordingDate: null,
                 grantors: [],
                 grantees: [],
-                source: 'Bell County Clerk (instrument search)',
-                url: `https://bell.tx.publicsearch.us/doc/${instrNum}/details`,
+                source: `${input.county.charAt(0).toUpperCase() + input.county.slice(1).toLowerCase()} County Clerk (instrument search)`,
+                url: `${kofileBaseUrl}/doc/${instrNum}/details`,
               },
               textContent: null,
               pages: downloadedPages,
@@ -612,9 +616,52 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         logger.info('Stage2', 'Instrument search yielded no pages — falling back to owner-name search');
       }
     } else if (deedRefs.instrumentNumbers.length > 0) {
-      logger.info('Stage2', `Found instrument numbers in legal description but county is not Bell — skipping instrument search`);
+      logger.info('Stage2', `Found instrument numbers in legal description but county "${input.county}" has no Kofile config — skipping instrument search`);
     } else {
       logger.info('Stage2', 'No instrument numbers in legal description — proceeding to owner-name search');
+    }
+
+    // ── Stage 2A: County Plat Repository ────────────────────────────────────────
+    // Some counties publish free plat PDFs on their official websites.
+    // If the county has a plat repository configured and we have a subdivision
+    // name from the CAD legal description, try downloading the plat PDF directly.
+    // This runs after instrument search (to avoid redundancy) but before the
+    // fragile owner-name SPA search.
+    if (hasPlatRepository(input.county) && legalDesc) {
+      const subdivisionName = extractSubdivisionName(legalDesc);
+      if (subdivisionName) {
+        logger.info('Stage2A', `Extracted subdivision name: "${subdivisionName}" — searching plat repository`);
+        try {
+          const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger);
+          if (platResult) {
+            logger.info('Stage2A', `Found plat "${platResult.name}" — adding as document`);
+            documents.push({
+              ref: {
+                instrumentNumber: null,
+                volume: null,
+                page: null,
+                documentType: 'Plat (county repository)',
+                recordingDate: null,
+                grantors: [],
+                grantees: [],
+                source: platResult.source,
+                url: platResult.url,
+              },
+              textContent: null,
+              pages: [],
+              imageFormat: 'pdf',
+              imageBase64: platResult.base64,
+              pagesPdfUrl: platResult.url,
+              ocrText: null,
+              extractedData: null,
+            });
+          }
+        } catch (platErr) {
+          logger.warn('Stage2A', `Plat repository lookup failed: ${platErr instanceof Error ? platErr.message : String(platErr)}`);
+        }
+      } else {
+        logger.info('Stage2A', 'Could not extract subdivision name from legal description — skipping plat repository search');
+      }
     }
 
     // ── Stage 2 Fallback: Owner Name Search ─────────────────────────────────
@@ -629,10 +676,10 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         logger.info('Stage2', `Owner-name search retrieved ${ownerDocs.length} documents from clerk`);
 
         // ── Stage 2.5: Kofile Image Download for owner-name results ────────
-        // For Bell County documents that came back with an instrument number,
-        // intercept signed PNG URLs and download page images.
-        if (input.county.toLowerCase() === 'bell' && ownerDocs.length > 0) {
-          logger.info('Stage2.5', `Downloading page images for ${ownerDocs.length} Bell County documents`);
+        // For counties that use Kofile/PublicSearch, download page images for
+        // each document returned by the owner-name search.
+        if (hasKofileConfig(input.county) && ownerDocs.length > 0) {
+          logger.info('Stage2.5', `Downloading page images for ${ownerDocs.length} documents`);
           let imagesDownloaded = 0;
 
           for (const doc of ownerDocs.slice(0, 5)) {
