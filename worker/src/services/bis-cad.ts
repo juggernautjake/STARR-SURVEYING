@@ -16,13 +16,22 @@ interface BisConfig {
   name: string;
   /** BIS GIS viewer base URL — https://gis.bisclient.com/{county}cad/ */
   gisBaseUrl?: string;
+  /**
+   * Direct ArcGIS parcel layer query URLs (FeatureServer or MapServer).
+   * When provided, searchBisGis queries these directly instead of probing
+   * common service/layer combinations under gisBaseUrl.
+   * First entry is primary; rest are fallbacks.
+   */
+  gisParcelLayerUrls?: string[];
 }
 
 // BIS Consultants eSearch — all known counties within 200-mile radius of Bell County
 // organized in concentric rings from Belton, TX outward.
 export const BIS_CONFIGS: Record<string, BisConfig> = {
   // ── Ring 0: Bell County ──────────────────────────────────────────
-  bell:        { baseUrl: 'https://esearch.bellcad.org',          name: 'Bell CAD',            gisBaseUrl: 'https://gis.bisclient.com/bellcad/' },
+  bell:        { baseUrl: 'https://esearch.bellcad.org',          name: 'Bell CAD',            gisBaseUrl: 'https://gis.bisclient.com/bellcad/', gisParcelLayerUrls: [
+    'https://utility.arcgis.com/usrsvcs/servers/6efa79e05bde4b98851880b45f63ea52/rest/services/BellCADWebService/FeatureServer/0',
+  ] },
   // ── Ring 1: Adjacent to Bell (~0-30 mi) ──────────────────────────
   coryell:     { baseUrl: 'https://esearch.coryellcad.org',       name: 'Coryell CAD',         gisBaseUrl: 'https://gis.bisclient.com/coryellcad/' },
   mclennan:    { baseUrl: 'https://esearch.mclennancad.org',      name: 'McLennan CAD',        gisBaseUrl: 'https://gis.bisclient.com/mclennancad/' },
@@ -2349,13 +2358,14 @@ export async function searchBisCad(
   }
 
   // Layer 1E: BIS GIS ArcGIS REST API (additional enrichment / last resort)
-  if (config.gisBaseUrl) {
-    const gisResult = await searchBisGis(config.gisBaseUrl, logger, {
+  if (config.gisBaseUrl || config.gisParcelLayerUrls?.length) {
+    const gisResult = await searchBisGis(config.gisBaseUrl ?? '', logger, {
       propertyId: options?.propertyId,
       address: normalized.raw,
       ownerName: options?.ownerName,
       lat: normalized.lat,
       lon: normalized.lon,
+      directLayerUrls: config.gisParcelLayerUrls,
     });
     if (gisResult?.propertyId || gisResult?.ownerName) {
       logger.info('Stage1E', `GIS lookup returned data — propertyId=${gisResult.propertyId ?? 'n/a'}`);
@@ -2526,6 +2536,8 @@ export async function searchBisGis(
      *  queries when the GIS geocoder is unavailable or returns no results. */
     lat?: number | null;
     lon?: number | null;
+    /** Direct ArcGIS layer URLs (FeatureServer/MapServer) — skip service discovery. */
+    directLayerUrls?: string[];
   },
 ): Promise<GisPropertyData | null> {
   const base = gisBaseUrl.endsWith('/') ? gisBaseUrl : `${gisBaseUrl}/`;
@@ -2534,6 +2546,63 @@ export async function searchBisGis(
   const COMMON_SERVICES = ['Parcels', 'ParcelData', 'Cadastral', 'PropertyData'];
   const COMMON_LAYERS = [0, 1, 2];
   const PROP_ID_FIELDS = FIELD_ALIASES.propertyId;
+
+  // ── Direct Layer URLs (preferred path — skips service/layer probing) ───────
+  if (options.directLayerUrls?.length) {
+    for (const layerUrl of options.directLayerUrls) {
+      const queryUrl = layerUrl.endsWith('/query') ? layerUrl : `${layerUrl}/query`;
+
+      // Try property ID query
+      if (options.propertyId) {
+        for (const field of PROP_ID_FIELDS) {
+          const fs = await queryArcGisLayer(queryUrl, {
+            where: `${field}='${options.propertyId}'`,
+            outFields: '*',
+            returnGeometry: 'true',
+          }, logger);
+          if (fs?.features && fs.features.length > 0) {
+            logger.info('Stage1E', `GIS: found via property ID (direct layer) field ${field}`);
+            return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
+          }
+        }
+      }
+
+      // Try spatial query with pre-geocoded coordinates
+      if (options.lat && options.lon) {
+        logger.info('Stage1E', `GIS: spatial query on direct layer using coords (${options.lat.toFixed(5)}, ${options.lon.toFixed(5)})`);
+        const delta = 0.0005;
+        const envelope = `${options.lon - delta},${options.lat - delta},${options.lon + delta},${options.lat + delta}`;
+        const fs = await queryArcGisLayer(queryUrl, {
+          geometry: envelope,
+          geometryType: 'esriGeometryEnvelope',
+          spatialRel: 'esriSpatialRelIntersects',
+          inSR: '4326',
+          outFields: '*',
+          returnGeometry: 'true',
+        }, logger);
+        if (fs?.features && fs.features.length > 0) {
+          logger.info('Stage1E', `GIS: found via spatial query on direct layer (${fs.features.length} feature(s))`);
+          return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
+        }
+      }
+
+      // Try owner name query
+      if (options.ownerName) {
+        const safeName = options.ownerName.replace(/'/g, "''");
+        for (const field of FIELD_ALIASES.ownerName) {
+          const fs = await queryArcGisLayer(queryUrl, {
+            where: `${field} LIKE '${safeName}%'`,
+            outFields: '*',
+            returnGeometry: 'true',
+          }, logger);
+          if (fs?.features && fs.features.length > 0) {
+            logger.info('Stage1E', `GIS: found via owner name on direct layer field ${field}`);
+            return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
+          }
+        }
+      }
+    }
+  }
 
   // ── Approach A: Query by Property ID ────────────────────────────────────
   if (options.propertyId) {

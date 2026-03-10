@@ -324,8 +324,7 @@ export async function fetchSourceContent(
       ?? parsedUrl.searchParams.get('prop_id') ?? opts.propertyId;
     if (parcelId) {
       for (const layerUrl of [
-        'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/MapServer/0',
-        'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/FeatureServer/0',
+        'https://utility.arcgis.com/usrsvcs/servers/6efa79e05bde4b98851880b45f63ea52/rest/services/BellCADWebService/FeatureServer/0',
       ]) {
         try {
           // ArcGIS REST API does not support parameterized queries; input is sanitized

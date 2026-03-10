@@ -75,18 +75,14 @@ interface ArcGisConfig {
 
 const ARCGIS_BY_COUNTY: Record<string, ArcGisConfig> = {
   bell: {
-    layerUrl: 'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/MapServer/0',
+    layerUrl: 'https://utility.arcgis.com/usrsvcs/servers/6efa79e05bde4b98851880b45f63ea52/rest/services/BellCADWebService/FeatureServer/0',
     fallbackLayerUrls: [
-      'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/FeatureServer/0',
-      'https://gis.co.bell.tx.us/arcgis/rest/services/Parcels/MapServer/1',
-      'https://gis.co.bell.tx.us/arcgis/rest/services/BellCounty_Parcels/FeatureServer/0',
-      'https://gis.co.bell.tx.us/arcgis/rest/services/Property/MapServer/0',
       // National Esri parcel fallback (publicly accessible Living Atlas layer)
       'https://services2.arcgis.com/FiaFA0dzneJZiblf/arcgis/rest/services/ParcelPublicView/FeatureServer/0',
     ],
-    propIdField: 'PROP_ID',
-    addressFields: ['SITUS_ADDRESS', 'SITUS_ADDR', 'ADDRESS', 'FULL_ADDRESS', 'SITE_ADDR', 'SITEADDRESS'],
-    name: 'Bell County GIS Parcel Layer',
+    propIdField: 'prop_id',
+    addressFields: ['situs_street', 'situs_num', 'SITUS_ADDRESS', 'SITUS_ADDR'],
+    name: 'Bell County GIS Parcel Layer (ArcGIS Online)',
   },
 };
 
