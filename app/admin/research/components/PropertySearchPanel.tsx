@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { PropertySearchResult, PropertySearchResponse, SearchSource } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
+import { PipelineProgressPanel, PipelineProgressStyles } from './PipelineProgressPanel';
 
 // Pipeline response types (from worker)
 interface PipelineDocument {
@@ -37,6 +38,8 @@ interface PipelineStatusResponse {
   projectId: string;
   status: string;
   currentStage?: string;
+  /** Latest updateStatus message, e.g. "Stage 2: Retrieving documents…" */
+  message?: string;
   result?: {
     propertyId?: string;
     ownerName?: string;
@@ -124,7 +127,7 @@ export default function PropertySearchPanel({
   const [pipelineStatus, setPipelineStatus] = useState<string | null>(null);
   const [pipelineResult, setPipelineResult] = useState<PipelineStatusResponse | null>(null);
   const [pipelineError, setPipelineError] = useState('');
-  const [showPipelineLog, setShowPipelineLog] = useState(false);
+  // showPipelineLog moved to PipelineProgressPanel (internal state)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopLitePolling = useCallback(() => {
@@ -580,153 +583,23 @@ export default function PropertySearchPanel({
               </>
             )}
 
-            {/* Deep pipeline results */}
+
+            {/* Deep pipeline results — animated stage tracker */}
             {pipelineStatus && (
-              <div className={`research-search__pipeline research-search__pipeline--${pipelineStatus}`}>
-                <div className="research-search__pipeline-header">
-                  <span className="research-search__pipeline-icon">
-                    {pipelineStatus === 'running' || pipelineStatus === 'starting' ? '...' : pipelineStatus === 'success' || pipelineStatus === 'partial' ? 'OK' : '!!'}
-                  </span>
-                  <span className="research-search__pipeline-title">
-                    {pipelineStatus === 'starting' && 'Starting research…'}
-                    {pipelineStatus === 'running' && `Research running${pipelineResult?.currentStage ? ` — ${pipelineResult.currentStage}` : ''}…`}
-                    {pipelineStatus === 'success' && 'Research complete'}
-                    {pipelineStatus === 'partial' && 'Research complete (partial results)'}
-                    {pipelineStatus === 'failed' && 'Research failed'}
-                  </span>
-                </div>
-
-                {/* Results summary */}
-                {pipelineResult?.result && (
-                  <div className="research-search__pipeline-results">
-                    {pipelineResult.result.propertyId && (
-                      <div className="research-search__pipeline-field">
-                        <strong>Property ID:</strong> {pipelineResult.result.propertyId}
-                      </div>
-                    )}
-                    {pipelineResult.result.ownerName && (
-                      <div className="research-search__pipeline-field">
-                        <strong>Owner:</strong> {pipelineResult.result.ownerName}
-                      </div>
-                    )}
-                    {pipelineResult.result.legalDescription && (
-                      <div className="research-search__pipeline-field">
-                        <strong>Legal Description:</strong>
-                        <span className="research-search__pipeline-legal">
-                          {pipelineResult.result.legalDescription.length > 200
-                            ? pipelineResult.result.legalDescription.substring(0, 200) + '...'
-                            : pipelineResult.result.legalDescription}
-                        </span>
-                      </div>
-                    )}
-                    {pipelineResult.result.acreage && (
-                      <div className="research-search__pipeline-field">
-                        <strong>Acreage:</strong> {pipelineResult.result.acreage}
-                      </div>
-                    )}
-                    {pipelineResult.result.documentCount !== undefined && pipelineResult.result.documentCount > 0 && (
-                      <div className="research-search__pipeline-field">
-                        <strong>Documents found:</strong> {pipelineResult.result.documentCount}
-                      </div>
-                    )}
-                    {pipelineResult.result.boundary && (
-                      <div className="research-search__pipeline-field">
-                        <strong>Boundary:</strong> {pipelineResult.result.boundary.type}
-                        {' '}({pipelineResult.result.boundary.callCount} calls,{' '}
-                        confidence: {Math.round((pipelineResult.result.boundary.confidence ?? 0) * 100)}%
-                        {pipelineResult.result.boundary.verified ? ' — Verified ✓' : ''})
-                      </div>
-                    )}
-                    {pipelineResult.result.duration_ms && (
-                      <div className="research-search__pipeline-field">
-                        <strong>Duration:</strong> {(pipelineResult.result.duration_ms / 1000).toFixed(1)}s
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Document list */}
-                {pipelineResult?.documents && pipelineResult.documents.length > 0 && (
-                  <div className="research-search__pipeline-docs">
-                    <strong>Documents captured:</strong>
-                    <div className="research-search__pipeline-doc-list">
-                      {pipelineResult.documents.map((doc: PipelineDocument, i: number) => (
-                        <div key={i} className="research-search__pipeline-doc">
-                          <span className="research-search__pipeline-doc-type">{doc.ref?.documentType || 'Document'}</span>
-                          {doc.hasText && <span className="research-search__pipeline-doc-tag">Text</span>}
-                          {doc.hasImage && <span className="research-search__pipeline-doc-tag">Image</span>}
-                          {doc.hasOcr && <span className="research-search__pipeline-doc-tag">OCR</span>}
-                          {doc.extractedData && (
-                            <span className="research-search__pipeline-doc-tag research-search__pipeline-doc-tag--extracted">
-                              {doc.extractedData.type} ({Math.round((doc.extractedData.confidence ?? 0) * 100)}%)
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Pipeline Audit Log */}
-                {pipelineResult?.log && pipelineResult.log.length > 0 && (
-                  <div className="research-search__pipeline-log-section">
-                    <button
-                      className="research-search__advanced-toggle"
-                      onClick={() => setShowPipelineLog(!showPipelineLog)}
-                      type="button"
-                    >
-                      {showPipelineLog ? '-- Hide' : '++ Show'} Pipeline Log ({pipelineResult.log.length} entries)
-                    </button>
-
-                    {showPipelineLog && (
-                      <div className="research-search__pipeline-log">
-                        {pipelineResult.log.map((entry: PipelineLogEntry, i: number) => (
-                          <div
-                            key={i}
-                            className={`research-search__pipeline-log-entry research-search__pipeline-log-entry--${entry.status}`}
-                          >
-                            <div className="research-search__pipeline-log-header">
-                              <span className="research-search__pipeline-log-badge">{entry.layer}</span>
-                              <span className="research-search__pipeline-log-source">{entry.source}</span>
-                              <span className="research-search__pipeline-log-method">{entry.method}</span>
-                              <span className={`research-search__pipeline-log-status research-search__pipeline-log-status--${entry.status}`}>
-                                {entry.status}
-                              </span>
-                              {entry.duration_ms > 0 && (
-                                <span className="research-search__pipeline-log-duration">{(entry.duration_ms / 1000).toFixed(1)}s</span>
-                              )}
-                            </div>
-                            {entry.input && (
-                              <div className="research-search__pipeline-log-input">Input: {entry.input}</div>
-                            )}
-                            {entry.details && (
-                              <div className="research-search__pipeline-log-details">{entry.details}</div>
-                            )}
-                            {entry.error && (
-                              <div className="research-search__pipeline-log-error">Error: {entry.error}</div>
-                            )}
-                            {entry.dataPointsFound > 0 && (
-                              <div className="research-search__pipeline-log-data">Data points: {entry.dataPointsFound}</div>
-                            )}
-                            {entry.steps && entry.steps.length > 0 && (
-                              <div className="research-search__pipeline-log-steps">
-                                {entry.steps.map((step: string, j: number) => (
-                                  <div key={j} className="research-search__pipeline-log-step">{step}</div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <>
+                <PipelineProgressStyles />
+                <PipelineProgressPanel
+                  status={pipelineStatus}
+                  message={pipelineResult?.message}
+                  result={pipelineResult?.result}
+                  documents={pipelineResult?.documents}
+                  log={pipelineResult?.log}
+                />
+              </>
             )}
           </div>
         )}
       </div>
-
       {/* Search results */}
       {searchResponse && (
         <div className="research-search__results">

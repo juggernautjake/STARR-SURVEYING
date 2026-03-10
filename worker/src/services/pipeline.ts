@@ -612,7 +612,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                 source: platResult.source, url: platResult.url,
               },
               textContent: null, pages: [],
-              imageFormat: 'pdf', imageBase64: platResult.base64,
+              imageFormat: platResult.mimeType === 'image/png' ? 'png' : 'pdf',
+              imageBase64: platResult.base64,
               pagesPdfUrl: platResult.url,
               ocrText: null, extractedData: null,
             });
@@ -706,7 +707,11 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     let reconciliation: import('../types/index.js').PipelineResult['reconciliation'] = undefined;
 
     if (platDoc?.imageBase64 && platDoc.imageFormat) {
-      const mediaType = (platDoc.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png') as 'image/png' | 'image/jpeg';
+      const mediaType = (
+        platDoc.imageFormat === 'jpg' ? 'image/jpeg' :
+        platDoc.imageFormat === 'pdf' ? 'image/png'  : // PDFs are pre-rasterised to PNG by bundler
+        'image/png'
+      ) as 'image/png' | 'image/jpeg';
       try {
         reconciliation = await runGeoReconcile(
           boundary,
@@ -727,7 +732,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       logger.info('Stage3.5', 'No plat image available — skipping geometric reconciliation');
     }
 
-    await updateStatus(input.projectId, 'running', 'Reconciliation complete. Validating...');
+    await updateStatus(input.projectId, 'running', 'Stage 4: Validating…');
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 4: Validation
