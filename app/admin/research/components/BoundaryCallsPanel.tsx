@@ -1,7 +1,7 @@
 // app/admin/research/components/BoundaryCallsPanel.tsx — Fetch boundary calls from county CAD
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { BoundaryFetchResult, ParsedBoundaryCall } from '@/types/research';
 
 interface BoundaryCallsPanelProps {
@@ -24,12 +24,52 @@ export default function BoundaryCallsPanel({
   const [parcelId, setParcelId]   = useState(defaultParcelId || '');
   const [ownerName, setOwnerName] = useState('');
 
-  const [fetching, setFetching]   = useState(false);
-  const [result,   setResult]     = useState<BoundaryFetchResult | null>(null);
-  const [error,    setError]      = useState('');
-  const [stepLog,  setStepLog]    = useState<string[]>([]);
-  const [showLog,  setShowLog]    = useState(false);
-  const [copied,   setCopied]     = useState(false);
+  const [fetching, setFetching]         = useState(false);
+  const [result,   setResult]           = useState<BoundaryFetchResult | null>(null);
+  const [error,    setError]            = useState('');
+  const [stepLog,  setStepLog]          = useState<string[]>([]);
+  const [showLog,  setShowLog]          = useState(false);
+  const [copied,   setCopied]           = useState(false);
+  const [logCopied, setLogCopied]       = useState(false);
+  const [browserLogCopied, setBrowserLogCopied] = useState(false);
+
+  const handleCopyStepLog = useCallback(() => {
+    if (stepLog.length === 0) return;
+    const text = stepLog.map((s, i) => `${i + 1}. ${s}`).join('\n');
+    navigator.clipboard.writeText(text)
+      .then(() => { setLogCopied(true); setTimeout(() => setLogCopied(false), 2000); })
+      .catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setLogCopied(true);
+        setTimeout(() => setLogCopied(false), 2000);
+      });
+  }, [stepLog]);
+
+  const handleCopyBrowserLog = useCallback((steps: string[]) => {
+    if (steps.length === 0) return;
+    const text = steps.map((s, i) => `${i + 1}. ${s}`).join('\n');
+    navigator.clipboard.writeText(text)
+      .then(() => { setBrowserLogCopied(true); setTimeout(() => setBrowserLogCopied(false), 2000); })
+      .catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setBrowserLogCopied(true);
+        setTimeout(() => setBrowserLogCopied(false), 2000);
+      });
+  }, []);
 
   async function handleFetch() {
     if (fetching) return;
@@ -265,13 +305,23 @@ export default function BoundaryCallsPanel({
                 </div>
               )}
             </div>
-            <button
-              type="button"
-              style={{ background: 'none', border: 'none', color: '#15803D', cursor: 'pointer', fontSize: '0.78rem', padding: 0, marginTop: '0.4rem' }}
-              onClick={() => setShowBrowserLog(v => !v)}
-            >
-              {showBrowserLog ? '▾ Hide' : '▸ Show'} browser search log ({browserResult.steps.length} steps)
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.4rem' }}>
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', color: '#15803D', cursor: 'pointer', fontSize: '0.78rem', padding: 0 }}
+                onClick={() => setShowBrowserLog(v => !v)}
+              >
+                {showBrowserLog ? '▾ Hide' : '▸ Show'} browser search log ({browserResult.steps.length} steps)
+              </button>
+              <button
+                type="button"
+                style={{ background: 'none', border: '1px solid #BBF7D0', borderRadius: '4px', color: '#15803D', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600, padding: '0.1rem 0.45rem' }}
+                onClick={() => handleCopyBrowserLog(browserResult.steps)}
+                title="Copy all browser log steps to clipboard"
+              >
+                {browserLogCopied ? '✓ Copied' : '⎘ Copy all'}
+              </button>
+            </div>
             {showBrowserLog && (
               <ol style={{ margin: '0.4rem 0 0 1.2rem', padding: 0, fontSize: '0.75rem', color: '#374151' }}>
                 {browserResult.steps.map((s, i) => <li key={i} style={{ marginBottom: '0.15rem' }}>{s}</li>)}
@@ -284,13 +334,23 @@ export default function BoundaryCallsPanel({
       {/* Step log toggle */}
       {stepLog.length > 0 && (
         <div className="research-boundary__log-toggle">
-          <button
-            type="button"
-            style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
-            onClick={() => setShowLog(v => !v)}
-          >
-            {showLog ? '▾ Hide' : '▸ Show'} search log ({stepLog.length} steps)
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button
+              type="button"
+              style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
+              onClick={() => setShowLog(v => !v)}
+            >
+              {showLog ? '▾ Hide' : '▸ Show'} search log ({stepLog.length} steps)
+            </button>
+            <button
+              type="button"
+              style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '4px', color: '#374151', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600, padding: '0.1rem 0.45rem' }}
+              onClick={handleCopyStepLog}
+              title="Copy all search log entries to clipboard"
+            >
+              {logCopied ? '✓ Copied' : '⎘ Copy all'}
+            </button>
+          </div>
           {showLog && (
             <ol className="research-boundary__log">
               {stepLog.map((s, i) => <li key={i} className="research-boundary__log-item">{s}</li>)}

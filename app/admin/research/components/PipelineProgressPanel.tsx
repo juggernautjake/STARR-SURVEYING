@@ -5,7 +5,7 @@
 // Driven by `pipelineResult` from the polling interval — no fake timers.
 // Stage is inferred from the "Stage N:" prefix in the `message` field.
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -322,6 +322,21 @@ function LogEntry({ entry }: { entry: PipelineLogEntry }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+/** Format all audit log entries as plain text for clipboard copy. */
+function formatLogAsText(log: PipelineLogEntry[]): string {
+  return log.map(e => {
+    const statusIcon = e.status === 'success' ? '✓' : e.status === 'fail' ? '✕' : e.status === 'skip' ? '−' : '~';
+    const pts  = e.dataPointsFound > 0 ? ` [${e.dataPointsFound} pts]` : '';
+    const dur  = e.duration_ms > 0 ? ` (${(e.duration_ms / 1000).toFixed(2)}s)` : '';
+    let line = `${statusIcon} ${e.layer} | ${e.source} | ${e.method}${pts}${dur}`;
+    if (e.input)   line += `\n    Input: ${e.input}`;
+    if (e.details) line += `\n    Details: ${e.details}`;
+    if (e.error)   line += `\n    Error: ${e.error}`;
+    if (e.steps?.length) line += e.steps.map(s => `\n    ↳ ${s}`).join('');
+    return line;
+  }).join('\n');
+}
+
 export function PipelineProgressPanel({
   status,
   message,
@@ -329,7 +344,8 @@ export function PipelineProgressPanel({
   documents,
   log,
 }: PipelineProgressProps) {
-  const [showLog, setShowLog] = useState(false);
+  const [showLog,      setShowLog]      = useState(false);
+  const [logCopied,    setLogCopied]    = useState(false);
 
   const activeStage = useMemo(() => inferActiveStage(message, status), [message, status]);
   const stageStates = useMemo(() => computeStageStates(log, activeStage, status), [log, activeStage, status]);
@@ -341,6 +357,26 @@ export function PipelineProgressPanel({
 
   // Strip "Stage N: " prefix for cleaner header display
   const cleanMessage = message?.replace(/^Stage\s*\d+(?:\.\d+)?:\s*/i, '') ?? null;
+
+  const handleCopyLog = useCallback(() => {
+    if (!log || log.length === 0) return;
+    const text = formatLogAsText(log);
+    navigator.clipboard.writeText(text)
+      .then(() => { setLogCopied(true); setTimeout(() => setLogCopied(false), 2000); })
+      .catch(() => {
+        // Fallback: create a temporary textarea
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setLogCopied(true);
+        setTimeout(() => setLogCopied(false), 2000);
+      });
+  }, [log]);
 
   return (
     <div className={`ppanel ppanel--${status ?? 'idle'}`}>
@@ -401,15 +437,25 @@ export function PipelineProgressPanel({
       {/* ── Audit log accordion ──────────────────────────────────────── */}
       {log && log.length > 0 && (
         <div className="ppanel__section ppanel__section--log">
-          <button
-            className="ppanel__log-toggle"
-            onClick={() => setShowLog(v => !v)}
-            type="button"
-          >
-            <span className="ppanel__log-toggle-icon">{showLog ? '▲' : '▼'}</span>
-            Audit log
-            <span className="ppanel__section-count">{log.length}</span>
-          </button>
+          <div className="ppanel__log-header">
+            <button
+              className="ppanel__log-toggle"
+              onClick={() => setShowLog(v => !v)}
+              type="button"
+            >
+              <span className="ppanel__log-toggle-icon">{showLog ? '▲' : '▼'}</span>
+              Audit log
+              <span className="ppanel__section-count">{log.length}</span>
+            </button>
+            <button
+              className="ppanel__log-copy-btn"
+              onClick={handleCopyLog}
+              type="button"
+              title="Copy all log entries to clipboard"
+            >
+              {logCopied ? '✓ Copied' : '⎘ Copy all'}
+            </button>
+          </div>
           {showLog && (
             <div className="ppanel__log">
               {log.map((entry, i) => (
@@ -681,6 +727,12 @@ export function PipelineProgressStyles() {
 .ppanel__doc-tag--extracted { background: #fef9c3; color: #713f12; }
 
 /* ── Audit log ───────────────────────────────────────────── */
+.ppanel__log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
 .ppanel__log-toggle {
   display: flex;
   align-items: center;
@@ -692,11 +744,27 @@ export function PipelineProgressStyles() {
   font-size: 0.78rem;
   font-weight: 600;
   color: #475569;
-  width: 100%;
+  flex: 1;
   text-align: left;
 }
 .ppanel__log-toggle:hover { color: #1e293b; }
 .ppanel__log-toggle-icon { font-size: 0.65rem; color: #94a3b8; }
+
+.ppanel__log-copy-btn {
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+}
+.ppanel__log-copy-btn:hover { background: #f1f5f9; color: #1e293b; }
+.ppanel__log-copy-btn:active { background: #e2e8f0; }
 
 .ppanel__log {
   margin-top: 0.4rem;

@@ -43,7 +43,7 @@ function extractProjectId(req: NextRequest): string | null {
 // ── Status helpers ────────────────────────────────────────────────────────────
 
 interface LitePipelineStatus {
-  status: 'idle' | 'running' | 'completed' | 'failed';
+  status: 'idle' | 'running' | 'completed' | 'partial' | 'failed';
   stage?: string;
   started_at?: string;
   completed_at?: string;
@@ -185,173 +185,212 @@ async function runLitePipeline(
     // ── Stage 1: Geocode ─────────────────────────────────────────────────
     await setStatus(projectId, { status: 'running', stage: 'Geocoding address…', started_at: startedAt });
 
-    const geo = await geocodeAddress(address);
-    if (geo) {
-      summary.geocoded_address = geo.display_name;
-      summary.geocoded_lat = geo.lat;
-      summary.geocoded_lon = geo.lon;
-      summary.location_preview_url = buildPreviewUrl(geo.lat, geo.lon);
+    try {
+      const geo = await geocodeAddress(address);
+      if (geo) {
+        summary.geocoded_address = geo.display_name;
+        summary.geocoded_lat = geo.lat;
+        summary.geocoded_lon = geo.lon;
+        summary.location_preview_url = buildPreviewUrl(geo.lat, geo.lon);
+      }
+    } catch (stageErr) {
+      console.warn('[LitePipeline] Stage 1 geocode failed (continuing):', stageErr instanceof Error ? stageErr.message : stageErr);
     }
 
     // ── Stage 2: Property Record Search ─────────────────────────────────
     await setStatus(projectId, { stage: 'Searching county records, FEMA, TxDOT…' });
 
-    const searchReq: PropertySearchRequest = {
-      address,
-      county: county || undefined,
-      parcel_id: parcelId || undefined,
-      owner_name: ownerName || undefined,
+    let searchResults: Awaited<ReturnType<typeof searchPropertyRecords>> = {
+      results: [],
+      sources_searched: [],
     };
+    try {
+      const searchReq: PropertySearchRequest = {
+        address,
+        county: county || undefined,
+        parcel_id: parcelId || undefined,
+        owner_name: ownerName || undefined,
+      };
 
-    const searchResults = await searchPropertyRecords(searchReq);
-    summary.links_found = searchResults.results.length;
-    summary.sources_searched = (searchResults.sources_searched || [])
-      .filter(s => s.status === 'success')
-      .map(s => s.name);
+      searchResults = await searchPropertyRecords(searchReq);
+      summary.links_found = searchResults.results.length;
+      summary.sources_searched = (searchResults.sources_searched || [])
+        .filter(s => s.status === 'success')
+        .map(s => s.name);
 
-    // Patch USGS TopoView URLs with geocoded coords
-    if (geo) {
-      for (const r of searchResults.results) {
-        if (r.source === 'usgs' && r.url.includes('ngmdb.usgs.gov/topoview')) {
-          r.url = `https://ngmdb.usgs.gov/topoview/viewer/#14/${geo.lat.toFixed(5)}/${geo.lon.toFixed(5)}`;
+      // Patch USGS TopoView URLs with geocoded coords
+      if (summary.geocoded_lat && summary.geocoded_lon) {
+        for (const r of searchResults.results) {
+          if (r.source === 'usgs' && r.url.includes('ngmdb.usgs.gov/topoview')) {
+            r.url = `https://ngmdb.usgs.gov/topoview/viewer/#14/${summary.geocoded_lat.toFixed(5)}/${summary.geocoded_lon.toFixed(5)}`;
+          }
         }
+        searchResults.geocoded_lat = summary.geocoded_lat;
+        searchResults.geocoded_lon = summary.geocoded_lon;
+        searchResults.location_preview_url = summary.location_preview_url || undefined;
       }
-      searchResults.geocoded_lat = geo.lat;
-      searchResults.geocoded_lon = geo.lon;
-      searchResults.location_preview_url = summary.location_preview_url || undefined;
+    } catch (stageErr) {
+      console.warn('[LitePipeline] Stage 2 property search failed (continuing):', stageErr instanceof Error ? stageErr.message : stageErr);
     }
 
     // ── Stage 3: Import discovered records ───────────────────────────────
     await setStatus(projectId, { stage: 'Importing property records…' });
-    const importedCount = await importSearchResults(projectId, searchResults);
-    summary.documents_imported += importedCount;
+    try {
+      const importedCount = await importSearchResults(projectId, searchResults);
+      summary.documents_imported += importedCount;
 
-    // Persist address-normalization data back to the project if we got it
-    if (searchResults.address_normalized || (geo && !county)) {
-      const updates: Record<string, unknown> = {};
-      if (searchResults.address_normalized) {
-        updates.property_address = searchResults.address_normalized;
+      // Persist address-normalization data back to the project if we got it
+      if (searchResults.address_normalized || (summary.geocoded_lat && !county)) {
+        const updates: Record<string, unknown> = {};
+        if (searchResults.address_normalized) {
+          updates.property_address = searchResults.address_normalized;
+        }
+        if (Object.keys(updates).length > 0) {
+          await supabaseAdmin
+            .from('research_projects')
+            .update({ ...updates, updated_at: new Date().toISOString() })
+            .eq('id', projectId);
+        }
       }
-      if (Object.keys(updates).length > 0) {
-        await supabaseAdmin
-          .from('research_projects')
-          .update({ ...updates, updated_at: new Date().toISOString() })
-          .eq('id', projectId);
-      }
+    } catch (stageErr) {
+      console.warn('[LitePipeline] Stage 3 import failed (continuing):', stageErr instanceof Error ? stageErr.message : stageErr);
     }
 
     // ── Stage 4: Capture satellite + topo map images ─────────────────────
     await setStatus(projectId, { stage: 'Capturing satellite and topo map images…' });
-    const imageResult = await captureLocationImages(projectId, address);
-    summary.map_images_captured = imageResult.documentIds.length;
-    summary.documents_imported += imageResult.documentIds.length;
-    if (!summary.geocoded_lat && imageResult.geocoded) {
-      summary.geocoded_lat = imageResult.geocoded.lat;
-      summary.geocoded_lon = imageResult.geocoded.lon;
-      summary.geocoded_address = imageResult.geocoded.display_name;
-      summary.location_preview_url = imageResult.previewUrl || undefined;
+    try {
+      const imageResult = await captureLocationImages(projectId, address);
+      summary.map_images_captured = imageResult.documentIds.length;
+      summary.documents_imported += imageResult.documentIds.length;
+      if (!summary.geocoded_lat && imageResult.geocoded) {
+        summary.geocoded_lat = imageResult.geocoded.lat;
+        summary.geocoded_lon = imageResult.geocoded.lon;
+        summary.geocoded_address = imageResult.geocoded.display_name;
+        summary.location_preview_url = imageResult.previewUrl || undefined;
+      }
+    } catch (stageErr) {
+      console.warn('[LitePipeline] Stage 4 image capture failed (continuing):', stageErr instanceof Error ? stageErr.message : stageErr);
     }
 
     // Advance project status to 'configure' so analysis can start
-    const { data: currentProject } = await supabaseAdmin
-      .from('research_projects')
-      .select('status')
-      .eq('id', projectId)
-      .single();
-
-    if (currentProject?.status === 'upload') {
-      await supabaseAdmin
+    try {
+      const { data: currentProject } = await supabaseAdmin
         .from('research_projects')
-        .update({ status: 'configure', updated_at: new Date().toISOString() })
-        .eq('id', projectId);
+        .select('status')
+        .eq('id', projectId)
+        .single();
+
+      if (currentProject?.status === 'upload') {
+        await supabaseAdmin
+          .from('research_projects')
+          .update({ status: 'configure', updated_at: new Date().toISOString() })
+          .eq('id', projectId);
+      }
+    } catch (stageErr) {
+      console.warn('[LitePipeline] Status advance failed (continuing):', stageErr instanceof Error ? stageErr.message : stageErr);
     }
 
     // ── Stage 5: Run AI Analysis ─────────────────────────────────────────
     if (!process.env.ANTHROPIC_API_KEY) {
-      await setStatus(projectId, {
-        stage: 'Skipping AI analysis — ANTHROPIC_API_KEY not set',
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        summary: {
-          ...summary,
-          confidence_score: 10,
-        },
-      });
-      return;
+      await setStatus(projectId, { stage: 'Skipping AI analysis — ANTHROPIC_API_KEY not set (collecting remaining stats…)' });
+      // Don't exit — fall through to Stage 6 to collect whatever stats we have
+    } else {
+      await setStatus(projectId, { stage: 'Running AI analysis on imported documents…' });
+
+      try {
+        // analyzeProject manages its own status updates; it is a long-running async operation.
+        // We call it and wait — it will update the project status to 'review' when done.
+        await analyzeProject(projectId, { extractCategories: {} });
+      } catch (stageErr) {
+        console.warn('[LitePipeline] Stage 5 AI analysis failed (collecting stats):', stageErr instanceof Error ? stageErr.message : stageErr);
+        // Continue to Stage 6 — we still want to collect whatever partial data exists
+      }
     }
-
-    await setStatus(projectId, { stage: 'Running AI analysis on imported documents…' });
-
-    // analyzeProject manages its own status updates; it is a long-running async operation.
-    // We call it and wait — it will update the project status to 'review' when done.
-    await analyzeProject(projectId, { extractCategories: {} });
 
     // ── Stage 6: Collect final stats ─────────────────────────────────────
-    const [dpRes, discRes, projRes] = await Promise.all([
-      supabaseAdmin
+    await setStatus(projectId, { stage: 'Collecting final statistics…' });
+
+    try {
+      const [dpRes, discRes, projRes] = await Promise.all([
+        supabaseAdmin
+          .from('extracted_data_points')
+          .select('id', { count: 'exact', head: true })
+          .eq('research_project_id', projectId),
+        supabaseAdmin
+          .from('discrepancies')
+          .select('id', { count: 'exact', head: true })
+          .eq('research_project_id', projectId),
+        supabaseAdmin
+          .from('research_projects')
+          .select('analysis_metadata')
+          .eq('id', projectId)
+          .single(),
+      ]);
+
+      summary.data_points_extracted = dpRes.count || 0;
+      summary.discrepancies_found = discRes.count || 0;
+
+      // Pull owner/legal/area from extracted data points for the summary
+      const { data: keyPoints } = await supabaseAdmin
         .from('extracted_data_points')
+        .select('data_category, display_value, raw_value')
+        .eq('research_project_id', projectId)
+        .in('data_category', ['legal_description', 'area', 'flood_zone'])
+        .limit(3);
+
+      for (const dp of keyPoints || []) {
+        if (dp.data_category === 'legal_description') summary.legal_description = (dp.display_value || dp.raw_value)?.slice(0, 500);
+        if (dp.data_category === 'area') summary.acreage = dp.display_value || dp.raw_value;
+        if (dp.data_category === 'flood_zone') summary.flood_zone = dp.display_value || dp.raw_value;
+      }
+
+      // Compute a rough confidence score from how much data we have
+      const dpCount = summary.data_points_extracted;
+      // If AI was skipped (no API key), cap confidence at 25 to signal limited analysis
+      const maxConf = process.env.ANTHROPIC_API_KEY ? 85 : 25;
+      const confidence = dpCount >= 30 ? maxConf : dpCount >= 15 ? Math.min(70, maxConf) : dpCount >= 5 ? Math.min(55, maxConf) : Math.min(30, maxConf);
+      summary.confidence_score = confidence;
+
+      // Count total docs analyzed
+      const { count: analyzedCount } = await supabaseAdmin
+        .from('research_documents')
         .select('id', { count: 'exact', head: true })
-        .eq('research_project_id', projectId),
-      supabaseAdmin
-        .from('discrepancies')
-        .select('id', { count: 'exact', head: true })
-        .eq('research_project_id', projectId),
-      supabaseAdmin
+        .eq('research_project_id', projectId)
+        .eq('analysis_status', 'analyzed');
+      summary.documents_analyzed = analyzedCount || 0;
+
+      // Mark as 'partial' when AI analysis was skipped; 'completed' when fully done
+      const finalStatus: LitePipelineStatus['status'] = process.env.ANTHROPIC_API_KEY ? 'completed' : 'partial';
+
+      // Merge analysis_metadata with pipeline_lite_status carefully
+      const existingMeta = (projRes.data?.analysis_metadata as Record<string, unknown>) || {};
+
+      await supabaseAdmin
         .from('research_projects')
-        .select('analysis_metadata')
-        .eq('id', projectId)
-        .single(),
-    ]);
-
-    summary.data_points_extracted = dpRes.count || 0;
-    summary.discrepancies_found = discRes.count || 0;
-
-    // Pull owner/legal/area from extracted data points for the summary
-    const { data: keyPoints } = await supabaseAdmin
-      .from('extracted_data_points')
-      .select('data_category, display_value, raw_value')
-      .eq('research_project_id', projectId)
-      .in('data_category', ['legal_description', 'area', 'flood_zone'])
-      .limit(3);
-
-    for (const dp of keyPoints || []) {
-      if (dp.data_category === 'legal_description') summary.legal_description = (dp.display_value || dp.raw_value)?.slice(0, 500);
-      if (dp.data_category === 'area') summary.acreage = dp.display_value || dp.raw_value;
-      if (dp.data_category === 'flood_zone') summary.flood_zone = dp.display_value || dp.raw_value;
-    }
-
-    // Compute a rough confidence score from how much data we have
-    const dpCount = summary.data_points_extracted;
-    const confidence = dpCount >= 30 ? 85 : dpCount >= 15 ? 70 : dpCount >= 5 ? 55 : 30;
-    summary.confidence_score = confidence;
-
-    // Count total docs analyzed
-    const { count: analyzedCount } = await supabaseAdmin
-      .from('research_documents')
-      .select('id', { count: 'exact', head: true })
-      .eq('research_project_id', projectId)
-      .eq('analysis_status', 'analyzed');
-    summary.documents_analyzed = analyzedCount || 0;
-
-    // Merge analysis_metadata with pipeline_lite_status carefully
-    const existingMeta = (projRes.data?.analysis_metadata as Record<string, unknown>) || {};
-
-    await supabaseAdmin
-      .from('research_projects')
-      .update({
-        analysis_metadata: {
-          ...existingMeta,
-          pipeline_lite_status: {
-            status: 'completed',
-            stage: 'Complete',
-            started_at: startedAt,
-            completed_at: new Date().toISOString(),
-            summary,
+        .update({
+          analysis_metadata: {
+            ...existingMeta,
+            pipeline_lite_status: {
+              status: finalStatus,
+              stage: process.env.ANTHROPIC_API_KEY ? 'Complete' : 'Complete (AI analysis skipped — ANTHROPIC_API_KEY not set)',
+              started_at: startedAt,
+              completed_at: new Date().toISOString(),
+              summary,
+            },
           },
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', projectId);
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', projectId);
+    } catch (stageErr) {
+      console.warn('[LitePipeline] Stage 6 stats collection failed:', stageErr instanceof Error ? stageErr.message : stageErr);
+      // Even if stats fail, mark as completed with whatever summary we have
+      await setStatus(projectId, {
+        status: 'completed',
+        stage: 'Complete (partial stats)',
+        completed_at: new Date().toISOString(),
+        summary,
+      });
+    }
 
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
