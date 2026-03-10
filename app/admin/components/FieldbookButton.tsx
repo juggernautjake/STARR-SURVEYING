@@ -26,7 +26,7 @@ export default function FieldbookButton({
     if (!content.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/admin/learn/notes', {
+      const res = await fetch('/api/admin/learn/fieldbook', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

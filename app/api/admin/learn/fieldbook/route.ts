@@ -218,7 +218,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   // --- Create new entry ---
-  const { title, content, media, tags, category_ids, is_public, job_id, job_name, job_number } = body;
+  const {
+    title, content, media, tags, category_ids, is_public, job_id, job_name, job_number,
+    // Context fields set by FieldbookButton (lesson/article pages)
+    page_context, page_url, module_id, lesson_id, topic_id, article_id, context_type, context_label,
+  } = body;
 
   // Unmark any current entry for this user
   await supabaseAdmin
@@ -235,6 +239,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     tags: tags || [],
     is_current: true,
     content_format: 'rich_text',
+    // Preserve page/lesson context when provided
+    page_context: page_context || null,
+    page_url: page_url || null,
+    module_id: module_id || null,
+    lesson_id: lesson_id || null,
+    topic_id: topic_id || null,
+    article_id: article_id || null,
+    context_type: context_type || null,
+    context_label: context_label || null,
   };
 
   // Public/private (job notes are always public)
