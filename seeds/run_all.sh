@@ -65,6 +65,7 @@ SEED_FILES=(
   "090_research_tables.sql"
   "091_phase11_expansion_tables.sql"
   "100_cad_drawings.sql"
+  "101_fieldbook_tables.sql"
 )
 
 echo "=== STARR-SURVEYING Database Seeder ==="
