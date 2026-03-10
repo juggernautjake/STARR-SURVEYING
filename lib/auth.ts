@@ -12,6 +12,10 @@ import { supabaseAdmin } from '@/lib/supabase';
 // Users can hold MULTIPLE roles (e.g. admin + teacher)
 // =============================================================================
 
+// How often (in seconds) to re-fetch roles from DB for an active session.
+// Role changes propagate to users within this window without requiring re-login.
+export const ROLES_REFRESH_INTERVAL_SECONDS = 5 * 60; // 5 minutes
+
 export type UserRole = 'admin' | 'teacher' | 'employee';
 
 const ADMIN_EMAILS: string[] = [
@@ -169,10 +173,17 @@ const authConfig: NextAuthConfig = {
         token.role = getPrimaryRole(token.roles as UserRole[]);
         token.name = user.name;
         token.picture = user.image;
-      } else if (token.email && !token.roles) {
-        // Existing session missing roles — recompute from DB + email lists
-        token.roles = await getUserRolesFromDB(token.email as string);
-        token.role = getPrimaryRole(token.roles as UserRole[]);
+        token.rolesLastChecked = Math.floor(Date.now() / 1000);
+      } else if (token.email) {
+        // Existing session: periodically re-fetch roles from DB so that role
+        // changes made by an admin propagate within ROLES_REFRESH_INTERVAL_SECONDS.
+        const lastChecked = (token.rolesLastChecked as number) || 0;
+        const now = Math.floor(Date.now() / 1000);
+        if (!token.roles || now - lastChecked > ROLES_REFRESH_INTERVAL_SECONDS) {
+          token.roles = await getUserRolesFromDB(token.email as string);
+          token.role = getPrimaryRole(token.roles as UserRole[]);
+          token.rolesLastChecked = now;
+        }
       }
       return token;
     },
