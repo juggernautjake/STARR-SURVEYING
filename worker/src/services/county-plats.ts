@@ -42,6 +42,27 @@ export interface PlatRepoConfig {
    * with the expected prefix. Used as: `${pdfBaseUrl}/${relativePathPrefix}/${href}`
    */
   relativePathPrefix?: string;
+  /**
+   * File extensions to match in index pages (default: ['.pdf']).
+   * Hays CAD uses TIF images instead of PDFs.
+   */
+  fileExtensions?: string[];
+  /**
+   * HTML parsing mode:
+   * - 'link-list': Standard <a href="...pdf">Name</a> links (default, Bell County / Revize)
+   * - 'table': HTML table with name in first <td>, file links in second <td> (Hays CAD)
+   */
+  parseMode?: 'link-list' | 'table';
+  /**
+   * Custom HTTP headers for fetching index pages and files.
+   * Some sites (Hays CAD) block requests without browser-like User-Agent.
+   */
+  customHeaders?: Record<string, string>;
+  /**
+   * Whether numeric-starting subdivisions are on the first-letter page
+   * rather than a separate '0-9' page. (Hays CAD puts "117 Business Park" on sublista)
+   */
+  numericsOnLetterPage?: boolean;
   /** Notes for documentation */
   notes?: string;
 }
@@ -52,6 +73,13 @@ export interface PlatRepoConfig {
  *
  * To add a new county, add a new entry here. The adapter handles the rest.
  */
+/** Browser-like headers for sites that block generic User-Agents */
+const BROWSER_HEADERS: Record<string, string> = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+
 const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
   bell: {
     county: 'bell',
@@ -61,13 +89,17 @@ const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
     relativePathPrefix: 'county_government/county_clerk',
     notes: 'Revize CMS, plats organized A-Z + 0-9',
   },
-  // Future counties can be added here:
-  // williamson: {
-  //   county: 'williamson',
-  //   countyDisplayName: 'Williamson County',
-  //   indexUrlTemplate: 'https://www.wilco.org/...',
-  //   pdfBaseUrl: 'https://...',
-  // },
+  hays: {
+    county: 'hays',
+    countyDisplayName: 'Hays County',
+    indexUrlTemplate: 'https://hayscad.com/subdivisionplats/sublist{letter}/',
+    pdfBaseUrl: 'https://hayscad.com',
+    fileExtensions: ['.tif', '.TIF'],
+    parseMode: 'table',
+    customHeaders: BROWSER_HEADERS,
+    numericsOnLetterPage: true,
+    notes: 'Hays CAD (WordPress/Elementor), 8000+ TIF plat images organized A-Z. Subdivision API at esearch.hayscad.com/Search/SubdivisionList',
+  },
 };
 
 /**
@@ -149,16 +181,19 @@ export function extractSubdivisionName(legalDescription: string): string | null 
 
 /**
  * Determine which letter page(s) to fetch for a given subdivision name.
+ * Some repos (Hays CAD) put numeric-starting names on the 'a' page.
  */
-function getLetterPages(name: string): string[] {
+function getLetterPages(name: string, config: PlatRepoConfig): string[] {
   const first = name.charAt(0).toUpperCase();
-  if (/\d/.test(first)) return ['0-9'];
+  if (/\d/.test(first)) {
+    return config.numericsOnLetterPage ? ['a'] : ['0-9'];
+  }
   if (first >= 'A' && first <= 'Z') return [first.toLowerCase()];
   return [];
 }
 
 /**
- * Fetch a letter index page and extract all plat PDF links.
+ * Fetch a letter index page and extract all plat file links.
  */
 async function fetchPlatIndex(
   config: PlatRepoConfig,
@@ -168,13 +203,15 @@ async function fetchPlatIndex(
   const url = config.indexUrlTemplate.replace('{letter}', letter);
   logger.info('Stage2A-Plats', `Fetching plat index: ${url}`);
 
+  const headers = config.customHeaders ?? {
+    'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)',
+    Accept: 'text/html',
+  };
+
   try {
     const resp = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)',
-        Accept: 'text/html',
-      },
-      signal: AbortSignal.timeout(15_000),
+      headers,
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!resp.ok) {
@@ -183,7 +220,10 @@ async function fetchPlatIndex(
     }
 
     const html = await resp.text();
-    return parsePlatLinks(html, config);
+    const parseMode = config.parseMode ?? 'link-list';
+    return parseMode === 'table'
+      ? parsePlatTable(html, config)
+      : parsePlatLinks(html, config);
   } catch (err) {
     logger.warn('Stage2A-Plats', `Failed to fetch index: ${err instanceof Error ? err.message : String(err)}`);
     return [];
@@ -191,39 +231,102 @@ async function fetchPlatIndex(
 }
 
 /**
- * Parse plat PDF links from the index page HTML.
+ * Build a regex pattern matching configured file extensions.
+ */
+function buildExtensionPattern(config: PlatRepoConfig): string {
+  const exts = config.fileExtensions ?? ['.pdf'];
+  // Escape dots and join with alternation
+  return exts.map(e => e.replace('.', '\\.')).join('|');
+}
+
+/**
+ * Resolve a relative href to an absolute URL using config.
+ */
+function resolveHref(href: string, config: PlatRepoConfig): string {
+  if (href.startsWith('http')) return href.split('?')[0];
+
+  const cleanHref = href.replace(/^\//, '');
+  const prefix = config.relativePathPrefix ?? '';
+  if (prefix && cleanHref.startsWith(prefix.replace(/^\//, ''))) {
+    return `${config.pdfBaseUrl}/${cleanHref}`.split('?')[0];
+  } else if (prefix) {
+    return `${config.pdfBaseUrl}/${prefix}/${cleanHref}`.split('?')[0];
+  }
+  return `${config.pdfBaseUrl}/${cleanHref}`.split('?')[0];
+}
+
+/**
+ * Parse plat PDF links from the index page HTML (link-list mode).
  * Links are in <li><a href="...pdf">NAME</a></li> format (common Revize CMS pattern).
  */
 function parsePlatLinks(html: string, config: PlatRepoConfig): Array<{ name: string; pdfUrl: string }> {
   const results: Array<{ name: string; pdfUrl: string }> = [];
   const seen = new Set<string>();
 
-  const linkPattern = /<a\s[^>]*href=["']([^"']*\.pdf[^"']*)["'][^>]*>([^<]+)<\/a>/gi;
+  const extPat = buildExtensionPattern(config);
+  const linkPattern = new RegExp(
+    `<a\\s[^>]*href=["']([^"']*(?:${extPat})[^"']*)["'][^>]*>([^<]+)<\\/a>`,
+    'gi',
+  );
   let match;
 
   while ((match = linkPattern.exec(html)) !== null) {
-    let href = match[1];
+    const href = match[1];
     const name = match[2].trim();
 
     if (!name || seen.has(name.toUpperCase())) continue;
     seen.add(name.toUpperCase());
 
-    // Resolve relative URLs using config
-    if (!href.startsWith('http')) {
-      const cleanHref = href.replace(/^\//, '');
-      const prefix = config.relativePathPrefix ?? '';
-      if (prefix && cleanHref.startsWith(prefix.replace(/^\//, ''))) {
-        href = `${config.pdfBaseUrl}/${cleanHref}`;
-      } else if (prefix) {
-        href = `${config.pdfBaseUrl}/${prefix}/${cleanHref}`;
-      } else {
-        href = `${config.pdfBaseUrl}/${cleanHref}`;
-      }
-    }
-
-    // Strip cache-busting timestamp query param
-    const pdfUrl = href.split('?')[0];
+    const pdfUrl = resolveHref(href, config);
     results.push({ name, pdfUrl });
+  }
+
+  return results;
+}
+
+/**
+ * Parse plat file links from HTML table format (Hays CAD).
+ *
+ * Expected structure:
+ *   <tr><td>Subdivision Name</td><td><a href="...TIF">Page 1</a> <a href="...TIF">Page 2</a></td></tr>
+ *
+ * Returns one entry per subdivision (using first page link only for initial match).
+ */
+function parsePlatTable(html: string, config: PlatRepoConfig): Array<{ name: string; pdfUrl: string }> {
+  const results: Array<{ name: string; pdfUrl: string }> = [];
+  const seen = new Set<string>();
+
+  const extPat = buildExtensionPattern(config);
+
+  // Match table rows: extract both <td> cells
+  const rowPattern = /<tr[^>]*>\s*<td[^>]*>([^<]*)<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
+  const linkInCell = new RegExp(
+    `href=["']([^"']*(?:${extPat})[^"']*)["']`,
+    'gi',
+  );
+
+  let rowMatch;
+  while ((rowMatch = rowPattern.exec(html)) !== null) {
+    const rawName = rowMatch[1].replace(/&amp;/g, '&').replace(/&#8211;/g, '–').trim();
+    const linksCell = rowMatch[2];
+
+    // Skip header rows or empty names
+    if (!rawName || rawName.toLowerCase().includes('recorded plats')) continue;
+    if (seen.has(rawName.toUpperCase())) continue;
+    seen.add(rawName.toUpperCase());
+
+    // Extract first file link from the links cell (Page 1)
+    linkInCell.lastIndex = 0;
+    const linkMatch = linkInCell.exec(linksCell);
+    if (!linkMatch) continue;
+
+    let href = linkMatch[1].replace(/&amp;/g, '&');
+    const pdfUrl = resolveHref(href, config);
+
+    // Skip broken links (some Hays entries have malformed hrefs like "https://ACORD ACRES...")
+    if (pdfUrl.includes(' ') && !pdfUrl.includes('%20')) continue;
+
+    results.push({ name: rawName, pdfUrl });
   }
 
   return results;
@@ -277,33 +380,48 @@ function scorePlatMatch(platName: string, targetName: string): number {
 }
 
 /**
- * Download a plat PDF and return its content as a base64-encoded buffer.
+ * Detect the file format from a URL.
  */
-async function downloadPlatPdf(
-  pdfUrl: string,
+function detectFileFormat(url: string): 'pdf' | 'tif' {
+  const lower = url.toLowerCase();
+  if (lower.endsWith('.tif') || lower.endsWith('.tiff')) return 'tif';
+  return 'pdf';
+}
+
+/**
+ * Download a plat file (PDF or TIF) and return its content as a base64-encoded buffer.
+ */
+async function downloadPlatFile(
+  fileUrl: string,
   logger: PipelineLogger,
-): Promise<{ base64: string; sizeBytes: number } | null> {
-  logger.info('Stage2A-Plats', `Downloading plat PDF: ${pdfUrl}`);
+  config?: PlatRepoConfig,
+): Promise<{ base64: string; sizeBytes: number; format: 'pdf' | 'tif' } | null> {
+  const format = detectFileFormat(fileUrl);
+  logger.info('Stage2A-Plats', `Downloading plat ${format.toUpperCase()}: ${fileUrl}`);
+
+  const headers = config?.customHeaders ?? {
+    'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)',
+  };
 
   try {
-    const resp = await fetch(pdfUrl, {
+    const resp = await fetch(fileUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; STARR-Surveying/1.0)',
-        Accept: 'application/pdf',
+        ...headers,
+        Accept: format === 'tif' ? 'image/tiff,*/*' : 'application/pdf',
       },
       signal: AbortSignal.timeout(30_000),
     });
 
     if (!resp.ok) {
-      logger.warn('Stage2A-Plats', `PDF download returned HTTP ${resp.status}`);
+      logger.warn('Stage2A-Plats', `File download returned HTTP ${resp.status}`);
       return null;
     }
 
     const buf = Buffer.from(await resp.arrayBuffer());
-    logger.info('Stage2A-Plats', `Downloaded ${buf.length} bytes`);
-    return { base64: buf.toString('base64'), sizeBytes: buf.length };
+    logger.info('Stage2A-Plats', `Downloaded ${buf.length} bytes (${format})`);
+    return { base64: buf.toString('base64'), sizeBytes: buf.length, format };
   } catch (err) {
-    logger.warn('Stage2A-Plats', `PDF download failed: ${err instanceof Error ? err.message : String(err)}`);
+    logger.warn('Stage2A-Plats', `File download failed: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }
@@ -339,7 +457,7 @@ export async function searchCountyPlats(
   });
 
   try {
-    const letters = getLetterPages(subdivisionName);
+    const letters = getLetterPages(subdivisionName, config);
     if (letters.length === 0) {
       tracker({ status: 'fail', details: 'Could not determine letter page for subdivision name' });
       return [];
@@ -390,12 +508,12 @@ export async function searchCountyPlats(
 }
 
 /**
- * Full plat retrieval: search + download the best matching plat PDF.
+ * Full plat retrieval: search + download the best matching plat file (PDF or TIF).
  *
  * @param county - County name (e.g., 'Bell')
  * @param subdivisionName - The subdivision/addition name
  * @param logger - Pipeline logger
- * @returns The plat PDF as base64 + metadata, or null if no match / county has no repo
+ * @returns The plat file as base64 + metadata, or null if no match / county has no repo
  */
 export async function fetchBestMatchingPlat(
   county: string,
@@ -405,6 +523,7 @@ export async function fetchBestMatchingPlat(
   match: PlatMatch;
   pdfBase64: string;
   pdfSizeBytes: number;
+  fileFormat: 'pdf' | 'tif';
   source: string;
 } | null> {
   const config = getPlatRepoConfig(county);
@@ -414,13 +533,14 @@ export async function fetchBestMatchingPlat(
   if (matches.length === 0) return null;
 
   for (const match of matches.slice(0, 3)) {
-    const pdf = await downloadPlatPdf(match.pdfUrl, logger);
-    if (pdf) {
+    const file = await downloadPlatFile(match.pdfUrl, logger, config);
+    if (file) {
       return {
         match,
-        pdfBase64: pdf.base64,
-        pdfSizeBytes: pdf.sizeBytes,
-        source: `${config.countyDisplayName} Clerk plat repository`,
+        pdfBase64: file.base64,
+        pdfSizeBytes: file.sizeBytes,
+        fileFormat: file.format,
+        source: `${config.countyDisplayName} plat repository`,
       };
     }
   }

@@ -650,7 +650,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
               ocrText: null,
               extractedData: null,
               imageBase64: platResult.pdfBase64,
-              imageFormat: 'pdf',
+              imageFormat: platResult.fileFormat === 'tif' ? 'tiff' : 'pdf',
               pagesPdfUrl: platResult.match.pdfUrl,
             };
             documents.push(platDoc);
@@ -770,7 +770,11 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     let reconciliation: import('../types/index.js').PipelineResult['reconciliation'] = undefined;
 
     if (platDoc?.imageBase64 && platDoc.imageFormat) {
-      const mediaType = (platDoc.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png') as 'image/png' | 'image/jpeg';
+      const mediaType = (
+        platDoc.imageFormat === 'jpg' ? 'image/jpeg' :
+        platDoc.imageFormat === 'tiff' ? 'image/png' :
+        'image/png'
+      ) as 'image/png' | 'image/jpeg';
       try {
         reconciliation = await runGeoReconcile(
           boundary,
