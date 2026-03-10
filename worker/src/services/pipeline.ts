@@ -7,6 +7,7 @@ import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bell-cad.js';
 import { searchClerkRecords, fetchDocumentImages } from './bell-clerk.js';
+import { extractSubdivisionName, fetchBestMatchingPlat } from './bell-county-plats.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
@@ -615,6 +616,53 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       logger.info('Stage2', `Found instrument numbers in legal description but county is not Bell — skipping instrument search`);
     } else {
       logger.info('Stage2', 'No instrument numbers in legal description — proceeding to owner-name search');
+    }
+
+    // ── Stage 2A: Bell County Plat Repository Search ──────────────────────
+    // Search bellcountytx.com plat repository by subdivision/addition name.
+    // This provides free direct PDF downloads of plat surveys with boundary data.
+    // Runs regardless of instrument search result — plats are a separate data source.
+    if (input.county.toLowerCase() === 'bell') {
+      const subdivisionName = extractSubdivisionName(legalDesc);
+      if (subdivisionName) {
+        logger.info('Stage2A', `═══ STAGE 2A: Plat Repository Search ═══`);
+        logger.info('Stage2A', `Subdivision name from legal description: "${subdivisionName}"`);
+
+        try {
+          const platResult = await fetchBestMatchingPlat(subdivisionName, logger);
+          if (platResult) {
+            logger.info('Stage2A', `Found plat: "${platResult.match.name}" (score=${platResult.match.matchScore.toFixed(2)}, ${platResult.pdfSizeBytes} bytes)`);
+
+            const platDoc: DocumentResult = {
+              ref: {
+                instrumentNumber: null,
+                volume: null,
+                page: null,
+                documentType: 'Plat (county repository)',
+                recordingDate: null,
+                grantors: [],
+                grantees: [subdivisionName],
+                source: 'Bell County Clerk plat repository (bellcountytx.com)',
+                url: platResult.match.pdfUrl,
+              },
+              textContent: null,
+              ocrText: null,
+              extractedData: null,
+              imageBase64: platResult.pdfBase64,
+              imageFormat: 'pdf',
+              pagesPdfUrl: platResult.match.pdfUrl,
+            };
+            documents.push(platDoc);
+            logger.info('Stage2A', `Added plat document to pipeline — total documents: ${documents.length}`);
+          } else {
+            logger.info('Stage2A', 'No matching plat found in county repository');
+          }
+        } catch (err) {
+          logger.warn('Stage2A', `Plat repository search failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      } else {
+        logger.info('Stage2A', 'No subdivision name extractable from legal description — skipping plat repository');
+      }
     }
 
     // ── Stage 2 Fallback: Owner Name Search ─────────────────────────────────
