@@ -1724,6 +1724,93 @@
   margin-top: 0.25rem;
 }
 
+/* ── Research Loading Panel ──────────────────────────────────────────────── */
+
+.research-search__loading {
+  margin-top: 1rem;
+  padding: 1.5rem 1.25rem;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.research-search__loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #DBEAFE;
+  border-top-color: #2563EB;
+  border-radius: 50%;
+  margin: 0 auto 0.75rem;
+  animation: research-search-spin 0.8s linear infinite;
+}
+
+@keyframes research-search-spin {
+  to { transform: rotate(360deg); }
+}
+
+.research-search__loading-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1E40AF;
+  margin-bottom: 0.25rem;
+}
+
+.research-search__loading-subtitle {
+  font-size: 0.8rem;
+  color: #3B82F6;
+  margin-bottom: 1rem;
+  min-height: 1.1em;
+}
+
+.research-search__loading-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  text-align: left;
+  max-width: 340px;
+  margin: 0 auto;
+}
+
+.research-search__loading-step {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.83rem;
+  color: #93C5FD;
+}
+
+.research-search__loading-step--active {
+  color: #1D4ED8;
+  font-weight: 500;
+}
+
+.research-search__loading-step--done {
+  color: #059669;
+}
+
+.research-search__loading-step__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #BFDBFE;
+}
+
+.research-search__loading-step--active .research-search__loading-step__dot {
+  background: #3B82F6;
+  animation: research-search-dot-pulse 1.5s ease-in-out infinite;
+}
+
+.research-search__loading-step--done .research-search__loading-step__dot {
+  background: #10B981;
+}
+
+@keyframes research-search-dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.75); }
+}
+
 /* Source status chips */
 .research-search__sources {
   display: flex;
