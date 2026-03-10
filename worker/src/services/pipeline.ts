@@ -5,7 +5,7 @@
 import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyIdResult, SearchDiagnostics } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
-import { searchBisCad, BIS_CONFIGS } from './bell-cad.js';
+import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
 import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl } from './bell-clerk.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';

@@ -1,4 +1,4 @@
-// worker/src/services/bell-cad.ts — Stage 1: CAD Property Identification
+// worker/src/services/bis-cad.ts — Stage 1: CAD Property Identification
 // Layer 1A: HTTP with session cookie acquisition (fixes HTTP 415)
 // Layer 1B: Playwright browser automation (tries all exact + partial variants)
 // Layer 1C: Screenshot + Claude Vision OCR fallback
@@ -14,35 +14,37 @@ import { normalizeAddress } from './address-utils.js';
 interface BisConfig {
   baseUrl: string;
   name: string;
+  /** BIS GIS viewer base URL — https://gis.bisclient.com/{county}cad/ */
+  gisBaseUrl?: string;
 }
 
 // BIS Consultants eSearch — all known counties within 200-mile radius of Bell County
 // organized in concentric rings from Belton, TX outward.
 export const BIS_CONFIGS: Record<string, BisConfig> = {
   // ── Ring 0: Bell County ──────────────────────────────────────────
-  bell:        { baseUrl: 'https://esearch.bellcad.org', name: 'Bell CAD' },
+  bell:        { baseUrl: 'https://esearch.bellcad.org',          name: 'Bell CAD',            gisBaseUrl: 'https://gis.bisclient.com/bellcad/' },
   // ── Ring 1: Adjacent to Bell (~0-30 mi) ──────────────────────────
-  coryell:     { baseUrl: 'https://esearch.coryellcad.org', name: 'Coryell CAD' },
-  mclennan:    { baseUrl: 'https://esearch.mclennancad.org', name: 'McLennan CAD' },
-  falls:       { baseUrl: 'https://esearch.fallscad.net', name: 'Falls CAD' },
-  milam:       { baseUrl: 'https://esearch.milamcad.org', name: 'Milam CAD' },
-  williamson:  { baseUrl: 'https://esearch.wilcotx.gov', name: 'Williamson CAD' },
-  burnet:      { baseUrl: 'https://esearch.burnet-cad.org', name: 'Burnet CAD' },
-  lampasas:    { baseUrl: 'https://esearch.lampasascad.org', name: 'Lampasas CAD' },
+  coryell:     { baseUrl: 'https://esearch.coryellcad.org',       name: 'Coryell CAD',         gisBaseUrl: 'https://gis.bisclient.com/coryellcad/' },
+  mclennan:    { baseUrl: 'https://esearch.mclennancad.org',      name: 'McLennan CAD',        gisBaseUrl: 'https://gis.bisclient.com/mclennancad/' },
+  falls:       { baseUrl: 'https://esearch.fallscad.net',         name: 'Falls CAD',           gisBaseUrl: 'https://gis.bisclient.com/fallscad/' },
+  milam:       { baseUrl: 'https://esearch.milamcad.org',         name: 'Milam CAD',           gisBaseUrl: 'https://gis.bisclient.com/milamcad/' },
+  williamson:  { baseUrl: 'https://esearch.wilcotx.gov',          name: 'Williamson CAD',      gisBaseUrl: 'https://gis.bisclient.com/wilcotx/' },
+  burnet:      { baseUrl: 'https://esearch.burnet-cad.org',       name: 'Burnet CAD',          gisBaseUrl: 'https://gis.bisclient.com/burnetcad/' },
+  lampasas:    { baseUrl: 'https://esearch.lampasascad.org',      name: 'Lampasas CAD',        gisBaseUrl: 'https://gis.bisclient.com/lampasascad/' },
   // ── Ring 2: (~30-60 mi) ──────────────────────────────────────────
-  hamilton:    { baseUrl: 'https://esearch.hamiltoncad.org', name: 'Hamilton CAD' },
+  hamilton:    { baseUrl: 'https://esearch.hamiltoncad.org',      name: 'Hamilton CAD',        gisBaseUrl: 'https://gis.bisclient.com/hamiltoncad/' },
   bosque:      { baseUrl: 'https://esearch.bosquecad.com', name: 'Bosque CAD' },
-  hill:        { baseUrl: 'https://esearch.hillcad.org', name: 'Hill CAD' },
-  limestone:   { baseUrl: 'https://esearch.limestonecad.org', name: 'Limestone CAD' },
+  hill:        { baseUrl: 'https://esearch.hillcad.org',          name: 'Hill CAD',            gisBaseUrl: 'https://gis.bisclient.com/hillcad/' },
+  limestone:   { baseUrl: 'https://esearch.limestonecad.org',     name: 'Limestone CAD',       gisBaseUrl: 'https://gis.bisclient.com/limestonecad/' },
   robertson:   { baseUrl: 'https://esearch.robertsoncad.org', name: 'Robertson CAD' },
   lee:         { baseUrl: 'https://esearch.leecad.org', name: 'Lee CAD' },
-  bastrop:     { baseUrl: 'https://esearch.bastropcad.org', name: 'Bastrop CAD' },
+  bastrop:     { baseUrl: 'https://esearch.bastropcad.org',       name: 'Bastrop CAD',         gisBaseUrl: 'https://gis.bisclient.com/bastropcad/' },
   san_saba:    { baseUrl: 'https://esearch.sansabacad.org', name: 'San Saba CAD' },
   mills:       { baseUrl: 'https://esearch.millscad.org', name: 'Mills CAD' },
   // ── Ring 3: (~60-100 mi) ─────────────────────────────────────────
-  hays:        { baseUrl: 'https://esearch.hayscad.com', name: 'Hays CAD' },
-  guadalupe:   { baseUrl: 'https://esearch.guadalupead.org', name: 'Guadalupe CAD' },
-  caldwell:    { baseUrl: 'https://esearch.caldwellcad.org', name: 'Caldwell CAD' },
+  hays:        { baseUrl: 'https://esearch.hayscad.com',          name: 'Hays CAD',            gisBaseUrl: 'https://gis.bisclient.com/hayscad/' },
+  guadalupe:   { baseUrl: 'https://esearch.guadalupead.org',      name: 'Guadalupe CAD',       gisBaseUrl: 'https://gis.bisclient.com/guadalupecad/' },
+  caldwell:    { baseUrl: 'https://esearch.caldwellcad.org',      name: 'Caldwell CAD',        gisBaseUrl: 'https://gis.bisclient.com/caldwellcad/' },
   blanco:      { baseUrl: 'https://esearch.blancocad.org', name: 'Blanco CAD' },
   llano:       { baseUrl: 'https://esearch.llanocad.net', name: 'Llano CAD' },
   mason:       { baseUrl: 'https://esearch.masoncad.org', name: 'Mason CAD' },
@@ -57,12 +59,12 @@ export const BIS_CONFIGS: Record<string, BisConfig> = {
   freestone:   { baseUrl: 'https://esearch.freestonecad.org', name: 'Freestone CAD' },
   leon:        { baseUrl: 'https://esearch.leoncad.org', name: 'Leon CAD' },
   madison:     { baseUrl: 'https://esearch.madisoncad.org', name: 'Madison CAD' },
-  brazos:      { baseUrl: 'https://esearch.brazoscad.org', name: 'Brazos CAD' },
+  brazos:      { baseUrl: 'https://esearch.brazoscad.org',        name: 'Brazos CAD',          gisBaseUrl: 'https://gis.bisclient.com/brazoscad/' },
   burleson:    { baseUrl: 'https://esearch.burlesoncad.org', name: 'Burleson CAD' },
   washington:  { baseUrl: 'https://esearch.washingtoncad.org', name: 'Washington CAD' },
   fayette:     { baseUrl: 'https://esearch.fayettecad.org', name: 'Fayette CAD' },
   gonzales:    { baseUrl: 'https://esearch.gonzalescad.org', name: 'Gonzales CAD' },
-  comal:       { baseUrl: 'https://esearch.comalcad.org', name: 'Comal CAD' },
+  comal:       { baseUrl: 'https://esearch.comalcad.org',         name: 'Comal CAD',           gisBaseUrl: 'https://gis.bisclient.com/comalcad/' },
   // ── Ring 4: (~100-140 mi) ────────────────────────────────────────
   hood:        { baseUrl: 'https://esearch.hoodcad.org', name: 'Hood CAD' },
   palo_pinto:  { baseUrl: 'https://esearch.palopintocad.org', name: 'Palo Pinto CAD' },
@@ -2257,6 +2259,34 @@ export async function searchBisCad(
     }
   }
 
+  // Layer 1E: BIS GIS ArcGIS REST API (additional enrichment / last resort)
+  if (config.gisBaseUrl) {
+    const gisResult = await searchBisGis(config.gisBaseUrl, logger, {
+      propertyId: options?.propertyId,
+      address: normalized.raw,
+      ownerName: options?.ownerName,
+    });
+    if (gisResult?.propertyId || gisResult?.ownerName) {
+      logger.info('Stage1E', `GIS lookup returned data — propertyId=${gisResult.propertyId ?? 'n/a'}`);
+      diagnostics.searchDuration_ms = Date.now() - searchStart;
+      return {
+        property: {
+          propertyId: gisResult.propertyId ?? '',
+          source: 'Stage1E',
+          confidence: 0.5,
+          ownerName: gisResult.ownerName,
+          legalDescription: gisResult.legalDescription,
+          acreage: gisResult.acreage,
+          situsAddress: gisResult.situsAddress,
+          mapId: gisResult.mapId,
+          notes: ['Found via BIS GIS ArcGIS REST API'],
+          validation: { confidence: 0.5, issues: ['GIS-only result — not confirmed via eSearch'], multipleResults: false },
+        } as PropertyIdResult,
+        diagnostics,
+      };
+    }
+  }
+
   logger.error('Stage1', `All CAD search layers exhausted — property not found. Tried ${diagnostics.variantsTried.length} variants.`);
   diagnostics.searchDuration_ms = Date.now() - searchStart;
   return { property: null, diagnostics };
@@ -2271,7 +2301,7 @@ export async function searchBisCad(
  * Normalizes the address, then searches Bell CAD via searchBisCad().
  * Returns the best matching property or null if not found.
  */
-export async function lookupBellCAD(
+export async function lookupBisCad(
   address: string,
   logger: PipelineLogger,
 ): Promise<PropertyIdResult | null> {
@@ -2279,4 +2309,218 @@ export async function lookupBellCAD(
   const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
   const { property } = await searchBisCad('bell', normalized, apiKey, logger);
   return property;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BIS GIS — ArcGIS REST API integration (Phase 17)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface GisPropertyData {
+  propertyId?: string;
+  ownerName?: string;
+  legalDescription?: string;
+  acreage?: number;
+  situsAddress?: string;
+  abstractName?: string;
+  subdivision?: string;
+  mapId?: string;
+  /** Parcel boundary ring coordinates [lon, lat] pairs */
+  parcelRings?: number[][][];
+  /** Raw attribute record for any additional fields */
+  rawAttributes?: Record<string, unknown>;
+}
+
+const FIELD_ALIASES: Record<string, string[]> = {
+  propertyId:       ['PROP_ID', 'PropertyID', 'PROPERTY_ID', 'ACCT_NUM', 'CAD_ID', 'ID', 'OBJECTID'],
+  ownerName:        ['OWNER_NAME', 'OwnerName', 'OWNER', 'OWN_NAME', 'OWNERNAME'],
+  legalDescription: ['LEGAL_DESC', 'LegalDesc', 'LEGAL', 'LEGAL_DESCRIPTION', 'LEGAL_DESCR'],
+  acreage:          ['ACREAGE', 'Acreage', 'ACRES', 'LAND_ACRES', 'TOT_ACRES', 'AREA_ACRES'],
+  situsAddress:     ['SITUS_ADDR', 'SitusAddr', 'ADDRESS', 'PROP_ADDR', 'SITE_ADDR', 'ADDR'],
+  abstractName:     ['ABSTRACT', 'AbstractName', 'ABS_NAME', 'ABST_NAME'],
+  subdivision:      ['SUBDIVISION', 'Subdivision', 'SUB_NAME', 'SUBDIV'],
+  mapId:            ['MAP_ID', 'MapID', 'MAPID', 'MAP_SHEET', 'GEO_ID'],
+};
+
+function extractGisField(
+  attrs: Record<string, unknown>,
+  field: string,
+): string | undefined {
+  for (const alias of FIELD_ALIASES[field] ?? []) {
+    const v = attrs[alias];
+    if (v !== undefined && v !== null && String(v).trim() !== '' && String(v) !== 'null') {
+      return String(v).trim();
+    }
+  }
+  return undefined;
+}
+
+function extractGisNumField(
+  attrs: Record<string, unknown>,
+  field: string,
+): number | undefined {
+  for (const alias of FIELD_ALIASES[field] ?? []) {
+    const v = attrs[alias];
+    if (typeof v === 'number' && !isNaN(v)) return v;
+    if (typeof v === 'string') {
+      const n = parseFloat(v.replace(/,/g, ''));
+      if (!isNaN(n)) return n;
+    }
+  }
+  return undefined;
+}
+
+function buildGisPropertyData(attrs: Record<string, unknown>, geometry?: unknown): GisPropertyData {
+  const result: GisPropertyData = {
+    rawAttributes: attrs,
+  };
+  result.propertyId      = extractGisField(attrs, 'propertyId');
+  result.ownerName       = extractGisField(attrs, 'ownerName');
+  result.legalDescription = extractGisField(attrs, 'legalDescription');
+  result.acreage         = extractGisNumField(attrs, 'acreage');
+  result.situsAddress    = extractGisField(attrs, 'situsAddress');
+  result.abstractName    = extractGisField(attrs, 'abstractName');
+  result.subdivision     = extractGisField(attrs, 'subdivision');
+  result.mapId           = extractGisField(attrs, 'mapId');
+
+  if (geometry && typeof geometry === 'object') {
+    const geo = geometry as Record<string, unknown>;
+    const rings = geo['rings'];
+    if (Array.isArray(rings)) {
+      result.parcelRings = rings as number[][][];
+    }
+  }
+  return result;
+}
+
+interface ArcGisFeatureSet {
+  features?: Array<{ attributes: Record<string, unknown>; geometry?: unknown }>;
+}
+
+async function queryArcGisLayer(
+  url: string,
+  params: Record<string, string>,
+  logger: PipelineLogger,
+): Promise<ArcGisFeatureSet | null> {
+  const qs = new URLSearchParams({ ...params, f: 'json' }).toString();
+  const fullUrl = `${url}?${qs}`;
+  try {
+    const resp = await fetch(fullUrl, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!resp.ok) return null;
+    const json = await resp.json() as ArcGisFeatureSet;
+    return json;
+  } catch (err) {
+    logger.warn('Stage1E', `ArcGIS query failed: ${fullUrl} — ${String(err)}`);
+    return null;
+  }
+}
+
+/**
+ * Query the BIS GIS ArcGIS REST API to retrieve property data.
+ * Tries property ID lookup, then geocode-based spatial query, then owner name search.
+ * Does not require Playwright — uses the ArcGIS HTTP REST API directly.
+ */
+export async function searchBisGis(
+  gisBaseUrl: string,
+  logger: PipelineLogger,
+  options: {
+    propertyId?: string;
+    address?: string;
+    ownerName?: string;
+  },
+): Promise<GisPropertyData | null> {
+  const base = gisBaseUrl.endsWith('/') ? gisBaseUrl : `${gisBaseUrl}/`;
+  const arcgisBase = `${base}arcgis/rest/services/`;
+
+  const COMMON_SERVICES = ['Parcels', 'ParcelData', 'Cadastral', 'PropertyData'];
+  const COMMON_LAYERS = [0, 1, 2];
+  const PROP_ID_FIELDS = FIELD_ALIASES.propertyId;
+
+  // ── Approach A: Query by Property ID ────────────────────────────────────
+  if (options.propertyId) {
+    logger.info('Stage1E', `GIS: querying by property ID "${options.propertyId}"`);
+    for (const svc of COMMON_SERVICES) {
+      for (const layer of COMMON_LAYERS) {
+        for (const field of PROP_ID_FIELDS) {
+          const layerUrl = `${arcgisBase}${svc}/MapServer/${layer}/query`;
+          const fs = await queryArcGisLayer(layerUrl, {
+            where: `${field}='${options.propertyId}'`,
+            outFields: '*',
+            returnGeometry: 'true',
+          }, logger);
+          if (fs?.features && fs.features.length > 0) {
+            const feat = fs.features[0];
+            logger.info('Stage1E', `GIS: found via property ID in ${svc}/layer ${layer} field ${field}`);
+            return buildGisPropertyData(feat.attributes, feat.geometry);
+          }
+        }
+      }
+    }
+  }
+
+  // ── Approach B: Geocode address → spatial query ───────────────────────────
+  if (options.address) {
+    logger.info('Stage1E', `GIS: geocoding address "${options.address}"`);
+    const geocodeUrl = `${base}arcgis/rest/services/Locators/Composite_Locator/GeocodeServer/findAddressCandidates`;
+    const geocodeResult = await queryArcGisLayer(geocodeUrl, {
+      SingleLine: options.address,
+      outFields: '*',
+      maxLocations: '3',
+    }, logger) as (ArcGisFeatureSet & { candidates?: Array<{ location: { x: number; y: number }; score: number }> }) | null;
+
+    const candidates = geocodeResult && 'candidates' in geocodeResult
+      ? (geocodeResult as { candidates?: Array<{ location: { x: number; y: number }; score: number }> }).candidates
+      : undefined;
+
+    if (candidates && candidates.length > 0) {
+      const best = candidates[0];
+      const { x, y } = best.location;
+      const delta = 0.0005;
+      const envelope = `${x - delta},${y - delta},${x + delta},${y + delta}`;
+
+      for (const svc of COMMON_SERVICES) {
+        for (const layer of COMMON_LAYERS) {
+          const layerUrl = `${arcgisBase}${svc}/MapServer/${layer}/query`;
+          const fs = await queryArcGisLayer(layerUrl, {
+            geometry: envelope,
+            geometryType: 'esriGeometryEnvelope',
+            spatialRel: 'esriSpatialRelIntersects',
+            outFields: '*',
+            returnGeometry: 'true',
+          }, logger);
+          if (fs?.features && fs.features.length > 0) {
+            logger.info('Stage1E', `GIS: found via geocode spatial query in ${svc}/layer ${layer}`);
+            return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
+          }
+        }
+      }
+    }
+  }
+
+  // ── Approach C: Query by owner name ─────────────────────────────────────
+  if (options.ownerName) {
+    logger.info('Stage1E', `GIS: querying by owner name "${options.ownerName}"`);
+    const safeName = options.ownerName.replace(/'/g, "''");
+    for (const svc of COMMON_SERVICES) {
+      for (const layer of COMMON_LAYERS) {
+        for (const field of FIELD_ALIASES.ownerName) {
+          const layerUrl = `${arcgisBase}${svc}/MapServer/${layer}/query`;
+          const fs = await queryArcGisLayer(layerUrl, {
+            where: `${field} LIKE '${safeName}%'`,
+            outFields: '*',
+            returnGeometry: 'true',
+          }, logger);
+          if (fs?.features && fs.features.length > 0) {
+            logger.info('Stage1E', `GIS: found via owner name in ${svc}/layer ${layer} field ${field}`);
+            return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
+          }
+        }
+      }
+    }
+  }
+
+  logger.info('Stage1E', 'GIS: no results found across all query approaches');
+  return null;
 }

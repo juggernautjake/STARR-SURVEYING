@@ -11,7 +11,7 @@
 
 import type { CadSystemName } from '../types/property-discovery.js';
 import { resolveCounty } from '../lib/county-fips.js';
-import { BIS_CONFIGS } from './bell-cad.js';
+import { BIS_CONFIGS } from './bis-cad.js';
 
 // ── CADConfig interface (spec §1.2) ───────────────────────────────────────────
 
@@ -101,7 +101,7 @@ function reg(fips: string, config: CADConfig): void {
   _REGISTRY.set(fips, config);
 }
 
-// ── BIS Consultants entries (auto-generated from bell-cad.ts BIS_CONFIGS) ─────
+// ── BIS Consultants entries (auto-generated from bis-cad.ts BIS_CONFIGS) ─────
 // We lazily populate the registry from BIS_CONFIGS so we never need to maintain
 // two lists.  Bell County gets an extra note from the production spec.
 function populateBisEntries(): void {

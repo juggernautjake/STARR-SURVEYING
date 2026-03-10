@@ -3,7 +3,7 @@
 //
 // FIPS format: state "48" + 3-digit county code, zero-padded (e.g. "48027" = Bell).
 // CAD system derived from:
-//   - BIS_CONFIGS keys in bell-cad.ts           → 'bis_consultants'
+//   - BIS_CONFIGS keys in bis-cad.ts           → 'bis_consultants'
 //   - TRUEAUTO_BY_COUNTY keys that are NOT in BIS → 'trueautomation'
 //   - Harris County                               → 'hcad'
 //   - Tarrant County                              → 'tad'
