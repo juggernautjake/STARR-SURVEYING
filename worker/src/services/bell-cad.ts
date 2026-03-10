@@ -441,12 +441,14 @@ async function searchCadHttp(
     });
 
     try {
-      // Build keyword string in BIS format: StreetNumber:N StreetName:S
-      // Multi-word street names are quoted
+      // Build keyword string in BIS format: StreetNumber:N StreetName:S PropertyType:Real
+      // PropertyType:Real filters out Personal/Mineral/Auto records at the API level,
+      // preventing the pipeline from picking business personal property records
+      // (e.g., ID 498826 "STARR SURVEYING" business equipment) over real land records.
       const namePart = variant.streetName.includes(' ')
         ? `StreetName:"${variant.streetName}"`
         : `StreetName:${variant.streetName}`;
-      const keywords = `StreetNumber:${variant.streetNumber} ${namePart}`;
+      const keywords = `StreetNumber:${variant.streetNumber} ${namePart} PropertyType:Real`;
       const encodedKeywords = encodeURIComponent(keywords);
       const encodedToken = encodeURIComponent(sessionToken);
       // BUG 3 FIX: The working AJAX endpoint is /search/SearchResults (not /search/result).
@@ -793,6 +795,17 @@ async function searchCadPlaywright(
           finish.step?.(`[runtime] Field fill partial: numFilled=${fieldsFilled.numFilled}, nameFilled=${fieldsFilled.nameFilled}`);
         }
 
+        // Set PropertyType dropdown to "Real" to exclude personal/mineral/auto/mobile-home records.
+        // The BIS search form has a select2 #PropertyType dropdown. Setting the underlying
+        // <select> value and dispatching a change event is the most reliable approach.
+        await page.evaluate(() => {
+          const sel = document.getElementById('PropertyType') as HTMLSelectElement | null;
+          if (sel && sel.options.length > 0) {
+            sel.value = 'Real';
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }).catch(() => { /* non-fatal if element not present */ });
+
         // Click search button
         let searchClicked = false;
         for (const sel of searchBtnSelectors) {
@@ -990,11 +1003,18 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
         const cells = row ? Array.from(row.querySelectorAll('td')) : [];
         const text = row?.textContent?.trim() ?? link.textContent?.trim() ?? '';
 
+        // Bell CAD uses class-named cells: ._propertyType, ._ownerName, ._address, ._legalDescription
+        const typeCellByClass = row?.querySelector('td._propertyType, td[class*="_propertyType"]') as HTMLTableCellElement | null;
+        const ownerCellByClass = row?.querySelector('td._ownerName, td[class*="_ownerName"]') as HTMLTableCellElement | null;
+        const addrCellByClass = row?.querySelector('td._address, td[class*="_address"]') as HTMLTableCellElement | null;
+        const legalCellByClass = row?.querySelector('td._legalDescription, td[class*="_legalDescription"]') as HTMLTableCellElement | null;
+
         results.push({
           propertyId: idMatch[1],
-          ownerName: cells.length > 1 ? cells[1]?.textContent?.trim() ?? null : null,
-          address: cells.length > 2 ? cells[2]?.textContent?.trim() ?? null : text.substring(0, 200),
-          legalDescription: cells.length > 3 ? cells[3]?.textContent?.trim() ?? null : null,
+          propertyType: typeCellByClass?.textContent?.trim() ?? null,
+          ownerName: ownerCellByClass?.textContent?.trim() ?? (cells.length > 1 ? cells[1]?.textContent?.trim() ?? null : null),
+          address: addrCellByClass?.textContent?.trim() ?? (cells.length > 2 ? cells[2]?.textContent?.trim() ?? null : text.substring(0, 200)),
+          legalDescription: legalCellByClass?.textContent?.trim() ?? (cells.length > 3 ? cells[3]?.textContent?.trim() ?? null : null),
         });
       });
     }
@@ -1019,9 +1039,13 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
           if (idMatch) propertyId = idMatch[1];
         }
 
+        // Extract propertyType from class-named cell if present
+        const typeCellByClass = row.querySelector('td._propertyType, td[class*="_propertyType"]') as HTMLTableCellElement | null;
+
         if (propertyId || cells.length >= 2) {
           results.push({
             propertyId: propertyId ?? cells[0]?.textContent?.trim() ?? null,
+            propertyType: typeCellByClass?.textContent?.trim() ?? null,
             ownerName: cells.length > 1 ? cells[1]?.textContent?.trim() ?? null : null,
             address: cells.length > 2 ? cells[2]?.textContent?.trim() ?? null : text.substring(0, 200),
             legalDescription: cells.length > 3 ? cells[3]?.textContent?.trim() ?? null : null,
@@ -1140,7 +1164,7 @@ async function enrichPropertyDetail(
   baseUrl: string,
   propertyId: string,
   logger: PipelineLogger,
-): Promise<{ acreage: number | null; legalDescription: string | null; propertyType: string | null }> {
+): Promise<{ acreage: number | null; legalDescription: string | null; propertyType: string | null; instrumentNumbers: string[] }> {
   const finish = logger.startAttempt({
     layer: 'Stage1-Detail',
     source: 'CAD-Detail',
@@ -1148,25 +1172,22 @@ async function enrichPropertyDetail(
     input: propertyId,
   });
 
-  try {
-    const year = new Date().getFullYear();
-    const url = `${baseUrl}/Property/View?Id=${propertyId}&year=${year}`;
+  const empty: { acreage: number | null; legalDescription: string | null; propertyType: string | null; instrumentNumbers: string[] } = {
+    acreage: null, legalDescription: null, propertyType: null, instrumentNumbers: [],
+  };
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (!response.ok) {
-      finish({ status: 'fail', error: `HTTP ${response.status}` });
-      return { acreage: null, legalDescription: null, propertyType: null };
-    }
-
-    const html = await response.text();
-
+  /**
+   * Parse the Bell CAD detail page HTML to extract acreage, legal description,
+   * property type, and deed history instrument numbers.
+   *
+   * The Bell CAD detail page URL uses a PATH parameter, not a query param:
+   *   CORRECT:   /Property/View/{id}?year={year}
+   *   INCORRECT: /Property/View?Id={id}&year={year}   ← returns 404
+   *
+   * The page is server-side rendered (not an SPA), so plain HTTP GET works once
+   * the correct URL is used.
+   */
+  function parseDetailHtml(html: string): { acreage: number | null; legalDescription: string | null; propertyType: string | null; instrumentNumbers: string[] } {
     // Extract acreage (try multiple patterns)
     let acreage: number | null = null;
     const acreagePatterns = [
@@ -1188,7 +1209,6 @@ async function enrichPropertyDetail(
     let legalDescription: string | null = null;
 
     // Strategy 1: BIS table-row pattern — <td>Legal Description</td><td>VALUE</td>
-    // This is the most reliable selector for BIS eSearch platforms.
     const bisTableMatch = html.match(
       /<td[^>]*>\s*Legal\s*(?:Description|Descriptions|Desc\.?)\s*<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/i,
     );
@@ -1210,7 +1230,6 @@ async function enrichPropertyDetail(
         const match = html.match(pattern);
         if (match && match[1].trim().length > 5) {
           const candidate = match[1].trim();
-          // Skip disclaimer/banner text — it is site-wide and not property-specific
           if (/appraisal district|should be verified|legal purpose/i.test(candidate)) continue;
           legalDescription = candidate;
           break;
@@ -1218,28 +1237,90 @@ async function enrichPropertyDetail(
       }
     }
 
-    // Extract property type — use specific label to avoid matching generic "Type" tokens.
-    // The captured group ([^<]+) cannot contain raw `<` so no HTML tag stripping needed;
-    // just decode the common HTML entities for display.
+    // Extract property type — look for Bell CAD's <th>Type:</th><td>R</td> pattern first,
+    // then fall back to a generic label match.
     let propertyType: string | null = null;
-    const typeMatch = html.match(/(?:Property\s*Type|Prop(?:erty)?\s*Type)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i);
-    if (typeMatch && typeMatch[1].trim().length > 1) {
-      propertyType = typeMatch[1]
-        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
-        .trim();
+    // Bell CAD detail page: <th>Type:</th><td>P</td> or <td>R</td>
+    const typeRowMatch = html.match(/<th[^>]*>\s*Type:\s*<\/th>\s*<td[^>]*>([^<]+)<\/td>/i);
+    if (typeRowMatch && typeRowMatch[1].trim().length > 0) {
+      propertyType = typeRowMatch[1].trim();
+    }
+    if (!propertyType) {
+      const typeMatch = html.match(/(?:Property\s*Type|Prop(?:erty)?\s*Type)\s*:?\s*(?:<[^>]*>\s*)*([^<]+)/i);
+      if (typeMatch && typeMatch[1].trim().length > 1) {
+        propertyType = typeMatch[1]
+          .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+          .trim();
+      }
     }
 
-    const found = (acreage ? 1 : 0) + (legalDescription ? 1 : 0) + (propertyType ? 1 : 0);
+    // Extract deed history instrument numbers.
+    // Bell CAD detail page has a "Property Deed History" panel with a table:
+    //   Deed Date | Type | Description | Grantor | Grantee | Volume | Page | Number
+    // The "Number" column (index 7) contains the instrument number (e.g., "2010043440").
+    // Personal property records (Type:P) have an empty deed history table.
+    const seen = new Set<string>();
+    const instrumentNumbers: string[] = [];
+    // Find the deed history table section
+    const deedHistoryMatch = html.match(/Property\s+Deed\s+History[\s\S]*?<tbody>([\s\S]*?)<\/tbody>/i);
+    if (deedHistoryMatch) {
+      const tbodyHtml = deedHistoryMatch[1];
+      const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      let rowMatch;
+      while ((rowMatch = rowPattern.exec(tbodyHtml)) !== null) {
+        const rowHtml = rowMatch[1];
+        const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+        const cellTexts: string[] = [];
+        let cellMatch;
+        while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
+          cellTexts.push(cellMatch[1].replace(/<[^>]*>/g, '').trim());
+        }
+        // Column 7 (0-indexed) = "Number" = instrument number
+        if (cellTexts.length >= 8) {
+          const instrNum = cellTexts[7].replace(/\s+/g, '');
+          if (/^\d{7,12}$/.test(instrNum) && !seen.has(instrNum)) {
+            seen.add(instrNum);
+            instrumentNumbers.push(instrNum);
+          }
+        }
+      }
+    }
+
+    return { acreage, legalDescription, propertyType, instrumentNumbers };
+  }
+
+  try {
+    const year = new Date().getFullYear();
+    // CRITICAL: Bell CAD uses path parameter, not query string — /Property/View/{id}?year={year}
+    const url = `${baseUrl}/Property/View/${propertyId}?year=${year}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      finish({ status: 'fail', error: `HTTP ${response.status}` });
+      return empty;
+    }
+
+    const html = await response.text();
+    const result = parseDetailHtml(html);
+
+    const found = (result.acreage ? 1 : 0) + (result.legalDescription ? 1 : 0) + (result.propertyType ? 1 : 0) + (result.instrumentNumbers.length > 0 ? 1 : 0);
     finish({
       status: found > 0 ? 'success' : 'partial',
       dataPointsFound: found,
-      details: `Acreage: ${acreage ?? 'N/A'}, Legal: ${legalDescription ? `${legalDescription.length} chars` : 'N/A'}, Type: ${propertyType ?? 'N/A'}`,
+      details: `Acreage: ${result.acreage ?? 'N/A'}, Legal: ${result.legalDescription ? `${result.legalDescription.length} chars` : 'N/A'}, Type: ${result.propertyType ?? 'N/A'}, Instruments: [${result.instrumentNumbers.join(', ')}]`,
     });
 
-    return { acreage, legalDescription, propertyType };
+    return result;
   } catch (err) {
     finish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
-    return { acreage: null, legalDescription: null, propertyType: null };
+    return empty;
   }
 }
 
@@ -1261,8 +1342,27 @@ function pickBestResult(
     return isUdi !== true && isUdi !== 'true' && isUdi !== 1;
   });
 
-  const candidates = nonUdi.length > 0 ? nonUdi : results;
+  let candidates = nonUdi.length > 0 ? nonUdi : results;
   if (candidates.length === 0) return null;
+
+  // Prefer Real property (Type R) over Personal/Mineral/Auto/Mobile-Home.
+  // This prevents business personal property records (e.g., Bell CAD ID 498826
+  // "STARR SURVEYING" Type:P — $8,500 of surveying equipment) from being
+  // chosen instead of the actual land records at the same address.
+  const realOnly = candidates.filter((r) => {
+    const rawType = (getProp(r, 'propertyType', 'PropertyType') ?? '').trim().toUpperCase();
+    return !rawType || rawType === 'R' || rawType === 'REAL';
+  });
+  if (realOnly.length > 0) {
+    if (realOnly.length < candidates.length) {
+      logger.info('Stage1-Pick', `Filtered ${candidates.length - realOnly.length} non-Real record(s) — keeping ${realOnly.length} Real property result(s)`);
+    }
+    candidates = realOnly;
+  } else {
+    // All results are non-Real (e.g. all Personal) — log a warning and proceed
+    const types = candidates.map((r) => getProp(r, 'propertyType', 'PropertyType') ?? '?').join(', ');
+    logger.warn('Stage1-Pick', `No Type:R (Real) results found — all ${candidates.length} result(s) are non-Real (types: ${types}). Pipeline may pick the wrong record.`);
+  }
 
   // Score each candidate
   const scored = candidates.map((r) => {
@@ -1273,10 +1373,11 @@ function pickBestResult(
   // Sort by confidence descending
   scored.sort((a, b) => b.validation.confidence - a.validation.confidence);
 
-  // Log top candidates
+  // Log top candidates (include property type for clarity)
   for (let i = 0; i < Math.min(3, scored.length); i++) {
     const { result: r, validation: v } = scored[i];
-    logger.info('Stage1-Pick', `  #${i + 1}: ID=${getProp(r, 'propertyId', 'PropertyId')}, confidence=${v.confidence.toFixed(2)}, addr="${getProp(r, 'address', 'Address', 'situsAddress') ?? 'N/A'}"`);
+    const pType = getProp(r, 'propertyType', 'PropertyType') ?? '?';
+    logger.info('Stage1-Pick', `  #${i + 1}: ID=${getProp(r, 'propertyId', 'PropertyId')}, Type=${pType}, confidence=${v.confidence.toFixed(2)}, addr="${getProp(r, 'address', 'Address', 'situsAddress') ?? 'N/A'}"`);
   }
 
   // Warn if best match has low confidence
@@ -1464,6 +1565,7 @@ export async function searchBisCad(
             layer: 'Stage1A',
             matchConfidence: validation.confidence,
             validationNotes: validation.issues,
+            instrumentNumbers: detail.instrumentNumbers.length > 0 ? detail.instrumentNumbers : undefined,
           },
           diagnostics,
         };
@@ -1502,6 +1604,7 @@ export async function searchBisCad(
             layer: 'Stage1B',
             matchConfidence: validation.confidence,
             validationNotes: validation.issues,
+            instrumentNumbers: detail.instrumentNumbers.length > 0 ? detail.instrumentNumbers : undefined,
           },
           diagnostics,
         };
@@ -1550,6 +1653,7 @@ export async function searchBisCad(
               layer: 'Stage1C',
               matchConfidence: validation.confidence,
               validationNotes: [...validation.issues, 'Property identified via screenshot OCR — lower reliability'],
+              instrumentNumbers: detail.instrumentNumbers.length > 0 ? detail.instrumentNumbers : undefined,
             },
             diagnostics,
           };
@@ -1611,6 +1715,7 @@ export async function searchBisCad(
                 layer: 'Stage1D',
                 matchConfidence: validation.confidence,
                 validationNotes: [...validation.issues, 'Found via AI-generated address variant'],
+                instrumentNumbers: detail.instrumentNumbers.length > 0 ? detail.instrumentNumbers : undefined,
               },
               diagnostics,
             };

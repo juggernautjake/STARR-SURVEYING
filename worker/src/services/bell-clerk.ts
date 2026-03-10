@@ -859,6 +859,28 @@ async function fetchDocumentDetail(
   }
 }
 
+// ── Kofile Config Helpers ──────────────────────────────────────────────────
+
+/**
+ * Returns true if the given county name has a Kofile/PublicSearch configuration.
+ * Use this to gate instrument-number searches and Kofile image downloads instead
+ * of hardcoding county names in the pipeline.
+ */
+export function hasKofileConfig(county: string): boolean {
+  return Object.prototype.hasOwnProperty.call(KOFILE_CONFIGS, county.toLowerCase());
+}
+
+/**
+ * Returns the base URL for a county's Kofile/PublicSearch instance, or null.
+ * e.g. "bell" → "https://bell.tx.publicsearch.us"
+ */
+export function getKofileBaseUrl(county: string): string | null {
+  const cfg = KOFILE_CONFIGS[county.toLowerCase()];
+  if (!cfg) return null;
+  const subdomain = cfg.subdomain;
+  return subdomain.startsWith('http') ? subdomain : `https://${subdomain}`;
+}
+
 // ── Main Clerk Search ──────────────────────────────────────────────────────
 
 /**
