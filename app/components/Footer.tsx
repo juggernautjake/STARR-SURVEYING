@@ -84,7 +84,7 @@ const Footer = (): React.ReactElement => {
               Professional land surveying services serving Central Texas with precision and integrity.
             </p>
             <p className="footer__quote">
-              "Remove not the ancient landmark, which thy fathers have set."
+              &ldquo;Remove not the ancient landmark, which thy fathers have set.&rdquo;
             </p>
             <p className="footer__quote-source">— Proverbs 22:28</p>
           </div>
