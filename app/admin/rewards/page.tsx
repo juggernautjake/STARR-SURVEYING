@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface Balance {
   current_balance: number;
@@ -221,7 +222,7 @@ export default function RewardsPage() {
                     {item.tier.toUpperCase()}
                   </div>
                   {item.image_url ? (
-                    <img src={item.image_url} alt={item.name} className="rewards__item-image" />
+                    <Image src={item.image_url} alt={item.name} className="rewards__item-image" width={120} height={120} unoptimized />
                   ) : (
                     <div className="rewards__item-icon">
                       {CATEGORY_ICONS[item.category] || '\uD83D\uDCE6'}

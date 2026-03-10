@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import '../admin/styles/AdminLogin.css';
 
@@ -61,10 +62,12 @@ export default function RegisterPage() {
   return (
     <div className="register-page">
       <div className="register-card">
-        <img
+        <Image
           src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png"
           alt="Starr Surveying"
           className="register-card__logo"
+          width={70}
+          height={70}
         />
         <h1 className="register-card__title">Create an Account</h1>
         <p className="register-card__subtitle">

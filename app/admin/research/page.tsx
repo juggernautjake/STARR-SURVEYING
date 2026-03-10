@@ -1,6 +1,6 @@
 // app/admin/research/page.tsx — Property Research project list
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
@@ -51,15 +51,8 @@ export default function ResearchListPage() {
 
   // Debounced search: auto-reload 400ms after typing stops
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = setTimeout(() => {
-      loadProjects();
-    }, 400);
-    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
-  }, [search, statusFilter]);
 
-  async function loadProjects() {
+  const loadProjects = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
@@ -79,7 +72,15 @@ export default function ResearchListPage() {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load projects' });
     }
     setLoading(false);
-  }
+  }, [search, statusFilter, reportPageError]);
+
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      loadProjects();
+    }, 400);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [search, statusFilter, loadProjects]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
