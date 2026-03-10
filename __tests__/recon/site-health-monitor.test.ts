@@ -54,7 +54,7 @@ describe('SiteHealthMonitor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     alertCallback = vi.fn();
-    monitor = new SiteHealthMonitor({ onAlert: alertCallback });
+    monitor = new SiteHealthMonitor({ onAlert: alertCallback as (alert: SiteAlert) => void });
 
     // Get references to the mocked browser/page
     mockBrowser = (chromium.launch as any).mock?.results?.[0]?.value;
