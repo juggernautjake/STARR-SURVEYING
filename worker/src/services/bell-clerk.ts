@@ -143,12 +143,12 @@ function isDeedRelevant(docType: string): boolean {
 function scoreDocumentRelevance(docType: string): number {
   const lower = docType.toLowerCase();
   if (/warranty\s*deed|deed\s*without/i.test(lower)) return 100;
-  if (/\bplat\b/i.test(lower)) return 95;
   if (/\bdeed\b/i.test(lower)) return 90;
   if (/\beasement\b/i.test(lower)) return 85;
   if (/right[- ]of[- ]way/i.test(lower)) return 80;
   if (/restrictive|cc&r/i.test(lower)) return 70;
   if (/deed\s*of\s*trust/i.test(lower)) return 60;
+  if (/\bplat\b/i.test(lower)) return 55;
   if (/release/i.test(lower)) return 50;
   if (/mineral|oil|gas/i.test(lower)) return 40;
   return 30;
@@ -196,11 +196,14 @@ function formatOwnerForSearch(ownerName: string): string[] {
 
   const upper = name.toUpperCase();
 
-  // Business entities — use as-is, plus try without suffix
-  const bizPatterns = /\b(LLC|LP|LTD|INC|CORP|TRUST|ESTATE|PARTNERSHIP|COMPANY|CO|ENTERPRISES?|GROUP|HOLDINGS?|PROPERTIES)\b/i;
+  // Business entities — use as-is, plus try without suffix.
+  // Includes legal suffixes (LLC, INC …) AND professional-service descriptors
+  // (SURVEYING, ENGINEERING …) so names like "STARR SURVEYING" are searched
+  // verbatim instead of being inverted to "SURVEYING, STARR".
+  const bizPatterns = /\b(LLC|LP|LTD|INC|CORP|TRUST|ESTATE|PARTNERSHIP|COMPANY|CO|ENTERPRISES?|GROUP|HOLDINGS?|PROPERTIES|SURVEYING|SURVEYORS?|ENGINEERING|ENGINEERS?|CONSTRUCTION|CONSULTING|CONSULTANTS?|SERVICES?|DEVELOPMENT|MANAGEMENT|REALTY|INVESTMENTS?|BUILDERS?|ASSOCIATES?)\b/i;
   if (bizPatterns.test(name)) {
     add(upper);
-    // Also try without the entity type
+    // Also try without the entity type suffix
     const withoutEntity = upper.replace(/\s*(LLC|LP|LTD|INC|CORP|COMPANY|CO)\s*$/i, '').trim();
     if (withoutEntity !== upper) add(withoutEntity);
     return variants;
@@ -1390,8 +1393,25 @@ export async function searchClerkRecords(
           continue;
         }
 
-        // Extra wait for Tyler PublicSearch React SPA to finish rendering
-        await page.waitForTimeout(3_000);
+        // Extra wait for Tyler PublicSearch React SPA to finish rendering.
+        // If the page says "Loading" and no table rows are visible yet, wait
+        // up to 15s more for results to appear (total ~18s additional wait).
+        let waitAttempts = 0;
+        const maxWaitAttempts = 5; // 5 × 3s = 15s max extra wait
+        while (waitAttempts < maxWaitAttempts) {
+          await page.waitForTimeout(3_000);
+          const hasRows = await page.evaluate(() => {
+            const rows = document.querySelectorAll('table tbody tr');
+            const loading = (document.body.textContent ?? '').toLowerCase().includes('loading');
+            return { rowCount: rows.length, isLoading: loading };
+          });
+          if (hasRows.rowCount > 0) break; // Table has loaded
+          if (!hasRows.isLoading) break; // Not loading anymore (might be "no results")
+          waitAttempts++;
+          if (waitAttempts < maxWaitAttempts) {
+            logger.info('Stage2A', `"${searchName}" still loading (attempt ${waitAttempts}/${maxWaitAttempts}), waiting...`);
+          }
+        }
 
         // DOM extraction: Tyler PublicSearch uses a standard <table> with
         // column classes col-0 through col-9. Document ID is embedded in the
