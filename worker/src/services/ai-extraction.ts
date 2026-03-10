@@ -132,6 +132,14 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Thrown when the Anthropic API key has insufficient credits. Signals callers to abort all further AI calls. */
+export class AnthropicCreditDepletedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AnthropicCreditDepletedError';
+  }
+}
+
 async function callClaudeWithRetry(
   anthropicApiKey: string,
   messages: Array<{ role: string; content: unknown }>,
@@ -173,6 +181,12 @@ async function callClaudeWithRetry(
       if (err && typeof err === 'object' && 'status' in err) {
         const status = (err as { status: number }).status;
         if (status === 400 || status === 401 || status === 403) {
+          // Detect depleted credit balance specifically so the caller can fail fast
+          if (/credit balance is too low/i.test(errMsg)) {
+            throw new AnthropicCreditDepletedError(
+              'Anthropic API credit balance is too low. Please go to Plans & Billing to add credits, then re-run research.',
+            );
+          }
           logger.error('Stage3', `${label}: Non-retryable error (HTTP ${status})`, err);
           return null;
         }
@@ -852,18 +866,26 @@ export async function extractDocuments(
     const screening = screenDocument(legalDescriptionFromCad);
     logger.info('Stage3', `CAD legal description screening: ${screening}`);
 
-    if (screening === 'analyze') {
-      const extracted = await extractFromTextInternal(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal');
-      if (extracted) {
-        const verified = await runVerification(legalDescriptionFromCad, extracted, 'CAD-legal');
-        updateBest(verified);
+    try {
+      if (screening === 'analyze') {
+        const extracted = await extractFromTextInternal(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal');
+        if (extracted) {
+          const verified = await runVerification(legalDescriptionFromCad, extracted, 'CAD-legal');
+          updateBest(verified);
+        }
+      } else if (screening === 'enrich') {
+        // Still worth sending to Claude for lot/block info even if no metes & bounds
+        const extracted = await extractFromTextInternal(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal-enrich');
+        if (extracted) {
+          updateBest(extracted);
+        }
       }
-    } else if (screening === 'enrich') {
-      // Still worth sending to Claude for lot/block info even if no metes & bounds
-      const extracted = await extractFromTextInternal(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal-enrich');
-      if (extracted) {
-        updateBest(extracted);
+    } catch (err) {
+      if (err instanceof AnthropicCreditDepletedError) {
+        logger.error('Stage3', `AI extraction halted — ${err.message}`);
+        return { documents, boundary: null };
       }
+      throw err;
     }
   }
 
@@ -876,94 +898,104 @@ export async function extractDocuments(
     // User uploads always get analyzed (user paid for and chose these files)
     const forceAnalyze = isUserUpload;
 
-    // Try text content first
-    if (doc.textContent && doc.textContent.length > 50) {
-      const screening = forceAnalyze ? 'analyze' : screenDocument(doc.textContent);
-      logger.info('Stage3', `${label} text screening: ${screening} (${doc.textContent.length} chars)${isUserUpload ? ' [USER UPLOAD]' : ''}`);
+    try {
+      // Try text content first
+      if (doc.textContent && doc.textContent.length > 50) {
+        const screening = forceAnalyze ? 'analyze' : screenDocument(doc.textContent);
+        logger.info('Stage3', `${label} text screening: ${screening} (${doc.textContent.length} chars)${isUserUpload ? ' [USER UPLOAD]' : ''}`);
 
-      if (screening === 'skip' && !forceAnalyze) {
-        logger.info('Stage3', `${label}: Skipping — not relevant`);
-        continue;
+        if (screening === 'skip' && !forceAnalyze) {
+          logger.info('Stage3', `${label}: Skipping — not relevant`);
+          continue;
+        }
+
+        if (screening === 'analyze' || forceAnalyze) {
+          const extracted = await extractFromTextInternal(doc.textContent, anthropicApiKey, logger, label);
+          if (extracted) {
+            const verified = await runVerification(doc.textContent, extracted, label);
+            doc.extractedData = verified;
+            updateBest(verified);
+          }
+        } else if (screening === 'enrich') {
+          const extracted = await extractFromTextInternal(doc.textContent, anthropicApiKey, logger, `${label}-enrich`);
+          if (extracted) {
+            doc.extractedData = extracted;
+            updateBest(extracted);
+          }
+        }
       }
 
-      if (screening === 'analyze' || forceAnalyze) {
-        const extracted = await extractFromTextInternal(doc.textContent, anthropicApiKey, logger, label);
-        if (extracted) {
-          const verified = await runVerification(doc.textContent, extracted, label);
+      // Try multi-page screenshots first (highest quality — captured at full resolution)
+      if (!doc.extractedData && doc.pageScreenshots && doc.pageScreenshots.length > 0) {
+        logger.info('Stage3', `${label}: Processing ${doc.pageScreenshots.length} page screenshot(s)`);
+        const { ocrText, extracted } = await extractFromPageScreenshots(
+          doc.pageScreenshots, anthropicApiKey, logger, label,
+        );
+
+        doc.ocrText = ocrText;
+
+        if (extracted && ocrText) {
+          const verified = await runVerification(ocrText, extracted, `${label}-pages`);
           doc.extractedData = verified;
           updateBest(verified);
-        }
-      } else if (screening === 'enrich') {
-        const extracted = await extractFromTextInternal(doc.textContent, anthropicApiKey, logger, `${label}-enrich`);
-        if (extracted) {
+        } else if (extracted) {
           doc.extractedData = extracted;
           updateBest(extracted);
         }
       }
-    }
 
-    // Try multi-page screenshots first (highest quality — captured at full resolution)
-    if (!doc.extractedData && doc.pageScreenshots && doc.pageScreenshots.length > 0) {
-      logger.info('Stage3', `${label}: Processing ${doc.pageScreenshots.length} page screenshot(s)`);
-      const { ocrText, extracted } = await extractFromPageScreenshots(
-        doc.pageScreenshots, anthropicApiKey, logger, label,
-      );
-
-      doc.ocrText = ocrText;
-
-      if (extracted && ocrText) {
-        const verified = await runVerification(ocrText, extracted, `${label}-pages`);
-        doc.extractedData = verified;
-        updateBest(verified);
-      } else if (extracted) {
-        doc.extractedData = extracted;
-        updateBest(extracted);
+      // Route C: Downloaded page images via Kofile signed URL interception
+      const docPages = doc.pages ?? [];
+      if (!doc.extractedData && docPages.length > 0) {
+        logger.info('Stage3', `  ${label}: Processing ${docPages.length} downloaded page images`);
+        const prompt = `You are analyzing county clerk records from Texas. These are ${docPages.length} page image${docPages.length !== 1 ? 's' : ''} from a ${doc.ref.documentType}${doc.ref.instrumentNumber ? ` (instrument ${doc.ref.instrumentNumber})` : ''}. Extract ALL data: 1) METES AND BOUNDS with every bearing and distance. 2) LOT BOUNDARIES. 3) POINT OF BEGINNING. 4) ACREAGE totals. 5) SURVEYOR info. 6) Full LEGAL DESCRIPTION. 7) CURVE DATA. 8) EASEMENTS. 9) Recording references. Be extremely precise with all numbers.`;
+        try {
+          const { text, data } = await analyzeMultiPageDocument(docPages, '', prompt, logger);
+          if (text) doc.ocrText = text;
+          if (data) doc.extractedData = data;
+        } catch (pagesErr: any) {
+          if (pagesErr instanceof AnthropicCreditDepletedError) throw pagesErr;
+          logger.warn('Stage3', `  ${label}: Page images extraction failed: ${pagesErr.message}`);
+        }
       }
-    }
 
-    // Route C: Downloaded page images via Kofile signed URL interception
-    const docPages = doc.pages ?? [];
-    if (!doc.extractedData && docPages.length > 0) {
-      logger.info('Stage3', `  ${label}: Processing ${docPages.length} downloaded page images`);
-      const prompt = `You are analyzing county clerk records from Texas. These are ${docPages.length} page image${docPages.length !== 1 ? 's' : ''} from a ${doc.ref.documentType}${doc.ref.instrumentNumber ? ` (instrument ${doc.ref.instrumentNumber})` : ''}. Extract ALL data: 1) METES AND BOUNDS with every bearing and distance. 2) LOT BOUNDARIES. 3) POINT OF BEGINNING. 4) ACREAGE totals. 5) SURVEYOR info. 6) Full LEGAL DESCRIPTION. 7) CURVE DATA. 8) EASEMENTS. 9) Recording references. Be extremely precise with all numbers.`;
-      try {
-        const { text, data } = await analyzeMultiPageDocument(docPages, '', prompt, logger);
-        if (text) doc.ocrText = text;
-        if (data) doc.extractedData = data;
-      } catch (pagesErr: any) {
-        logger.warn('Stage3', `  ${label}: Page images extraction failed: ${pagesErr.message}`);
+      // Fall back to single image if no page screenshots or text extraction succeeded
+      if (!doc.extractedData && doc.imageBase64) {
+        const mediaType = doc.imageFormat === 'jpg' ? 'image/jpeg' as const
+          : doc.imageFormat === 'pdf' ? 'application/pdf' as const
+          : doc.imageFormat === 'tiff' ? 'image/tiff' as const
+          : 'image/png' as const;
+
+        const { ocrText, extracted } = await extractFromImageInternal(
+          doc.imageBase64, mediaType, anthropicApiKey, logger, label,
+        );
+
+        doc.ocrText = ocrText;
+
+        if (extracted && ocrText) {
+          // OCR-sourced data gets extra verification (inherently less reliable)
+          const verified = await runVerification(ocrText, extracted, `${label}-ocr`);
+          doc.extractedData = verified;
+          updateBest(verified);
+        } else if (extracted) {
+          doc.extractedData = extracted;
+          updateBest(extracted);
+        }
       }
-    }
 
-    // Fall back to single image if no page screenshots or text extraction succeeded
-    if (!doc.extractedData && doc.imageBase64) {
-      const mediaType = doc.imageFormat === 'jpg' ? 'image/jpeg' as const
-        : doc.imageFormat === 'pdf' ? 'application/pdf' as const
-        : doc.imageFormat === 'tiff' ? 'image/tiff' as const
-        : 'image/png' as const;
-
-      const { ocrText, extracted } = await extractFromImageInternal(
-        doc.imageBase64, mediaType, anthropicApiKey, logger, label,
-      );
-
-      doc.ocrText = ocrText;
-
-      if (extracted && ocrText) {
-        // OCR-sourced data gets extra verification (inherently less reliable)
-        const verified = await runVerification(ocrText, extracted, `${label}-ocr`);
-        doc.extractedData = verified;
-        updateBest(verified);
-      } else if (extracted) {
-        doc.extractedData = extracted;
-        updateBest(extracted);
+      // Warn if document had no usable content at all
+      if (!doc.textContent && !doc.imageBase64 && (!doc.pageScreenshots || doc.pageScreenshots.length === 0) && (!doc.pages || doc.pages.length === 0)) {
+        logger.warn('Stage3', `${label}: WARNING — No text, images, or page screenshots to analyze`);
+        if (!doc.processingErrors) doc.processingErrors = [];
+        doc.processingErrors.push('No text or image content available for AI analysis');
       }
-    }
-
-    // Warn if document had no usable content at all
-    if (!doc.textContent && !doc.imageBase64 && (!doc.pageScreenshots || doc.pageScreenshots.length === 0) && (!doc.pages || doc.pages.length === 0)) {
-      logger.warn('Stage3', `${label}: WARNING — No text, images, or page screenshots to analyze`);
-      if (!doc.processingErrors) doc.processingErrors = [];
-      doc.processingErrors.push('No text or image content available for AI analysis');
+    } catch (err) {
+      if (err instanceof AnthropicCreditDepletedError) {
+        logger.error('Stage3', `AI extraction halted at ${label} — ${err.message}`);
+        // Return what we have so far; remaining documents won't be enriched
+        break;
+      }
+      throw err;
     }
   }
 

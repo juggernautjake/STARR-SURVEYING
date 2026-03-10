@@ -363,7 +363,7 @@ async function captureAllDocumentPages(
 
     // Check for zoom controls
     const hasZoom = !!(
-      document.querySelector('[aria-label*="zoom" i], [title*="zoom" i], button:has-text("Zoom"), .zoom-control') ||
+      document.querySelector('[aria-label*="zoom" i], [title*="zoom" i], .zoom-control, .zoom-button, [class*="zoom-btn"]') ||
       document.querySelector('select[class*="zoom"], input[class*="zoom"]')
     );
 
@@ -403,7 +403,7 @@ async function captureAllDocumentPages(
         }
 
         // Try zoom-in button (click multiple times)
-        const zoomIn = document.querySelector('[aria-label*="zoom in" i], [title*="zoom in" i], button:has-text("Zoom In"), .zoom-in, #zoomIn') as HTMLElement | null;
+        const zoomIn = document.querySelector('[aria-label*="zoom in" i], [title*="zoom in" i], .zoom-in, #zoomIn, [class*="zoom-in"]') as HTMLElement | null;
         if (zoomIn) {
           for (let i = 0; i < 5; i++) zoomIn.click();
           return;
