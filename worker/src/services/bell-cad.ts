@@ -4,7 +4,7 @@
 // Layer 1C: Screenshot + Claude Vision OCR fallback
 // Every result is validated against the original search address.
 
-import type { PropertyIdResult, PropertyValidation, NormalizedAddress, AddressVariant, SearchDiagnostics } from '../types/index.js';
+import type { PropertyIdResult, PropertyValidation, NormalizedAddress, AddressVariant, SearchDiagnostics, DeedHistoryEntry } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 import { normalizeAddress } from './address-utils.js';
@@ -153,6 +153,12 @@ interface CadSearchResult {
   PropertyType?: string;
   situsAddress?: string;
   SitusAddress?: string;
+  ownerId?: string;
+  OwnerId?: string;
+  mapId?: string;
+  MapId?: string;
+  year?: string;
+  Year?: string;
 }
 
 function getProp(result: CadSearchResult, ...keys: string[]): string | null {
@@ -576,11 +582,42 @@ function parseHtmlSearchResults(
 ): CadSearchResult[] {
   const results: CadSearchResult[] = [];
 
+  // Strategy 0: Bell CAD 2024+ — <tr onclick="redirectToPropertyDetails('id','year','ownerId',...)">
+  // Rows use class-named cells instead of anchor hrefs.
+  const onclickPattern = /<tr[^>]*onclick=["']redirectToPropertyDetails\s*\(\s*'([^']+)'\s*,\s*'([^']*)'\s*,\s*'([^']*)'[^)]*\)["'][^>]*>([\s\S]*?)<\/tr>/gi;
+  let onclickMatch;
+  while ((onclickMatch = onclickPattern.exec(html)) !== null) {
+    const propertyId = onclickMatch[1];
+    const year = onclickMatch[2];
+    const ownerId = onclickMatch[3];
+    const rowHtml = onclickMatch[4];
+
+    const getCell = (cls: string): string | null => {
+      const m = new RegExp(`<td[^>]*class=["'][^"']*${cls}[^"']*["'][^>]*>([\\s\\S]*?)<\\/td>`, 'i').exec(rowHtml);
+      return m ? m[1].replace(/<[^>]*>/g, '').trim() || null : null;
+    };
+
+    results.push({
+      propertyId,
+      year,
+      ownerId,
+      propertyType: getCell('_propertyType'),
+      ownerName: getCell('_ownerName'),
+      geoId: getCell('_geoId'),
+      address: getCell('_address'),
+      legalDescription: getCell('_legalDescription'),
+    } as CadSearchResult);
+  }
+
+  if (results.length > 0) {
+    tracker.step(`[html_structure] Strategy 0: Found ${results.length} rows via redirectToPropertyDetails onclick`);
+    return results;
+  }
+
   // Strategy 1: Find table rows with property links
   // BIS results pages use <tr> elements with <a href="/Property/View?Id=XXXX">
   const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
   const linkPattern = /\/Property\/View\?(?:Id|id)=([^"&\s]+)/i;
-  const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
 
   let rowMatch;
   let rowCount = 0;
@@ -608,7 +645,7 @@ function parseHtmlSearchResults(
     } as CadSearchResult);
   }
 
-  tracker.step(`[html_structure] Scanned ${rowCount} <tr> elements, found ${results.length} with property links`);
+  tracker.step(`[html_structure] Strategy 1: Scanned ${rowCount} <tr> elements, found ${results.length} with property links`);
 
   // Strategy 2: Broader link-based extraction if table parsing found nothing
   if (results.length === 0) {
@@ -620,7 +657,7 @@ function parseHtmlSearchResults(
         results.push({ propertyId: m[1] } as CadSearchResult);
       }
     }
-    tracker.step(`[html_structure] Fallback link scan found ${results.length} unique property IDs`);
+    tracker.step(`[html_structure] Strategy 2: Fallback link scan found ${results.length} unique property IDs`);
   }
 
   return results;
@@ -634,6 +671,7 @@ async function searchCadPlaywright(
   inputAddress: NormalizedAddress,
   logger: PipelineLogger,
   diagnostics: SearchDiagnostics,
+  options?: { ownerName?: string; propertyId?: string; ownerId?: string },
 ): Promise<{ results: CadSearchResult[]; screenshot: Buffer | null; validation: PropertyValidation | null }> {
   // Sort: exact variants first, then partials
   const sortedVariants = [...variants].sort((a, b) => {
@@ -944,6 +982,159 @@ async function searchCadPlaywright(
       }
     }
 
+    // Owner name fallback: if address variants found nothing, try By Owner tab
+    if (capturedResults.length === 0 && options?.ownerName) {
+      finish.step?.(`[runtime] Address search exhausted — trying owner name: "${options.ownerName}"`);
+      try {
+        await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        const ownerTabSelectors = [
+          '[data-filter="search-owner"]',
+          'a[href*="search-owner"]',
+          'text=By Owner',
+          'a:has-text("By Owner")',
+          'a:has-text("Owner")',
+          '[data-tab="owner"]',
+        ];
+        for (const sel of ownerTabSelectors) {
+          try {
+            const tab = page.locator(sel).first();
+            if (await tab.isVisible({ timeout: 2_000 })) {
+              await tab.click();
+              await page.waitForTimeout(800);
+              break;
+            }
+          } catch { continue; }
+        }
+
+        const ownerFilled = await page.evaluate((name: string) => {
+          const input = document.querySelector('#OwnerName') as HTMLInputElement | null
+            ?? Array.from(document.querySelectorAll('input[type="text"]')).find((el) => {
+              const id = (el as HTMLInputElement).id?.toLowerCase() ?? '';
+              const nm = (el as HTMLInputElement).name?.toLowerCase() ?? '';
+              const ph = (el as HTMLInputElement).placeholder?.toLowerCase() ?? '';
+              return id.includes('owner') || nm.includes('owner') || ph.includes('owner') || ph.includes('last name');
+            }) as HTMLInputElement | null;
+          if (input) {
+            input.value = name;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+          return false;
+        }, options.ownerName);
+
+        if (ownerFilled) {
+          // Click search or call AdvancedSearch()
+          let clicked = false;
+          for (const sel of searchBtnSelectors) {
+            try {
+              const btn = page.locator(sel).first();
+              if (await btn.isVisible({ timeout: 1_500 })) {
+                await btn.click();
+                clicked = true;
+                break;
+              }
+            } catch { continue; }
+          }
+          if (!clicked) {
+            await page.evaluate(() => {
+              const w = window as unknown as Record<string, unknown>;
+              if (typeof w.AdvancedSearch === 'function') (w.AdvancedSearch as () => void)();
+              else if (typeof w.Search === 'function') (w.Search as () => void)();
+            }).catch(() => { /* ignore */ });
+          }
+
+          await Promise.race([
+            page.waitForSelector('table tbody tr, .search-results tr, .resultsList', { timeout: 10_000 }).then(() => 'dom'),
+            page.waitForURL('**/search/result**', { timeout: 10_000 }).then(() => 'nav'),
+            page.waitForTimeout(10_000).then(() => 'timeout'),
+          ]).catch(() => { /* ignore */ });
+          await page.waitForTimeout(800);
+
+          const ownerDomResults = await extractResultsFromDOM(page);
+          if (ownerDomResults.length > 0) {
+            capturedResults = ownerDomResults;
+            finish.step?.(`[runtime] Owner name search found ${ownerDomResults.length} results`);
+          }
+        }
+      } catch (ownerErr) {
+        finish.step?.(`[runtime] Owner name search failed: ${ownerErr instanceof Error ? ownerErr.message : String(ownerErr)}`);
+      }
+    }
+
+    // Property ID fallback: if still nothing, try By ID tab
+    if (capturedResults.length === 0 && options?.propertyId) {
+      finish.step?.(`[runtime] Trying property ID search: ${options.propertyId}`);
+      try {
+        await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        const idTabSelectors = [
+          '[data-filter="search-id"]',
+          'a[href*="search-id"]',
+          'text=By ID',
+          'a:has-text("By ID")',
+          '[data-tab="id"]',
+        ];
+        for (const sel of idTabSelectors) {
+          try {
+            const tab = page.locator(sel).first();
+            if (await tab.isVisible({ timeout: 2_000 })) {
+              await tab.click();
+              await page.waitForTimeout(800);
+              break;
+            }
+          } catch { continue; }
+        }
+
+        const idFilled = await page.evaluate((pid: string) => {
+          const input = document.querySelector('#PropertyId') as HTMLInputElement | null
+            ?? document.querySelector('input[name*="PropertyId" i]') as HTMLInputElement | null;
+          if (input) {
+            input.value = pid;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+          return false;
+        }, options.propertyId);
+
+        if (idFilled) {
+          let clicked = false;
+          for (const sel of searchBtnSelectors) {
+            try {
+              const btn = page.locator(sel).first();
+              if (await btn.isVisible({ timeout: 1_500 })) {
+                await btn.click();
+                clicked = true;
+                break;
+              }
+            } catch { continue; }
+          }
+          if (!clicked) {
+            await page.evaluate(() => {
+              const w = window as unknown as Record<string, unknown>;
+              if (typeof w.AdvancedSearch === 'function') (w.AdvancedSearch as () => void)();
+              else if (typeof w.Search === 'function') (w.Search as () => void)();
+            }).catch(() => { /* ignore */ });
+          }
+
+          await Promise.race([
+            page.waitForSelector('table tbody tr, .search-results tr, .resultsList', { timeout: 10_000 }).then(() => 'dom'),
+            page.waitForURL('**/search/result**', { timeout: 10_000 }).then(() => 'nav'),
+            page.waitForTimeout(10_000).then(() => 'timeout'),
+          ]).catch(() => { /* ignore */ });
+          await page.waitForTimeout(800);
+
+          const idDomResults = await extractResultsFromDOM(page);
+          if (idDomResults.length > 0) {
+            capturedResults = idDomResults;
+            finish.step?.(`[runtime] Property ID search found ${idDomResults.length} results`);
+          }
+        }
+      } catch (idErr) {
+        finish.step?.(`[runtime] Property ID search failed: ${idErr instanceof Error ? idErr.message : String(idErr)}`);
+      }
+    }
+
     // Take screenshot for Vision OCR fallback
     try {
       screenshot = await page.screenshot({ fullPage: true }) as Buffer;
@@ -987,6 +1178,36 @@ async function searchCadPlaywright(
 async function extractResultsFromDOM(page: import('playwright').Page): Promise<CadSearchResult[]> {
   return page.evaluate(() => {
     const results: Array<Record<string, string | null>> = [];
+
+    // Strategy 0: Bell CAD 2024+ — <tr onclick="redirectToPropertyDetails('id','year','ownerId',...)">
+    // Rows have no anchor links; data is in class-named cells.
+    const allRows = document.querySelectorAll('tr[onclick]');
+    allRows.forEach((row) => {
+      const onclick = row.getAttribute('onclick') ?? '';
+      const match = onclick.match(/redirectToPropertyDetails\s*\(\s*'([^']+)'\s*,\s*'([^']*)'\s*,\s*'([^']*)'/);
+      if (!match) return;
+      const propertyId = match[1];
+      const year = match[2];
+      const ownerId = match[3];
+
+      const getClassCell = (cls: string): string | null => {
+        const el = row.querySelector(`td.${cls}, td[class*="${cls}"]`) as HTMLElement | null;
+        return el?.textContent?.trim() || null;
+      };
+
+      results.push({
+        propertyId,
+        year,
+        ownerId,
+        propertyType: getClassCell('_propertyType'),
+        ownerName: getClassCell('_ownerName'),
+        geoId: getClassCell('_geoId'),
+        address: getClassCell('_address'),
+        legalDescription: getClassCell('_legalDescription'),
+      });
+    });
+
+    if (results.length > 0) return results as CadSearchResult[];
 
     // Strategy 1: Links to /Property/View?Id=... (most reliable across all BIS versions)
     const propertyLinks = document.querySelectorAll('a[href*="/Property/View"]');
@@ -1164,7 +1385,20 @@ async function enrichPropertyDetail(
   baseUrl: string,
   propertyId: string,
   logger: PipelineLogger,
-): Promise<{ acreage: number | null; legalDescription: string | null; propertyType: string | null; instrumentNumbers: string[] }> {
+  ownerId?: string,
+): Promise<{
+  acreage: number | null;
+  legalDescription: string | null;
+  propertyType: string | null;
+  instrumentNumbers: string[];
+  ownerId: string | null;
+  ownerName: string | null;
+  mailingAddress: string | null;
+  situsAddress: string | null;
+  geoId: string | null;
+  mapId: string | null;
+  deedHistory: DeedHistoryEntry[];
+}> {
   const finish = logger.startAttempt({
     layer: 'Stage1-Detail',
     source: 'CAD-Detail',
@@ -1172,8 +1406,22 @@ async function enrichPropertyDetail(
     input: propertyId,
   });
 
-  const empty: { acreage: number | null; legalDescription: string | null; propertyType: string | null; instrumentNumbers: string[] } = {
+  const empty: {
+    acreage: number | null;
+    legalDescription: string | null;
+    propertyType: string | null;
+    instrumentNumbers: string[];
+    ownerId: string | null;
+    ownerName: string | null;
+    mailingAddress: string | null;
+    situsAddress: string | null;
+    geoId: string | null;
+    mapId: string | null;
+    deedHistory: DeedHistoryEntry[];
+  } = {
     acreage: null, legalDescription: null, propertyType: null, instrumentNumbers: [],
+    ownerId: null, ownerName: null, mailingAddress: null, situsAddress: null,
+    geoId: null, mapId: null, deedHistory: [],
   };
 
   /**
@@ -1187,7 +1435,19 @@ async function enrichPropertyDetail(
    * The page is server-side rendered (not an SPA), so plain HTTP GET works once
    * the correct URL is used.
    */
-  function parseDetailHtml(html: string): { acreage: number | null; legalDescription: string | null; propertyType: string | null; instrumentNumbers: string[] } {
+  function parseDetailHtml(html: string): {
+    acreage: number | null;
+    legalDescription: string | null;
+    propertyType: string | null;
+    instrumentNumbers: string[];
+    ownerId: string | null;
+    ownerName: string | null;
+    mailingAddress: string | null;
+    situsAddress: string | null;
+    geoId: string | null;
+    mapId: string | null;
+    deedHistory: DeedHistoryEntry[];
+  } {
     // Extract acreage (try multiple patterns)
     let acreage: number | null = null;
     const acreagePatterns = [
@@ -1261,6 +1521,7 @@ async function enrichPropertyDetail(
     // Personal property records (Type:P) have an empty deed history table.
     const seen = new Set<string>();
     const instrumentNumbers: string[] = [];
+    const deedHistory: DeedHistoryEntry[] = [];
     // Find the deed history table section
     const deedHistoryMatch = html.match(/Property\s+Deed\s+History[\s\S]*?<tbody>([\s\S]*?)<\/tbody>/i);
     if (deedHistoryMatch) {
@@ -1275,9 +1536,22 @@ async function enrichPropertyDetail(
         while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
           cellTexts.push(cellMatch[1].replace(/<[^>]*>/g, '').trim());
         }
-        // Column 7 (0-indexed) = "Number" = instrument number
-        if (cellTexts.length >= 8) {
-          const instrNum = cellTexts[7].replace(/\s+/g, '');
+        if (cellTexts.length >= 1) {
+          const instrNum = cellTexts.length >= 8 ? cellTexts[7].replace(/\s+/g, '') : '';
+          // All DeedHistoryEntry fields are optional; cells not present remain undefined.
+          // Instrument numbers require all 8 columns to be valid.
+          const entry: DeedHistoryEntry = {
+            deedDate: cellTexts[0] || undefined,
+            type: cellTexts[1] || undefined,
+            description: cellTexts[2] || undefined,
+            grantor: cellTexts[3] || undefined,
+            grantee: cellTexts[4] || undefined,
+            volume: cellTexts[5] || undefined,
+            page: cellTexts[6] || undefined,
+            instrumentNumber: instrNum || undefined,
+          };
+          deedHistory.push(entry);
+          // Column 7 (0-indexed) = "Number" = instrument number
           if (/^\d{7,12}$/.test(instrNum) && !seen.has(instrNum)) {
             seen.add(instrNum);
             instrumentNumbers.push(instrNum);
@@ -1286,13 +1560,75 @@ async function enrichPropertyDetail(
       }
     }
 
-    return { acreage, legalDescription, propertyType, instrumentNumbers };
+    // Extract owner ID: <th>Owner ID:</th><td colspan="3">882692</td>
+    let ownerIdVal: string | null = null;
+    const ownerIdMatch = html.match(/<th[^>]*>\s*Owner\s*ID:\s*<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/i);
+    if (ownerIdMatch) {
+      ownerIdVal = ownerIdMatch[1].replace(/<[^>]*>/g, '').trim() || null;
+    }
+
+    // Extract owner name: <th>Name:</th><td colspan="3">STARR SURVEYING</td>
+    let ownerNameVal: string | null = null;
+    const ownerNameMatch = html.match(/<th[^>]*>\s*Name:\s*<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/i);
+    if (ownerNameMatch) {
+      ownerNameVal = ownerNameMatch[1].replace(/<[^>]*>/g, '').trim() || null;
+    }
+
+    // Extract mailing address: <th>Mailing Address:</th><td>...<br>...<br>...</td>
+    let mailingAddress: string | null = null;
+    const mailingMatch = html.match(/<th[^>]*>\s*Mailing\s*Address:\s*<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/i);
+    if (mailingMatch) {
+      mailingAddress = mailingMatch[1]
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]*>/g, '')
+        .replace(/\n{2,}/g, '\n')
+        .trim() || null;
+    }
+
+    // Extract situs address: <th>Situs Address:</th><td colspan="3">3779 FM 436\nBELTON, TX 76513</td>
+    let situsAddressVal: string | null = null;
+    const situsMatch = html.match(/<th[^>]*>\s*Situs\s*Address:\s*<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/i);
+    if (situsMatch) {
+      situsAddressVal = situsMatch[1]
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<[^>]*>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim() || null;
+    }
+
+    // Extract geographic ID: appears in same row as Property ID
+    // <tr><th>Property ID:</th><td>498826</td><td><strong> Geographic ID: </strong> VALUE</td></tr>
+    let geoIdVal: string | null = null;
+    const geoIdMatch = html.match(/<strong[^>]*>\s*Geographic\s*ID:\s*<\/strong>\s*([^<\n]*)/i);
+    if (geoIdMatch) {
+      geoIdVal = geoIdMatch[1].trim() || null;
+    }
+    if (!geoIdVal) {
+      const geoIdAlt = html.match(/<th[^>]*>\s*Geographic\s*ID:\s*<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/i);
+      if (geoIdAlt) geoIdVal = geoIdAlt[1].replace(/<[^>]*>/g, '').trim() || null;
+    }
+
+    // Extract map ID: <th>Map ID:</th><td>61B01</td>
+    let mapIdVal: string | null = null;
+    const mapIdMatch = html.match(/<th[^>]*>\s*Map\s*ID:\s*<\/th>\s*<td[^>]*>([^<]+)<\/td>/i);
+    if (mapIdMatch) {
+      mapIdVal = mapIdMatch[1].trim() || null;
+    }
+
+    return {
+      acreage, legalDescription, propertyType, instrumentNumbers, deedHistory,
+      ownerId: ownerIdVal, ownerName: ownerNameVal, mailingAddress,
+      situsAddress: situsAddressVal, geoId: geoIdVal, mapId: mapIdVal,
+    };
   }
 
   try {
     const year = new Date().getFullYear();
     // CRITICAL: Bell CAD uses path parameter, not query string — /Property/View/{id}?year={year}
-    const url = `${baseUrl}/Property/View/${propertyId}?year=${year}`;
+    // Optionally append ownerId if known, for more precise lookup.
+    const url = ownerId
+      ? `${baseUrl}/Property/View/${propertyId}?year=${year}&ownerId=${encodeURIComponent(ownerId)}`
+      : `${baseUrl}/Property/View/${propertyId}?year=${year}`;
 
     const response = await fetch(url, {
       headers: {
@@ -1314,7 +1650,7 @@ async function enrichPropertyDetail(
     finish({
       status: found > 0 ? 'success' : 'partial',
       dataPointsFound: found,
-      details: `Acreage: ${result.acreage ?? 'N/A'}, Legal: ${result.legalDescription ? `${result.legalDescription.length} chars` : 'N/A'}, Type: ${result.propertyType ?? 'N/A'}, Instruments: [${result.instrumentNumbers.join(', ')}]`,
+      details: `Acreage: ${result.acreage ?? 'N/A'}, Legal: ${result.legalDescription ? `${result.legalDescription.length} chars` : 'N/A'}, Type: ${result.propertyType ?? 'N/A'}, Instruments: [${result.instrumentNumbers.join(', ')}], Owner: ${result.ownerName ?? 'N/A'}, MapId: ${result.mapId ?? 'N/A'}`,
     });
 
     return result;
@@ -1504,6 +1840,133 @@ Important: Do NOT repeat variants already tried. Only return NEW variants not in
 // ── Main Search Function ───────────────────────────────────────────────────
 
 /**
+ * Perform a single keyword search against the BIS eSearch API.
+ * Handles reCAPTCHA check, session token acquisition, and one GET request.
+ * Used for owner-name and property-ID keyword searches.
+ */
+async function searchCadHttpRawKeyword(
+  baseUrl: string,
+  keywords: string,
+  label: string,
+  logger: PipelineLogger,
+): Promise<CadSearchResult[] | null> {
+  const tracker = logger.startAttempt({
+    layer: 'Stage1A-Keyword',
+    source: 'CAD-HTTP',
+    method: 'GET-keyword-search',
+    input: `${label}: ${keywords.substring(0, 80)}`,
+  });
+
+  try {
+    // Check reCAPTCHA requirement
+    const recaptchaResp = await fetch(`${baseUrl}/search/shouldUseRecaptcha`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(8_000),
+    }).catch(() => null);
+
+    if (recaptchaResp?.ok) {
+      const data = await recaptchaResp.json().catch(() => ({})) as { shouldUseRecaptcha?: boolean };
+      if (data.shouldUseRecaptcha === true) {
+        tracker({ status: 'fail', error: 'reCAPTCHA required', nextLayer: 'Stage1B' });
+        return null;
+      }
+    }
+
+    // Acquire session cookies + token
+    let sessionCookies: string | null = null;
+    let sessionToken: string | null = null;
+
+    const pageResp = await fetch(baseUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10_000),
+    }).catch(() => null);
+
+    if (pageResp?.ok) {
+      const setCookie = pageResp.headers.get('set-cookie');
+      if (setCookie) {
+        sessionCookies = setCookie.split(',').map((c) => c.split(';')[0].trim()).filter((c) => c.includes('=')).join('; ');
+      }
+    }
+
+    const tokenHeaders: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'application/json, text/plain, */*',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Referer': `${baseUrl}/`,
+    };
+    if (sessionCookies) tokenHeaders['Cookie'] = sessionCookies;
+
+    const tokenResp = await fetch(`${baseUrl}/search/requestSessionToken`, {
+      headers: tokenHeaders,
+      signal: AbortSignal.timeout(8_000),
+    }).catch(() => null);
+
+    if (tokenResp?.ok) {
+      const tokenData = await tokenResp.json().catch(() => ({})) as { searchSessionToken?: string };
+      sessionToken = tokenData.searchSessionToken ?? null;
+    }
+
+    if (!sessionToken) {
+      tracker({ status: 'fail', error: 'Failed to acquire session token' });
+      return null;
+    }
+
+    // Perform the search
+    const searchHeaders: Record<string, string> = {
+      'Accept': 'application/json, text/javascript, */*; q=0.01',
+      'X-Requested-With': 'XMLHttpRequest',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Referer': `${baseUrl}/`,
+    };
+    if (sessionCookies) searchHeaders['Cookie'] = sessionCookies;
+
+    const url = `${baseUrl}/search/SearchResults?keywords=${encodeURIComponent(keywords)}&searchSessionToken=${encodeURIComponent(sessionToken)}`;
+    tracker.step(`GET ${url.substring(0, 120)}...`);
+
+    const response = await fetch(url, {
+      headers: searchHeaders,
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      tracker({ status: 'fail', error: `HTTP ${response.status}` });
+      return null;
+    }
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('json')) {
+      const data = await response.json() as
+        | { resultsList?: CadSearchResult[]; results?: CadSearchResult[]; data?: CadSearchResult[] }
+        | CadSearchResult[];
+      const results = Array.isArray(data) ? data : (data.resultsList ?? data.results ?? data.data ?? []);
+      tracker({ status: results.length > 0 ? 'success' : 'fail', dataPointsFound: results.length, details: `${results.length} JSON results` });
+      return results.length > 0 ? results : null;
+    }
+
+    if (contentType.includes('html')) {
+      const html = await response.text();
+      const results = parseHtmlSearchResults(html, tracker);
+      tracker({ status: results.length > 0 ? 'success' : 'fail', dataPointsFound: results.length, details: `${results.length} results from HTML` });
+      return results.length > 0 ? results : null;
+    }
+
+    tracker({ status: 'fail', error: `Unexpected content-type: ${contentType}` });
+    return null;
+  } catch (err) {
+    tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
+/**
  * Search for a property in a BIS Consultants eSearch CAD system.
  * Tries HTTP → Playwright → Vision OCR → AI variants in sequence (layered fallback).
  * All results are validated against the original search address.
@@ -1513,6 +1976,11 @@ export async function searchBisCad(
   normalized: NormalizedAddress,
   anthropicApiKey: string,
   logger: PipelineLogger,
+  options?: {
+    ownerName?: string;
+    propertyId?: string;
+    ownerId?: string;
+  },
 ): Promise<{ property: PropertyIdResult | null; diagnostics: SearchDiagnostics }> {
   const config = BIS_CONFIGS[county.toLowerCase()];
   const diagnostics: SearchDiagnostics = {
@@ -1538,6 +2006,79 @@ export async function searchBisCad(
 
   logger.info('Stage1', `Searching ${config.name} with ${variants.length} variants (${variants.filter((v) => !v.isPartial).length} exact, ${variants.filter((v) => v.isPartial).length} partial)`);
 
+  // Helper to build a PropertyIdResult from a detail + search result
+  const buildResult = (
+    propId: string,
+    detail: Awaited<ReturnType<typeof enrichPropertyDetail>>,
+    best: CadSearchResult,
+    layer: string,
+    confidence: number,
+    notes: string[],
+  ): PropertyIdResult => ({
+    propertyId: propId,
+    geoId: detail.geoId ?? getProp(best, 'geoId', 'GeoId'),
+    ownerName: detail.ownerName ?? getProp(best, 'ownerName', 'OwnerName'),
+    legalDescription: detail.legalDescription ?? getProp(best, 'legalDescription', 'LegalDescription'),
+    acreage: detail.acreage ?? getNumProp(best, 'acreage', 'Acreage'),
+    propertyType: detail.propertyType ?? getProp(best, 'propertyType', 'PropertyType'),
+    situsAddress: detail.situsAddress ?? getProp(best, 'address', 'Address', 'situsAddress', 'SitusAddress'),
+    source: config.name,
+    layer,
+    matchConfidence: confidence,
+    validationNotes: notes,
+    instrumentNumbers: detail.instrumentNumbers.length > 0 ? detail.instrumentNumbers : undefined,
+    ownerId: detail.ownerId ?? getProp(best, 'ownerId', 'OwnerId') ?? undefined,
+    mapId: detail.mapId ?? undefined,
+    mailingAddress: detail.mailingAddress ?? undefined,
+    deedHistory: detail.deedHistory.length > 0 ? detail.deedHistory : undefined,
+  });
+
+  // Layer 1A-0: Direct property ID lookup (fastest path — no search needed)
+  if (options?.propertyId) {
+    logger.info('Stage1A-0', `Direct property ID lookup: ${options.propertyId}`);
+    const detail = await enrichPropertyDetail(config.baseUrl, options.propertyId, logger, options.ownerId);
+    if (detail.ownerName || detail.legalDescription) {
+      diagnostics.searchDuration_ms = Date.now() - searchStart;
+      return {
+        property: {
+          propertyId: options.propertyId,
+          geoId: detail.geoId,
+          ownerName: detail.ownerName,
+          legalDescription: detail.legalDescription,
+          acreage: detail.acreage,
+          propertyType: detail.propertyType,
+          situsAddress: detail.situsAddress,
+          source: config.name,
+          layer: 'Stage1A-0',
+          matchConfidence: 1.0,
+          validationNotes: ['Direct property ID lookup — exact match'],
+          instrumentNumbers: detail.instrumentNumbers.length > 0 ? detail.instrumentNumbers : undefined,
+          ownerId: detail.ownerId ?? options.ownerId,
+          mapId: detail.mapId ?? undefined,
+          mailingAddress: detail.mailingAddress ?? undefined,
+          deedHistory: detail.deedHistory.length > 0 ? detail.deedHistory : undefined,
+        },
+        diagnostics,
+      };
+    }
+
+    // Layer 1A-1: Property ID keyword search (fallback if direct fetch failed)
+    logger.info('Stage1A-1', `Direct fetch failed — trying keyword search for property ID: ${options.propertyId}`);
+    const pidQuery = `PropertyId:${options.propertyId}`;
+    const pidResults = await searchCadHttpRawKeyword(config.baseUrl, pidQuery, 'PropertyId', logger);
+    if (pidResults && pidResults.length > 0) {
+      const best = pidResults[0];
+      const pid = getProp(best, 'propertyId', 'PropertyId') ?? options.propertyId;
+      const pid_ownerId = getProp(best, 'ownerId', 'OwnerId') ?? options.ownerId;
+      const detailPid = await enrichPropertyDetail(config.baseUrl, pid, logger, pid_ownerId ?? undefined);
+      diagnostics.searchDuration_ms = Date.now() - searchStart;
+      return {
+        property: buildResult(pid, detailPid, best, 'Stage1A-1', 1.0, ['Property ID keyword search — exact match']),
+        diagnostics,
+      };
+    }
+  }
+
   // Layer 1A: HTTP GET with session token (BIS eSearch keyword search)
   const httpResults = await searchCadHttp(config.baseUrl, variants, logger, diagnostics);
   if (httpResults && httpResults.length > 0) {
@@ -1549,24 +2090,12 @@ export async function searchBisCad(
 
       // Only accept if validation passes minimum threshold
       if (validation.confidence >= 0.3) {
-        const detail = await enrichPropertyDetail(config.baseUrl, propId, logger);
+        const bestOwnerId = getProp(best, 'ownerId', 'OwnerId') ?? undefined;
+        const detail = await enrichPropertyDetail(config.baseUrl, propId, logger, bestOwnerId);
         diagnostics.searchDuration_ms = Date.now() - searchStart;
 
         return {
-          property: {
-            propertyId: propId,
-            geoId: getProp(best, 'geoId', 'GeoId'),
-            ownerName: getProp(best, 'ownerName', 'OwnerName'),
-            legalDescription: detail.legalDescription ?? getProp(best, 'legalDescription', 'LegalDescription'),
-            acreage: detail.acreage ?? getNumProp(best, 'acreage', 'Acreage'),
-            propertyType: detail.propertyType ?? getProp(best, 'propertyType', 'PropertyType'),
-            situsAddress: getProp(best, 'address', 'Address', 'situsAddress', 'SitusAddress'),
-            source: config.name,
-            layer: 'Stage1A',
-            matchConfidence: validation.confidence,
-            validationNotes: validation.issues,
-            instrumentNumbers: detail.instrumentNumbers.length > 0 ? detail.instrumentNumbers : undefined,
-          },
+          property: buildResult(propId, detail, best, 'Stage1A', validation.confidence, validation.issues),
           diagnostics,
         };
       } else {
@@ -1575,9 +2104,9 @@ export async function searchBisCad(
     }
   }
 
-  // Layer 1B: Playwright (tries all variants including partials)
+  // Layer 1B: Playwright (tries all variants including partials, plus owner/id fallback)
   const { results: pwResults, screenshot, validation: pwValidation } = await searchCadPlaywright(
-    config.baseUrl, variants, normalized, logger, diagnostics,
+    config.baseUrl, variants, normalized, logger, diagnostics, options,
   );
 
   if (pwResults.length > 0) {
@@ -1588,24 +2117,12 @@ export async function searchBisCad(
       validation.multipleResults = pwResults.length > 1;
 
       if (validation.confidence >= 0.2) {
-        const detail = await enrichPropertyDetail(config.baseUrl, propId, logger);
+        const bestOwnerId = getProp(best, 'ownerId', 'OwnerId') ?? undefined;
+        const detail = await enrichPropertyDetail(config.baseUrl, propId, logger, bestOwnerId);
         diagnostics.searchDuration_ms = Date.now() - searchStart;
 
         return {
-          property: {
-            propertyId: propId,
-            geoId: getProp(best, 'geoId', 'GeoId'),
-            ownerName: getProp(best, 'ownerName', 'OwnerName'),
-            legalDescription: detail.legalDescription ?? getProp(best, 'legalDescription', 'LegalDescription'),
-            acreage: detail.acreage ?? getNumProp(best, 'acreage', 'Acreage'),
-            propertyType: detail.propertyType ?? getProp(best, 'propertyType', 'PropertyType'),
-            situsAddress: getProp(best, 'address', 'Address', 'situsAddress', 'SitusAddress'),
-            source: config.name,
-            layer: 'Stage1B',
-            matchConfidence: validation.confidence,
-            validationNotes: validation.issues,
-            instrumentNumbers: detail.instrumentNumbers.length > 0 ? detail.instrumentNumbers : undefined,
-          },
+          property: buildResult(propId, detail, best, 'Stage1B', validation.confidence, validation.issues),
           diagnostics,
         };
       } else {
@@ -1635,26 +2152,16 @@ export async function searchBisCad(
       if (best) {
         const propId = getProp(best, 'propertyId', 'PropertyId', 'property_id') ?? '';
         if (propId) {
-          const detail = await enrichPropertyDetail(config.baseUrl, propId, logger);
+          const bestOwnerId = getProp(best, 'ownerId', 'OwnerId') ?? undefined;
+          const detail = await enrichPropertyDetail(config.baseUrl, propId, logger, bestOwnerId);
           const validation = validatePropertyResult(best, normalized, logger);
           validation.multipleResults = visionResults.length > 1;
           diagnostics.searchDuration_ms = Date.now() - searchStart;
 
           return {
-            property: {
-              propertyId: propId,
-              geoId: getProp(best, 'geoId', 'GeoId', 'geo_id'),
-              ownerName: getProp(best, 'ownerName', 'OwnerName', 'owner_name'),
-              legalDescription: detail.legalDescription ?? getProp(best, 'legalDescription', 'LegalDescription', 'legal_description'),
-              acreage: detail.acreage ?? getNumProp(best, 'acreage', 'Acreage'),
-              propertyType: detail.propertyType,
-              situsAddress: getProp(best, 'address', 'Address', 'situsAddress', 'SitusAddress'),
-              source: config.name,
-              layer: 'Stage1C',
-              matchConfidence: validation.confidence,
-              validationNotes: [...validation.issues, 'Property identified via screenshot OCR — lower reliability'],
-              instrumentNumbers: detail.instrumentNumbers.length > 0 ? detail.instrumentNumbers : undefined,
-            },
+            property: buildResult(propId, detail, best, 'Stage1C', validation.confidence, [
+              ...validation.issues, 'Property identified via screenshot OCR — lower reliability',
+            ]),
             diagnostics,
           };
         }
@@ -1699,24 +2206,14 @@ export async function searchBisCad(
           validation.multipleResults = aiHttpResults.length > 1;
 
           if (validation.confidence >= 0.2) {
-            const detail = await enrichPropertyDetail(config.baseUrl, propId, logger);
+            const bestOwnerId = getProp(best, 'ownerId', 'OwnerId') ?? undefined;
+            const detail = await enrichPropertyDetail(config.baseUrl, propId, logger, bestOwnerId);
             diagnostics.searchDuration_ms = Date.now() - searchStart;
 
             return {
-              property: {
-                propertyId: propId,
-                geoId: getProp(best, 'geoId', 'GeoId'),
-                ownerName: getProp(best, 'ownerName', 'OwnerName'),
-                legalDescription: detail.legalDescription ?? getProp(best, 'legalDescription', 'LegalDescription'),
-                acreage: detail.acreage ?? getNumProp(best, 'acreage', 'Acreage'),
-                propertyType: detail.propertyType ?? getProp(best, 'propertyType', 'PropertyType'),
-                situsAddress: getProp(best, 'address', 'Address', 'situsAddress', 'SitusAddress'),
-                source: config.name,
-                layer: 'Stage1D',
-                matchConfidence: validation.confidence,
-                validationNotes: [...validation.issues, 'Found via AI-generated address variant'],
-                instrumentNumbers: detail.instrumentNumbers.length > 0 ? detail.instrumentNumbers : undefined,
-              },
+              property: buildResult(propId, detail, best, 'Stage1D', validation.confidence, [
+                ...validation.issues, 'Found via AI-generated address variant',
+              ]),
               diagnostics,
             };
           }
@@ -1725,6 +2222,39 @@ export async function searchBisCad(
     }
   } else if (anthropicApiKey && !aiAllowed) {
     logger.warn('Stage1D', `AI variant fallback skipped — circuit breaker: ${aiBlockReason}`);
+  }
+
+  // Layer 1A-2: Owner name HTTP search (after all address variants exhausted)
+  if (options?.ownerName) {
+    logger.info('Stage1A-2', `All address layers failed — trying owner name HTTP search: "${options.ownerName}"`);
+    // Try a few name formats: as-is, uppercase, and "LAST, FIRST" if it looks like "FIRST LAST"
+    const nameVariants: string[] = [options.ownerName, options.ownerName.toUpperCase()];
+    const parts = options.ownerName.trim().split(/\s+/);
+    if (parts.length >= 2 && !options.ownerName.includes(',')) {
+      nameVariants.push(`${parts[parts.length - 1].toUpperCase()}, ${parts.slice(0, -1).join(' ').toUpperCase()}`);
+    }
+
+    for (const nameVariant of nameVariants) {
+      const ownerQuery = `OwnerName:"${nameVariant}"`;
+      const ownerResults = await searchCadHttpRawKeyword(config.baseUrl, ownerQuery, 'OwnerName', logger);
+      if (ownerResults && ownerResults.length > 0) {
+        const best = pickBestResult(ownerResults, normalized, logger);
+        if (best) {
+          const propId = getProp(best, 'propertyId', 'PropertyId') ?? '';
+          if (propId) {
+            const bestOwnerId = getProp(best, 'ownerId', 'OwnerId') ?? undefined;
+            const detail = await enrichPropertyDetail(config.baseUrl, propId, logger, bestOwnerId);
+            diagnostics.searchDuration_ms = Date.now() - searchStart;
+            return {
+              property: buildResult(propId, detail, best, 'Stage1A-2', 0.6, [
+                `Found via owner name search: "${nameVariant}"`,
+              ]),
+              diagnostics,
+            };
+          }
+        }
+      }
+    }
   }
 
   logger.error('Stage1', `All CAD search layers exhausted — property not found. Tried ${diagnostics.variantsTried.length} variants.`);

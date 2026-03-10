@@ -81,6 +81,25 @@ export interface PropertyIdResult {
    * When present these are used directly for clerk search, bypassing owner-name SPA search.
    */
   instrumentNumbers?: string[];
+  /** CAD owner ID (from detail page / search results) */
+  ownerId?: string;
+  /** Map ID / map sheet reference (from detail page) */
+  mapId?: string;
+  /** Mailing address of the owner (from detail page) */
+  mailingAddress?: string;
+  /** Full deed history entries extracted from CAD detail page */
+  deedHistory?: DeedHistoryEntry[];
+}
+
+export interface DeedHistoryEntry {
+  deedDate?: string;
+  type?: string;
+  description?: string;
+  grantor?: string;
+  grantee?: string;
+  volume?: string;
+  page?: string;
+  instrumentNumber?: string;
 }
 
 // ── Property Result Validation ───────────────────────

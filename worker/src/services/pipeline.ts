@@ -431,86 +431,15 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     }
 
     // Path B: Address-based CAD search (tries HTTP → Playwright → Vision OCR layers)
+    // Owner name and property ID are passed as options so searchBisCad can use them
+    // as fallback search methods internally (owner name tab, property ID tab, etc.).
     if (!propertyResult && normalized.variants.length > 0) {
-      const cadResult = await searchBisCad(input.county, normalized, anthropicApiKey, logger);
+      const cadResult = await searchBisCad(input.county, normalized, anthropicApiKey, logger, {
+        ownerName: input.ownerName,
+        propertyId: input.propertyId,
+      });
       propertyResult = cadResult.property;
       searchDiagnostics = cadResult.diagnostics;
-    }
-
-    // Path C: Owner-name search on CAD when address search fails
-    if (!propertyResult && input.ownerName) {
-      logger.info('Stage1', `Address search failed — trying owner name: "${input.ownerName}"`);
-
-      const nameVariants = await aiFormatOwnerName(input.ownerName, anthropicApiKey, logger);
-
-      const { chromium } = await import('playwright');
-      let ownerBrowser = null;
-      try {
-        ownerBrowser = await chromium.launch({ headless: process.env.PLAYWRIGHT_HEADLESS !== 'false' });
-        const context = await ownerBrowser.newContext();
-        const page = await context.newPage();
-
-        const ownerCadConfig = BIS_CONFIGS[input.county.toLowerCase()];
-        if (ownerCadConfig?.baseUrl) {
-          for (const nameVariant of nameVariants.slice(0, 5)) {
-            try {
-              await page.goto(ownerCadConfig.baseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-
-              const ownerTabSelectors = ['text=By Owner', 'a:has-text("Owner")', '[data-tab="owner"]'];
-              for (const sel of ownerTabSelectors) {
-                try {
-                  const tab = page.locator(sel).first();
-                  if (await tab.isVisible({ timeout: 2_000 })) {
-                    await tab.click();
-                    await page.waitForTimeout(800);
-                    break;
-                  }
-                } catch { continue; }
-              }
-
-              await page.evaluate((name: string) => {
-                const inputs = document.querySelectorAll('input[type="text"]');
-                const ownerInput = Array.from(inputs).find((el) => {
-                  const placeholder = (el as HTMLInputElement).placeholder?.toLowerCase() ?? '';
-                  const nameAttr = (el as HTMLInputElement).name?.toLowerCase() ?? '';
-                  return placeholder.includes('owner') || nameAttr.includes('owner') || nameAttr.includes('name');
-                }) as HTMLInputElement | undefined;
-                if (ownerInput) {
-                  ownerInput.value = name;
-                  ownerInput.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-              }, nameVariant);
-
-              const btn = page.locator('button:has-text("Search"), input[type="submit"]').first();
-              await btn.click({ timeout: 5_000 });
-              await page.waitForTimeout(3_000);
-
-              const resultText = await page.evaluate(() => {
-                const firstRow = document.querySelector('table tbody tr');
-                if (!firstRow) return null;
-                const link = firstRow.querySelector('a[href]');
-                const href = link?.getAttribute('href') ?? '';
-                const idMatch = href.match(/Id=(\w+)/);
-                return { id: idMatch?.[1] ?? null };
-              });
-
-              if (resultText?.id) {
-                propertyResult = await lookupByPropertyId(input.county, resultText.id, logger);
-                if (propertyResult) {
-                  logger.info('Stage1', `Owner search "${nameVariant}" → property ${resultText.id}`);
-                  break;
-                }
-              }
-            } catch (err) {
-              logger.warn('Stage1', `Owner search "${nameVariant}": ${err instanceof Error ? err.message : String(err)}`);
-            }
-          }
-        } else {
-          logger.warn('Stage1', `No CAD config for county "${input.county}"`);
-        }
-      } finally {
-        if (ownerBrowser) await ownerBrowser.close().catch(() => undefined);
-      }
     }
 
     if (!propertyResult) {
