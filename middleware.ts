@@ -18,6 +18,7 @@ const ADMIN_ONLY_ROUTES = [
   '/admin/notes',           // Company Notes
   '/admin/rewards/admin',   // Manage Rewards
   '/admin/research',        // Property Research
+  '/admin/cad',             // CAD Software
 ];
 
 const TEACHER_ROUTES = [
