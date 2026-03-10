@@ -1447,20 +1447,15 @@ export async function searchClerkRecords(
           }
 
           // ── Strategy B: Fallback generic extraction for non-Tyler sites ──
-          const rows = document.querySelectorAll(
-            '.result-item, .search-result, .document-row, ' +
-            '[data-testid*="result"], [data-testid*="document"], ' +
-            'a[href*="/doc/"], a[href*="/detail"]',
           // Helper: build an absolute URL from a possibly-relative href
           const toAbsolute = (href: string): string =>
             href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
 
-          // Strategy 1: Result items/rows (broad selector for various SPA frameworks)
-          const rows = document.querySelectorAll(
+          const resultItems = document.querySelectorAll(
             '.result-item, .result-row, .search-result, .document-result, ' +
-            'table tbody tr, .document-row, [class*="result-row"], [class*="ResultRow"]',
+            '.document-row, [class*="result-row"], [class*="ResultRow"]',
           );
-          let resultElements: Element[] = Array.from(rows);
+          let resultElements: Element[] = Array.from(resultItems);
           if (resultElements.length === 0) {
             const detailLinks = document.querySelectorAll(
               'a[href*="/doc/"], a[href*="/detail/"], a[href*="/document/"]',
@@ -1473,53 +1468,54 @@ export async function searchClerkRecords(
             });
           }
 
+          const typePatterns = [
+            /(?:Type|Document Type|Doc Type)\s*:?\s*([^\n|]+)/i,
+            /\b(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Plat|Amended Plat|Easement|Right[- ]of[- ]Way|Quit Claim|Deed of Trust|Release|Mineral Deed|Affidavit|Restriction|Covenant)\b/i,
+          ];
+          const datePatterns = [
+            /(?:Date|Recorded|Filed|Recording Date)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i,
+            /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/,
+          ];
+          const instrPatterns = [
+            /(?:Instrument|Inst\.?\s*#?|Document\s*#?|Doc\.?\s*#?)\s*:?\s*([\d\-]+)/i,
+            /\b(\d{4}-\d{5,})\b/,
+            /\b(\d{9,})\b/,
+          ];
+          const volPatterns = [/(?:Volume|Vol\.?|Book)\s*:?\s*(\d+)/i];
+          const pgPatterns = [/(?:Page|Pg\.?)\s*:?\s*(\d+)/i];
+          const grantorPatterns = [/(?:Grantor|From|Seller)\s*:?\s*([^\n|;]+)/i];
+          const granteePatterns = [/(?:Grantee|To|Buyer)\s*:?\s*([^\n|;]+)/i];
+
+          const findMatch = (patterns: RegExp[], source: string): string => {
+            for (const p of patterns) {
+              const m = source.match(p);
+              if (m) return (m[1] ?? m[0]).trim();
+            }
+            return '';
+          };
+
           resultElements.forEach((row) => {
             const text = row.textContent?.trim() ?? '';
             if (text.length < 10) return;
 
-            const links = Array.from(row.querySelectorAll('a[href]'));
-            if (row.tagName === 'A' && row.getAttribute('href')) {
-              links.unshift(row as HTMLAnchorElement);
-            }
-            let url: string | null = null;
-            let linkInstrumentNum = '';
-            for (const link of links) {
-              const href = link.getAttribute('href') ?? '';
-              if (href.includes('/doc/') || href.includes('/detail/') || href.includes('/details/') || href.includes('/document/') || href.includes('/view/') || href.match(/\/\d{4,}/)) {
-                url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-                const docMatch = href.match(/\/(?:doc|detail|document)\/(\d+)/);
-                if (docMatch) linkInstrumentNum = docMatch[1];
-                break;
-              }
-            }
-
-            const cells = Array.from(row.querySelectorAll('td, [class*="cell"], [role="cell"]'));
-            const cellTexts = cells.map((c) => c.textContent?.trim() ?? '').filter(Boolean);
-
-            // ── URL / instrument number from link href ──────────────────────
-            // Kofile detail page pattern: /doc/{id}/details  (e.g. /doc/2024-00001234/details)
             let url: string | null = null;
             let hrefInstrument = '';
-
-            const links = Array.from(row.querySelectorAll('a'));
-            for (const link of links) {
+            const rowLinks = Array.from(row.querySelectorAll('a'));
+            for (const link of rowLinks) {
               const href = link.getAttribute('href') ?? '';
-              // Primary: Kofile /doc/{id}/details pattern
               const docMatch = href.match(/\/doc\/([^/]+)(?:\/details)?/i);
               if (docMatch) {
                 url = toAbsolute(href.includes('/details') ? href : `${href}/details`);
                 hrefInstrument = docMatch[1];
                 break;
               }
-              // Secondary: any detail/view/document link or path with 4+ digit segment
               if (href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/[\d]{4,}/)) {
                 url = toAbsolute(href);
                 break;
               }
             }
-            // Tertiary: any non-trivial link excluding navigation
-            if (!url && links.length > 0) {
-              for (const link of links) {
+            if (!url && rowLinks.length > 0) {
+              for (const link of rowLinks) {
                 const href = link.getAttribute('href') ?? '';
                 if (!href.includes('results') && !href.includes('filter') && !href.includes('#') && href.length > 5) {
                   url = toAbsolute(href);
@@ -1528,7 +1524,6 @@ export async function searchClerkRecords(
               }
             }
 
-            // ── data-* attribute fallback for React/SPA rows ───────────────
             const dataId = (row as HTMLElement).dataset?.id
               ?? (row as HTMLElement).dataset?.documentId
               ?? (row as HTMLElement).dataset?.instrumentNumber
@@ -1537,70 +1532,15 @@ export async function searchClerkRecords(
               url = `${bUrl}/doc/${dataId}/details`;
             }
 
-            // ── Parse document fields ──────────────────────────────────────
-            // Kofile column order (typical): RecDate | InstrNum | DocType | Grantor | Grantee | Vol/Pg
-            const typePatterns = [
-              /(?:Type|Document Type|Doc Type)\s*:?\s*([^\n|]+)/i,
-              /\b(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Plat|Amended Plat|Easement|Right[- ]of[- ]Way|Quit Claim|Deed of Trust|Release|Mineral Deed|Affidavit|Restriction|Covenant)\b/i,
-            ];
-            const datePatterns = [/(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/];
-            const instrPatterns = [/\b(\d{8,})\b/];
-            const datePatterns = [
-              /(?:Date|Recorded|Filed|Recording Date)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i,
-              /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/,
-            ];
-            const instrPatterns = [
-              /(?:Instrument|Inst\.?\s*#?|Document\s*#?|Doc\.?\s*#?)\s*:?\s*([\d\-]+)/i,
-              // Kofile instrument numbers: YYYY-NNNNNNN (e.g. 2024-00001234)
-              /\b(\d{4}-\d{5,})\b/,
-              /\b(\d{9,})\b/,
-            ];
-            const volPatterns = [/(?:Volume|Vol\.?|Book)\s*:?\s*(\d+)/i];
-            const pgPatterns = [/(?:Page|Pg\.?)\s*:?\s*(\d+)/i];
-            const grantorPatterns = [/(?:Grantor|From|Seller)\s*:?\s*([^\n|;]+)/i];
-            const granteePatterns = [/(?:Grantee|To|Buyer)\s*:?\s*([^\n|;]+)/i];
-
-            const findMatch = (patterns: RegExp[], source: string): string => {
-              for (const p of patterns) {
-                const m = source.match(p);
-                if (m) return (m[1] ?? m[0]).trim();
-              }
-              return '';
-            };
-
-            let instrNum = linkInstrumentNum || findMatch(instrPatterns, text);
-            const docType = findMatch(typePatterns, text);
-            const recDate = findMatch(datePatterns, text);
-
-            if (!url && instrNum) {
-              url = `${bUrl}/doc/${instrNum}`;
-            }
-
-            if (instrNum || docType || url) {
-              docs.push({
-                type: docType || 'Unknown',
-                date: recDate,
-                instrumentNumber: instrNum,
-                volume: '',
-                docPage: '',
-                grantors: [],
-                grantees: [],
-                url,
-                text: text.substring(0, 500),
-              });
-            }
-            // Prefer instrument number from link href over text regex
-            const instrFromText = findMatch(instrPatterns);
-            const instrumentNumber = hrefInstrument || instrFromText || dataId || '';
-
+            const instrumentNumber = hrefInstrument || findMatch(instrPatterns, text) || dataId || '';
             docs.push({
-              type: findMatch(typePatterns) || 'Unknown',
-              date: findMatch(datePatterns),
+              type: findMatch(typePatterns, text) || 'Unknown',
+              date: findMatch(datePatterns, text),
               instrumentNumber,
-              volume: findMatch(volPatterns),
-              docPage: findMatch(pgPatterns),
-              grantors: findMatch(grantorPatterns) ? [findMatch(grantorPatterns)] : [],
-              grantees: findMatch(granteePatterns) ? [findMatch(granteePatterns)] : [],
+              volume: findMatch(volPatterns, text),
+              docPage: findMatch(pgPatterns, text),
+              grantors: findMatch(grantorPatterns, text) ? [findMatch(grantorPatterns, text)] : [],
+              grantees: findMatch(granteePatterns, text) ? [findMatch(granteePatterns, text)] : [],
               url,
               text: text.substring(0, 500),
             });
@@ -1662,6 +1602,18 @@ export async function searchClerkRecords(
             const pattern = href.replace(/\d{4,}/g, '{N}');
             if (pattern.length > 3 && !pattern.includes('google') && !pattern.includes('analytics')) {
               hrefPatterns.add(pattern);
+            }
+          });
+          return {
+            elementCount: allElements.length,
+            tableRowCount: tableRows.length,
+            checkboxCount: checkboxes.length,
+            sampleTexts,
+            sampleLinks: sampleLinks.slice(0, 5),
+            hrefPatterns: Array.from(hrefPatterns).slice(0, 10),
+            bodyTextLength: document.body.textContent?.length ?? 0,
+          };
+        });
         // Check for pagination — try to get more results via API intercept or DOM
         try {
           const hasMorePages = await page.evaluate(() => {
@@ -1686,9 +1638,9 @@ export async function searchClerkRecords(
                   } else {
                     const moreExtracted = await page.evaluate((bUrl: string) => {
                       const docs: Array<{ type: string; date: string; instrumentNumber: string; volume: string; docPage: string; grantors: string[]; grantees: string[]; url: string | null; }> = [];
-                      const toAbsolute = (href: string): string => href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-                      const rows = document.querySelectorAll('.result-item, .result-row, .search-result, .document-result, table tbody tr, .document-row, [class*="result-row"], [class*="ResultRow"]');
-                      rows.forEach((row) => {
+                      const toAbsoluteUrl = (href: string): string => href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+                      const resultRows = document.querySelectorAll('.result-item, .result-row, .search-result, .document-result, table tbody tr, .document-row, [class*="result-row"], [class*="ResultRow"]');
+                      resultRows.forEach((row) => {
                         const text = row.textContent?.trim() ?? '';
                         if (text.length < 10) return;
                         let url: string | null = null;
@@ -1697,8 +1649,8 @@ export async function searchClerkRecords(
                         for (const link of links) {
                           const href = link.getAttribute('href') ?? '';
                           const docMatch = href.match(/\/doc\/([^/]+)(?:\/details)?/i);
-                          if (docMatch) { url = toAbsolute(href.includes('/details') ? href : `${href}/details`); hrefInstrument = docMatch[1]; break; }
-                          if (href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/[\d]{4,}/)) { url = toAbsolute(href); break; }
+                          if (docMatch) { url = toAbsoluteUrl(href.includes('/details') ? href : `${href}/details`); hrefInstrument = docMatch[1]; break; }
+                          if (href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/[\d]{4,}/)) { url = toAbsoluteUrl(href); break; }
                         }
                         const dataId = (row as HTMLElement).dataset?.id ?? (row as HTMLElement).dataset?.documentId ?? '';
                         if (!url && dataId) url = `${bUrl}/doc/${dataId}/details`;
@@ -1725,17 +1677,8 @@ export async function searchClerkRecords(
                 }
               } catch { break; }
             }
-          });
-          return {
-            elementCount: allElements.length,
-            tableRowCount: tableRows.length,
-            checkboxCount: checkboxes.length,
-            sampleTexts,
-            sampleLinks: sampleLinks.slice(0, 5),
-            hrefPatterns: Array.from(hrefPatterns).slice(0, 10),
-            bodyTextLength: document.body.textContent?.length ?? 0,
-          };
-        });
+          }
+        } catch { /* pagination check failed */ }
         logger.info('Stage2A', `DOM diagnostic: ${diagnostic.elementCount} candidate elements, ${diagnostic.tableRowCount} table rows, ${diagnostic.checkboxCount} checkboxes, body text length: ${diagnostic.bodyTextLength}`);
         if (diagnostic.sampleTexts.length > 0) {
           logger.info('Stage2A', `Sample text[0]: ${diagnostic.sampleTexts[0]?.substring(0, 200)}`);
