@@ -584,8 +584,9 @@ function parseHtmlSearchResults(
 ): CadSearchResult[] {
   const results: CadSearchResult[] = [];
 
-  // Strategy 0: Bell CAD 2024+ — <tr onclick="redirectToPropertyDetails('id','year','ownerId',...)">
-  // Rows use class-named cells instead of anchor hrefs.
+  // Strategy 0: BIS eSearch 2024+ — rows use onclick="redirectToPropertyDetails(...)" with
+  // class-named cells instead of anchor hrefs. Capture groups:
+  //   [1] propertyId  [2] year  [3] ownerId  [4] inner row HTML
   const onclickPattern = /<tr[^>]*onclick=["']redirectToPropertyDetails\s*\(\s*'([^']+)'\s*,\s*'([^']*)'\s*,\s*'([^']*)'[^)]*\)["'][^>]*>([\s\S]*?)<\/tr>/gi;
   let onclickMatch;
   while ((onclickMatch = onclickPattern.exec(html)) !== null) {
@@ -1181,11 +1182,12 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
   return page.evaluate(() => {
     const results: Array<Record<string, string | null>> = [];
 
-    // Strategy 0: Bell CAD 2024+ — <tr onclick="redirectToPropertyDetails('id','year','ownerId',...)">
-    // Rows have no anchor links; data is in class-named cells.
+    // Strategy 0: BIS eSearch 2024+ — rows use onclick="redirectToPropertyDetails(...)" with
+    // class-named cells. Capture groups: [1] propertyId  [2] year  [3] ownerId
     const allRows = document.querySelectorAll('tr[onclick]');
     allRows.forEach((row) => {
       const onclick = row.getAttribute('onclick') ?? '';
+      // Capture groups: [1] propertyId  [2] year  [3] ownerId
       const match = onclick.match(/redirectToPropertyDetails\s*\(\s*'([^']+)'\s*,\s*'([^']*)'\s*,\s*'([^']*)'/);
       if (!match) return;
       const propertyId = match[1];
