@@ -441,12 +441,14 @@ async function searchCadHttp(
     });
 
     try {
-      // Build keyword string in BIS format: StreetNumber:N StreetName:S
-      // Multi-word street names are quoted
+      // Build keyword string in BIS format: StreetNumber:N StreetName:S PropertyType:Real
+      // Multi-word street names are quoted.
+      // PropertyType:Real filters out Business Personal Property, Mineral, Auto, Mobile Home
+      // records that share the same situs address but have no deed history.
       const namePart = variant.streetName.includes(' ')
         ? `StreetName:"${variant.streetName}"`
         : `StreetName:${variant.streetName}`;
-      const keywords = `StreetNumber:${variant.streetNumber} ${namePart}`;
+      const keywords = `StreetNumber:${variant.streetNumber} ${namePart} PropertyType:Real`;
       const encodedKeywords = encodeURIComponent(keywords);
       const encodedToken = encodeURIComponent(sessionToken);
       // BUG 3 FIX: The working AJAX endpoint is /search/SearchResults (not /search/result).
@@ -598,11 +600,16 @@ function parseHtmlSearchResults(
       cells.push(cellMatch[1].replace(/<[^>]*>/g, '').trim());
     }
 
+    // Extract property type from _propertyType class cell
+    const typeMatch = rowHtml.match(/<td[^>]*class="[^"]*_propertyType[^"]*"[^>]*>([\s\S]*?)<\/td>/i);
+    const propertyType = typeMatch ? typeMatch[1].replace(/<[^>]*>/g, '').trim() : null;
+
     results.push({
       propertyId,
       ownerName: cells[1] ?? null,
       address: cells[2] ?? null,
       legalDescription: cells[3] ?? null,
+      propertyType,
     } as CadSearchResult);
   }
 
@@ -791,6 +798,25 @@ async function searchCadPlaywright(
 
         if (!fieldsFilled.numFilled || !fieldsFilled.nameFilled) {
           finish.step?.(`[runtime] Field fill partial: numFilled=${fieldsFilled.numFilled}, nameFilled=${fieldsFilled.nameFilled}`);
+        }
+
+        // Select PropertyType = Real to filter out Personal/Mineral/Auto/Mobile Home
+        const propertyTypeSet = await page.evaluate(() => {
+          const selectors = ['#PropertyType', 'select[name="PropertyType"]', '#ddPropertyType'];
+          for (const sel of selectors) {
+            const selectEl = document.querySelector(sel) as HTMLSelectElement | null;
+            if (selectEl) {
+              selectEl.value = 'Real';
+              selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+              return true;
+            }
+          }
+          return false;
+        });
+        if (propertyTypeSet) {
+          finish.step?.('[runtime] PropertyType set to "Real"');
+        } else {
+          finish.step?.('[runtime] PropertyType dropdown not found — search will include all types');
         }
 
         // Click search button
@@ -990,11 +1016,16 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
         const cells = row ? Array.from(row.querySelectorAll('td')) : [];
         const text = row?.textContent?.trim() ?? link.textContent?.trim() ?? '';
 
+        // Extract propertyType from _propertyType class or cells
+        const typeCell = row?.querySelector('td._propertyType, td[class*="propertyType"]');
+        const propertyType = typeCell?.textContent?.trim() ?? null;
+
         results.push({
           propertyId: idMatch[1],
           ownerName: cells.length > 1 ? cells[1]?.textContent?.trim() ?? null : null,
           address: cells.length > 2 ? cells[2]?.textContent?.trim() ?? null : text.substring(0, 200),
           legalDescription: cells.length > 3 ? cells[3]?.textContent?.trim() ?? null : null,
+          propertyType,
         });
       });
     }
@@ -1020,11 +1051,15 @@ async function extractResultsFromDOM(page: import('playwright').Page): Promise<C
         }
 
         if (propertyId || cells.length >= 2) {
+          const typeCell = row.querySelector('td._propertyType, td[class*="propertyType"]');
+          const propertyType = typeCell?.textContent?.trim() ?? null;
+
           results.push({
             propertyId: propertyId ?? cells[0]?.textContent?.trim() ?? null,
             ownerName: cells.length > 1 ? cells[1]?.textContent?.trim() ?? null : null,
             address: cells.length > 2 ? cells[2]?.textContent?.trim() ?? null : text.substring(0, 200),
             legalDescription: cells.length > 3 ? cells[3]?.textContent?.trim() ?? null : null,
+            propertyType,
           });
         }
       });
@@ -1264,19 +1299,39 @@ function pickBestResult(
   const candidates = nonUdi.length > 0 ? nonUdi : results;
   if (candidates.length === 0) return null;
 
+  // Prefer Real property (Type:R) over Personal/Mineral/Auto/Mobile Home
+  // If any Real property exists, filter out non-Real types
+  const realCandidates = candidates.filter((r) => {
+    const pType = (getProp(r, 'propertyType', 'PropertyType') ?? '').toUpperCase();
+    return pType === 'R' || pType === 'REAL';
+  });
+  const finalCandidates = realCandidates.length > 0 ? realCandidates : candidates;
+  if (realCandidates.length > 0 && realCandidates.length < candidates.length) {
+    logger.info('Stage1-Pick', `Filtered to ${realCandidates.length} Real property results (excluded ${candidates.length - realCandidates.length} non-Real)`);
+  }
+
   // Score each candidate
-  const scored = candidates.map((r) => {
+  const scored = finalCandidates.map((r) => {
     const validation = validatePropertyResult(r, inputAddress, logger);
     return { result: r, validation };
   });
 
-  // Sort by confidence descending
-  scored.sort((a, b) => b.validation.confidence - a.validation.confidence);
+  // Sort by confidence descending, with Real property type as tiebreaker
+  scored.sort((a, b) => {
+    const confDiff = b.validation.confidence - a.validation.confidence;
+    if (Math.abs(confDiff) > 0.01) return confDiff;
+    // Tiebreaker: prefer Real property type
+    const aType = (getProp(a.result, 'propertyType', 'PropertyType') ?? '').toUpperCase();
+    const bType = (getProp(b.result, 'propertyType', 'PropertyType') ?? '').toUpperCase();
+    const aReal = aType === 'R' || aType === 'REAL' ? 1 : 0;
+    const bReal = bType === 'R' || bType === 'REAL' ? 1 : 0;
+    return bReal - aReal;
+  });
 
   // Log top candidates
   for (let i = 0; i < Math.min(3, scored.length); i++) {
     const { result: r, validation: v } = scored[i];
-    logger.info('Stage1-Pick', `  #${i + 1}: ID=${getProp(r, 'propertyId', 'PropertyId')}, confidence=${v.confidence.toFixed(2)}, addr="${getProp(r, 'address', 'Address', 'situsAddress') ?? 'N/A'}"`);
+    logger.info('Stage1-Pick', `  #${i + 1}: ID=${getProp(r, 'propertyId', 'PropertyId')}, type=${getProp(r, 'propertyType', 'PropertyType') ?? '?'}, confidence=${v.confidence.toFixed(2)}, addr="${getProp(r, 'address', 'Address', 'situsAddress') ?? 'N/A'}"`);
   }
 
   // Warn if best match has low confidence
