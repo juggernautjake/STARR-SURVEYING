@@ -140,10 +140,12 @@ export default function ResearchProjectPage() {
 
   const userRole = session?.user?.role || 'employee';
 
-  if (sessionStatus === 'authenticated' && userRole !== 'admin') {
-    router.replace('/admin/dashboard');
-    return null;
-  }
+  // Admin-only guard — use useEffect so hooks are never called conditionally
+  useEffect(() => {
+    if (sessionStatus === 'authenticated' && userRole !== 'admin') {
+      router.replace('/admin/dashboard');
+    }
+  }, [sessionStatus, userRole, router]);
 
   const loadProject = useCallback(async () => {
     try {
@@ -1384,6 +1386,8 @@ export default function ResearchProjectPage() {
     }
   }
 
+  if (sessionStatus === 'authenticated' && userRole !== 'admin') return null;
+
   if (!session?.user || loading) {
     return (
       <div className="research-page">
@@ -1630,7 +1634,7 @@ export default function ResearchProjectPage() {
             <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '0.5rem', padding: '0.75rem 1rem', marginBottom: '1rem', maxWidth: 520, textAlign: 'center' }}>
               <div style={{ fontWeight: 700, color: '#92400E', marginBottom: '0.25rem' }}>⚠️ Analysis Appears Frozen</div>
               <div style={{ fontSize: '0.82rem', color: '#78350F', marginBottom: '0.6rem' }}>
-                The analyzer hasn't reported progress in over 90 seconds. It may be stuck on a difficult
+                The analyzer hasn&apos;t reported progress in over 90 seconds. It may be stuck on a difficult
                 document. You can resume from where it left off, or abort and start fresh.
               </div>
               <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>

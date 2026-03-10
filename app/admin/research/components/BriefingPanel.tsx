@@ -319,7 +319,7 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
             ) : (
               <>
                 <p style={{ color: '#6B7280', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
-                  Corner and boundary markers are physical monuments that mark the corners and lines of the survey. "Found" means an existing marker was located; "Set" means a new marker was placed.
+                  Corner and boundary markers are physical monuments that mark the corners and lines of the survey. &ldquo;Found&rdquo; means an existing marker was located; &ldquo;Set&rdquo; means a new marker was placed.
                 </p>
                 <div className="research-briefing__monument-list">
                   {sections.monuments.map((mon, i) => (

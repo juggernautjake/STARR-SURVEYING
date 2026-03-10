@@ -109,7 +109,7 @@ const ContactForm = (): React.ReactElement => {
     return (
       <div className="alert alert-success text-center py-8">
         <h3 className="text-xl font-bold mb-2">Thank You!</h3>
-        <p>Your submission has been received. We'll contact you within 24 business hours.</p>
+        <p>Your submission has been received. We&apos;ll contact you within 24 business hours.</p>
       </div>
     );
   }

@@ -42,11 +42,12 @@ export default function ResearchListPage() {
 
   const userRole = session?.user?.role || 'employee';
 
-  // Admin-only guard
-  if (sessionStatus === 'authenticated' && userRole !== 'admin') {
-    router.replace('/admin/dashboard');
-    return null;
-  }
+  // Admin-only guard — use useEffect so hooks are never called conditionally
+  useEffect(() => {
+    if (sessionStatus === 'authenticated' && userRole !== 'admin') {
+      router.replace('/admin/dashboard');
+    }
+  }, [sessionStatus, userRole, router]);
 
   // Debounced search: auto-reload 400ms after typing stops
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -116,6 +117,7 @@ export default function ResearchListPage() {
   }
 
   if (!session?.user) return null;
+  if (sessionStatus === 'authenticated' && userRole !== 'admin') return null;
 
   // Determine empty state message
   const hasActiveSearch = search.trim().length > 0;
