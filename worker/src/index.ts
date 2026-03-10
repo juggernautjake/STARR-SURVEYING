@@ -379,6 +379,7 @@ app.get('/research/status/:projectId', requireAuth, (req: Request, res: Response
         } : null,
       })),
       log: result.log,
+      failureReason: result.failureReason,
     });
     return;
   }

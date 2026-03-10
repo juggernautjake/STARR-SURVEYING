@@ -533,6 +533,22 @@ async function searchCadHttp(
         const html = await response.text();
         tracker.step(`[html_structure] Received ${html.length} chars of HTML`);
 
+        // Detect transient server-side data outages BEFORE parsing results.
+        // BIS eSearch returns HTTP 200 with an error message (not an HTTP error code)
+        // when its backend data source is temporarily unavailable.  Without this check
+        // the pipeline interprets the page as "no results" and burns through all
+        // remaining variants needlessly.
+        const transientError = /temporary\s+data\s+access\s+issue|experiencing\s+a\s+delay\s+accessing\s+third[- ]party\s+data|please\s+wait.*try\s+again/i.test(html);
+        if (transientError) {
+          tracker.step('[html_structure] Detected transient data access outage — server data unavailable');
+          tracker({ status: 'fail', error: '[html_structure] CAD backend data temporarily unavailable — aborting remaining variants' });
+          diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
+          diagnostics.cadSiteError = 'The county appraisal website is experiencing a temporary data access issue. The search could not be completed — results may exist but the database was unavailable.';
+          // Stop trying more variants — the issue is server-side, not address-related.
+          logger.warn('Stage1A', 'CAD backend reporting temporary data access issue — stopping HTTP search (will retry in Stage1B)');
+          break;
+        }
+
         const results = parseHtmlSearchResults(html, tracker);
         diagnostics.variantsTried.push({
           variant,
@@ -980,22 +996,31 @@ async function searchCadPlaywright(
         // Log current page state for debugging
         const pageState = await page.evaluate(() => {
           const body = document.body;
+          const text = body?.textContent ?? '';
           return {
             url: window.location.href,
             title: document.title,
-            bodyLength: body?.textContent?.length ?? 0,
+            bodyLength: text.length,
             hasTable: !!document.querySelector('table'),
             tableRowCount: document.querySelectorAll('table tbody tr').length,
             hasPropertyLinks: !!document.querySelector('a[href*="/Property/View"]'),
             propertyLinkCount: document.querySelectorAll('a[href*="/Property/View"]').length,
-            noResultsVisible: /no\s+results?|0\s+results|no\s+records?\s+found/i.test(body?.textContent ?? ''),
-            accessDenied: /access\s+denied|forbidden|token\s+validation/i.test(body?.textContent ?? ''),
+            noResultsVisible: /no\s+results?|0\s+results|no\s+records?\s+found/i.test(text),
+            accessDenied: /access\s+denied|forbidden|token\s+validation/i.test(text),
+            transientDataError: /temporary\s+data\s+access\s+issue|experiencing\s+a\s+delay\s+accessing\s+third[- ]?party\s+data/i.test(text),
           };
         });
 
         finish.step?.(`[html_structure] Page state: url=${pageState.url}, title="${pageState.title}", bodyLen=${pageState.bodyLength}, table=${pageState.hasTable}, rows=${pageState.tableRowCount}, propLinks=${pageState.propertyLinkCount}, noResults=${pageState.noResultsVisible}, denied=${pageState.accessDenied}`);
 
         diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
+
+        // Detect transient backend outage — stop wasting time on more variants
+        if (pageState.transientDataError) {
+          logger.warn('Stage1B', 'CAD backend reporting temporary data access issue — aborting Playwright search');
+          diagnostics.cadSiteError = 'The county appraisal website is experiencing a temporary data access issue. The search could not be completed — results may exist but the database was unavailable.';
+          break;
+        }
 
         if (pageState.noResultsVisible && !variant.isPartial) {
           logger.info('Stage1B', `Variant "${variant.format}" returned "no results" — trying next`);

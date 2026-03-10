@@ -57,6 +57,8 @@ interface PipelineStatusResponse {
   };
   documents?: PipelineDocument[];
   log?: PipelineLogEntry[];
+  /** Human-readable failure reason for display in the UI. */
+  failureReason?: string;
 }
 
 interface PropertySearchPanelProps {
@@ -594,6 +596,7 @@ export default function PropertySearchPanel({
                   result={pipelineResult?.result}
                   documents={pipelineResult?.documents}
                   log={pipelineResult?.log}
+                  failureReason={pipelineResult?.failureReason}
                 />
               </>
             )}

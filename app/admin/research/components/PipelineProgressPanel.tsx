@@ -53,6 +53,8 @@ export interface PipelineProgressProps {
   result?:     PipelineResultSummary | null;
   documents?:  PipelineDocument[];
   log?:        PipelineLogEntry[];
+  /** Human-readable explanation of why the pipeline failed, with actionable guidance. */
+  failureReason?: string;
 }
 
 // ── Stage definitions ─────────────────────────────────────────────────────────
@@ -343,6 +345,7 @@ export function PipelineProgressPanel({
   result,
   documents,
   log,
+  failureReason,
 }: PipelineProgressProps) {
   const [showLog,      setShowLog]      = useState(false);
   const [logCopied,    setLogCopied]    = useState(false);
@@ -398,6 +401,14 @@ export function PipelineProgressPanel({
           <span className="ppanel__header-dur">{(result.duration_ms / 1000).toFixed(1)}s</span>
         )}
       </div>
+
+      {/* ── Failure reason banner ────────────────────────────────────── */}
+      {isFailed && failureReason && (
+        <div className="ppanel__failure-reason">
+          <span className="ppanel__failure-reason-icon">&#9888;</span>
+          <span className="ppanel__failure-reason-text">{failureReason}</span>
+        </div>
+      )}
 
       {/* ── Stage track ─────────────────────────────────────────────── */}
       <div className="ppanel__stages">
@@ -492,6 +503,28 @@ export function PipelineProgressStyles() {
 .ppanel--success { border-color: #10b981; }
 .ppanel--partial { border-color: #f59e0b; }
 .ppanel--failed  { border-color: #ef4444; }
+
+/* ── Failure reason banner ────────────────────────────────── */
+.ppanel__failure-reason {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  background: #fef2f2;
+  border-bottom: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.ppanel__failure-reason-icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1.4;
+  color: #dc2626;
+}
+.ppanel__failure-reason-text {
+  flex: 1;
+}
 
 /* ── Header ──────────────────────────────────────────────── */
 .ppanel__header {
