@@ -90,7 +90,7 @@ export default function PrintDialog({ onClose }: Props) {
           {/* Scale */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass}>Scale (1" = __ ft)</label>
+              <label className={labelClass}>Scale (1&quot; = __ ft)</label>
               <input
                 type="number"
                 min={1}

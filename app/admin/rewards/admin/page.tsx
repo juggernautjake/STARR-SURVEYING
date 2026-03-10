@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
+import Image from 'next/image';
 
 /* ─── Interfaces ─── */
 interface StoreItem {
@@ -359,7 +360,7 @@ export default function AdminRewardsPage() {
               <div className="mng__image-upload">
                 <label className="mng__inline-label">Product Image</label>
                 <div className="mng__image-row">
-                  {newItem.image_url && <img src={newItem.image_url} alt="Preview" className="mng__image-preview" />}
+                  {newItem.image_url && <Image src={newItem.image_url} alt="Preview" className="mng__image-preview" width={80} height={80} unoptimized />}
                   <input type="file" ref={newFileRef} accept="image/*" onChange={handleNewItemImage} style={{ display: 'none' }} />
                   <button type="button" className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => newFileRef.current?.click()}>
                     {newItem.image_url ? 'Change Image' : 'Upload Image'}
@@ -403,7 +404,7 @@ export default function AdminRewardsPage() {
                   <div className="mng__image-upload">
                     <label className="mng__inline-label">Product Image</label>
                     <div className="mng__image-row">
-                      {(editImageUrl || item.image_url) && <img src={editImageUrl || item.image_url} alt={item.name} className="mng__image-preview" />}
+                      {(editImageUrl || item.image_url) && <Image src={editImageUrl || item.image_url!} alt={item.name} className="mng__image-preview" width={80} height={80} unoptimized />}
                       <input type="file" ref={editFileRef} accept="image/*" onChange={handleEditItemImage} style={{ display: 'none' }} />
                       <button type="button" className="admin-btn admin-btn--secondary admin-btn--sm" onClick={() => editFileRef.current?.click()}>
                         {(editImageUrl || item.image_url) ? 'Change Image' : 'Upload Image'}
@@ -422,7 +423,7 @@ export default function AdminRewardsPage() {
                 </>
               ) : (
                 <div className="mng__row" onClick={() => setEditingId(item.id)}>
-                  {item.image_url && <img src={item.image_url} alt={item.name} className="mng__image-thumb" />}
+                  {item.image_url && <Image src={item.image_url} alt={item.name} className="mng__image-thumb" width={40} height={40} unoptimized />}
                   <div className="mng__row-info">
                     <strong>{item.name}</strong>
                     <span className="mng__row-meta">

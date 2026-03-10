@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import GoogleAdsScript from './GoogleAdsScript';
 
 // Footer CSS
@@ -74,10 +75,12 @@ const Footer = (): React.ReactElement => {
           {/* Company Info Column */}
           <div className="footer__column footer__column--brand">
             <div className="footer__logo-wrapper">
-              <img 
+              <Image 
                 src="/logos/starr_surveying_logo_aug_2024_alt.png" 
                 alt="Starr Surveying Logo" 
                 className="footer__logo"
+                width={240}
+                height={120}
               />
             </div>
             <p className="footer__tagline">

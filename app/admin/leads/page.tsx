@@ -167,7 +167,7 @@ export default function LeadsPage() {
           <ul className="msg-setup-guide__list">
             <li><strong>Database Table:</strong> Create <code>leads</code> table in Supabase with columns: id, name, email, phone, company, source, status, notes, property_address, survey_type, estimated_acreage, assigned_to, created_at, updated_at, converted_job_id</li>
             <li><strong>API Route:</strong> Create <code>/api/admin/leads/route.ts</code> with GET (list/filter), POST (create), PUT (update status/details), DELETE</li>
-            <li><strong>Lead-to-Job Conversion:</strong> "Convert to Job" button that creates a new job pre-filled with lead data and links converted_job_id</li>
+            <li><strong>Lead-to-Job Conversion:</strong> &quot;Convert to Job&quot; button that creates a new job pre-filled with lead data and links converted_job_id</li>
             <li><strong>Follow-up Tracking:</strong> Add follow_up_date column, show overdue follow-ups prominently</li>
             <li><strong>Activity Log:</strong> Track all interactions (calls, emails, meetings) on each lead</li>
             <li><strong>Quote Integration:</strong> Generate and send quotes from lead detail view</li>

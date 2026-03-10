@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 
 // Single CSS file for all screen sizes
@@ -62,10 +63,12 @@ const Header = (): React.ReactElement => {
 
         {/* Logo - Floats IN FRONT of the header box (NOT clickable) */}
         <div className="logo-container">
-          <img 
+          <Image 
             src="/logos/Fancy_Logo_red_darkblue_white_2.png" 
             alt="Starr Surveying Logo" 
             className="logo"
+            width={240}
+            height={80}
           />
         </div>
 
@@ -124,10 +127,12 @@ const Header = (): React.ReactElement => {
         <nav className="scrolled-header">
           {/* Mini logo - clickable to home */}
           <Link href="/" aria-label="Go to home page">
-            <img 
+            <Image 
               src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png" 
               alt="Starr Surveying Small Logo" 
               className="scrolled-logo"
+              width={120}
+              height={44}
             />
           </Link>
           <div className="scrolled-right">
