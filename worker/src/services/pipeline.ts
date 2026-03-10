@@ -443,30 +443,17 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     }
 
     if (!propertyResult) {
-      logger.error('Stage1', `Not found: ${input.address} in ${input.county} County`);
-      await updateStatus(input.projectId, 'failed', `Stage 1: Property not found — ${input.address}, ${input.county} County`);
-
-      // Still extract from any user-supplied files
-      if (userDocuments.length > 0) {
-        const { documents: processed, boundary } = await extractDocuments(userDocuments, null, anthropicApiKey, logger);
-        const validation = validateBoundary(boundary, null, logger);
-        const result = emptyResult();
-        result.status = boundary ? 'partial' : 'failed';
-        result.documents = processed;
-        result.boundary = boundary;
-        result.validation = validation;
-        result.log = logger.getAttempts();
-        result.duration_ms = Date.now() - startTime;
-        return result;
-      }
-
-      return emptyResult();
+      logger.warn('Stage1', `CAD lookup failed for ${input.address} in ${input.county} County — continuing to clerk search`);
+      await updateStatus(input.projectId, 'running', `Stage 1: CAD lookup failed — trying clerk records for ${input.address}…`);
+      // Do NOT return early — fall through to Stage 2 so clerk search and AI
+      // extraction can still run using input.ownerName or user-supplied files.
+    } else {
+      logger.info('Stage1', `Found: ${propertyResult.ownerName} · ID ${propertyResult.propertyId} · conf ${propertyResult.matchConfidence.toFixed(2)}${propertyResult.acreage ? ` · ${propertyResult.acreage} ac` : ''}`);
     }
 
-    logger.info('Stage1', `Found: ${propertyResult.ownerName} · ID ${propertyResult.propertyId} · conf ${propertyResult.matchConfidence.toFixed(2)}${propertyResult.acreage ? ` · ${propertyResult.acreage} ac` : ''}`);
-    await updateStatus(input.projectId, 'running', `Stage 2: Retrieving documents for ${propertyResult.ownerName}…`, {
-      propertyId: propertyResult.propertyId,
-      ownerName: propertyResult.ownerName,
+    await updateStatus(input.projectId, 'running', `Stage 2: Retrieving documents${propertyResult ? ` for ${propertyResult.ownerName}` : ''}…`, {
+      propertyId: propertyResult?.propertyId,
+      ownerName: propertyResult?.ownerName,
     });
 
     // ═══════════════════════════════════════════════════════════════════
@@ -475,14 +462,14 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     let documents: DocumentResult[] = [];
 
-    const legalDesc = propertyResult.legalDescription ?? '';
+    const legalDesc = propertyResult?.legalDescription ?? '';
     const deedRefs  = parseDeedReferences(legalDesc);
 
     // Merge instrument numbers from both sources: legal description text +
     // deed history table rows from the CAD detail page.
     const allInstrumentNumbers = Array.from(new Set([
       ...deedRefs.instrumentNumbers,
-      ...(propertyResult.instrumentNumbers ?? []),
+      ...(propertyResult?.instrumentNumbers ?? []),
     ]));
 
     let instrumentSearchSucceeded = false;
@@ -554,7 +541,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     }
 
     // ── Path C: Owner-name SPA search (fallback) ──────────────────────────
-    const ownerForClerk = propertyResult.ownerName ?? input.ownerName ?? null;
+    const ownerForClerk = propertyResult?.ownerName ?? input.ownerName ?? null;
 
     if (!instrumentSearchSucceeded && ownerForClerk) {
       let ownerDocs: DocumentResult[] = [];
@@ -606,7 +593,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     const { documents: processedDocs, boundary } = await extractDocuments(
       documents,
-      propertyResult.legalDescription,
+      propertyResult?.legalDescription ?? null,
       anthropicApiKey,
       logger,
     );
@@ -668,7 +655,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     // ═══════════════════════════════════════════════════════════════════
 
     logger.info('Stage4', '═══ STAGE 4: Validation ═══');
-    const validation = validateBoundary(boundary, propertyResult.acreage, logger);
+    const validation = validateBoundary(boundary, propertyResult?.acreage ?? null, logger);
     logger.info('Stage4', `Quality: ${validation.overallQuality}, Flags: ${validation.flags.length}`);
 
     // ═══════════════════════════════════════════════════════════════════
@@ -680,7 +667,10 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       status = (validation.overallQuality === 'excellent' || validation.overallQuality === 'good') ? 'complete' : 'partial';
     } else if (boundary && (boundary.type === 'lot_and_block' || boundary.type === 'reference_only')) {
       status = 'partial';
-    } else if (propertyResult.propertyId) {
+    } else if (propertyResult?.propertyId) {
+      status = 'partial';
+    } else if (processedDocs.length > 0 || userDocuments.length > 0) {
+      // CAD lookup failed but documents were found via clerk search or user upload
       status = 'partial';
     }
 
@@ -690,11 +680,11 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const result: PipelineResult = {
       projectId: input.projectId,
       status,
-      propertyId: propertyResult.propertyId,
-      geoId: propertyResult.geoId,
-      ownerName: propertyResult.ownerName,
-      legalDescription: propertyResult.legalDescription,
-      acreage: propertyResult.acreage,
+      propertyId: propertyResult?.propertyId ?? null,
+      geoId: propertyResult?.geoId ?? null,
+      ownerName: propertyResult?.ownerName ?? null,
+      legalDescription: propertyResult?.legalDescription ?? null,
+      acreage: propertyResult?.acreage ?? null,
       documents: processedDocs,
       boundary,
       validation,
@@ -705,8 +695,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     };
 
     await updateStatus(input.projectId, status, `Pipeline ${status} in ${(duration_ms / 1000).toFixed(1)}s — Quality: ${validation.overallQuality}`, {
-      propertyId: propertyResult.propertyId,
-      ownerName: propertyResult.ownerName,
+      propertyId: propertyResult?.propertyId,
+      ownerName: propertyResult?.ownerName,
       quality: validation.overallQuality,
       duration_ms,
     });

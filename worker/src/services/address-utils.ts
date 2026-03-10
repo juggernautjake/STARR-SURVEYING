@@ -503,12 +503,16 @@ async function tryNominatim(address: string, logger: PipelineLogger): Promise<Ge
     tracker.step('Nominatim returned ' + (data?.length || 0) + ' result(s)');
     if (!data?.length) { tracker({ status: 'fail', error: 'No results' }); return null; }
 
-    const hit = data[0];
+    // Try every returned result until we find one that includes a house_number.
+    // Rural FM-road addresses are often geocoded to a road segment with no
+    // house_number on the first hit — subsequent results may include it.
+    const hit = data.find((r: any) => r.address?.house_number) ?? null;
+
+    if (!hit) { tracker({ status: 'fail', error: 'No house number in any result' }); return null; }
+
     const a = hit.address || {};
     const road = a.road || '';
-    const houseNumber = a.house_number || '';
-
-    if (!houseNumber) { tracker({ status: 'fail', error: 'No house number in result' }); return null; }
+    const houseNumber = a.house_number as string;
 
     const roadParsed = parseNominatimRoad(road);
     const tx = detectTexasRoad(road);
