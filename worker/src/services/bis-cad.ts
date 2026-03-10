@@ -2257,6 +2257,39 @@ export async function searchBisCad(
     logger.warn('Stage1D', `AI variant fallback skipped — circuit breaker: ${aiBlockReason}`);
   }
 
+  // Layer 1A-Broad: Street-number-only search (broadened query without street name).
+  // When all named variants fail, the property may be indexed with a completely
+  // different street name in the CAD (e.g., rural tracts listed by abstract only).
+  // A broad search by street number alone can surface the correct record.
+  {
+    const streetNum = normalized.parsed.streetNumber;
+    if (streetNum) {
+      logger.info('Stage1A-Broad', `All named variants failed — trying street-number-only search: "${streetNum}"`);
+      const broadQuery = `StreetNumber:${streetNum} PropertyType:Real`;
+      const broadResults = await searchCadHttpRawKeyword(config.baseUrl, broadQuery, 'StreetNumber-only', logger);
+      if (broadResults && broadResults.length > 0 && broadResults.length <= 20) {
+        // Only proceed if results are reasonably scoped (not hundreds of matches)
+        const best = pickBestResult(broadResults, normalized, logger);
+        if (best) {
+          const propId = getProp(best, 'propertyId', 'PropertyId') ?? '';
+          const validation = validatePropertyResult(best, normalized, logger);
+          // Accept with slightly lower threshold since this is a broad search
+          if (validation.confidence >= 0.25 && propId) {
+            const bestOwnerId = getProp(best, 'ownerId', 'OwnerId') ?? undefined;
+            const detail = await enrichPropertyDetail(config.baseUrl, propId, logger, bestOwnerId);
+            diagnostics.searchDuration_ms = Date.now() - searchStart;
+            return {
+              property: buildResult(propId, detail, best, 'Stage1A-Broad', validation.confidence, [
+                ...validation.issues, 'Found via broadened street-number-only search',
+              ]),
+              diagnostics,
+            };
+          }
+        }
+      }
+    }
+  }
+
   // Layer 1A-2: Owner name HTTP search (after all address variants exhausted)
   if (options?.ownerName) {
     logger.info('Stage1A-2', `All address layers failed — trying owner name HTTP search: "${options.ownerName}"`);
@@ -2296,6 +2329,8 @@ export async function searchBisCad(
       propertyId: options?.propertyId,
       address: normalized.raw,
       ownerName: options?.ownerName,
+      lat: normalized.lat,
+      lon: normalized.lon,
     });
     if (gisResult?.propertyId || gisResult?.ownerName) {
       logger.info('Stage1E', `GIS lookup returned data — propertyId=${gisResult.propertyId ?? 'n/a'}`);
@@ -2462,6 +2497,10 @@ export async function searchBisGis(
     propertyId?: string;
     address?: string;
     ownerName?: string;
+    /** Pre-geocoded coordinates (from Census/Nominatim) — used for spatial
+     *  queries when the GIS geocoder is unavailable or returns no results. */
+    lat?: number | null;
+    lon?: number | null;
   },
 ): Promise<GisPropertyData | null> {
   const base = gisBaseUrl.endsWith('/') ? gisBaseUrl : `${gisBaseUrl}/`;
@@ -2527,6 +2566,33 @@ export async function searchBisGis(
             logger.info('Stage1E', `GIS: found via geocode spatial query in ${svc}/layer ${layer}`);
             return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
           }
+        }
+      }
+    }
+  }
+
+  // ── Approach B2: Spatial query using pre-geocoded coordinates ────────────
+  // When the GIS geocoder is unavailable (404) or returns no candidates,
+  // fall back to Census/Nominatim coordinates if available.
+  if (options.lat && options.lon) {
+    logger.info('Stage1E', `GIS: spatial query using pre-geocoded coords (${options.lat.toFixed(5)}, ${options.lon.toFixed(5)})`);
+    const delta = 0.0005;
+    const envelope = `${options.lon - delta},${options.lat - delta},${options.lon + delta},${options.lat + delta}`;
+
+    for (const svc of COMMON_SERVICES) {
+      for (const layer of COMMON_LAYERS) {
+        const layerUrl = `${arcgisBase}${svc}/MapServer/${layer}/query`;
+        const fs = await queryArcGisLayer(layerUrl, {
+          geometry: envelope,
+          geometryType: 'esriGeometryEnvelope',
+          spatialRel: 'esriSpatialRelIntersects',
+          inSR: '4326',
+          outFields: '*',
+          returnGeometry: 'true',
+        }, logger);
+        if (fs?.features && fs.features.length > 0) {
+          logger.info('Stage1E', `GIS: found via pre-geocoded spatial query in ${svc}/layer ${layer}`);
+          return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
         }
       }
     }
