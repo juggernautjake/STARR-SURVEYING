@@ -363,7 +363,7 @@ app.get('/research/status/:projectId', requireAuth, (req: Request, res: Response
         ref: d.ref,
         hasText: !!d.textContent,
         textLength: d.textContent?.length ?? 0,
-        hasImage: !!d.imageBase64,
+        hasImage: !!d.imageBase64 || (d.pages?.length ?? 0) > 0 || (d.pageScreenshots?.length ?? 0) > 0,
         hasOcr: !!d.ocrText,
         pageCount: d.pages?.length ?? d.pageScreenshots?.length ?? 0,
         /** Public PDF URL for embedded viewer — null if not uploaded yet */
