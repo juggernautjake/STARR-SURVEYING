@@ -486,28 +486,34 @@ export default function PropertySearchPanel({
           </button>
         </div>
 
-        {/* ── Unified status banner (visible while any pipeline is running) ── */}
+        {/* ── Research loading animation (visible while any pipeline is running) ── */}
         {(searching || liteRunning || pipelineRunning) && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem', padding: '0.6rem 0.85rem', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8 }}>
-            {searching && (
-              <div style={{ fontSize: '0.82rem', color: '#1D4ED8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', animation: 'pulse 1.5s infinite' }} />
-                Searching county CAD, deed records, FEMA, TNRIS and more…
+          <div className="research-search__loading">
+            <div className="research-search__loading-spinner" />
+            <div className="research-search__loading-title">Research In Progress</div>
+            <div className="research-search__loading-subtitle">
+              {pipelineRunning && pipelineResult?.currentStage
+                ? pipelineResult.currentStage
+                : liteRunning && liteStage
+                ? liteStage
+                : 'Gathering property data…'}
+            </div>
+            <div className="research-search__loading-steps">
+              <div className={`research-search__loading-step${searching ? ' research-search__loading-step--active' : ' research-search__loading-step--done'}`}>
+                <span className="research-search__loading-step__dot" />
+                {searching
+                  ? 'Searching county CAD, deed records, FEMA, TNRIS…'
+                  : 'Public records search complete'}
               </div>
-            )}
-            {liteRunning && liteStage && (
-              <div style={{ fontSize: '0.82rem', color: '#065F46', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#059669', animation: 'pulse 1.5s infinite' }} />
-                {liteStage}
+              <div className={`research-search__loading-step${liteRunning || pipelineRunning ? ' research-search__loading-step--active' : ''}`}>
+                <span className="research-search__loading-step__dot" />
+                {pipelineRunning
+                  ? `Navigating county records sites, extracting data…${pipelineResult?.currentStage ? ` (${pipelineResult.currentStage})` : ''}`
+                  : liteRunning
+                  ? (liteStage || 'Analyzing property data…')
+                  : 'Awaiting pipeline start…'}
               </div>
-            )}
-            {pipelineRunning && (
-              <div style={{ fontSize: '0.82rem', color: '#5B21B6', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#7C3AED', animation: 'pulse 1.5s infinite' }} />
-                Navigating county CAD and deed records, extracting data…
-                {pipelineResult?.currentStage && ` (${pipelineResult.currentStage})`}
-              </div>
-            )}
+            </div>
           </div>
         )}
 
