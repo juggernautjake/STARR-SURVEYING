@@ -1643,7 +1643,7 @@ export async function searchClerkRecords(
                         docPage: bvpMatch ? bvpMatch[2] : '',
                         grantors: getC(3) ? [getC(3)] : [],
                         grantees: getC(4) ? [getC(4)] : [],
-                        url: docId ? `${bUrl}/detail/${docId}` : null,
+                        url: docId ? `${bUrl}/doc/${docId}` : null,
                       });
                     });
                     return pageDocs;
@@ -2186,7 +2186,7 @@ async function _extractSearchResults(
           if (href) doc.url = href.startsWith('http') ? href : BELL_CLERK_BASE + href;
         }
         if (!doc.url && docId) {
-          doc.url = `${BELL_CLERK_BASE}/detail/${docId}`;
+          doc.url = `${BELL_CLERK_BASE}/doc/${docId}`;
         }
         documents.push(doc);
       }
