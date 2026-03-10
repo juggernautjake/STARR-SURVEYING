@@ -23,7 +23,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   let query = supabaseAdmin.from('assignments').select('*', { count: 'exact' }).order('created_at', { ascending: false });
 
   // Non-admins only see their own
-  if (!isAdmin(session.user.email)) {
+  if (!isAdmin(session.user.roles)) {
     query = query.eq('assigned_to', session.user.email);
   } else if (assignedTo) {
     query = query.eq('assigned_to', assignedTo);
@@ -40,7 +40,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 
@@ -96,7 +96,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 
 export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 

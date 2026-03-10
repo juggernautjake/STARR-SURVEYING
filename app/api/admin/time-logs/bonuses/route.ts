@@ -12,7 +12,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const email = searchParams.get('email');
   const status = searchParams.get('status');
-  const admin = isAdmin(session.user.email);
+  const admin = isAdmin(session.user.roles);
 
   let query = supabaseAdmin
     .from('scheduled_bonuses')
@@ -33,7 +33,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const body = await req.json();
   const { user_email, amount, bonus_type, reason, scheduled_date, scheduled_time, notes } = body as {
@@ -85,7 +85,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const body = await req.json();
   const { id, action } = body as { id: string; action: 'cancel' | 'pay' };

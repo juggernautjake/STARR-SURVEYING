@@ -15,7 +15,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   if (runId) {
     // Get specific run with pay stubs
-    if (!isAdmin(session.user.email)) {
+    if (!isAdmin(session.user.roles)) {
       // Non-admin: only their own stub
       const { data: stub } = await supabaseAdmin
         .from('pay_stubs')
@@ -43,7 +43,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   // List runs
-  if (!isAdmin(session.user.email)) {
+  if (!isAdmin(session.user.roles)) {
     // Non-admin: list their pay stubs
     const { data: stubs, error } = await supabaseAdmin
       .from('pay_stubs')
@@ -70,7 +70,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const body = await req.json();
   const { pay_period_start, pay_period_end, notes } = body;
@@ -250,7 +250,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const body = await req.json();
   const { id, status, notes } = body;

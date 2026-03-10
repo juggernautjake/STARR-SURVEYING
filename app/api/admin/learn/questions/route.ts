@@ -32,7 +32,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   // If stats=true, fetch per-question attempt analytics (admin only)
   const includeStats = searchParams.get('stats') === 'true';
-  if (includeStats && isAdmin(session.user?.email || '')) {
+  if (includeStats && isAdmin(session.user?.roles)) {
     const questionIds = questions.map((q: any) => q.id);
     if (questionIds.length > 0) {
       const { data: answerData } = await supabaseAdmin
@@ -69,7 +69,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !canManageContent(session.user.email)) {
+  if (!session?.user?.email || !canManageContent(session.user.roles)) {
     return NextResponse.json({ error: 'Content management access required' }, { status: 403 });
   }
 
@@ -123,7 +123,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
 export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !canManageContent(session.user.email)) {
+  if (!session?.user?.email || !canManageContent(session.user.roles)) {
     return NextResponse.json({ error: 'Content management access required' }, { status: 403 });
   }
 
@@ -155,7 +155,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 
 export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 

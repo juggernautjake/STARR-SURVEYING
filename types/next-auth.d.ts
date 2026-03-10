@@ -20,5 +20,7 @@ declare module 'next-auth/jwt' {
   interface JWT {
     role?: 'admin' | 'teacher' | 'employee';
     roles?: Array<'admin' | 'teacher' | 'employee'>;
+    rolesLastChecked?: number;
+    blocked?: boolean;
   }
 }

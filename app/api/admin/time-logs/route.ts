@@ -162,7 +162,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const status = searchParams.get('status');
   const weekStart = searchParams.get('week_start');
 
-  const admin = isAdmin(session.user.email);
+  const admin = isAdmin(session.user.roles);
 
   // Non-admins can only view their own
   if (!admin && email && email !== session.user.email) {
@@ -314,7 +314,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   if (!existing) return NextResponse.json({ error: 'Log not found' }, { status: 404 });
 
-  const admin = isAdmin(session.user.email);
+  const admin = isAdmin(session.user.roles);
 
   // Admin approval actions
   if (action && admin) {
@@ -426,7 +426,7 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const admin = isAdmin(session.user.email);
+  const admin = isAdmin(session.user.roles);
   if (!admin && existing.user_email !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

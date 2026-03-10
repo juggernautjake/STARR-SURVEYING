@@ -6,7 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.email || !canManageContent(session.user.email)) {
+  if (!session?.user?.email || !canManageContent(session.user.roles)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 

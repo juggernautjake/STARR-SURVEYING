@@ -229,7 +229,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
     const userEmail = searchParams.get('user_email');
     let targetEmail = session.user.email;
-    if (userEmail && isAdmin(session.user.email)) targetEmail = userEmail;
+    if (userEmail && isAdmin(session.user.roles)) targetEmail = userEmail;
 
     const { data: attempts, error } = await supabaseAdmin
       .from('quiz_attempts')

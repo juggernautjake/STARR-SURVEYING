@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // PATCH - Update user (roles, ban/unban)
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -127,7 +127,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 // DELETE - Permanently delete a user
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -40,7 +40,7 @@
 // ── Module C: ROLES_REFRESH_INTERVAL_SECONDS ──────────────────────────────────
 //  22. ROLES_REFRESH_INTERVAL_SECONDS is exported from lib/auth
 //  23. ROLES_REFRESH_INTERVAL_SECONDS is a positive number
-//  24. ROLES_REFRESH_INTERVAL_SECONDS is 5 minutes (300 seconds)
+//  24. ROLES_REFRESH_INTERVAL_SECONDS is 30 seconds (near-immediate role propagation)
 //
 // ── Module D: JWT refresh logic ───────────────────────────────────────────────
 //  25. refreshRolesIfStale returns current roles when rolesLastChecked is recent
@@ -114,6 +114,7 @@ vi.mock('@/lib/supabase', () => ({
 import {
   getUserRoles,
   getUserRolesFromDB,
+  isUserBlocked,
   getPrimaryRole,
   isAdmin,
   isTeacher,
@@ -277,8 +278,8 @@ describe('ROLES_REFRESH_INTERVAL_SECONDS', () => {
     expect(ROLES_REFRESH_INTERVAL_SECONDS).toBeGreaterThan(0);
   });
 
-  it('24. ROLES_REFRESH_INTERVAL_SECONDS is 5 minutes (300 seconds)', () => {
-    expect(ROLES_REFRESH_INTERVAL_SECONDS).toBe(300);
+  it('24. ROLES_REFRESH_INTERVAL_SECONDS is 30 seconds for near-immediate role propagation', () => {
+    expect(ROLES_REFRESH_INTERVAL_SECONDS).toBe(30);
   });
 });
 
@@ -299,7 +300,7 @@ function isRolesStale(rolesLastChecked: number | undefined, roles: UserRole[] | 
 describe('JWT refresh logic — staleness check', () => {
   it('25. isRolesStale returns false when rolesLastChecked is recent', () => {
     const now = Math.floor(Date.now() / 1000);
-    const recentCheck = now - 60; // 1 minute ago
+    const recentCheck = now - Math.floor(ROLES_REFRESH_INTERVAL_SECONDS / 3); // well within window
     expect(isRolesStale(recentCheck, ['employee', 'admin'], now)).toBe(false);
   });
 
@@ -386,5 +387,92 @@ describe('Middleware route protection', () => {
     const teacherBlockEnd = middlewareSrc.indexOf('];', teacherBlockStart);
     const teacherBlock = middlewareSrc.slice(teacherBlockStart, teacherBlockEnd + 2);
     expect(teacherBlock).not.toContain("'/admin/cad'");
+  });
+});
+
+// ── Module F: isUserBlocked ───────────────────────────────────────────────────
+
+describe('isUserBlocked', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSupabaseFrom.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: mockSupabaseSingle,
+      maybeSingle: mockSupabaseMaybeSingle,
+      update: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+    });
+  });
+
+  it('38. isUserBlocked returns false when user is approved and not banned', async () => {
+    mockSupabaseMaybeSingle.mockResolvedValueOnce({
+      data: { is_banned: false, is_approved: true },
+      error: null,
+    });
+    const blocked = await isUserBlocked('user@example.com');
+    expect(blocked).toBe(false);
+  });
+
+  it('39. isUserBlocked returns true when user is_banned', async () => {
+    mockSupabaseMaybeSingle.mockResolvedValueOnce({
+      data: { is_banned: true, is_approved: true },
+      error: null,
+    });
+    const blocked = await isUserBlocked('banned@example.com');
+    expect(blocked).toBe(true);
+  });
+
+  it('40. isUserBlocked returns true when user is not approved', async () => {
+    mockSupabaseMaybeSingle.mockResolvedValueOnce({
+      data: { is_banned: false, is_approved: false },
+      error: null,
+    });
+    const blocked = await isUserBlocked('pending@example.com');
+    expect(blocked).toBe(true);
+  });
+
+  it('41. isUserBlocked returns false for hardcoded admin (never blocked)', async () => {
+    // No DB query needed — hardcoded admins are always allowed
+    const blocked = await isUserBlocked('hankmaddux@starr-surveying.com');
+    expect(blocked).toBe(false);
+  });
+
+  it('42. isUserBlocked returns false when user is not in DB (company Google user)', async () => {
+    mockSupabaseMaybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    const blocked = await isUserBlocked('newuser@starr-surveying.com');
+    expect(blocked).toBe(false);
+  });
+});
+
+// ── Module G: isAdmin uses session roles array (not email lookup) ─────────────
+
+describe('isAdmin uses roles array from session', () => {
+  it('43. isAdmin(session.user.roles) returns true for DB-promoted admin', () => {
+    // Simulates what happens when an API route calls isAdmin(session.user.roles)
+    // after admin was promoted via the admin UI (stored in DB, not hardcoded).
+    const sessionRoles: UserRole[] = ['admin', 'employee'];
+    expect(isAdmin(sessionRoles)).toBe(true);
+  });
+
+  it('44. isAdmin(session.user.roles) returns false for teacher-only user', () => {
+    const sessionRoles: UserRole[] = ['teacher', 'employee'];
+    expect(isAdmin(sessionRoles)).toBe(false);
+  });
+
+  it('45. canManageContent(session.user.roles) returns true for teacher promoted via DB', () => {
+    const sessionRoles: UserRole[] = ['teacher', 'employee'];
+    expect(canManageContent(sessionRoles)).toBe(true);
+  });
+
+  it('46. canManageContent(session.user.roles) returns true for admin (admin ⊇ teacher)', () => {
+    const sessionRoles: UserRole[] = ['admin', 'employee'];
+    expect(canManageContent(sessionRoles)).toBe(true);
+  });
+
+  it('47. isAdmin accepts a roles array (not email) — confirming API routes use session.user.roles', () => {
+    // Verifies that the array overload works correctly, which is what all API routes now use.
+    expect(isAdmin(['admin', 'employee'])).toBe(true);
+    expect(isAdmin(['employee'])).toBe(false);
   });
 });

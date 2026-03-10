@@ -16,7 +16,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const targetEmail = email || session.user.email;
 
-  if (!isAdmin(session.user.email) && targetEmail !== session.user.email) {
+  if (!isAdmin(session.user.roles) && targetEmail !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -173,7 +173,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 
   // Employee can cancel their own pending request
   if (action === 'cancel') {
-    if (request.user_email !== session.user.email && !isAdmin(session.user.email)) {
+    if (request.user_email !== session.user.email && !isAdmin(session.user.roles)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     if (request.status !== 'pending') {
@@ -192,7 +192,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Admin actions
-  if (!isAdmin(session.user.email)) {
+  if (!isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 

@@ -11,7 +11,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const targetEmail = searchParams.get('user_email') && isAdmin(session.user.email)
+  const targetEmail = searchParams.get('user_email') && isAdmin(session.user.roles)
     ? searchParams.get('user_email')!
     : session.user.email;
 
@@ -76,7 +76,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (action === 'award_xp') {
     // Only admins can manually award XP
-    if (!isAdmin(session.user.email)) {
+    if (!isAdmin(session.user.roles)) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -91,7 +91,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (action === 'set_xp') {
     // Admin-only: directly set current_balance and/or total_earned
-    if (!isAdmin(session.user.email)) {
+    if (!isAdmin(session.user.roles)) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 

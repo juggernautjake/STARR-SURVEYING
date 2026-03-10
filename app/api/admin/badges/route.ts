@@ -11,7 +11,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const userEmail = searchParams.get('user_email') && isAdmin(session.user.email)
+  const userEmail = searchParams.get('user_email') && isAdmin(session.user.roles)
     ? searchParams.get('user_email')! : session.user.email;
 
   const { data: allBadges } = await supabaseAdmin.from('badges')
@@ -35,7 +35,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 /* POST — Award badge to user */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 
