@@ -203,6 +203,7 @@ async function runLitePipeline(
     let searchResults: Awaited<ReturnType<typeof searchPropertyRecords>> = {
       results: [],
       sources_searched: [],
+      total: 0,
     };
     try {
       const searchReq: PropertySearchRequest = {
