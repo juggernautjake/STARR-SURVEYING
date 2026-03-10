@@ -1207,8 +1207,9 @@ export async function searchClerkRecords(
               grantees.push(...doc.grantees.map(String));
             }
 
-            // Build document detail URL
-            const docId = instrNum || String(doc.id ?? '');
+            // Build document detail URL — prefer doc.id (internal ID used in /doc/{id})
+            // over instrNum (instrument number like 2024046480 which is NOT the URL ID)
+            const docId = String(doc.id ?? '').trim() || instrNum;
             const docUrl = docId ? `${baseUrl}/doc/${docId}` : null;
 
             documents.push({
@@ -1268,7 +1269,9 @@ export async function searchClerkRecords(
                 }
               }
 
-              const docUrl = instrNum ? `${bUrl}/doc/${instrNum}` : null;
+              // Prefer d.id (internal doc ID) or docKey (byHash key) for URL
+              const docIdForUrl = String(d.id ?? '').trim() || docKey;
+              const docUrl = docIdForUrl ? `${bUrl}/doc/${docIdForUrl}` : null;
               docs.push({
                 type: docType || 'Unknown',
                 date: recDate,
@@ -1421,10 +1424,10 @@ export async function searchClerkRecords(
               const bvpMatch = bookVolPage.match(/(?:OPR\/)?(\d+)\/(\d+)/);
               if (bvpMatch) { volume = bvpMatch[1]; pg = bvpMatch[2]; }
 
-              // Construct detail URL from document ID (Tyler uses /detail/{docId})
+              // Construct detail URL from document ID (Tyler uses /doc/{docId})
               let url: string | null = null;
               if (docId) {
-                url = `${bUrl}/detail/${docId}`;
+                url = `${bUrl}/doc/${docId}`;
               }
 
               // Only push if we have meaningful data
@@ -2160,7 +2163,7 @@ async function _extractSearchResults(
           grantors: colGrantor ? [colGrantor] : [],
           grantees: colGrantee ? [colGrantee] : [],
           source: 'Bell County Clerk PublicSearch',
-          url: docId ? `${BELL_CLERK_BASE}/detail/${docId}` : null,
+          url: docId ? `${BELL_CLERK_BASE}/doc/${docId}` : null,
         });
         continue;
       }
