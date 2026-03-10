@@ -4,14 +4,14 @@
 // The harvester searches many name variants and instrument numbers, producing
 // a large raw result list.  This module scores each result 0-100 and assigns
 // a download priority so the harvester fetches high-value documents first
-// (plats, deeds) and skips low-value ones (liens, old affidavits).
+// (deeds, easements, plats) and skips low-value ones (liens, old affidavits).
 //
 // Scoring factors:
-//   +50  Plat / replat                   (highest boundary value)
-//   +40  Warranty deed                   (primary boundary source)
+//   +40  Warranty deed                   (primary ownership / boundary source)
 //   +35  ROW document                    (road boundary info)
 //   +30  Referenced in Phase 1 CAD data  (already known relevant)
 //   +30  Easement
+//   +25  Plat / replat                   (boundary reference map; scored below deeds)
 //   +25  Restrictive covenant / CC&R
 //   +20  Directly involves target owner
 //   +15  References subdivision name
@@ -70,8 +70,8 @@ export function scoreDocumentRelevance(
   // ── Document type ────────────────────────────────────────────────────────────
 
   if (type === 'plat' || type === 'replat' || type === 'amended_plat' || type === 'vacating_plat') {
-    score += 50;
-    reasons.push('Plat — highest value for boundary data');
+    score += 25;
+    reasons.push('Plat — boundary reference document');
   } else if (type === 'warranty_deed' || type === 'special_warranty_deed') {
     score += 40;
     reasons.push('Deed — primary boundary source');
