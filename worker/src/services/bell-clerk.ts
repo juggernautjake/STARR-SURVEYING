@@ -154,6 +154,27 @@ function scoreDocumentRelevance(docType: string): number {
   return 30;
 }
 
+// ── Tyler PublicSearch URL Builder ─────────────────────────────────────────
+
+/**
+ * Build a Tyler/Kofile PublicSearch results URL with the correct parameters.
+ * URL format confirmed from actual HTML inspection of bell.tx.publicsearch.us (March 2026):
+ *   /results?department=RP&keywordSearch=false&limit=50&offset={offset}
+ *     &recordedDateRange=16000101%2C{YYYYMMDD}
+ *     &searchOcrText=true&searchType=quickSearch&searchValue={value}
+ *
+ * Offset is 0-based: page 1 = offset 0, page 2 = offset 50, page 3 = offset 100, etc.
+ */
+function buildTylerUrl(baseUrl: string, searchValue: string, offset = 0): string {
+  const d = new Date();
+  const dateTo = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  return (
+    `${baseUrl}/results?department=RP&keywordSearch=false&limit=50&offset=${offset}` +
+    `&recordedDateRange=16000101%2C${dateTo}&searchOcrText=true&searchType=quickSearch` +
+    `&searchValue=${encodeURIComponent(searchValue)}`
+  );
+}
+
 // ── Owner Name Formatting ──────────────────────────────────────────────────
 
 /**
@@ -1154,8 +1175,8 @@ export async function searchClerkRecords(
         });
         apiCapture = []; // Reset for each attempt
 
-        // Try direct URL search first (more reliable than form interaction)
-        const searchUrl = `${baseUrl}/results?department=RP&search=index%2CfullText&q=${encodeURIComponent(searchName)}`;
+        // Build URL with correct Tyler PublicSearch parameters (verified March 2026)
+        const searchUrl = buildTylerUrl(baseUrl, searchName, 0);
         logger.info('Stage2A', `Trying: ${searchUrl}`);
 
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
@@ -1165,7 +1186,7 @@ export async function searchClerkRecords(
         try {
           await Promise.race([
             capturePromise,
-            page.waitForSelector('table tbody tr td.col-5, table tbody tr, .result-item, .search-result', { timeout: 20_000 }),
+            page.waitForSelector('table tbody tr[aria-selected], section.search-results__results-wrap table tbody tr', { timeout: 20_000 }),
             page.waitForTimeout(20_000),
           ]);
         } catch {
@@ -1394,7 +1415,8 @@ export async function searchClerkRecords(
           }> = [];
 
           // ── Strategy A: Tyler PublicSearch table with col-N classes ──
-          const tableRows = document.querySelectorAll('table tbody tr');
+          // Only select result rows (aria-selected attribute); skips header/footer <th> rows.
+          const tableRows = document.querySelectorAll('table tbody tr[aria-selected]');
           if (tableRows.length > 0) {
             tableRows.forEach((row) => {
               // Extract document ID from checkbox input
@@ -1413,7 +1435,8 @@ export async function searchClerkRecords(
               const recDate = getCol(6);
               const instrNum = getCol(7);
               const bookVolPage = getCol(8);
-              const propDesc = getCol(9);
+              // Strip Tyler's "Property Description: " label prefix from col-9
+              const propDesc = getCol(9).replace(/^Property Description:\s*/i, '');
 
               // Parse volume/page from "OPR/13355/58" format
               let volume = '';
@@ -1447,20 +1470,15 @@ export async function searchClerkRecords(
           }
 
           // ── Strategy B: Fallback generic extraction for non-Tyler sites ──
-          const rows = document.querySelectorAll(
-            '.result-item, .search-result, .document-row, ' +
-            '[data-testid*="result"], [data-testid*="document"], ' +
-            'a[href*="/doc/"], a[href*="/detail"]',
           // Helper: build an absolute URL from a possibly-relative href
           const toAbsolute = (href: string): string =>
             href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
 
-          // Strategy 1: Result items/rows (broad selector for various SPA frameworks)
-          const rows = document.querySelectorAll(
+          const resultItems = document.querySelectorAll(
             '.result-item, .result-row, .search-result, .document-result, ' +
-            'table tbody tr, .document-row, [class*="result-row"], [class*="ResultRow"]',
+            '.document-row, [class*="result-row"], [class*="ResultRow"]',
           );
-          let resultElements: Element[] = Array.from(rows);
+          let resultElements: Element[] = Array.from(resultItems);
           if (resultElements.length === 0) {
             const detailLinks = document.querySelectorAll(
               'a[href*="/doc/"], a[href*="/detail/"], a[href*="/document/"]',
@@ -1473,53 +1491,54 @@ export async function searchClerkRecords(
             });
           }
 
+          const typePatterns = [
+            /(?:Type|Document Type|Doc Type)\s*:?\s*([^\n|]+)/i,
+            /\b(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Plat|Amended Plat|Easement|Right[- ]of[- ]Way|Quit Claim|Deed of Trust|Release|Mineral Deed|Affidavit|Restriction|Covenant)\b/i,
+          ];
+          const datePatterns = [
+            /(?:Date|Recorded|Filed|Recording Date)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i,
+            /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/,
+          ];
+          const instrPatterns = [
+            /(?:Instrument|Inst\.?\s*#?|Document\s*#?|Doc\.?\s*#?)\s*:?\s*([\d\-]+)/i,
+            /\b(\d{4}-\d{5,})\b/,
+            /\b(\d{9,})\b/,
+          ];
+          const volPatterns = [/(?:Volume|Vol\.?|Book)\s*:?\s*(\d+)/i];
+          const pgPatterns = [/(?:Page|Pg\.?)\s*:?\s*(\d+)/i];
+          const grantorPatterns = [/(?:Grantor|From|Seller)\s*:?\s*([^\n|;]+)/i];
+          const granteePatterns = [/(?:Grantee|To|Buyer)\s*:?\s*([^\n|;]+)/i];
+
+          const findMatch = (patterns: RegExp[], source: string): string => {
+            for (const p of patterns) {
+              const m = source.match(p);
+              if (m) return (m[1] ?? m[0]).trim();
+            }
+            return '';
+          };
+
           resultElements.forEach((row) => {
             const text = row.textContent?.trim() ?? '';
             if (text.length < 10) return;
 
-            const links = Array.from(row.querySelectorAll('a[href]'));
-            if (row.tagName === 'A' && row.getAttribute('href')) {
-              links.unshift(row as HTMLAnchorElement);
-            }
-            let url: string | null = null;
-            let linkInstrumentNum = '';
-            for (const link of links) {
-              const href = link.getAttribute('href') ?? '';
-              if (href.includes('/doc/') || href.includes('/detail/') || href.includes('/details/') || href.includes('/document/') || href.includes('/view/') || href.match(/\/\d{4,}/)) {
-                url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-                const docMatch = href.match(/\/(?:doc|detail|document)\/(\d+)/);
-                if (docMatch) linkInstrumentNum = docMatch[1];
-                break;
-              }
-            }
-
-            const cells = Array.from(row.querySelectorAll('td, [class*="cell"], [role="cell"]'));
-            const cellTexts = cells.map((c) => c.textContent?.trim() ?? '').filter(Boolean);
-
-            // ── URL / instrument number from link href ──────────────────────
-            // Kofile detail page pattern: /doc/{id}/details  (e.g. /doc/2024-00001234/details)
             let url: string | null = null;
             let hrefInstrument = '';
-
-            const links = Array.from(row.querySelectorAll('a'));
-            for (const link of links) {
+            const rowLinks = Array.from(row.querySelectorAll('a'));
+            for (const link of rowLinks) {
               const href = link.getAttribute('href') ?? '';
-              // Primary: Kofile /doc/{id}/details pattern
               const docMatch = href.match(/\/doc\/([^/]+)(?:\/details)?/i);
               if (docMatch) {
                 url = toAbsolute(href.includes('/details') ? href : `${href}/details`);
                 hrefInstrument = docMatch[1];
                 break;
               }
-              // Secondary: any detail/view/document link or path with 4+ digit segment
               if (href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/[\d]{4,}/)) {
                 url = toAbsolute(href);
                 break;
               }
             }
-            // Tertiary: any non-trivial link excluding navigation
-            if (!url && links.length > 0) {
-              for (const link of links) {
+            if (!url && rowLinks.length > 0) {
+              for (const link of rowLinks) {
                 const href = link.getAttribute('href') ?? '';
                 if (!href.includes('results') && !href.includes('filter') && !href.includes('#') && href.length > 5) {
                   url = toAbsolute(href);
@@ -1528,7 +1547,6 @@ export async function searchClerkRecords(
               }
             }
 
-            // ── data-* attribute fallback for React/SPA rows ───────────────
             const dataId = (row as HTMLElement).dataset?.id
               ?? (row as HTMLElement).dataset?.documentId
               ?? (row as HTMLElement).dataset?.instrumentNumber
@@ -1537,70 +1555,15 @@ export async function searchClerkRecords(
               url = `${bUrl}/doc/${dataId}/details`;
             }
 
-            // ── Parse document fields ──────────────────────────────────────
-            // Kofile column order (typical): RecDate | InstrNum | DocType | Grantor | Grantee | Vol/Pg
-            const typePatterns = [
-              /(?:Type|Document Type|Doc Type)\s*:?\s*([^\n|]+)/i,
-              /\b(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Plat|Amended Plat|Easement|Right[- ]of[- ]Way|Quit Claim|Deed of Trust|Release|Mineral Deed|Affidavit|Restriction|Covenant)\b/i,
-            ];
-            const datePatterns = [/(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/];
-            const instrPatterns = [/\b(\d{8,})\b/];
-            const datePatterns = [
-              /(?:Date|Recorded|Filed|Recording Date)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i,
-              /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/,
-            ];
-            const instrPatterns = [
-              /(?:Instrument|Inst\.?\s*#?|Document\s*#?|Doc\.?\s*#?)\s*:?\s*([\d\-]+)/i,
-              // Kofile instrument numbers: YYYY-NNNNNNN (e.g. 2024-00001234)
-              /\b(\d{4}-\d{5,})\b/,
-              /\b(\d{9,})\b/,
-            ];
-            const volPatterns = [/(?:Volume|Vol\.?|Book)\s*:?\s*(\d+)/i];
-            const pgPatterns = [/(?:Page|Pg\.?)\s*:?\s*(\d+)/i];
-            const grantorPatterns = [/(?:Grantor|From|Seller)\s*:?\s*([^\n|;]+)/i];
-            const granteePatterns = [/(?:Grantee|To|Buyer)\s*:?\s*([^\n|;]+)/i];
-
-            const findMatch = (patterns: RegExp[], source: string): string => {
-              for (const p of patterns) {
-                const m = source.match(p);
-                if (m) return (m[1] ?? m[0]).trim();
-              }
-              return '';
-            };
-
-            let instrNum = linkInstrumentNum || findMatch(instrPatterns, text);
-            const docType = findMatch(typePatterns, text);
-            const recDate = findMatch(datePatterns, text);
-
-            if (!url && instrNum) {
-              url = `${bUrl}/doc/${instrNum}`;
-            }
-
-            if (instrNum || docType || url) {
-              docs.push({
-                type: docType || 'Unknown',
-                date: recDate,
-                instrumentNumber: instrNum,
-                volume: '',
-                docPage: '',
-                grantors: [],
-                grantees: [],
-                url,
-                text: text.substring(0, 500),
-              });
-            }
-            // Prefer instrument number from link href over text regex
-            const instrFromText = findMatch(instrPatterns);
-            const instrumentNumber = hrefInstrument || instrFromText || dataId || '';
-
+            const instrumentNumber = hrefInstrument || findMatch(instrPatterns, text) || dataId || '';
             docs.push({
-              type: findMatch(typePatterns) || 'Unknown',
-              date: findMatch(datePatterns),
+              type: findMatch(typePatterns, text) || 'Unknown',
+              date: findMatch(datePatterns, text),
               instrumentNumber,
-              volume: findMatch(volPatterns),
-              docPage: findMatch(pgPatterns),
-              grantors: findMatch(grantorPatterns) ? [findMatch(grantorPatterns)] : [],
-              grantees: findMatch(granteePatterns) ? [findMatch(granteePatterns)] : [],
+              volume: findMatch(volPatterns, text),
+              docPage: findMatch(pgPatterns, text),
+              grantors: findMatch(grantorPatterns, text) ? [findMatch(grantorPatterns, text)] : [],
+              grantees: findMatch(granteePatterns, text) ? [findMatch(granteePatterns, text)] : [],
               url,
               text: text.substring(0, 500),
             });
@@ -1623,9 +1586,86 @@ export async function searchClerkRecords(
               url: doc.url,
             });
           }
-          logger.info('Stage2A', `"${searchName}" found ${extracted.length} documents via DOM`);
+          logger.info('Stage2A', `"${searchName}" found ${extracted.length} documents via DOM (page 1)`);
+
+          // ── URL-based multi-page fetching ─────────────────────────────────
+          // Tyler uses ?offset=N for pagination (confirmed from HTML: nav.Pagination
+          // with button[aria-label="page N"] buttons, offset = (page-1)*50)
+          const totalPages = await page.evaluate(() =>
+            document.querySelectorAll('nav.Pagination button[aria-label^="page "]').length,
+          );
+
+          if (totalPages > 1) {
+            logger.info('Stage2A', `"${searchName}": ${totalPages} pages total — fetching via URL offsets`);
+            for (let pg = 2; pg <= Math.min(totalPages, 5); pg++) {
+              try {
+                apiCapture = [];
+                const pageUrl = buildTylerUrl(baseUrl, searchName, (pg - 1) * 50);
+                logger.info('Stage2A', `Loading page ${pg}/${totalPages}: offset=${(pg - 1) * 50}`);
+                await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+                try {
+                  await page.waitForSelector('table tbody tr[aria-selected]', { timeout: 15_000 });
+                } catch {
+                  logger.info('Stage2A', `Page ${pg}: no result rows — stopping pagination`);
+                  break;
+                }
+                await page.waitForTimeout(1_000);
+
+                // Prefer AJAX-intercepted data for this page
+                if (apiCapture.length > 0) {
+                  documents = [...documents, ...apiCapture];
+                  logger.info('Stage2A', `Page ${pg}: +${apiCapture.length} docs via AJAX`);
+                } else {
+                  const pageExtracted = await page.evaluate((bUrl: string) => {
+                    const pageDocs: Array<{
+                      type: string; date: string; instrumentNumber: string;
+                      volume: string; docPage: string; grantors: string[];
+                      grantees: string[]; url: string | null;
+                    }> = [];
+                    document.querySelectorAll('table tbody tr[aria-selected]').forEach((row) => {
+                      const checkbox = row.querySelector('input[id^="table-checkbox-"]') as HTMLInputElement | null;
+                      const docId = checkbox?.id?.replace('table-checkbox-', '') ?? '';
+                      const getC = (n: number): string =>
+                        (row.querySelector(`td.col-${n}`)?.textContent?.trim() ?? '');
+                      const instrNum = getC(7);
+                      const docType = getC(5);
+                      if (!instrNum && !docType && !docId) return;
+                      const bvp = getC(8);
+                      const bvpMatch = bvp.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+                      pageDocs.push({
+                        type: docType || 'Unknown',
+                        date: getC(6),
+                        instrumentNumber: instrNum || docId,
+                        volume: bvpMatch ? bvpMatch[1] : '',
+                        docPage: bvpMatch ? bvpMatch[2] : '',
+                        grantors: getC(3) ? [getC(3)] : [],
+                        grantees: getC(4) ? [getC(4)] : [],
+                        url: docId ? `${bUrl}/detail/${docId}` : null,
+                      });
+                    });
+                    return pageDocs;
+                  }, baseUrl);
+                  for (const doc of pageExtracted) {
+                    documents.push({
+                      instrumentNumber: doc.instrumentNumber || null,
+                      volume: doc.volume || null,
+                      page: doc.docPage || null,
+                      documentType: doc.type,
+                      recordingDate: doc.date || null,
+                      grantors: doc.grantors,
+                      grantees: doc.grantees,
+                      source: config.name,
+                      url: doc.url,
+                    });
+                  }
+                  logger.info('Stage2A', `Page ${pg}: +${pageExtracted.length} docs via DOM`);
+                }
+              } catch { break; }
+            }
+          }
+
           page.removeAllListeners('response');
-          break; // Got results, no need to try more name variants
+          break; // Got results for this name variant
         }
 
         // ── Last resort: Log diagnostic info about what the DOM contains ──
@@ -1662,68 +1702,6 @@ export async function searchClerkRecords(
             const pattern = href.replace(/\d{4,}/g, '{N}');
             if (pattern.length > 3 && !pattern.includes('google') && !pattern.includes('analytics')) {
               hrefPatterns.add(pattern);
-        // Check for pagination — try to get more results via API intercept or DOM
-        try {
-          const hasMorePages = await page.evaluate(() => {
-            return !!document.querySelector('.pagination a, .next-page, [aria-label="Next"], button[aria-label*="next" i]');
-          });
-          if (hasMorePages) {
-            logger.info('Stage2A', 'More pages available — loading additional results');
-            for (let pageNum = 0; pageNum < 2; pageNum++) {
-              try {
-                apiCapture = []; // Reset for pagination intercept
-                const nextBtn = page.locator(
-                  '.pagination a:has-text("Next"), .next-page, [aria-label="Next"], button[aria-label*="next" i], .pagination li:last-child a',
-                ).first();
-                if (await nextBtn.isVisible({ timeout: 2_000 })) {
-                  await nextBtn.click();
-                  await page.waitForTimeout(3_000);
-
-                  // Prefer API-captured data over DOM scraping
-                  if (apiCapture.length > 0) {
-                    documents = [...documents, ...apiCapture];
-                    logger.info('Stage2A', `Pagination page ${pageNum + 2}: ${apiCapture.length} more via API intercept`);
-                  } else {
-                    const moreExtracted = await page.evaluate((bUrl: string) => {
-                      const docs: Array<{ type: string; date: string; instrumentNumber: string; volume: string; docPage: string; grantors: string[]; grantees: string[]; url: string | null; }> = [];
-                      const toAbsolute = (href: string): string => href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-                      const rows = document.querySelectorAll('.result-item, .result-row, .search-result, .document-result, table tbody tr, .document-row, [class*="result-row"], [class*="ResultRow"]');
-                      rows.forEach((row) => {
-                        const text = row.textContent?.trim() ?? '';
-                        if (text.length < 10) return;
-                        let url: string | null = null;
-                        let hrefInstrument = '';
-                        const links = Array.from(row.querySelectorAll('a'));
-                        for (const link of links) {
-                          const href = link.getAttribute('href') ?? '';
-                          const docMatch = href.match(/\/doc\/([^/]+)(?:\/details)?/i);
-                          if (docMatch) { url = toAbsolute(href.includes('/details') ? href : `${href}/details`); hrefInstrument = docMatch[1]; break; }
-                          if (href.includes('/details') || href.includes('/document') || href.includes('/view') || href.match(/\/[\d]{4,}/)) { url = toAbsolute(href); break; }
-                        }
-                        const dataId = (row as HTMLElement).dataset?.id ?? (row as HTMLElement).dataset?.documentId ?? '';
-                        if (!url && dataId) url = `${bUrl}/doc/${dataId}/details`;
-                        const findMatch = (patterns: RegExp[]): string => { for (const p of patterns) { const m = text.match(p); if (m) return (m[1] ?? m[0]).trim(); } return ''; };
-                        const instrText = findMatch([/(?:Instrument|Inst\.?\s*#?)\s*:?\s*([\d\-]+)/i, /\b(\d{4}-\d{5,})\b/, /\b(\d{9,})\b/]);
-                        docs.push({
-                          type: findMatch([/(?:Type|Document Type)\s*:?\s*([^\n|]+)/i, /\b(Warranty Deed|Plat|Easement|Deed of Trust|Deed)\b/i]) || 'Unknown',
-                          date: findMatch([/(?:Date|Recorded|Filed)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i, /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/]),
-                          instrumentNumber: hrefInstrument || instrText || dataId,
-                          volume: findMatch([/(?:Volume|Vol\.?)\s*:?\s*(\d+)/i]),
-                          docPage: findMatch([/(?:Page|Pg\.?)\s*:?\s*(\d+)/i]),
-                          grantors: findMatch([/(?:Grantor|From)\s*:?\s*([^\n|;]+)/i]) ? [findMatch([/(?:Grantor|From)\s*:?\s*([^\n|;]+)/i])] : [],
-                          grantees: findMatch([/(?:Grantee|To)\s*:?\s*([^\n|;]+)/i]) ? [findMatch([/(?:Grantee|To)\s*:?\s*([^\n|;]+)/i])] : [],
-                          url,
-                        });
-                      });
-                      return docs;
-                    }, baseUrl);
-                    for (const doc of moreExtracted) {
-                      documents.push({ instrumentNumber: doc.instrumentNumber || null, volume: doc.volume || null, page: doc.docPage || null, documentType: doc.type, recordingDate: doc.date || null, grantors: doc.grantors, grantees: doc.grantees, source: config.name, url: doc.url });
-                    }
-                    logger.info('Stage2A', `Pagination page ${pageNum + 2}: found ${moreExtracted.length} more documents`);
-                  }
-                }
-              } catch { break; }
             }
           });
           return {
@@ -1736,6 +1714,8 @@ export async function searchClerkRecords(
             bodyTextLength: document.body.textContent?.length ?? 0,
           };
         });
+        // Check for pagination — try to get more results via API intercept or DOM
+        // (URL-based pagination is handled above after a successful DOM extraction)
         logger.info('Stage2A', `DOM diagnostic: ${diagnostic.elementCount} candidate elements, ${diagnostic.tableRowCount} table rows, ${diagnostic.checkboxCount} checkboxes, body text length: ${diagnostic.bodyTextLength}`);
         if (diagnostic.sampleTexts.length > 0) {
           logger.info('Stage2A', `Sample text[0]: ${diagnostic.sampleTexts[0]?.substring(0, 200)}`);
@@ -1867,9 +1847,20 @@ export async function searchBellClerk(
     const nameParts = _parseOwnerName(ownerName);
     console.log('[BELL-CLERK] Searching for:', nameParts.searchQuery);
 
-    const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&limit=50&name=${encodeURIComponent(nameParts.searchQuery)}&recordType=WD,SWD,DWW,PLAT`;
-    await page.goto(searchUrl, { waitUntil: 'networkidle', timeout: 45000 });
-    await page.waitForTimeout(3000);
+    // Use correct Tyler PublicSearch URL parameters (verified from actual HTML, March 2026)
+    const d0 = new Date();
+    const dateTo0 = `${d0.getFullYear()}${String(d0.getMonth() + 1).padStart(2, '0')}${String(d0.getDate()).padStart(2, '0')}`;
+    const buildBellUrl = (offset: number): string =>
+      `${BELL_CLERK_BASE}/results?department=RP&keywordSearch=false&limit=50&offset=${offset}` +
+      `&recordedDateRange=16000101%2C${dateTo0}&searchOcrText=true&searchType=quickSearch` +
+      `&searchValue=${encodeURIComponent(nameParts.searchQuery)}`;
+
+    await page.goto(buildBellUrl(0), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    // Wait for Tyler SPA to render result rows
+    try {
+      await page.waitForSelector('table tbody tr[aria-selected]', { timeout: 15_000 });
+    } catch { /* continue even if no rows yet */ }
+    await page.waitForTimeout(2_000);
 
     // Accept disclaimers if present
     try {
@@ -1877,7 +1868,25 @@ export async function searchBellClerk(
       if (btn) { await btn.click(); await page.waitForTimeout(1000); }
     } catch { /* no dialog */ }
 
-    const documents = await _extractSearchResults(page);
+    let documents = await _extractSearchResults(page);
+
+    // URL-based multi-page fetching (Tyler uses offset= for pagination)
+    const totalBellPages = await page.evaluate(() =>
+      document.querySelectorAll('nav.Pagination button[aria-label^="page "]').length,
+    );
+    if (totalBellPages > 1) {
+      for (let pg = 2; pg <= Math.min(totalBellPages, 5); pg++) {
+        try {
+          await page.goto(buildBellUrl((pg - 1) * 50), { waitUntil: 'domcontentloaded', timeout: 30_000 });
+          await page.waitForSelector('table tbody tr[aria-selected]', { timeout: 15_000 }).catch(() => {});
+          await page.waitForTimeout(1_000);
+          const more = await _extractSearchResults(page);
+          documents = [...documents, ...more];
+          logger.info('Stage2A', `searchBellClerk page ${pg}: +${more.length} docs`);
+        } catch { break; }
+      }
+    }
+
     await browser.close();
 
     if (documents.length > 0) {
@@ -2123,7 +2132,7 @@ async function _extractSearchResults(
   page: import('playwright').Page,
 ): Promise<DocumentRef[]> {
   const documents: DocumentRef[] = [];
-  const rows = await page.$$('table tbody tr, .result-row, .search-result');
+  const rows = await page.$$('table tbody tr[aria-selected], .result-row, .search-result');
 
   for (const row of rows) {
     try {
