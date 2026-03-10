@@ -197,7 +197,7 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
     .eq('id', id)
     .single();
 
-  if (!existing || (existing.sender_email !== session.user.email && !isAdmin(session.user.email))) {
+  if (!existing || (existing.sender_email !== session.user.email && !isAdmin(session.user.roles))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 

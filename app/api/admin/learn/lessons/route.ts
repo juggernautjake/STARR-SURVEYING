@@ -7,7 +7,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userCanManage = canManageContent(session.user.email);
+  const userCanManage = canManageContent(session.user.roles);
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
@@ -52,7 +52,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
 export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !canManageContent(session.user.email)) {
+  if (!session?.user?.email || !canManageContent(session.user.roles)) {
     return NextResponse.json({ error: 'Content management access required' }, { status: 403 });
   }
   const body = await req.json();
@@ -71,7 +71,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !canManageContent(session.user.email)) {
+  if (!session?.user?.email || !canManageContent(session.user.roles)) {
     return NextResponse.json({ error: 'Content management access required' }, { status: 403 });
   }
   const body = await req.json();

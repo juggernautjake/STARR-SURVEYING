@@ -43,8 +43,14 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  const userRole = (req.auth.user as any).role as string || 'employee';
-  const userRoles: string[] = (req.auth.user as any).roles || [userRole];
+  // If the JWT was marked as blocked (banned/unapproved), force sign-out
+  if ((req.auth as any).blocked) {
+    const loginUrl = new URL('/admin/login', req.url);
+    loginUrl.searchParams.set('error', 'AccountBlocked');
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const userRoles: string[] = (req.auth.user as any).roles || [(req.auth.user as any).role || 'employee'];
 
   // Admin-only routes
   if (ADMIN_ONLY_ROUTES.some(route => pathname === route || pathname.startsWith(route + '/'))) {

@@ -8,7 +8,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const body = await req.json();
   const { ids, action, rejection_reason } = body as {

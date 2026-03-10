@@ -14,7 +14,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 // How often (in seconds) to re-fetch roles from DB for an active session.
 // Role changes propagate to users within this window without requiring re-login.
-export const ROLES_REFRESH_INTERVAL_SECONDS = 5 * 60; // 5 minutes
+export const ROLES_REFRESH_INTERVAL_SECONDS = 30; // 30 seconds – near-immediate propagation
 
 export type UserRole = 'admin' | 'teacher' | 'employee';
 
@@ -57,6 +57,23 @@ export async function getUserRolesFromDB(email: string): Promise<UserRole[]> {
   }
   // Fallback to hardcoded email lists
   return getUserRoles(lower);
+}
+
+/**
+ * Check whether a user is currently banned or unapproved in the DB.
+ * Returns true if the user should be blocked from accessing the system.
+ */
+export async function isUserBlocked(email: string): Promise<boolean> {
+  const lower = email.toLowerCase();
+  // Hardcoded admins are never blocked
+  if (ADMIN_EMAILS.includes(lower)) return false;
+  const { data } = await supabaseAdmin
+    .from('registered_users')
+    .select('is_banned, is_approved')
+    .eq('email', lower)
+    .maybeSingle();
+  if (!data) return false; // Not in DB (Google company user) → not blocked
+  return data.is_banned === true || data.is_approved === false;
 }
 
 /** Get the primary (highest) role for display purposes: admin > teacher > employee */
@@ -164,12 +181,8 @@ const authConfig: NextAuthConfig = {
       if (user?.email) {
         // Initial sign-in: populate token from user object
         token.email = user.email.toLowerCase();
-        // For company (Google) users, check DB roles too (admin may have promoted them)
-        if (!user.roles || (Array.isArray(user.roles) && user.roles.length <= 1)) {
-          token.roles = await getUserRolesFromDB(user.email);
-        } else {
-          token.roles = user.roles;
-        }
+        // Always fetch roles from DB on sign-in so DB-assigned roles take effect immediately
+        token.roles = await getUserRolesFromDB(user.email);
         token.role = getPrimaryRole(token.roles as UserRole[]);
         token.name = user.name;
         token.picture = user.image;
@@ -180,9 +193,16 @@ const authConfig: NextAuthConfig = {
         const lastChecked = (token.rolesLastChecked as number) || 0;
         const now = Math.floor(Date.now() / 1000);
         if (!token.roles || now - lastChecked > ROLES_REFRESH_INTERVAL_SECONDS) {
+          // Check ban/approval status and revoke session immediately if blocked
+          const blocked = await isUserBlocked(token.email as string);
+          if (blocked) {
+            // Return a minimal token with no roles — middleware will redirect to login
+            return { ...token, roles: [], role: 'employee', rolesLastChecked: now, blocked: true };
+          }
           token.roles = await getUserRolesFromDB(token.email as string);
           token.role = getPrimaryRole(token.roles as UserRole[]);
           token.rolesLastChecked = now;
+          token.blocked = false;
         }
       }
       return token;

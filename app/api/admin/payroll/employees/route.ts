@@ -14,11 +14,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const includeInactive = searchParams.get('include_inactive') === 'true';
 
   // Non-admins can only see their own profile
-  if (!isAdmin(session.user.email) && email && email !== session.user.email) {
+  if (!isAdmin(session.user.roles) && email && email !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  if (email || !isAdmin(session.user.email)) {
+  if (email || !isAdmin(session.user.roles)) {
     const targetEmail = email || session.user.email;
     const { data, error } = await supabaseAdmin
       .from('employee_profiles')
@@ -84,7 +84,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const targetEmail = user_email || session.user.email;
 
   // Non-admins can only update limited fields on their own profile
-  if (!isAdmin(session.user.email)) {
+  if (!isAdmin(session.user.roles)) {
     if (targetEmail !== session.user.email) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -145,11 +145,11 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   const payFields = ['hourly_rate', 'salary_type', 'annual_salary', 'job_title', 'pay_frequency'];
   const hasPayFields = payFields.some(f => f in updates);
 
-  if (hasPayFields && !isAdmin(session.user.email)) {
+  if (hasPayFields && !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Only admins can modify pay settings' }, { status: 403 });
   }
 
-  if (!isAdmin(session.user.email) && user_email !== session.user.email) {
+  if (!isAdmin(session.user.roles) && user_email !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

@@ -11,7 +11,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status');
-  const admin = isAdmin(session.user.email);
+  const admin = isAdmin(session.user.roles);
 
   let query = supabaseAdmin
     .from('pay_advance_requests')
@@ -33,7 +33,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const admin = isAdmin(session.user.email);
+  const admin = isAdmin(session.user.roles);
 
   // Admin reviewing an existing request
   if (body.id && admin) {
@@ -118,7 +118,7 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const admin = isAdmin(session.user.email);
+  const admin = isAdmin(session.user.roles);
   if (!admin && existing.user_email !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

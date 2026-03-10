@@ -13,7 +13,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const email = searchParams.get('email');
   const targetEmail = email || session.user.email;
 
-  if (!isAdmin(session.user.email) && targetEmail !== session.user.email) {
+  if (!isAdmin(session.user.roles) && targetEmail !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -39,7 +39,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const targetEmail = user_email || session.user.email;
 
   // Anyone can add their own certs, but pay bump requires admin
-  if (targetEmail !== session.user.email && !isAdmin(session.user.email)) {
+  if (targetEmail !== session.user.email && !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -48,11 +48,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     certification_type: certification_type || 'other',
     certification_name: certification_name || certification_type,
     issued_date, expiry_date, license_number, document_url,
-    pay_bump_amount: isAdmin(session.user.email) ? (pay_bump_amount || 0) : 0,
-    pay_bump_percentage: isAdmin(session.user.email) ? (pay_bump_percentage || 0) : 0,
-    verified: isAdmin(session.user.email),
-    verified_by: isAdmin(session.user.email) ? session.user.email : null,
-    verified_at: isAdmin(session.user.email) ? new Date().toISOString() : null,
+    pay_bump_amount: isAdmin(session.user.roles) ? (pay_bump_amount || 0) : 0,
+    pay_bump_percentage: isAdmin(session.user.roles) ? (pay_bump_percentage || 0) : 0,
+    verified: isAdmin(session.user.roles),
+    verified_by: isAdmin(session.user.roles) ? session.user.email : null,
+    verified_at: isAdmin(session.user.roles) ? new Date().toISOString() : null,
   };
 
   const { data, error } = await supabaseAdmin
@@ -83,12 +83,12 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  if (existing.user_email !== session.user.email && !isAdmin(session.user.email)) {
+  if (existing.user_email !== session.user.email && !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   // Non-admins cannot set pay bump or verify
-  if (!isAdmin(session.user.email)) {
+  if (!isAdmin(session.user.roles)) {
     delete updates.pay_bump_amount;
     delete updates.pay_bump_percentage;
     delete updates.verified;
@@ -97,7 +97,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Admin verification
-  if (isAdmin(session.user.email) && updates.verified) {
+  if (isAdmin(session.user.roles) && updates.verified) {
     updates.verified_by = session.user.email;
     updates.verified_at = new Date().toISOString();
   }
@@ -129,7 +129,7 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
     .single();
 
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (existing.user_email !== session.user.email && !isAdmin(session.user.email)) {
+  if (existing.user_email !== session.user.email && !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

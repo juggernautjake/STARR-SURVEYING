@@ -17,7 +17,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const dateFrom = searchParams.get('date_from');
   const dateTo = searchParams.get('date_to');
 
-  const admin = isAdmin(session.user.email);
+  const admin = isAdmin(session.user.roles);
 
   let query = supabaseAdmin
     .from('payout_log')
@@ -55,7 +55,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const body = await req.json();
   const { user_email, payout_type, amount, reason, details, source_type, source_id } = body;

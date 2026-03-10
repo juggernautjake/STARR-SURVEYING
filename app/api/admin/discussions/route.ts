@@ -62,7 +62,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const {
     title,
@@ -169,7 +169,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const { id, action, ...payload } = await req.json();
   if (!id) return NextResponse.json({ error: 'Thread ID required' }, { status: 400 });

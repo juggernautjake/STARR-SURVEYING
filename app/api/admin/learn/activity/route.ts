@@ -21,7 +21,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .limit(limit);
 
   // Non-admins can only see their own activity
-  if (!isAdmin(session.user.email)) {
+  if (!isAdmin(session.user.roles)) {
     query = query.eq('user_email', session.user.email);
   } else if (userEmail) {
     query = query.eq('user_email', userEmail);

@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
       .range(offset, offset + limit - 1);
 
     // Non-admins can only see their own reports
-    if (!adminView || !isAdmin(session.user.email)) {
+    if (!adminView || !isAdmin(session.user.roles)) {
       query = query.eq('user_email', session.user.email);
     }
 
@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.email || !isAdmin(session.user.email)) {
+    if (!session?.user?.email || !isAdmin(session.user.roles)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -190,7 +190,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.email || !isAdmin(session.user.email)) {
+    if (!session?.user?.email || !isAdmin(session.user.roles)) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 

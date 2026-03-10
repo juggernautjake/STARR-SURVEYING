@@ -43,7 +43,7 @@ async function notifyEmployee(
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const email = searchParams.get('email');
@@ -133,7 +133,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.email)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const body = await req.json();
   const { action, email } = body as { action: string; email: string; [key: string]: unknown };

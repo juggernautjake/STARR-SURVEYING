@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET() {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -28,7 +28,7 @@ export async function GET() {
 // POST - Promote a company employee to teacher (creates registered_users entry for role tracking)
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -33,7 +33,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 /* POST — Create/upload a media item */
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 
@@ -65,7 +65,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 /* PUT — Update media metadata */
 export const PUT = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 
@@ -92,7 +92,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 /* DELETE — Soft delete (move to recycle bin) */
 export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email || !isAdmin(session.user.email)) {
+  if (!session?.user?.email || !isAdmin(session.user.roles)) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 
