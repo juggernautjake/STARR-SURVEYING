@@ -1022,7 +1022,7 @@ export async function searchClerkRecords(
         try {
           await Promise.race([
             capturePromise,
-            page.waitForSelector('table tbody tr, .result-item, .search-result, .document-row, [class*="result-"]', { timeout: 20_000 }),
+            page.waitForSelector('table tbody tr td.col-5, table tbody tr, .result-item, .search-result', { timeout: 20_000 }),
             page.waitForTimeout(20_000),
           ]);
         } catch {
@@ -1226,7 +1226,16 @@ export async function searchClerkRecords(
         // Extra wait for Tyler PublicSearch React SPA to finish rendering
         await page.waitForTimeout(3_000);
 
-        // DOM extraction: handle both labeled-field pages and table-cell pages
+        // DOM extraction: Tyler PublicSearch uses a standard <table> with
+        // column classes col-0 through col-9. Document ID is embedded in the
+        // checkbox input as id="table-checkbox-{docId}".
+        // Column mapping (from actual HTML inspection):
+        //   col-0: checkbox (contains document ID)
+        //   col-1: action menu
+        //   col-2: cart icon
+        //   col-3: Grantor    col-4: Grantee     col-5: Doc Type
+        //   col-6: Rec Date   col-7: Inst Number  col-8: Book/Vol/Page
+        //   col-9: Property Description
         const extracted = await page.evaluate((bUrl: string) => {
           const docs: Array<{
             type: string;
@@ -1240,26 +1249,70 @@ export async function searchClerkRecords(
             text: string;
           }> = [];
 
-          // ── Tyler PublicSearch specific extraction ──
-          // Tyler uses React components with emotion/styled CSS classes.
-          // Result cards are clickable elements with nested data fields.
-          // Try to find result rows using broader selectors.
+          // ── Strategy A: Tyler PublicSearch table with col-N classes ──
+          const tableRows = document.querySelectorAll('table tbody tr');
+          if (tableRows.length > 0) {
+            tableRows.forEach((row) => {
+              // Extract document ID from checkbox input
+              const checkbox = row.querySelector('input[id^="table-checkbox-"]') as HTMLInputElement | null;
+              const docId = checkbox?.id?.replace('table-checkbox-', '') ?? '';
+
+              // Extract by column class (most reliable)
+              const getCol = (n: number): string => {
+                const cell = row.querySelector(`td.col-${n}, td:nth-child(${n + 1})`);
+                return cell?.textContent?.trim() ?? '';
+              };
+
+              const grantor = getCol(3);
+              const grantee = getCol(4);
+              const docType = getCol(5);
+              const recDate = getCol(6);
+              const instrNum = getCol(7);
+              const bookVolPage = getCol(8);
+              const propDesc = getCol(9);
+
+              // Parse volume/page from "OPR/13355/58" format
+              let volume = '';
+              let pg = '';
+              const bvpMatch = bookVolPage.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+              if (bvpMatch) { volume = bvpMatch[1]; pg = bvpMatch[2]; }
+
+              // Construct detail URL from document ID (Tyler uses /detail/{docId})
+              let url: string | null = null;
+              if (docId) {
+                url = `${bUrl}/detail/${docId}`;
+              }
+
+              // Only push if we have meaningful data
+              if (instrNum || docType || docId) {
+                docs.push({
+                  type: docType || 'Unknown',
+                  date: recDate,
+                  instrumentNumber: instrNum || docId,
+                  volume,
+                  docPage: pg,
+                  grantors: grantor ? [grantor] : [],
+                  grantees: grantee ? [grantee] : [],
+                  url,
+                  text: [grantor, grantee, docType, recDate, instrNum, bookVolPage, propDesc]
+                    .filter(Boolean).join(' | ').substring(0, 500),
+                });
+              }
+            });
+            return docs;
+          }
+
+          // ── Strategy B: Fallback generic extraction for non-Tyler sites ──
           const rows = document.querySelectorAll(
-            'table tbody tr, .result-item, .search-result, .document-row, ' +
-            '[class*="result-"], [class*="Result"], [class*="card-"], [class*="Card"], ' +
+            '.result-item, .search-result, .document-row, ' +
             '[data-testid*="result"], [data-testid*="document"], ' +
             'a[href*="/doc/"], a[href*="/detail"]',
           );
-
-          // If we found very few rows with the above, try broader approach:
-          // look for clickable containers that have links to document details
           let resultElements: Element[] = Array.from(rows);
           if (resultElements.length === 0) {
-            // Broader: find all links that look like document detail links
             const detailLinks = document.querySelectorAll(
               'a[href*="/doc/"], a[href*="/detail/"], a[href*="/document/"]',
             );
-            // Use each link's closest row-like ancestor
             detailLinks.forEach((link) => {
               const parent = link.closest('tr, [role="row"], [class*="result"], [class*="card"]') ?? link.parentElement?.parentElement ?? link.parentElement;
               if (parent && !resultElements.includes(parent)) {
@@ -1272,9 +1325,7 @@ export async function searchClerkRecords(
             const text = row.textContent?.trim() ?? '';
             if (text.length < 10) return;
 
-            // Find links: Kofile/Tyler uses /doc/INSTRUMENT_NUMBER or /detail/ID
             const links = Array.from(row.querySelectorAll('a[href]'));
-            // Also check if the row itself is a link
             if (row.tagName === 'A' && row.getAttribute('href')) {
               links.unshift(row as HTMLAnchorElement);
             }
@@ -1284,51 +1335,21 @@ export async function searchClerkRecords(
               const href = link.getAttribute('href') ?? '';
               if (href.includes('/doc/') || href.includes('/detail/') || href.includes('/details/') || href.includes('/document/') || href.includes('/view/') || href.match(/\/\d{4,}/)) {
                 url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-                // Extract instrument/doc number from URL patterns
                 const docMatch = href.match(/\/(?:doc|detail|document)\/(\d+)/);
                 if (docMatch) linkInstrumentNum = docMatch[1];
-                // Also try /results/detail/ID pattern
-                const detailMatch = href.match(/\/results\/detail\/(\d+)/);
-                if (detailMatch) linkInstrumentNum = detailMatch[1];
                 break;
               }
             }
-            if (!url && links.length > 0) {
-              for (const link of links) {
-                const href = link.getAttribute('href') ?? '';
-                if (!href.includes('search') && !href.includes('filter') && !href.includes('#') && href.length > 5) {
-                  url = href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-                  break;
-                }
-              }
-            }
 
-            // Extract data from table cells OR from child divs/spans
             const cells = Array.from(row.querySelectorAll('td, [class*="cell"], [role="cell"]'));
-            // For Tyler PublicSearch: also grab individual child div/span blocks
-            if (cells.length < 3) {
-              const childBlocks = Array.from(row.querySelectorAll(':scope > div, :scope > span, :scope > div > div, :scope > div > span'));
-              cells.push(...childBlocks);
-            }
             const cellTexts = cells.map((c) => c.textContent?.trim() ?? '').filter(Boolean);
 
-            // Parse with regex patterns (labeled fields)
             const typePatterns = [
               /(?:Type|Document Type|Doc Type)\s*:?\s*([^\n|]+)/i,
               /\b(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Plat|Amended Plat|Easement|Right[- ]of[- ]Way|Quit Claim|Deed of Trust|Release|Mineral Deed|Affidavit|Restriction|Covenant)\b/i,
             ];
-            const datePatterns = [
-              /(?:Date|Recorded|Filed|Recording Date)\s*:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})/i,
-              /(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/,
-            ];
-            const instrPatterns = [
-              /(?:Instrument|Inst\.?\s*#?|Document\s*#?|Doc\.?\s*#?)\s*:?\s*([\d\-]+)/i,
-              /\b(\d{8,})\b/,
-            ];
-            const volPatterns = [/(?:Volume|Vol\.?|Book)\s*:?\s*(\d+)/i];
-            const pgPatterns = [/(?:Page|Pg\.?)\s*:?\s*(\d+)/i];
-            const grantorPatterns = [/(?:Grantor|From|Seller)\s*:?\s*([^\n|;]+)/i];
-            const granteePatterns = [/(?:Grantee|To|Buyer)\s*:?\s*([^\n|;]+)/i];
+            const datePatterns = [/(\d{1,2}[/\-]\d{1,2}[/\-]\d{4})/];
+            const instrPatterns = [/\b(\d{8,})\b/];
 
             const findMatch = (patterns: RegExp[], source: string): string => {
               for (const p of patterns) {
@@ -1338,74 +1359,23 @@ export async function searchClerkRecords(
               return '';
             };
 
-            // Try cell-by-cell extraction first (Kofile table columns)
-            let instrNum = linkInstrumentNum;
-            let docType = '';
-            let recDate = '';
-            const grantors: string[] = [];
-            const grantees: string[] = [];
-            let volume = '';
-            let pg = '';
+            let instrNum = linkInstrumentNum || findMatch(instrPatterns, text);
+            const docType = findMatch(typePatterns, text);
+            const recDate = findMatch(datePatterns, text);
 
-            // If we have distinct cells/blocks, parse them
-            // Kofile typical column order: Date | Instrument# | Type | Grantor | Grantee
-            if (cellTexts.length >= 3) {
-              for (const cellText of cellTexts) {
-                // Date cell (exact or with label)
-                if (!recDate) {
-                  const dateMatch = cellText.match(/^(\d{1,2}\/\d{1,2}\/\d{4})$/) ??
-                    cellText.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
-                  if (dateMatch) { recDate = dateMatch[1]; continue; }
-                }
-                // Instrument number cell (long numeric, may have prefix)
-                if (!instrNum) {
-                  const instrMatch = cellText.match(/^(\d{8,13})$/) ??
-                    cellText.match(/(?:^|\s)(\d{8,13})(?:\s|$)/);
-                  if (instrMatch) { instrNum = instrMatch[1]; continue; }
-                }
-                // Document type cell (known keywords — check partial matches too)
-                if (!docType) {
-                  const typeKw = /\b(DEED|WARRANTY DEED|SPECIAL WARRANTY|GENERAL WARRANTY|PLAT|EASEMENT|RIGHT OF WAY|DEED OF TRUST|RELEASE|QUIT CLAIM|AFFIDAVIT|RESTRICTION|COVENANT|ASSIGNMENT|TRANSFER|LIEN|MORTGAGE|SURVEY|MINERAL DEED|OIL|GAS|MLD|DOT|WD|SWD|GWD|DWW|QCD|PLT|ESMT|ROW|RC|DEED WITHOUT WARRANTY|CONVEYANCE)\b/i;
-                  const typeMatch = cellText.match(typeKw);
-                  if (typeMatch) { docType = typeMatch[1].trim(); continue; }
-                }
-                // Volume/Page cell
-                const volPgMatch = cellText.match(/(?:Vol\.?\s*)?(\d+)\s*[/,]\s*(?:Pg\.?\s*)?(\d+)/i);
-                if (volPgMatch && !volume) { volume = volPgMatch[1]; pg = volPgMatch[2]; }
-              }
-            }
-
-            // Fallback to full-text regex extraction
-            if (!instrNum) instrNum = findMatch(instrPatterns, text);
-            if (!docType) docType = findMatch(typePatterns, text);
-            if (!recDate) recDate = findMatch(datePatterns, text);
-            if (!volume) volume = findMatch(volPatterns, text);
-            if (!pg) pg = findMatch(pgPatterns, text);
-            if (grantors.length === 0) {
-              const g = findMatch(grantorPatterns, text);
-              if (g) grantors.push(g);
-            }
-            if (grantees.length === 0) {
-              const g = findMatch(granteePatterns, text);
-              if (g) grantees.push(g);
-            }
-
-            // Construct doc URL from instrument number if not found in links
             if (!url && instrNum) {
               url = `${bUrl}/doc/${instrNum}`;
             }
 
-            // Only push if we extracted at least SOME useful data
-            // (prevents empty "Unknown" documents that waste fetching time)
             if (instrNum || docType || url) {
               docs.push({
                 type: docType || 'Unknown',
                 date: recDate,
                 instrumentNumber: instrNum,
-                volume,
-                docPage: pg,
-                grantors,
-                grantees,
+                volume: '',
+                docPage: '',
+                grantors: [],
+                grantees: [],
                 url,
                 text: text.substring(0, 500),
               });
@@ -1436,9 +1406,21 @@ export async function searchClerkRecords(
 
         // ── Last resort: Log diagnostic info about what the DOM contains ──
         const diagnostic = await page.evaluate(() => {
+          const tableRows = document.querySelectorAll('table tbody tr');
+          const checkboxes = document.querySelectorAll('input[id^="table-checkbox-"]');
           const allElements = document.querySelectorAll('[class*="result"], [class*="card"], [class*="document"], a[href*="/doc"]');
           const sampleTexts: string[] = [];
           const sampleLinks: string[] = [];
+          // Show first table row structure for debugging
+          if (tableRows.length > 0) {
+            const firstRow = tableRows[0];
+            const cells = firstRow.querySelectorAll('td');
+            cells.forEach((cell, idx) => {
+              const cls = cell.className;
+              const txt = (cell.textContent ?? '').trim().substring(0, 80);
+              sampleTexts.push(`td[${idx}] class="${cls}" text="${txt}"`);
+            });
+          }
           let i = 0;
           allElements.forEach((el) => {
             if (i >= 3) return;
@@ -1460,13 +1442,15 @@ export async function searchClerkRecords(
           });
           return {
             elementCount: allElements.length,
+            tableRowCount: tableRows.length,
+            checkboxCount: checkboxes.length,
             sampleTexts,
             sampleLinks: sampleLinks.slice(0, 5),
             hrefPatterns: Array.from(hrefPatterns).slice(0, 10),
             bodyTextLength: document.body.textContent?.length ?? 0,
           };
         });
-        logger.info('Stage2A', `DOM diagnostic: ${diagnostic.elementCount} candidate elements, body text length: ${diagnostic.bodyTextLength}`);
+        logger.info('Stage2A', `DOM diagnostic: ${diagnostic.elementCount} candidate elements, ${diagnostic.tableRowCount} table rows, ${diagnostic.checkboxCount} checkboxes, body text length: ${diagnostic.bodyTextLength}`);
         if (diagnostic.sampleTexts.length > 0) {
           logger.info('Stage2A', `Sample text[0]: ${diagnostic.sampleTexts[0]?.substring(0, 200)}`);
         }
@@ -1831,12 +1815,51 @@ async function _extractSearchResults(
       const text = await row.textContent() || '';
       if (text.toLowerCase().includes('recording date') && text.toLowerCase().includes('document type')) continue;
 
+      // Tyler PublicSearch: extract from table columns by class
+      const checkbox = await row.$('input[id^="table-checkbox-"]');
+      const docId = checkbox ? (await checkbox.getAttribute('id'))?.replace('table-checkbox-', '') ?? '' : '';
+      const getColText = async (n: number): Promise<string> => {
+        const cell = await row.$(`td.col-${n}, td:nth-child(${n + 1})`);
+        return cell ? ((await cell.textContent()) ?? '').trim() : '';
+      };
+      const colDocType = await getColText(5);
+      const colInstr = await getColText(7);
+
+      if (colDocType || colInstr) {
+        // Structured Tyler table row
+        const colDate = await getColText(6);
+        const colBVP = await getColText(8);
+        const colGrantor = await getColText(3);
+        const colGrantee = await getColText(4);
+        let volume = '';
+        let pg = '';
+        const bvpMatch = colBVP.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+        if (bvpMatch) { volume = bvpMatch[1]; pg = bvpMatch[2]; }
+
+        documents.push({
+          instrumentNumber: colInstr || null,
+          volume: volume || null,
+          page: pg || null,
+          documentType: colDocType || 'Unknown',
+          recordingDate: colDate || null,
+          grantors: colGrantor ? [colGrantor] : [],
+          grantees: colGrantee ? [colGrantee] : [],
+          source: 'Bell County Clerk PublicSearch',
+          url: docId ? `${BELL_CLERK_BASE}/detail/${docId}` : null,
+        });
+        continue;
+      }
+
+      // Fallback: parse from text content
       const doc = _parseDocumentRow(text);
       if (doc) {
         const link = await row.$('a[href]');
         if (link) {
           const href = await link.getAttribute('href');
           if (href) doc.url = href.startsWith('http') ? href : BELL_CLERK_BASE + href;
+        }
+        if (!doc.url && docId) {
+          doc.url = `${BELL_CLERK_BASE}/detail/${docId}`;
         }
         documents.push(doc);
       }
