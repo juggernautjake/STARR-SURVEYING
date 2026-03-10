@@ -377,6 +377,19 @@ function generateStandardVariants(parsed: ParsedAddress, rawAddress?: string): A
 
   if (name) add(name, 'name_only');
 
+  // Suffix swap: try the most common street suffixes in case the input suffix
+  // is wrong (e.g., user says "Leah Ln" but CAD has "LEAH AVE").
+  // Only add suffixes that differ from the provided type.
+  if (name && type) {
+    const COMMON_SUFFIXES = ['St', 'Ave', 'Dr', 'Rd', 'Ln', 'Blvd', 'Ct', 'Cir', 'Way', 'Pl'];
+    const givenAbbr = abbreviateType(type);
+    for (const alt of COMMON_SUFFIXES) {
+      if (alt !== givenAbbr) {
+        add(name + ' ' + alt, 'suffix_swap:' + alt);
+      }
+    }
+  }
+
   // Without directional
   if (name) {
     const stripped = name.replace(/^(N|S|E|W|NE|NW|SE|SW|NORTH|SOUTH|EAST|WEST|NORTHEAST|NORTHWEST|SOUTHEAST|SOUTHWEST)\s+/i, '');
