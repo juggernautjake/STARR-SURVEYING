@@ -292,11 +292,12 @@ describe('scoreDocumentRelevance', () => {
     currentYear: 2026,
   };
 
-  it('gives highest score to plats', () => {
+  it('gives medium score to plats (below deeds)', () => {
     const doc = makeDoc('X', { documentType: 'plat', grantees: ['ASH FAMILY TRUST'] });
     const score = scoreDocumentRelevance(doc, BASE_CONTEXT);
-    expect(score.relevanceScore).toBeGreaterThanOrEqual(60);
-    expect(score.priority).toBe('high');
+    // plat (+25) + owner match (+20) = 45 → medium
+    expect(score.relevanceScore).toBeGreaterThanOrEqual(35);
+    expect(score.priority).toBe('medium');
     expect(score.shouldDownload).toBe(true);
   });
 
@@ -362,11 +363,11 @@ describe('scoreDocumentRelevance', () => {
   });
 
   it('caps score at 100', () => {
-    // A plat for the known instrument owned by target = 50+30+20 = 100
+    // warranty_deed (+40) + known instrument (+30) + owner match (+20) + recency5yr (+10) = 100
     const doc = makeDoc('2010043440', {
-      documentType: 'plat',
+      documentType: 'warranty_deed',
       grantees: ['ASH FAMILY TRUST'],
-      recordingDate: '01/01/2024',  // within 5 years → +10 = 110, capped at 100
+      recordingDate: '01/01/2024',  // within 5 years → +10
     });
     const score = scoreDocumentRelevance(doc, BASE_CONTEXT);
     expect(score.relevanceScore).toBe(100);
@@ -393,7 +394,7 @@ describe('filterAndRankResults', () => {
   it('filters out skip-tier documents (score < 20)', () => {
     const docs: ClerkDocumentResult[] = [
       makeDoc('1', { documentType: 'mechanics_lien' }),  // score ~2 → skip
-      makeDoc('2', { documentType: 'plat' }),             // score ~50 → keep
+      makeDoc('2', { documentType: 'plat' }),             // score ~25 → keep
     ];
     const ranked = filterAndRankResults(docs, CTX);
     expect(ranked.map((r) => r.result.instrumentNumber)).toEqual(['2']);
@@ -401,9 +402,9 @@ describe('filterAndRankResults', () => {
 
   it('sorts results from highest to lowest score', () => {
     const docs: ClerkDocumentResult[] = [
-      makeDoc('A', { documentType: 'deed_of_trust' }),   // low
-      makeDoc('B', { documentType: 'plat' }),             // high
-      makeDoc('C', { documentType: 'warranty_deed' }),    // medium-high
+      makeDoc('A', { documentType: 'deed_of_trust' }),   // low (~5, filtered out)
+      makeDoc('B', { documentType: 'plat' }),             // medium (~25)
+      makeDoc('C', { documentType: 'warranty_deed' }),    // high (~40)
     ];
     const ranked = filterAndRankResults(docs, CTX);
     const scores = ranked.map((r) => r.score.relevanceScore);

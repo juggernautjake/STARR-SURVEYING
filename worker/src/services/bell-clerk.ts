@@ -143,13 +143,13 @@ function isDeedRelevant(docType: string): boolean {
 function scoreDocumentRelevance(docType: string): number {
   const lower = docType.toLowerCase();
   if (/warranty\s*deed|deed\s*without/i.test(lower)) return 100;
-  if (/\bplat\b/i.test(lower)) return 95;
   if (/\bdeed\b/i.test(lower)) return 90;
   if (/\beasement\b/i.test(lower)) return 85;
   if (/right[- ]of[- ]way/i.test(lower)) return 80;
   if (/restrictive|cc&r/i.test(lower)) return 70;
   if (/deed\s*of\s*trust/i.test(lower)) return 60;
   if (/release/i.test(lower)) return 50;
+  if (/\bplat\b/i.test(lower)) return 50;
   if (/mineral|oil|gas/i.test(lower)) return 40;
   return 30;
 }
@@ -178,6 +178,24 @@ function buildTylerUrl(baseUrl: string, searchValue: string, offset = 0): string
 // ── Owner Name Formatting ──────────────────────────────────────────────────
 
 /**
+ * Business entity keywords that indicate a name should be searched verbatim
+ * (not inverted to LAST, FIRST format).  Includes legal suffixes (LLC, INC …)
+ * and professional-service descriptors (SURVEYING, ENGINEERING …) so that
+ * names like "STARR SURVEYING" are never mangled into "SURVEYING, STARR".
+ */
+const BUSINESS_ENTITY_TERMS = [
+  // Legal suffixes
+  'LLC', 'LP', 'LTD', 'INC', 'CORP', 'TRUST', 'ESTATE', 'PARTNERSHIP',
+  'COMPANY', 'CO', 'ENTERPRISES?', 'GROUP', 'HOLDINGS?', 'PROPERTIES',
+  // Professional-service descriptors
+  'SURVEYING', 'SURVEYORS?', 'ENGINEERING', 'ENGINEERS?', 'CONSTRUCTION',
+  'CONSULTING', 'CONSULTANTS?', 'SERVICES?', 'DEVELOPMENT', 'MANAGEMENT',
+  'REALTY', 'INVESTMENTS?', 'BUILDERS?', 'ASSOCIATES?',
+] as const;
+
+const BIZ_ENTITY_RE = new RegExp(`\\b(${BUSINESS_ENTITY_TERMS.join('|')})\\b`, 'i');
+
+/**
  * Parse an owner name into formats suitable for clerk search.
  * Returns multiple search strings to try.
  */
@@ -196,9 +214,8 @@ function formatOwnerForSearch(ownerName: string): string[] {
 
   const upper = name.toUpperCase();
 
-  // Business entities — use as-is, plus try without suffix
-  const bizPatterns = /\b(LLC|LP|LTD|INC|CORP|TRUST|ESTATE|PARTNERSHIP|COMPANY|CO|ENTERPRISES?|GROUP|HOLDINGS?|PROPERTIES)\b/i;
-  if (bizPatterns.test(name)) {
+  // Business entities — use as-is, plus try without the trailing legal suffix.
+  if (BIZ_ENTITY_RE.test(name)) {
     add(upper);
     // Also try without the entity type
     const withoutEntity = upper.replace(/\s*(LLC|LP|LTD|INC|CORP|COMPANY|CO)\s*$/i, '').trim();
