@@ -2324,6 +2324,39 @@ export async function searchBisCad(
     }
   }
 
+  // Layer 1A-StreetOnly: Street-name-only search (no street number).
+  // Some rural properties (especially FM/CR roads) are indexed without a situs number
+  // in Bell CAD. Search by street name alone with a small result cap.
+  {
+    const streetName = normalized.parsed.streetName;
+    if (streetName && streetName.length >= 3) {
+      logger.info('Stage1A-StreetOnly', `Trying street-name-only search: "${streetName}"`);
+      const namePart = streetName.includes(' ')
+        ? `StreetName:"${streetName}"`
+        : `StreetName:${streetName}`;
+      const streetOnlyQuery = `${namePart} PropertyType:Real`;
+      const streetOnlyResults = await searchCadHttpRawKeyword(config.baseUrl, streetOnlyQuery, 'StreetName-only', logger);
+      if (streetOnlyResults && streetOnlyResults.length > 0 && streetOnlyResults.length <= 30) {
+        const best = pickBestResult(streetOnlyResults, normalized, logger);
+        if (best) {
+          const propId = getProp(best, 'propertyId', 'PropertyId') ?? '';
+          const validation = validatePropertyResult(best, normalized, logger);
+          if (validation.confidence >= 0.2 && propId) {
+            const bestOwnerId = getProp(best, 'ownerId', 'OwnerId') ?? undefined;
+            const detail = await enrichPropertyDetail(config.baseUrl, propId, logger, bestOwnerId);
+            diagnostics.searchDuration_ms = Date.now() - searchStart;
+            return {
+              property: buildResult(propId, detail, best, 'Stage1A-StreetOnly', validation.confidence, [
+                ...validation.issues, 'Found via street-name-only search (no situs number)',
+              ]),
+              diagnostics,
+            };
+          }
+        }
+      }
+    }
+  }
+
   // Layer 1A-2: Owner name HTTP search (after all address variants exhausted)
   if (options?.ownerName) {
     logger.info('Stage1A-2', `All address layers failed — trying owner name HTTP search: "${options.ownerName}"`);
@@ -2368,7 +2401,14 @@ export async function searchBisCad(
       directLayerUrls: config.gisParcelLayerUrls,
     });
     if (gisResult?.propertyId || gisResult?.ownerName) {
-      logger.info('Stage1E', `GIS lookup returned data — propertyId=${gisResult.propertyId ?? 'n/a'}`);
+      const instrNums = gisResult.instrumentNumbers ?? [];
+      const deedHist = (gisResult.deedHistory ?? []).map(d => ({
+        deedDate: d.deedDate,
+        volume: d.volume,
+        page: d.page,
+        instrumentNumber: d.instrumentNumber,
+      }));
+      logger.info('Stage1E', `GIS lookup returned data — propertyId=${gisResult.propertyId ?? 'n/a'}, owner="${gisResult.ownerName ?? 'n/a'}", instruments=[${instrNums.join(',')}]`);
       diagnostics.searchDuration_ms = Date.now() - searchStart;
       return {
         property: {
@@ -2383,6 +2423,8 @@ export async function searchBisCad(
           propertyType: null,
           situsAddress: gisResult.situsAddress ?? null,
           mapId: gisResult.mapId,
+          instrumentNumbers: instrNums.length > 0 ? instrNums : undefined,
+          deedHistory: deedHist.length > 0 ? deedHist : undefined,
           validationNotes: ['GIS-only result — not confirmed via eSearch'],
         } as PropertyIdResult,
         diagnostics,
@@ -2431,17 +2473,34 @@ export interface GisPropertyData {
   parcelRings?: number[][][];
   /** Raw attribute record for any additional fields */
   rawAttributes?: Record<string, unknown>;
+  /** Deed instrument numbers found in GIS attributes */
+  instrumentNumbers?: string[];
+  /** Deed history entries from GIS (date, volume, page, instrument) */
+  deedHistory?: Array<{
+    deedDate?: string;
+    volume?: string;
+    page?: string;
+    instrumentNumber?: string;
+  }>;
 }
 
 const FIELD_ALIASES: Record<string, string[]> = {
-  propertyId:       ['PROP_ID', 'PropertyID', 'PROPERTY_ID', 'ACCT_NUM', 'CAD_ID', 'ID', 'OBJECTID'],
-  ownerName:        ['OWNER_NAME', 'OwnerName', 'OWNER', 'OWN_NAME', 'OWNERNAME'],
-  legalDescription: ['LEGAL_DESC', 'LegalDesc', 'LEGAL', 'LEGAL_DESCRIPTION', 'LEGAL_DESCR'],
-  acreage:          ['ACREAGE', 'Acreage', 'ACRES', 'LAND_ACRES', 'TOT_ACRES', 'AREA_ACRES'],
-  situsAddress:     ['SITUS_ADDR', 'SitusAddr', 'ADDRESS', 'PROP_ADDR', 'SITE_ADDR', 'ADDR'],
-  abstractName:     ['ABSTRACT', 'AbstractName', 'ABS_NAME', 'ABST_NAME'],
-  subdivision:      ['SUBDIVISION', 'Subdivision', 'SUB_NAME', 'SUBDIV'],
-  mapId:            ['MAP_ID', 'MapID', 'MAPID', 'MAP_SHEET', 'GEO_ID'],
+  propertyId:       ['PROP_ID', 'PropertyID', 'PROPERTY_ID', 'ACCT_NUM', 'CAD_ID', 'ID', 'OBJECTID',
+                      'prop_id', 'prop_id_text'],
+  ownerName:        ['OWNER_NAME', 'OwnerName', 'OWNER', 'OWN_NAME', 'OWNERNAME',
+                      'file_as_name', 'owner_name'],
+  legalDescription: ['LEGAL_DESC', 'LegalDesc', 'LEGAL', 'LEGAL_DESCRIPTION', 'LEGAL_DESCR',
+                      'legal_desc'],
+  acreage:          ['ACREAGE', 'Acreage', 'ACRES', 'LAND_ACRES', 'TOT_ACRES', 'AREA_ACRES',
+                      'legal_acreage'],
+  situsAddress:     ['SITUS_ADDR', 'SitusAddr', 'ADDRESS', 'PROP_ADDR', 'SITE_ADDR', 'ADDR',
+                      'situs_addr'],
+  abstractName:     ['ABSTRACT', 'AbstractName', 'ABS_NAME', 'ABST_NAME',
+                      'abs_subdv_cd'],
+  subdivision:      ['SUBDIVISION', 'Subdivision', 'SUB_NAME', 'SUBDIV',
+                      'abs_subdv_cd'],
+  mapId:            ['MAP_ID', 'MapID', 'MAPID', 'MAP_SHEET', 'GEO_ID',
+                      'map_id', 'geo_id'],
 };
 
 function extractGisField(
@@ -2484,6 +2543,45 @@ function buildGisPropertyData(attrs: Record<string, unknown>, geometry?: unknown
   result.abstractName    = extractGisField(attrs, 'abstractName');
   result.subdivision     = extractGisField(attrs, 'subdivision');
   result.mapId           = extractGisField(attrs, 'mapId');
+
+  // ── Compose situs address from component fields (Bell CAD style) ───
+  if (!result.situsAddress) {
+    const parts = [
+      attrs['situs_num'],
+      attrs['situs_street_prefx'],
+      attrs['situs_street'],
+      attrs['situs_street_sufix'],
+    ].filter(p => p !== undefined && p !== null && String(p).trim() !== '');
+    const streetLine = parts.map(p => String(p).trim()).join(' ');
+    const cityStateZip = [
+      attrs['situs_city'],
+      attrs['situs_state'],
+      attrs['situs_zip'],
+    ].filter(p => p !== undefined && p !== null && String(p).trim() !== '');
+    if (streetLine) {
+      result.situsAddress = cityStateZip.length > 0
+        ? `${streetLine}, ${cityStateZip.map(p => String(p).trim()).join(' ')}`
+        : streetLine;
+    }
+  }
+
+  // ── Extract deed data (instrument numbers, volume/page) ────────────
+  const instrNum = attrs['Number'] ?? attrs['number'] ?? attrs['INSTRUMENT_NUM'] ?? attrs['instrument_num'];
+  const deedDate = attrs['Deed_Date'] ?? attrs['deed_date'] ?? attrs['DEED_DATE'];
+  const volume   = attrs['Volume'] ?? attrs['volume'] ?? attrs['VOLUME'];
+  const page     = attrs['Page'] ?? attrs['page'] ?? attrs['PAGE'];
+
+  if (instrNum || volume || deedDate) {
+    const entry: { deedDate?: string; volume?: string; page?: string; instrumentNumber?: string } = {};
+    if (deedDate) entry.deedDate = String(deedDate).trim();
+    if (volume && String(volume).trim()) entry.volume = String(volume).trim();
+    if (page && String(page).trim()) entry.page = String(page).trim();
+    if (instrNum && String(instrNum).trim()) entry.instrumentNumber = String(instrNum).trim();
+    result.deedHistory = [entry];
+    if (entry.instrumentNumber) {
+      result.instrumentNumbers = [entry.instrumentNumber];
+    }
+  }
 
   if (geometry && typeof geometry === 'object') {
     const geo = geometry as Record<string, unknown>;
@@ -2582,7 +2680,20 @@ export async function searchBisGis(
         }, logger);
         if (fs?.features && fs.features.length > 0) {
           logger.info('Stage1E', `GIS: found via spatial query on direct layer (${fs.features.length} feature(s))`);
-          return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
+          const primary = buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
+          // Merge instrument numbers & deed history from all features
+          if (fs.features.length > 1) {
+            const allInstr = new Set(primary.instrumentNumbers ?? []);
+            const allDeed = [...(primary.deedHistory ?? [])];
+            for (let i = 1; i < fs.features.length; i++) {
+              const extra = buildGisPropertyData(fs.features[i].attributes);
+              for (const n of extra.instrumentNumbers ?? []) allInstr.add(n);
+              allDeed.push(...(extra.deedHistory ?? []));
+            }
+            primary.instrumentNumbers = [...allInstr];
+            primary.deedHistory = allDeed;
+          }
+          return primary;
         }
       }
 
