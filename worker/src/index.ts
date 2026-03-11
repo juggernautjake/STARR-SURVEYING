@@ -9,7 +9,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './types/index.js';
 import { runPipeline } from './services/pipeline.js';
-import { runCountyResearch, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
+import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
 import { syncHarvestToSupabase } from './services/harvest-supabase-sync.js';
@@ -215,6 +215,55 @@ app.get('/health', async (_req: Request, res: Response) => {
   });
 });
 
+// ── POST /research/validate-address ───────────────────────────────────────
+// Pre-flight check: verify the address and county match before starting the
+// full pipeline. Returns immediately with validation result.
+// The frontend should call this before starting research.
+
+app.post('/research/validate-address', requireAuth, async (req: Request, res: Response) => {
+  const { address, county } = req.body as { address?: string; county?: string };
+
+  if (!address || !county) {
+    res.status(400).json({
+      valid: false,
+      error: {
+        code: !address ? 'MISSING_ADDRESS' : 'MISSING_COUNTY',
+        message: !address
+          ? 'Property address is required.'
+          : 'County is required.',
+      },
+    });
+    return;
+  }
+
+  try {
+    const validationError = await validateAddressCounty(address, county);
+
+    if (!validationError) {
+      res.json({
+        valid: true,
+        address,
+        county,
+        message: 'Address and county match.',
+      });
+      return;
+    }
+
+    res.status(422).json({
+      valid: false,
+      error: validationError,
+    });
+  } catch (err) {
+    res.status(500).json({
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: `Validation failed: ${err instanceof Error ? err.message : String(err)}`,
+      },
+    });
+  }
+});
+
 // ── POST /research/property-lookup ─────────────────────────────────────────
 
 app.post('/research/property-lookup', requireAuth, (req: Request, res: Response) => {
@@ -222,22 +271,25 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
 
   const { projectId, address, county, state, propertyId, ownerName, userFiles } = body;
 
-  // Validate input: need at least (address + county) or propertyId
+  // Validate input: address and county are both required
   if (!projectId) {
     res.status(400).json({ error: 'Missing required field: projectId' });
     return;
   }
 
-  if (!address && !propertyId && !ownerName) {
+  if (!address) {
     res.status(400).json({
-      error: 'Must provide at least one of: address, propertyId, or ownerName',
-      hint: 'address + county is the standard search. propertyId skips address lookup. ownerName searches by owner.',
+      error: 'Missing required field: address',
+      hint: 'A property address is required to start research.',
     });
     return;
   }
 
   if (!county) {
-    res.status(400).json({ error: 'Missing required field: county' });
+    res.status(400).json({
+      error: 'Missing required field: county',
+      hint: 'A Texas county name is required. The address and county will be verified to match.',
+    });
     return;
   }
 
@@ -2675,6 +2727,7 @@ app.listen(PORT, () => {
   console.log('  GET    /research/tax/:projectId         ← Phase 13: tax rate result');
   console.log('  GET    /research/boundary/:projectId    ← Phase 13: boundary viewer data');
   console.log('  POST   /research/full-pipeline');
+  console.log('  POST   /research/validate-address       ← Pre-flight: verify address/county match');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');
   console.log('  GET    /research/result/:projectId/full');
