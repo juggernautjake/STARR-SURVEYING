@@ -9,6 +9,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './types/index.js';
 import { runPipeline } from './services/pipeline.js';
+import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
 import { syncHarvestToSupabase } from './services/harvest-supabase-sync.js';
@@ -140,17 +141,22 @@ function requireAuth(req: Request, res: Response, next: () => void): void {
 // ── In-Memory State ────────────────────────────────────────────────────────
 
 const activePipelines = new Map<string, ActivePipeline>();
-const completedResults = new Map<string, PipelineResult>();
+const completedResults = new Map<string, UnifiedResearchResult>();
 
 // Keep completed results for 4 hours
 const RESULT_TTL_MS = 4 * 60 * 60 * 1000;
 
 function cleanupOldResults(): void {
   const cutoff = Date.now() - RESULT_TTL_MS;
-  for (const [key, result] of completedResults.entries()) {
-    // Use the last log entry timestamp if available, otherwise the duration
-    const lastLog = result.log.length > 0 ? result.log[result.log.length - 1] : null;
-    const completedAt = lastLog?.timestamp ? new Date(lastLog.timestamp).getTime() : 0;
+  for (const [key, unified] of completedResults.entries()) {
+    let completedAt = 0;
+    if (unified.resultType === 'generic-pipeline') {
+      const result = unified.data;
+      const lastLog = result.log.length > 0 ? result.log[result.log.length - 1] : null;
+      completedAt = lastLog?.timestamp ? new Date(lastLog.timestamp).getTime() : 0;
+    } else {
+      completedAt = unified.data.completedAt ? new Date(unified.data.completedAt).getTime() : 0;
+    }
     if (completedAt > 0 && completedAt < cutoff) {
       completedResults.delete(key);
     }
@@ -209,6 +215,55 @@ app.get('/health', async (_req: Request, res: Response) => {
   });
 });
 
+// ── POST /research/validate-address ───────────────────────────────────────
+// Pre-flight check: verify the address and county match before starting the
+// full pipeline. Returns immediately with validation result.
+// The frontend should call this before starting research.
+
+app.post('/research/validate-address', requireAuth, async (req: Request, res: Response) => {
+  const { address, county } = req.body as { address?: string; county?: string };
+
+  if (!address || !county) {
+    res.status(400).json({
+      valid: false,
+      error: {
+        code: !address ? 'MISSING_ADDRESS' : 'MISSING_COUNTY',
+        message: !address
+          ? 'Property address is required.'
+          : 'County is required.',
+      },
+    });
+    return;
+  }
+
+  try {
+    const validationError = await validateAddressCounty(address, county);
+
+    if (!validationError) {
+      res.json({
+        valid: true,
+        address,
+        county,
+        message: 'Address and county match.',
+      });
+      return;
+    }
+
+    res.status(422).json({
+      valid: false,
+      error: validationError,
+    });
+  } catch (err) {
+    res.status(500).json({
+      valid: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: `Validation failed: ${err instanceof Error ? err.message : String(err)}`,
+      },
+    });
+  }
+});
+
 // ── POST /research/property-lookup ─────────────────────────────────────────
 
 app.post('/research/property-lookup', requireAuth, (req: Request, res: Response) => {
@@ -216,22 +271,25 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
 
   const { projectId, address, county, state, propertyId, ownerName, userFiles } = body;
 
-  // Validate input: need at least (address + county) or propertyId
+  // Validate input: address and county are both required
   if (!projectId) {
     res.status(400).json({ error: 'Missing required field: projectId' });
     return;
   }
 
-  if (!address && !propertyId && !ownerName) {
+  if (!address) {
     res.status(400).json({
-      error: 'Must provide at least one of: address, propertyId, or ownerName',
-      hint: 'address + county is the standard search. propertyId skips address lookup. ownerName searches by owner.',
+      error: 'Missing required field: address',
+      hint: 'A property address is required to start research.',
     });
     return;
   }
 
   if (!county) {
-    res.status(400).json({ error: 'Missing required field: county' });
+    res.status(400).json({
+      error: 'Missing required field: county',
+      hint: 'A Texas county name is required. The address and county will be verified to match.',
+    });
     return;
   }
 
@@ -266,24 +324,30 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     if (parsedUserFiles.length === 0) parsedUserFiles = undefined;
   }
 
-  const input: PipelineInput = {
+  // Build unified input — works for any Texas county
+  const researchInput: CountyResearchInput = {
     projectId,
-    address: address ?? '',
     county,
     state: state ?? 'TX',
+    address: address ?? undefined,
     propertyId: propertyId ?? undefined,
     ownerName: ownerName ?? undefined,
-    userFiles: parsedUserFiles,
+    uploadedFiles: parsedUserFiles?.map(f => ({
+      name: f.filename,
+      mimeType: f.mimeType,
+      content: f.data,
+      description: f.description,
+    })),
   };
 
   // Register active pipeline
   activePipelines.set(projectId, {
     projectId,
-    address: input.address,
+    address: researchInput.address ?? '',
     county,
-    state: input.state,
+    state: researchInput.state ?? 'TX',
     startedAt: new Date().toISOString(),
-    currentStage: 'Stage0',
+    currentStage: 'Routing',
   });
 
   // Return 202 immediately
@@ -293,20 +357,37 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     status: 'running',
     pollUrl: `/research/status/${projectId}`,
     input: {
-      address: input.address || undefined,
+      address: researchInput.address || undefined,
       county,
-      propertyId: input.propertyId,
-      ownerName: input.ownerName,
+      propertyId: researchInput.propertyId,
+      ownerName: researchInput.ownerName,
       userFileCount: parsedUserFiles?.length ?? 0,
     },
   });
 
-  // Run pipeline in background
-  runPipeline(input)
-    .then((result) => {
-      completedResults.set(projectId, result);
+  // Run research pipeline in background — routes to county-specific or generic
+  runCountyResearch(
+    researchInput,
+    (progress: CountyResearchProgress) => {
+      // Update active pipeline stage from progress events
+      const pipeline = activePipelines.get(projectId);
+      if (pipeline) {
+        pipeline.currentStage = progress.phase;
+        pipeline.lastUpdate = progress.timestamp;
+      }
+    },
+  )
+    .then((unifiedResult) => {
+      completedResults.set(projectId, unifiedResult);
       activePipelines.delete(projectId);
-      console.log(`[Pipeline] ${projectId}: ${result.status.toUpperCase()} in ${(result.duration_ms / 1000).toFixed(1)}s`);
+
+      if (unifiedResult.resultType === 'generic-pipeline') {
+        const r = unifiedResult.data;
+        console.log(`[Pipeline] ${projectId} (${county}, generic): ${r.status.toUpperCase()} in ${(r.duration_ms / 1000).toFixed(1)}s`);
+      } else {
+        const r = unifiedResult.data;
+        console.log(`[Pipeline] ${projectId} (${county}, county-specific): COMPLETE in ${(r.durationMs / 1000).toFixed(1)}s`);
+      }
     })
     .catch((err) => {
       console.error(`[Pipeline] ${projectId} CRASH:`, err);
@@ -324,7 +405,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         log: [{ layer: 'Pipeline', source: 'crash', method: 'unhandled', input: '', status: 'fail', duration_ms: 0, dataPointsFound: 0, error: err instanceof Error ? err.message : String(err), timestamp: new Date().toISOString() }],
         duration_ms: 0,
       };
-      completedResults.set(projectId, fallback);
+      completedResults.set(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
     });
 });
@@ -335,52 +416,105 @@ app.get('/research/status/:projectId', requireAuth, (req: Request, res: Response
   const { projectId } = req.params;
 
   if (completedResults.has(projectId)) {
-    const result = completedResults.get(projectId)!;
-    res.json({
-      projectId,
-      status: result.status,
-      result: {
-        propertyId: result.propertyId,
-        geoId: result.geoId,
-        ownerName: result.ownerName,
-        legalDescription: result.legalDescription,
-        acreage: result.acreage,
-        documentCount: result.documents.length,
-        boundary: result.boundary ? {
-          type: result.boundary.type,
-          callCount: result.boundary.calls.length,
-          referenceCount: result.boundary.references.length,
-          confidence: result.boundary.confidence,
-          lotBlock: result.boundary.lotBlock,
-          area: result.boundary.area,
-          verified: result.boundary.verified,
-        } : null,
-        validation: result.validation,
-        duration_ms: result.duration_ms,
-        searchDiagnostics: result.searchDiagnostics,
-      },
-      documents: result.documents.map((d) => ({
-        ref: d.ref,
-        hasText: !!d.textContent,
-        textLength: d.textContent?.length ?? 0,
-        hasImage: !!d.imageBase64 || (d.pages?.length ?? 0) > 0 || (d.pageScreenshots?.length ?? 0) > 0,
-        hasOcr: !!d.ocrText,
-        pageCount: d.pages?.length ?? d.pageScreenshots?.length ?? 0,
-        /** Public PDF URL for embedded viewer — null if not uploaded yet */
-        pagesPdfUrl: d.pagesPdfUrl ?? null,
-        fromUserUpload: d.fromUserUpload ?? false,
-        processingErrors: d.processingErrors,
-        extractedData: d.extractedData ? {
-          type: d.extractedData.type,
-          callCount: d.extractedData.calls.length,
-          confidence: d.extractedData.confidence,
-          lotBlock: d.extractedData.lotBlock,
-          verified: d.extractedData.verified,
-        } : null,
-      })),
-      log: result.log,
-      failureReason: result.failureReason,
-    });
+    const unified = completedResults.get(projectId)!;
+
+    if (unified.resultType === 'generic-pipeline') {
+      // Generic pipeline result — existing response format
+      const result = unified.data;
+      res.json({
+        projectId,
+        resultType: 'generic-pipeline',
+        county: unified.county,
+        status: result.status,
+        result: {
+          propertyId: result.propertyId,
+          geoId: result.geoId,
+          ownerName: result.ownerName,
+          legalDescription: result.legalDescription,
+          acreage: result.acreage,
+          documentCount: result.documents.length,
+          boundary: result.boundary ? {
+            type: result.boundary.type,
+            callCount: result.boundary.calls.length,
+            referenceCount: result.boundary.references.length,
+            confidence: result.boundary.confidence,
+            lotBlock: result.boundary.lotBlock,
+            area: result.boundary.area,
+            verified: result.boundary.verified,
+          } : null,
+          validation: result.validation,
+          duration_ms: result.duration_ms,
+          searchDiagnostics: result.searchDiagnostics,
+        },
+        documents: result.documents.map((d) => ({
+          ref: d.ref,
+          hasText: !!d.textContent,
+          textLength: d.textContent?.length ?? 0,
+          hasImage: !!d.imageBase64 || (d.pages?.length ?? 0) > 0 || (d.pageScreenshots?.length ?? 0) > 0,
+          hasOcr: !!d.ocrText,
+          pageCount: d.pages?.length ?? d.pageScreenshots?.length ?? 0,
+          /** Public PDF URL for embedded viewer — null if not uploaded yet */
+          pagesPdfUrl: d.pagesPdfUrl ?? null,
+          fromUserUpload: d.fromUserUpload ?? false,
+          processingErrors: d.processingErrors,
+          extractedData: d.extractedData ? {
+            type: d.extractedData.type,
+            callCount: d.extractedData.calls.length,
+            confidence: d.extractedData.confidence,
+            lotBlock: d.extractedData.lotBlock,
+            verified: d.extractedData.verified,
+          } : null,
+        })),
+        log: result.log,
+        failureReason: result.failureReason,
+      });
+    } else {
+      // County-specific result — richer data structure
+      const result = unified.data;
+      res.json({
+        projectId,
+        resultType: 'county-specific',
+        county: unified.county,
+        status: 'complete',
+        result: {
+          researchId: result.researchId,
+          propertyId: result.property.propertyId,
+          ownerName: result.property.ownerName,
+          legalDescription: result.property.legalDescription,
+          acreage: result.property.acreage,
+          situsAddress: result.property.situsAddress,
+          overallConfidence: result.overallConfidence,
+          durationMs: result.durationMs,
+        },
+        sections: {
+          property: result.property,
+          deedsAndRecords: {
+            summary: result.deedsAndRecords.summary,
+            recordCount: result.deedsAndRecords.records.length,
+            chainOfTitleLength: result.deedsAndRecords.chainOfTitle.length,
+            confidence: result.deedsAndRecords.confidence,
+          },
+          plats: {
+            summary: result.plats.summary,
+            platCount: result.plats.plats.length,
+            confidence: result.plats.confidence,
+          },
+          easementsAndEncumbrances: {
+            summary: result.easementsAndEncumbrances.summary,
+            hasFema: !!result.easementsAndEncumbrances.fema,
+            hasTxdot: !!result.easementsAndEncumbrances.txdot,
+            easementCount: result.easementsAndEncumbrances.easements.length,
+            confidence: result.easementsAndEncumbrances.confidence,
+          },
+          discrepancies: result.discrepancies,
+          adjacentPropertyCount: result.adjacentProperties.length,
+        },
+        researchedLinks: result.researchedLinks,
+        errors: result.errors,
+        screenshotCount: result.screenshots.length,
+        aiUsage: result.aiUsage,
+      });
+    }
     return;
   }
 
@@ -410,22 +544,35 @@ app.get('/research/result/:projectId/full', requireAuth, (req: Request, res: Res
     return;
   }
 
-  const result = completedResults.get(projectId)!;
-  res.json({
-    ...result,
-    documents: result.documents.map((d) => ({
-      ref: d.ref,
-      textContent: d.textContent,
-      ocrText: d.ocrText,
-      hasImage: !!d.imageBase64,
-      imageFormat: d.imageFormat,
-      pageCount: d.pages?.length ?? d.pageScreenshots?.length ?? 0,
-      pagesPdfUrl: d.pagesPdfUrl ?? null,
-      fromUserUpload: d.fromUserUpload,
-      processingErrors: d.processingErrors,
-      extractedData: d.extractedData,
-    })),
-  });
+  const unified = completedResults.get(projectId)!;
+
+  if (unified.resultType === 'generic-pipeline') {
+    const result = unified.data;
+    res.json({
+      resultType: 'generic-pipeline',
+      county: unified.county,
+      ...result,
+      documents: result.documents.map((d) => ({
+        ref: d.ref,
+        textContent: d.textContent,
+        ocrText: d.ocrText,
+        hasImage: !!d.imageBase64,
+        imageFormat: d.imageFormat,
+        pageCount: d.pages?.length ?? d.pageScreenshots?.length ?? 0,
+        pagesPdfUrl: d.pagesPdfUrl ?? null,
+        fromUserUpload: d.fromUserUpload,
+        processingErrors: d.processingErrors,
+        extractedData: d.extractedData,
+      })),
+    });
+  } else {
+    // County-specific: return the full result directly
+    res.json({
+      resultType: 'county-specific',
+      county: unified.county,
+      ...unified.data,
+    });
+  }
 });
 
 // ── GET /research/active ───────────────────────────────────────────────────
@@ -672,7 +819,13 @@ app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res
     return;
   }
 
-  const previous = completedResults.get(projectId)!;
+  const previousUnified = completedResults.get(projectId)!;
+  if (previousUnified.resultType !== 'generic-pipeline') {
+    res.status(400).json({ error: 'Re-analysis with new documents is only supported for generic pipeline results. County-specific results use their own re-analysis flow.' });
+    return;
+  }
+  const previous = previousUnified.data;
+  const previousCounty = previousUnified.county;
   const { PipelineLogger } = await import('./lib/logger.js');
   const logger = new PipelineLogger(projectId);
 
@@ -680,7 +833,7 @@ app.post('/research/reanalyze/:projectId', requireAuth, async (req: Request, res
     const result = await runReanalysis(previous, newDocs, anthropicApiKey, logger);
 
     // Store the updated result in memory
-    completedResults.set(projectId, result.updated);
+    completedResults.set(projectId, { resultType: 'generic-pipeline', county: previousCounty, data: result.updated });
 
     res.json({
       projectId,
@@ -2574,6 +2727,7 @@ app.listen(PORT, () => {
   console.log('  GET    /research/tax/:projectId         ← Phase 13: tax rate result');
   console.log('  GET    /research/boundary/:projectId    ← Phase 13: boundary viewer data');
   console.log('  POST   /research/full-pipeline');
+  console.log('  POST   /research/validate-address       ← Pre-flight: verify address/county match');
   console.log('  POST   /research/property-lookup');
   console.log('  GET    /research/status/:projectId');
   console.log('  GET    /research/result/:projectId/full');
