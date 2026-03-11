@@ -1,0 +1,98 @@
+/**
+ * Bell County Endpoints — every URL and API endpoint the system needs.
+ *
+ * When Bell County changes a URL, THIS is the only file to update.
+ * No other file in this folder should hardcode URLs.
+ */
+
+export const BELL_ENDPOINTS = {
+  // ── Bell CAD (Central Appraisal District) ──────────────────────────
+  cad: {
+    /** eSearch home page (for session cookie acquisition) */
+    home: 'https://esearch.bellcad.org',
+    /** Keyword search results (GET with session token) */
+    searchResults: 'https://esearch.bellcad.org/search/result',
+    /** Property detail page */
+    propertyDetail: (propId: string, ownerId?: string) =>
+      `https://esearch.bellcad.org/Property/View/${propId}${ownerId ? `?ownerId=${ownerId}` : ''}`,
+  },
+
+  // ── Bell CAD GIS (ArcGIS FeatureServer) ────────────────────────────
+  gis: {
+    /** BIS GIS viewer (reference, not queried directly) */
+    viewer: 'https://gis.bisclient.com/bellcad/',
+    /** Direct parcel layer — the primary query endpoint */
+    parcelLayer: 'https://utility.arcgis.com/usrsvcs/servers/6efa79e05bde4b98851880b45f63ea52/rest/services/BellCADWebService/FeatureServer/0',
+    /** Query suffix for ArcGIS REST */
+    queryPath: '/query',
+  },
+
+  // ── Bell County Clerk (Kofile / GovOS PublicSearch) ────────────────
+  clerk: {
+    /** PublicSearch home (Playwright SPA) */
+    home: 'https://bell.tx.publicsearch.us',
+    /** Search results page (SPA, needs Playwright) */
+    results: 'https://bell.tx.publicsearch.us/results',
+    /** Document viewer page */
+    document: (instrumentId: string) =>
+      `https://bell.tx.publicsearch.us/doc/${instrumentId}`,
+    /** Full-text OCR search (POST) */
+    superSearch: 'https://bell.tx.publicsearch.us/supersearch',
+    /** FIPS code for Bell County */
+    fipsCode: '48027',
+  },
+
+  // ── Henschen & Associates (Alternative Clerk) ─────────────────────
+  henschen: {
+    base: 'https://www.bellcountytx.com/recorder',
+    rateLimitRpm: 15,
+  },
+
+  // ── FEMA National Flood Hazard Layer ───────────────────────────────
+  fema: {
+    /** NFHL MapServer */
+    mapServer: 'https://hazards.fema.gov/gis/nfhl/rest/services/public/NFHL/MapServer',
+    /** Flood Hazard Areas layer */
+    floodZonesLayer: 28,
+    /** FIRM Panels layer */
+    firmPanelsLayer: 3,
+  },
+
+  // ── TxDOT Right-of-Way ────────────────────────────────────────────
+  txdot: {
+    /** ROW Parcels FeatureServer */
+    rowParcels: 'https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_ROW/FeatureServer/0',
+    /** Roadway Centerlines FeatureServer */
+    roadways: 'https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadways/FeatureServer/0',
+  },
+
+  // ── Geocoding ─────────────────────────────────────────────────────
+  geocoding: {
+    /** Census geocoder */
+    census: 'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress',
+    /** Nominatim fallback */
+    nominatim: 'https://nominatim.openstreetmap.org/search',
+  },
+} as const;
+
+/** Rate limits (milliseconds between requests) */
+export const RATE_LIMITS = {
+  cadSearch: 2000,
+  clerkImageDownload: 6000,
+  clerkMaxConcurrent: 3,
+  henschenRpm: 15,
+  aiCallDelay: 200,
+  defaultDelay: 1000,
+} as const;
+
+/** Request timeouts (milliseconds) */
+export const TIMEOUTS = {
+  httpRequest: 15_000,
+  arcgisQuery: 20_000,
+  playwrightNavigation: 30_000,
+  playwrightAction: 10_000,
+  screenshotCapture: 5_000,
+  aiAnalysis: 60_000,
+  /** Maximum total research time */
+  maxResearch: 30 * 60 * 1000,
+} as const;
