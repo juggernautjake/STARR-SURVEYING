@@ -119,44 +119,37 @@ export async function runCountyResearch(
   const county = input.county.toLowerCase().trim();
 
   switch (county) {
-    // ── Bell County — Full dedicated module ────────────────────────
-    case 'bell': {
-      onProgress({
-        phase: 'Router',
-        message: `Routing to Bell County dedicated research module`,
-        timestamp: new Date().toISOString(),
-      });
+    // ── Bell County — Dedicated module (disabled for now) ───────────
+    // The Bell County module in ./bell/ is preserved and ready to enable.
+    // To activate it, uncomment the case below:
+    //
+    // case 'bell': {
+    //   onProgress({
+    //     phase: 'Router',
+    //     message: `Routing to Bell County dedicated research module`,
+    //     timestamp: new Date().toISOString(),
+    //   });
+    //   const { runBellCountyResearch } = await import('./bell/index.js');
+    //   const result = await runBellCountyResearch(
+    //     {
+    //       projectId: input.projectId,
+    //       address: input.address,
+    //       propertyId: input.propertyId,
+    //       ownerName: input.ownerName,
+    //       instrumentNumber: input.instrumentNumber,
+    //       surveyType: input.surveyType as import('./bell/types/research-input').SurveyType | undefined,
+    //       jobPurpose: input.jobPurpose,
+    //       specialInstructions: input.specialInstructions,
+    //       uploadedFiles: input.uploadedFiles,
+    //       includeAdjacentProperties: input.includeAdjacentProperties,
+    //       maxResearchTimeMinutes: input.maxResearchTimeMinutes,
+    //     },
+    //     onProgress,
+    //   );
+    //   return { resultType: 'county-specific', county: 'Bell', data: result };
+    // }
 
-      const { runBellCountyResearch } = await import('./bell/index.js');
-      const result = await runBellCountyResearch(
-        {
-          projectId: input.projectId,
-          address: input.address,
-          propertyId: input.propertyId,
-          ownerName: input.ownerName,
-          instrumentNumber: input.instrumentNumber,
-          surveyType: input.surveyType as import('./bell/types/research-input').SurveyType | undefined,
-          jobPurpose: input.jobPurpose,
-          specialInstructions: input.specialInstructions,
-          uploadedFiles: input.uploadedFiles,
-          includeAdjacentProperties: input.includeAdjacentProperties,
-          maxResearchTimeMinutes: input.maxResearchTimeMinutes,
-        },
-        onProgress,
-      );
-
-      return {
-        resultType: 'county-specific',
-        county: 'Bell',
-        data: result,
-      };
-    }
-
-    // ── Future Counties ─────────────────────────────────────────────
-    // case 'williamson': { ... }
-    // case 'travis': { ... }
-
-    // ── All Other Counties — Generic Pipeline ───────────────────────
+    // ── All Counties — Generic Pipeline ─────────────────────────────
     default: {
       onProgress({
         phase: 'Router',
