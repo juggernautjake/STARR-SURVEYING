@@ -5,7 +5,8 @@
  * Everything needed for Bell County research lives in this folder.
  */
 
-export { orchestrateBellResearch } from './orchestrator';
+import { orchestrateBellResearch } from './orchestrator';
+export { orchestrateBellResearch };
 export type { OrchestratorProgress, ProgressCallback } from './orchestrator';
 export type { BellResearchInput } from './types/research-input';
 export type { BellResearchResult } from './types/research-result';
