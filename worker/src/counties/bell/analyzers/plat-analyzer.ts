@@ -11,7 +11,7 @@
  *   - Changes from previous plats
  */
 
-import type { PlatRecord, PlatAnalysis, PlatSection } from '../types/research-result';
+import type { PlatRecord, PlatAnalysis, PlatSection, AiUsageSummary } from '../types/research-result';
 import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -30,6 +30,23 @@ export interface PlatAnalyzerProgress {
   timestamp: string;
 }
 
+export interface PlatAnalysisResult {
+  section: PlatSection;
+  aiUsage: AiUsageSummary;
+}
+
+// ── Cost constants (same as deed-analyzer) ───────────────────────────
+
+const COST_PER_INPUT_TOKEN = 3 / 1_000_000;
+const COST_PER_OUTPUT_TOKEN = 15 / 1_000_000;
+
+function accumulateUsage(acc: AiUsageSummary, delta: Partial<AiUsageSummary>): void {
+  acc.totalCalls += delta.totalCalls ?? 0;
+  acc.totalInputTokens += delta.totalInputTokens ?? 0;
+  acc.totalOutputTokens += delta.totalOutputTokens ?? 0;
+  acc.estimatedCostUsd += delta.estimatedCostUsd ?? 0;
+}
+
 // ── Main Export ───────────────────────────────────────────────────────
 
 /**
@@ -39,25 +56,35 @@ export async function analyzeBellPlats(
   input: PlatAnalysisInput,
   anthropicApiKey: string,
   onProgress: (p: PlatAnalyzerProgress) => void,
-): Promise<PlatSection> {
+): Promise<PlatAnalysisResult> {
   const progress = (msg: string) => {
     onProgress({ phase: 'Plat Analysis', message: msg, timestamp: new Date().toISOString() });
+  };
+
+  const usage: AiUsageSummary = {
+    totalCalls: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    estimatedCostUsd: 0,
   };
 
   if (input.platRecords.length === 0) {
     progress('No plat records to analyze');
     return {
-      summary: 'No plat records were found during research.',
-      plats: [],
-      crossValidation: [],
-      confidence: computeConfidence({
-        sourceReliability: 0,
-        dataUsefulness: 0,
-        crossValidation: 0,
-        sourceName: 'none',
-        validatedBy: [],
-        contradictedBy: [],
-      }),
+      section: {
+        summary: 'No plat records were found during research.',
+        plats: [],
+        crossValidation: [],
+        confidence: computeConfidence({
+          sourceReliability: 0,
+          dataUsefulness: 0,
+          crossValidation: 0,
+          sourceName: 'none',
+          validatedBy: [],
+          contradictedBy: [],
+        }),
+      },
+      aiUsage: usage,
     };
   }
 
@@ -69,7 +96,8 @@ export async function analyzeBellPlats(
   for (const plat of input.platRecords) {
     if (plat.images.length > 0) {
       progress(`Analyzing plat: ${plat.name}`);
-      const analysis = await analyzePlatImage(plat.images, anthropicApiKey);
+      const { analysis, usage: callUsage } = await analyzePlatImage(plat.images, anthropicApiKey);
+      accumulateUsage(usage, callUsage);
       analyzedPlats.push({ ...plat, aiAnalysis: analysis });
     } else {
       analyzedPlats.push(plat);
@@ -88,17 +116,20 @@ export async function analyzeBellPlats(
   const hasCrossVal = crossValidation.length > 0;
 
   return {
-    summary,
-    plats: analyzedPlats,
-    crossValidation,
-    confidence: computeConfidence({
-      sourceReliability: SOURCE_RELIABILITY['county-clerk-official'],
-      dataUsefulness: hasAnalysis ? 30 : 10,
-      crossValidation: hasCrossVal ? 20 : 5,
-      sourceName: 'Bell County Plat Records',
-      validatedBy: crossValidation.filter(cv => cv.startsWith('MATCH')),
-      contradictedBy: crossValidation.filter(cv => cv.startsWith('MISMATCH')),
-    }),
+    section: {
+      summary,
+      plats: analyzedPlats,
+      crossValidation,
+      confidence: computeConfidence({
+        sourceReliability: SOURCE_RELIABILITY['county-clerk-official'],
+        dataUsefulness: hasAnalysis ? 30 : 10,
+        crossValidation: hasCrossVal ? 20 : 5,
+        sourceName: 'Bell County Plat Records',
+        validatedBy: crossValidation.filter(cv => cv.startsWith('MATCH')),
+        contradictedBy: crossValidation.filter(cv => cv.startsWith('MISMATCH')),
+      }),
+    },
+    aiUsage: usage,
   };
 }
 
@@ -107,8 +138,8 @@ export async function analyzeBellPlats(
 async function analyzePlatImage(
   images: string[],
   apiKey: string,
-): Promise<PlatAnalysis | null> {
-  if (!apiKey || images.length === 0) return null;
+): Promise<{ analysis: PlatAnalysis | null; usage: Partial<AiUsageSummary> }> {
+  if (!apiKey || images.length === 0) return { analysis: null, usage: {} };
 
   try {
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
@@ -154,29 +185,44 @@ Be thorough — every dimension, call, and monument matters for the survey.`,
     });
 
     const textBlock = response.content.find(b => b.type === 'text');
-    if (!textBlock) return null;
+    const inputTokens = response.usage?.input_tokens ?? 0;
+    const outputTokens = response.usage?.output_tokens ?? 0;
+    const callUsage: Partial<AiUsageSummary> = {
+      totalCalls: 1,
+      totalInputTokens: inputTokens,
+      totalOutputTokens: outputTokens,
+      estimatedCostUsd: inputTokens * COST_PER_INPUT_TOKEN + outputTokens * COST_PER_OUTPUT_TOKEN,
+    };
+
+    if (!textBlock) return { analysis: null, usage: callUsage };
 
     // Try to parse JSON response
     const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        lotDimensions: parsed.lotDimensions ?? [],
-        bearingsAndDistances: parsed.bearingsAndDistances ?? [],
-        monuments: parsed.monuments ?? [],
-        easements: parsed.easements ?? [],
-        curves: parsed.curves ?? [],
-        rowWidths: parsed.rowWidths ?? [],
-        adjacentReferences: parsed.adjacentReferences ?? [],
-        changesFromPrevious: parsed.changesFromPrevious ?? [],
-        narrative: parsed.narrative ?? '',
-      };
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          analysis: {
+            lotDimensions: parsed.lotDimensions ?? [],
+            bearingsAndDistances: parsed.bearingsAndDistances ?? [],
+            monuments: parsed.monuments ?? [],
+            easements: parsed.easements ?? [],
+            curves: parsed.curves ?? [],
+            rowWidths: parsed.rowWidths ?? [],
+            adjacentReferences: parsed.adjacentReferences ?? [],
+            changesFromPrevious: parsed.changesFromPrevious ?? [],
+            narrative: parsed.narrative ?? '',
+          },
+          usage: callUsage,
+        };
+      } catch {
+        // JSON parse failed — fall through to null
+      }
     }
+    return { analysis: null, usage: callUsage };
   } catch {
-    // AI analysis failed
+    return { analysis: null, usage: {} };
   }
-
-  return null;
 }
 
 // ── Internal: Cross-Validation ───────────────────────────────────────

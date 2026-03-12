@@ -55,7 +55,7 @@ export interface ClerkSearchResult {
     instrumentsFound: number;
     deedsFound: number;
     platsFound: number;
-    imagesCapured: number;
+    imagesCaptured: number;
     searchPaths: string[];
   };
 }
@@ -236,11 +236,11 @@ export async function scrapeBellClerk(
 
   const deedsFound = documents.filter(d => /deed|warranty|conveyance|transfer/i.test(d.documentType)).length;
   const platsFound = documents.filter(d => /plat/i.test(d.documentType)).length;
-  const imagesCapured = documents.reduce((sum, d) => sum + d.pageImages.length, 0);
+  const imagesCaptured = documents.reduce((sum, d) => sum + d.pageImages.length, 0);
 
   progress(
     `Clerk search complete: ${documents.length} document(s) | ` +
-    `deeds: ${deedsFound} | plats: ${platsFound} | images: ${imagesCapured} | ` +
+    `deeds: ${deedsFound} | plats: ${platsFound} | images: ${imagesCaptured} | ` +
     `paths used: ${searchPaths.join(', ')}`,
   );
 
@@ -248,7 +248,7 @@ export async function scrapeBellClerk(
     documents,
     screenshots,
     urlsVisited,
-    stats: { instrumentsFound: documents.length, deedsFound, platsFound, imagesCapured, searchPaths },
+    stats: { instrumentsFound: documents.length, deedsFound, platsFound, imagesCaptured, searchPaths },
   };
 }
 

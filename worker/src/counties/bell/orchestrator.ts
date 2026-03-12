@@ -22,6 +22,7 @@ import type {
   ResearchError,
   AiUsageSummary,
   SiteIntelligenceNote,
+  EasementRecord,
 } from './types/research-result';
 
 import { scrapeBellCad } from './scrapers/cad-scraper';
@@ -38,6 +39,7 @@ import { analyzeBellPlats } from './analyzers/plat-analyzer';
 import { detectDiscrepancies } from './analyzers/discrepancy-detector';
 import { scoreOverallConfidence, type DataItem } from './analyzers/confidence-scorer';
 import { analyzeSiteScreenshots } from './analyzers/site-intelligence';
+import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence';
 
 import { TIMEOUTS } from './config/endpoints';
 
@@ -328,7 +330,7 @@ export async function orchestrateBellResearch(
     progress('Phase 2',
       `2A complete: ${clerk.stats.instrumentsFound} doc(s) | ` +
       `deeds=${clerk.stats.deedsFound} | plats=${clerk.stats.platsFound} | ` +
-      `images=${clerk.stats.imagesCapured}`,
+      `images=${clerk.stats.imagesCaptured}`,
       32,
     );
   } catch (err) {
@@ -455,7 +457,7 @@ export async function orchestrateBellResearch(
   progress('Phase 3', `Analyzing ${deedRecords.length} deed(s) + ${plats?.plats.length ?? 0} plat(s)...`, 62);
 
   // Run AI analysis in parallel where possible
-  const [deedAnalysis, platAnalysis] = await Promise.allSettled([
+  const [deedAnalysisResult, platAnalysisResult] = await Promise.allSettled([
     analyzeBellDeeds(
       { deedRecords, cadLegalDescription: property.legalDescription, currentOwner: property.ownerName },
       anthropicApiKey,
@@ -468,11 +470,13 @@ export async function orchestrateBellResearch(
     ),
   ]);
 
-  const deeds = deedAnalysis.status === 'fulfilled' ? deedAnalysis.value : null;
-  const platSection = platAnalysis.status === 'fulfilled' ? platAnalysis.value : null;
+  const deedResult = deedAnalysisResult.status === 'fulfilled' ? deedAnalysisResult.value : null;
+  const platResult = platAnalysisResult.status === 'fulfilled' ? platAnalysisResult.value : null;
+  const deeds = deedResult?.section ?? null;
+  const platSection = platResult?.section ?? null;
 
-  if (deedAnalysis.status === 'rejected') recordError('Phase 3', 'Deed Analysis', deedAnalysis.reason);
-  if (platAnalysis.status === 'rejected') recordError('Phase 3', 'Plat Analysis', platAnalysis.reason);
+  if (deedAnalysisResult.status === 'rejected') recordError('Phase 3', 'Deed Analysis', deedAnalysisResult.reason);
+  if (platAnalysisResult.status === 'rejected') recordError('Phase 3', 'Plat Analysis', platAnalysisResult.reason);
 
   progress('Phase 3',
     `AI analysis complete: ` +
@@ -481,6 +485,16 @@ export async function orchestrateBellResearch(
     `chainOfTitle=${deeds?.chainOfTitle.length ?? 0} links`,
     78,
   );
+
+  // ── Extract easements & restrictive covenants from clerk documents ─
+  const easementRecords = extractEasementRecords(clerk?.documents ?? []);
+  const restrictiveCovenants = extractRestrictiveCovenants(clerk?.documents ?? [], plats?.plats ?? []);
+  if (easementRecords.length > 0) {
+    progress('Phase 3', `Extracted ${easementRecords.length} easement record(s) from clerk documents`);
+  }
+  if (restrictiveCovenants.length > 0) {
+    progress('Phase 3', `Extracted ${restrictiveCovenants.length} restrictive covenant(s)`);
+  }
 
   // ── Detect discrepancies ───────────────────────────────────────────
   progress('Phase 3', 'Detecting discrepancies...', 80);
@@ -497,7 +511,7 @@ export async function orchestrateBellResearch(
     deedAcreages: [],
     platDimensions: [],
     chainOfTitle: (deeds?.chainOfTitle ?? []).map(c => ({ from: c.from, to: c.to, date: c.date })),
-    easements: [],
+    easements: easementRecords.map(e => ({ source: e.source, description: e.description })),
   });
   if (discrepancies.length > 0) {
     progress('Phase 3', `⚠ Found ${discrepancies.length} discrepancy/ies between sources`);
@@ -530,6 +544,22 @@ export async function orchestrateBellResearch(
   progress('Phase 4', '─────────────────────────────────────────────', 90);
   progress('Phase 4', 'PHASE 4 — Assembling Research Report', 90);
 
+  // Aggregate AI usage across all analyzers
+  const aiUsage: AiUsageSummary = {
+    totalCalls: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    estimatedCostUsd: 0,
+  };
+  for (const u of [deedResult?.aiUsage, platResult?.aiUsage]) {
+    if (u) {
+      aiUsage.totalCalls += u.totalCalls;
+      aiUsage.totalInputTokens += u.totalInputTokens;
+      aiUsage.totalOutputTokens += u.totalOutputTokens;
+      aiUsage.estimatedCostUsd += u.estimatedCostUsd;
+    }
+  }
+
   // Build overall confidence from all data items
   const dataItems: DataItem[] = [];
   if (property.ownerName) dataItems.push({ key: 'owner', value: property.ownerName, source: 'Bell CAD', dataType: 'name' });
@@ -552,6 +582,7 @@ export async function orchestrateBellResearch(
     `| Discrepancies: ${discrepancies.length} ` +
     `| Confidence: ${overallConfidence.tier} (${overallConfidence.score}) ` +
     `| Duration: ${Math.round(durationMs / 1000)}s ` +
+    `| AI: ${aiUsage.totalCalls} calls / ~$${aiUsage.estimatedCostUsd.toFixed(4)} ` +
     `| Errors: ${errors.filter(e => !e.recovered).length} fatal, ${errors.filter(e => e.recovered).length} recovered`,
     95,
   );
@@ -584,9 +615,9 @@ export async function orchestrateBellResearch(
     easementsAndEncumbrances: {
       fema: fema?.result ?? null,
       txdot: txdot?.result ?? null,
-      easements: [],
-      restrictiveCovenants: [],
-      summary: buildEasementSummary(fema?.result ?? null, txdot?.result ?? null),
+      easements: easementRecords,
+      restrictiveCovenants,
+      summary: buildEasementSummary(fema?.result ?? null, txdot?.result ?? null, easementRecords, restrictiveCovenants),
       confidence: scoreOverallConfidence([]),
     },
     propertyDetails: {
@@ -603,12 +634,7 @@ export async function orchestrateBellResearch(
 
     screenshots: allScreenshots,
     errors,
-    aiUsage: {
-      totalCalls: 0, // TODO: Track actual AI usage
-      totalInputTokens: 0,
-      totalOutputTokens: 0,
-      estimatedCostUsd: 0,
-    },
+    aiUsage,
     overallConfidence,
   };
 
@@ -697,6 +723,8 @@ function resolveProperty(
 function buildEasementSummary(
   fema: BellResearchResult['easementsAndEncumbrances']['fema'],
   txdot: BellResearchResult['easementsAndEncumbrances']['txdot'],
+  easements: EasementRecord[] = [],
+  covenants: string[] = [],
 ): string {
   const parts: string[] = [];
 
@@ -712,5 +740,159 @@ function buildEasementSummary(
     parts.push(`TxDOT: ${txdot.highwayName ?? 'highway'} identified nearby.`);
   }
 
+  if (easements.length > 0) {
+    const types = [...new Set(easements.map(e => e.type))];
+    parts.push(`Recorded easements (${easements.length}): ${types.join(', ')}.`);
+  }
+
+  if (covenants.length > 0) {
+    parts.push(`Restrictive covenants found: ${covenants.length} instrument(s).`);
+  }
+
   return parts.join(' ');
+}
+
+// ── Internal: Easement Record Extraction ──────────────────────────────
+
+/**
+ * Easement document type keywords (Bell County Clerk terminology).
+ * Maps clerk document type strings → our EasementRecord.type values.
+ */
+const EASEMENT_DOCUMENT_TYPES: Record<string, string> = {
+  EASEMENT: 'Easement',
+  'ACCESS EASEMENT': 'Access Easement',
+  'UTILITY EASEMENT': 'Utility Easement',
+  'DRAINAGE EASEMENT': 'Drainage Easement',
+  'PIPELINE EASEMENT': 'Pipeline Easement',
+  'POWER LINE EASEMENT': 'Power Line Easement',
+  'INGRESS EGRESS': 'Ingress/Egress Easement',
+  'INGRESS/EGRESS': 'Ingress/Egress Easement',
+  'ROAD EASEMENT': 'Road Easement',
+  'ROW EASEMENT': 'ROW Easement',
+  'RIGHT OF WAY': 'Right-of-Way',
+  'RIGHT-OF-WAY': 'Right-of-Way',
+};
+
+/**
+ * Restrictive covenant document type keywords.
+ */
+const COVENANT_DOCUMENT_TYPES = new Set([
+  'DEED RESTRICTIONS',
+  'RESTRICTIVE COVENANT',
+  'PROTECTIVE COVENANTS',
+  'DECLARATION OF RESTRICTIONS',
+  'COVENANT',
+  'CCR',
+  'CC&R',
+]);
+
+type ClerkDocument = Awaited<ReturnType<typeof scrapeBellClerk>>['documents'][number];
+
+/**
+ * Extract EasementRecord objects from a list of clerk documents whose
+ * document type identifies them as easements.
+ */
+function extractEasementRecords(documents: ClerkDocument[]): EasementRecord[] {
+  const records: EasementRecord[] = [];
+
+  for (const doc of documents) {
+    const typeUpper = doc.documentType.toUpperCase().trim();
+
+    // Exact match first, then partial match
+    let easementType = EASEMENT_DOCUMENT_TYPES[typeUpper];
+    if (!easementType) {
+      for (const [key, value] of Object.entries(EASEMENT_DOCUMENT_TYPES)) {
+        if (typeUpper.includes(key)) {
+          easementType = value;
+          break;
+        }
+      }
+    }
+
+    if (!easementType) continue;
+
+    records.push({
+      type: easementType,
+      description: doc.legalDescription
+        ? `${easementType} — ${doc.legalDescription.slice(0, 200)}`
+        : `${easementType} recorded ${doc.recordingDate ?? 'unknown date'}` +
+          (doc.grantor ? ` — Grantor: ${doc.grantor}` : '') +
+          (doc.grantee ? `, Grantee: ${doc.grantee}` : ''),
+      instrumentNumber: doc.instrumentNumber,
+      width: extractWidthFromText(doc.legalDescription ?? ''),
+      location: extractLocationFromLegal(doc.legalDescription ?? ''),
+      image: doc.pageImages[0] ?? null,
+      sourceUrl: doc.sourceUrl,
+      source: 'Bell County Clerk',
+      confidence: computeConfidence({
+        sourceReliability: SOURCE_RELIABILITY['county-clerk-official'] ?? 40,
+        dataUsefulness: doc.pageImages.length > 0 ? 20 : 10,
+        crossValidation: 0,
+        sourceName: 'Bell County Clerk',
+        validatedBy: [],
+        contradictedBy: [],
+      }),
+    });
+  }
+
+  return records;
+}
+
+/**
+ * Extract restrictive covenant instrument references from clerk documents
+ * and plat records.
+ */
+function extractRestrictiveCovenants(
+  documents: ClerkDocument[],
+  platRecords: Array<{ name: string; instrumentNumber: string | null; source: string }>,
+): string[] {
+  const covenants: string[] = [];
+  const seen = new Set<string>();
+
+  // From clerk documents
+  for (const doc of documents) {
+    const typeUpper = doc.documentType.toUpperCase().trim();
+    const isCovenant = COVENANT_DOCUMENT_TYPES.has(typeUpper) ||
+      [...COVENANT_DOCUMENT_TYPES].some(k => typeUpper.includes(k));
+
+    if (isCovenant) {
+      const ref = doc.instrumentNumber ?? `${doc.volume ?? '?'}/${doc.page ?? '?'}`;
+      if (!seen.has(ref)) {
+        seen.add(ref);
+        const label = doc.instrumentNumber
+          ? `Inst# ${doc.instrumentNumber} (${doc.documentType}${doc.recordingDate ? ', ' + doc.recordingDate : ''})`
+          : `Vol ${doc.volume}/${doc.page} (${doc.documentType})`;
+        covenants.push(label);
+      }
+    }
+  }
+
+  // From plat records — plats often incorporate deed restrictions by reference
+  for (const plat of platRecords) {
+    if (/restriction|covenant|CCR/i.test(plat.name)) {
+      const ref = plat.instrumentNumber ?? plat.name;
+      if (!seen.has(ref)) {
+        seen.add(ref);
+        covenants.push(`Plat restrictions: ${plat.name}${plat.instrumentNumber ? ` (Inst# ${plat.instrumentNumber})` : ''}`);
+      }
+    }
+  }
+
+  return covenants;
+}
+
+// ── Internal: Text Extraction Helpers ────────────────────────────────
+
+/** Try to extract an easement width like "20 ft", "15-foot", "20'" from text. */
+function extractWidthFromText(text: string): string | undefined {
+  const m = text.match(/(\d+(?:\.\d+)?)\s*(?:ft|foot|feet|'|LF)/i);
+  return m ? `${m[1]} ft` : undefined;
+}
+
+/** Try to extract a brief location description from a legal description. */
+function extractLocationFromLegal(text: string): string | undefined {
+  if (!text) return undefined;
+  // Return first 120 chars of the legal description as a location hint
+  const trimmed = text.replace(/\s+/g, ' ').trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 120) : undefined;
 }

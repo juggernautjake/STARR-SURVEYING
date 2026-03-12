@@ -9,7 +9,7 @@
  *   - Detect gaps or anomalies in ownership history
  */
 
-import type { DeedRecord, ChainLink, DeedsAndRecordsSection } from '../types/research-result';
+import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary } from '../types/research-result';
 import type { ConfidenceRating } from '../types/confidence';
 import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence';
 
@@ -30,6 +30,11 @@ export interface DeedAnalyzerProgress {
   timestamp: string;
 }
 
+export interface DeedAnalysisResult {
+  section: DeedsAndRecordsSection;
+  aiUsage: AiUsageSummary;
+}
+
 // ── Main Export ───────────────────────────────────────────────────────
 
 /**
@@ -39,25 +44,35 @@ export async function analyzeBellDeeds(
   input: DeedAnalysisInput,
   anthropicApiKey: string,
   onProgress: (p: DeedAnalyzerProgress) => void,
-): Promise<DeedsAndRecordsSection> {
+): Promise<DeedAnalysisResult> {
   const progress = (msg: string) => {
     onProgress({ phase: 'Deed Analysis', message: msg, timestamp: new Date().toISOString() });
+  };
+
+  const usage: AiUsageSummary = {
+    totalCalls: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    estimatedCostUsd: 0,
   };
 
   if (input.deedRecords.length === 0) {
     progress('No deed records to analyze');
     return {
-      summary: 'No deed records were found during research.',
-      records: [],
-      chainOfTitle: [],
-      confidence: computeConfidence({
-        sourceReliability: 0,
-        dataUsefulness: 0,
-        crossValidation: 0,
-        sourceName: 'none',
-        validatedBy: [],
-        contradictedBy: [],
-      }),
+      section: {
+        summary: 'No deed records were found during research.',
+        records: [],
+        chainOfTitle: [],
+        confidence: computeConfidence({
+          sourceReliability: 0,
+          dataUsefulness: 0,
+          crossValidation: 0,
+          sourceName: 'none',
+          validatedBy: [],
+          contradictedBy: [],
+        }),
+      },
+      aiUsage: usage,
     };
   }
 
@@ -68,7 +83,8 @@ export async function analyzeBellDeeds(
   for (const record of input.deedRecords) {
     if (record.pageImages.length > 0) {
       progress(`Analyzing: ${record.documentType} — ${record.instrumentNumber ?? 'no instrument #'}`);
-      const aiSummary = await analyzeDeedException(record, anthropicApiKey);
+      const { summary: aiSummary, usage: callUsage } = await analyzeDeedException(record, anthropicApiKey);
+      accumulateUsage(usage, callUsage);
       analyzedRecords.push({ ...record, aiSummary });
     } else {
       analyzedRecords.push(record);
@@ -81,7 +97,8 @@ export async function analyzeBellDeeds(
 
   // ── Step 3: Generate overall summary ───────────────────────────────
   progress('Generating ownership history summary...');
-  const summary = await generateDeedSummary(analyzedRecords, chainOfTitle, input.currentOwner, anthropicApiKey);
+  const { summary, usage: summaryUsage } = await generateDeedSummary(analyzedRecords, chainOfTitle, input.currentOwner, anthropicApiKey);
+  accumulateUsage(usage, summaryUsage);
 
   // ── Step 4: Compute confidence ─────────────────────────────────────
   const hasImages = analyzedRecords.some(r => r.pageImages.length > 0);
@@ -98,11 +115,27 @@ export async function analyzeBellDeeds(
   progress(`Deed analysis complete: ${chainOfTitle.length} links in chain`);
 
   return {
-    summary,
-    records: analyzedRecords,
-    chainOfTitle,
-    confidence,
+    section: {
+      summary,
+      records: analyzedRecords,
+      chainOfTitle,
+      confidence,
+    },
+    aiUsage: usage,
   };
+}
+
+// ── Internal: AI Usage Helper ────────────────────────────────────────
+
+/** Cost per token in USD (claude-sonnet-4 pricing, March 2026). */
+const COST_PER_INPUT_TOKEN = 3 / 1_000_000;   // $3 / 1M input tokens
+const COST_PER_OUTPUT_TOKEN = 15 / 1_000_000; // $15 / 1M output tokens
+
+function accumulateUsage(acc: AiUsageSummary, delta: Partial<AiUsageSummary>): void {
+  acc.totalCalls += delta.totalCalls ?? 0;
+  acc.totalInputTokens += delta.totalInputTokens ?? 0;
+  acc.totalOutputTokens += delta.totalOutputTokens ?? 0;
+  acc.estimatedCostUsd += delta.estimatedCostUsd ?? 0;
 }
 
 // ── Internal: Individual Deed Analysis ───────────────────────────────
@@ -110,8 +143,8 @@ export async function analyzeBellDeeds(
 async function analyzeDeedException(
   record: DeedRecord,
   apiKey: string,
-): Promise<string> {
-  if (!apiKey || record.pageImages.length === 0) return '';
+): Promise<{ summary: string; usage: Partial<AiUsageSummary> }> {
+  if (!apiKey || record.pageImages.length === 0) return { summary: '', usage: {} };
 
   try {
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
@@ -152,9 +185,19 @@ Provide a concise 2-3 sentence summary suitable for a property surveyor.`,
     });
 
     const textBlock = response.content.find(b => b.type === 'text');
-    return textBlock ? textBlock.text : '';
+    const inputTokens = response.usage?.input_tokens ?? 0;
+    const outputTokens = response.usage?.output_tokens ?? 0;
+    return {
+      summary: textBlock ? textBlock.text : '',
+      usage: {
+        totalCalls: 1,
+        totalInputTokens: inputTokens,
+        totalOutputTokens: outputTokens,
+        estimatedCostUsd: inputTokens * COST_PER_INPUT_TOKEN + outputTokens * COST_PER_OUTPUT_TOKEN,
+      },
+    };
   } catch {
-    return '';
+    return { summary: '', usage: {} };
   }
 }
 
@@ -191,7 +234,7 @@ async function generateDeedSummary(
   chain: ChainLink[],
   currentOwner: string | null,
   apiKey: string,
-): Promise<string> {
+): Promise<{ summary: string; usage: Partial<AiUsageSummary> }> {
   if (!apiKey) {
     // Generate a basic summary without AI
     const deedCount = records.length;
@@ -205,9 +248,12 @@ async function generateDeedSummary(
       .sort()
       .reverse()[0] ?? 'unknown';
 
-    return `Found ${deedCount} recorded document(s) spanning from ${oldestDate} to ${newestDate}. ` +
-      `Current owner: ${currentOwner ?? 'unknown'}. ` +
-      `Chain of title contains ${chain.length} conveyance(s).`;
+    return {
+      summary: `Found ${deedCount} recorded document(s) spanning from ${oldestDate} to ${newestDate}. ` +
+        `Current owner: ${currentOwner ?? 'unknown'}. ` +
+        `Chain of title contains ${chain.length} conveyance(s).`,
+      usage: {},
+    };
   }
 
   try {
@@ -240,8 +286,21 @@ Write a concise 3-5 sentence narrative summary covering:
     });
 
     const textBlock = response.content.find(b => b.type === 'text');
-    return textBlock?.text ?? '';
+    const inputTokens = response.usage?.input_tokens ?? 0;
+    const outputTokens = response.usage?.output_tokens ?? 0;
+    return {
+      summary: textBlock?.text ?? '',
+      usage: {
+        totalCalls: 1,
+        totalInputTokens: inputTokens,
+        totalOutputTokens: outputTokens,
+        estimatedCostUsd: inputTokens * COST_PER_INPUT_TOKEN + outputTokens * COST_PER_OUTPUT_TOKEN,
+      },
+    };
   } catch {
-    return `Found ${records.length} document(s). Current owner: ${currentOwner ?? 'unknown'}.`;
+    return {
+      summary: `Found ${records.length} document(s). Current owner: ${currentOwner ?? 'unknown'}.`,
+      usage: {},
+    };
   }
 }

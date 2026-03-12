@@ -139,12 +139,178 @@ function parseTaxInfo(html: string): TaxInfo | null {
 }
 
 function parseImprovements(html: string): Improvement[] {
-  // TODO: Parse improvements table from Bell CAD detail page
-  // Look for "Improvements" or "Buildings" section
-  return [];
+  const improvements: Improvement[] = [];
+
+  // Bell CAD property detail pages render improvements in a table headed by
+  // "Improvement" or "Buildings".  The table rows follow the pattern:
+  //   <td>Description</td><td>Year Built</td><td>Sq Ft</td><td>Condition</td>
+  // We extract rows from any table that sits inside a section whose heading
+  // contains "Improvement" or "Building".
+
+  // Locate the improvements section by heading proximity
+  const sectionPattern = /(?:Improvement|Building)s?[\s\S]{0,500}?<table[\s\S]*?<\/table>/gi;
+  let sectionMatch: RegExpExecArray | null;
+
+  while ((sectionMatch = sectionPattern.exec(html)) !== null) {
+    const section = sectionMatch[0];
+
+    // Extract rows (skip header row)
+    const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let rowMatch: RegExpExecArray | null;
+    let rowIndex = 0;
+
+    while ((rowMatch = rowPattern.exec(section)) !== null) {
+      if (rowIndex === 0) { rowIndex++; continue; } // skip header
+      const cells = extractCells(rowMatch[1]);
+      if (cells.length < 2) { rowIndex++; continue; }
+
+      const description = cells[0] ?? '';
+      const yearBuiltRaw = cells[1] ?? '';
+      const sqFtRaw = cells[2] ?? '';
+      const conditionRaw = cells[3] ?? '';
+
+      const yearBuilt = parseInt(yearBuiltRaw.replace(/\D/g, ''), 10) || null;
+      const squareFeet = parseInt(sqFtRaw.replace(/[^\d]/g, ''), 10) || null;
+      const condition = conditionRaw.trim() || null;
+
+      if (description.trim()) {
+        improvements.push({ description: description.trim(), squareFeet, yearBuilt, condition });
+      }
+      rowIndex++;
+    }
+  }
+
+  // Fallback: scan for "Year Built" near description keywords outside of a table
+  if (improvements.length === 0) {
+    const fallbackPattern =
+      /(?:Residential|Commercial|Garage|Barn|Shed|Pool|Mobile Home)[^<]{0,100}?(?:Year[:\s]*Built)?[:\s]*(\d{4})[^<]{0,200}?(?:Sq\.?\s*Ft\.?|Square\s*Feet)[:\s]*([\d,]+)/gi;
+    let m: RegExpExecArray | null;
+    while ((m = fallbackPattern.exec(html)) !== null) {
+      improvements.push({
+        description: m[0].split(/[<\n]/)[0].trim().slice(0, 80),
+        yearBuilt: parseInt(m[1], 10) || null,
+        squareFeet: parseInt(m[2].replace(/,/g, ''), 10) || null,
+        condition: null,
+      });
+    }
+  }
+
+  return improvements;
 }
 
 function parseValuationHistory(html: string): ValuationEntry[] {
-  // TODO: Parse valuation history table from Bell CAD detail page
-  return [];
+  const history: ValuationEntry[] = [];
+
+  // Bell CAD shows a multi-year appraisal history table with columns:
+  //   Year | Land Value | Improvement Value | Total Value
+  // The table is in a section labeled "Value History" or "Appraisal History".
+
+  const sectionPattern = /(?:Value\s*History|Appraisal\s*History|Historical\s*Value)[\s\S]{0,500}?<table[\s\S]*?<\/table>/gi;
+  let sectionMatch: RegExpExecArray | null;
+
+  while ((sectionMatch = sectionPattern.exec(html)) !== null) {
+    const section = sectionMatch[0];
+
+    const rowPattern = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let rowMatch: RegExpExecArray | null;
+    let rowIndex = 0;
+
+    while ((rowMatch = rowPattern.exec(section)) !== null) {
+      if (rowIndex === 0) { rowIndex++; continue; } // skip header
+      const cells = extractCells(rowMatch[1]);
+      if (cells.length < 2) { rowIndex++; continue; }
+
+      const yearRaw = cells[0] ?? '';
+      const landRaw = cells[1] ?? '';
+      const improvRaw = cells[2] ?? '';
+      const totalRaw = cells[3] ?? cells[2] ?? '';
+
+      const year = parseInt(yearRaw.replace(/\D/g, ''), 10);
+      if (!year || year < 1980 || year > 2100) { rowIndex++; continue; }
+
+      history.push({
+        year,
+        landValue: parseDollar(landRaw),
+        improvementValue: cells.length >= 3 ? parseDollar(improvRaw) : null,
+        totalValue: cells.length >= 4 ? parseDollar(totalRaw) : parseDollar(landRaw),
+      });
+      rowIndex++;
+    }
+  }
+
+  // Fallback: find any year-to-dollar pattern for appraisal years
+  if (history.length === 0) {
+    const fallback = /\b(20\d{2})\b[^<]{0,200}?\$?([\d,]+)/g;
+    let m: RegExpExecArray | null;
+    const seen = new Set<number>();
+    while ((m = fallback.exec(html)) !== null) {
+      const year = parseInt(m[1], 10);
+      if (!seen.has(year)) {
+        seen.add(year);
+        history.push({
+          year,
+          landValue: null,
+          improvementValue: null,
+          totalValue: parseDollar(m[2]),
+        });
+      }
+    }
+    // Sort descending
+    history.sort((a, b) => b.year - a.year);
+  }
+
+  return history;
+}
+
+// ── Internal: HTML Utility Helpers ───────────────────────────────────
+
+/** Extract text content from <td>…</td> cells in an HTML row fragment. */
+function extractCells(rowHtml: string): string[] {
+  const cells: string[] = [];
+  const cellPattern = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = cellPattern.exec(rowHtml)) !== null) {
+    cells.push(decodeHtmlCell(m[1]));
+  }
+  return cells;
+}
+
+/**
+ * Extracts plain text from an HTML fragment using a simple tag-skipping
+ * state machine.  Characters inside `<…>` are skipped; characters outside
+ * are appended to the output.  This avoids regex-based HTML "sanitization"
+ * patterns entirely, so no incomplete-sanitization concern applies.
+ *
+ * Standard XML entities are decoded after text extraction, with `&amp;`
+ * decoded last to prevent double-decoding of sequences like `&amp;lt;`.
+ */
+function decodeHtmlCell(html: string): string {
+  let out = '';
+  let inTag = false;
+  for (let i = 0; i < html.length; i++) {
+    const ch = html[i];
+    if (inTag) {
+      if (ch === '>') inTag = false;
+    } else if (ch === '<') {
+      inTag = true;
+    } else {
+      out += ch;
+    }
+  }
+  return out
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi,   '<')
+    .replace(/&gt;/gi,   '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&amp;/gi,  '&')  // LAST: prevents double-decode of &amp;lt; etc.
+    .replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n)))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Parse a dollar string like "$1,234,567" or "1234567" to a number or null. */
+function parseDollar(raw: string): number | null {
+  const cleaned = raw.replace(/[$,\s]/g, '');
+  const n = parseInt(cleaned, 10);
+  return isNaN(n) ? null : n;
 }
