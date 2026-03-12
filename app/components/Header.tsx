@@ -67,8 +67,8 @@ const Header = (): React.ReactElement => {
             src="/logos/Fancy_Logo_red_darkblue_white_2.png" 
             alt="Starr Surveying Logo" 
             className="logo"
-            width={240}
-            height={80}
+            width={3014}
+            height={618}
           />
         </div>
 
