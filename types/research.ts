@@ -33,7 +33,7 @@ export const PIPELINE_STAGES: PipelineStageInfo[] = [
   {
     key: 'upload',
     number: 1,
-    label: 'Upload & Provision',
+    label: 'Property Information',
     icon: '📤',
     description: 'Upload documents and provide property information',
     primaryStep: 'upload',
