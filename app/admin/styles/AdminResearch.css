@@ -7681,3 +7681,457 @@
   color: #065F46;
   line-height: 1.5;
 }
+
+/* ============================================================================
+   4-STAGE PIPELINE STEPPER
+   PipelineStepper.tsx component — shows Upload, Research, Review, Job Prep
+   ============================================================================ */
+
+.pipeline-stepper {
+  background: var(--recon-card);
+  border: 1px solid var(--recon-border);
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(29, 48, 149, 0.07);
+  padding: 1.1rem 1.5rem 1.4rem;
+  margin-bottom: 1.75rem;
+}
+
+.pipeline-stepper__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.pipeline-stepper__title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--recon-brand);
+}
+
+.pipeline-stepper__progress {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #9CA3AF;
+}
+
+.pipeline-stepper__stages {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.pipeline-stepper__item {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+}
+
+.pipeline-stepper__connector {
+  flex: 1;
+  height: 3px;
+  background: #E5E7EB;
+  border-radius: 2px;
+  /* align with circle vertical center (circle is 48px, so offset = 24px - 1.5px ) */
+  margin-top: 22.5px;
+  flex-shrink: 1;
+  min-width: 12px;
+  transition: background 0.3s;
+}
+
+.pipeline-stepper__connector--done {
+  background: var(--recon-success);
+}
+
+.pipeline-stepper__stage-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+  max-width: 100px;
+}
+
+/* Circle */
+.pipeline-stepper__circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2.5px solid #D1D5DB;
+  background: #F9FAFB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
+}
+
+.pipeline-stepper__circle--done {
+  background: #ECFDF5;
+  border-color: var(--recon-success);
+}
+
+.pipeline-stepper__circle--active {
+  background: var(--recon-brand);
+  border-color: var(--recon-brand);
+  box-shadow: 0 0 0 4px rgba(29, 48, 149, 0.16), 0 2px 8px rgba(29, 48, 149, 0.25);
+}
+
+.pipeline-stepper__circle--revertable {
+  transition: opacity 0.15s ease, box-shadow 0.15s ease;
+}
+.pipeline-stepper__circle--revertable:hover {
+  opacity: 0.82;
+  box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.18);
+}
+
+.pipeline-stepper__check {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--recon-success);
+  line-height: 1;
+}
+
+.pipeline-stepper__stage-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.pipeline-stepper__circle--active .pipeline-stepper__stage-icon {
+  filter: brightness(10);
+}
+
+.pipeline-stepper__stage-label {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #9CA3AF;
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+.pipeline-stepper__stage-num {
+  font-weight: 700;
+}
+
+.pipeline-stepper__stage-label--done {
+  color: var(--recon-success);
+}
+
+.pipeline-stepper__stage-label--active {
+  color: var(--recon-brand);
+  font-weight: 700;
+}
+
+.pipeline-stepper__stage-desc {
+  font-size: 0.68rem;
+  color: #6B7280;
+  text-align: center;
+  max-width: 90px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+/* ============================================================================
+   STAGE 2: RESEARCH & ANALYSIS
+   ============================================================================ */
+
+.research-stage2 {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.research-stage2__launch {
+  background: var(--recon-card);
+  border: 1px solid var(--recon-border);
+  border-left: 4px solid var(--recon-brand);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.research-stage2__launch-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0 0 0.5rem;
+  font-family: 'Sora', sans-serif;
+}
+
+.research-stage2__launch-desc {
+  font-size: 0.88rem;
+  color: #6B7280;
+  margin: 0 0 1.25rem;
+  line-height: 1.55;
+}
+
+.research-stage2__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.research-stage2__source-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.6rem;
+  background: #EEF2FF;
+  color: var(--recon-brand);
+  border-radius: 6px;
+  font-size: 0.73rem;
+  font-weight: 500;
+}
+
+.research-stage2__cta-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.research-stage2__start-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.4rem;
+  background: var(--recon-brand);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  font-family: 'Sora', sans-serif;
+}
+
+.research-stage2__start-btn:hover {
+  background: var(--recon-brand-dark);
+}
+
+.research-stage2__start-btn:active {
+  transform: scale(0.98);
+}
+
+.research-stage2__start-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.research-stage2__doc-count {
+  font-size: 0.8rem;
+  color: #6B7280;
+}
+
+/* ============================================================================
+   STAGE 4: JOB PREP
+   Combines drawing, verification, survey plan, and final document export
+   ============================================================================ */
+
+.research-jobprep {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Tab bar within Job Prep */
+.research-jobprep__tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #E5E7EB;
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+}
+
+.research-jobprep__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #6B7280;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -2px;
+}
+
+.research-jobprep__tab:hover {
+  color: var(--recon-brand);
+}
+
+.research-jobprep__tab--active {
+  color: var(--recon-brand);
+  font-weight: 700;
+  border-bottom-color: var(--recon-brand);
+}
+
+/* ── Final Document / Job Package ─────────────────────────────────────────── */
+
+.research-final-doc {
+  background: var(--recon-card);
+  border: 1px solid var(--recon-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.research-final-doc__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.5rem;
+  background: linear-gradient(135deg, var(--recon-brand-dark), var(--recon-brand));
+  color: #fff;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.research-final-doc__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.research-final-doc__subtitle {
+  font-size: 0.78rem;
+  opacity: 0.75;
+  margin: 0.15rem 0 0;
+}
+
+.research-final-doc__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.research-final-doc__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  border: none;
+}
+
+.research-final-doc__btn:hover {
+  opacity: 0.88;
+}
+
+.research-final-doc__btn--primary {
+  background: #fff;
+  color: var(--recon-brand);
+}
+
+.research-final-doc__btn--secondary {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.4);
+}
+
+.research-final-doc__body {
+  padding: 1.5rem;
+}
+
+/* Section blocks inside the final document */
+.research-final-doc__section {
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.research-final-doc__section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.research-final-doc__section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--recon-brand);
+  margin: 0 0 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.research-final-doc__property-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.research-final-doc__prop-item {
+  background: #F8FAFC;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+}
+
+.research-final-doc__prop-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9CA3AF;
+  margin-bottom: 0.2rem;
+}
+
+.research-final-doc__prop-value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1F2937;
+}
+
+/* Print styles for the final document */
+@media print {
+  .research-jobprep__tabs,
+  .research-final-doc__actions,
+  .research-back-btn,
+  .pipeline-stepper,
+  .research-project-nav,
+  .research-page__header .research-page__actions,
+  .research-hub__stats {
+    display: none !important;
+  }
+
+  .research-final-doc {
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .research-final-doc__header {
+    background: none !important;
+    color: #000 !important;
+    border-bottom: 2px solid #000;
+  }
+
+  .research-final-doc__title,
+  .research-final-doc__subtitle {
+    color: #000 !important;
+  }
+
+  body { font-size: 11pt; }
+  .admin-layout__main { margin-left: 0 !important; }
+  .admin-topbar, .admin-sidebar { display: none !important; }
+  .admin-layout__content { padding: 0 !important; margin-top: 0 !important; }
+}
