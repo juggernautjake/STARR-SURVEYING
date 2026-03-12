@@ -135,15 +135,37 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   if (updates.analysis_template_id !== undefined) allowed.analysis_template_id = updates.analysis_template_id;
   if (updates.analysis_filters !== undefined) allowed.analysis_filters = updates.analysis_filters;
 
+  // job_notes lives inside analysis_metadata so it survives analysis reruns but is
+  // explicitly preserved across clear_analysis_data resets (user-authored content).
+  // Fetch current analysis_metadata once (needed by both job_notes and clear_analysis_data paths).
+  let currentMeta: Record<string, unknown> = {};
+  if (updates.job_notes !== undefined || clear_analysis_data) {
+    const { data: current } = await supabaseAdmin
+      .from('research_projects')
+      .select('analysis_metadata')
+      .eq('id', id)
+      .single();
+    currentMeta = (current?.analysis_metadata as Record<string, unknown>) ?? {};
+  }
+
+  if (updates.job_notes !== undefined) {
+    allowed.analysis_metadata = { ...currentMeta, job_notes: updates.job_notes };
+    // Update currentMeta so the clear path below sees the merged value
+    currentMeta = allowed.analysis_metadata as Record<string, unknown>;
+  }
+
   allowed.updated_at = new Date().toISOString();
 
   if (updates.status === 'complete') {
     allowed.completed_at = new Date().toISOString();
   }
 
-  // When reverting to a pre-analysis step the caller can request clearing extracted data
+  // When reverting to a pre-analysis step the caller can request clearing extracted data.
+  // job_notes are preserved — only AI-generated analysis data is wiped.
   if (clear_analysis_data) {
-    allowed.analysis_metadata = {};
+    // Keep only user-authored job_notes; discard all AI-generated analysis data
+    const preservedNotes = (currentMeta.job_notes as string | undefined) ?? '';
+    allowed.analysis_metadata = preservedNotes ? { job_notes: preservedNotes } : {};
     await Promise.all([
       supabaseAdmin.from('extracted_data_points').delete().eq('research_project_id', id),
       supabaseAdmin.from('discrepancies').delete().eq('research_project_id', id),

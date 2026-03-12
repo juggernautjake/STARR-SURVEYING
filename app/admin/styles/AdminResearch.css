@@ -8135,3 +8135,64 @@
   .admin-topbar, .admin-sidebar { display: none !important; }
   .admin-layout__content { padding: 0 !important; margin-top: 0 !important; }
 }
+
+/* ── Final Document — editable notes section ───────────────────────────────── */
+
+.research-final-doc__section--editable {
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  /* Override the border-bottom rule for the last-child */
+  border-bottom: 1px solid #FDE68A !important;
+  margin-bottom: 1.5rem;
+}
+
+.research-final-doc__section--editable .research-final-doc__section-title {
+  color: #92400E;
+  border-bottom: none;
+  margin-bottom: 0.85rem;
+}
+
+.research-final-doc__notes-textarea {
+  width: 100%;
+  min-height: 180px;
+  padding: 0.85rem 1rem;
+  background: #fff;
+  border: 1.5px solid #FDE68A;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  color: #1F2937;
+  line-height: 1.65;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.research-final-doc__notes-textarea:focus {
+  border-color: #D97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.15);
+}
+
+.research-final-doc__notes-textarea::placeholder {
+  color: #9CA3AF;
+  font-style: italic;
+}
+
+/* Print: show textarea content as plain text */
+@media print {
+  .research-final-doc__notes-textarea {
+    border: 1px solid #ccc;
+    resize: none;
+    min-height: unset;
+    /* show all content without scrollbar */
+    overflow: visible;
+    height: auto;
+  }
+  .research-final-doc__section--editable {
+    background: #fff !important;
+    border: 1px solid #ccc !important;
+  }
+}

@@ -31,6 +31,32 @@ import SurveyPlanPanel from '../components/SurveyPlanPanel';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
 
+// ── Page-level constants ─────────────────────────────────────────────────────
+
+const RESEARCH_SOURCES = [
+  'County Appraisal District',
+  'County Clerk / Deed Records',
+  'FEMA Flood Maps',
+  'TxDOT ROW',
+  'USGS National Map',
+  'Texas GLO',
+  'TX Railroad Commission',
+  'TNRIS',
+  'County GIS Portal',
+  'City Records',
+] as const;
+
+const JOB_NOTES_PLACEHOLDER =
+  'Add job preparation notes, field instructions, equipment needed, special considerations…\n\n' +
+  'Examples:\n' +
+  '• Equipment needed: total station, GPS rover, rebar/caps, lath\n' +
+  '• Site access: gate code is ___, call owner before arrival\n' +
+  '• Special instructions: check for creek encroachment on east boundary\n' +
+  '• Adjacent owner contact: ___\n' +
+  '• Estimated field time: 4–6 hours';
+
+// ────────────────────────────────────────────────────────────────────────────
+
 export default function ResearchProjectPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
@@ -71,6 +97,10 @@ export default function ResearchProjectPage() {
 
   // Job Prep tab state (Stage 4)
   const [jobPrepTab, setJobPrepTab] = useState<'drawing' | 'fieldplan' | 'finaldoc'>('drawing');
+  // Editable job notes for the Final Document (persisted in analysis_metadata.job_notes)
+  const [jobNotes, setJobNotes] = useState('');
+  const [savingJobNotes, setSavingJobNotes] = useState(false);
+  const jobNotesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Drawing state
   const [drawings, setDrawings] = useState<(RenderedDrawing & { element_count: number })[]>([]);
@@ -164,6 +194,11 @@ export default function ResearchProjectPage() {
           discrepancy_count: data.project.discrepancy_count || 0,
           resolved_count: data.project.resolved_count || 0,
         });
+        // Restore user-authored job notes from analysis_metadata
+        const meta = (data.project.analysis_metadata as Record<string, unknown>) ?? {};
+        if (typeof meta.job_notes === 'string') {
+          setJobNotes(meta.job_notes);
+        }
       } else {
         router.replace('/admin/research');
       }
@@ -303,6 +338,23 @@ export default function ResearchProjectPage() {
     } catch {
       showToast('Unable to archive. Check your connection and try again.', 'error');
     }
+  }
+
+  /** Auto-saves job notes to the server (debounced). */
+  function handleJobNotesChange(value: string) {
+    setJobNotes(value);
+    if (jobNotesTimerRef.current) clearTimeout(jobNotesTimerRef.current);
+    jobNotesTimerRef.current = setTimeout(async () => {
+      setSavingJobNotes(true);
+      try {
+        await fetch('/api/admin/research', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: projectId, job_notes: value }),
+        });
+      } catch { /* silently ignore — next save will retry */ }
+      setSavingJobNotes(false);
+    }, 1200);
   }
 
   async function handleStatusUpdate(newStatus: WorkflowStep) {
@@ -1366,6 +1418,15 @@ export default function ResearchProjectPage() {
     }
   }, [project?.status, loadDrawings, projectId]);
 
+  // Sanitized SVG for Final Document preview (uses DOMPurify same as DrawingCanvas)
+  // Must be declared before any early returns to satisfy React hooks rules-of-hooks.
+  const sanitizedDrawingSvg = useMemo(() => {
+    if (!drawingSvg) return '';
+    return DOMPurify.sanitize(drawingSvg, {
+      USE_PROFILES: { svg: true, svgFilters: true },
+    });
+  }, [drawingSvg]);
+
   function getNextStep(): { key: WorkflowStep; label: string } | null {
     if (!project) return null;
     const currentIndex = WORKFLOW_STEPS.findIndex(s => s.key === project.status);
@@ -1391,8 +1452,6 @@ export default function ResearchProjectPage() {
     }
   }
 
-  if (sessionStatus === 'authenticated' && userRole !== 'admin') return null;
-
   if (!session?.user || loading) {
     return (
       <div className="research-page">
@@ -1410,13 +1469,6 @@ export default function ResearchProjectPage() {
   // Derive the current pipeline stage from the underlying DB status
   const currentStage = workflowStepToStage(project.status);
   const extractedDocs = documents.filter(d => d.processing_status === 'extracted' || d.processing_status === 'analyzed');
-  // Sanitized SVG for Final Document preview (uses DOMPurify same as DrawingCanvas)
-  const sanitizedDrawingSvg = useMemo(() => {
-    if (!drawingSvg) return '';
-    return DOMPurify.sanitize(drawingSvg, {
-      USE_PROFILES: { svg: true, svgFilters: true },
-    });
-  }, [drawingSvg]);
 
   return (
     <div className="research-page">
@@ -1523,9 +1575,10 @@ export default function ResearchProjectPage() {
           <div className="research-step-header">
             <span className="research-step-header__icon">📤</span>
             <div className="research-step-header__body">
-              <h2 className="research-step-header__title">Upload Documents</h2>
+              <h2 className="research-step-header__title">Upload &amp; Provision</h2>
               <p className="research-step-header__desc">
                 Upload deeds, plats, field notes, and other surveying documents — or search the county property database to import records automatically.
+                You can also provide property information without uploading files; the research pipeline will gather additional records automatically.
               </p>
             </div>
           </div>
@@ -1541,28 +1594,36 @@ export default function ResearchProjectPage() {
             defaultParcelId={project.parcel_id || ''}
             onImported={() => { loadDocuments(); loadProject(); }}
           />
-        </>
-      )}
 
-      {/* ════════════════════════════════════════════════════════════════
-          STAGE 1 — advance button (shown when docs are ready)
-          ════════════════════════════════════════════════════════════ */}
-      {currentStage === 'upload' && (
-        <div style={{ margin: '1.25rem 0' }}>
-          <button
-            className="research-page__new-btn"
-            onClick={() => handleStatusUpdate('configure')}
-            disabled={!documents.some(d => d.processing_status === 'extracted' || d.processing_status === 'analyzed')}
-            style={!documents.some(d => d.processing_status === 'extracted' || d.processing_status === 'analyzed') ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-          >
-            Continue to Research &amp; Analysis &rarr;
-          </button>
-          {documents.length === 0 && (
-            <span style={{ color: '#9CA3AF', fontSize: '0.8rem', marginLeft: '0.75rem' }}>
-              Upload or import at least one document to continue
-            </span>
-          )}
-        </div>
+          {/* Advance button — enabled as long as at least one document exists (even if still processing) */}
+          {(() => {
+            const hasAnyDoc = documents.length > 0;
+            const hasProcessedDoc = documents.some(d => d.processing_status === 'extracted' || d.processing_status === 'analyzed');
+            const hasPendingDoc = documents.some(d => d.processing_status === 'pending' || d.processing_status === 'extracting');
+            return (
+              <div style={{ margin: '1.5rem 0 0.5rem' }}>
+                <button
+                  className="research-page__new-btn"
+                  onClick={() => handleStatusUpdate('configure')}
+                  disabled={!hasAnyDoc}
+                  style={!hasAnyDoc ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                >
+                  Continue to Research &amp; Analysis &rarr;
+                </button>
+                {!hasAnyDoc && (
+                  <span style={{ color: '#9CA3AF', fontSize: '0.8rem', marginLeft: '0.75rem' }}>
+                    Upload or import at least one document, or enter property information above to continue
+                  </span>
+                )}
+                {hasAnyDoc && hasPendingDoc && !hasProcessedDoc && (
+                  <span style={{ color: '#D97706', fontSize: '0.8rem', marginLeft: '0.75rem' }}>
+                    ⏳ Documents still processing — you can continue now and the pipeline will finish extraction automatically
+                  </span>
+                )}
+              </div>
+            );
+          })()}
+        </>
       )}
 
       {/* ════════════════════════════════════════════════════════════════
@@ -1576,13 +1637,16 @@ export default function ResearchProjectPage() {
             <div className="research-stage2__launch">
               <h2 className="research-stage2__launch-title">🔬 Research &amp; Analysis</h2>
               <p className="research-stage2__launch-desc">
-                STARR RECON will automatically search {extractedDocs.length > 0 ? `your ${extractedDocs.length} uploaded document${extractedDocs.length !== 1 ? 's' : ''} plus` : ''} public records from 10+ sources,
+                STARR RECON will automatically search {documents.length > 0 ? `your ${documents.length} uploaded document${documents.length !== 1 ? 's' : ''} plus` : ''} public records from {RESEARCH_SOURCES.length}+ sources,
                 then run AI analysis to extract boundary calls, bearings, distances, monuments, legal descriptions, and more.
+                {extractedDocs.length < documents.length && documents.length > 0 && (
+                  <> {documents.length - extractedDocs.length} document{documents.length - extractedDocs.length !== 1 ? 's' : ''} still processing — extraction will complete automatically.</>
+                )}
               </p>
 
               {/* Research sources preview */}
               <div className="research-stage2__sources">
-                {['County Appraisal District', 'County Clerk / Deed Records', 'FEMA Flood Maps', 'TxDOT ROW', 'USGS National Map', 'Texas GLO', 'TX Railroad Commission', 'TNRIS', 'Bell County GIS', 'City Records'].map(s => (
+                {RESEARCH_SOURCES.map(s => (
                   <span key={s} className="research-stage2__source-tag">✓ {s}</span>
                 ))}
               </div>
@@ -2504,6 +2568,10 @@ export default function ResearchProjectPage() {
                             : 'None'}
                         </div>
                       </div>
+                      <div className="research-final-doc__prop-item">
+                        <div className="research-final-doc__prop-label">Prepared</div>
+                        <div className="research-final-doc__prop-value">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                      </div>
                     </div>
                   </div>
 
@@ -2520,11 +2588,77 @@ export default function ResearchProjectPage() {
                       </div>
                     </div>
                   )}
+                  {!activeDrawing && (
+                    <div className="research-final-doc__section">
+                      <h3 className="research-final-doc__section-title">✏️ Boundary Drawing</h3>
+                      <div style={{ padding: '2rem', textAlign: 'center', color: '#9CA3AF', background: '#F9FAFB', border: '1px dashed #D1D5DB', borderRadius: 8 }}>
+                        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📐</div>
+                        <div style={{ fontSize: '0.88rem' }}>
+                          No drawing generated yet. Go to the <button onClick={() => setJobPrepTab('drawing')} style={{ background: 'none', border: 'none', color: '#1D4ED8', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit', padding: 0 }}>Drawing tab</button> to generate an AI boundary drawing.
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Field Plan */}
                   <div className="research-final-doc__section">
-                    <h3 className="research-final-doc__section-title">📋 Field Plan</h3>
+                    <h3 className="research-final-doc__section-title">📋 AI Field Plan</h3>
                     <SurveyPlanPanel projectId={projectId} />
+                  </div>
+
+                  {/* Screenshots / Aerial Photos from research */}
+                  {(() => {
+                    const imageDocs = documents.filter(d =>
+                      d.document_type === 'aerial_photo' ||
+                      (d.file_type && (d.file_type.startsWith('image/') || d.file_type === 'image')) ||
+                      (d.storage_url && /\.(png|jpg|jpeg|webp|gif)$/i.test(d.storage_url))
+                    );
+                    if (imageDocs.length === 0) return null;
+                    return (
+                      <div className="research-final-doc__section">
+                        <h3 className="research-final-doc__section-title">🛰️ Research Images &amp; Screenshots ({imageDocs.length})</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.75rem' }}>
+                          {imageDocs.map(doc => (
+                            <div key={doc.id} style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', background: '#F8FAFC' }}>
+                              {(doc.storage_url || doc.pages_pdf_url) && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={doc.storage_url ?? doc.pages_pdf_url ?? ''}
+                                  alt={doc.document_label || doc.original_filename || 'Research image'}
+                                  style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
+                                  loading="lazy"
+                                />
+                              )}
+                              <div style={{ padding: '0.5rem 0.65rem', fontSize: '0.75rem', color: '#6B7280' }}>
+                                {doc.document_label || doc.original_filename || doc.document_type?.replace(/_/g, ' ') || 'Image'}
+                                {doc.source_url && (
+                                  <a href={doc.source_url} target="_blank" rel="noopener noreferrer" style={{ marginLeft: '0.4rem', color: '#1D4ED8' }}>
+                                    ↗ Source
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── Editable Job Notes ── */}
+                  <div className="research-final-doc__section research-final-doc__section--editable">
+                    <h3 className="research-final-doc__section-title">
+                      📝 Job Notes &amp; Field Instructions
+                      <span style={{ marginLeft: '0.5rem', fontSize: '0.68rem', fontWeight: 400, color: '#9CA3AF', textTransform: 'none', letterSpacing: 0 }}>
+                        {savingJobNotes ? '⏳ Saving…' : '(editable — auto-saved)'}
+                      </span>
+                    </h3>
+                    <textarea
+                      className="research-final-doc__notes-textarea"
+                      value={jobNotes}
+                      onChange={e => handleJobNotesChange(e.target.value)}
+                      placeholder={JOB_NOTES_PLACEHOLDER}
+                      rows={10}
+                    />
                   </div>
 
                   {/* Export Options */}
