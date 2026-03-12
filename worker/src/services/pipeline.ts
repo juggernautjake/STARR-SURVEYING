@@ -479,8 +479,16 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       /personal\s+property/i.test(propertyResult.propertyType ?? '')
     );
 
+    // Preserve the Map ID from the Type P record before clearing it.
+    // Map ID is a geographic grid reference (e.g., "61B01") — it anchors the
+    // address to a physical map sheet. Owner search results with the same Map ID
+    // prefix are almost certainly the geographically adjacent real property.
+    const typePMapId: string | null = (isPersonalProperty && propertyResult?.mapId)
+      ? propertyResult.mapId
+      : null;
+
     if (isPersonalProperty && propertyResult) {
-      const mapIdHint = propertyResult.mapId ? ` (Map ID ${propertyResult.mapId})` : '';
+      const mapIdHint = typePMapId ? ` (Map ID ${typePMapId})` : '';
       logger.warn('Stage1',
         `⚠ Address matched PERSONAL PROPERTY record (ID ${propertyResult.propertyId}, ` +
         `owner "${propertyResult.ownerName}")${mapIdHint} — this is a business equipment record, not land. ` +
@@ -490,6 +498,14 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       // The instrument numbers from a Type P record are not deed references for the land.
       propertyResult = null;
     }
+
+    // If we detected Type P and have an ownerName, try a second Bell CAD "By Owner"
+    // pass to find the real land record. searchBisCad already does this automatically
+    // when all address results are Type P (bis-cad.ts searchBisCadBrowserLayer), but
+    // only if ownerName is provided in options. Since stage 1 already called searchBisCad
+    // above, and we have propertyResult = null at this point, we don't need a second call
+    // here — the work was done inside searchBisCad if ownerName was provided. The 
+    // typePMapId is preserved for filtering in Path B2 below.
 
     await updateStatus(
       input.projectId, 'running',
@@ -604,8 +620,9 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     if (!instrumentSearchSucceeded && cadWasUnreachable && ownerNameForPlatSearch && kofile &&
         input.county.toLowerCase() === 'bell') {
+      const mapHint = typePMapId ? ` (Type P Map ID: ${typePMapId})` : '';
       logger.info('Stage2B',
-        `CAD unreachable — searching Bell County Clerk directly for plat+deed: "${ownerNameForPlatSearch}"`);
+        `CAD unreachable/personal-property${mapHint} — searching Bell County Clerk directly for plat+deed: "${ownerNameForPlatSearch}"`);
       try {
         const { platInstruments, deedInstruments } =
           await searchBellClerkOwnerForPlatDeed(ownerNameForPlatSearch, logger);

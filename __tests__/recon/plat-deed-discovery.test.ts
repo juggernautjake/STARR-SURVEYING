@@ -240,7 +240,93 @@ describe('Bell County plat repository config (county-plats.ts)', () => {
   });
 });
 
-// ── 7. fetchDocumentImages fallback timing ────────────────────────────────────
+// ── 8. Bell CAD "By Owner" pivot logic (allPersonalProperty) ─────────────────
+
+describe('Bell CAD "By Owner" pivot when all results are Type P', () => {
+  // Mirror the allPersonalProperty detection logic from bis-cad.ts
+  const getProp = (result: Record<string, unknown>, ...keys: string[]): string | null => {
+    for (const k of keys) {
+      if (result[k] != null) return String(result[k]);
+    }
+    return null;
+  };
+
+  const isAllPersonalProperty = (results: Array<Record<string, unknown>>): boolean => {
+    return results.length > 0 && results.every((r) => {
+      const rawType = (getProp(r, 'propertyType', 'PropertyType') ?? '').trim().toUpperCase();
+      return rawType === 'P' || rawType === 'PERSONAL';
+    });
+  };
+
+  const extractTypePMapId = (results: Array<Record<string, unknown>>): string | null => {
+    if (!isAllPersonalProperty(results)) return null;
+    return (getProp(results[0], 'mapId', 'MapId', 'map_id') as string | null) ?? null;
+  };
+
+  it('8-1. detects all-P results correctly', () => {
+    const results = [
+      { propertyType: 'P', propertyId: '498826', mapId: '61B01' },
+    ];
+    expect(isAllPersonalProperty(results)).toBe(true);
+  });
+
+  it('8-2. returns false when mix of P and R', () => {
+    const results = [
+      { propertyType: 'P', propertyId: '498826', mapId: '61B01' },
+      { propertyType: 'R', propertyId: '524312', mapId: '61B01' },
+    ];
+    expect(isAllPersonalProperty(results)).toBe(false);
+  });
+
+  it('8-3. extracts mapId "61B01" from Type P result', () => {
+    const results = [{ propertyType: 'P', propertyId: '498826', mapId: '61B01' }];
+    expect(extractTypePMapId(results)).toBe('61B01');
+  });
+
+  it('8-4. returns null mapId when results are not all personal property', () => {
+    const results = [{ propertyType: 'R', propertyId: '524312', mapId: '61B01' }];
+    expect(extractTypePMapId(results)).toBeNull();
+  });
+
+  it('8-5. mapId prefix filter selects geographically matching owner results', () => {
+    const typePMapId = '61B01';
+    const ownerResults = [
+      { propertyId: '524311', mapId: '61B01', propertyType: 'R' }, // ← same map area
+      { propertyId: '524312', mapId: '61B01', propertyType: 'R' }, // ← same map area
+      { propertyId: '999999', mapId: '44A03', propertyType: 'R' }, // ← different area
+    ];
+    const mapPrefix = typePMapId.substring(0, 3); // "61B"
+    const sameMap = ownerResults.filter((r) => {
+      const rm = (getProp(r as Record<string, unknown>, 'mapId', 'MapId') as string | null) ?? '';
+      return rm.startsWith(mapPrefix);
+    });
+    expect(sameMap).toHaveLength(2);
+    expect(sameMap.map(r => r.propertyId)).toEqual(['524311', '524312']);
+  });
+
+  it('8-6. all-owner-results used when none match map prefix', () => {
+    const typePMapId = '61B01';
+    const ownerResults = [
+      { propertyId: '111111', mapId: '22A01', propertyType: 'R' },
+      { propertyId: '222222', mapId: '33B02', propertyType: 'R' },
+    ];
+    const mapPrefix = typePMapId.substring(0, 3);
+    const sameMap = ownerResults.filter((r) => {
+      const rm = (getProp(r as Record<string, unknown>, 'mapId', 'MapId') as string | null) ?? '';
+      return rm.startsWith(mapPrefix);
+    });
+    // No matches → fall back to all results
+    expect(sameMap).toHaveLength(0);
+    const ranked = sameMap.length > 0 ? sameMap : ownerResults;
+    expect(ranked).toHaveLength(2);
+  });
+
+  it('8-7. "PERSONAL" propertyType also treated as personal property', () => {
+    const results = [{ propertyType: 'PERSONAL', propertyId: '111' }];
+    expect(isAllPersonalProperty(results)).toBe(true);
+  });
+});
+
 
 describe('fetchDocumentImages (bell-clerk.ts)', () => {
   it('7-1. searchBellClerkOwnerForPlatDeed is exported', async () => {
