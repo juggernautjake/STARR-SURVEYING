@@ -6,6 +6,13 @@
 //   Bell County  — Revize CMS alphabetical PHP pages   → direct PDF links    (~1,500 plats)
 //   Hays County  — Hays CAD WordPress sublist pages    → TIF image links     (8,051 plats)
 //
+// Bell County plat fetch strategy (layered, fastest-first):
+//   Layer 0 — Direct Revize CDN URL construction (no scraping, ~1-2s)
+//              URL: https://cms3.revize.com/revize/bellcountytx/
+//                   county_government/county_clerk/docs/plats/{LETTER}/{NAME}.pdf
+//   Layer 1 — bellcountytx.com alphabetical index page scrape + fuzzy match (~5-15s)
+//   Layer 2 — Retry Layer 0 with URL-encoded name variations (dots, ampersands, etc.)
+//
 // Adding a new county: add one entry to PLAT_REPO_REGISTRY.
 // No pipeline code changes are required.
 
@@ -46,6 +53,16 @@ export interface PlatRepoConfig {
    * (Hays CAD: https://esearch.hayscad.com/Search/SubdivisionList)
    */
   subdivisionApiUrl?: string;
+  /**
+   * Direct URL template for constructing a plat PDF URL without scraping the index.
+   * Placeholders:
+   *   {LETTER} = uppercase first letter of the subdivision name (e.g., "A")
+   *   {NAME}   = URL-encoded subdivision name (spaces → %20)
+   * Example (Bell County):
+   *   https://cms3.revize.com/revize/bellcountytx/county_government/county_clerk/docs/plats/{LETTER}/{NAME}.pdf
+   * Layer 0 of the multi-layer fetch strategy — tried first before index page scraping.
+   */
+  directUrlTemplate?: string;
 }
 
 // ── Registry ──────────────────────────────────────────────────────────────────
@@ -56,9 +73,22 @@ export interface PlatRepoConfig {
  */
 export const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
   // ── Bell County — Revize CMS, direct PDF downloads ────────────────────────
+  //
+  // URL discovery (from bellcountytx.com, March 2026):
+  //   Index pages:  https://www.bellcountytx.com/county_government/county_clerk/{letter}.php
+  //   Direct PDFs:  https://cms3.revize.com/revize/bellcountytx/
+  //                   county_government/county_clerk/docs/plats/{LETTER}/{NAME_ENCODED}.pdf
+  //   Confirmed:    ASH FAMILY TRUST 12.358 ACRE ADDITION.pdf → direct fetch works,
+  //                 no auth, no watermarks, full-resolution drawing.
+  //
+  // Fetch strategy (fastest-first):
+  //   Layer 0 — Direct CDN URL construction (0 scraping, ~1-2s response)
+  //   Layer 1 — bellcountytx.com index page scrape + fuzzy match (~5-15s)
+  //   Layer 2 — Retry Layer 0 with name variations (dots as %2E, etc.)
   bell: {
     indexUrlTemplate: 'https://www.bellcountytx.com/county_government/county_clerk/{letter}.php',
-    fileBaseUrl: 'https://cms3.revize.com',
+    fileBaseUrl:      'https://cms3.revize.com',
+    directUrlTemplate: 'https://cms3.revize.com/revize/bellcountytx/county_government/county_clerk/docs/plats/{LETTER}/{NAME}.pdf',
     countyDisplayName: 'Bell County Clerk plat repository (bellcountytx.com)',
     fileExt: 'pdf',
     parseMode: 'links',
@@ -418,7 +448,66 @@ export function scorePlatMatch(platName: string, targetName: string): number {
   return Math.max(significantScore * 0.7 + totalScore * 0.3, 0);
 }
 
-// ── File Download & Format Conversion ────────────────────────────────────────
+// ── Direct URL Construction (Bell County Layer 0) ────────────────────────────
+
+/**
+ * Constructs the direct Revize CDN URL for a Bell County plat PDF.
+ *
+ * Bell County Revize CMS URL pattern (confirmed March 2026):
+ *   https://cms3.revize.com/revize/bellcountytx/county_government/county_clerk/
+ *     docs/plats/{LETTER}/{NAME_URL_ENCODED}.pdf
+ *
+ * Where:
+ *   {LETTER} = uppercase first letter of subdivision name (e.g. "A" for ASH FAMILY TRUST)
+ *   {NAME_URL_ENCODED} = subdivision name fully URL-encoded via encodeURIComponent
+ *                        (spaces → %20, periods → %2E, etc.)
+ *
+ * Example:
+ *   "ASH FAMILY TRUST 12.358 ACRE ADDITION"
+ *   → https://cms3.revize.com/revize/bellcountytx/county_government/county_clerk/
+ *       docs/plats/A/ASH%20FAMILY%20TRUST%2012.358%20ACRE%20ADDITION.pdf
+ *
+ * Note: encodeURIComponent encodes ALL special chars including periods (%2E).
+ * The Revize server accepts both encoded and literal periods in filenames.
+ * Returns null if the config has no directUrlTemplate.
+ */
+export function constructDirectPlatUrl(
+  subdivisionName: string,
+  config: PlatRepoConfig,
+): string | null {
+  if (!config.directUrlTemplate) return null;
+  const upper = subdivisionName.trim().toUpperCase();
+  const letter = upper[0] ?? '';
+  if (!letter || !/[A-Z0-9]/.test(letter)) return null;
+
+  // encodeURIComponent: spaces → %20, periods → %2E, special chars fully encoded.
+  // The Revize CDN accepts these encoded names (verified March 2026).
+  const encoded = encodeURIComponent(upper);
+
+  return config.directUrlTemplate
+    .replace('{LETTER}', letter)
+    .replace('{NAME}', encoded);
+}
+
+/**
+ * Generates name variants for direct URL tries.
+ * Bell County file names may differ slightly in punctuation from the search term.
+ * Returns the original name plus cleaned alternatives.
+ */
+export function directUrlNameVariants(subdivisionName: string): string[] {
+  const u = subdivisionName.trim().toUpperCase();
+  const variants = new Set<string>([u]);
+
+  // Variant: replace & with AND
+  variants.add(u.replace(/&/g, 'AND').replace(/\s+/g, ' ').trim());
+  // Variant: remove trailing section identifiers
+  variants.add(u.replace(/\s+(SECTION|PHASE|PART)\s+\d+$/i, '').trim());
+  // Variant: replace / with space
+  variants.add(u.replace(/\//g, ' ').replace(/\s+/g, ' ').trim());
+
+  return [...variants].filter(Boolean);
+}
+
 
 /**
  * Downloads a plat file and returns it as base64.
@@ -554,6 +643,11 @@ export async function searchCountyPlats(
  * Finds and downloads the best-matching plat for a subdivision from the
  * county's free plat repository.
  *
+ * Multi-layer strategy (fastest-first):
+ *   Layer 0 — Direct CDN URL construction (no scraping, ~1-2s) — Bell County only
+ *   Layer 1 — Index page scrape + fuzzy match (~5-15s)
+ *   Layer 2 — Direct URL retry with name variants (ampersands, trailing sections, etc.)
+ *
  * Returns null if the county has no repository, no match is found, or all downloads fail.
  */
 export async function fetchBestMatchingPlat(
@@ -571,24 +665,76 @@ export async function fetchBestMatchingPlat(
   const config = getPlatRepoConfig(county);
   if (!config) return null;
 
-  const matches = await searchCountyPlats(county, subdivisionName, logger);
-  if (matches.length === 0) return null;
+  // ── Layer 0: Direct CDN URL (Bell County Revize CMS) ─────────────────────
+  if (config.directUrlTemplate) {
+    const variants = directUrlNameVariants(subdivisionName);
+    for (const variant of variants) {
+      const directUrl = constructDirectPlatUrl(variant, config);
+      if (!directUrl) continue;
 
-  // Try top 3 matches in case a download fails
-  for (const match of matches.slice(0, 3)) {
-    const result = await downloadPlatFile(match.url, config, logger);
-    if (result) {
-      return {
-        ...result,
-        name:    match.name,
-        url:     match.url,
-        source:  config.countyDisplayName,
-        fileExt: config.fileExt ?? 'pdf',
-      };
+      const tracker = logger.startAttempt({
+        layer: 'Stage2A',
+        source: 'PlatRepo-Direct',
+        method: 'direct-url',
+        input: directUrl.substring(0, 120),
+      });
+
+      try {
+        const headers: Record<string, string> = {
+          'User-Agent': 'Mozilla/5.0 (compatible; STARR-RECON/1.0)',
+          ...config.fileHeaders,
+        };
+        const response = await fetch(directUrl, {
+          headers,
+          signal: AbortSignal.timeout(20_000),
+        });
+
+        if (response.ok) {
+          const buffer = await response.arrayBuffer();
+          const base64 = Buffer.from(buffer).toString('base64');
+          tracker({
+            status: 'success',
+            dataPointsFound: 1,
+            details: `Direct URL hit: ${buffer.byteLength} bytes — ${variant}`,
+          });
+          logger.info('Stage2A',
+            `Layer 0 (direct URL): "${variant}" → ${buffer.byteLength} bytes from ${directUrl.substring(0, 80)}`);
+          return {
+            base64,
+            mimeType: 'application/pdf',
+            name: variant,
+            url: directUrl,
+            source: `${config.countyDisplayName} (direct URL)`,
+            fileExt: 'pdf',
+          };
+        }
+
+        tracker({ status: 'fail', error: `HTTP ${response.status} — falling through to index scrape` });
+        logger.info('Stage2A', `Layer 0 miss: "${variant}" → HTTP ${response.status} — trying index scrape`);
+      } catch (directErr) {
+        tracker({ status: 'fail', error: directErr instanceof Error ? directErr.message : String(directErr) });
+      }
     }
   }
 
-  logger.warn('Stage2A', `All download attempts failed for "${subdivisionName}" in ${config.countyDisplayName}`);
+  // ── Layer 1: Index page scrape + fuzzy match ──────────────────────────────
+  const matches = await searchCountyPlats(county, subdivisionName, logger);
+  if (matches.length > 0) {
+    for (const match of matches.slice(0, 3)) {
+      const result = await downloadPlatFile(match.url, config, logger);
+      if (result) {
+        return {
+          ...result,
+          name:    match.name,
+          url:     match.url,
+          source:  config.countyDisplayName,
+          fileExt: config.fileExt ?? 'pdf',
+        };
+      }
+    }
+  }
+
+  logger.warn('Stage2A', `All layers failed for "${subdivisionName}" in ${config.countyDisplayName}`);
   return null;
 }
 

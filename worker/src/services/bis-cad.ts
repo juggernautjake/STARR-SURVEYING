@@ -1047,9 +1047,38 @@ async function searchCadPlaywright(
       }
     }
 
-    // Owner name fallback: if address variants found nothing, try By Owner tab
-    if (capturedResults.length === 0 && options?.ownerName) {
-      finish.step?.(`[runtime] Address search exhausted — trying owner name: "${options.ownerName}"`);
+    // Owner name fallback — triggers in two cases:
+    //   (a) Address search found nothing at all, OR
+    //   (b) Address search found ONLY personal property (Type P) records.
+    //       This is the proven pattern for commercial addresses: the address returns
+    //       the business tenant's equipment record (e.g., "STARR SURVEYING" Type P),
+    //       but the actual land is owned by a different party (e.g., "ASH FAMILY TRUST").
+    //       Searching "By Owner" with the landlord name finds the real property.
+    //
+    // When pivoting from Type P, extract the Map ID from the personal property
+    // record as a geographic anchor — owner results with a matching Map ID prefix
+    // are the geographically closest candidates.
+    const allPersonalProperty = capturedResults.length > 0 && capturedResults.every((r) => {
+      const rawType = (getProp(r, 'propertyType', 'PropertyType') ?? '').trim().toUpperCase();
+      return rawType === 'P' || rawType === 'PERSONAL';
+    });
+    const typePMapId: string | null = allPersonalProperty
+      ? ((getProp(capturedResults[0], 'mapId', 'MapId', 'map_id') as string | null) ?? null)
+      : null;
+
+    if ((capturedResults.length === 0 || allPersonalProperty) && options?.ownerName) {
+      if (allPersonalProperty) {
+        finish.step?.(
+          `[runtime] Address returned only personal property (Type P)${typePMapId ? ` Map ID=${typePMapId}` : ''} — ` +
+          `pivoting to owner name search: "${options.ownerName}"`,
+        );
+      } else {
+        finish.step?.(`[runtime] Address search exhausted — trying owner name: "${options.ownerName}"`);
+      }
+      // Save address-search personal property results so we can restore if owner search fails
+      const personalPropertyFallback = allPersonalProperty ? [...capturedResults] : [];
+      capturedResults = [];
+
       try {
         await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
         const ownerTabSelectors = [
@@ -1118,12 +1147,37 @@ async function searchCadPlaywright(
 
           const ownerDomResults = await extractResultsFromDOM(page);
           if (ownerDomResults.length > 0) {
-            capturedResults = ownerDomResults;
-            finish.step?.(`[runtime] Owner name search found ${ownerDomResults.length} results`);
+            // When pivoting from Type P, prefer results that share the same Map ID
+            // prefix as the personal property record (geographic anchor).
+            // Example: Type P Map ID "61B01" → prefer owner results starting with "61B".
+            let ranked = ownerDomResults;
+            if (typePMapId) {
+              const mapPrefix = typePMapId.substring(0, Math.min(3, typePMapId.length));
+              const sameMap = ownerDomResults.filter((r) => {
+                const rm = (getProp(r, 'mapId', 'MapId', 'map_id') as string | null) ?? '';
+                return rm.startsWith(mapPrefix);
+              });
+              if (sameMap.length > 0) {
+                finish.step?.(`[runtime] Map ID filter "${mapPrefix}*": ${sameMap.length} of ${ownerDomResults.length} owner results match geographic area`);
+                ranked = sameMap;
+              } else {
+                finish.step?.(`[runtime] Map ID filter "${mapPrefix}*": no owner results matched — using all ${ownerDomResults.length} results`);
+              }
+            }
+            capturedResults = ranked;
+            finish.step?.(`[runtime] Owner name search found ${ownerDomResults.length} results${typePMapId ? ` (${capturedResults.length} in Map area)` : ''}`);
+          } else if (personalPropertyFallback.length > 0) {
+            // Owner search found nothing — restore personal property results as last resort
+            capturedResults = personalPropertyFallback;
+            finish.step?.('[runtime] Owner name search found 0 results — restoring personal property results as fallback');
           }
         }
       } catch (ownerErr) {
         finish.step?.(`[runtime] Owner name search failed: ${ownerErr instanceof Error ? ownerErr.message : String(ownerErr)}`);
+        // Restore personal property fallback if owner search threw
+        if (capturedResults.length === 0 && personalPropertyFallback.length > 0) {
+          capturedResults = personalPropertyFallback;
+        }
       }
     }
 

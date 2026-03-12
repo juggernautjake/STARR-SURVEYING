@@ -477,8 +477,64 @@ async function extractFromImageInternal(
   logger: PipelineLogger,
   docLabel: string,
 ): Promise<{ ocrText: string | null; extracted: ExtractedBoundaryData | null }> {
-  // For PDFs, we send as image/png (Playwright screenshots) or skip
-  const effectiveMediaType = mediaType === 'application/pdf' ? 'image/png' as const : mediaType;
+  // ── Route: PDF document source type ──────────────────────────────────────
+  // Bell County free plat PDFs are sent as 'application/pdf' with Claude's
+  // native document source. This is the correct approach — it processes all
+  // pages and handles multi-page plat drawings properly. Much better than
+  // incorrectly converting to image/png (which was the old behavior).
+  if (mediaType === 'application/pdf') {
+    const pdfTracker = logger.startAttempt({
+      layer: 'Stage3B-OCR',
+      source: 'Claude-Vision-PDF',
+      method: 'ocr-pdf-document',
+      input: `${docLabel} (${imageBase64.length} base64 chars, PDF)`,
+    });
+    pdfTracker.step(
+      `PDF document: ${Math.round(imageBase64.length / 1024)}KB base64 — ` +
+      `sending as application/pdf document source (multi-page support, no watermarks)`,
+    );
+
+    const ocrResponse = await callClaudeWithRetry(
+      anthropicApiKey,
+      [{
+        role: 'user',
+        // `content` is typed as `unknown` in callClaudeWithRetry and cast to the
+        // Anthropic SDK type at the call site. The 'document' content block is a
+        // valid Anthropic API content type for PDF inputs (Claude 3+ with PDFs beta).
+        content: [
+          {
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: imageBase64 },
+          },
+          {
+            type: 'text',
+            text: 'Extract ALL text from this Texas land surveying document (plat or deed). ' +
+                  'Be extremely thorough — every bearing, distance, curve data, monument, ' +
+                  'lot acreage, easement, adjacent property reference, and recording number matters. ' +
+                  'Process every page of this PDF.',
+          },
+        ] as unknown,
+      }],
+      OCR_SYSTEM_PROMPT,
+      logger,
+      `${docLabel}-pdf-ocr`,
+    );
+
+    if (!ocrResponse || ocrResponse.length < 30) {
+      pdfTracker({ status: 'fail', error: 'Empty or minimal PDF OCR response' });
+      return { ocrText: null, extracted: null };
+    }
+
+    pdfTracker({
+      status: 'success',
+      dataPointsFound: 1,
+      details: `PDF OCR: ${ocrResponse.length} chars`,
+    });
+
+    // Pass 2: structured extraction from OCR text
+    const extracted = await extractFromTextInternal(ocrResponse, anthropicApiKey, logger, `${docLabel}-pdf-struct`);
+    return { ocrText: ocrResponse, extracted };
+  }
 
   // For TIFF, Claude doesn't support it directly — would need conversion
   if (mediaType === 'image/tiff') {
@@ -486,6 +542,9 @@ async function extractFromImageInternal(
     tracker({ status: 'fail', error: 'TIFF not directly supported — needs conversion to PNG' });
     return { ocrText: null, extracted: null };
   }
+
+  // effectiveMediaType is now only used for image paths (png/jpeg)
+  const effectiveMediaType = mediaType;
 
   // ── Route: Adaptive Vision (large plat images) vs single-pass (small) ────
   const isLarge = imageBase64.length > ADAPTIVE_VISION_THRESHOLD;
