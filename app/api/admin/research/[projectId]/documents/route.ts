@@ -5,6 +5,9 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { processDocument, validateUploadFile, ACCEPTED_FILE_TYPES } from '@/lib/research/document.service';
 
+// Allow up to 60 seconds for uploads (large files + storage round-trip)
+export const maxDuration = 60;
+
 /* GET — List all documents for a research project */
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
