@@ -6,7 +6,7 @@ import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyI
 import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
-import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl } from './bell-clerk.js';
+import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed } from './bell-clerk.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
@@ -467,10 +467,35 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       logger.info('Stage1', `Found: ${propertyResult.ownerName} · ID ${propertyResult.propertyId} · conf ${propertyResult.matchConfidence.toFixed(2)}${propertyResult.acreage ? ` · ${propertyResult.acreage} ac` : ''}`);
     }
 
-    await updateStatus(input.projectId, 'running', `Stage 2: Retrieving documents${propertyResult ? ` for ${propertyResult.ownerName}` : ''}…`, {
-      propertyId: propertyResult?.propertyId,
-      ownerName: propertyResult?.ownerName,
-    });
+    // ── Detect personal property result (Type P / "BUSINESS PERSONAL PROPERTY") ──
+    // Bell CAD returns the business tenant's equipment record (Type P) when the
+    // address belongs to a commercial property. Real land records (Type R) may
+    // exist for the same address under a different owner name.
+    // Example: 3779 FM 436 → ID 498826 "STARR SURVEYING" Type P — the land is
+    //          owned by "ASH FAMILY TRUST" under IDs 524311-524316.
+    const isPersonalProperty = propertyResult && (
+      propertyResult.propertyType?.toUpperCase() === 'P' ||
+      /^BUSINESS\s+PERSONAL\s+PROPERTY/i.test(propertyResult.legalDescription ?? '') ||
+      /personal\s+property/i.test(propertyResult.propertyType ?? '')
+    );
+
+    if (isPersonalProperty && propertyResult) {
+      const mapIdHint = propertyResult.mapId ? ` (Map ID ${propertyResult.mapId})` : '';
+      logger.warn('Stage1',
+        `⚠ Address matched PERSONAL PROPERTY record (ID ${propertyResult.propertyId}, ` +
+        `owner "${propertyResult.ownerName}")${mapIdHint} — this is a business equipment record, not land. ` +
+        `Switching to owner-name-based document search. ` +
+        `Tip: provide input.ownerName (e.g. the landlord name) for more precise results.`);
+      // Clear the personal property result so document search falls through to owner/clerk paths.
+      // The instrument numbers from a Type P record are not deed references for the land.
+      propertyResult = null;
+    }
+
+    await updateStatus(
+      input.projectId, 'running',
+      `Stage 2: Retrieving documents${propertyResult ? ` for ${propertyResult.ownerName}` : input.ownerName ? ` for "${input.ownerName}"` : ''}…`,
+      { propertyId: propertyResult?.propertyId, ownerName: propertyResult?.ownerName ?? input.ownerName },
+    );
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 2: Document Retrieval
@@ -529,8 +554,15 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     }
 
     // ── Path B: County plat repository (free direct-download PDFs) ───────
-    if (platRepo && legalDesc) {
-      const subdivisionName = extractSubdivisionName(legalDesc);
+    // Primary: extract subdivision name from legal description.
+    // Fallback: when CAD is unreachable, use owner name as subdivision hint
+    // (e.g. "ASH FAMILY TRUST" finds "ASH FAMILY TRUST 12.358 ACRE ADDITION").
+    if (platRepo) {
+      const subdivisionFromLegal = legalDesc ? extractSubdivisionName(legalDesc) : null;
+      // If CAD was unreachable and we have an owner name, try it as a subdivision search hint.
+      // The owner name often matches the start of the subdivision name (e.g. "ASH FAMILY TRUST").
+      const subdivisionName = subdivisionFromLegal ??
+        (!propertyResult && input.ownerName ? input.ownerName.trim() : null);
       if (subdivisionName) {
         try {
           const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger);
@@ -553,6 +585,69 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         } catch (platErr) {
           logger.warn('Stage2A', `Plat repo: ${platErr instanceof Error ? platErr.message : String(platErr)}`);
         }
+      } else if (!legalDesc && !input.ownerName) {
+        logger.warn('Stage2A', 'Plat repo: no legal description or owner name — skipping plat search');
+      }
+    }
+
+    // ── Path B2: Bell County Clerk direct plat+deed search ───────────────
+    // Runs when:
+    //   (a) CAD was unreachable/errored, OR
+    //   (b) CAD returned only personal property (Type P) — owner name unknown
+    // Searches Bell County Clerk by owner/subdivision name using the proven
+    // quickSearch approach (8s SPA wait + response interceptor + signed URL download).
+    // Example: ownerName="ASH FAMILY TRUST" → plat 2023032044, deed 2010043440.
+    const ownerNameForPlatSearch = input.ownerName ?? propertyResult?.ownerName ?? null;
+    const cadWasUnreachable = !propertyResult && (
+      searchDiagnostics?.siteUnreachable || !!searchDiagnostics?.cadSiteError || isPersonalProperty
+    );
+
+    if (!instrumentSearchSucceeded && cadWasUnreachable && ownerNameForPlatSearch && kofile &&
+        input.county.toLowerCase() === 'bell') {
+      logger.info('Stage2B',
+        `CAD unreachable — searching Bell County Clerk directly for plat+deed: "${ownerNameForPlatSearch}"`);
+      try {
+        const { platInstruments, deedInstruments } =
+          await searchBellClerkOwnerForPlatDeed(ownerNameForPlatSearch, logger);
+
+        // Retrieve page images for each instrument (plats get 3 expected pages)
+        const instrToFetch: Array<{ instrNum: string; docType: string }> = [
+          ...platInstruments.slice(0, 2).map(n => ({ instrNum: n, docType: 'Final Plat' })),
+          ...deedInstruments.slice(0, 3).map(n => ({ instrNum: n, docType: 'Warranty Deed' })),
+        ];
+
+        for (const { instrNum, docType } of instrToFetch) {
+          try {
+            const isPlat = /plat/i.test(docType);
+            const pages = await fetchDocumentImages(instrNum, isPlat ? 3 : 2, logger);
+            if (pages.length > 0) {
+              const docResult: DocumentResult = {
+                ref: {
+                  instrumentNumber: instrNum,
+                  volume: null, page: null,
+                  documentType: docType,
+                  recordingDate: null, grantors: [], grantees: [],
+                  source: 'Bell County Clerk PublicSearch',
+                  url: `${kofileBase}/doc/${instrNum}/details`,
+                },
+                textContent: null, pages,
+                ocrText: null, extractedData: null,
+              };
+              documents.push(docResult);
+              instrumentSearchSucceeded = true;
+              bundleAndUploadPages(pages, input.projectId, instrNum, docType)
+                .then(url => { if (url) docResult.pagesPdfUrl = url; })
+                .catch(() => undefined);
+              logger.info('Stage2B', `Retrieved ${pages.length} page(s) for ${docType} ${instrNum}`);
+            }
+          } catch (imgErr) {
+            logger.warn('Stage2B',
+              `Could not get images for ${instrNum}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+          }
+        }
+      } catch (b2Err) {
+        logger.warn('Stage2B',
+          `Clerk plat+deed search failed: ${b2Err instanceof Error ? b2Err.message : String(b2Err)}`);
       }
     }
 

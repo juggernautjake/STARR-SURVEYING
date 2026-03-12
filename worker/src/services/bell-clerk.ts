@@ -2044,15 +2044,21 @@ export async function fetchDocumentImages(
 
     console.log(`[BELL-IMG] After viewer load: ${imageUrls.length} URLs captured`);
 
-    // Fallback: if direct viewer didn't capture images, try search+click (legacy approach)
+    // Fallback: if direct viewer didn't capture images, try the proven search+click
+    // approach. Per transcripts (Ash Trust, March 4, 2026): 8s after navigation for
+    // the Tyler SPA to render results, then 8s after clicking a result row for the
+    // Kofile document viewer to fire the signed image URL.
     if (imageUrls.length === 0) {
       console.log('[BELL-IMG] Direct viewer captured no images — falling back to search+click');
       const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-      await page.waitForTimeout(5_000);
+      // 8s wait: Tyler PublicSearch SPA needs full 8 seconds to render result rows.
+      await page.waitForTimeout(8_000);
       try {
         await page.locator('tbody tr').first().click();
-        await page.waitForTimeout(6_000);
+        // 8s wait: Kofile document viewer needs full 8 seconds to load page image
+        // and fire the signed image URL that the response interceptor captures.
+        await page.waitForTimeout(8_000);
       } catch (e: any) {
         console.log('[BELL-IMG] Search+click fallback: could not click result:', e.message);
       }
@@ -2151,8 +2157,114 @@ export async function fetchDocumentImages(
 }
 
 /**
- * Save page images to disk (for debugging / archival).
+ * Search Bell County Clerk for plat AND deed records by owner/subdivision name.
+ *
+ * Uses the proven quickSearch URL pattern with proper 8-second SPA wait timings
+ * (reconstructed from Ash Family Trust session, March 3-4, 2026).
+ *
+ * Returns instrument numbers categorised as 'plat' or 'deed', ready for
+ * fetchDocumentImages. Also returns all raw DocumentRef records for further use.
+ *
+ * Typical result for "ASH FAMILY TRUST":
+ *   platInstruments:  ['2023032044']   (Final Plat)
+ *   deedInstruments:  ['2010043440']   (Warranty Deed)
  */
+export async function searchBellClerkOwnerForPlatDeed(
+  ownerOrSubdivisionName: string,
+  logger: PipelineLogger,
+): Promise<{
+  platInstruments: string[];
+  deedInstruments: string[];
+  allDocuments: DocumentRef[];
+}> {
+  let browser: import('playwright').Browser | null = null;
+  const attempt = logger.attempt(
+    '2B-PLAT', BELL_CLERK_BASE, 'PLAYWRIGHT_PLAT_DEED', ownerOrSubdivisionName,
+  );
+
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      viewport: { width: 1280, height: 900 },
+    });
+    const page = await context.newPage();
+
+    // Navigate to quickSearch results (department=RP = Real Property).
+    // Per proven timing: Tyler PublicSearch SPA needs 8 full seconds to render
+    // result rows after domcontentloaded fires.
+    const searchUrl =
+      `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch` +
+      `&searchValue=${encodeURIComponent(ownerOrSubdivisionName)}`;
+
+    console.log(`[BELL-PLAT] Searching: ${searchUrl}`);
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    // 8s: Tyler PublicSearch SPA render time — validated with Ash Family Trust session
+    // (March 3-4, 2026). Shorter waits cause rows to not appear. If this proves
+    // insufficient on slow connections, increase to 10s rather than polling.
+    await page.waitForTimeout(8_000);
+
+    // Accept any disclaimer dialogs
+    try {
+      const btn = await page.$(
+        'button:has-text("Accept"), button:has-text("OK"), button:has-text("I Agree")',
+      );
+      if (btn) { await btn.click(); await page.waitForTimeout(1_000); }
+    } catch { /* no dialog */ }
+
+    const allDocuments = await _extractSearchResults(page);
+    console.log(`[BELL-PLAT] Found ${allDocuments.length} documents for "${ownerOrSubdivisionName}"`);
+
+    // Categorise instruments: plat documents vs deed documents
+    const platInstruments: string[] = [];
+    const deedInstruments: string[] = [];
+
+    for (const doc of allDocuments) {
+      if (!doc.instrumentNumber) continue;
+      const dt = (doc.documentType ?? '').toLowerCase();
+      if (/\bplat\b/.test(dt) || dt.includes('final plat') || dt.includes('amended plat')) {
+        platInstruments.push(doc.instrumentNumber);
+      } else if (
+        /\b(warranty deed|deed|conveyance|transfer|grant)\b/.test(dt) &&
+        !dt.includes('deed of trust')
+      ) {
+        deedInstruments.push(doc.instrumentNumber);
+      }
+    }
+
+    await browser.close();
+
+    logger.info(
+      'Stage2B',
+      `"${ownerOrSubdivisionName}": ${allDocuments.length} docs — ` +
+      `plats: [${platInstruments.join(', ') || 'none'}], ` +
+      `deeds: [${deedInstruments.join(', ') || 'none'}]`,
+    );
+
+    if (allDocuments.length > 0) {
+      attempt.success(
+        allDocuments.length,
+        `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s)`,
+      );
+    } else {
+      attempt.fail('No plat or deed records found');
+    }
+
+    return { platInstruments, deedInstruments, allDocuments };
+  } catch (err: any) {
+    console.error('[BELL-PLAT] Search failed:', err.message);
+    if (browser) await browser.close().catch(() => {});
+    attempt.fail(err.message);
+    return { platInstruments: [], deedInstruments: [], allDocuments: [] };
+  }
+}
+
+
 export function savePageImages(
   pages: DocumentPage[],
   outputDir: string,

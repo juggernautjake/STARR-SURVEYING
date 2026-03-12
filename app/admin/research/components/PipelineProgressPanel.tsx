@@ -5,7 +5,7 @@
 // Driven by `pipelineResult` from the polling interval — no fake timers.
 // Stage is inferred from the "Stage N:" prefix in the `message` field.
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -349,6 +349,16 @@ export function PipelineProgressPanel({
 }: PipelineProgressProps) {
   const [showLog,      setShowLog]      = useState(false);
   const [logCopied,    setLogCopied]    = useState(false);
+
+  // Auto-expand the log when analysis completes so results are immediately visible.
+  useEffect(() => {
+    if (
+      (status === 'success' || status === 'partial' || status === 'failed') &&
+      log && log.length > 0
+    ) {
+      setShowLog(true);
+    }
+  }, [status, log]);
 
   const activeStage = useMemo(() => inferActiveStage(message, status), [message, status]);
   const stageStates = useMemo(() => computeStageStates(log, activeStage, status), [log, activeStage, status]);
