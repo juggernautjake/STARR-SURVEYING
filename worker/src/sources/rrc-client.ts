@@ -4,8 +4,16 @@
 //
 // Spec §11.5 — Texas Railroad Commission (Oil & Gas)
 //
-// Data source: RRC GIS Viewer ArcGIS REST
-//   https://gis.rrc.texas.gov/arcgis/rest/services/
+// Two access modes:
+//   1. GIS Viewer ArcGIS REST — real-time point/proximity queries
+//      https://gis.rrc.texas.gov/arcgis/rest/services/
+//   2. Bulk Download (FREE) — static SHP/ZIP files updated daily or monthly
+//      https://www.rrc.texas.gov/resource-center/research/data-sets-available-for-download/
+//      Bell County filter: CNTY_FIPS = 027 (wells & pipelines) or CNTY = "BELL"
+//
+// ⚠️ ALL RRC GIS data is in NAD27 Geographic (Decimal Degrees).
+//    Must transform to NAD83 for integration with other Bell County layers.
+//    Use proj4 or GDAL for coordinate conversion.
 
 import type { RRCResult } from '../types/expansion.js';
 import { retryWithBackoff } from '../infra/resilience.js';
@@ -14,6 +22,92 @@ const RRC_WELLS_URL =
   'https://gis.rrc.texas.gov/arcgis/rest/services/Wells/MapServer/0/query';
 const RRC_PIPELINES_URL =
   'https://gis.rrc.texas.gov/arcgis/rest/services/Pipelines/MapServer/0/query';
+
+// ── Bulk Download Metadata ───────────────────────────────────────────────────
+
+/**
+ * A downloadable bulk dataset from the RRC Data Downloads page.
+ * All files are free and require no authentication.
+ */
+export interface RRCBulkDataset {
+  /** Short identifier */
+  id: string;
+  /** Human-readable dataset name */
+  name: string;
+  /** Direct download URL */
+  url: string;
+  /** File format */
+  format: 'SHP' | 'ZIP' | 'TXT' | 'DBF';
+  /** How often the file is updated */
+  updateFrequency: 'daily' | 'monthly' | 'continuous';
+  /** Key field names for Bell County filtering */
+  countyFilterField: string;
+  /** Value to use for Bell County (CNTY_FIPS=027 or CNTY="BELL") */
+  bellCountyFilterValue: string;
+  /** Key attribute fields in this dataset */
+  keyFields: string[];
+  /** Notes on coordinate system, format, etc. */
+  notes: string;
+}
+
+/** Known RRC bulk download files (verified March 2026) */
+export const RRC_BULK_DATASETS: RRCBulkDataset[] = [
+  {
+    id: 'well_surface_locations',
+    name: 'Well Locations (Surface)',
+    url: 'https://www.rrc.texas.gov/resource-center/research/data-sets-available-for-download/',
+    format: 'SHP',
+    updateFrequency: 'daily',
+    countyFilterField: 'CNTY',
+    bellCountyFilterValue: 'BELL',
+    keyFields: ['API_NUM', 'WELL_NO', 'LEASE_NM', 'OPER_NM', 'STATUS', 'SURF_LAT', 'SURF_LON'],
+    notes: 'NAD27 Decimal Degrees. Filter by CNTY="BELL" after download. Daily updates.',
+  },
+  {
+    id: 'pipeline_t4',
+    name: 'Pipeline Locations (T-4)',
+    url: 'https://www.rrc.texas.gov/resource-center/research/data-sets-available-for-download/',
+    format: 'SHP',
+    updateFrequency: 'continuous',
+    countyFilterField: 'CNTY_FIPS',
+    bellCountyFilterValue: '027',
+    keyFields: ['P5_NUM', 'SYS_NM', 'CNTY_CD', 'OPER_NM', 'commodity', 'CNTY_FIPS'],
+    notes: 'NAD27 Decimal Degrees. Filter by CNTY_FIPS=027 for Bell County. Continuous updates.',
+  },
+  {
+    id: 'drilling_permits',
+    name: 'Drilling Permits',
+    url: 'https://www.rrc.texas.gov/resource-center/research/data-sets-available-for-download/',
+    format: 'TXT',
+    updateFrequency: 'daily',
+    countyFilterField: 'CNTY_CD',
+    bellCountyFilterValue: '027',
+    keyFields: ['API_NUM', 'OPER_NM', 'SURF_LAT', 'SURF_LON', 'CNTY_CD'],
+    notes: 'Text/DBF format. Filter by CNTY_CD=027 for Bell County. Daily updates.',
+  },
+  {
+    id: 'wellbore_database',
+    name: 'Wellbore Database',
+    url: 'https://www.rrc.texas.gov/resource-center/research/data-sets-available-for-download/',
+    format: 'TXT',
+    updateFrequency: 'monthly',
+    countyFilterField: 'CNTY_CD',
+    bellCountyFilterValue: '027',
+    keyFields: ['API', 'completion_date', 'plug_date', 'formation'],
+    notes: 'Text/DBF format. Filter by county code. Monthly updates.',
+  },
+  {
+    id: 'organization_p5',
+    name: 'Organization Report (P-5)',
+    url: 'https://www.rrc.texas.gov/resource-center/research/data-sets-available-for-download/',
+    format: 'TXT',
+    updateFrequency: 'monthly',
+    countyFilterField: 'N/A',
+    bellCountyFilterValue: 'N/A',
+    keyFields: ['P5_NUM', 'OPER_NM', 'ADDR', 'PHONE', 'active_status'],
+    notes: 'Statewide operator registry — no county filter. Monthly updates.',
+  },
+];
 
 // ── RRC Client ──────────────────────────────────────────────────────────────
 
@@ -280,5 +374,37 @@ export class RRCClient {
     }
     if (c.includes('oil')) return 50;
     return 25;
+  }
+
+  // ── Bulk Download Access ────────────────────────────────────────────────
+
+  /**
+   * Get metadata for all RRC bulk download datasets.
+   *
+   * These are static SHP/ZIP/TXT files from the RRC Data Downloads page.
+   * No authentication required — all files are free.
+   *
+   * After downloading, filter by `countyFilterField === bellCountyFilterValue`
+   * to extract Bell County records.
+   *
+   * ⚠️ All RRC GIS files use NAD27 Geographic (Decimal Degrees).
+   *    Transform to NAD83 before integrating with other Bell County layers.
+   */
+  getBulkDownloadUrls(): RRCBulkDataset[] {
+    return RRC_BULK_DATASETS;
+  }
+
+  /**
+   * Get the bulk download entry for a specific dataset by ID.
+   */
+  getBulkDataset(id: string): RRCBulkDataset | null {
+    return RRC_BULK_DATASETS.find((d) => d.id === id) ?? null;
+  }
+
+  /**
+   * Get all bulk datasets that have Bell County-specific filter instructions.
+   */
+  getBellCountyBulkDatasets(): RRCBulkDataset[] {
+    return RRC_BULK_DATASETS.filter((d) => d.bellCountyFilterValue !== 'N/A');
   }
 }

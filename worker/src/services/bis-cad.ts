@@ -586,9 +586,13 @@ async function searchCadHttp(
       tracker({ status: 'fail', error: `[${category}] ${detail}`, nextLayer: 'Stage1B' });
       diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
 
-      // Network/timeout errors won't resolve with different variants
+      // Network/timeout errors won't resolve with different variants.
+      // Mark the site as unreachable so the pipeline can log this clearly
+      // and continue with alternative sources (clerk, plat repo, etc.).
       if (category === 'network' || category === 'timeout') {
-        logger.warn('Stage1A', `[${category}] ${detail} — stopping HTTP attempts`);
+        logger.warn('Stage1A', `[${category}] ${detail} — site unreachable, stopping HTTP attempts`);
+        diagnostics.cadSiteError = `The county appraisal website appears to be unreachable (${category}): ${detail}`;
+        diagnostics.siteUnreachable = true;
         break;
       }
     }
@@ -1226,10 +1230,37 @@ async function searchCadPlaywright(
 
     return { results: capturedResults, screenshot, validation };
   } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const { category } = classifyError(err);
+
+    // When the site is unreachable (network/timeout) or the browser launch itself
+    // fails, mark the CAD as down and capture whatever screenshot we can.
+    // The pipeline will continue with alternative sources (clerk, plat repo, etc.).
+    if (category === 'network' || category === 'timeout') {
+      diagnostics.cadSiteError =
+        `The county appraisal website appears to be unreachable (${category}): ${errMsg}`;
+      diagnostics.siteUnreachable = true;
+
+      // Attempt to screenshot the browser's error page — useful for diagnostics
+      // even when the target site is down (the browser renders a net error page).
+      if (browser && !screenshot) {
+        try {
+          const errContext = await browser.newContext();
+          const errPage = await errContext.newPage();
+          await errPage.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 })
+            .catch(() => { /* ignore navigation failure — page shows error */ });
+          screenshot = await errPage.screenshot({ fullPage: true }) as Buffer;
+          await errContext.close().catch(() => {});
+        } catch {
+          // Screenshot of the error page is optional — don't let it block progress
+        }
+      }
+    }
+
     if (browser) {
       try { await browser.close(); } catch { /* ignore */ }
     }
-    finish({ status: 'fail', error: err instanceof Error ? err.message : String(err), nextLayer: 'Stage1C' });
+    finish({ status: 'fail', error: errMsg, nextLayer: 'Stage1C' });
     return { results: [], screenshot, validation: null };
   }
 }
@@ -2434,6 +2465,13 @@ export async function searchBisCad(
 
   logger.error('Stage1', `All CAD search layers exhausted — property not found. Tried ${diagnostics.variantsTried.length} variants.`);
   diagnostics.searchDuration_ms = Date.now() - searchStart;
+
+  // Preserve any screenshot from Stage 1B/1C in diagnostics so the pipeline
+  // can surface it for AI analysis and the admin dashboard.
+  if (screenshot && screenshot.length > 0 && !diagnostics.failureScreenshotBase64) {
+    diagnostics.failureScreenshotBase64 = screenshot.toString('base64');
+  }
+
   return { property: null, diagnostics };
 }
 

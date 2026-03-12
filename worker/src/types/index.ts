@@ -70,6 +70,17 @@ export interface SearchDiagnostics {
    * interpreted as "unknown" rather than "property not found".
    */
   cadSiteError?: string;
+  /**
+   * True when the CAD site was completely unreachable (DNS failure, connection refused,
+   * network timeout) rather than returning an error page.  Research continues with
+   * alternative sources (county clerk, plat repository, etc.) even when this is set.
+   */
+  siteUnreachable?: boolean;
+  /**
+   * Base64-encoded PNG screenshot captured when the site was unreachable or returned
+   * an error page.  Used for diagnostics and AI analysis of the failure.
+   */
+  failureScreenshotBase64?: string;
 }
 
 // ── Stage 1: Property Identification ───────────────

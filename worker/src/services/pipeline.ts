@@ -443,8 +443,24 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     }
 
     if (!propertyResult) {
-      logger.warn('Stage1', `CAD lookup failed for ${input.address} in ${input.county} County — continuing to clerk search`);
-      await updateStatus(input.projectId, 'running', `Stage 1: CAD lookup failed — trying clerk records for ${input.address}…`);
+      if (searchDiagnostics?.siteUnreachable) {
+        const cadName = cadConfig?.name ?? `${input.county} CAD`;
+        const cadUrl  = cadConfig?.baseUrl ?? 'the county appraisal website';
+        logger.warn('Stage1', `⚠ ${cadName} (${cadUrl}) is UNREACHABLE — continuing research with alternative sources`);
+        logger.warn('Stage1', `  ↳ Alternatives: ${input.county} County Clerk records${kofile ? ` (${kofileBase})` : ''}, plat repository${platRepo ? ' (available)' : ' (none)'}, user-uploaded documents`);
+        if (searchDiagnostics.cadSiteError) {
+          logger.warn('Stage1', `  ↳ Error detail: ${searchDiagnostics.cadSiteError}`);
+        }
+        await updateStatus(input.projectId, 'running', `Stage 1: ${cadName} unreachable — trying clerk records & alternative sources for ${input.address}…`);
+      } else if (searchDiagnostics?.cadSiteError) {
+        const cadName = cadConfig?.name ?? `${input.county} CAD`;
+        logger.warn('Stage1', `⚠ ${cadName} reports a site error — continuing research with alternative sources`);
+        logger.warn('Stage1', `  ↳ ${searchDiagnostics.cadSiteError}`);
+        await updateStatus(input.projectId, 'running', `Stage 1: ${cadName} site error — trying clerk records for ${input.address}…`);
+      } else {
+        logger.warn('Stage1', `CAD lookup failed for ${input.address} in ${input.county} County — continuing to clerk search`);
+        await updateStatus(input.projectId, 'running', `Stage 1: CAD lookup failed — trying clerk records for ${input.address}…`);
+      }
       // Do NOT return early — fall through to Stage 2 so clerk search and AI
       // extraction can still run using input.ownerName or user-supplied files.
     } else {
@@ -576,7 +592,15 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       }
       documents = [...documents, ...ownerDocs];
     } else if (!instrumentSearchSucceeded && !ownerForClerk) {
-      logger.warn('Stage2', 'No instruments and no owner name — document retrieval skipped');
+      // No owner name is available — clerk SPA search cannot proceed.
+      // Log with context so operators know what to provide to unblock research.
+      if (searchDiagnostics?.siteUnreachable) {
+        logger.warn('Stage2',
+          `CAD was unreachable and no owner name provided — clerk name search skipped. ` +
+          `Provide owner name via input.ownerName to enable clerk record search.`);
+      } else {
+        logger.warn('Stage2', 'No instruments and no owner name — document retrieval skipped');
+      }
     }
 
     // Merge user-uploaded documents
@@ -677,9 +701,22 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const duration_ms = Date.now() - startTime;
     logger.info('Pipeline', `Pipeline ${status.toUpperCase()} in ${(duration_ms / 1000).toFixed(1)}s`);
 
-    // Build human-readable failure reason for the frontend when the pipeline fails.
+    // Build human-readable failure/warning reason for the frontend.
+    // Shown for 'failed' status always; also surfaced for 'partial' when the CAD
+    // was unreachable so operators know to retry once the site is back up.
     let failureReason: string | undefined;
-    if (status === 'failed') {
+    if (searchDiagnostics?.siteUnreachable) {
+      const cadName = cadConfig?.name ?? `${input.county} CAD`;
+      const cadUrl  = cadConfig?.baseUrl ?? 'the county appraisal website';
+      const altSources: string[] = [];
+      if (kofile) altSources.push(`${input.county} County Clerk (${kofileBase})`);
+      if (platRepo) altSources.push('county plat repository');
+      const altNote = altSources.length > 0
+        ? ` Research continued using: ${altSources.join(', ')}.`
+        : '';
+      failureReason = `${cadName} (${cadUrl}) was unreachable during this search.${altNote} ` +
+        `Please verify the site is operational and retry for complete results.`;
+    } else if (status === 'failed') {
       if (searchDiagnostics?.cadSiteError) {
         const cadName = cadConfig?.name ?? `${input.county} CAD`;
         const cadUrl  = cadConfig?.baseUrl ?? 'the county appraisal website';

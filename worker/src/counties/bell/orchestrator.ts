@@ -21,6 +21,7 @@ import type {
   ResearchedLink,
   ResearchError,
   AiUsageSummary,
+  SiteIntelligenceNote,
 } from './types/research-result';
 
 import { scrapeBellCad } from './scrapers/cad-scraper';
@@ -296,7 +297,7 @@ export async function orchestrateBellResearch(
 
   // ── Site intelligence ──────────────────────────────────────────────
   progress('Phase 3', 'Analyzing screenshots for system improvement...', 85);
-  let siteIntelligence;
+  let siteIntelligence: SiteIntelligenceNote[] = [];
   try {
     siteIntelligence = await analyzeSiteScreenshots(
       allScreenshots.slice(0, 10), // Analyze top 10 screenshots
