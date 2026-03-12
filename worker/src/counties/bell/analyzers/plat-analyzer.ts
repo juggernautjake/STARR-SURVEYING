@@ -13,6 +13,11 @@
 
 import type { PlatRecord, PlatAnalysis, PlatSection, AiUsageSummary } from '../types/research-result';
 import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence';
+import {
+  accumulateUsage,
+  buildUsageFromTokens,
+  zeroUsage,
+} from './ai-cost-helpers';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -35,18 +40,6 @@ export interface PlatAnalysisResult {
   aiUsage: AiUsageSummary;
 }
 
-// ── Cost constants (same as deed-analyzer) ───────────────────────────
-
-const COST_PER_INPUT_TOKEN = 3 / 1_000_000;
-const COST_PER_OUTPUT_TOKEN = 15 / 1_000_000;
-
-function accumulateUsage(acc: AiUsageSummary, delta: Partial<AiUsageSummary>): void {
-  acc.totalCalls += delta.totalCalls ?? 0;
-  acc.totalInputTokens += delta.totalInputTokens ?? 0;
-  acc.totalOutputTokens += delta.totalOutputTokens ?? 0;
-  acc.estimatedCostUsd += delta.estimatedCostUsd ?? 0;
-}
-
 // ── Main Export ───────────────────────────────────────────────────────
 
 /**
@@ -61,12 +54,7 @@ export async function analyzeBellPlats(
     onProgress({ phase: 'Plat Analysis', message: msg, timestamp: new Date().toISOString() });
   };
 
-  const usage: AiUsageSummary = {
-    totalCalls: 0,
-    totalInputTokens: 0,
-    totalOutputTokens: 0,
-    estimatedCostUsd: 0,
-  };
+  const usage = zeroUsage();
 
   if (input.platRecords.length === 0) {
     progress('No plat records to analyze');
@@ -185,14 +173,10 @@ Be thorough — every dimension, call, and monument matters for the survey.`,
     });
 
     const textBlock = response.content.find(b => b.type === 'text');
-    const inputTokens = response.usage?.input_tokens ?? 0;
-    const outputTokens = response.usage?.output_tokens ?? 0;
-    const callUsage: Partial<AiUsageSummary> = {
-      totalCalls: 1,
-      totalInputTokens: inputTokens,
-      totalOutputTokens: outputTokens,
-      estimatedCostUsd: inputTokens * COST_PER_INPUT_TOKEN + outputTokens * COST_PER_OUTPUT_TOKEN,
-    };
+    const callUsage = buildUsageFromTokens(
+      response.usage?.input_tokens ?? 0,
+      response.usage?.output_tokens ?? 0,
+    );
 
     if (!textBlock) return { analysis: null, usage: callUsage };
 

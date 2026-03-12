@@ -12,6 +12,13 @@
 import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary } from '../types/research-result';
 import type { ConfidenceRating } from '../types/confidence';
 import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence';
+import {
+  accumulateUsage,
+  buildUsageFromTokens,
+  zeroUsage,
+  COST_PER_INPUT_TOKEN,
+  COST_PER_OUTPUT_TOKEN,
+} from './ai-cost-helpers';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -49,12 +56,7 @@ export async function analyzeBellDeeds(
     onProgress({ phase: 'Deed Analysis', message: msg, timestamp: new Date().toISOString() });
   };
 
-  const usage: AiUsageSummary = {
-    totalCalls: 0,
-    totalInputTokens: 0,
-    totalOutputTokens: 0,
-    estimatedCostUsd: 0,
-  };
+  const usage = zeroUsage();
 
   if (input.deedRecords.length === 0) {
     progress('No deed records to analyze');
@@ -125,19 +127,6 @@ export async function analyzeBellDeeds(
   };
 }
 
-// ── Internal: AI Usage Helper ────────────────────────────────────────
-
-/** Cost per token in USD (claude-sonnet-4 pricing, March 2026). */
-const COST_PER_INPUT_TOKEN = 3 / 1_000_000;   // $3 / 1M input tokens
-const COST_PER_OUTPUT_TOKEN = 15 / 1_000_000; // $15 / 1M output tokens
-
-function accumulateUsage(acc: AiUsageSummary, delta: Partial<AiUsageSummary>): void {
-  acc.totalCalls += delta.totalCalls ?? 0;
-  acc.totalInputTokens += delta.totalInputTokens ?? 0;
-  acc.totalOutputTokens += delta.totalOutputTokens ?? 0;
-  acc.estimatedCostUsd += delta.estimatedCostUsd ?? 0;
-}
-
 // ── Internal: Individual Deed Analysis ───────────────────────────────
 
 async function analyzeDeedException(
@@ -189,12 +178,7 @@ Provide a concise 2-3 sentence summary suitable for a property surveyor.`,
     const outputTokens = response.usage?.output_tokens ?? 0;
     return {
       summary: textBlock ? textBlock.text : '',
-      usage: {
-        totalCalls: 1,
-        totalInputTokens: inputTokens,
-        totalOutputTokens: outputTokens,
-        estimatedCostUsd: inputTokens * COST_PER_INPUT_TOKEN + outputTokens * COST_PER_OUTPUT_TOKEN,
-      },
+      usage: buildUsageFromTokens(inputTokens, outputTokens),
     };
   } catch {
     return { summary: '', usage: {} };
@@ -290,12 +274,7 @@ Write a concise 3-5 sentence narrative summary covering:
     const outputTokens = response.usage?.output_tokens ?? 0;
     return {
       summary: textBlock?.text ?? '',
-      usage: {
-        totalCalls: 1,
-        totalInputTokens: inputTokens,
-        totalOutputTokens: outputTokens,
-        estimatedCostUsd: inputTokens * COST_PER_INPUT_TOKEN + outputTokens * COST_PER_OUTPUT_TOKEN,
-      },
+      usage: buildUsageFromTokens(inputTokens, outputTokens),
     };
   } catch {
     return {
