@@ -9,9 +9,14 @@
  *   - Detect gaps or anomalies in ownership history
  */
 
-import type { DeedRecord, ChainLink, DeedsAndRecordsSection } from '../types/research-result';
+import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary } from '../types/research-result';
 import type { ConfidenceRating } from '../types/confidence';
 import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence';
+import {
+  accumulateUsage,
+  buildUsageFromTokens,
+  zeroUsage,
+} from './ai-cost-helpers';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -30,6 +35,11 @@ export interface DeedAnalyzerProgress {
   timestamp: string;
 }
 
+export interface DeedAnalysisResult {
+  section: DeedsAndRecordsSection;
+  aiUsage: AiUsageSummary;
+}
+
 // ── Main Export ───────────────────────────────────────────────────────
 
 /**
@@ -39,25 +49,30 @@ export async function analyzeBellDeeds(
   input: DeedAnalysisInput,
   anthropicApiKey: string,
   onProgress: (p: DeedAnalyzerProgress) => void,
-): Promise<DeedsAndRecordsSection> {
+): Promise<DeedAnalysisResult> {
   const progress = (msg: string) => {
     onProgress({ phase: 'Deed Analysis', message: msg, timestamp: new Date().toISOString() });
   };
 
+  const usage = zeroUsage();
+
   if (input.deedRecords.length === 0) {
     progress('No deed records to analyze');
     return {
-      summary: 'No deed records were found during research.',
-      records: [],
-      chainOfTitle: [],
-      confidence: computeConfidence({
-        sourceReliability: 0,
-        dataUsefulness: 0,
-        crossValidation: 0,
-        sourceName: 'none',
-        validatedBy: [],
-        contradictedBy: [],
-      }),
+      section: {
+        summary: 'No deed records were found during research.',
+        records: [],
+        chainOfTitle: [],
+        confidence: computeConfidence({
+          sourceReliability: 0,
+          dataUsefulness: 0,
+          crossValidation: 0,
+          sourceName: 'none',
+          validatedBy: [],
+          contradictedBy: [],
+        }),
+      },
+      aiUsage: usage,
     };
   }
 
@@ -68,7 +83,8 @@ export async function analyzeBellDeeds(
   for (const record of input.deedRecords) {
     if (record.pageImages.length > 0) {
       progress(`Analyzing: ${record.documentType} — ${record.instrumentNumber ?? 'no instrument #'}`);
-      const aiSummary = await analyzeDeedException(record, anthropicApiKey);
+      const { summary: aiSummary, usage: callUsage } = await analyzeDeedException(record, anthropicApiKey);
+      accumulateUsage(usage, callUsage);
       analyzedRecords.push({ ...record, aiSummary });
     } else {
       analyzedRecords.push(record);
@@ -81,7 +97,8 @@ export async function analyzeBellDeeds(
 
   // ── Step 3: Generate overall summary ───────────────────────────────
   progress('Generating ownership history summary...');
-  const summary = await generateDeedSummary(analyzedRecords, chainOfTitle, input.currentOwner, anthropicApiKey);
+  const { summary, usage: summaryUsage } = await generateDeedSummary(analyzedRecords, chainOfTitle, input.currentOwner, anthropicApiKey);
+  accumulateUsage(usage, summaryUsage);
 
   // ── Step 4: Compute confidence ─────────────────────────────────────
   const hasImages = analyzedRecords.some(r => r.pageImages.length > 0);
@@ -98,20 +115,39 @@ export async function analyzeBellDeeds(
   progress(`Deed analysis complete: ${chainOfTitle.length} links in chain`);
 
   return {
-    summary,
-    records: analyzedRecords,
-    chainOfTitle,
-    confidence,
+    section: {
+      summary,
+      records: analyzedRecords,
+      chainOfTitle,
+      confidence,
+    },
+    aiUsage: usage,
   };
 }
 
 // ── Internal: Individual Deed Analysis ───────────────────────────────
 
+/**
+ * Build a plain-text fallback summary from deed record metadata alone,
+ * used when AI analysis is unavailable or fails.
+ */
+function buildFallbackDeedSummary(record: DeedRecord): string {
+  const parts: string[] = [`Document type: ${record.documentType}`];
+  if (record.grantor) parts.push(`Grantor: ${record.grantor}`);
+  if (record.grantee) parts.push(`Grantee: ${record.grantee}`);
+  if (record.recordingDate) parts.push(`Recorded: ${record.recordingDate}`);
+  if (record.instrumentNumber) parts.push(`Instrument #${record.instrumentNumber}`);
+  if (record.legalDescription) {
+    parts.push(`Legal: ${record.legalDescription.slice(0, 120)}`);
+  }
+  return parts.join(' | ') + '. (AI image analysis was not available for this document.)';
+}
+
 async function analyzeDeedException(
   record: DeedRecord,
   apiKey: string,
-): Promise<string> {
-  if (!apiKey || record.pageImages.length === 0) return '';
+): Promise<{ summary: string; usage: Partial<AiUsageSummary> }> {
+  if (!apiKey || record.pageImages.length === 0) return { summary: '', usage: {} };
 
   try {
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
@@ -151,10 +187,20 @@ Provide a concise 2-3 sentence summary suitable for a property surveyor.`,
       }],
     });
 
-    const textBlock = response.content.find(b => b.type === 'text');
-    return textBlock ? textBlock.text : '';
-  } catch {
-    return '';
+    const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
+    const inputTokens = response.usage?.input_tokens ?? 0;
+    const outputTokens = response.usage?.output_tokens ?? 0;
+    return {
+      summary: textBlock ? textBlock.text : buildFallbackDeedSummary(record),
+      usage: buildUsageFromTokens(inputTokens, outputTokens),
+    };
+  } catch (err) {
+    console.warn(
+      `[deed-analyzer] AI analysis failed for ${record.documentType} ` +
+      `${record.instrumentNumber ?? '(no inst#)'}: ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
+    return { summary: buildFallbackDeedSummary(record), usage: {} };
   }
 }
 
@@ -186,28 +232,43 @@ function buildChainOfTitle(records: DeedRecord[]): ChainLink[] {
 
 // ── Internal: Summary Generation ─────────────────────────────────────
 
+/**
+ * Build a structured ownership-history summary from deed metadata alone,
+ * used when no Anthropic API key is set or when the AI call fails.
+ */
+function buildNoAiDeedSummary(
+  records: DeedRecord[],
+  chain: ChainLink[],
+  currentOwner: string | null,
+): string {
+  const dates = records.map(r => r.recordingDate).filter(Boolean).sort() as string[];
+  const oldestDate = dates[0] ?? 'unknown';
+  const newestDate = dates[dates.length - 1] ?? 'unknown';
+  const docTypes = [...new Set(records.map(r => r.documentType))];
+
+  let summary =
+    `Found ${records.length} recorded document(s) spanning ${oldestDate} to ${newestDate}. ` +
+    `Document types: ${docTypes.join(', ')}. ` +
+    `Current owner: ${currentOwner ?? 'unknown'}. ` +
+    `Chain of title: ${chain.length} conveyance(s)`;
+
+  if (chain.length > 0) {
+    const first = chain[0];
+    const last  = chain[chain.length - 1];
+    summary += ` — ${first.from} (${first.date ?? '?'}) → ${last.to} (${last.date ?? '?'})`;
+  }
+
+  return summary + '.';
+}
+
 async function generateDeedSummary(
   records: DeedRecord[],
   chain: ChainLink[],
   currentOwner: string | null,
   apiKey: string,
-): Promise<string> {
+): Promise<{ summary: string; usage: Partial<AiUsageSummary> }> {
   if (!apiKey) {
-    // Generate a basic summary without AI
-    const deedCount = records.length;
-    const oldestDate = records
-      .map(r => r.recordingDate)
-      .filter(Boolean)
-      .sort()[0] ?? 'unknown';
-    const newestDate = records
-      .map(r => r.recordingDate)
-      .filter(Boolean)
-      .sort()
-      .reverse()[0] ?? 'unknown';
-
-    return `Found ${deedCount} recorded document(s) spanning from ${oldestDate} to ${newestDate}. ` +
-      `Current owner: ${currentOwner ?? 'unknown'}. ` +
-      `Chain of title contains ${chain.length} conveyance(s).`;
+    return { summary: buildNoAiDeedSummary(records, chain, currentOwner), usage: {} };
   }
 
   try {
@@ -239,9 +300,18 @@ Write a concise 3-5 sentence narrative summary covering:
       }],
     });
 
-    const textBlock = response.content.find(b => b.type === 'text');
-    return textBlock?.text ?? '';
-  } catch {
-    return `Found ${records.length} document(s). Current owner: ${currentOwner ?? 'unknown'}.`;
+    const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
+    const inputTokens = response.usage?.input_tokens ?? 0;
+    const outputTokens = response.usage?.output_tokens ?? 0;
+    return {
+      summary: textBlock?.text ?? buildNoAiDeedSummary(records, chain, currentOwner),
+      usage: buildUsageFromTokens(inputTokens, outputTokens),
+    };
+  } catch (err) {
+    console.warn(
+      `[deed-analyzer] AI summary generation failed: ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
+    return { summary: buildNoAiDeedSummary(records, chain, currentOwner), usage: {} };
   }
 }

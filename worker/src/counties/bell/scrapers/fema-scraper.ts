@@ -127,8 +127,11 @@ async function queryFemaLayer(
     if (data.features && data.features.length > 0) {
       return data.features[0].attributes;
     }
-  } catch {
-    // FEMA service may be temporarily unavailable
+  } catch (err) {
+    console.warn(
+      `[fema-scraper] FEMA layer ${layerNumber} query failed: ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   return null;

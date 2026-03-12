@@ -12,6 +12,16 @@ import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
 import { bundleAndUploadPages } from './pages-to-pdf.js';
 import { extractSubdivisionName, fetchBestMatchingPlat, hasPlatRepository } from './county-plats.js';
+import {
+  createSearchState,
+  ingestCADResult,
+  ingestDeedHistory,
+  pivotPersonalPropertyToLand,
+  findRelatedBellProperties,
+  summarizeSearchState,
+  mergeCascadeIntoPipeline,
+} from './bell-county-research.js';
+import { classifyBellProperty } from './bell-county-classifier.js';
 
 // ── Deed Reference Parser ─────────────────────────────────────────────────
 
@@ -467,6 +477,154 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       logger.info('Stage1', `Found: ${propertyResult.ownerName} · ID ${propertyResult.propertyId} · conf ${propertyResult.matchConfidence.toFixed(2)}${propertyResult.acreage ? ` · ${propertyResult.acreage} ac` : ''}`);
     }
 
+    // ── Bell County Cascading Enrichment ──────────────────────────────────────
+    // For Bell County properties, run a multi-wave cascade that:
+    //   1. Builds a KnownIdentifiers state from whatever Stage 1 found
+    //   2. Follows deed history instrument numbers
+    //   3. Detects personal property and pivots to the land account
+    //   4. Finds related parcels owned by the same entity
+    //   5. Enriches the primary property with all discovered instrument numbers
+    //
+    // This runs ONLY for Bell County and is non-destructive — if the cascade
+    // fails entirely, the pipeline continues with the original Stage 1 result.
+    // All state is passed through the knownIds object for Stage 2 to consume.
+    let bellKnownIds: ReturnType<typeof createSearchState> | null = null;
+    let bellAllProperties: PropertyIdResult[] = [];
+
+    if (input.county.toLowerCase() === 'bell') {
+      logger.info('Stage1-Bell', '═══ Bell County Cascade Enrichment ═══');
+      try {
+        // Seed the cascade state with everything we know so far
+        const cascadeState = createSearchState({
+          address: input.address,
+          propertyId: input.propertyId ?? propertyResult?.propertyId ?? undefined,
+          ownerName: input.ownerName ?? propertyResult?.ownerName ?? undefined,
+          instrumentNumbers: propertyResult?.instrumentNumbers,
+        });
+
+        // Ingest the Stage 1 result (if any) to extract all embedded references
+        if (propertyResult) {
+          ingestCADResult(cascadeState, propertyResult, logger);
+        }
+        if (propertyResult?.deedHistory) {
+          ingestDeedHistory(cascadeState, propertyResult.deedHistory, logger);
+        }
+
+        logger.info('Stage1-Bell',
+          `After Stage1 ingest: ${summarizeSearchState(cascadeState)}`);
+
+        // Wave: personal property pivot — find land accounts if BP/P result returned
+        const firstTypeCode = (propertyResult?.propertyType ?? '').toUpperCase();
+        const resultIsBP = firstTypeCode === 'BP' || firstTypeCode === 'P' ||
+          /business personal property/i.test(propertyResult?.legalDescription ?? '');
+
+        if (resultIsBP && propertyResult) {
+          logger.info('Stage1-Bell',
+            `Personal property account (${propertyResult.propertyId}) — pivoting to land accounts`);
+          const landAccounts = await pivotPersonalPropertyToLand(
+            propertyResult, cascadeState, logger,
+          );
+          if (landAccounts.length > 0) {
+            for (const r of landAccounts) {
+              ingestCADResult(cascadeState, r, logger);
+              bellAllProperties.push(r);
+            }
+            // Replace propertyResult with the best land account
+            const best = bellAllProperties[0];
+            if (best) {
+              propertyResult = best;
+              logger.info('Stage1-Bell',
+                `BP pivot: using land account ${best.propertyId} ` +
+                `owner="${best.ownerName}" type=${best.propertyType}`);
+            }
+          } else {
+            logger.warn('Stage1-Bell',
+              'BP pivot found no land accounts — continuing with personal property result');
+          }
+        }
+
+        // Wave: related parcel search — find other parcels owned by the same entity
+        // Only runs if we have a real property result (not BP/P)
+        const currentTypeCode = (propertyResult?.propertyType ?? '').toUpperCase();
+        const currentIsBP = currentTypeCode === 'BP' || currentTypeCode === 'P';
+        if (propertyResult && !currentIsBP && cascadeState.ownerNames.length > 0) {
+          const related = await findRelatedBellProperties(
+            cascadeState, propertyResult.propertyId, logger,
+          );
+          for (const r of related) {
+            if (!bellAllProperties.find((p) => p.propertyId === r.propertyId)) {
+              ingestCADResult(cascadeState, r, logger);
+              bellAllProperties.push(r);
+            }
+          }
+          if (related.length > 0) {
+            logger.info('Stage1-Bell',
+              `Related parcel search: ${related.length} additional account(s) found for ` +
+              `"${cascadeState.ownerNames[0]}"`);
+          }
+        }
+
+        // Enrich the primary property result with ALL instrument numbers discovered
+        // across every account (primary + related + deed history).  Stage 2 uses these
+        // for the instrument-number search channel.
+        if (propertyResult && cascadeState.instrumentNumbers.length > 0) {
+          const existingInstrs = new Set(propertyResult.instrumentNumbers ?? []);
+          const newInstrs = cascadeState.instrumentNumbers.filter(
+            (n) => !existingInstrs.has(n),
+          );
+          if (newInstrs.length > 0) {
+            propertyResult = {
+              ...propertyResult,
+              instrumentNumbers: [
+                ...(propertyResult.instrumentNumbers ?? []),
+                ...newInstrs,
+              ],
+            };
+            logger.info('Stage1-Bell',
+              `Enriched primary with ${newInstrs.length} new instrument(s): ` +
+              `[${newInstrs.slice(0, 5).join(', ')}${newInstrs.length > 5 ? '…' : ''}]`);
+          }
+        }
+
+        // Store the cascade state for Stage 2 subdivision search
+        bellKnownIds = cascadeState;
+
+        logger.info('Stage1-Bell',
+          `Cascade complete: primary=${propertyResult?.propertyId ?? 'none'} ` +
+          `related=${bellAllProperties.length} ` +
+          `total_instruments=${cascadeState.instrumentNumbers.length} ` +
+          `subdivisions=${cascadeState.subdivisionNames.length}`);
+
+        // Log Bell County property classification for operators
+        if (propertyResult) {
+          const classification = classifyBellProperty(
+            propertyResult.propertyType,
+            propertyResult.legalDescription,
+            propertyResult.ownerName,
+          );
+          logger.info('Stage1-Bell',
+            `Classification: type=${classification.typeCode} ` +
+            `cat=${classification.landCategory} ` +
+            `isPlatted=${classification.isPlatted} ` +
+            `isRural=${classification.isRuralAcreage} ` +
+            `strategy="${classification.strategyRationale}"`);
+          if (classification.subdivisionName) {
+            logger.info('Stage1-Bell',
+              `  → Subdivision: "${classification.subdivisionName}"`);
+          }
+          if (classification.abstractSurveyName) {
+            logger.info('Stage1-Bell',
+              `  → Abstract Survey: "${classification.abstractSurveyName}"`);
+          }
+        }
+      } catch (cascadeErr) {
+        // Cascade failures are non-fatal — log and continue
+        const msg = cascadeErr instanceof Error ? cascadeErr.message : String(cascadeErr);
+        logger.warn('Stage1-Bell',
+          `Cascade enrichment error (non-fatal): ${msg} — continuing with Stage 1 result`);
+      }
+    }
+
     // ── Detect personal property result (Type P / "BUSINESS PERSONAL PROPERTY") ──
     // Bell CAD returns the business tenant's equipment record (Type P) when the
     // address belongs to a commercial property. Real land records (Type R) may
@@ -571,38 +729,60 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     // ── Path B: County plat repository (free direct-download PDFs) ───────
     // Primary: extract subdivision name from legal description.
+    // Enriched: when Bell County cascade found subdivision names, try all of them.
     // Fallback: when CAD is unreachable, use owner name as subdivision hint
     // (e.g. "ASH FAMILY TRUST" finds "ASH FAMILY TRUST 12.358 ACRE ADDITION").
     if (platRepo) {
       const subdivisionFromLegal = legalDesc ? extractSubdivisionName(legalDesc) : null;
-      // If CAD was unreachable and we have an owner name, try it as a subdivision search hint.
-      // The owner name often matches the start of the subdivision name (e.g. "ASH FAMILY TRUST").
-      const subdivisionName = subdivisionFromLegal ??
-        (!propertyResult && input.ownerName ? input.ownerName.trim() : null);
-      if (subdivisionName) {
-        try {
-          const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger);
-          if (platResult) {
-            logger.info('Stage2A', `Plat: "${platResult.name}" (${platResult.source})`);
-            documents.push({
-              ref: {
-                instrumentNumber: null, volume: null, page: null,
-                documentType: 'Plat (county repository)',
-                recordingDate: null, grantors: [], grantees: [],
-                source: platResult.source, url: platResult.url,
-              },
-              textContent: null, pages: [],
-              imageFormat: platResult.mimeType === 'image/png' ? 'png' : 'pdf',
-              imageBase64: platResult.base64,
-              pagesPdfUrl: platResult.url,
-              ocrText: null, extractedData: null,
-            });
-          }
-        } catch (platErr) {
-          logger.warn('Stage2A', `Plat repo: ${platErr instanceof Error ? platErr.message : String(platErr)}`);
+
+      // Build the full list of subdivision names to try:
+      //   1. From legal description (most precise)
+      //   2. From Bell County cascade enrichment (may include related-parcel names)
+      //   3. From owner name fallback (when CAD unreachable)
+      const subdivisionCandidates: string[] = [];
+      if (subdivisionFromLegal) subdivisionCandidates.push(subdivisionFromLegal);
+      if (bellKnownIds) {
+        for (const s of bellKnownIds.subdivisionNames) {
+          if (!subdivisionCandidates.includes(s)) subdivisionCandidates.push(s);
         }
-      } else if (!legalDesc && !input.ownerName) {
-        logger.warn('Stage2A', 'Plat repo: no legal description or owner name — skipping plat search');
+      }
+      if (!propertyResult && input.ownerName) {
+        subdivisionCandidates.push(input.ownerName.trim());
+      }
+
+      if (subdivisionCandidates.length === 0) {
+        if (!legalDesc && !input.ownerName) {
+          logger.warn('Stage2A', 'Plat repo: no legal description or owner name — skipping plat search');
+        }
+      } else {
+        // Try each subdivision candidate until we find a plat (stop at first hit)
+        for (const subdivisionName of subdivisionCandidates) {
+          if (documents.some((d) => d.ref.documentType === 'Plat (county repository)')) break;
+          try {
+            logger.info('Stage2A', `Plat repo: searching for "${subdivisionName}"`);
+            const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger);
+            if (platResult) {
+              logger.info('Stage2A', `Plat: "${platResult.name}" (${platResult.source})`);
+              documents.push({
+                ref: {
+                  instrumentNumber: null, volume: null, page: null,
+                  documentType: 'Plat (county repository)',
+                  recordingDate: null, grantors: [], grantees: [],
+                  source: platResult.source, url: platResult.url,
+                },
+                textContent: null, pages: [],
+                imageFormat: platResult.mimeType === 'image/png' ? 'png' : 'pdf',
+                imageBase64: platResult.base64,
+                pagesPdfUrl: platResult.url,
+                ocrText: null, extractedData: null,
+              });
+            }
+          } catch (platErr) {
+            logger.warn('Stage2A',
+              `Plat repo "${subdivisionName}": ` +
+              `${platErr instanceof Error ? platErr.message : String(platErr)}`);
+          }
+        }
       }
     }
 

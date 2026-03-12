@@ -56,7 +56,11 @@ export async function getBellCadSession(): Promise<SessionState | null> {
     };
 
     return cachedSession;
-  } catch {
+  } catch (err) {
+    console.warn(
+      `[session-manager] Failed to acquire Bell CAD session: ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
     return null;
   }
 }

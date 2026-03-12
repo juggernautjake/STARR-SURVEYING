@@ -5,27 +5,59 @@
  * (bell.tx.publicsearch.us). Retrieves deeds, plats, easements,
  * restrictions, and all other recorded documents.
  *
- * Three search paths:
- *   A. Direct instrument number lookup (fastest, most precise)
- *   B. Document type + date range search
- *   C. Owner name search (Playwright SPA interaction)
+ * Four search paths (tried in priority order):
  *
- * Also captures page images from the document viewer.
+ *   Path A — Direct instrument number lookup (fastest, most precise)
+ *             Uses searchByInstrument() from bell-clerk.ts service layer.
+ *             Returns full document metadata + page images in ~5-15s.
+ *
+ *   Path B — Owner name Playwright SPA search
+ *             Uses searchBellClerk() which handles the Kofile SPA interaction:
+ *             API intercept, networkidle+window-state detection, result parsing.
+ *             Returns list of DocumentRefs with instrument numbers for Path A follow-up.
+ *
+ *   Path C — Subdivision/plat search
+ *             Uses searchBellClerkOwnerForPlatDeed() which specifically looks for
+ *             plat and deed documents by subdivision name.
+ *
+ *   Path D — Volume/page reference lookup
+ *             Constructs a search query from vol/page references in legal descriptions.
+ *
+ * All paths record screenshots and URLs visited for the research report.
+ *
+ * Integration note:
+ *   This module wraps the proven bell-clerk.ts Playwright service layer.
+ *   bell-clerk.ts is NOT modified by this code — it is imported as a library.
+ *   All Playwright lifecycle (launch/close) is managed within bell-clerk.ts.
+ *
+ * Bell County Clerk URL reference (verified March 2026):
+ *   Home: https://bell.tx.publicsearch.us
+ *   Results: /results?department=RP&searchType=quickSearch&searchValue={value}
+ *   Document: /doc/{instrumentId}/details
  */
 
 import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints';
 import { DOCUMENT_TYPE_SCORES } from '../config/field-maps';
-import type { ScreenshotCapture, DeedRecord } from '../types/research-result';
+import type { ScreenshotCapture } from '../types/research-result';
+import { withRetry } from '../utils/retry';
 
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface ClerkSearchResult {
-  /** All documents found */
+  /** All documents found, sorted by relevance */
   documents: ClerkDocument[];
   /** Screenshots captured during search */
   screenshots: ScreenshotCapture[];
   /** All URLs visited */
   urlsVisited: string[];
+  /** Summary stats for logging */
+  stats: {
+    instrumentsFound: number;
+    deedsFound: number;
+    platsFound: number;
+    imagesCaptured: number;
+    searchPaths: string[];
+  };
 }
 
 export interface ClerkDocument {
@@ -37,7 +69,7 @@ export interface ClerkDocument {
   grantor: string | null;
   grantee: string | null;
   legalDescription: string | null;
-  /** Page images (base64 PNG) */
+  /** Page images as base64-encoded PNG strings */
   pageImages: string[];
   /** Source URL for this document */
   sourceUrl: string | null;
@@ -46,14 +78,18 @@ export interface ClerkDocument {
 }
 
 export interface ClerkSearchInput {
-  /** Instrument numbers to look up directly */
+  /** Instrument numbers to look up directly (Path A) */
   instrumentNumbers?: string[];
-  /** Owner name for SPA search */
+  /** Owner name for SPA search (Path B) */
   ownerName?: string;
-  /** Volume/page references */
+  /** Subdivision name from legal description (Path C — plat search) */
+  subdivisionName?: string;
+  /** Volume/page references (Path D) */
   volumePages?: Array<{ volume: string; page: string }>;
-  /** Maximum documents to retrieve */
+  /** Maximum documents to retrieve (default: 50) */
   maxDocuments?: number;
+  /** Whether to capture page images for all found documents (default: true) */
+  captureImages?: boolean;
 }
 
 export interface ClerkScraperProgress {
@@ -66,7 +102,10 @@ export interface ClerkScraperProgress {
 
 /**
  * Search Bell County Clerk for recorded documents.
- * Uses all available identifiers to find relevant documents.
+ * Attempts all available search paths and deduplicates results.
+ *
+ * All paths feed newly discovered instrument numbers back into
+ * the document image capture step, ensuring full coverage.
  */
 export async function scrapeBellClerk(
   input: ClerkSearchInput,
@@ -76,207 +115,438 @@ export async function scrapeBellClerk(
   const screenshots: ScreenshotCapture[] = [];
   const urlsVisited: string[] = [];
   const maxDocs = input.maxDocuments ?? 50;
+  const captureImages = input.captureImages !== false;
+  const searchPaths: string[] = [];
+  const startedAt = Date.now();
 
   const progress = (msg: string) => {
-    onProgress({ phase: 'Clerk', message: msg, timestamp: new Date().toISOString() });
+    const elapsed = Date.now() - startedAt;
+    onProgress({ phase: 'Clerk', message: `[+${elapsed}ms] ${msg}`, timestamp: new Date().toISOString() });
+  };
+
+  /** Add a document if not already in the list (dedup by instrument number) */
+  const addDocument = (doc: ClerkDocument) => {
+    const existing = documents.find(d =>
+      d.instrumentNumber && d.instrumentNumber === doc.instrumentNumber,
+    );
+    if (!existing) {
+      documents.push(doc);
+      return true;
+    }
+    // Merge: append any page images not already present in the existing record
+    if (doc.pageImages.length > 0) {
+      for (const img of doc.pageImages) {
+        if (!existing.pageImages.includes(img)) {
+          existing.pageImages.push(img);
+        }
+      }
+    }
+    return false;
   };
 
   // ── Path A: Direct Instrument Number Lookup ────────────────────────
+  // This is the most precise path — instrument numbers come from CAD
+  // deed history, previous research, or user input.
   if (input.instrumentNumbers && input.instrumentNumbers.length > 0) {
-    progress(`Looking up ${input.instrumentNumbers.length} instrument number(s)...`);
+    searchPaths.push('Path-A-Instruments');
+    const unique = [...new Set(input.instrumentNumbers)];
+    progress(`Path A: Looking up ${unique.length} instrument number(s) directly`);
 
-    for (const instrNum of input.instrumentNumbers) {
+    for (const instrNum of unique) {
       if (documents.length >= maxDocs) break;
 
-      const doc = await lookupByInstrumentNumber(instrNum, screenshots, urlsVisited, progress);
+      progress(`  Fetching instrument: ${instrNum}`);
+      const doc = await fetchInstrumentDocument(instrNum, captureImages, screenshots, urlsVisited, progress);
       if (doc) {
-        documents.push(doc);
-        progress(`Found: ${doc.documentType} — ${instrNum}`);
+        const isNew = addDocument(doc);
+        if (isNew) {
+          progress(`  ✓ Found: ${doc.documentType} — ${instrNum} (${doc.grantor ?? '?'} → ${doc.grantee ?? '?'})`);
+        }
+      } else {
+        progress(`  ✗ Not found: ${instrNum}`);
       }
 
       await delay(RATE_LIMITS.defaultDelay);
     }
+
+    progress(`Path A complete: ${documents.length} document(s) found`);
   }
 
   // ── Path B: Owner Name SPA Search ──────────────────────────────────
+  // The Kofile SPA requires Playwright for interactive search. The
+  // bell-clerk.ts service layer handles all browser interaction.
   if (input.ownerName && documents.length < maxDocs) {
-    progress(`Searching clerk records by owner: ${input.ownerName}`);
-    const ownerDocs = await searchByOwnerName(
+    searchPaths.push('Path-B-Owner');
+    progress(`Path B: Searching clerk by owner name: "${input.ownerName}"`);
+
+    const ownerDocs = await searchClerkByOwner(
       input.ownerName,
       maxDocs - documents.length,
+      captureImages,
       screenshots,
       urlsVisited,
       progress,
     );
-    documents.push(...ownerDocs);
+
+    let newCount = 0;
+    for (const doc of ownerDocs) {
+      if (addDocument(doc)) newCount++;
+    }
+    progress(`Path B complete: ${newCount} new document(s) found (${ownerDocs.length} total from owner search)`);
   }
 
-  // ── Path C: Volume/Page Lookup ─────────────────────────────────────
-  if (input.volumePages && input.volumePages.length > 0) {
-    progress(`Looking up ${input.volumePages.length} volume/page reference(s)...`);
+  // ── Path C: Subdivision / Plat Search ─────────────────────────────
+  // Searches for plat and deed records by subdivision name.
+  // Used when we have a legal description containing a subdivision name.
+  if (input.subdivisionName && documents.length < maxDocs) {
+    searchPaths.push('Path-C-Subdivision');
+    progress(`Path C: Searching clerk for subdivision/plat: "${input.subdivisionName}"`);
+
+    const subdivDocs = await searchClerkBySubdivision(
+      input.subdivisionName,
+      captureImages,
+      screenshots,
+      urlsVisited,
+      progress,
+    );
+
+    let newCount = 0;
+    for (const doc of subdivDocs) {
+      if (addDocument(doc)) newCount++;
+    }
+    progress(`Path C complete: ${newCount} new document(s) found for subdivision`);
+  }
+
+  // ── Path D: Volume/Page Lookup ─────────────────────────────────────
+  if (input.volumePages && input.volumePages.length > 0 && documents.length < maxDocs) {
+    searchPaths.push('Path-D-VolumePage');
+    progress(`Path D: Looking up ${input.volumePages.length} volume/page reference(s)`);
 
     for (const vp of input.volumePages) {
       if (documents.length >= maxDocs) break;
-
-      const doc = await lookupByVolumePage(vp.volume, vp.page, screenshots, urlsVisited, progress);
-      if (doc && !documents.find(d => d.instrumentNumber === doc.instrumentNumber)) {
-        documents.push(doc);
+      progress(`  Vol ${vp.volume} Pg ${vp.page}`);
+      const doc = await fetchByVolumePage(vp.volume, vp.page, captureImages, screenshots, urlsVisited, progress);
+      if (doc) {
+        const isNew = addDocument(doc);
+        if (isNew) {
+          progress(`  ✓ Found: ${doc.documentType} — Vol ${vp.volume} Pg ${vp.page}`);
+        }
       }
     }
   }
 
-  // Sort by relevance score (most relevant first)
+  // ── Sort by relevance ──────────────────────────────────────────────
   documents.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
-  progress(`Clerk search complete: ${documents.length} document(s) found`);
+  const deedsFound = documents.filter(d => /deed|warranty|conveyance|transfer/i.test(d.documentType)).length;
+  const platsFound = documents.filter(d => /plat/i.test(d.documentType)).length;
+  const imagesCaptured = documents.reduce((sum, d) => sum + d.pageImages.length, 0);
 
-  return { documents, screenshots, urlsVisited };
+  progress(
+    `Clerk search complete: ${documents.length} document(s) | ` +
+    `deeds: ${deedsFound} | plats: ${platsFound} | images: ${imagesCaptured} | ` +
+    `paths used: ${searchPaths.join(', ')}`,
+  );
+
+  return {
+    documents,
+    screenshots,
+    urlsVisited,
+    stats: { instrumentsFound: documents.length, deedsFound, platsFound, imagesCaptured, searchPaths },
+  };
 }
 
-// ── Internal: Instrument Number Lookup ───────────────────────────────
+// ── Internal: Instrument Document Fetch ──────────────────────────────
 
-async function lookupByInstrumentNumber(
+/**
+ * Fetch a single document by instrument number using bell-clerk.ts.
+ * Retrieves metadata and optionally captures page images.
+ */
+async function fetchInstrumentDocument(
   instrumentNumber: string,
+  captureImages: boolean,
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
 ): Promise<ClerkDocument | null> {
-  // Try the direct URL approach first
-  const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&limit=50&offset=0&searchOcrText=false&searchType=quickSearch&search=${encodeURIComponent(instrumentNumber)}`;
-  urlsVisited.push(searchUrl);
+  const docUrl = BELL_ENDPOINTS.clerk.document(instrumentNumber);
+  urlsVisited.push(docUrl);
 
-  // PublicSearch is a React SPA — direct HTTP won't work for search results.
-  // We need Playwright for the interactive search, but can try SuperSearch API.
-  const superSearchResult = await trySuperSearch(instrumentNumber, screenshots, urlsVisited);
-  if (superSearchResult) return superSearchResult;
+  try {
+    // Use the proven bell-clerk.ts service layer for Playwright interaction
+    const { searchByInstrument, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
+    const { PipelineLogger } = await import('../../../lib/logger.js');
+    const logger = new PipelineLogger(`clerk-instr-${instrumentNumber}-${Date.now()}`);
 
-  // Fall back to Playwright-based search
-  return searchWithPlaywright(instrumentNumber, 'instrument', screenshots, urlsVisited, progress);
+    // Fetch document metadata first
+    const docRef = await searchByInstrument(instrumentNumber, logger);
+    if (!docRef) {
+      progress(`    Instrument ${instrumentNumber} not found in Bell Clerk`);
+      return null;
+    }
+
+    // Capture page images if requested
+    let pageImages: string[] = [];
+    if (captureImages) {
+      try {
+        progress(`    Capturing pages for ${instrumentNumber}...`);
+        const pages = await fetchDocumentImages(instrumentNumber, 20, logger);
+        pageImages = pages.map(p => p.imageBase64).filter(Boolean);
+        if (pageImages.length > 0) {
+          progress(`    ✓ Captured ${pageImages.length} page(s) for ${instrumentNumber}`);
+        }
+      } catch (imgErr) {
+        const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
+        progress(`    ✗ Image capture failed for ${instrumentNumber}: ${msg}`);
+        // Continue without images — metadata is still valuable
+      }
+    }
+
+    // Convert DocumentRef → ClerkDocument
+    return {
+      instrumentNumber: docRef.instrumentNumber,
+      volume: docRef.volume,
+      page: docRef.page,
+      recordingDate: docRef.recordingDate,
+      documentType: docRef.documentType,
+      grantor: docRef.grantors[0] ?? null,
+      grantee: docRef.grantees[0] ?? null,
+      legalDescription: null, // Not in DocumentRef; extracted separately by deed analyzer
+      pageImages,
+      sourceUrl: docUrl,
+      relevanceScore: getDocumentRelevance(docRef.documentType),
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    progress(`    Error fetching instrument ${instrumentNumber}: ${msg}`);
+    if (/playwright|browser|chromium/i.test(msg)) {
+      progress(`    ↳ Playwright error — check browser installation on server`);
+    }
+    return null;
+  }
 }
 
-// ── Internal: Volume/Page Lookup ─────────────────────────────────────
+// ── Internal: Owner Name SPA Search ──────────────────────────────────
 
-async function lookupByVolumePage(
-  volume: string,
-  page: string,
-  screenshots: ScreenshotCapture[],
-  urlsVisited: string[],
-  progress: (msg: string) => void,
-): Promise<ClerkDocument | null> {
-  // SuperSearch with volume/page reference
-  const query = `volume:${volume} page:${page}`;
-  return trySuperSearch(query, screenshots, urlsVisited);
-}
-
-// ── Internal: Owner Name Search ──────────────────────────────────────
-
-async function searchByOwnerName(
+/**
+ * Search Bell County Clerk by owner name using Playwright SPA automation.
+ * Delegates to searchBellClerk() from bell-clerk.ts which handles the
+ * full Kofile PublicSearch SPA interaction.
+ */
+async function searchClerkByOwner(
   ownerName: string,
   maxDocs: number,
+  captureImages: boolean,
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
 ): Promise<ClerkDocument[]> {
   const documents: ClerkDocument[] = [];
-
-  // Format owner name for search
   const nameVariants = formatOwnerNameVariants(ownerName);
 
-  for (const name of nameVariants) {
-    if (documents.length >= maxDocs) break;
+  try {
+    const { searchBellClerk, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
+    const { PipelineLogger } = await import('../../../lib/logger.js');
+    const logger = new PipelineLogger(`clerk-owner-${Date.now()}`);
 
-    progress(`Trying owner name variant: "${name}"`);
-    const results = await searchWithPlaywright(name, 'owner', screenshots, urlsVisited, progress);
-    if (results) {
-      documents.push(results);
+    for (const name of nameVariants) {
+      if (documents.length >= maxDocs) break;
+      progress(`  Trying owner variant: "${name}"`);
+
+      const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(name)}`;
+      urlsVisited.push(searchUrl);
+
+      const docRefs = await searchBellClerk(name, logger);
+      if (!docRefs || docRefs.length === 0) {
+        progress(`  No results for "${name}"`);
+        continue;
+      }
+
+      progress(`  Found ${docRefs.length} document(s) for "${name}" — fetching details...`);
+
+      for (const ref of docRefs.slice(0, maxDocs - documents.length)) {
+        const instrNum = ref.instrumentNumber ?? '';
+        let pageImages: string[] = [];
+
+        if (captureImages && instrNum) {
+          try {
+            const pages = await fetchDocumentImages(instrNum, 10, logger);
+            pageImages = pages.map(p => p.imageBase64).filter(Boolean);
+          } catch {
+            // Image capture failed — continue with metadata only
+          }
+        }
+
+        documents.push({
+          instrumentNumber: ref.instrumentNumber,
+          volume: ref.volume,
+          page: ref.page,
+          recordingDate: ref.recordingDate,
+          documentType: ref.documentType,
+          grantor: ref.grantors[0] ?? null,
+          grantee: ref.grantees[0] ?? null,
+          legalDescription: null,
+          pageImages,
+          sourceUrl: instrNum ? BELL_ENDPOINTS.clerk.document(instrNum) : null,
+          relevanceScore: getDocumentRelevance(ref.documentType),
+        });
+      }
+
+      if (documents.length > 0) break; // First successful variant is enough
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    progress(`Owner search error: ${msg}`);
+    if (/playwright|browser|chromium/i.test(msg)) {
+      progress('↳ Playwright unavailable — clerk owner search skipped');
     }
   }
 
   return documents;
 }
 
-// ── Internal: SuperSearch API ────────────────────────────────────────
+// ── Internal: Subdivision / Plat Search ──────────────────────────────
 
-async function trySuperSearch(
-  query: string,
+/**
+ * Search for plat and deed records by subdivision name.
+ * Uses searchBellClerkOwnerForPlatDeed() from bell-clerk.ts,
+ * which is optimized for finding subdivision plat records.
+ */
+async function searchClerkBySubdivision(
+  subdivisionName: string,
+  captureImages: boolean,
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
-): Promise<ClerkDocument | null> {
-  urlsVisited.push(BELL_ENDPOINTS.clerk.superSearch);
+  progress: (msg: string) => void,
+): Promise<ClerkDocument[]> {
+  const documents: ClerkDocument[] = [];
 
   try {
-    const resp = await fetch(BELL_ENDPOINTS.clerk.superSearch, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-      body: JSON.stringify({
-        query,
-        department: 'RP',
-        limit: 10,
-      }),
-      signal: AbortSignal.timeout(TIMEOUTS.httpRequest),
-    });
+    const { searchBellClerkOwnerForPlatDeed, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
+    const { PipelineLogger } = await import('../../../lib/logger.js');
+    const logger = new PipelineLogger(`clerk-subdiv-${Date.now()}`);
 
-    if (!resp.ok) return null;
-    const data = await resp.json() as { results?: Array<Record<string, unknown>> };
+    const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(subdivisionName)}`;
+    urlsVisited.push(searchUrl);
 
-    if (data.results && data.results.length > 0) {
-      const first = data.results[0];
-      return {
-        instrumentNumber: String(first.instrumentNumber ?? first.docNumber ?? ''),
-        volume: first.volume ? String(first.volume) : null,
-        page: first.page ? String(first.page) : null,
-        recordingDate: first.recordingDate ? String(first.recordingDate) : null,
-        documentType: String(first.documentType ?? first.docType ?? 'UNKNOWN'),
-        grantor: first.grantor ? String(first.grantor) : null,
-        grantee: first.grantee ? String(first.grantee) : null,
-        legalDescription: first.legalDescription ? String(first.legalDescription) : null,
-        pageImages: [],
-        sourceUrl: BELL_ENDPOINTS.clerk.document(String(first.instrumentNumber ?? '')),
-        relevanceScore: getDocumentRelevance(String(first.documentType ?? '')),
-      };
+    const { platInstruments, deedInstruments, allDocuments } = await searchBellClerkOwnerForPlatDeed(
+      subdivisionName,
+      logger,
+    );
+
+    progress(`  Subdivision "${subdivisionName}": ${allDocuments.length} docs, ${platInstruments.length} plats, ${deedInstruments.length} deeds`);
+
+    // Process plat instruments first (highest priority)
+    for (const instrNum of platInstruments) {
+      let pageImages: string[] = [];
+      if (captureImages) {
+        try {
+          const pages = await fetchDocumentImages(instrNum, 15, logger);
+          pageImages = pages.map(p => p.imageBase64).filter(Boolean);
+          progress(`  ✓ Plat ${instrNum}: ${pageImages.length} pages captured`);
+        } catch {
+          progress(`  ✗ Plat ${instrNum}: image capture failed`);
+        }
+      }
+
+      documents.push({
+        instrumentNumber: instrNum,
+        volume: null, page: null, recordingDate: null,
+        documentType: 'PLAT',
+        grantor: null, grantee: null, legalDescription: null,
+        pageImages,
+        sourceUrl: BELL_ENDPOINTS.clerk.document(instrNum),
+        relevanceScore: getDocumentRelevance('PLAT'),
+      });
     }
-  } catch {
-    // SuperSearch may not be available — fall through
+
+    // Process deed instruments
+    for (const instrNum of deedInstruments) {
+      let pageImages: string[] = [];
+      if (captureImages) {
+        try {
+          const pages = await fetchDocumentImages(instrNum, 10, logger);
+          pageImages = pages.map(p => p.imageBase64).filter(Boolean);
+        } catch { /* continue without images */ }
+      }
+
+      documents.push({
+        instrumentNumber: instrNum,
+        volume: null, page: null, recordingDate: null,
+        documentType: 'WARRANTY DEED',
+        grantor: null, grantee: null, legalDescription: null,
+        pageImages,
+        sourceUrl: BELL_ENDPOINTS.clerk.document(instrNum),
+        relevanceScore: getDocumentRelevance('WARRANTY DEED'),
+      });
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    progress(`Subdivision search error: ${msg}`);
   }
 
-  return null;
+  return documents;
 }
 
-// ── Internal: Playwright Search ──────────────────────────────────────
+// ── Internal: Volume/Page Fetch ───────────────────────────────────────
 
-async function searchWithPlaywright(
-  query: string,
-  searchType: 'instrument' | 'owner',
+async function fetchByVolumePage(
+  volume: string,
+  page: string,
+  captureImages: boolean,
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
 ): Promise<ClerkDocument | null> {
-  // TODO: Implement Playwright-based search of bell.tx.publicsearch.us
-  // This will:
-  // 1. Launch Chromium
-  // 2. Navigate to PublicSearch
-  // 3. Enter search query
-  // 4. Parse results from the SPA
-  // 5. Click into each document
-  // 6. Capture page screenshots
-  // 7. Extract document metadata
-  //
-  // The existing bell-clerk.ts has most of this logic — it will be
-  // migrated here in Phase 1.
+  // Try constructing a quick-search query with vol+page
+  const query = `${volume}/${page}`;
+  const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
+  urlsVisited.push(searchUrl);
 
-  progress(`Playwright search not yet migrated for query: "${query}"`);
-  return null;
+  try {
+    const { searchBellClerk, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
+    const { PipelineLogger } = await import('../../../lib/logger.js');
+    const logger = new PipelineLogger(`clerk-volpg-${Date.now()}`);
+
+    const docRefs = await searchBellClerk(query, logger);
+    if (!docRefs || docRefs.length === 0) return null;
+
+    // Pick the best matching result
+    const match = docRefs.find(d => d.volume === volume && d.page === page) ?? docRefs[0];
+    if (!match) return null;
+
+    let pageImages: string[] = [];
+    if (captureImages && match.instrumentNumber) {
+      try {
+        const pages = await fetchDocumentImages(match.instrumentNumber, 10, logger);
+        pageImages = pages.map(p => p.imageBase64).filter(Boolean);
+      } catch { /* continue */ }
+    }
+
+    return {
+      instrumentNumber: match.instrumentNumber,
+      volume: match.volume,
+      page: match.page,
+      recordingDate: match.recordingDate,
+      documentType: match.documentType,
+      grantor: match.grantors[0] ?? null,
+      grantee: match.grantees[0] ?? null,
+      legalDescription: null,
+      pageImages,
+      sourceUrl: match.instrumentNumber ? BELL_ENDPOINTS.clerk.document(match.instrumentNumber) : null,
+      relevanceScore: getDocumentRelevance(match.documentType),
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    progress(`  Vol/page lookup error (${volume}/${page}): ${msg}`);
+    return null;
+  }
 }
 
-// ── Internal: Document Image Capture ─────────────────────────────────
-
 /**
- * Capture all pages of a document from the PublicSearch viewer.
- * Uses Playwright to navigate through document pages and screenshot each one.
+ * Capture all page images for a document instrument number.
+ * Uses Playwright via fetchDocumentImages() from bell-clerk.ts.
+ * Returns base64-encoded PNG strings for each page.
  */
 export async function captureDocumentPages(
   instrumentId: string,
@@ -287,37 +557,48 @@ export async function captureDocumentPages(
 ): Promise<string[]> {
   const docUrl = BELL_ENDPOINTS.clerk.document(instrumentId);
   urlsVisited.push(docUrl);
-  progress(`Capturing pages for document: ${instrumentId}`);
+  progress(`Capturing pages for document: ${instrumentId} (max ${maxPages})`);
 
-  // TODO: Implement multi-page document capture
-  // This will use Playwright to:
-  // 1. Navigate to the document viewer
-  // 2. Detect page count
-  // 3. Navigate through each page
-  // 4. Screenshot each page at highest resolution
-  // 5. Return base64-encoded PNG array
-  //
-  // Existing logic in bell-clerk.ts captureAllDocumentPages()
-  // will be migrated here.
+  try {
+    const { fetchDocumentImages } = await import('../../../services/bell-clerk.js');
+    const { PipelineLogger } = await import('../../../lib/logger.js');
+    const logger = new PipelineLogger(`clerk-pages-${instrumentId}-${Date.now()}`);
 
-  return [];
+    const pages = await fetchDocumentImages(instrumentId, maxPages, logger);
+    const images = pages.map(p => p.imageBase64).filter(Boolean);
+    progress(`✓ Captured ${images.length}/${pages.length} page(s) for ${instrumentId}`);
+    return images;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    progress(`✗ Document image capture failed for ${instrumentId}: ${msg}`);
+    return [];
+  }
 }
 
 // ── Internal: Utilities ──────────────────────────────────────────────
 
 function formatOwnerNameVariants(ownerName: string): string[] {
-  const variants = [ownerName.toUpperCase()];
-  const parts = ownerName.trim().split(/\s+/);
+  const upper = ownerName.trim().toUpperCase();
+  const variants = [upper];
+  const parts = upper.split(/\s+/);
 
-  // Business entities stay as-is
-  const businessKeywords = ['LLC', 'INC', 'CORP', 'LTD', 'LP', 'TRUST', 'ESTATE', 'FOUNDATION', 'SURVEYING', 'COMPANY'];
-  const isBusiness = businessKeywords.some(kw => ownerName.toUpperCase().includes(kw));
+  const businessKeywords = ['LLC', 'INC', 'CORP', 'LTD', 'LP', 'TRUST', 'ESTATE',
+    'FOUNDATION', 'SURVEYING', 'COMPANY', 'PARTNERS', 'ASSOCIATION', 'HOLDINGS'];
+  const isBusiness = businessKeywords.some(kw => upper.includes(kw));
 
-  if (!isBusiness && parts.length >= 2 && !ownerName.includes(',')) {
-    // LAST, FIRST format
-    variants.push(`${parts[parts.length - 1].toUpperCase()}, ${parts.slice(0, -1).join(' ').toUpperCase()}`);
-    // Just last name
-    variants.push(parts[parts.length - 1].toUpperCase());
+  if (!isBusiness && parts.length >= 2 && !upper.includes(',')) {
+    // LAST, FIRST format (Bell Clerk stores names this way)
+    variants.push(`${parts[parts.length - 1]}, ${parts.slice(0, -1).join(' ')}`);
+    // Try just the last name for broader matching
+    if (parts[parts.length - 1].length > 3) {
+      variants.push(parts[parts.length - 1]);
+    }
+  }
+
+  // If already "LAST, FIRST", also try without comma
+  if (upper.includes(',')) {
+    const [last, rest] = upper.split(',').map(s => s.trim());
+    if (rest) variants.push(`${rest} ${last}`);
   }
 
   return [...new Set(variants)];
@@ -328,7 +609,7 @@ function getDocumentRelevance(docType: string): number {
   for (const [type, score] of Object.entries(DOCUMENT_TYPE_SCORES)) {
     if (upper.includes(type)) return score;
   }
-  return 10; // Default low score for unknown types
+  return 10;
 }
 
 function delay(ms: number): Promise<void> {
