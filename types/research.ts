@@ -14,6 +14,75 @@ export const WORKFLOW_STEPS: { key: WorkflowStep; label: string; number: number 
   { key: 'complete', label: 'Export', number: 7 },
 ];
 
+// ── 4-Stage Pipeline (user-facing UI) ────────────────────────────────────────
+
+/** The four high-level pipeline stages shown to the user in the stepper UI. */
+export type PipelineStage = 'upload' | 'research' | 'review' | 'jobprep';
+
+export interface PipelineStageInfo {
+  key: PipelineStage;
+  number: number;
+  label: string;
+  icon: string;
+  description: string;
+  /** The primary WorkflowStep this stage maps to (used for revert navigation) */
+  primaryStep: WorkflowStep;
+}
+
+export const PIPELINE_STAGES: PipelineStageInfo[] = [
+  {
+    key: 'upload',
+    number: 1,
+    label: 'Upload & Provision',
+    icon: '📤',
+    description: 'Upload documents and provide property information',
+    primaryStep: 'upload',
+  },
+  {
+    key: 'research',
+    number: 2,
+    label: 'Research & Analysis',
+    icon: '🔬',
+    description: 'Automated research from 10+ sources and AI data extraction',
+    primaryStep: 'configure',
+  },
+  {
+    key: 'review',
+    number: 3,
+    label: 'Review',
+    icon: '📋',
+    description: 'Review results, summaries, discrepancies, and source links',
+    primaryStep: 'review',
+  },
+  {
+    key: 'jobprep',
+    number: 4,
+    label: 'Job Prep',
+    icon: '🏗️',
+    description: 'AI drawing, field plan, and final printable job document',
+    primaryStep: 'drawing',
+  },
+];
+
+/** Maps a low-level WorkflowStep (DB status) to the user-facing PipelineStage. */
+export function workflowStepToStage(step: WorkflowStep): PipelineStage {
+  switch (step) {
+    case 'upload':
+      return 'upload';
+    case 'configure':
+    case 'analyzing':
+      return 'research';
+    case 'review':
+      return 'review';
+    case 'drawing':
+    case 'verifying':
+    case 'complete':
+      return 'jobprep';
+    default:
+      return 'upload';
+  }
+}
+
 // ── Research Project ─────────────────────────────────────────────────────────
 
 export interface ResearchProject {
