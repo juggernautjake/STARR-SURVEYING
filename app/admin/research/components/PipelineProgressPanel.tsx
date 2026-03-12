@@ -350,12 +350,12 @@ export function PipelineProgressPanel({
   const [showLog,      setShowLog]      = useState(false);
   const [logCopied,    setLogCopied]    = useState(false);
 
-  // Auto-expand the log when analysis completes so results are immediately visible.
+  // Auto-expand the log when analysis is running or when it completes/fails.
   useEffect(() => {
-    if (
-      (status === 'success' || status === 'partial' || status === 'failed') &&
-      log && log.length > 0
-    ) {
+    if (log && log.length > 0 && (
+      status === 'running' || status === 'starting' ||
+      status === 'success' || status === 'partial' || status === 'failed'
+    )) {
       setShowLog(true);
     }
   }, [status, log]);

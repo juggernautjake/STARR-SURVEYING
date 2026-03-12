@@ -86,6 +86,9 @@ export default function ResearchProjectPage() {
   const [analysisResuming, setAnalysisResuming] = useState(false);
   const [analysisError, setAnalysisError] = useState<{ message: string; category: string } | null>(null);
   const [showAnalysisLogs, setShowAnalysisLogs] = useState(false);
+  const [logsCopied, setLogsCopied] = useState(false);
+  const [analysisStartTime, setAnalysisStartTime] = useState<number | null>(null);
+  const [analysisElapsed, setAnalysisElapsed] = useState(0);
 
   // Review state
   const [reviewTab, setReviewTab] = useState<'sources' | 'data' | 'discrepancies' | 'ai_logs' | 'survey_plan'>('sources');
@@ -148,6 +151,7 @@ export default function ResearchProjectPage() {
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const logContainerRef = useRef<HTMLDivElement | null>(null);
   function showToast(message: string, type: 'error' | 'success' | 'info' = 'error') {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ message, type });
@@ -289,7 +293,27 @@ export default function ResearchProjectPage() {
     return () => clearInterval(interval);
   }, [project?.status, projectId, loadProject, loadDocuments]);
 
-  // ── Project Editing ──────────────────────────────────────────────────────
+  // Start/stop elapsed time counter when analyzing
+  useEffect(() => {
+    if (project?.status === 'analyzing') {
+      setAnalysisStartTime(Date.now());
+      const tick = setInterval(() => {
+        setAnalysisElapsed(prev => prev + 1);
+      }, 1000);
+      return () => clearInterval(tick);
+    } else {
+      setAnalysisStartTime(null);
+      setAnalysisElapsed(0);
+      return undefined;
+    }
+  }, [project?.status]);
+
+  // Auto-scroll log container to the latest entry
+  useEffect(() => {
+    if (logContainerRef.current && analysisStatus?.logs?.length) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [analysisStatus?.logs?.length]);
   function openEditProject() {
     if (!project) return;
     setEditProjectData({
@@ -386,7 +410,7 @@ export default function ResearchProjectPage() {
     }
 
     const stepLabels: Record<WorkflowStep, string> = {
-      upload: 'Upload & Provision',
+      upload: 'Property Information',
       configure: 'Research & Analysis',
       analyzing: 'Research & Analysis',
       review: 'Review',
@@ -576,6 +600,33 @@ export default function ResearchProjectPage() {
       showToast('Unable to connect. Check your internet connection.', 'error');
     }
     setAnalysisResuming(false);
+  }
+
+  function handleCopyAnalysisLogs() {
+    const logs = analysisStatus?.logs || [];
+    if (logs.length === 0) return;
+    const header = `STARR RECON — Research Logs  (Project: ${project?.name || projectId})\n` +
+      `Exported: ${new Date().toLocaleString()}\n${'─'.repeat(60)}\n`;
+    const body = logs.map(e => {
+      const icon = e.level === 'error' ? '✕' : e.level === 'warn' ? '⚠' : e.level === 'success' ? '✓' : '·';
+      let line = `${new Date(e.ts).toLocaleTimeString()}  ${icon} [${e.level.toUpperCase()}]  ${e.message}`;
+      if (e.detail) line += `\n      ${e.detail}`;
+      return line;
+    }).join('\n');
+    const text = header + body;
+    navigator.clipboard.writeText(text)
+      .then(() => { setLogsCopied(true); setTimeout(() => setLogsCopied(false), 2000); })
+      .catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setLogsCopied(true);
+        setTimeout(() => setLogsCopied(false), 2000);
+      });
   }
 
   // Drawing functions
@@ -1470,6 +1521,12 @@ export default function ResearchProjectPage() {
   const currentStage = workflowStepToStage(project.status);
   const extractedDocs = documents.filter(d => d.processing_status === 'extracted' || d.processing_status === 'analyzed');
 
+  // Format elapsed seconds as "Xm Ys" or just "Xs"
+  function fmtElapsed(secs: number): string {
+    if (secs < 60) return `${secs}s`;
+    return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+  }
+
   return (
     <div className="research-page">
       {/* Back link */}
@@ -1575,7 +1632,7 @@ export default function ResearchProjectPage() {
           <div className="research-step-header">
             <span className="research-step-header__icon">📤</span>
             <div className="research-step-header__body">
-              <h2 className="research-step-header__title">Upload &amp; Provision</h2>
+              <h2 className="research-step-header__title">Property Information</h2>
               <p className="research-step-header__desc">
                 Upload deeds, plats, field notes, and other surveying documents — or search the county property database to import records automatically.
                 You can also provide property information without uploading files; the research pipeline will gather additional records automatically.
@@ -1754,7 +1811,7 @@ export default function ResearchProjectPage() {
               </div>
 
               <button className="research-back-btn" onClick={() => handleRevertToStep('upload')} style={{ marginTop: '1rem' }}>
-                &larr; Back to Upload &amp; Provision
+                &larr; Back to Property Information
               </button>
             </div>
           )}
@@ -1763,80 +1820,132 @@ export default function ResearchProjectPage() {
           {project.status === 'analyzing' && (
             <div className="research-analyzing">
               {/* Freeze detection banner */}
-              {analysisStatus?.frozen ? (
-                <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '0.5rem', padding: '0.75rem 1rem', marginBottom: '1rem', maxWidth: 520, textAlign: 'center' }}>
-                  <div style={{ fontWeight: 700, color: '#92400E', marginBottom: '0.25rem' }}>⚠️ Analysis Appears Frozen</div>
-                  <div style={{ fontSize: '0.82rem', color: '#78350F', marginBottom: '0.6rem' }}>
+              {analysisStatus?.frozen && (
+                <div className="research-analyzing__frozen-banner">
+                  <div className="research-analyzing__frozen-title">⚠️ Analysis Appears Frozen</div>
+                  <div className="research-analyzing__frozen-text">
                     The analyzer hasn&apos;t reported progress in over 90 seconds. It may be stuck on a difficult
                     document. You can resume from where it left off, or abort and start fresh.
                   </div>
-                  <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <div className="research-analyzing__frozen-actions">
                     <button
                       onClick={handleResumeAnalysis}
                       disabled={analysisResuming}
-                      style={{ background: '#D97706', border: 'none', borderRadius: '0.375rem', padding: '0.4rem 1rem', cursor: analysisResuming ? 'not-allowed' : 'pointer', fontSize: '0.85rem', color: '#fff', fontWeight: 600, opacity: analysisResuming ? 0.6 : 1 }}
+                      className="research-analyzing__resume-btn"
                     >
                       {analysisResuming ? 'Resuming…' : '▶ Resume Analysis'}
                     </button>
                     <button
                       onClick={handleAbortAnalysis}
                       disabled={analysisAborting}
-                      style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.4rem 1rem', cursor: analysisAborting ? 'not-allowed' : 'pointer', fontSize: '0.85rem', color: '#DC2626', opacity: analysisAborting ? 0.6 : 1 }}
+                      className="research-analyzing__abort-btn research-analyzing__abort-btn--outline"
                     >
                       {analysisAborting ? 'Aborting…' : '⏹ Abort & Reset'}
                     </button>
                   </div>
                 </div>
-              ) : (
-                <div className="research-analyzing__spinner" />
               )}
-              <div className="research-analyzing__title">
-                {analysisStatus?.frozen ? 'Analysis Paused / Frozen' : '🔬 Research & Analysis in Progress'}
+
+              {/* Status header */}
+              <div className="research-analyzing__status-row">
+                {!analysisStatus?.frozen && <div className="research-analyzing__spinner" />}
+                <div className="research-analyzing__status-body">
+                  <div className="research-analyzing__title">
+                    {analysisStatus?.frozen ? 'Analysis Paused / Frozen' : '🔬 Research & Analysis in Progress'}
+                  </div>
+                  <div className="research-analyzing__sub">
+                    Searching public records and running AI analysis — this may take 15–30 minutes.
+                    {analysisElapsed > 0 && (
+                      <span className="research-analyzing__elapsed"> · Elapsed: {fmtElapsed(analysisElapsed)}</span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="research-analyzing__text">
-                STARR RECON is searching public records and analyzing your documents with AI.
-                This may take a few minutes depending on the number and size of documents.
-                Each document has a 3-minute timeout — if one gets stuck it will be skipped automatically.
-              </div>
+
+              {/* Document progress bar */}
               {analysisStatus && (
                 <div className="research-analyzing__progress">
                   <div className="research-analyzing__progress-bar">
                     <div
                       className="research-analyzing__progress-fill"
                       style={{
-                        width: analysisStatus.documentsTotal > 0
-                          ? `${(analysisStatus.documentsAnalyzed / analysisStatus.documentsTotal) * 100}%`
-                          : '0%',
+                        width: `${analysisStatus.documentsTotal > 0
+                          ? Math.max(5, (analysisStatus.documentsAnalyzed / analysisStatus.documentsTotal) * 100)
+                          : 5}%`,
                         background: analysisStatus.frozen ? '#F59E0B' : undefined,
                       }}
                     />
                   </div>
                   <div className="research-analyzing__progress-text">
-                    {analysisStatus.documentsAnalyzed} of {analysisStatus.documentsTotal} documents analyzed
-                    {analysisStatus.dataPointCount > 0 && ` — ${analysisStatus.dataPointCount} data points extracted`}
+                    {analysisStatus.documentsTotal > 0
+                      ? `${analysisStatus.documentsAnalyzed} / ${analysisStatus.documentsTotal} documents analyzed`
+                      : 'Scanning public records…'}
+                    {analysisStatus.dataPointCount > 0 && (
+                      <span className="research-analyzing__pts"> · {analysisStatus.dataPointCount} data points extracted</span>
+                    )}
                   </div>
                 </div>
               )}
-              {analysisStatus?.logs && analysisStatus.logs.length > 0 && (
-                <div style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: '0.75rem', fontFamily: 'monospace', maxWidth: 480, textAlign: 'center' }}>
-                  {analysisStatus.logs[analysisStatus.logs.length - 1].message}
-                </div>
-              )}
-              {!analysisStatus?.frozen && (
-                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+
+              {/* Inline live log panel */}
+              <div className="research-analyzing__log-panel">
+                <div className="research-analyzing__log-header">
+                  <div className="research-analyzing__log-header-left">
+                    <span className="research-analyzing__log-title">📋 Research Logs</span>
+                    {analysisStatus?.logs && analysisStatus.logs.length > 0 && (
+                      <span className="research-analyzing__log-badge">{analysisStatus.logs.length}</span>
+                    )}
+                  </div>
                   <button
-                    onClick={() => setShowAnalysisLogs(true)}
-                    style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}
+                    className="research-analyzing__copy-btn"
+                    onClick={handleCopyAnalysisLogs}
+                    disabled={!analysisStatus?.logs || analysisStatus.logs.length === 0}
+                    title="Copy all log entries to clipboard"
                   >
-                    📋 View Live Logs
+                    {logsCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
                   </button>
+                </div>
+                <div className="research-analyzing__log-entries" ref={logContainerRef}>
+                  {(!analysisStatus?.logs || analysisStatus.logs.length === 0) ? (
+                    <div className="research-analyzing__log-empty">
+                      <div className="research-analyzing__log-empty-spinner" />
+                      <span>Connecting to research pipeline…</span>
+                    </div>
+                  ) : (
+                    analysisStatus.logs.map((entry, i) => (
+                      <div key={i} className={`research-analyzing__log-entry research-analyzing__log-entry--${entry.level}`}>
+                        <span className="research-analyzing__log-time">{new Date(entry.ts).toLocaleTimeString()}</span>
+                        <span className={`research-analyzing__log-icon research-analyzing__log-icon--${entry.level}`}>
+                          {entry.level === 'error' ? '✕' : entry.level === 'warn' ? '⚠' : entry.level === 'success' ? '✓' : '·'}
+                        </span>
+                        <span className="research-analyzing__log-msg">{entry.message}</span>
+                        {entry.detail && (
+                          <span className="research-analyzing__log-detail"> — {entry.detail}</span>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              {!analysisStatus?.frozen && (
+                <div className="research-analyzing__footer">
                   <button
+                    className="research-analyzing__abort-btn"
                     onClick={handleAbortAnalysis}
                     disabled={analysisAborting}
-                    style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: analysisAborting ? 'not-allowed' : 'pointer', fontSize: '0.8rem', color: '#DC2626', opacity: analysisAborting ? 0.6 : 1 }}
                   >
                     {analysisAborting ? 'Aborting…' : '⏹ Abort & Reset'}
                   </button>
+                  {project.analysis_metadata && Array.isArray((project.analysis_metadata as Record<string, unknown>).logs) && (
+                    <button
+                      onClick={() => setShowAnalysisLogs(true)}
+                      className="research-analyzing__prev-logs-btn"
+                    >
+                      📋 View Previous Run Logs
+                    </button>
+                  )}
                 </div>
               )}
             </div>
