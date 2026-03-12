@@ -3,6 +3,19 @@
    BEM methodology matching existing admin CSS patterns
    ============================================================================ */
 
+/* ── CSS Custom Properties ─────────────────────────────────────────────────── */
+:root {
+  --recon-brand: #1D3095;
+  --recon-brand-dark: #152050;
+  --recon-red: #BD1218;
+  --recon-dark: #0F1419;
+  --recon-success: #059669;
+  --recon-warning: #D97706;
+  --recon-border: #E5E7EB;
+  --recon-bg: #F8FAFC;
+  --recon-card: #FFFFFF;
+}
+
 /* ── Project List Page ────────────────────────────────────────────────────── */
 
 .research-page {
@@ -32,10 +45,12 @@
 .research-page__header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
   gap: 1rem;
   flex-wrap: wrap;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--recon-brand);
 }
 
 .research-page__title {
@@ -43,6 +58,7 @@
   font-weight: 700;
   color: #1F2937;
   margin: 0;
+  font-family: 'Sora', sans-serif;
 }
 
 .research-page__actions {
@@ -398,82 +414,150 @@
 
 /* ── Workflow Stepper ─────────────────────────────────────────────────────── */
 
+/* ── Workflow Stepper ─────────────────────────────────────────────────────── */
+
 .research-workflow {
-  display: flex;
-  align-items: center;
-  gap: 0;
+  background: var(--recon-card);
+  border: 1px solid var(--recon-border);
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  padding: 1rem 1.25rem 1.25rem;
   margin-bottom: 1.5rem;
-  overflow-x: auto;
-  padding: 0.5rem 0;
 }
 
-.research-workflow__step {
+.research-workflow__header {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.research-workflow__header-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6B7280;
+}
+
+.research-workflow__header-count {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #9CA3AF;
+}
+
+.research-workflow__steps {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.research-workflow__item {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.research-workflow__step-wrap {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.4rem 0.75rem;
-  font-size: 0.8rem;
-  white-space: nowrap;
-  color: #9CA3AF;
-  position: relative;
+  flex-shrink: 0;
 }
 
-.research-workflow__step--done {
-  color: #059669;
-}
-
-.research-workflow__step--active {
-  color: #2563EB;
-  font-weight: 600;
-}
-
-/* Revertable (done) step — shows a subtle hover to indicate it's clickable */
-.research-workflow__step--revertable {
-  transition: opacity 0.15s ease;
-}
-.research-workflow__step--revertable:hover {
-  opacity: 0.75;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-decoration-color: #059669;
-}
-
-.research-workflow__step-num {
-  width: 22px;
-  height: 22px;
+/* Circle */
+.research-workflow__circle {
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
+  border: 2px solid #D1D5DB;
+  background: #F9FAFB;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
-  font-weight: 700;
-  border: 2px solid #D1D5DB;
-  background: #fff;
+  font-size: 1rem;
   flex-shrink: 0;
+  transition: border-color 0.2s, background 0.2s;
 }
 
-.research-workflow__step--done .research-workflow__step-num {
-  background: #059669;
-  border-color: #059669;
-  color: #fff;
+.research-workflow__circle--done {
+  background: #ECFDF5;
+  border-color: var(--recon-success);
 }
 
-.research-workflow__step--active .research-workflow__step-num {
-  background: #2563EB;
-  border-color: #2563EB;
-  color: #fff;
+.research-workflow__circle--active {
+  background: var(--recon-brand);
+  border-color: var(--recon-brand);
+  box-shadow: 0 0 0 3px rgba(29, 48, 149, 0.15);
+}
+
+.research-workflow__circle--revertable {
+  transition: opacity 0.15s ease, box-shadow 0.15s ease;
+}
+.research-workflow__circle--revertable:hover {
+  opacity: 0.8;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.2);
+}
+
+.research-workflow__check {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--recon-success);
+  line-height: 1;
+}
+
+.research-workflow__step-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.research-workflow__circle--active .research-workflow__step-icon {
+  filter: brightness(10);
+}
+
+.research-workflow__step-label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #9CA3AF;
+  white-space: nowrap;
+  text-align: center;
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.research-workflow__step-label--done {
+  color: var(--recon-success);
+}
+
+.research-workflow__step-label--active {
+  color: var(--recon-brand);
+  font-weight: 600;
 }
 
 .research-workflow__connector {
-  width: 24px;
+  flex: 1;
   height: 2px;
-  background: #D1D5DB;
-  flex-shrink: 0;
+  background: #E5E7EB;
+  margin: 0 0.15rem;
+  /* push the connector up to align with circle center (20px circle radius + label) */
+  margin-top: -1.4rem;
+  flex-shrink: 1;
+  min-width: 8px;
 }
 
 .research-workflow__connector--done {
-  background: #059669;
+  background: var(--recon-success);
 }
+
+/* Legacy selectors — kept for backward compatibility */
+.research-workflow__step { display: none; }
+.research-workflow__step-num { display: none; }
+
+
 
 /* ── Project Hub Stats ────────────────────────────────────────────────────── */
 
@@ -485,8 +569,9 @@
 }
 
 .research-hub__stat {
-  background: #fff;
-  border: 1px solid #E5E7EB;
+  background: var(--recon-card);
+  border: 1px solid var(--recon-border);
+  border-top: 3px solid var(--recon-brand);
   border-radius: 10px;
   padding: 0.85rem 1.25rem;
   min-width: 100px;
@@ -496,7 +581,7 @@
 .research-hub__stat-value {
   font-size: 1.35rem;
   font-weight: 700;
-  color: #1F2937;
+  color: var(--recon-brand);
 }
 
 .research-hub__stat-label {
@@ -505,7 +590,100 @@
   margin-top: 0.15rem;
 }
 
+/* ── Project Navigation Bar ───────────────────────────────────────────────── */
+
+.research-project-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--recon-card);
+  border: 1px solid var(--recon-border);
+  border-radius: 10px;
+  padding: 0.4rem 0.5rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.research-project-nav__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #4B5563;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.research-project-nav__link:hover {
+  background: #F3F4F6;
+  color: var(--recon-brand);
+}
+
+.research-project-nav__link--active {
+  background: #EEF2FF;
+  color: var(--recon-brand);
+  font-weight: 600;
+}
+
+/* ── Step Header Cards ────────────────────────────────────────────────────── */
+
+.research-step-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  background: var(--recon-card);
+  border: 1px solid var(--recon-border);
+  border-left: 4px solid var(--recon-brand);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.research-step-header__icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.research-step-header__body {
+  min-width: 0;
+}
+
+.research-step-header__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0 0 0.2rem;
+  font-family: 'Sora', sans-serif;
+}
+
+.research-step-header__desc {
+  font-size: 0.85rem;
+  color: #6B7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── County badge in project header ──────────────────────────────────────── */
+.research-county-badge {
+  margin-left: 0.5rem;
+  background: #EEF2FF;
+  color: var(--recon-brand);
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  vertical-align: middle;
+  display: inline-block;
+}
+
 /* ── Upload Panel ─────────────────────────────────────────────────────────── */
+
 
 .research-upload {
   margin-top: 0.5rem;
@@ -824,8 +1002,8 @@
 }
 
 .research-review__tab--active {
-  color: #2563EB;
-  border-bottom-color: #2563EB;
+  color: var(--recon-brand);
+  border-bottom-color: var(--recon-brand);
   font-weight: 600;
 }
 

@@ -1417,15 +1417,35 @@ export default function ResearchProjectPage() {
         </button>
       </div>
 
+      {/* Project Navigation Bar */}
+      <div className="research-project-nav">
+        <a href={`/admin/research/${projectId}/boundary`} className="research-project-nav__link">
+          📐 Boundary Viewer
+        </a>
+        <a href={`/admin/research/${projectId}/documents`} className="research-project-nav__link">
+          📁 Documents
+        </a>
+        <a href="/admin/research/library" className="research-project-nav__link">
+          📚 Library
+        </a>
+        <a href="/admin/research/billing" className="research-project-nav__link">
+          💳 Billing
+        </a>
+      </div>
+
       {/* Header */}
       <div className="research-page__header">
         <div>
           <h1 className="research-page__title">{project.name}</h1>
           {project.property_address && (
             <div style={{ color: '#6B7280', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-              {project.property_address}
-              {project.county && `, ${project.county} County`}
-              {project.state && `, ${project.state}`}
+              📍 {project.property_address}
+              {project.county && (
+                <span className="research-county-badge">
+                  {project.county} County{project.state ? `, ${project.state}` : ''}
+                </span>
+              )}
+              {!project.county && project.state && `, ${project.state}`}
             </div>
           )}
           {project.description && (
@@ -1440,7 +1460,7 @@ export default function ResearchProjectPage() {
             style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: '#374151' }}
             aria-label="Edit project details"
           >
-            Edit Details
+            ✏️ Edit Details
           </button>
           <button
             onClick={handleArchiveProject}
@@ -1504,6 +1524,15 @@ export default function ResearchProjectPage() {
       {/* Step content */}
       {project.status === 'upload' && (
         <>
+          <div className="research-step-header">
+            <span className="research-step-header__icon">📤</span>
+            <div className="research-step-header__body">
+              <h2 className="research-step-header__title">Upload Documents</h2>
+              <p className="research-step-header__desc">
+                Upload deeds, plats, field notes, and other surveying documents — or search the county property database to import records automatically.
+              </p>
+            </div>
+          </div>
           <DocumentUploadPanel
             projectId={projectId}
             documents={documents}
@@ -1521,11 +1550,19 @@ export default function ResearchProjectPage() {
 
       {project.status === 'configure' && (
         <div className="research-configure">
+          <div className="research-step-header">
+            <span className="research-step-header__icon">⚙️</span>
+            <div className="research-step-header__body">
+              <h2 className="research-step-header__title">Configure Analysis</h2>
+              <p className="research-step-header__desc">
+                Your research documents are ready. The AI will analyze {extractedDocs.length} document{extractedDocs.length !== 1 ? 's' : ''} and extract
+                surveying data including bearings, distances, monuments, curve data, legal descriptions, and more.
+              </p>
+            </div>
+          </div>
           <div className="research-configure__header">
             <h2 className="research-configure__title">Configure &amp; Run AI Analysis</h2>
             <p className="research-configure__desc">
-              Your research documents are ready. The AI will analyze {extractedDocs.length} document{extractedDocs.length !== 1 ? 's' : ''} and extract
-              surveying data including bearings, distances, monuments, curve data, legal descriptions, and more.
               All research files, pages, summaries, and discrepancies found during Step 1 are preserved
               and available in the Review step.
             </p>
@@ -1713,6 +1750,15 @@ export default function ResearchProjectPage() {
 
       {project.status === 'review' && (
         <div className="research-review">
+          <div className="research-step-header">
+            <span className="research-step-header__icon">🔍</span>
+            <div className="research-step-header__body">
+              <h2 className="research-step-header__title">Review Results</h2>
+              <p className="research-step-header__desc">
+                Examine extracted data points, resolve discrepancies, and review source documents before proceeding to the drawing step.
+              </p>
+            </div>
+          </div>
           {/* Back to Configure / re-run analysis */}
           <button className="research-back-btn" onClick={() => handleRevertToStep('configure')}>
             &larr; Back to Configure / Re-run Analysis
