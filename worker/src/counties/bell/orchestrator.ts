@@ -502,7 +502,7 @@ export async function orchestrateBellResearch(
   if (discrepancies.length > 0) {
     progress('Phase 3', `⚠ Found ${discrepancies.length} discrepancy/ies between sources`);
     for (const d of discrepancies.slice(0, 5)) {
-      progress('Phase 3', `  • ${d.field}: CAD="${d.cadValue ?? '—'}" vs GIS="${d.gisValue ?? '—'}" (${d.severity})`);
+      progress('Phase 3', `  • [${d.category}] ${d.description}: "${d.source1Value}" vs "${d.source2Value}" (${d.severity})`);
     }
   }
 
@@ -550,7 +550,7 @@ export async function orchestrateBellResearch(
     `| Property: "${property.ownerName || '?'}" ID=${property.propertyId || '?'} ` +
     `| Documents: ${deedRecords.length} deeds + ${plats?.plats.length ?? 0} plats ` +
     `| Discrepancies: ${discrepancies.length} ` +
-    `| Confidence: ${overallConfidence.label} (${overallConfidence.score.toFixed(2)}) ` +
+    `| Confidence: ${overallConfidence.tier} (${overallConfidence.score}) ` +
     `| Duration: ${Math.round(durationMs / 1000)}s ` +
     `| Errors: ${errors.filter(e => !e.recovered).length} fatal, ${errors.filter(e => e.recovered).length} recovered`,
     95,

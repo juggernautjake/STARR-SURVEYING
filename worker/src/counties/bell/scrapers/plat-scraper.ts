@@ -192,7 +192,7 @@ export async function scrapeBellPlats(
       const p = await checkInstrumentForPlat(instrNum, captureImages, screenshots, urlsVisited, progress);
       instrumentsChecked++;
       if (p && addPlat(p)) {
-        progress(`  ✓ Instrument ${instrNum} is a plat: ${p.platName}`);
+        progress(`  ✓ Instrument ${instrNum} is a plat: ${p.name}`);
       }
     }
   }
@@ -343,7 +343,7 @@ async function searchPlatRepository(
     }
 
     progress(`    ✓ Repository hit: "${result.name}" from ${result.source}`);
-    urlsVisited.push(result.pdfUrl ?? result.platUrl ?? '');
+    urlsVisited.push(result.url ?? '');
 
     plats.push({
       name: result.name ?? subdivisionName,
