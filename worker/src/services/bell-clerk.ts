@@ -1863,6 +1863,18 @@ export async function searchClerkRecords(
 const BELL_CLERK_BASE = 'https://bell.tx.publicsearch.us';
 
 /**
+ * Tyler PublicSearch SPA render time.
+ * Validated in March 3-4, 2026 Ash Family Trust session:
+ *   - 8s after navigation for result rows to appear
+ *   - 8s after clicking a result row for the Kofile viewer to fire the signed image URL
+ *   - 5s after clicking "Next Page" for the new page image to load
+ * If this proves insufficient on slow connections, increase to 10s rather than polling.
+ */
+const TYLER_SPA_RENDER_TIMEOUT_MS  = 8_000;
+const TYLER_VIEWER_LOAD_TIMEOUT_MS = 8_000;
+const TYLER_NEXT_PAGE_TIMEOUT_MS   = 5_000;
+
+/**
  * Search Bell County clerk records by owner name.
  * Uses direct URL parameters rather than form interaction.
  */
@@ -2052,13 +2064,12 @@ export async function fetchDocumentImages(
       console.log('[BELL-IMG] Direct viewer captured no images — falling back to search+click');
       const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-      // 8s wait: Tyler PublicSearch SPA needs full 8 seconds to render result rows.
-      await page.waitForTimeout(8_000);
+      // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
+      await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
       try {
         await page.locator('tbody tr').first().click();
-        // 8s wait: Kofile document viewer needs full 8 seconds to load page image
-        // and fire the signed image URL that the response interceptor captures.
-        await page.waitForTimeout(8_000);
+        // Kofile viewer needs TYLER_VIEWER_LOAD_TIMEOUT_MS to fire the signed image URL.
+        await page.waitForTimeout(TYLER_VIEWER_LOAD_TIMEOUT_MS);
       } catch (e: any) {
         console.log('[BELL-IMG] Search+click fallback: could not click result:', e.message);
       }
@@ -2123,7 +2134,7 @@ export async function fetchDocumentImages(
         break;
       }
 
-      await page.waitForTimeout(5_000);
+      await page.waitForTimeout(TYLER_NEXT_PAGE_TIMEOUT_MS);
 
       if (imageUrls.length > urlCountBefore) {
         await downloadPage(imageUrls[imageUrls.length - 1], pageNum);
@@ -2204,10 +2215,8 @@ export async function searchBellClerkOwnerForPlatDeed(
 
     console.log(`[BELL-PLAT] Searching: ${searchUrl}`);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    // 8s: Tyler PublicSearch SPA render time — validated with Ash Family Trust session
-    // (March 3-4, 2026). Shorter waits cause rows to not appear. If this proves
-    // insufficient on slow connections, increase to 10s rather than polling.
-    await page.waitForTimeout(8_000);
+    // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
+    await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
 
     // Accept any disclaimer dialogs
     try {

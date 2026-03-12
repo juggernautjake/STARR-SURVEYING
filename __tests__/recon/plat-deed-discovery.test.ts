@@ -208,7 +208,7 @@ describe('searchBellClerkOwnerForPlatDeed — document categorisation logic', ()
   });
 });
 
-// ── 6. Bell County plat repo config ──────────────────────────────────────────
+// ── 6. Bell County plat repo config + Direct URL ─────────────────────────────
 
 describe('Bell County plat repository config (county-plats.ts)', () => {
   it('6-1. Bell County has correct index URL template', async () => {
@@ -234,9 +234,99 @@ describe('Bell County plat repository config (county-plats.ts)', () => {
   });
 
   it('6-5. "ASH FAMILY TRUST" maps to letter "a" page', async () => {
-    // The getLetter function is internal; test via scorePlatMatch instead.
-    // The first char of "ASH" is "A" → maps to "a.php"
     expect('ASH FAMILY TRUST'[0].toLowerCase()).toBe('a');
+  });
+
+  it('6-6. Bell County has directUrlTemplate configured', async () => {
+    const { PLAT_REPO_REGISTRY } = await import('../../worker/src/services/county-plats.js');
+    expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toBeTruthy();
+    expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('cms3.revize.com');
+    expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('{LETTER}');
+    expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('{NAME}');
+  });
+
+  it('6-7. directUrlTemplate contains correct Revize CDN path', async () => {
+    const { PLAT_REPO_REGISTRY } = await import('../../worker/src/services/county-plats.js');
+    expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('bellcountytx');
+    expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('docs/plats');
+  });
+});
+
+// ── 9. Direct URL construction ─────────────────────────────────────────────────
+
+describe('constructDirectPlatUrl (county-plats.ts)', () => {
+  it('9-1. builds correct URL for ASH FAMILY TRUST', async () => {
+    const { constructDirectPlatUrl, PLAT_REPO_REGISTRY } =
+      await import('../../worker/src/services/county-plats.js');
+    const url = constructDirectPlatUrl('ASH FAMILY TRUST 12.358 ACRE ADDITION', PLAT_REPO_REGISTRY.bell);
+    expect(url).not.toBeNull();
+    expect(url).toContain('cms3.revize.com');
+    expect(url).toContain('/A/');
+    expect(url).toContain('ASH');
+    expect(url).toContain('.pdf');
+  });
+
+  it('9-2. uses uppercase LETTER in URL path', async () => {
+    const { constructDirectPlatUrl, PLAT_REPO_REGISTRY } =
+      await import('../../worker/src/services/county-plats.js');
+    const url = constructDirectPlatUrl('williams creek estates', PLAT_REPO_REGISTRY.bell);
+    expect(url).toContain('/W/');
+  });
+
+  it('9-3. encodes spaces as %20', async () => {
+    const { constructDirectPlatUrl, PLAT_REPO_REGISTRY } =
+      await import('../../worker/src/services/county-plats.js');
+    const url = constructDirectPlatUrl('ASH FAMILY TRUST 12.358 ACRE ADDITION', PLAT_REPO_REGISTRY.bell);
+    expect(url).toContain('%20');
+  });
+
+  it('9-4. returns null for config without directUrlTemplate', async () => {
+    const { constructDirectPlatUrl } =
+      await import('../../worker/src/services/county-plats.js');
+    const noDirectConfig = {
+      indexUrlTemplate: 'https://example.com/{letter}',
+      fileBaseUrl: 'https://example.com',
+      countyDisplayName: 'Test',
+    };
+    expect(constructDirectPlatUrl('TEST ADDITION', noDirectConfig)).toBeNull();
+  });
+
+  it('9-5. returns null for empty subdivision name', async () => {
+    const { constructDirectPlatUrl, PLAT_REPO_REGISTRY } =
+      await import('../../worker/src/services/county-plats.js');
+    expect(constructDirectPlatUrl('', PLAT_REPO_REGISTRY.bell)).toBeNull();
+  });
+
+  it('9-6. ASH FAMILY TRUST URL matches exact confirmed pattern', async () => {
+    const { constructDirectPlatUrl, PLAT_REPO_REGISTRY } =
+      await import('../../worker/src/services/county-plats.js');
+    const url = constructDirectPlatUrl('ASH FAMILY TRUST 12.358 ACRE ADDITION', PLAT_REPO_REGISTRY.bell);
+    // Confirmed working URL from March 2026 session
+    expect(url).toContain('/revize/bellcountytx/');
+    expect(url).toContain('/docs/plats/A/');
+    expect(url).toContain('ASH');
+    expect(url?.endsWith('.pdf')).toBe(true);
+  });
+});
+
+// ── 10. directUrlNameVariants ─────────────────────────────────────────────────
+
+describe('directUrlNameVariants (county-plats.ts)', () => {
+  it('10-1. includes original name', async () => {
+    const { directUrlNameVariants } = await import('../../worker/src/services/county-plats.js');
+    const variants = directUrlNameVariants('ASH FAMILY TRUST 12.358 ACRE ADDITION');
+    expect(variants).toContain('ASH FAMILY TRUST 12.358 ACRE ADDITION');
+  });
+
+  it('10-2. generates & → AND variant', async () => {
+    const { directUrlNameVariants } = await import('../../worker/src/services/county-plats.js');
+    const variants = directUrlNameVariants('A & B ADDITION');
+    expect(variants.some(v => v.includes('AND'))).toBe(true);
+  });
+
+  it('10-3. returns array (at least 1 entry)', async () => {
+    const { directUrlNameVariants } = await import('../../worker/src/services/county-plats.js');
+    expect(directUrlNameVariants('SIMPLE ADDITION').length).toBeGreaterThan(0);
   });
 });
 

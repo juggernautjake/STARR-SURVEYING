@@ -758,10 +758,11 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     let reconciliation: import('../types/index.js').PipelineResult['reconciliation'] = undefined;
 
-    if (platDoc?.imageBase64 && platDoc.imageFormat) {
+    if (platDoc?.imageBase64 && platDoc.imageFormat && platDoc.imageFormat !== 'pdf') {
+      // PDFs use Claude's 'document' source type and are handled in Stage3/ai-extraction.
+      // runGeoReconcile only accepts rasterised images (image/png | image/jpeg).
       const mediaType = (
         platDoc.imageFormat === 'jpg' ? 'image/jpeg' :
-        platDoc.imageFormat === 'pdf' ? 'image/png'  : // PDFs are pre-rasterised to PNG by bundler
         'image/png'
       ) as 'image/png' | 'image/jpeg';
       try {
