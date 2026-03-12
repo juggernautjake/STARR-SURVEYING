@@ -456,6 +456,14 @@ export async function orchestrateBellResearch(
 
   progress('Phase 3', `Analyzing ${deedRecords.length} deed(s) + ${plats?.plats.length ?? 0} plat(s)...`, 62);
 
+  // Extract bearing/distance calls from deed legal descriptions for plat cross-validation
+  const deedCalls = extractDeedCallsFromLegalDescriptions(
+    deedRecords.map(r => r.legalDescription ?? ''),
+  );
+  if (deedCalls.length > 0) {
+    progress('Phase 3', `Extracted ${deedCalls.length} bearing/distance call(s) from deed legal descriptions`);
+  }
+
   // Run AI analysis in parallel where possible
   const [deedAnalysisResult, platAnalysisResult] = await Promise.allSettled([
     analyzeBellDeeds(
@@ -464,7 +472,7 @@ export async function orchestrateBellResearch(
       (p) => progress('Phase 3', `Deeds: ${p.message}`, 65),
     ),
     analyzeBellPlats(
-      { platRecords: plats?.plats ?? [], legalDescription: property.legalDescription, deedCalls: [] },
+      { platRecords: plats?.plats ?? [], legalDescription: property.legalDescription, deedCalls },
       anthropicApiKey,
       (p) => progress('Phase 3', `Plats: ${p.message}`, 75),
     ),
@@ -825,7 +833,7 @@ function extractEasementRecords(documents: ClerkDocument[]): EasementRecord[] {
       sourceUrl: doc.sourceUrl,
       source: 'Bell County Clerk',
       confidence: computeConfidence({
-        sourceReliability: SOURCE_RELIABILITY['county-clerk-official'] ?? 40,
+        sourceReliability: SOURCE_RELIABILITY['county-clerk-official'],
         dataUsefulness: doc.pageImages.length > 0 ? 20 : 10,
         crossValidation: 0,
         sourceName: 'Bell County Clerk',
@@ -895,4 +903,32 @@ function extractLocationFromLegal(text: string): string | undefined {
   // Return first 120 chars of the legal description as a location hint
   const trimmed = text.replace(/\s+/g, ' ').trim();
   return trimmed.length > 0 ? trimmed.slice(0, 120) : undefined;
+}
+
+/**
+ * Extract metes-and-bounds bearing/distance calls from deed legal descriptions.
+ *
+ * Recognises standard surveying notation, e.g.:
+ *   "N 45°30'15\" E, 200.50 ft"
+ *   "S89°45'W 150.00 feet"
+ *   "NORTH 45 DEG 30 MIN 15 SEC EAST 200.50 FEET"
+ *
+ * Returned strings are already normalised for direct comparison with plat calls.
+ */
+export function extractDeedCallsFromLegalDescriptions(legalDescriptions: string[]): string[] {
+  // Covers both symbol and spelled-out degree/minute/second notation
+  const bearingPattern =
+    /[NSEW]\s*\d+[°\s*DEG\s*]+\d+['′\s*MIN\s*]+(?:\d+["″\s*SEC\s*]+)?[NSEW]?\s+\d+(?:\.\d+)?\s*(?:ft|feet|foot|LF)/gi;
+
+  const calls = new Set<string>();
+  for (const text of legalDescriptions) {
+    if (!text) continue;
+    const matches = text.match(bearingPattern);
+    if (matches) {
+      for (const m of matches) {
+        calls.add(m.replace(/\s+/g, ' ').trim());
+      }
+    }
+  }
+  return [...calls];
 }

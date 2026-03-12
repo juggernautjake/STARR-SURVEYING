@@ -96,9 +96,10 @@ export async function scrapeBellTax(
 // ── Internal: HTML Parsing ───────────────────────────────────────────
 
 function parseTaxInfo(html: string): TaxInfo | null {
-  // Extract tax year
+  // Extract tax year — if missing we cannot reliably attribute data to any year
   const yearMatch = html.match(/Tax\s*Year[:\s]*(\d{4})/i);
-  const year = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear();
+  if (!yearMatch) return null;
+  const year = parseInt(yearMatch[1]);
 
   // Extract appraised value
   const appraisedMatch = html.match(/(?:Total|Appraised)\s*Value[:\s]*\$?([\d,]+)/i);
@@ -107,6 +108,9 @@ function parseTaxInfo(html: string): TaxInfo | null {
   // Extract assessed value
   const assessedMatch = html.match(/Assessed\s*Value[:\s]*\$?([\d,]+)/i);
   const assessed = assessedMatch ? parseInt(assessedMatch[1].replace(/,/g, '')) : null;
+
+  // If we have no dollar values at all, the page likely did not contain real tax data
+  if (appraised === null && assessed === null) return null;
 
   // Extract exemptions
   const exemptions: string[] = [];

@@ -16,8 +16,6 @@ import {
   accumulateUsage,
   buildUsageFromTokens,
   zeroUsage,
-  COST_PER_INPUT_TOKEN,
-  COST_PER_OUTPUT_TOKEN,
 } from './ai-cost-helpers';
 
 // ── Types ────────────────────────────────────────────────────────────

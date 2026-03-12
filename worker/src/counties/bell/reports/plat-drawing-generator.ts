@@ -294,7 +294,7 @@ function buildAdjacentLayer(research: BellResearchResult, paperSize: string): st
 
   const elements: string[] = [];
 
-  if (!boundary || boundary.length === 0 || adjacent.length === 0) {
+  if (!boundary || boundary.length === 0) {
     return buildLegendOnlyGroup('adjacent-lots', adjacent.map(a => `${a.direction}: ${a.ownerName} (${a.propertyId})`));
   }
 
