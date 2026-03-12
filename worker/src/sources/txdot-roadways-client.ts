@@ -138,7 +138,7 @@ export class TxDOTRoadwaysClient {
 
       const features = Array.isArray(response?.features) ? response.features : [];
       const roadways = features.map((f: unknown) => this.parseFeature(f)).filter(
-        (r): r is TxDOTRoadway => r !== null,
+        (r: TxDOTRoadway | null): r is TxDOTRoadway => r !== null,
       );
 
       return {
@@ -200,7 +200,7 @@ export class TxDOTRoadwaysClient {
 
       const features = Array.isArray(response?.features) ? response.features : [];
       const roadways = features.map((f: unknown) => this.parseFeature(f)).filter(
-        (r): r is TxDOTRoadway => r !== null,
+        (r: TxDOTRoadway | null): r is TxDOTRoadway => r !== null,
       );
 
       return {
