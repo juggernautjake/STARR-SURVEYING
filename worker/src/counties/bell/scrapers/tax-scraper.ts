@@ -65,17 +65,36 @@ export async function scrapeBellTax(
   const url = BELL_ENDPOINTS.cad.propertyDetail(input.propertyId, input.ownerId);
   urlsVisited.push(url);
 
-  try {
-    const resp = await fetch(url, {
-      headers: {
-        'Accept': 'text/html,*/*',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-      signal: AbortSignal.timeout(TIMEOUTS.httpRequest),
-    });
+  /** HTTP status codes that are safe to retry (transient server errors). */
+  const RETRYABLE_STATUS = new Set([429, 503]);
+  const MAX_RETRIES = 3;
 
-    if (!resp.ok) {
-      progress(`Failed to fetch property detail: HTTP ${resp.status}`);
+  try {
+    let resp: Response | null = null;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      // Each iteration gets a fresh AbortSignal (cannot reuse the same signal)
+      const r = await fetch(url, {
+        headers: {
+          'Accept': 'text/html,*/*',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+        signal: AbortSignal.timeout(TIMEOUTS.httpRequest),
+      });
+
+      if (RETRYABLE_STATUS.has(r.status) && attempt < MAX_RETRIES) {
+        const delaySec = attempt * 2;
+        progress(`HTTP ${r.status} — retrying in ${delaySec}s (attempt ${attempt}/${MAX_RETRIES})...`);
+        await new Promise(resolve => setTimeout(resolve, delaySec * 1000));
+        continue;
+      }
+
+      resp = r;
+      break;
+    }
+
+    if (!resp || !resp.ok) {
+      progress(`Failed to fetch property detail: HTTP ${resp?.status ?? 'unknown'}`);
       return { taxInfo: null, improvements: [], valuationHistory: [], screenshots, urlsVisited };
     }
 
@@ -187,13 +206,13 @@ function parseImprovements(html: string): Improvement[] {
   // Fallback: scan for "Year Built" near description keywords outside of a table
   if (improvements.length === 0) {
     const fallbackPattern =
-      /(?:Residential|Commercial|Garage|Barn|Shed|Pool|Mobile Home)[^<]{0,100}?(?:Year[:\s]*Built)?[:\s]*(\d{4})[^<]{0,200}?(?:Sq\.?\s*Ft\.?|Square\s*Feet)[:\s]*([\d,]+)/gi;
+      /\b(Residential|Commercial|Garage|Barn|Shed|Pool|Mobile\s+Home)\b[^<]{0,100}?(?:Year[:\s]*Built)?[:\s]*(\d{4})[^<]{0,200}?(?:Sq\.?\s*Ft\.?|Square\s*Feet)[:\s]*([\d,]+)/gi;
     let m: RegExpExecArray | null;
     while ((m = fallbackPattern.exec(html)) !== null) {
       improvements.push({
-        description: m[0].split(/[<\n]/)[0].trim().slice(0, 80),
-        yearBuilt: parseInt(m[1], 10) || null,
-        squareFeet: parseInt(m[2].replace(/,/g, ''), 10) || null,
+        description: m[1].trim(),   // just the keyword, e.g. "Residential"
+        yearBuilt:   parseInt(m[2], 10) || null,
+        squareFeet:  parseInt(m[3].replace(/,/g, ''), 10) || null,
         condition: null,
       });
     }
@@ -242,9 +261,9 @@ function parseValuationHistory(html: string): ValuationEntry[] {
     }
   }
 
-  // Fallback: find any year-to-dollar pattern for appraisal years
-  if (history.length === 0) {
-    const fallback = /\b(20\d{2})\b[^<]{0,200}?\$?([\d,]+)/g;
+  // Fallback: find any year-to-dollar pattern — only if page looks like an appraisal record
+  if (history.length === 0 && /(?:apprai[sz]|assessed|tax\s*year)/i.test(html)) {
+    const fallback = /\b(20\d{2})\b[^<]{0,200}?\$?([\d,]{4,})/g;
     let m: RegExpExecArray | null;
     const seen = new Set<number>();
     while ((m = fallback.exec(html)) !== null) {

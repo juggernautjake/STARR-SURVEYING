@@ -623,3 +623,402 @@ describe('AI usage tracking — deed-analyzer and plat-analyzer', () => {
     expect(total.estimatedCostUsd).toBeCloseTo(0.0114, 4);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+//  Module E: Fallback Method Robustness
+// ═══════════════════════════════════════════════════════════════════
+
+describe('Fallback method robustness', () => {
+
+  // ── E-1: parseTaxInfo null-guard improvements ──────────────────────
+
+  it('E-1. parseTaxInfo returns null when Tax Year is absent', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '<html><body><p>Appraised Value: $100,000</p></body></html>',
+    } as unknown as Response);
+
+    const { scrapeBellTax } = await import('../../worker/src/counties/bell/scrapers/tax-scraper.js');
+    const result = await scrapeBellTax({ propertyId: 'NOTAXYR' }, vi.fn());
+    expect(result.taxInfo).toBeNull();
+    fetchSpy.mockRestore();
+  });
+
+  it('E-2. parseTaxInfo returns null when Tax Year present but no dollar values', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '<html><body><p>Tax Year: 2024</p><p>No appraisal data</p></body></html>',
+    } as unknown as Response);
+
+    const { scrapeBellTax } = await import('../../worker/src/counties/bell/scrapers/tax-scraper.js');
+    const result = await scrapeBellTax({ propertyId: 'NODOLLAR' }, vi.fn());
+    expect(result.taxInfo).toBeNull();
+    fetchSpy.mockRestore();
+  });
+
+  // ── E-3: parseImprovements fallback description extraction ─────────
+
+  it('E-3. parseImprovements fallback extracts keyword as description (not full match text)', async () => {
+    const html = `
+      <html><body>
+        <p>Residential Year Built: 2005 Sq Ft: 1800</p>
+        <p>Garage Year Built: 2006 Square Feet: 400</p>
+      </body></html>
+    `;
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => html,
+    } as unknown as Response);
+
+    const { scrapeBellTax } = await import('../../worker/src/counties/bell/scrapers/tax-scraper.js');
+    const result = await scrapeBellTax({ propertyId: 'FALLBACK' }, vi.fn());
+    // Description must be just the keyword, not the full regex match text
+    for (const imp of result.improvements) {
+      expect(imp.description.length).toBeLessThanOrEqual(20);
+      expect(imp.description).toMatch(/^(Residential|Commercial|Garage|Barn|Shed|Pool|Mobile Home)$/i);
+    }
+    fetchSpy.mockRestore();
+  });
+
+  // ── E-4: parseValuationHistory fallback only fires on appraisal pages ─
+
+  it('E-4. parseValuationHistory fallback does not produce false positives on generic HTML', async () => {
+    // Page has years and numbers but no appraisal context keywords
+    const html = `
+      <html><body>
+        <p>Version 2024 — updated 2023</p>
+        <p>Count: 150, Price: 350</p>
+      </body></html>
+    `;
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => html,
+    } as unknown as Response);
+
+    const { scrapeBellTax } = await import('../../worker/src/counties/bell/scrapers/tax-scraper.js');
+    const result = await scrapeBellTax({ propertyId: 'NOVALHISTORY' }, vi.fn());
+    expect(result.valuationHistory).toEqual([]);
+    fetchSpy.mockRestore();
+  });
+
+  it('E-5. parseValuationHistory fallback fires on appraisal-context page', async () => {
+    // Page has appraisal context but no proper table structure
+    const html = `
+      <html><body>
+        <h2>Tax Year History</h2>
+        <p>Appraised value: 2024 $185,000 assessed value</p>
+        <p>2023 $172,500 appraised</p>
+      </body></html>
+    `;
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => html,
+    } as unknown as Response);
+
+    const { scrapeBellTax } = await import('../../worker/src/counties/bell/scrapers/tax-scraper.js');
+    const result = await scrapeBellTax({ propertyId: 'VALCTX' }, vi.fn());
+    // With appraisal context, fallback should find at least one entry
+    expect(result.valuationHistory.length).toBeGreaterThanOrEqual(1);
+    fetchSpy.mockRestore();
+  });
+
+  // ── E-6: Tax scraper retries on HTTP 503 ──────────────────────────
+
+  it('E-6. tax scraper retries on HTTP 503 and succeeds on second attempt', async () => {
+    let callCount = 0;
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        // Return 503 on first attempt — but we need to handle the setTimeout delay
+        return { ok: false, status: 503, headers: new Headers() } as unknown as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        text: async () => '<html><body><p>Tax Year: 2024</p><p>Appraised Value: $200,000</p></body></html>',
+      } as unknown as Response;
+    });
+
+    // Use fake timers to skip the retry delay
+    vi.useFakeTimers();
+
+    const { scrapeBellTax } = await import('../../worker/src/counties/bell/scrapers/tax-scraper.js');
+    const msgs: string[] = [];
+
+    const resultPromise = scrapeBellTax({ propertyId: 'RETRY503' }, (p) => msgs.push(p.message));
+
+    // Advance timers past the 2s delay
+    await vi.runAllTimersAsync();
+    const result = await resultPromise;
+
+    vi.useRealTimers();
+    fetchSpy.mockRestore();
+
+    expect(callCount).toBe(2);
+    expect(msgs.some(m => m.includes('503'))).toBe(true);
+    expect(result.taxInfo).not.toBeNull();
+    expect(result.taxInfo?.taxYear).toBe(2024);
+  });
+
+  // ── E-7: deed-analyzer fallback summary uses metadata ─────────────
+
+  it('E-7. analyzeBellDeeds no-API fallback summary includes document types and date range', async () => {
+    const { analyzeBellDeeds } = await import('../../worker/src/counties/bell/analyzers/deed-analyzer.js');
+    const { computeConfidence, SOURCE_RELIABILITY } = await import('../../worker/src/counties/bell/types/confidence.js');
+
+    const conf = computeConfidence({
+      sourceReliability: SOURCE_RELIABILITY['county-clerk-official'],
+      dataUsefulness: 0, crossValidation: 0, sourceName: 'test', validatedBy: [], contradictedBy: [],
+    });
+
+    const records = [
+      { instrumentNumber: 'D-001', volume: null, page: null, recordingDate: '2005-03-10',
+        documentType: 'Warranty Deed', grantor: 'SMITH, JOHN', grantee: 'JONES, MARY',
+        legalDescription: null, aiSummary: null, pageImages: [], sourceUrl: null, source: 'Clerk', confidence: conf },
+      { instrumentNumber: 'D-002', volume: null, page: null, recordingDate: '2010-07-15',
+        documentType: 'Deed of Trust', grantor: 'JONES, MARY', grantee: 'FIRST BANK',
+        legalDescription: null, aiSummary: null, pageImages: [], sourceUrl: null, source: 'Clerk', confidence: conf },
+    ];
+
+    const result = await analyzeBellDeeds(
+      { deedRecords: records, cadLegalDescription: null, currentOwner: 'JONES, MARY' },
+      '', // no API key → triggers fallback
+      vi.fn(),
+    );
+
+    expect(result.section.summary).toContain('2 recorded document');
+    expect(result.section.summary).toContain('2005');
+    expect(result.section.summary).toContain('2010');
+    expect(result.section.summary).toContain('Warranty Deed');
+    expect(result.section.summary).toContain('JONES, MARY');
+  });
+
+  it('E-8. deed fallback summary includes grantor→grantee chain narrative', async () => {
+    const { analyzeBellDeeds } = await import('../../worker/src/counties/bell/analyzers/deed-analyzer.js');
+    const { computeConfidence, SOURCE_RELIABILITY } = await import('../../worker/src/counties/bell/types/confidence.js');
+
+    const conf = computeConfidence({
+      sourceReliability: SOURCE_RELIABILITY['county-clerk-official'],
+      dataUsefulness: 0, crossValidation: 0, sourceName: 'test', validatedBy: [], contradictedBy: [],
+    });
+
+    const records = [
+      { instrumentNumber: 'A', volume: null, page: null, recordingDate: '2000-01-01',
+        documentType: 'Warranty Deed', grantor: 'ORIGINAL OWNER', grantee: 'BUYER ONE',
+        legalDescription: null, aiSummary: null, pageImages: [], sourceUrl: null, source: 'Clerk', confidence: conf },
+      { instrumentNumber: 'B', volume: null, page: null, recordingDate: '2015-06-01',
+        documentType: 'Warranty Deed', grantor: 'BUYER ONE', grantee: 'CURRENT OWNER',
+        legalDescription: null, aiSummary: null, pageImages: [], sourceUrl: null, source: 'Clerk', confidence: conf },
+    ];
+
+    const result = await analyzeBellDeeds(
+      { deedRecords: records, cadLegalDescription: null, currentOwner: 'CURRENT OWNER' },
+      '',
+      vi.fn(),
+    );
+
+    expect(result.section.summary).toContain('ORIGINAL OWNER');
+    expect(result.section.summary).toContain('CURRENT OWNER');
+    expect(result.section.summary).toContain('2 conveyance');
+  });
+
+  // ── E-9: plat-analyzer cross-validation distinguishes failure modes ─
+
+  it('E-9. crossValidation message is specific when only deed calls are missing', async () => {
+    const { analyzeBellPlats } = await import('../../worker/src/counties/bell/analyzers/plat-analyzer.js');
+    const { computeConfidence, SOURCE_RELIABILITY } = await import('../../worker/src/counties/bell/types/confidence.js');
+
+    const conf = computeConfidence({
+      sourceReliability: SOURCE_RELIABILITY['county-plat-repo'], dataUsefulness: 20,
+      crossValidation: 0, sourceName: 'test', validatedBy: [], contradictedBy: [],
+    });
+
+    // Plat with AI analysis but no deed calls provided
+    const platRecords = [{
+      name: 'CEDAR RIDGE ADD',
+      date: '2000-01-01',
+      instrumentNumber: 'P-001',
+      images: [],
+      aiAnalysis: {
+        lotDimensions: ['200 ft'],
+        bearingsAndDistances: ['N 89°30\'00" E, 200.00 ft'],
+        monuments: ['1/2 iron rod'],
+        easements: [],
+        curves: [],
+        rowWidths: [],
+        adjacentReferences: [],
+        changesFromPrevious: [],
+        narrative: 'Simple rectangular lot.',
+      },
+      sourceUrl: null,
+      source: 'test',
+      confidence: conf,
+    }];
+
+    const result = await analyzeBellPlats(
+      { platRecords, legalDescription: null, deedCalls: [] }, // no deed calls
+      '',
+      vi.fn(),
+    );
+
+    expect(result.section.crossValidation[0]).toContain('Cross-validation skipped');
+    expect(result.section.crossValidation[0]).toContain('bearing/distance calls');
+    // Must NOT say "no plat AI analysis" since analysis IS available
+    expect(result.section.crossValidation[0]).not.toContain('no plat AI analysis');
+  });
+
+  it('E-10. crossValidation message is specific when only plat analysis is missing', async () => {
+    const { analyzeBellPlats } = await import('../../worker/src/counties/bell/analyzers/plat-analyzer.js');
+    const { computeConfidence, SOURCE_RELIABILITY } = await import('../../worker/src/counties/bell/types/confidence.js');
+
+    const conf = computeConfidence({
+      sourceReliability: SOURCE_RELIABILITY['county-plat-repo'], dataUsefulness: 0,
+      crossValidation: 0, sourceName: 'test', validatedBy: [], contradictedBy: [],
+    });
+
+    // Plat without AI analysis but with deed calls provided
+    const platRecords = [{
+      name: 'OAK HILLS ADD',
+      date: null,
+      instrumentNumber: null,
+      images: [],
+      aiAnalysis: null,
+      sourceUrl: null,
+      source: 'test',
+      confidence: conf,
+    }];
+
+    const result = await analyzeBellPlats(
+      { platRecords, legalDescription: null, deedCalls: ['N 45°00\'00" E, 150.00 ft'] },
+      '',
+      vi.fn(),
+    );
+
+    expect(result.section.crossValidation[0]).toContain('Cross-validation skipped');
+    expect(result.section.crossValidation[0]).toContain('plat AI analysis');
+    expect(result.section.crossValidation[0]).not.toContain('deed bearing');
+  });
+
+  it('E-11. crossValidation message covers both-missing case', async () => {
+    const { analyzeBellPlats } = await import('../../worker/src/counties/bell/analyzers/plat-analyzer.js');
+    const { computeConfidence, SOURCE_RELIABILITY } = await import('../../worker/src/counties/bell/types/confidence.js');
+
+    const conf = computeConfidence({
+      sourceReliability: SOURCE_RELIABILITY['county-plat-repo'], dataUsefulness: 0,
+      crossValidation: 0, sourceName: 'test', validatedBy: [], contradictedBy: [],
+    });
+
+    const result = await analyzeBellPlats(
+      { platRecords: [{ name: 'X', date: null, instrumentNumber: null, images: [], aiAnalysis: null, sourceUrl: null, source: 'test', confidence: conf }],
+        legalDescription: null, deedCalls: [] }, // both missing
+      '',
+      vi.fn(),
+    );
+
+    const msg = result.section.crossValidation[0];
+    expect(msg).toContain('Cross-validation skipped');
+    expect(msg).toContain('deed');
+    expect(msg).toContain('plat AI analysis');
+  });
+
+  // ── E-12: plat summary names plats without AI analysis ─────────────
+
+  it('E-12. generatePlatSummary names plats that have no AI analysis', async () => {
+    const { analyzeBellPlats } = await import('../../worker/src/counties/bell/analyzers/plat-analyzer.js');
+    const { computeConfidence, SOURCE_RELIABILITY } = await import('../../worker/src/counties/bell/types/confidence.js');
+
+    const conf = computeConfidence({
+      sourceReliability: SOURCE_RELIABILITY['county-plat-repo'], dataUsefulness: 0,
+      crossValidation: 0, sourceName: 'test', validatedBy: [], contradictedBy: [],
+    });
+
+    const result = await analyzeBellPlats(
+      {
+        platRecords: [
+          { name: 'MISSING PLAT ONE', date: null, instrumentNumber: null, images: [], aiAnalysis: null, sourceUrl: null, source: 'test', confidence: conf },
+          { name: 'MISSING PLAT TWO', date: null, instrumentNumber: null, images: [], aiAnalysis: null, sourceUrl: null, source: 'test', confidence: conf },
+        ],
+        legalDescription: null,
+        deedCalls: [],
+      },
+      '',
+      vi.fn(),
+    );
+
+    expect(result.section.summary).toContain('MISSING PLAT ONE');
+    expect(result.section.summary).toContain('MISSING PLAT TWO');
+    expect(result.section.summary).toContain('without AI analysis');
+  });
+
+  // ── E-13: extractDeedCallsFromLegalDescriptions ────────────────────
+
+  it('E-13. extractDeedCallsFromLegalDescriptions finds standard bearing/distance calls', async () => {
+    const { extractDeedCallsFromLegalDescriptions } = await import('../../worker/src/counties/bell/orchestrator.js');
+
+    const texts = [
+      'BEGINNING at iron rod; thence N 45°30\'15" E, 200.50 ft; thence S89°45\'W 150.00 feet to point of beginning.',
+      'Thence North 30 DEG 15 MIN 00 SEC East 125.00 feet along fence line.',
+    ];
+    const calls = extractDeedCallsFromLegalDescriptions(texts);
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+    // Each call should contain a direction letter and a distance
+    for (const c of calls) {
+      expect(c).toMatch(/(?:ft|feet)/i);
+    }
+  });
+
+  it('E-14. extractDeedCallsFromLegalDescriptions returns empty array for non-metes text', async () => {
+    const { extractDeedCallsFromLegalDescriptions } = await import('../../worker/src/counties/bell/orchestrator.js');
+
+    const calls = extractDeedCallsFromLegalDescriptions([
+      'Lot 1, Block 2, Oak Valley Addition to the City of Belton, Bell County, Texas',
+      'Abstract 500, survey called for 10 acres',
+    ]);
+    expect(calls).toEqual([]);
+  });
+
+  // ── E-15: ai-cost-helpers zeroUsage and buildUsageFromTokens ───────
+
+  it('E-15. zeroUsage returns object with all-zero fields', async () => {
+    const { zeroUsage } = await import('../../worker/src/counties/bell/analyzers/ai-cost-helpers.js');
+    const z = zeroUsage();
+    expect(z.totalCalls).toBe(0);
+    expect(z.totalInputTokens).toBe(0);
+    expect(z.totalOutputTokens).toBe(0);
+    expect(z.estimatedCostUsd).toBe(0);
+  });
+
+  it('E-16. buildUsageFromTokens computes correct cost and sets totalCalls=1', async () => {
+    const { buildUsageFromTokens, COST_PER_INPUT_TOKEN, COST_PER_OUTPUT_TOKEN } =
+      await import('../../worker/src/counties/bell/analyzers/ai-cost-helpers.js');
+
+    const usage = buildUsageFromTokens(2000, 400);
+    expect(usage.totalCalls).toBe(1);
+    expect(usage.totalInputTokens).toBe(2000);
+    expect(usage.totalOutputTokens).toBe(400);
+    expect(usage.estimatedCostUsd).toBeCloseTo(
+      2000 * COST_PER_INPUT_TOKEN + 400 * COST_PER_OUTPUT_TOKEN,
+      9,
+    );
+  });
+
+  it('E-17. accumulateUsage adds delta correctly into accumulator', async () => {
+    const { accumulateUsage, zeroUsage, buildUsageFromTokens } =
+      await import('../../worker/src/counties/bell/analyzers/ai-cost-helpers.js');
+
+    const acc = zeroUsage();
+    accumulateUsage(acc, buildUsageFromTokens(1000, 200));
+    accumulateUsage(acc, buildUsageFromTokens(500, 100));
+
+    expect(acc.totalCalls).toBe(2);
+    expect(acc.totalInputTokens).toBe(1500);
+    expect(acc.totalOutputTokens).toBe(300);
+    expect(acc.estimatedCostUsd).toBeGreaterThan(0);
+  });
+});

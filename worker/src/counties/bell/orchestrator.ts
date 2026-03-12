@@ -366,6 +366,16 @@ export async function orchestrateBellResearch(
 
   // ── 2C/2D/2E: FEMA, TxDOT, Tax (parallel) ────────────────────────
   progress('Phase 2', '2C/D/E — FEMA + TxDOT + Tax (parallel)...', 45);
+
+  if (!lat || !lon) {
+    progress('Phase 2',
+      '⚠ No coordinates available — FEMA flood zone and TxDOT ROW lookups will be skipped. ' +
+      'Provide a valid street address or explicit lat/lon to enable these checks.',
+    );
+  }
+  if (!property.propertyId) {
+    progress('Phase 2', '⚠ No property ID resolved — Bell CAD tax detail lookup will be skipped.');
+  }
   const [femaResult, txdotResult, taxResult] = await Promise.allSettled([
     lat && lon
       ? scrapeBellFema({ lat, lon }, (p) => progress('Phase 2', `FEMA: ${p.message}`, 47))

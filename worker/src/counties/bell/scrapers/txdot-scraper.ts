@@ -137,8 +137,11 @@ async function queryTxDotLayer(
     if (data.features && data.features.length > 0) {
       return data.features[0].attributes;
     }
-  } catch {
-    // TxDOT service may be temporarily unavailable
+  } catch (err) {
+    console.warn(
+      `[txdot-scraper] TxDOT layer query failed (${url}): ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   return null;

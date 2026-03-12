@@ -200,11 +200,34 @@ Be thorough — every dimension, call, and monument matters for the survey.`,
           usage: callUsage,
         };
       } catch {
-        // JSON parse failed — fall through to null
+        // JSON parse failed — fall back to extracting a narrative from the raw text
+        console.warn('[plat-analyzer] AI response was not valid JSON; extracting narrative as partial analysis');
+        const narrativeMatch = textBlock.text.match(/"narrative"\s*:\s*"([^"]+)"/);
+        const rawNarrative = narrativeMatch
+          ? narrativeMatch[1]
+          : textBlock.text.replace(/\{[\s\S]*/, '').trim().slice(0, 500);
+        return {
+          analysis: {
+            lotDimensions: [],
+            bearingsAndDistances: [],
+            monuments: [],
+            easements: [],
+            curves: [],
+            rowWidths: [],
+            adjacentReferences: [],
+            changesFromPrevious: [],
+            narrative: `[Partial — JSON parse failed] ${rawNarrative}`,
+          },
+          usage: callUsage,
+        };
       }
     }
     return { analysis: null, usage: callUsage };
-  } catch {
+  } catch (err) {
+    console.warn(
+      `[plat-analyzer] AI plat image analysis failed: ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
     return { analysis: null, usage: {} };
   }
 }
@@ -217,8 +240,28 @@ function crossValidatePlatVsDeeds(
 ): string[] {
   const notes: string[] = [];
 
-  if (deedCalls.length === 0 || plats.length === 0) {
-    notes.push('Cross-validation skipped: insufficient data from deeds or plats');
+  const hasAnalysis = plats.some(p => p.aiAnalysis !== null);
+  const hasDeedCalls = deedCalls.length > 0;
+
+  if (!hasDeedCalls && !hasAnalysis) {
+    notes.push(
+      'Cross-validation skipped: no deed bearing/distance calls and no plat AI analysis available. ' +
+      'Provide deed images (for AI extraction) and fetch plat images to enable cross-validation.',
+    );
+    return notes;
+  }
+  if (!hasDeedCalls) {
+    notes.push(
+      'Cross-validation skipped: no bearing/distance calls extracted from deed legal descriptions. ' +
+      'Metes-and-bounds calls in the deed legal descriptions are required for cross-validation.',
+    );
+    return notes;
+  }
+  if (!hasAnalysis) {
+    notes.push(
+      'Cross-validation skipped: no plat AI analysis available. ' +
+      'Plat images must be fetched and analyzed by AI before cross-validation can run.',
+    );
     return notes;
   }
 
@@ -264,16 +307,21 @@ function normalizeCall(call: string): string {
 function generatePlatSummary(plats: PlatRecord[]): string {
   if (plats.length === 0) return 'No plats found.';
 
-  const withAnalysis = plats.filter(p => p.aiAnalysis);
-  const totalDimensions = withAnalysis.reduce((n, p) => n + (p.aiAnalysis?.lotDimensions.length ?? 0), 0);
-  const totalMonuments = withAnalysis.reduce((n, p) => n + (p.aiAnalysis?.monuments.length ?? 0), 0);
-  const totalEasements = withAnalysis.reduce((n, p) => n + (p.aiAnalysis?.easements.length ?? 0), 0);
+  const withAnalysis    = plats.filter(p => p.aiAnalysis);
+  const withoutAnalysis = plats.filter(p => !p.aiAnalysis);
 
-  const narratives = withAnalysis
-    .map(p => p.aiAnalysis?.narrative)
-    .filter(Boolean);
+  const totalDimensions = withAnalysis.reduce((n, p) => n + (p.aiAnalysis?.lotDimensions.length ?? 0), 0);
+  const totalMonuments  = withAnalysis.reduce((n, p) => n + (p.aiAnalysis?.monuments.length ?? 0), 0);
+  const totalEasements  = withAnalysis.reduce((n, p) => n + (p.aiAnalysis?.easements.length ?? 0), 0);
+
+  const narratives = withAnalysis.map(p => p.aiAnalysis?.narrative).filter(Boolean);
 
   let summary = `Found ${plats.length} plat record(s). `;
+
+  if (withoutAnalysis.length > 0) {
+    const names = withoutAnalysis.map(p => p.name).join(', ');
+    summary += `Plat(s) without AI analysis (images not fetched): ${names}. `;
+  }
   if (withAnalysis.length > 0) {
     summary += `AI analysis extracted ${totalDimensions} dimension(s), ${totalMonuments} monument(s), and ${totalEasements} easement(s). `;
   }

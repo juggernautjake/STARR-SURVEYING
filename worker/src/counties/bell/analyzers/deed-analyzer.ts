@@ -127,6 +127,22 @@ export async function analyzeBellDeeds(
 
 // ── Internal: Individual Deed Analysis ───────────────────────────────
 
+/**
+ * Build a plain-text fallback summary from deed record metadata alone,
+ * used when AI analysis is unavailable or fails.
+ */
+function buildFallbackDeedSummary(record: DeedRecord): string {
+  const parts: string[] = [`Document type: ${record.documentType}`];
+  if (record.grantor) parts.push(`Grantor: ${record.grantor}`);
+  if (record.grantee) parts.push(`Grantee: ${record.grantee}`);
+  if (record.recordingDate) parts.push(`Recorded: ${record.recordingDate}`);
+  if (record.instrumentNumber) parts.push(`Instrument #${record.instrumentNumber}`);
+  if (record.legalDescription) {
+    parts.push(`Legal: ${record.legalDescription.slice(0, 120)}`);
+  }
+  return parts.join(' | ') + '. (AI image analysis was not available for this document.)';
+}
+
 async function analyzeDeedException(
   record: DeedRecord,
   apiKey: string,
@@ -175,11 +191,16 @@ Provide a concise 2-3 sentence summary suitable for a property surveyor.`,
     const inputTokens = response.usage?.input_tokens ?? 0;
     const outputTokens = response.usage?.output_tokens ?? 0;
     return {
-      summary: textBlock ? textBlock.text : '',
+      summary: textBlock ? textBlock.text : buildFallbackDeedSummary(record),
       usage: buildUsageFromTokens(inputTokens, outputTokens),
     };
-  } catch {
-    return { summary: '', usage: {} };
+  } catch (err) {
+    console.warn(
+      `[deed-analyzer] AI analysis failed for ${record.documentType} ` +
+      `${record.instrumentNumber ?? '(no inst#)'}: ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
+    return { summary: buildFallbackDeedSummary(record), usage: {} };
   }
 }
 
@@ -211,6 +232,35 @@ function buildChainOfTitle(records: DeedRecord[]): ChainLink[] {
 
 // ── Internal: Summary Generation ─────────────────────────────────────
 
+/**
+ * Build a structured ownership-history summary from deed metadata alone,
+ * used when no Anthropic API key is set or when the AI call fails.
+ */
+function buildNoAiDeedSummary(
+  records: DeedRecord[],
+  chain: ChainLink[],
+  currentOwner: string | null,
+): string {
+  const dates = records.map(r => r.recordingDate).filter(Boolean).sort() as string[];
+  const oldestDate = dates[0] ?? 'unknown';
+  const newestDate = dates[dates.length - 1] ?? 'unknown';
+  const docTypes = [...new Set(records.map(r => r.documentType))];
+
+  let summary =
+    `Found ${records.length} recorded document(s) spanning ${oldestDate} to ${newestDate}. ` +
+    `Document types: ${docTypes.join(', ')}. ` +
+    `Current owner: ${currentOwner ?? 'unknown'}. ` +
+    `Chain of title: ${chain.length} conveyance(s)`;
+
+  if (chain.length > 0) {
+    const first = chain[0];
+    const last  = chain[chain.length - 1];
+    summary += ` — ${first.from} (${first.date ?? '?'}) → ${last.to} (${last.date ?? '?'})`;
+  }
+
+  return summary + '.';
+}
+
 async function generateDeedSummary(
   records: DeedRecord[],
   chain: ChainLink[],
@@ -218,24 +268,7 @@ async function generateDeedSummary(
   apiKey: string,
 ): Promise<{ summary: string; usage: Partial<AiUsageSummary> }> {
   if (!apiKey) {
-    // Generate a basic summary without AI
-    const deedCount = records.length;
-    const oldestDate = records
-      .map(r => r.recordingDate)
-      .filter(Boolean)
-      .sort()[0] ?? 'unknown';
-    const newestDate = records
-      .map(r => r.recordingDate)
-      .filter(Boolean)
-      .sort()
-      .reverse()[0] ?? 'unknown';
-
-    return {
-      summary: `Found ${deedCount} recorded document(s) spanning from ${oldestDate} to ${newestDate}. ` +
-        `Current owner: ${currentOwner ?? 'unknown'}. ` +
-        `Chain of title contains ${chain.length} conveyance(s).`,
-      usage: {},
-    };
+    return { summary: buildNoAiDeedSummary(records, chain, currentOwner), usage: {} };
   }
 
   try {
@@ -271,13 +304,14 @@ Write a concise 3-5 sentence narrative summary covering:
     const inputTokens = response.usage?.input_tokens ?? 0;
     const outputTokens = response.usage?.output_tokens ?? 0;
     return {
-      summary: textBlock?.text ?? '',
+      summary: textBlock?.text ?? buildNoAiDeedSummary(records, chain, currentOwner),
       usage: buildUsageFromTokens(inputTokens, outputTokens),
     };
-  } catch {
-    return {
-      summary: `Found ${records.length} document(s). Current owner: ${currentOwner ?? 'unknown'}.`,
-      usage: {},
-    };
+  } catch (err) {
+    console.warn(
+      `[deed-analyzer] AI summary generation failed: ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
+    return { summary: buildNoAiDeedSummary(records, chain, currentOwner), usage: {} };
   }
 }
