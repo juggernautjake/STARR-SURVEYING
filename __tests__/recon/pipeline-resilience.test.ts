@@ -67,7 +67,7 @@ describe('SearchDiagnostics — resilience fields', () => {
   it('allows omitting resilience fields for a successful search', () => {
     const successful: SearchDiagnostics = {
       variantsGenerated: [],
-      variantsTried: [{ variant: { format: '123 Main St', isPartial: false, priority: 1 }, resultCount: 1, hitPropertyId: 'prop-001' }],
+      variantsTried: [{ variant: { format: '123 Main St', isPartial: false, priority: 1, streetNumber: '123', streetName: 'Main St' }, resultCount: 1, hitPropertyId: 'prop-001' }],
       partialSearches: [],
       searchDuration_ms: 250,
     };
