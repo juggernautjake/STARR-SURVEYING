@@ -52,7 +52,6 @@ const KOFILE_FIPS_SET = new Set<string>([
   '48013',  // Atascosa
 
   // North / DFW area — major counties verified on publicsearch.us 2026-03-09
-  '48113',  // Dallas
   '48439',  // Tarrant
   '48085',  // Collin
   '48121',  // Denton

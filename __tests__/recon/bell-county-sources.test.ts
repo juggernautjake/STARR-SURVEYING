@@ -9,7 +9,7 @@
 //
 // All tests are pure-logic — no live network calls.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // ── Module A: BellCADDataPortalClient ─────────────────────────────────────────
 
@@ -254,9 +254,28 @@ describe('TNRISLiDARClient — TxGIO open Resources API', () => {
   });
 
   it('B-10. fetchBellCountyAerialImagery never throws', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        count: 1,
+        next: null,
+        results: [{
+          resource_id: 'bell-ncccm-2022',
+          resource: 'https://data.geographic.texas.gov/collection/test/resources/file.zip',
+          filesize: 1024000,
+          area_type_id: 'bell-county',
+          area_type_name: 'Bell',
+          collection_id: 'ncccm-2022',
+          resource_type_name: 'NC Compressed County Mosaic',
+          resource_type_abbreviation: 'NC-CCM',
+          area_type: 'county',
+        }],
+      }),
+    }));
     const { TNRISLiDARClient } = await import('../../worker/src/sources/tnris-lidar-client.js');
     const client = new TNRISLiDARClient();
     await expect(client.fetchBellCountyAerialImagery()).resolves.toBeTruthy();
+    vi.unstubAllGlobals();
   });
 });
 
