@@ -172,7 +172,7 @@ Be thorough — every dimension, call, and monument matters for the survey.`,
       }],
     });
 
-    const textBlock = response.content.find(b => b.type === 'text');
+    const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
     const callUsage = buildUsageFromTokens(
       response.usage?.input_tokens ?? 0,
       response.usage?.output_tokens ?? 0,

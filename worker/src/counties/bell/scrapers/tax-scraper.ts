@@ -308,7 +308,7 @@ function extractCells(rowHtml: string): string[] {
  * decoded last to prevent double-decoding of sequences like `&amp;lt;`.
  */
 function decodeHtmlCell(html: string): string {
-  let out = '';
+  const parts: string[] = [];
   let inTag = false;
   for (let i = 0; i < html.length; i++) {
     const ch = html[i];
@@ -317,10 +317,10 @@ function decodeHtmlCell(html: string): string {
     } else if (ch === '<') {
       inTag = true;
     } else {
-      out += ch;
+      parts.push(ch);
     }
   }
-  return out
+  return parts.join('')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&lt;/gi,   '<')
     .replace(/&gt;/gi,   '>')

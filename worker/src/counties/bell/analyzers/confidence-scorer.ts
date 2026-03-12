@@ -107,6 +107,12 @@ export function scoreOverallConfidence(items: DataItem[]): ConfidenceRating {
   }));
 
   const totalWeight = scores.reduce((sum, s) => sum + s.weight, 0);
+  if (totalWeight === 0) {
+    return computeConfidence({
+      sourceReliability: 0, dataUsefulness: 0, crossValidation: 0,
+      sourceName: 'none', validatedBy: [], contradictedBy: [],
+    });
+  }
   const weightedScore = scores.reduce((sum, s) => sum + s.rating.score * s.weight, 0) / totalWeight;
 
   // Count sources

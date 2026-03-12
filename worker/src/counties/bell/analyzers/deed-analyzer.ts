@@ -187,7 +187,7 @@ Provide a concise 2-3 sentence summary suitable for a property surveyor.`,
       }],
     });
 
-    const textBlock = response.content.find(b => b.type === 'text');
+    const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
     const inputTokens = response.usage?.input_tokens ?? 0;
     const outputTokens = response.usage?.output_tokens ?? 0;
     return {
@@ -300,7 +300,7 @@ Write a concise 3-5 sentence narrative summary covering:
       }],
     });
 
-    const textBlock = response.content.find(b => b.type === 'text');
+    const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
     const inputTokens = response.usage?.input_tokens ?? 0;
     const outputTokens = response.usage?.output_tokens ?? 0;
     return {

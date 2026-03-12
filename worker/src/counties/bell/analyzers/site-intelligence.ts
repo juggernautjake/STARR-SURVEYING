@@ -107,21 +107,31 @@ Only include genuinely useful observations. Skip obvious things.`,
       }],
     });
 
-    const textBlock = response.content.find(b => b.type === 'text');
+    const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
     if (!textBlock) return null;
 
     const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        url: screenshot.url,
-        screenshot: screenshot.imageBase64,
-        observations: parsed.observations ?? [],
-        suggestions: parsed.suggestions ?? [],
-      };
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          url: screenshot.url,
+          screenshot: screenshot.imageBase64,
+          observations: parsed.observations ?? [],
+          suggestions: parsed.suggestions ?? [],
+        };
+      } catch (parseErr) {
+        console.warn(
+          `[site-intelligence] JSON parse failed for ${screenshot.url}: ` +
+          `${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
+        );
+      }
     }
-  } catch {
-    // AI analysis failed — not critical
+  } catch (err) {
+    console.warn(
+      `[site-intelligence] AI screenshot analysis failed for ${screenshot.url}: ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   return null;

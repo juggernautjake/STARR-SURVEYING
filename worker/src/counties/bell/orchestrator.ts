@@ -112,7 +112,7 @@ export async function orchestrateBellResearch(
   };
 
   /** Absorb all identifiers discovered from any source into knownIds */
-  const absorbIdentifiers = (source: string, ids: {
+  const absorbIdentifiers = async (source: string, ids: {
     propertyId?: string | null;
     ownerName?: string | null;
     instrumentNumbers?: string[];
@@ -134,15 +134,17 @@ export async function orchestrateBellResearch(
       }
     }
     if (ids.legalDescription) {
-      // Extract subdivision name from legal description
+      // Extract subdivision name from legal description using dynamic import
       try {
-        const { extractSubdivisionNameFromLegal } = require('./scrapers/plat-scraper');
-        const subdivName = extractSubdivisionNameFromLegal(ids.legalDescription);
+        const platScraper = await import('./scrapers/plat-scraper');
+        const subdivName = platScraper.extractSubdivisionNameFromLegal(ids.legalDescription);
         if (subdivName && !knownIds.subdivisionNames.has(subdivName)) {
           knownIds.subdivisionNames.add(subdivName); discovered++;
           progress('Enrich', `  ← New subdivision from ${source}: "${subdivName}"`);
         }
-      } catch { /* ignore */ }
+      } catch (err) {
+        console.warn(`[orchestrator] Could not extract subdivision from "${source}": ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
     if (discovered > 0) {
       progress('Enrich',
@@ -214,7 +216,7 @@ export async function orchestrateBellResearch(
     recordLinks(cad.urlsVisited, 'Bell CAD eSearch', true);
 
     // Absorb all CAD-discovered identifiers into knownIds
-    absorbIdentifiers('Bell CAD', {
+    await absorbIdentifiers('Bell CAD', {
       propertyId: cad.propertyId,
       ownerName: cad.ownerName,
       instrumentNumbers: cad.instrumentNumbers,
@@ -237,7 +239,7 @@ export async function orchestrateBellResearch(
     allScreenshots.push(...gis.screenshots);
     recordLinks(gis.urlsVisited, 'Bell CAD GIS', true);
 
-    absorbIdentifiers('Bell GIS', {
+    await absorbIdentifiers('Bell GIS', {
       propertyId: gis.propertyId ?? undefined,
       ownerName: gis.ownerName ?? undefined,
       instrumentNumbers: gis.instrumentNumbers,
@@ -589,6 +591,38 @@ export async function orchestrateBellResearch(
   }
   const overallConfidence = scoreOverallConfidence(dataItems);
 
+  // Build per-section confidence using relevant data items (not an empty array)
+  const cadDataItems = dataItems.filter(d => d.source === 'Bell CAD' || d.source === 'Bell GIS');
+  const deedDataItems = deedRecords.length > 0
+    ? deedRecords.map(d => ({ key: 'instrument', value: d.instrumentNumber ?? d.documentType, source: 'Clerk', dataType: 'instrument_ref' as const }))
+    : [];
+  const platDataItems = (plats?.plats.length ?? 0) > 0
+    ? [{ key: 'plat', value: 'found', source: 'Bell County Plat Repository', dataType: 'instrument_ref' as const }]
+    : [];
+  const easementDataItems = [
+    ...(fema?.result ? [{ key: 'fema', value: fema.result.floodZone, source: 'FEMA NFHL', dataType: 'classification' as const }] : []),
+    ...(txdot?.result ? [{ key: 'txdot', value: txdot.result.highwayName ?? 'ROW', source: 'TxDOT', dataType: 'classification' as const }] : []),
+    ...easementRecords.map(e => ({ key: 'easement', value: e.type, source: e.source, dataType: 'instrument_ref' as const })),
+  ];
+
+  // Optional: find adjacent properties (only if user requested it)
+  let adjacentProperties: BellResearchResult['adjacentProperties'] = [];
+  if (input.includeAdjacentProperties && property.parcelBoundary && property.parcelBoundary.length > 0) {
+    progress('Phase 4', 'Finding adjacent properties from GIS...', 92);
+    try {
+      const { analyzeAdjacentProperties } = await import('./analyzers/adjacent-analyzer');
+      adjacentProperties = await analyzeAdjacentProperties(
+        { parcelBoundary: property.parcelBoundary, targetPropertyId: property.propertyId },
+        (p) => progress('Phase 4', `Adjacent: ${p.message}`),
+      );
+      progress('Phase 4', `Found ${adjacentProperties.length} adjacent parcel(s)`);
+    } catch (err) {
+      recordError('Phase 4', 'Adjacent Properties', err);
+    }
+  } else if (input.includeAdjacentProperties) {
+    progress('Phase 4', '⚠ Adjacent property search requested but no parcel boundary available — skipping');
+  }
+
   const completedAt = new Date();
   const durationMs = completedAt.getTime() - startedAt.getTime();
 
@@ -620,15 +654,15 @@ export async function orchestrateBellResearch(
         : 'No deed records were found.',
       records: deedRecords,
       chainOfTitle: [],
-      confidence: scoreOverallConfidence([]),
+      confidence: scoreOverallConfidence(deedDataItems),
     },
     plats: platSection ?? {
       summary: plats && plats.plats.length > 0
         ? `Found ${plats.plats.length} plat(s) but AI analysis was not completed.`
         : 'No plat records were found.',
-      plats: [],
+      plats: plats?.plats ?? [],
       crossValidation: [],
-      confidence: scoreOverallConfidence([]),
+      confidence: scoreOverallConfidence(platDataItems),
     },
     easementsAndEncumbrances: {
       fema: fema?.result ?? null,
@@ -636,18 +670,18 @@ export async function orchestrateBellResearch(
       easements: easementRecords,
       restrictiveCovenants,
       summary: buildEasementSummary(fema?.result ?? null, txdot?.result ?? null, easementRecords, restrictiveCovenants),
-      confidence: scoreOverallConfidence([]),
+      confidence: scoreOverallConfidence(easementDataItems),
     },
     propertyDetails: {
       cadData: cad ? { propertyId: cad.propertyId, ownerName: cad.ownerName, acreage: cad.acreage } : {},
       gisData: gis?.rawAttributes ?? {},
       aerialScreenshot: null,
       taxInfo: tax?.taxInfo ?? null,
-      confidence: scoreOverallConfidence(dataItems.filter(d => d.source === 'Bell CAD')),
+      confidence: scoreOverallConfidence(cadDataItems),
     },
     researchedLinks: allLinks,
     discrepancies,
-    adjacentProperties: [],
+    adjacentProperties,
     siteIntelligence: siteIntelligence ?? [],
 
     screenshots: allScreenshots,
@@ -681,8 +715,8 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lon: numb
         return { lat: match.coordinates.y, lon: match.coordinates.x };
       }
     }
-  } catch {
-    // Census geocoder failed — try Nominatim
+  } catch (err) {
+    console.warn(`[orchestrator] Census geocoder failed for "${address}": ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // Nominatim fallback
@@ -704,8 +738,8 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lon: numb
         return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
       }
     }
-  } catch {
-    // Both geocoders failed
+  } catch (err) {
+    console.warn(`[orchestrator] Nominatim geocoder failed for "${address}": ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return null;
@@ -926,17 +960,26 @@ function extractLocationFromLegal(text: string): string | undefined {
  * Returned strings are already normalised for direct comparison with plat calls.
  */
 export function extractDeedCallsFromLegalDescriptions(legalDescriptions: string[]): string[] {
-  // Covers both symbol and spelled-out degree/minute/second notation
-  const bearingPattern =
-    /[NSEW]\s*\d+[°\s*DEG\s*]+\d+['′\s*MIN\s*]+(?:\d+["″\s*SEC\s*]+)?[NSEW]?\s+\d+(?:\.\d+)?\s*(?:ft|feet|foot|LF)/gi;
-
+  // Match: [N/S] <deg>[°|DEG] <min>['/MIN] [<sec>["/"SEC]] [E/W] [,] <dist>[ft|feet|foot|LF]
+  // Uses two passes: symbol notation and spelled-out notation.
+  // Note: patterns are created fresh per-call so no lastIndex state leaks between texts.
   const calls = new Set<string>();
   for (const text of legalDescriptions) {
     if (!text) continue;
-    const matches = text.match(bearingPattern);
-    if (matches) {
-      for (const m of matches) {
-        calls.add(m.replace(/\s+/g, ' ').trim());
+
+    // Symbol notation: e.g. "N 45°30'15" E, 200.50 ft" or "S89°45'W 150.00 feet"
+    const symbolPattern =
+      /[NSEW]\s*\d+\s*°\s*\d+[''′]\s*(?:\d+[""″]\s*)?[NSEW]?\s*,?\s*\d+(?:\.\d+)?\s*(?:ft|feet|foot|LF)\b/gi;
+    // Spelled-out notation: e.g. "NORTH 30 DEG 15 MIN 00 SEC EAST 125.00 FEET"
+    const spelledPattern =
+      /(?:NORTH|SOUTH|EAST|WEST|[NSEW])\s+\d+\s+DEG\s+\d+\s+MIN(?:\s+\d+\s+SEC)?\s+(?:EAST|WEST|[EW])\s+\d+(?:\.\d+)?\s+(?:FEET|FOOT|FT|LF)\b/gi;
+
+    for (const pattern of [symbolPattern, spelledPattern]) {
+      const matches = text.match(pattern);
+      if (matches) {
+        for (const m of matches) {
+          calls.add(m.replace(/\s+/g, ' ').trim());
+        }
       }
     }
   }

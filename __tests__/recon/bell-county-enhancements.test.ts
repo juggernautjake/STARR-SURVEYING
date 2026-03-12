@@ -1022,3 +1022,184 @@ describe('Fallback method robustness', () => {
     expect(acc.estimatedCostUsd).toBeGreaterThan(0);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+//  Module F: Code Review Fixes
+// ═══════════════════════════════════════════════════════════════════
+
+describe('Code review fixes — confidence, discrepancy, deed-calls regex', () => {
+
+  // ── F-1: scoreOverallConfidence division-by-zero guard ─────────────
+
+  it('F-1. scoreOverallConfidence returns unverified/0 for empty array', async () => {
+    const { scoreOverallConfidence } = await import('../../worker/src/counties/bell/analyzers/confidence-scorer.js');
+    const result = scoreOverallConfidence([]);
+    expect(result.score).toBe(0);
+    expect(result.tier).toBe('unverified');
+  });
+
+  it('F-2. scoreOverallConfidence returns unverified/0 for items with unknown dataType', async () => {
+    const { scoreOverallConfidence } = await import('../../worker/src/counties/bell/analyzers/confidence-scorer.js');
+    // All items have 'metadata' type — usefulness = 5; should not divide by zero
+    const items = [
+      { key: 'x', value: 'y', source: 'Bell CAD', dataType: 'metadata' as const },
+    ];
+    const result = scoreOverallConfidence(items);
+    expect(result.score).toBeGreaterThan(0);
+    expect(typeof result.tier).toBe('string');
+  });
+
+  // ── F-3: acreage tiny-difference guard ────────────────────────────
+
+  it('F-3. detectDiscrepancies does not flag acreage diff < 0.01 ac', async () => {
+    const { detectDiscrepancies } = await import('../../worker/src/counties/bell/analyzers/discrepancy-detector.js');
+    const items = detectDiscrepancies({
+      cadLegalDescription: null,
+      cadAcreage: 10.004,
+      cadOwner: null,
+      gisLegalDescription: null,
+      gisAcreage: 10.001,  // 0.003 ac diff — rounding noise
+      gisOwner: null,
+      deedLegalDescriptions: [],
+      deedAcreages: [],
+      platDimensions: [],
+      chainOfTitle: [],
+      easements: [],
+    });
+    const acreageItems = items.filter(d => d.category === 'acreage');
+    expect(acreageItems).toHaveLength(0);
+  });
+
+  it('F-4. detectDiscrepancies flags acreage diff > 0.01 ac AND > 2%', async () => {
+    const { detectDiscrepancies } = await import('../../worker/src/counties/bell/analyzers/discrepancy-detector.js');
+    const items = detectDiscrepancies({
+      cadLegalDescription: null,
+      cadAcreage: 5.0,
+      cadOwner: null,
+      gisLegalDescription: null,
+      gisAcreage: 10.0,   // 5 ac diff, 50% → 'high'
+      gisOwner: null,
+      deedLegalDescriptions: [],
+      deedAcreages: [],
+      platDimensions: [],
+      chainOfTitle: [],
+      easements: [],
+    });
+    const acreageItems = items.filter(d => d.category === 'acreage');
+    expect(acreageItems.length).toBeGreaterThan(0);
+    expect(acreageItems[0].severity).toBe('high');
+  });
+
+  // ── F-5: extractDeedCallsFromLegalDescriptions regex correctness ───
+
+  it('F-5. extractDeedCallsFromLegalDescriptions matches symbol-notation call', async () => {
+    const { extractDeedCallsFromLegalDescriptions } = await import('../../worker/src/counties/bell/orchestrator.js');
+    const calls = extractDeedCallsFromLegalDescriptions([
+      "thence N 45°30'15\" E, 200.50 ft to iron rod",
+    ]);
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+    expect(calls[0]).toMatch(/N\s*45/i);
+  });
+
+  it('F-6. extractDeedCallsFromLegalDescriptions matches spelled-out notation', async () => {
+    const { extractDeedCallsFromLegalDescriptions } = await import('../../worker/src/counties/bell/orchestrator.js');
+    const calls = extractDeedCallsFromLegalDescriptions([
+      'THENCE NORTH 30 DEG 15 MIN 00 SEC EAST 125.00 FEET',
+    ]);
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+    expect(calls[0]).toContain('125.00');
+  });
+
+  it('F-7. extractDeedCallsFromLegalDescriptions does not match lot/block descriptions', async () => {
+    const { extractDeedCallsFromLegalDescriptions } = await import('../../worker/src/counties/bell/orchestrator.js');
+    const calls = extractDeedCallsFromLegalDescriptions([
+      'Lot 1, Block 2, Oak Valley Addition, Bell County, Texas',
+      'Abstract 500, Survey called for 100 acres',
+    ]);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('F-8. extractDeedCallsFromLegalDescriptions deduplicates repeated calls', async () => {
+    const { extractDeedCallsFromLegalDescriptions } = await import('../../worker/src/counties/bell/orchestrator.js');
+    // Use a call without comma separator to avoid any ambiguity
+    const sameCall = "S 89°45'00\" E 150.00 ft";
+    const calls = extractDeedCallsFromLegalDescriptions([sameCall, sameCall]);
+    expect(calls).toHaveLength(1);
+  });
+
+  // ── F-9: ContentBlock type-narrowing (no crash when text is accessed) ──
+
+  it('F-9. analyzeBellDeeds does not throw on empty deedRecords (no text block error)', async () => {
+    const { analyzeBellDeeds } = await import('../../worker/src/counties/bell/analyzers/deed-analyzer.js');
+    await expect(
+      analyzeBellDeeds({ deedRecords: [], cadLegalDescription: null, currentOwner: null }, '', vi.fn()),
+    ).resolves.not.toThrow();
+  });
+
+  it('F-10. analyzeBellPlats does not throw on empty platRecords', async () => {
+    const { analyzeBellPlats } = await import('../../worker/src/counties/bell/analyzers/plat-analyzer.js');
+    await expect(
+      analyzeBellPlats({ platRecords: [], legalDescription: null, deedCalls: [] }, '', vi.fn()),
+    ).resolves.not.toThrow();
+  });
+
+  // ── F-11: plat fallback section preserves plats array ─────────────
+
+  it('F-11. orchestrator plat fallback section preserves actual plat records (not empty)', async () => {
+    // The old code always set plats: [] in the fallback — verify the fix is correct
+    // by checking the plat-analyzer directly returns section.plats from input
+    const { analyzeBellPlats } = await import('../../worker/src/counties/bell/analyzers/plat-analyzer.js');
+    const { computeConfidence, SOURCE_RELIABILITY } = await import('../../worker/src/counties/bell/types/confidence.js');
+
+    const conf = computeConfidence({
+      sourceReliability: SOURCE_RELIABILITY['county-plat-repo'], dataUsefulness: 0,
+      crossValidation: 0, sourceName: 'test', validatedBy: [], contradictedBy: [],
+    });
+
+    const result = await analyzeBellPlats({
+      platRecords: [
+        { name: 'CEDAR VALLEY ADD', date: null, instrumentNumber: null, images: [],
+          aiAnalysis: null, sourceUrl: null, source: 'test', confidence: conf },
+      ],
+      legalDescription: null,
+      deedCalls: [],
+    }, '', vi.fn());
+
+    // section.plats must contain the input plat (not be empty)
+    expect(result.section.plats).toHaveLength(1);
+    expect(result.section.plats[0].name).toBe('CEDAR VALLEY ADD');
+  });
+
+  // ── F-12: discrepancy ownership chain gap detection ────────────────
+
+  it('F-12. detectDiscrepancies flags name mismatch in chain of title', async () => {
+    const { detectDiscrepancies } = await import('../../worker/src/counties/bell/analyzers/discrepancy-detector.js');
+    const items = detectDiscrepancies({
+      cadLegalDescription: null, cadAcreage: null, cadOwner: null,
+      gisLegalDescription: null, gisAcreage: null, gisOwner: null,
+      deedLegalDescriptions: [], deedAcreages: [], platDimensions: [], easements: [],
+      chainOfTitle: [
+        { from: 'SMITH, JOHN', to: 'JONES FAMILY TRUST', date: '2005-01-01' },
+        { from: 'JONES TRUST', to: 'CURRENT OWNER', date: '2020-01-01' },
+        // Gap: "JONES FAMILY TRUST" → "JONES TRUST" — names don't match exactly
+      ],
+    });
+    const ownershipItems = items.filter(d => d.category === 'ownership');
+    expect(ownershipItems.length).toBeGreaterThan(0);
+  });
+
+  it('F-13. detectDiscrepancies does not flag chain when names match', async () => {
+    const { detectDiscrepancies } = await import('../../worker/src/counties/bell/analyzers/discrepancy-detector.js');
+    const items = detectDiscrepancies({
+      cadLegalDescription: null, cadAcreage: null, cadOwner: null,
+      gisLegalDescription: null, gisAcreage: null, gisOwner: null,
+      deedLegalDescriptions: [], deedAcreages: [], platDimensions: [], easements: [],
+      chainOfTitle: [
+        { from: 'SMITH, JOHN', to: 'JONES, MARY', date: '2005-01-01' },
+        { from: 'JONES, MARY', to: 'CURRENT OWNER', date: '2020-01-01' },
+      ],
+    });
+    const ownershipItems = items.filter(d => d.category === 'ownership');
+    expect(ownershipItems).toHaveLength(0);
+  });
+});

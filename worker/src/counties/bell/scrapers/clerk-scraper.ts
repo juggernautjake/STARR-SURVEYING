@@ -133,9 +133,13 @@ export async function scrapeBellClerk(
       documents.push(doc);
       return true;
     }
-    // Merge: add page images to existing if they are missing
-    if (doc.pageImages.length > 0 && existing.pageImages.length === 0) {
-      existing.pageImages = doc.pageImages;
+    // Merge: append any page images not already present in the existing record
+    if (doc.pageImages.length > 0) {
+      for (const img of doc.pageImages) {
+        if (!existing.pageImages.includes(img)) {
+          existing.pageImages.push(img);
+        }
+      }
     }
     return false;
   };

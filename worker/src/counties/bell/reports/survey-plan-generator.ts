@@ -174,15 +174,19 @@ Make it specific to ${input.surveyType} surveys. Be practical and actionable.`,
       }],
     });
 
-    const textBlock = response.content.find(b => b.type === 'text');
+    const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
     if (textBlock) {
       const jsonMatch = textBlock.text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        try {
+          return JSON.parse(jsonMatch[0]);
+        } catch (parseErr) {
+          console.warn(`[survey-plan-generator] JSON parse failed for field steps: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`);
+        }
       }
     }
-  } catch {
-    // AI generation failed
+  } catch (err) {
+    console.warn(`[survey-plan-generator] AI field steps generation failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return getDefaultFieldSteps(input);

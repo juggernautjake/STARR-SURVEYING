@@ -97,6 +97,9 @@ export function detectDiscrepancies(input: DiscrepancyInput): DiscrepancyItem[] 
       const diff = Math.abs(acreages[i].value - acreages[j].value);
       const pctDiff = diff / Math.max(acreages[i].value, acreages[j].value) * 100;
 
+      // Skip trivially small differences (< 0.01 ac absolute — rounding noise)
+      if (diff < 0.01) continue;
+
       if (pctDiff > 2) { // More than 2% difference
         items.push({
           category: 'acreage',

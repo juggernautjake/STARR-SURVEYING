@@ -362,9 +362,11 @@ function computeProjection(
     }
   }
 
-  // Add 10% margin
-  const dLon = (maxLon - minLon) * 0.1 || 0.0001;
-  const dLat = (maxLat - minLat) * 0.1 || 0.0001;
+  // Add 10% margin; fall back to a minimum span if boundary is a point or line
+  // (prevents division by zero in scaleX/scaleY below).
+  const MIN_COORDINATE_SPAN = 0.0001; // ~10 m at mid-latitudes — prevents zero-division
+  const dLon = (maxLon - minLon) * 0.1 || MIN_COORDINATE_SPAN;
+  const dLat = (maxLat - minLat) * 0.1 || MIN_COORDINATE_SPAN;
   minLon -= dLon; maxLon += dLon;
   minLat -= dLat; maxLat += dLat;
 
