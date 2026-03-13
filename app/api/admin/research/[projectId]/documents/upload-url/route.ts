@@ -10,6 +10,11 @@ import { validateUploadFile } from '@/lib/research/document.service';
 
 export const maxDuration = 30;
 
+// Supabase Storage bucket that holds all research documents.
+// Must match the bucket created in seeds/102_storage_buckets.sql.
+const RESEARCH_BUCKET = 'research-documents';
+const RESEARCH_BUCKET_FILE_SIZE_LIMIT = 52428800; // 50 MB
+
 /**
  * POST /api/admin/research/[projectId]/documents/upload-url
  *
@@ -113,10 +118,25 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: dbError.message }, { status: 500 });
   }
 
-  // Generate a short-lived signed upload URL for direct browser → Supabase upload
-  const { data: signedData, error: signedError } = await supabaseAdmin.storage
-    .from('research-documents')
+  // Generate a short-lived signed upload URL for direct browser → Supabase upload.
+  // If the bucket doesn't exist yet (e.g. migration hasn't been run), create it
+  // automatically so the first upload succeeds without manual intervention.
+  let { data: signedData, error: signedError } = await supabaseAdmin.storage
+    .from(RESEARCH_BUCKET)
     .createSignedUploadUrl(storagePath);
+
+  if (signedError?.message === 'The related resource does not exist') {
+    // Bucket is missing — create it, then retry once.
+    // Note: RLS policies from seeds/102_storage_buckets.sql are not applied
+    // here; run the migration for full policy coverage in production.
+    await supabaseAdmin.storage.createBucket(RESEARCH_BUCKET, {
+      public: false,
+      fileSizeLimit: RESEARCH_BUCKET_FILE_SIZE_LIMIT,
+    });
+    ({ data: signedData, error: signedError } = await supabaseAdmin.storage
+      .from(RESEARCH_BUCKET)
+      .createSignedUploadUrl(storagePath));
+  }
 
   if (signedError || !signedData) {
     // Clean up the orphaned DB record
