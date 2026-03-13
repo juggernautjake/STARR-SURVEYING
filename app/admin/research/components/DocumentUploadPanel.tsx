@@ -12,12 +12,17 @@ interface DocumentUploadPanelProps {
 }
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
-const ACCEPTED_EXTENSIONS = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.docx', '.txt', '.webp']);
+const ACCEPTED_EXTENSIONS = new Set([
+  '.pdf',
+  '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.gif', '.heic', '.heif',
+  '.docx', '.txt', '.rtf',
+]);
 const ACCEPTED_MIME_TYPES = new Set([
   'application/pdf',
-  'image/png', 'image/jpeg', 'image/tiff', 'image/webp',
+  'image/png', 'image/jpeg', 'image/tiff', 'image/webp', 'image/bmp', 'image/gif',
+  'image/heic', 'image/heif',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
+  'text/plain', 'text/rtf', 'application/rtf',
 ]);
 
 const PROCESSING_STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -200,7 +205,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.docx,.txt,.webp"
+          accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.webp,.bmp,.gif,.heic,.heif,.docx,.txt,.rtf"
           style={{ display: 'none' }}
           onChange={e => e.target.files && handleFileUpload(e.target.files)}
         />
@@ -215,7 +220,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
               : 'Drop files here or click to browse'}
         </div>
         <div className="research-upload__dropzone-hint">
-          PDF, PNG, JPG, TIFF, DOCX, TXT — up to 50 MB each
+          PDF, PNG, JPG, TIFF, BMP, GIF, HEIC, DOCX, TXT, RTF — up to 50 MB each
         </div>
       </div>
 

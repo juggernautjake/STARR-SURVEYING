@@ -7958,6 +7958,13 @@
   min-width: 0;
 }
 
+/* The first item has no preceding connector, so push its stage-wrap to the
+   right edge — matching the right-aligned position of every other item's
+   stage-wrap after its flex-growing connector. */
+.pipeline-stepper__item:first-child {
+  justify-content: flex-end;
+}
+
 .pipeline-stepper__connector {
   flex: 1;
   height: 3px;
