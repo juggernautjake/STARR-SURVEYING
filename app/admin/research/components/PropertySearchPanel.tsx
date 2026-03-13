@@ -104,6 +104,7 @@ export default function PropertySearchPanel({
   const [importResult, setImportResult] = useState<{ count: number; mapNote?: string } | null>(null);
 
   const [showAddressIssues, setShowAddressIssues] = useState(true);
+  const [resourcesOpen, setResourcesOpen] = useState(true);
 
   // Lite pipeline state
   const [liteRunning, setLiteRunning] = useState(false);
@@ -202,6 +203,7 @@ export default function PropertySearchPanel({
     setSelected(new Set());
     setImportResult(null);
     setShowAddressIssues(true);
+    setResourcesOpen(true);
     setLiteSummary(null);
     setPipelineResult(null);
     setPipelineStatus(null);
@@ -702,109 +704,125 @@ export default function PropertySearchPanel({
             </div>
           )}
 
-          {/* Results header with select controls */}
-          {searchResponse.results.length > 0 && (
-            <div className="research-search__results-header">
-              <span className="research-search__results-count">
-                {searchResponse.total} result{searchResponse.total !== 1 ? 's' : ''} found
-                {specificCount > 0 && (
-                  <span className="research-search__specific-count">
-                    {' '}— {specificCount} property-specific
-                  </span>
-                )}
-              </span>
-              <div className="research-search__select-controls">
-                <button
-                  className="research-search__select-btn"
-                  onClick={selectAll}
-                  type="button"
-                >
-                  Select all
-                </button>
-                <button
-                  className="research-search__select-btn"
-                  onClick={deselectAll}
-                  type="button"
-                >
-                  Deselect all
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Grouped results */}
-          {Object.entries(groupedResults).map(([source, results]) => {
-            const sourceInfo = SOURCE_LABELS[source as SearchSource] || { label: source, icon: '📎' };
-            return (
-              <div key={source} className="research-search__group">
-                <div className="research-search__group-header">
-                  <span className="research-search__group-icon">{sourceInfo.icon}</span>
-                  <span className="research-search__group-title">{sourceInfo.label}</span>
-                  <span className="research-search__group-count">{results.length}</span>
+          {/* Collapsible Online Resources */}
+          {searchResponse.results.length > 0 ? (
+            <div className="research-search__resources-collapsible">
+              {/* Toggle header */}
+              <div
+                className="research-search__resources-toggle-header"
+                onClick={() => setResourcesOpen(prev => !prev)}
+                role="button"
+                aria-expanded={resourcesOpen}
+              >
+                <span className="research-search__resources-toggle-title">
+                  🌐 Online Resources
+                </span>
+                <span className="research-search__results-count">
+                  {searchResponse.total} result{searchResponse.total !== 1 ? 's' : ''}
+                  {specificCount > 0 && (
+                    <span className="research-search__specific-count">
+                      {' '}— {specificCount} property-specific
+                    </span>
+                  )}
+                </span>
+                <div className="research-search__select-controls" onClick={e => e.stopPropagation()}>
+                  <button
+                    className="research-search__select-btn"
+                    onClick={selectAll}
+                    type="button"
+                  >
+                    Select all
+                  </button>
+                  <button
+                    className="research-search__select-btn"
+                    onClick={deselectAll}
+                    type="button"
+                  >
+                    Deselect all
+                  </button>
                 </div>
+                <span className="research-search__toggle-chevron" aria-hidden="true">
+                  {resourcesOpen ? '▲' : '▼'}
+                </span>
+              </div>
 
-                <div className="research-search__group-items">
-                  {results.map(r => {
-                    const isSelected = selected.has(r.id);
-                    const docTypeInfo = DOCUMENT_TYPE_LABELS[r.document_type] || { label: r.document_type, icon: '📎' };
-
+              {/* Collapsible body */}
+              {resourcesOpen && (
+                <div className="research-search__resources-body">
+                  {Object.entries(groupedResults).map(([source, results]) => {
+                    const sourceInfo = SOURCE_LABELS[source as SearchSource] || { label: source, icon: '📎' };
                     return (
-                      <div
-                        key={r.id}
-                        className={`research-search__result ${isSelected ? 'research-search__result--selected' : ''}`}
-                        onClick={() => toggleResult(r.id)}
-                      >
-                        <div className="research-search__result-check">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleResult(r.id)}
-                            onClick={e => e.stopPropagation()}
-                          />
+                      <div key={source} className="research-search__group">
+                        <div className="research-search__group-header">
+                          <span className="research-search__group-icon">{sourceInfo.icon}</span>
+                          <span className="research-search__group-title">{sourceInfo.label}</span>
+                          <span className="research-search__group-count">{results.length}</span>
                         </div>
 
-                        <div className="research-search__result-body">
-                          <div className="research-search__result-top">
-                            <span className="research-search__result-type">
-                              {docTypeInfo.icon} {docTypeInfo.label}
-                            </span>
-                            {r.is_property_specific && (
-                              <span className="research-search__result-specific" title="This link is specifically targeted to your property">
-                                ✅ Property-specific
-                              </span>
-                            )}
-                            {r.has_cost && (
-                              <span className="research-search__result-cost" title={r.cost_note}>
-                                $ May have fees
-                              </span>
-                            )}
-                          </div>
+                        <div className="research-search__group-items">
+                          {results.map(r => {
+                            const isSelected = selected.has(r.id);
+                            const docTypeInfo = DOCUMENT_TYPE_LABELS[r.document_type] || { label: r.document_type, icon: '📎' };
 
-                          <div className="research-search__result-title">{r.title}</div>
-                          <div className="research-search__result-desc">{r.description}</div>
+                            return (
+                              <div
+                                key={r.id}
+                                className={`research-search__result ${isSelected ? 'research-search__result--selected' : ''}`}
+                                onClick={() => toggleResult(r.id)}
+                              >
+                                <div className="research-search__result-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleResult(r.id)}
+                                    onClick={e => e.stopPropagation()}
+                                  />
+                                </div>
 
-                          <div className="research-search__result-footer">
-                            {relevanceBar(r.relevance)}
-                            <a
-                              className="research-search__result-link"
-                              href={r.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={e => e.stopPropagation()}
-                            >
-                              Open source &#8599;
-                            </a>
-                          </div>
+                                <div className="research-search__result-body">
+                                  <div className="research-search__result-top">
+                                    <span className="research-search__result-type">
+                                      {docTypeInfo.icon} {docTypeInfo.label}
+                                    </span>
+                                    {r.is_property_specific && (
+                                      <span className="research-search__result-specific" title="This link is specifically targeted to your property">
+                                        ✅ Property-specific
+                                      </span>
+                                    )}
+                                    {r.has_cost && (
+                                      <span className="research-search__result-cost" title={r.cost_note}>
+                                        $ May have fees
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="research-search__result-title">{r.title}</div>
+                                  <div className="research-search__result-desc">{r.description}</div>
+
+                                  <div className="research-search__result-footer">
+                                    {relevanceBar(r.relevance)}
+                                    <a
+                                      className="research-search__result-link"
+                                      href={r.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      Open source &#8599;
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
-            );
-          })}
-
-          {searchResponse.results.length === 0 && (
+              )}
+            </div>
+          ) : (
             <div className="research-search__empty">
               No results found. Try a different address, county, or parcel ID.
               {searchResponse.address_variants && searchResponse.address_variants.length > 0 && (

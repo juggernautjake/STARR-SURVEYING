@@ -761,14 +761,80 @@
 
 .research-upload__list {
   margin-top: 1.5rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
-.research-upload__list-title {
-  font-size: 0.95rem;
+/* Collapsible toggle header for document list */
+.research-upload__list-toggle-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1rem;
+  background: #F9FAFB;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid #E5E7EB;
+  transition: background 0.15s;
+  flex-wrap: wrap;
+}
+
+.research-upload__list-toggle-header:hover {
+  background: #F3F4F6;
+}
+
+.research-upload__list-toggle-title {
+  font-size: 0.92rem;
   font-weight: 600;
   color: #374151;
-  margin: 0 0 0.75rem 0;
+  flex-shrink: 0;
 }
+
+.research-upload__list-select-controls {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.research-upload__bulk-delete-btn {
+  background: none;
+  border: 1px solid #FECACA;
+  color: #DC2626;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.research-upload__bulk-delete-btn:hover {
+  background: #FEF2F2;
+  border-color: #DC2626;
+}
+
+/* Collapsible body for document list */
+.research-upload__list-body {
+  padding: 0.5rem;
+}
+
+/* Checkbox column in document rows */
+.research-upload__doc-check {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding-right: 0.1rem;
+}
+
+.research-upload__doc-check input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  accent-color: #2563EB;
+}
+
 
 .research-upload__doc {
   display: flex;
@@ -779,11 +845,23 @@
   border: 1px solid #E5E7EB;
   border-radius: 8px;
   margin-bottom: 0.5rem;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s;
+  cursor: pointer;
 }
 
 .research-upload__doc:hover {
   border-color: #D1D5DB;
+  background: #F9FAFB;
+}
+
+.research-upload__doc--selected {
+  background: #EFF6FF;
+  border-color: #2563EB;
+  border-left-width: 3px;
+}
+
+.research-upload__doc--selected:hover {
+  background: #DBEAFE;
 }
 
 .research-upload__doc-icon {
@@ -2292,6 +2370,51 @@
   border-color: #2563EB;
   color: #2563EB;
 }
+
+/* Collapsible Online Resources section */
+.research-search__resources-collapsible {
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 0.25rem;
+}
+
+.research-search__resources-toggle-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background: #F9FAFB;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid #E5E7EB;
+  transition: background 0.15s;
+  flex-wrap: wrap;
+}
+
+.research-search__resources-toggle-header:hover {
+  background: #F3F4F6;
+}
+
+.research-search__resources-toggle-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #374151;
+  flex-shrink: 0;
+}
+
+.research-search__toggle-chevron {
+  font-size: 0.7rem;
+  color: #9CA3AF;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.research-search__resources-body {
+  background: #fff;
+}
+
+
 
 /* Result groups */
 .research-search__group {

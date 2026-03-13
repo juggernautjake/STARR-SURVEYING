@@ -1,7 +1,7 @@
 // app/admin/research/components/DocumentUploadPanel.tsx
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { ResearchDocument, DocumentType } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
 
@@ -84,6 +84,22 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
   const [submittingManual, setSubmittingManual] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Collapsible document list state
+  const [docsOpen, setDocsOpen] = useState(true);
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
+
+  // Keep selectedDocs in sync when documents change (e.g. external deletion)
+  useEffect(() => {
+    const docIds = new Set(documents.map(d => d.id));
+    setSelectedDocs(prev => {
+      const filtered = new Set([...prev].filter(id => docIds.has(id)));
+      return filtered.size === prev.size ? prev : filtered;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documents]);
+
+  const activeSelected = selectedDocs;
 
   async function handleFileUpload(files: FileList | File[]) {
     if (!files.length || uploading) return;
@@ -184,11 +200,54 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
       if (!res.ok) {
         setUploadError('Failed to delete document. Please try again.');
       } else {
+        setSelectedDocs(prev => { const next = new Set(prev); next.delete(docId); return next; });
         onDocumentsChanged();
       }
     } catch {
       setUploadError('Failed to delete document. Check your connection and try again.');
     }
+  }
+
+  function toggleDocSelection(docId: string) {
+    setSelectedDocs(prev => {
+      const next = new Set(prev);
+      if (next.has(docId)) next.delete(docId);
+      else next.add(docId);
+      return next;
+    });
+  }
+
+  function selectAllDocs() {
+    setSelectedDocs(new Set(documents.map(d => d.id)));
+  }
+
+  function deselectAllDocs() {
+    setSelectedDocs(new Set());
+  }
+
+  async function handleBulkDelete() {
+    if (activeSelected.size === 0) return;
+    const count = activeSelected.size;
+    if (!confirm(`Remove ${count} document${count !== 1 ? 's' : ''} from the project?\n\nNote: any data points previously extracted from these documents will remain until you re-run the analysis.`)) return;
+    const ids = [...activeSelected];
+    setSelectedDocs(new Set());
+    const failed: string[] = [];
+    for (const docId of ids) {
+      try {
+        const res = await fetch(`/api/admin/research/${projectId}/documents?id=${docId}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const doc = documents.find(d => d.id === docId);
+          failed.push(doc?.document_label || doc?.original_filename || docId);
+        }
+      } catch {
+        const doc = documents.find(d => d.id === docId);
+        failed.push(doc?.document_label || doc?.original_filename || docId);
+      }
+    }
+    if (failed.length > 0) {
+      setUploadError(`Failed to remove ${failed.length} document${failed.length !== 1 ? 's' : ''}: ${failed.join(', ')}`);
+    }
+    onDocumentsChanged();
   }
 
   return (
@@ -326,58 +385,115 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
         </form>
       )}
 
-      {/* Document list */}
+      {/* Document list — collapsible */}
       {documents.length > 0 && (
         <div className="research-upload__list">
-          <h3 className="research-upload__list-title">
-            Documents ({documents.length})
-          </h3>
-          {documents.map(doc => {
-            const status = PROCESSING_STATUS_LABELS[doc.processing_status] || PROCESSING_STATUS_LABELS.pending;
-            const typeInfo = doc.document_type ? DOCUMENT_TYPE_LABELS[doc.document_type] : null;
-
-            return (
-              <div key={doc.id} className="research-upload__doc">
-                <div className="research-upload__doc-icon">
-                  {typeInfo?.icon || (doc.source_type === 'manual_entry' ? '📝' : '📄')}
-                </div>
-                <div className="research-upload__doc-info">
-                  <div className="research-upload__doc-name">
-                    {doc.document_label || doc.original_filename || 'Untitled'}
-                  </div>
-                  <div className="research-upload__doc-meta">
-                    {typeInfo && <span>{typeInfo.label}</span>}
-                    {doc.file_size_bytes ? <span>{formatFileSize(doc.file_size_bytes)}</span> : null}
-                    {doc.page_count ? <span>{doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span> : null}
-                    <span style={{ color: status.color, fontWeight: 600 }}>{status.label}</span>
-                  </div>
-                  {doc.processing_error && (
-                    <div className="research-upload__doc-error">
-                      {doc.processing_error}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleReprocessDocument(doc.id); }}
-                        style={{
-                          display: 'inline-block', marginLeft: '0.5rem',
-                          background: 'none', border: '1px solid #DC2626', borderRadius: '0.25rem',
-                          color: '#DC2626', cursor: 'pointer', padding: '0.15rem 0.5rem',
-                          fontSize: '0.75rem', fontWeight: 600,
-                        }}
-                      >
-                        Retry
-                      </button>
-                    </div>
-                  )}
-                </div>
+          {/* Collapsible header */}
+          <div
+            className="research-upload__list-toggle-header"
+            onClick={() => setDocsOpen(prev => !prev)}
+            role="button"
+            aria-expanded={docsOpen}
+          >
+            <span className="research-upload__list-toggle-title">
+              📂 Documents ({documents.length})
+            </span>
+            <div className="research-upload__list-select-controls" onClick={e => e.stopPropagation()}>
+              <button
+                className="research-search__select-btn"
+                onClick={selectAllDocs}
+                type="button"
+              >
+                Select all
+              </button>
+              <button
+                className="research-search__select-btn"
+                onClick={deselectAllDocs}
+                type="button"
+              >
+                Deselect all
+              </button>
+              {activeSelected.size > 0 && (
                 <button
-                  className="research-upload__doc-delete"
-                  onClick={() => handleDeleteDocument(doc.id)}
-                  title="Remove document"
+                  className="research-upload__bulk-delete-btn"
+                  onClick={handleBulkDelete}
+                  type="button"
+                  title={`Remove ${activeSelected.size} selected document${activeSelected.size !== 1 ? 's' : ''}`}
                 >
-                  &times;
+                  🗑 Remove {activeSelected.size} selected
                 </button>
-              </div>
-            );
-          })}
+              )}
+            </div>
+            <span className="research-search__toggle-chevron" aria-hidden="true">
+              {docsOpen ? '▲' : '▼'}
+            </span>
+          </div>
+
+          {/* Collapsible body */}
+          {docsOpen && (
+            <div className="research-upload__list-body">
+              {documents.map(doc => {
+                const status = PROCESSING_STATUS_LABELS[doc.processing_status] || PROCESSING_STATUS_LABELS.pending;
+                const typeInfo = doc.document_type ? DOCUMENT_TYPE_LABELS[doc.document_type] : null;
+                const isChecked = activeSelected.has(doc.id);
+
+                return (
+                  <div
+                    key={doc.id}
+                    className={`research-upload__doc ${isChecked ? 'research-upload__doc--selected' : ''}`}
+                    onClick={() => toggleDocSelection(doc.id)}
+                  >
+                    <div className="research-upload__doc-check">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleDocSelection(doc.id)}
+                        onClick={e => e.stopPropagation()}
+                        aria-label={`Select ${doc.document_label || doc.original_filename || 'document'}`}
+                      />
+                    </div>
+                    <div className="research-upload__doc-icon">
+                      {typeInfo?.icon || (doc.source_type === 'manual_entry' ? '📝' : '📄')}
+                    </div>
+                    <div className="research-upload__doc-info">
+                      <div className="research-upload__doc-name">
+                        {doc.document_label || doc.original_filename || 'Untitled'}
+                      </div>
+                      <div className="research-upload__doc-meta">
+                        {typeInfo && <span>{typeInfo.label}</span>}
+                        {doc.file_size_bytes ? <span>{formatFileSize(doc.file_size_bytes)}</span> : null}
+                        {doc.page_count ? <span>{doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span> : null}
+                        <span style={{ color: status.color, fontWeight: 600 }}>{status.label}</span>
+                      </div>
+                      {doc.processing_error && (
+                        <div className="research-upload__doc-error">
+                          {doc.processing_error}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleReprocessDocument(doc.id); }}
+                            style={{
+                              display: 'inline-block', marginLeft: '0.5rem',
+                              background: 'none', border: '1px solid #DC2626', borderRadius: '0.25rem',
+                              color: '#DC2626', cursor: 'pointer', padding: '0.15rem 0.5rem',
+                              fontSize: '0.75rem', fontWeight: 600,
+                            }}
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      className="research-upload__doc-delete"
+                      onClick={e => { e.stopPropagation(); handleDeleteDocument(doc.id); }}
+                      title="Remove document"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
