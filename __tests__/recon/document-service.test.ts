@@ -236,9 +236,9 @@ describe('ACCEPTED_FILE_TYPES', () => {
     expect(ACCEPTED_FILE_TYPES).toContain('rtf');
   });
 
-  it('has at least 15 entries', () => {
-    // pdf(1) + image(9: png jpg jpeg tiff tif webp bmp gif + heic) + mobile(1: heif) + document(3: docx txt rtf) = 15
-    expect(ACCEPTED_FILE_TYPES.length).toBeGreaterThanOrEqual(15);
+  it('has at least 14 entries', () => {
+    // pdf(1) + image(9: png jpg jpeg tiff tif webp bmp gif heic) + mobile(1: heif) + document(3: docx txt rtf) = 14
+    expect(ACCEPTED_FILE_TYPES.length).toBeGreaterThanOrEqual(14);
   });
 
   it('contains no duplicates', () => {

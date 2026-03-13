@@ -115,24 +115,100 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
 
     setUploading(true);
 
-    const formData = new FormData();
+    // Upload each file directly to Supabase Storage via a signed URL to avoid
+    // the 413 "Payload Too Large" error caused by routing large files through
+    // the Next.js API route body parser.
+    //
+    // Three-step flow per file:
+    //   1. POST /documents/upload-url — validate, create DB record, get signed URL
+    //   2. PUT  <signedUrl>            — upload file bytes directly to Supabase
+    //   3. PATCH /documents?action=confirm_upload — trigger background processing
+    const uploadErrors: string[] = [];
+    let anySuccess = false;
+
     for (const file of valid) {
-      formData.append('file', file);
+      // ── Step 1: Request a signed upload URL ──────────────────────────────
+      let docId: string | null = null;
+      let signedUrl: string | null = null;
+      let storagePath: string | null = null;
+      const contentType = file.type || 'application/octet-stream';
+
+      try {
+        const urlRes = await fetch(`/api/admin/research/${projectId}/documents/upload-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name,
+            fileSize: file.size,
+            fileType: file.type,
+          }),
+        });
+
+        const urlData = await urlRes.json().catch(() => ({ error: 'Invalid server response' }));
+
+        if (!urlRes.ok) {
+          uploadErrors.push(`"${file.name}": ${urlData.error ?? 'Failed to initialize upload'}`);
+          continue;
+        }
+
+        // Duplicate file — already present in the project
+        if (urlData.document && !urlData.signedUrl) {
+          anySuccess = true;
+          continue;
+        }
+
+        docId = urlData.docId as string;
+        signedUrl = urlData.signedUrl as string;
+        storagePath = urlData.storagePath as string;
+      } catch {
+        uploadErrors.push(`"${file.name}": Failed to initialize upload. Check your connection.`);
+        continue;
+      }
+
+      // ── Step 2: Upload file bytes directly to Supabase ───────────────────
+      try {
+        const putRes = await fetch(signedUrl!, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': contentType },
+        });
+
+        if (!putRes.ok) {
+          // Remove the orphaned DB record
+          await fetch(`/api/admin/research/${projectId}/documents?id=${docId}`, { method: 'DELETE' }).catch(() => {});
+          uploadErrors.push(`"${file.name}": File upload failed (${putRes.status}). Please try again.`);
+          continue;
+        }
+      } catch {
+        // Remove the orphaned DB record
+        await fetch(`/api/admin/research/${projectId}/documents?id=${docId}`, { method: 'DELETE' }).catch(() => {});
+        uploadErrors.push(`"${file.name}": File upload failed. Check your connection.`);
+        continue;
+      }
+
+      // ── Step 3: Confirm the upload and trigger background processing ─────
+      try {
+        await fetch(
+          `/api/admin/research/${projectId}/documents?id=${docId}&action=confirm_upload`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ storagePath }),
+          },
+        );
+      } catch {
+        // Non-fatal — the document exists with processing_status='pending'.
+        // The user can trigger reprocessing via the Retry button if needed.
+      }
+
+      anySuccess = true;
     }
 
-    try {
-      const res = await fetch(`/api/admin/research/${projectId}/documents`, {
-        method: 'POST',
-        body: formData,
-      });
-      if (res.ok) {
-        onDocumentsChanged();
-      } else {
-        const err = await res.json().catch(() => ({ error: 'Upload failed' }));
-        setUploadError(err.error || 'Upload failed. Please try again.');
-      }
-    } catch {
-      setUploadError('Upload failed. Check your internet connection and try again.');
+    if (uploadErrors.length > 0) {
+      setUploadError(uploadErrors.join('\n'));
+    }
+    if (anySuccess) {
+      onDocumentsChanged();
     }
 
     setUploading(false);
