@@ -187,6 +187,45 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ success: true, message: 'Document reprocessing started' });
   }
 
+  if (action === 'confirm_upload') {
+    // Called by the client after a successful direct-to-Supabase upload.
+    // Updates the storage_url and triggers background text extraction.
+    const body = await req.json().catch(() => ({})) as { storagePath?: string };
+    const storagePath = body?.storagePath;
+
+    const { data: doc } = await supabaseAdmin
+      .from('research_documents')
+      .select('id, storage_path')
+      .eq('id', docId)
+      .single();
+
+    if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+
+    // Derive the public URL from the storage path
+    let storageUrl: string | null = null;
+    const pathToUse = storagePath ?? doc.storage_path;
+    if (pathToUse) {
+      const { data: urlData } = supabaseAdmin.storage
+        .from('research-documents')
+        .getPublicUrl(pathToUse);
+      storageUrl = urlData?.publicUrl ?? null;
+    }
+
+    await supabaseAdmin.from('research_documents').update({
+      storage_url: storageUrl,
+      processing_status: 'pending',
+      processing_error: null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', docId);
+
+    // Trigger async processing (don't await)
+    processDocument(docId).catch(err => {
+      console.error(`[ConfirmUpload] Background processing failed for ${docId}:`, err);
+    });
+
+    return NextResponse.json({ success: true, message: 'Upload confirmed, processing started' });
+  }
+
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
 }, { routeName: 'research/documents/reprocess' });
 
