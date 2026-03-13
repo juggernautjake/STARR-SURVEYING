@@ -1705,6 +1705,12 @@ export async function getAnalysisStatus(projectId: string): Promise<{
   ]);
 
   const docs: { processing_status: string }[] = docsRes.data || [];
+  // Only count documents that are (or were) part of the analysis pipeline.
+  // Pending/extracting/error documents are not yet ready for analysis and must
+  // not be included in the total — otherwise the progress bar shows an inflated
+  // denominator that includes manually-uploaded files still being extracted.
+  const ANALYZABLE_STATUSES = ['extracted', 'analyzing', 'analyzed'];
+  const analyzableDocs = docs.filter(d => ANALYZABLE_STATUSES.includes(d.processing_status));
   const analyzed = docs.filter(d => d.processing_status === 'analyzed').length;
 
   const metadata = projectRes.data?.analysis_metadata as Record<string, unknown> | null;
@@ -1720,7 +1726,7 @@ export async function getAnalysisStatus(projectId: string): Promise<{
 
   return {
     status,
-    documentsTotal: docs.length,
+    documentsTotal: analyzableDocs.length,
     documentsAnalyzed: analyzed,
     dataPointCount: dpRes.count || 0,
     discrepancyCount: discRes.count || 0,
