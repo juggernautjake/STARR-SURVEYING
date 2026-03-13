@@ -4,7 +4,7 @@
 // limit and resolving the 413 "Payload Too Large" error.
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { validateUploadFile } from '@/lib/research/document.service';
 
@@ -113,9 +113,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: dbError.message }, { status: 500 });
   }
 
-  // Generate a short-lived signed upload URL for direct browser → Supabase upload
+  // Ensure the storage bucket exists before issuing a signed upload URL.
+  // This is a no-op after the first successful call in this process (cached).
+  await ensureStorageBucket();
+
+  // Generate a short-lived signed upload URL for direct browser → Supabase upload.
   const { data: signedData, error: signedError } = await supabaseAdmin.storage
-    .from('research-documents')
+    .from(RESEARCH_DOCUMENTS_BUCKET)
     .createSignedUploadUrl(storagePath);
 
   if (signedError || !signedData) {

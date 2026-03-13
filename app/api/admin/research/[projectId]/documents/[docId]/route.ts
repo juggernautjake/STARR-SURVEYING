@@ -3,7 +3,7 @@
 // DELETE document
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 function extractIds(req: NextRequest): { projectId: string | null; docId: string | null } {
@@ -47,7 +47,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     if (doc.storage_path) {
       try {
         const { data } = await supabaseAdmin.storage
-          .from('research-documents')
+          .from(RESEARCH_DOCUMENTS_BUCKET)
           .createSignedUrl(doc.storage_path, 3600);
         signedUrl = data?.signedUrl || null;
       } catch {
@@ -114,7 +114,7 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // Delete from storage
   if (doc.storage_path) {
     await supabaseAdmin.storage
-      .from('research-documents')
+      .from(RESEARCH_DOCUMENTS_BUCKET)
       .remove([doc.storage_path])
       .catch(() => {}); // Best-effort cleanup
   }

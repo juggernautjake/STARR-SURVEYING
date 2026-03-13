@@ -1,6 +1,6 @@
 // lib/research/document.service.ts — Document processing pipeline
 // Handles text extraction, OCR, document classification, and processing state.
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
 import { callAI, callVision, callDocumentAI, AIServiceError } from './ai-client';
 import type { ResearchDocument, DocumentType } from '@/types/research';
 
@@ -506,7 +506,7 @@ async function fetchFileBuffer(doc: ResearchDocument): Promise<Buffer | null> {
   if (doc.storage_path) {
     try {
       const { data, error } = await supabaseAdmin.storage
-        .from('research-documents')
+        .from(RESEARCH_DOCUMENTS_BUCKET)
         .download(doc.storage_path);
 
       if (!error && data) {
