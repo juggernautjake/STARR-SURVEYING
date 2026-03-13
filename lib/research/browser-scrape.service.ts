@@ -15,7 +15,7 @@
 // Graceful degradation: if Playwright or a Chromium binary is not available the
 // service returns null without throwing, so the caller can fall back to other methods.
 
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 import { callAI, callVision } from './ai-client';
 import { stripStreetTypeSuffix, extractPropertyIdsFromEsearchHtml, extractPublicsearchItems } from './boundary-fetch.service';
 
@@ -185,12 +185,13 @@ async function storeScreenshotAsDocument(
 
   let storageUrl: string | null = null;
   try {
+    await ensureStorageBucket();
     const { error: uploadError } = await supabaseAdmin.storage
-      .from('research-documents')
+      .from(RESEARCH_DOCUMENTS_BUCKET)
       .upload(storagePath, screenshotBuffer, { contentType: 'image/png', upsert: false });
 
     if (!uploadError) {
-      const { data } = supabaseAdmin.storage.from('research-documents').getPublicUrl(storagePath);
+      const { data } = supabaseAdmin.storage.from(RESEARCH_DOCUMENTS_BUCKET).getPublicUrl(storagePath);
       storageUrl = data?.publicUrl ?? null;
     }
   } catch { /* non-fatal */ }

@@ -6,7 +6,7 @@
 //       to have a storage_path set (i.e., it was actually uploaded/purchased).
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 function extractIds(req: NextRequest): { projectId: string | null; docId: string | null } {
@@ -51,13 +51,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   // Try to get a signed URL valid for 60 minutes
   const { data: signedData, error: signErr } = await supabaseAdmin.storage
-    .from('research-documents')
+    .from(RESEARCH_DOCUMENTS_BUCKET)
     .createSignedUrl(doc.storage_path, 3600);  // 60 min
 
   if (signErr || !signedData?.signedUrl) {
     // Fall back to direct download via storage API
     const { data: blob, error: dlErr } = await supabaseAdmin.storage
-      .from('research-documents')
+      .from(RESEARCH_DOCUMENTS_BUCKET)
       .download(doc.storage_path);
 
     if (dlErr || !blob) {

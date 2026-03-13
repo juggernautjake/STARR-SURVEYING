@@ -4,33 +4,38 @@
 --
 -- The `research-documents` bucket stores user-uploaded survey documents
 -- (PDFs, TIFFs, images, etc.) that are processed by the AI research pipeline.
--- Files are accessed exclusively via server-generated signed URLs, so the
--- bucket is private (not publicly readable).
+--
+-- The bucket is PUBLIC so that stored URLs can be used directly in the browser
+-- (e.g. <img src={storage_url}> in the research UI, PDF viewer, aerial grid).
+-- Files are stored under per-project UUID paths, making them difficult to
+-- enumerate.  Signed upload URLs are still used for the upload flow to avoid
+-- 413 errors; downloads also support signed-URL proxy for extra security.
 --
 -- Run via Supabase SQL Editor or psql after applying 090_research_tables.sql.
 -- ============================================================================
 
 -- ── research-documents bucket ─────────────────────────────────────────────
--- Private bucket; all access is mediated by the Next.js API layer using the
--- service-role key.  Browser uploads use short-lived signed upload URLs
--- (createSignedUploadUrl) and downloads use signed read URLs
--- (createSignedUrl), both created server-side.
+-- Public bucket so that storage_url values can be embedded directly in the
+-- Next.js UI without requiring server-side signed-URL generation on every
+-- page load.  Write access (upload/delete) is controlled via RLS policies
+-- below and the service-role key used by the Next.js API layer.
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
     'research-documents',
     'research-documents',
-    false,          -- private: no anonymous/public read access
+    true,           -- public: storage_url values are usable directly in the browser
     52428800,       -- 50 MB per-file limit (validated at API layer too)
     NULL            -- all MIME types allowed (validated at API layer)
 )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET public = true;  -- idempotent: ensure bucket is public
 
 -- ── Row-Level Security for storage.objects ────────────────────────────────
--- The service_role key (used by supabaseAdmin in API routes) bypasses RLS
--- automatically.  The policies below allow authenticated users to manage
--- their own files when accessed via signed URLs, and prevent anonymous
--- access entirely.
+-- The bucket is public so anonymous read access (SELECT/GET) is handled by
+-- Supabase's built-in public-bucket logic — no SELECT policy is needed.
+-- The policies below restrict WRITE operations (INSERT/DELETE) to the
+-- service_role key (used by the Next.js API layer) and authenticated users.
+-- This prevents anonymous uploads or deletions.
 
 -- Enable RLS on storage.objects (may already be enabled; harmless if so)
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
