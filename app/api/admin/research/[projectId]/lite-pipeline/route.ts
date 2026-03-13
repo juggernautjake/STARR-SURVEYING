@@ -122,26 +122,17 @@ async function importSearchResults(
 
   const rows = toImport.map(r => ({
     research_project_id: projectId,
-    source_type: 'url_import' as const,
+    source_type: 'property_search' as const,
     source_url: r.url,
     document_type: r.document_type || 'other',
     document_label: r.title,
     original_filename: null,
-    has_text: false,
-    has_image: false,
-    has_ocr: false,
-    ocr_confidence: null,
-    analysis_status: 'pending' as const,
+    processing_status: 'extracted' as const,
+    extracted_text: `Source: ${r.source_name}\nTitle: ${r.title}\nURL: ${r.url}\n\n${r.description}`,
+    extracted_text_method: 'property_search',
+    recording_info: `Discovered via ${r.source_name}`,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    metadata: {
-      source: r.source,
-      source_name: r.source_name,
-      relevance: r.relevance,
-      is_property_specific: r.is_property_specific,
-      description: r.description,
-      has_cost: r.has_cost,
-    },
   }));
 
   // Upsert — skip any URLs already imported for this project
@@ -357,7 +348,7 @@ async function runLitePipeline(
         .from('research_documents')
         .select('id', { count: 'exact', head: true })
         .eq('research_project_id', projectId)
-        .eq('analysis_status', 'analyzed');
+        .eq('processing_status', 'analyzed');
       summary.documents_analyzed = analyzedCount || 0;
 
       // Mark as 'partial' when AI analysis was skipped; 'completed' when fully done
