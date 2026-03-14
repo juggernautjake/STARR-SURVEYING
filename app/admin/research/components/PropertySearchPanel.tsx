@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import NextImage from 'next/image';
 import type { PropertySearchResult, PropertySearchResponse, SearchSource } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
 import { PipelineProgressPanel, PipelineProgressStyles } from './PipelineProgressPanel';
@@ -98,6 +99,7 @@ export default function PropertySearchPanel({
   const [searching, setSearching] = useState(false);
   const [searchResponse, setSearchResponse] = useState<PropertySearchResponse | null>(null);
   const [searchError, setSearchError] = useState('');
+  const [mapImgError, setMapImgError] = useState(false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
@@ -200,6 +202,7 @@ export default function PropertySearchPanel({
     setLiteError('');
     setPipelineError('');
     setSearchResponse(null);
+    setMapImgError(false);
     setSelected(new Set());
     setImportResult(null);
     setShowAddressIssues(true);
@@ -694,13 +697,18 @@ export default function PropertySearchPanel({
                   USGS satellite imagery — importing will also save full-resolution satellite &amp; topo images as project documents for AI analysis
                 </span>
               </div>
-              <img
-                className="research-search__map-img"
-                src={searchResponse.location_preview_url}
-                alt="Satellite view of geocoded property location"
-                loading="lazy"
-                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
+              {!mapImgError && (
+                <NextImage
+                  className="research-search__map-img"
+                  src={searchResponse.location_preview_url}
+                  alt="Satellite view of geocoded property location"
+                  width={0}
+                  height={0}
+                  sizes="100vw"
+                  unoptimized
+                  onError={() => setMapImgError(true)}
+                />
+              )}
             </div>
           )}
 
