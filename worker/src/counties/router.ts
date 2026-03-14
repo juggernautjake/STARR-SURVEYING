@@ -150,7 +150,7 @@ export function isBellCountyAddress(address: string): boolean {
   // Check for known Bell County cities
   for (const city of BELL_COUNTY_CITIES) {
     // Match whole word (e.g. "temple" but not "temple hills")
-    const pattern = new RegExp(`\\b${city.replace(/[-]/g, '[-\\s]?')}\\b`);
+    const pattern = new RegExp(`\\b${city.replace(/-/g, '[-\\s]?')}\\b`);
     if (pattern.test(lower)) return true;
   }
 

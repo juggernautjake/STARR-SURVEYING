@@ -107,7 +107,7 @@ function detectBellCountyFromAddress(address: string): boolean {
   const lower = address.toLowerCase();
   if (/\bbell\s+county\b/.test(lower)) return true;
   for (const city of BELL_COUNTY_CITIES_LOWER) {
-    const escaped = city.replace(/[-]/g, '[-\\s]?');
+    const escaped = city.replace(/-/g, '[-\\s]?');
     if (new RegExp(`\\b${escaped}\\b`).test(lower)) return true;
   }
   const zipMatches = address.match(/\b(\d{5})(?:-\d{4})?\b/g);

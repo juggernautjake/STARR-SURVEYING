@@ -43,7 +43,7 @@ function detectBellCountyFromAddress(address: string): boolean {
   const lower = address.toLowerCase();
   if (/\bbell\s+county\b/.test(lower)) return true;
   for (const city of BELL_COUNTY_CITIES_LOWER) {
-    const escaped = city.replace(/[-]/g, '[-\\s]?');
+    const escaped = city.replace(/-/g, '[-\\s]?');
     if (new RegExp(`\\b${escaped}\\b`).test(lower)) return true;
   }
   const zipMatches = address.match(/\b(\d{5})(?:-\d{4})?\b/g);
@@ -55,21 +55,6 @@ function detectBellCountyFromAddress(address: string): boolean {
   return false;
 }
 // ── End Bell County Auto-Detection ────────────────────────────────────────────
-
-const WORKER_URL = process.env.WORKER_URL || '';
-const WORKER_API_KEY = process.env.WORKER_API_KEY || '';
-
-function extractProjectId(req: NextRequest): string | null {
-  const parts = req.nextUrl.pathname.split('/research/')[1]?.split('/');
-  return parts?.[0] || null;
-}
-
-function workerHeaders(): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${WORKER_API_KEY}`,
-  };
-}
 
 /* POST — Start a deep research pipeline on the worker */
 export const POST = withErrorHandler(async (req: NextRequest) => {
