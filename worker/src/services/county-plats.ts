@@ -329,8 +329,19 @@ function parsePlatLinks(html: string, config: PlatRepoConfig): PlatLink[] {
   const seen = new Set<string>();
 
   function addLink(rawHref: string, rawName: string): void {
-    // Strip inner HTML tags from anchor text, normalize whitespace
-    let name = rawName.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    // Strip inner HTML tags from anchor text, decode HTML entities, normalize whitespace.
+    // Entity decoding is needed because parsePlatLinks operates on raw HTML strings without
+    // a full HTML parser — "&amp;" in the source stays as the 5-char literal "&amp;" until decoded.
+    const stripped = rawName.replace(/<[^>]*>/g, '');
+    const decoded = stripped
+      .replace(/&amp;/gi, '&')
+      .replace(/&apos;/gi, "'")
+      .replace(/&#x27;/gi, "'")
+      .replace(/&#39;/gi, "'")
+      .replace(/&quot;/gi, '"')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>');
+    let name = decoded.replace(/\s+/g, ' ').trim();
     if (!name) {
       // Category Q: empty anchor text — extract subdivision name from the PDF filename in the href.
       // e.g. href ".../ACADEMY MINI SELF STORAGE SUB.pdf" → "ACADEMY MINI SELF STORAGE SUB"
@@ -503,10 +514,18 @@ export function normalizePlatName(name: string): string {
   let n = name.toUpperCase().trim();
 
   // Step 0: Normalize symbols BEFORE stripping punctuation
+  // Handle HTML entity &amp; FIRST so that the single & replacement below works correctly
+  // even when rawName comes from unparsed HTML (e.g. "TOPEKA &amp; SANTA FE" in anchor text).
+  // After toUpperCase(), "&amp;" becomes "&AMP;" — match the uppercase form.
+  n = n.replace(/&AMP;/g, ' AND ');      // &amp; (HTML entity) after toUpperCase → &AMP;
   n = n.replace(/&/g, ' AND ');
   n = n.replace(/#(\d)/g, 'NUMBER $1');
   n = n.replace(/#/g, 'NUMBER');
-  // Strip non-alphanumeric characters (except spaces) — handles hyphens, punctuation
+  // Remove apostrophes and periods WITHOUT spacing so contractions/abbreviations merge:
+  //   ALBERTSON'S → ALBERTSONS  (not ALBERTSON S — avoids false token split)
+  //   12.358 → 12358  (decimal points in acreage are not significant for name matching)
+  n = n.replace(/['.]/g, '');
+  // Strip remaining non-alphanumeric characters (except spaces) — handles hyphens, punctuation
   n = n.replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // ── Expand abbreviations to canonical forms ─────────────────────────────

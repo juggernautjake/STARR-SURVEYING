@@ -909,3 +909,68 @@ describe('scorePlatMatch — Levenshtein typo matching (county-plats.ts)', () =>
     expect(score).toBeGreaterThanOrEqual(0.7);
   });
 });
+
+// ── 19. normalizePlatName — HTML entity & apostrophe fixes ───────────────────
+
+describe('normalizePlatName — HTML entity & apostrophe handling (county-plats.ts)', () => {
+  it('19-1. &amp; HTML entity → AND (Category M: raw HTML anchor text)', async () => {
+    // Bell County HTML: <a>ATCHISON TOPEKA &amp; SANTA FE RAILWAY</a>
+    // parsePlatLinks returns rawName = "ATCHISON TOPEKA &amp; SANTA FE RAILWAY" without decoding.
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const result = normalizePlatName('ATCHISON TOPEKA &amp; SANTA FE RAILWAY');
+    expect(result).toContain('AND');
+    expect(result).not.toContain('AMP');
+    expect(result).toBe('ATCHISON TOPEKA AND SANTA FE RAILWAY');
+  });
+
+  it('19-2. raw & → AND still works (when HTML is already decoded)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const result = normalizePlatName('ATCHISON TOPEKA & SANTA FE RAILWAY');
+    expect(result).toBe('ATCHISON TOPEKA AND SANTA FE RAILWAY');
+  });
+
+  it('19-3. apostrophe removed, not spaced (ALBERTSON\'S → ALBERTSONS)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const result = normalizePlatName("ALBERTSON'S ADDITION REPLAT NUMBER 2 A");
+    expect(result).toContain('ALBERTSONS');
+    expect(result).not.toContain('ALBERTSON S');
+  });
+
+  it('19-4. &amp; and raw & score identical after normalization', async () => {
+    // Both forms appear in Bell County: display name may have raw & or &amp;
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const a = normalizePlatName('MILL CREEK NUMBER 1 LOTS 1 &amp; 2 BLOCK 3');
+    const b = normalizePlatName('MILL CREEK NUMBER 1 LOTS 1 & 2 BLOCK 3');
+    expect(a).toBe(b);
+  });
+
+  it('19-5. MILL CREEK NO 1 LOTS 1&amp;2 BLOCK 3 normalizes correctly (Category M)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const result = normalizePlatName('MILL CREEK NO 1 LOTS 1&amp;2 BLOCK 3');
+    // & → AND, NO → NUMBER, &amp; decoded, numbers unchanged
+    expect(result).toContain('AND');
+    expect(result).not.toContain('AMP');
+    expect(result).toContain('MILL CREEK');
+  });
+
+  it('19-6. scorePlatMatch: &amp; display vs AND filename scores 1.0 (Category M)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    // Display: "ATCHISON TOPEKA &amp; SANTA FE RAILWAY" (from HTML anchor text)
+    // Filename: "ATCHISON TOPEKA AND SANTA FE RAILWAY"
+    const score = scorePlatMatch(
+      'ATCHISON TOPEKA &amp; SANTA FE RAILWAY',
+      'ATCHISON TOPEKA AND SANTA FE RAILWAY',
+    );
+    expect(score).toBe(1.0);
+  });
+
+  it("19-7. ALBERTSON'S display vs ALBERTSONS filename scores >= 0.9 (apostrophe)", async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    // Category T: display has apostrophe, filename does not
+    const score = scorePlatMatch(
+      "ALBERTSON'S ADDITION REPLAT NUMBER 2 A",
+      'ALBERTSONS ADDITION REPLAT NUMBER 2 A',
+    );
+    expect(score).toBeGreaterThanOrEqual(0.9);
+  });
+});
