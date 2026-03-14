@@ -436,21 +436,21 @@ export async function runCountyResearch(
         })),
       };
 
-      // Bridge progress: the generic pipeline calls updateStatus() which writes
-      // to Supabase. The worker's /research/status/:id endpoint reads that value
-      // and forwards it as `message` to the frontend so PipelineProgressPanel
-      // shows accurate stage labels. We also emit key stage transitions here so
-      // the activePipelines.currentStage is kept in sync.
-      const stageProgressTimer = setInterval(() => {
-        // No-op: stage message is read from Supabase in the status endpoint.
-        // Kept as a hook for future real-time bridging if needed.
-      }, 5_000);
-
+      // The generic pipeline calls updateStatus() which writes research_message to
+      // Supabase. The worker's /research/status/:id endpoint reads that value and
+      // forwards it as `message` to the frontend so PipelineProgressPanel shows
+      // accurate stage labels. We emit a final progress event when the pipeline
+      // completes or fails so activePipelines.currentStage stays up to date.
       let result;
       try {
         result = await runPipeline(pipelineInput);
-      } finally {
-        clearInterval(stageProgressTimer);
+      } catch (err) {
+        onProgress({
+          phase: 'Failed',
+          message: `Pipeline failed: ${err instanceof Error ? err.message : String(err)}`,
+          timestamp: new Date().toISOString(),
+        });
+        throw err;
       }
 
       onProgress({

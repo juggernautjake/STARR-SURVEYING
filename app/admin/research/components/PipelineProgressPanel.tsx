@@ -956,6 +956,7 @@ export function PipelineProgressStyles() {
   gap: 1px;
   max-height: 300px;
   overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   background: #f8fafc;
@@ -1052,6 +1053,8 @@ export function PipelineProgressStyles() {
   background: #f0fdf4;
 }
 
+/* Detailed log rows are always single-line (no inline text wrapping), so
+ * vertical centering looks better than top-alignment here. */
 .ppanel__dlog-entry .ppanel__log-row { align-items: center; }
 
 .ppanel__dlog-idx {
