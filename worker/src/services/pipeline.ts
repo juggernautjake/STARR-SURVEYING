@@ -1,5 +1,7 @@
-// worker/src/services/pipeline.ts — Main 5-stage pipeline orchestrator
-// Coordinates: Stage 0 (normalize) → Stage 1 (CAD) → Stage 2 (Clerk) → Stage 3 (AI) → Stage 3.5 (GeoReconcile) → Stage 4 (Validate) → Stage 5 (ValidationReport)
+// worker/src/services/pipeline.ts — Main research pipeline orchestrator
+// Stage 0: Normalize address → Stage 1: CAD lookup → Stage 2: Clerk search
+// Stage 3: AI extraction → Stage 3.5: Geometric reconciliation
+// Stage 4: Boundary validation → Stage 5: Synthesis & cross-validation report
 // Supports: direct property ID lookup, owner name search, user file uploads.
 
 import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyIdResult, SearchDiagnostics } from '../types/index.js';

@@ -1317,9 +1317,7 @@ describe('Property Validation Pipeline (property-validation-pipeline.ts)', () =>
   it('G-9. pipeline.ts imports runPropertyValidationPipeline without error', async () => {
     // Verify the module graph resolves correctly after the import was added.
     // This test ensures Stage 5 wiring doesn't break module loading.
-    expect(async () => {
-      await import('../../worker/src/services/pipeline.js');
-    }).not.toThrow();
+    await expect(import('../../worker/src/services/pipeline.js')).resolves.toBeDefined();
   });
 
   it('G-10. runPropertyValidationPipeline accepts optional rawOcrTexts parameter', async () => {

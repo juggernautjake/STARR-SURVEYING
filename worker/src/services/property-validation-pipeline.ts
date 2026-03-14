@@ -112,6 +112,13 @@ const UNCONFIRMED_RATING: ConfidenceRating = { symbol: 'UNCONFIRMED', display: '
 const DISCREPANCY_RATING: ConfidenceRating = { symbol: 'DISCREPANCY', display: '✗',  label: 'DISCREPANCY', score: 25 };
 const CRITICAL_RATING:    ConfidenceRating = { symbol: 'CRITICAL',    display: '✗✗', label: 'CRITICAL',    score: 5  };
 
+/**
+ * Maximum characters of raw OCR text per document pass sent to Call 5 synthesis.
+ * Keeps the synthesis prompt within Anthropic token limits while still providing
+ * enough context to detect per-pass disagreements in bearings and distances.
+ */
+const MAX_OCR_TEXT_CHARS = 4000;
+
 function ratingFromScore(score: number): ConfidenceRating {
   if (score >= 88) return CONFIRMED_RATING;
   if (score >= 65) return DEDUCED_RATING;
@@ -370,7 +377,7 @@ export async function runPropertyValidationPipeline(
     // Raw OCR text from each document/page — gives the AI the full unstructured
     // output of the adaptive-vision passes so it can detect per-pass disagreements.
     rawOcrTexts:        rawOcrTexts && rawOcrTexts.length > 0
-      ? rawOcrTexts.map((t, i) => ({ pass: i + 1, text: t.substring(0, 4000) }))
+      ? rawOcrTexts.map((t, i) => ({ pass: i + 1, text: t.substring(0, MAX_OCR_TEXT_CHARS) }))
       : undefined,
   });
 
