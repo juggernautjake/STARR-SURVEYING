@@ -763,7 +763,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           if (documents.some((d) => d.ref.documentType === 'Plat (county repository)')) break;
           try {
             logger.info('Stage2A', `Plat repo: searching for "${subdivisionName}"`);
-            const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger);
+            const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger, anthropicApiKey);
             if (platResult) {
               logger.info('Stage2A', `Plat: "${platResult.name}" (${platResult.source})`);
               documents.push({

@@ -974,3 +974,406 @@ describe('normalizePlatName — HTML entity & apostrophe handling (county-plats.
     expect(score).toBeGreaterThanOrEqual(0.9);
   });
 });
+
+// ── 20. Section 7 — PlatArchiveEntry + scrapePlatIndexPage ───────────────────
+
+describe('PlatArchiveEntry + PLAT_PAGES (county-plats.ts — Section 7)', () => {
+  it('20-1. PLAT_PAGES contains 27 entries (a-z + 0-9)', async () => {
+    const { PLAT_PAGES } = await import('../../worker/src/services/county-plats.js');
+    expect(PLAT_PAGES).toHaveLength(27);
+    expect(PLAT_PAGES).toContain('a');
+    expect(PLAT_PAGES).toContain('z');
+    expect(PLAT_PAGES).toContain('0-9');
+  });
+
+  it('20-2. PLAT_PAGES first entry is "a" and last is "0-9"', async () => {
+    const { PLAT_PAGES } = await import('../../worker/src/services/county-plats.js');
+    expect(PLAT_PAGES[0]).toBe('a');
+    expect(PLAT_PAGES[PLAT_PAGES.length - 1]).toBe('0-9');
+  });
+
+  it('20-3. scrapePlatIndexPage is an exported async function', async () => {
+    const mod = await import('../../worker/src/services/county-plats.js');
+    expect(typeof mod.scrapePlatIndexPage).toBe('function');
+  });
+
+  it('20-4. scrapePlatIndexPage returns PlatArchiveEntry[] with correct shape', async () => {
+    // Mock fetch so we don't hit the network
+    const { scrapePlatIndexPage } = await import('../../worker/src/services/county-plats.js');
+    const mockHtml = `<html><body>
+      <a href="county_government/county_clerk/docs/plats/A/ASH FAMILY TRUST ADDITION.pdf">ASH FAMILY TRUST ADDITION</a>
+      <a href="county_government/county_clerk/docs/plats/ACME PROPERTIES.pdf">ACME PROPERTIES SUBDIVISION</a>
+      <a href="ALPHA ESTATES.pdf">ALPHA ESTATES</a>
+    </body></html>`;
+
+    const origFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => mockHtml,
+    } as Response);
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    const entries = await scrapePlatIndexPage('a', mockLogger);
+
+    global.fetch = origFetch;
+
+    expect(entries.length).toBe(3);
+    // All entries have required fields
+    for (const e of entries) {
+      expect(typeof e.displayName).toBe('string');
+      expect(typeof e.filename).toBe('string');
+      expect(typeof e.href).toBe('string');
+      expect(typeof e.resolvedUrl).toBe('string');
+      expect(e.letter).toBe('a');
+      expect(['full', 'nosubdir', 'bare']).toContain(e.pathType);
+    }
+  });
+
+  it('20-5. classifies pathType "full" for /docs/plats/A/ pattern (Pattern 1)', async () => {
+    const { scrapePlatIndexPage } = await import('../../worker/src/services/county-plats.js');
+    const mockHtml = `<a href="county_government/county_clerk/docs/plats/A/ASH FAMILY.pdf">ASH FAMILY TRUST ADDITION</a>`;
+
+    const origFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => mockHtml,
+    } as Response);
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    const entries = await scrapePlatIndexPage('a', mockLogger);
+    global.fetch = origFetch;
+    expect(entries[0]?.pathType).toBe('full');
+  });
+
+  it('20-6. classifies pathType "nosubdir" for /docs/plats/ without letter (Pattern 2)', async () => {
+    const { scrapePlatIndexPage } = await import('../../worker/src/services/county-plats.js');
+    const mockHtml = `<a href="county_government/county_clerk/docs/plats/ACME PROPERTIES.pdf">ACME PROPERTIES</a>`;
+
+    const origFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => mockHtml,
+    } as Response);
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    const entries = await scrapePlatIndexPage('a', mockLogger);
+    global.fetch = origFetch;
+    expect(entries[0]?.pathType).toBe('nosubdir');
+  });
+
+  it('20-7. classifies pathType "bare" for bare filename (Pattern 3)', async () => {
+    const { scrapePlatIndexPage } = await import('../../worker/src/services/county-plats.js');
+    const mockHtml = `<a href="ALPHA ESTATES.pdf">ALPHA ESTATES</a>`;
+
+    const origFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => mockHtml,
+    } as Response);
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    const entries = await scrapePlatIndexPage('a', mockLogger);
+    global.fetch = origFetch;
+    expect(entries[0]?.pathType).toBe('bare');
+  });
+
+  it('20-8. scrapePlatIndexPage decodes &amp; in anchor text', async () => {
+    const { scrapePlatIndexPage } = await import('../../worker/src/services/county-plats.js');
+    const mockHtml = `<a href="docs/plats/A/ATCHISON &amp; SANTA FE.pdf">ATCHISON &amp; SANTA FE RAILWAY</a>`;
+
+    const origFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => mockHtml,
+    } as Response);
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    const entries = await scrapePlatIndexPage('a', mockLogger);
+    global.fetch = origFetch;
+    expect(entries[0]?.displayName).toBe('ATCHISON & SANTA FE RAILWAY');
+    expect(entries[0]?.displayName).not.toContain('amp');
+  });
+
+  it('20-9. scrapePlatIndexPage deduplicates entries by display name', async () => {
+    const { scrapePlatIndexPage } = await import('../../worker/src/services/county-plats.js');
+    const mockHtml = `
+      <a href="docs/plats/A/FOO.pdf">FOO ADDITION</a>
+      <a href="docs/plats/A/FOO.pdf">FOO ADDITION</a>
+    `;
+    const origFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => mockHtml,
+    } as Response);
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    const entries = await scrapePlatIndexPage('a', mockLogger);
+    global.fetch = origFetch;
+    expect(entries.length).toBe(1);
+  });
+
+  it('20-10. scrapePlatIndexPage strips cache-busting ?t= from resolvedUrl', async () => {
+    const { scrapePlatIndexPage } = await import('../../worker/src/services/county-plats.js');
+    const mockHtml = `<a href="county_government/county_clerk/docs/plats/A/ASH.pdf?t=20240101">ASH TRUST</a>`;
+    const origFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => mockHtml,
+    } as Response);
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    const entries = await scrapePlatIndexPage('a', mockLogger);
+    global.fetch = origFetch;
+    expect(entries[0]?.resolvedUrl).not.toContain('?t=');
+    expect(entries[0]?.href).toContain('?t=');
+  });
+});
+
+// ── 21. Section 6 — AI Fallback (searchCountyPlats + clearPlatMatchAiCache) ──
+
+describe('AI plat match fallback (county-plats.ts — Section 6)', () => {
+  it('21-1. clearPlatMatchAiCache is an exported function', async () => {
+    const mod = await import('../../worker/src/services/county-plats.js');
+    expect(typeof mod.clearPlatMatchAiCache).toBe('function');
+  });
+
+  it('21-2. searchCountyPlats accepts optional anthropicApiKey parameter without error', async () => {
+    const { searchCountyPlats } = await import('../../worker/src/services/county-plats.js');
+    // Mock fetch to return empty index page (no matches)
+    const origFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, text: async () => '<html></html>' } as Response);
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+    // Should not throw
+    const results = await searchCountyPlats('bell', 'ASH FAMILY TRUST ADDITION', mockLogger, 0.5, 'test-key');
+    global.fetch = origFetch;
+    expect(Array.isArray(results)).toBe(true);
+  });
+
+  it('21-3. AI fallback is NOT triggered when best score >= 0.7', async () => {
+    // Test: if normalizer finds a match >= 0.7, Claude should NOT be called
+    const { searchCountyPlats, clearPlatMatchAiCache } = await import('../../worker/src/services/county-plats.js');
+    clearPlatMatchAiCache();
+
+    const origFetch = global.fetch;
+    let anthropicCallCount = 0;
+    const mockHtml = `<a href="county_government/county_clerk/docs/plats/A/ASH FAMILY TRUST ADDITION.pdf">ASH FAMILY TRUST ADDITION</a>`;
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('anthropic')) {
+        anthropicCallCount++;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ content: [{ type: 'text', text: '{"matches":[]}' }] }),
+        });
+      }
+      return Promise.resolve({ ok: true, text: async () => mockHtml });
+    });
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    await searchCountyPlats('bell', 'ASH FAMILY TRUST ADDITION', mockLogger, 0.5, 'test-key');
+    global.fetch = origFetch;
+    // High-scoring exact match → AI should NOT be called
+    expect(anthropicCallCount).toBe(0);
+  });
+
+  it('21-4. AI fallback IS triggered when best score < 0.7', async () => {
+    const { searchCountyPlats, clearPlatMatchAiCache } = await import('../../worker/src/services/county-plats.js');
+    clearPlatMatchAiCache();
+
+    const origFetch = global.fetch;
+    let anthropicCallCount = 0;
+    // HTML with entries that won't score well against an unusual search term
+    const mockHtml = `<a href="docs/plats/Z/ZZZZ TOTALLY UNRELATED.pdf">ZZZZ TOTALLY UNRELATED</a>`;
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('anthropic')) {
+        anthropicCallCount++;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ content: [{ type: 'text', text: '{"matches":[]}' }] }),
+        });
+      }
+      return Promise.resolve({ ok: true, text: async () => mockHtml });
+    });
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    // "ALPHA ESTATES" vs "ZZZZ TOTALLY UNRELATED" should score < 0.7
+    await searchCountyPlats('bell', 'ALPHA ESTATES', mockLogger, 0.0, 'test-key');
+    global.fetch = origFetch;
+    // Low-scoring miss → AI SHOULD be called
+    expect(anthropicCallCount).toBe(1);
+  });
+
+  it('21-5. AI fallback caches results and does NOT call Claude twice for the same normalized name', async () => {
+    const { searchCountyPlats, clearPlatMatchAiCache } = await import('../../worker/src/services/county-plats.js');
+    clearPlatMatchAiCache();
+
+    const origFetch = global.fetch;
+    let anthropicCallCount = 0;
+    const mockHtml = `<a href="docs/plats/Z/ZZZZ MISMATCH.pdf">ZZZZ MISMATCH</a>`;
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('anthropic')) {
+        anthropicCallCount++;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ content: [{ type: 'text', text: '{"matches":[]}' }] }),
+        });
+      }
+      return Promise.resolve({ ok: true, text: async () => mockHtml });
+    });
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    // Call twice with the same name (same normalized form)
+    await searchCountyPlats('bell', 'BETA SUBDIVISION', mockLogger, 0.0, 'test-key');
+    await searchCountyPlats('bell', 'BETA SUBDIVISION', mockLogger, 0.0, 'test-key');
+    global.fetch = origFetch;
+
+    // Claude should only have been called ONCE (second call uses cache)
+    expect(anthropicCallCount).toBe(1);
+  });
+
+  it('21-6. AI fallback boosts score of AI-confirmed match', async () => {
+    const { searchCountyPlats, clearPlatMatchAiCache } = await import('../../worker/src/services/county-plats.js');
+    clearPlatMatchAiCache();
+
+    const origFetch = global.fetch;
+    // Index has "GAMMA ADDITION" but search term "GMMA ADDTN" won't score above 0.7
+    const mockHtml = `<a href="docs/plats/G/GAMMA ADDITION.pdf">GAMMA ADDITION</a>`;
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('anthropic')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            content: [{
+              type: 'text',
+              text: '{"matches":[{"displayName":"GAMMA ADDITION","confidence":0.92}]}',
+            }],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, text: async () => mockHtml });
+    });
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    const results = await searchCountyPlats('bell', 'GMMA ADDTN', mockLogger, 0.0, 'test-key');
+    global.fetch = origFetch;
+
+    // AI said "GAMMA ADDITION" with 0.92 confidence — it should appear in results
+    const gammaMatch = results.find(r => r.name === 'GAMMA ADDITION');
+    expect(gammaMatch).toBeDefined();
+    expect(gammaMatch!.score).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('21-7. AI fallback is skipped when no anthropicApiKey provided', async () => {
+    const { searchCountyPlats, clearPlatMatchAiCache } = await import('../../worker/src/services/county-plats.js');
+    clearPlatMatchAiCache();
+
+    const origFetch = global.fetch;
+    let anthropicCallCount = 0;
+    const mockHtml = `<a href="docs/plats/Z/ZZZZ NO MATCH.pdf">ZZZZ NO MATCH</a>`;
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('anthropic')) anthropicCallCount++;
+      return Promise.resolve({ ok: true, text: async () => mockHtml });
+    });
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    // Call WITHOUT anthropicApiKey
+    await searchCountyPlats('bell', 'DELTA ESTATES', mockLogger, 0.0);
+    global.fetch = origFetch;
+    // No API key → AI should NOT be called
+    expect(anthropicCallCount).toBe(0);
+  });
+});

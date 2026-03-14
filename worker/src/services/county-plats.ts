@@ -389,7 +389,7 @@ function parsePlatLinks(html: string, config: PlatRepoConfig): PlatLink[] {
 
   // Strategy 1: match <a href="...{ext}...">…inner…</a> — allows inner tags in text
   const extRegex = new RegExp(
-    `<a\\s[^>]*href="([^"]*\\.${ext}[^"]*)"[^>]*>([\s\S]*?)<\\/a>`,
+    `<a\\s[^>]*href="([^"]*\\.${ext}[^"]*)"[^>]*>([\\s\\S]*?)<\\/a>`,
     'gi',
   );
   let match: RegExpExecArray | null;
@@ -857,6 +857,154 @@ async function downloadPlatFile(
   }
 }
 
+// ── AI Plat Match Fallback ────────────────────────────────────────────────────
+
+/** AI candidate match returned by askClaudeForPlatMatch. */
+interface AiPlatMatchEntry {
+  displayName: string;
+  confidence:  number;
+}
+
+/**
+ * In-memory cache: `county:normalizedSearchName` → AI match results
+ * (empty array = AI confirmed no match).
+ * Keyed by normalized form so that abbreviation variants share a cache entry.
+ */
+const platMatchAiCache = new Map<string, AiPlatMatchEntry[]>();
+
+/** Model for plat-name AI matching (lightweight text task — haiku is sufficient). */
+const PLAT_AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-haiku-4-5-20251022';
+
+/**
+ * Asks Claude to resolve a subdivision name against a set of candidates from the
+ * plat archive.  Used as a fallback when the normalizer cannot find a confident match.
+ *
+ * Trigger conditions (from searchCountyPlats):
+ *   1. Best normalizer score < 0.7  — no candidate above threshold
+ *   2. Best normalizer score < 0.85 AND multiple candidates ≥ 0.3 — ambiguous
+ *
+ * Results are cached by normalised search key so each unique name is only sent to
+ * Claude once.  Estimated cost: ~$0.01 per call × <5% of lookups = negligible.
+ *
+ * Returns an array of { displayName, confidence } in descending confidence order,
+ * or [] if Claude found no match or the API call failed.
+ */
+async function askClaudeForPlatMatch(
+  searchName: string,
+  candidates: PlatSearchResult[],
+  apiKey: string,
+  logger: PipelineLogger,
+): Promise<AiPlatMatchEntry[]> {
+  if (!apiKey) {
+    logger.warn('Stage2A', 'AI plat fallback skipped: no ANTHROPIC_API_KEY');
+    return [];
+  }
+
+  const cacheKey = `bell:${normalizePlatName(searchName)}`;
+  const cached = platMatchAiCache.get(cacheKey);
+  if (cached !== undefined) {
+    logger.info('Stage2A', `AI plat match: cache hit for "${searchName}" (${cached.length} match(es))`);
+    return cached;
+  }
+
+  const top10 = candidates.slice(0, 10);
+  if (top10.length === 0) {
+    platMatchAiCache.set(cacheKey, []);
+    return [];
+  }
+
+  const candidateList = top10
+    .map((c, i) => `${i + 1}. "${c.name}" | score=${c.score.toFixed(2)}`)
+    .join('\n');
+
+  const prompt = `You are matching a subdivision name from Bell County CAD records to entries in the Bell County plat archive.
+
+The search term from CAD is: "${searchName}"
+
+Here are the closest candidates from the plat archive (display name | normalizer score):
+${candidateList}
+
+Which entry or entries are the correct match? Consider:
+- Abbreviations (ADN=ADDITION, SUB=SUBDIVISION, P1=PHASE 1, S1=SECTION 1, etc.)
+- Spelling errors in both the CAD name and the archive filenames
+- Roman numerals (II=2, III=3, etc.) and spelled-out numbers (ONE=1, TWO=2)
+- The plat may be split across multiple files (A and B pages)
+
+Return JSON only: { "matches": [{"displayName": "...", "confidence": 0.0-1.0}] }
+If no match exists, return: { "matches": [] }`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: PLAT_AI_MODEL,
+        max_tokens: 300,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      logger.warn('Stage2A', `AI plat match HTTP ${response.status}`);
+      platMatchAiCache.set(cacheKey, []);
+      return [];
+    }
+
+    const data = (await response.json()) as {
+      content?: Array<{ type?: string; text?: string }>;
+      error?: { message?: string };
+    };
+
+    if (data.error) {
+      logger.warn('Stage2A', `AI plat match API error: ${data.error.message ?? JSON.stringify(data.error)}`);
+      platMatchAiCache.set(cacheKey, []);
+      return [];
+    }
+
+    const text = (data.content?.[0]?.text ?? '').trim();
+    // JSON may be wrapped in ```json ... ``` fences
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      logger.warn('Stage2A', `AI plat match: no JSON in response: ${text.slice(0, 200)}`);
+      platMatchAiCache.set(cacheKey, []);
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as { matches?: unknown[] };
+    const matches: AiPlatMatchEntry[] = (Array.isArray(parsed.matches) ? parsed.matches : [])
+      .filter((m): m is { displayName: string; confidence: number } =>
+        typeof m === 'object' && m !== null &&
+        typeof (m as Record<string, unknown>).displayName === 'string' &&
+        typeof (m as Record<string, unknown>).confidence === 'number')
+      .map(m => ({
+        displayName: m.displayName,
+        confidence: Math.min(1, Math.max(0, m.confidence)),
+      }))
+      .sort((a, b) => b.confidence - a.confidence);
+
+    logger.info('Stage2A',
+      `AI plat match for "${searchName}": ${matches.length} match(es)` +
+      (matches.length ? ` — "${matches[0].displayName}" (conf=${matches[0].confidence.toFixed(2)})` : ''));
+
+    platMatchAiCache.set(cacheKey, matches);
+    return matches;
+  } catch (err) {
+    logger.warn('Stage2A', `AI plat match failed: ${err instanceof Error ? err.message : String(err)}`);
+    platMatchAiCache.set(cacheKey, []);
+    return [];
+  }
+}
+
+/** Clears the AI plat match cache.  Exposed for testing. */
+export function clearPlatMatchAiCache(): void {
+  platMatchAiCache.clear();
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export interface PlatSearchResult {
@@ -869,12 +1017,16 @@ export interface PlatSearchResult {
  * Searches a county's plat repository for plats matching the given subdivision name.
  * Optionally uses the county's BIS subdivision API to canonicalize the name first.
  * Returns matches sorted by score descending.
+ *
+ * When `anthropicApiKey` is provided, an AI fallback is triggered if the normalizer
+ * cannot find a confident match (best score < 0.7, or ambiguous at < 0.85).
  */
 export async function searchCountyPlats(
   county: string,
   subdivisionName: string,
   logger: PipelineLogger,
   minScore = 0.5,
+  anthropicApiKey?: string,
 ): Promise<PlatSearchResult[]> {
   const config = getPlatRepoConfig(county);
   if (!config) {
@@ -915,7 +1067,8 @@ export async function searchCountyPlats(
   const links = parsePlatIndex(html, config);
   logger.info('Stage2A', `${config.countyDisplayName} /${letter} index: ${links.length} entries`);
 
-  const scored: PlatSearchResult[] = links
+  // Score all links (keep unfiltered set for AI fallback candidate pool)
+  const allScored: PlatSearchResult[] = links
     .map(link => {
       // Score against the display name (link text)
       const nameScore = scorePlatMatch(link.name, searchName);
@@ -930,8 +1083,46 @@ export async function searchCountyPlats(
       } catch { /* ignore URL parsing errors */ }
       return { ...link, score: Math.max(nameScore, hrefScore) };
     })
-    .filter(r => r.score >= minScore)
     .sort((a, b) => b.score - a.score);
+
+  // ── AI Fallback ─────────────────────────────────────────────────────────────
+  // Trigger when the normalizer cannot confidently resolve the match:
+  //   Condition 1 — no candidate scores ≥ 0.7 (complete miss)
+  //   Condition 2 — best candidate < 0.85 AND there are multiple near-misses (ambiguous)
+  // Only fires when the caller supplies an API key (saves ~$0.01/call × <5% of lookups).
+  const bestScore = allScored[0]?.score ?? 0;
+  const nearMisses = allScored.filter(s => s.score >= 0.3);
+
+  if (anthropicApiKey && (
+    bestScore < 0.7 ||
+    (bestScore < 0.85 && nearMisses.length > 1)
+  )) {
+    // Use all near-miss candidates (≥ 0.2) as AI prompt material
+    const aiCandidates = allScored.filter(s => s.score >= 0.2).slice(0, 10);
+    const aiMatches = await askClaudeForPlatMatch(
+      searchName,
+      aiCandidates.length > 0 ? aiCandidates : allScored.slice(0, 10),
+      anthropicApiKey,
+      logger,
+    );
+    // Boost the score of AI-confirmed matches; add any not-yet-scored AI matches
+    for (const aiMatch of aiMatches) {
+      const existing = allScored.find(s => s.name === aiMatch.displayName);
+      if (existing) {
+        existing.score = Math.max(existing.score, aiMatch.confidence);
+      } else {
+        const link = links.find(l => l.name === aiMatch.displayName);
+        if (link) allScored.push({ ...link, score: aiMatch.confidence });
+      }
+    }
+    if (aiMatches.length > 0) {
+      allScored.sort((a, b) => b.score - a.score);
+      logger.info('Stage2A',
+        `AI boost: "${searchName}" → best now "${allScored[0]?.name}" (score=${allScored[0]?.score.toFixed(2)})`);
+    }
+  }
+
+  const scored = allScored.filter(r => r.score >= minScore);
 
   if (scored.length > 0) {
     logger.info('Stage2A', `"${searchName}": ${scored.length} match(es) — best "${scored[0].name}" (score=${scored[0].score.toFixed(2)})`);
@@ -956,6 +1147,7 @@ export async function fetchBestMatchingPlat(
   county: string,
   subdivisionName: string,
   logger: PipelineLogger,
+  anthropicApiKey?: string,
 ): Promise<{
   base64:   string;
   mimeType: 'application/pdf' | 'image/png';
@@ -1020,7 +1212,7 @@ export async function fetchBestMatchingPlat(
   }
 
   // ── Layer 1: Index page scrape + fuzzy match ──────────────────────────────
-  const matches = await searchCountyPlats(county, subdivisionName, logger);
+  const matches = await searchCountyPlats(county, subdivisionName, logger, 0.5, anthropicApiKey);
   if (matches.length > 0) {
     for (const match of matches.slice(0, 3)) {
       const result = await downloadPlatFile(match.url, config, logger);
@@ -1040,5 +1232,160 @@ export async function fetchBestMatchingPlat(
   return null;
 }
 
+
+// ── Full Archive Scraper (Bell County) ────────────────────────────────────────
+
+/**
+ * Richer plat entry type returned by scrapePlatIndexPage().
+ * Tracks the raw href, resolved URL, filename, letter page, and URL path pattern.
+ */
+export interface PlatArchiveEntry {
+  /** Human-readable subdivision name from the anchor text (HTML entities decoded). */
+  displayName: string;
+  /** Decoded PDF filename without extension (from the href path segment). */
+  filename: string;
+  /** Raw href attribute value exactly as it appears in the HTML. */
+  href: string;
+  /** Absolute URL ready for download (cache-buster stripped, segments encoded). */
+  resolvedUrl: string;
+  /** Letter page this entry came from ('a'–'z' or '0-9'). */
+  letter: string;
+  /**
+   * URL path pattern:
+   *   'full'     = Pattern 1 (95%): …/docs/plats/{LETTER}/{NAME}.pdf  — includes letter subdir
+   *   'nosubdir' = Pattern 2 ( 2%): …/docs/plats/{NAME}.pdf           — no letter subdir
+   *   'bare'     = Pattern 3 ( 3%): {NAME}.pdf                        — bare filename only
+   */
+  pathType: 'full' | 'nosubdir' | 'bare';
+}
+
+/**
+ * All letter pages in the Bell County plat archive: a–z plus the numeric page '0-9'.
+ * Used by full-archive scraping (e.g. building a local index for bulk matching).
+ */
+export const PLAT_PAGES: string[] = 'abcdefghijklmnopqrstuvwxyz'.split('').concat(['0-9']);
+
+/**
+ * Scrapes a single letter page from the Bell County plat archive and returns all
+ * plat entries found, with rich metadata for each link.
+ *
+ * Compared to searchCountyPlats (which scrapes one page for a specific search term),
+ * this function is used for full-archive operations: building a local cache, bulk
+ * verification, or pre-fetching all entries for a given letter.
+ *
+ * @param letter  One of PLAT_PAGES ('a'–'z' or '0-9')
+ * @param logger  Pipeline logger for attempt tracking
+ */
+export async function scrapePlatIndexPage(
+  letter: string,
+  logger: PipelineLogger,
+): Promise<PlatArchiveEntry[]> {
+  const config = PLAT_REPO_REGISTRY.bell;
+  const html = await fetchPlatIndex(config, letter, logger);
+  if (!html) return [];
+
+  const entries: PlatArchiveEntry[] = [];
+  const seen = new Set<string>();
+
+  /**
+   * Classifies the URL path type based on the href structure:
+   *   full     = has a letter subdirectory before the filename
+   *   nosubdir = /docs/plats/ path but no letter subdir
+   *   bare     = just a filename (no /docs/plats/ path component)
+   */
+  function classifyPathType(href: string): 'full' | 'nosubdir' | 'bare' {
+    const path = href.split('?')[0];
+    if (/\/docs\/plats\/[A-Z0-9#]\/[^/]+$/i.test(path)) return 'full';
+    if (/\/docs\/plats\/[^/]+$/i.test(path)) return 'nosubdir';
+    return 'bare';
+  }
+
+  /**
+   * Resolves a raw href to an absolute, cache-buster-free URL.
+   * Mirrors the logic in addLink() so that resolvedUrl is always correct.
+   */
+  function resolveHref(rawHref: string): string {
+    if (rawHref.startsWith('http')) {
+      try {
+        const u = new URL(rawHref);
+        u.searchParams.delete('t');
+        return u.toString();
+      } catch { return rawHref; }
+    }
+    const qIdx = rawHref.indexOf('?');
+    const rawPath = qIdx >= 0 ? rawHref.slice(0, qIdx) : rawHref;
+    const encodedPath = rawPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
+    const separator = rawHref.startsWith('/') ? '' : '/';
+    const url = config.fileBaseUrl + separator + encodedPath;
+    try {
+      const u = new URL(url);
+      u.searchParams.delete('t');
+      return u.toString();
+    } catch { return url; }
+  }
+
+  /** Extracts the decoded filename (without extension) from a raw href. */
+  function extractFilename(rawHref: string): string {
+    const path = rawHref.split('?')[0];
+    const last = path.split('/').pop() ?? '';
+    try {
+      return decodeURIComponent(last).replace(/\.pdf$/i, '').replace(/\+/g, ' ').trim();
+    } catch {
+      return last.replace(/\.pdf$/i, '').trim();
+    }
+  }
+
+  /** Decodes HTML entities in anchor text (mirrors addLink entity decoding). */
+  function decodeDisplayName(raw: string): string {
+    return raw
+      .replace(/<[^>]*>/g, '')
+      .replace(/&amp;/gi, '&')
+      .replace(/&apos;/gi, "'")
+      .replace(/&#x27;/gi, "'")
+      .replace(/&#39;/gi, "'")
+      .replace(/&quot;/gi, '"')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function addEntry(rawHref: string, rawName: string): void {
+    const displayName = decodeDisplayName(rawName);
+    const filename = extractFilename(rawHref);
+    // Category Q: empty anchor text — use filename as display name
+    const finalDisplayName = displayName || filename;
+    if (!finalDisplayName || finalDisplayName.length < 3) return;
+    const key = finalDisplayName.toUpperCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    entries.push({
+      displayName: finalDisplayName,
+      filename,
+      href: rawHref,
+      resolvedUrl: resolveHref(rawHref),
+      letter,
+      pathType: classifyPathType(rawHref),
+    });
+  }
+
+  // Strategy 1: match <a href="…pdf…">…</a> — most Bell County links
+  const extRegex = /<a\s[^>]*href="([^"]*\.pdf[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = extRegex.exec(html)) !== null) {
+    addEntry(match[1], match[2]);
+  }
+
+  // Strategy 2: /docs/plats/ path pattern (covers uppercase .PDF and other edge cases)
+  if (entries.length === 0) {
+    const platPathRegex = /<a\s[^>]*href="([^"]*\/docs\/plats\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    while ((match = platPathRegex.exec(html)) !== null) {
+      addEntry(match[1], match[2]);
+    }
+  }
+
+  logger.info('Stage2A', `scrapePlatIndexPage("${letter}"): ${entries.length} entries`);
+  return entries;
+}
 
 // ── Registry ─────────────────────────────────────────────────────────────────
