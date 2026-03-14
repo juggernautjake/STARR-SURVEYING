@@ -377,7 +377,10 @@ export async function runPropertyValidationPipeline(
     // Raw OCR text from each document/page — gives the AI the full unstructured
     // output of the adaptive-vision passes so it can detect per-pass disagreements.
     rawOcrTexts:        rawOcrTexts && rawOcrTexts.length > 0
-      ? rawOcrTexts.map((t, i) => ({ pass: i + 1, text: t.substring(0, MAX_OCR_TEXT_CHARS) }))
+      ? rawOcrTexts.map((t, i) => ({
+          pass: i + 1,
+          text: t.length > MAX_OCR_TEXT_CHARS ? t.substring(0, MAX_OCR_TEXT_CHARS) : t,
+        }))
       : undefined,
   });
 
