@@ -1175,14 +1175,14 @@
 }
 .research-analyzing__log-entry {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 0.45rem;
   padding: 0.18rem 0.75rem;
   animation: log-entry-in 0.2s ease forwards;
 }
 @keyframes log-entry-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 .research-analyzing__log-entry:hover {
   background: rgba(0,0,0,0.03);
@@ -1212,10 +1212,16 @@
   color: #1F2937;
   flex: 1;
   min-width: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 .research-analyzing__log-detail {
   color: #6B7280;
   font-size: 0.7rem;
+  flex-shrink: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 .research-analyzing__log-empty {
   display: flex;

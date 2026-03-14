@@ -283,7 +283,13 @@ function DocumentPill({ doc, idx }: { doc: PipelineDocument; idx: number }) {
 
 function LogEntry({ entry }: { entry: PipelineLogEntry }) {
   const [open, setOpen] = useState(false);
-  const hasExtra = !!(entry.details || entry.error || entry.input || (entry.steps?.length));
+  // info/warn/error are plain informational messages where source===method===the level
+  const isInfoMsg = entry.source === 'info' || entry.source === 'warn' || entry.source === 'error';
+  // For info/warn/error entries: show details inline in the method column; the
+  // "details" expand section is still available when the row has extras.
+  const inlineText = isInfoMsg ? (entry.details ?? entry.error ?? '') : null;
+  const hasExtra = !!(entry.error || entry.input || (entry.steps?.length) ||
+    (!isInfoMsg && entry.details));
 
   return (
     <div className={`ppanel__log-entry ppanel__log-entry--${entry.status}`}>
@@ -296,12 +302,14 @@ function LogEntry({ entry }: { entry: PipelineLogEntry }) {
           {entry.status === 'success' ? '✓' : entry.status === 'fail' ? '✕' : entry.status === 'skip' ? '−' : '~'}
         </span>
         <span className="ppanel__log-layer">{entry.layer}</span>
-        <span className="ppanel__log-source">{entry.source}</span>
-        <span className="ppanel__log-method">{entry.method}</span>
+        {!isInfoMsg && <span className="ppanel__log-source">{entry.source}</span>}
+        <span className="ppanel__log-method ppanel__log-method--msg">
+          {isInfoMsg ? inlineText : entry.method}
+        </span>
         {entry.dataPointsFound > 0 && (
           <span className="ppanel__log-points">{entry.dataPointsFound} pt{entry.dataPointsFound !== 1 ? 's' : ''}</span>
         )}
-        {entry.duration_ms > 0 && (
+        {entry.duration_ms > 0 && !isInfoMsg && (
           <span className="ppanel__log-dur">{(entry.duration_ms / 1000).toFixed(2)}s</span>
         )}
         {hasExtra && (
@@ -311,7 +319,7 @@ function LogEntry({ entry }: { entry: PipelineLogEntry }) {
       {open && hasExtra && (
         <div className="ppanel__log-detail">
           {entry.input   && <div className="ppanel__log-detail-row"><b>Input:</b> <code>{entry.input}</code></div>}
-          {entry.details && <div className="ppanel__log-detail-row"><b>Details:</b> {entry.details}</div>}
+          {!isInfoMsg && entry.details && <div className="ppanel__log-detail-row"><b>Details:</b> {entry.details}</div>}
           {entry.error   && <div className="ppanel__log-detail-row ppanel__log-detail-row--error"><b>Error:</b> {entry.error}</div>}
           {entry.steps?.map((s, i) => (
             <div key={i} className="ppanel__log-detail-row ppanel__log-detail-row--step">↳ {s}</div>
@@ -960,7 +968,7 @@ export function PipelineProgressStyles() {
 
 .ppanel__log-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.3rem;
   padding: 0.22rem 0.45rem;
   flex-wrap: nowrap;
@@ -981,9 +989,11 @@ export function PipelineProgressStyles() {
 .ppanel__log-status--skip    { color: #94a3b8; }
 .ppanel__log-status--partial { color: #f59e0b; }
 
-.ppanel__log-layer  { color: #6366f1; font-weight: 600; flex-shrink: 0; min-width: 4rem; }
+.ppanel__log-layer  { color: #6366f1; font-weight: 600; flex-shrink: 0; min-width: 4rem; max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ppanel__log-source { color: #0369a1; flex-shrink: 0; max-width: 6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ppanel__log-method { color: #475569; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ppanel__log-method { color: #475569; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Info/warn message entries: display the details text inline, allow wrapping */
+.ppanel__log-method--msg { white-space: normal; word-break: break-word; overflow-wrap: break-word; overflow: visible; }
 .ppanel__log-points { color: #059669; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .ppanel__log-dur    { color: #94a3b8; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .ppanel__log-expand { color: #94a3b8; flex-shrink: 0; font-size: 0.6rem; margin-left: auto; }
@@ -996,7 +1006,7 @@ export function PipelineProgressStyles() {
   flex-direction: column;
   gap: 0.15rem;
 }
-.ppanel__log-detail-row         { color: #334155; }
+.ppanel__log-detail-row         { color: #334155; word-break: break-word; overflow-wrap: break-word; }
 .ppanel__log-detail-row--error  { color: #b91c1c; }
 .ppanel__log-detail-row--step   { color: #64748b; }
 .ppanel__log-detail code {
@@ -1042,7 +1052,7 @@ export function PipelineProgressStyles() {
   background: #f0fdf4;
 }
 
-.ppanel__dlog-entry .ppanel__log-row { flex-wrap: nowrap; }
+.ppanel__dlog-entry .ppanel__log-row { align-items: center; }
 
 .ppanel__dlog-idx {
   flex-shrink: 0;
