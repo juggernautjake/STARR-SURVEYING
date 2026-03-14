@@ -174,6 +174,37 @@ export async function analyzeVisualGeometry(
     input: label,
   });
 
+  // Resize image if it exceeds Claude's 5MB per-image limit (~6.4M base64 chars)
+  let sendBase64 = imageBase64;
+  let sendMediaType: 'image/png' | 'image/jpeg' = mediaType;
+  const MAX_BASE64 = 6_400_000;
+  if (imageBase64.length > MAX_BASE64) {
+    tracker.step(`Image exceeds API limit (${(imageBase64.length / 1_000_000).toFixed(1)}M base64) — resizing...`);
+    try {
+      const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
+      const buf = Buffer.from(imageBase64, 'base64');
+      // Try JPEG q85 at max 4000px
+      let resized = await sharp(buf)
+        .resize({ width: 4000, height: 4000, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+      let b64 = resized.toString('base64');
+      if (b64.length > MAX_BASE64) {
+        // More aggressive: JPEG q65 at 3000px
+        resized = await sharp(buf)
+          .resize({ width: 3000, height: 3000, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 65 })
+          .toBuffer();
+        b64 = resized.toString('base64');
+      }
+      sendBase64 = b64;
+      sendMediaType = 'image/jpeg';
+      tracker.step(`Resized: ${imageBase64.length} → ${b64.length} base64 chars`);
+    } catch (resizeErr) {
+      tracker.step(`Resize failed: ${resizeErr instanceof Error ? resizeErr.message : String(resizeErr)} — sending original`);
+    }
+  }
+
   tracker.step('Sending plat image to Claude Vision for geometric analysis...');
 
   try {
@@ -187,7 +218,7 @@ export async function analyzeVisualGeometry(
         role: 'user',
         content: [{
           type: 'image',
-          source: { type: 'base64', media_type: mediaType, data: imageBase64 },
+          source: { type: 'base64', media_type: sendMediaType, data: sendBase64 },
         }],
       }],
     });

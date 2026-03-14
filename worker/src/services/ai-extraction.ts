@@ -6,6 +6,7 @@
 import type { DocumentResult, ExtractedBoundaryData, BoundaryCall, DocumentReference, PageScreenshot, DocumentPage } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { adaptiveVisionOcr } from './adaptive-vision.js';
+import { rasterizePdf, isPdftoppmAvailable } from '../lib/pdf-rasterize.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -477,15 +478,57 @@ async function extractFromImageInternal(
   logger: PipelineLogger,
   docLabel: string,
 ): Promise<{ ocrText: string | null; extracted: ExtractedBoundaryData | null }> {
-  // For PDFs, we send as image/png (Playwright screenshots) or skip
-  const effectiveMediaType = mediaType === 'application/pdf' ? 'image/png' as const : mediaType;
-
-  // For TIFF, Claude doesn't support it directly — would need conversion
-  if (mediaType === 'image/tiff') {
-    const tracker = logger.startAttempt({ layer: 'Stage3B-OCR', source: 'Claude-Vision', method: 'ocr-tiff', input: docLabel });
-    tracker({ status: 'fail', error: 'TIFF not directly supported — needs conversion to PNG' });
-    return { ocrText: null, extracted: null };
+  // For PDFs, rasterize to PNG pages using pdftoppm
+  if (mediaType === 'application/pdf') {
+    const tracker = logger.startAttempt({ layer: 'Stage3B-OCR', source: 'Claude-Vision', method: 'ocr-pdf-rasterize', input: docLabel });
+    if (!isPdftoppmAvailable()) {
+      tracker({ status: 'fail', error: 'pdftoppm not available — cannot rasterize PDF for Vision API' });
+      return { ocrText: null, extracted: null };
+    }
+    try {
+      tracker.step('Rasterizing PDF to PNG pages...');
+      const pages = await rasterizePdf(imageBase64, 5);
+      if (pages.length === 0) {
+        tracker({ status: 'fail', error: 'PDF rasterization produced no pages' });
+        return { ocrText: null, extracted: null };
+      }
+      tracker.step(`Rasterized ${pages.length} page(s) — delegating to multi-page analysis`);
+      const docPages = pages.map(p => ({
+        imageBase64: p.imageBase64,
+        imageFormat: 'png' as const,
+        width: p.width,
+        height: p.height,
+      }));
+      const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+      const prompt = `Extract ALL text and boundary data from this surveying document. Be extremely thorough — every bearing, distance, monument, and reference matters.`;
+      const { text, data } = await analyzeMultiPageDocument(docPages, '', prompt, logger);
+      tracker({ status: text ? 'success' : 'fail', dataPointsFound: data ? 1 : 0, details: `${pages.length} pages rasterized` });
+      return { ocrText: text || null, extracted: data };
+    } catch (pdfErr) {
+      tracker({ status: 'fail', error: `PDF rasterization failed: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}` });
+      return { ocrText: null, extracted: null };
+    }
   }
+
+  // For TIFF, convert to PNG via sharp — Claude doesn't support TIFF directly
+  if (mediaType === 'image/tiff') {
+    const tracker = logger.startAttempt({ layer: 'Stage3B-OCR', source: 'Claude-Vision', method: 'ocr-tiff-convert', input: docLabel });
+    try {
+      const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
+      tracker.step('Converting TIFF to PNG...');
+      const tiffBuffer = Buffer.from(imageBase64, 'base64');
+      const pngBuffer = await sharp(tiffBuffer).png({ compressionLevel: 6 }).toBuffer();
+      const pngBase64 = pngBuffer.toString('base64');
+      tracker.step(`Converted TIFF → PNG (${imageBase64.length} → ${pngBase64.length} base64 chars)`);
+      // Recurse with PNG media type
+      return extractFromImageInternal(pngBase64, 'image/png', anthropicApiKey, logger, `${docLabel}-tiff2png`);
+    } catch (tiffErr) {
+      tracker({ status: 'fail', error: `TIFF conversion failed: ${tiffErr instanceof Error ? tiffErr.message : String(tiffErr)}` });
+      return { ocrText: null, extracted: null };
+    }
+  }
+
+  const effectiveMediaType = mediaType;
 
   // ── Route: Adaptive Vision (large plat images) vs single-pass (small) ────
   const isLarge = imageBase64.length > ADAPTIVE_VISION_THRESHOLD;
@@ -835,6 +878,7 @@ export async function extractDocuments(
   legalDescriptionFromCad: string | null,
   anthropicApiKey: string,
   logger: PipelineLogger,
+  county = '',
 ): Promise<{ documents: DocumentResult[]; boundary: ExtractedBoundaryData | null }> {
   logger.info('Stage3', `Processing ${documents.length} documents + ${legalDescriptionFromCad ? 'CAD legal description' : 'no CAD legal'}`);
 
@@ -962,7 +1006,7 @@ export async function extractDocuments(
         logger.info('Stage3', `  ${label}: Processing ${docPages.length} downloaded page images`);
         const prompt = `You are analyzing county clerk records from Texas. These are ${docPages.length} page image${docPages.length !== 1 ? 's' : ''} from a ${doc.ref.documentType}${doc.ref.instrumentNumber ? ` (instrument ${doc.ref.instrumentNumber})` : ''}. Extract ALL data: 1) METES AND BOUNDS with every bearing and distance. 2) LOT BOUNDARIES. 3) POINT OF BEGINNING. 4) ACREAGE totals. 5) SURVEYOR info. 6) Full LEGAL DESCRIPTION. 7) CURVE DATA. 8) EASEMENTS. 9) Recording references. Be extremely precise with all numbers.`;
         try {
-          const { text, data } = await analyzeMultiPageDocument(docPages, '', prompt, logger);
+          const { text, data } = await analyzeMultiPageDocument(docPages, county, prompt, logger);
           if (text) doc.ocrText = text;
           if (data) doc.extractedData = data;
         } catch (pagesErr: any) {
@@ -1278,9 +1322,20 @@ async function resizeImageForApi(
     logger.info('Stage3', `  ${label}: Converted to JPEG q65 3000px (${originalSize}→${buffer.length} bytes)`);
     return { base64: b64, mediaType: 'image/jpeg' };
   } catch (finalErr) {
-    logger.warn('Stage3', `  ${label}: All resize attempts failed — sending original`);
-    const mt = format === 'jpg' ? 'image/jpeg' as const : 'image/png' as const;
-    return { base64: imageBase64, mediaType: mt };
+    // Step 3 failed — try one last aggressive resize at 2000px JPEG q50
+    try {
+      const lastBuf = await sharp(Buffer.from(imageBase64, 'base64'))
+        .resize({ width: 2000, height: 2000, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 50 })
+        .toBuffer();
+      const lastB64 = lastBuf.toString('base64');
+      logger.warn('Stage3', `  ${label}: Aggressive fallback JPEG q50 2000px (${originalSize}→${lastBuf.length} bytes)`);
+      return { base64: lastB64, mediaType: 'image/jpeg' };
+    } catch {
+      logger.warn('Stage3', `  ${label}: All resize attempts failed — sending original (may exceed API limit)`);
+      const mt = format === 'jpg' ? 'image/jpeg' as const : 'image/png' as const;
+      return { base64: imageBase64, mediaType: mt };
+    }
   }
 }
 

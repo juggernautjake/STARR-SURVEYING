@@ -185,7 +185,7 @@ Return ONLY a JSON array of strings, no explanation. Example: ["SMITH, JOHN", "J
 
 // ── User File Processing ───────────────────────────────────────────────────
 
-function processUserFiles(userFiles: UserFile[], logger: PipelineLogger): DocumentResult[] {
+async function processUserFiles(userFiles: UserFile[], logger: PipelineLogger): Promise<DocumentResult[]> {
   const results: DocumentResult[] = [];
 
   for (const file of userFiles) {
@@ -208,12 +208,67 @@ function processUserFiles(userFiles: UserFile[], logger: PipelineLogger): Docume
       }
     }
 
-    if (isImage || isPdf) {
+    if (isImage) {
       imageBase64 = file.data;
       if (file.mimeType === 'image/png') imageFormat = 'png';
       else if (file.mimeType === 'image/jpeg') imageFormat = 'jpg';
-      else if (file.mimeType === 'image/tiff') imageFormat = 'tiff';
-      else if (isPdf) imageFormat = 'pdf';
+      else if (file.mimeType === 'image/tiff') {
+        // Convert TIFF to PNG — Claude Vision doesn't accept TIFF
+        try {
+          const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
+          const pngBuffer = await sharp(Buffer.from(file.data, 'base64'))
+            .png({ compressionLevel: 6 })
+            .toBuffer();
+          imageBase64 = pngBuffer.toString('base64');
+          imageFormat = 'png';
+          logger.info('UserFiles', `  Converted TIFF→PNG for ${file.filename}`);
+        } catch {
+          // Fall back to storing as-is; extraction will skip the image path
+          imageBase64 = file.data;
+          imageFormat = 'tiff';
+        }
+      }
+    }
+
+    if (isPdf) {
+      // Rasterize PDF pages to PNG images for Vision OCR
+      try {
+        const { rasterizePdf, isPdftoppmAvailable } = await import('../lib/pdf-rasterize.js');
+        if (isPdftoppmAvailable()) {
+          const pages = await rasterizePdf(file.data, 10);
+          if (pages.length > 0) {
+            // Use first page as the primary image
+            imageBase64 = pages[0].imageBase64;
+            imageFormat = 'png';
+            logger.info('UserFiles', `  Rasterized PDF→PNG: ${pages.length} page(s) from ${file.filename}`);
+
+            // If multi-page, push additional pages as separate documents
+            for (let i = 1; i < pages.length; i++) {
+              results.push({
+                ref: {
+                  instrumentNumber: null, volume: null, page: null,
+                  documentType: `${file.description ?? file.filename} — Page ${i + 1}`,
+                  recordingDate: null, grantors: [], grantees: [],
+                  source: 'user-upload', url: null,
+                },
+                textContent: null,
+                imageBase64: pages[i].imageBase64,
+                imageFormat: 'png',
+                ocrText: null, extractedData: null,
+                fromUserUpload: true,
+              });
+            }
+          }
+        } else {
+          logger.warn('UserFiles', `  pdftoppm not available — PDF ${file.filename} stored without rasterization`);
+          imageBase64 = file.data;
+          imageFormat = 'pdf';
+        }
+      } catch (pdfErr) {
+        logger.warn('UserFiles', `  PDF rasterization failed for ${file.filename}: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
+        imageBase64 = file.data;
+        imageFormat = 'pdf';
+      }
     }
 
     results.push({
@@ -237,7 +292,7 @@ function processUserFiles(userFiles: UserFile[], logger: PipelineLogger): Docume
     });
   }
 
-  logger.info('UserFiles', `Processed ${results.length} user files: ${results.filter((r) => r.textContent).length} text, ${results.filter((r) => r.imageBase64).length} image/PDF`);
+  logger.info('UserFiles', `Processed ${results.length} user files: ${results.filter((r) => r.textContent).length} text, ${results.filter((r) => r.imageBase64).length} image`);
   return results;
 }
 
@@ -512,7 +567,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       if (instrErrors.length > 0) logger.warn('Stage2', `Instrument errors: ${instrErrors.join(' | ')}`);
     }
 
-    // ── Path B: County plat repository (free direct-download PDFs) ───────
+    // ── Path B: County plat repository (free, rasterized to PNG) ─────────
     if (platRepo && legalDesc) {
       const subdivisionName = extractSubdivisionName(legalDesc);
       if (subdivisionName) {
@@ -528,7 +583,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                 source: platResult.source, url: platResult.url,
               },
               textContent: null, pages: [],
-              imageFormat: platResult.mimeType === 'image/png' ? 'png' : 'pdf',
+              imageFormat: 'png',
               imageBase64: platResult.base64,
               pagesPdfUrl: platResult.url,
               ocrText: null, extractedData: null,
@@ -596,6 +651,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       propertyResult?.legalDescription ?? null,
       anthropicApiKey,
       logger,
+      input.county,
     );
 
     const boundaryNote = boundary
@@ -622,11 +678,10 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     let reconciliation: import('../types/index.js').PipelineResult['reconciliation'] = undefined;
 
-    if (platDoc?.imageBase64 && platDoc.imageFormat) {
+    // Only send actual image formats to geo-reconcile — skip raw PDFs that weren't rasterized
+    if (platDoc?.imageBase64 && platDoc.imageFormat && platDoc.imageFormat !== 'pdf') {
       const mediaType = (
-        platDoc.imageFormat === 'jpg' ? 'image/jpeg' :
-        platDoc.imageFormat === 'pdf' ? 'image/png'  : // PDFs are pre-rasterised to PNG by bundler
-        'image/png'
+        platDoc.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png'
       ) as 'image/png' | 'image/jpeg';
       try {
         reconciliation = await runGeoReconcile(

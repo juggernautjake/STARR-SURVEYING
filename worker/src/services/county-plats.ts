@@ -432,21 +432,24 @@ export function scorePlatMatch(platName: string, targetName: string): number {
 // ── File Download & Format Conversion ────────────────────────────────────────
 
 /**
- * Downloads a plat file and returns it as base64.
- * TIF files are converted to PNG so Claude Vision can process them
- * (Claude does not accept TIFF format).
- * Returns { base64, mimeType } or null on failure.
+ * Downloads a plat file and returns it as a PNG image (base64).
+ * - TIF files are converted to PNG via sharp.
+ * - PDF files are rasterized to PNG via pdftoppm (poppler-utils).
+ *   Only the first page is returned (the plat drawing sheet).
+ * Claude Vision does not accept TIFF or PDF — everything must be PNG/JPEG.
+ * Returns { base64, mimeType: 'image/png' } or null on failure.
  */
 async function downloadPlatFile(
   fileUrl: string,
   config: PlatRepoConfig,
   logger: PipelineLogger,
-): Promise<{ base64: string; mimeType: 'application/pdf' | 'image/png' } | null> {
+): Promise<{ base64: string; mimeType: 'image/png' } | null> {
   const isTif = (config.fileExt ?? 'pdf') === 'tif';
+  const isPdf = !isTif;
   const tracker = logger.startAttempt({
     layer: 'Stage2A',
     source: 'PlatRepo',
-    method: isTif ? 'TIF-download' : 'PDF-download',
+    method: isTif ? 'TIF-download' : 'PDF-download+rasterize',
     input: fileUrl.substring(0, 100),
   });
 
@@ -480,9 +483,27 @@ async function downloadPlatFile(
         return null;
       }
     } else {
-      const base64 = Buffer.from(buffer).toString('base64');
-      tracker({ status: 'success', dataPointsFound: 1, details: `PDF: ${buffer.byteLength} bytes` });
-      return { base64, mimeType: 'application/pdf' };
+      // PDF → PNG rasterization via pdftoppm
+      try {
+        const { rasterizePdf, isPdftoppmAvailable } = await import('../lib/pdf-rasterize.js');
+        if (!isPdftoppmAvailable()) {
+          // Fallback: return raw PDF if pdftoppm not installed (extraction will skip image path)
+          tracker({ status: 'partial', dataPointsFound: 1, details: `PDF: ${buffer.byteLength} bytes (pdftoppm not available — no rasterization)` });
+          return null;
+        }
+        const pdfBase64 = Buffer.from(buffer).toString('base64');
+        const pages = await rasterizePdf(pdfBase64, 1); // Only first page (plat sheet)
+        if (pages.length === 0) {
+          tracker({ status: 'fail', error: 'PDF rasterization returned no pages' });
+          return null;
+        }
+        const page = pages[0];
+        tracker({ status: 'success', dataPointsFound: 1, details: `PDF→PNG: ${buffer.byteLength}→${Buffer.from(page.imageBase64, 'base64').byteLength} bytes (${page.width}x${page.height})` });
+        return { base64: page.imageBase64, mimeType: 'image/png' };
+      } catch (pdfErr) {
+        tracker({ status: 'fail', error: `PDF rasterization failed: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}` });
+        return null;
+      }
     }
   } catch (err) {
     tracker({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
@@ -573,7 +594,7 @@ export async function fetchBestMatchingPlat(
   logger: PipelineLogger,
 ): Promise<{
   base64:   string;
-  mimeType: 'application/pdf' | 'image/png';
+  mimeType: 'image/png';
   name:     string;
   url:      string;
   source:   string;
