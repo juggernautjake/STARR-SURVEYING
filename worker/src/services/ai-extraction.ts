@@ -542,6 +542,18 @@ async function extractFromImageInternal(
   });
   ocrTracker.step(`Media type: ${mediaType}, effective: ${effectiveMediaType}, base64 length: ${imageBase64.length}`);
 
+  // Resize if needed to stay under Claude's 5MB per-image limit
+  let sendBase64 = imageBase64;
+  let sendMediaType = effectiveMediaType;
+  if (imageBase64.length > MAX_IMAGE_BASE64_SIZE) {
+    ocrTracker.step(`Image exceeds API limit (${(imageBase64.length / 1_000_000).toFixed(1)}MB base64) — resizing...`);
+    const fmt = effectiveMediaType === 'image/jpeg' ? 'jpg' as const : 'png' as const;
+    const resized = await resizeImageForApi(imageBase64, fmt, logger, docLabel);
+    sendBase64 = resized.base64;
+    sendMediaType = resized.mediaType;
+    ocrTracker.step(`Resized: ${imageBase64.length} → ${sendBase64.length} base64 chars`);
+  }
+
   ocrTracker.step('Sending image to Claude Vision for OCR...');
   const ocrResponse = await callClaudeWithRetry(
     anthropicApiKey,
@@ -550,7 +562,7 @@ async function extractFromImageInternal(
       content: [
         {
           type: 'image',
-          source: { type: 'base64', media_type: effectiveMediaType, data: imageBase64 },
+          source: { type: 'base64', media_type: sendMediaType, data: sendBase64 },
         },
         {
           type: 'text',
@@ -1196,9 +1208,85 @@ export async function analyzeDocumentQuadrants(
   return { ocrTexts, combinedData: bestData };
 }
 
+/** Maximum base64 byte size for a single image sent to Claude API (5MB decoded = ~6.67MB base64). */
+const MAX_IMAGE_BASE64_SIZE = 6_400_000; // ~4.8MB decoded, safe margin under 5MB limit
+
 /**
- * NEW: Send multiple document pages in a single Vision call.
- * Proven working: extracted metes & bounds from 4-page Ash Trust deed+plat.
+ * Resize an image to fit within Claude's 5MB per-image limit.
+ * Uses sharp to progressively reduce quality/dimensions until under the limit.
+ * Returns the resized base64 string and the effective media type.
+ */
+async function resizeImageForApi(
+  imageBase64: string,
+  format: 'png' | 'jpg' | 'tiff',
+  logger: PipelineLogger,
+  label: string,
+): Promise<{ base64: string; mediaType: 'image/png' | 'image/jpeg' }> {
+  // If already under limit, return as-is
+  if (imageBase64.length <= MAX_IMAGE_BASE64_SIZE) {
+    const mt = format === 'jpg' ? 'image/jpeg' as const : 'image/png' as const;
+    return { base64: imageBase64, mediaType: mt };
+  }
+
+  const { default: sharp } = await import('sharp') as { default: typeof import('sharp') };
+  let buffer = Buffer.from(imageBase64, 'base64');
+  const originalSize = buffer.length;
+
+  // Step 1: Try PNG with higher compression
+  try {
+    const metadata = await sharp(buffer).metadata();
+    const w = metadata.width ?? 4000;
+    const h = metadata.height ?? 4000;
+
+    // If dimensions are very large, resize to max 4000px on longest side
+    if (w > 4000 || h > 4000) {
+      buffer = await sharp(buffer)
+        .resize({ width: 4000, height: 4000, fit: 'inside', withoutEnlargement: true })
+        .png({ compressionLevel: 9 })
+        .toBuffer();
+      logger.info('Stage3', `  ${label}: Resized ${w}x${h} → max 4000px (${originalSize}→${buffer.length} bytes)`);
+    }
+  } catch (resizeErr) {
+    logger.warn('Stage3', `  ${label}: Sharp resize failed: ${resizeErr instanceof Error ? resizeErr.message : String(resizeErr)}`);
+  }
+
+  let b64 = buffer.toString('base64');
+  if (b64.length <= MAX_IMAGE_BASE64_SIZE) {
+    return { base64: b64, mediaType: 'image/png' };
+  }
+
+  // Step 2: Convert to JPEG at quality 85
+  try {
+    buffer = await sharp(Buffer.from(imageBase64, 'base64'))
+      .resize({ width: 4000, height: 4000, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    b64 = buffer.toString('base64');
+    logger.info('Stage3', `  ${label}: Converted to JPEG q85 (${originalSize}→${buffer.length} bytes)`);
+    if (b64.length <= MAX_IMAGE_BASE64_SIZE) {
+      return { base64: b64, mediaType: 'image/jpeg' };
+    }
+  } catch { /* fall through */ }
+
+  // Step 3: JPEG at quality 65, max 3000px
+  try {
+    buffer = await sharp(Buffer.from(imageBase64, 'base64'))
+      .resize({ width: 3000, height: 3000, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 65 })
+      .toBuffer();
+    b64 = buffer.toString('base64');
+    logger.info('Stage3', `  ${label}: Converted to JPEG q65 3000px (${originalSize}→${buffer.length} bytes)`);
+    return { base64: b64, mediaType: 'image/jpeg' };
+  } catch (finalErr) {
+    logger.warn('Stage3', `  ${label}: All resize attempts failed — sending original`);
+    const mt = format === 'jpg' ? 'image/jpeg' as const : 'image/png' as const;
+    return { base64: imageBase64, mediaType: mt };
+  }
+}
+
+/**
+ * Send multiple document pages to Claude Vision, resizing each to fit the 5MB limit.
+ * If total payload is too large, processes pages individually and merges results.
  */
 export async function analyzeMultiPageDocument(
   pages: DocumentPage[],
@@ -1214,13 +1302,58 @@ export async function analyzeMultiPageDocument(
   try {
     const client = await getAnthropicClient();
 
-    const imageContent: any[] = pages.map(p => ({
+    // Resize each page to fit within Claude's per-image 5MB limit
+    const resizedPages: Array<{ base64: string; mediaType: 'image/png' | 'image/jpeg' }> = [];
+    for (let i = 0; i < pages.length; i++) {
+      const p = pages[i];
+      const fmt = p.imageFormat === 'jpg' ? 'jpg' as const : p.imageFormat === 'tiff' ? 'tiff' as const : 'png' as const;
+      const resized = await resizeImageForApi(p.imageBase64, fmt, logger, `page-${i + 1}`);
+      resizedPages.push(resized);
+    }
+
+    // Check total payload size — if all pages together exceed ~15MB base64,
+    // process individually to avoid request size limits
+    const totalBase64 = resizedPages.reduce((sum, p) => sum + p.base64.length, 0);
+
+    if (totalBase64 > 18_000_000) {
+      // Too large for a single call — process each page individually
+      attempt.step(`Total payload ${(totalBase64 / 1_000_000).toFixed(1)}MB — processing ${pages.length} pages individually`);
+      const allTexts: string[] = [];
+
+      for (let i = 0; i < resizedPages.length; i++) {
+        const rp = resizedPages[i];
+        try {
+          const response = await client.messages.create({
+            model: AI_MODEL,
+            max_tokens: 8000,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'image', source: { type: 'base64', media_type: rp.mediaType, data: rp.base64 } },
+                { type: 'text', text: `This is page ${i + 1} of ${pages.length}. ${prompt}` },
+              ],
+            }],
+          });
+          const pageText = response.content
+            .filter((b: any) => b.type === 'text')
+            .map((b: any) => b.text as string)
+            .join('');
+          if (pageText) allTexts.push(`--- PAGE ${i + 1} ---\n${pageText}`);
+        } catch (pageErr: any) {
+          logger.warn('Stage3', `  page-${i + 1}: Vision failed: ${pageErr.message}`);
+        }
+      }
+
+      const text = allTexts.join('\n\n');
+      attempt.success(allTexts.length, `Individual-page extraction: ${allTexts.length}/${pages.length} pages, ${text.length} chars`);
+      const data = await extractFromTextInternal(text, apiKey, logger, `multi-page-${county}`);
+      return { text, data };
+    }
+
+    // All pages fit in one call — send together
+    const imageContent: any[] = resizedPages.map(rp => ({
       type: 'image',
-      source: {
-        type: 'base64',
-        media_type: p.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png',
-        data: p.imageBase64,
-      },
+      source: { type: 'base64', media_type: rp.mediaType, data: rp.base64 },
     }));
 
     const response = await client.messages.create({

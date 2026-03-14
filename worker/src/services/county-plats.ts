@@ -62,6 +62,17 @@ export const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
     countyDisplayName: 'Bell County Clerk plat repository (bellcountytx.com)',
     fileExt: 'pdf',
     parseMode: 'links',
+    indexHeaders: {
+      'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Referer':         'https://www.bellcountytx.com/',
+    },
+    fileHeaders: {
+      'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Accept':          'application/pdf,*/*;q=0.8',
+      'Referer':         'https://www.bellcountytx.com/',
+    },
   },
   // ── Hays County — Hays CAD WordPress, TIF images, 8,051 plats ────────────
   // Index:  https://hayscad.com/subdivisionplats/sublist{letter}/
