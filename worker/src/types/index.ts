@@ -30,6 +30,12 @@ export interface PipelineResult {
   duration_ms: number;
   /** Phase 3.5: Geometric reconciliation — visual geometry vs OCR text */
   reconciliation?: import('../services/geo-reconcile.js').ReconciliationResult;
+  /**
+   * Stage 5: 7-call property validation report — text synthesis, cross-validation,
+   * and final discrepancy/confidence report from property-validation-pipeline.ts.
+   * Only present when the pipeline reaches Stage 5 (requires Anthropic API key).
+   */
+  validationReport?: import('../services/property-validation-pipeline.js').ValidationReport;
   /** Search diagnostics: which variants were tried, which hit */
   searchDiagnostics?: SearchDiagnostics;
   /**

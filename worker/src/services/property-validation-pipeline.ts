@@ -305,6 +305,9 @@ Return JSON with this exact structure:
  * @param propertyMeta  Property metadata (name, acreage, references)
  * @param anthropicApiKey  Anthropic API key
  * @param logger  Pipeline logger
+ * @param rawOcrTexts  (optional) Raw OCR text from each document — used by Call 5
+ *                     synthesis to see the unstructured extraction output alongside
+ *                     the structured boundary calls, improving cross-pass agreement.
  */
 export async function runPropertyValidationPipeline(
   boundary: ExtractedBoundaryData | null,
@@ -318,6 +321,7 @@ export async function runPropertyValidationPipeline(
   },
   anthropicApiKey: string,
   logger: PipelineLogger,
+  rawOcrTexts?: string[],
 ): Promise<ValidationReport> {
   const generatedAt = new Date().toISOString();
   let totalApiCalls = 0;
@@ -363,6 +367,11 @@ export async function runPropertyValidationPipeline(
     references:         boundary?.references,
     legalDescription:   propertyMeta.legalDescription,
     warnings:           boundary?.warnings ?? [],
+    // Raw OCR text from each document/page — gives the AI the full unstructured
+    // output of the adaptive-vision passes so it can detect per-pass disagreements.
+    rawOcrTexts:        rawOcrTexts && rawOcrTexts.length > 0
+      ? rawOcrTexts.map((t, i) => ({ pass: i + 1, text: t.substring(0, 4000) }))
+      : undefined,
   });
 
   const synthRaw = await callClaude(client, SYNTHESIS_SYSTEM, synthInput, 'call5-synthesis', logger);
