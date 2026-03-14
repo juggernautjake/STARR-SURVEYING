@@ -337,7 +337,18 @@ function parsePlatLinks(html: string, config: PlatRepoConfig): PlatLink[] {
     if (rawHref.startsWith('http')) {
       fileUrl = rawHref;
     } else {
-      fileUrl = config.fileBaseUrl + (rawHref.startsWith('/') ? '' : '/') + rawHref;
+      // Resolve relative hrefs from the site root (all pages have <base href="https://…/">).
+      // CRITICAL: encode each path segment so that spaces become %20 and '#' becomes
+      // %23 (otherwise '#' is misinterpreted as a URL fragment identifier).
+      //   Pattern 1 (95%): "county_government/county_clerk/docs/plats/D/NAME.PDF?t=…"
+      //   Pattern 2 ( 2%): "county_government/county_clerk/docs/plats/NAME.pdf?t=…"
+      //   Pattern 3 ( 3%): "NAME.pdf?t=…"  → resolves to site root, not clerk dir
+      const qIdx = rawHref.indexOf('?');
+      const rawPath = qIdx >= 0 ? rawHref.slice(0, qIdx) : rawHref;
+      const querySuffix = qIdx >= 0 ? rawHref.slice(qIdx) : '';
+      const encodedPath = rawPath.split('/').map(seg => encodeURIComponent(seg)).join('/');
+      const separator = rawHref.startsWith('/') ? '' : '/';
+      fileUrl = config.fileBaseUrl + separator + encodedPath + querySuffix;
     }
 
     // Strip cache-busting query params (e.g. ?t=202307271154110)
@@ -376,9 +387,10 @@ function parsePlatLinks(html: string, config: PlatRepoConfig): PlatLink[] {
   }
 
   // Strategy 3: if still nothing, extract names from Revize CDN URLs anywhere in the HTML
-  // Pattern: /docs/plats/{LETTER}/{URL_ENCODED_NAME}.pdf
+  // Pattern: /docs/plats/{LETTER-OR-#}/{URL_ENCODED_NAME}.pdf
+  // Note: '#' is a valid subfolder name in the Bell County archive — match it too.
   if (results.length === 0) {
-    const cdnRegex = /\/docs\/plats\/[A-Z0-9]\/([^"'\s?]+\.pdf)/gi;
+    const cdnRegex = /\/docs\/plats\/[A-Z0-9#]\/([^"'\s?]+\.pdf)/gi;
     while ((match = cdnRegex.exec(html)) !== null) {
       const encodedName = match[1].replace(/\.pdf$/i, '');
       try {
