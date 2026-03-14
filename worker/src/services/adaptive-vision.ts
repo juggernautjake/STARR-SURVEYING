@@ -70,6 +70,8 @@ const CONFIDENCE_ZOOM_THRESHOLD = 60;
 const CONFIDENCE_MANUAL_THRESHOLD = 50;
 /** Base64 byte threshold below which segmentation is skipped (~600 KB decoded) */
 const SMALL_IMAGE_BYTES = 800_000;
+/** Anthropic Vision API hard limit: 5 MiB per image. Use 4.5 MiB as safety margin. */
+const MAX_IMAGE_BYTES = 4_718_592; // 4.5 MiB
 
 /** Standard Texas plat sheet sizes (width × height in inches) */
 const STANDARD_SIZES = [
@@ -348,7 +350,9 @@ export async function adaptiveVisionOcr(
   }
 
   // ── Single-image fallback (sharp unavailable OR small image) ─────────────
-  if (!sharpLib || imageBuffer.length < SMALL_IMAGE_BYTES) {
+  // Also route oversized images (> 4.5 MB) to grid segmentation even when
+  // sharp IS available — they would fail the Claude 5 MB-per-image limit.
+  if (!sharpLib || (imageBuffer.length < SMALL_IMAGE_BYTES && imageBuffer.length <= MAX_IMAGE_BYTES)) {
     const strategy = !sharpLib ? 'single (no sharp)' : 'single (small image)';
     logger.info('AdaptiveVision', `${label}: ${strategy}`);
     const text = await extractSegment(imageBuffer, mediaType, 'full', anthropicApiKey, logger);

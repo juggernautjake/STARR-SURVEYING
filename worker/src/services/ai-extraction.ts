@@ -588,11 +588,21 @@ const ADAPTIVE_VISION_THRESHOLD = 800_000;
 /** Anthropic Vision API maximum pixels on any single dimension. */
 const MAX_VISION_DIMENSION = 7_900; // leave 100px margin below the hard 8000 limit
 
+/** Anthropic Vision API hard limit: 5 MiB per image. Use 4.5 MiB as our safety margin. */
+const MAX_IMAGE_BYTES = 4_718_592; // 4.5 MiB
+
 /**
- * Resizes an image buffer so that neither dimension exceeds MAX_VISION_DIMENSION.
- * Uses sharp (already in package.json) for lossless downscaling.
- * Returns the original buffer unchanged if it is already within limits or if
- * dimensions cannot be read.
+ * Resizes and/or compresses an image buffer so that:
+ *   1. Neither pixel dimension exceeds MAX_VISION_DIMENSION (7 900 px), and
+ *   2. The encoded byte size stays below MAX_IMAGE_BYTES (4.5 MB).
+ *
+ * Strategy:
+ *   - Step 1: pixel resize (PNG) if dimensions are too large.
+ *   - Step 2: JPEG compression at quality=80 if buffer is still > 4.5 MB.
+ *   - Step 3: JPEG compression at quality=60 if buffer is still > 4.5 MB.
+ *
+ * Returns the original buffer unchanged if it is within limits or if sharp
+ * is unavailable (non-fatal).
  *
  * Intentionally uses console.log (not PipelineLogger) because this function
  * is a standalone utility not bound to any pipeline execution context.
@@ -603,17 +613,38 @@ async function resizeIfNeeded(imageBuffer: Buffer): Promise<Buffer> {
     const meta = await sharp(imageBuffer).metadata();
     const { width, height } = meta;
     if (!width || !height) return imageBuffer;
-    if (width <= MAX_VISION_DIMENSION && height <= MAX_VISION_DIMENSION) return imageBuffer;
 
-    const scale = MAX_VISION_DIMENSION / Math.max(width, height);
-    const newWidth  = Math.round(width  * scale);
-    const newHeight = Math.round(height * scale);
-    console.log(`[Vision] Resizing image from ${width}x${height} to ${newWidth}x${newHeight}`);
+    let result = imageBuffer;
 
-    return await sharp(imageBuffer)
-      .resize(newWidth, newHeight, { fit: 'inside', withoutEnlargement: true })
-      .png()
-      .toBuffer();
+    // Step 1: pixel dimension resize
+    if (width > MAX_VISION_DIMENSION || height > MAX_VISION_DIMENSION) {
+      const scale = MAX_VISION_DIMENSION / Math.max(width, height);
+      const newWidth  = Math.round(width  * scale);
+      const newHeight = Math.round(height * scale);
+      console.log(`[Vision] Resizing image from ${width}x${height} to ${newWidth}x${newHeight}`);
+      result = await sharp(result)
+        .resize(newWidth, newHeight, { fit: 'inside', withoutEnlargement: true })
+        .png()
+        .toBuffer();
+    }
+
+    // Step 2: byte-size compression — JPEG quality=80
+    if (result.length > MAX_IMAGE_BYTES) {
+      console.log(`[Vision] Compressing image (${result.length} bytes > ${MAX_IMAGE_BYTES}) — JPEG q80`);
+      result = await sharp(result)
+        .jpeg({ quality: 80 })
+        .toBuffer();
+    }
+
+    // Step 3: byte-size compression — JPEG quality=60 (last resort)
+    if (result.length > MAX_IMAGE_BYTES) {
+      console.log(`[Vision] Re-compressing image (${result.length} bytes still > ${MAX_IMAGE_BYTES}) — JPEG q60`);
+      result = await sharp(result)
+        .jpeg({ quality: 60 })
+        .toBuffer();
+    }
+
+    return result;
   } catch {
     // If sharp fails for any reason, return the original (non-fatal)
     return imageBuffer;
@@ -1672,8 +1703,13 @@ export async function analyzeDocumentQuadrants(
 }
 
 /**
- * NEW: Send multiple document pages in a single Vision call.
- * Proven working: extracted metes & bounds from 4-page Ash Trust deed+plat.
+ * Analyze multiple document pages by processing each page individually.
+ *
+ * Each page image is pre-processed through resizeIfNeeded() (pixel resize +
+ * byte-size JPEG compression) before being sent to Claude, so no single
+ * API call will exceed the 5 MB per-image limit.  Individual page texts are
+ * concatenated and then passed through extractFromTextInternal() for
+ * structured extraction.
  */
 export async function analyzeMultiPageDocument(
   pages: DocumentPage[],
@@ -1686,35 +1722,52 @@ export async function analyzeMultiPageDocument(
   );
   const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
 
+  if (!pages.length) {
+    attempt.fail('No pages provided');
+    return { text: '', data: null };
+  }
+
   try {
     const client = await getAnthropicClient();
+    const pageTexts: string[] = [];
 
-    const imageContent: any[] = await Promise.all(pages.map(async p => {
-      const imgBuf = Buffer.from(p.imageBase64, 'base64');
+    for (const page of pages) {
+      const imgBuf = Buffer.from(page.imageBase64, 'base64');
       const resized = await resizeIfNeeded(imgBuf);
-      const data = resized === imgBuf ? p.imageBase64 : resized.toString('base64');
-      return {
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: p.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png',
-          data,
-        },
-      };
-    }));
+      const pageBase64 = resized === imgBuf ? page.imageBase64 : resized.toString('base64');
+      // Map common format strings to Claude-supported MIME types; default to PNG
+      const mediaType: 'image/jpeg' | 'image/png' =
+        page.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png';
 
-    const response = await client.messages.create({
-      model: AI_MODEL,
-      max_tokens: 8000,
-      messages: [{ role: 'user', content: [...imageContent, { type: 'text', text: prompt }] }],
-    });
+      try {
+        const response = await client.messages.create({
+          model: AI_MODEL,
+          max_tokens: 8000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: pageBase64 } },
+              { type: 'text', text: `[Page ${page.pageNumber}] ${prompt}` },
+            ],
+          }],
+        });
 
-    const text = response.content
-      .filter((b: any) => b.type === 'text')
-      .map((b: any) => b.text as string)
-      .join('');
+        const pageText = response.content
+          .filter((b: any) => b.type === 'text')
+          .map((b: any) => b.text as string)
+          .join('');
 
-    attempt.success(1, `Multi-page extraction: ${text.length} chars`);
+        if (pageText) {
+          pageTexts.push(`--- PAGE ${page.pageNumber} ---\n${pageText}`);
+        }
+      } catch (pageErr: any) {
+        // Log per-page failure but continue with remaining pages
+        logger.warn('3B-MULTI', `Page ${page.pageNumber} extraction failed: ${pageErr.message}`);
+      }
+    }
+
+    const text = pageTexts.join('\n\n');
+    attempt.success(pageTexts.length, `Multi-page extraction: ${text.length} chars from ${pageTexts.length}/${pages.length} pages`);
 
     const data = await extractFromTextInternal(text, apiKey, logger, `multi-page-${county}`);
     return { text, data };
