@@ -1376,4 +1376,152 @@ describe('AI plat match fallback (county-plats.ts — Section 6)', () => {
     // No API key → AI should NOT be called
     expect(anthropicCallCount).toBe(0);
   });
+
+  it('21-8. AI fallback does NOT cache on network/timeout errors (allows retry)', async () => {
+    const { searchCountyPlats, clearPlatMatchAiCache } = await import('../../worker/src/services/county-plats.js');
+    clearPlatMatchAiCache();
+
+    const origFetch = global.fetch;
+    let anthropicCallCount = 0;
+    const mockHtml = `<a href="docs/plats/Z/ZZZZ.pdf">ZZZZ TOTALLY UNRELATED</a>`;
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('anthropic')) {
+        anthropicCallCount++;
+        // Simulate network failure (should NOT be cached)
+        return Promise.reject(new Error('Network timeout'));
+      }
+      return Promise.resolve({ ok: true, text: async () => mockHtml });
+    });
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    // First call — network error
+    await searchCountyPlats('bell', 'EPSILON ADDITION', mockLogger, 0.0, 'test-key');
+    // Second call — should call Claude again (not cached from the failed attempt)
+    await searchCountyPlats('bell', 'EPSILON ADDITION', mockLogger, 0.0, 'test-key');
+    global.fetch = origFetch;
+
+    // Network errors should NOT be cached — Claude should be called TWICE
+    expect(anthropicCallCount).toBe(2);
+  });
+
+  it('21-9. AI fallback does NOT cache on HTTP 503 (transient server error)', async () => {
+    const { searchCountyPlats, clearPlatMatchAiCache } = await import('../../worker/src/services/county-plats.js');
+    clearPlatMatchAiCache();
+
+    const origFetch = global.fetch;
+    let anthropicCallCount = 0;
+    const mockHtml = `<a href="docs/plats/Z/ZZZZ.pdf">ZZZZ TOTALLY UNRELATED</a>`;
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('anthropic')) {
+        anthropicCallCount++;
+        return Promise.resolve({ ok: false, status: 503, text: async () => 'Service Unavailable' });
+      }
+      return Promise.resolve({ ok: true, text: async () => mockHtml });
+    });
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    // First call — 503 error
+    await searchCountyPlats('bell', 'ZETA ESTATES', mockLogger, 0.0, 'test-key');
+    // Second call — should retry because 503 is transient
+    await searchCountyPlats('bell', 'ZETA ESTATES', mockLogger, 0.0, 'test-key');
+    global.fetch = origFetch;
+
+    // 503 should NOT be cached — Claude should be called TWICE
+    expect(anthropicCallCount).toBe(2);
+  });
+
+  it('21-10. AI fallback handles malformed JSON gracefully', async () => {
+    const { searchCountyPlats, clearPlatMatchAiCache } = await import('../../worker/src/services/county-plats.js');
+    clearPlatMatchAiCache();
+
+    const origFetch = global.fetch;
+    const mockHtml = `<a href="docs/plats/Z/ZZZZ.pdf">ZZZZ TOTALLY UNRELATED</a>`;
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('anthropic')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            content: [{ type: 'text', text: '{invalid json{{{' }],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, text: async () => mockHtml });
+    });
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    // Should not throw and should return normally (empty results)
+    let threw = false;
+    try {
+      await searchCountyPlats('bell', 'ETA SUBDIVISION', mockLogger, 0.0, 'test-key');
+    } catch {
+      threw = true;
+    }
+    global.fetch = origFetch;
+    expect(threw).toBe(false);
+  });
+
+  it('21-11. AI boost applies case-insensitively (Claude may return different casing)', async () => {
+    const { searchCountyPlats, clearPlatMatchAiCache } = await import('../../worker/src/services/county-plats.js');
+    clearPlatMatchAiCache();
+
+    const origFetch = global.fetch;
+    // Index uses mixed case in anchor text
+    const mockHtml = `<a href="docs/plats/T/THETA ADDITION.pdf">Theta Addition</a>`;
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (String(url).includes('anthropic')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            content: [{
+              type: 'text',
+              // Claude returns uppercase — should match "Theta Addition" case-insensitively
+              text: '{"matches":[{"displayName":"THETA ADDITION","confidence":0.9}]}',
+            }],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, text: async () => mockHtml });
+    });
+
+    const mockLogger = {
+      startAttempt: () => () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      getAttempts: () => [],
+    } as unknown as import('../../worker/src/lib/logger.js').PipelineLogger;
+
+    const results = await searchCountyPlats('bell', 'THTA ADDITN', mockLogger, 0.0, 'test-key');
+    global.fetch = origFetch;
+
+    // The entry with displayName "Theta Addition" should have been boosted
+    const thetaMatch = results.find(r => r.name.toUpperCase() === 'THETA ADDITION');
+    expect(thetaMatch).toBeDefined();
+    expect(thetaMatch!.score).toBeGreaterThanOrEqual(0.85);
+  });
 });

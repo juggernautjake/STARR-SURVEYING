@@ -943,14 +943,20 @@ If no match exists, return: { "matches": [] }`;
       },
       body: JSON.stringify({
         model: PLAT_AI_MODEL,
-        max_tokens: 300,
+        max_tokens: 400,
         messages: [{ role: 'user', content: prompt }],
       }),
       signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {
-      logger.warn('Stage2A', `AI plat match HTTP ${response.status}`);
+      // Log response body for diagnostics (rate-limit / auth / server errors)
+      const errBody = await response.text().catch(() => '');
+      logger.warn('Stage2A',
+        `AI plat match HTTP ${response.status} for "${searchName}"` +
+        (errBody ? `: ${errBody.slice(0, 200)}` : ''));
+      // Do NOT cache on server-side errors (503, 429) — allow retry on next call
+      if (response.status >= 500 || response.status === 429) return [];
       platMatchAiCache.set(cacheKey, []);
       return [];
     }
@@ -975,7 +981,16 @@ If no match exists, return: { "matches": [] }`;
       return [];
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as { matches?: unknown[] };
+    let parsed: { matches?: unknown[] };
+    try {
+      parsed = JSON.parse(jsonMatch[0]) as { matches?: unknown[] };
+    } catch (parseErr) {
+      logger.warn('Stage2A',
+        `AI plat match: malformed JSON for "${searchName}": ${jsonMatch[0].slice(0, 100)}`);
+      platMatchAiCache.set(cacheKey, []);
+      return [];
+    }
+
     const matches: AiPlatMatchEntry[] = (Array.isArray(parsed.matches) ? parsed.matches : [])
       .filter((m): m is { displayName: string; confidence: number } =>
         typeof m === 'object' && m !== null &&
@@ -994,8 +1009,9 @@ If no match exists, return: { "matches": [] }`;
     platMatchAiCache.set(cacheKey, matches);
     return matches;
   } catch (err) {
-    logger.warn('Stage2A', `AI plat match failed: ${err instanceof Error ? err.message : String(err)}`);
-    platMatchAiCache.set(cacheKey, []);
+    // Network failure (timeout, DNS, connection refused) — do NOT cache; allow retry
+    logger.warn('Stage2A',
+      `AI plat match network error for "${searchName}": ${err instanceof Error ? err.message : String(err)}`);
     return [];
   }
 }
@@ -1105,13 +1121,15 @@ export async function searchCountyPlats(
       anthropicApiKey,
       logger,
     );
-    // Boost the score of AI-confirmed matches; add any not-yet-scored AI matches
+    // Boost the score of AI-confirmed matches; add any not-yet-scored AI matches.
+    // Use case-insensitive name matching because Claude may return slightly different casing.
     for (const aiMatch of aiMatches) {
-      const existing = allScored.find(s => s.name === aiMatch.displayName);
+      const aiNameUpper = aiMatch.displayName.toUpperCase();
+      const existing = allScored.find(s => s.name.toUpperCase() === aiNameUpper);
       if (existing) {
         existing.score = Math.max(existing.score, aiMatch.confidence);
       } else {
-        const link = links.find(l => l.name === aiMatch.displayName);
+        const link = links.find(l => l.name.toUpperCase() === aiNameUpper);
         if (link) allScored.push({ ...link, score: aiMatch.confidence });
       }
     }
@@ -1266,9 +1284,10 @@ export interface PlatArchiveEntry {
 export const PLAT_PAGES: string[] = 'abcdefghijklmnopqrstuvwxyz'.split('').concat(['0-9']);
 
 /**
- * Scrapes a single letter page from the Bell County plat archive and returns all
+ * Scrapes a single letter page from the **Bell County** plat archive and returns all
  * plat entries found, with rich metadata for each link.
  *
+ * This function is Bell County-specific (uses `PLAT_REPO_REGISTRY.bell`).
  * Compared to searchCountyPlats (which scrapes one page for a specific search term),
  * this function is used for full-archive operations: building a local cache, bulk
  * verification, or pre-fetching all entries for a given letter.
