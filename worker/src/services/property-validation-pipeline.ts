@@ -62,7 +62,33 @@ export interface PerCallConfidence {
   distance: string | null;
   rating: ConfidenceRating;
   sources: string[];
+  /** Evidence quality per the 4-level scale from the cross-validation system */
+  evidenceStrength: 'STRONG' | 'MODERATE' | 'WEAK' | 'CONTRADICTED' | null;
   conflictNote: string | null;
+}
+
+/** A single entry in the discrepancy log from CALL 7 */
+export interface DiscrepancyLogEntry {
+  item: string;
+  sourceA: string;
+  sourceB: string;
+  severity: 'CRITICAL' | 'MODERATE' | 'MINOR';
+  actionNeeded: string;
+}
+
+/** An action recommended to improve confidence, ordered by priority */
+export interface TopAction {
+  priority: number;
+  action: string;
+  expectedBenefit: string;
+}
+
+/** Adjacent property research order entry — which deeds to pull first */
+export interface AdjacentResearchEntry {
+  rank: number;
+  ownerName: string;
+  recordingRef: string | null;
+  rationale: string;
 }
 
 export interface ValidationReport {
@@ -96,8 +122,11 @@ export interface ValidationReport {
   overallConfidencePct: number;
   overallRating: ConfidenceRating;
 
-  // ── Recommended actions ───────────────────────────────────────────
+  // ── Recommended actions (from CALL 7 Stage 6 structure) ──────────
   purchaseRecommendations: DocumentPurchaseRecommendation[];
+  topActions: TopAction[];
+  adjacentResearchOrder: AdjacentResearchEntry[];
+  discrepancyLog: DiscrepancyLogEntry[];
 
   // ── Meta ──────────────────────────────────────────────────────────
   generatedAt: string;
@@ -247,7 +276,29 @@ Apply the 5-symbol confidence system to EVERY boundary call:
   ✗ DISCREPANCY — Sources actively disagree (must list all readings)
   ✗✗ CRITICAL  — Major conflict or impossible geometry
 
-CARDINAL RULE: NEVER force reconciliation. When sources disagree, present ALL readings, explain the conflict, and recommend how to resolve it.
+For each piece of evidence, rate it:
+  STRONG      — Clearly visible, high-resolution scan, no watermark damage
+  MODERATE    — Readable but some uncertainty (small text, slight watermark)
+  WEAK        — Heavily obscured, estimated, or single-source only
+  CONTRADICTED — Another source actively disagrees
+
+EVIDENCE TYPES TO CONSIDER:
+1. DEED EVIDENCE: What the parent deed says about each boundary call
+   - Note: deed bearings may use a different epoch or datum (e.g., 1971 vs current NAD83)
+     which will cause a small systematic rotation in all bearings — this is NORMAL and
+     must not be flagged as a discrepancy unless the rotation is inconsistent
+2. PLAT TEXT EVIDENCE: What the OCR extracted — watermark damage vs clear text
+3. GEOMETRIC EVIDENCE: Visual protractor/ruler estimates from the drawing
+   - A line that LOOKS like N 30° E but READS N 85° E is a real discrepancy, not an OCR error
+4. ADJACENT PROPERTY EVIDENCE: The neighbor's deed/plat should describe the SAME shared
+   boundary from their side — N 30° E in our deed should be S 30° W in the neighbor's deed
+5. ROAD EVIDENCE: Public roads have TxDOT ROW plans that provide independent geometry;
+   plat road bearings should be consistent with known road alignments
+
+CARDINAL RULE: NEVER force reconciliation. When sources disagree, present ALL readings,
+explain the conflict (datum difference? re-survey? OCR error? real discrepancy?),
+and recommend specifically how to resolve it (pull adjacent deed instrument #, request
+unwatermarked plat, field-check corner, etc.).
 
 Return JSON:
 {
@@ -258,6 +309,7 @@ Return JSON:
       "distance": "149.92",
       "symbol": "CONFIRMED",
       "sources": ["OCR pass 1", "OCR pass 2", "visual geometry"],
+      "evidenceStrength": "STRONG",
       "conflictNote": null
     }
   ],
@@ -267,8 +319,8 @@ Return JSON:
       "description": "L4 bearing conflict — three OCR readings disagree",
       "allReadings": ["N86°31'22\\"W", "N36°31'22\\"W", "N56°31'22\\"W"],
       "severity": "critical",
-      "resolvedValue": "N56°31'22\\"W",
-      "recommendation": "Geometric analysis confirms N56° reading. Purchase unwatermarked plat to verify."
+      "resolvedValue": null,
+      "recommendation": "Geometric analysis needed; purchase unwatermarked plat to verify."
     }
   ],
   "overallConfidencePct": 64,
@@ -289,15 +341,67 @@ Return JSON:
 
 const REPORT_SYSTEM = `You are an expert Texas RPLS generating a final property validation report.
 
-You will receive all analysis results. Generate a comprehensive validation summary that a field surveyor can rely on.
+CRITICAL RULES:
+1. NEVER fabricate data. If a value is absent, write [MISSING].
+2. NEVER force reconciliation. If sources disagree and you cannot determine why, write [DISCREPANCY].
+3. If watermark damage obscured a digit but context makes the answer clear, mark as [DEDUCED] and explain.
+4. If a clearly visible number contradicts geometry or an adjacent property, mark as [CRITICAL DISCREPANCY].
+5. For values with only one source and no contradiction, mark as [UNCONFIRMED].
 
-Return JSON with this exact structure:
+You will receive analysis results. Produce a comprehensive validation summary that covers:
+
+1. DISCREPANCY RESOLUTION — For any unresolved discrepancies in the data, state what each
+   source says, why they may disagree (datum shift, re-survey, OCR error, typo, real problem),
+   and specifically what action would resolve it (pull instrument #X, field-check corner, etc.)
+
+2. LOT-BY-LOT METES AND BOUNDS — For each lot, list:
+   a) Starting point and monument
+   b) Each call: bearing, distance, along what feature, monument at end
+   c) Curve data where applicable
+   d) Confidence tag on EVERY value (✓ ~ ? ✗ ✗✗)
+   e) For DEDUCED: explain what was obscured and how you determined the value
+   f) For DISCREPANCY: list what each source says and recommend next step
+
+3. PERIMETER COMPARISON — Deed vs plat vs geometry for each perimeter segment in a table
+   with a Status column using the confidence symbols
+
+4. ADJACENT PROPERTY RECOMMENDATIONS — For each adjacent property:
+   - What boundary they share
+   - Their called acreage and recording reference
+   - Whether pulling their deed would help validate a specific boundary
+   - Priority: HIGH (would resolve a discrepancy), MEDIUM (confirms uncertain data), LOW (already confident)
+
+5. COMPREHENSIVE DISCREPANCY LOG — Every conflict ordered by severity:
+   | # | Item | Source A | Source B | Severity | Action Needed |
+   Severity: CRITICAL (affects boundaries), MODERATE (affects precision), MINOR (cosmetic)
+
+6. OVERALL ASSESSMENT — Total calls attempted, breakdown ✓/~/✗/✗✗, and whether data is
+   sufficient for: preliminary boundary mapping, due diligence review, legal reliance
+
+7. TOP ACTIONS — Top 3 specific actions to improve confidence
+   (e.g., "Pull deed Inst# 2010034131", "Field-verify NE corner monument")
+
+8. ADJACENT RESEARCH ORDER — Rank which adjacent property records to pull first, based on
+   which shared boundaries have lowest confidence and which records are most likely to
+   resolve open discrepancies
+
+Return JSON:
 {
-  "propertyName": "ASH FAMILY TRUST 12.358 ACRE ADDITION",
+  "propertyName": "...",
   "overallSummary": "One paragraph summary of findings",
   "keyFindings": ["Finding 1", "Finding 2"],
   "criticalIssues": ["Issue requiring immediate attention"],
-  "fieldNotes": ["Note for field crew"]
+  "fieldNotes": ["Note for field crew"],
+  "topActions": [
+    { "priority": 1, "action": "Pull deed Inst# ...", "expectedBenefit": "Resolves L4 bearing conflict" }
+  ],
+  "adjacentResearchOrder": [
+    { "rank": 1, "ownerName": "...", "recordingRef": "...", "rationale": "..." }
+  ],
+  "discrepancyLog": [
+    { "item": "L4 bearing", "sourceA": "N86°31'22\\"W", "sourceB": "N56°31'22\\"W",
+      "severity": "CRITICAL", "actionNeeded": "Purchase unwatermarked plat" }
+  ]
 }`;
 
 // ── Main orchestrator ─────────────────────────────────────────────────────────
@@ -461,23 +565,27 @@ export async function runPropertyValidationPipeline(
   const perCallConfidence: PerCallConfidence[] = Array.isArray(crossValData?.perCallConfidence)
     ? (crossValData.perCallConfidence as unknown[]).map((pcc: unknown) => {
         const o = (pcc && typeof pcc === 'object' ? pcc : {}) as Record<string, unknown>;
+        const es = o.evidenceStrength != null ? String(o.evidenceStrength) : null;
         return {
-          sequence:     Number(o.sequence ?? 0),
-          bearing:      o.bearing    != null ? String(o.bearing)    : null,
-          distance:     o.distance   != null ? String(o.distance)   : null,
-          rating:       ratingFromSymbol(String(o.symbol ?? 'UNCONFIRMED')),
-          sources:      Array.isArray(o.sources) ? (o.sources as unknown[]).map(String) : [],
-          conflictNote: o.conflictNote != null ? String(o.conflictNote) : null,
+          sequence:        Number(o.sequence ?? 0),
+          bearing:         o.bearing    != null ? String(o.bearing)    : null,
+          distance:        o.distance   != null ? String(o.distance)   : null,
+          rating:          ratingFromSymbol(String(o.symbol ?? 'UNCONFIRMED')),
+          sources:         Array.isArray(o.sources) ? (o.sources as unknown[]).map(String) : [],
+          evidenceStrength: (['STRONG','MODERATE','WEAK','CONTRADICTED'].includes(es ?? '')
+            ? es : null) as PerCallConfidence['evidenceStrength'],
+          conflictNote:    o.conflictNote != null ? String(o.conflictNote) : null,
         };
       })
     // Fallback: build from boundary calls when AI call failed
     : callSummary.map(c => ({
-        sequence: c.seq,
-        bearing:  c.bearing,
-        distance: c.distance,
-        rating:   ratingFromScore(c.conf * 100),
-        sources:  ['text-extraction'],
-        conflictNote: null,
+        sequence:        c.seq,
+        bearing:         c.bearing,
+        distance:        c.distance,
+        rating:          ratingFromScore(c.conf * 100),
+        sources:         ['text-extraction'],
+        evidenceStrength: null,
+        conflictNote:    null,
       }));
 
   // Add geometry-conflict calls that the AI may have missed
@@ -524,15 +632,63 @@ export async function runPropertyValidationPipeline(
   logger.info('ValidationPipeline', 'Call 7: Final report summary...');
   const reportInput = JSON.stringify({
     propertyMeta,
-    discrepancyCount:  discrepancies.length,
-    criticalCount:     discrepancies.filter(d => d.severity === 'critical').length,
-    perCallSummary:    perCallConfidence.map(p => ({ seq: p.sequence, symbol: p.rating.symbol })),
-    overallConfidencePct: crossValData?.overallConfidencePct ?? 0,
-    topDiscrepancies:  discrepancies.slice(0, 3),
+    discrepancyCount:      discrepancies.length,
+    criticalCount:         discrepancies.filter(d => d.severity === 'critical').length,
+    highCount:             discrepancies.filter(d => d.severity === 'high').length,
+    perCallSummary:        perCallConfidence.map(p => ({
+      seq: p.sequence, symbol: p.rating.symbol, evidenceStrength: p.evidenceStrength,
+    })),
+    overallConfidencePct:  crossValData?.overallConfidencePct ?? 0,
+    allDiscrepancies:      discrepancies,
+    adjacentProperties:    adjacentProperties.map(ap => ({
+      ownerName:          ap.ownerName,
+      calledAcreage:      ap.calledAcreage,
+      recordingReference: ap.recordingReference,
+      direction:          ap.direction,
+    })),
   });
 
-  await callClaude(client, REPORT_SYSTEM, reportInput, 'call7-report', logger);
+  const reportRaw = await callClaude(client, REPORT_SYSTEM, reportInput, 'call7-report', logger);
   totalApiCalls++;
+  const reportData = reportRaw ? safeParseJson(reportRaw) : null;
+
+  // Parse Call 7 structured fields (topActions, adjacentResearchOrder, discrepancyLog)
+  const topActions: TopAction[] = Array.isArray(reportData?.topActions)
+    ? (reportData.topActions as unknown[]).map((a: unknown) => {
+        const o = (a && typeof a === 'object' ? a : {}) as Record<string, unknown>;
+        return {
+          priority:        Number(o.priority ?? 99),
+          action:          String(o.action ?? ''),
+          expectedBenefit: String(o.expectedBenefit ?? ''),
+        };
+      }).sort((a, b) => a.priority - b.priority)
+    : [];
+
+  const adjacentResearchOrder: AdjacentResearchEntry[] = Array.isArray(reportData?.adjacentResearchOrder)
+    ? (reportData.adjacentResearchOrder as unknown[]).map((e: unknown) => {
+        const o = (e && typeof e === 'object' ? e : {}) as Record<string, unknown>;
+        return {
+          rank:         Number(o.rank ?? 99),
+          ownerName:    String(o.ownerName ?? ''),
+          recordingRef: o.recordingRef != null ? String(o.recordingRef) : null,
+          rationale:    String(o.rationale ?? ''),
+        };
+      }).sort((a, b) => a.rank - b.rank)
+    : [];
+
+  const discrepancyLog: DiscrepancyLogEntry[] = Array.isArray(reportData?.discrepancyLog)
+    ? (reportData.discrepancyLog as unknown[]).map((d: unknown) => {
+        const o = (d && typeof d === 'object' ? d : {}) as Record<string, unknown>;
+        const sev = String(o.severity ?? 'MODERATE');
+        return {
+          item:         String(o.item ?? ''),
+          sourceA:      String(o.sourceA ?? ''),
+          sourceB:      String(o.sourceB ?? ''),
+          severity:     (['CRITICAL','MODERATE','MINOR'].includes(sev) ? sev : 'MODERATE') as DiscrepancyLogEntry['severity'],
+          actionNeeded: String(o.actionNeeded ?? ''),
+        };
+      })
+    : [];
 
   // ── Confidence summary ──────────────────────────────────────────────────────
   const confidenceCounts: Record<string, number> = {
@@ -550,11 +706,40 @@ export async function runPropertyValidationPipeline(
 
   const overallRating = ratingFromScore(overallConfidencePct);
 
+  // ── End-of-pipeline logging — confidence breakdown + adjacent priority list ──
   logger.info('ValidationPipeline',
     `Pipeline complete: ${overallConfidencePct}% overall (${overallRating.display} ${overallRating.label}), ` +
     `${discrepancies.length} discrepancies, ${totalApiCalls} API calls`);
   logger.info('ValidationPipeline',
+    `  Confidence breakdown: ✓=${confidenceCounts.CONFIRMED} ~=${confidenceCounts.DEDUCED} ` +
+    `?=${confidenceCounts.UNCONFIRMED} ✗=${confidenceCounts.DISCREPANCY} ✗✗=${confidenceCounts.CRITICAL}`);
+  if (discrepancies.some(d => d.severity === 'critical')) {
+    logger.warn('ValidationPipeline',
+      `  CRITICAL discrepancies: ${discrepancies.filter(d => d.severity === 'critical').map(d => d.description).join('; ')}`);
+  }
+  logger.info('ValidationPipeline',
     `  Adjacent properties: ${adjacentProperties.length}, roads: ${roads.length}, easements: ${easements.length}`);
+
+  // Log adjacent properties that have recording references (highest research priority)
+  const highPriorityAdjacents = adjacentProperties.filter(
+    ap => ap.recordingReference && ap.recordingReference.trim() !== ''
+  );
+  if (highPriorityAdjacents.length > 0) {
+    logger.info('ValidationPipeline',
+      `  Adjacent properties with recording refs to pull next (${highPriorityAdjacents.length}):`);
+    for (const ap of highPriorityAdjacents) {
+      logger.info('ValidationPipeline',
+        `    → ${ap.ownerName} — ${ap.recordingReference}${ap.direction ? ` [${ap.direction}]` : ''}`);
+    }
+  }
+
+  // Log top actions from Call 7
+  if (topActions.length > 0) {
+    logger.info('ValidationPipeline', `  Top actions to improve confidence:`);
+    for (const a of topActions.slice(0, 3)) {
+      logger.info('ValidationPipeline', `    ${a.priority}. ${a.action} — ${a.expectedBenefit}`);
+    }
+  }
 
   return {
     propertyName:         propertyMeta.ownerName,
@@ -571,6 +756,9 @@ export async function runPropertyValidationPipeline(
     overallConfidencePct,
     overallRating,
     purchaseRecommendations: purchaseRecommendations.sort((a, b) => a.priority - b.priority),
+    topActions,
+    adjacentResearchOrder,
+    discrepancyLog,
     generatedAt,
     totalApiCalls,
   };

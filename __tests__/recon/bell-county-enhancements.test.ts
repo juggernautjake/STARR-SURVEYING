@@ -1972,3 +1972,135 @@ describe('property-validation-pipeline.ts + geo-reconcile.ts — reference scrip
     expect(e.date).toBeNull();
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+//  Module L: property-validation-pipeline.ts — Stage 5+6 additions
+//            from property-research-pipeline.js reference script
+//            (CROSS_VALIDATION_SYSTEM evidence strength, REPORT_SYSTEM
+//             8-task structure, new types from Call 6+7)
+//
+//  Tests cover:
+//   L-1.  PerCallConfidence evidenceStrength field type checks
+//   L-2.  DiscrepancyLogEntry — all fields and severity enum
+//   L-3.  TopAction — priority, action, expectedBenefit
+//   L-4.  AdjacentResearchEntry — rank, ownerName, recordingRef, rationale
+//   L-5.  ValidationReport includes topActions field
+//   L-6.  ValidationReport includes adjacentResearchOrder field
+//   L-7.  ValidationReport includes discrepancyLog field
+//   L-8.  DiscrepancyLogEntry severity accepts CRITICAL
+//   L-9.  DiscrepancyLogEntry severity accepts MODERATE
+//   L-10. DiscrepancyLogEntry severity accepts MINOR
+//   L-11. TopAction array is sortable by priority
+//   L-12. AdjacentResearchEntry recordingRef is nullable
+// ═══════════════════════════════════════════════════════════════════
+
+import type {
+  DiscrepancyLogEntry,
+  TopAction,
+  AdjacentResearchEntry,
+  ValidationReport,
+} from '../../worker/src/services/property-validation-pipeline.js';
+
+describe('property-validation-pipeline.ts — Stage 5+6 types (Module L)', () => {
+
+  it('L-1. PerCallConfidence.evidenceStrength accepts STRONG', () => {
+    const pcc: import('../../worker/src/services/property-validation-pipeline.js').PerCallConfidence = {
+      sequence: 1, bearing: 'N 45° E', distance: '100', rating: { symbol: 'CONFIRMED', display: '✓', label: 'CONFIRMED', score: 90 },
+      sources: ['OCR pass 1'], evidenceStrength: 'STRONG', conflictNote: null,
+    };
+    expect(pcc.evidenceStrength).toBe('STRONG');
+  });
+
+  it('L-2. PerCallConfidence.evidenceStrength accepts CONTRADICTED', () => {
+    const pcc: import('../../worker/src/services/property-validation-pipeline.js').PerCallConfidence = {
+      sequence: 4, bearing: 'N 56° W', distance: '200', rating: { symbol: 'DISCREPANCY', display: '✗', label: 'DISCREPANCY', score: 25 },
+      sources: ['OCR pass 1', 'OCR pass 2'], evidenceStrength: 'CONTRADICTED', conflictNote: 'Three OCR readings disagree',
+    };
+    expect(pcc.evidenceStrength).toBe('CONTRADICTED');
+  });
+
+  it('L-3. PerCallConfidence.evidenceStrength allows null', () => {
+    const pcc: import('../../worker/src/services/property-validation-pipeline.js').PerCallConfidence = {
+      sequence: 2, bearing: null, distance: null, rating: { symbol: 'UNCONFIRMED', display: '?', label: 'UNCONFIRMED', score: 50 },
+      sources: [], evidenceStrength: null, conflictNote: null,
+    };
+    expect(pcc.evidenceStrength).toBeNull();
+  });
+
+  it('L-4. DiscrepancyLogEntry — CRITICAL severity', () => {
+    const d: DiscrepancyLogEntry = {
+      item: 'L4 bearing', sourceA: 'N86°31\'22"W', sourceB: 'N56°31\'22"W',
+      severity: 'CRITICAL', actionNeeded: 'Purchase unwatermarked plat',
+    };
+    expect(d.severity).toBe('CRITICAL');
+    expect(d.item).toBe('L4 bearing');
+  });
+
+  it('L-5. DiscrepancyLogEntry — MODERATE severity', () => {
+    const d: DiscrepancyLogEntry = {
+      item: 'Scale factor', sourceA: '0.999986', sourceB: '0.998862',
+      severity: 'MODERATE', actionNeeded: 'Verify against NAD83 TX Central Zone tables',
+    };
+    expect(d.severity).toBe('MODERATE');
+  });
+
+  it('L-6. DiscrepancyLogEntry — MINOR severity', () => {
+    const d: DiscrepancyLogEntry = {
+      item: 'Lot 1 area rounding', sourceA: '127,230 sqft', sourceB: '127,290 sqft',
+      severity: 'MINOR', actionNeeded: 'No action required',
+    };
+    expect(d.severity).toBe('MINOR');
+  });
+
+  it('L-7. TopAction — all required fields', () => {
+    const a: TopAction = {
+      priority: 1, action: 'Pull deed Inst# 2010034131',
+      expectedBenefit: 'Confirms north boundary bearing',
+    };
+    expect(a.priority).toBe(1);
+    expect(a.action).toContain('2010034131');
+  });
+
+  it('L-8. TopAction array sortable by priority', () => {
+    const actions: TopAction[] = [
+      { priority: 3, action: 'C', expectedBenefit: '' },
+      { priority: 1, action: 'A', expectedBenefit: '' },
+      { priority: 2, action: 'B', expectedBenefit: '' },
+    ];
+    const sorted = [...actions].sort((a, b) => a.priority - b.priority);
+    expect(sorted[0].action).toBe('A');
+    expect(sorted[2].action).toBe('C');
+  });
+
+  it('L-9. AdjacentResearchEntry — all required fields', () => {
+    const e: AdjacentResearchEntry = {
+      rank: 1, ownerName: 'NORDYKE', recordingRef: 'Inst# 2010034131',
+      rationale: 'Shares north boundary with lowest confidence',
+    };
+    expect(e.rank).toBe(1);
+    expect(e.recordingRef).toContain('2010034131');
+  });
+
+  it('L-10. AdjacentResearchEntry.recordingRef allows null', () => {
+    const e: AdjacentResearchEntry = {
+      rank: 5, ownerName: 'UNKNOWN OWNER', recordingRef: null,
+      rationale: 'No recording reference found on plat',
+    };
+    expect(e.recordingRef).toBeNull();
+  });
+
+  it('L-11. ValidationReport includes topActions field', () => {
+    const r: Partial<ValidationReport> = { topActions: [] };
+    expect(Array.isArray(r.topActions)).toBe(true);
+  });
+
+  it('L-12. ValidationReport includes adjacentResearchOrder field', () => {
+    const r: Partial<ValidationReport> = { adjacentResearchOrder: [] };
+    expect(Array.isArray(r.adjacentResearchOrder)).toBe(true);
+  });
+
+  it('L-13. ValidationReport includes discrepancyLog field', () => {
+    const r: Partial<ValidationReport> = { discrepancyLog: [] };
+    expect(Array.isArray(r.discrepancyLog)).toBe(true);
+  });
+});
