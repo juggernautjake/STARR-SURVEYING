@@ -774,3 +774,129 @@ describe('BellCountyResearch — full state round-trip (bell-county-research.ts)
     expect(state.hasRealProperty).toBe(true);
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODULE G — parseDeedReferences and PDF/plat pipeline helpers
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('parseDeedReferences — enhanced plat page handling', () => {
+  it('G-1. parseDeedReferences extracts instrument numbers from OPR format', async () => {
+    const { parseDeedReferences } = await import('../../worker/src/services/pipeline.js');
+    const result = parseDeedReferences('12.358 AC A MANCHACA #12 OPR/13290/689');
+    expect(result.volumePages.length).toBeGreaterThan(0);
+    const vp = result.volumePages[0];
+    expect(vp.volume).toBe('13290');
+    expect(vp.page).toBe('689');
+  });
+
+  it('G-2. parseDeedReferences extracts bare 10-digit instrument numbers', async () => {
+    const { parseDeedReferences } = await import('../../worker/src/services/pipeline.js');
+    const result = parseDeedReferences('LOT 2 BLOCK 1 SUNRIDGE ESTATES 2023032044 PLAT');
+    expect(result.instrumentNumbers).toContain('2023032044');
+  });
+
+  it('G-3. parseDeedReferences handles multiple instrument numbers in deed history', async () => {
+    const { parseDeedReferences } = await import('../../worker/src/services/pipeline.js');
+    const legalDesc = '12.358 AC Inst 2023032044 OPR/13290/689 also 2010043440';
+    const result = parseDeedReferences(legalDesc);
+    // Should find the Inst-prefixed and bare 10-digit numbers
+    expect(result.instrumentNumbers.length).toBeGreaterThan(0);
+  });
+
+  it('G-4. parseDeedReferences returns empty arrays for no references', async () => {
+    const { parseDeedReferences } = await import('../../worker/src/services/pipeline.js');
+    const result = parseDeedReferences('12.27 AC A MANCHACA #12');
+    expect(result.instrumentNumbers).toHaveLength(0);
+    expect(result.volumePages).toHaveLength(0);
+    expect(result.platRefs).toHaveLength(0);
+  });
+
+  it('G-5. parseDeedReferences extracts cabinet/slide references', async () => {
+    const { parseDeedReferences } = await import('../../worker/src/services/pipeline.js');
+    const result = parseDeedReferences('LOT 3 BLOCK A SUNRIDGE EST CABINET A SLIDE 12');
+    expect(result.platRefs).toHaveLength(1);
+    expect(result.platRefs[0].cabinet).toBe('A');
+    expect(result.platRefs[0].slide).toBe('12');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MODULE H — Pipeline logger detailed steps (PipelineLogger.step integration)
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe('PipelineLogger — detailed steps for dual-tier logging', () => {
+  it('H-1. LayerAttemptBuilder.step captures intermediate steps', async () => {
+    const { PipelineLogger } = await import('../../worker/src/lib/logger.js');
+    const logger = new PipelineLogger('test-h1');
+    const builder = logger.attempt('Stage2C', 'Bell-Clerk', 'subdivision-search', 'ASH FAMILY TRUST 12.358 ACRE ADDITION');
+    builder.step('Starting search for subdivision name');
+    builder.step('Navigating to bell.tx.publicsearch.us');
+    builder.step('Found 5 documents');
+    builder.success(5, 'Subdivision search complete');
+
+    const log = logger.getLog();
+    expect(log).toHaveLength(1);
+    const entry = log[0];
+    expect(entry.layer).toBe('Stage2C');
+    expect(entry.status).toBe('success');
+    expect(entry.dataPointsFound).toBe(5);
+    expect(entry.steps).toBeDefined();
+    expect(entry.steps!.length).toBe(3);
+    expect(entry.steps![0]).toContain('Starting search');
+    expect(entry.steps![1]).toContain('bell.tx.publicsearch.us');
+    expect(entry.steps![2]).toContain('Found 5 documents');
+  });
+
+  it('H-2. LayerAttemptBuilder.fail preserves steps', async () => {
+    const { PipelineLogger } = await import('../../worker/src/lib/logger.js');
+    const logger = new PipelineLogger('test-h2');
+    const builder = logger.attempt('Stage2C', 'Bell-Clerk', 'subdivision-search', 'UNKNOWN SUBDIVISION');
+    builder.step('Starting search');
+    builder.step('No results found');
+    builder.fail('Zero documents returned');
+
+    const log = logger.getLog();
+    expect(log[0].status).toBe('fail');
+    expect(log[0].error).toContain('Zero documents');
+    expect(log[0].steps).toHaveLength(2);
+  });
+
+  it('H-3. getSummary includes steps in output', async () => {
+    const { PipelineLogger } = await import('../../worker/src/lib/logger.js');
+    const logger = new PipelineLogger('test-h3');
+    const b = logger.attempt('Stage3B-PDF', 'Playwright-PDF-Render', 'per-page-adaptive-ocr', 'plat.pdf');
+    b.step('[+50ms] Page 1: screenshot 284KB');
+    b.step('[+3200ms] Page 1: 1450 chars via tiling');
+    b.step('[+3300ms] Page 2: screenshot 291KB');
+    b.success(2, '2 pages rendered');
+
+    const summary = logger.getSummary();
+    expect(summary).toContain('Page 1');
+    expect(summary).toContain('per-page-adaptive-ocr');
+    expect(summary).toContain('Stage3B-PDF');
+  });
+
+  it('H-4. Multiple Stage2C attempts accumulate in log', async () => {
+    const { PipelineLogger } = await import('../../worker/src/lib/logger.js');
+    const logger = new PipelineLogger('test-h4');
+
+    // Simulate Path B3: trying 3 subdivision names
+    for (const name of ['ASH FAMILY TRUST 12.358 ACRE ADDITION', 'ASH FAMILY TRUST', 'A MANCHACA #12']) {
+      const b = logger.attempt('Stage2C', 'Bell-Clerk', 'subdivision-search', name);
+      b.step(`Searching "${name}"`);
+      if (name === 'ASH FAMILY TRUST 12.358 ACRE ADDITION') {
+        b.success(3, '2 plat, 1 deed');
+      } else {
+        b.fail('No new documents');
+      }
+    }
+
+    const log = logger.getLog();
+    expect(log).toHaveLength(3);
+    expect(log[0].status).toBe('success');
+    expect(log[1].status).toBe('fail');
+    expect(log[2].status).toBe('fail');
+    // All should have steps
+    expect(log.every((e) => e.steps && e.steps.length > 0)).toBe(true);
+  });
+});
