@@ -112,6 +112,9 @@ PRECISION RULES:
 - If a number could be two values, list BOTH: "532 [or possibly 132]"
 - NEVER skip text because it is hard to read
 - Preserve EXACT degree/minute/second notation: °, ', "
+- Distinguish between similar characters: 0/O, 1/l, 5/S, 8/B, 6/G
+- For bearings: verify the quadrant makes geometric sense for the line direction shown
+- Include ALL text even if it seems redundant with other segments
 - Output all findings in structured text format — one data item per line`;
 
 // ── Phase 1: Image analysis ───────────────────────────────────────────────────
@@ -290,7 +293,15 @@ function scoreConfidence(text: string): SegmentScore {
 /**
  * Convert row/col/totalRows/totalCols into a human-readable position description
  * matching the vision-quadrants.js convention (TOP-LEFT, BOTTOM-RIGHT, etc.).
- * For grids larger than 2×2 the format is "row R col C of ROWS×COLS grid".
+ *
+ * For 2×2 grids: returns the canonical four quadrant names used by both
+ * vision-quadrants.js and adaptive-vision-v2.js.
+ *
+ * For larger grids: corners stay LEFT/RIGHT/TOP/BOTTOM; intermediate rows in
+ * a 4-row grid use the adaptive-vision-v2.js semantic names UPPER-MIDDLE /
+ * LOWER-MIDDLE, and intermediate cols in a 4-col grid use CENTER-LEFT /
+ * CENTER-RIGHT.  All other grids fall back to ROW N / COL N with a segment
+ * counter so every cell has a unique, readable description.
  */
 function describePosition(row: number, col: number, totalRows: number, totalCols: number): string {
   if (totalRows === 2 && totalCols === 2) {
@@ -298,10 +309,25 @@ function describePosition(row: number, col: number, totalRows: number, totalCols
     const colName = col === 0 ? 'LEFT' : 'RIGHT';
     return `${rowName}-${colName}`;
   }
-  const rowName = row === 0 ? 'TOP'    : row === totalRows - 1 ? 'BOTTOM' : `ROW ${row + 1}`;
-  const colName = col === 0 ? 'LEFT'   : col === totalCols - 1 ? 'RIGHT'  : `COL ${col + 1}`;
-  const segNum  = row * totalCols + col + 1;
-  const total   = totalRows * totalCols;
+
+  // Row label — corners are always TOP/BOTTOM; 4-row interior cells get
+  // semantic labels from adaptive-vision-v2.js's getPositionDesc().
+  let rowName: string;
+  if (row === 0)               rowName = 'TOP';
+  else if (row === totalRows - 1) rowName = 'BOTTOM';
+  else if (totalRows === 4)    rowName = row === 1 ? 'UPPER-MIDDLE' : 'LOWER-MIDDLE';
+  else                         rowName = `ROW ${row + 1}`;
+
+  // Col label — corners are always LEFT/RIGHT; 4-col interior cells get
+  // semantic labels from adaptive-vision-v2.js's getPositionDesc().
+  let colName: string;
+  if (col === 0)               colName = 'LEFT';
+  else if (col === totalCols - 1) colName = 'RIGHT';
+  else if (totalCols === 4)    colName = col === 1 ? 'CENTER-LEFT' : 'CENTER-RIGHT';
+  else                         colName = `COL ${col + 1}`;
+
+  const segNum = row * totalCols + col + 1;
+  const total  = totalRows * totalCols;
   return `${rowName}-${colName} (segment ${segNum} of ${total} in ${totalRows}×${totalCols} grid)`;
 }
 
@@ -312,23 +338,31 @@ async function extractSegment(
   anthropicApiKey: string,
   logger: PipelineLogger,
   positionHint?: string,
+  documentName?: string,
 ): Promise<string> {
   const client = new Anthropic({ apiKey: anthropicApiKey });
   const base64 = imageBuffer.toString('base64');
 
   // Build user message content.
-  // Position-aware context prefix (vision-quadrants.js technique): telling Claude
-  // which part of the plat it is viewing helps it orient and apply spatial context
-  // (e.g. title block is typically bottom-right; north arrow top-right; bearings
-  // along lot boundaries throughout). Always comes before the image.
+  // Position-aware context (vision-quadrants.js / adaptive-vision-v2.js technique):
+  // telling Claude which part of the plat it is viewing, and naming the specific
+  // subdivision + county, helps it orient and apply spatial context. The document
+  // name is placed before the image so Claude has full context before reading.
   type ContentBlock =
     | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
     | { type: 'text'; text: string };
   const userContent: ContentBlock[] = [];
   if (positionHint) {
+    // 'Bell County, Texas' is hardcoded here because the adaptive vision pipeline
+    // is currently used exclusively for Bell County plat/deed documents.  If the
+    // pipeline is extended to other counties in the future, pass the county as an
+    // additional parameter (analogous to adaptive-vision-v2.js's `county` arg).
+    const docContext = documentName
+      ? `the subdivision plat for "${documentName}" in Bell County, Texas`
+      : 'a subdivision plat';
     userContent.push({
       type: 'text',
-      text: `This is the ${positionHint} section of a subdivision plat. Extract all surveying data from this region.`,
+      text: `This is the ${positionHint} section of ${docContext}. Extract all surveying data from this region.`,
     });
   }
   userContent.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } });
@@ -358,11 +392,18 @@ async function extractSegment(
  * For small images (< SMALL_IMAGE_BYTES) or when sharp is unavailable, falls
  * back to a single full-image extraction.
  *
- * @param imageBuffer  Raw image bytes (PNG or JPEG)
- * @param mediaType    MIME type of the image
- * @param anthropicApiKey  Anthropic API key
- * @param logger       Pipeline logger
- * @param label        Human-readable label for log messages
+ * @param imageBuffer     Raw image bytes (PNG or JPEG)
+ * @param mediaType       MIME type of the image
+ * @param anthropicApiKey Anthropic API key
+ * @param logger          Pipeline logger
+ * @param label           Human-readable label for log messages (e.g. docLabel)
+ * @param documentName    Subdivision/document name used in the Claude Vision
+ *                        prompt for every segment, e.g.
+ *                        "Ash Family Trust 12.358 Acre Addition".
+ *                        When provided the per-segment position hint reads:
+ *                        "…section of the subdivision plat for "${documentName}"
+ *                        in Bell County, Texas."
+ *                        Mirrors the adaptive-vision-v2.js subdivisionName param.
  */
 export async function adaptiveVisionOcr(
   imageBuffer: Buffer,
@@ -370,6 +411,7 @@ export async function adaptiveVisionOcr(
   anthropicApiKey: string,
   logger: PipelineLogger,
   label = 'image',
+  documentName?: string,
 ): Promise<AdaptiveVisionResult> {
   const startTime = Date.now();
   let totalApiCalls = 0;
@@ -435,7 +477,7 @@ export async function adaptiveVisionOcr(
     // Phase 4: Extract — pass position context so Claude knows which part of the
     // plat it's reading (vision-quadrants.js technique)
     const positionHint = describePosition(box.row, box.col, grid.rows, grid.cols);
-    const text = await extractSegment(cropBuffer, 'image/png', box.segmentId, anthropicApiKey, logger, positionHint);
+    const text = await extractSegment(cropBuffer, 'image/png', box.segmentId, anthropicApiKey, logger, positionHint, documentName);
     totalApiCalls++;
 
     // Phase 5: Score
@@ -479,7 +521,7 @@ export async function adaptiveVisionOcr(
         const zParentPos = describePosition(box.row, box.col, grid.rows, grid.cols);
         const zSubPos    = describePosition(zbox.row, zbox.col, 2, 2);
         const zPosHint   = `${zParentPos} (zoomed sub-segment: ${zSubPos})`;
-        const zText = await extractSegment(zBuf, 'image/png', zId, anthropicApiKey, logger, zPosHint);
+        const zText = await extractSegment(zBuf, 'image/png', zId, anthropicApiKey, logger, zPosHint, documentName);
         totalApiCalls++;
 
         const zScore = scoreConfidence(zText);

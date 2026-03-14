@@ -1536,17 +1536,18 @@ describe('Bell Clerk Image Capture — grab-docs.js Integration (bell-clerk.ts)'
 });
 
 // ═══════════════════════════════════════════════════════════════════
-//  Module I: vision-quadrants.js — Position-Aware Context Integration
-//  Tests the describePosition() helper that replicates the
-//  vision-quadrants.js technique of telling Claude which quadrant it
-//  is reading (TOP-LEFT, BOTTOM-RIGHT, etc.) for better spatial context.
+//  Module I: adaptive-vision-v2.js — Position-Aware Context (full)
+//  Tests describePosition() including the richer intermediate labels
+//  (UPPER-MIDDLE, LOWER-MIDDLE, CENTER-LEFT, CENTER-RIGHT) added from
+//  adaptive-vision-v2.js's getPositionDesc() convention, and the
+//  documentName integration in the position-hint message.
 // ═══════════════════════════════════════════════════════════════════
 
 describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () => {
 
   /**
-   * Local duplicate of describePosition() for pure-logic unit testing without
-   * importing the module (avoids needing sharp/Anthropic at test time).
+   * Local duplicate of describePosition() kept in sync with the production
+   * implementation so tests don't need sharp/Anthropic at test time.
    */
   function describePosition(row: number, col: number, totalRows: number, totalCols: number): string {
     if (totalRows === 2 && totalCols === 2) {
@@ -1554,14 +1555,34 @@ describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () =
       const colName = col === 0 ? 'LEFT' : 'RIGHT';
       return `${rowName}-${colName}`;
     }
-    const rowName = row === 0 ? 'TOP'    : row === totalRows - 1 ? 'BOTTOM' : `ROW ${row + 1}`;
-    const colName = col === 0 ? 'LEFT'   : col === totalCols - 1 ? 'RIGHT'  : `COL ${col + 1}`;
-    const segNum  = row * totalCols + col + 1;
-    const total   = totalRows * totalCols;
+    let rowName: string;
+    if (row === 0)               rowName = 'TOP';
+    else if (row === totalRows - 1) rowName = 'BOTTOM';
+    else if (totalRows === 4)    rowName = row === 1 ? 'UPPER-MIDDLE' : 'LOWER-MIDDLE';
+    else                         rowName = `ROW ${row + 1}`;
+
+    let colName: string;
+    if (col === 0)               colName = 'LEFT';
+    else if (col === totalCols - 1) colName = 'RIGHT';
+    else if (totalCols === 4)    colName = col === 1 ? 'CENTER-LEFT' : 'CENTER-RIGHT';
+    else                         colName = `COL ${col + 1}`;
+
+    const segNum = row * totalCols + col + 1;
+    const total  = totalRows * totalCols;
     return `${rowName}-${colName} (segment ${segNum} of ${total} in ${totalRows}×${totalCols} grid)`;
   }
 
-  it('I-1. 2×2 grid: TL → "TOP-LEFT" (matches vision-quadrants.js TOP-LEFT)', () => {
+  /** Mirrors the position-hint message built in extractSegment(). */
+  function buildPositionHintText(positionHint: string, documentName?: string): string {
+    const docContext = documentName
+      ? `the subdivision plat for "${documentName}" in Bell County, Texas`
+      : 'a subdivision plat';
+    return `This is the ${positionHint} section of ${docContext}. Extract all surveying data from this region.`;
+  }
+
+  // ── 2×2 grid (vision-quadrants.js / adaptive-vision-v2.js canonical quadrants) ──
+
+  it('I-1. 2×2 grid: TL → "TOP-LEFT"', () => {
     expect(describePosition(0, 0, 2, 2)).toBe('TOP-LEFT');
   });
 
@@ -1573,26 +1594,48 @@ describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () =
     expect(describePosition(1, 0, 2, 2)).toBe('BOTTOM-LEFT');
   });
 
-  it('I-4. 2×2 grid: BR → "BOTTOM-RIGHT" (title block is here on most TX plats)', () => {
+  it('I-4. 2×2 grid: BR → "BOTTOM-RIGHT" (title block on most TX plats)', () => {
     expect(describePosition(1, 1, 2, 2)).toBe('BOTTOM-RIGHT');
   });
 
-  it('I-5. 2×4 grid top-left corner → "TOP-LEFT"', () => {
+  // ── 2×4 grid — corner and interior labels ────────────────────────────────────
+
+  it('I-5. 2×4 grid top-left corner contains "TOP-LEFT"', () => {
     expect(describePosition(0, 0, 2, 4)).toContain('TOP-LEFT');
   });
 
-  it('I-6. 2×4 grid top-right corner → "TOP-RIGHT"', () => {
+  it('I-6. 2×4 grid top-right corner contains "TOP-RIGHT"', () => {
     expect(describePosition(0, 3, 2, 4)).toContain('TOP-RIGHT');
   });
 
-  it('I-7. 2×4 grid interior cell contains segment number', () => {
+  it('I-7. 2×4 grid interior col=1 → "CENTER-LEFT" (richer label from v2)', () => {
     // row=0 col=1 in 2×4 = segment 2 of 8
     const desc = describePosition(0, 1, 2, 4);
+    expect(desc).toContain('CENTER-LEFT');
     expect(desc).toContain('segment 2 of 8');
     expect(desc).toContain('2×4 grid');
   });
 
-  it('I-8. 4×4 grid: every cell produces a non-empty, unique description', () => {
+  it('I-8. 2×4 grid interior col=2 → "CENTER-RIGHT"', () => {
+    const desc = describePosition(0, 2, 2, 4);
+    expect(desc).toContain('CENTER-RIGHT');
+    expect(desc).toContain('segment 3 of 8');
+  });
+
+  // ── 4×4 grid — UPPER-MIDDLE / LOWER-MIDDLE from v2 ───────────────────────────
+
+  it('I-9. 4×4 grid row=1 → "UPPER-MIDDLE" (from adaptive-vision-v2.js)', () => {
+    const desc = describePosition(1, 0, 4, 4);
+    expect(desc).toContain('UPPER-MIDDLE');
+    expect(desc).toContain('LEFT');
+  });
+
+  it('I-10. 4×4 grid row=2 → "LOWER-MIDDLE"', () => {
+    const desc = describePosition(2, 0, 4, 4);
+    expect(desc).toContain('LOWER-MIDDLE');
+  });
+
+  it('I-11. 4×4 grid: every cell produces a non-empty, unique description', () => {
     const seen = new Set<string>();
     for (let r = 0; r < 4; r++) {
       for (let c = 0; c < 4; c++) {
@@ -1605,21 +1648,36 @@ describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () =
     expect(seen.size).toBe(16);
   });
 
-  it('I-9. Zoom sub-segment of BOTTOM-RIGHT uses parent + sub-quadrant context', () => {
-    // Simulate a BOTTOM-RIGHT (row=1 col=1 in 2×2) parent being zoomed into
-    // its own TOP-LEFT sub-segment (row=0 col=0 in 2×2).
+  // ── Zoom sub-segment context ──────────────────────────────────────────────────
+
+  it('I-12. Zoom sub-segment of BOTTOM-RIGHT uses parent + sub-quadrant context', () => {
     const parentPos = describePosition(1, 1, 2, 2);  // BOTTOM-RIGHT
     const subPos    = describePosition(0, 0, 2, 2);   // TOP-LEFT
     const zPosHint  = `${parentPos} (zoomed sub-segment: ${subPos})`;
     expect(zPosHint).toBe('BOTTOM-RIGHT (zoomed sub-segment: TOP-LEFT)');
   });
 
-  it('I-10. positionHint text block message format is correct', () => {
-    // Validate the exact user-message text that will be sent to Claude Vision
-    const positionHint = 'TOP-LEFT';
-    const expected = `This is the ${positionHint} section of a subdivision plat. Extract all surveying data from this region.`;
-    expect(expected).toContain('TOP-LEFT');
-    expect(expected).toContain('section of a subdivision plat');
-    expect(expected).toContain('Extract all surveying data');
+  // ── documentName integration — position-hint message format ──────────────────
+
+  it('I-13. Without documentName: position hint references generic "a subdivision plat"', () => {
+    const msg = buildPositionHintText('TOP-LEFT');
+    expect(msg).toContain('a subdivision plat');
+    expect(msg).toContain('TOP-LEFT');
+    expect(msg).toContain('Extract all surveying data');
+  });
+
+  it('I-14. With documentName: position hint names the subdivision and Bell County, Texas', () => {
+    const msg = buildPositionHintText('BOTTOM-RIGHT', 'ASH FAMILY TRUST 12.358 ACRE ADDITION');
+    // Matches adaptive-vision-v2.js pattern: "…section of the plat for X in Bell County, Texas"
+    expect(msg).toContain('ASH FAMILY TRUST 12.358 ACRE ADDITION');
+    expect(msg).toContain('Bell County, Texas');
+    expect(msg).toContain('BOTTOM-RIGHT');
+    expect(msg).not.toContain('a subdivision plat');
+  });
+
+  it('I-15. documentName message includes correct "subdivision plat for" phrasing', () => {
+    const msg = buildPositionHintText('TOP-RIGHT', 'Dawson Ridge Phase 3');
+    expect(msg).toMatch(/subdivision plat for "Dawson Ridge Phase 3"/);
+    expect(msg).toContain('in Bell County, Texas');
   });
 });
