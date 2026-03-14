@@ -62,7 +62,13 @@ const Footer = (): React.ReactElement => {
 
   return (
     <footer className="footer">
-      {/* Google Ads Conversion Tracking */}
+      {/* ============================================================
+          GOOGLE ADS CONVERSION TRACKING – AW-17921491739
+          Contact-form conversion label: AW-17921491739/-sTrCMb9xP8bEJuG0eFC
+          Source: Google support ticket 5-2885000040495 (Mar 2026)
+          Scripts are injected here in the footer and are visible in
+          browser DevTools under Sources / Elements / Network.
+          ============================================================ */}
       <GoogleAdsScript />
 
       {/* Angled Top Edge */}
