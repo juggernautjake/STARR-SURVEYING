@@ -240,15 +240,26 @@ describe('Bell County plat repository config (county-plats.ts)', () => {
   it('6-6. Bell County has directUrlTemplate configured', async () => {
     const { PLAT_REPO_REGISTRY } = await import('../../worker/src/services/county-plats.js');
     expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toBeTruthy();
-    expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('cms3.revize.com');
+    // IMPORTANT (verified March 14, 2026): must go through bellcountytx.com, NOT cms3.revize.com
+    // directly (direct revize.com access returns HTTP 403).
+    expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('bellcountytx.com');
+    expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).not.toContain('cms3.revize.com');
     expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('{LETTER}');
     expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('{NAME}');
   });
 
-  it('6-7. directUrlTemplate contains correct Revize CDN path', async () => {
+  it('6-7. directUrlTemplate contains correct bellcountytx.com path', async () => {
     const { PLAT_REPO_REGISTRY } = await import('../../worker/src/services/county-plats.js');
-    expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('bellcountytx');
+    expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('bellcountytx.com');
     expect(PLAT_REPO_REGISTRY.bell.directUrlTemplate).toContain('docs/plats');
+  });
+
+  it('6-8. Bell County fileBaseUrl is bellcountytx.com (not cms3.revize.com)', async () => {
+    const { PLAT_REPO_REGISTRY } = await import('../../worker/src/services/county-plats.js');
+    // The <base> tag on index pages is https://www.bellcountytx.com/ so all relative hrefs
+    // resolve from there — fileBaseUrl must match this.
+    expect(PLAT_REPO_REGISTRY.bell.fileBaseUrl).toContain('bellcountytx.com');
+    expect(PLAT_REPO_REGISTRY.bell.fileBaseUrl).not.toContain('cms3.revize.com');
   });
 });
 
@@ -260,7 +271,9 @@ describe('constructDirectPlatUrl (county-plats.ts)', () => {
       await import('../../worker/src/services/county-plats.js');
     const url = constructDirectPlatUrl('ASH FAMILY TRUST 12.358 ACRE ADDITION', PLAT_REPO_REGISTRY.bell);
     expect(url).not.toBeNull();
-    expect(url).toContain('cms3.revize.com');
+    // Must use bellcountytx.com (not cms3.revize.com which returns 403)
+    expect(url).toContain('bellcountytx.com');
+    expect(url).not.toContain('cms3.revize.com');
     expect(url).toContain('/A/');
     expect(url).toContain('ASH');
     expect(url).toContain('.pdf');
@@ -297,12 +310,12 @@ describe('constructDirectPlatUrl (county-plats.ts)', () => {
     expect(constructDirectPlatUrl('', PLAT_REPO_REGISTRY.bell)).toBeNull();
   });
 
-  it('9-6. ASH FAMILY TRUST URL matches exact confirmed pattern', async () => {
+  it('9-6. ASH FAMILY TRUST URL matches confirmed bellcountytx.com pattern', async () => {
     const { constructDirectPlatUrl, PLAT_REPO_REGISTRY } =
       await import('../../worker/src/services/county-plats.js');
     const url = constructDirectPlatUrl('ASH FAMILY TRUST 12.358 ACRE ADDITION', PLAT_REPO_REGISTRY.bell);
-    // Confirmed working URL from March 2026 session
-    expect(url).toContain('/revize/bellcountytx/');
+    // Verified working pattern (March 14, 2026): go through bellcountytx.com (auto-redirects to revize)
+    expect(url).toContain('bellcountytx.com');
     expect(url).toContain('/docs/plats/A/');
     expect(url).toContain('ASH');
     expect(url?.endsWith('.pdf')).toBe(true);
@@ -327,6 +340,86 @@ describe('directUrlNameVariants (county-plats.ts)', () => {
   it('10-3. returns array (at least 1 entry)', async () => {
     const { directUrlNameVariants } = await import('../../worker/src/services/county-plats.js');
     expect(directUrlNameVariants('SIMPLE ADDITION').length).toBeGreaterThan(0);
+  });
+
+  it('10-4. generates " A" and " B" letter suffix variants for Bell County split plats', async () => {
+    const { directUrlNameVariants } = await import('../../worker/src/services/county-plats.js');
+    const variants = directUrlNameVariants('DAWSON RIDGE AMENDING PLAT');
+    // Base name first
+    expect(variants[0]).toBe('DAWSON RIDGE AMENDING PLAT');
+    // Letter suffixes
+    expect(variants.some(v => v === 'DAWSON RIDGE AMENDING PLAT A')).toBe(true);
+    expect(variants.some(v => v === 'DAWSON RIDGE AMENDING PLAT B')).toBe(true);
+  });
+});
+
+// ── 11. normalizePlatName — abbreviation normalization ───────────────────────
+
+describe('normalizePlatName (county-plats.ts)', () => {
+  it('11-1. ADN → ADDITION', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('DAVIS ADN')).toContain('ADDITION');
+  });
+
+  it('11-2. AMENDING → AMENDED (Bell County interchangeable)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const n = normalizePlatName('DAWSON RIDGE AMENDING PLAT');
+    expect(n).toContain('AMENDED');
+  });
+
+  it('11-3. EST → ESTATES', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('WILLIAMS CREEK EST')).toContain('ESTATES');
+  });
+
+  it('11-4. 1ST → 1 (ordinal normalization)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('OAKWOOD 1ST ADDITION')).toContain('1 ADDITION');
+  });
+
+  it('11-5. Roman II → arabic 2', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('DAWSON RIDGE AMENDMENT II')).toContain('2');
+  });
+
+  it('11-6. & → AND', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('A & B COMMERCIAL')).toContain('AND');
+  });
+
+  it('11-7. RPLT → REPLAT', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('HIGHLAND RPLT')).toContain('REPLAT');
+  });
+});
+
+// ── 12. scorePlatMatch — with abbreviation normalization ─────────────────────
+
+describe('scorePlatMatch with normalization (county-plats.ts)', () => {
+  it('12-1. AMENDING vs AMENDED scores >= 0.8 (key Dawson Ridge case)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    // Target from CAD: "DAWSON RIDGE AMENDING PLAT"
+    // File on disk:    "DAWSON RIDGE AMENDED PLAT-A" (link text) OR "DAWSON RIDGE AMENDING PLAT A" (filename)
+    const score = scorePlatMatch('DAWSON RIDGE AMENDED PLAT A', 'DAWSON RIDGE AMENDING PLAT');
+    expect(score).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it('12-2. ADN vs ADDITION scores >= 0.7', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch('DAVIS ADN', 'DAVIS ADDITION');
+    expect(score).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it('12-3. short name does NOT match long unrelated name (< 0.5)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch('DAVIS ADN', 'DAVIS BRAGGS EAST RIDGE ADDITION');
+    expect(score).toBeLessThan(0.5);
+  });
+
+  it('12-4. ASH FAMILY TRUST fragment still scores >= 0.5', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch('ASH FAMILY TRUST 12.358 ACRE ADDITION', 'ASH FAMILY TRUST');
+    expect(score).toBeGreaterThanOrEqual(0.5);
   });
 });
 

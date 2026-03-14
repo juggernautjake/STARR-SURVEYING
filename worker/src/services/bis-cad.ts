@@ -2745,7 +2745,7 @@ function selectBestGisFeature(
   // ── Priority 2: Address match ─────────────────────────────────────────────
   if (options.address) {
     const inputNum = options.address.match(/^(\d+)/)?.[1] ?? '';
-    // Normalise street name: uppercase, strip common suffixes, collapse spaces
+    // Normalize street name: uppercase, strip common suffixes, collapse spaces
     const normStreet = (s: string) =>
       s.toUpperCase()
        .replace(/\b(DRIVE|DR|STREET|ST|AVENUE|AVE|ROAD|RD|LANE|LN|BLVD|BOULEVARD|COURT|CT|WAY|CIRCLE|CIR|TRAIL|TRL|PLACE|PL)\b\.?/g, '')
@@ -2769,7 +2769,7 @@ function selectBestGisFeature(
       const situsNum = situs.match(/^(\d+)/)?.[1] ?? '';
       if (inputNum && situsNum !== inputNum) continue;
 
-      // Street name fuzzy match (normalised tokens overlap)
+      // Street name fuzzy match (normalized tokens overlap)
       const situsNorm = normStreet(situs);
       const inputTokens = inputStreetNorm.split(' ').filter(Boolean);
       const situsTokens = new Set(situsNorm.split(' ').filter(Boolean));

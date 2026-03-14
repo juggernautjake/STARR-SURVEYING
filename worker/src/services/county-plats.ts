@@ -77,21 +77,32 @@ const PLAT_BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5
 export const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
   // ── Bell County — Revize CMS, direct PDF downloads ────────────────────────
   //
-  // URL discovery (from bellcountytx.com, March 2026):
+  // URL discovery (verified March 14, 2026):
   //   Index pages:  https://www.bellcountytx.com/county_government/county_clerk/{letter}.php
-  //   Direct PDFs:  https://cms3.revize.com/revize/bellcountytx/
-  //                   county_government/county_clerk/docs/plats/{LETTER}/{NAME_ENCODED}.pdf
-  //   Confirmed:    ASH FAMILY TRUST 12.358 ACRE ADDITION.pdf → direct fetch works,
-  //                 no auth, no watermarks, full-resolution drawing.
+  //   Direct PDFs:  https://www.bellcountytx.com/county_government/county_clerk/docs/plats/{LETTER}/{NAME}.pdf
+  //                 (the site auto-redirects to cms3.revize.com/revize/bellcountytx/... — always go through
+  //                  bellcountytx.com, NEVER hit cms3.revize.com directly which returns 403)
+  //
+  // HTML structure of index pages (varies by page — ONLY reliable selector is <a href="*.pdf">):
+  //   a.php  → UL > LI > A          (236 links)
+  //   d.php  → UL > LI > SPAN > A   (242 links)
+  //   m.php  → UL > LI > SPAN > A   (644 links)
+  //   0-9.php → U > FONT > A        (56 links)
+  //
+  // URL resolution: every page has <base href="https://www.bellcountytx.com/"> so ALL relative hrefs
+  // resolve from the site root. Three href patterns appear in the wild:
+  //   Pattern 1 (95%): county_government/county_clerk/docs/plats/D/NAME.PDF   → prepend bellcountytx.com/
+  //   Pattern 2 ( 2%): county_government/county_clerk/docs/plats/NAME.pdf     → prepend bellcountytx.com/
+  //   Pattern 3 ( 3%): NAME.pdf                                                → prepend bellcountytx.com/
   //
   // Fetch strategy (fastest-first):
-  //   Layer 0 — Direct CDN URL construction (0 scraping, ~1-2s response)
+  //   Layer 0 — Direct bellcountytx.com URL construction (0 scraping, ~1-2s response)
   //   Layer 1 — bellcountytx.com index page scrape + fuzzy match (~5-15s)
-  //   Layer 2 — Retry Layer 0 with name variations (dots as %2E, etc.)
+  //   Layer 2 — Retry Layer 0 with name variations (A/B suffixes, abbreviation expansion, etc.)
   bell: {
     indexUrlTemplate: 'https://www.bellcountytx.com/county_government/county_clerk/{letter}.php',
-    fileBaseUrl:      'https://cms3.revize.com',
-    directUrlTemplate: 'https://cms3.revize.com/revize/bellcountytx/county_government/county_clerk/docs/plats/{LETTER}/{NAME}.pdf',
+    fileBaseUrl:      'https://www.bellcountytx.com',
+    directUrlTemplate: 'https://www.bellcountytx.com/county_government/county_clerk/docs/plats/{LETTER}/{NAME}.pdf',
     countyDisplayName: 'Bell County Clerk plat repository (bellcountytx.com)',
     fileExt: 'pdf',
     parseMode: 'links',
@@ -318,7 +329,7 @@ function parsePlatLinks(html: string, config: PlatRepoConfig): PlatLink[] {
   const seen = new Set<string>();
 
   function addLink(rawHref: string, rawName: string): void {
-    // Strip inner HTML tags from anchor text, normalise whitespace
+    // Strip inner HTML tags from anchor text, normalize whitespace
     const name = rawName.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
     if (!name || name.length < 3) return;
 
@@ -456,22 +467,130 @@ function parsePlatIndex(html: string, config: PlatRepoConfig): PlatLink[] {
 const STOP_WORDS = new Set([
   'ADDITION', 'SUBDIVISION', 'ESTATES', 'SECTION', 'PHASE', 'UNIT', 'LOT',
   'BLOCK', 'BLK', 'THE', 'OF', 'AT', 'AND', 'A', 'AN', 'NO',
-  'REPLAT', 'AMENDED', 'FINAL', 'PLAT', 'SURVEY', 'ABSTRACT',
+  'REPLAT', 'AMENDED', 'AMENDMENT', 'FINAL', 'PLAT', 'SURVEY', 'ABSTRACT',
 ]);
+
+/**
+ * Normalizes a subdivision name for fuzzy matching by expanding abbreviations
+ * to canonical forms, correcting common typos, and normalizing ordinals/cardinals.
+ *
+ * Handles all abbreviation patterns found in Bell County's 8,288-entry plat archive.
+ * Applied to BOTH the search target and each index entry before comparison so that
+ * "DAWSON RIDGE AMENDING PLAT" matches "DAWSON RIDGE AMENDED PLAT-A" (score > 0.8).
+ */
+export function normalizePlatName(name: string): string {
+  let n = name.toUpperCase().trim();
+
+  // Step 0: Normalize symbols BEFORE stripping punctuation
+  n = n.replace(/&/g, ' AND ');
+  n = n.replace(/#(\d)/g, 'NUMBER $1');
+  n = n.replace(/#/g, 'NUMBER');
+  // Strip non-alphanumeric characters (except spaces) — handles hyphens, punctuation
+  n = n.replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // ── Expand abbreviations to canonical forms ─────────────────────────────
+  // ADDITION variants
+  n = n.replace(/\bADN\b/g, 'ADDITION');
+  n = n.replace(/\bADDN\b/g, 'ADDITION');
+  n = n.replace(/\bADDITON\b/g, 'ADDITION');    // typo
+  n = n.replace(/\bADDITITON\b/g, 'ADDITION');  // typo
+  n = n.replace(/\bAD\b/g, 'ADDITION');          // truncated (e.g. "MAYO AUTOMOTIVE AD")
+
+  // SUBDIVISION variants
+  n = n.replace(/\bSUBD\b/g, 'SUBDIVISION');
+  n = n.replace(/\bSUBDVISION\b/g, 'SUBDIVISION'); // typo
+  // "SUB" alone is intentionally NOT expanded — too many non-subdivision uses
+  // (e.g. "SUBURBAN", "SUBJECT") and Bell County does not use SUB as an abbreviation.
+
+  // ESTATES
+  n = n.replace(/\bEST\b/g, 'ESTATES');
+
+  // REPLAT variants
+  n = n.replace(/\bRPLT\b/g, 'REPLAT');
+  n = n.replace(/\bRPLAT\b/g, 'REPLAT');
+  n = n.replace(/\bRP\b/g, 'REPLAT');
+  n = n.replace(/\bREPLATE\b/g, 'REPLAT');         // typo
+
+  // AMENDED / AMENDING — Bell County uses these interchangeably in file names
+  n = n.replace(/\bAMENDING\b/g, 'AMENDED');
+  n = n.replace(/\bAMANDED\b/g, 'AMENDED');         // typo
+
+  // AMENDMENT variants
+  n = n.replace(/\bAMND\b/g, 'AMENDMENT');
+  // "AMEND" alone (but not when followed by -ED or -ING which we already handled)
+  n = n.replace(/\bAMEND\b/g, 'AMENDMENT');
+
+  // FINAL PLAT
+  n = n.replace(/\bFP\b/g, 'FINAL PLAT');
+
+  // COMMERCIAL / HEIGHTS
+  n = n.replace(/\bCOMM\b/g, 'COMMERCIAL');
+  n = n.replace(/\bHTS\b/g, 'HEIGHTS');
+
+  // RESUBDIVISION
+  n = n.replace(/\bRESUB\b/g, 'RESUBDIVISION');
+
+  // NUMBER / NO
+  n = n.replace(/\bNO\b/g, 'NUMBER');
+
+  // ── Phase / Section abbreviations ──────────────────────────────────────
+  // P1 → PHASE 1, S1 → SECTION 1 (single-digit attached abbrs)
+  n = n.replace(/\bP(\d+)\b/g, 'PHASE $1');
+  n = n.replace(/\bS(\d+)\b/g, 'SECTION $1');
+  // PH N → PHASE N, SEC N → SECTION N
+  n = n.replace(/\bPH\s+(\d)/g, 'PHASE $1');
+  n = n.replace(/\bSEC\s+(\d)/g, 'SECTION $1');
+  // Extension shorthand: 1E → 1 EXTENSION
+  n = n.replace(/\b(\d+)E\b/g, '$1 EXTENSION');
+
+  // ── Normalize ordinals to plain arabic ─────────────────────────────────
+  // 1ST → 1, 2ND → 2, etc.
+  n = n.replace(/\b(\d+)(?:ST|ND|RD|TH)\b/g, '$1');
+
+  // Spelled-out ordinals and cardinals → arabic
+  const wordNums: Record<string, string> = {
+    FIRST: '1', SECOND: '2', THIRD: '3', FOURTH: '4', FIFTH: '5',
+    SIXTH: '6', SEVENTH: '7', EIGHTH: '8', NINTH: '9', TENTH: '10',
+    ONE: '1', TWO: '2', THREE: '3', FOUR: '4', FIVE: '5',
+    SIX: '6', SEVEN: '7', EIGHT: '8', NINE: '9', TEN: '10',
+  };
+  for (const [word, num] of Object.entries(wordNums)) {
+    n = n.replace(new RegExp(`\\b${word}\\b`, 'g'), num);
+  }
+
+  // Roman numerals (multi-char only — I/V/X are too ambiguous standalone)
+  const romans: Record<string, string> = {
+    II: '2', III: '3', IV: '4', VI: '6', VII: '7', VIII: '8', IX: '9',
+    XI: '11', XII: '12', XIII: '13', XIV: '14', XV: '15',
+  };
+  for (const [roman, arabic] of Object.entries(romans)) {
+    n = n.replace(new RegExp(`\\b${roman}\\b`, 'g'), arabic);
+  }
+  // Single-char romans only after known keywords
+  n = n.replace(/\b(PHASE|SECTION|NUMBER|REPLAT|AMENDMENT|UNIT|PART)\s+I\b/g, '$1 1');
+  n = n.replace(/\b(PHASE|SECTION|NUMBER|REPLAT|AMENDMENT|UNIT|PART)\s+V\b/g, '$1 5');
+  n = n.replace(/\b(PHASE|SECTION|NUMBER|REPLAT|AMENDMENT|UNIT|PART)\s+X\b/g, '$1 10');
+
+  return n.replace(/\s+/g, ' ').trim();
+}
 
 /**
  * Scores how well `platName` (from the index) matches `targetName` (from the legal description).
  * Returns 0-1 where 1.0 = exact match.
+ *
+ * Both names are normalized through normalizePlatName() before comparison so that
+ * abbreviation differences (ADN vs ADDITION, AMENDING vs AMENDED) don't prevent matches.
  */
 export function scorePlatMatch(platName: string, targetName: string): number {
-  const a = platName.toUpperCase().trim();
-  const b = targetName.toUpperCase().trim();
+  // Compare normalized forms
+  const a = normalizePlatName(platName);
+  const b = normalizePlatName(targetName);
 
   if (a === b) return 1.0;
   if (a.includes(b) || b.includes(a)) return 0.9;
 
-  const tokensA = new Set(a.split(/\W+/).filter(Boolean));
-  const tokensB = b.split(/\W+/).filter(Boolean);
+  const tokensA = new Set(a.split(/\s+/).filter(Boolean));
+  const tokensB = b.split(/\s+/).filter(Boolean);
 
   if (tokensB.length === 0) return 0;
 
@@ -494,24 +613,27 @@ export function scorePlatMatch(platName: string, targetName: string): number {
 // ── Direct URL Construction (Bell County Layer 0) ────────────────────────────
 
 /**
- * Constructs the direct Revize CDN URL for a Bell County plat PDF.
+ * Constructs the direct bellcountytx.com URL for a Bell County plat PDF.
  *
- * Bell County Revize CMS URL pattern (confirmed March 2026):
- *   https://cms3.revize.com/revize/bellcountytx/county_government/county_clerk/
- *     docs/plats/{LETTER}/{NAME_URL_ENCODED}.pdf
+ * IMPORTANT (verified March 14, 2026): Always go through bellcountytx.com, NEVER
+ * construct cms3.revize.com URLs directly — those return HTTP 403.
+ * bellcountytx.com automatically redirects to the Revize CDN.
+ *
+ * Bell County URL pattern:
+ *   https://www.bellcountytx.com/county_government/county_clerk/docs/plats/{LETTER}/{NAME}.pdf
  *
  * Where:
  *   {LETTER} = uppercase first letter of subdivision name (e.g. "A" for ASH FAMILY TRUST)
- *   {NAME_URL_ENCODED} = subdivision name fully URL-encoded via encodeURIComponent
- *                        (spaces → %20, periods → %2E, etc.)
+ *   {NAME}   = subdivision name URL-encoded via encodeURIComponent
+ *              (spaces → %20, periods → %2E, etc.)
  *
  * Example:
  *   "ASH FAMILY TRUST 12.358 ACRE ADDITION"
- *   → https://cms3.revize.com/revize/bellcountytx/county_government/county_clerk/
- *       docs/plats/A/ASH%20FAMILY%20TRUST%2012.358%20ACRE%20ADDITION.pdf
+ *   → https://www.bellcountytx.com/county_government/county_clerk/docs/plats/A/
+ *       ASH%20FAMILY%20TRUST%2012.358%20ACRE%20ADDITION.pdf
  *
- * Note: encodeURIComponent encodes ALL special chars including periods (%2E).
- * The Revize server accepts both encoded and literal periods in filenames.
+ * Note: Bell County plats are often split into multiple files (A, B).
+ * Use directUrlNameVariants() to try " A", " B", " C" suffixes as well.
  * Returns null if the config has no directUrlTemplate.
  */
 export function constructDirectPlatUrl(
@@ -534,21 +656,33 @@ export function constructDirectPlatUrl(
 
 /**
  * Generates name variants for direct URL tries.
- * Bell County file names may differ slightly in punctuation from the search term.
+ * Bell County file names may differ slightly in punctuation from the search term,
+ * and many plats are split across multiple files with A/B/C letter suffixes.
  * Returns the original name plus cleaned alternatives.
  */
 export function directUrlNameVariants(subdivisionName: string): string[] {
   const u = subdivisionName.trim().toUpperCase();
-  const variants = new Set<string>([u]);
+  const base = new Set<string>([u]);
 
   // Variant: replace & with AND
-  variants.add(u.replace(/&/g, 'AND').replace(/\s+/g, ' ').trim());
+  base.add(u.replace(/&/g, 'AND').replace(/\s+/g, ' ').trim());
   // Variant: remove trailing section identifiers
-  variants.add(u.replace(/\s+(SECTION|PHASE|PART)\s+\d+$/i, '').trim());
+  base.add(u.replace(/\s+(SECTION|PHASE|PART)\s+\d+$/i, '').trim());
   // Variant: replace / with space
-  variants.add(u.replace(/\//g, ' ').replace(/\s+/g, ' ').trim());
+  base.add(u.replace(/\//g, ' ').replace(/\s+/g, ' ').trim());
 
-  return [...variants].filter(Boolean);
+  // Bell County plats are often split into multiple files with letter suffixes:
+  //   "DAWSON RIDGE AMENDING PLAT" → "DAWSON RIDGE AMENDING PLAT A", "DAWSON RIDGE AMENDING PLAT B"
+  // We want to try the base name FIRST, then the suffixed variants.
+  const suffixed: string[] = [];
+  for (const variant of base) {
+    for (const suffix of ['A', 'B', 'C', 'D']) {
+      suffixed.push(`${variant} ${suffix}`);
+    }
+  }
+
+  // Return base variants first (exact match is best), then suffixed variants
+  return [...base, ...suffixed].filter(Boolean);
 }
 
 
@@ -670,7 +804,20 @@ export async function searchCountyPlats(
   logger.info('Stage2A', `${config.countyDisplayName} /${letter} index: ${links.length} entries`);
 
   const scored: PlatSearchResult[] = links
-    .map(link => ({ ...link, score: scorePlatMatch(link.name, searchName) }))
+    .map(link => {
+      // Score against the display name (link text)
+      const nameScore = scorePlatMatch(link.name, searchName);
+      // Also score against the filename extracted from the URL — these often differ
+      // (e.g. link text "DAWSON RIDGE AMENDED PLAT-A" vs file "DAWSON RIDGE AMENDING PLAT A.pdf")
+      let hrefScore = 0;
+      try {
+        const pathname = new URL(link.url).pathname;
+        const filenameEncoded = pathname.split('/').pop() ?? '';
+        const filename = decodeURIComponent(filenameEncoded).replace(/\.[pP][dD][fF]$/, '');
+        hrefScore = scorePlatMatch(filename, searchName);
+      } catch { /* ignore URL parsing errors */ }
+      return { ...link, score: Math.max(nameScore, hrefScore) };
+    })
     .filter(r => r.score >= minScore)
     .sort((a, b) => b.score - a.score);
 
