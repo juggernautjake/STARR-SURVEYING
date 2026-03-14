@@ -287,15 +287,51 @@ function scoreConfidence(text: string): SegmentScore {
 
 // ── Phase 4: Per-segment Vision extraction ────────────────────────────────────
 
+/**
+ * Convert row/col/totalRows/totalCols into a human-readable position description
+ * matching the vision-quadrants.js convention (TOP-LEFT, BOTTOM-RIGHT, etc.).
+ * For grids larger than 2×2 the format is "row R col C of ROWS×COLS grid".
+ */
+function describePosition(row: number, col: number, totalRows: number, totalCols: number): string {
+  if (totalRows === 2 && totalCols === 2) {
+    const rowName = row === 0 ? 'TOP' : 'BOTTOM';
+    const colName = col === 0 ? 'LEFT' : 'RIGHT';
+    return `${rowName}-${colName}`;
+  }
+  const rowName = row === 0 ? 'TOP'    : row === totalRows - 1 ? 'BOTTOM' : `ROW ${row + 1}`;
+  const colName = col === 0 ? 'LEFT'   : col === totalCols - 1 ? 'RIGHT'  : `COL ${col + 1}`;
+  const segNum  = row * totalCols + col + 1;
+  const total   = totalRows * totalCols;
+  return `${rowName}-${colName} (segment ${segNum} of ${total} in ${totalRows}×${totalCols} grid)`;
+}
+
 async function extractSegment(
   imageBuffer: Buffer,
   mediaType: 'image/png' | 'image/jpeg',
   segmentId: string,
   anthropicApiKey: string,
   logger: PipelineLogger,
+  positionHint?: string,
 ): Promise<string> {
   const client = new Anthropic({ apiKey: anthropicApiKey });
   const base64 = imageBuffer.toString('base64');
+
+  // Build user message content.
+  // Position-aware context prefix (vision-quadrants.js technique): telling Claude
+  // which part of the plat it is viewing helps it orient and apply spatial context
+  // (e.g. title block is typically bottom-right; north arrow top-right; bearings
+  // along lot boundaries throughout). Always comes before the image.
+  type ContentBlock =
+    | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+    | { type: 'text'; text: string };
+  const userContent: ContentBlock[] = [];
+  if (positionHint) {
+    userContent.push({
+      type: 'text',
+      text: `This is the ${positionHint} section of a subdivision plat. Extract all surveying data from this region.`,
+    });
+  }
+  userContent.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } });
 
   try {
     const response = await client.messages.create({
@@ -303,10 +339,7 @@ async function extractSegment(
       max_tokens: 8192,
       temperature: 0,
       system: EXTRACTION_PROMPT,
-      messages: [{
-        role: 'user',
-        content: [{ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } }],
-      }],
+      messages: [{ role: 'user', content: userContent }],
     });
 
     const textBlock = response.content.find(c => c.type === 'text');
@@ -399,8 +432,10 @@ export async function adaptiveVisionOcr(
       .png()
       .toBuffer();
 
-    // Phase 4: Extract
-    const text = await extractSegment(cropBuffer, 'image/png', box.segmentId, anthropicApiKey, logger);
+    // Phase 4: Extract — pass position context so Claude knows which part of the
+    // plat it's reading (vision-quadrants.js technique)
+    const positionHint = describePosition(box.row, box.col, grid.rows, grid.cols);
+    const text = await extractSegment(cropBuffer, 'image/png', box.segmentId, anthropicApiKey, logger, positionHint);
     totalApiCalls++;
 
     // Phase 5: Score
@@ -440,7 +475,11 @@ export async function adaptiveVisionOcr(
           .toBuffer();
 
         const zId   = `${box.segmentId}_z${zbox.segmentId}`;
-        const zText = await extractSegment(zBuf, 'image/png', zId, anthropicApiKey, logger);
+        // Zoom position context: describe both the parent quadrant and sub-quadrant
+        const zParentPos = describePosition(box.row, box.col, grid.rows, grid.cols);
+        const zSubPos    = describePosition(zbox.row, zbox.col, 2, 2);
+        const zPosHint   = `${zParentPos} (zoomed sub-segment: ${zSubPos})`;
+        const zText = await extractSegment(zBuf, 'image/png', zId, anthropicApiKey, logger, zPosHint);
         totalApiCalls++;
 
         const zScore = scoreConfidence(zText);

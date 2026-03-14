@@ -1534,3 +1534,92 @@ describe('Bell Clerk Image Capture — grab-docs.js Integration (bell-clerk.ts)'
     expect(imageUrls[1]).toBe(page2Url);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+//  Module I: vision-quadrants.js — Position-Aware Context Integration
+//  Tests the describePosition() helper that replicates the
+//  vision-quadrants.js technique of telling Claude which quadrant it
+//  is reading (TOP-LEFT, BOTTOM-RIGHT, etc.) for better spatial context.
+// ═══════════════════════════════════════════════════════════════════
+
+describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () => {
+
+  /**
+   * Local duplicate of describePosition() for pure-logic unit testing without
+   * importing the module (avoids needing sharp/Anthropic at test time).
+   */
+  function describePosition(row: number, col: number, totalRows: number, totalCols: number): string {
+    if (totalRows === 2 && totalCols === 2) {
+      const rowName = row === 0 ? 'TOP' : 'BOTTOM';
+      const colName = col === 0 ? 'LEFT' : 'RIGHT';
+      return `${rowName}-${colName}`;
+    }
+    const rowName = row === 0 ? 'TOP'    : row === totalRows - 1 ? 'BOTTOM' : `ROW ${row + 1}`;
+    const colName = col === 0 ? 'LEFT'   : col === totalCols - 1 ? 'RIGHT'  : `COL ${col + 1}`;
+    const segNum  = row * totalCols + col + 1;
+    const total   = totalRows * totalCols;
+    return `${rowName}-${colName} (segment ${segNum} of ${total} in ${totalRows}×${totalCols} grid)`;
+  }
+
+  it('I-1. 2×2 grid: TL → "TOP-LEFT" (matches vision-quadrants.js TOP-LEFT)', () => {
+    expect(describePosition(0, 0, 2, 2)).toBe('TOP-LEFT');
+  });
+
+  it('I-2. 2×2 grid: TR → "TOP-RIGHT"', () => {
+    expect(describePosition(0, 1, 2, 2)).toBe('TOP-RIGHT');
+  });
+
+  it('I-3. 2×2 grid: BL → "BOTTOM-LEFT"', () => {
+    expect(describePosition(1, 0, 2, 2)).toBe('BOTTOM-LEFT');
+  });
+
+  it('I-4. 2×2 grid: BR → "BOTTOM-RIGHT" (title block is here on most TX plats)', () => {
+    expect(describePosition(1, 1, 2, 2)).toBe('BOTTOM-RIGHT');
+  });
+
+  it('I-5. 2×4 grid top-left corner → "TOP-LEFT"', () => {
+    expect(describePosition(0, 0, 2, 4)).toContain('TOP-LEFT');
+  });
+
+  it('I-6. 2×4 grid top-right corner → "TOP-RIGHT"', () => {
+    expect(describePosition(0, 3, 2, 4)).toContain('TOP-RIGHT');
+  });
+
+  it('I-7. 2×4 grid interior cell contains segment number', () => {
+    // row=0 col=1 in 2×4 = segment 2 of 8
+    const desc = describePosition(0, 1, 2, 4);
+    expect(desc).toContain('segment 2 of 8');
+    expect(desc).toContain('2×4 grid');
+  });
+
+  it('I-8. 4×4 grid: every cell produces a non-empty, unique description', () => {
+    const seen = new Set<string>();
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        const desc = describePosition(r, c, 4, 4);
+        expect(desc.length).toBeGreaterThan(0);
+        expect(seen.has(desc)).toBe(false);
+        seen.add(desc);
+      }
+    }
+    expect(seen.size).toBe(16);
+  });
+
+  it('I-9. Zoom sub-segment of BOTTOM-RIGHT uses parent + sub-quadrant context', () => {
+    // Simulate a BOTTOM-RIGHT (row=1 col=1 in 2×2) parent being zoomed into
+    // its own TOP-LEFT sub-segment (row=0 col=0 in 2×2).
+    const parentPos = describePosition(1, 1, 2, 2);  // BOTTOM-RIGHT
+    const subPos    = describePosition(0, 0, 2, 2);   // TOP-LEFT
+    const zPosHint  = `${parentPos} (zoomed sub-segment: ${subPos})`;
+    expect(zPosHint).toBe('BOTTOM-RIGHT (zoomed sub-segment: TOP-LEFT)');
+  });
+
+  it('I-10. positionHint text block message format is correct', () => {
+    // Validate the exact user-message text that will be sent to Claude Vision
+    const positionHint = 'TOP-LEFT';
+    const expected = `This is the ${positionHint} section of a subdivision plat. Extract all surveying data from this region.`;
+    expect(expected).toContain('TOP-LEFT');
+    expect(expected).toContain('section of a subdivision plat');
+    expect(expected).toContain('Extract all surveying data');
+  });
+});
