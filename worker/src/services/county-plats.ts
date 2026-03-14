@@ -543,6 +543,10 @@ export function normalizePlatName(name: string): string {
   // BLOCK / LOT (Category I surveying shorthands used in some archive filenames)
   n = n.replace(/\bBLK\b/g, 'BLOCK');
   n = n.replace(/\bLT\b/g, 'LOT');
+  // L1/L2.../L12... → LOT 1/2.../12..., B1/B2... → BLOCK 1/2... (Category I: L1 B1 → LOT 1 BLOCK 1)
+  // \b ensures bare suffix letters (e.g. "PLAT B") are NOT expanded — only digit-suffixed forms.
+  n = n.replace(/\bL(\d+)\b/g, 'LOT $1');
+  n = n.replace(/\bB(\d+)\b/g, 'BLOCK $1');
 
   // INDUSTRIAL / INSTRUMENT (Category I)
   n = n.replace(/\bIND\b/g, 'INDUSTRIAL');
@@ -558,9 +562,14 @@ export function normalizePlatName(name: string): string {
   // P1 → PHASE 1, S1 → SECTION 1 (single-digit attached abbrs)
   n = n.replace(/\bP(\d+)\b/g, 'PHASE $1');
   n = n.replace(/\bS(\d+)\b/g, 'SECTION $1');
-  // PH N → PHASE N, SEC N → SECTION N
+  // PH N → PHASE N (e.g. NORTH GATE PH 6 A → PHASE 6 A)
   n = n.replace(/\bPH\s+(\d)/g, 'PHASE $1');
+  // PH alone → PHASE (Category I: PH → PHASE)
+  n = n.replace(/\bPH\b/g, 'PHASE');
+  // SEC N → SECTION N (e.g. SEC 2 → SECTION 2)
   n = n.replace(/\bSEC\s+(\d)/g, 'SECTION $1');
+  // SEC alone or before a letter → SECTION (Category C/I: SEC → SECTION)
+  n = n.replace(/\bSEC\b/g, 'SECTION');
   // Extension shorthand: 1E → 1 EXTENSION
   n = n.replace(/\b(\d+)E\b/g, '$1 EXTENSION');
 

@@ -497,6 +497,47 @@ describe('normalizePlatName — Category E/F/I additions (county-plats.ts)', () 
     const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
     expect(normalizePlatName('ENTERPRISE BUSINESS PARK PHASE X')).toContain('PHASE 10');
   });
+
+  it('14-15. SEC alone → SECTION (Category C standalone, e.g. SEC A)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('WOODLANDS SEC A')).toContain('SECTION');
+    expect(normalizePlatName('WOODLANDS SEC A')).not.toContain('SEC A');
+  });
+
+  it('14-16. SEC 2 → SECTION 2 (Category C with digit)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('AARON ADDITION SEC 2')).toContain('SECTION 2');
+  });
+
+  it('14-17. PH alone → PHASE (Category B standalone)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('VISTA PH A')).toContain('PHASE');
+    expect(normalizePlatName('VISTA PH A')).not.toContain(' PH ');
+  });
+
+  it('14-18. L1 → LOT 1 (Category I, L-digit shorthand)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('COPPERAS COVE L1')).toContain('LOT 1');
+  });
+
+  it('14-19. B1 → BLOCK 1 (Category I, B-digit shorthand)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('COPPERAS COVE B1')).toContain('BLOCK 1');
+  });
+
+  it('14-20. L1 B1 → LOT 1 BLOCK 1 (Category I compound form)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const n = normalizePlatName('SOMEPLAT L1 B1');
+    expect(n).toContain('LOT 1');
+    expect(n).toContain('BLOCK 1');
+  });
+
+  it('14-21. B suffix letter (no digit) is NOT expanded to BLOCK (safety guard)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    // "DAWSON RIDGE PLAT B" — B here is a volume letter, not BLOCK
+    const n = normalizePlatName('DAWSON RIDGE PLAT B');
+    expect(n).not.toContain('BLOCK');
+  });
 });
 
 // ── 15. scorePlatMatch — Category E/D/J scoring examples ─────────────────────
