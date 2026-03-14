@@ -222,6 +222,14 @@ TASK: Analyze the GEOMETRY of this drawing — not just the text, but the visual
 
 Answer with precise geometric observations. This is for survey-grade analysis.`;
 
+// ── Shared "do not reconcile" rule injected into all Phase 1 geometry prompts ─
+// From geo-reconcile.js reference script: disagreements between visual geometry
+// and printed text are diagnostic findings, not errors to be silently corrected.
+
+const NO_RECONCILE_RULE = `CRITICAL RULE: Report your VISUAL ESTIMATE and the PRINTED TEXT SEPARATELY for every line.
+DO NOT adjust your visual estimate to match the printed text, and do not suppress disagreements.
+A disagreement between visual geometry and printed text is a meaningful diagnostic finding.`;
+
 // ── Phase 1B Prompt: Detailed line geometry ───────────────────────────────────
 
 const GEOMETRY_PROMPT = (subdivName: string) => `You are a professional land surveyor performing GEOMETRIC ANALYSIS of a subdivision plat.
@@ -237,6 +245,9 @@ For EVERY boundary line visible in the drawing, provide:
 3. VISUAL LENGTH ESTIMATE: Using the scale bar, estimate the length in feet.
 4. LINE TYPE: Straight line or curve? If curve, which direction and approximate radius?
 5. MONUMENTS: What monument symbols are at each end?
+6. PRINTED TEXT: Read any bearing/distance text along the line EXACTLY as shown.
+
+${NO_RECONCILE_RULE}
 
 Work systematically around the subdivision boundary first, then interior lot lines.
 
@@ -257,7 +268,8 @@ This shows the UPPER portion of the subdivision plat. For each line segment:
 5. ENDPOINT MONUMENTS: Survey markers at each end
 6. TEXT NEAR LINE: Exact bearing/distance text printed along the line
 
-CRITICAL: Give BOTH your visual geometric estimate AND the printed text for each line.
+${NO_RECONCILE_RULE}
+A bearing that looks like ~N 40° E but has text reading N 85° E is a meaningful finding, not an error.
 Work systematically from the most clearly visible lines to the harder ones.`;
 
 // ── Phase 1C-bot Prompt: Lower lots ──────────────────────────────────────────
@@ -273,7 +285,9 @@ This shows the LOWER portion of the subdivision plat. For each line segment:
 5. ENDPOINT MONUMENTS: Survey markers at each end
 6. TEXT NEAR LINE: Exact bearing/distance text printed along the line
 
-Give BOTH your visual estimate AND the printed text. Work systematically.
+${NO_RECONCILE_RULE}
+A watermark-obscured digit produces a different type of uncertainty than a clearly-printed value
+that contradicts the geometry — both are meaningful and neither should be silently reconciled.
 
 Pay special attention to road curves, reserve boundaries, and road frontage.`;
 

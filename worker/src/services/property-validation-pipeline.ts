@@ -433,6 +433,18 @@ export async function runPropertyValidationPipeline(
         [r.instrumentNumber, r.volume && r.page ? `Vol.${r.volume} Pg.${r.page}` : null].filter(Boolean).join(' / ')
       ).filter(Boolean);
 
+  // Log Call 5 synthesis results for user visibility
+  logger.info('ValidationPipeline',
+    `  Call 5 result: ${adjacentProperties.length} adjacent props, ${roads.length} roads, ${easements.length} easements, ${recordingReferences.length} recording refs`);
+  for (const ap of adjacentProperties) {
+    logger.info('ValidationPipeline',
+      `    [adjacent] ${ap.ownerName}${ap.calledAcreage ? ` ${ap.calledAcreage}` : ''}${ap.direction ? ` (${ap.direction})` : ''}${ap.recordingReference ? ` — ${ap.recordingReference}` : ''}`);
+  }
+  for (const road of roads) {
+    logger.info('ValidationPipeline',
+      `    [road] ${road.name} (${road.type})${road.estimatedRowWidth_ft ? ` ROW=${road.estimatedRowWidth_ft}ft` : ''}`);
+  }
+
   // ── CALL 6: Cross-validation ────────────────────────────────────────────────
   logger.info('ValidationPipeline', 'Call 6: Cross-validation & confidence symbol assignment...');
   const crossValInput = JSON.stringify({
@@ -541,6 +553,8 @@ export async function runPropertyValidationPipeline(
   logger.info('ValidationPipeline',
     `Pipeline complete: ${overallConfidencePct}% overall (${overallRating.display} ${overallRating.label}), ` +
     `${discrepancies.length} discrepancies, ${totalApiCalls} API calls`);
+  logger.info('ValidationPipeline',
+    `  Adjacent properties: ${adjacentProperties.length}, roads: ${roads.length}, easements: ${easements.length}`);
 
   return {
     propertyName:         propertyMeta.ownerName,
@@ -560,4 +574,222 @@ export async function runPropertyValidationPipeline(
     generatedAt,
     totalApiCalls,
   };
+}
+
+// ── identifyAdjacentsFromText ─────────────────────────────────────────────────
+
+/**
+ * Extended adjacent property record extracted by the dedicated identification pass.
+ * Captures richer recording detail than the base AdjacentProperty type.
+ */
+export interface AdjacentPropertyExtracted {
+  ownerName: string;
+  /** Stated acreage from plat label, e.g. "4.00 ac" */
+  calledAcres: string | null;
+  /** "volume_page" | "instrument_number" — how the recording reference is stated */
+  instrumentType: 'volume_page' | 'instrument_number' | 'unknown';
+  volume: string | null;
+  page: string | null;
+  instrumentNumber: string | null;
+  recordDate: string | null;
+  /** Which boundary this neighbor shares with the subject property */
+  sharedBoundary: string | null;
+  /** Approximate length of shared boundary from plat data */
+  estimatedSharedLength: string | null;
+}
+
+export interface RoadExtracted {
+  name: string;
+  /** "FM highway" | "county road" | "spur" | "state highway" | "private" | "unknown" */
+  type: string;
+  rowWidth: string | null;
+  /** Which property boundary this road forms */
+  boundaryPosition: string | null;
+}
+
+export interface EasementExtracted {
+  holder: string | null;
+  /** "utility" | "water" | "drainage" | "access" | "pipeline" | "unknown" */
+  type: string;
+  reference: string | null;
+  date: string | null;
+}
+
+export interface AdjacentIdentificationResult {
+  adjacentProperties: AdjacentPropertyExtracted[];
+  roads: RoadExtracted[];
+  easements: EasementExtracted[];
+}
+
+// Prompt mirrored from the property-research-pipeline.js reference script.
+// Kept at module scope (alongside SYNTHESIS_SYSTEM, CROSS_VALIDATION_SYSTEM, REPORT_SYSTEM)
+// so all prompt constants are co-located for easy review and versioning.
+const IDENTIFY_ADJACENTS_PROMPT = `From the plat extraction data below, identify EVERY adjacent property owner and their recording information.
+
+PLAT EXTRACTION:
+{TEXT}
+
+For each adjacent property, extract:
+1. OWNER NAME (exactly as shown on plat)
+2. CALLED ACREAGE (the acreage stated on the plat)
+3. RECORDING REFERENCE:
+   - Volume/Page if deed records
+   - Instrument number if official public records
+4. RECORDING DATE
+5. WHICH BOUNDARY they share with the subject property (north, south, east, west, or specific description)
+6. APPROXIMATE LENGTH of shared boundary (if estimable from plat data)
+
+Also identify:
+- ALL ROADS with their names and any ROW references
+- ANY EASEMENT holders with recording references
+- ANY UTILITY or DISTRICT references
+
+Return your response as JSON only. No markdown fences, no explanation.
+{
+  "adjacentProperties": [
+    {
+      "ownerName": "...",
+      "calledAcres": "...",
+      "instrumentType": "volume_page" or "instrument_number",
+      "volume": "..." or null,
+      "page": "..." or null,
+      "instrumentNumber": "..." or null,
+      "recordDate": "...",
+      "sharedBoundary": "...",
+      "estimatedSharedLength": "..."
+    }
+  ],
+  "roads": [
+    {
+      "name": "...",
+      "type": "FM highway" or "county road" or "spur" or "state highway" or "private" or "unknown",
+      "rowWidth": "...",
+      "boundaryPosition": "..."
+    }
+  ],
+  "easements": [
+    {
+      "holder": "...",
+      "type": "utility" or "water" or "drainage" or "access" or "pipeline" or "unknown",
+      "reference": "...",
+      "date": "..."
+    }
+  ]
+}`;
+
+/**
+ * Dedicated adjacent-property identification pass.
+ *
+ * Parses a plat OCR text extraction to find all neighboring property owners,
+ * their recording references (instrument number OR volume/page), and associated
+ * roads and easements. The structured output feeds into the adjacent research
+ * workflow and provides richer recording detail than the general Call 5 synthesis.
+ *
+ * @param ocrText         Raw OCR text from the plat document
+ * @param anthropicApiKey Anthropic API key
+ * @param logger          Pipeline logger
+ */
+export async function identifyAdjacentsFromText(
+  ocrText: string,
+  anthropicApiKey: string,
+  logger: PipelineLogger,
+): Promise<AdjacentIdentificationResult> {
+  logger.info('IdentifyAdjacents', '═══ Adjacent Property Identification ═══');
+  logger.info('IdentifyAdjacents', `  Input OCR text: ${ocrText.length} chars, ${ocrText.split('\n').length} lines`);
+
+  const client = new Anthropic({ apiKey: anthropicApiKey });
+  const prompt = IDENTIFY_ADJACENTS_PROMPT.replace('{TEXT}', ocrText);
+  const startMs = Date.now();
+
+  const raw = await callClaude(client,
+    'You are a professional land surveyor assistant. Extract structured data from plat OCR text. Return only valid JSON, no markdown.',
+    prompt, 'identify-adjacents', logger);
+  const elapsed = ((Date.now() - startMs) / 1000).toFixed(1);
+
+  if (!raw) {
+    logger.warn('IdentifyAdjacents', '  Claude returned empty response — returning empty result');
+    return { adjacentProperties: [], roads: [], easements: [] };
+  }
+
+  logger.info('IdentifyAdjacents', `  Claude response: ${raw.length} chars in ${elapsed}s`);
+
+  const parsed = safeParseJson(raw);
+  if (!parsed) {
+    logger.warn('IdentifyAdjacents',
+      '  Could not parse adjacent data as JSON — returning empty result. ' +
+      `First 200 chars: ${raw.substring(0, 200)}`);
+    return { adjacentProperties: [], roads: [], easements: [] };
+  }
+
+  const adjacentProperties: AdjacentPropertyExtracted[] = Array.isArray(parsed.adjacentProperties)
+    ? (parsed.adjacentProperties as unknown[]).map((p: unknown) => {
+        const o = (p && typeof p === 'object' ? p : {}) as Record<string, unknown>;
+        const instrType = String(o.instrumentType ?? 'unknown');
+        return {
+          ownerName:             String(o.ownerName ?? 'Unknown'),
+          calledAcres:           o.calledAcres      != null ? String(o.calledAcres)      : null,
+          instrumentType:        (['volume_page','instrument_number'].includes(instrType)
+            ? instrType : 'unknown') as AdjacentPropertyExtracted['instrumentType'],
+          volume:                o.volume           != null ? String(o.volume)           : null,
+          page:                  o.page             != null ? String(o.page)             : null,
+          instrumentNumber:      o.instrumentNumber != null ? String(o.instrumentNumber) : null,
+          recordDate:            o.recordDate       != null ? String(o.recordDate)       : null,
+          sharedBoundary:        o.sharedBoundary   != null ? String(o.sharedBoundary)   : null,
+          estimatedSharedLength: o.estimatedSharedLength != null ? String(o.estimatedSharedLength) : null,
+        };
+      })
+    : [];
+
+  const roads: RoadExtracted[] = Array.isArray(parsed.roads)
+    ? (parsed.roads as unknown[]).map((r: unknown) => {
+        const o = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>;
+        return {
+          name:             String(o.name ?? ''),
+          type:             String(o.type ?? 'unknown'),
+          rowWidth:         o.rowWidth         != null ? String(o.rowWidth)         : null,
+          boundaryPosition: o.boundaryPosition != null ? String(o.boundaryPosition) : null,
+        };
+      })
+    : [];
+
+  const easements: EasementExtracted[] = Array.isArray(parsed.easements)
+    ? (parsed.easements as unknown[]).map((e: unknown) => {
+        const o = (e && typeof e === 'object' ? e : {}) as Record<string, unknown>;
+        return {
+          holder:    o.holder    != null ? String(o.holder)    : null,
+          type:      String(o.type ?? 'unknown'),
+          reference: o.reference != null ? String(o.reference) : null,
+          date:      o.date      != null ? String(o.date)      : null,
+        };
+      })
+    : [];
+
+  // ── Detailed logging (every adjacent property, road, and easement) ──────────
+  logger.info('IdentifyAdjacents',
+    `  Found ${adjacentProperties.length} adjacent properties, ${roads.length} roads, ${easements.length} easements`);
+
+  for (const p of adjacentProperties) {
+    const ref = p.instrumentType === 'instrument_number'
+      ? (p.instrumentNumber ?? 'no instrument#')
+      : p.volume && p.page
+        ? `Vol ${p.volume} Pg ${p.page}`
+        : 'no recording ref';
+    logger.info('IdentifyAdjacents',
+      `    [adjacent] ${p.ownerName}: ${p.calledAcres ?? '?'} ac — ${ref} — ${p.sharedBoundary ?? 'boundary unknown'}`);
+  }
+
+  for (const r of roads) {
+    logger.info('IdentifyAdjacents',
+      `    [road] ${r.name} (${r.type})${r.rowWidth ? ` ROW=${r.rowWidth}` : ''}${r.boundaryPosition ? ` @ ${r.boundaryPosition}` : ''}`);
+  }
+
+  for (const e of easements) {
+    logger.info('IdentifyAdjacents',
+      `    [easement] ${e.type}${e.holder ? ` holder=${e.holder}` : ''}${e.reference ? ` ref=${e.reference}` : ''}`);
+  }
+
+  logger.info('IdentifyAdjacents',
+    `═══ Adjacent identification complete in ${elapsed}s ═══`);
+
+  return { adjacentProperties, roads, easements };
 }
