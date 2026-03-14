@@ -87,6 +87,7 @@ export default function ResearchProjectPage() {
   const [analysisError, setAnalysisError] = useState<{ message: string; category: string } | null>(null);
   const [showAnalysisLogs, setShowAnalysisLogs] = useState(false);
   const [logsCopied, setLogsCopied] = useState(false);
+  const [reviewLogsCopied, setReviewLogsCopied] = useState(false);
   const [analysisStartTime, setAnalysisStartTime] = useState<number | null>(null);
   const [analysisElapsed, setAnalysisElapsed] = useState(0);
 
@@ -602,9 +603,10 @@ export default function ResearchProjectPage() {
     setAnalysisResuming(false);
   }
 
-  function handleCopyAnalysisLogs() {
-    const logs = analysisStatus?.logs || [];
-    if (logs.length === 0) return;
+  function copyLogsToClipboard(
+    logs: Array<{ ts: string; level: string; message: string; detail?: string }>,
+    onCopied: () => void,
+  ) {
     const header = `STARR RECON — Research Logs  (Project: ${project?.name || projectId})\n` +
       `Exported: ${new Date().toLocaleString()}\n${'─'.repeat(60)}\n`;
     const body = logs.map(e => {
@@ -615,7 +617,7 @@ export default function ResearchProjectPage() {
     }).join('\n');
     const text = header + body;
     navigator.clipboard.writeText(text)
-      .then(() => { setLogsCopied(true); setTimeout(() => setLogsCopied(false), 2000); })
+      .then(onCopied)
       .catch(() => {
         const ta = document.createElement('textarea');
         ta.value = text;
@@ -624,9 +626,21 @@ export default function ResearchProjectPage() {
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
-        setLogsCopied(true);
-        setTimeout(() => setLogsCopied(false), 2000);
+        onCopied();
       });
+  }
+
+  function handleCopyAnalysisLogs() {
+    const logs = analysisStatus?.logs || [];
+    if (logs.length === 0) return;
+    copyLogsToClipboard(logs, () => { setLogsCopied(true); setTimeout(() => setLogsCopied(false), 2000); });
+  }
+
+  function handleCopyReviewLogs() {
+    const logs = (project?.analysis_metadata as Record<string, unknown> | null)?.logs as
+      Array<{ ts: string; level: string; message: string; detail?: string }> | undefined;
+    if (!logs || logs.length === 0) return;
+    copyLogsToClipboard(logs, () => { setReviewLogsCopied(true); setTimeout(() => setReviewLogsCopied(false), 2000); });
   }
 
   // Drawing functions
@@ -2200,27 +2214,45 @@ export default function ResearchProjectPage() {
             const logs = (project.analysis_metadata as Record<string, unknown> | null)?.logs as
               Array<{ ts: string; level: string; message: string; detail?: string }> | undefined;
             return (
-              <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', lineHeight: 1.6, background: '#F8FAFC', border: '1px solid #E5E7EB', borderRadius: '0.5rem', padding: '0.75rem', maxHeight: '60vh', overflowY: 'auto' }}>
-                {!logs || logs.length === 0 ? (
-                  <div style={{ color: '#9CA3AF', textAlign: 'center', padding: '2rem' }}>
-                    No analysis logs available. Run AI Analysis to generate logs.
+              <div>
+                <div className="research-analyzing__log-header" style={{ marginBottom: '0.5rem' }}>
+                  <div className="research-analyzing__log-header-left">
+                    <span className="research-analyzing__log-title">📋 Research Logs</span>
+                    {logs && logs.length > 0 && (
+                      <span className="research-analyzing__log-badge">{logs.length}</span>
+                    )}
                   </div>
-                ) : (
-                  logs.map((entry, i) => {
-                    const levelColor = entry.level === 'error' ? '#EF4444' : entry.level === 'warn' ? '#F59E0B' : entry.level === 'success' ? '#059669' : '#374151';
-                    const levelBg = entry.level === 'error' ? '#FEF2F2' : entry.level === 'warn' ? '#FFFBEB' : entry.level === 'success' ? '#F0FDF4' : 'transparent';
-                    return (
-                      <div key={i} style={{ padding: '0.2rem 0.4rem', borderRadius: '0.2rem', background: levelBg, marginBottom: '0.15rem' }}>
-                        <span style={{ color: '#9CA3AF' }}>{new Date(entry.ts).toLocaleTimeString()}</span>
-                        {' '}
-                        <span style={{ color: levelColor, fontWeight: 600 }}>[{entry.level.toUpperCase()}]</span>
-                        {' '}
-                        <span style={{ color: '#374151' }}>{entry.message}</span>
-                        {entry.detail && <span style={{ color: '#6B7280' }}> — {entry.detail}</span>}
-                      </div>
-                    );
-                  })
-                )}
+                  <button
+                    className="research-analyzing__copy-btn"
+                    onClick={handleCopyReviewLogs}
+                    disabled={!logs || logs.length === 0}
+                    title="Copy all log entries to clipboard"
+                  >
+                    {reviewLogsCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
+                  </button>
+                </div>
+                <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', lineHeight: 1.6, background: '#F8FAFC', border: '1px solid #E5E7EB', borderRadius: '0.5rem', padding: '0.75rem', maxHeight: '60vh', overflowY: 'auto' }}>
+                  {!logs || logs.length === 0 ? (
+                    <div style={{ color: '#9CA3AF', textAlign: 'center', padding: '2rem' }}>
+                      No analysis logs available. Run AI Analysis to generate logs.
+                    </div>
+                  ) : (
+                    logs.map((entry, i) => {
+                      const levelColor = entry.level === 'error' ? '#EF4444' : entry.level === 'warn' ? '#F59E0B' : entry.level === 'success' ? '#059669' : '#374151';
+                      const levelBg = entry.level === 'error' ? '#FEF2F2' : entry.level === 'warn' ? '#FFFBEB' : entry.level === 'success' ? '#F0FDF4' : 'transparent';
+                      return (
+                        <div key={i} style={{ padding: '0.2rem 0.4rem', borderRadius: '0.2rem', background: levelBg, marginBottom: '0.15rem' }}>
+                          <span style={{ color: '#9CA3AF' }}>{new Date(entry.ts).toLocaleTimeString()}</span>
+                          {' '}
+                          <span style={{ color: levelColor, fontWeight: 600 }}>[{entry.level.toUpperCase()}]</span>
+                          {' '}
+                          <span style={{ color: '#374151' }}>{entry.message}</span>
+                          {entry.detail && <span style={{ color: '#6B7280' }}> — {entry.detail}</span>}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             );
           })()}
