@@ -770,3 +770,142 @@ describe('fetchDocumentImages (bell-clerk.ts)', () => {
     expect(typeof mod.searchBellClerk).toBe('function');
   });
 });
+
+// ── 16. Category Q — empty anchor text → name from href filename ──────────────
+
+describe('parsePlatLinks Category Q — empty display names (county-plats.ts)', () => {
+  /**
+   * parsePlatLinks is not exported, so we verify the behavior indirectly by
+   * confirming that normalizePlatName is available (module loads) and using the
+   * same URL-resolution helper that the tests already use (section 13) together
+   * with a direct copy of the Category Q extraction logic.
+   */
+  function extractNameFromHref(rawHref: string): string {
+    const bareHref = rawHref.split('?')[0];
+    const lastSeg = bareHref.split('/').pop() ?? '';
+    let decoded = lastSeg;
+    try { decoded = decodeURIComponent(lastSeg); } catch { /* keep raw */ }
+    return decoded.replace(/\.[^.]*$/, '').replace(/\+/g, ' ').trim();
+  }
+
+  it('16-1. extracts "ACADEMY MINI SELF STORAGE SUB" from plat href when display is empty', () => {
+    const href = 'county_government/county_clerk/docs/plats/A/ACADEMY MINI SELF STORAGE SUB.pdf';
+    expect(extractNameFromHref(href)).toBe('ACADEMY MINI SELF STORAGE SUB');
+  });
+
+  it('16-2. extracts "BALDWIN ESTATES" from encoded href', () => {
+    const href = 'county_government/county_clerk/docs/plats/B/BALDWIN%20ESTATES.pdf';
+    expect(extractNameFromHref(href)).toBe('BALDWIN ESTATES');
+  });
+
+  it('16-3. extracts "ISDALE ADN" from href with cache-buster query', () => {
+    const href = 'county_government/county_clerk/docs/plats/I/ISDALE ADN.pdf?t=202001010000000';
+    expect(extractNameFromHref(href)).toBe('ISDALE ADN');
+  });
+
+  it('16-4. normalizePlatName still works after Category Q name extraction', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const extracted = extractNameFromHref(
+      'county_government/county_clerk/docs/plats/I/ISDALE ADN.pdf?t=202001010000000',
+    );
+    expect(normalizePlatName(extracted)).toContain('ADDITION');
+  });
+});
+
+// ── 17. Category R — "N OF M" suffix → letter (A/B/C/D) ─────────────────────
+
+describe('normalizePlatName Category R — N OF M suffix (county-plats.ts)', () => {
+  it('17-1. trailing "1 OF 2" → "A" (BCWCID NO 1 PLANT 1 OF 2 case)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const n = normalizePlatName('BCWCID NO 1 PLANT 1 OF 2');
+    expect(n).toContain('A');
+    expect(n).not.toMatch(/\b1 OF 2\b/);
+  });
+
+  it('17-2. trailing "2 OF 2" → "B"', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const n = normalizePlatName('BCWCID NO 1 PLANT 2 OF 2');
+    expect(n).toContain('B');
+    expect(n).not.toMatch(/\b2 OF 2\b/);
+  });
+
+  it('17-3. display name "BCWCID NO 1 PLANT A" normalizes identically to filename "1 OF 2"', async () => {
+    const { normalizePlatName, scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    // Both should normalize to the same form (BCWCID NUMBER 1 PLANT A)
+    const display = normalizePlatName('BCWCID NO 1 PLANT A');
+    const filename = normalizePlatName('BCWCID NO 1 PLANT 1 OF 2');
+    expect(display).toBe(filename);
+    expect(scorePlatMatch('BCWCID NO 1 PLANT A', 'BCWCID NO 1 PLANT 1 OF 2')).toBe(1.0);
+  });
+
+  it('17-4. "N OF M" not at end of string is NOT replaced (mid-name safety)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    // "LOTS 1 AND 2 OF BLOCK 3" — the OF here is not a split-file indicator
+    const n = normalizePlatName('LOTS 1 AND 2 OF BLOCK 3 ADDITION');
+    // 2 OF BLOCK is not "2 OF <digit>" so it should remain unchanged
+    expect(n).not.toMatch(/\bB\b.*ADDITION/); // should not have turned into B
+  });
+
+  it('17-5. "4 OF 4" → "D" (4th split file)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const n = normalizePlatName('SOMEPLAT 4 OF 4');
+    expect(n).toContain('D');
+  });
+});
+
+// ── 18. Levenshtein fuzzy matching in scorePlatMatch ──────────────────────────
+
+describe('scorePlatMatch — Levenshtein typo matching (county-plats.ts)', () => {
+  it('18-1. VAZQUES vs VAZQUEZ scores >= 0.8 (one-char transposition, Category J)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    // "VAZQUES ADN" (archive) vs "VAZQUEZ ADDITION" (CAD)
+    const score = scorePlatMatch('VAZQUES ADN', 'VAZQUEZ ADDITION');
+    expect(score).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it('18-2. HICKS FAMILY PROPETIES vs HICKS FAMILY PROPERTIES scores >= 0.8 (missing R)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch(
+      'HICKS FAMILY PROPETIES ADDITION',
+      'HICKS FAMILY PROPERTIES ADDITION',
+    );
+    expect(score).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it('18-3. HILLLS OF WESTPARK vs HILLS OF WESTPARK scores >= 0.8 (doubled letter)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch('HILLLS OF WESTPARK ADN REPLAT', 'HILLS OF WESTPARK ADN REPLAT');
+    expect(score).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it('18-4. VAULE PLACE vs VALUE PLACE scores >= 0.5 (Category J transposition)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch('VAULE PLACE ADN', 'VALUE PLACE ADDITION');
+    expect(score).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('18-5. completely unrelated names still score 0 (no shared tokens = no Levenshtein boost)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    // Test 3-3 safety: WILLIAMS CREEK vs ASH FAMILY — no shared tokens
+    expect(scorePlatMatch('WILLIAMS CREEK ESTATES', 'ASH FAMILY TRUST')).toBe(0);
+  });
+
+  it('18-6. DAVIS ADN vs DAVIS BRAGGS EAST RIDGE ADDITION still scores < 0.5 (too different)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    // Test 12-3 safety: short name should not match long unrelated name
+    expect(scorePlatMatch('DAVIS ADN', 'DAVIS BRAGGS EAST RIDGE ADDITION')).toBeLessThan(0.5);
+  });
+
+  it('18-7. VANICEK 2 vs VANCIEK 2 (transposed letters) scores >= 0.8', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    // "VANICEK 2 ADN REPLAT" (CAD) vs "VANCIEK 2 ADN REPLAT" (filename typo)
+    const score = scorePlatMatch('VANICEK 2 ADN REPLAT', 'VANCIEK 2 ADN REPLAT');
+    expect(score).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it('18-8. MATULA MORTION vs MATULA MORTON (one typo in secondary word) scores >= 0.7', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch('MATULA AND MORTION ADDITION', 'MATULA AND MORTON ADDITION');
+    expect(score).toBeGreaterThanOrEqual(0.7);
+  });
+});

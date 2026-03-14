@@ -330,7 +330,16 @@ function parsePlatLinks(html: string, config: PlatRepoConfig): PlatLink[] {
 
   function addLink(rawHref: string, rawName: string): void {
     // Strip inner HTML tags from anchor text, normalize whitespace
-    const name = rawName.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    let name = rawName.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    if (!name) {
+      // Category Q: empty anchor text — extract subdivision name from the PDF filename in the href.
+      // e.g. href ".../ACADEMY MINI SELF STORAGE SUB.pdf" → "ACADEMY MINI SELF STORAGE SUB"
+      const bareHref = rawHref.split('?')[0];
+      const lastSeg = bareHref.split('/').pop() ?? '';
+      let decoded = lastSeg;
+      try { decoded = decodeURIComponent(lastSeg); } catch { /* keep raw segment */ }
+      name = decoded.replace(/\.[^.]*$/, '').replace(/\+/g, ' ').trim();
+    }
     if (!name || name.length < 3) return;
 
     let fileUrl: string;
@@ -601,7 +610,42 @@ export function normalizePlatName(name: string): string {
   n = n.replace(/\b(PHASE|SECTION|NUMBER|REPLAT|AMENDMENT|UNIT|PART)\s+V\b/g, '$1 5');
   n = n.replace(/\b(PHASE|SECTION|NUMBER|REPLAT|AMENDMENT|UNIT|PART)\s+X\b/g, '$1 10');
 
+  // Category R: trailing "1 OF 2" / "2 OF 2" → letter suffix A / B (split-file archive variants)
+  // Only match trailing position to avoid transforming mid-name phrases.
+  n = n.replace(/\b([1-4])\s+OF\s+\d+\s*$/g,
+    (_, d) => String.fromCharCode(64 + parseInt(d)));
+
   return n.replace(/\s+/g, ' ').trim();
+}
+
+// ── Levenshtein character similarity ────────────────────────────────────────
+
+/**
+ * Returns a 0-1 similarity score based on Levenshtein edit distance:
+ *   1.0 = identical strings
+ *   0.0 = completely different (or one/both empty)
+ *
+ * Uses space-optimised O(m·n) time / O(n) space Levenshtein algorithm.
+ * Called from scorePlatMatch as a secondary boost for typo matching (Category J).
+ */
+function levenshteinSimilarity(a: string, b: string): number {
+  if (a === b) return 1.0;
+  if (!a.length || !b.length) return 0.0;
+  const m = a.length, n = b.length;
+  // dp[j] = edit distance between a[0..i-1] and b[0..j-1]
+  const dp: number[] = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    let diag = dp[0]; // dp[i-1][j-1]
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const above = dp[j]; // dp[i-1][j]
+      dp[j] = a[i - 1] === b[j - 1]
+        ? diag
+        : 1 + Math.min(diag, above, dp[j - 1]);
+      diag = above;
+    }
+  }
+  return 1 - dp[n] / Math.max(m, n);
 }
 
 /**
@@ -610,6 +654,15 @@ export function normalizePlatName(name: string): string {
  *
  * Both names are normalized through normalizePlatName() before comparison so that
  * abbreviation differences (ADN vs ADDITION, AMENDING vs AMENDED) don't prevent matches.
+ *
+ * A Levenshtein character-level similarity is used as a secondary boost for the
+ * ~14.5% of cases that are simple typos or minor misspellings (Category J):
+ *   VAZQUES ADN → VAZQUEZ ADDITION  (one-char transposition)
+ *   HICKS FAMILY PROPETIES → HICKS FAMILY PROPERTIES  (missing letter)
+ *   HILLLS OF WESTPARK → HILLS OF WESTPARK  (doubled letter)
+ * The boost only activates when there is already some token overlap (tokenScore > 0) AND
+ * the character similarity is ≥ 0.82, to avoid false-positive matching of truly
+ * different names that happen to have short edit distances.
  */
 export function scorePlatMatch(platName: string, targetName: string): number {
   // Compare normalized forms
@@ -637,7 +690,17 @@ export function scorePlatMatch(platName: string, targetName: string): number {
   const significantScore = significantB.length > 0 ? significantMatches / significantB.length : 0;
   const totalScore = matches / tokensB.length;
 
-  return Math.max(significantScore * 0.7 + totalScore * 0.3, 0);
+  const tokenScore = Math.max(significantScore * 0.7 + totalScore * 0.3, 0);
+
+  // Levenshtein boost: only when there is existing token overlap AND very high
+  // character similarity (≥0.82 ≈ ≤18% of chars differ). This catches typos
+  // in proper-noun tokens while leaving completely unrelated names unaffected.
+  if (tokenScore > 0) {
+    const charSim = levenshteinSimilarity(a, b);
+    if (charSim >= 0.82) return Math.max(tokenScore, charSim * 0.9);
+  }
+
+  return tokenScore;
 }
 
 // ── Direct URL Construction (Bell County Layer 0) ────────────────────────────
