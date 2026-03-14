@@ -101,6 +101,82 @@ export function getCountiesWithModules(): string[] {
   return [...COUNTY_SPECIFIC_MODULES];
 }
 
+// ── Bell County Auto-Detection ──────────────────────────────────────
+
+/**
+ * Bell County cities and communities in Texas.
+ * Used to auto-detect Bell County from an address string.
+ */
+export const BELL_COUNTY_CITIES = [
+  'belton', 'killeen', 'temple', 'harker heights', 'nolanville', 'salado',
+  'holland', 'rogers', 'troy', 'moody', 'bartlett', 'little river-academy',
+  'little river academy', 'copperas cove', 'morgans point resort', 'moffat',
+  'pendleton', 'eddy', 'heidenheimer', 'academy', 'prairie dell',
+] as const;
+
+/**
+ * Bell County ZIP code ranges (Texas).
+ * Covers Temple (765xx), Belton (76513), Killeen (765xx), and surrounding area.
+ */
+const BELL_COUNTY_ZIPS = new Set([
+  '76501', '76502', '76503', '76504', '76505', '76506', '76507', '76508',
+  '76513', '76517', '76520', '76522', '76523', '76524', '76525', '76526',
+  '76527', '76528', '76530', '76534', '76537', '76538', '76539',
+  '76540', '76541', '76542', '76543', '76544', '76545', '76546', '76547',
+  '76548', '76549', '76554', '76557', '76561', '76569', '76570', '76571',
+]);
+
+/**
+ * Detect whether an address string is in Bell County, TX.
+ *
+ * Checks for:
+ *   1. Explicit "Bell County" mention
+ *   2. Known Bell County city names
+ *   3. Bell County ZIP codes
+ *
+ * This is used by the frontend to auto-populate the County field and by
+ * the pipeline to ensure Bell County properties are routed correctly.
+ *
+ * @param address - Raw address string from user input
+ * @returns `true` if the address appears to be in Bell County, TX
+ */
+export function isBellCountyAddress(address: string): boolean {
+  if (!address) return false;
+  const lower = address.toLowerCase();
+
+  // Explicit "Bell County" mention
+  if (/\bbell\s+county\b/.test(lower)) return true;
+
+  // Check for known Bell County cities
+  for (const city of BELL_COUNTY_CITIES) {
+    // Match whole word (e.g. "temple" but not "temple hills")
+    const pattern = new RegExp(`\\b${city.replace(/-/g, '[-\\s]?')}\\b`);
+    if (pattern.test(lower)) return true;
+  }
+
+  // Check for Bell County ZIP codes
+  const zipMatch = address.match(/\b(\d{5})(?:-\d{4})?\b/g);
+  if (zipMatch) {
+    for (const zip of zipMatch) {
+      if (BELL_COUNTY_ZIPS.has(zip.slice(0, 5))) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * If the county field is blank and the address looks like Bell County,
+ * returns 'Bell'. Otherwise returns `null` (no auto-fill).
+ *
+ * This lets callers decide whether to prompt or silently populate the field.
+ */
+export function detectCountyFromAddress(address: string, existingCounty?: string): string | null {
+  if (existingCounty && existingCounty.trim()) return null; // county already set
+  if (isBellCountyAddress(address)) return 'Bell';
+  return null;
+}
+
 // ── Address/County Validation ────────────────────────────────────────
 
 export interface AddressCountyMismatchError {
@@ -378,35 +454,32 @@ export async function runCountyResearch(
   const county = input.county.toLowerCase().trim();
 
   switch (county) {
-    // ── Bell County — Dedicated module (disabled for now) ───────────
-    // The Bell County module in ./bell/ is preserved and ready to enable.
-    // To activate it, uncomment the case below:
-    //
-    // case 'bell': {
-    //   onProgress({
-    //     phase: 'Router',
-    //     message: `Routing to Bell County dedicated research module`,
-    //     timestamp: new Date().toISOString(),
-    //   });
-    //   const { runBellCountyResearch } = await import('./bell/index.js');
-    //   const result = await runBellCountyResearch(
-    //     {
-    //       projectId: input.projectId,
-    //       address: input.address,
-    //       propertyId: input.propertyId,
-    //       ownerName: input.ownerName,
-    //       instrumentNumber: input.instrumentNumber,
-    //       surveyType: input.surveyType as import('./bell/types/research-input').SurveyType | undefined,
-    //       jobPurpose: input.jobPurpose,
-    //       specialInstructions: input.specialInstructions,
-    //       uploadedFiles: input.uploadedFiles,
-    //       includeAdjacentProperties: input.includeAdjacentProperties,
-    //       maxResearchTimeMinutes: input.maxResearchTimeMinutes,
-    //     },
-    //     onProgress,
-    //   );
-    //   return { resultType: 'county-specific', county: 'Bell', data: result };
-    // }
+    // ── Bell County — Dedicated module ──────────────────────────────
+    case 'bell': {
+      onProgress({
+        phase: 'Router',
+        message: 'Routing to Bell County dedicated research module',
+        timestamp: new Date().toISOString(),
+      });
+      const { runBellCountyResearch } = await import('./bell/index.js');
+      const result = await runBellCountyResearch(
+        {
+          projectId: input.projectId,
+          address: input.address,
+          propertyId: input.propertyId,
+          ownerName: input.ownerName,
+          instrumentNumber: input.instrumentNumber,
+          surveyType: input.surveyType as import('./bell/types/research-input').SurveyType | undefined,
+          jobPurpose: input.jobPurpose,
+          specialInstructions: input.specialInstructions,
+          uploadedFiles: input.uploadedFiles,
+          includeAdjacentProperties: input.includeAdjacentProperties,
+          maxResearchTimeMinutes: input.maxResearchTimeMinutes,
+        },
+        onProgress,
+      );
+      return { resultType: 'county-specific', county: 'Bell', data: result };
+    }
 
     // ── All Counties — Generic Pipeline ─────────────────────────────
     default: {
