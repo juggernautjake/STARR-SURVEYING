@@ -468,8 +468,11 @@ Return your analysis as the specified JSON format.`,
  * Minimum characters in Claude PDF OCR response to consider it complete.
  * When the response is below this threshold for a multi-page plat, we fall
  * back to Playwright per-page rendering + adaptive vision tiling.
+ * Note: document.service.ts uses a lower threshold (500) because its Next.js
+ * context processes individually-uploaded files which tend to be smaller than
+ * the multi-page plat PDFs handled here.
  */
-const PDF_OCR_COMPLETE_THRESHOLD = 800;
+const PDF_OCR_MIN_CHARS_FOR_COMPLETE = 800;
 
 /**
  * Render a PDF document to per-page screenshots using Playwright, then apply
@@ -642,9 +645,9 @@ async function extractFromImageInternal(
     pdfTracker.step(`PDF OCR Pass 1: ${ocrResponse.length} chars`);
 
     // For sparse results on large plats, try per-page Playwright rendering + adaptive vision
-    if (ocrResponse.length < PDF_OCR_COMPLETE_THRESHOLD) {
+    if (ocrResponse.length < PDF_OCR_MIN_CHARS_FOR_COMPLETE) {
       pdfTracker.step(
-        `PDF OCR result sparse (${ocrResponse.length} chars < ${PDF_OCR_COMPLETE_THRESHOLD}) — ` +
+        `PDF OCR result sparse (${ocrResponse.length} chars < ${PDF_OCR_MIN_CHARS_FOR_COMPLETE}) — ` +
         `trying per-page Playwright rendering for large plat`,
       );
       const renderText = await extractPdfViaPageRendering(imageBase64, anthropicApiKey, logger, docLabel);

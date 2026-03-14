@@ -391,7 +391,7 @@ function DetailedLogEntry({ entry, idx }: { entry: PipelineLogEntry; idx: number
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-/** Format all audit log entries as plain text for clipboard copy (basic). */
+/** Format all basic log entries as plain text for clipboard copy. */
 function formatLogAsText(log: PipelineLogEntry[]): string {
   return log.map(e => {
     const statusIcon = e.status === 'success' ? '✓' : e.status === 'fail' ? '✕' : e.status === 'skip' ? '−' : '~';
@@ -404,7 +404,7 @@ function formatLogAsText(log: PipelineLogEntry[]): string {
   }).join('\n');
 }
 
-/** Format all audit log entries with full details + steps (detailed log). */
+/** Format all log entries with full details, steps, and inputs (detailed diagnostic log). */
 function formatDetailedLogAsText(log: PipelineLogEntry[]): string {
   return log.map((e, idx) => {
     const statusIcon = e.status === 'success' ? '✓' : e.status === 'fail' ? '✕' : e.status === 'skip' ? '−' : '~';

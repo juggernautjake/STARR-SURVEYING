@@ -156,6 +156,9 @@ const PDF_TEXT_MIN_CHARS = 100;
  * Minimum characters in Claude PDF OCR result to skip the per-page tiling pass.
  * Large plat PDFs with 12+ acres and multiple properties often yield very thin
  * results from a single-pass Claude PDF call — the tiling pass is the fallback.
+ * Uses a lower threshold (500) than the worker's ai-extraction.ts (800) because
+ * this path processes individually-uploaded files which tend to be smaller and
+ * have less dense content than multi-page subdivision plat PDFs.
  */
 const PDF_OCR_MIN_CHARS_FOR_COMPLETE = 500;
 
