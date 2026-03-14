@@ -84,7 +84,15 @@ export interface ConfidenceSummary {
   high: number;
   medium: number;
   low: number;
+  /** Count of [ESTIMATED] tags — geometry-only values (no readable text source) */
   estimated: number;
+  /**
+   * Count of [DEDUCED] tags — values resolved from context clues
+   * (e.g. watermark-obscured digit deduced from adjacent geometry or deed).
+   * From geo-reconcile.js reference: distinct from ESTIMATED because the
+   * analyst has evidence to determine the correct value, not just geometry.
+   */
+  deduced: number;
   verify: number;
   missing: number;
 }
@@ -659,12 +667,13 @@ export async function analyzeVisualGeometryMultiCrop(
 
 /**
  * Phase 3A: Call Claude to build a structured boundary map by cross-referencing
- * Phase 1 multi-crop geometry with Phase 2 text extraction.
+ * Phase 1 multi-crop geometry with Phase 2 text extraction and (optionally)
+ * deed metes-and-bounds data.
  *
  * Returns a narrative report containing:
  * - B1/B2... perimeter lines and I1/I2... interior lines
  * - Per-line reconciled bearing, distance, type, monuments, confidence
- * - [ESTIMATED] / [VERIFY] / [MISSING] confidence tags
+ * - [ESTIMATED] / [DEDUCED] / [VERIFY] / [MISSING] confidence tags
  * - Watermark damage resolution using geometric estimates
  * - Discrepancy report
  *
@@ -673,6 +682,8 @@ export async function analyzeVisualGeometryMultiCrop(
  * @param subdivName Subdivision name
  * @param anthropicApiKey  Anthropic API key
  * @param logger     Pipeline logger
+ * @param deedData   Optional deed metes-and-bounds text (3rd source from
+ *                   geo-reconcile.js ref — provides legal baseline for perimeter)
  */
 export async function buildBoundaryMap(
   multiCrop: MultiCropAnalysis,
@@ -680,8 +691,12 @@ export async function buildBoundaryMap(
   subdivName: string,
   anthropicApiKey: string,
   logger: PipelineLogger,
+  deedData?: string,
 ): Promise<string> {
   logger.info('GeoReconcile', '--- 3A: Building lot boundary map ---');
+  if (deedData) {
+    logger.info('GeoReconcile', `  3A: Deed data provided (${deedData.length} chars, ${deedData.split('\n').length} lines) — using as 3rd source`);
+  }
 
   const geoSections = [
     multiCrop.overviewText && `=== PHASE 1A: OVERVIEW ===\n${multiCrop.overviewText}`,
@@ -695,7 +710,21 @@ export async function buildBoundaryMap(
 
   logger.info('GeoReconcile',
     `  3A: Sending ${Math.round(geoSections.length / 1024)}KB geo data + ` +
-    `${Math.round(textData.length / 1024)}KB text to Claude…`);
+    `${Math.round(textData.length / 1024)}KB text` +
+    (deedData ? ` + ${Math.round(deedData.length / 1024)}KB deed` : '') +
+    ` to Claude…`);
+
+  // Build the deed section for the prompt when deed data is available.
+  // The deed provides the legal perimeter baseline (typically an older survey),
+  // which can differ from the plat due to re-survey adjustments or datum changes.
+  const deedSection = deedData
+    ? `\nSOURCE 3 — DEED DATA (legal parent-tract metes and bounds):\n` +
+      `NOTE: Deed bearings may use an older datum / epoch (e.g. 1971) while plat uses NAD83. ` +
+      `Systematic bearing rotation between sources is expected and is NOT a discrepancy.\n` +
+      deedData
+    : '';
+
+  const sourceCount = deedData ? 'THREE' : 'TWO';
 
   const response = await client.messages.create({
     model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929',
@@ -705,15 +734,19 @@ export async function buildBoundaryMap(
       role: 'user',
       content: `You are a professional land surveyor performing a GEOMETRIC RECONCILIATION.
 
-You have TWO independent data sources:
+You have ${sourceCount} independent data sources:
 
 SOURCE 1 — GEOMETRIC ANALYSIS (visual analysis of the drawing):
 ${geoSections || '(no geometric analysis available)'}
 
 SOURCE 2 — TEXT EXTRACTION (OCR of numbers/text from zoomed scans):
 ${textData || '(no text extraction available)'}
-
+${deedSection}
 YOUR TASK: Create a COMPLETE LOT BOUNDARY MAP for ${subdivName}.
+
+CRITICAL RULE: Report EACH source separately for every line.
+DO NOT silently reconcile disagreements. A disagreement between sources
+is a meaningful diagnostic finding — flag it, do not resolve it silently.
 
 STEP 1: LIST ALL BOUNDARY LINES
 Go around the entire subdivision perimeter first, then interior lot lines.
@@ -721,8 +754,8 @@ Assign IDs: B1, B2... for boundary, I1, I2... for interior.
 
 STEP 2: FOR EACH LINE, RECONCILE:
 - Feature A / Feature B (what it separates)
-- Text-extracted bearing vs geometry-estimated bearing
-- Text-extracted distance vs geometry-estimated distance
+- Text-extracted bearing vs geometry-estimated bearing${deedData ? ' vs deed bearing' : ''}
+- Text-extracted distance vs geometry-estimated distance${deedData ? ' vs deed distance' : ''}
 - Line type (straight/curve)
 - Monuments at endpoints
 - RECONCILED bearing and distance (best determination)
@@ -731,17 +764,21 @@ STEP 2: FOR EACH LINE, RECONCILE:
 
 STEP 3: RESOLVE WATERMARK DAMAGE
 Where OCR shows [?] or conflicting readings, use geometric estimate to determine correct reading.
+Mark as [DEDUCED FROM GEOMETRY] with explanation of how the value was determined.
 
 STEP 4: PAIR LINE TABLE and CURVE TABLE entries to specific boundary lines.
 
 STEP 5: VERIFY LOT CLOSURES — do bearings/distances form closed figures?
 
-STEP 6: DISCREPANCY REPORT — every conflict between text and geometry.
+STEP 6: DISCREPANCY REPORT — every conflict between sources.
+For each discrepancy: describe what each source says, explain why they might disagree
+(re-survey, typo, OCR error, datum rotation, real problem), and recommend next action.
 
 Tags:
 - [ESTIMATED] = derived from geometric analysis only (no readable text)
-- [VERIFY] = conflicting readings between text and geometry
-- [MISSING] = data not available from either source
+- [DEDUCED FROM GEOMETRY] = watermark-obscured value resolved using geometric context
+- [VERIFY] = conflicting readings between sources that cannot be resolved
+- [MISSING] = data not available from any source
 
 Format as a structured report for surveyor review.`,
     }],
@@ -759,16 +796,21 @@ Format as a structured report for surveyor review.`,
 
 /**
  * Count confidence tags in Phase 3A boundary map text.
- * Matches [ESTIMATED], [VERIFY], [MISSING], HIGH, MEDIUM, LOW (case-insensitive).
+ * Matches [ESTIMATED], [DEDUCED...], [VERIFY], [MISSING], HIGH, MEDIUM, LOW (case-insensitive).
+ *
+ * [DEDUCED] is counted separately from [ESTIMATED] (from geo-reconcile.js reference):
+ * - [ESTIMATED] = geometry-only value with no readable text source
+ * - [DEDUCED]   = value resolved from context clues (geometry, adjacent, deed)
  */
 export function extractConfidenceSummary(text: string): ConfidenceSummary {
   return {
-    high:      (text.match(/\bHIGH\b/gi)        || []).length,
-    medium:    (text.match(/\bMEDIUM\b/gi)       || []).length,
-    low:       (text.match(/\bLOW\b/gi)          || []).length,
-    estimated: (text.match(/\[ESTIMATED\]/gi)     || []).length,
-    verify:    (text.match(/\[VERIFY\]/gi)        || []).length,
-    missing:   (text.match(/\[MISSING\]/gi)       || []).length,
+    high:      (text.match(/\bHIGH\b/gi)         || []).length,
+    medium:    (text.match(/\bMEDIUM\b/gi)        || []).length,
+    low:       (text.match(/\bLOW\b/gi)           || []).length,
+    estimated: (text.match(/\[ESTIMATED\]/gi)      || []).length,
+    deduced:   (text.match(/\[DEDUCED/gi)          || []).length,
+    verify:    (text.match(/\[VERIFY\]/gi)         || []).length,
+    missing:   (text.match(/\[MISSING\]/gi)        || []).length,
   };
 }
 
@@ -939,6 +981,9 @@ export function reconcileGeometry(
  * Returns null for phase1Visual if the image is not provided or Phase 1 fails.
  * Returns null for multiCropAnalysis if sharp is unavailable.
  * Returns null for boundaryMap if multiCropAnalysis is null.
+ *
+ * @param deedData  Optional deed metes-and-bounds text passed through to Phase 3A
+ *                  as a third independent source (from geo-reconcile.js reference).
  */
 export async function runGeoReconcile(
   textExtraction: ExtractedBoundaryData | null,
@@ -948,6 +993,7 @@ export async function runGeoReconcile(
   logger: PipelineLogger,
   label = 'plat',
   subdivName?: string,
+  deedData?: string,
 ): Promise<ReconciliationResult> {
   logger.info('GeoReconcile', '╔══════════════════════════════════════════════════════╗');
   logger.info('GeoReconcile', '║  GEOMETRIC RECONCILIATION ENGINE                    ║');
@@ -955,7 +1001,24 @@ export async function runGeoReconcile(
   logger.info('GeoReconcile', '║  Phase 3: Cross-reference reconciliation            ║');
   logger.info('GeoReconcile', '╚══════════════════════════════════════════════════════╝');
   logger.info('GeoReconcile', `  Label: ${label}  Subdivision: ${subdivName ?? '(unnamed)'}`);
-  logger.info('GeoReconcile', `  Text extraction calls: ${textExtraction?.calls.length ?? 0}`);
+
+  // Log text extraction details with both char and line counts (from geo-reconcile.js ref)
+  if (textExtraction) {
+    const textRaw = textExtraction.calls.map((c: BoundaryCall) =>
+      `Call ${c.sequence}: bearing=${c.bearing?.raw ?? 'N/A'} dist=${c.distance?.value ?? 'N/A'}ft ${c.along ?? c.toPoint ?? ''}`
+    ).join('\n');
+    logger.info('GeoReconcile',
+      `  Text extraction: ${textExtraction.calls.length} calls, ` +
+      `${textRaw.length} chars (${textRaw.split('\n').length} lines)`);
+  } else {
+    logger.info('GeoReconcile', '  Text extraction: none');
+  }
+
+  if (deedData) {
+    logger.info('GeoReconcile',
+      `  Deed data: ${deedData.length} chars (${deedData.split('\n').length} lines)`);
+  }
+
   logger.info('GeoReconcile', `  Plat image: ${platImageBase64 ? `${Math.round(platImageBase64.length / 1024)}KB base64` : 'none'}`);
 
   const startMs = Date.now();
@@ -999,7 +1062,7 @@ export async function runGeoReconcile(
   logger.info('GeoReconcile', '═══ PHASE 3: Cross-Reference Reconciliation ═══');
   const phase3 = reconcileGeometry(visual, textExtraction, logger);
 
-  // Phase 3A — boundary map (Claude API call combining geo + text)
+  // Phase 3A — boundary map (Claude API call combining geo + text + optional deed)
   let boundaryMap: string | null = null;
   let confidenceSummary: ConfidenceSummary | null = null;
 
@@ -1017,12 +1080,22 @@ export async function runGeoReconcile(
         multiCropAnalysis, textData,
         subdivName ?? label,
         anthropicApiKey, logger,
+        deedData,
       );
 
       confidenceSummary = extractConfidenceSummary(boundaryMap);
       logger.info('GeoReconcile',
         `  Confidence summary: HIGH=${confidenceSummary.high} MEDIUM=${confidenceSummary.medium} LOW=${confidenceSummary.low} ` +
-        `[ESTIMATED]=${confidenceSummary.estimated} [VERIFY]=${confidenceSummary.verify} [MISSING]=${confidenceSummary.missing}`);
+        `[ESTIMATED]=${confidenceSummary.estimated} [DEDUCED]=${confidenceSummary.deduced} ` +
+        `[VERIFY]=${confidenceSummary.verify} [MISSING]=${confidenceSummary.missing}`);
+
+      // Log high-confidence rate (from geo-reconcile.js reference script)
+      const totalRated = confidenceSummary.high + confidenceSummary.medium + confidenceSummary.low;
+      if (totalRated > 0) {
+        const highRatePct = Math.round((confidenceSummary.high / totalRated) * 100);
+        logger.info('GeoReconcile',
+          `  High-confidence rate: ${highRatePct}% of ${totalRated} rated calls`);
+      }
     } catch (err) {
       logger.warn('GeoReconcile', `Phase 3A boundary map failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
     }

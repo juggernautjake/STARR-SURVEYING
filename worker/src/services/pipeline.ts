@@ -1159,7 +1159,13 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           const cs = reconciliation.confidenceSummary;
           logger.info('Stage3.5',
             `Confidence summary: HIGH=${cs.high} MEDIUM=${cs.medium} LOW=${cs.low} ` +
-            `[ESTIMATED]=${cs.estimated} [VERIFY]=${cs.verify} [MISSING]=${cs.missing}`);
+            `[ESTIMATED]=${cs.estimated} [DEDUCED]=${cs.deduced} [VERIFY]=${cs.verify} [MISSING]=${cs.missing}`);
+          const totalRated = cs.high + cs.medium + cs.low;
+          if (totalRated > 0) {
+            const highRatePct = Math.round((cs.high / totalRated) * 100);
+            logger.info('Stage3.5',
+              `High-confidence rate: ${highRatePct}% of ${totalRated} rated calls`);
+          }
         }
         if (reconciliation.multiCropAnalysis) {
           logger.info('Stage3.5',

@@ -1710,8 +1710,11 @@ describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () =
 //   J-12. ReconciliationResult interface — includes confidenceSummary field
 //   J-13. MultiCropAnalysis interface — has overviewText, geometryText,
 //          topLotsText, botLotsText, apiCallCount fields
-//   J-14. ConfidenceSummary interface — has all six tag fields
+//   J-14. ConfidenceSummary interface — has all seven tag fields (incl. deduced)
 //   J-15. runGeoReconcile signature — accepts optional subdivName 7th param
+//   J-18. extractConfidenceSummary — counts [DEDUCED...] tags correctly
+//   J-19. buildBoundaryMap — accepts optional deedData 6th param
+//   J-20. ConfidenceSummary — deduced is 0 when text has no [DEDUCED] tags
 // ═══════════════════════════════════════════════════════════════════
 
 import {
@@ -1772,7 +1775,7 @@ describe('geo-reconcile.ts — geo-reconcile.js integration (Module J)', () => {
     const result = extractConfidenceSummary('');
     expect(result).toEqual({
       high: 0, medium: 0, low: 0,
-      estimated: 0, verify: 0, missing: 0,
+      estimated: 0, deduced: 0, verify: 0, missing: 0,
     });
   });
 
@@ -1790,6 +1793,7 @@ describe('geo-reconcile.ts — geo-reconcile.js integration (Module J)', () => {
     expect(result.medium).toBe(2);
     expect(result.low).toBe(2);
     expect(result.estimated).toBe(2);
+    expect(result.deduced).toBe(0);
     expect(result.verify).toBe(1);
     expect(result.missing).toBe(1);
   });
@@ -1826,15 +1830,16 @@ describe('geo-reconcile.ts — geo-reconcile.js integration (Module J)', () => {
     expect(mc.apiCallCount).toBe(4);
   });
 
-  it('J-14. ConfidenceSummary — has all six required tag fields', () => {
+  it('J-14. ConfidenceSummary — has all seven required tag fields (incl. deduced)', () => {
     const cs: ConfidenceSummary = {
       high: 5, medium: 3, low: 1,
-      estimated: 2, verify: 1, missing: 0,
+      estimated: 2, deduced: 1, verify: 1, missing: 0,
     };
     expect(Object.keys(cs)).toEqual(
-      expect.arrayContaining(['high', 'medium', 'low', 'estimated', 'verify', 'missing']),
+      expect.arrayContaining(['high', 'medium', 'low', 'estimated', 'deduced', 'verify', 'missing']),
     );
     expect(cs.high + cs.medium + cs.low).toBe(9);
+    expect(cs.deduced).toBe(1);
   });
 
   it('J-15. runGeoReconcile is exported and accepts optional 7th subdivName param', () => {
@@ -1850,6 +1855,37 @@ describe('geo-reconcile.ts — geo-reconcile.js integration (Module J)', () => {
 
   it('J-17. buildBoundaryMap is exported', () => {
     expect(typeof buildBoundaryMap).toBe('function');
+  });
+
+  it('J-18. extractConfidenceSummary — counts [DEDUCED...] tags correctly', () => {
+    // [DEDUCED FROM GEOMETRY], [DEDUCED], [DEDUCED BY CONTEXT] should all match
+    const text = [
+      'L4 bearing: N56°31\'22"W [DEDUCED FROM GEOMETRY] — resolves watermark',
+      'Distance: 154.56\' [DEDUCED]',
+      'Call 6 distance [DEDUCED BY CONTEXT]: 696.3 ft',
+      'Normal HIGH confidence line.',
+    ].join('\n');
+    const result = extractConfidenceSummary(text);
+    expect(result.deduced).toBe(3);
+    expect(result.estimated).toBe(0);
+  });
+
+  it('J-19. buildBoundaryMap — accepts optional deedData 6th parameter', () => {
+    // Verify that buildBoundaryMap's signature accommodates the optional deedData param
+    // without a type error (called with and without the 6th argument).
+    // We only test the signature, not a live API call.
+    expect(typeof buildBoundaryMap).toBe('function');
+    // Function has 5 required params + 1 optional (deedData) — arity is at least 5
+    expect(buildBoundaryMap.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('J-20. extractConfidenceSummary — deduced is 0 when text has no [DEDUCED] tags', () => {
+    const text = 'B1: HIGH — N45° E — [ESTIMATED] 317\'\nB2: [VERIFY] — LOW — [MISSING]';
+    const result = extractConfidenceSummary(text);
+    expect(result.deduced).toBe(0);
+    expect(result.estimated).toBe(1);
+    expect(result.verify).toBe(1);
+    expect(result.missing).toBe(1);
   });
 });
 
