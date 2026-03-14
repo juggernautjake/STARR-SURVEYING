@@ -7919,6 +7919,7 @@
 .research-search__map-img {
   display: block;
   width: 100%;
+  height: auto;
   max-height: 360px;
   object-fit: cover;
   object-position: center;
