@@ -411,8 +411,8 @@ export async function runCountyResearch(
     // ── All Counties — Generic Pipeline ─────────────────────────────
     default: {
       onProgress({
-        phase: 'Router',
-        message: `No dedicated module for ${input.county} — using generic pipeline`,
+        phase: 'Stage 0',
+        message: `Stage 0: Routing to generic pipeline for ${input.county} County…`,
         timestamp: new Date().toISOString(),
       });
 
@@ -436,10 +436,28 @@ export async function runCountyResearch(
         })),
       };
 
-      // Bridge progress: convert PipelineLogger events to CountyResearchProgress
-      // The generic pipeline uses its own internal logging, so we emit stage
-      // transitions via the onProgress callback by wrapping the pipeline call.
-      const result = await runPipeline(pipelineInput);
+      // The generic pipeline calls updateStatus() which writes research_message to
+      // Supabase. The worker's /research/status/:id endpoint reads that value and
+      // forwards it as `message` to the frontend so PipelineProgressPanel shows
+      // accurate stage labels. We emit a final progress event when the pipeline
+      // completes or fails so activePipelines.currentStage stays up to date.
+      let result;
+      try {
+        result = await runPipeline(pipelineInput);
+      } catch (err) {
+        onProgress({
+          phase: 'Failed',
+          message: `Pipeline failed: ${err instanceof Error ? err.message : String(err)}`,
+          timestamp: new Date().toISOString(),
+        });
+        throw err;
+      }
+
+      onProgress({
+        phase: result.status === 'failed' ? 'Failed' : 'Complete',
+        message: `Pipeline ${result.status}: ${result.ownerName ?? input.address ?? ''}`,
+        timestamp: new Date().toISOString(),
+      });
 
       return {
         resultType: 'generic-pipeline',

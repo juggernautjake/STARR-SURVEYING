@@ -77,7 +77,7 @@ export function parseDeedReferences(legalDescription: string): {
 
 let supabaseClient: Awaited<ReturnType<typeof import('@supabase/supabase-js').createClient>> | null = null;
 
-async function getSupabase() {
+export async function getSupabase() {
   if (supabaseClient) return supabaseClient;
 
   const supabaseUrl = process.env.SUPABASE_URL;
