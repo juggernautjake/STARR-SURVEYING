@@ -84,6 +84,42 @@ const SOURCE_LABELS: Record<SearchSource, { label: string; icon: string }> = {
   texas_file:      { label: 'TexasFile Deed Search', icon: '📋' },
 };
 
+// ── Bell County Auto-Detection ──────────────────────────────────────────────
+// Keep in sync with worker/src/counties/router.ts BELL_COUNTY_CITIES
+
+const BELL_COUNTY_CITIES_LOWER = [
+  'belton', 'killeen', 'temple', 'harker heights', 'nolanville', 'salado',
+  'holland', 'rogers', 'troy', 'moody', 'bartlett', 'little river-academy',
+  'little river academy', 'copperas cove', 'morgans point resort', 'moffat',
+  'pendleton', 'eddy', 'heidenheimer', 'academy', 'prairie dell',
+];
+
+const BELL_COUNTY_ZIPS = new Set([
+  '76501', '76502', '76503', '76504', '76505', '76506', '76507', '76508',
+  '76513', '76517', '76520', '76522', '76523', '76524', '76525', '76526',
+  '76527', '76528', '76530', '76534', '76537', '76538', '76539',
+  '76540', '76541', '76542', '76543', '76544', '76545', '76546', '76547',
+  '76548', '76549', '76554', '76557', '76561', '76569', '76570', '76571',
+]);
+
+function detectBellCountyFromAddress(address: string): boolean {
+  if (!address) return false;
+  const lower = address.toLowerCase();
+  if (/\bbell\s+county\b/.test(lower)) return true;
+  for (const city of BELL_COUNTY_CITIES_LOWER) {
+    const escaped = city.replace(/[-]/g, '[-\\s]?');
+    if (new RegExp(`\\b${escaped}\\b`).test(lower)) return true;
+  }
+  const zipMatches = address.match(/\b(\d{5})(?:-\d{4})?\b/g);
+  if (zipMatches) {
+    for (const zip of zipMatches) {
+      if (BELL_COUNTY_ZIPS.has(zip.slice(0, 5))) return true;
+    }
+  }
+  return false;
+}
+// ── End Bell County Auto-Detection ─────────────────────────────────────────
+
 export default function PropertySearchPanel({
   projectId,
   defaultAddress,
@@ -93,6 +129,8 @@ export default function PropertySearchPanel({
 }: PropertySearchPanelProps) {
   const [address, setAddress] = useState(defaultAddress || '');
   const [county, setCounty] = useState(defaultCounty || '');
+  // Track whether the county was auto-populated (so we can clear it if address changes)
+  const [countyAutoDetected, setCountyAutoDetected] = useState(false);
   const [parcelId, setParcelId] = useState(defaultParcelId || '');
   const [ownerName, setOwnerName] = useState('');
 
@@ -430,7 +468,21 @@ export default function PropertySearchPanel({
             type="text"
             placeholder="e.g. 1234 Main St, Belton, TX 76513"
             value={address}
-            onChange={e => setAddress(e.target.value)}
+            onChange={e => {
+              const val = e.target.value;
+              setAddress(val);
+              // Auto-detect Bell County from address when county is blank or was auto-filled
+              if (!county.trim() || countyAutoDetected) {
+                if (detectBellCountyFromAddress(val)) {
+                  setCounty('Bell');
+                  setCountyAutoDetected(true);
+                } else if (countyAutoDetected) {
+                  // Clear the auto-detected county if address no longer matches
+                  setCounty('');
+                  setCountyAutoDetected(false);
+                }
+              }
+            }}
             onKeyDown={e => e.key === 'Enter' && handleInitiateResearch()}
           />
         </div>
@@ -446,7 +498,11 @@ export default function PropertySearchPanel({
               type="text"
               placeholder="e.g. Bell"
               value={county}
-              onChange={e => setCounty(e.target.value)}
+              onChange={e => {
+                setCounty(e.target.value);
+                // If user manually edits county, stop auto-detecting
+                setCountyAutoDetected(false);
+              }}
             />
           </div>
           <div className="research-search__field research-search__field--half">
