@@ -1899,7 +1899,7 @@ export async function searchBellClerk(
     const page = await context.newPage();
 
     const nameParts = _parseOwnerName(ownerName);
-    console.log('[BELL-CLERK] Searching for:', nameParts.searchQuery);
+    attempt.step(`Searching for: ${nameParts.searchQuery}`);
 
     // Use correct Tyler PublicSearch URL parameters (verified from actual HTML, March 2026)
     const d0 = new Date();
@@ -1950,7 +1950,7 @@ export async function searchBellClerk(
     }
     return documents;
   } catch (err: any) {
-    console.error('[BELL-CLERK] Search failed:', err.message);
+    logger.error('Stage2A', 'searchBellClerk failed', err);
     if (browser) await browser.close().catch(() => {});
     attempt.fail(err.message);
     return [];
@@ -2033,13 +2033,13 @@ export async function fetchDocumentImages(
         /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
       ) {
         imageUrls.push(url);
-        console.log(`[BELL-IMG] Captured: ${url.substring(0, 100)}...`);
+        attempt.step(`Captured image URL: ${url.substring(0, 100)}...`);
       }
     });
 
     // Navigate directly to the document viewer page (avoids search+click overhead)
     const viewerUrl = `${BELL_CLERK_BASE}/doc/${encodeURIComponent(instrumentNumber)}/details`;
-    console.log(`[BELL-IMG] Navigating directly to viewer: ${viewerUrl}`);
+    attempt.step(`Navigating to viewer: ${viewerUrl}`);
     try {
       await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 45_000 });
     } catch {
@@ -2054,14 +2054,14 @@ export async function fetchDocumentImages(
       await page.waitForTimeout(500);
     }
 
-    console.log(`[BELL-IMG] After viewer load: ${imageUrls.length} URLs captured`);
+    attempt.step(`After viewer load: ${imageUrls.length} URLs captured`);
 
     // Fallback: if direct viewer didn't capture images, try the proven search+click
     // approach. Per transcripts (Ash Trust, March 4, 2026): 8s after navigation for
     // the Tyler SPA to render results, then 8s after clicking a result row for the
     // Kofile document viewer to fire the signed image URL.
     if (imageUrls.length === 0) {
-      console.log('[BELL-IMG] Direct viewer captured no images — falling back to search+click');
+      attempt.step('Direct viewer captured no images — falling back to search+click');
       const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
       // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
@@ -2071,7 +2071,7 @@ export async function fetchDocumentImages(
         // Kofile viewer needs TYLER_VIEWER_LOAD_TIMEOUT_MS to fire the signed image URL.
         await page.waitForTimeout(TYLER_VIEWER_LOAD_TIMEOUT_MS);
       } catch (e: any) {
-        console.log('[BELL-IMG] Search+click fallback: could not click result:', e.message);
+        attempt.step(`Search+click fallback: could not click result: ${e.message}`);
       }
     }
 
@@ -2096,11 +2096,11 @@ export async function fetchDocumentImages(
             height: 0,
             signedUrl: imgUrl,
           });
-          console.log(`[BELL-IMG] Page ${pageNum}: ${buf.length} bytes (${detectFormat(imgUrl)})`);
+          attempt.step(`Page ${pageNum}: ${buf.length} bytes (${detectFormat(imgUrl)})`);
           return true;
         }
       } catch (e: any) {
-        console.log(`[BELL-IMG] Page ${pageNum} download failed: ${e.message}`);
+        attempt.step(`Page ${pageNum} download failed: ${e.message}`);
       }
       return false;
     };
@@ -2130,7 +2130,7 @@ export async function fetchDocumentImages(
       }
 
       if (!clicked) {
-        console.log(`[BELL-IMG] No next-page button for page ${pageNum}`);
+        attempt.step(`No next-page button for page ${pageNum}`);
         break;
       }
 
@@ -2145,7 +2145,7 @@ export async function fetchDocumentImages(
         const constructedUrl = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_${pageNum}.$1`);
         if (constructedUrl !== seedUrl) {
           const ok = await downloadPage(constructedUrl, pageNum);
-          if (!ok) console.log(`[BELL-IMG] Page ${pageNum} constructed URL failed`);
+          if (!ok) attempt.step(`Page ${pageNum} constructed URL failed`);
         }
       }
     }
@@ -2160,7 +2160,7 @@ export async function fetchDocumentImages(
     }
     return pages;
   } catch (err: any) {
-    console.error('[BELL-IMG] Image fetch failed:', err.message);
+    logger.error('Stage2D', 'fetchDocumentImages failed', err);
     if (browser) await browser.close().catch(() => {});
     attempt.fail(err.message);
     return [];
@@ -2213,7 +2213,7 @@ export async function searchBellClerkOwnerForPlatDeed(
       `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch` +
       `&searchValue=${encodeURIComponent(ownerOrSubdivisionName)}`;
 
-    console.log(`[BELL-PLAT] Searching: ${searchUrl}`);
+    attempt.step(`Searching: ${searchUrl}`);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
     await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
@@ -2227,7 +2227,7 @@ export async function searchBellClerkOwnerForPlatDeed(
     } catch { /* no dialog */ }
 
     const allDocuments = await _extractSearchResults(page);
-    console.log(`[BELL-PLAT] Found ${allDocuments.length} documents for "${ownerOrSubdivisionName}"`);
+    attempt.step(`Found ${allDocuments.length} documents for "${ownerOrSubdivisionName}"`);
 
     // Categorise instruments: plat documents vs deed documents
     const platInstruments: string[] = [];
@@ -2266,7 +2266,7 @@ export async function searchBellClerkOwnerForPlatDeed(
 
     return { platInstruments, deedInstruments, allDocuments };
   } catch (err: any) {
-    console.error('[BELL-PLAT] Search failed:', err.message);
+    logger.error('Stage2B', 'searchBellPlatDeeds failed', err);
     if (browser) await browser.close().catch(() => {});
     attempt.fail(err.message);
     return { platInstruments: [], deedInstruments: [], allDocuments: [] };
