@@ -822,7 +822,10 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         for (const { instrNum, docType } of instrToFetch) {
           try {
             const isPlat = /plat/i.test(docType);
-            const pages = await fetchDocumentImages(instrNum, isPlat ? 3 : 2, logger);
+            // Use 20 as the upper bound for plats — large multi-lot plats can have
+            // many pages and the dynamic stopping in fetchDocumentImages will bail
+            // out early once no more pages are found.  Deeds rarely exceed 4 pages.
+            const pages = await fetchDocumentImages(instrNum, isPlat ? 20 : 4, logger);
             if (pages.length > 0) {
               const docResult: DocumentResult = {
                 ref: {

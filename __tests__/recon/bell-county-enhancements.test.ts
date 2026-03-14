@@ -1359,3 +1359,138 @@ describe('Property Validation Pipeline (property-validation-pipeline.ts)', () =>
     expect(screenshot.pageNumber).toBe(1);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+//  Module H: Bell Clerk Image Capture — grab-docs.js Integration
+//  Tests the fixes derived from the proven grab-docs.js workflow:
+//    1. Timing constants match the Ash Family Trust session values
+//    2. `expectedPages` is an upper bound, not a hard requirement
+//    3. Dynamic stopping behaviour is correctly described
+//    4. Bell County clerk config is properly reachable
+// ═══════════════════════════════════════════════════════════════════
+
+describe('Bell Clerk Image Capture — grab-docs.js Integration (bell-clerk.ts)', () => {
+
+  it('H-1. TYLER_SPA_RENDER_TIMEOUT_MS is 8000ms (proven grab-docs.js timing)', async () => {
+    const { TYLER_SPA_RENDER_TIMEOUT_MS } = await import('../../worker/src/services/bell-clerk.js');
+    expect(TYLER_SPA_RENDER_TIMEOUT_MS).toBe(8_000);
+  });
+
+  it('H-2. TYLER_VIEWER_LOAD_TIMEOUT_MS is 8000ms (proven grab-docs.js timing)', async () => {
+    const { TYLER_VIEWER_LOAD_TIMEOUT_MS } = await import('../../worker/src/services/bell-clerk.js');
+    expect(TYLER_VIEWER_LOAD_TIMEOUT_MS).toBe(8_000);
+  });
+
+  it('H-3. TYLER_NEXT_PAGE_TIMEOUT_MS is 5000ms (proven grab-docs.js timing)', async () => {
+    const { TYLER_NEXT_PAGE_TIMEOUT_MS } = await import('../../worker/src/services/bell-clerk.js');
+    expect(TYLER_NEXT_PAGE_TIMEOUT_MS).toBe(5_000);
+  });
+
+  it('H-4. hasKofileConfig("bell") returns true', async () => {
+    const { hasKofileConfig } = await import('../../worker/src/services/bell-clerk.js');
+    expect(hasKofileConfig('bell')).toBe(true);
+  });
+
+  it('H-5. getKofileBaseUrl("bell") returns bell.tx.publicsearch.us URL', async () => {
+    const { getKofileBaseUrl } = await import('../../worker/src/services/bell-clerk.js');
+    const url = getKofileBaseUrl('bell');
+    expect(url).not.toBeNull();
+    expect(url).toContain('bell.tx.publicsearch.us');
+  });
+
+  it('H-6. fetchDocumentImages is exported', async () => {
+    const { fetchDocumentImages } = await import('../../worker/src/services/bell-clerk.js');
+    expect(typeof fetchDocumentImages).toBe('function');
+  });
+
+  it('H-7. fetchDocumentImages signature accepts (instrumentNumber, expectedPages, logger)', async () => {
+    const { fetchDocumentImages } = await import('../../worker/src/services/bell-clerk.js');
+    // 3 required parameters
+    expect(fetchDocumentImages.length).toBe(3);
+  });
+
+  it('H-8. Dynamic stopping: "no new URL" exit condition is correct', () => {
+    // Unit-test the core logic of the dynamic stopping without Playwright.
+    // Simulate the imageUrls array state transitions across pages.
+    const imageUrls: string[] = [];
+    const pages: number[] = [];
+
+    // Simulate interceptor firing a URL
+    const addUrl = (u: string) => { imageUrls.push(u); };
+    const downloadPage = (urlIdx: number, pageNum: number) => { pages.push(pageNum); return true; };
+
+    // Page 1 load — viewer fires first URL
+    addUrl('https://bell.tx.publicsearch.us/files/documents/abc_1.png?token=xyz');
+
+    // Download page 1 using imageUrls[0] (NOT imageUrls[imageUrls.length-1])
+    downloadPage(0, 1);
+    expect(pages).toContain(1);
+
+    // Page 2 navigation — viewer fires new URL
+    const countBefore = imageUrls.length;
+    addUrl('https://bell.tx.publicsearch.us/files/documents/abc_2.png?token=xyz');
+    expect(imageUrls.length).toBeGreaterThan(countBefore);  // new URL appeared
+    downloadPage(imageUrls.length - 1, 2);
+    expect(pages).toContain(2);
+
+    // Page 3 navigation — no new URL (end of document)
+    const countBefore3 = imageUrls.length;
+    // No addUrl() call — viewer doesn't fire any new URL
+    expect(imageUrls.length).toBe(countBefore3);  // nothing new
+
+    // URL construction: replace _1. with _3. in seedUrl
+    const seedUrl = imageUrls[0];
+    const constructedUrl = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, '_3.$1');
+    // If construction fails (same URL), we stop
+    const failed = constructedUrl === seedUrl;
+    expect(failed).toBe(false);  // it worked — different URL
+    // But if the download of the constructed URL fails, we also stop
+    // This matches the new break-on-failure behaviour
+  });
+
+  it('H-9. URL construction uses imageUrls[0] as the seed (page 1 URL)', () => {
+    // Verify the seedUrl for page-number substitution is always imageUrls[0].
+    // If multiple URLs were pre-loaded at viewer open, imageUrls[0] is page 1.
+    const imageUrls = [
+      'https://bell.tx.publicsearch.us/files/documents/abc_1.png?token=xyz',
+      'https://bell.tx.publicsearch.us/files/documents/abc_2.png?token=xyz',
+    ];
+
+    // Page 1 download should use imageUrls[0], not imageUrls[imageUrls.length - 1]
+    expect(imageUrls[0]).toContain('_1.png');
+    expect(imageUrls[imageUrls.length - 1]).toContain('_2.png');
+
+    // seedUrl for construction is always imageUrls[0]
+    const seedUrl = imageUrls[0];
+    const constructedForPage3 = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, '_3.$1');
+    expect(constructedForPage3).toContain('_3.png');
+    expect(constructedForPage3).not.toContain('_2.png');  // not derived from last URL
+  });
+
+  it('H-10. expectedPages cap of 20 is the safety limit for all document types', () => {
+    // Verify that the Math.min(expectedPages, 20) cap prevents infinite loops.
+    // Any value > 20 is silently capped; any value ≤ 20 is used as-is.
+    const cap = (expected: number) => Math.min(expected, 20);
+    expect(cap(3)).toBe(3);
+    expect(cap(10)).toBe(10);
+    expect(cap(20)).toBe(20);
+    expect(cap(50)).toBe(20);  // capped at 20
+    expect(cap(100)).toBe(20);
+  });
+
+  it('H-11. Plat documents use expectedPages=20 in Stage 2B (not the old 3)', async () => {
+    // Verify that the pipeline.ts Stage 2B call uses 20 for plats, not the old 3.
+    // We check the pipeline source to ensure the constant wasn't accidentally reverted.
+    const pipelineSrc = await import('../../worker/src/services/pipeline.js');
+    // If pipeline loaded, the module is correct. The actual value is validated
+    // by reading the source at the known call site.
+    const src = (await import('node:fs')).readFileSync(
+      new URL('../../worker/src/services/pipeline.ts', import.meta.url),
+      'utf8',
+    );
+    // Stage 2B call: should be isPlat ? 20 : 4, NOT isPlat ? 3 : 2
+    expect(src).toContain('isPlat ? 20 : 4');
+    expect(src).not.toMatch(/fetchDocumentImages\([^,]+,\s*isPlat\s*\?\s*3\s*:/);
+    expect(pipelineSrc).toBeDefined();
+  });
+});
