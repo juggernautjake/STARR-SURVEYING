@@ -2034,14 +2034,19 @@ export async function fetchDocumentImages(
     });
     const page = await context.newPage();
 
-    // Intercept signed image URLs from the Kofile viewer
+    // Intercept signed image URLs from the Kofile viewer.
+    // Deduplicate by URL — the Kofile viewer sometimes fires the same signed URL
+    // twice (thumbnail preloads, XHR retries), which would corrupt the per-page
+    // imageUrls[pageNum - 1] indexing. Matches the grab-docs.js deduplication:
+    //   if (!imageUrls.includes(u)) imageUrls.push(u);
     const imageUrls: string[] = [];
     page.on('response', (res) => {
       const url = res.url();
       // Match Kofile signed document image URLs (PNG, JPG, TIFF)
       if (
         (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
-        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url) &&
+        !imageUrls.includes(url)
       ) {
         imageUrls.push(url);
         console.log(`[BELL-IMG] Captured: ${url.substring(0, 100)}...`);

@@ -1492,4 +1492,45 @@ describe('Bell Clerk Image Capture — grab-docs.js Integration (bell-clerk.ts)'
     expect(platPageCount(true)).not.toBe(3);  // was isPlat ? 3 : 2
     expect(platPageCount(false)).not.toBe(2);
   });
+
+  it('H-12. Response interceptor deduplication: same URL is not pushed twice', () => {
+    // Validates the !imageUrls.includes(url) guard in the response interceptor.
+    // The Kofile viewer sometimes fires the same signed URL twice (thumbnail preloads,
+    // XHR retries). Without dedup, duplicates corrupt imageUrls[pageNum-1] indexing.
+    // This mirrors the exact guard used in grab-docs.js:
+    //   if (!imageUrls.includes(u)) imageUrls.push(u);
+
+    const imageUrls: string[] = [];
+
+    // Simulate the guarded push (exact logic from bell-clerk.ts interceptor)
+    const captureUrl = (url: string) => {
+      if (
+        (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
+        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url) &&
+        !imageUrls.includes(url)
+      ) {
+        imageUrls.push(url);
+      }
+    };
+
+    const page1Url = 'https://bell.tx.publicsearch.us/files/documents/abc_1.png?token=xyz';
+    const page2Url = 'https://bell.tx.publicsearch.us/files/documents/abc_2.png?token=xyz';
+
+    // Fire page 1 URL twice (viewer retry)
+    captureUrl(page1Url);
+    captureUrl(page1Url);
+    expect(imageUrls.length).toBe(1);   // dedup: only one entry
+
+    // Fire page 2 URL
+    captureUrl(page2Url);
+    expect(imageUrls.length).toBe(2);
+
+    // Fire page 2 URL again (thumbnail preload)
+    captureUrl(page2Url);
+    expect(imageUrls.length).toBe(2);   // still 2 — no duplicate
+
+    // URLs are in page-order so imageUrls[pageNum-1] indexing is correct
+    expect(imageUrls[0]).toBe(page1Url);
+    expect(imageUrls[1]).toBe(page2Url);
+  });
 });
