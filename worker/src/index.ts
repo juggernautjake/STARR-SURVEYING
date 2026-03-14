@@ -412,7 +412,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
 
 // ── GET /research/status/:projectId ────────────────────────────────────────
 
-app.get('/research/status/:projectId', requireAuth, (req: Request, res: Response) => {
+app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Response) => {
   const { projectId } = req.params;
 
   if (completedResults.has(projectId)) {
