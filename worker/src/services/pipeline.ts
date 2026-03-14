@@ -7,7 +7,7 @@ import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
 import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed } from './bell-clerk.js';
-import { extractDocuments } from './ai-extraction.js';
+import { extractDocuments, extractPlatBoundary } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
 import { bundleAndUploadPages } from './pages-to-pdf.js';
@@ -490,6 +490,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     // All state is passed through the knownIds object for Stage 2 to consume.
     let bellKnownIds: ReturnType<typeof createSearchState> | null = null;
     let bellAllProperties: PropertyIdResult[] = [];
+    let isPlatted = false; // set during Bell County classification if applicable
 
     if (input.county.toLowerCase() === 'bell') {
       logger.info('Stage1-Bell', '═══ Bell County Cascade Enrichment ═══');
@@ -602,6 +603,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             propertyResult.legalDescription,
             propertyResult.ownerName,
           );
+          isPlatted = classification.isPlatted;
           logger.info('Stage1-Bell',
             `Classification: type=${classification.typeCode} ` +
             `cat=${classification.landCategory} ` +
@@ -761,7 +763,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           if (documents.some((d) => d.ref.documentType === 'Plat (county repository)')) break;
           try {
             logger.info('Stage2A', `Plat repo: searching for "${subdivisionName}"`);
-            const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger);
+            const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger, anthropicApiKey);
             if (platResult) {
               logger.info('Stage2A', `Plat: "${platResult.name}" (${platResult.source})`);
               documents.push({
@@ -990,12 +992,75 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     // STAGE 3: AI Extraction
     // ═══════════════════════════════════════════════════════════════════
 
-    const { documents: processedDocs, boundary } = await extractDocuments(
+    const { documents: processedDocs, boundary: rawBoundary } = await extractDocuments(
       documents,
       propertyResult?.legalDescription ?? null,
       anthropicApiKey,
       logger,
     );
+
+    // ── Stage 3C: Plat-based extraction (platted subdivisions) ───────────────
+    // If the property is a platted subdivision AND all extractions returned only
+    // lot_and_block references (no metes-and-bounds calls), route to a
+    // plat-specific Vision extraction to get the actual lot boundary from the
+    // plat drawing.  This covers cases where deeds reference "Lot 24 Block 8"
+    // but the geometry lives in the recorded plat image, not the deed text.
+    let boundary = rawBoundary;
+    const needsPlatExtraction = isPlatted && (
+      boundary === null ||
+      (boundary.type === 'lot_and_block' && boundary.calls.length === 0)
+    );
+
+    if (needsPlatExtraction) {
+      // Find the lot/block from the best extraction we have
+      const lotBlockSource = rawBoundary?.lotBlock
+        ?? processedDocs
+             .map(d => d.extractedData?.lotBlock)
+             .find(lb => lb?.lot && lb.block);
+
+      if (lotBlockSource?.lot && lotBlockSource.block) {
+        const lot          = lotBlockSource.lot;
+        const block        = lotBlockSource.block;
+        // Prefer the subdivision name from the extracted lot/block; fall back to the first
+        // segment of the CAD legal description (strips ", Lot N Block M …" trailing detail).
+        const subdivision  = lotBlockSource.subdivision || propertyResult?.legalDescription?.replace(/,.*$/, '').trim() || 'Unknown Subdivision';
+
+        logger.info('Stage3', `All documents are lot_and_block (0 boundary calls) — property is platted`);
+        logger.info('Stage3', `Routing to plat-based extraction for Lot ${lot}, Block ${block} from plat document`);
+
+        // Find plat document: prefer 'Final Plat', 'Plat', or any doc whose type includes 'plat'
+        const platDocForExtraction = processedDocs.find(d =>
+          (d.imageBase64 || (d.pageScreenshots && d.pageScreenshots.length > 0)) &&
+          /plat/i.test(d.ref.documentType)
+        ) ?? processedDocs.find(d =>
+          d.imageBase64 || (d.pageScreenshots && d.pageScreenshots.length > 0)
+        );
+
+        if (platDocForExtraction) {
+          logger.info('Stage3-Plat', `Sending plat image to Claude Vision with lot-specific prompt…`);
+          try {
+            const platBoundary = await extractPlatBoundary(
+              platDocForExtraction,
+              lot,
+              block,
+              subdivision,
+              anthropicApiKey,
+              logger,
+            );
+            if (platBoundary && platBoundary.calls.length > 0) {
+              boundary = platBoundary;
+              logger.info('Stage3-Plat', `Extracted ${boundary.calls.length} boundary calls from plat for Lot ${lot}, Block ${block} (confidence: ${boundary.confidence})`);
+            } else {
+              logger.warn('Stage3-Plat', `Plat extraction returned no boundary calls — falling back to lot_and_block result`);
+            }
+          } catch (platErr) {
+            logger.warn('Stage3-Plat', `Plat extraction failed (non-fatal): ${platErr instanceof Error ? platErr.message : String(platErr)}`);
+          }
+        } else {
+          logger.warn('Stage3', `No plat document with image available — cannot attempt plat-based extraction`);
+        }
+      }
+    }
 
     const boundaryNote = boundary
       ? `${boundary.type}, ${boundary.calls.length} calls`
