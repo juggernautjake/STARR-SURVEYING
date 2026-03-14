@@ -2744,6 +2744,6 @@ app.listen(PORT, () => {
   console.log('  DELETE /admin/health/alerts             ← Clear alerts');
   console.log('');
 
-  // Start periodic health checks (every 30 minutes)
-  siteHealthMonitor.startPeriodicChecks(30 * 60 * 1000);
+  // Start periodic health checks (every 6 hours — reduced to minimise log noise)
+  siteHealthMonitor.startPeriodicChecks(6 * 60 * 60 * 1000);
 });

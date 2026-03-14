@@ -67,6 +67,9 @@ export interface PlatRepoConfig {
 
 // ── Registry ──────────────────────────────────────────────────────────────────
 
+/** Shared browser User-Agent used for all plat repository HTTP requests. */
+const PLAT_BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36';
+
 /**
  * Registry of counties that host a free plat file repository.
  * Key: lowercase county name (matches pipeline input.county).
@@ -92,6 +95,15 @@ export const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
     countyDisplayName: 'Bell County Clerk plat repository (bellcountytx.com)',
     fileExt: 'pdf',
     parseMode: 'links',
+    indexHeaders: {
+      'User-Agent': PLAT_BROWSER_UA,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
+    fileHeaders: {
+      'User-Agent': PLAT_BROWSER_UA,
+      'Referer': 'https://www.bellcountytx.com/county_government/county_clerk/',
+    },
   },
   // ── Hays County — Hays CAD WordPress, TIF images, 8,051 plats ────────────
   // Index:  https://hayscad.com/subdivisionplats/sublist{letter}/
@@ -109,13 +121,13 @@ export const PLAT_REPO_REGISTRY: Record<string, PlatRepoConfig> = {
     numericsOnLetterA: true,
     parseMode: 'table',
     indexHeaders: {
-      'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      'User-Agent':      PLAT_BROWSER_UA,
       'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.9',
       'Referer':         'https://hayscad.com/',
     },
     fileHeaders: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      'User-Agent': PLAT_BROWSER_UA,
     },
     subdivisionApiUrl: 'https://esearch.hayscad.com/Search/SubdivisionList',
   },
@@ -296,22 +308,19 @@ interface PlatLink {
 /**
  * Bell County style: scans all <a href="...pdf"> anchor tags in the HTML.
  * Each anchor text is the subdivision name; the href is the direct PDF URL.
+ *
+ * Also handles the Revize CMS format where links contain `/docs/plats/` in the
+ * href — matching by path prefix when the extension-based match finds nothing.
  */
 function parsePlatLinks(html: string, config: PlatRepoConfig): PlatLink[] {
   const ext = config.fileExt ?? 'pdf';
   const results: PlatLink[] = [];
   const seen = new Set<string>();
 
-  // Match <a href="...{ext}...">NAME</a> — case-insensitive extension match
-  const linkRegex = new RegExp(
-    `<a\\s[^>]*href="([^"]*\\.${ext}[^"]*)"[^>]*>([^<]+)<\\/a>`,
-    'gi',
-  );
-  let match;
-  while ((match = linkRegex.exec(html)) !== null) {
-    const rawHref = match[1];
-    const rawName = match[2].replace(/\s+/g, ' ').trim();
-    if (!rawName || rawName.length < 3) continue;
+  function addLink(rawHref: string, rawName: string): void {
+    // Strip inner HTML tags from anchor text, normalise whitespace
+    const name = rawName.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    if (!name || name.length < 3) return;
 
     let fileUrl: string;
     if (rawHref.startsWith('http')) {
@@ -329,10 +338,44 @@ function parsePlatLinks(html: string, config: PlatRepoConfig): PlatLink[] {
       fileUrl = fileUrl.replace(/([?&])t=\d+/g, '').replace(/\?&/, '?').replace(/\?$/, '');
     }
 
-    const key = rawName.toUpperCase();
+    const key = name.toUpperCase();
     if (!seen.has(key)) {
       seen.add(key);
-      results.push({ name: rawName, url: fileUrl });
+      results.push({ name, url: fileUrl });
+    }
+  }
+
+  // Strategy 1: match <a href="...{ext}...">…inner…</a> — allows inner tags in text
+  const extRegex = new RegExp(
+    `<a\\s[^>]*href="([^"]*\\.${ext}[^"]*)"[^>]*>([\s\S]*?)<\\/a>`,
+    'gi',
+  );
+  let match: RegExpExecArray | null;
+  while ((match = extRegex.exec(html)) !== null) {
+    addLink(match[1], match[2]);
+  }
+
+  // Strategy 2: match any <a href="…/docs/plats/…">…</a> (Revize CMS path pattern)
+  // Covers cases where the extension is not in the href or is uppercase (.PDF)
+  if (results.length === 0) {
+    const platPathRegex = /<a\s[^>]*href="([^"]*\/docs\/plats\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    while ((match = platPathRegex.exec(html)) !== null) {
+      addLink(match[1], match[2]);
+    }
+  }
+
+  // Strategy 3: if still nothing, extract names from Revize CDN URLs anywhere in the HTML
+  // Pattern: /docs/plats/{LETTER}/{URL_ENCODED_NAME}.pdf
+  if (results.length === 0) {
+    const cdnRegex = /\/docs\/plats\/[A-Z0-9]\/([^"'\s?]+\.pdf)/gi;
+    while ((match = cdnRegex.exec(html)) !== null) {
+      const encodedName = match[1].replace(/\.pdf$/i, '');
+      try {
+        const decodedName = decodeURIComponent(encodedName).replace(/\+/g, ' ');
+        const fullHref = match[0].startsWith('http') ? match[0]
+          : config.fileBaseUrl + match[0];
+        addLink(fullHref, decodedName);
+      } catch { /* skip malformed URLs */ }
     }
   }
 
