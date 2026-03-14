@@ -509,13 +509,14 @@ export function normalizePlatName(name: string): string {
   n = n.replace(/\bAD\b/g, 'ADDITION');          // truncated (e.g. "MAYO AUTOMOTIVE AD")
 
   // SUBDIVISION variants
+  // Note: \bSUB\b is safe — does not match inside SUBURBAN/SUBJECT (no word boundary after B there)
+  n = n.replace(/\bSUB\b/g, 'SUBDIVISION');    // Category E: ~50 entries (e.g. BARNHARDT SUB)
   n = n.replace(/\bSUBD\b/g, 'SUBDIVISION');
   n = n.replace(/\bSUBDVISION\b/g, 'SUBDIVISION'); // typo
-  // "SUB" alone is intentionally NOT expanded — too many non-subdivision uses
-  // (e.g. "SUBURBAN", "SUBJECT") and Bell County does not use SUB as an abbreviation.
 
-  // ESTATES
+  // ESTATES (Category F: ~20+ entries)
   n = n.replace(/\bEST\b/g, 'ESTATES');
+  n = n.replace(/\bESTATE\b/g, 'ESTATES');    // singular → plural (e.g. MAHLER-MARSHALL ESTATE)
 
   // REPLAT variants
   n = n.replace(/\bRPLT\b/g, 'REPLAT');
@@ -538,6 +539,14 @@ export function normalizePlatName(name: string): string {
   // COMMERCIAL / HEIGHTS
   n = n.replace(/\bCOMM\b/g, 'COMMERCIAL');
   n = n.replace(/\bHTS\b/g, 'HEIGHTS');
+
+  // BLOCK / LOT (Category I surveying shorthands used in some archive filenames)
+  n = n.replace(/\bBLK\b/g, 'BLOCK');
+  n = n.replace(/\bLT\b/g, 'LOT');
+
+  // INDUSTRIAL / INSTRUMENT (Category I)
+  n = n.replace(/\bIND\b/g, 'INDUSTRIAL');
+  n = n.replace(/\bINST\b/g, 'INSTRUMENT');
 
   // RESUBDIVISION
   n = n.replace(/\bRESUB\b/g, 'RESUBDIVISION');

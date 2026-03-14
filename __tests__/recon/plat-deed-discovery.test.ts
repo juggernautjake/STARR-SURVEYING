@@ -423,6 +423,130 @@ describe('scorePlatMatch with normalization (county-plats.ts)', () => {
   });
 });
 
+// ── 14. normalizePlatName — Categories E, F, I (new abbreviations) ───────────
+
+describe('normalizePlatName — Category E/F/I additions (county-plats.ts)', () => {
+  it('14-1. SUB → SUBDIVISION (Category E, ~50 entries)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('BARNHARDT SUB')).toContain('SUBDIVISION');
+  });
+
+  it('14-2. SUB does NOT expand inside SUBURBAN (word-boundary safety)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('SUBURBAN HEIGHTS')).not.toContain('SUBDIVISION');
+  });
+
+  it('14-3. ESTATE → ESTATES (singular to plural, Category F)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('MAHLER-MARSHALL ESTATE')).toContain('ESTATES');
+  });
+
+  it('14-4. ESTATES unchanged (no double-expansion)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('EAGLE LEGACY ESTATES PHASE 1')).toContain('ESTATES');
+    expect(normalizePlatName('EAGLE LEGACY ESTATES PHASE 1')).not.toContain('ESTATESS');
+  });
+
+  it('14-5. BLK → BLOCK (Category I)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('CEDAR PARK BLK 1')).toContain('BLOCK');
+  });
+
+  it('14-6. LT → LOT (Category I)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('CEDAR PARK LT 1')).toContain('LOT');
+  });
+
+  it('14-7. IND → INDUSTRIAL (Category I)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('SOUTH LOOP IND PARK')).toContain('INDUSTRIAL');
+  });
+
+  it('14-8. INST → INSTRUMENT (Category I)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('VILLA CONQUISTADOR 1ST INST REPLAT')).toContain('INSTRUMENT');
+  });
+
+  it('14-9. PH N → PHASE N (Category B)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('NORTH GATE PH 6')).toContain('PHASE 6');
+  });
+
+  it('14-10. P1 → PHASE 1 (Category B)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('BARTON BUSINESS PARK P1')).toContain('PHASE 1');
+  });
+
+  it('14-11. PHASE II → PHASE 2 (Category D, roman numeral)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('ENCLAVE AT INDIAN TRAIL PHASE II')).toContain('PHASE 2');
+  });
+
+  it('14-12. PHASE THREE → PHASE 3 (Category D, spelled-out)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('ESPOSITO ADDITION PHASE THREE')).toContain('PHASE 3');
+  });
+
+  it('14-13. REPLAT NO ONE → REPLAT NUMBER 1 (Category D)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    const n = normalizePlatName('SOUTHSHORE ESTATES REPLAT NO ONE');
+    expect(n).toContain('NUMBER 1');
+  });
+
+  it('14-14. PHASE X → PHASE 10 (Category D, roman X after keyword)', async () => {
+    const { normalizePlatName } = await import('../../worker/src/services/county-plats.js');
+    expect(normalizePlatName('ENTERPRISE BUSINESS PARK PHASE X')).toContain('PHASE 10');
+  });
+});
+
+// ── 15. scorePlatMatch — Category E/D/J scoring examples ─────────────────────
+
+describe('scorePlatMatch — Category E/D/J examples (county-plats.ts)', () => {
+  it('15-1. SUBDIVISION vs SUB scores >= 0.8 (Category E)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch('BARNHARDT SUBDIVISION', 'BARNHARDT SUB');
+    expect(score).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it('15-2. PHASE 2 vs PHASE II scores >= 0.9 (Category D)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch('ENCLAVE AT INDIAN TRAIL PHASE 2', 'ENCLAVE AT INDIAN TRAIL PHASE II');
+    expect(score).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('15-3. REPLAT NO 1 vs REPLAT NO ONE scores >= 0.9 (Category D)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch('SOUTHSHORE ESTATES REPLAT NO 1', 'SOUTHSHORE ESTATES REPLAT NO ONE');
+    expect(score).toBeGreaterThanOrEqual(0.9);
+  });
+
+  it('15-4. ESTATE vs ESTATES scores = 1.0 (Category F, both normalize to ESTATES)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch('MAHLER-MARSHALL ESTATE', 'MAHLER-MARSHALL ESTATES');
+    expect(score).toBe(1.0);
+  });
+
+  it('15-5. Category J typo ADDITITON normalizes to exact match with ADDITION', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    // W Y MCFARLAND ADDITITON REPLAT NO 3 (archive) vs W Y MCFARLAND ADDITION REPLAT NO 3 (CAD)
+    const score = scorePlatMatch('W Y MCFARLAND ADDITITON REPLAT NO 3', 'W Y MCFARLAND ADDITION REPLAT NO 3');
+    expect(score).toBe(1.0);
+  });
+
+  it('15-6. Category J typo SUBDVISION normalizes to exact match with SUBDIVISION', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    // ROWAN TEMPLE SUBDVISION C (archive) vs ROWAN TEMPLE SUBDIVISION C (CAD)
+    const score = scorePlatMatch('ROWAN TEMPLE SUBDVISION C', 'ROWAN TEMPLE SUBDIVISION C');
+    expect(score).toBe(1.0);
+  });
+
+  it('15-7. HINDU TEMPLE ADDITION 2 vs ADDITION II scores >= 0.9 (Category D)', async () => {
+    const { scorePlatMatch } = await import('../../worker/src/services/county-plats.js');
+    const score = scorePlatMatch('HINDU TEMPLE ADDITION II', 'HINDU TEMPLE ADDITION 2');
+    expect(score).toBeGreaterThanOrEqual(0.9);
+  });
+});
+
 // ── 13. parsePlatLinks URL resolution — href path encoding ───────────────────
 // Verifies that spaces and '#' in href values are encoded correctly per the
 // Bell County Plat Archive Appendix (verified March 14, 2026).
