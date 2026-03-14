@@ -297,11 +297,12 @@ function scoreConfidence(text: string): SegmentScore {
  * For 2×2 grids: returns the canonical four quadrant names used by both
  * vision-quadrants.js and adaptive-vision-v2.js.
  *
- * For larger grids: corners stay LEFT/RIGHT/TOP/BOTTOM; intermediate rows in
- * a 4-row grid use the adaptive-vision-v2.js semantic names UPPER-MIDDLE /
- * LOWER-MIDDLE, and intermediate cols in a 4-col grid use CENTER-LEFT /
- * CENTER-RIGHT.  All other grids fall back to ROW N / COL N with a segment
- * counter so every cell has a unique, readable description.
+ * For larger grids: rows follow the 4-row semantic names UPPER-MIDDLE /
+ * LOWER-MIDDLE from adaptive-vision-v2.js.  4-col grids use the full
+ * adaptive-vision-v2.js hNames array: FAR-LEFT / CENTER-LEFT / CENTER-RIGHT /
+ * FAR-RIGHT — the "far" prefix signals that col=0 and col=3 are the extreme
+ * outer columns of a 4-column grid, not merely "the left half".  All other
+ * grid sizes fall back to ROW N / COL N with a segment counter.
  */
 function describePosition(row: number, col: number, totalRows: number, totalCols: number): string {
   if (totalRows === 2 && totalCols === 2) {
@@ -318,13 +319,16 @@ function describePosition(row: number, col: number, totalRows: number, totalCols
   else if (totalRows === 4)    rowName = row === 1 ? 'UPPER-MIDDLE' : 'LOWER-MIDDLE';
   else                         rowName = `ROW ${row + 1}`;
 
-  // Col label — corners are always LEFT/RIGHT; 4-col interior cells get
-  // semantic labels from adaptive-vision-v2.js's getPositionDesc().
+  // Col label — matches adaptive-vision-v2.js's getPositionDesc() hNames for
+  // 4-col grids: ["far-left", "center-left", "center-right", "far-right"].
+  // FAR-LEFT/FAR-RIGHT for the extreme columns tells Claude it's the edge of a
+  // 4-column grid (not just "the left half" of a 2-column split).
   let colName: string;
-  if (col === 0)               colName = 'LEFT';
-  else if (col === totalCols - 1) colName = 'RIGHT';
-  else if (totalCols === 4)    colName = col === 1 ? 'CENTER-LEFT' : 'CENTER-RIGHT';
-  else                         colName = `COL ${col + 1}`;
+  if (totalCols === 4) {
+    colName = col === 0 ? 'FAR-LEFT' : col === 1 ? 'CENTER-LEFT' : col === 2 ? 'CENTER-RIGHT' : 'FAR-RIGHT';
+  } else if (col === 0)            colName = 'LEFT';
+  else if (col === totalCols - 1)  colName = 'RIGHT';
+  else                             colName = `COL ${col + 1}`;
 
   const segNum = row * totalCols + col + 1;
   const total  = totalRows * totalCols;

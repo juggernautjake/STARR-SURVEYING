@@ -1537,10 +1537,11 @@ describe('Bell Clerk Image Capture — grab-docs.js Integration (bell-clerk.ts)'
 
 // ═══════════════════════════════════════════════════════════════════
 //  Module I: adaptive-vision-v2.js — Position-Aware Context (full)
-//  Tests describePosition() including the richer intermediate labels
-//  (UPPER-MIDDLE, LOWER-MIDDLE, CENTER-LEFT, CENTER-RIGHT) added from
-//  adaptive-vision-v2.js's getPositionDesc() convention, and the
-//  documentName integration in the position-hint message.
+//  Tests describePosition() including ALL label conventions from
+//  adaptive-vision-v2.js's getPositionDesc():
+//    4-col grids  → FAR-LEFT / CENTER-LEFT / CENTER-RIGHT / FAR-RIGHT
+//    4-row grids  → TOP / UPPER-MIDDLE / LOWER-MIDDLE / BOTTOM
+//  Also tests the documentName integration in the position-hint message.
 // ═══════════════════════════════════════════════════════════════════
 
 describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () => {
@@ -1561,11 +1562,14 @@ describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () =
     else if (totalRows === 4)    rowName = row === 1 ? 'UPPER-MIDDLE' : 'LOWER-MIDDLE';
     else                         rowName = `ROW ${row + 1}`;
 
+    // 4-col grids: full ["FAR-LEFT","CENTER-LEFT","CENTER-RIGHT","FAR-RIGHT"] array
+    // matches adaptive-vision-v2.js getPositionDesc() hNames exactly.
     let colName: string;
-    if (col === 0)               colName = 'LEFT';
-    else if (col === totalCols - 1) colName = 'RIGHT';
-    else if (totalCols === 4)    colName = col === 1 ? 'CENTER-LEFT' : 'CENTER-RIGHT';
-    else                         colName = `COL ${col + 1}`;
+    if (totalCols === 4) {
+      colName = col === 0 ? 'FAR-LEFT' : col === 1 ? 'CENTER-LEFT' : col === 2 ? 'CENTER-RIGHT' : 'FAR-RIGHT';
+    } else if (col === 0)            colName = 'LEFT';
+    else if (col === totalCols - 1)  colName = 'RIGHT';
+    else                             colName = `COL ${col + 1}`;
 
     const segNum = row * totalCols + col + 1;
     const total  = totalRows * totalCols;
@@ -1600,12 +1604,17 @@ describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () =
 
   // ── 2×4 grid — corner and interior labels ────────────────────────────────────
 
-  it('I-5. 2×4 grid top-left corner contains "TOP-LEFT"', () => {
-    expect(describePosition(0, 0, 2, 4)).toContain('TOP-LEFT');
+  it('I-5. 2×4 grid top-left corner → "TOP-FAR-LEFT" (4-col uses FAR-LEFT not plain LEFT)', () => {
+    // v2 hNames for 4-col: ["far-left", "center-left", "center-right", "far-right"]
+    const desc = describePosition(0, 0, 2, 4);
+    expect(desc).toContain('FAR-LEFT');
+    expect(desc).toContain('TOP');
   });
 
-  it('I-6. 2×4 grid top-right corner contains "TOP-RIGHT"', () => {
-    expect(describePosition(0, 3, 2, 4)).toContain('TOP-RIGHT');
+  it('I-6. 2×4 grid top-right corner → "TOP-FAR-RIGHT"', () => {
+    const desc = describePosition(0, 3, 2, 4);
+    expect(desc).toContain('FAR-RIGHT');
+    expect(desc).toContain('TOP');
   });
 
   it('I-7. 2×4 grid interior col=1 → "CENTER-LEFT" (richer label from v2)', () => {
@@ -1622,12 +1631,12 @@ describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () =
     expect(desc).toContain('segment 3 of 8');
   });
 
-  // ── 4×4 grid — UPPER-MIDDLE / LOWER-MIDDLE from v2 ───────────────────────────
+  // ── 4×4 grid — UPPER-MIDDLE / LOWER-MIDDLE + FAR-LEFT / FAR-RIGHT ────────────
 
-  it('I-9. 4×4 grid row=1 → "UPPER-MIDDLE" (from adaptive-vision-v2.js)', () => {
+  it('I-9. 4×4 grid row=1,col=0 → "UPPER-MIDDLE-FAR-LEFT" (both row and col semantic labels)', () => {
     const desc = describePosition(1, 0, 4, 4);
     expect(desc).toContain('UPPER-MIDDLE');
-    expect(desc).toContain('LEFT');
+    expect(desc).toContain('FAR-LEFT');  // col=0 in 4-col grid → FAR-LEFT (not plain LEFT)
   });
 
   it('I-10. 4×4 grid row=2 → "LOWER-MIDDLE"', () => {

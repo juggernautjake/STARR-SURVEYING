@@ -2126,7 +2126,7 @@ export async function fetchDocumentImages(
     // using the last captured URL risks picking a pre-loaded later page if the viewer
     // loads multiple images at once. This matches the proven grab-docs.js approach.
     if (imageUrls.length > 0) {
-      await downloadPage(imageUrls[0], 1);  // always page-1 URL — matches grab-docs.js
+      await downloadPage(imageUrls[0], 1);  // first intercepted URL = page 1 (viewer fires page 1 first)
     }
 
     // Navigate to subsequent pages using the next-page button.
