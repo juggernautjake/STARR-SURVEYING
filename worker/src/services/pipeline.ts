@@ -695,7 +695,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       const instrErrors: string[] = [];
 
       for (const instrNum of allInstrumentNumbers.slice(0, 5)) {
-        const expectedPages = /plat/i.test(legalDesc) ? 3 : 2;
+        // Use more expected pages for plats — large multi-lot plats can have 10+ pages
+        const expectedPages = /plat/i.test(legalDesc) ? 10 : 2;
         try {
           const pages = await fetchDocumentImages(instrNum, expectedPages, logger);
           if (pages.length > 0) {
@@ -848,6 +849,87 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       }
     }
 
+    // ── Path B3: Bell County Clerk search by discovered subdivision/plat names ──
+    // Triggered for Bell County when Stage 1 or the cascade discovered subdivision
+    // names. This finds ALL historical records (deeds, plats, easements, right-of-way)
+    // for that subdivision — fulfilling the requirement that "if the research process
+    // captures the name of the plat of subdivision... it needs to search bell.tx.publicsearch.us".
+    if (kofile && input.county.toLowerCase() === 'bell') {
+      // Build list of subdivision names from legal description + cascade enrichment
+      const subdivisionNamesForClerk: string[] = [];
+      const subdivisionFromLegal = legalDesc ? extractSubdivisionName(legalDesc) : null;
+      if (subdivisionFromLegal) subdivisionNamesForClerk.push(subdivisionFromLegal);
+      if (bellKnownIds) {
+        for (const s of bellKnownIds.subdivisionNames) {
+          if (!subdivisionNamesForClerk.includes(s)) subdivisionNamesForClerk.push(s);
+        }
+      }
+
+      if (subdivisionNamesForClerk.length > 0) {
+        for (const subdivName of subdivisionNamesForClerk.slice(0, 3)) {
+          try {
+            logger.info('Stage2C',
+              `Bell County Clerk search by subdivision name: "${subdivName}"`);
+            const { platInstruments, deedInstruments, allDocuments } =
+              await searchBellClerkOwnerForPlatDeed(subdivName, logger);
+
+            // Track which instruments we already have to avoid duplicates
+            const existingInstrNums = new Set(
+              documents.map((d) => d.ref.instrumentNumber).filter(Boolean),
+            );
+
+            const newInstrNums = [...platInstruments, ...deedInstruments].filter(
+              (n) => !existingInstrNums.has(n),
+            );
+
+            for (const instrNum of newInstrNums.slice(0, 5)) {
+              try {
+                const isPlat = platInstruments.includes(instrNum);
+                // Fetch more pages for plats (large plats may have many pages)
+                const expectedPgs = isPlat ? 10 : 2;
+                const pages = await fetchDocumentImages(instrNum, expectedPgs, logger);
+                if (pages.length > 0) {
+                  const docType = isPlat ? 'Final Plat' : 'Warranty Deed';
+                  const docResult: DocumentResult = {
+                    ref: {
+                      instrumentNumber: instrNum,
+                      volume: null, page: null,
+                      documentType: docType,
+                      recordingDate: allDocuments.find((d) => d.instrumentNumber === instrNum)?.recordingDate ?? null,
+                      grantors: allDocuments.find((d) => d.instrumentNumber === instrNum)?.grantors ?? [],
+                      grantees: allDocuments.find((d) => d.instrumentNumber === instrNum)?.grantees ?? [],
+                      source: 'Bell County Clerk PublicSearch',
+                      url: `${kofileBase}/doc/${instrNum}/details`,
+                    },
+                    textContent: null, pages, ocrText: null, extractedData: null,
+                  };
+                  documents.push(docResult);
+                  instrumentSearchSucceeded = true;
+                  bundleAndUploadPages(pages, input.projectId, instrNum, docType)
+                    .then(url => { if (url) docResult.pagesPdfUrl = url; })
+                    .catch(() => undefined);
+                  logger.info('Stage2C',
+                    `Retrieved ${pages.length} page(s) for ${docType} ${instrNum} (${subdivName})`);
+                }
+              } catch (imgErr) {
+                logger.warn('Stage2C',
+                  `Could not get images for ${instrNum}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+              }
+            }
+
+            if (allDocuments.length > 0) {
+              logger.info('Stage2C',
+                `Subdivision "${subdivName}": ${allDocuments.length} total records ` +
+                `(${platInstruments.length} plat, ${deedInstruments.length} deed)`);
+            }
+          } catch (b3Err) {
+            logger.warn('Stage2C',
+              `Clerk subdivision search "${subdivName}" failed: ${b3Err instanceof Error ? b3Err.message : String(b3Err)}`);
+          }
+        }
+      }
+    }
+
     // ── Path C: Owner-name SPA search (fallback) ──────────────────────────
     const ownerForClerk = propertyResult?.ownerName ?? input.ownerName ?? null;
 
@@ -865,7 +947,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         for (const doc of ownerDocs.slice(0, 5)) {
           if (!doc.ref.instrumentNumber) continue;
           try {
-            const pages = await fetchDocumentImages(doc.ref.instrumentNumber, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
+            const isPlat = /plat/i.test(doc.ref.documentType);
+            const pages = await fetchDocumentImages(doc.ref.instrumentNumber, isPlat ? 10 : 2, logger);
             if (pages.length > 0) {
               doc.pages = pages;
               totalPages += pages.length;

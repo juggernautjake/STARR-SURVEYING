@@ -153,12 +153,22 @@ async function extractText(doc: ResearchDocument): Promise<ExtractionResult> {
 const PDF_TEXT_MIN_CHARS = 100;
 
 /**
+ * Minimum characters in Claude PDF OCR result to skip the per-page tiling pass.
+ * Large plat PDFs with 12+ acres and multiple properties often yield very thin
+ * results from a single-pass Claude PDF call — the tiling pass is the fallback.
+ */
+const PDF_OCR_MIN_CHARS_FOR_COMPLETE = 500;
+
+/**
  * Extract text from a PDF buffer.
  *
  * Strategy:
  * 1. Try pdf-parse for text-layer PDFs (fast, no AI cost).
- * 2. If the result is sparse (scanned/image-only PDF), fall back to Claude's
- *    native PDF document OCR which handles all pages including scanned ones.
+ * 2. If the result is sparse (scanned/image-only PDF), send to Claude's native
+ *    PDF document OCR which handles all pages including scanned ones.
+ * 3. If the Claude PDF OCR result is also sparse (large complex plat with many
+ *    lots), render each page to a high-res PNG using Playwright and apply the
+ *    2×2 tiling pipeline to each page for maximum detail extraction.
  */
 async function extractFromPdf(buffer: Buffer): Promise<ExtractionResult> {
   let pdfParseText = '';
@@ -192,7 +202,10 @@ async function extractFromPdf(buffer: Buffer): Promise<ExtractionResult> {
   const result = await callDocumentAI(
     base64,
     'OCR_EXTRACTOR',
-    'Extract all text from this PDF document. Preserve all measurements, bearings, legal descriptions, and notation exactly as written.',
+    'Extract ALL text from this PDF document, processing EVERY page thoroughly. ' +
+    'This is a Texas land surveying plat or deed — preserve all measurements, bearings, ' +
+    'distances, curve data, lot numbers, acreage, easements, and legal descriptions ' +
+    'exactly as written. List every lot and its boundary calls separately.',
   );
 
   const data = result.response as {
@@ -202,13 +215,140 @@ async function extractFromPdf(buffer: Buffer): Promise<ExtractionResult> {
     notes?: string;
   };
 
+  const claudePdfText = data?.full_text || result.raw || pdfParseText;
+
+  // If Claude PDF OCR returned substantial text, return it.
+  if ((claudePdfText).replace(/\s/g, '').length >= PDF_OCR_MIN_CHARS_FOR_COMPLETE) {
+    return {
+      text: claudePdfText,
+      method: 'pdf-ocr-vision',
+      pageCount: pdfPageCount,
+      ocrConfidence: data?.overall_confidence,
+      ocrRegions: data?.regions,
+    };
+  }
+
+  // === ENHANCED PATH ===
+  // The PDF is large/complex (e.g., a multi-lot plat with 12+ acres) and
+  // Claude's single-pass PDF OCR missed details. Render each page to a
+  // high-resolution image and apply the 2×2 tiling pipeline for maximum
+  // coverage.
+  console.info(
+    '[Document] PDF OCR result is sparse (' + claudePdfText.replace(/\s/g, '').length + ' chars); ' +
+    'attempting per-page screenshot + tiling for ' + (pdfPageCount ?? '?') + '-page PDF',
+  );
+
+  const tiledText = await extractFromPdfViaTiling(buffer, pdfPageCount);
+  if (tiledText && tiledText.replace(/\s/g, '').length > claudePdfText.replace(/\s/g, '').length) {
+    return {
+      text: tiledText,
+      method: 'pdf-tiled-screenshots',
+      pageCount: pdfPageCount,
+    };
+  }
+
+  // Fall back to whatever Claude PDF OCR produced (could be empty for truly blank PDFs)
   return {
-    text: data?.full_text || result.raw || pdfParseText,
+    text: claudePdfText,
     method: 'pdf-ocr-vision',
     pageCount: pdfPageCount,
     ocrConfidence: data?.overall_confidence,
     ocrRegions: data?.regions,
   };
+}
+
+/**
+ * Render a PDF to per-page screenshots using Playwright and apply 2×2 tiling
+ * OCR to each page. This handles large complex plats where a single-pass
+ * analysis misses fine details.
+ *
+ * Returns merged OCR text from all pages and all tiles, or null if Playwright
+ * is unavailable or fails.
+ */
+async function extractFromPdfViaTiling(
+  buffer: Buffer,
+  pageCount?: number,
+): Promise<string | null> {
+  let browser: import('playwright').Browser | null = null;
+  const allPageTexts: string[] = [];
+
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const context = await browser.newContext({
+      viewport: { width: 1400, height: 1800 },
+    });
+    const page = await context.newPage();
+
+    // Build a data URL for the PDF so we can open it in the browser
+    const pdfBase64 = buffer.toString('base64');
+    const dataUrl = `data:application/pdf;base64,${pdfBase64}`;
+
+    // Navigate to the PDF — Chrome's built-in PDF viewer will render it
+    try {
+      await page.goto(dataUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+    } catch {
+      await page.goto(dataUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await page.waitForTimeout(3_000);
+    }
+
+    // Determine how many pages to process
+    const maxPages = Math.min(pageCount ?? 5, 20);
+    console.info(`[Document] Rendering ${maxPages} PDF page(s) via Playwright for tiling`);
+
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      try {
+        if (pageNum > 1) {
+          // Navigate to the next page in Chrome's PDF viewer
+          await page.keyboard.press('ArrowRight');
+          await page.waitForTimeout(1_500);
+        }
+
+        // Take a full-page screenshot of the rendered page
+        const screenshotBuffer = await page.screenshot({
+          fullPage: false,
+          type: 'png',
+        });
+
+        const pageBase64 = screenshotBuffer.toString('base64');
+        console.info(`[Document] Page ${pageNum}: screenshot ${Math.round(screenshotBuffer.length / 1024)}KB`);
+
+        // Apply 2×2 tiling to this page for fine-detail extraction
+        const tileResult = await extractFromImageTiled(screenshotBuffer, 'image/png', 'OCR_EXTRACTOR');
+        const pageText = tileResult.text.trim();
+
+        if (pageText.length > 20) {
+          allPageTexts.push(`[Page ${pageNum}]\n${pageText}`);
+          console.info(`[Document] Page ${pageNum}: extracted ${pageText.length} chars via tiling`);
+        } else {
+          // Tiling didn't help — try single-pass for this page
+          const singleResult = await callVision(pageBase64, 'image/png', 'OCR_EXTRACTOR');
+          const parsed = parseVisionResult(singleResult, false);
+          if (parsed.text.trim().length > 20) {
+            allPageTexts.push(`[Page ${pageNum}]\n${parsed.text.trim()}`);
+          }
+        }
+      } catch (pageErr) {
+        console.warn(`[Document] Page ${pageNum} rendering failed:`, pageErr instanceof Error ? pageErr.message : String(pageErr));
+      }
+    }
+
+    await browser.close();
+    browser = null;
+
+    const merged = allPageTexts.join('\n\n');
+    console.info(`[Document] PDF tiling complete: ${allPageTexts.length} pages, ${merged.length} chars total`);
+    return merged || null;
+
+  } catch (err) {
+    console.error('[Document] PDF tiling via Playwright failed:', err instanceof Error ? err.message : String(err));
+    if (browser) await browser.close().catch(() => {});
+    return null;
+  }
 }
 
 // ── Image Extraction ─────────────────────────────────────────────────────────

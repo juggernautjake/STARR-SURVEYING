@@ -462,6 +462,119 @@ Return your analysis as the specified JSON format.`,
   return extracted;
 }
 
+// ── PDF Page Rendering via Playwright ────────────────────────────────────────
+
+/**
+ * Minimum characters in Claude PDF OCR response to consider it complete.
+ * When the response is below this threshold for a multi-page plat, we fall
+ * back to Playwright per-page rendering + adaptive vision tiling.
+ */
+const PDF_OCR_COMPLETE_THRESHOLD = 800;
+
+/**
+ * Render a PDF document to per-page screenshots using Playwright, then apply
+ * the adaptive vision pipeline to each page. This is the fallback for large
+ * complex plat PDFs (12+ acres, multiple lots) where Claude's single-pass
+ * PDF processing misses fine details.
+ *
+ * Returns merged OCR text across all pages, or null if Playwright fails.
+ */
+async function extractPdfViaPageRendering(
+  pdfBase64: string,
+  anthropicApiKey: string,
+  logger: PipelineLogger,
+  docLabel: string,
+): Promise<string | null> {
+  let browser: import('playwright').Browser | null = null;
+  const renderTracker = logger.attempt(
+    'Stage3B-PDF', 'Playwright-PDF-Render', 'per-page-adaptive-ocr',
+    `${docLabel} PDF → page screenshots`,
+  );
+
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const context = await browser.newContext({
+      viewport: { width: 1400, height: 1800 },
+    });
+    const page = await context.newPage();
+
+    // Navigate to the PDF as a data URL
+    const dataUrl = `data:application/pdf;base64,${pdfBase64}`;
+    renderTracker.step(`Navigating to PDF data URL (${Math.round(pdfBase64.length / 1024)}KB base64)`);
+    try {
+      await page.goto(dataUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+    } catch {
+      await page.goto(dataUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await page.waitForTimeout(3_000);
+    }
+
+    const allPageTexts: string[] = [];
+    const maxPages = 20;
+
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      try {
+        if (pageNum > 1) {
+          await page.keyboard.press('ArrowRight');
+          await page.waitForTimeout(1_500);
+        }
+
+        // Screenshot the rendered PDF page
+        const screenshotBuf = await page.screenshot({ fullPage: false, type: 'png' });
+        renderTracker.step(`Page ${pageNum}: screenshot ${Math.round(screenshotBuf.length / 1024)}KB`);
+
+        // Apply adaptive vision OCR to this page
+        const avResult = await adaptiveVisionOcr(
+          screenshotBuf, 'image/png', anthropicApiKey, logger,
+          `${docLabel}-p${pageNum}`,
+        );
+
+        const pageText = avResult.mergedText.trim();
+        renderTracker.step(
+          `Page ${pageNum}: ${avResult.totalSegments} segments, ` +
+          `confidence=${avResult.overallConfidence}, ${pageText.length} chars`,
+        );
+
+        if (pageText.length > 20) {
+          allPageTexts.push(`[Page ${pageNum}]\n${pageText}`);
+        } else if (pageNum > 2) {
+          // Reached the end — stop trying more pages
+          renderTracker.step(`Page ${pageNum}: empty — stopping at ${pageNum - 1} pages`);
+          break;
+        }
+      } catch (pageErr) {
+        renderTracker.step(`Page ${pageNum} error: ${pageErr instanceof Error ? pageErr.message : String(pageErr)}`);
+        if (pageNum > 2) break;
+      }
+    }
+
+    await browser.close();
+    browser = null;
+
+    const merged = allPageTexts.join('\n\n');
+    if (merged.length > 50) {
+      renderTracker.success(
+        allPageTexts.length,
+        `${allPageTexts.length} pages rendered, ${merged.length} chars extracted`,
+      );
+      return merged;
+    }
+
+    renderTracker.fail('Per-page rendering produced no usable text');
+    return null;
+
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    renderTracker.fail(`Playwright PDF rendering failed: ${msg}`);
+    if (browser) await browser.close().catch(() => {});
+    return null;
+  }
+}
+
 // ── Layer 3B: Vision OCR — Adaptive (large) or single-pass (small) ───────────
 
 /** Base64 character threshold above which we use the adaptive vision pipeline.
@@ -511,7 +624,8 @@ async function extractFromImageInternal(
             text: 'Extract ALL text from this Texas land surveying document (plat or deed). ' +
                   'Be extremely thorough — every bearing, distance, curve data, monument, ' +
                   'lot acreage, easement, adjacent property reference, and recording number matters. ' +
-                  'Process every page of this PDF.',
+                  'For a plat with multiple lots/parcels, list EACH lot separately with all its ' +
+                  'boundary calls. Include every page — this may have 12+ acres and multiple properties.',
           },
         ] as unknown,
       }],
@@ -523,6 +637,28 @@ async function extractFromImageInternal(
     if (!ocrResponse || ocrResponse.length < 30) {
       pdfTracker({ status: 'fail', error: 'Empty or minimal PDF OCR response' });
       return { ocrText: null, extracted: null };
+    }
+
+    pdfTracker.step(`PDF OCR Pass 1: ${ocrResponse.length} chars`);
+
+    // For sparse results on large plats, try per-page Playwright rendering + adaptive vision
+    if (ocrResponse.length < PDF_OCR_COMPLETE_THRESHOLD) {
+      pdfTracker.step(
+        `PDF OCR result sparse (${ocrResponse.length} chars < ${PDF_OCR_COMPLETE_THRESHOLD}) — ` +
+        `trying per-page Playwright rendering for large plat`,
+      );
+      const renderText = await extractPdfViaPageRendering(imageBase64, anthropicApiKey, logger, docLabel);
+      if (renderText && renderText.length > ocrResponse.length) {
+        pdfTracker.step(`Per-page rendering produced more text (${renderText.length} chars) — using that`);
+        pdfTracker({
+          status: 'success',
+          dataPointsFound: 1,
+          details: `PDF OCR via page rendering: ${renderText.length} chars`,
+        });
+        const extracted = await extractFromTextInternal(renderText, anthropicApiKey, logger, `${docLabel}-pdf-render-struct`);
+        return { ocrText: renderText, extracted };
+      }
+      pdfTracker.step('Per-page rendering did not improve — using original PDF OCR result');
     }
 
     pdfTracker({

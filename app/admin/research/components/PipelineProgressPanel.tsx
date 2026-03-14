@@ -322,20 +322,104 @@ function LogEntry({ entry }: { entry: PipelineLogEntry }) {
   );
 }
 
+// ── Detailed Log Entry ────────────────────────────────────────────────────────
+
+/** Detailed log entry — shows timestamp, input, all steps, and full error. */
+function DetailedLogEntry({ entry, idx }: { entry: PipelineLogEntry; idx: number }) {
+  const [open, setOpen] = useState(false);
+  const stepCount = entry.steps?.length ?? 0;
+  const hasSteps = stepCount > 0;
+  const statusIcon = entry.status === 'success' ? '✓' : entry.status === 'fail' ? '✕' : entry.status === 'skip' ? '−' : '~';
+
+  return (
+    <div className={`ppanel__log-entry ppanel__dlog-entry ppanel__log-entry--${entry.status}`}>
+      <div
+        className="ppanel__log-row"
+        onClick={() => setOpen(o => !o)}
+        style={{ cursor: 'pointer' }}
+      >
+        <span className={`ppanel__log-status ppanel__log-status--${entry.status}`}>{statusIcon}</span>
+        <span className="ppanel__dlog-idx">#{idx + 1}</span>
+        <span className="ppanel__log-layer">{entry.layer}</span>
+        <span className="ppanel__log-source">{entry.source}</span>
+        <span className="ppanel__log-method">{entry.method}</span>
+        {entry.dataPointsFound > 0 && (
+          <span className="ppanel__log-points">{entry.dataPointsFound} pt{entry.dataPointsFound !== 1 ? 's' : ''}</span>
+        )}
+        {entry.duration_ms > 0 && (
+          <span className="ppanel__log-dur">{(entry.duration_ms / 1000).toFixed(2)}s</span>
+        )}
+        {hasSteps && <span className="ppanel__dlog-stepcnt">{stepCount} step{stepCount !== 1 ? 's' : ''}</span>}
+        <span className="ppanel__log-expand">{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div className="ppanel__dlog-detail">
+          {entry.input && (
+            <div className="ppanel__dlog-field">
+              <span className="ppanel__dlog-label">Input:</span>
+              <code className="ppanel__dlog-code">{entry.input}</code>
+            </div>
+          )}
+          {entry.details && (
+            <div className="ppanel__dlog-field">
+              <span className="ppanel__dlog-label">Result:</span>
+              <span className="ppanel__dlog-value">{entry.details}</span>
+            </div>
+          )}
+          {entry.error && (
+            <div className="ppanel__dlog-field ppanel__dlog-field--error">
+              <span className="ppanel__dlog-label">Error:</span>
+              <span className="ppanel__dlog-value ppanel__dlog-value--error">{entry.error}</span>
+            </div>
+          )}
+          {hasSteps && (
+            <div className="ppanel__dlog-steps">
+              <div className="ppanel__dlog-steps-title">Execution steps ({stepCount}):</div>
+              {entry.steps!.map((s, si) => (
+                <div key={si} className="ppanel__dlog-step">
+                  <span className="ppanel__dlog-step-num">{si + 1}.</span>
+                  <span className="ppanel__dlog-step-text">{s}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
-/** Format all audit log entries as plain text for clipboard copy. */
+/** Format all audit log entries as plain text for clipboard copy (basic). */
 function formatLogAsText(log: PipelineLogEntry[]): string {
   return log.map(e => {
     const statusIcon = e.status === 'success' ? '✓' : e.status === 'fail' ? '✕' : e.status === 'skip' ? '−' : '~';
     const pts  = e.dataPointsFound > 0 ? ` [${e.dataPointsFound} pts]` : '';
     const dur  = e.duration_ms > 0 ? ` (${(e.duration_ms / 1000).toFixed(2)}s)` : '';
-    let line = `${statusIcon} ${e.layer} | ${e.source} | ${e.method}${pts}${dur}`;
-    if (e.input)   line += `\n    Input: ${e.input}`;
-    if (e.details) line += `\n    Details: ${e.details}`;
-    if (e.error)   line += `\n    Error: ${e.error}`;
-    if (e.steps?.length) line += e.steps.map(s => `\n    ↳ ${s}`).join('');
-    return line;
+    const line = `${statusIcon} ${e.layer} | ${e.source} | ${e.method}${pts}${dur}`;
+    const extras: string[] = [];
+    if (e.error) extras.push(`Error: ${e.error}`);
+    return extras.length ? `${line}\n    ${extras.join('\n    ')}` : line;
+  }).join('\n');
+}
+
+/** Format all audit log entries with full details + steps (detailed log). */
+function formatDetailedLogAsText(log: PipelineLogEntry[]): string {
+  return log.map((e, idx) => {
+    const statusIcon = e.status === 'success' ? '✓' : e.status === 'fail' ? '✕' : e.status === 'skip' ? '−' : '~';
+    const pts  = e.dataPointsFound > 0 ? ` [${e.dataPointsFound} pts]` : '';
+    const dur  = e.duration_ms > 0 ? ` (${(e.duration_ms / 1000).toFixed(2)}s)` : '';
+    let out = `--- Entry ${idx + 1} ---\n`;
+    out += `${statusIcon} [${e.layer}] ${e.source} → ${e.method}${pts}${dur}\n`;
+    if (e.input)   out += `  Input:   ${e.input}\n`;
+    if (e.details) out += `  Details: ${e.details}\n`;
+    if (e.error)   out += `  Error:   ${e.error}\n`;
+    if (e.steps?.length) {
+      out += `  Steps (${e.steps.length}):\n`;
+      out += e.steps.map(s => `    ↳ ${s}`).join('\n') + '\n';
+    }
+    return out;
   }).join('\n');
 }
 
@@ -347,8 +431,10 @@ export function PipelineProgressPanel({
   log,
   failureReason,
 }: PipelineProgressProps) {
-  const [showLog,      setShowLog]      = useState(false);
-  const [logCopied,    setLogCopied]    = useState(false);
+  const [showLog,          setShowLog]          = useState(false);
+  const [logCopied,        setLogCopied]        = useState(false);
+  const [showDetailedLog,  setShowDetailedLog]  = useState(false);
+  const [detailCopied,     setDetailCopied]     = useState(false);
 
   // Auto-expand the log when analysis is running or when it completes/fails.
   useEffect(() => {
@@ -371,13 +457,10 @@ export function PipelineProgressPanel({
   // Strip "Stage N: " prefix for cleaner header display
   const cleanMessage = message?.replace(/^Stage\s*\d+(?:\.\d+)?:\s*/i, '') ?? null;
 
-  const handleCopyLog = useCallback(() => {
-    if (!log || log.length === 0) return;
-    const text = formatLogAsText(log);
+  const copyToClipboard = useCallback((text: string, onDone: () => void) => {
     navigator.clipboard.writeText(text)
-      .then(() => { setLogCopied(true); setTimeout(() => setLogCopied(false), 2000); })
+      .then(onDone)
       .catch(() => {
-        // Fallback: create a temporary textarea
         const ta = document.createElement('textarea');
         ta.value = text;
         ta.style.position = 'fixed';
@@ -386,10 +469,25 @@ export function PipelineProgressPanel({
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
-        setLogCopied(true);
-        setTimeout(() => setLogCopied(false), 2000);
+        onDone();
       });
-  }, [log]);
+  }, []);
+
+  const handleCopyLog = useCallback(() => {
+    if (!log || log.length === 0) return;
+    copyToClipboard(formatLogAsText(log), () => {
+      setLogCopied(true);
+      setTimeout(() => setLogCopied(false), 2000);
+    });
+  }, [log, copyToClipboard]);
+
+  const handleCopyDetailedLog = useCallback(() => {
+    if (!log || log.length === 0) return;
+    copyToClipboard(formatDetailedLogAsText(log), () => {
+      setDetailCopied(true);
+      setTimeout(() => setDetailCopied(false), 2000);
+    });
+  }, [log, copyToClipboard]);
 
   return (
     <div className={`ppanel ppanel--${status ?? 'idle'}`}>
@@ -455,7 +553,7 @@ export function PipelineProgressPanel({
         </div>
       )}
 
-      {/* ── Audit log accordion ──────────────────────────────────────── */}
+      {/* ── Audit log accordion (basic) ──────────────────────────────── */}
       {log && log.length > 0 && (
         <div className="ppanel__section ppanel__section--log">
           <div className="ppanel__log-header">
@@ -465,22 +563,56 @@ export function PipelineProgressPanel({
               type="button"
             >
               <span className="ppanel__log-toggle-icon">{showLog ? '▲' : '▼'}</span>
-              Audit log
+              Analysis log
               <span className="ppanel__section-count">{log.length}</span>
             </button>
             <button
               className="ppanel__log-copy-btn"
               onClick={handleCopyLog}
               type="button"
-              title="Copy all log entries to clipboard"
+              title="Copy analysis log to clipboard"
             >
-              {logCopied ? '✓ Copied' : '⎘ Copy all'}
+              {logCopied ? '✓ Copied' : '⎘ Copy log'}
             </button>
           </div>
           {showLog && (
             <div className="ppanel__log">
               {log.map((entry, i) => (
                 <LogEntry key={i} entry={entry} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Detailed log accordion (all steps + timestamps) ──────────── */}
+      {log && log.length > 0 && (
+        <div className="ppanel__section ppanel__section--log ppanel__section--detailed-log">
+          <div className="ppanel__log-header">
+            <button
+              className="ppanel__log-toggle"
+              onClick={() => setShowDetailedLog(v => !v)}
+              type="button"
+            >
+              <span className="ppanel__log-toggle-icon">{showDetailedLog ? '▲' : '▼'}</span>
+              Detailed diagnostic log
+              <span className="ppanel__section-count ppanel__section-count--detail">
+                {log.reduce((n, e) => n + (e.steps?.length ?? 0), 0)} steps
+              </span>
+            </button>
+            <button
+              className="ppanel__log-copy-btn ppanel__log-copy-btn--detail"
+              onClick={handleCopyDetailedLog}
+              type="button"
+              title="Copy full diagnostic log to clipboard"
+            >
+              {detailCopied ? '✓ Copied' : '⎘ Copy details'}
+            </button>
+          </div>
+          {showDetailedLog && (
+            <div className="ppanel__log ppanel__log--detailed">
+              {log.map((entry, i) => (
+                <DetailedLogEntry key={i} entry={entry} idx={i} />
               ))}
             </div>
           )}
@@ -873,6 +1005,138 @@ export function PipelineProgressStyles() {
   border-radius: 3px;
   font-size: 0.68rem;
   word-break: break-all;
+}
+
+/* ── Detailed log section ─────────────────────────────────── */
+.ppanel__section--detailed-log { background: #fafafa; }
+
+.ppanel__section-count--detail {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.ppanel__log-copy-btn--detail {
+  background: none;
+  border: 1px solid #a7f3d0;
+  border-radius: 5px;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #166534;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+}
+.ppanel__log-copy-btn--detail:hover { background: #dcfce7; }
+
+.ppanel__log--detailed {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 500px;
+  overflow-y: auto;
+  border: 1px solid #d1fae5;
+  border-radius: 6px;
+  background: #f0fdf4;
+}
+
+.ppanel__dlog-entry .ppanel__log-row { flex-wrap: nowrap; }
+
+.ppanel__dlog-idx {
+  flex-shrink: 0;
+  color: #94a3b8;
+  font-size: 0.67rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 1.8rem;
+}
+
+.ppanel__dlog-stepcnt {
+  flex-shrink: 0;
+  font-size: 0.67rem;
+  color: #059669;
+  background: #d1fae5;
+  border-radius: 9999px;
+  padding: 0.02rem 0.35rem;
+  font-weight: 600;
+}
+
+.ppanel__dlog-detail {
+  padding: 0.3rem 0.65rem 0.4rem 2rem;
+  background: #ecfdf5;
+  border-top: 1px solid #a7f3d0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.ppanel__dlog-field {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.71rem;
+}
+
+.ppanel__dlog-field--error { background: #fff5f5; border-radius: 4px; padding: 0.1rem 0.3rem; }
+
+.ppanel__dlog-label {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: #475569;
+  min-width: 3.5rem;
+  font-size: 0.69rem;
+}
+
+.ppanel__dlog-code {
+  background: #e2e8f0;
+  padding: 0.05rem 0.25rem;
+  border-radius: 3px;
+  font-size: 0.67rem;
+  word-break: break-all;
+  font-family: monospace;
+}
+
+.ppanel__dlog-value { color: #334155; word-break: break-word; }
+.ppanel__dlog-value--error { color: #b91c1c; }
+
+.ppanel__dlog-steps {
+  margin-top: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.ppanel__dlog-steps-title {
+  font-weight: 600;
+  font-size: 0.69rem;
+  color: #475569;
+  margin-bottom: 0.1rem;
+}
+
+.ppanel__dlog-step {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.69rem;
+  color: #374151;
+}
+
+.ppanel__dlog-step-num {
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 1.2rem;
+  text-align: right;
+}
+
+.ppanel__dlog-step-text {
+  flex: 1;
+  word-break: break-word;
+  font-family: monospace;
+  font-size: 0.68rem;
+  color: #1e293b;
 }
     `}</style>
   );

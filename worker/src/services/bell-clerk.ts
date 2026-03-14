@@ -2111,7 +2111,7 @@ export async function fetchDocumentImages(
     }
 
     // Navigate to subsequent pages using the next-page button
-    for (let pageNum = 2; pageNum <= Math.min(expectedPages, 10); pageNum++) {
+    for (let pageNum = 2; pageNum <= Math.min(expectedPages, 20); pageNum++) {
       const urlCountBefore = imageUrls.length;
 
       const nextSelectors = [
