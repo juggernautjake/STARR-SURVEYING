@@ -1138,6 +1138,9 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     if (platImage) {
       // PDFs and TIFFs are handled by the Claude 'document' source type in Stage 3.
       // runGeoReconcile only accepts rasterised images (image/png | image/jpeg).
+      // Pass the subdivision name extracted from the legal description so that
+      // geo-reconcile.js-style prompts can reference the exact plat by name.
+      const subdivNameForReconcile = legalDesc ? extractSubdivisionName(legalDesc) : undefined;
       try {
         reconciliation = await runGeoReconcile(
           boundary,
@@ -1146,11 +1149,24 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           anthropicApiKey,
           logger,
           platImage.label,
+          subdivNameForReconcile ?? undefined,
         );
         logger.info('Stage3.5',
           `Reconciliation: ${reconciliation.agreementCount} confirmed, ` +
           `${reconciliation.conflictCount} conflicts, ` +
           `${reconciliation.overallAgreementPct}% agreement`);
+        if (reconciliation.confidenceSummary) {
+          const cs = reconciliation.confidenceSummary;
+          logger.info('Stage3.5',
+            `Confidence summary: HIGH=${cs.high} MEDIUM=${cs.medium} LOW=${cs.low} ` +
+            `[ESTIMATED]=${cs.estimated} [VERIFY]=${cs.verify} [MISSING]=${cs.missing}`);
+        }
+        if (reconciliation.multiCropAnalysis) {
+          logger.info('Stage3.5',
+            `Multi-crop analysis: ${reconciliation.multiCropAnalysis.apiCallCount} API calls ` +
+            `(overview=${reconciliation.multiCropAnalysis.overviewText.split('\n').length}L, ` +
+            `geometry=${reconciliation.multiCropAnalysis.geometryText.split('\n').length}L)`);
+        }
       } catch (err) {
         logger.warn('Stage3.5', `Geometric reconciliation failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
       }

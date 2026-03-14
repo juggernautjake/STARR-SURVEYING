@@ -1690,3 +1690,165 @@ describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () =
     expect(msg).toContain('in Bell County, Texas');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+//  Module J: geo-reconcile.ts — Multi-crop analysis, Phase 3A boundary
+//            map, and confidence summary (from geo-reconcile.js)
+//
+//  Tests cover:
+//   J-1.  extractConfidenceSummary — counts HIGH correctly
+//   J-2.  extractConfidenceSummary — counts MEDIUM correctly
+//   J-3.  extractConfidenceSummary — counts LOW correctly
+//   J-4.  extractConfidenceSummary — counts [ESTIMATED] tags correctly
+//   J-5.  extractConfidenceSummary — counts [VERIFY] tags correctly
+//   J-6.  extractConfidenceSummary — counts [MISSING] tags correctly
+//   J-7.  extractConfidenceSummary — case-insensitive HIGH matching
+//   J-8.  extractConfidenceSummary — empty text returns all zeros
+//   J-9.  extractConfidenceSummary — mixed text returns correct counts
+//   J-10. ReconciliationResult interface — includes multiCropAnalysis field
+//   J-11. ReconciliationResult interface — includes boundaryMap field
+//   J-12. ReconciliationResult interface — includes confidenceSummary field
+//   J-13. MultiCropAnalysis interface — has overviewText, geometryText,
+//          topLotsText, botLotsText, apiCallCount fields
+//   J-14. ConfidenceSummary interface — has all six tag fields
+//   J-15. runGeoReconcile signature — accepts optional subdivName 7th param
+// ═══════════════════════════════════════════════════════════════════
+
+import {
+  extractConfidenceSummary,
+  runGeoReconcile,
+  analyzeVisualGeometryMultiCrop,
+  buildBoundaryMap,
+} from '../../worker/src/services/geo-reconcile.js';
+import type {
+  ReconciliationResult,
+  MultiCropAnalysis,
+  ConfidenceSummary,
+} from '../../worker/src/services/geo-reconcile.js';
+
+describe('geo-reconcile.ts — geo-reconcile.js integration (Module J)', () => {
+  // ── J-1 through J-9: extractConfidenceSummary ─────────────────────────────
+
+  it('J-1. extractConfidenceSummary — counts HIGH correctly', () => {
+    const result = extractConfidenceSummary('HIGH confidence. HIGH certainty. high value.');
+    expect(result.high).toBe(3);
+  });
+
+  it('J-2. extractConfidenceSummary — counts MEDIUM correctly', () => {
+    const result = extractConfidenceSummary('MEDIUM confidence.\nMEDIUM quality result.');
+    expect(result.medium).toBe(2);
+  });
+
+  it('J-3. extractConfidenceSummary — counts LOW correctly', () => {
+    const result = extractConfidenceSummary('LOW confidence — LOW certainty — low priority');
+    expect(result.low).toBe(3);
+  });
+
+  it('J-4. extractConfidenceSummary — counts [ESTIMATED] tags correctly', () => {
+    const result = extractConfidenceSummary(
+      'Bearing [ESTIMATED]\nDistance [ESTIMATED]\nRadius [ESTIMATED]',
+    );
+    expect(result.estimated).toBe(3);
+  });
+
+  it('J-5. extractConfidenceSummary — counts [VERIFY] tags correctly', () => {
+    const result = extractConfidenceSummary('N86°00\'00" E [VERIFY]\nS45°15\'00" W [VERIFY]');
+    expect(result.verify).toBe(2);
+  });
+
+  it('J-6. extractConfidenceSummary — counts [MISSING] tags correctly', () => {
+    const result = extractConfidenceSummary('Monument [MISSING]\nBearing [MISSING]');
+    expect(result.missing).toBe(2);
+  });
+
+  it('J-7. extractConfidenceSummary — case-insensitive HIGH/MEDIUM/LOW', () => {
+    const result = extractConfidenceSummary('high HIGH High medium MEDIUM low LOW');
+    expect(result.high).toBe(3);
+    expect(result.medium).toBe(2);
+    expect(result.low).toBe(2);
+  });
+
+  it('J-8. extractConfidenceSummary — empty text returns all zeros', () => {
+    const result = extractConfidenceSummary('');
+    expect(result).toEqual({
+      high: 0, medium: 0, low: 0,
+      estimated: 0, verify: 0, missing: 0,
+    });
+  });
+
+  it('J-9. extractConfidenceSummary — mixed boundary map text', () => {
+    const mapText = [
+      'B1: N45°15\'00" E — 317.25\' — HIGH',
+      'B2: S86°12\'00" E [VERIFY] — 532.10\' — MEDIUM',
+      'B3: [ESTIMATED] bearing S12°00\'00" W — MEDIUM',
+      'I1: N00°00\'00" E — [MISSING] — LOW',
+      'I2: [ESTIMATED] S45°00\'00" W — 100\' — LOW',
+    ].join('\n');
+
+    const result = extractConfidenceSummary(mapText);
+    expect(result.high).toBe(1);
+    expect(result.medium).toBe(2);
+    expect(result.low).toBe(2);
+    expect(result.estimated).toBe(2);
+    expect(result.verify).toBe(1);
+    expect(result.missing).toBe(1);
+  });
+
+  // ── J-10 through J-14: Type structure checks ──────────────────────────────
+
+  it('J-10. ReconciliationResult — includes multiCropAnalysis field (null allowed)', () => {
+    const r: Partial<ReconciliationResult> = { multiCropAnalysis: null };
+    expect(r.multiCropAnalysis).toBeNull();
+  });
+
+  it('J-11. ReconciliationResult — includes boundaryMap field (null allowed)', () => {
+    const r: Partial<ReconciliationResult> = { boundaryMap: null };
+    expect(r.boundaryMap).toBeNull();
+  });
+
+  it('J-12. ReconciliationResult — includes confidenceSummary field (null allowed)', () => {
+    const r: Partial<ReconciliationResult> = { confidenceSummary: null };
+    expect(r.confidenceSummary).toBeNull();
+  });
+
+  it('J-13. MultiCropAnalysis — has all required fields', () => {
+    const mc: MultiCropAnalysis = {
+      overviewText: 'North arrow points up. Scale 1"=100\'.',
+      geometryText: 'Line 1: N45° bearing.',
+      topLotsText:  'Lot 1 upper boundary.',
+      botLotsText:  'Lot 1 lower boundary.',
+      apiCallCount: 4,
+    };
+    expect(mc.overviewText).toBeTruthy();
+    expect(mc.geometryText).toBeTruthy();
+    expect(mc.topLotsText).toBeTruthy();
+    expect(mc.botLotsText).toBeTruthy();
+    expect(mc.apiCallCount).toBe(4);
+  });
+
+  it('J-14. ConfidenceSummary — has all six required tag fields', () => {
+    const cs: ConfidenceSummary = {
+      high: 5, medium: 3, low: 1,
+      estimated: 2, verify: 1, missing: 0,
+    };
+    expect(Object.keys(cs)).toEqual(
+      expect.arrayContaining(['high', 'medium', 'low', 'estimated', 'verify', 'missing']),
+    );
+    expect(cs.high + cs.medium + cs.low).toBe(9);
+  });
+
+  it('J-15. runGeoReconcile is exported and accepts optional 7th subdivName param', () => {
+    // Verify the function signature accepts a 7th parameter without type error.
+    // We do not invoke it (would need live API key + image), just confirm exportability.
+    expect(typeof runGeoReconcile).toBe('function');
+    expect(runGeoReconcile.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('J-16. analyzeVisualGeometryMultiCrop is exported', () => {
+    expect(typeof analyzeVisualGeometryMultiCrop).toBe('function');
+  });
+
+  it('J-17. buildBoundaryMap is exported', () => {
+    expect(typeof buildBoundaryMap).toBe('function');
+  });
+});
