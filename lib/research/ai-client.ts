@@ -15,7 +15,7 @@ const AI_MODEL = process.env.RESEARCH_AI_MODEL || 'claude-sonnet-4-5-20250929';
 // Retry configuration
 const MAX_RETRIES = 3;
 const BASE_RETRY_DELAY_MS = 1000; // 1s, 2s, 4s exponential backoff
-const REQUEST_TIMEOUT_MS = 120_000; // 2 minutes
+const REQUEST_TIMEOUT_MS = 300_000; // 5 minutes — Vision OCR needs time for detailed document analysis
 
 export interface AICallOptions {
   promptKey: PromptKey;

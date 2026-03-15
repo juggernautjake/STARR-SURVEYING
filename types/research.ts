@@ -5,13 +5,13 @@
 export type WorkflowStep = 'upload' | 'configure' | 'analyzing' | 'review' | 'drawing' | 'verifying' | 'complete';
 
 export const WORKFLOW_STEPS: { key: WorkflowStep; label: string; number: number }[] = [
-  { key: 'upload', label: 'Upload', number: 1 },
-  { key: 'configure', label: 'Configure', number: 2 },
-  { key: 'analyzing', label: 'Analyze', number: 3 },
-  { key: 'review', label: 'Review', number: 4 },
-  { key: 'drawing', label: 'Draw', number: 5 },
-  { key: 'verifying', label: 'Verify', number: 6 },
-  { key: 'complete', label: 'Export', number: 7 },
+  { key: 'upload', label: 'Information', number: 1 },
+  { key: 'configure', label: 'Research & Analysis', number: 2 },
+  // 'analyzing' is a transient state — same visual step as 'configure'
+  { key: 'review', label: 'Review', number: 3 },
+  { key: 'drawing', label: 'Draw', number: 4 },
+  { key: 'verifying', label: 'Verify', number: 5 },
+  { key: 'complete', label: 'Job Prep', number: 6 },
 ];
 
 // ── Research Project ─────────────────────────────────────────────────────────

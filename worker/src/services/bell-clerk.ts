@@ -623,7 +623,7 @@ async function captureCurrentPageScreenshot(
     // If we found an img element, try to download the source at full resolution
     if (docElement.found && docElement.isImg && docElement.imgSrc) {
       try {
-        const imgResponse = await page.context().request.get(docElement.imgSrc, { timeout: 15_000 });
+        const imgResponse = await page.context().request.get(docElement.imgSrc, { timeout: 30_000 });
         if (imgResponse.ok()) {
           const imgBuffer = await imgResponse.body();
           if (imgBuffer.length > 1000) {
@@ -718,7 +718,7 @@ async function fetchDocumentDetail(
     // Set a larger viewport for high-res capture
     await page.setViewportSize({ width: 1920, height: 1200 });
 
-    const response = await page.goto(doc.url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    const response = await page.goto(doc.url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
     // Check HTTP response status
     if (response && (response.status() >= 400 || response.status() === 0)) {
@@ -1218,14 +1218,14 @@ export async function searchClerkRecords(
         const searchUrl = buildTylerUrl(baseUrl, searchName, 0);
         logger.info('Stage2A', `Trying: ${searchUrl}`);
 
-        await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+        await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
         // Race: AJAX capture vs DOM rendering vs timeout
         // The SPA loads results asynchronously — wait for AJAX or rendered DOM
         try {
           await Promise.race([
             capturePromise,
-            page.waitForSelector('.result-card, table tbody tr[aria-selected], section.search-results__results-wrap table tbody tr', { timeout: 20_000 }),
+            page.waitForSelector('.result-card, table tbody tr[aria-selected], section.search-results__results-wrap table tbody tr', { timeout: 40_000 }),
             page.waitForTimeout(20_000),
           ]);
         } catch {
@@ -1646,7 +1646,7 @@ export async function searchClerkRecords(
                 logger.info('Stage2A', `Loading page ${pg}/${totalPages}: offset=${(pg - 1) * 50}`);
                 await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
                 try {
-                  await page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 15_000 });
+                  await page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 30_000 });
                 } catch {
                   logger.info('Stage2A', `Page ${pg}: no result rows — stopping pagination`);
                   break;
@@ -1947,12 +1947,12 @@ export async function searchSuperSearch(
     // Navigate to SUPERSEARCH page
     const ssUrl = `${baseUrl}/results?department=RP&limit=50&offset=0&searchOcrText=true&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
     logger.info('Stage2-SS', `SUPERSEARCH: ${ssUrl}`);
-    await page.goto(ssUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.goto(ssUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
     // Wait for results to load
     try {
       await Promise.race([
-        page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 20_000 }),
+        page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 40_000 }),
         page.waitForTimeout(20_000),
       ]);
     } catch { /* continue with whatever we have */ }
@@ -2581,10 +2581,10 @@ export async function searchBellClerk(
       `&recordedDateRange=16000101%2C${dateTo0}&searchOcrText=true&searchType=quickSearch` +
       `&searchValue=${encodeURIComponent(nameParts.searchQuery)}`;
 
-    await page.goto(buildBellUrl(0), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await page.goto(buildBellUrl(0), { waitUntil: 'domcontentloaded', timeout: 60_000 });
     // Wait for Tyler SPA to render result rows
     try {
-      await page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 15_000 });
+      await page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 30_000 });
     } catch { /* continue even if no rows yet */ }
     await page.waitForTimeout(2_000);
 
@@ -2604,7 +2604,7 @@ export async function searchBellClerk(
       for (let pg = 2; pg <= Math.min(totalBellPages, 5); pg++) {
         try {
           await page.goto(buildBellUrl((pg - 1) * 50), { waitUntil: 'domcontentloaded', timeout: 30_000 });
-          await page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 15_000 }).catch(() => {});
+          await page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 30_000 }).catch(() => {});
           await page.waitForTimeout(1_000);
           const more = await _extractSearchResults(page);
           documents = [...documents, ...more];
@@ -2713,10 +2713,10 @@ export async function fetchDocumentImages(
     const viewerUrl = `${BELL_CLERK_BASE}/doc/${encodeURIComponent(instrumentNumber)}/details`;
     console.log(`[BELL-IMG] Navigating directly to viewer: ${viewerUrl}`);
     try {
-      await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 45_000 });
+      await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 60_000 });
     } catch {
       // networkidle timeout is acceptable — images may still be loading
-      await page.goto(viewerUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      await page.goto(viewerUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
       await page.waitForTimeout(5_000);
     }
 
@@ -2732,7 +2732,7 @@ export async function fetchDocumentImages(
     if (imageUrls.length === 0) {
       console.log('[BELL-IMG] Direct viewer captured no images — falling back to search+click');
       const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
       await page.waitForTimeout(5_000);
       try {
         await page.locator('tbody tr').first().click();

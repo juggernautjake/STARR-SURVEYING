@@ -239,8 +239,8 @@ class AnalysisAbortError extends Error {
 // ── Analysis timeouts ─────────────────────────────────────────────────────────
 
 /** Maximum time in milliseconds to wait for a single document to be analyzed.
- *  3 minutes is enough for any reasonable document; shorter = faster freeze detection. */
-export const DOCUMENT_ANALYSIS_TIMEOUT_MS = 3 * 60 * 1000;
+ *  8 minutes allows thorough Vision OCR analysis of complex scanned documents. */
+export const DOCUMENT_ANALYSIS_TIMEOUT_MS = 8 * 60 * 1000;
 
 /** Overall pipeline watchdog — 30 minutes covers even the largest projects. */
 export const PIPELINE_WATCHDOG_MS = 30 * 60 * 1000;
@@ -249,14 +249,14 @@ export const PIPELINE_WATCHDOG_MS = 30 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 12_000;
 
 /** A project is considered "frozen" when its updated_at hasn't changed in this long. */
-export const FROZEN_THRESHOLD_MS = 90_000; // 90 seconds
+export const FROZEN_THRESHOLD_MS = 5 * 60_000; // 5 minutes — allows time for thorough Vision OCR analysis
 
 function withDocumentTimeout<T>(promise: Promise<T>, docLabel: string): Promise<T> {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
       setTimeout(
-        () => reject(new Error(`Document analysis timed out after 3 minutes: "${docLabel}"`)),
+        () => reject(new Error(`Document analysis timed out after 8 minutes: "${docLabel}"`)),
         DOCUMENT_ANALYSIS_TIMEOUT_MS,
       )
     ),
@@ -634,6 +634,14 @@ export async function analyzeProject(
       .replace(/\s+/g, '_')
       .trim();
 
+    // Log county identification — this determines which county-specific code paths to use
+    if (countyKey) {
+      const displayCounty = countyKey.charAt(0).toUpperCase() + countyKey.slice(1);
+      addLog('info', `County identified: ${displayCounty} County — using ${displayCounty} County-specific resources and methods.`);
+    } else {
+      addLog('warn', 'County not identified — will use generic analysis methods. Results may be limited.');
+    }
+
     // 1. Load all documents with extracted text
     const { data: allDocuments } = await supabaseAdmin
       .from('research_documents')
@@ -659,6 +667,33 @@ export async function analyzeProject(
       addLog('info', `Resume mode: skipping ${skippedCount} already-analyzed document(s) — processing ${documents.length} remaining`);
     } else {
       addLog('info', `Found ${documents.length} document(s) to analyze`);
+    }
+
+    // Validate document sources against the project county
+    if (countyKey && documents.length > 0) {
+      const displayCounty = countyKey.charAt(0).toUpperCase() + countyKey.slice(1);
+      let countyMatchCount = 0;
+      let otherCountyCount = 0;
+      for (const doc of documents) {
+        const docText = `${doc.document_label || ''} ${doc.source_type || ''} ${doc.source_url || ''}`.toLowerCase();
+        if (docText.includes(countyKey) || doc.source_type === 'property_search' || doc.source_type === 'user_upload') {
+          countyMatchCount++;
+        } else {
+          // Check if it mentions a different county
+          const otherCountyMatch = docText.match(/(\w+)\s+county/i);
+          if (otherCountyMatch && otherCountyMatch[1].toLowerCase() !== countyKey) {
+            otherCountyCount++;
+          } else {
+            countyMatchCount++; // No county reference = assume relevant
+          }
+        }
+      }
+      if (otherCountyCount > 0) {
+        addLog('warn', `${otherCountyCount} document(s) may reference a different county than ${displayCounty}. They will still be analyzed but flagged for review.`);
+      }
+      if (countyMatchCount > 0) {
+        addLog('success', `${countyMatchCount} of ${documents.length} document(s) confirmed as ${displayCounty} County resources.`);
+      }
     }
 
     // ── Pre-analysis: Auto-fetch property data from county CAD ─────────────────────────────
@@ -858,6 +893,20 @@ export async function analyzeProject(
         `Type: ${doc.document_type || 'unknown'}, Size: ${docSize}${isImageDoc && doc.storage_url ? ' — will run Claude Vision OCR' : ''}`,
       );
 
+      // Friendly document type context
+      const docType = (doc.document_type || '').toLowerCase();
+      if (docType === 'deed') {
+        addLog('info', `Analyzing a deed document — looking for legal descriptions, grantors, recording info...`);
+      } else if (docType === 'legal_description' || docType === 'appraisal_record') {
+        addLog('info', `Analyzing property records from the county appraisal district...`);
+      } else if (docType === 'plat' || /plat/i.test(docLabel)) {
+        addLog('info', `Analyzing a plat document — extracting boundary calls, lot info, and monuments...`);
+      } else if (docType === 'survey' || /survey/i.test(docLabel)) {
+        addLog('info', `Analyzing a survey document — this is a key resource for boundary data!`);
+      } else if (isImageDoc) {
+        addLog('info', `This is an image document — Claude Vision OCR will extract text and data from the scan...`);
+      }
+
       // ── Pre-screening: skip or enrich before burning an AI call ───────────
       let screenResult = screenDocument(doc);
 
@@ -908,6 +957,57 @@ export async function analyzeProject(
         allDataPoints.push(...extracted);
 
         addLog('success', `Extracted ${extracted.length} data points from "${docLabel}"`);
+
+        // Log friendly contextual details about what was found
+        if (extracted.length > 0) {
+          const cats: Record<string, number> = {};
+          for (const dp of extracted) { cats[dp.data_category] = (cats[dp.data_category] || 0) + 1; }
+
+          if (cats['recording_references']) {
+            addLog('success', `Found ${cats['recording_references']} recording reference${cats['recording_references'] !== 1 ? 's' : ''} in "${docLabel}" — deed chain data located!`);
+          }
+          if (cats['legal_description']) {
+            addLog('success', `Found legal description in "${docLabel}"!`);
+          }
+          if (cats['bearings_distances']) {
+            addLog('success', `Identified ${cats['bearings_distances']} bearing & distance call${cats['bearings_distances'] !== 1 ? 's' : ''} from "${docLabel}"`);
+          }
+          if (cats['monuments']) {
+            addLog('success', `Located ${cats['monuments']} boundary monument${cats['monuments'] !== 1 ? 's' : ''} in "${docLabel}"`);
+          }
+          if (cats['easements']) {
+            addLog('info', `Found ${cats['easements']} easement description${cats['easements'] !== 1 ? 's' : ''} in "${docLabel}"`);
+          }
+          if (cats['lot_block_subdivision']) {
+            addLog('success', `Identified lot/block/subdivision info in "${docLabel}"`);
+          }
+          if (cats['point_of_beginning']) {
+            addLog('success', `Found Point of Beginning in "${docLabel}"`);
+          }
+          if (cats['curve_data']) {
+            addLog('info', `Extracted ${cats['curve_data']} curve parameter${cats['curve_data'] !== 1 ? 's' : ''} from "${docLabel}"`);
+          }
+          if (cats['area_calculations']) {
+            addLog('info', `Found area/acreage calculation in "${docLabel}"`);
+          }
+          if (cats['surveyor_info']) {
+            addLog('info', `Found surveyor information in "${docLabel}"`);
+          }
+          if (cats['right_of_way']) {
+            addLog('info', `Found right-of-way information in "${docLabel}"`);
+          }
+          if (cats['coordinates']) {
+            addLog('success', `Extracted ${cats['coordinates']} coordinate point${cats['coordinates'] !== 1 ? 's' : ''} from "${docLabel}"`);
+          }
+
+          // High-confidence summary
+          const highConf = extracted.filter(p => p.extraction_confidence && p.extraction_confidence >= 85);
+          if (highConf.length > 0 && extracted.length >= 3) {
+            addLog('info', `${highConf.length} of ${extracted.length} data points have high confidence (85%+)`);
+          }
+        } else if (doc.document_type === 'deed') {
+          addLog('warn', `"${docLabel}" appears to be a deed but no data points could be extracted. The document may be a cover page or index.`);
+        }
 
         // Mark document as analyzed
         await supabaseAdmin.from('research_documents').update({
@@ -1057,6 +1157,11 @@ export async function analyzeProject(
           : documents;
         aiDiscrepancies = await crossReferenceAnalysis(projectId, allDataPoints, docsForCrossRef);
         addLog('info', `Cross-reference analysis found ${aiDiscrepancies.length} discrepanc${aiDiscrepancies.length === 1 ? 'y' : 'ies'}`);
+        if (aiDiscrepancies.length === 0) {
+          addLog('success', 'All data points are consistent across documents — no discrepancies found.');
+        } else {
+          addLog('warn', `Found ${aiDiscrepancies.length} inconsistenc${aiDiscrepancies.length === 1 ? 'y' : 'ies'} between documents that may need review.`);
+        }
       } catch (err) {
         addLog('warn', 'Cross-reference analysis failed — continuing without it', err instanceof Error ? err.message : String(err));
       }
@@ -1067,6 +1172,11 @@ export async function analyzeProject(
     // 6. Mathematical discrepancy detection
     const mathDiscrepancies = detectMathDiscrepancies(projectId, allDataPoints);
     addLog('info', `Mathematical checks found ${mathDiscrepancies.length} discrepanc${mathDiscrepancies.length === 1 ? 'y' : 'ies'}`);
+    if (mathDiscrepancies.length === 0) {
+      addLog('success', 'All boundary calculations pass mathematical validation.');
+    } else {
+      addLog('warn', `${mathDiscrepancies.length} mathematical issue${mathDiscrepancies.length !== 1 ? 's' : ''} detected — these will be flagged for review.`);
+    }
 
     // 7. Store discrepancies
     const allDiscrepancies = [...aiDiscrepancies, ...mathDiscrepancies];
@@ -1243,16 +1353,23 @@ async function extractFromDocument(
             (textForExtraction ? `[EXISTING TEXT]\n${textForExtraction}` : '');
 
           // Persist the enriched text so future runs and the UI can display it
+          const ocrConfidence = (ocrResult.response as { overall_confidence?: number })?.overall_confidence ?? null;
           await supabaseAdmin.from('research_documents').update({
             extracted_text: textForExtraction.substring(0, 40000),
             extracted_text_method: 'vision+ocr',
-            ocr_confidence: (ocrResult.response as { overall_confidence?: number })?.overall_confidence ?? null,
+            ocr_confidence: ocrConfidence,
             updated_at: new Date().toISOString(),
           }).eq('id', doc.id);
+
+          // Friendly log about Vision OCR results
+          const ocrLen = ocrText.trim().length;
+          const confStr = ocrConfidence ? ` (${Math.round(ocrConfidence * 100)}% confidence)` : '';
+          console.log(`[Analysis] Vision OCR extracted ${ocrLen} chars from "${doc.document_label}"${confStr}`);
         }
       }
     } catch {
       // Vision OCR is best-effort — fall through to text-only extraction
+      console.log(`[Analysis] Vision OCR failed for "${doc.document_label}" — falling back to text-only extraction`);
     }
   }
 

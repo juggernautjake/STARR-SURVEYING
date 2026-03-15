@@ -6,7 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import WorkflowStepper from '../components/WorkflowStepper';
 import DocumentUploadPanel from '../components/DocumentUploadPanel';
-import PropertySearchPanel from '../components/PropertySearchPanel';
+import ResearchAnalysisPanel from '../components/ResearchAnalysisPanel';
 import DocumentDeepAnalysisPanel from '../components/DocumentDeepAnalysisPanel';
 import DataPointsPanel from '../components/DataPointsPanel';
 import DiscrepancyPanel from '../components/DiscrepancyPanel';
@@ -24,7 +24,6 @@ import DrawingToolsSidebar, { DEFAULT_TOOL_SETTINGS, type DrawingTool, type Tool
 import DrawingSaveDialog from '../components/DrawingSaveDialog';
 import VerificationPanel from '../components/VerificationPanel';
 import ExportPanel from '../components/ExportPanel';
-import TemplateManager from '../components/TemplateManager';
 import SurveyPlanPanel from '../components/SurveyPlanPanel';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS } from '@/types/research';
@@ -40,24 +39,6 @@ export default function ResearchProjectPage() {
   const [documents, setDocuments] = useState<ResearchDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ document_count: 0, data_point_count: 0, discrepancy_count: 0, resolved_count: 0 });
-
-  // Analysis state
-  const [selectedAnalysisTemplate, setSelectedAnalysisTemplate] = useState<string | null>(null);
-  const [analysisStarting, setAnalysisStarting] = useState(false);
-  const [analysisAborting, setAnalysisAborting] = useState(false);
-  const [analysisStatus, setAnalysisStatus] = useState<{
-    documentsTotal: number;
-    documentsAnalyzed: number;
-    dataPointCount: number;
-    discrepancyCount: number;
-    frozen: boolean;
-    error?: string;
-    errorCategory?: string;
-    logs?: Array<{ ts: string; level: string; message: string; detail?: string }>;
-  } | null>(null);
-  const [analysisResuming, setAnalysisResuming] = useState(false);
-  const [analysisError, setAnalysisError] = useState<{ message: string; category: string } | null>(null);
-  const [showAnalysisLogs, setShowAnalysisLogs] = useState(false);
 
   // Review state
   const [reviewTab, setReviewTab] = useState<'sources' | 'data' | 'discrepancies' | 'ai_logs' | 'survey_plan'>('sources');
@@ -200,55 +181,6 @@ export default function ResearchProjectPage() {
     return () => clearInterval(interval);
   }, [documents, loadDocuments]);
 
-  // Poll for analysis progress when analyzing
-  useEffect(() => {
-    if (project?.status !== 'analyzing') {
-      setAnalysisStatus(null);
-      return;
-    }
-
-    async function pollStatus() {
-      try {
-        const res = await fetch(`/api/admin/research/${projectId}/analyze`);
-        if (res.ok) {
-          const data = await res.json();
-          setAnalysisStatus({
-            documentsTotal: data.documentsTotal,
-            documentsAnalyzed: data.documentsAnalyzed,
-            dataPointCount: data.dataPointCount,
-            discrepancyCount: data.discrepancyCount,
-            frozen: data.frozen ?? false,
-            error: data.error,
-            errorCategory: data.errorCategory,
-            logs: data.logs,
-          });
-          // If analysis failed or was aborted (project went back to configure), capture the error
-          if (data.status === 'configure') {
-            if (data.errorCategory === 'aborted') {
-              setAnalysisError({ message: 'Analysis was aborted.', category: 'aborted' });
-            } else if (data.error) {
-              setAnalysisError({ message: data.error, category: data.errorCategory || 'unknown' });
-            }
-            setAnalysisAborting(false);
-            loadProject();
-            loadDocuments();
-          }
-          // If analysis completed successfully
-          else if (data.status !== 'analyzing') {
-            setAnalysisError(null);
-            setAnalysisAborting(false);
-            loadProject();
-            loadDocuments();
-          }
-        }
-      } catch { /* polling errors are non-critical */ }
-    }
-
-    pollStatus();
-    const interval = setInterval(pollStatus, 2000); // poll every 2 s for responsive log/progress updates
-    return () => clearInterval(interval);
-  }, [project?.status, projectId, loadProject, loadDocuments]);
-
   // ── Project Editing ──────────────────────────────────────────────────────
   function openEditProject() {
     if (!project) return;
@@ -329,13 +261,13 @@ export default function ResearchProjectPage() {
     }
 
     const stepLabels: Record<WorkflowStep, string> = {
-      upload: 'Upload',
-      configure: 'Configure',
-      analyzing: 'Analyze',
+      upload: 'Information',
+      configure: 'Research & Analysis',
+      analyzing: 'Research & Analysis',
       review: 'Review',
       drawing: 'Draw',
       verifying: 'Verify',
-      complete: 'Export',
+      complete: 'Job Prep',
     };
 
     // Only clear analysis data when actually going to a pre-analysis step AND
@@ -385,8 +317,6 @@ export default function ResearchProjectPage() {
         // Reset local UI state that is no longer relevant for the target step
         if (clearAnalysisData) {
           // Clear all analysis-derived state
-          setAnalysisError(null);
-          setAnalysisStatus(null);
           setComparisonResult(null);
           setActiveDrawing(null);
           setDrawingElements([]);
@@ -422,103 +352,6 @@ export default function ResearchProjectPage() {
     } catch {
       showToast('Unable to connect. Check your internet connection and try again.', 'error');
     }
-  }
-
-  async function handleStartAnalysis() {
-    if (analysisStarting) return;
-
-    // Warn when existing analysis results will be overwritten
-    if (stats.data_point_count > 0) {
-      let confirmMsg = `Re-run AI Analysis?\n\nThis will permanently replace your existing ${stats.data_point_count} data point${stats.data_point_count !== 1 ? 's' : ''}`;
-      if (stats.discrepancy_count > 0) {
-        confirmMsg += ` and ${stats.discrepancy_count} discrepancy${stats.discrepancy_count !== 1 ? 'ies' : ''}`;
-      }
-      confirmMsg += ' with a fresh analysis. Any manual notes or resolutions on the current data will be lost.';
-      if (!window.confirm(confirmMsg)) return;
-    }
-
-    setAnalysisStarting(true);
-    setAnalysisError(null);
-
-    try {
-      const res = await fetch(`/api/admin/research/${projectId}/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      if (res.ok) {
-        // Immediately reflect the analyzing state locally — don't wait for the DB round-trip.
-        // analyzeProject() runs async in the background and may take a moment to update the DB,
-        // so setting the local state now ensures the spinner and progress UI appear right away.
-        // Do NOT call loadProject() here — it races with the DB update and may flip the status
-        // back to 'configure' before analyzeProject() has committed it, killing the polling loop.
-        setProject(prev => prev ? { ...prev, status: 'analyzing' } : prev);
-      } else {
-        const err = await res.json().catch(() => ({ error: 'Failed to start analysis' }));
-        // Show the error in the analysis error banner
-        setAnalysisError({
-          message: err.error || 'Failed to start analysis. Please try again.',
-          category: err.errorCategory || 'unknown',
-        });
-      }
-    } catch {
-      setAnalysisError({
-        message: 'Unable to connect to the server. Please check your internet connection and try again.',
-        category: 'connectivity',
-      });
-    }
-
-    setAnalysisStarting(false);
-  }
-
-  async function handleAbortAnalysis() {
-    if (analysisAborting) return;
-    setAnalysisAborting(true);
-    try {
-      const res = await fetch(`/api/admin/research/${projectId}/analyze`, { method: 'DELETE' });
-      if (res.ok) {
-        // Immediately reset UI — don't wait for the next poll.
-        // The server has already cleared all partial data and set status back to configure.
-        setProject(prev => prev ? { ...prev, status: 'configure' } : prev);
-        setAnalysisStatus(null);
-        setAnalysisError(null);
-        setStats(prev => ({ ...prev, data_point_count: 0, discrepancy_count: 0, resolved_count: 0 }));
-        setAnalysisAborting(false);
-        // Reload documents so their statuses reflect the reset (analyzing → extracted)
-        loadDocuments();
-      } else {
-        const err = await res.json().catch(() => ({ error: 'Failed to abort' }));
-        showToast(err.error || 'Failed to abort analysis', 'error');
-        setAnalysisAborting(false);
-      }
-    } catch {
-      showToast('Unable to connect. Check your internet connection.', 'error');
-      setAnalysisAborting(false);
-    }
-  }
-
-  async function handleResumeAnalysis() {
-    if (analysisResuming) return;
-    setAnalysisResuming(true);
-    setAnalysisError(null);
-    try {
-      const res = await fetch(`/api/admin/research/${projectId}/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resume: true }),
-      });
-      if (res.ok) {
-        // The project status stays 'analyzing' — just reset the frozen state in local UI
-        setAnalysisStatus(prev => prev ? { ...prev, frozen: false } : prev);
-      } else {
-        const err = await res.json().catch(() => ({ error: 'Failed to resume' }));
-        showToast(err.error || 'Failed to resume analysis', 'error');
-      }
-    } catch {
-      showToast('Unable to connect. Check your internet connection.', 'error');
-    }
-    setAnalysisResuming(false);
   }
 
   // Drawing functions
@@ -1503,219 +1336,28 @@ export default function ResearchProjectPage() {
 
       {/* Step content */}
       {project.status === 'upload' && (
-        <>
-          <DocumentUploadPanel
-            projectId={projectId}
-            documents={documents}
-            onDocumentsChanged={() => { loadDocuments(); loadProject(); }}
-          />
-          <PropertySearchPanel
-            projectId={projectId}
-            defaultAddress={project.property_address || ''}
-            defaultCounty={project.county || ''}
-            defaultParcelId={project.parcel_id || ''}
-            onImported={() => { loadDocuments(); loadProject(); }}
-          />
-        </>
+        <DocumentUploadPanel
+          projectId={projectId}
+          documents={documents}
+          onDocumentsChanged={() => { loadDocuments(); loadProject(); }}
+        />
       )}
 
-      {project.status === 'configure' && (
-        <div className="research-configure">
-          <div className="research-configure__header">
-            <h2 className="research-configure__title">Configure &amp; Run AI Analysis</h2>
-            <p className="research-configure__desc">
-              Your research documents are ready. The AI will analyze {extractedDocs.length} document{extractedDocs.length !== 1 ? 's' : ''} and extract
-              surveying data including bearings, distances, monuments, curve data, legal descriptions, and more.
-              All research files, pages, summaries, and discrepancies found during Step 1 are preserved
-              and available in the Review step.
-            </p>
-          </div>
-
-          {/* Back to Upload */}
-          <button className="research-back-btn" onClick={() => handleRevertToStep('upload')}>
-            &larr; Back to Upload &amp; Documents
-          </button>
-
-          <div className="research-configure__summary">
-            <div className="research-configure__summary-item">
-              <span className="research-configure__summary-label">Documents ready:</span>
-              <span className="research-configure__summary-value">{extractedDocs.length}</span>
-            </div>
-            <div className="research-configure__summary-item">
-              <span className="research-configure__summary-label">Document types:</span>
-              <span className="research-configure__summary-value">
-                {[...new Set(extractedDocs.map(d => d.document_type).filter(Boolean))].join(', ').replace(/_/g, ' ') || 'Various'}
-              </span>
-            </div>
-          </div>
-
-          {/* Analysis template selector */}
-          <TemplateManager
-            type="analysis"
-            selectedId={selectedAnalysisTemplate}
-            onSelect={setSelectedAnalysisTemplate}
-            showUITooltips={showUITooltips}
-            compact
-          />
-
-          {/* Analysis error display — shown when a previous analysis attempt failed */}
-          {analysisError && (
-            <div style={{
-              background: analysisError.category === 'usage_exhausted' ? '#FFFBEB' : '#FEF2F2',
-              border: `1px solid ${analysisError.category === 'usage_exhausted' ? '#FDE68A' : '#FECACA'}`,
-              borderRadius: '0.5rem', padding: '1rem 1.25rem', marginBottom: '1rem',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>
-                  {analysisError.category === 'usage_exhausted' ? '⚠' :
-                   analysisError.category === 'authentication' ? '🔑' :
-                   analysisError.category === 'connectivity' ? '🌐' :
-                   analysisError.category === 'rate_limited' ? '⏳' :
-                   analysisError.category === 'timeout' ? '⏱' : '⚠'}
-                </span>
-                <div style={{ flex: 1 }}>
-                  <div style={{
-                    fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.25rem',
-                    color: analysisError.category === 'usage_exhausted' ? '#92400E' : '#991B1B',
-                  }}>
-                    {analysisError.category === 'usage_exhausted' ? 'AI Usage Limit Reached' :
-                     analysisError.category === 'authentication' ? 'AI Authentication Failed' :
-                     analysisError.category === 'connectivity' ? 'Connection Issue' :
-                     analysisError.category === 'rate_limited' ? 'AI Service Temporarily Unavailable' :
-                     analysisError.category === 'timeout' ? 'AI Request Timed Out' :
-                     analysisError.category === 'overloaded' ? 'AI Service Overloaded' :
-                     'Analysis Failed'}
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: '#4B5563', lineHeight: 1.5 }}>
-                    {analysisError.message}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setAnalysisError(null)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: '1.1rem', padding: 0, lineHeight: 1 }}
-                  aria-label="Dismiss"
-                >
-                  &times;
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="research-configure__actions">
-            <button
-              className="research-page__new-btn"
-              onClick={() => { setAnalysisError(null); handleStartAnalysis(); }}
-              disabled={analysisStarting || extractedDocs.length === 0}
-              style={(analysisStarting || extractedDocs.length === 0) ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-            >
-              {analysisStarting ? 'Starting...' : analysisError ? 'Retry AI Analysis' : 'Run AI Analysis'}
-            </button>
-            {project.analysis_metadata && Array.isArray((project.analysis_metadata as Record<string, unknown>).logs) && (
-              <button
-                onClick={() => setShowAnalysisLogs(true)}
-                style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: '#374151', marginLeft: '0.5rem' }}
-              >
-                📋 View AI Logs
-              </button>
-            )}
-            {extractedDocs.length === 0 && (
-              <span style={{ color: '#EF4444', fontSize: '0.8rem', marginLeft: '0.75rem' }}>
-                No extracted documents available. Go back to Upload to add documents.
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {project.status === 'analyzing' && (
-        <div className="research-analyzing">
-          {/* Freeze detection banner */}
-          {analysisStatus?.frozen ? (
-            <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '0.5rem', padding: '0.75rem 1rem', marginBottom: '1rem', maxWidth: 520, textAlign: 'center' }}>
-              <div style={{ fontWeight: 700, color: '#92400E', marginBottom: '0.25rem' }}>⚠️ Analysis Appears Frozen</div>
-              <div style={{ fontSize: '0.82rem', color: '#78350F', marginBottom: '0.6rem' }}>
-                The analyzer hasn&apos;t reported progress in over 90 seconds. It may be stuck on a difficult
-                document. You can resume from where it left off, or abort and start fresh.
-              </div>
-              <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                <button
-                  onClick={handleResumeAnalysis}
-                  disabled={analysisResuming}
-                  style={{ background: '#D97706', border: 'none', borderRadius: '0.375rem', padding: '0.4rem 1rem', cursor: analysisResuming ? 'not-allowed' : 'pointer', fontSize: '0.85rem', color: '#fff', fontWeight: 600, opacity: analysisResuming ? 0.6 : 1 }}
-                >
-                  {analysisResuming ? 'Resuming…' : '▶ Resume Analysis'}
-                </button>
-                <button
-                  onClick={handleAbortAnalysis}
-                  disabled={analysisAborting}
-                  style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.4rem 1rem', cursor: analysisAborting ? 'not-allowed' : 'pointer', fontSize: '0.85rem', color: '#DC2626', opacity: analysisAborting ? 0.6 : 1 }}
-                >
-                  {analysisAborting ? 'Aborting…' : '⏹ Abort & Reset'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="research-analyzing__spinner" />
-          )}
-          <div className="research-analyzing__title">
-            {analysisStatus?.frozen ? 'Analysis Paused / Frozen' : 'AI Analysis in Progress'}
-          </div>
-          <div className="research-analyzing__text">
-            The AI is processing your documents and extracting surveying data.
-            This may take a few minutes depending on the number and size of documents.
-            Each document has a 3-minute timeout — if one gets stuck it will be skipped automatically.
-            The pipeline has a 30-minute overall watchdog and will self-terminate if it exceeds that limit.
-          </div>
-          {analysisStatus && (
-            <div className="research-analyzing__progress">
-              <div className="research-analyzing__progress-bar">
-                <div
-                  className="research-analyzing__progress-fill"
-                  style={{
-                    width: analysisStatus.documentsTotal > 0
-                      ? `${(analysisStatus.documentsAnalyzed / analysisStatus.documentsTotal) * 100}%`
-                      : '0%',
-                    background: analysisStatus.frozen ? '#F59E0B' : undefined,
-                  }}
-                />
-              </div>
-              <div className="research-analyzing__progress-text">
-                {analysisStatus.documentsAnalyzed} of {analysisStatus.documentsTotal} documents analyzed
-                {analysisStatus.dataPointCount > 0 && ` — ${analysisStatus.dataPointCount} data points extracted`}
-              </div>
-            </div>
-          )}
-          {/* Last log message */}
-          {analysisStatus?.logs && analysisStatus.logs.length > 0 && (
-            <div style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: '0.75rem', fontFamily: 'monospace', maxWidth: 480, textAlign: 'center' }}>
-              {analysisStatus.logs[analysisStatus.logs.length - 1].message}
-            </div>
-          )}
-          {!analysisStatus?.frozen && (
-            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button
-                onClick={() => setShowAnalysisLogs(true)}
-                style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}
-              >
-                📋 View AI Logs
-              </button>
-              <button
-                onClick={handleAbortAnalysis}
-                disabled={analysisAborting}
-                style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: analysisAborting ? 'not-allowed' : 'pointer', fontSize: '0.8rem', color: '#DC2626', opacity: analysisAborting ? 0.6 : 1 }}
-              >
-                {analysisAborting ? 'Aborting…' : '⏹ Abort & Reset'}
-              </button>
-            </div>
-          )}
-        </div>
+      {(project.status === 'configure' || project.status === 'analyzing') && (
+        <ResearchAnalysisPanel
+          projectId={projectId}
+          defaultAddress={project.property_address || ''}
+          defaultCounty={project.county || ''}
+          defaultParcelId={project.parcel_id || ''}
+          onComplete={() => { loadDocuments(); loadProject(); }}
+        />
       )}
 
       {project.status === 'review' && (
         <div className="research-review">
-          {/* Back to Configure / re-run analysis */}
+          {/* Back to Research & Analysis */}
           <button className="research-back-btn" onClick={() => handleRevertToStep('configure')}>
-            &larr; Back to Configure / Re-run Analysis
+            &larr; Back to Research &amp; Analysis
           </button>
 
           {/* Survey Briefing panel (collapsible) */}
@@ -2486,56 +2128,6 @@ export default function ResearchProjectPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* AI Analysis Logs Modal */}
-      {showAnalysisLogs && (
-        <div
-          className="research-modal-overlay"
-          onClick={() => setShowAnalysisLogs(false)}
-          onKeyDown={e => { if (e.key === 'Escape') setShowAnalysisLogs(false); }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="AI Analysis Logs"
-        >
-          <div
-            className="research-modal"
-            onClick={e => e.stopPropagation()}
-            style={{ maxWidth: 700, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h2 className="research-modal__title" style={{ marginBottom: 0 }}>AI Analysis Logs</h2>
-              <button
-                onClick={() => setShowAnalysisLogs(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: '1.25rem', padding: 0, lineHeight: 1 }}
-                aria-label="Close logs"
-              >&times;</button>
-            </div>
-            <div style={{ overflowY: 'auto', flex: 1, fontFamily: 'monospace', fontSize: '0.78rem', lineHeight: 1.6, background: '#F8FAFC', borderRadius: '0.375rem', padding: '0.75rem' }}>
-              {(() => {
-                const logs = (project?.analysis_metadata as Record<string, unknown> | null)?.logs as Array<{ ts: string; level: string; message: string; detail?: string }> | undefined
-                  || analysisStatus?.logs;
-                if (!logs || logs.length === 0) {
-                  return <div style={{ color: '#9CA3AF', textAlign: 'center', padding: '1rem' }}>No log entries available.</div>;
-                }
-                return logs.map((entry, i) => {
-                  const levelColor = entry.level === 'error' ? '#EF4444' : entry.level === 'warn' ? '#F59E0B' : entry.level === 'success' ? '#059669' : '#374151';
-                  const levelBg = entry.level === 'error' ? '#FEF2F2' : entry.level === 'warn' ? '#FFFBEB' : entry.level === 'success' ? '#F0FDF4' : 'transparent';
-                  return (
-                    <div key={i} style={{ padding: '0.2rem 0.4rem', borderRadius: '0.2rem', background: levelBg, marginBottom: '0.15rem' }}>
-                      <span style={{ color: '#9CA3AF' }}>{new Date(entry.ts).toLocaleTimeString()}</span>
-                      {' '}
-                      <span style={{ color: levelColor, fontWeight: 600 }}>[{entry.level.toUpperCase()}]</span>
-                      {' '}
-                      <span style={{ color: '#374151' }}>{entry.message}</span>
-                      {entry.detail && <span style={{ color: '#6B7280' }}> — {entry.detail}</span>}
-                    </div>
-                  );
-                });
-              })()}
-            </div>
           </div>
         </div>
       )}

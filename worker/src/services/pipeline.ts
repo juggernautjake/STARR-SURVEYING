@@ -354,6 +354,17 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     ].filter(Boolean);
     logger.info('Stage0', `${normalized.canonical ?? input.address} — ${input.county} County [${capParts.join(' · ')}] (${Date.now() - stage0Start}ms)`);
 
+    // Log county-specific capabilities for transparency
+    if (cadConfig) {
+      logger.info('Stage0', `Using ${cadConfig.name} for property lookups — ${input.county} County-specific CAD system detected`);
+    }
+    if (kofile) {
+      logger.info('Stage0', `${input.county} County clerk records available via Kofile — will search for deeds, plats, and instruments`);
+    }
+    if (!cadConfig && !kofile) {
+      logger.warn('Stage0', `No county-specific services configured for ${input.county} County — using generic search methods only`);
+    }
+
     await updateStatus(input.projectId, 'running', `Stage 1: Searching ${input.county} CAD…`);
     const stage1Start = Date.now();
 
