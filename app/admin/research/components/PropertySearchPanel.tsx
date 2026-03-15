@@ -170,8 +170,14 @@ export default function PropertySearchPanel({
   const [pipelineStatus, setPipelineStatus] = useState<string | null>(null);
   const [pipelineResult, setPipelineResult] = useState<PipelineStatusResponse | null>(null);
   const [pipelineError, setPipelineError] = useState('');
+  const [pipelineStallMinutes, setPipelineStallMinutes] = useState(0);
   // showPipelineLog moved to PipelineProgressPanel (internal state)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // How many consecutive 404 responses we've received — we only give up after 5
+  // consecutive misses so a brief worker restart doesn't kill the poll.
+  const consecutive404CountRef = useRef(0);
+  // Timestamp when the current polling run started — used to compute stall warnings.
+  const pollStartTimeRef = useRef<number>(0);
 
   const stopLitePolling = useCallback(() => {
     if (liteRef.current) { clearInterval(liteRef.current); liteRef.current = null; }
@@ -294,6 +300,9 @@ export default function PropertySearchPanel({
       } else if (res.ok) {
         setPipelineRunning(true);
         setPipelineStatus('running');
+        setPipelineStallMinutes(0);
+        consecutive404CountRef.current = 0;
+        pollStartTimeRef.current = Date.now();
         stopPolling();
         pollRef.current = setInterval(pollPipelineStatus, 5_000);
       } else {
@@ -327,11 +336,25 @@ export default function PropertySearchPanel({
       const res = await fetch(`/api/admin/research/${projectId}/pipeline`);
       if (!res.ok) {
         if (res.status === 404) {
-          setPipelineStatus('not_found');
-          stopPolling();
+          consecutive404CountRef.current += 1;
+          // Only give up after 5 consecutive 404s — a transient worker restart
+          // or in-flight deployment can cause a brief 404 that should be retried.
+          if (consecutive404CountRef.current >= 5) {
+            setPipelineStatus('not_found');
+            stopPolling();
+          }
         }
+        // For all other non-OK responses keep polling (same as network errors).
         return;
       }
+      // Successful response — reset the 404 counter.
+      consecutive404CountRef.current = 0;
+
+      // Update stall-warning display (elapsed minutes since polling started).
+      const elapsedMs = Date.now() - pollStartTimeRef.current;
+      const elapsedMin = Math.floor(elapsedMs / 60_000);
+      setPipelineStallMinutes(elapsedMin);
+
       const data = await res.json() as PipelineStatusResponse;
       setPipelineResult(data);
 
@@ -341,6 +364,7 @@ export default function PropertySearchPanel({
         // Pipeline finished (success, partial, or failed)
         setPipelineStatus(data.status);
         setPipelineRunning(false);
+        setPipelineStallMinutes(0);
         stopPolling();
         onImported?.();
       }
@@ -580,6 +604,12 @@ export default function PropertySearchPanel({
                   : 'Awaiting pipeline start…'}
               </div>
             </div>
+            {/* Stall warning — shown after 45+ minutes to reassure user the run is continuing */}
+            {pipelineRunning && pipelineStallMinutes >= 45 && (
+              <div style={{ marginTop: '0.5rem', padding: '0.4rem 0.6rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: '0.78rem', color: '#92400e' }}>
+                ⏳ Still running ({pipelineStallMinutes} min elapsed) — complex properties with many documents take longer. The run will complete on its own.
+              </div>
+            )}
           </div>
         )}
 
@@ -658,6 +688,16 @@ export default function PropertySearchPanel({
                   documents={pipelineResult?.documents}
                   log={pipelineResult?.log}
                   failureReason={pipelineResult?.failureReason}
+                  onLoadLogs={async () => {
+                    try {
+                      const res = await fetch(`/api/admin/research/${projectId}/logs`);
+                      if (!res.ok) return null;
+                      const data = await res.json() as { log?: PipelineLogEntry[] };
+                      return data.log ?? null;
+                    } catch {
+                      return null;
+                    }
+                  }}
                 />
               </>
             )}

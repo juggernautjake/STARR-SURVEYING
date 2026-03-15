@@ -1869,10 +1869,11 @@ const BELL_CLERK_BASE = 'https://bell.tx.publicsearch.us';
  *   - 8s after clicking a result row for the Kofile viewer to fire the signed image URL
  *   - 5s after clicking "Next Page" for the new page image to load
  * If this proves insufficient on slow connections, increase to 10s rather than polling.
+ * Exported for testability and to document the proven grab-docs.js timings.
  */
-const TYLER_SPA_RENDER_TIMEOUT_MS  = 8_000;
-const TYLER_VIEWER_LOAD_TIMEOUT_MS = 8_000;
-const TYLER_NEXT_PAGE_TIMEOUT_MS   = 5_000;
+export const TYLER_SPA_RENDER_TIMEOUT_MS  = 8_000;
+export const TYLER_VIEWER_LOAD_TIMEOUT_MS = 8_000;
+export const TYLER_NEXT_PAGE_TIMEOUT_MS   = 5_000;
 
 /**
  * Search Bell County clerk records by owner name.
@@ -2003,6 +2004,16 @@ export async function searchByInstrument(
  * This avoids screenshot latency and gets the full-resolution originals.
  * Navigates directly to the document detail page (/doc/{id}/details) rather
  * than the old search-then-click approach (saves ~16 seconds per document).
+ *
+ * Dynamic stopping: pagination stops as soon as no new signed URL is intercepted
+ * after a page navigation (or the URL-construction fallback also fails), even if
+ * fewer than `expectedPages` pages were retrieved. This mirrors the grab-docs.js
+ * production workflow proven on the 3779 FM 436 / Ash Family Trust session.
+ *
+ * @param instrumentNumber  Kofile/Tyler instrument number to fetch
+ * @param expectedPages     Upper bound on pages to fetch (hard cap = min(expectedPages, 20)).
+ *                          Pass a large value (e.g. 20) for plats with unknown page count.
+ * @param logger  Pipeline logger
  */
 export async function fetchDocumentImages(
   instrumentNumber: string,
@@ -2023,14 +2034,19 @@ export async function fetchDocumentImages(
     });
     const page = await context.newPage();
 
-    // Intercept signed image URLs from the Kofile viewer
+    // Intercept signed image URLs from the Kofile viewer.
+    // Deduplicate by URL — the Kofile viewer sometimes fires the same signed URL
+    // twice (thumbnail preloads, XHR retries), which would corrupt the per-page
+    // imageUrls[pageNum - 1] indexing. Matches the grab-docs.js deduplication:
+    //   if (!imageUrls.includes(u)) imageUrls.push(u);
     const imageUrls: string[] = [];
     page.on('response', (res) => {
       const url = res.url();
       // Match Kofile signed document image URLs (PNG, JPG, TIFF)
       if (
         (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
-        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url) &&
+        !imageUrls.includes(url)
       ) {
         imageUrls.push(url);
         console.log(`[BELL-IMG] Captured: ${url.substring(0, 100)}...`);
@@ -2105,13 +2121,21 @@ export async function fetchDocumentImages(
       return false;
     };
 
-    // Download page 1
+    // Download page 1 — use imageUrls[0] (the first intercepted URL).
+    // The Kofile viewer fires page 1's signed URL first when loading the document;
+    // using the last captured URL risks picking a pre-loaded later page if the viewer
+    // loads multiple images at once. This matches the proven grab-docs.js approach.
     if (imageUrls.length > 0) {
-      await downloadPage(imageUrls[imageUrls.length - 1], 1);
+      await downloadPage(imageUrls[0], 1);  // first intercepted URL = page 1 (viewer fires page 1 first)
     }
 
-    // Navigate to subsequent pages using the next-page button
-    for (let pageNum = 2; pageNum <= Math.min(expectedPages, 20); pageNum++) {
+    // Navigate to subsequent pages using the next-page button.
+    // Uses dynamic stopping (like grab-docs.js): stop when no next-page button
+    // is found OR when no new signed URL is intercepted after navigation AND the
+    // URL-construction fallback also fails — whichever comes first.
+    // The expectedPages cap (max 20) is the absolute upper bound for safety.
+    const maxPages = Math.min(expectedPages, 20);
+    for (let pageNum = 2; pageNum <= maxPages; pageNum++) {
       const urlCountBefore = imageUrls.length;
 
       const nextSelectors = [
@@ -2130,23 +2154,35 @@ export async function fetchDocumentImages(
       }
 
       if (!clicked) {
-        console.log(`[BELL-IMG] No next-page button for page ${pageNum}`);
+        console.log(`[BELL-IMG] No next-page button for page ${pageNum} — done`);
         break;
       }
 
       await page.waitForTimeout(TYLER_NEXT_PAGE_TIMEOUT_MS);
 
       if (imageUrls.length > urlCountBefore) {
+        // A new signed URL was intercepted — this is the confirmed image for this page
         await downloadPage(imageUrls[imageUrls.length - 1], pageNum);
       } else if (imageUrls.length > 0) {
-        // Construct URL for this page by replacing the page number in the seed URL
-        // Handles both _1.png and _1.jpg patterns
+        // No new URL intercepted — try constructing the URL from the page-1 seed.
+        // Handles cases where viewer reuses auth tokens and only the page number changes.
         const seedUrl = imageUrls[0];
         const constructedUrl = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_${pageNum}.$1`);
         if (constructedUrl !== seedUrl) {
           const ok = await downloadPage(constructedUrl, pageNum);
-          if (!ok) console.log(`[BELL-IMG] Page ${pageNum} constructed URL failed`);
+          if (!ok) {
+            // Construction failed — no more pages available
+            console.log(`[BELL-IMG] No new image URL for page ${pageNum} — stopping`);
+            break;
+          }
+        } else {
+          // Cannot construct a different URL — stop
+          console.log(`[BELL-IMG] No new image URL for page ${pageNum} — stopping`);
+          break;
         }
+      } else {
+        // No URLs captured at all — stop
+        break;
       }
     }
 

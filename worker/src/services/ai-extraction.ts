@@ -534,6 +534,7 @@ async function extractPdfViaPageRendering(
         const avResult = await adaptiveVisionOcr(
           screenshotBuf, 'image/png', anthropicApiKey, logger,
           `${docLabel}-p${pageNum}`,
+          docLabel,
         );
 
         const pageText = avResult.mergedText.trim();
@@ -766,7 +767,7 @@ async function extractFromImageInternal(
 
     const imgBuffer = Buffer.from(imageBase64, 'base64');
     const avResult = await adaptiveVisionOcr(
-      imgBuffer, effectiveMediaType, anthropicApiKey, logger, docLabel,
+      imgBuffer, effectiveMediaType, anthropicApiKey, logger, docLabel, docLabel,
     );
 
     ocrTracker.step(

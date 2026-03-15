@@ -1,5 +1,7 @@
-// worker/src/services/pipeline.ts — Main 4-stage pipeline orchestrator
-// Coordinates: Stage 0 (normalize) → Stage 1 (CAD) → Stage 2 (Clerk) → Stage 3 (AI) → Stage 4 (Validate)
+// worker/src/services/pipeline.ts — Main research pipeline orchestrator
+// Stage 0: Normalize address → Stage 1: CAD lookup → Stage 2: Clerk search
+// Stage 3: AI extraction → Stage 3.5: Geometric reconciliation
+// Stage 4: Boundary validation → Stage 5: Synthesis & cross-validation report
 // Supports: direct property ID lookup, owner name search, user file uploads.
 
 import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyIdResult, SearchDiagnostics } from '../types/index.js';
@@ -10,6 +12,7 @@ import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBase
 import { extractDocuments, extractPlatBoundary } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
+import { runPropertyValidationPipeline } from './property-validation-pipeline.js';
 import { bundleAndUploadPages } from './pages-to-pdf.js';
 import { extractSubdivisionName, fetchBestMatchingPlat, hasPlatRepository } from './county-plats.js';
 import {
@@ -819,7 +822,10 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         for (const { instrNum, docType } of instrToFetch) {
           try {
             const isPlat = /plat/i.test(docType);
-            const pages = await fetchDocumentImages(instrNum, isPlat ? 3 : 2, logger);
+            // Use 20 as the upper bound for plats — large multi-lot plats can have
+            // many pages and the dynamic stopping in fetchDocumentImages will bail
+            // out early once no more pages are found.  Deeds rarely exceed 4 pages.
+            const pages = await fetchDocumentImages(instrNum, isPlat ? 20 : 4, logger);
             if (pages.length > 0) {
               const docResult: DocumentResult = {
                 ref: {
@@ -1077,35 +1083,96 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     logger.info('Stage3.5', '═══ STAGE 3.5: Geometric Reconciliation ═══');
 
-    // Find the best plat image document (prefer plats, then surveys, then any image)
-    const platDoc = processedDocs.find(d =>
-      d.imageBase64 && d.imageFormat &&
+    // Resolve the best plat image for geo-reconcile.  Priority order:
+    //   1. imageBase64 + imageFormat (not PDF/TIFF) — legacy single-image path
+    //   2. pages[0] (DocumentPage array, captured via signed-URL interception)
+    //   3. pageScreenshots[0] (PageScreenshot array, legacy browser capture)
+    // This handles Bell County documents which use the pages[] path from
+    // fetchDocumentImages / captureAllDocumentPages.
+
+    type PlatImageCandidate = { base64: string; mediaType: 'image/png' | 'image/jpeg'; label: string };
+
+    function resolvePlatImage(doc: (typeof processedDocs)[number]): PlatImageCandidate | null {
+      // Path 1: single imageBase64 field (not PDF/TIFF)
+      if (doc.imageBase64 && doc.imageFormat &&
+          doc.imageFormat !== 'pdf' && doc.imageFormat !== 'tiff') {
+        return {
+          base64: doc.imageBase64,
+          mediaType: doc.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png',
+          label: doc.ref.instrumentNumber ?? doc.ref.documentType,
+        };
+      }
+      // Path 2: DocumentPage array (Kofile signed-URL capture)
+      if (doc.pages && doc.pages.length > 0) {
+        const p = doc.pages[0];
+        if (p.imageFormat !== 'tiff') {
+          return {
+            base64: p.imageBase64,
+            mediaType: p.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png',
+            label: `${doc.ref.instrumentNumber ?? doc.ref.documentType}-p${p.pageNumber}`,
+          };
+        }
+      }
+      // Path 3: PageScreenshot array (legacy browser capture)
+      if (doc.pageScreenshots && doc.pageScreenshots.length > 0) {
+        return {
+          base64: doc.pageScreenshots[0].imageBase64,
+          mediaType: 'image/png',
+          label: `${doc.ref.instrumentNumber ?? doc.ref.documentType}-p${doc.pageScreenshots[0].pageNumber}`,
+        };
+      }
+      return null;
+    }
+
+    // Find the best plat document: prefer plats/surveys, then any document with an image
+    const platDocForReconcile = processedDocs.find(d =>
+      resolvePlatImage(d) !== null &&
       (d.ref.documentType.toLowerCase().includes('plat') ||
        d.ref.documentType.toLowerCase().includes('survey'))
-    ) ?? processedDocs.find(d => d.imageBase64 && d.imageFormat);
+    ) ?? processedDocs.find(d => resolvePlatImage(d) !== null);
 
     let reconciliation: import('../types/index.js').PipelineResult['reconciliation'] = undefined;
 
-    if (platDoc?.imageBase64 && platDoc.imageFormat && platDoc.imageFormat !== 'pdf') {
-      // PDFs use Claude's 'document' source type and are handled in Stage3/ai-extraction.
+    const platImage = platDocForReconcile ? resolvePlatImage(platDocForReconcile) : null;
+
+    if (platImage) {
+      // PDFs and TIFFs are handled by the Claude 'document' source type in Stage 3.
       // runGeoReconcile only accepts rasterised images (image/png | image/jpeg).
-      const mediaType = (
-        platDoc.imageFormat === 'jpg' ? 'image/jpeg' :
-        'image/png'
-      ) as 'image/png' | 'image/jpeg';
+      // Pass the subdivision name extracted from the legal description so that
+      // geo-reconcile.js-style prompts can reference the exact plat by name.
+      const subdivNameForReconcile = legalDesc ? extractSubdivisionName(legalDesc) : undefined;
       try {
         reconciliation = await runGeoReconcile(
           boundary,
-          platDoc.imageBase64,
-          mediaType,
+          platImage.base64,
+          platImage.mediaType,
           anthropicApiKey,
           logger,
-          platDoc.ref.instrumentNumber ?? platDoc.ref.documentType,
+          platImage.label,
+          subdivNameForReconcile ?? undefined,
         );
         logger.info('Stage3.5',
           `Reconciliation: ${reconciliation.agreementCount} confirmed, ` +
           `${reconciliation.conflictCount} conflicts, ` +
           `${reconciliation.overallAgreementPct}% agreement`);
+        if (reconciliation.confidenceSummary) {
+          const cs = reconciliation.confidenceSummary;
+          logger.info('Stage3.5',
+            `Confidence summary: HIGH=${cs.high} MEDIUM=${cs.medium} LOW=${cs.low} ` +
+            `[ESTIMATED]=${cs.estimated} [DEDUCED]=${cs.deduced} [VERIFY]=${cs.verify} [MISSING]=${cs.missing}`);
+          const totalRated = cs.high + cs.medium + cs.low;
+          if (totalRated > 0) {
+            const highRatePct = Math.round((cs.high / totalRated) * 100);
+            logger.info('Stage3.5',
+              `High-confidence rate: ${highRatePct}% of ${totalRated} rated calls`);
+          }
+        }
+        if (reconciliation.multiCropAnalysis) {
+          logger.info('Stage3.5',
+            `Multi-crop analysis: ${reconciliation.multiCropAnalysis.apiCallCount} API calls ` +
+            `(overview=${reconciliation.multiCropAnalysis.overviewText.split('\n').length}L, ` +
+            `geometry=${reconciliation.multiCropAnalysis.geometryText.split('\n').length}L)`);
+        }
       } catch (err) {
         logger.warn('Stage3.5', `Geometric reconciliation failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -1122,6 +1189,48 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     logger.info('Stage4', '═══ STAGE 4: Validation ═══');
     const validation = validateBoundary(boundary, propertyResult?.acreage ?? null, logger);
     logger.info('Stage4', `Quality: ${validation.overallQuality}, Flags: ${validation.flags.length}`);
+
+    // ═══════════════════════════════════════════════════════════════════
+    // STAGE 5: Property Validation Pipeline (Calls 5-7)
+    // Text synthesis, cross-validation, and final discrepancy/confidence
+    // report.  Non-fatal — if it fails the rest of the result is still
+    // returned.  Only runs when the pipeline has an Anthropic API key.
+    // ═══════════════════════════════════════════════════════════════════
+
+    await updateStatus(input.projectId, 'running', 'Stage 5: Synthesis & cross-validation…');
+
+    logger.info('Stage5', '═══ STAGE 5: Property Validation Pipeline (Calls 5-7) ═══');
+
+    let validationReport: import('../types/index.js').PipelineResult['validationReport'];
+
+    // Collect raw OCR text from all processed documents to give Stage 5 the
+    // multi-pass unstructured output alongside the structured boundary calls.
+    const rawOcrTexts = processedDocs
+      .map(d => d.ocrText ?? null)
+      .filter((t): t is string => t !== null && t.length > 0);
+
+    try {
+      validationReport = await runPropertyValidationPipeline(
+        boundary,
+        validation,
+        reconciliation ?? null,
+        {
+          ownerName:        propertyResult?.ownerName ?? null,
+          acreage:          propertyResult?.acreage ?? null,
+          legalDescription: propertyResult?.legalDescription ?? null,
+          county:           input.county,
+        },
+        anthropicApiKey,
+        logger,
+        rawOcrTexts.length > 0 ? rawOcrTexts : undefined,
+      );
+      logger.info('Stage5',
+        `Validation report: ${validationReport.overallConfidencePct}% overall confidence ` +
+        `(${validationReport.overallRating.display} ${validationReport.overallRating.label}), ` +
+        `${validationReport.discrepancies.length} discrepancies`);
+    } catch (err) {
+      logger.warn('Stage5', `Property validation pipeline failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     // Final Result
@@ -1184,6 +1293,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       boundary,
       validation,
       reconciliation,
+      validationReport,
       log: logger.getAttempts(),
       duration_ms,
       searchDiagnostics,

@@ -319,11 +319,12 @@ export class AIPlatAnalyzer {
     // ── Step 4: Cross-Reference Reconciliation ───────────────────────────
     // Compares OCR text vs visual geometry measurements, flags conflicts.
     this.logger.info('AIPlatAnalyzer', `[${label}] Step 4: Cross-reference reconciliation`);
-    const reconciliation: ReconciliationResult = reconcileGeometry(
-      visualGeometry,
-      textExtraction,
-      this.logger,
-    );
+    const reconciliation: ReconciliationResult = {
+      ...reconcileGeometry(visualGeometry, textExtraction, this.logger),
+      multiCropAnalysis: null,
+      boundaryMap: null,
+      confidenceSummary: null,
+    };
     this.logger.info(
       'AIPlatAnalyzer',
       `[${label}] Reconciliation: ${reconciliation.agreementCount} agree, ` +
