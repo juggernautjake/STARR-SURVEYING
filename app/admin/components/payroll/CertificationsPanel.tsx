@@ -39,10 +39,8 @@ export default function CertificationsPanel({ email, isAdmin, onCertChanged }: C
     pay_bump_percentage: '0',
   });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadCerts is stable, only re-run when email changes
-    loadCerts();
-  }, [email]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadCerts is also called from handlers
+  useEffect(() => { loadCerts(); }, [email]);
 
   async function loadCerts() {
     try {
