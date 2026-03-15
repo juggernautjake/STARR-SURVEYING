@@ -460,43 +460,64 @@ export function PipelineProgressPanel({
   failureReason,
   onLoadLogs,
 }: PipelineProgressProps) {
-  const [showLog,          setShowLog]          = useState(false);
-  const [logCopied,        setLogCopied]        = useState(false);
-  const [showDetailedLog,  setShowDetailedLog]  = useState(false);
-  const [detailCopied,     setDetailCopied]     = useState(false);
-  const [allCopied,        setAllCopied]        = useState(false);
-  // Persisted logs loaded on demand when in-memory log is empty.
-  const [loadedLog,        setLoadedLog]        = useState<PipelineLogEntry[] | null>(null);
-  const [logsLoading,      setLogsLoading]      = useState(false);
-  const [logsLoadError,    setLogsLoadError]    = useState('');
-  // Ref to the log section so we can scroll it into view after completion.
-  const logSectionRef = useRef<HTMLDivElement>(null);
+  const [allCopied,     setAllCopied]     = useState(false);
+  // Persisted logs loaded automatically when in-memory log is empty after run.
+  const [loadedLog,     setLoadedLog]     = useState<PipelineLogEntry[] | null>(null);
+  const [logsLoading,   setLogsLoading]   = useState(false);
+  const [logsLoadError, setLogsLoadError] = useState('');
+  // Whether the user has manually scrolled up inside the log stream (stops auto-scroll).
+  const [userScrolled, setUserScrolled]   = useState(false);
+  // Ref to the scrollable log container for auto-scroll behaviour.
+  const logStreamRef = useRef<HTMLDivElement>(null);
 
   // Resolved log — prefer in-memory prop, fall back to on-demand loaded.
   const log = (logProp && logProp.length > 0) ? logProp : (loadedLog ?? undefined);
 
-  // Auto-expand the log when analysis is running or when it completes/fails.
+  // Auto-scroll the log stream to the latest entry while the run is in progress
+  // (stops once the user manually scrolls up).
   useEffect(() => {
-    if (log && log.length > 0 && (
-      status === 'running' || status === 'starting' ||
-      status === 'success' || status === 'partial' || status === 'failed'
-    )) {
-      setShowLog(true);
-    }
-  }, [status, log]);
+    if (!logStreamRef.current || userScrolled) return;
+    logStreamRef.current.scrollTop = logStreamRef.current.scrollHeight;
+  }, [log?.length, userScrolled]);
 
-  // Scroll the log section into view when the run finishes so the user can
-  // immediately see the logs without needing to manually scroll down.
+  // When the run ends: reset user-scroll so the auto-scroll starts fresh next run,
+  // then scroll the panel into view so the user immediately sees the completed log.
   const prevStatusRef = useRef<string | null>(null);
   useEffect(() => {
     const wasRunning = prevStatusRef.current === 'running' || prevStatusRef.current === 'starting';
     const isNowDone  = status === 'success' || status === 'partial' || status === 'failed';
-    if (wasRunning && isNowDone && logSectionRef.current) {
-      setTimeout(() => {
-        logSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 300);
+    if (wasRunning && isNowDone) {
+      setUserScrolled(false);
+      if (logStreamRef.current) {
+        setTimeout(() => {
+          logStreamRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 300);
+      }
     }
     prevStatusRef.current = status;
+  }, [status]);
+
+  // Auto-load persisted logs from the server when the run ends and no in-memory
+  // log is available.  This means logs are always visible immediately after a run.
+  useEffect(() => {
+    // Guard: only trigger on successful/partial/failed completion
+    const isDoneNow = status === 'success' || status === 'partial' || status === 'failed';
+    if (!isDoneNow) return;
+    // Guard: in-memory log already present — nothing to load
+    if (logProp && logProp.length > 0) return;
+    // Guard: persisted logs already loaded, or load already in-flight, or no loader provided
+    if (loadedLog || logsLoading || !onLoadLogs) return;
+
+    setLogsLoading(true);
+    onLoadLogs()
+      .then(loaded => {
+        if (loaded && loaded.length > 0) setLoadedLog(loaded);
+        else setLogsLoadError('No saved logs for this run.');
+      })
+      .catch(() => setLogsLoadError('Failed to load saved logs.'))
+      .finally(() => setLogsLoading(false));
+  // Run only when status transitions to done; don't re-run on other changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   const activeStage = useMemo(() => inferActiveStage(message, status), [message, status]);
@@ -527,29 +548,19 @@ export function PipelineProgressPanel({
       });
   }, []);
 
-  const handleCopyLog = useCallback(() => {
-    if (!log || log.length === 0) return;
-    copyToClipboard(formatLogAsText(log), () => {
-      setLogCopied(true);
-      setTimeout(() => setLogCopied(false), 2000);
-    });
-  }, [log, copyToClipboard]);
-
-  const handleCopyDetailedLog = useCallback(() => {
-    if (!log || log.length === 0) return;
-    copyToClipboard(formatDetailedLogAsText(log), () => {
-      setDetailCopied(true);
-      setTimeout(() => setDetailCopied(false), 2000);
-    });
-  }, [log, copyToClipboard]);
-
-  /** Copy the full combined log (basic + detailed) to the clipboard. */
+  /** Copy the full combined log (basic summary + detailed) to the clipboard. */
   const handleCopyAllLogs = useCallback(() => {
     if (!log || log.length === 0) return;
-    const combined = `=== STARR RECON — FULL RUN LOG ===\n\n` +
-      `=== BASIC LOG (${log.length} entries) ===\n` +
+    const ts  = new Date().toLocaleString();
+    const sep = '═'.repeat(60);
+    const combined =
+      `${sep}\n` +
+      `STARR RECON — Full Run Log\n` +
+      `Exported: ${ts}   Entries: ${log.length}\n` +
+      `${sep}\n\n` +
+      `── SUMMARY (one line per entry) ──────────────────────────\n` +
       formatLogAsText(log) + '\n\n' +
-      `=== DETAILED DIAGNOSTIC LOG ===\n` +
+      `── DETAILED DIAGNOSTIC (inputs · steps · errors) ─────────\n` +
       formatDetailedLogAsText(log);
     copyToClipboard(combined, () => {
       setAllCopied(true);
@@ -557,36 +568,30 @@ export function PipelineProgressPanel({
     });
   }, [log, copyToClipboard]);
 
-  /** Load persisted logs from the server if not already available. */
-  const handleViewLogs = useCallback(async () => {
-    // Expand inline log section and scroll to it.
-    setShowLog(true);
-    setTimeout(() => {
-      logSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 50);
-    // If we already have in-memory logs, nothing more to do.
-    if (log && log.length > 0) return;
-    if (!onLoadLogs || logsLoading) return;
-    setLogsLoading(true);
-    setLogsLoadError('');
-    try {
-      const loaded = await onLoadLogs();
-      if (loaded && loaded.length > 0) {
-        setLoadedLog(loaded);
-      } else {
-        setLogsLoadError('No logs saved for this run.');
-      }
-    } catch {
-      setLogsLoadError('Failed to load logs.');
-    } finally {
-      setLogsLoading(false);
+  /** Render the appropriate placeholder content when no log entries exist yet. */
+  function renderLogEmpty() {
+    if (isRunning) {
+      return (
+        <div className="ppanel__logstream-waiting">
+          <Spinner />
+          <span>Connecting to research pipeline…</span>
+        </div>
+      );
     }
-  }, [log, onLoadLogs, logsLoading]);
+    if (isDone) {
+      return (
+        <div className="ppanel__logstream-empty">
+          {logsLoadError || 'No logs available for this run.'}
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className={`ppanel ppanel--${status ?? 'idle'}`}>
 
-      {/* ── Header bar: left = status icon + title; right = duration + action buttons ── */}
+      {/* ── Header bar ───────────────────────────────────────────────────── */}
       <div className="ppanel__header">
         <div className="ppanel__header-left">
           {isRunning && <span className="ppanel__header-spinner"><Spinner /></span>}
@@ -603,29 +608,16 @@ export function PipelineProgressPanel({
           {result?.duration_ms && (
             <span className="ppanel__header-dur">{(result.duration_ms / 1000).toFixed(1)}s</span>
           )}
-          {/* View Run Logs and Copy All Logs — shown once run is complete */}
-          {isDone && (
-            <>
-              <button
-                className="ppanel__header-btn ppanel__header-btn--logs"
-                onClick={handleViewLogs}
-                type="button"
-                title="Scroll to and expand the full run log"
-                disabled={logsLoading}
-              >
-                {logsLoading ? '⏳ Loading…' : '📋 View Run Logs'}
-              </button>
-              <button
-                className="ppanel__header-btn ppanel__header-btn--copy"
-                onClick={handleCopyAllLogs}
-                type="button"
-                title="Copy all run logs to clipboard"
-                disabled={!log || log.length === 0}
-              >
-                {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
-              </button>
-            </>
-          )}
+          {/* Copy All Logs — always visible so users can copy at any time */}
+          <button
+            className="ppanel__header-btn ppanel__header-btn--copy"
+            onClick={handleCopyAllLogs}
+            type="button"
+            title="Copy all run logs to clipboard"
+            disabled={!log || log.length === 0}
+          >
+            {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
+          </button>
         </div>
       </div>
 
@@ -673,80 +665,70 @@ export function PipelineProgressPanel({
         </div>
       )}
 
-      {/* ── Audit log accordion (basic) ──────────────────────────────── */}
-      <div ref={logSectionRef} className={`ppanel__section ppanel__section--log${(!log || log.length === 0) ? ' ppanel__section--log-empty' : ''}`}>
-        {logsLoadError && (
-          <div className="ppanel__log-load-error">{logsLoadError}</div>
-        )}
-        {log && log.length > 0 ? (
-          <>
-            <div className="ppanel__log-header">
-              <button
-                className="ppanel__log-toggle"
-                onClick={() => setShowLog(v => !v)}
-                type="button"
-              >
-                <span className="ppanel__log-toggle-icon">{showLog ? '▲' : '▼'}</span>
-                Analysis log
-                <span className="ppanel__section-count">{log.length}</span>
-              </button>
-              <button
-                className="ppanel__log-copy-btn"
-                onClick={handleCopyLog}
-                type="button"
-                title="Copy analysis log to clipboard"
-              >
-                {logCopied ? '✓ Copied' : '⎘ Copy log'}
-              </button>
-            </div>
-            {showLog && (
-              <div className="ppanel__log">
-                {log.map((entry, i) => (
-                  <LogEntry key={i} entry={entry} />
-                ))}
-              </div>
-            )}
-          </>
-        ) : isDone && !logsLoading && !logsLoadError ? (
-          <div className="ppanel__log-empty-hint">
-            No in-memory log available.{onLoadLogs ? ' Click "View Run Logs" above to load saved logs.' : ''}
-          </div>
-        ) : null}
-      </div>
+      {/* ── Run Log Stream (always visible — live during run, persisted after) ── */}
+      <div className="ppanel__logstream">
 
-      {/* ── Detailed log accordion (all steps + timestamps) ──────────── */}
-      {log && log.length > 0 && (
-        <div className="ppanel__section ppanel__section--log ppanel__section--detailed-log">
-          <div className="ppanel__log-header">
-            <button
-              className="ppanel__log-toggle"
-              onClick={() => setShowDetailedLog(v => !v)}
-              type="button"
-            >
-              <span className="ppanel__log-toggle-icon">{showDetailedLog ? '▲' : '▼'}</span>
-              Detailed diagnostic log
-              <span className="ppanel__section-count ppanel__section-count--detail">
-                {log.reduce((n, e) => n + (e.steps?.length ?? 0), 0)} steps
+        {/* Log stream header with entry count + copy button */}
+        <div className="ppanel__logstream-header">
+          <div className="ppanel__logstream-header-left">
+            <span className="ppanel__logstream-title">📋 Run Log</span>
+            {log && log.length > 0 && (
+              <span className="ppanel__logstream-count">{log.length}</span>
+            )}
+            {logsLoading && (
+              <span className="ppanel__logstream-loading">
+                <Spinner /> Loading saved logs…
               </span>
-            </button>
-            <button
-              className="ppanel__log-copy-btn ppanel__log-copy-btn--detail"
-              onClick={handleCopyDetailedLog}
-              type="button"
-              title="Copy full diagnostic log to clipboard"
-            >
-              {detailCopied ? '✓ Copied' : '⎘ Copy details'}
-            </button>
+            )}
           </div>
-          {showDetailedLog && (
-            <div className="ppanel__log ppanel__log--detailed">
-              {log.map((entry, i) => (
-                <DetailedLogEntry key={i} entry={entry} idx={i} />
-              ))}
-            </div>
+          <button
+            className="ppanel__logstream-copy-btn"
+            onClick={handleCopyAllLogs}
+            type="button"
+            title="Copy all run logs to clipboard (summary + full details with steps)"
+            disabled={!log || log.length === 0}
+          >
+            {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
+          </button>
+        </div>
+
+        {/* Scrollable log entry list */}
+        <div
+          className="ppanel__logstream-entries"
+          ref={logStreamRef}
+          onScroll={() => {
+            if (!logStreamRef.current) return;
+            const { scrollTop, scrollHeight, clientHeight } = logStreamRef.current;
+            // If user scrolls away from the bottom, stop auto-scrolling
+            setUserScrolled(scrollHeight - scrollTop - clientHeight > 40);
+          }}
+        >
+          {(!log || log.length === 0) ? (
+            renderLogEmpty()
+          ) : (
+            log.map((entry, i) => <LogEntry key={i} entry={entry} />)
           )}
         </div>
-      )}
+
+        {/* Footer: entry count + second copy button (visible once logs exist) */}
+        {log && log.length > 0 && (
+          <div className="ppanel__logstream-footer">
+            <span className="ppanel__logstream-footer-note">
+              {log.length} entr{log.length !== 1 ? 'ies' : 'y'}
+              {isDone ? ' — run complete' : ' — live'}
+            </span>
+            <button
+              className="ppanel__logstream-copy-btn ppanel__logstream-copy-btn--footer"
+              onClick={handleCopyAllLogs}
+              type="button"
+              title="Copy all run logs to clipboard"
+            >
+              {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
+            </button>
+          </div>
+        )}
+
+      </div>
 
     </div>
   );
@@ -850,12 +832,6 @@ export function PipelineProgressStyles() {
   transition: background 0.1s, color 0.1s;
   border: 1px solid;
 }
-.ppanel__header-btn--logs {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1d4ed8;
-}
-.ppanel__header-btn--logs:hover { background: #dbeafe; }
 .ppanel__header-btn--copy {
   background: #f0fdf4;
   border-color: #a7f3d0;
@@ -1060,58 +1036,7 @@ export function PipelineProgressStyles() {
 .ppanel__doc-tag--ocr       { background: #f0fdf4; color: #166534; }
 .ppanel__doc-tag--extracted { background: #fef9c3; color: #713f12; }
 
-/* ── Audit log ───────────────────────────────────────────── */
-.ppanel__log-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-.ppanel__log-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #475569;
-  flex: 1;
-  text-align: left;
-}
-.ppanel__log-toggle:hover { color: #1e293b; }
-.ppanel__log-toggle-icon { font-size: 0.65rem; color: #94a3b8; }
-
-.ppanel__log-copy-btn {
-  background: none;
-  border: 1px solid #e2e8f0;
-  border-radius: 5px;
-  padding: 0.15rem 0.5rem;
-  cursor: pointer;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #475569;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background 0.1s, color 0.1s;
-}
-.ppanel__log-copy-btn:hover { background: #f1f5f9; color: #1e293b; }
-.ppanel__log-copy-btn:active { background: #e2e8f0; }
-
-.ppanel__log {
-  margin-top: 0.4rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  max-height: 400px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background: #f8fafc;
-}
+/* ── Log entry rows (used inside the stream) ─────────────── */
 .ppanel__log-entry {
   border-bottom: 1px solid #f1f5f9;
   font-size: 0.72rem;
@@ -1124,7 +1049,6 @@ export function PipelineProgressStyles() {
   gap: 0.3rem;
   padding: 0.25rem 0.45rem;
   flex-wrap: nowrap;
-  /* Allow flex items to shrink below content size — prevents column overflow */
   min-width: 0;
 }
 .ppanel__log-entry--fail  .ppanel__log-row { background: #fff5f5; }
@@ -1142,29 +1066,13 @@ export function PipelineProgressStyles() {
 .ppanel__log-status--skip    { color: #94a3b8; }
 .ppanel__log-status--partial { color: #f59e0b; }
 
-/* Layer / source / method columns — allow slight widening, prevent hard overflow */
 .ppanel__log-layer  { color: #6366f1; font-weight: 600; flex-shrink: 0; min-width: 3.5rem; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ppanel__log-source { color: #0369a1; flex-shrink: 0; min-width: 3rem; max-width: 7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ppanel__log-method { color: #475569; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Info/warn message entries: display the details text inline, allow wrapping */
 .ppanel__log-method--msg { white-space: normal; word-break: break-word; overflow-wrap: break-word; overflow: visible; }
 .ppanel__log-points { color: #059669; flex-shrink: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ppanel__log-dur    { color: #94a3b8; flex-shrink: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ppanel__log-expand { color: #94a3b8; flex-shrink: 0; font-size: 0.6rem; margin-left: auto; }
-
-/* Empty log / load-error state helpers */
-.ppanel__section--log-empty { border-top: 1px solid #f1f5f9; }
-.ppanel__log-empty-hint {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  font-style: italic;
-  padding: 0.3rem 0;
-}
-.ppanel__log-load-error {
-  font-size: 0.75rem;
-  color: #b91c1c;
-  padding: 0.3rem 0;
-}
 
 .ppanel__log-detail {
   padding: 0.2rem 0.6rem 0.3rem 1.8rem;
@@ -1185,19 +1093,59 @@ export function PipelineProgressStyles() {
   word-break: break-all;
 }
 
-/* ── Detailed log section ─────────────────────────────────── */
-.ppanel__section--detailed-log { background: #fafafa; }
-
-.ppanel__section-count--detail {
-  background: #f0fdf4;
-  color: #166534;
+/* ── Log Stream (always-visible, scrollable) ─────────────── */
+.ppanel__logstream {
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
 }
 
-.ppanel__log-copy-btn--detail {
-  background: none;
+.ppanel__logstream-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.9rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  gap: 0.5rem;
+}
+.ppanel--running .ppanel__logstream-header { background: #eff6ff; border-color: #bfdbfe; }
+
+.ppanel__logstream-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.ppanel__logstream-title {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #334155;
+}
+
+.ppanel__logstream-count {
+  background: #e2e8f0;
+  color: #475569;
+  border-radius: 9999px;
+  padding: 0.02rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.ppanel__logstream-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-style: italic;
+}
+
+.ppanel__logstream-copy-btn {
+  background: #f0fdf4;
   border: 1px solid #a7f3d0;
   border-radius: 5px;
-  padding: 0.15rem 0.5rem;
+  padding: 0.2rem 0.6rem;
   cursor: pointer;
   font-size: 0.7rem;
   font-weight: 600;
@@ -1206,24 +1154,57 @@ export function PipelineProgressStyles() {
   flex-shrink: 0;
   transition: background 0.1s, color 0.1s;
 }
-.ppanel__log-copy-btn--detail:hover { background: #dcfce7; }
+.ppanel__logstream-copy-btn:hover { background: #dcfce7; }
+.ppanel__logstream-copy-btn:disabled { opacity: 0.5; cursor: default; }
 
-.ppanel__log--detailed {
-  margin-top: 0.4rem;
+.ppanel__logstream-entries {
+  max-height: 480px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #f8fafc;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  max-height: 500px;
-  overflow-y: auto;
-  border: 1px solid #d1fae5;
-  border-radius: 6px;
-  background: #f0fdf4;
+  gap: 0;
 }
 
-/* Detailed log rows are always single-line (no inline text wrapping), so
- * vertical centering looks better than top-alignment here. */
-.ppanel__dlog-entry .ppanel__log-row { align-items: center; }
+.ppanel__logstream-waiting {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-style: italic;
+}
 
+.ppanel__logstream-empty {
+  padding: 0.75rem 0.9rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.ppanel__logstream-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.9rem;
+  background: #f1f5f9;
+  border-top: 1px solid #e2e8f0;
+  gap: 0.5rem;
+}
+
+.ppanel__logstream-footer-note {
+  font-size: 0.72rem;
+  color: #64748b;
+  flex: 1;
+}
+
+.ppanel__logstream-copy-btn--footer {
+  font-size: 0.7rem;
+}
+
+/* ── Detailed log entry (used inside LogEntry expand) ────── */
 .ppanel__dlog-idx {
   flex-shrink: 0;
   color: #94a3b8;
@@ -1321,3 +1302,4 @@ export function PipelineProgressStyles() {
     `}</style>
   );
 }
+
