@@ -39,24 +39,23 @@ export default function QuizHistoryPage() {
   const [filterType, setFilterType] = useState<string>('all');
   const [adminEmail, setAdminEmail] = useState<string>('');
 
-  useEffect(() => {
-    async function fetchHistory() {
-      setLoading(true);
-      try {
-        let url = '/api/admin/learn/quizzes?history=true&limit=50';
-        if (adminEmail && role === 'admin') {
-          url += `&user_email=${encodeURIComponent(adminEmail)}`;
-        }
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          setAttempts(data.attempts || []);
-        }
-      } catch (err) { console.error('QuizHistoryPage: failed to fetch history', err); }
-      setLoading(false);
-    }
-    fetchHistory();
+  const fetchHistory = useCallback(async () => {
+    setLoading(true);
+    try {
+      let url = '/api/admin/learn/quizzes?history=true&limit=50';
+      if (adminEmail && role === 'admin') {
+        url += `&user_email=${encodeURIComponent(adminEmail)}`;
+      }
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setAttempts(data.attempts || []);
+      }
+    } catch (err) { console.error('QuizHistoryPage: failed to fetch history', err); }
+    setLoading(false);
   }, [adminEmail, role]);
+
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   async function loadDetails(attemptId: string) {
     if (details[attemptId]) {

@@ -462,40 +462,6 @@ export default function LessonBuilderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blocks, saving, selectedBlockId]);
 
-  async function loadLesson() {
-    setLoading(true);
-    try {
-      const [lessonRes, blocksRes] = await Promise.all([
-        fetch(`/api/admin/learn/lessons?id=${lessonId}`),
-        fetch(`/api/admin/learn/lesson-blocks?lesson_id=${lessonId}`),
-      ]);
-      let lessonData: any = null;
-      if (lessonRes.ok) {
-        const data = await lessonRes.json();
-        lessonData = data.lesson || null;
-        setLesson(data.lesson || null);
-        setIsDraft(data.lesson?.status === 'draft');
-      }
-      if (blocksRes.ok) {
-        const data = await blocksRes.json();
-        const loadedBlocks = (data.blocks || []).sort((a: LessonBlock, b: LessonBlock) => a.order_index - b.order_index);
-
-        // Auto-convert: If lesson has HTML content but no blocks, parse into discrete blocks
-        if (loadedBlocks.length === 0 && lessonData?.content && lessonData.content.trim().length > 0) {
-          const parsed = parseHtmlToBlocks(lessonData.content);
-          const converted: LessonBlock[] = parsed.length > 0 ? parsed : [{ id: `temp-converted-${Date.now()}`, block_type: 'text' as BlockType, content: { html: lessonData.content }, order_index: 0 }];
-          setBlocks(converted);
-          lastSavedBlocks.current = JSON.stringify(converted);
-          setConvertedFromHtml(true);
-        } else {
-          setBlocks(loadedBlocks);
-          lastSavedBlocks.current = JSON.stringify(loadedBlocks);
-        }
-      }
-    } catch (err) { console.error('LessonBuilderPage: failed to load lesson', err); }
-    setLoading(false);
-  }
-
   async function saveBlocks(isAutoSave = false) {
     setSaving(true);
     try {
@@ -1773,7 +1739,7 @@ export default function LessonBuilderPage() {
                         <div key={ii} className="lesson-builder__slideshow-item">
                           <div className="lesson-builder__slideshow-thumb">
                             {img.url ? (
-                              <img src={img.url} alt={img.alt || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px' }} />
+                              <Image src={img.url} alt={img.alt || ''} width={150} height={150} unoptimized style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px' }} />
                             ) : (
                               <div
                                 className={`lesson-builder__drop-zone ${dragOverBlockId === `${block.id}-${ii}` ? 'lesson-builder__drop-zone--active' : ''}`}
