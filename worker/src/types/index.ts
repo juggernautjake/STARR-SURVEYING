@@ -380,7 +380,7 @@ export interface LayerAttempt {
   source: string;
   method: string;
   input: string;
-  status: 'success' | 'partial' | 'fail' | 'skip';
+  status: 'success' | 'partial' | 'fail' | 'warn' | 'skip';
   duration_ms: number;
   dataPointsFound: number;
   error?: string;

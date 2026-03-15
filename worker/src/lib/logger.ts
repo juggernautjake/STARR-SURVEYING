@@ -61,6 +61,20 @@ export class LayerAttemptBuilder {
     return entry;
   }
 
+  warn(message: string, details?: string): LayerAttempt {
+    const entry: LayerAttempt = {
+      ...this.base,
+      status: 'warn',
+      duration_ms: Date.now() - this.startTime,
+      dataPointsFound: 0,
+      error: message,
+      details,
+      steps: this._steps.length ? [...this._steps] : undefined,
+    };
+    this.logger.addEntry(entry);
+    return entry;
+  }
+
   skip(reason: string): LayerAttempt {
     const entry: LayerAttempt = {
       ...this.base,
@@ -158,8 +172,12 @@ export class PipelineLogger {
     const icon = entry.status === 'success' ? '✓'
       : entry.status === 'partial' ? '◐'
       : entry.status === 'fail'    ? '✗'
+      : entry.status === 'warn'    ? '⚠'
       : '⊘';
-    console.log(
+    const logFn = entry.status === 'fail' ? console.error
+      : entry.status === 'warn'    ? console.warn
+      : console.log;
+    logFn(
       `[${this.projectId}] ${icon} [${entry.layer}] ${entry.method} → ${entry.source}` +
       ` (${entry.duration_ms}ms) ${entry.status}` +
       (entry.dataPointsFound > 0 ? ` — ${entry.dataPointsFound} pts` : '') +
@@ -206,6 +224,7 @@ export class PipelineLogger {
         case 'success': return builder.success(result.dataPointsFound ?? 0, result.details);
         case 'partial': return builder.partial(result.dataPointsFound ?? 0, result.details);
         case 'fail':    return builder.fail(result.error ?? 'unknown error', result.nextLayer);
+        case 'warn':    return builder.warn(result.error ?? result.details ?? 'warning');
         default:        return builder.skip(result.error ?? result.details ?? 'skipped');
       }
     };
@@ -230,15 +249,14 @@ export class PipelineLogger {
 
   /**
    * Log a warning.
-   * @deprecated Prefer console.warn for warnings in new code.
    */
   warn(layer: string, message: string): void {
     this.log_.push({
       layer, source: 'warn', method: 'warn', input: '',
-      status: 'skip', duration_ms: 0, dataPointsFound: 0,
-      timestamp: new Date().toISOString(), details: `WARNING: ${message}`,
+      status: 'warn', duration_ms: 0, dataPointsFound: 0,
+      timestamp: new Date().toISOString(), details: message,
     });
-    console.warn(`[${this.projectId}] [${layer}] WARNING: ${message}`);
+    console.warn(`[${this.projectId}] ⚠ [${layer}] ${message}`);
   }
 
   /**
