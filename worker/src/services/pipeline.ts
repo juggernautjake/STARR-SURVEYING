@@ -96,6 +96,23 @@ export async function getSupabase() {
   return supabaseClient;
 }
 
+// ── In-Memory Running Message Cache ────────────────────────────────────────
+// Stores the latest pipeline stage message per projectId so the status
+// endpoint in index.ts can return it without a Supabase round-trip.
+// This ensures the UI sees live messages even when Supabase is slow or not
+// configured, which was the primary cause of the stepper appearing "stuck".
+const _runningMessages = new Map<string, string>();
+
+/** Return the latest in-progress stage message for a project, if available. */
+export function getRunningMessage(projectId: string): string | undefined {
+  return _runningMessages.get(projectId);
+}
+
+/** Remove the cached message when a pipeline completes or fails. */
+export function clearRunningMessage(projectId: string): void {
+  _runningMessages.delete(projectId);
+}
+
 // ── Status Updates ─────────────────────────────────────────────────────────
 
 async function updateStatus(
@@ -104,6 +121,11 @@ async function updateStatus(
   message: string,
   metadata?: Record<string, unknown>,
 ): Promise<void> {
+  // Always write to the in-memory cache immediately — this is the primary
+  // source for the /research/status/:id endpoint so the UI gets live updates
+  // even when Supabase is unavailable or slow.
+  _runningMessages.set(projectId, message);
+
   try {
     const supabase = await getSupabase();
     if (!supabase) return;
@@ -497,6 +519,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     if (input.county.toLowerCase() === 'bell') {
       logger.info('Stage1-Bell', '═══ Bell County Cascade Enrichment ═══');
+      await updateStatus(input.projectId, 'running', `Stage 1: Bell County — building deed history & known identifiers…`);
       try {
         // Seed the cascade state with everything we know so far
         const cascadeState = createSearchState({
@@ -525,6 +548,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         if (resultIsBP && propertyResult) {
           logger.info('Stage1-Bell',
             `Personal property account (${propertyResult.propertyId}) — pivoting to land accounts`);
+          await updateStatus(input.projectId, 'running', `Stage 1: Bell County — personal property detected, finding land accounts…`);
           const landAccounts = await pivotPersonalPropertyToLand(
             propertyResult, cascadeState, logger,
           );
@@ -552,6 +576,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         const currentTypeCode = (propertyResult?.propertyType ?? '').toUpperCase();
         const currentIsBP = currentTypeCode === 'BP' || currentTypeCode === 'P';
         if (propertyResult && !currentIsBP && cascadeState.ownerNames.length > 0) {
+          await updateStatus(input.projectId, 'running',
+            `Stage 1: Bell County — finding related parcels for "${cascadeState.ownerNames[0]}"…`);
           const related = await findRelatedBellProperties(
             cascadeState, propertyResult.propertyId, logger,
           );
@@ -698,8 +724,12 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     if (allInstrumentNumbers.length > 0 && kofile) {
       const docsAdded: string[] = [];
       const instrErrors: string[] = [];
+      const instrBatch = allInstrumentNumbers.slice(0, 5);
 
-      for (const instrNum of allInstrumentNumbers.slice(0, 5)) {
+      for (let instrIdx = 0; instrIdx < instrBatch.length; instrIdx++) {
+        const instrNum = instrBatch[instrIdx];
+        await updateStatus(input.projectId, 'running',
+          `Stage 2: Fetching deed record ${instrIdx + 1}/${instrBatch.length} — instrument ${instrNum}…`);
         // Use more expected pages for plats — large multi-lot plats can have 10+ pages
         const expectedPages = /plat/i.test(legalDesc) ? 10 : 2;
         try {
@@ -809,6 +839,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       const mapHint = typePMapId ? ` (Type P Map ID: ${typePMapId})` : '';
       logger.info('Stage2B',
         `CAD unreachable/personal-property${mapHint} — searching Bell County Clerk directly for plat+deed: "${ownerNameForPlatSearch}"`);
+      await updateStatus(input.projectId, 'running',
+        `Stage 2: Searching Bell County Clerk for owner "${ownerNameForPlatSearch}"…`);
       try {
         const { platInstruments, deedInstruments } =
           await searchBellClerkOwnerForPlatDeed(ownerNameForPlatSearch, logger);
@@ -820,6 +852,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         ];
 
         for (const { instrNum, docType } of instrToFetch) {
+          await updateStatus(input.projectId, 'running',
+            `Stage 2: Downloading ${docType} ${instrNum} for "${ownerNameForPlatSearch}"…`);
           try {
             const isPlat = /plat/i.test(docType);
             // Use 20 as the upper bound for plats — large multi-lot plats can have
@@ -875,6 +909,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
       if (subdivisionNamesForClerk.length > 0) {
         for (const subdivName of subdivisionNamesForClerk.slice(0, 3)) {
+          await updateStatus(input.projectId, 'running',
+            `Stage 2: Searching Bell County Clerk by subdivision "${subdivName}"…`);
           try {
             logger.info('Stage2C',
               `Bell County Clerk search by subdivision name: "${subdivName}"`);
@@ -891,13 +927,15 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             );
 
             for (const instrNum of newInstrNums.slice(0, 5)) {
+              const isPlat = platInstruments.includes(instrNum);
+              const docType = isPlat ? 'Final Plat' : 'Warranty Deed';
+              await updateStatus(input.projectId, 'running',
+                `Stage 2: Downloading ${docType} ${instrNum} (${subdivName})…`);
               try {
-                const isPlat = platInstruments.includes(instrNum);
                 // Fetch more pages for plats (large plats may have many pages)
                 const expectedPgs = isPlat ? 10 : 2;
                 const pages = await fetchDocumentImages(instrNum, expectedPgs, logger);
                 if (pages.length > 0) {
-                  const docType = isPlat ? 'Final Plat' : 'Warranty Deed';
                   const docResult: DocumentResult = {
                     ref: {
                       instrumentNumber: instrNum,
@@ -992,7 +1030,8 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const totalPages = documents.reduce((n, d) => n + (d.pages?.length ?? 0), 0);
     const docSummary = `${documents.length} doc(s)${totalPages > 0 ? `, ${totalPages} pages` : ''}`;
     logger.info('Stage2', `Total: ${docSummary}`);
-    await updateStatus(input.projectId, 'running', `Stage 3: AI extraction — ${docSummary}…`);
+    await updateStatus(input.projectId, 'running',
+      `Stage 3: Running Claude AI on ${docSummary} — extracting boundaries, owners, legal descriptions…`);
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 3: AI Extraction
@@ -1307,6 +1346,9 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       duration_ms,
     });
 
+    // Clear the in-memory cache — pipeline has finished.
+    clearRunningMessage(input.projectId);
+
     return result;
 
   } catch (err) {
@@ -1316,6 +1358,10 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     logger.error('Pipeline', `CRASH: ${errMsg}`, err);
 
     await updateStatus(input.projectId, 'failed', `Pipeline crashed: ${errMsg}`);
+
+    // Clear the in-memory cache even on crash so the status endpoint doesn't
+    // keep serving a stale "running" message after the pipeline has gone away.
+    clearRunningMessage(input.projectId);
 
     const result = emptyResult();
     result.log = logger.getAttempts(); // Preserve all diagnostic logs

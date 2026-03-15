@@ -141,7 +141,7 @@ export default function PropertySearchPanel({
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ count: number; mapNote?: string } | null>(null);
+  const [importResult, setImportResult] = useState<{ count: number; newCount?: number; alreadyExistedCount?: number; mapNote?: string } | null>(null);
 
   const [showAddressIssues, setShowAddressIssues] = useState(true);
   const [resourcesOpen, setResourcesOpen] = useState(true);
@@ -420,7 +420,12 @@ export default function PropertySearchPanel({
         const mapNote = data.map_images_queued
           ? ' Satellite and topo map images are being captured in the background and will appear in Documents.'
           : '';
-        setImportResult({ count: data.imported, mapNote });
+        setImportResult({
+          count: data.imported,
+          newCount: data.new_count,
+          alreadyExistedCount: data.already_existed_count,
+          mapNote,
+        });
         setSelected(new Set());
         onImported?.();
       } else {
@@ -582,7 +587,9 @@ export default function PropertySearchPanel({
             <div className="research-search__loading-spinner" />
             <div className="research-search__loading-title">Research In Progress</div>
             <div className="research-search__loading-subtitle">
-              {pipelineRunning && pipelineResult?.currentStage
+              {pipelineRunning && pipelineResult?.message
+                ? pipelineResult.message.replace(/^Stage\s*\d+(?:\.\d+)?:\s*/i, '')
+                : pipelineRunning && pipelineResult?.currentStage
                 ? pipelineResult.currentStage
                 : liteRunning && liteStage
                 ? liteStage
@@ -598,7 +605,9 @@ export default function PropertySearchPanel({
               <div className={`research-search__loading-step${liteRunning || pipelineRunning ? ' research-search__loading-step--active' : ''}`}>
                 <span className="research-search__loading-step__dot" />
                 {pipelineRunning
-                  ? `Navigating county records sites, extracting data…${pipelineResult?.currentStage ? ` (${pipelineResult.currentStage})` : ''}`
+                  ? (pipelineResult?.message
+                      ? pipelineResult.message
+                      : 'Navigating county records sites, extracting data…')
                   : liteRunning
                   ? (liteStage || 'Analyzing property data…')
                   : 'Awaiting pipeline start…'}
@@ -961,7 +970,14 @@ export default function PropertySearchPanel({
           {/* Import success */}
           {importResult && (
             <div className="research-search__import-success">
-              <p>✅ Successfully imported {importResult.count} document{importResult.count !== 1 ? 's' : ''} into your project.</p>
+              <p>
+                ✅ Successfully imported {importResult.count} document{importResult.count !== 1 ? 's' : ''} into your project.
+                {importResult.alreadyExistedCount != null && importResult.alreadyExistedCount > 0 && (
+                  <span className="research-search__import-existing-note">
+                    {' '}({importResult.newCount} new, {importResult.alreadyExistedCount} already existed)
+                  </span>
+                )}
+              </p>
               {importResult.mapNote && (
                 <p className="research-search__import-map-note">🛰️ {importResult.mapNote}</p>
               )}

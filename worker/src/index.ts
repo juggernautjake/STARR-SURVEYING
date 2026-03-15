@@ -8,7 +8,7 @@ import path from 'path';
 import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './types/index.js';
-import { runPipeline, getSupabase } from './services/pipeline.js';
+import { runPipeline, getSupabase, getRunningMessage } from './services/pipeline.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
@@ -595,22 +595,28 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
 
   if (activePipelines.has(projectId)) {
     const pipeline = activePipelines.get(projectId)!;
-    // Read the latest research_message from Supabase so the frontend's
-    // PipelineProgressPanel can display real-time stage updates (e.g. "Stage 1:
-    // Searching Bell CAD…") rather than staying stuck at Stage 0.
-    let message: string | undefined;
-    try {
-      const supabase = await getSupabase();
-      if (supabase) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data } = await (supabase as any)
-          .from('research_projects')
-          .select('research_message')
-          .eq('id', projectId)
-          .single();
-        if (data?.research_message) message = String(data.research_message);
-      }
-    } catch { /* non-fatal — return without message */ }
+    // Prefer the in-memory message cache (updated synchronously by updateStatus
+    // in pipeline.ts) over a Supabase round-trip. This ensures the UI sees live
+    // stage updates immediately even when Supabase is slow or not configured,
+    // which was the primary cause of the stepper appearing permanently "stuck".
+    let message: string | undefined = getRunningMessage(projectId);
+
+    if (!message) {
+      // Fallback: read from Supabase (covers cross-process / restarted-worker cases)
+      try {
+        const supabase = await getSupabase();
+        if (supabase) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data } = await (supabase as any)
+            .from('research_projects')
+            .select('research_message')
+            .eq('id', projectId)
+            .single();
+          if (data?.research_message) message = String(data.research_message);
+        }
+      } catch { /* non-fatal — return without message */ }
+    }
+
     res.json({
       projectId,
       status: 'running',

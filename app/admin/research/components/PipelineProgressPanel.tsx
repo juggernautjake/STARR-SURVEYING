@@ -76,6 +76,9 @@ const STAGES = [
 type StageNum = 0 | 1 | 2 | 3 | 4;
 type StageState = 'pending' | 'active' | 'done' | 'error';
 
+/** Highest stage number in the STAGES array (Validate = 4). */
+const MAX_STAGE_NUM: StageNum = 4;
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Infer the active stage number from the latest status message. */
@@ -87,11 +90,12 @@ function inferActiveStage(message: string | undefined, status: string | null): S
 
   if (!message) return 0;
 
-  // "Stage 3.5" counts as Stage 3
+  // "Stage 3.5" → 3 (parseInt stops at "."), "Stage 5+" → clamped to MAX_STAGE_NUM (Validate).
+  // Previously Stage 5 fell through to return 0, visually resetting the stepper to Address.
   const m = message.match(/Stage\s+(\d+)/i);
   if (m) {
     const n = parseInt(m[1], 10);
-    if (n >= 0 && n <= 4) return n as StageNum;
+    if (n >= 0) return Math.min(n, MAX_STAGE_NUM) as StageNum;
   }
   return 0;
 }
@@ -124,6 +128,11 @@ function computeStageStates(
     if (status === 'failed' && activeStage === n) {
       states[n] = 'error';
     } else if (hasData.has(n) || (status === 'success' || status === 'partial')) {
+      states[n] = 'done';
+    } else if (activeStage !== null && n < activeStage) {
+      // Stages before the currently active stage must be complete.
+      // Without this, they show as "pending" during a run because the
+      // in-memory log is empty while the pipeline is still running.
       states[n] = 'done';
     } else if (activeStage === n) {
       states[n] = 'active';
@@ -172,12 +181,17 @@ function StageRow({
   state,
   detail,
   isLast,
+  liveMessage,
 }: {
   stage: typeof STAGES[number];
   state: StageState;
   detail: string | null;
   isLast: boolean;
+  /** Stripped live message (no "Stage N:" prefix) — shown when this stage is active. */
+  liveMessage?: string | null;
 }) {
+  // When active, prefer the live server message over the generic static detail.
+  const activeDetail = liveMessage ?? stage.detail;
   return (
     <div className={`ppanel__stage ppanel__stage--${state}`}>
       <div className="ppanel__stage-track">
@@ -187,7 +201,7 @@ function StageRow({
       <div className="ppanel__stage-body">
         <div className="ppanel__stage-label">{stage.label}</div>
         <div className="ppanel__stage-detail">
-          {state === 'active'  ? stage.detail : null}
+          {state === 'active'  ? activeDetail : null}
           {state === 'done'    ? (detail ?? stage.detail) : null}
           {state === 'error'   ? 'Failed — see log' : null}
           {state === 'pending' ? '' : null}
@@ -632,6 +646,7 @@ export function PipelineProgressPanel({
             state={stageStates[stage.num]}
             detail={getStageDetail(stage.num, log)}
             isLast={i === STAGES.length - 1}
+            liveMessage={stageStates[stage.num] === 'active' ? cleanMessage : null}
           />
         ))}
       </div>
