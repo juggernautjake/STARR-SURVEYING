@@ -366,7 +366,7 @@ async function extractSegment(
   // subdivision + county, helps it orient and apply spatial context. The document
   // name is placed before the image so Claude has full context before reading.
   type ContentBlock =
-    | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+    | { type: 'image'; source: { type: 'base64'; media_type: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'; data: string } }
     | { type: 'text'; text: string };
   const userContent: ContentBlock[] = [];
   if (positionHint) {
