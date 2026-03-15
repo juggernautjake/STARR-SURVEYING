@@ -68,6 +68,28 @@ interface PropertySearchPanelProps {
   defaultCounty?: string;
   defaultParcelId?: string;
   onImported?: () => void;
+  /**
+   * When provided the "Initiate Research & Analysis" button calls this callback
+   * (passing current form values) instead of running the search inline.
+   * Used by Stage 1 so clicking the button navigates to Stage 2.
+   */
+  onNavigateAway?: (params: { address: string; county: string; parcelId: string; ownerName: string }) => void;
+  /**
+   * When true, the search-results section (source chips, online-resource links,
+   * location map, pipeline progress panel) is hidden.  Only the input form and
+   * button are rendered.  Used by Stage 1 so no links appear there.
+   */
+  hideResultsAndProgress?: boolean;
+  /**
+   * When true, automatically fires "Initiate Research & Analysis" on mount.
+   * Used by Stage 2 so research begins the moment the node is entered.
+   */
+  autoStart?: boolean;
+  /**
+   * Fires when the deep research pipeline finishes (status: success | partial | failed).
+   * Does NOT fire for lite-pipeline runs.
+   */
+  onPipelineComplete?: (status: string) => void;
 }
 
 const SOURCE_LABELS: Record<SearchSource, { label: string; icon: string }> = {
@@ -126,6 +148,10 @@ export default function PropertySearchPanel({
   defaultCounty,
   defaultParcelId,
   onImported,
+  onNavigateAway,
+  hideResultsAndProgress,
+  autoStart,
+  onPipelineComplete,
 }: PropertySearchPanelProps) {
   const [address, setAddress] = useState(defaultAddress || '');
   const [county, setCounty] = useState(defaultCounty || '');
@@ -179,12 +205,32 @@ export default function PropertySearchPanel({
   // Timestamp when the current polling run started — used to compute stall warnings.
   const pollStartTimeRef = useRef<number>(0);
 
+  // Auto-start: fire handleInitiateResearch once on mount when autoStart is true.
+  // We use a ref so navigating back to Stage 2 doesn't re-fire the auto-start.
+  const autoStartFiredRef = useRef(false);
+  // Keep a stable ref to handleInitiateResearch so the effect closure stays fresh.
+  const handleInitiateResearchRef = useRef<(() => void) | null>(null);
+
   const stopLitePolling = useCallback(() => {
     if (liteRef.current) { clearInterval(liteRef.current); liteRef.current = null; }
   }, []);
 
   // Clean up lite polling interval on unmount to prevent memory leaks
   useEffect(() => () => stopLitePolling(), [stopLitePolling]);
+
+  // When autoStart is true, trigger research once after the first render so
+  // the default form values (address / county / parcelId) have been applied.
+  useEffect(() => {
+    if (!autoStart || autoStartFiredRef.current) return;
+    autoStartFiredRef.current = true;
+    // handleInitiateResearchRef is assigned synchronously on every render (see below),
+    // so it is guaranteed to be non-null here.
+    if (handleInitiateResearchRef.current) {
+      handleInitiateResearchRef.current();
+    }
+  // Only run on mount; handleInitiateResearchRef is kept fresh below
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const pollLiteStatus = useCallback(async () => {
     try {
@@ -234,6 +280,13 @@ export default function PropertySearchPanel({
 
   // Unified handler: runs public records search and deep/lite pipeline simultaneously.
   async function handleInitiateResearch() {
+    // If a parent supplied onNavigateAway, delegate navigation to them and stop here.
+    // Stage 2 will re-mount this component with autoStart=true and run the research there.
+    if (onNavigateAway) {
+      onNavigateAway({ address, county, parcelId, ownerName });
+      return;
+    }
+
     const anyRunning = liteRunning || searching || pipelineRunning;
     if (anyRunning) return;
     if (!address.trim() && !county.trim() && !parcelId.trim()) {
@@ -320,6 +373,10 @@ export default function PropertySearchPanel({
     }
   }
 
+  // Keep the ref in sync with the latest version of handleInitiateResearch so
+  // the autoStart useEffect always calls the current closure.
+  handleInitiateResearchRef.current = handleInitiateResearch;
+
   // Deep research pipeline state - NOTE: declared in state section above, not duplicated here
 
   // ── Deep Research Pipeline ──────────────────────────────────────────
@@ -362,16 +419,18 @@ export default function PropertySearchPanel({
         setPipelineStatus('running');
       } else {
         // Pipeline finished (success, partial, or failed)
-        setPipelineStatus(data.status);
+        const finalStatus = data.status;
+        setPipelineStatus(finalStatus);
         setPipelineRunning(false);
         setPipelineStallMinutes(0);
         stopPolling();
         onImported?.();
+        onPipelineComplete?.(finalStatus);
       }
     } catch {
       // Network error — keep polling
     }
-  }, [projectId, stopPolling, onImported]);
+  }, [projectId, stopPolling, onImported, onPipelineComplete]);
 
   function toggleResult(id: string) {
     setSelected((prev: Set<string>) => {
@@ -479,9 +538,14 @@ export default function PropertySearchPanel({
   return (
     <div className="research-search">
       <div className="research-search__header">
-        <h3 className="research-search__title">Research & Analysis</h3>
+        <h3 className="research-search__title">
+          {hideResultsAndProgress ? 'Property Information' : 'Research & Analysis'}
+        </h3>
         <p className="research-search__desc">
-          Enter the property details below and click <strong>Initiate Research &amp; Analysis</strong>. The AI will search all public records, navigate county CAD and deed/records office websites, capture screenshots of relevant documents, extract all available property information — including bearings, coordinates, acreage, and legal descriptions — and log any discrepancies found.
+          {hideResultsAndProgress
+            ? <>Enter the property details below, then click <strong>Initiate Research &amp; Analysis</strong> to begin. You can also upload deeds, plats, and field notes using the panel above.</>
+            : <>The AI is searching all public records, navigating county CAD and deed/records office websites, capturing screenshots of relevant documents, and extracting all available property information — including bearings, coordinates, acreage, and legal descriptions.</>
+          }
         </p>
       </div>
 
@@ -582,7 +646,7 @@ export default function PropertySearchPanel({
         </div>
 
         {/* ── Research loading animation (visible while any pipeline is running) ── */}
-        {(searching || liteRunning || pipelineRunning) && (
+        {!hideResultsAndProgress && (searching || liteRunning || pipelineRunning) && (
           <div className="research-search__loading">
             <div className="research-search__loading-spinner" />
             <div className="research-search__loading-title">Research In Progress</div>
@@ -623,7 +687,7 @@ export default function PropertySearchPanel({
         )}
 
         {/* ── Research pipeline results (deep or lite) ── */}
-        {(liteSummary || pipelineStatus) && (
+        {!hideResultsAndProgress && (liteSummary || pipelineStatus) && (
           <div style={{ marginTop: '0.75rem' }}>
 
             {/* Lite pipeline summary */}
@@ -713,8 +777,8 @@ export default function PropertySearchPanel({
           </div>
         )}
       </div>
-      {/* Search results */}
-      {searchResponse && (
+      {/* Search results — only shown when hideResultsAndProgress is not set */}
+      {!hideResultsAndProgress && searchResponse && (
         <div className="research-search__results">
 
           {/* Address normalization alert */}

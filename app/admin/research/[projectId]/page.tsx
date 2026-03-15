@@ -91,6 +91,15 @@ export default function ResearchProjectPage() {
   const [analysisStartTime, setAnalysisStartTime] = useState<number | null>(null);
   const [analysisElapsed, setAnalysisElapsed] = useState(0);
 
+  // ── Stage 1 → Stage 2 navigation state ───────────────────────────────────
+  // When the user clicks "Initiate Research & Analysis" in Stage 1, we store
+  // the form values and set shouldAutoStartPipeline so Stage 2's
+  // PropertySearchPanel auto-fires research the moment it mounts.
+  const [shouldAutoStartPipeline, setShouldAutoStartPipeline] = useState(false);
+  const [pendingSearchParams, setPendingSearchParams] = useState<{
+    address: string; county: string; parcelId: string; ownerName: string;
+  } | null>(null);
+
   // Review state
   const [reviewTab, setReviewTab] = useState<'sources' | 'data' | 'discrepancies' | 'ai_logs' | 'survey_plan'>('sources');
   const [showBriefing, setShowBriefing] = useState(true);
@@ -1648,8 +1657,9 @@ export default function ResearchProjectPage() {
             <div className="research-step-header__body">
               <h2 className="research-step-header__title">Property Information</h2>
               <p className="research-step-header__desc">
-                Upload deeds, plats, field notes, and other surveying documents — or search the county property database to import records automatically.
-                You can also provide property information without uploading files; the research pipeline will gather additional records automatically.
+                Upload deeds, plats, field notes, and other surveying documents, and provide the property details below.
+                When ready, click <strong>Initiate Research &amp; Analysis</strong> to proceed to Stage 2 — STARR RECON will search all public records,
+                capture screenshots of county CAD and deed websites, extract all data with AI, and log any discrepancies.
               </p>
             </div>
           </div>
@@ -1658,42 +1668,20 @@ export default function ResearchProjectPage() {
             documents={documents}
             onDocumentsChanged={() => { loadDocuments(); loadProject(); }}
           />
+          {/* Property info form only — search results and pipeline progress are shown in Stage 2 */}
           <PropertySearchPanel
             projectId={projectId}
             defaultAddress={project.property_address || ''}
             defaultCounty={project.county || ''}
             defaultParcelId={project.parcel_id || ''}
+            hideResultsAndProgress
+            onNavigateAway={(params) => {
+              setPendingSearchParams(params);
+              setShouldAutoStartPipeline(true);
+              handleStatusUpdate('configure');
+            }}
             onImported={() => { loadDocuments(); loadProject(); }}
           />
-
-          {/* Advance button — enabled as long as at least one document exists (even if still processing) */}
-          {(() => {
-            const hasAnyDoc = documents.length > 0;
-            const hasProcessedDoc = documents.some(d => d.processing_status === 'extracted' || d.processing_status === 'analyzed');
-            const hasPendingDoc = documents.some(d => d.processing_status === 'pending' || d.processing_status === 'extracting');
-            return (
-              <div style={{ margin: '1.5rem 0 0.5rem' }}>
-                <button
-                  className="research-page__new-btn"
-                  onClick={() => handleStatusUpdate('configure')}
-                  disabled={!hasAnyDoc}
-                  style={!hasAnyDoc ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                >
-                  Continue to Research &amp; Analysis &rarr;
-                </button>
-                {!hasAnyDoc && (
-                  <span style={{ color: '#9CA3AF', fontSize: '0.8rem', marginLeft: '0.75rem' }}>
-                    Upload or import at least one document, or enter property information above to continue
-                  </span>
-                )}
-                {hasAnyDoc && hasPendingDoc && !hasProcessedDoc && (
-                  <span style={{ color: '#D97706', fontSize: '0.8rem', marginLeft: '0.75rem' }}>
-                    ⏳ Documents still processing — you can continue now and the pipeline will finish extraction automatically
-                  </span>
-                )}
-              </div>
-            );
-          })()}
         </>
       )}
 
@@ -1708,121 +1696,131 @@ export default function ResearchProjectPage() {
             <div className="research-stage2__launch">
               <h2 className="research-stage2__launch-title">🔬 Research &amp; Analysis</h2>
               <p className="research-stage2__launch-desc">
-                STARR RECON will automatically search {documents.length > 0 ? `your ${documents.length} uploaded document${documents.length !== 1 ? 's' : ''} plus` : ''} public records from {RESEARCH_SOURCES.length}+ sources,
-                then run AI analysis to extract boundary calls, bearings, distances, monuments, legal descriptions, and more.
-                {extractedDocs.length < documents.length && documents.length > 0 && (
-                  <> {documents.length - extractedDocs.length} document{documents.length - extractedDocs.length !== 1 ? 's' : ''} still processing — extraction will complete automatically.</>
-                )}
+                STARR RECON is searching all public records from {RESEARCH_SOURCES.length}+ sources
+                {documents.length > 0 ? ` plus your ${documents.length} uploaded document${documents.length !== 1 ? 's' : ''}` : ''},
+                capturing screenshots of county CAD and deed websites, and running deep AI analysis on every image, file, and document.
+                All sources and their individual analysis results will be shown here.
               </p>
 
-              {/* Research sources preview */}
-              <div className="research-stage2__sources">
-                {RESEARCH_SOURCES.map(s => (
-                  <span key={s} className="research-stage2__source-tag">✓ {s}</span>
-                ))}
-              </div>
+              {/* ── Public Records Search + Deep Pipeline ──────────────────────────── */}
+              {/* PropertySearchPanel runs the search API + worker pipeline and shows all
+                  online sources found, individual document results, and the final summary.
+                  When arriving from Stage 1 via "Initiate Research & Analysis", autoStart
+                  fires the research automatically so the process begins immediately. */}
+              <PropertySearchPanel
+                projectId={projectId}
+                defaultAddress={pendingSearchParams?.address ?? project.property_address ?? ''}
+                defaultCounty={pendingSearchParams?.county ?? project.county ?? ''}
+                defaultParcelId={pendingSearchParams?.parcelId ?? project.parcel_id ?? ''}
+                autoStart={shouldAutoStartPipeline}
+                onImported={() => {
+                  setShouldAutoStartPipeline(false);
+                  loadDocuments();
+                  loadProject();
+                }}
+                onPipelineComplete={() => {
+                  // Clear the auto-start flag once the pipeline has fired so navigating
+                  // back to Stage 2 (e.g. from Stage 3) does not re-run the pipeline.
+                  setShouldAutoStartPipeline(false);
+                  loadDocuments();
+                  loadProject();
+                }}
+              />
 
-              <div className="research-configure__summary">
-                <div className="research-configure__summary-item">
-                  <span className="research-configure__summary-label">Documents ready:</span>
-                  <span className="research-configure__summary-value">{extractedDocs.length}</span>
-                </div>
-                <div className="research-configure__summary-item">
-                  <span className="research-configure__summary-label">Document types:</span>
-                  <span className="research-configure__summary-value">
-                    {[...new Set(extractedDocs.map(d => d.document_type).filter(Boolean))].join(', ').replace(/_/g, ' ') || 'Various'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Optional: analysis template selector */}
-              <details style={{ marginBottom: '1rem' }}>
+              {/* ── Optional: Deep Document Analysis ──────────────────────────────── */}
+              {/* This runs the additional AI analysis pass over all imported documents.
+                  It complements the pipeline's built-in extraction by applying the
+                  user-selected analysis template to every document in the project. */}
+              <details style={{ marginTop: '1.25rem' }}>
                 <summary style={{ cursor: 'pointer', fontSize: '0.82rem', color: '#6B7280', marginBottom: '0.5rem' }}>
-                  ⚙️ Advanced: Custom Analysis Template
+                  ⚙️ Advanced: Deep Document Analysis &amp; Custom Template
                 </summary>
-                <TemplateManager
-                  type="analysis"
-                  selectedId={selectedAnalysisTemplate}
-                  onSelect={setSelectedAnalysisTemplate}
-                  showUITooltips={showUITooltips}
-                  compact
-                />
-              </details>
 
-              {/* Error from a previous failed attempt */}
-              {analysisError && (
-                <div style={{
-                  background: analysisError.category === 'usage_exhausted' ? '#FFFBEB' : '#FEF2F2',
-                  border: `1px solid ${analysisError.category === 'usage_exhausted' ? '#FDE68A' : '#FECACA'}`,
-                  borderRadius: '0.5rem', padding: '1rem 1.25rem', marginBottom: '1rem',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                    <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>
-                      {analysisError.category === 'usage_exhausted' ? '⚠' :
-                       analysisError.category === 'authentication' ? '🔑' :
-                       analysisError.category === 'connectivity' ? '🌐' :
-                       analysisError.category === 'rate_limited' ? '⏳' :
-                       analysisError.category === 'timeout' ? '⏱' : '⚠'}
-                    </span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{
-                        fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.25rem',
-                        color: analysisError.category === 'usage_exhausted' ? '#92400E' : '#991B1B',
-                      }}>
-                        {analysisError.category === 'usage_exhausted' ? 'AI Usage Limit Reached' :
-                         analysisError.category === 'authentication' ? 'AI Authentication Failed' :
-                         analysisError.category === 'connectivity' ? 'Connection Issue' :
-                         analysisError.category === 'rate_limited' ? 'AI Service Temporarily Unavailable' :
-                         analysisError.category === 'timeout' ? 'AI Request Timed Out' :
-                         analysisError.category === 'overloaded' ? 'AI Service Overloaded' :
-                         'Analysis Failed'}
-                      </div>
-                      <div style={{ fontSize: '0.85rem', color: '#4B5563', lineHeight: 1.5 }}>
-                        {analysisError.message}
+                <div style={{ marginTop: '0.5rem' }}>
+                  <TemplateManager
+                    type="analysis"
+                    selectedId={selectedAnalysisTemplate}
+                    onSelect={setSelectedAnalysisTemplate}
+                    showUITooltips={showUITooltips}
+                    compact
+                  />
+
+                  {/* Error from a previous failed attempt */}
+                  {analysisError && (
+                    <div style={{
+                      background: analysisError.category === 'usage_exhausted' ? '#FFFBEB' : '#FEF2F2',
+                      border: `1px solid ${analysisError.category === 'usage_exhausted' ? '#FDE68A' : '#FECACA'}`,
+                      borderRadius: '0.5rem', padding: '1rem 1.25rem', marginBottom: '1rem',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                        <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>
+                          {analysisError.category === 'usage_exhausted' ? '⚠' :
+                           analysisError.category === 'authentication' ? '🔑' :
+                           analysisError.category === 'connectivity' ? '🌐' :
+                           analysisError.category === 'rate_limited' ? '⏳' :
+                           analysisError.category === 'timeout' ? '⏱' : '⚠'}
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.25rem',
+                            color: analysisError.category === 'usage_exhausted' ? '#92400E' : '#991B1B',
+                          }}>
+                            {analysisError.category === 'usage_exhausted' ? 'AI Usage Limit Reached' :
+                             analysisError.category === 'authentication' ? 'AI Authentication Failed' :
+                             analysisError.category === 'connectivity' ? 'Connection Issue' :
+                             analysisError.category === 'rate_limited' ? 'AI Service Temporarily Unavailable' :
+                             analysisError.category === 'timeout' ? 'AI Request Timed Out' :
+                             analysisError.category === 'overloaded' ? 'AI Service Overloaded' :
+                             'Analysis Failed'}
+                          </div>
+                          <div style={{ fontSize: '0.85rem', color: '#4B5563', lineHeight: 1.5 }}>
+                            {analysisError.message}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setAnalysisError(null)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: '1.1rem', padding: 0, lineHeight: 1 }}
+                          aria-label="Dismiss"
+                        >
+                          &times;
+                        </button>
                       </div>
                     </div>
+                  )}
+
+                  <div className="research-stage2__cta-row">
                     <button
-                      onClick={() => setAnalysisError(null)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: '1.1rem', padding: 0, lineHeight: 1 }}
-                      aria-label="Dismiss"
+                      className="research-stage2__start-btn"
+                      onClick={() => { setAnalysisError(null); handleStartAnalysis(); }}
+                      disabled={analysisStarting || extractedDocs.length === 0}
                     >
-                      &times;
+                      {analysisStarting
+                        ? '⏳ Starting…'
+                        : analysisError
+                          ? '🔄 Retry Deep Analysis'
+                          : '🔬 Run Deep Document Analysis'}
                     </button>
+                    {extractedDocs.length === 0 && (
+                      <span className="research-stage2__doc-count" style={{ color: '#EF4444' }}>
+                        Go back to Stage 1 to upload documents first.
+                      </span>
+                    )}
+                    {extractedDocs.length > 0 && (
+                      <span className="research-stage2__doc-count">
+                        {extractedDocs.length} document{extractedDocs.length !== 1 ? 's' : ''} ready for analysis
+                      </span>
+                    )}
+                    {project.analysis_metadata && Array.isArray((project.analysis_metadata as Record<string, unknown>).logs) && (
+                      <button
+                        onClick={() => setShowAnalysisLogs(true)}
+                        style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}
+                      >
+                        📋 View Previous Logs
+                      </button>
+                    )}
                   </div>
                 </div>
-              )}
-
-              <div className="research-stage2__cta-row">
-                <button
-                  className="research-stage2__start-btn"
-                  onClick={() => { setAnalysisError(null); handleStartAnalysis(); }}
-                  disabled={analysisStarting || extractedDocs.length === 0}
-                >
-                  {analysisStarting
-                    ? '⏳ Starting…'
-                    : analysisError
-                      ? '🔄 Retry Research & Analysis'
-                      : '🔬 Start Research & Analysis'}
-                </button>
-                {extractedDocs.length === 0 && (
-                  <span className="research-stage2__doc-count" style={{ color: '#EF4444' }}>
-                    Go back to Stage 1 to upload documents first.
-                  </span>
-                )}
-                {extractedDocs.length > 0 && (
-                  <span className="research-stage2__doc-count">
-                    {extractedDocs.length} document{extractedDocs.length !== 1 ? 's' : ''} ready for analysis
-                  </span>
-                )}
-                {project.analysis_metadata && Array.isArray((project.analysis_metadata as Record<string, unknown>).logs) && (
-                  <button
-                    onClick={() => setShowAnalysisLogs(true)}
-                    style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.85rem', cursor: 'pointer', fontSize: '0.8rem', color: '#374151' }}
-                  >
-                    📋 View Previous Logs
-                  </button>
-                )}
-              </div>
+              </details>
 
               <button className="research-back-btn" onClick={() => handleRevertToStep('upload')} style={{ marginTop: '1rem' }}>
                 &larr; Back to Property Information
@@ -2093,7 +2091,7 @@ export default function ResearchProjectPage() {
                   <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>📭</div>
                   <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>No research sources yet</div>
                   <div style={{ fontSize: '0.85rem' }}>
-                    Go back to Step 1 and run the research to collect sources, links, and documents.
+                    Go back to the Research &amp; Analysis step and run the research to collect sources, links, and documents.
                   </div>
                 </div>
               );
