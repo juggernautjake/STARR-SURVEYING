@@ -13,7 +13,7 @@
  *   Phase 4 — Report assembly                                  ~10-30s
  */
 
-import type { BellResearchInput } from './types/research-input';
+import type { BellResearchInput } from './types/research-input.js';
 import type {
   BellResearchResult,
   ResolvedProperty,
@@ -23,25 +23,25 @@ import type {
   AiUsageSummary,
   SiteIntelligenceNote,
   EasementRecord,
-} from './types/research-result';
+} from './types/research-result.js';
 
-import { scrapeBellCad } from './scrapers/cad-scraper';
-import { scrapeBellGis } from './scrapers/gis-scraper';
-import { scrapeBellClerk } from './scrapers/clerk-scraper';
-import { scrapeBellPlats } from './scrapers/plat-scraper';
-import { scrapeBellFema } from './scrapers/fema-scraper';
-import { scrapeBellTxDot } from './scrapers/txdot-scraper';
-import { scrapeBellTax } from './scrapers/tax-scraper';
-import { captureScreenshots, buildScreenshotRequests } from './scrapers/screenshot-collector';
+import { scrapeBellCad } from './scrapers/cad-scraper.js';
+import { scrapeBellGis } from './scrapers/gis-scraper.js';
+import { scrapeBellClerk } from './scrapers/clerk-scraper.js';
+import { scrapeBellPlats } from './scrapers/plat-scraper.js';
+import { scrapeBellFema } from './scrapers/fema-scraper.js';
+import { scrapeBellTxDot } from './scrapers/txdot-scraper.js';
+import { scrapeBellTax } from './scrapers/tax-scraper.js';
+import { captureScreenshots, buildScreenshotRequests } from './scrapers/screenshot-collector.js';
 
-import { analyzeBellDeeds } from './analyzers/deed-analyzer';
-import { analyzeBellPlats } from './analyzers/plat-analyzer';
-import { detectDiscrepancies } from './analyzers/discrepancy-detector';
-import { scoreOverallConfidence, type DataItem } from './analyzers/confidence-scorer';
-import { analyzeSiteScreenshots } from './analyzers/site-intelligence';
-import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence';
+import { analyzeBellDeeds } from './analyzers/deed-analyzer.js';
+import { analyzeBellPlats } from './analyzers/plat-analyzer.js';
+import { detectDiscrepancies } from './analyzers/discrepancy-detector.js';
+import { scoreOverallConfidence, type DataItem } from './analyzers/confidence-scorer.js';
+import { analyzeSiteScreenshots } from './analyzers/site-intelligence.js';
+import { computeConfidence, SOURCE_RELIABILITY } from './types/confidence.js';
 
-import { TIMEOUTS } from './config/endpoints';
+import { TIMEOUTS } from './config/endpoints.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

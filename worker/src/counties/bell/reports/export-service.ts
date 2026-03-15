@@ -6,7 +6,7 @@
  * step-by-step field plan.
  */
 
-import type { BellResearchResult, SurveyPlan } from '../types/research-result';
+import type { BellResearchResult, SurveyPlan } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

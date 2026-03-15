@@ -9,7 +9,7 @@
  * Each layer is a separate SVG group that can be toggled on/off.
  */
 
-import type { BellResearchResult, PlatLayer } from '../types/research-result';
+import type { BellResearchResult, PlatLayer } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

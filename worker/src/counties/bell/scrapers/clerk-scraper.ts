@@ -36,10 +36,10 @@
  *   Document: /doc/{instrumentId}/details
  */
 
-import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints';
-import { DOCUMENT_TYPE_SCORES } from '../config/field-maps';
-import type { ScreenshotCapture } from '../types/research-result';
-import { withRetry } from '../utils/retry';
+import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints.js';
+import { DOCUMENT_TYPE_SCORES } from '../config/field-maps.js';
+import type { ScreenshotCapture } from '../types/research-result.js';
+import { withRetry } from '../utils/retry.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

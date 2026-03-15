@@ -9,9 +9,9 @@
  * No browser/Playwright needed — pure HTTP REST API.
  */
 
-import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints';
-import { GIS_FIELD_MAP, composeSitusAddress, getField, getNumericField } from '../config/field-maps';
-import type { ScreenshotCapture } from '../types/research-result';
+import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
+import { GIS_FIELD_MAP, composeSitusAddress, getField, getNumericField } from '../config/field-maps.js';
+import type { ScreenshotCapture } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

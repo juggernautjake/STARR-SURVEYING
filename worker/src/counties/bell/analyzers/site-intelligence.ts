@@ -6,7 +6,7 @@
  * the scraping system. This is a self-improvement mechanism.
  */
 
-import type { ScreenshotCapture, SiteIntelligenceNote } from '../types/research-result';
+import type { ScreenshotCapture, SiteIntelligenceNote } from '../types/research-result.js';
 
 // ── Main Export ───────────────────────────────────────────────────────
 

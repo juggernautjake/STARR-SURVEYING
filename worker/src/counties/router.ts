@@ -19,7 +19,7 @@
  */
 
 import type { PipelineInput, PipelineResult } from '../types/index.js';
-import type { BellResearchResult } from './bell/types/research-result';
+import type { BellResearchResult } from './bell/types/research-result.js';
 import { resolveCounty, TEXAS_COUNTIES, type CountyRecord } from '../lib/county-fips.js';
 
 // ── Unified Input ───────────────────────────────────────────────────
@@ -471,7 +471,7 @@ export async function runCountyResearch(
             propertyId: input.propertyId,
             ownerName: input.ownerName,
             instrumentNumber: input.instrumentNumber,
-            surveyType: input.surveyType as import('./bell/types/research-input').SurveyType | undefined,
+            surveyType: input.surveyType as import('./bell/types/research-input.js').SurveyType | undefined,
             jobPurpose: input.jobPurpose,
             specialInstructions: input.specialInstructions,
             uploadedFiles: input.uploadedFiles,

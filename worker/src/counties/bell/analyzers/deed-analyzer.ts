@@ -9,14 +9,14 @@
  *   - Detect gaps or anomalies in ownership history
  */
 
-import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary } from '../types/research-result';
-import type { ConfidenceRating } from '../types/confidence';
-import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence';
+import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary } from '../types/research-result.js';
+import type { ConfidenceRating } from '../types/confidence.js';
+import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 import {
   accumulateUsage,
   buildUsageFromTokens,
   zeroUsage,
-} from './ai-cost-helpers';
+} from './ai-cost-helpers.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
