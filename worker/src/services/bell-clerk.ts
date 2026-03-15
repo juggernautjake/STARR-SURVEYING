@@ -2931,6 +2931,23 @@ async function _extractSearchResults(
 }
 
 /**
+ * Search Bell County Clerk records by owner name using Playwright SPA automation.
+ * Bell County-specific wrapper around searchClerkRecords() — handles the full
+ * Kofile PublicSearch SPA interaction: API intercept, networkidle+window-state
+ * detection, and result parsing.
+ *
+ * @param ownerName - Owner name to search for (e.g. "SMITH JOHN" or "ASH FAMILY TRUST")
+ * @param logger    - Pipeline logger
+ * @returns Array of DocumentResult with metadata and page screenshots
+ */
+export async function searchBellClerk(
+  ownerName: string,
+  logger: PipelineLogger,
+): Promise<DocumentResult[]> {
+  return searchClerkRecords('bell', ownerName, logger);
+}
+
+/**
  * Search Bell County Clerk for plat AND deed records by owner/subdivision name.
  *
  * Uses the proven quickSearch URL pattern with proper 8-second SPA wait timings
