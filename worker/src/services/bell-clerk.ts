@@ -2054,6 +2054,491 @@ export async function searchSuperSearch(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ADDRESS-BASED CLERK SEARCH
+// When owner-name search returns 0 results, search the clerk by property
+// address variants (street number + street name combinations). Uses a single
+// browser session to try multiple address queries efficiently.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface AddressSearchQuery {
+  streetNumber: string;
+  streetName: string;
+  format: string;
+}
+
+/**
+ * Search county clerk records by property address variants.
+ * Tries multiple address formats in a single Playwright session: full address,
+ * bare street name, suffix swaps, etc.
+ * @param county - County key (e.g., "bell")
+ * @param queries - Address search variants (from address-utils generateVariants)
+ * @param logger - Pipeline logger
+ * @returns Deed-relevant documents found
+ */
+export async function searchClerkByAddress(
+  county: string,
+  queries: AddressSearchQuery[],
+  logger: PipelineLogger,
+): Promise<DocumentResult[]> {
+  const config = KOFILE_CONFIGS[county.toLowerCase()];
+  if (!config) {
+    logger.warn('Stage2-Addr', `No Kofile config for county: ${county}`);
+    return [];
+  }
+  if (queries.length === 0) {
+    logger.warn('Stage2-Addr', 'No address queries provided');
+    return [];
+  }
+
+  const baseUrl = `https://${config.subdomain}`;
+  const tracker = logger.startAttempt({
+    layer: 'Stage2-Address',
+    source: config.name,
+    method: 'playwright-address-search',
+    input: `${queries[0].streetNumber} ${queries[0].streetName}`,
+  });
+
+  // Limit to top 6 variants to keep search time reasonable
+  const queriesToTry = queries.slice(0, 6);
+  logger.info('Stage2-Addr', `Searching ${config.name} by address with ${queriesToTry.length} variants (of ${queries.length} total)`);
+
+  let browser = null;
+
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({
+      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      viewport: { width: 1366, height: 768 },
+    });
+
+    const page = await context.newPage();
+
+    // Collect all documents from all variants, deduped by instrument number
+    const allCaptured: DocumentRef[] = [];
+    const seenInstruments = new Set<string>();
+
+    const handleResponse = async (response: PlaywrightResponse): Promise<void> => {
+      try {
+        const ct = response.headers()['content-type'] ?? '';
+        if (!ct.includes('json')) return;
+        const data = await response.json() as unknown;
+        const items = normaliseKofileApiResponse(data);
+        if (items.length === 0 || !looksLikeKofileDocuments(items)) return;
+
+        for (const item of items) {
+          const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? item.docNumber ?? '').trim();
+          if (!id || seenInstruments.has(id)) continue;
+          seenInstruments.add(id);
+          const docType = String(item.docTypeDescription ?? item.documentType ?? item.docType ?? 'Unknown').trim();
+          const date = String(item.recordingDate ?? item.documentDate ?? item.filingDate ?? '').trim();
+          allCaptured.push({
+            instrumentNumber: id,
+            documentType: docType,
+            recordingDate: date || null,
+            grantors: extractKofilePartyNames(item.grantors ?? item.grantor),
+            grantees: extractKofilePartyNames(item.grantees ?? item.grantee),
+            source: `${config.name} (address search)`,
+            url: `${baseUrl}/doc/${id}`,
+            volume: String(item.volume ?? item.bookNumber ?? '').trim() || null,
+            page: String(item.page ?? item.pageNumber ?? '').trim() || null,
+          });
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    page.on('response', (r) => { void handleResponse(r); });
+
+    // Try each address variant as a quickSearch query
+    for (const q of queriesToTry) {
+      const searchTerm = `${q.streetNumber} ${q.streetName}`.trim();
+      if (!searchTerm) continue;
+
+      const url = buildTylerUrl(baseUrl, searchTerm, 0);
+      logger.info('Stage2-Addr', `Trying: "${searchTerm}" (${q.format})`);
+
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        // Wait for results or "no results" indicator
+        await Promise.race([
+          page.waitForSelector('table tbody tr[aria-selected]', { timeout: 12_000 }),
+          page.waitForSelector('text=No results', { timeout: 12_000 }),
+          page.waitForTimeout(12_000),
+        ]).catch(() => {});
+        // Small settle delay for API responses
+        await page.waitForTimeout(1_500);
+
+        // If API intercept didn't capture, try DOM extraction for this query
+        if (allCaptured.length === 0) {
+          const domDocs = await page.evaluate((bUrl: string) => {
+            const docs: Array<{
+              instrumentNumber: string; documentType: string; recordingDate: string;
+              grantors: string[]; grantees: string[]; url: string | null;
+              volume: string; page: string;
+            }> = [];
+            document.querySelectorAll('table tbody tr[aria-selected]').forEach((row) => {
+              const checkbox = row.querySelector('input[id^="table-checkbox-"]') as HTMLInputElement | null;
+              const docId = checkbox?.id?.replace('table-checkbox-', '') ?? '';
+              const getCol = (n: number): string =>
+                (row.querySelector(`td.col-${n}, td:nth-child(${n + 1})`)?.textContent?.trim() ?? '');
+              const instrNum = getCol(7);
+              const docType = getCol(5);
+              if (!instrNum && !docType && !docId) return;
+              const bvp = getCol(8);
+              const bvpMatch = bvp.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+              docs.push({
+                instrumentNumber: instrNum || docId,
+                documentType: docType || 'Unknown',
+                recordingDate: getCol(6),
+                grantors: getCol(3) ? [getCol(3)] : [],
+                grantees: getCol(4) ? [getCol(4)] : [],
+                url: docId ? `${bUrl}/doc/${docId}` : null,
+                volume: bvpMatch ? bvpMatch[1] : '',
+                page: bvpMatch ? bvpMatch[2] : '',
+              });
+            });
+            return docs;
+          }, baseUrl);
+
+          for (const doc of domDocs) {
+            const id = doc.instrumentNumber;
+            if (!id || seenInstruments.has(id)) continue;
+            seenInstruments.add(id);
+            allCaptured.push({
+              ...doc,
+              instrumentNumber: id || null,
+              volume: doc.volume || null,
+              page: doc.page || null,
+              recordingDate: doc.recordingDate || null,
+              source: `${config.name} (address search)`,
+            });
+          }
+        }
+
+        // If we found deed-relevant docs, stop trying more variants
+        const deedDocs = allCaptured.filter((d) => isDeedRelevant(d.documentType));
+        if (deedDocs.length >= 2) {
+          logger.info('Stage2-Addr', `Found ${deedDocs.length} deed-relevant docs with "${searchTerm}" — stopping search`);
+          break;
+        }
+      } catch (navErr) {
+        logger.warn('Stage2-Addr', `Navigation failed for "${searchTerm}": ${navErr instanceof Error ? navErr.message : String(navErr)}`);
+      }
+    }
+
+    // Capture screenshot of last results page for Vision OCR analysis
+    let searchScreenshot: Buffer | null = null;
+    try {
+      searchScreenshot = await page.screenshot({ fullPage: true });
+      logger.info('Stage2-Addr', `[screenshot] Captured ${Math.round((searchScreenshot?.length ?? 0) / 1024)}KB results screenshot`);
+    } catch { /* page may be closed */ }
+
+    // Failure diagnostic dump
+    if (allCaptured.length === 0) {
+      try {
+        const failHtml = await page.content();
+        logger.info('Stage2-Addr', `[failure-dump] No docs found. URL: ${page.url()}`);
+        logger.info('Stage2-Addr', `[failure-dump] HTML snippet: ${failHtml.replace(/\s+/g, ' ').substring(0, 500)}`);
+      } catch { /* page may be closed */ }
+    }
+
+    await browser.close();
+    browser = null;
+
+    // Filter and sort
+    const relevant = allCaptured.filter((d) => isDeedRelevant(d.documentType));
+    const finalDocs = relevant.length > 0 ? relevant.slice(0, 10) : allCaptured.slice(0, 5);
+
+    logger.info('Stage2-Addr', `Address search: ${allCaptured.length} total, ${relevant.length} deed-relevant → returning ${finalDocs.length}`);
+
+    tracker({
+      status: allCaptured.length > 0 ? 'success' : 'fail',
+      dataPointsFound: allCaptured.length,
+      details: `${allCaptured.length} total, ${relevant.length} deed-relevant from ${queriesToTry.length} address variants`,
+      screenshot: searchScreenshot ? searchScreenshot.toString('base64').substring(0, 200) + '...' : undefined,
+    });
+
+    // If we found docs, attach screenshot to the first result for Vision OCR
+    const results: DocumentResult[] = finalDocs.map((d) => ({
+      ref: d,
+      textContent: null,
+      ocrText: null,
+      extractedData: null,
+    }));
+
+    // Attach search results screenshot as a page screenshot on the first doc
+    // so that Vision OCR can analyze what the clerk site showed
+    if (searchScreenshot && results.length > 0) {
+      results[0].pageScreenshots = [{
+        pageNumber: 0,
+        imageBase64: searchScreenshot.toString('base64'),
+        width: 1366,
+        height: 768,
+      }];
+    }
+
+    return results;
+  } catch (err) {
+    if (browser) {
+      try { await browser.close(); } catch { /* ignore */ }
+    }
+    const errMsg = err instanceof Error ? err.message : String(err);
+    tracker({ status: 'fail', error: errMsg });
+    logger.error('Stage2-Addr', `Address clerk search failed: ${errMsg}`, err);
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAT-SPECIFIC CLERK SEARCH
+// Targeted search for subdivision plats on the county clerk site.
+// Uses multiple query strategies: "plat [subdivision]", "[subdivision] plat",
+// "replat [subdivision]", and bare subdivision name filtered to plat types.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Search county clerk records specifically for subdivision plats.
+ * Tries multiple plat-focused queries in a single browser session.
+ * @param county - County key
+ * @param subdivisionName - Subdivision name extracted from legal description
+ * @param logger - Pipeline logger
+ * @param additionalTerms - Extra search terms like lot/block numbers
+ * @returns Plat documents found
+ */
+export async function searchClerkForPlats(
+  county: string,
+  subdivisionName: string,
+  logger: PipelineLogger,
+  additionalTerms?: string,
+): Promise<DocumentResult[]> {
+  const config = KOFILE_CONFIGS[county.toLowerCase()];
+  if (!config) {
+    logger.warn('Stage2-Plat', `No Kofile config for county: ${county}`);
+    return [];
+  }
+  if (!subdivisionName.trim()) {
+    logger.warn('Stage2-Plat', 'Empty subdivision name');
+    return [];
+  }
+
+  const baseUrl = `https://${config.subdomain}`;
+  const subDiv = subdivisionName.trim().toUpperCase();
+  const tracker = logger.startAttempt({
+    layer: 'Stage2-PlatSearch',
+    source: config.name,
+    method: 'playwright-plat-search',
+    input: subDiv,
+  });
+
+  // Build plat-focused search queries in priority order
+  const platQueries = [
+    `${subDiv} PLAT`,                                  // "WESTWOOD ADDITION PLAT"
+    `PLAT ${subDiv}`,                                  // "PLAT WESTWOOD ADDITION"
+    subDiv,                                            // "WESTWOOD ADDITION" (filter to plat types)
+    `${subDiv} REPLAT`,                                // "WESTWOOD ADDITION REPLAT"
+    `${subDiv} AMENDED PLAT`,                          // "WESTWOOD ADDITION AMENDED PLAT"
+  ];
+
+  // If we have lot/block info, add a targeted query
+  if (additionalTerms) {
+    platQueries.push(`${subDiv} ${additionalTerms.trim().toUpperCase()}`);
+  }
+
+  logger.info('Stage2-Plat', `Searching ${config.name} for plats of "${subDiv}" with ${platQueries.length} queries`);
+
+  let browser = null;
+
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({
+      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      viewport: { width: 1366, height: 768 },
+    });
+
+    const page = await context.newPage();
+    const allCaptured: DocumentRef[] = [];
+    const seenInstruments = new Set<string>();
+
+    const handleResponse = async (response: PlaywrightResponse): Promise<void> => {
+      try {
+        const ct = response.headers()['content-type'] ?? '';
+        if (!ct.includes('json')) return;
+        const data = await response.json() as unknown;
+        const items = normaliseKofileApiResponse(data);
+        if (items.length === 0 || !looksLikeKofileDocuments(items)) return;
+
+        for (const item of items) {
+          const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? item.docNumber ?? '').trim();
+          if (!id || seenInstruments.has(id)) continue;
+          seenInstruments.add(id);
+          const docType = String(item.docTypeDescription ?? item.documentType ?? item.docType ?? 'Unknown').trim();
+          const date = String(item.recordingDate ?? item.documentDate ?? item.filingDate ?? '').trim();
+          allCaptured.push({
+            instrumentNumber: id,
+            documentType: docType,
+            recordingDate: date || null,
+            grantors: extractKofilePartyNames(item.grantors ?? item.grantor),
+            grantees: extractKofilePartyNames(item.grantees ?? item.grantee),
+            source: `${config.name} (plat search)`,
+            url: `${baseUrl}/doc/${id}`,
+            volume: String(item.volume ?? item.bookNumber ?? '').trim() || null,
+            page: String(item.page ?? item.pageNumber ?? '').trim() || null,
+          });
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    page.on('response', (r) => { void handleResponse(r); });
+
+    for (const query of platQueries) {
+      const url = buildTylerUrl(baseUrl, query, 0);
+      logger.info('Stage2-Plat', `Trying: "${query}"`);
+
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        await Promise.race([
+          page.waitForSelector('table tbody tr[aria-selected]', { timeout: 12_000 }),
+          page.waitForSelector('text=No results', { timeout: 12_000 }),
+          page.waitForTimeout(12_000),
+        ]).catch(() => {});
+        await page.waitForTimeout(1_500);
+
+        // DOM extraction fallback
+        if (allCaptured.length === 0) {
+          const domDocs = await page.evaluate((bUrl: string) => {
+            const docs: Array<{
+              instrumentNumber: string; documentType: string; recordingDate: string;
+              grantors: string[]; grantees: string[]; url: string | null;
+              volume: string; page: string;
+            }> = [];
+            document.querySelectorAll('table tbody tr[aria-selected]').forEach((row) => {
+              const checkbox = row.querySelector('input[id^="table-checkbox-"]') as HTMLInputElement | null;
+              const docId = checkbox?.id?.replace('table-checkbox-', '') ?? '';
+              const getCol = (n: number): string =>
+                (row.querySelector(`td.col-${n}, td:nth-child(${n + 1})`)?.textContent?.trim() ?? '');
+              const instrNum = getCol(7);
+              const docType = getCol(5);
+              if (!instrNum && !docType && !docId) return;
+              const bvp = getCol(8);
+              const bvpMatch = bvp.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+              docs.push({
+                instrumentNumber: instrNum || docId,
+                documentType: docType || 'Unknown',
+                recordingDate: getCol(6),
+                grantors: getCol(3) ? [getCol(3)] : [],
+                grantees: getCol(4) ? [getCol(4)] : [],
+                url: docId ? `${bUrl}/doc/${docId}` : null,
+                volume: bvpMatch ? bvpMatch[1] : '',
+                page: bvpMatch ? bvpMatch[2] : '',
+              });
+            });
+            return docs;
+          }, baseUrl);
+
+          for (const doc of domDocs) {
+            const id = doc.instrumentNumber;
+            if (!id || seenInstruments.has(id)) continue;
+            seenInstruments.add(id);
+            allCaptured.push({
+              ...doc,
+              instrumentNumber: id || null,
+              volume: doc.volume || null,
+              page: doc.page || null,
+              recordingDate: doc.recordingDate || null,
+              source: `${config.name} (plat search)`,
+            });
+          }
+        }
+
+        // Filter to plat-specific documents
+        const platDocs = allCaptured.filter((d) =>
+          /\bplat\b/i.test(d.documentType) || /\breplat\b/i.test(d.documentType) ||
+          /^PLT$/i.test(d.documentType.trim()),
+        );
+
+        if (platDocs.length >= 1) {
+          logger.info('Stage2-Plat', `Found ${platDocs.length} plat docs with "${query}" — stopping search`);
+          break;
+        }
+      } catch (navErr) {
+        logger.warn('Stage2-Plat', `Navigation failed for "${query}": ${navErr instanceof Error ? navErr.message : String(navErr)}`);
+      }
+    }
+
+    // Capture screenshot of results for Vision OCR analysis
+    let searchScreenshot: Buffer | null = null;
+    try {
+      searchScreenshot = await page.screenshot({ fullPage: true });
+      logger.info('Stage2-Plat', `[screenshot] Captured ${Math.round((searchScreenshot?.length ?? 0) / 1024)}KB plat results screenshot`);
+    } catch { /* page may be closed */ }
+
+    // Failure diagnostic
+    if (allCaptured.length === 0) {
+      try {
+        const failHtml = await page.content();
+        logger.info('Stage2-Plat', `[failure-dump] No plats found. URL: ${page.url()}`);
+        logger.info('Stage2-Plat', `[failure-dump] HTML snippet: ${failHtml.replace(/\s+/g, ' ').substring(0, 500)}`);
+      } catch { /* ignore */ }
+    }
+
+    await browser.close();
+    browser = null;
+
+    // Prioritize actual plats, then include other deed-relevant docs
+    const platDocs = allCaptured.filter((d) =>
+      /\bplat\b/i.test(d.documentType) || /\breplat\b/i.test(d.documentType) ||
+      /^PLT$/i.test(d.documentType.trim()),
+    );
+    const otherRelevant = allCaptured.filter(
+      (d) => isDeedRelevant(d.documentType) && !platDocs.includes(d),
+    );
+    const finalDocs = [...platDocs.slice(0, 5), ...otherRelevant.slice(0, 5)];
+
+    logger.info('Stage2-Plat', `Plat search: ${allCaptured.length} total, ${platDocs.length} plats, ${otherRelevant.length} other relevant → returning ${finalDocs.length}`);
+
+    tracker({
+      status: allCaptured.length > 0 ? 'success' : 'fail',
+      dataPointsFound: allCaptured.length,
+      details: `${platDocs.length} plats, ${otherRelevant.length} other from ${platQueries.length} queries`,
+    });
+
+    const results: DocumentResult[] = finalDocs.map((d) => ({
+      ref: d,
+      textContent: null,
+      ocrText: null,
+      extractedData: null,
+    }));
+
+    // Attach search results screenshot for Vision OCR analysis
+    if (searchScreenshot && results.length > 0) {
+      results[0].pageScreenshots = [{
+        pageNumber: 0,
+        imageBase64: searchScreenshot.toString('base64'),
+        width: 1366,
+        height: 768,
+      }];
+    }
+
+    return results;
+  } catch (err) {
+    if (browser) {
+      try { await browser.close(); } catch { /* ignore */ }
+    }
+    const errMsg = err instanceof Error ? err.message : String(err);
+    tracker({ status: 'fail', error: errMsg });
+    logger.error('Stage2-Plat', `Plat search failed: ${errMsg}`, err);
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // KOFILE IMAGE INTERCEPTION — proven working (Ash Trust, March 4, 2026)
 // These functions intercept signed PNG URLs from the document viewer network
 // traffic instead of taking screenshots. This yields full-resolution originals.

@@ -6,7 +6,7 @@ import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyI
 import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
-import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchSuperSearch } from './bell-clerk.js';
+import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchSuperSearch, searchClerkByAddress, searchClerkForPlats } from './bell-clerk.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
@@ -590,6 +590,121 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         }
       } catch (ssErr) {
         logger.warn('Stage2-SS', `SUPERSEARCH failed: ${ssErr instanceof Error ? ssErr.message : String(ssErr)}`);
+      }
+    }
+
+    // ── Path E: Address-based clerk search ────────────────────────────────
+    // When owner/instrument searches fail, search the clerk by property
+    // address using all the address variants we generated in Stage 0.
+    if (documents.length === 0 && kofile && normalized.variants.length > 0) {
+      logger.info('Stage2-Addr', 'No documents yet — trying address-based clerk search');
+      const addressQueries = normalized.variants
+        .filter((v) => v.streetNumber && v.streetName)
+        .map((v) => ({
+          streetNumber: v.streetNumber,
+          streetName: v.streetName,
+          format: v.format,
+        }));
+
+      // Also add the situs address from the CAD result if available
+      if (propertyResult?.situsAddress) {
+        const situs = propertyResult.situsAddress.trim();
+        if (situs) {
+          addressQueries.unshift({
+            streetNumber: '',
+            streetName: situs,
+            format: 'situs_address',
+          });
+        }
+      }
+
+      if (addressQueries.length > 0) {
+        try {
+          const addrDocs = await searchClerkByAddress(input.county, addressQueries, logger);
+          if (addrDocs.length > 0) {
+            logger.info('Stage2-Addr', `Address search found ${addrDocs.length} documents — fetching images`);
+            // Fetch page images for address-found documents
+            const docsWithInstr = addrDocs.filter(d => d.ref.instrumentNumber).slice(0, 8);
+            const BATCH_SIZE = 3;
+            for (let batch = 0; batch < docsWithInstr.length; batch += BATCH_SIZE) {
+              const batchItems = docsWithInstr.slice(batch, batch + BATCH_SIZE);
+              const batchResults = await Promise.allSettled(
+                batchItems.map(async (doc) => {
+                  const fetchStart = Date.now();
+                  const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
+                  logger.info('Stage2-Addr', `Fetched ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
+                  return { doc, pages };
+                }),
+              );
+              for (const result of batchResults) {
+                if (result.status === 'fulfilled' && result.value.pages.length > 0) {
+                  const { doc, pages } = result.value;
+                  doc.pages = pages;
+                  bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
+                    .then(url => { if (url) doc.pagesPdfUrl = url; })
+                    .catch((e) => { logger.warn('Stage2-PDF', `PDF bundling failed: ${e instanceof Error ? e.message : String(e)}`); });
+                }
+              }
+            }
+            documents = [...documents, ...addrDocs];
+          }
+        } catch (addrErr) {
+          logger.warn('Stage2-Addr', `Address clerk search failed: ${addrErr instanceof Error ? addrErr.message : String(addrErr)}`);
+        }
+      }
+    }
+
+    // ── Path F: Plat-specific clerk search ────────────────────────────────
+    // Targeted search for subdivision plats even if we already have deeds.
+    // Plats are critical for boundary surveys — search if we have a
+    // subdivision name and haven't found any plat documents yet.
+    const hasPlat = documents.some((d) =>
+      /\bplat\b/i.test(d.ref.documentType) || /^PLT$/i.test(d.ref.documentType.trim()),
+    );
+    const subdivForPlat = legalDesc ? extractSubdivisionName(legalDesc) : null;
+
+    if (!hasPlat && subdivForPlat && kofile) {
+      logger.info('Stage2-Plat', `No plats found yet — searching clerk for "${subdivForPlat}" plat`);
+      // Extract lot/block info for more targeted search
+      const lotBlockMatch = legalDesc.match(/\b(?:lot|lt)\s*(\d+)/i);
+      const blockMatch = legalDesc.match(/\b(?:block|blk)\s*(\w+)/i);
+      const additionalTerms = [
+        lotBlockMatch ? `LOT ${lotBlockMatch[1]}` : '',
+        blockMatch ? `BLOCK ${blockMatch[1]}` : '',
+      ].filter(Boolean).join(' ');
+
+      try {
+        const platDocs = await searchClerkForPlats(input.county, subdivForPlat, logger, additionalTerms || undefined);
+        if (platDocs.length > 0) {
+          logger.info('Stage2-Plat', `Plat search found ${platDocs.length} documents — fetching images`);
+          // Fetch page images for plat documents (use higher page count for plats)
+          const platsWithInstr = platDocs.filter(d => d.ref.instrumentNumber).slice(0, 5);
+          const BATCH_SIZE = 3;
+          for (let batch = 0; batch < platsWithInstr.length; batch += BATCH_SIZE) {
+            const batchItems = platsWithInstr.slice(batch, batch + BATCH_SIZE);
+            const batchResults = await Promise.allSettled(
+              batchItems.map(async (doc) => {
+                const fetchStart = Date.now();
+                // Plats often have more pages — request up to 5
+                const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, 5, logger);
+                logger.info('Stage2-Plat', `Fetched plat ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
+                return { doc, pages };
+              }),
+            );
+            for (const result of batchResults) {
+              if (result.status === 'fulfilled' && result.value.pages.length > 0) {
+                const { doc, pages } = result.value;
+                doc.pages = pages;
+                bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
+                  .then(url => { if (url) doc.pagesPdfUrl = url; })
+                  .catch((e) => { logger.warn('Stage2-PDF', `PDF bundling failed: ${e instanceof Error ? e.message : String(e)}`); });
+              }
+            }
+          }
+          documents = [...documents, ...platDocs];
+        }
+      } catch (platErr) {
+        logger.warn('Stage2-Plat', `Plat search failed: ${platErr instanceof Error ? platErr.message : String(platErr)}`);
       }
     }
 
