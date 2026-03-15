@@ -6,8 +6,8 @@
  * specific property, its boundaries, and the survey type.
  */
 
-import type { BellResearchResult, SurveyPlan, FieldStep, PlatLayer } from '../types/research-result';
-import type { SurveyType } from '../types/research-input';
+import type { BellResearchResult, SurveyPlan, FieldStep, PlatLayer } from '../types/research-result.js';
+import type { SurveyType } from '../types/research-input.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

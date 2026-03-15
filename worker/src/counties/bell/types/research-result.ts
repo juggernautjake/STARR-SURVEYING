@@ -3,7 +3,7 @@
  * This powers the toggle sections in the Review stage.
  */
 
-import type { ConfidenceRating } from './confidence';
+import type { ConfidenceRating } from './confidence.js';
 
 // ── Top-Level Result ─────────────────────────────────────────────────
 

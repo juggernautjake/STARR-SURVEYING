@@ -11,9 +11,9 @@
  * improvements, exemptions).
  */
 
-import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints';
-import { ESEARCH_FORMATS } from '../config/field-maps';
-import type { ScreenshotCapture } from '../types/research-result';
+import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints.js';
+import { ESEARCH_FORMATS } from '../config/field-maps.js';
+import type { ScreenshotCapture } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

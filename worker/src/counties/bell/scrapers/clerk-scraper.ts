@@ -13,9 +13,9 @@
  * Also captures page images from the document viewer.
  */
 
-import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints';
-import { DOCUMENT_TYPE_SCORES } from '../config/field-maps';
-import type { ScreenshotCapture, DeedRecord } from '../types/research-result';
+import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints.js';
+import { DOCUMENT_TYPE_SCORES } from '../config/field-maps.js';
+import type { ScreenshotCapture, DeedRecord } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

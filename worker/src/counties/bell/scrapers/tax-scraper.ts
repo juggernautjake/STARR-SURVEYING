@@ -6,8 +6,8 @@
  * history, and taxing entity information.
  */
 
-import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints';
-import type { ScreenshotCapture, TaxInfo } from '../types/research-result';
+import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
+import type { ScreenshotCapture, TaxInfo } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

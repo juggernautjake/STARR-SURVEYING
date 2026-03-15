@@ -3,7 +3,7 @@
  * Handles cookie acquisition, session token extraction, and renewal.
  */
 
-import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints';
+import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
 
 export interface SessionState {
   token: string;

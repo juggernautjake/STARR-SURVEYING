@@ -6,7 +6,7 @@
  * used exclusively by the Bell County folder code.
  */
 
-export type { BellResearchInput } from './research-input';
+export type { BellResearchInput } from './research-input.js';
 export type {
   BellResearchResult,
   DeedRecord,
@@ -23,5 +23,5 @@ export type {
   SurveyPlan,
   PlatLayer,
   FieldStep,
-} from './research-result';
-export type { ConfidenceRating, ConfidenceFactors } from './confidence';
+} from './research-result.js';
+export type { ConfidenceRating, ConfidenceFactors } from './confidence.js';

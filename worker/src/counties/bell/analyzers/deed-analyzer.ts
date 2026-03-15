@@ -9,9 +9,9 @@
  *   - Detect gaps or anomalies in ownership history
  */
 
-import type { DeedRecord, ChainLink, DeedsAndRecordsSection } from '../types/research-result';
-import type { ConfidenceRating } from '../types/confidence';
-import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence';
+import type { DeedRecord, ChainLink, DeedsAndRecordsSection } from '../types/research-result.js';
+import type { ConfidenceRating } from '../types/confidence.js';
+import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

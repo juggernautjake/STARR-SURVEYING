@@ -11,8 +11,8 @@
  *   - Changes from previous plats
  */
 
-import type { PlatRecord, PlatAnalysis, PlatSection } from '../types/research-result';
-import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence';
+import type { PlatRecord, PlatAnalysis, PlatSection } from '../types/research-result.js';
+import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

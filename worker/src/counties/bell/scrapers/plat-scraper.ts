@@ -10,8 +10,8 @@
  * prioritizes finding and capturing every available plat image.
  */
 
-import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints';
-import type { ScreenshotCapture, PlatRecord, PlatAnalysis } from '../types/research-result';
+import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints.js';
+import type { ScreenshotCapture, PlatRecord, PlatAnalysis } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

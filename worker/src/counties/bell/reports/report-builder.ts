@@ -5,7 +5,7 @@
  * Provides helper functions for formatting and summarizing data.
  */
 
-import type { BellResearchResult, ToggleSection } from '../types/research-result';
+import type { BellResearchResult, ToggleSection } from '../types/research-result.js';
 
 // ── Main Export ───────────────────────────────────────────────────────
 

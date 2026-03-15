@@ -19,7 +19,7 @@
  */
 
 import type { PipelineInput, PipelineResult } from '../types/index.js';
-import type { BellResearchResult } from './bell/types/research-result';
+import type { BellResearchResult } from './bell/types/research-result.js';
 import { resolveCounty, TEXAS_COUNTIES, type CountyRecord } from '../lib/county-fips.js';
 
 // ── Unified Input ───────────────────────────────────────────────────
