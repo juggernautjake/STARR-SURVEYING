@@ -1225,7 +1225,7 @@ export async function searchClerkRecords(
         try {
           await Promise.race([
             capturePromise,
-            page.waitForSelector('table tbody tr[aria-selected], section.search-results__results-wrap table tbody tr', { timeout: 20_000 }),
+            page.waitForSelector('.result-card, table tbody tr[aria-selected], section.search-results__results-wrap table tbody tr', { timeout: 20_000 }),
             page.waitForTimeout(20_000),
           ]);
         } catch {
@@ -1517,7 +1517,7 @@ export async function searchClerkRecords(
             href.startsWith('http') ? href : `${bUrl}${href.startsWith('/') ? '' : '/'}${href}`;
 
           const resultItems = document.querySelectorAll(
-            '.result-item, .result-row, .search-result, .document-result, ' +
+            '.result-card, .result-item, .result-row, .search-result, .document-result, ' +
             '.document-row, [class*="result-row"], [class*="ResultRow"]',
           );
           let resultElements: Element[] = Array.from(resultItems);
@@ -1646,7 +1646,7 @@ export async function searchClerkRecords(
                 logger.info('Stage2A', `Loading page ${pg}/${totalPages}: offset=${(pg - 1) * 50}`);
                 await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
                 try {
-                  await page.waitForSelector('table tbody tr[aria-selected]', { timeout: 15_000 });
+                  await page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 15_000 });
                 } catch {
                   logger.info('Stage2A', `Page ${pg}: no result rows — stopping pagination`);
                   break;
@@ -1952,7 +1952,7 @@ export async function searchSuperSearch(
     // Wait for results to load
     try {
       await Promise.race([
-        page.waitForSelector('table tbody tr[aria-selected]', { timeout: 20_000 }),
+        page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 20_000 }),
         page.waitForTimeout(20_000),
       ]);
     } catch { /* continue with whatever we have */ }
@@ -2164,7 +2164,7 @@ export async function searchClerkByAddress(
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
         // Wait for results or "no results" indicator
         await Promise.race([
-          page.waitForSelector('table tbody tr[aria-selected]', { timeout: 12_000 }),
+          page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 12_000 }),
           page.waitForSelector('text=No results', { timeout: 12_000 }),
           page.waitForTimeout(12_000),
         ]).catch(() => {});
@@ -2404,7 +2404,7 @@ export async function searchClerkForPlats(
       try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
         await Promise.race([
-          page.waitForSelector('table tbody tr[aria-selected]', { timeout: 12_000 }),
+          page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 12_000 }),
           page.waitForSelector('text=No results', { timeout: 12_000 }),
           page.waitForTimeout(12_000),
         ]).catch(() => {});
@@ -2584,7 +2584,7 @@ export async function searchBellClerk(
     await page.goto(buildBellUrl(0), { waitUntil: 'domcontentloaded', timeout: 45_000 });
     // Wait for Tyler SPA to render result rows
     try {
-      await page.waitForSelector('table tbody tr[aria-selected]', { timeout: 15_000 });
+      await page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 15_000 });
     } catch { /* continue even if no rows yet */ }
     await page.waitForTimeout(2_000);
 
@@ -2604,7 +2604,7 @@ export async function searchBellClerk(
       for (let pg = 2; pg <= Math.min(totalBellPages, 5); pg++) {
         try {
           await page.goto(buildBellUrl((pg - 1) * 50), { waitUntil: 'domcontentloaded', timeout: 30_000 });
-          await page.waitForSelector('table tbody tr[aria-selected]', { timeout: 15_000 }).catch(() => {});
+          await page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 15_000 }).catch(() => {});
           await page.waitForTimeout(1_000);
           const more = await _extractSearchResults(page);
           documents = [...documents, ...more];
@@ -2858,7 +2858,7 @@ async function _extractSearchResults(
   page: import('playwright').Page,
 ): Promise<DocumentRef[]> {
   const documents: DocumentRef[] = [];
-  const rows = await page.$$('table tbody tr[aria-selected], .result-row, .search-result');
+  const rows = await page.$$('.result-card, table tbody tr[aria-selected], .result-row, .search-result');
 
   for (const row of rows) {
     try {
