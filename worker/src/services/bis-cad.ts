@@ -586,9 +586,13 @@ async function searchCadHttp(
       tracker({ status: 'fail', error: `[${category}] ${detail}`, nextLayer: 'Stage1B' });
       diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
 
-      // Network/timeout errors won't resolve with different variants
+      // Network/timeout errors won't resolve with different variants.
+      // Mark the site as unreachable so the pipeline can log this clearly
+      // and continue with alternative sources (clerk, plat repo, etc.).
       if (category === 'network' || category === 'timeout') {
-        logger.warn('Stage1A', `[${category}] ${detail} — stopping HTTP attempts`);
+        logger.warn('Stage1A', `[${category}] ${detail} — site unreachable, stopping HTTP attempts`);
+        diagnostics.cadSiteError = `The county appraisal website appears to be unreachable (${category}): ${detail}`;
+        diagnostics.siteUnreachable = true;
         break;
       }
     }
@@ -1045,9 +1049,38 @@ async function searchCadPlaywright(
       }
     }
 
-    // Owner name fallback: if address variants found nothing, try By Owner tab
-    if (capturedResults.length === 0 && options?.ownerName) {
-      finish.step?.(`[runtime] Address search exhausted — trying owner name: "${options.ownerName}"`);
+    // Owner name fallback — triggers in two cases:
+    //   (a) Address search found nothing at all, OR
+    //   (b) Address search found ONLY personal property (Type P) records.
+    //       This is the proven pattern for commercial addresses: the address returns
+    //       the business tenant's equipment record (e.g., "STARR SURVEYING" Type P),
+    //       but the actual land is owned by a different party (e.g., "ASH FAMILY TRUST").
+    //       Searching "By Owner" with the landlord name finds the real property.
+    //
+    // When pivoting from Type P, extract the Map ID from the personal property
+    // record as a geographic anchor — owner results with a matching Map ID prefix
+    // are the geographically closest candidates.
+    const allPersonalProperty = capturedResults.length > 0 && capturedResults.every((r) => {
+      const rawType = (getProp(r, 'propertyType', 'PropertyType') ?? '').trim().toUpperCase();
+      return rawType === 'P' || rawType === 'PERSONAL';
+    });
+    const typePMapId: string | null = allPersonalProperty
+      ? ((getProp(capturedResults[0], 'mapId', 'MapId', 'map_id') as string | null) ?? null)
+      : null;
+
+    if ((capturedResults.length === 0 || allPersonalProperty) && options?.ownerName) {
+      if (allPersonalProperty) {
+        finish.step?.(
+          `[runtime] Address returned only personal property (Type P)${typePMapId ? ` Map ID=${typePMapId}` : ''} — ` +
+          `pivoting to owner name search: "${options.ownerName}"`,
+        );
+      } else {
+        finish.step?.(`[runtime] Address search exhausted — trying owner name: "${options.ownerName}"`);
+      }
+      // Save address-search personal property results so we can restore if owner search fails
+      const personalPropertyFallback = allPersonalProperty ? [...capturedResults] : [];
+      capturedResults = [];
+
       try {
         await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
         const ownerTabSelectors = [
@@ -1116,12 +1149,37 @@ async function searchCadPlaywright(
 
           const ownerDomResults = await extractResultsFromDOM(page);
           if (ownerDomResults.length > 0) {
-            capturedResults = ownerDomResults;
-            finish.step?.(`[runtime] Owner name search found ${ownerDomResults.length} results`);
+            // When pivoting from Type P, prefer results that share the same Map ID
+            // prefix as the personal property record (geographic anchor).
+            // Example: Type P Map ID "61B01" → prefer owner results starting with "61B".
+            let ranked = ownerDomResults;
+            if (typePMapId) {
+              const mapPrefix = typePMapId.substring(0, Math.min(3, typePMapId.length));
+              const sameMap = ownerDomResults.filter((r) => {
+                const rm = (getProp(r, 'mapId', 'MapId', 'map_id') as string | null) ?? '';
+                return rm.startsWith(mapPrefix);
+              });
+              if (sameMap.length > 0) {
+                finish.step?.(`[runtime] Map ID filter "${mapPrefix}*": ${sameMap.length} of ${ownerDomResults.length} owner results match geographic area`);
+                ranked = sameMap;
+              } else {
+                finish.step?.(`[runtime] Map ID filter "${mapPrefix}*": no owner results matched — using all ${ownerDomResults.length} results`);
+              }
+            }
+            capturedResults = ranked;
+            finish.step?.(`[runtime] Owner name search found ${ownerDomResults.length} results${typePMapId ? ` (${capturedResults.length} in Map area)` : ''}`);
+          } else if (personalPropertyFallback.length > 0) {
+            // Owner search found nothing — restore personal property results as last resort
+            capturedResults = personalPropertyFallback;
+            finish.step?.('[runtime] Owner name search found 0 results — restoring personal property results as fallback');
           }
         }
       } catch (ownerErr) {
         finish.step?.(`[runtime] Owner name search failed: ${ownerErr instanceof Error ? ownerErr.message : String(ownerErr)}`);
+        // Restore personal property fallback if owner search threw
+        if (capturedResults.length === 0 && personalPropertyFallback.length > 0) {
+          capturedResults = personalPropertyFallback;
+        }
       }
     }
 
@@ -1239,10 +1297,37 @@ async function searchCadPlaywright(
 
     return { results: capturedResults, screenshot, validation };
   } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const { category } = classifyError(err);
+
+    // When the site is unreachable (network/timeout) or the browser launch itself
+    // fails, mark the CAD as down and capture whatever screenshot we can.
+    // The pipeline will continue with alternative sources (clerk, plat repo, etc.).
+    if (category === 'network' || category === 'timeout') {
+      diagnostics.cadSiteError =
+        `The county appraisal website appears to be unreachable (${category}): ${errMsg}`;
+      diagnostics.siteUnreachable = true;
+
+      // Attempt to screenshot the browser's error page — useful for diagnostics
+      // even when the target site is down (the browser renders a net error page).
+      if (browser && !screenshot) {
+        try {
+          const errContext = await browser.newContext();
+          const errPage = await errContext.newPage();
+          await errPage.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 })
+            .catch(() => { /* ignore navigation failure — page shows error */ });
+          screenshot = await errPage.screenshot({ fullPage: true }) as Buffer;
+          await errContext.close().catch(() => {});
+        } catch {
+          // Screenshot of the error page is optional — don't let it block progress
+        }
+      }
+    }
+
     if (browser) {
       try { await browser.close(); } catch { /* ignore */ }
     }
-    finish({ status: 'fail', error: err instanceof Error ? err.message : String(err), nextLayer: 'Stage1C' });
+    finish({ status: 'fail', error: errMsg, nextLayer: 'Stage1C' });
     return { results: [], screenshot, validation: null };
   }
 }
@@ -2337,6 +2422,39 @@ export async function searchBisCad(
     }
   }
 
+  // Layer 1A-StreetOnly: Street-name-only search (no street number).
+  // Some rural properties (especially FM/CR roads) are indexed without a situs number
+  // in Bell CAD. Search by street name alone with a small result cap.
+  {
+    const streetName = normalized.parsed.streetName;
+    if (streetName && streetName.length >= 3) {
+      logger.info('Stage1A-StreetOnly', `Trying street-name-only search: "${streetName}"`);
+      const namePart = streetName.includes(' ')
+        ? `StreetName:"${streetName}"`
+        : `StreetName:${streetName}`;
+      const streetOnlyQuery = `${namePart} PropertyType:Real`;
+      const streetOnlyResults = await searchCadHttpRawKeyword(config.baseUrl, streetOnlyQuery, 'StreetName-only', logger);
+      if (streetOnlyResults && streetOnlyResults.length > 0 && streetOnlyResults.length <= 30) {
+        const best = pickBestResult(streetOnlyResults, normalized, logger);
+        if (best) {
+          const propId = getProp(best, 'propertyId', 'PropertyId') ?? '';
+          const validation = validatePropertyResult(best, normalized, logger);
+          if (validation.confidence >= 0.2 && propId) {
+            const bestOwnerId = getProp(best, 'ownerId', 'OwnerId') ?? undefined;
+            const detail = await enrichPropertyDetail(config.baseUrl, propId, logger, bestOwnerId);
+            diagnostics.searchDuration_ms = Date.now() - searchStart;
+            return {
+              property: buildResult(propId, detail, best, 'Stage1A-StreetOnly', validation.confidence, [
+                ...validation.issues, 'Found via street-name-only search (no situs number)',
+              ]),
+              diagnostics,
+            };
+          }
+        }
+      }
+    }
+  }
+
   // Layer 1A-2: Owner name HTTP search (after all address variants exhausted)
   if (options?.ownerName) {
     logger.info('Stage1A-2', `All address layers failed — trying owner name HTTP search: "${options.ownerName}"`);
@@ -2381,7 +2499,14 @@ export async function searchBisCad(
       directLayerUrls: config.gisParcelLayerUrls,
     });
     if (gisResult?.propertyId || gisResult?.ownerName) {
-      logger.info('Stage1E', `GIS lookup returned data — propertyId=${gisResult.propertyId ?? 'n/a'}`);
+      const instrNums = gisResult.instrumentNumbers ?? [];
+      const deedHist = (gisResult.deedHistory ?? []).map(d => ({
+        deedDate: d.deedDate,
+        volume: d.volume,
+        page: d.page,
+        instrumentNumber: d.instrumentNumber,
+      }));
+      logger.info('Stage1E', `GIS lookup returned data — propertyId=${gisResult.propertyId ?? 'n/a'}, owner="${gisResult.ownerName ?? 'n/a'}", instruments=[${instrNums.join(',')}]`);
       diagnostics.searchDuration_ms = Date.now() - searchStart;
       return {
         property: {
@@ -2396,6 +2521,8 @@ export async function searchBisCad(
           propertyType: null,
           situsAddress: gisResult.situsAddress ?? null,
           mapId: gisResult.mapId,
+          instrumentNumbers: instrNums.length > 0 ? instrNums : undefined,
+          deedHistory: deedHist.length > 0 ? deedHist : undefined,
           validationNotes: ['GIS-only result — not confirmed via eSearch'],
         } as PropertyIdResult,
         diagnostics,
@@ -2405,6 +2532,13 @@ export async function searchBisCad(
 
   logger.error('Stage1', `All CAD search layers exhausted — property not found. Tried ${diagnostics.variantsTried.length} variants.`);
   diagnostics.searchDuration_ms = Date.now() - searchStart;
+
+  // Preserve any screenshot from Stage 1B/1C in diagnostics so the pipeline
+  // can surface it for AI analysis and the admin dashboard.
+  if (screenshot && screenshot.length > 0 && !diagnostics.failureScreenshotBase64) {
+    diagnostics.failureScreenshotBase64 = screenshot.toString('base64');
+  }
+
   return { property: null, diagnostics };
 }
 
@@ -2429,17 +2563,34 @@ export interface GisPropertyData {
   parcelRings?: number[][][];
   /** Raw attribute record for any additional fields */
   rawAttributes?: Record<string, unknown>;
+  /** Deed instrument numbers found in GIS attributes */
+  instrumentNumbers?: string[];
+  /** Deed history entries from GIS (date, volume, page, instrument) */
+  deedHistory?: Array<{
+    deedDate?: string;
+    volume?: string;
+    page?: string;
+    instrumentNumber?: string;
+  }>;
 }
 
 const FIELD_ALIASES: Record<string, string[]> = {
-  propertyId:       ['PROP_ID', 'PropertyID', 'PROPERTY_ID', 'ACCT_NUM', 'CAD_ID', 'ID', 'OBJECTID'],
-  ownerName:        ['OWNER_NAME', 'OwnerName', 'OWNER', 'OWN_NAME', 'OWNERNAME'],
-  legalDescription: ['LEGAL_DESC', 'LegalDesc', 'LEGAL', 'LEGAL_DESCRIPTION', 'LEGAL_DESCR'],
-  acreage:          ['ACREAGE', 'Acreage', 'ACRES', 'LAND_ACRES', 'TOT_ACRES', 'AREA_ACRES'],
-  situsAddress:     ['SITUS_ADDR', 'SitusAddr', 'ADDRESS', 'PROP_ADDR', 'SITE_ADDR', 'ADDR'],
-  abstractName:     ['ABSTRACT', 'AbstractName', 'ABS_NAME', 'ABST_NAME'],
-  subdivision:      ['SUBDIVISION', 'Subdivision', 'SUB_NAME', 'SUBDIV'],
-  mapId:            ['MAP_ID', 'MapID', 'MAPID', 'MAP_SHEET', 'GEO_ID'],
+  propertyId:       ['PROP_ID', 'PropertyID', 'PROPERTY_ID', 'ACCT_NUM', 'CAD_ID', 'ID', 'OBJECTID',
+                      'prop_id', 'prop_id_text'],
+  ownerName:        ['OWNER_NAME', 'OwnerName', 'OWNER', 'OWN_NAME', 'OWNERNAME',
+                      'file_as_name', 'owner_name'],
+  legalDescription: ['LEGAL_DESC', 'LegalDesc', 'LEGAL', 'LEGAL_DESCRIPTION', 'LEGAL_DESCR',
+                      'legal_desc'],
+  acreage:          ['ACREAGE', 'Acreage', 'ACRES', 'LAND_ACRES', 'TOT_ACRES', 'AREA_ACRES',
+                      'legal_acreage'],
+  situsAddress:     ['SITUS_ADDR', 'SitusAddr', 'ADDRESS', 'PROP_ADDR', 'SITE_ADDR', 'ADDR',
+                      'situs_addr'],
+  abstractName:     ['ABSTRACT', 'AbstractName', 'ABS_NAME', 'ABST_NAME',
+                      'abs_subdv_cd'],
+  subdivision:      ['SUBDIVISION', 'Subdivision', 'SUB_NAME', 'SUBDIV',
+                      'abs_subdv_cd'],
+  mapId:            ['MAP_ID', 'MapID', 'MAPID', 'MAP_SHEET', 'GEO_ID',
+                      'map_id', 'geo_id'],
 };
 
 function extractGisField(
@@ -2483,6 +2634,45 @@ function buildGisPropertyData(attrs: Record<string, unknown>, geometry?: unknown
   result.subdivision     = extractGisField(attrs, 'subdivision');
   result.mapId           = extractGisField(attrs, 'mapId');
 
+  // ── Compose situs address from component fields (Bell CAD style) ───
+  if (!result.situsAddress) {
+    const parts = [
+      attrs['situs_num'],
+      attrs['situs_street_prefx'],
+      attrs['situs_street'],
+      attrs['situs_street_sufix'],
+    ].filter(p => p !== undefined && p !== null && String(p).trim() !== '');
+    const streetLine = parts.map(p => String(p).trim()).join(' ');
+    const cityStateZip = [
+      attrs['situs_city'],
+      attrs['situs_state'],
+      attrs['situs_zip'],
+    ].filter(p => p !== undefined && p !== null && String(p).trim() !== '');
+    if (streetLine) {
+      result.situsAddress = cityStateZip.length > 0
+        ? `${streetLine}, ${cityStateZip.map(p => String(p).trim()).join(' ')}`
+        : streetLine;
+    }
+  }
+
+  // ── Extract deed data (instrument numbers, volume/page) ────────────
+  const instrNum = attrs['Number'] ?? attrs['number'] ?? attrs['INSTRUMENT_NUM'] ?? attrs['instrument_num'];
+  const deedDate = attrs['Deed_Date'] ?? attrs['deed_date'] ?? attrs['DEED_DATE'];
+  const volume   = attrs['Volume'] ?? attrs['volume'] ?? attrs['VOLUME'];
+  const page     = attrs['Page'] ?? attrs['page'] ?? attrs['PAGE'];
+
+  if (instrNum || volume || deedDate) {
+    const entry: { deedDate?: string; volume?: string; page?: string; instrumentNumber?: string } = {};
+    if (deedDate) entry.deedDate = String(deedDate).trim();
+    if (volume && String(volume).trim()) entry.volume = String(volume).trim();
+    if (page && String(page).trim()) entry.page = String(page).trim();
+    if (instrNum && String(instrNum).trim()) entry.instrumentNumber = String(instrNum).trim();
+    result.deedHistory = [entry];
+    if (entry.instrumentNumber) {
+      result.instrumentNumbers = [entry.instrumentNumber];
+    }
+  }
+
   if (geometry && typeof geometry === 'object') {
     const geo = geometry as Record<string, unknown>;
     const rings = geo['rings'];
@@ -2516,6 +2706,119 @@ async function queryArcGisLayer(
     logger.warn('Stage1E', `ArcGIS query failed: ${fullUrl} — ${String(err)}`);
     return null;
   }
+}
+
+/**
+ * Selects the single best-matching GIS feature from a spatial query result set.
+ *
+ * Priority order:
+ *   1. Property ID match — if we already know the ID from CAD, use it
+ *   2. Address match — street number must match exactly; street name fuzzy
+ *   3. Centroid proximity — pick the feature whose centroid is closest to the
+ *      query coordinates (the geocoded address point should be inside its parcel)
+ *   4. First feature — fallback when no other signal is available
+ *
+ * This prevents the pipeline from merging instruments from neighbouring parcels
+ * into the target property when the spatial query returns multiple features
+ * (e.g. an envelope that straddles a subdivision block can return 18+ parcels).
+ */
+function selectBestGisFeature(
+  features: Array<{ attributes: Record<string, unknown>; geometry?: unknown }>,
+  options: { propertyId?: string; address?: string; lat?: number | null; lon?: number | null },
+  logger: PipelineLogger,
+): { attributes: Record<string, unknown>; geometry?: unknown } {
+  if (features.length === 1) return features[0];
+
+  // ── Priority 1: Property ID match ────────────────────────────────────────
+  if (options.propertyId) {
+    for (const feat of features) {
+      const pid = extractGisField(feat.attributes, 'propertyId');
+      if (pid && pid.replace(/\s/g, '') === options.propertyId.replace(/\s/g, '')) {
+        logger.info('Stage1E', `GIS: ${features.length} features → selected propertyId=${pid} (property ID match)`);
+        return feat;
+      }
+    }
+  }
+
+  // ── Priority 2: Address match ─────────────────────────────────────────────
+  if (options.address) {
+    const inputNum = options.address.match(/^(\d+)/)?.[1] ?? '';
+    // Normalize street name: uppercase, strip common suffixes, collapse spaces
+    const normStreet = (s: string) =>
+      s.toUpperCase()
+       .replace(/\b(DRIVE|DR|STREET|ST|AVENUE|AVE|ROAD|RD|LANE|LN|BLVD|BOULEVARD|COURT|CT|WAY|CIRCLE|CIR|TRAIL|TRL|PLACE|PL)\b\.?/g, '')
+       .replace(/[^A-Z0-9]+/g, ' ')
+       .trim();
+    const inputStreetNorm = normStreet(options.address);
+
+    for (const feat of features) {
+      const situs = extractGisField(feat.attributes, 'situsAddress')
+        ?? [
+             feat.attributes['situs_num'],
+             feat.attributes['situs_street_prefx'],
+             feat.attributes['situs_street'],
+             feat.attributes['situs_street_sufix'],
+           ].filter(p => p !== undefined && p !== null && String(p).trim() !== '')
+            .map(p => String(p).trim()).join(' ');
+
+      if (!situs) continue;
+
+      // Street number must match exactly
+      const situsNum = situs.match(/^(\d+)/)?.[1] ?? '';
+      if (inputNum && situsNum !== inputNum) continue;
+
+      // Street name fuzzy match (normalized tokens overlap)
+      const situsNorm = normStreet(situs);
+      const inputTokens = inputStreetNorm.split(' ').filter(Boolean);
+      const situsTokens = new Set(situsNorm.split(' ').filter(Boolean));
+      const overlap = inputTokens.filter(t => situsTokens.has(t)).length;
+
+      if (overlap > 0 && inputTokens.length > 0) {
+        const pid = extractGisField(feat.attributes, 'propertyId') ?? 'n/a';
+        logger.info('Stage1E', `GIS: ${features.length} features → selected propertyId=${pid} (address match: "${situs}")`);
+        return feat;
+      }
+    }
+  }
+
+  // ── Priority 3: Centroid proximity ────────────────────────────────────────
+  if (options.lat != null && options.lon != null) {
+    let bestIdx = 0;
+    let bestDist = Infinity;
+
+    for (let i = 0; i < features.length; i++) {
+      const geo = features[i].geometry as Record<string, unknown> | undefined;
+      if (!geo) continue;
+      const rings = geo['rings'];
+      if (!Array.isArray(rings) || rings.length === 0) continue;
+      const ring = rings[0] as number[][];
+      if (!Array.isArray(ring) || ring.length === 0) continue;
+
+      // Compute ring centroid
+      let sumX = 0, sumY = 0, count = 0;
+      for (const pt of ring) {
+        if (Array.isArray(pt) && pt.length >= 2) {
+          sumX += pt[0]; sumY += pt[1]; count++;
+        }
+      }
+      if (count === 0) continue;
+      const cx = sumX / count;
+      const cy = sumY / count;
+      const dist = Math.hypot(cx - options.lon, cy - options.lat);
+      if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+    }
+
+    if (bestDist < Infinity) {
+      const pid = extractGisField(features[bestIdx].attributes, 'propertyId') ?? 'n/a';
+      logger.info('Stage1E', `GIS: ${features.length} features → selected propertyId=${pid} (centroid proximity, dist=${bestDist.toFixed(6)})`);
+      return features[bestIdx];
+    }
+  }
+
+  // ── Priority 4: First feature fallback ───────────────────────────────────
+  const pid = extractGisField(features[0].attributes, 'propertyId') ?? 'n/a';
+  logger.info('Stage1E', `GIS: ${features.length} features → selected propertyId=${pid} (first feature fallback)`);
+  return features[0];
 }
 
 /**
@@ -2580,7 +2883,9 @@ export async function searchBisGis(
         }, logger);
         if (fs?.features && fs.features.length > 0) {
           logger.info('Stage1E', `GIS: found via spatial query on direct layer (${fs.features.length} feature(s))`);
-          return buildGisPropertyData(fs.features[0].attributes, fs.features[0].geometry);
+          // Select the single best-matching feature instead of merging all
+          const selected = selectBestGisFeature(fs.features, options, logger);
+          return buildGisPropertyData(selected.attributes, selected.geometry);
         }
       }
 

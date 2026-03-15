@@ -124,12 +124,16 @@ export default function DrawingCanvas({
   // Zoom / Pan state
   const [internalZoom, setInternalZoom] = useState(1);
   const zoom = externalZoom ?? internalZoom;
+  const onZoomChangeRef = useRef(onZoomChange);
+  onZoomChangeRef.current = onZoomChange;
   const setZoom = useCallback((val: number | ((prev: number) => number)) => {
-    const newVal = typeof val === 'function' ? val(zoom) : val;
-    const clamped = Math.max(0.1, Math.min(10, newVal));
-    setInternalZoom(clamped);
-    onZoomChange?.(clamped);
-  }, [zoom, onZoomChange]);
+    setInternalZoom(prev => {
+      const newVal = typeof val === 'function' ? val(prev) : val;
+      const clamped = Math.max(0.1, Math.min(10, newVal));
+      onZoomChangeRef.current?.(clamped);
+      return clamped;
+    });
+  }, []);
 
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -243,7 +247,7 @@ export default function DrawingCanvas({
       return () => clearTimeout(t);
     }
     return undefined;
-  }, [drawing.id, svgContent]); // Re-fit when drawing changes
+  }, [drawing.id, svgContent, drawing.canvas_config?.width, drawing.canvas_config?.height, setZoom]); // Re-fit when drawing changes
 
   // Zoom-to-fit on external signal (toolbar button)
   useEffect(() => {
@@ -451,44 +455,44 @@ export default function DrawingCanvas({
 
   // ── Annotation Helpers ──────────────────────────────────────────────────
 
-  function addAnnotation(annotation: UserAnnotation) {
+  const getMaxZIndex = useCallback(() => {
+    return annotations.reduce((max, a) => Math.max(max, a.zIndex), 0);
+  }, [annotations]);
+
+  const addAnnotation = useCallback((annotation: UserAnnotation) => {
     // Attach active layer if not already set
     const withLayer = activeLayerId ? { ...annotation, layerId: annotation.layerId ?? activeLayerId } : annotation;
     onAnnotationsChange([...annotations, withLayer]);
-  }
+  }, [activeLayerId, annotations, onAnnotationsChange]);
 
-  function updateAnnotation(id: string, changes: Partial<UserAnnotation>) {
+  const updateAnnotation = useCallback((id: string, changes: Partial<UserAnnotation>) => {
     onAnnotationsChange(annotations.map(a => a.id === id ? { ...a, ...changes } : a));
-  }
+  }, [annotations, onAnnotationsChange]);
 
   /** Update annotation without pushing to undo history — used during drag/resize intermediate moves */
-  function updateAnnotationSilent(id: string, changes: Partial<UserAnnotation>) {
+  const updateAnnotationSilent = useCallback((id: string, changes: Partial<UserAnnotation>) => {
     const updated = annotations.map(a => a.id === id ? { ...a, ...changes } : a);
     (onAnnotationsSilentChange || onAnnotationsChange)(updated);
-  }
+  }, [annotations, onAnnotationsSilentChange, onAnnotationsChange]);
 
-  function deleteAnnotation(id: string) {
+  const deleteAnnotation = useCallback((id: string) => {
     onAnnotationsChange(annotations.filter(a => a.id !== id));
     if (selectedAnnotationId === id) setSelectedAnnotationId(null);
-  }
+  }, [annotations, onAnnotationsChange, selectedAnnotationId]);
 
   function generateId() {
     return `ann_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
-  function getMaxZIndex() {
-    return annotations.reduce((max, a) => Math.max(max, a.zIndex), 0);
-  }
-
   // Copy selected annotation to clipboard
-  function copyAnnotation(id: string | null) {
+  const copyAnnotation = useCallback((id: string | null) => {
     if (!id) return;
     const ann = annotations.find(a => a.id === id);
     if (ann) setClipboard([ann]);
-  }
+  }, [annotations]);
 
   // Paste clipboard contents with a small offset
-  function pasteAnnotations() {
+  const pasteAnnotations = useCallback(() => {
     if (clipboard.length === 0) return;
     const pasted = clipboard.map(ann => ({
       ...ann,
@@ -500,7 +504,7 @@ export default function DrawingCanvas({
     onAnnotationsChange(newAnnotations);
     // Select last pasted
     setSelectedAnnotationId(pasted[pasted.length - 1].id);
-  }
+  }, [clipboard, annotations, onAnnotationsChange, getMaxZIndex]);
 
   // ── Tool: Freehand / Line / Shape Drawing ───────────────────────────────
 
@@ -608,7 +612,7 @@ export default function DrawingCanvas({
     // Start drawing
     setIsDrawing(true);
     setCurrentPoints([svgPt]);
-  }, [activeTool, clientToSvg, applySnap, measureStart, isDrawing, currentPoints, toolSettings, annotations, zoom]);
+  }, [activeTool, clientToSvg, applySnap, measureStart, isDrawing, currentPoints, toolSettings, annotations, zoom, addAnnotation, getMaxZIndex]);
 
   const handleDrawMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawing) {
@@ -716,7 +720,7 @@ export default function DrawingCanvas({
     if (ONE_SHOT_TOOLS.includes(activeTool)) {
       onToolChange?.('select');
     }
-  }, [isDrawing, currentPoints, activeTool, toolSettings, annotations, onToolChange]);
+  }, [isDrawing, currentPoints, activeTool, toolSettings, annotations, onToolChange, addAnnotation, getMaxZIndex]);
 
   // Click to add polyline point
   const handlePolylineClick = useCallback((e: React.MouseEvent) => {
@@ -759,7 +763,7 @@ export default function DrawingCanvas({
     setTextInput(null);
     // Text placement is one-shot — revert to select
     onToolChange?.('select');
-  }, [textInput, clientToSvg, toolSettings, annotations, onToolChange]);
+  }, [textInput, clientToSvg, toolSettings, annotations, onToolChange, addAnnotation, getMaxZIndex]);
 
   // ── Tool: Image Placement ─────────────────────────────────────────────
 
@@ -805,7 +809,7 @@ export default function DrawingCanvas({
     reader.readAsDataURL(file);
     // Reset input so same file can be re-uploaded
     e.target.value = '';
-  }, [clientToSvg, zoom, toolSettings, annotations, onToolChange]);
+  }, [clientToSvg, zoom, toolSettings, annotations, onToolChange, addAnnotation, getMaxZIndex]);
 
   // ── Tool: Eraser ──────────────────────────────────────────────────────
 
@@ -820,7 +824,7 @@ export default function DrawingCanvas({
     if (annId) {
       deleteAnnotation(annId);
     }
-  }, [activeTool, annotations]);
+  }, [activeTool, annotations, deleteAnnotation]);
 
   // ── Pan / Zoom (existing logic, tool-aware) ──────────────────────────
 
@@ -1017,7 +1021,7 @@ export default function DrawingCanvas({
       setZoom(newZoom);
       setPan(newPan);
     }
-  }, [activeTool, isDrawing, currentPoints, toolSettings, annotations, zoom, pan, setZoom, clampPan]);
+  }, [activeTool, isDrawing, currentPoints, toolSettings, annotations, zoom, pan, setZoom, clampPan, addAnnotation, getMaxZIndex]);
 
   // Mouse down — pan or draw
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -1185,7 +1189,7 @@ export default function DrawingCanvas({
       return;
     }
     handleSvgMouseMove(e);
-  }, [isPanning, panStart, isDrawing, handleDrawMove, handleSvgMouseMove, clientToSvg, clampPan, zoom, draggingAnnotation, resizingAnnotation, annotations, draggingLabelEl]);
+  }, [isPanning, panStart, isDrawing, handleDrawMove, handleSvgMouseMove, clientToSvg, clampPan, zoom, draggingAnnotation, resizingAnnotation, annotations, draggingLabelEl, updateAnnotationSilent]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     // End label element drag — commit new position via onElementModified
@@ -1298,7 +1302,7 @@ export default function DrawingCanvas({
       annotationId: annId || null,
       annotationType: ann?.type,
     });
-  }, [elementMap]);
+  }, [elementMap, annotations]);
 
   const handleContextMenuAction = useCallback((action: ContextMenuAction, element: DrawingElement | null) => {
     // Handle actions on annotations
@@ -1397,7 +1401,7 @@ export default function DrawingCanvas({
     }
 
     setContextMenu(null);
-  }, [contextMenu, annotations, elements, onElementClick, onElementModified, onRevertElement, clipboard]);
+  }, [contextMenu, annotations, elements, onElementClick, onElementModified, onRevertElement, clipboard, addAnnotation, copyAnnotation, deleteAnnotation, getMaxZIndex, pasteAnnotations, updateAnnotation]);
 
   // ── Keyboard Shortcuts ────────────────────────────────────────────────
 
@@ -1461,7 +1465,7 @@ export default function DrawingCanvas({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setZoom, selectedAnnotationId, annotations, drawing.canvas_config]);
+  }, [setZoom, selectedAnnotationId, annotations, drawing.canvas_config, addAnnotation, copyAnnotation, deleteAnnotation, getMaxZIndex, pasteAnnotations]);
 
   // ── Cursor ──────────────────────────────────────────────────────────────
 

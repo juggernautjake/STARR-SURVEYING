@@ -30,6 +30,12 @@ export interface PipelineResult {
   duration_ms: number;
   /** Phase 3.5: Geometric reconciliation — visual geometry vs OCR text */
   reconciliation?: import('../services/geo-reconcile.js').ReconciliationResult;
+  /**
+   * Stage 5: 7-call property validation report — text synthesis, cross-validation,
+   * and final discrepancy/confidence report from property-validation-pipeline.ts.
+   * Only present when the pipeline reaches Stage 5 (requires Anthropic API key).
+   */
+  validationReport?: import('../services/property-validation-pipeline.js').ValidationReport;
   /** Search diagnostics: which variants were tried, which hit */
   searchDiagnostics?: SearchDiagnostics;
   /**
@@ -70,6 +76,17 @@ export interface SearchDiagnostics {
    * interpreted as "unknown" rather than "property not found".
    */
   cadSiteError?: string;
+  /**
+   * True when the CAD site was completely unreachable (DNS failure, connection refused,
+   * network timeout) rather than returning an error page.  Research continues with
+   * alternative sources (county clerk, plat repository, etc.) even when this is set.
+   */
+  siteUnreachable?: boolean;
+  /**
+   * Base64-encoded PNG screenshot captured when the site was unreachable or returned
+   * an error page.  Used for diagnostics and AI analysis of the failure.
+   */
+  failureScreenshotBase64?: string;
 }
 
 // ── Stage 1: Property Identification ───────────────

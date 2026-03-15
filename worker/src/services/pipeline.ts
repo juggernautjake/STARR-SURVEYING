@@ -1,17 +1,30 @@
-// worker/src/services/pipeline.ts — Main 4-stage pipeline orchestrator
-// Coordinates: Stage 0 (normalize) → Stage 1 (CAD) → Stage 2 (Clerk) → Stage 3 (AI) → Stage 4 (Validate)
+// worker/src/services/pipeline.ts — Main research pipeline orchestrator
+// Stage 0: Normalize address → Stage 1: CAD lookup → Stage 2: Clerk search
+// Stage 3: AI extraction → Stage 3.5: Geometric reconciliation
+// Stage 4: Boundary validation → Stage 5: Synthesis & cross-validation report
 // Supports: direct property ID lookup, owner name search, user file uploads.
 
 import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyIdResult, SearchDiagnostics } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
-import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchSuperSearch, searchClerkByAddress, searchClerkForPlats } from './bell-clerk.js';
-import { extractDocuments } from './ai-extraction.js';
+import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed } from './bell-clerk.js';
+import { extractDocuments, extractPlatBoundary } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
+import { runPropertyValidationPipeline } from './property-validation-pipeline.js';
 import { bundleAndUploadPages } from './pages-to-pdf.js';
 import { extractSubdivisionName, fetchBestMatchingPlat, hasPlatRepository } from './county-plats.js';
+import {
+  createSearchState,
+  ingestCADResult,
+  ingestDeedHistory,
+  pivotPersonalPropertyToLand,
+  findRelatedBellProperties,
+  summarizeSearchState,
+  mergeCascadeIntoPipeline,
+} from './bell-county-research.js';
+import { classifyBellProperty } from './bell-county-classifier.js';
 
 // ── Deed Reference Parser ─────────────────────────────────────────────────
 
@@ -67,7 +80,7 @@ export function parseDeedReferences(legalDescription: string): {
 
 let supabaseClient: Awaited<ReturnType<typeof import('@supabase/supabase-js').createClient>> | null = null;
 
-async function getSupabase() {
+export async function getSupabase() {
   if (supabaseClient) return supabaseClient;
 
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -83,6 +96,23 @@ async function getSupabase() {
   return supabaseClient;
 }
 
+// ── In-Memory Running Message Cache ────────────────────────────────────────
+// Stores the latest pipeline stage message per projectId so the status
+// endpoint in index.ts can return it without a Supabase round-trip.
+// This ensures the UI sees live messages even when Supabase is slow or not
+// configured, which was the primary cause of the stepper appearing "stuck".
+const _runningMessages = new Map<string, string>();
+
+/** Return the latest in-progress stage message for a project, if available. */
+export function getRunningMessage(projectId: string): string | undefined {
+  return _runningMessages.get(projectId);
+}
+
+/** Remove the cached message when a pipeline completes or fails. */
+export function clearRunningMessage(projectId: string): void {
+  _runningMessages.delete(projectId);
+}
+
 // ── Status Updates ─────────────────────────────────────────────────────────
 
 async function updateStatus(
@@ -91,6 +121,11 @@ async function updateStatus(
   message: string,
   metadata?: Record<string, unknown>,
 ): Promise<void> {
+  // Always write to the in-memory cache immediately — this is the primary
+  // source for the /research/status/:id endpoint so the UI gets live updates
+  // even when Supabase is unavailable or slow.
+  _runningMessages.set(projectId, message);
+
   try {
     const supabase = await getSupabase();
     if (!supabase) return;
@@ -394,8 +429,24 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     }
 
     if (!propertyResult) {
-      logger.warn('Stage1', `CAD lookup failed for ${input.address} in ${input.county} County — continuing to clerk search`);
-      await updateStatus(input.projectId, 'running', `Stage 1: CAD lookup failed — trying clerk records for ${input.address}…`);
+      if (searchDiagnostics?.siteUnreachable) {
+        const cadName = cadConfig?.name ?? `${input.county} CAD`;
+        const cadUrl  = cadConfig?.baseUrl ?? 'the county appraisal website';
+        logger.warn('Stage1', `⚠ ${cadName} (${cadUrl}) is UNREACHABLE — continuing research with alternative sources`);
+        logger.warn('Stage1', `  ↳ Alternatives: ${input.county} County Clerk records${kofile ? ` (${kofileBase})` : ''}, plat repository${platRepo ? ' (available)' : ' (none)'}, user-uploaded documents`);
+        if (searchDiagnostics.cadSiteError) {
+          logger.warn('Stage1', `  ↳ Error detail: ${searchDiagnostics.cadSiteError}`);
+        }
+        await updateStatus(input.projectId, 'running', `Stage 1: ${cadName} unreachable — trying clerk records & alternative sources for ${input.address}…`);
+      } else if (searchDiagnostics?.cadSiteError) {
+        const cadName = cadConfig?.name ?? `${input.county} CAD`;
+        logger.warn('Stage1', `⚠ ${cadName} reports a site error — continuing research with alternative sources`);
+        logger.warn('Stage1', `  ↳ ${searchDiagnostics.cadSiteError}`);
+        await updateStatus(input.projectId, 'running', `Stage 1: ${cadName} site error — trying clerk records for ${input.address}…`);
+      } else {
+        logger.warn('Stage1', `CAD lookup failed for ${input.address} in ${input.county} County — continuing to clerk search`);
+        await updateStatus(input.projectId, 'running', `Stage 1: CAD lookup failed — trying clerk records for ${input.address}…`);
+      }
       // Do NOT return early — fall through to Stage 2 so clerk search and AI
       // extraction can still run using input.ownerName or user-supplied files.
     } else {
@@ -403,11 +454,205 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     }
     logger.info('Stage1', `Stage 1 completed in ${Date.now() - stage1Start}ms`);
 
-    const stage2Start = Date.now();
-    await updateStatus(input.projectId, 'running', `Stage 2: Retrieving documents${propertyResult ? ` for ${propertyResult.ownerName}` : ''}…`, {
-      propertyId: propertyResult?.propertyId,
-      ownerName: propertyResult?.ownerName,
-    });
+    // ── Bell County Cascading Enrichment ──────────────────────────────────────
+    // For Bell County properties, run a multi-wave cascade that:
+    //   1. Builds a KnownIdentifiers state from whatever Stage 1 found
+    //   2. Follows deed history instrument numbers
+    //   3. Detects personal property and pivots to the land account
+    //   4. Finds related parcels owned by the same entity
+    //   5. Enriches the primary property with all discovered instrument numbers
+    //
+    // This runs ONLY for Bell County and is non-destructive — if the cascade
+    // fails entirely, the pipeline continues with the original Stage 1 result.
+    // All state is passed through the knownIds object for Stage 2 to consume.
+    let bellKnownIds: ReturnType<typeof createSearchState> | null = null;
+    let bellAllProperties: PropertyIdResult[] = [];
+    let isPlatted = false; // set during Bell County classification if applicable
+
+    if (input.county.toLowerCase() === 'bell') {
+      logger.info('Stage1-Bell', '═══ Bell County Cascade Enrichment ═══');
+      await updateStatus(input.projectId, 'running', `Stage 1: Bell County — building deed history & known identifiers…`);
+      try {
+        // Seed the cascade state with everything we know so far
+        const cascadeState = createSearchState({
+          address: input.address,
+          propertyId: input.propertyId ?? propertyResult?.propertyId ?? undefined,
+          ownerName: input.ownerName ?? propertyResult?.ownerName ?? undefined,
+          instrumentNumbers: propertyResult?.instrumentNumbers,
+        });
+
+        // Ingest the Stage 1 result (if any) to extract all embedded references
+        if (propertyResult) {
+          ingestCADResult(cascadeState, propertyResult, logger);
+        }
+        if (propertyResult?.deedHistory) {
+          ingestDeedHistory(cascadeState, propertyResult.deedHistory, logger);
+        }
+
+        logger.info('Stage1-Bell',
+          `After Stage1 ingest: ${summarizeSearchState(cascadeState)}`);
+
+        // Wave: personal property pivot — find land accounts if BP/P result returned
+        const firstTypeCode = (propertyResult?.propertyType ?? '').toUpperCase();
+        const resultIsBP = firstTypeCode === 'BP' || firstTypeCode === 'P' ||
+          /business personal property/i.test(propertyResult?.legalDescription ?? '');
+
+        if (resultIsBP && propertyResult) {
+          logger.info('Stage1-Bell',
+            `Personal property account (${propertyResult.propertyId}) — pivoting to land accounts`);
+          await updateStatus(input.projectId, 'running', `Stage 1: Bell County — personal property detected, finding land accounts…`);
+          const landAccounts = await pivotPersonalPropertyToLand(
+            propertyResult, cascadeState, logger,
+          );
+          if (landAccounts.length > 0) {
+            for (const r of landAccounts) {
+              ingestCADResult(cascadeState, r, logger);
+              bellAllProperties.push(r);
+            }
+            // Replace propertyResult with the best land account
+            const best = bellAllProperties[0];
+            if (best) {
+              propertyResult = best;
+              logger.info('Stage1-Bell',
+                `BP pivot: using land account ${best.propertyId} ` +
+                `owner="${best.ownerName}" type=${best.propertyType}`);
+            }
+          } else {
+            logger.warn('Stage1-Bell',
+              'BP pivot found no land accounts — continuing with personal property result');
+          }
+        }
+
+        // Wave: related parcel search — find other parcels owned by the same entity
+        // Only runs if we have a real property result (not BP/P)
+        const currentTypeCode = (propertyResult?.propertyType ?? '').toUpperCase();
+        const currentIsBP = currentTypeCode === 'BP' || currentTypeCode === 'P';
+        if (propertyResult && !currentIsBP && cascadeState.ownerNames.length > 0) {
+          await updateStatus(input.projectId, 'running',
+            `Stage 1: Bell County — finding related parcels for "${cascadeState.ownerNames[0]}"…`);
+          const related = await findRelatedBellProperties(
+            cascadeState, propertyResult.propertyId, logger,
+          );
+          for (const r of related) {
+            if (!bellAllProperties.find((p) => p.propertyId === r.propertyId)) {
+              ingestCADResult(cascadeState, r, logger);
+              bellAllProperties.push(r);
+            }
+          }
+          if (related.length > 0) {
+            logger.info('Stage1-Bell',
+              `Related parcel search: ${related.length} additional account(s) found for ` +
+              `"${cascadeState.ownerNames[0]}"`);
+          }
+        }
+
+        // Enrich the primary property result with ALL instrument numbers discovered
+        // across every account (primary + related + deed history).  Stage 2 uses these
+        // for the instrument-number search channel.
+        if (propertyResult && cascadeState.instrumentNumbers.length > 0) {
+          const existingInstrs = new Set(propertyResult.instrumentNumbers ?? []);
+          const newInstrs = cascadeState.instrumentNumbers.filter(
+            (n) => !existingInstrs.has(n),
+          );
+          if (newInstrs.length > 0) {
+            propertyResult = {
+              ...propertyResult,
+              instrumentNumbers: [
+                ...(propertyResult.instrumentNumbers ?? []),
+                ...newInstrs,
+              ],
+            };
+            logger.info('Stage1-Bell',
+              `Enriched primary with ${newInstrs.length} new instrument(s): ` +
+              `[${newInstrs.slice(0, 5).join(', ')}${newInstrs.length > 5 ? '…' : ''}]`);
+          }
+        }
+
+        // Store the cascade state for Stage 2 subdivision search
+        bellKnownIds = cascadeState;
+
+        logger.info('Stage1-Bell',
+          `Cascade complete: primary=${propertyResult?.propertyId ?? 'none'} ` +
+          `related=${bellAllProperties.length} ` +
+          `total_instruments=${cascadeState.instrumentNumbers.length} ` +
+          `subdivisions=${cascadeState.subdivisionNames.length}`);
+
+        // Log Bell County property classification for operators
+        if (propertyResult) {
+          const classification = classifyBellProperty(
+            propertyResult.propertyType,
+            propertyResult.legalDescription,
+            propertyResult.ownerName,
+          );
+          isPlatted = classification.isPlatted;
+          logger.info('Stage1-Bell',
+            `Classification: type=${classification.typeCode} ` +
+            `cat=${classification.landCategory} ` +
+            `isPlatted=${classification.isPlatted} ` +
+            `isRural=${classification.isRuralAcreage} ` +
+            `strategy="${classification.strategyRationale}"`);
+          if (classification.subdivisionName) {
+            logger.info('Stage1-Bell',
+              `  → Subdivision: "${classification.subdivisionName}"`);
+          }
+          if (classification.abstractSurveyName) {
+            logger.info('Stage1-Bell',
+              `  → Abstract Survey: "${classification.abstractSurveyName}"`);
+          }
+        }
+      } catch (cascadeErr) {
+        // Cascade failures are non-fatal — log and continue
+        const msg = cascadeErr instanceof Error ? cascadeErr.message : String(cascadeErr);
+        logger.warn('Stage1-Bell',
+          `Cascade enrichment error (non-fatal): ${msg} — continuing with Stage 1 result`);
+      }
+    }
+
+    // ── Detect personal property result (Type P / "BUSINESS PERSONAL PROPERTY") ──
+    // Bell CAD returns the business tenant's equipment record (Type P) when the
+    // address belongs to a commercial property. Real land records (Type R) may
+    // exist for the same address under a different owner name.
+    // Example: 3779 FM 436 → ID 498826 "STARR SURVEYING" Type P — the land is
+    //          owned by "ASH FAMILY TRUST" under IDs 524311-524316.
+    const isPersonalProperty = propertyResult && (
+      propertyResult.propertyType?.toUpperCase() === 'P' ||
+      /^BUSINESS\s+PERSONAL\s+PROPERTY/i.test(propertyResult.legalDescription ?? '') ||
+      /personal\s+property/i.test(propertyResult.propertyType ?? '')
+    );
+
+    // Preserve the Map ID from the Type P record before clearing it.
+    // Map ID is a geographic grid reference (e.g., "61B01") — it anchors the
+    // address to a physical map sheet. Owner search results with the same Map ID
+    // prefix are almost certainly the geographically adjacent real property.
+    const typePMapId: string | null = (isPersonalProperty && propertyResult?.mapId)
+      ? propertyResult.mapId
+      : null;
+
+    if (isPersonalProperty && propertyResult) {
+      const mapIdHint = typePMapId ? ` (Map ID ${typePMapId})` : '';
+      logger.warn('Stage1',
+        `⚠ Address matched PERSONAL PROPERTY record (ID ${propertyResult.propertyId}, ` +
+        `owner "${propertyResult.ownerName}")${mapIdHint} — this is a business equipment record, not land. ` +
+        `Switching to owner-name-based document search. ` +
+        `Tip: provide input.ownerName (e.g. the landlord name) for more precise results.`);
+      // Clear the personal property result so document search falls through to owner/clerk paths.
+      // The instrument numbers from a Type P record are not deed references for the land.
+      propertyResult = null;
+    }
+
+    // If we detected Type P and have an ownerName, try a second Bell CAD "By Owner"
+    // pass to find the real land record. searchBisCad already does this automatically
+    // when all address results are Type P (bis-cad.ts searchBisCadBrowserLayer), but
+    // only if ownerName is provided in options. Since stage 1 already called searchBisCad
+    // above, and we have propertyResult = null at this point, we don't need a second call
+    // here — the work was done inside searchBisCad if ownerName was provided. The 
+    // typePMapId is preserved for filtering in Path B2 below.
+
+    await updateStatus(
+      input.projectId, 'running',
+      `Stage 2: Retrieving documents${propertyResult ? ` for ${propertyResult.ownerName}` : input.ownerName ? ` for "${input.ownerName}"` : ''}…`,
+      { propertyId: propertyResult?.propertyId, ownerName: propertyResult?.ownerName ?? input.ownerName },
+    );
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 2: Document Retrieval
@@ -439,23 +684,17 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       const BATCH_SIZE = 3;
       const docsAdded: string[] = [];
       const instrErrors: string[] = [];
+      const instrBatch = allInstrumentNumbers.slice(0, 5);
 
-      for (let batch = 0; batch < instrToFetch.length; batch += BATCH_SIZE) {
-        const batchItems = instrToFetch.slice(batch, batch + BATCH_SIZE);
-        const batchResults = await Promise.allSettled(
-          batchItems.map(async (instrNum) => {
-            const expectedPages = /plat/i.test(legalDesc) ? 3 : 2;
-            const fetchStart = Date.now();
-            const pages = await fetchDocumentImages(input.county, instrNum, expectedPages, logger);
-            const fetchDuration = Date.now() - fetchStart;
-            logger.info('Stage2', `Fetched ${instrNum}: ${pages.length} pages in ${fetchDuration}ms`);
-            return { instrNum, pages };
-          }),
-        );
-
-        for (const result of batchResults) {
-          if (result.status === 'fulfilled' && result.value.pages.length > 0) {
-            const { instrNum, pages } = result.value;
+      for (let instrIdx = 0; instrIdx < instrBatch.length; instrIdx++) {
+        const instrNum = instrBatch[instrIdx];
+        await updateStatus(input.projectId, 'running',
+          `Stage 2: Fetching deed record ${instrIdx + 1}/${instrBatch.length} — instrument ${instrNum}…`);
+        // Use more expected pages for plats — large multi-lot plats can have 10+ pages
+        const expectedPages = /plat/i.test(legalDesc) ? 10 : 2;
+        try {
+          const pages = await fetchDocumentImages(instrNum, expectedPages, logger);
+          if (pages.length > 0) {
             const docResult: DocumentResult = {
               ref: {
                 instrumentNumber: instrNum,
@@ -493,29 +732,214 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     }
 
     // ── Path B: County plat repository (free direct-download PDFs) ───────
-    if (platRepo && legalDesc) {
-      const subdivisionName = extractSubdivisionName(legalDesc);
-      if (subdivisionName) {
-        try {
-          const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger);
-          if (platResult) {
-            logger.info('Stage2A', `Plat: "${platResult.name}" (${platResult.source})`);
-            documents.push({
-              ref: {
-                instrumentNumber: null, volume: null, page: null,
-                documentType: 'Plat (county repository)',
-                recordingDate: null, grantors: [], grantees: [],
-                source: platResult.source, url: platResult.url,
-              },
-              textContent: null, pages: [],
-              imageFormat: platResult.mimeType === 'image/png' ? 'png' : 'pdf',
-              imageBase64: platResult.base64,
-              pagesPdfUrl: platResult.url,
-              ocrText: null, extractedData: null,
-            });
+    // Primary: extract subdivision name from legal description.
+    // Enriched: when Bell County cascade found subdivision names, try all of them.
+    // Fallback: when CAD is unreachable, use owner name as subdivision hint
+    // (e.g. "ASH FAMILY TRUST" finds "ASH FAMILY TRUST 12.358 ACRE ADDITION").
+    if (platRepo) {
+      const subdivisionFromLegal = legalDesc ? extractSubdivisionName(legalDesc) : null;
+
+      // Build the full list of subdivision names to try:
+      //   1. From legal description (most precise)
+      //   2. From Bell County cascade enrichment (may include related-parcel names)
+      //   3. From owner name fallback (when CAD unreachable)
+      const subdivisionCandidates: string[] = [];
+      if (subdivisionFromLegal) subdivisionCandidates.push(subdivisionFromLegal);
+      if (bellKnownIds) {
+        for (const s of bellKnownIds.subdivisionNames) {
+          if (!subdivisionCandidates.includes(s)) subdivisionCandidates.push(s);
+        }
+      }
+      if (!propertyResult && input.ownerName) {
+        subdivisionCandidates.push(input.ownerName.trim());
+      }
+
+      if (subdivisionCandidates.length === 0) {
+        if (!legalDesc && !input.ownerName) {
+          logger.warn('Stage2A', 'Plat repo: no legal description or owner name — skipping plat search');
+        }
+      } else {
+        // Try each subdivision candidate until we find a plat (stop at first hit)
+        for (const subdivisionName of subdivisionCandidates) {
+          if (documents.some((d) => d.ref.documentType === 'Plat (county repository)')) break;
+          try {
+            logger.info('Stage2A', `Plat repo: searching for "${subdivisionName}"`);
+            const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger, anthropicApiKey);
+            if (platResult) {
+              logger.info('Stage2A', `Plat: "${platResult.name}" (${platResult.source})`);
+              documents.push({
+                ref: {
+                  instrumentNumber: null, volume: null, page: null,
+                  documentType: 'Plat (county repository)',
+                  recordingDate: null, grantors: [], grantees: [],
+                  source: platResult.source, url: platResult.url,
+                },
+                textContent: null, pages: [],
+                imageFormat: platResult.mimeType === 'image/png' ? 'png' : 'pdf',
+                imageBase64: platResult.base64,
+                pagesPdfUrl: platResult.url,
+                ocrText: null, extractedData: null,
+              });
+            }
+          } catch (platErr) {
+            logger.warn('Stage2A',
+              `Plat repo "${subdivisionName}": ` +
+              `${platErr instanceof Error ? platErr.message : String(platErr)}`);
           }
-        } catch (platErr) {
-          logger.warn('Stage2A', `Plat repo: ${platErr instanceof Error ? platErr.message : String(platErr)}`);
+        }
+      }
+    }
+
+    // ── Path B2: Bell County Clerk direct plat+deed search ───────────────
+    // Runs when:
+    //   (a) CAD was unreachable/errored, OR
+    //   (b) CAD returned only personal property (Type P) — owner name unknown
+    // Searches Bell County Clerk by owner/subdivision name using the proven
+    // quickSearch approach (8s SPA wait + response interceptor + signed URL download).
+    // Example: ownerName="ASH FAMILY TRUST" → plat 2023032044, deed 2010043440.
+    const ownerNameForPlatSearch = input.ownerName ?? propertyResult?.ownerName ?? null;
+    const cadWasUnreachable = !propertyResult && (
+      searchDiagnostics?.siteUnreachable || !!searchDiagnostics?.cadSiteError || isPersonalProperty
+    );
+
+    if (!instrumentSearchSucceeded && cadWasUnreachable && ownerNameForPlatSearch && kofile &&
+        input.county.toLowerCase() === 'bell') {
+      const mapHint = typePMapId ? ` (Type P Map ID: ${typePMapId})` : '';
+      logger.info('Stage2B',
+        `CAD unreachable/personal-property${mapHint} — searching Bell County Clerk directly for plat+deed: "${ownerNameForPlatSearch}"`);
+      await updateStatus(input.projectId, 'running',
+        `Stage 2: Searching Bell County Clerk for owner "${ownerNameForPlatSearch}"…`);
+      try {
+        const { platInstruments, deedInstruments } =
+          await searchBellClerkOwnerForPlatDeed(ownerNameForPlatSearch, logger);
+
+        // Retrieve page images for each instrument (plats get 3 expected pages)
+        const instrToFetch: Array<{ instrNum: string; docType: string }> = [
+          ...platInstruments.slice(0, 2).map(n => ({ instrNum: n, docType: 'Final Plat' })),
+          ...deedInstruments.slice(0, 3).map(n => ({ instrNum: n, docType: 'Warranty Deed' })),
+        ];
+
+        for (const { instrNum, docType } of instrToFetch) {
+          await updateStatus(input.projectId, 'running',
+            `Stage 2: Downloading ${docType} ${instrNum} for "${ownerNameForPlatSearch}"…`);
+          try {
+            const isPlat = /plat/i.test(docType);
+            // Use 20 as the upper bound for plats — large multi-lot plats can have
+            // many pages and the dynamic stopping in fetchDocumentImages will bail
+            // out early once no more pages are found.  Deeds rarely exceed 4 pages.
+            const pages = await fetchDocumentImages(instrNum, isPlat ? 20 : 4, logger);
+            if (pages.length > 0) {
+              const docResult: DocumentResult = {
+                ref: {
+                  instrumentNumber: instrNum,
+                  volume: null, page: null,
+                  documentType: docType,
+                  recordingDate: null, grantors: [], grantees: [],
+                  source: 'Bell County Clerk PublicSearch',
+                  url: `${kofileBase}/doc/${instrNum}/details`,
+                },
+                textContent: null, pages,
+                ocrText: null, extractedData: null,
+              };
+              documents.push(docResult);
+              instrumentSearchSucceeded = true;
+              bundleAndUploadPages(pages, input.projectId, instrNum, docType)
+                .then(url => { if (url) docResult.pagesPdfUrl = url; })
+                .catch(() => undefined);
+              logger.info('Stage2B', `Retrieved ${pages.length} page(s) for ${docType} ${instrNum}`);
+            }
+          } catch (imgErr) {
+            logger.warn('Stage2B',
+              `Could not get images for ${instrNum}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+          }
+        }
+      } catch (b2Err) {
+        logger.warn('Stage2B',
+          `Clerk plat+deed search failed: ${b2Err instanceof Error ? b2Err.message : String(b2Err)}`);
+      }
+    }
+
+    // ── Path B3: Bell County Clerk search by discovered subdivision/plat names ──
+    // Triggered for Bell County when Stage 1 or the cascade discovered subdivision
+    // names. This finds ALL historical records (deeds, plats, easements, right-of-way)
+    // for that subdivision — fulfilling the requirement that "if the research process
+    // captures the name of the plat of subdivision... it needs to search bell.tx.publicsearch.us".
+    if (kofile && input.county.toLowerCase() === 'bell') {
+      // Build list of subdivision names from legal description + cascade enrichment
+      const subdivisionNamesForClerk: string[] = [];
+      const subdivisionFromLegal = legalDesc ? extractSubdivisionName(legalDesc) : null;
+      if (subdivisionFromLegal) subdivisionNamesForClerk.push(subdivisionFromLegal);
+      if (bellKnownIds) {
+        for (const s of bellKnownIds.subdivisionNames) {
+          if (!subdivisionNamesForClerk.includes(s)) subdivisionNamesForClerk.push(s);
+        }
+      }
+
+      if (subdivisionNamesForClerk.length > 0) {
+        for (const subdivName of subdivisionNamesForClerk.slice(0, 3)) {
+          await updateStatus(input.projectId, 'running',
+            `Stage 2: Searching Bell County Clerk by subdivision "${subdivName}"…`);
+          try {
+            logger.info('Stage2C',
+              `Bell County Clerk search by subdivision name: "${subdivName}"`);
+            const { platInstruments, deedInstruments, allDocuments } =
+              await searchBellClerkOwnerForPlatDeed(subdivName, logger);
+
+            // Track which instruments we already have to avoid duplicates
+            const existingInstrNums = new Set(
+              documents.map((d) => d.ref.instrumentNumber).filter(Boolean),
+            );
+
+            const newInstrNums = [...platInstruments, ...deedInstruments].filter(
+              (n) => !existingInstrNums.has(n),
+            );
+
+            for (const instrNum of newInstrNums.slice(0, 5)) {
+              const isPlat = platInstruments.includes(instrNum);
+              const docType = isPlat ? 'Final Plat' : 'Warranty Deed';
+              await updateStatus(input.projectId, 'running',
+                `Stage 2: Downloading ${docType} ${instrNum} (${subdivName})…`);
+              try {
+                // Fetch more pages for plats (large plats may have many pages)
+                const expectedPgs = isPlat ? 10 : 2;
+                const pages = await fetchDocumentImages(instrNum, expectedPgs, logger);
+                if (pages.length > 0) {
+                  const docResult: DocumentResult = {
+                    ref: {
+                      instrumentNumber: instrNum,
+                      volume: null, page: null,
+                      documentType: docType,
+                      recordingDate: allDocuments.find((d) => d.instrumentNumber === instrNum)?.recordingDate ?? null,
+                      grantors: allDocuments.find((d) => d.instrumentNumber === instrNum)?.grantors ?? [],
+                      grantees: allDocuments.find((d) => d.instrumentNumber === instrNum)?.grantees ?? [],
+                      source: 'Bell County Clerk PublicSearch',
+                      url: `${kofileBase}/doc/${instrNum}/details`,
+                    },
+                    textContent: null, pages, ocrText: null, extractedData: null,
+                  };
+                  documents.push(docResult);
+                  instrumentSearchSucceeded = true;
+                  bundleAndUploadPages(pages, input.projectId, instrNum, docType)
+                    .then(url => { if (url) docResult.pagesPdfUrl = url; })
+                    .catch(() => undefined);
+                  logger.info('Stage2C',
+                    `Retrieved ${pages.length} page(s) for ${docType} ${instrNum} (${subdivName})`);
+                }
+              } catch (imgErr) {
+                logger.warn('Stage2C',
+                  `Could not get images for ${instrNum}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+              }
+            }
+
+            if (allDocuments.length > 0) {
+              logger.info('Stage2C',
+                `Subdivision "${subdivName}": ${allDocuments.length} total records ` +
+                `(${platInstruments.length} plat, ${deedInstruments.length} deed)`);
+            }
+          } catch (b3Err) {
+            logger.warn('Stage2C',
+              `Clerk subdivision search "${subdivName}" failed: ${b3Err instanceof Error ? b3Err.message : String(b3Err)}`);
+          }
         }
       }
     }
@@ -534,27 +958,12 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       if (ownerDocs.length > 0 && kofile) {
         let totalPages = 0;
         const imgErrors: string[] = [];
-        const docsToFetch = ownerDocs.slice(0, 10).filter(d => d.ref.instrumentNumber);
-        if (ownerDocs.length > 10) {
-          logger.warn('Stage2', `Owner search returned ${ownerDocs.length} docs — capping image fetch at 10`);
-        }
-
-        // Parallel fetch in batches of 3
-        const BATCH_SIZE = 3;
-        for (let batch = 0; batch < docsToFetch.length; batch += BATCH_SIZE) {
-          const batchItems = docsToFetch.slice(batch, batch + BATCH_SIZE);
-          const batchResults = await Promise.allSettled(
-            batchItems.map(async (doc) => {
-              const fetchStart = Date.now();
-              const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
-              logger.info('Stage2', `Fetched ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
-              return { doc, pages };
-            }),
-          );
-
-          for (const result of batchResults) {
-            if (result.status === 'fulfilled' && result.value.pages.length > 0) {
-              const { doc, pages } = result.value;
+        for (const doc of ownerDocs.slice(0, 5)) {
+          if (!doc.ref.instrumentNumber) continue;
+          try {
+            const isPlat = /plat/i.test(doc.ref.documentType);
+            const pages = await fetchDocumentImages(doc.ref.instrumentNumber, isPlat ? 10 : 2, logger);
+            if (pages.length > 0) {
               doc.pages = pages;
               totalPages += pages.length;
               bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
@@ -581,7 +990,15 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       }
       documents = [...documents, ...ownerDocs];
     } else if (!instrumentSearchSucceeded && !ownerForClerk) {
-      logger.warn('Stage2', 'No instruments and no owner name — document retrieval skipped');
+      // No owner name is available — clerk SPA search cannot proceed.
+      // Log with context so operators know what to provide to unblock research.
+      if (searchDiagnostics?.siteUnreachable) {
+        logger.warn('Stage2',
+          `CAD was unreachable and no owner name provided — clerk name search skipped. ` +
+          `Provide owner name via input.ownerName to enable clerk record search.`);
+      } else {
+        logger.warn('Stage2', 'No instruments and no owner name — document retrieval skipped');
+      }
     }
 
     // ── Path D: SUPERSEARCH fallback (full-text OCR search) ──────────────
@@ -724,21 +1141,83 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     const totalPages = documents.reduce((n, d) => n + (d.pages?.length ?? 0), 0);
     const docSummary = `${documents.length} doc(s)${totalPages > 0 ? `, ${totalPages} pages` : ''}`;
-    logger.info('Stage2', `Total: ${docSummary} (${Date.now() - stage2Start}ms)`);
-
-    const stage3Start = Date.now();
-    await updateStatus(input.projectId, 'running', `Stage 3: AI extraction — ${docSummary}…`);
+    logger.info('Stage2', `Total: ${docSummary}`);
+    await updateStatus(input.projectId, 'running',
+      `Stage 3: Running Claude AI on ${docSummary} — extracting boundaries, owners, legal descriptions…`);
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 3: AI Extraction
     // ═══════════════════════════════════════════════════════════════════
 
-    const { documents: processedDocs, boundary } = await extractDocuments(
+    const { documents: processedDocs, boundary: rawBoundary } = await extractDocuments(
       documents,
       propertyResult?.legalDescription ?? null,
       anthropicApiKey,
       logger,
     );
+
+    // ── Stage 3C: Plat-based extraction (platted subdivisions) ───────────────
+    // If the property is a platted subdivision AND all extractions returned only
+    // lot_and_block references (no metes-and-bounds calls), route to a
+    // plat-specific Vision extraction to get the actual lot boundary from the
+    // plat drawing.  This covers cases where deeds reference "Lot 24 Block 8"
+    // but the geometry lives in the recorded plat image, not the deed text.
+    let boundary = rawBoundary;
+    const needsPlatExtraction = isPlatted && (
+      boundary === null ||
+      (boundary.type === 'lot_and_block' && boundary.calls.length === 0)
+    );
+
+    if (needsPlatExtraction) {
+      // Find the lot/block from the best extraction we have
+      const lotBlockSource = rawBoundary?.lotBlock
+        ?? processedDocs
+             .map(d => d.extractedData?.lotBlock)
+             .find(lb => lb?.lot && lb.block);
+
+      if (lotBlockSource?.lot && lotBlockSource.block) {
+        const lot          = lotBlockSource.lot;
+        const block        = lotBlockSource.block;
+        // Prefer the subdivision name from the extracted lot/block; fall back to the first
+        // segment of the CAD legal description (strips ", Lot N Block M …" trailing detail).
+        const subdivision  = lotBlockSource.subdivision || propertyResult?.legalDescription?.replace(/,.*$/, '').trim() || 'Unknown Subdivision';
+
+        logger.info('Stage3', `All documents are lot_and_block (0 boundary calls) — property is platted`);
+        logger.info('Stage3', `Routing to plat-based extraction for Lot ${lot}, Block ${block} from plat document`);
+
+        // Find plat document: prefer 'Final Plat', 'Plat', or any doc whose type includes 'plat'
+        const platDocForExtraction = processedDocs.find(d =>
+          (d.imageBase64 || (d.pageScreenshots && d.pageScreenshots.length > 0)) &&
+          /plat/i.test(d.ref.documentType)
+        ) ?? processedDocs.find(d =>
+          d.imageBase64 || (d.pageScreenshots && d.pageScreenshots.length > 0)
+        );
+
+        if (platDocForExtraction) {
+          logger.info('Stage3-Plat', `Sending plat image to Claude Vision with lot-specific prompt…`);
+          try {
+            const platBoundary = await extractPlatBoundary(
+              platDocForExtraction,
+              lot,
+              block,
+              subdivision,
+              anthropicApiKey,
+              logger,
+            );
+            if (platBoundary && platBoundary.calls.length > 0) {
+              boundary = platBoundary;
+              logger.info('Stage3-Plat', `Extracted ${boundary.calls.length} boundary calls from plat for Lot ${lot}, Block ${block} (confidence: ${boundary.confidence})`);
+            } else {
+              logger.warn('Stage3-Plat', `Plat extraction returned no boundary calls — falling back to lot_and_block result`);
+            }
+          } catch (platErr) {
+            logger.warn('Stage3-Plat', `Plat extraction failed (non-fatal): ${platErr instanceof Error ? platErr.message : String(platErr)}`);
+          }
+        } else {
+          logger.warn('Stage3', `No plat document with image available — cannot attempt plat-based extraction`);
+        }
+      }
+    }
 
     const boundaryNote = boundary
       ? `${boundary.type}, ${boundary.calls.length} calls`
@@ -755,34 +1234,96 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     logger.info('Stage3.5', '═══ STAGE 3.5: Geometric Reconciliation ═══');
 
-    // Find the best plat image document (prefer plats, then surveys, then any image)
-    const platDoc = processedDocs.find(d =>
-      d.imageBase64 && d.imageFormat &&
+    // Resolve the best plat image for geo-reconcile.  Priority order:
+    //   1. imageBase64 + imageFormat (not PDF/TIFF) — legacy single-image path
+    //   2. pages[0] (DocumentPage array, captured via signed-URL interception)
+    //   3. pageScreenshots[0] (PageScreenshot array, legacy browser capture)
+    // This handles Bell County documents which use the pages[] path from
+    // fetchDocumentImages / captureAllDocumentPages.
+
+    type PlatImageCandidate = { base64: string; mediaType: 'image/png' | 'image/jpeg'; label: string };
+
+    function resolvePlatImage(doc: (typeof processedDocs)[number]): PlatImageCandidate | null {
+      // Path 1: single imageBase64 field (not PDF/TIFF)
+      if (doc.imageBase64 && doc.imageFormat &&
+          doc.imageFormat !== 'pdf' && doc.imageFormat !== 'tiff') {
+        return {
+          base64: doc.imageBase64,
+          mediaType: doc.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png',
+          label: doc.ref.instrumentNumber ?? doc.ref.documentType,
+        };
+      }
+      // Path 2: DocumentPage array (Kofile signed-URL capture)
+      if (doc.pages && doc.pages.length > 0) {
+        const p = doc.pages[0];
+        if (p.imageFormat !== 'tiff') {
+          return {
+            base64: p.imageBase64,
+            mediaType: p.imageFormat === 'jpg' ? 'image/jpeg' : 'image/png',
+            label: `${doc.ref.instrumentNumber ?? doc.ref.documentType}-p${p.pageNumber}`,
+          };
+        }
+      }
+      // Path 3: PageScreenshot array (legacy browser capture)
+      if (doc.pageScreenshots && doc.pageScreenshots.length > 0) {
+        return {
+          base64: doc.pageScreenshots[0].imageBase64,
+          mediaType: 'image/png',
+          label: `${doc.ref.instrumentNumber ?? doc.ref.documentType}-p${doc.pageScreenshots[0].pageNumber}`,
+        };
+      }
+      return null;
+    }
+
+    // Find the best plat document: prefer plats/surveys, then any document with an image
+    const platDocForReconcile = processedDocs.find(d =>
+      resolvePlatImage(d) !== null &&
       (d.ref.documentType.toLowerCase().includes('plat') ||
        d.ref.documentType.toLowerCase().includes('survey'))
-    ) ?? processedDocs.find(d => d.imageBase64 && d.imageFormat);
+    ) ?? processedDocs.find(d => resolvePlatImage(d) !== null);
 
     let reconciliation: import('../types/index.js').PipelineResult['reconciliation'] = undefined;
 
-    if (platDoc?.imageBase64 && platDoc.imageFormat) {
-      const mediaType = (
-        platDoc.imageFormat === 'jpg' ? 'image/jpeg' :
-        platDoc.imageFormat === 'pdf' ? 'image/png'  : // PDFs are pre-rasterised to PNG by bundler
-        'image/png'
-      ) as 'image/png' | 'image/jpeg';
+    const platImage = platDocForReconcile ? resolvePlatImage(platDocForReconcile) : null;
+
+    if (platImage) {
+      // PDFs and TIFFs are handled by the Claude 'document' source type in Stage 3.
+      // runGeoReconcile only accepts rasterised images (image/png | image/jpeg).
+      // Pass the subdivision name extracted from the legal description so that
+      // geo-reconcile.js-style prompts can reference the exact plat by name.
+      const subdivNameForReconcile = legalDesc ? extractSubdivisionName(legalDesc) : undefined;
       try {
         reconciliation = await runGeoReconcile(
           boundary,
-          platDoc.imageBase64,
-          mediaType,
+          platImage.base64,
+          platImage.mediaType,
           anthropicApiKey,
           logger,
-          platDoc.ref.instrumentNumber ?? platDoc.ref.documentType,
+          platImage.label,
+          subdivNameForReconcile ?? undefined,
         );
         logger.info('Stage3.5',
           `Reconciliation: ${reconciliation.agreementCount} confirmed, ` +
           `${reconciliation.conflictCount} conflicts, ` +
           `${reconciliation.overallAgreementPct}% agreement`);
+        if (reconciliation.confidenceSummary) {
+          const cs = reconciliation.confidenceSummary;
+          logger.info('Stage3.5',
+            `Confidence summary: HIGH=${cs.high} MEDIUM=${cs.medium} LOW=${cs.low} ` +
+            `[ESTIMATED]=${cs.estimated} [DEDUCED]=${cs.deduced} [VERIFY]=${cs.verify} [MISSING]=${cs.missing}`);
+          const totalRated = cs.high + cs.medium + cs.low;
+          if (totalRated > 0) {
+            const highRatePct = Math.round((cs.high / totalRated) * 100);
+            logger.info('Stage3.5',
+              `High-confidence rate: ${highRatePct}% of ${totalRated} rated calls`);
+          }
+        }
+        if (reconciliation.multiCropAnalysis) {
+          logger.info('Stage3.5',
+            `Multi-crop analysis: ${reconciliation.multiCropAnalysis.apiCallCount} API calls ` +
+            `(overview=${reconciliation.multiCropAnalysis.overviewText.split('\n').length}L, ` +
+            `geometry=${reconciliation.multiCropAnalysis.geometryText.split('\n').length}L)`);
+        }
       } catch (err) {
         logger.warn('Stage3.5', `Geometric reconciliation failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -799,6 +1340,48 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     logger.info('Stage4', '═══ STAGE 4: Validation ═══');
     const validation = validateBoundary(boundary, propertyResult?.acreage ?? null, logger);
     logger.info('Stage4', `Quality: ${validation.overallQuality}, Flags: ${validation.flags.length}`);
+
+    // ═══════════════════════════════════════════════════════════════════
+    // STAGE 5: Property Validation Pipeline (Calls 5-7)
+    // Text synthesis, cross-validation, and final discrepancy/confidence
+    // report.  Non-fatal — if it fails the rest of the result is still
+    // returned.  Only runs when the pipeline has an Anthropic API key.
+    // ═══════════════════════════════════════════════════════════════════
+
+    await updateStatus(input.projectId, 'running', 'Stage 5: Synthesis & cross-validation…');
+
+    logger.info('Stage5', '═══ STAGE 5: Property Validation Pipeline (Calls 5-7) ═══');
+
+    let validationReport: import('../types/index.js').PipelineResult['validationReport'];
+
+    // Collect raw OCR text from all processed documents to give Stage 5 the
+    // multi-pass unstructured output alongside the structured boundary calls.
+    const rawOcrTexts = processedDocs
+      .map(d => d.ocrText ?? null)
+      .filter((t): t is string => t !== null && t.length > 0);
+
+    try {
+      validationReport = await runPropertyValidationPipeline(
+        boundary,
+        validation,
+        reconciliation ?? null,
+        {
+          ownerName:        propertyResult?.ownerName ?? null,
+          acreage:          propertyResult?.acreage ?? null,
+          legalDescription: propertyResult?.legalDescription ?? null,
+          county:           input.county,
+        },
+        anthropicApiKey,
+        logger,
+        rawOcrTexts.length > 0 ? rawOcrTexts : undefined,
+      );
+      logger.info('Stage5',
+        `Validation report: ${validationReport.overallConfidencePct}% overall confidence ` +
+        `(${validationReport.overallRating.display} ${validationReport.overallRating.label}), ` +
+        `${validationReport.discrepancies.length} discrepancies`);
+    } catch (err) {
+      logger.warn('Stage5', `Property validation pipeline failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     // Final Result
@@ -819,9 +1402,22 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const duration_ms = Date.now() - startTime;
     logger.info('Pipeline', `Pipeline ${status.toUpperCase()} in ${(duration_ms / 1000).toFixed(1)}s`);
 
-    // Build human-readable failure reason for the frontend when the pipeline fails.
+    // Build human-readable failure/warning reason for the frontend.
+    // Shown for 'failed' status always; also surfaced for 'partial' when the CAD
+    // was unreachable so operators know to retry once the site is back up.
     let failureReason: string | undefined;
-    if (status === 'failed') {
+    if (searchDiagnostics?.siteUnreachable) {
+      const cadName = cadConfig?.name ?? `${input.county} CAD`;
+      const cadUrl  = cadConfig?.baseUrl ?? 'the county appraisal website';
+      const altSources: string[] = [];
+      if (kofile) altSources.push(`${input.county} County Clerk (${kofileBase})`);
+      if (platRepo) altSources.push('county plat repository');
+      const altNote = altSources.length > 0
+        ? ` Research continued using: ${altSources.join(', ')}.`
+        : '';
+      failureReason = `${cadName} (${cadUrl}) was unreachable during this search.${altNote} ` +
+        `Please verify the site is operational and retry for complete results.`;
+    } else if (status === 'failed') {
       if (searchDiagnostics?.cadSiteError) {
         const cadName = cadConfig?.name ?? `${input.county} CAD`;
         const cadUrl  = cadConfig?.baseUrl ?? 'the county appraisal website';
@@ -848,6 +1444,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       boundary,
       validation,
       reconciliation,
+      validationReport,
       log: logger.getAttempts(),
       duration_ms,
       searchDiagnostics,
@@ -861,6 +1458,9 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       duration_ms,
     });
 
+    // Clear the in-memory cache — pipeline has finished.
+    clearRunningMessage(input.projectId);
+
     return result;
 
   } catch (err) {
@@ -870,6 +1470,10 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     logger.error('Pipeline', `CRASH: ${errMsg}`, err);
 
     await updateStatus(input.projectId, 'failed', `Pipeline crashed: ${errMsg}`);
+
+    // Clear the in-memory cache even on crash so the status endpoint doesn't
+    // keep serving a stale "running" message after the pipeline has gone away.
+    clearRunningMessage(input.projectId);
 
     const result = emptyResult();
     result.log = logger.getAttempts(); // Preserve all diagnostic logs

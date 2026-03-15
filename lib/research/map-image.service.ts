@@ -13,7 +13,7 @@
 //   Satellite: basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/export
 //   Topo:      basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/export
 
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 import type { DocumentType } from '@/types/research';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -249,8 +249,9 @@ async function storeImageAsDocument(
 
   try {
     // Upload to Supabase Storage
+    await ensureStorageBucket();
     const { error: uploadError } = await supabaseAdmin.storage
-      .from('research-documents')
+      .from(RESEARCH_DOCUMENTS_BUCKET)
       .upload(storagePath, imageBuffer, {
         contentType: 'image/png',
         upsert: false,
@@ -263,7 +264,7 @@ async function storeImageAsDocument(
 
     // Get public URL
     const { data: urlData } = supabaseAdmin.storage
-      .from('research-documents')
+      .from(RESEARCH_DOCUMENTS_BUCKET)
       .getPublicUrl(storagePath);
 
     const storageUrl = urlData?.publicUrl || null;

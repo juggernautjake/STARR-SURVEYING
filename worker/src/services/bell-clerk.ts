@@ -1874,9 +1874,21 @@ export async function searchClerkRecords(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Search Kofile SUPERSEARCH (full-text OCR) for documents matching a query.
- * This searches inside the scanned document text, not just indexed metadata.
- * Useful when owner-name search fails but we know the legal description.
+ * Tyler PublicSearch SPA render time.
+ * Validated in March 3-4, 2026 Ash Family Trust session:
+ *   - 8s after navigation for result rows to appear
+ *   - 8s after clicking a result row for the Kofile viewer to fire the signed image URL
+ *   - 5s after clicking "Next Page" for the new page image to load
+ * If this proves insufficient on slow connections, increase to 10s rather than polling.
+ * Exported for testability and to document the proven grab-docs.js timings.
+ */
+export const TYLER_SPA_RENDER_TIMEOUT_MS  = 8_000;
+export const TYLER_VIEWER_LOAD_TIMEOUT_MS = 8_000;
+export const TYLER_NEXT_PAGE_TIMEOUT_MS   = 5_000;
+
+/**
+ * Search Bell County clerk records by owner name.
+ * Uses direct URL parameters rather than form interaction.
  */
 export async function searchSuperSearch(
   county: string,
@@ -2554,7 +2566,15 @@ export async function searchClerkForPlats(
  * Navigates directly to the document detail page (/doc/{id}/details) rather
  * than the old search-then-click approach (saves ~16 seconds per document).
  *
- * Works for any county with a Kofile/Tyler PublicSearch configuration.
+ * Dynamic stopping: pagination stops as soon as no new signed URL is intercepted
+ * after a page navigation (or the URL-construction fallback also fails), even if
+ * fewer than `expectedPages` pages were retrieved. This mirrors the grab-docs.js
+ * production workflow proven on the 3779 FM 436 / Ash Family Trust session.
+ *
+ * @param instrumentNumber  Kofile/Tyler instrument number to fetch
+ * @param expectedPages     Upper bound on pages to fetch (hard cap = min(expectedPages, 20)).
+ *                          Pass a large value (e.g. 20) for plats with unknown page count.
+ * @param logger  Pipeline logger
  */
 export async function fetchDocumentImages(
   county: string,
@@ -2581,14 +2601,19 @@ export async function fetchDocumentImages(
     });
     const page = await context.newPage();
 
-    // Intercept signed image URLs from the Kofile viewer
+    // Intercept signed image URLs from the Kofile viewer.
+    // Deduplicate by URL — the Kofile viewer sometimes fires the same signed URL
+    // twice (thumbnail preloads, XHR retries), which would corrupt the per-page
+    // imageUrls[pageNum - 1] indexing. Matches the grab-docs.js deduplication:
+    //   if (!imageUrls.includes(u)) imageUrls.push(u);
     const imageUrls: string[] = [];
     page.on('response', (res) => {
       const url = res.url();
       // Match Kofile signed document image URLs (PNG, JPG, TIFF)
       if (
         (url.includes('/files/documents/') || url.includes('/documents/files/')) &&
-        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
+        /\.(png|jpe?g|tiff?)(\?|$)/i.test(url) &&
+        !imageUrls.includes(url)
       ) {
         imageUrls.push(url);
         console.log(`[DOC-IMG] Captured: ${url.substring(0, 100)}...`);
@@ -2614,15 +2639,20 @@ export async function fetchDocumentImages(
 
     console.log(`[DOC-IMG] After viewer load: ${imageUrls.length} URLs captured`);
 
-    // Fallback: if direct viewer didn't capture images, try search+click (legacy approach)
+    // Fallback: if direct viewer didn't capture images, try the proven search+click
+    // approach. Per transcripts (Ash Trust, March 4, 2026): 8s after navigation for
+    // the Tyler SPA to render results, then 8s after clicking a result row for the
+    // Kofile document viewer to fire the signed image URL.
     if (imageUrls.length === 0) {
-      console.log('[DOC-IMG] Direct viewer captured no images — falling back to search+click');
-      const searchUrl = `${baseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-      await page.waitForTimeout(5_000);
+      console.log('[BELL-IMG] Direct viewer captured no images — falling back to search+click');
+      const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+      // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
+      await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
       try {
         await page.locator('tbody tr').first().click();
-        await page.waitForTimeout(6_000);
+        // Kofile viewer needs TYLER_VIEWER_LOAD_TIMEOUT_MS to fire the signed image URL.
+        await page.waitForTimeout(TYLER_VIEWER_LOAD_TIMEOUT_MS);
       } catch (e: any) {
         console.log('[DOC-IMG] Search+click fallback: could not click result:', e.message);
       }
@@ -2658,13 +2688,21 @@ export async function fetchDocumentImages(
       return false;
     };
 
-    // Download page 1
+    // Download page 1 — use imageUrls[0] (the first intercepted URL).
+    // The Kofile viewer fires page 1's signed URL first when loading the document;
+    // using the last captured URL risks picking a pre-loaded later page if the viewer
+    // loads multiple images at once. This matches the proven grab-docs.js approach.
     if (imageUrls.length > 0) {
-      await downloadPage(imageUrls[imageUrls.length - 1], 1);
+      await downloadPage(imageUrls[0], 1);  // first intercepted URL = page 1 (viewer fires page 1 first)
     }
 
-    // Navigate to subsequent pages using the next-page button
-    for (let pageNum = 2; pageNum <= Math.min(expectedPages, 10); pageNum++) {
+    // Navigate to subsequent pages using the next-page button.
+    // Uses dynamic stopping (like grab-docs.js): stop when no next-page button
+    // is found OR when no new signed URL is intercepted after navigation AND the
+    // URL-construction fallback also fails — whichever comes first.
+    // The expectedPages cap (max 20) is the absolute upper bound for safety.
+    const maxPages = Math.min(expectedPages, 20);
+    for (let pageNum = 2; pageNum <= maxPages; pageNum++) {
       const urlCountBefore = imageUrls.length;
 
       const nextSelectors = [
@@ -2683,23 +2721,35 @@ export async function fetchDocumentImages(
       }
 
       if (!clicked) {
-        console.log(`[DOC-IMG] No next-page button for page ${pageNum}`);
+        console.log(`[BELL-IMG] No next-page button for page ${pageNum} — done`);
         break;
       }
 
-      await page.waitForTimeout(5_000);
+      await page.waitForTimeout(TYLER_NEXT_PAGE_TIMEOUT_MS);
 
       if (imageUrls.length > urlCountBefore) {
+        // A new signed URL was intercepted — this is the confirmed image for this page
         await downloadPage(imageUrls[imageUrls.length - 1], pageNum);
       } else if (imageUrls.length > 0) {
-        // Construct URL for this page by replacing the page number in the seed URL
-        // Handles both _1.png and _1.jpg patterns
+        // No new URL intercepted — try constructing the URL from the page-1 seed.
+        // Handles cases where viewer reuses auth tokens and only the page number changes.
         const seedUrl = imageUrls[0];
         const constructedUrl = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_${pageNum}.$1`);
         if (constructedUrl !== seedUrl) {
           const ok = await downloadPage(constructedUrl, pageNum);
-          if (!ok) console.log(`[DOC-IMG] Page ${pageNum} constructed URL failed`);
+          if (!ok) {
+            // Construction failed — no more pages available
+            console.log(`[BELL-IMG] No new image URL for page ${pageNum} — stopping`);
+            break;
+          }
+        } else {
+          // Cannot construct a different URL — stop
+          console.log(`[BELL-IMG] No new image URL for page ${pageNum} — stopping`);
+          break;
         }
+      } else {
+        // No URLs captured at all — stop
+        break;
       }
     }
 
@@ -2721,8 +2771,112 @@ export async function fetchDocumentImages(
 }
 
 /**
- * Save page images to disk (for debugging / archival).
+ * Search Bell County Clerk for plat AND deed records by owner/subdivision name.
+ *
+ * Uses the proven quickSearch URL pattern with proper 8-second SPA wait timings
+ * (reconstructed from Ash Family Trust session, March 3-4, 2026).
+ *
+ * Returns instrument numbers categorised as 'plat' or 'deed', ready for
+ * fetchDocumentImages. Also returns all raw DocumentRef records for further use.
+ *
+ * Typical result for "ASH FAMILY TRUST":
+ *   platInstruments:  ['2023032044']   (Final Plat)
+ *   deedInstruments:  ['2010043440']   (Warranty Deed)
  */
+export async function searchBellClerkOwnerForPlatDeed(
+  ownerOrSubdivisionName: string,
+  logger: PipelineLogger,
+): Promise<{
+  platInstruments: string[];
+  deedInstruments: string[];
+  allDocuments: DocumentRef[];
+}> {
+  let browser: import('playwright').Browser | null = null;
+  const attempt = logger.attempt(
+    '2B-PLAT', BELL_CLERK_BASE, 'PLAYWRIGHT_PLAT_DEED', ownerOrSubdivisionName,
+  );
+
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      viewport: { width: 1280, height: 900 },
+    });
+    const page = await context.newPage();
+
+    // Navigate to quickSearch results (department=RP = Real Property).
+    // Per proven timing: Tyler PublicSearch SPA needs 8 full seconds to render
+    // result rows after domcontentloaded fires.
+    const searchUrl =
+      `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch` +
+      `&searchValue=${encodeURIComponent(ownerOrSubdivisionName)}`;
+
+    console.log(`[BELL-PLAT] Searching: ${searchUrl}`);
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
+    await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
+
+    // Accept any disclaimer dialogs
+    try {
+      const btn = await page.$(
+        'button:has-text("Accept"), button:has-text("OK"), button:has-text("I Agree")',
+      );
+      if (btn) { await btn.click(); await page.waitForTimeout(1_000); }
+    } catch { /* no dialog */ }
+
+    const allDocuments = await _extractSearchResults(page);
+    console.log(`[BELL-PLAT] Found ${allDocuments.length} documents for "${ownerOrSubdivisionName}"`);
+
+    // Categorise instruments: plat documents vs deed documents
+    const platInstruments: string[] = [];
+    const deedInstruments: string[] = [];
+
+    for (const doc of allDocuments) {
+      if (!doc.instrumentNumber) continue;
+      const dt = (doc.documentType ?? '').toLowerCase();
+      if (/\bplat\b/.test(dt) || dt.includes('final plat') || dt.includes('amended plat')) {
+        platInstruments.push(doc.instrumentNumber);
+      } else if (
+        /\b(warranty deed|deed|conveyance|transfer|grant)\b/.test(dt) &&
+        !dt.includes('deed of trust')
+      ) {
+        deedInstruments.push(doc.instrumentNumber);
+      }
+    }
+
+    await browser.close();
+
+    logger.info(
+      'Stage2B',
+      `"${ownerOrSubdivisionName}": ${allDocuments.length} docs — ` +
+      `plats: [${platInstruments.join(', ') || 'none'}], ` +
+      `deeds: [${deedInstruments.join(', ') || 'none'}]`,
+    );
+
+    if (allDocuments.length > 0) {
+      attempt.success(
+        allDocuments.length,
+        `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s)`,
+      );
+    } else {
+      attempt.fail('No plat or deed records found');
+    }
+
+    return { platInstruments, deedInstruments, allDocuments };
+  } catch (err: any) {
+    console.error('[BELL-PLAT] Search failed:', err.message);
+    if (browser) await browser.close().catch(() => {});
+    attempt.fail(err.message);
+    return { platInstruments: [], deedInstruments: [], allDocuments: [] };
+  }
+}
+
+
 export function savePageImages(
   pages: DocumentPage[],
   outputDir: string,

@@ -1,7 +1,7 @@
 // app/admin/research/components/DocumentUploadPanel.tsx
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ResearchDocument, DocumentType } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
 
@@ -12,12 +12,17 @@ interface DocumentUploadPanelProps {
 }
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
-const ACCEPTED_EXTENSIONS = new Set(['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.docx', '.txt', '.webp']);
+const ACCEPTED_EXTENSIONS = new Set([
+  '.pdf',
+  '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.gif', '.heic', '.heif',
+  '.docx', '.txt', '.rtf',
+]);
 const ACCEPTED_MIME_TYPES = new Set([
   'application/pdf',
-  'image/png', 'image/jpeg', 'image/tiff', 'image/webp',
+  'image/png', 'image/jpeg', 'image/tiff', 'image/webp', 'image/bmp', 'image/gif',
+  'image/heic', 'image/heif',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
+  'text/plain', 'text/rtf', 'application/rtf',
 ]);
 
 const PROCESSING_STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -80,6 +85,25 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
   const [manualError, setManualError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Collapsible document list state
+  const [docsOpen, setDocsOpen] = useState(true);
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
+
+  // Document viewer state
+  const [viewingDoc, setViewingDoc] = useState<ResearchDocument | null>(null);
+
+  // Keep selectedDocs in sync when documents change (e.g. external deletion)
+  useEffect(() => {
+    const docIds = new Set(documents.map(d => d.id));
+    setSelectedDocs(prev => {
+      const filtered = new Set([...prev].filter(id => docIds.has(id)));
+      return filtered.size === prev.size ? prev : filtered;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documents]);
+
+  const activeSelected = selectedDocs;
+
   async function handleFileUpload(files: FileList | File[]) {
     if (!files.length || uploading) return;
 
@@ -94,24 +118,100 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
 
     setUploading(true);
 
-    const formData = new FormData();
+    // Upload each file directly to Supabase Storage via a signed URL to avoid
+    // the 413 "Payload Too Large" error caused by routing large files through
+    // the Next.js API route body parser.
+    //
+    // Three-step flow per file:
+    //   1. POST /documents/upload-url — validate, create DB record, get signed URL
+    //   2. PUT  <signedUrl>            — upload file bytes directly to Supabase
+    //   3. PATCH /documents?action=confirm_upload — trigger background processing
+    const uploadErrors: string[] = [];
+    let anySuccess = false;
+
     for (const file of valid) {
-      formData.append('file', file);
+      // ── Step 1: Request a signed upload URL ──────────────────────────────
+      let docId: string | null = null;
+      let signedUrl: string | null = null;
+      let storagePath: string | null = null;
+      const contentType = file.type || 'application/octet-stream';
+
+      try {
+        const urlRes = await fetch(`/api/admin/research/${projectId}/documents/upload-url`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: file.name,
+            fileSize: file.size,
+            fileType: file.type,
+          }),
+        });
+
+        const urlData = await urlRes.json().catch(() => ({ error: 'Invalid server response' }));
+
+        if (!urlRes.ok) {
+          uploadErrors.push(`"${file.name}": ${urlData.error ?? 'Failed to initialize upload'}`);
+          continue;
+        }
+
+        // Duplicate file — already present in the project
+        if (urlData.document && !urlData.signedUrl) {
+          anySuccess = true;
+          continue;
+        }
+
+        docId = urlData.docId as string;
+        signedUrl = urlData.signedUrl as string;
+        storagePath = urlData.storagePath as string;
+      } catch {
+        uploadErrors.push(`"${file.name}": Failed to initialize upload. Check your connection.`);
+        continue;
+      }
+
+      // ── Step 2: Upload file bytes directly to Supabase ───────────────────
+      try {
+        const putRes = await fetch(signedUrl!, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': contentType },
+        });
+
+        if (!putRes.ok) {
+          // Remove the orphaned DB record
+          await fetch(`/api/admin/research/${projectId}/documents?id=${docId}`, { method: 'DELETE' }).catch(() => {});
+          uploadErrors.push(`"${file.name}": File upload failed (${putRes.status}). Please try again.`);
+          continue;
+        }
+      } catch {
+        // Remove the orphaned DB record
+        await fetch(`/api/admin/research/${projectId}/documents?id=${docId}`, { method: 'DELETE' }).catch(() => {});
+        uploadErrors.push(`"${file.name}": File upload failed. Check your connection.`);
+        continue;
+      }
+
+      // ── Step 3: Confirm the upload and trigger background processing ─────
+      try {
+        await fetch(
+          `/api/admin/research/${projectId}/documents?id=${docId}&action=confirm_upload`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ storagePath }),
+          },
+        );
+      } catch {
+        // Non-fatal — the document exists with processing_status='pending'.
+        // The user can trigger reprocessing via the Retry button if needed.
+      }
+
+      anySuccess = true;
     }
 
-    try {
-      const res = await fetch(`/api/admin/research/${projectId}/documents`, {
-        method: 'POST',
-        body: formData,
-      });
-      if (res.ok) {
-        onDocumentsChanged();
-      } else {
-        const err = await res.json().catch(() => ({ error: 'Upload failed' }));
-        setUploadError(err.error || 'Upload failed. Please try again.');
-      }
-    } catch {
-      setUploadError('Upload failed. Check your internet connection and try again.');
+    if (uploadErrors.length > 0) {
+      setUploadError(uploadErrors.join('\n'));
+    }
+    if (anySuccess) {
+      onDocumentsChanged();
     }
 
     setUploading(false);
@@ -179,11 +279,54 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
       if (!res.ok) {
         setUploadError('Failed to delete document. Please try again.');
       } else {
+        setSelectedDocs(prev => { const next = new Set(prev); next.delete(docId); return next; });
         onDocumentsChanged();
       }
     } catch {
       setUploadError('Failed to delete document. Check your connection and try again.');
     }
+  }
+
+  function toggleDocSelection(docId: string) {
+    setSelectedDocs(prev => {
+      const next = new Set(prev);
+      if (next.has(docId)) next.delete(docId);
+      else next.add(docId);
+      return next;
+    });
+  }
+
+  function selectAllDocs() {
+    setSelectedDocs(new Set(documents.map(d => d.id)));
+  }
+
+  function deselectAllDocs() {
+    setSelectedDocs(new Set());
+  }
+
+  async function handleBulkDelete() {
+    if (activeSelected.size === 0) return;
+    const count = activeSelected.size;
+    if (!confirm(`Remove ${count} document${count !== 1 ? 's' : ''} from the project?\n\nNote: any data points previously extracted from these documents will remain until you re-run the analysis.`)) return;
+    const ids = [...activeSelected];
+    setSelectedDocs(new Set());
+    const failed: string[] = [];
+    for (const docId of ids) {
+      try {
+        const res = await fetch(`/api/admin/research/${projectId}/documents?id=${docId}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const doc = documents.find(d => d.id === docId);
+          failed.push(doc?.document_label || doc?.original_filename || docId);
+        }
+      } catch {
+        const doc = documents.find(d => d.id === docId);
+        failed.push(doc?.document_label || doc?.original_filename || docId);
+      }
+    }
+    if (failed.length > 0) {
+      setUploadError(`Failed to remove ${failed.length} document${failed.length !== 1 ? 's' : ''}: ${failed.join(', ')}`);
+    }
+    onDocumentsChanged();
   }
 
   return (
@@ -200,7 +343,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.docx,.txt,.webp"
+          accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.webp,.bmp,.gif,.heic,.heif,.docx,.txt,.rtf"
           style={{ display: 'none' }}
           onChange={e => e.target.files && handleFileUpload(e.target.files)}
         />
@@ -215,7 +358,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
               : 'Drop files here or click to browse'}
         </div>
         <div className="research-upload__dropzone-hint">
-          PDF, PNG, JPG, TIFF, DOCX, TXT — up to 50 MB each
+          PDF, PNG, JPG, TIFF, BMP, GIF, HEIC, DOCX, TXT, RTF — up to 50 MB each
         </div>
       </div>
 
@@ -321,60 +464,293 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
         </form>
       )}
 
-      {/* Document list */}
+      {/* Document list — collapsible */}
       {documents.length > 0 && (
         <div className="research-upload__list">
-          <h3 className="research-upload__list-title">
-            Documents ({documents.length})
-          </h3>
-          {documents.map(doc => {
-            const status = PROCESSING_STATUS_LABELS[doc.processing_status] || PROCESSING_STATUS_LABELS.pending;
-            const typeInfo = doc.document_type ? DOCUMENT_TYPE_LABELS[doc.document_type] : null;
-
-            return (
-              <div key={doc.id} className="research-upload__doc">
-                <div className="research-upload__doc-icon">
-                  {typeInfo?.icon || (doc.source_type === 'manual_entry' ? '📝' : '📄')}
-                </div>
-                <div className="research-upload__doc-info">
-                  <div className="research-upload__doc-name">
-                    {doc.document_label || doc.original_filename || 'Untitled'}
-                  </div>
-                  <div className="research-upload__doc-meta">
-                    {typeInfo && <span>{typeInfo.label}</span>}
-                    {doc.file_size_bytes ? <span>{formatFileSize(doc.file_size_bytes)}</span> : null}
-                    {doc.page_count ? <span>{doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span> : null}
-                    <span style={{ color: status.color, fontWeight: 600 }}>{status.label}</span>
-                  </div>
-                  {doc.processing_error && (
-                    <div className="research-upload__doc-error">
-                      {doc.processing_error}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleReprocessDocument(doc.id); }}
-                        style={{
-                          display: 'inline-block', marginLeft: '0.5rem',
-                          background: 'none', border: '1px solid #DC2626', borderRadius: '0.25rem',
-                          color: '#DC2626', cursor: 'pointer', padding: '0.15rem 0.5rem',
-                          fontSize: '0.75rem', fontWeight: 600,
-                        }}
-                      >
-                        Retry
-                      </button>
-                    </div>
-                  )}
-                </div>
+          {/* Collapsible header */}
+          <div
+            className="research-upload__list-toggle-header"
+            onClick={() => setDocsOpen(prev => !prev)}
+            role="button"
+            aria-expanded={docsOpen}
+          >
+            <span className="research-upload__list-toggle-title">
+              📂 Documents ({documents.length})
+            </span>
+            <div className="research-upload__list-select-controls" onClick={e => e.stopPropagation()}>
+              <button
+                className="research-search__select-btn"
+                onClick={selectAllDocs}
+                type="button"
+              >
+                Select all
+              </button>
+              <button
+                className="research-search__select-btn"
+                onClick={deselectAllDocs}
+                type="button"
+              >
+                Deselect all
+              </button>
+              {activeSelected.size > 0 && (
                 <button
-                  className="research-upload__doc-delete"
-                  onClick={() => handleDeleteDocument(doc.id)}
-                  title="Remove document"
+                  className="research-upload__bulk-delete-btn"
+                  onClick={handleBulkDelete}
+                  type="button"
+                  title={`Remove ${activeSelected.size} selected document${activeSelected.size !== 1 ? 's' : ''}`}
                 >
-                  &times;
+                  🗑 Remove {activeSelected.size} selected
                 </button>
-              </div>
-            );
-          })}
+              )}
+            </div>
+            <span className="research-search__toggle-chevron" aria-hidden="true">
+              {docsOpen ? '▲' : '▼'}
+            </span>
+          </div>
+
+          {/* Collapsible body */}
+          {docsOpen && (
+            <div className="research-upload__list-body">
+              {documents.map(doc => {
+                const status = PROCESSING_STATUS_LABELS[doc.processing_status] || PROCESSING_STATUS_LABELS.pending;
+                const typeInfo = doc.document_type ? DOCUMENT_TYPE_LABELS[doc.document_type] : null;
+                const isChecked = activeSelected.has(doc.id);
+
+                return (
+                  <div
+                    key={doc.id}
+                    className={`research-upload__doc ${isChecked ? 'research-upload__doc--selected' : ''}`}
+                    onClick={() => toggleDocSelection(doc.id)}
+                  >
+                    <div className="research-upload__doc-check">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleDocSelection(doc.id)}
+                        onClick={e => e.stopPropagation()}
+                        aria-label={`Select ${doc.document_label || doc.original_filename || 'document'}`}
+                      />
+                    </div>
+                    <div className="research-upload__doc-icon">
+                      {typeInfo?.icon || (doc.source_type === 'manual_entry' ? '📝' : '📄')}
+                    </div>
+                    <div className="research-upload__doc-info">
+                      <div className="research-upload__doc-name">
+                        {doc.document_label || doc.original_filename || 'Untitled'}
+                      </div>
+                      <div className="research-upload__doc-meta">
+                        {typeInfo && <span>{typeInfo.label}</span>}
+                        {doc.file_size_bytes ? <span>{formatFileSize(doc.file_size_bytes)}</span> : null}
+                        {doc.page_count ? <span>{doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span> : null}
+                        <span style={{ color: status.color, fontWeight: 600 }}>{status.label}</span>
+                      </div>
+                      {doc.processing_error && (
+                        <div className="research-upload__doc-error">
+                          {doc.processing_error}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleReprocessDocument(doc.id); }}
+                            style={{
+                              display: 'inline-block', marginLeft: '0.5rem',
+                              background: 'none', border: '1px solid #DC2626', borderRadius: '0.25rem',
+                              color: '#DC2626', cursor: 'pointer', padding: '0.15rem 0.5rem',
+                              fontSize: '0.75rem', fontWeight: 600,
+                            }}
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      className="research-upload__doc-view"
+                      onClick={e => { e.stopPropagation(); setViewingDoc(doc); }}
+                      title="View document"
+                      aria-label={`View ${doc.document_label || doc.original_filename || 'document'}`}
+                    >
+                      <span aria-hidden="true">👁</span>
+                    </button>
+                    <button
+                      className="research-upload__doc-delete"
+                      onClick={e => { e.stopPropagation(); handleDeleteDocument(doc.id); }}
+                      title="Remove document"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
+      {viewingDoc && (
+        <DocumentViewerModal
+          doc={viewingDoc}
+          onClose={() => setViewingDoc(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Document Viewer Modal ─────────────────────────────────────────────────────
+
+/** Determine the viewer mode based on file type or URL */
+function getViewerMode(doc: ResearchDocument): 'image' | 'pdf' | 'text' | 'none' {
+  const ft = (doc.file_type ?? '').toLowerCase();
+  const filename = (doc.original_filename ?? '').toLowerCase();
+
+  // Extract the path component from the URL (ignore query params/fragments)
+  // to avoid false-positive extension matches like "?thumb=photo.png"
+  let urlPath = '';
+  try {
+    urlPath = doc.storage_url ? new URL(doc.storage_url).pathname.toLowerCase() : '';
+  } catch {
+    urlPath = (doc.storage_url ?? '').toLowerCase();
+  }
+
+  // TIFFs are not displayable in browsers — fall through to text or none
+  const isTiff = ft === 'tiff' || ft === 'tif' || filename.endsWith('.tiff') || filename.endsWith('.tif');
+  if (isTiff) {
+    return doc.extracted_text ? 'text' : 'none';
+  }
+
+  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic', 'heif'].some(
+    ext => ft === ext || filename.endsWith(`.${ext}`) || urlPath.endsWith(`.${ext}`),
+  );
+  if (isImage) return 'image';
+
+  const isPdf = ft === 'pdf' || filename.endsWith('.pdf') || urlPath.endsWith('.pdf');
+  if (isPdf) return 'pdf';
+
+  if (doc.extracted_text) return 'text';
+
+  // If a storage URL exists but we don't know the type, try to display as image
+  if (doc.storage_url) return 'image';
+
+  return 'none';
+}
+
+interface DocumentViewerModalProps {
+  doc: ResearchDocument;
+  onClose: () => void;
+}
+
+function DocumentViewerModal({ doc, onClose }: DocumentViewerModalProps) {
+  const [imgError, setImgError] = useState(false);
+  const [pdfError, setPdfError] = useState(false);
+  const mode = getViewerMode(doc);
+  const typeInfo = doc.document_type ? DOCUMENT_TYPE_LABELS[doc.document_type] : null;
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); },
+    [onClose],
+  );
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  const title = doc.document_label || doc.original_filename || 'Document';
+  const storageUrl = doc.storage_url ?? null;
+
+  return (
+    <div
+      className="docviewer-overlay"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
+      <div className="docviewer" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="docviewer__header">
+          <div className="docviewer__header-info">
+            <span className="docviewer__header-icon" aria-hidden="true">
+              {typeInfo?.icon || (mode === 'pdf' ? '📄' : mode === 'image' ? '🖼️' : '📝')}
+            </span>
+            <div>
+              <div className="docviewer__header-title">{title}</div>
+              <div className="docviewer__header-meta">
+                {typeInfo && <span>{typeInfo.label}</span>}
+                {doc.file_size_bytes && <span>{formatFileSize(doc.file_size_bytes)}</span>}
+                {doc.page_count && <span>{doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span>}
+              </div>
+            </div>
+          </div>
+          <div className="docviewer__header-actions">
+            {storageUrl && (
+              <a
+                href={storageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="docviewer__open-btn"
+                title="Open in new tab"
+                onClick={e => e.stopPropagation()}
+              >
+                ↗ Open
+              </a>
+            )}
+            <button className="docviewer__close" onClick={onClose} aria-label="Close viewer">
+              &times;
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="docviewer__body">
+          {mode === 'image' && storageUrl && !imgError && (
+            <div className="docviewer__image-wrap">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={storageUrl}
+                alt={title}
+                className="docviewer__image"
+                onError={() => setImgError(true)}
+              />
+            </div>
+          )}
+          {mode === 'image' && storageUrl && imgError && (
+            <div className="docviewer__error">
+              <p>⚠️ Could not load image.</p>
+              <a href={storageUrl} target="_blank" rel="noopener noreferrer" className="docviewer__fallback-link">
+                Open file in new tab ↗
+              </a>
+            </div>
+          )}
+          {mode === 'pdf' && storageUrl && !pdfError && (
+            <div className="docviewer__pdf-wrap">
+              <iframe
+                src={`${storageUrl}#toolbar=1&navpanes=0&scrollbar=1`}
+                title={title}
+                className="docviewer__pdf-iframe"
+                onError={() => setPdfError(true)}
+              />
+            </div>
+          )}
+          {mode === 'pdf' && storageUrl && pdfError && (
+            <div className="docviewer__error">
+              <p>⚠️ Could not load PDF in the browser viewer.</p>
+              <a href={storageUrl} target="_blank" rel="noopener noreferrer" className="docviewer__fallback-link">
+                Open PDF in new tab ↗
+              </a>
+            </div>
+          )}
+          {mode === 'text' && (
+            <pre className="docviewer__text">{doc.extracted_text}</pre>
+          )}
+          {mode === 'none' && (
+            <div className="docviewer__error">
+              <p>No preview available for this document.</p>
+              {doc.source_url && (
+                <a href={doc.source_url} target="_blank" rel="noopener noreferrer" className="docviewer__fallback-link">
+                  View source ↗
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

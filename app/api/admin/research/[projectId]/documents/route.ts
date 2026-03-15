@@ -1,9 +1,12 @@
 // app/api/admin/research/[projectId]/documents/route.ts — Document upload & list
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, RESEARCH_DOCUMENTS_BUCKET, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { processDocument, validateUploadFile, ACCEPTED_FILE_TYPES } from '@/lib/research/document.service';
+
+// Allow up to 60 seconds for uploads (large files + storage round-trip)
+export const maxDuration = 60;
 
 /* GET — List all documents for a research project */
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -50,6 +53,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'No files provided' }, { status: 400 });
   }
 
+  // Ensure the storage bucket exists before processing any uploads.
+  // This is a no-op after the first successful call in this process (cached).
+  await ensureStorageBucket();
+
   const results: { document: unknown; error?: string }[] = [];
 
   for (const file of files) {
@@ -87,19 +94,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     let uploadedStoragePath: string | null = null;
     try {
       const { error: uploadError } = await supabaseAdmin.storage
-        .from('research-documents')
+        .from(RESEARCH_DOCUMENTS_BUCKET)
         .upload(storagePath, buffer, {
           contentType: file.type || 'application/octet-stream',
           upsert: false,
         });
 
       if (uploadError) {
-        // Storage bucket might not exist yet — still create the DB record but without storage_path
         console.warn(`[Upload] Storage upload failed for ${file.name}:`, uploadError.message);
       } else {
         uploadedStoragePath = storagePath;
         const { data: urlData } = supabaseAdmin.storage
-          .from('research-documents')
+          .from(RESEARCH_DOCUMENTS_BUCKET)
           .getPublicUrl(storagePath);
         storageUrl = urlData?.publicUrl || null;
       }
@@ -184,6 +190,45 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ success: true, message: 'Document reprocessing started' });
   }
 
+  if (action === 'confirm_upload') {
+    // Called by the client after a successful direct-to-Supabase upload.
+    // Updates the storage_url and triggers background text extraction.
+    const body = await req.json().catch(() => ({})) as { storagePath?: string };
+    const storagePath = body?.storagePath;
+
+    const { data: doc } = await supabaseAdmin
+      .from('research_documents')
+      .select('id, storage_path')
+      .eq('id', docId)
+      .single();
+
+    if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+
+    // Derive the public URL from the storage path
+    let storageUrl: string | null = null;
+    const pathToUse = storagePath ?? doc.storage_path;
+    if (pathToUse) {
+      const { data: urlData } = supabaseAdmin.storage
+        .from(RESEARCH_DOCUMENTS_BUCKET)
+        .getPublicUrl(pathToUse);
+      storageUrl = urlData?.publicUrl ?? null;
+    }
+
+    await supabaseAdmin.from('research_documents').update({
+      storage_url: storageUrl,
+      processing_status: 'pending',
+      processing_error: null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', docId);
+
+    // Trigger async processing (don't await)
+    processDocument(docId).catch(err => {
+      console.error(`[ConfirmUpload] Background processing failed for ${docId}:`, err);
+    });
+
+    return NextResponse.json({ success: true, message: 'Upload confirmed, processing started' });
+  }
+
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
 }, { routeName: 'research/documents/reprocess' });
 
@@ -214,7 +259,7 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // Delete from storage
   if (doc.storage_path) {
     await supabaseAdmin.storage
-      .from('research-documents')
+      .from(RESEARCH_DOCUMENTS_BUCKET)
       .remove([doc.storage_path])
       .catch(() => {}); // Best-effort storage cleanup
   }

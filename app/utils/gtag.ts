@@ -18,7 +18,8 @@
 export const GA_ADS_ID = 'AW-17921491739';
 
 // Conversion label from Google Ads (the part after the slash in the event snippet)
-const CONVERSION_LABEL_SUFFIX = 'TYyMCIa-zvAbEJuG0eFC';
+// Updated to the label provided by Google support (ticket 5-2885000040495, Mar 2026)
+const CONVERSION_LABEL_SUFFIX = '-sTrCMb9xP8bEJuG0eFC';
 
 export const CONVERSION_LABEL = `${GA_ADS_ID}/${CONVERSION_LABEL_SUFFIX}`;
 

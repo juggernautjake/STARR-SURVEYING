@@ -1,10 +1,12 @@
 // app/admin/research/[projectId]/page.tsx — Research project hub
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
+import Link from 'next/link';
+import DOMPurify from 'dompurify';
 import { usePageError } from '../../hooks/usePageError';
-import WorkflowStepper from '../components/WorkflowStepper';
+import PipelineStepper from '../components/PipelineStepper';
 import DocumentUploadPanel from '../components/DocumentUploadPanel';
 import ResearchAnalysisPanel from '../components/ResearchAnalysisPanel';
 import DocumentDeepAnalysisPanel from '../components/DocumentDeepAnalysisPanel';
@@ -26,7 +28,33 @@ import VerificationPanel from '../components/VerificationPanel';
 import ExportPanel from '../components/ExportPanel';
 import SurveyPlanPanel from '../components/SurveyPlanPanel';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
-import { WORKFLOW_STEPS } from '@/types/research';
+import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
+
+// ── Page-level constants ─────────────────────────────────────────────────────
+
+const RESEARCH_SOURCES = [
+  'County Appraisal District',
+  'County Clerk / Deed Records',
+  'FEMA Flood Maps',
+  'TxDOT ROW',
+  'USGS National Map',
+  'Texas GLO',
+  'TX Railroad Commission',
+  'TNRIS',
+  'County GIS Portal',
+  'City Records',
+] as const;
+
+const JOB_NOTES_PLACEHOLDER =
+  'Add job preparation notes, field instructions, equipment needed, special considerations…\n\n' +
+  'Examples:\n' +
+  '• Equipment needed: total station, GPS rover, rebar/caps, lath\n' +
+  '• Site access: gate code is ___, call owner before arrival\n' +
+  '• Special instructions: check for creek encroachment on east boundary\n' +
+  '• Adjacent owner contact: ___\n' +
+  '• Estimated field time: 4–6 hours';
+
+// ────────────────────────────────────────────────────────────────────────────
 
 export default function ResearchProjectPage() {
   const { data: session, status: sessionStatus } = useSession();
@@ -40,6 +68,18 @@ export default function ResearchProjectPage() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ document_count: 0, data_point_count: 0, discrepancy_count: 0, resolved_count: 0 });
 
+  // Review and log state
+  const [reviewLogsCopied, setReviewLogsCopied] = useState(false);
+
+  // ── Stage 1 → Stage 2 navigation state ───────────────────────────────────
+  // When the user clicks "Initiate Research & Analysis" in Stage 1, we store
+  // the form values and set shouldAutoStartPipeline so Stage 2's
+  // PropertySearchPanel auto-fires research the moment it mounts.
+  const [shouldAutoStartPipeline, setShouldAutoStartPipeline] = useState(false);
+  const [pendingSearchParams, setPendingSearchParams] = useState<{
+    address: string; county: string; parcelId: string; ownerName: string;
+  } | null>(null);
+
   // Review state
   const [reviewTab, setReviewTab] = useState<'sources' | 'data' | 'discrepancies' | 'ai_logs' | 'survey_plan'>('sources');
   const [showBriefing, setShowBriefing] = useState(true);
@@ -47,6 +87,13 @@ export default function ResearchProjectPage() {
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
   /** Extra PDF URL from the worker pipeline result (populated after deep search) */
   const [viewerPdfUrl, setViewerPdfUrl] = useState<string | null>(null);
+
+  // Job Prep tab state (Stage 4)
+  const [jobPrepTab, setJobPrepTab] = useState<'drawing' | 'fieldplan' | 'finaldoc'>('drawing');
+  // Editable job notes for the Final Document (persisted in analysis_metadata.job_notes)
+  const [jobNotes, setJobNotes] = useState('');
+  const [savingJobNotes, setSavingJobNotes] = useState(false);
+  const jobNotesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Drawing state
   const [drawings, setDrawings] = useState<(RenderedDrawing & { element_count: number })[]>([]);
@@ -140,6 +187,11 @@ export default function ResearchProjectPage() {
           discrepancy_count: data.project.discrepancy_count || 0,
           resolved_count: data.project.resolved_count || 0,
         });
+        // Restore user-authored job notes from analysis_metadata
+        const meta = (data.project.analysis_metadata as Record<string, unknown>) ?? {};
+        if (typeof meta.job_notes === 'string') {
+          setJobNotes(meta.job_notes);
+        }
       } else {
         router.replace('/admin/research');
       }
@@ -181,7 +233,6 @@ export default function ResearchProjectPage() {
     return () => clearInterval(interval);
   }, [documents, loadDocuments]);
 
-  // ── Project Editing ──────────────────────────────────────────────────────
   function openEditProject() {
     if (!project) return;
     setEditProjectData({
@@ -232,6 +283,23 @@ export default function ResearchProjectPage() {
     }
   }
 
+  /** Auto-saves job notes to the server (debounced). */
+  function handleJobNotesChange(value: string) {
+    setJobNotes(value);
+    if (jobNotesTimerRef.current) clearTimeout(jobNotesTimerRef.current);
+    jobNotesTimerRef.current = setTimeout(async () => {
+      setSavingJobNotes(true);
+      try {
+        await fetch('/api/admin/research', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: projectId, job_notes: value }),
+        });
+      } catch { /* silently ignore — next save will retry */ }
+      setSavingJobNotes(false);
+    }, 1200);
+  }
+
   async function handleStatusUpdate(newStatus: WorkflowStep) {
     try {
       const res = await fetch('/api/admin/research', {
@@ -254,19 +322,13 @@ export default function ResearchProjectPage() {
   async function handleRevertToStep(targetStep: WorkflowStep) {
     if (!project) return;
 
-    // Guard: can't navigate while an analysis is running
-    if (project.status === 'analyzing') {
-      showToast('Please abort the running analysis before going back.', 'error');
-      return;
-    }
-
     const stepLabels: Record<WorkflowStep, string> = {
-      upload: 'Information',
+      upload: 'Property Information',
       configure: 'Research & Analysis',
       analyzing: 'Research & Analysis',
       review: 'Review',
-      drawing: 'Draw',
-      verifying: 'Verify',
+      drawing: 'Job Prep',
+      verifying: 'Job Prep',
       complete: 'Job Prep',
     };
 
@@ -352,6 +414,40 @@ export default function ResearchProjectPage() {
     } catch {
       showToast('Unable to connect. Check your internet connection and try again.', 'error');
     }
+  }
+
+  function copyLogsToClipboard(
+    logs: Array<{ ts: string; level: string; message: string; detail?: string }>,
+    onCopied: () => void,
+  ) {
+    const header = `STARR RECON — Research Logs  (Project: ${project?.name || projectId})\n` +
+      `Exported: ${new Date().toLocaleString()}\n${'─'.repeat(60)}\n`;
+    const body = logs.map(e => {
+      const icon = e.level === 'error' ? '✕' : e.level === 'warn' ? '⚠' : e.level === 'success' ? '✓' : '·';
+      let line = `${new Date(e.ts).toLocaleTimeString()}  ${icon} [${e.level.toUpperCase()}]  ${e.message}`;
+      if (e.detail) line += `\n      ${e.detail}`;
+      return line;
+    }).join('\n');
+    const text = header + body;
+    navigator.clipboard.writeText(text)
+      .then(onCopied)
+      .catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        onCopied();
+      });
+  }
+
+  function handleCopyReviewLogs() {
+    const logs = (project?.analysis_metadata as Record<string, unknown> | null)?.logs as
+      Array<{ ts: string; level: string; message: string; detail?: string }> | undefined;
+    if (!logs || logs.length === 0) return;
+    copyLogsToClipboard(logs, () => { setReviewLogsCopied(true); setTimeout(() => setReviewLogsCopied(false), 2000); });
   }
 
   // Drawing functions
@@ -1194,6 +1290,15 @@ export default function ResearchProjectPage() {
     }
   }, [project?.status, loadDrawings, projectId]);
 
+  // Sanitized SVG for Final Document preview (uses DOMPurify same as DrawingCanvas)
+  // Must be declared before any early returns to satisfy React hooks rules-of-hooks.
+  const sanitizedDrawingSvg = useMemo(() => {
+    if (!drawingSvg) return '';
+    return DOMPurify.sanitize(drawingSvg, {
+      USE_PROFILES: { svg: true, svgFilters: true },
+    });
+  }, [drawingSvg]);
+
   function getNextStep(): { key: WorkflowStep; label: string } | null {
     if (!project) return null;
     const currentIndex = WORKFLOW_STEPS.findIndex(s => s.key === project.status);
@@ -1219,8 +1324,6 @@ export default function ResearchProjectPage() {
     }
   }
 
-  if (sessionStatus === 'authenticated' && userRole !== 'admin') return null;
-
   if (!session?.user || loading) {
     return (
       <div className="research-page">
@@ -1235,8 +1338,8 @@ export default function ResearchProjectPage() {
 
   if (!project) return null;
 
-  const nextStep = getNextStep();
-  const extractedDocs = documents.filter(d => d.processing_status === 'extracted' || d.processing_status === 'analyzed');
+  // Derive the current pipeline stage from the underlying DB status
+  const currentStage = workflowStepToStage(project.status);
 
   return (
     <div className="research-page">
@@ -1250,15 +1353,35 @@ export default function ResearchProjectPage() {
         </button>
       </div>
 
+      {/* Project Navigation Bar */}
+      <div className="research-project-nav">
+        <Link href={`/admin/research/${projectId}/boundary`} className="research-project-nav__link">
+          📐 Boundary Viewer
+        </Link>
+        <Link href={`/admin/research/${projectId}/documents`} className="research-project-nav__link">
+          📁 Documents
+        </Link>
+        <Link href="/admin/research/library" className="research-project-nav__link">
+          📚 Library
+        </Link>
+        <Link href="/admin/research/billing" className="research-project-nav__link">
+          💳 Billing
+        </Link>
+      </div>
+
       {/* Header */}
       <div className="research-page__header">
         <div>
           <h1 className="research-page__title">{project.name}</h1>
           {project.property_address && (
             <div style={{ color: '#6B7280', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-              {project.property_address}
-              {project.county && `, ${project.county} County`}
-              {project.state && `, ${project.state}`}
+              📍 {project.property_address}
+              {project.county && (
+                <span className="research-county-badge">
+                  {project.county} County{project.state ? `, ${project.state}` : ''}
+                </span>
+              )}
+              {!project.county && project.state && `, ${project.state}`}
             </div>
           )}
           {project.description && (
@@ -1273,7 +1396,7 @@ export default function ResearchProjectPage() {
             style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: '#374151' }}
             aria-label="Edit project details"
           >
-            Edit Details
+            ✏️ Edit Details
           </button>
           <button
             onClick={handleArchiveProject}
@@ -1285,10 +1408,10 @@ export default function ResearchProjectPage() {
         </div>
       </div>
 
-      {/* Workflow stepper — clicking a completed step reverts the project to that step */}
-      <WorkflowStepper
+      {/* 4-Stage Pipeline Stepper — clicking a completed stage reverts to it */}
+      <PipelineStepper
         currentStatus={project.status}
-        onStepClick={project.status !== 'analyzing' ? handleRevertToStep : undefined}
+        onStageClick={project.status !== 'analyzing' ? handleRevertToStep : undefined}
       />
 
       {/* Quick stats */}
@@ -1315,50 +1438,123 @@ export default function ResearchProjectPage() {
         </div>
       </div>
 
-      {/* Advance button (for non-configure steps) */}
-      {nextStep && project.status !== 'configure' && project.status !== 'analyzing' && (
-        <div style={{ margin: '1.25rem 0' }}>
-          <button
-            className="research-page__new-btn"
-            onClick={() => handleStatusUpdate(nextStep.key)}
-            disabled={!canAdvance()}
-            style={!canAdvance() ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-          >
-            Continue to {nextStep.label} &rarr;
-          </button>
-          {project.status === 'upload' && !canAdvance() && documents.length === 0 && (
-            <span style={{ color: '#9CA3AF', fontSize: '0.8rem', marginLeft: '0.75rem' }}>
-              Upload at least one document to continue
-            </span>
+      {/* ════════════════════════════════════════════════════════════════
+          STAGE 1: UPLOAD & PROVISION
+          ════════════════════════════════════════════════════════════ */}
+      {currentStage === 'upload' && (
+        <>
+          <div className="research-step-header">
+            <span className="research-step-header__icon">📤</span>
+            <div className="research-step-header__body">
+              <h2 className="research-step-header__title">Property Information</h2>
+              <p className="research-step-header__desc">
+                Upload deeds, plats, field notes, and other surveying documents, and provide the property details below.
+                When ready, click <strong>Initiate Research &amp; Analysis</strong> to proceed to Stage 2 — STARR RECON will search all public records,
+                capture screenshots of county CAD and deed websites, extract all data with AI, and log any discrepancies.
+              </p>
+            </div>
+          </div>
+          <DocumentUploadPanel
+            projectId={projectId}
+            documents={documents}
+            onDocumentsChanged={() => { loadDocuments(); loadProject(); }}
+          />
+          {/* Property info form only — search results and pipeline progress are shown in Stage 2 */}
+          <PropertySearchPanel
+            projectId={projectId}
+            defaultAddress={project.property_address || ''}
+            defaultCounty={project.county || ''}
+            defaultParcelId={project.parcel_id || ''}
+            hideResultsAndProgress
+            onNavigateAway={(params) => {
+              setPendingSearchParams(params);
+              setShouldAutoStartPipeline(true);
+              handleStatusUpdate('configure');
+            }}
+            onImported={() => { loadDocuments(); loadProject(); }}
+          />
+        </>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════
+          STAGE 2: RESEARCH & ANALYSIS
+          Shows "Start" CTA when configure, and progress panel when analyzing
+          ════════════════════════════════════════════════════════════ */}
+      {currentStage === 'research' && (
+        <div className="research-stage2">
+          {/* ── Ready to launch (configure sub-state) ── */}
+          {project.status === 'configure' && (
+            <div className="research-stage2__launch">
+              <h2 className="research-stage2__launch-title">🔬 Research &amp; Analysis</h2>
+              <p className="research-stage2__launch-desc">
+                STARR RECON is searching all public records from {RESEARCH_SOURCES.length}+ sources
+                {documents.length > 0 ? ` plus your ${documents.length} uploaded document${documents.length !== 1 ? 's' : ''}` : ''},
+                capturing screenshots of county CAD and deed websites, and running deep AI analysis on every image, file, and document.
+                All sources and their individual analysis results will be shown here.
+              </p>
+
+              {/* ── Public Records Search + Deep Pipeline ──────────────────────────── */}
+              {/* PropertySearchPanel runs the search API + worker pipeline and shows all
+                  online sources found, individual document results, and the final summary.
+                  When arriving from Stage 1 via "Initiate Research & Analysis", autoStart
+                  fires the research automatically so the process begins immediately. */}
+              <PropertySearchPanel
+                projectId={projectId}
+                defaultAddress={pendingSearchParams?.address ?? project.property_address ?? ''}
+                defaultCounty={pendingSearchParams?.county ?? project.county ?? ''}
+                defaultParcelId={pendingSearchParams?.parcelId ?? project.parcel_id ?? ''}
+                autoStart={shouldAutoStartPipeline}
+                onImported={() => {
+                  setShouldAutoStartPipeline(false);
+                  loadDocuments();
+                  loadProject();
+                }}
+                onPipelineComplete={() => {
+                  // Clear the auto-start flag once the pipeline has fired so navigating
+                  // back to Stage 2 (e.g. from Stage 3) does not re-run the pipeline.
+                  setShouldAutoStartPipeline(false);
+                  loadDocuments();
+                  loadProject();
+                }}
+              />
+
+              <button className="research-back-btn" onClick={() => handleRevertToStep('upload')} style={{ marginTop: '1rem' }}>
+                &larr; Back to Property Information
+              </button>
+            </div>
           )}
         </div>
       )}
 
-      {/* Step content */}
-      {project.status === 'upload' && (
-        <DocumentUploadPanel
-          projectId={projectId}
-          documents={documents}
-          onDocumentsChanged={() => { loadDocuments(); loadProject(); }}
-        />
-      )}
-
-      {(project.status === 'configure' || project.status === 'analyzing') && (
-        <ResearchAnalysisPanel
-          projectId={projectId}
-          defaultAddress={project.property_address || ''}
-          defaultCounty={project.county || ''}
-          defaultParcelId={project.parcel_id || ''}
-          onComplete={() => { loadDocuments(); loadProject(); }}
-        />
-      )}
-
-      {project.status === 'review' && (
+      {/* ════════════════════════════════════════════════════════════════
+          STAGE 3: REVIEW
+          ════════════════════════════════════════════════════════════ */}
+      {currentStage === 'review' && (
         <div className="research-review">
-          {/* Back to Research & Analysis */}
+          <div className="research-step-header">
+            <span className="research-step-header__icon">📋</span>
+            <div className="research-step-header__body">
+              <h2 className="research-step-header__title">Review Results</h2>
+              <p className="research-step-header__desc">
+                Review all research sources, extracted data points, AI analysis summaries, discrepancies, and source links.
+                Resolve any issues before proceeding to Job Prep.
+              </p>
+            </div>
+          </div>
+          {/* Back to Research */}
           <button className="research-back-btn" onClick={() => handleRevertToStep('configure')}>
             &larr; Back to Research &amp; Analysis
           </button>
+
+          {/* Advance to Job Prep */}
+          <div style={{ margin: '0.75rem 0 1.25rem' }}>
+            <button
+              className="research-page__new-btn"
+              onClick={() => handleStatusUpdate('drawing')}
+            >
+              Continue to Job Prep &rarr;
+            </button>
+          </div>
 
           {/* Survey Briefing panel (collapsible) */}
           {showBriefing ? (
@@ -1384,7 +1580,7 @@ export default function ResearchProjectPage() {
             documents={documents}
           />
 
-          {/* Review tabs — Research Sources · Extracted Data · Discrepancies · AI Logs · Survey Plan */}
+          {/* Review tabs — Research Sources · Extracted Data · Discrepancies · AI Logs */}
           <div className="research-review__tabs">
             <button
               className={`research-review__tab ${reviewTab === 'sources' ? 'research-review__tab--active' : ''}`}
@@ -1456,7 +1652,7 @@ export default function ResearchProjectPage() {
                   <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>📭</div>
                   <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>No research sources yet</div>
                   <div style={{ fontSize: '0.85rem' }}>
-                    Go back to Step 1 and run the research to collect sources, links, and documents.
+                    Go back to the Research &amp; Analysis step and run the research to collect sources, links, and documents.
                   </div>
                 </div>
               );
@@ -1577,27 +1773,45 @@ export default function ResearchProjectPage() {
             const logs = (project.analysis_metadata as Record<string, unknown> | null)?.logs as
               Array<{ ts: string; level: string; message: string; detail?: string }> | undefined;
             return (
-              <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', lineHeight: 1.6, background: '#F8FAFC', border: '1px solid #E5E7EB', borderRadius: '0.5rem', padding: '0.75rem', maxHeight: '60vh', overflowY: 'auto' }}>
-                {!logs || logs.length === 0 ? (
-                  <div style={{ color: '#9CA3AF', textAlign: 'center', padding: '2rem' }}>
-                    No analysis logs available. Run AI Analysis to generate logs.
+              <div>
+                <div className="research-analyzing__log-header" style={{ marginBottom: '0.5rem' }}>
+                  <div className="research-analyzing__log-header-left">
+                    <span className="research-analyzing__log-title">📋 Research Logs</span>
+                    {logs && logs.length > 0 && (
+                      <span className="research-analyzing__log-badge">{logs.length}</span>
+                    )}
                   </div>
-                ) : (
-                  logs.map((entry, i) => {
-                    const levelColor = entry.level === 'error' ? '#EF4444' : entry.level === 'warn' ? '#F59E0B' : entry.level === 'success' ? '#059669' : '#374151';
-                    const levelBg = entry.level === 'error' ? '#FEF2F2' : entry.level === 'warn' ? '#FFFBEB' : entry.level === 'success' ? '#F0FDF4' : 'transparent';
-                    return (
-                      <div key={i} style={{ padding: '0.2rem 0.4rem', borderRadius: '0.2rem', background: levelBg, marginBottom: '0.15rem' }}>
-                        <span style={{ color: '#9CA3AF' }}>{new Date(entry.ts).toLocaleTimeString()}</span>
-                        {' '}
-                        <span style={{ color: levelColor, fontWeight: 600 }}>[{entry.level.toUpperCase()}]</span>
-                        {' '}
-                        <span style={{ color: '#374151' }}>{entry.message}</span>
-                        {entry.detail && <span style={{ color: '#6B7280' }}> — {entry.detail}</span>}
-                      </div>
-                    );
-                  })
-                )}
+                  <button
+                    className="research-analyzing__copy-btn"
+                    onClick={handleCopyReviewLogs}
+                    disabled={!logs || logs.length === 0}
+                    title="Copy all log entries to clipboard"
+                  >
+                    {reviewLogsCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
+                  </button>
+                </div>
+                <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', lineHeight: 1.6, background: '#F8FAFC', border: '1px solid #E5E7EB', borderRadius: '0.5rem', padding: '0.75rem', maxHeight: '60vh', overflowY: 'auto' }}>
+                  {!logs || logs.length === 0 ? (
+                    <div style={{ color: '#9CA3AF', textAlign: 'center', padding: '2rem' }}>
+                      No analysis logs available. Run AI Analysis to generate logs.
+                    </div>
+                  ) : (
+                    logs.map((entry, i) => {
+                      const levelColor = entry.level === 'error' ? '#EF4444' : entry.level === 'warn' ? '#F59E0B' : entry.level === 'success' ? '#059669' : '#374151';
+                      const levelBg = entry.level === 'error' ? '#FEF2F2' : entry.level === 'warn' ? '#FFFBEB' : entry.level === 'success' ? '#F0FDF4' : 'transparent';
+                      return (
+                        <div key={i} style={{ padding: '0.2rem 0.4rem', borderRadius: '0.2rem', background: levelBg, marginBottom: '0.15rem' }}>
+                          <span style={{ color: '#9CA3AF' }}>{new Date(entry.ts).toLocaleTimeString()}</span>
+                          {' '}
+                          <span style={{ color: levelColor, fontWeight: 600 }}>[{entry.level.toUpperCase()}]</span>
+                          {' '}
+                          <span style={{ color: '#374151' }}>{entry.message}</span>
+                          {entry.detail && <span style={{ color: '#6B7280' }}> — {entry.detail}</span>}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             );
           })()}
@@ -1609,436 +1823,595 @@ export default function ResearchProjectPage() {
         </div>
       )}
 
-      {project.status === 'drawing' && (
-        <div className="research-drawing">
-          {/* Drawing list (when no active drawing) */}
-          {!activeDrawing && (
-            <>
-              <div className="research-drawing__controls">
-                <div className="research-drawing__controls-left">
-                  <h2 className="research-drawing__title">Plat Drawing</h2>
-                  {drawings.length === 0 && (
-                    <button
-                      className="research-page__new-btn"
-                      onClick={handleGenerateDrawing}
-                      disabled={generatingDrawing}
-                    >
-                      {generatingDrawing ? 'Generating...' : 'Generate Drawing'}
-                    </button>
-                  )}
-                </div>
-                {/* Back to Review */}
-                <button className="research-back-btn" onClick={() => handleRevertToStep('review')} style={{ marginBottom: 0, alignSelf: 'center' }}>
-                  &larr; Back to Review
-                </button>
-              </div>
+      {/* ════════════════════════════════════════════════════════════════
+          STAGE 4: JOB PREP
+          Combines drawing, field plan, verification, and final export
+          ════════════════════════════════════════════════════════════ */}
+      {currentStage === 'jobprep' && (
+        <div className="research-jobprep">
+          <div className="research-step-header">
+            <span className="research-step-header__icon">🏗️</span>
+            <div className="research-step-header__body">
+              <h2 className="research-step-header__title">Job Prep</h2>
+              <p className="research-step-header__desc">
+                Generate the AI-assisted boundary drawing, review the field plan recommendation, then compile everything into a final printable job package.
+              </p>
+            </div>
+          </div>
 
-              {/* Survey briefing in drawing step */}
-              <BriefingPanel projectId={projectId} />
-            </>
-          )}
+          <button className="research-back-btn" onClick={() => handleRevertToStep('review')}>
+            &larr; Back to Review
+          </button>
 
-          {drawings.length > 0 && !activeDrawing && (
-            <div className="research-drawing__list">
-              {drawings.map(d => (
-                <div key={d.id} className="research-drawing__list-row">
+          {/* Job Prep Tab Bar */}
+          <div className="research-jobprep__tabs">
+            <button
+              className={`research-jobprep__tab${jobPrepTab === 'drawing' ? ' research-jobprep__tab--active' : ''}`}
+              onClick={() => setJobPrepTab('drawing')}
+            >
+              ✏️ Drawing
+            </button>
+            <button
+              className={`research-jobprep__tab${jobPrepTab === 'fieldplan' ? ' research-jobprep__tab--active' : ''}`}
+              onClick={() => setJobPrepTab('fieldplan')}
+            >
+              📋 Field Plan
+            </button>
+            <button
+              className={`research-jobprep__tab${jobPrepTab === 'finaldoc' ? ' research-jobprep__tab--active' : ''}`}
+              onClick={() => setJobPrepTab('finaldoc')}
+            >
+              🖨️ Final Document
+            </button>
+          </div>
+
+          {/* ── TAB 1: Drawing ── */}
+          {jobPrepTab === 'drawing' && (
+            <div className="research-drawing">
+              {/* Drawing list (when no active drawing) */}
+              {!activeDrawing && (
+                <>
+                  <div className="research-drawing__controls">
+                    <div className="research-drawing__controls-left">
+                      <h2 className="research-drawing__title">Boundary Drawing</h2>
+                      {drawings.length === 0 && (
+                        <button
+                          className="research-page__new-btn"
+                          onClick={handleGenerateDrawing}
+                          disabled={generatingDrawing}
+                        >
+                          {generatingDrawing ? '⏳ Generating...' : '✨ Generate AI Drawing'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <BriefingPanel projectId={projectId} />
+                </>
+              )}
+
+              {drawings.length > 0 && !activeDrawing && (
+                <div className="research-drawing__list">
+                  {drawings.map(d => (
+                    <div key={d.id} className="research-drawing__list-row">
+                      <button
+                        className="research-drawing__list-item"
+                        onClick={() => loadDrawingDetail(d.id)}
+                      >
+                        <span>{d.name}</span>
+                        <span className="research-drawing__list-meta">
+                          v{d.version} | {d.element_count} elements | {d.overall_confidence ? `${Math.round(d.overall_confidence)}% confidence` : '--'}
+                        </span>
+                      </button>
+                      <div className="research-drawing__list-actions">
+                        <button
+                          className="research-drawing__action-btn research-drawing__action-btn--archive"
+                          onClick={() => handleArchiveDrawing(d.id, d.name)}
+                          title="Archive drawing"
+                        >
+                          Archive
+                        </button>
+                        <button
+                          className="research-drawing__action-btn research-drawing__action-btn--delete"
+                          onClick={() => handleDeleteDrawing(d.id, d.name)}
+                          title="Permanently delete drawing"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                   <button
-                    className="research-drawing__list-item"
-                    onClick={() => loadDrawingDetail(d.id)}
+                    className="research-drawing__list-item research-drawing__list-item--new"
+                    onClick={handleGenerateDrawing}
+                    disabled={generatingDrawing}
                   >
-                    <span>{d.name}</span>
-                    <span className="research-drawing__list-meta">
-                      v{d.version} | {d.element_count} elements | {d.overall_confidence ? `${Math.round(d.overall_confidence)}% confidence` : '--'}
-                    </span>
+                    {generatingDrawing ? 'Generating...' : '+ New Drawing Version'}
                   </button>
-                  <div className="research-drawing__list-actions">
+                </div>
+              )}
+
+              {/* Active drawing: toolbar + canvas + panels */}
+              {activeDrawing && (
+                <>
+                  <button
+                    className="research-drawing__back-btn"
+                    onClick={() => {
+                      if (hasUnsavedChanges && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+                      setActiveDrawing(null); setDrawingElements([]); setDrawingSvg(''); setSelectedElement(null); setShowPrefsPanel(false);
+                      setCanvasZoom(1); setHasUnsavedChanges(false);
+                    }}
+                    style={{ marginBottom: '0.5rem' }}
+                  >
+                    &larr; Back to Drawing List
+                  </button>
+
+                  <DrawingViewToolbar
+                    viewMode={viewMode}
+                    onViewModeChange={(mode) => {
+                      setViewMode(mode);
+                      if (activeDrawing) loadDrawingDetail(activeDrawing.id);
+                    }}
+                    preferences={drawingPrefs}
+                    onPreferencesChange={setDrawingPrefs}
+                    onOpenSettings={() => setShowPrefsPanel(!showPrefsPanel)}
+                    onExportSvg={handleExportSvg}
+                    onExportJson={() => setShowSaveDialog('export')}
+                    onSaveToDb={() => setShowSaveDialog('save')}
+                    isSaving={savingDrawing}
+                    onResetOriginal={handleResetOriginal}
+                    onResetLastSaved={handleResetLastSaved}
+                    onUndo={handleUndo}
+                    onRedo={handleRedo}
+                    canUndo={annotationHistory.length > 0}
+                    canRedo={annotationFuture.length > 0}
+                    zoom={canvasZoom}
+                    onZoomIn={() => setCanvasZoom(prev => Math.min(10, prev * 1.3))}
+                    onZoomOut={() => setCanvasZoom(prev => Math.max(0.1, prev / 1.3))}
+                    onZoomReset={() => setCanvasZoom(1)}
+                    onZoomToFit={handleZoomToFit}
+                    elementCount={drawingElements.length}
+                    visibleCount={drawingElements.filter(e => e.visible).length}
+                    modifiedCount={drawingElements.filter(e => e.user_modified).length}
+                    overallConfidence={activeDrawing.overall_confidence ?? null}
+                    hasUnsavedChanges={hasUnsavedChanges}
+                    lastSavedAt={lastSavedAt}
+                    showUITooltips={showUITooltips}
+                    onToggleUITooltips={() => setShowUITooltips(prev => !prev)}
+                    autoSaveOnChange={autoSaveOnChange}
+                    onToggleAutoSaveOnChange={() => setAutoSaveOnChange(prev => !prev)}
+                  />
+
+                  <div className="research-drawing__workspace">
+                    <DrawingToolsSidebar
+                      activeTool={activeTool}
+                      onToolChange={handleToolChange}
+                      settings={toolSettings}
+                      onSettingsChange={setToolSettings}
+                      onUndo={handleUndo}
+                      onRedo={handleRedo}
+                      canUndo={annotationHistory.length > 0}
+                      canRedo={annotationFuture.length > 0}
+                      showUITooltips={showUITooltips}
+                    />
+
+                    <AnnotationLayerPanel
+                      layers={annotationLayers}
+                      activeLayerId={activeLayerId}
+                      onLayersChange={setAnnotationLayers}
+                      onActiveLayerChange={setActiveLayerId}
+                      annotationCountByLayer={
+                        annotations.reduce<Record<string, number>>((acc, ann) => {
+                          const lid = ann.layerId || annotationLayers[0]?.id || '';
+                          acc[lid] = (acc[lid] || 0) + 1;
+                          return acc;
+                        }, {})
+                      }
+                    />
+
+                    {showPrefsPanel && (
+                      <DrawingPreferencesPanel
+                        preferences={drawingPrefs}
+                        onChange={setDrawingPrefs}
+                        onClose={() => setShowPrefsPanel(false)}
+                        onReset={() => setDrawingPrefs(DEFAULT_PREFERENCES)}
+                      />
+                    )}
+
+                    {showCoordEntry && (
+                      <CoordinateEntryPanel
+                        isOpen={showCoordEntry}
+                        onClose={() => { setShowCoordEntry(false); if (activeTool === 'coordinate_entry') setActiveTool('select'); }}
+                        onAddLeg={handleAddLeg}
+                        onAddPoint={handleAddPoint}
+                        onCloseTraverse={handleCloseTraverse}
+                        vertices={coordVertices}
+                        onSelectVertex={(idx) => {
+                          const v = coordVertices[idx];
+                          if (v) setCursorPosition({ x: v.x, y: v.y });
+                        }}
+                        onDeleteVertex={handleDeleteCoordVertex}
+                        cursorPosition={cursorPosition}
+                      />
+                    )}
+
+                    {selectedVertexData && activeTool === 'vertex_edit' && (
+                      <VertexEditPanel
+                        vertex={selectedVertexData}
+                        onClose={() => setSelectedVertexData(null)}
+                        onUpdateVertex={handleUpdateVertex}
+                        onNavigateVertex={handleNavigateVertex}
+                        canNavigatePrev={true}
+                        canNavigateNext={true}
+                      />
+                    )}
+
+                    <div className={`research-drawing__canvas-wrap ${selectedElement ? 'research-drawing__canvas-wrap--with-panel' : ''}`}>
+                      {drawingSvg ? (
+                        <DrawingCanvas
+                          drawing={activeDrawing}
+                          elements={drawingElements}
+                          viewMode={viewMode}
+                          svgContent={drawingSvg}
+                          preferences={drawingPrefs}
+                          activeTool={activeTool}
+                          toolSettings={toolSettings}
+                          onToolChange={handleToolChange}
+                          onElementClick={(el) => setSelectedElement(el)}
+                          onElementModified={(id, changes) => handleTrackedElementUpdate(id, changes)}
+                          onRevertElement={handleRevertElement}
+                          annotations={annotations}
+                          onAnnotationsChange={handleAnnotationsChangeTracked}
+                          onAnnotationsSilentChange={handleAnnotationsSilentChange}
+                          zoom={canvasZoom}
+                          onZoomChange={setCanvasZoom}
+                          showVertexHandles={activeTool === 'vertex_edit'}
+                          onVertexClick={handleVertexClick}
+                          zoomToFitSignal={zoomToFitSignal}
+                          onCursorPositionChange={setCursorPosition}
+                          snapMode={toolSettings.snapMode}
+                          activeLayerId={activeLayerId}
+                        />
+                      ) : (
+                        <div className="research-canvas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
+                          <div style={{ color: '#9CA3AF', fontSize: '0.88rem' }}>Loading drawing...</div>
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedElement && (
+                      <ElementDetailPanel
+                        element={selectedElement}
+                        onClose={() => setSelectedElement(null)}
+                        onToggleVisibility={(id, vis) => handleTrackedElementUpdate(id, { visible: vis })}
+                        onToggleLock={(id, lock) => handleTrackedElementUpdate(id, { locked: lock })}
+                        onUpdateNotes={(id, notes) => handleTrackedElementUpdate(id, { user_notes: notes })}
+                        onStyleChange={(id, style) => {
+                          if ('rotation' in style) {
+                            const { rotation, ...styleWithoutRotation } = style as Record<string, unknown>;
+                            const updates: Record<string, unknown> = {};
+                            if (Object.keys(styleWithoutRotation).length > 0) {
+                              updates.style = { ...selectedElement.style, ...styleWithoutRotation };
+                            }
+                            updates.attributes = { ...selectedElement.attributes, rotation };
+                            handleTrackedElementUpdate(id, updates);
+                          } else {
+                            handleTrackedElementUpdate(id, { style: { ...selectedElement.style, ...style } });
+                          }
+                        }}
+                        onViewSource={(docId, excerpt) => {
+                          const doc = documents.find(d => d.id === docId);
+                          if (doc) {
+                            setViewerDoc(doc);
+                            setViewerHighlight(excerpt);
+                          }
+                        }}
+                        onRevertElement={handleRevertElement}
+                        showUITooltips={showUITooltips}
+                      />
+                    )}
+                  </div>
+
+                  <div className="research-drawing__info">
+                    <span>{activeDrawing.name} (v{activeDrawing.version})</span>
+                    {hasUnsavedChanges && (
+                      <span className="research-drawing__info-unsaved">Unsaved changes</span>
+                    )}
+                    {lastSavedAt && !hasUnsavedChanges && (
+                      <span className="research-drawing__info-saved">Saved {new Date(lastSavedAt).toLocaleTimeString()}</span>
+                    )}
+                    {activeDrawing.comparison_notes && (
+                      <span className="research-drawing__info-notes">{activeDrawing.comparison_notes}</span>
+                    )}
+                  </div>
+
+                  <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                     <button
-                      className="research-drawing__action-btn research-drawing__action-btn--archive"
-                      onClick={() => handleArchiveDrawing(d.id, d.name)}
-                      title="Archive drawing"
+                      style={{ background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: 6, padding: '0.4rem 1rem', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', opacity: isOpeningInCAD ? 0.7 : 1 }}
+                      onClick={handleOpenInCAD}
+                      disabled={isOpeningInCAD}
+                      title="Convert this drawing to a full STARR CAD document and open it for editing"
                     >
-                      Archive
+                      {isOpeningInCAD ? '⏳ Opening…' : '✏️ Open in CAD Editor'}
                     </button>
+                    {/* Verify drawing */}
                     <button
-                      className="research-drawing__action-btn research-drawing__action-btn--delete"
-                      onClick={() => handleDeleteDrawing(d.id, d.name)}
-                      title="Permanently delete drawing"
+                      style={{ background: isVerifying ? '#6B7280' : '#059669', color: '#fff', border: 'none', borderRadius: 6, padding: '0.4rem 1rem', fontSize: '0.82rem', fontWeight: 600, cursor: isVerifying ? 'not-allowed' : 'pointer' }}
+                      onClick={handleRunVerification}
+                      disabled={isVerifying}
                     >
-                      Delete
+                      {isVerifying ? '⏳ Verifying…' : '✅ Run Verification'}
                     </button>
                   </div>
-                </div>
-              ))}
-              <button
-                className="research-drawing__list-item research-drawing__list-item--new"
-                onClick={handleGenerateDrawing}
-                disabled={generatingDrawing}
-              >
-                {generatingDrawing ? 'Generating...' : '+ New Drawing Version'}
-              </button>
+
+                  {/* Verification result (inline in drawing tab) */}
+                  {comparisonResult && (
+                    <VerificationPanel
+                      comparison={comparisonResult}
+                      isVerifying={isVerifying}
+                      onRunVerification={handleRunVerification}
+                      onReVerify={handleRunVerification}
+                      onAdvanceToExport={() => { handleAdvanceToExport(); setJobPrepTab('finaldoc'); }}
+                      drawingName={activeDrawing.name}
+                      showUITooltips={showUITooltips}
+                    />
+                  )}
+
+                  <DrawingSaveDialog
+                    isOpen={showSaveDialog !== null}
+                    mode={showSaveDialog || 'save'}
+                    currentName={activeDrawing.name}
+                    onSave={(name) => {
+                      if (showSaveDialog === 'save') handleSaveToDb(name);
+                      else handleExportJson(name);
+                    }}
+                    onCancel={() => setShowSaveDialog(null)}
+                  />
+                </>
+              )}
             </div>
           )}
 
-          {/* Active drawing: toolbar + canvas + panels */}
-          {activeDrawing && (
-            <>
-              {/* Back button */}
-              <button
-                className="research-drawing__back-btn"
-                onClick={() => {
-                  if (hasUnsavedChanges && !window.confirm('You have unsaved changes. Leave without saving?')) return;
-                  setActiveDrawing(null); setDrawingElements([]); setDrawingSvg(''); setSelectedElement(null); setShowPrefsPanel(false);
-                  setCanvasZoom(1); setHasUnsavedChanges(false);
-                }}
-                style={{ marginBottom: '0.5rem' }}
-              >
-                &larr; Back to Drawing List
-              </button>
+          {/* ── TAB 2: Field Plan ── */}
+          {jobPrepTab === 'fieldplan' && (
+            <div>
+              <div className="research-step-header" style={{ marginBottom: '1.25rem' }}>
+                <span className="research-step-header__icon">📋</span>
+                <div className="research-step-header__body">
+                  <h2 className="research-step-header__title">AI Field Plan</h2>
+                  <p className="research-step-header__desc">
+                    Step-by-step field survey plan generated by AI based on all analyzed documents.
+                    Use this as your job preparation guide in the field.
+                  </p>
+                </div>
+              </div>
+              <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '1.25rem' }}>
+                <SurveyPlanPanel projectId={projectId} />
+              </div>
+            </div>
+          )}
 
-              {/* View toolbar */}
-              <DrawingViewToolbar
-                viewMode={viewMode}
-                onViewModeChange={(mode) => {
-                  setViewMode(mode);
-                  if (activeDrawing) loadDrawingDetail(activeDrawing.id);
-                }}
-                preferences={drawingPrefs}
-                onPreferencesChange={setDrawingPrefs}
-                onOpenSettings={() => setShowPrefsPanel(!showPrefsPanel)}
-                onExportSvg={handleExportSvg}
-                onExportJson={() => setShowSaveDialog('export')}
-                onSaveToDb={() => setShowSaveDialog('save')}
-                isSaving={savingDrawing}
-                onResetOriginal={handleResetOriginal}
-                onResetLastSaved={handleResetLastSaved}
-                onUndo={handleUndo}
-                onRedo={handleRedo}
-                canUndo={annotationHistory.length > 0}
-                canRedo={annotationFuture.length > 0}
-                zoom={canvasZoom}
-                onZoomIn={() => setCanvasZoom(prev => Math.min(10, prev * 1.3))}
-                onZoomOut={() => setCanvasZoom(prev => Math.max(0.1, prev / 1.3))}
-                onZoomReset={() => setCanvasZoom(1)}
-                onZoomToFit={handleZoomToFit}
-                elementCount={drawingElements.length}
-                visibleCount={drawingElements.filter(e => e.visible).length}
-                modifiedCount={drawingElements.filter(e => e.user_modified).length}
-                overallConfidence={activeDrawing.overall_confidence ?? null}
-                hasUnsavedChanges={hasUnsavedChanges}
-                lastSavedAt={lastSavedAt}
-                showUITooltips={showUITooltips}
-                onToggleUITooltips={() => setShowUITooltips(prev => !prev)}
-                autoSaveOnChange={autoSaveOnChange}
-                onToggleAutoSaveOnChange={() => setAutoSaveOnChange(prev => !prev)}
-              />
+          {/* ── TAB 3: Final Document ── */}
+          {jobPrepTab === 'finaldoc' && (
+            <div>
+              <div className="research-final-doc">
+                {/* Header bar */}
+                <div className="research-final-doc__header">
+                  <div>
+                    <h2 className="research-final-doc__title">
+                      🖨️ Final Job Package — {project.name}
+                    </h2>
+                    <p className="research-final-doc__subtitle">
+                      {project.property_address}{project.county ? ` · ${project.county} County` : ''}{project.state ? `, ${project.state}` : ''}
+                    </p>
+                  </div>
+                  <div className="research-final-doc__actions">
+                    <button
+                      className="research-final-doc__btn research-final-doc__btn--primary"
+                      onClick={() => window.print()}
+                    >
+                      🖨️ Print
+                    </button>
+                    {activeDrawing && (
+                      <button
+                        className="research-final-doc__btn research-final-doc__btn--secondary"
+                        onClick={handleOpenInCAD}
+                        disabled={isOpeningInCAD}
+                      >
+                        {isOpeningInCAD ? '⏳ Opening…' : '✏️ Open in CAD Editor'}
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-              {/* Main workspace: tools + canvas + side panels */}
-              <div className="research-drawing__workspace">
-                {/* Tools sidebar (left) */}
-                <DrawingToolsSidebar
-                  activeTool={activeTool}
-                  onToolChange={handleToolChange}
-                  settings={toolSettings}
-                  onSettingsChange={setToolSettings}
-                  onUndo={handleUndo}
-                  onRedo={handleRedo}
-                  canUndo={annotationHistory.length > 0}
-                  canRedo={annotationFuture.length > 0}
-                  showUITooltips={showUITooltips}
-                />
+                <div className="research-final-doc__body">
+                  {/* Property Summary */}
+                  <div className="research-final-doc__section">
+                    <h3 className="research-final-doc__section-title">📍 Property Summary</h3>
+                    <div className="research-final-doc__property-grid">
+                      {project.property_address && (
+                        <div className="research-final-doc__prop-item">
+                          <div className="research-final-doc__prop-label">Address</div>
+                          <div className="research-final-doc__prop-value">{project.property_address}</div>
+                        </div>
+                      )}
+                      {project.county && (
+                        <div className="research-final-doc__prop-item">
+                          <div className="research-final-doc__prop-label">County</div>
+                          <div className="research-final-doc__prop-value">{project.county} County, {project.state}</div>
+                        </div>
+                      )}
+                      {project.parcel_id && (
+                        <div className="research-final-doc__prop-item">
+                          <div className="research-final-doc__prop-label">Parcel ID</div>
+                          <div className="research-final-doc__prop-value">{project.parcel_id}</div>
+                        </div>
+                      )}
+                      {project.legal_description_summary && (
+                        <div className="research-final-doc__prop-item" style={{ gridColumn: '1 / -1' }}>
+                          <div className="research-final-doc__prop-label">Legal Description</div>
+                          <div className="research-final-doc__prop-value" style={{ whiteSpace: 'pre-wrap', fontSize: '0.82rem', fontWeight: 400 }}>{project.legal_description_summary}</div>
+                        </div>
+                      )}
+                      <div className="research-final-doc__prop-item">
+                        <div className="research-final-doc__prop-label">Documents Analyzed</div>
+                        <div className="research-final-doc__prop-value">{stats.document_count}</div>
+                      </div>
+                      <div className="research-final-doc__prop-item">
+                        <div className="research-final-doc__prop-label">Data Points</div>
+                        <div className="research-final-doc__prop-value">{stats.data_point_count}</div>
+                      </div>
+                      <div className="research-final-doc__prop-item">
+                        <div className="research-final-doc__prop-label">Discrepancies</div>
+                        <div className="research-final-doc__prop-value" style={{ color: stats.discrepancy_count > 0 ? '#D97706' : '#059669' }}>
+                          {stats.discrepancy_count > 0
+                            ? `${stats.resolved_count}/${stats.discrepancy_count} resolved`
+                            : 'None'}
+                        </div>
+                      </div>
+                      <div className="research-final-doc__prop-item">
+                        <div className="research-final-doc__prop-label">Prepared</div>
+                        <div className="research-final-doc__prop-value">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                      </div>
+                    </div>
+                  </div>
 
-                {/* Annotation layer panel (below tools) */}
-                <AnnotationLayerPanel
-                  layers={annotationLayers}
-                  activeLayerId={activeLayerId}
-                  onLayersChange={setAnnotationLayers}
-                  onActiveLayerChange={setActiveLayerId}
-                  annotationCountByLayer={
-                    annotations.reduce<Record<string, number>>((acc, ann) => {
-                      const lid = ann.layerId || annotationLayers[0]?.id || '';
-                      acc[lid] = (acc[lid] || 0) + 1;
-                      return acc;
-                    }, {})
-                  }
-                />
+                  {/* Drawing */}
+                  {activeDrawing && sanitizedDrawingSvg && (
+                    <div className="research-final-doc__section">
+                      <h3 className="research-final-doc__section-title">✏️ Boundary Drawing</h3>
+                      <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', maxHeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC' }}
+                        dangerouslySetInnerHTML={{ __html: sanitizedDrawingSvg }}
+                      />
+                      <div style={{ fontSize: '0.78rem', color: '#6B7280', marginTop: '0.5rem', textAlign: 'center' }}>
+                        {activeDrawing.name} — v{activeDrawing.version}
+                        {activeDrawing.overall_confidence ? ` — ${Math.round(activeDrawing.overall_confidence)}% confidence` : ''}
+                      </div>
+                    </div>
+                  )}
+                  {!activeDrawing && (
+                    <div className="research-final-doc__section">
+                      <h3 className="research-final-doc__section-title">✏️ Boundary Drawing</h3>
+                      <div style={{ padding: '2rem', textAlign: 'center', color: '#9CA3AF', background: '#F9FAFB', border: '1px dashed #D1D5DB', borderRadius: 8 }}>
+                        <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📐</div>
+                        <div style={{ fontSize: '0.88rem' }}>
+                          No drawing generated yet. Go to the <button onClick={() => setJobPrepTab('drawing')} style={{ background: 'none', border: 'none', color: '#1D4ED8', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit', padding: 0 }}>Drawing tab</button> to generate an AI boundary drawing.
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-                {/* Preferences panel (slides in from left) */}
-                {showPrefsPanel && (
-                  <DrawingPreferencesPanel
-                    preferences={drawingPrefs}
-                    onChange={setDrawingPrefs}
-                    onClose={() => setShowPrefsPanel(false)}
-                    onReset={() => setDrawingPrefs(DEFAULT_PREFERENCES)}
-                  />
-                )}
+                  {/* Field Plan */}
+                  <div className="research-final-doc__section">
+                    <h3 className="research-final-doc__section-title">📋 AI Field Plan</h3>
+                    <SurveyPlanPanel projectId={projectId} />
+                  </div>
 
-                {/* Coordinate Entry Panel (CAD input) */}
-                {showCoordEntry && (
-                  <CoordinateEntryPanel
-                    isOpen={showCoordEntry}
-                    onClose={() => { setShowCoordEntry(false); if (activeTool === 'coordinate_entry') setActiveTool('select'); }}
-                    onAddLeg={handleAddLeg}
-                    onAddPoint={handleAddPoint}
-                    onCloseTraverse={handleCloseTraverse}
-                    vertices={coordVertices}
-                    onSelectVertex={(idx) => {
-                      const v = coordVertices[idx];
-                      if (v) setCursorPosition({ x: v.x, y: v.y });
-                    }}
-                    onDeleteVertex={handleDeleteCoordVertex}
-                    cursorPosition={cursorPosition}
-                  />
-                )}
+                  {/* Screenshots / Aerial Photos from research */}
+                  {(() => {
+                    const imageDocs = documents.filter(d =>
+                      d.document_type === 'aerial_photo' ||
+                      (d.file_type && (d.file_type.startsWith('image/') || d.file_type === 'image')) ||
+                      (d.storage_url && /\.(png|jpg|jpeg|webp|gif)$/i.test(d.storage_url))
+                    );
+                    if (imageDocs.length === 0) return null;
+                    return (
+                      <div className="research-final-doc__section">
+                        <h3 className="research-final-doc__section-title">🛰️ Research Images &amp; Screenshots ({imageDocs.length})</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.75rem' }}>
+                          {imageDocs.map(doc => (
+                            <div key={doc.id} style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', background: '#F8FAFC' }}>
+                              {(doc.storage_url || doc.pages_pdf_url) && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={doc.storage_url ?? doc.pages_pdf_url ?? ''}
+                                  alt={doc.document_label || doc.original_filename || 'Research image'}
+                                  style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
+                                  loading="lazy"
+                                />
+                              )}
+                              <div style={{ padding: '0.5rem 0.65rem', fontSize: '0.75rem', color: '#6B7280' }}>
+                                {doc.document_label || doc.original_filename || doc.document_type?.replace(/_/g, ' ') || 'Image'}
+                                {doc.source_url && (
+                                  <a href={doc.source_url} target="_blank" rel="noopener noreferrer" style={{ marginLeft: '0.4rem', color: '#1D4ED8' }}>
+                                    ↗ Source
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
-                {/* Vertex Edit Panel */}
-                {selectedVertexData && activeTool === 'vertex_edit' && (
-                  <VertexEditPanel
-                    vertex={selectedVertexData}
-                    onClose={() => setSelectedVertexData(null)}
-                    onUpdateVertex={handleUpdateVertex}
-                    onNavigateVertex={handleNavigateVertex}
-                    canNavigatePrev={true}
-                    canNavigateNext={true}
-                  />
-                )}
-
-                {/* Canvas */}
-                <div className={`research-drawing__canvas-wrap ${selectedElement ? 'research-drawing__canvas-wrap--with-panel' : ''}`}>
-                  {drawingSvg ? (
-                    <DrawingCanvas
-                      drawing={activeDrawing}
-                      elements={drawingElements}
-                      viewMode={viewMode}
-                      svgContent={drawingSvg}
-                      preferences={drawingPrefs}
-                      activeTool={activeTool}
-                      toolSettings={toolSettings}
-                      onToolChange={handleToolChange}
-                      onElementClick={(el) => setSelectedElement(el)}
-                      onElementModified={(id, changes) => handleTrackedElementUpdate(id, changes)}
-                      onRevertElement={handleRevertElement}
-                      annotations={annotations}
-                      onAnnotationsChange={handleAnnotationsChangeTracked}
-                      onAnnotationsSilentChange={handleAnnotationsSilentChange}
-                      zoom={canvasZoom}
-                      onZoomChange={setCanvasZoom}
-                      showVertexHandles={activeTool === 'vertex_edit'}
-                      onVertexClick={handleVertexClick}
-                      zoomToFitSignal={zoomToFitSignal}
-                      onCursorPositionChange={setCursorPosition}
-                      snapMode={toolSettings.snapMode}
-                      activeLayerId={activeLayerId}
+                  {/* ── Editable Job Notes ── */}
+                  <div className="research-final-doc__section research-final-doc__section--editable">
+                    <h3 className="research-final-doc__section-title">
+                      📝 Job Notes &amp; Field Instructions
+                      <span style={{ marginLeft: '0.5rem', fontSize: '0.68rem', fontWeight: 400, color: '#9CA3AF', textTransform: 'none', letterSpacing: 0 }}>
+                        {savingJobNotes ? '⏳ Saving…' : '(editable — auto-saved)'}
+                      </span>
+                    </h3>
+                    <textarea
+                      className="research-final-doc__notes-textarea"
+                      value={jobNotes}
+                      onChange={e => handleJobNotesChange(e.target.value)}
+                      placeholder={JOB_NOTES_PLACEHOLDER}
+                      rows={10}
                     />
-                  ) : (
-                    <div className="research-canvas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
-                      <div style={{ color: '#9CA3AF', fontSize: '0.88rem' }}>Loading drawing...</div>
+                  </div>
+
+                  {/* Export Options */}
+                  {activeDrawing && (
+                    <div className="research-final-doc__section">
+                      <h3 className="research-final-doc__section-title">📤 Export Drawing Files</h3>
+                      <ExportPanel
+                        projectId={projectId}
+                        drawingId={activeDrawing.id}
+                        drawingName={activeDrawing.name}
+                        comparison={comparisonResult}
+                        onExport={handleExportDrawing}
+                        onOpenInCAD={handleOpenInCAD}
+                        onMarkComplete={handleMarkComplete}
+                        isExporting={isExporting}
+                        isOpeningInCAD={isOpeningInCAD}
+                        lastExport={lastExport}
+                        showUITooltips={showUITooltips}
+                      />
+                    </div>
+                  )}
+
+                  {/* Source documents index */}
+                  {documents.length > 0 && (
+                    <div className="research-final-doc__section">
+                      <h3 className="research-final-doc__section-title">📎 Source Documents ({documents.length})</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        {documents.map((doc, i) => (
+                          <div key={doc.id} style={{ display: 'flex', gap: '0.75rem', fontSize: '0.82rem', padding: '0.4rem 0', borderBottom: i < documents.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
+                            <span style={{ color: '#9CA3AF', width: 20, flexShrink: 0 }}>{i + 1}.</span>
+                            <span style={{ fontWeight: 600, color: '#1F2937', flex: 1 }}>
+                              {doc.document_label || doc.original_filename || doc.document_type?.replace(/_/g, ' ') || 'Document'}
+                            </span>
+                            {doc.source_url && (
+                              <a href={doc.source_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1D4ED8', flexShrink: 0 }}>
+                                🔗 Source
+                              </a>
+                            )}
+                            <span style={{ color: doc.processing_status === 'analyzed' ? '#059669' : '#9CA3AF', flexShrink: 0 }}>
+                              {doc.processing_status === 'analyzed' ? '✓ Analyzed' : doc.processing_status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
-
-                {/* Element detail panel (right side) */}
-                {selectedElement && (
-                  <ElementDetailPanel
-                    element={selectedElement}
-                    onClose={() => setSelectedElement(null)}
-                    onToggleVisibility={(id, vis) => handleTrackedElementUpdate(id, { visible: vis })}
-                    onToggleLock={(id, lock) => handleTrackedElementUpdate(id, { locked: lock })}
-                    onUpdateNotes={(id, notes) => handleTrackedElementUpdate(id, { user_notes: notes })}
-                    onStyleChange={(id, style) => {
-                      // rotation is stored in element.attributes, not element.style
-                      if ('rotation' in style) {
-                        const { rotation, ...styleWithoutRotation } = style as Record<string, unknown>;
-                        const updates: Record<string, unknown> = {};
-                        if (Object.keys(styleWithoutRotation).length > 0) {
-                          updates.style = { ...selectedElement.style, ...styleWithoutRotation };
-                        }
-                        updates.attributes = { ...selectedElement.attributes, rotation };
-                        handleTrackedElementUpdate(id, updates);
-                      } else {
-                        handleTrackedElementUpdate(id, { style: { ...selectedElement.style, ...style } });
-                      }
-                    }}
-                    onViewSource={(docId, excerpt) => {
-                      const doc = documents.find(d => d.id === docId);
-                      if (doc) {
-                        setViewerDoc(doc);
-                        setViewerHighlight(excerpt);
-                      }
-                    }}
-                    onRevertElement={handleRevertElement}
-                    showUITooltips={showUITooltips}
-                  />
-                )}
               </div>
-
-              {/* Drawing info footer */}
-              <div className="research-drawing__info">
-                <span>{activeDrawing.name} (v{activeDrawing.version})</span>
-                {hasUnsavedChanges && (
-                  <span className="research-drawing__info-unsaved">Unsaved changes</span>
-                )}
-                {lastSavedAt && !hasUnsavedChanges && (
-                  <span className="research-drawing__info-saved">Saved {new Date(lastSavedAt).toLocaleTimeString()}</span>
-                )}
-                {activeDrawing.comparison_notes && (
-                  <span className="research-drawing__info-notes">{activeDrawing.comparison_notes}</span>
-                )}
-              </div>
-
-              {/* Open in CAD Editor — available throughout the drawing step */}
-              <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
-                <button
-                  style={{
-                    background: '#1D4ED8', color: '#fff', border: 'none', borderRadius: 6,
-                    padding: '0.4rem 1rem', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer',
-                    opacity: isOpeningInCAD ? 0.7 : 1,
-                  }}
-                  onClick={handleOpenInCAD}
-                  disabled={isOpeningInCAD}
-                  title="Convert this drawing to a full STARR CAD document and open it for editing"
-                >
-                  {isOpeningInCAD ? '⏳ Opening…' : '✏️ Open in CAD Editor'}
-                </button>
-              </div>
-
-              {/* Save/Export dialog */}
-              <DrawingSaveDialog
-                isOpen={showSaveDialog !== null}
-                mode={showSaveDialog || 'save'}
-                currentName={activeDrawing.name}
-                onSave={(name) => {
-                  if (showSaveDialog === 'save') handleSaveToDb(name);
-                  else handleExportJson(name);
-                }}
-                onCancel={() => setShowSaveDialog(null)}
-              />
-            </>
+            </div>
           )}
         </div>
       )}
-
-      {/* Step 6: Verify */}
-      {project.status === 'verifying' && (
-        <>
-          {/* Back to Drawing */}
-          <button className="research-back-btn" onClick={() => handleRevertToStep('drawing')}>
-            &larr; Back to Drawing
-          </button>
-          {!activeDrawing && (
-            <div className="research-verify__loading-drawings">
-              <p style={{ color: '#6B7280', fontSize: '0.85rem', textAlign: 'center', padding: '2rem 1rem' }}>
-                Loading drawing for verification...
-              </p>
-            </div>
-          )}
-          {activeDrawing && (
-            <VerificationPanel
-              comparison={comparisonResult}
-              isVerifying={isVerifying}
-              onRunVerification={handleRunVerification}
-              onReVerify={handleRunVerification}
-              onAdvanceToExport={handleAdvanceToExport}
-              drawingName={activeDrawing.name}
-              showUITooltips={showUITooltips}
-            />
-          )}
-        </>
-      )}
-
-      {/* Step 7: Export / Complete */}
-      {project.status === 'complete' && (
-        <>
-          {/* Back to Verify */}
-          <button className="research-back-btn" onClick={() => handleRevertToStep('verifying')}>
-            &larr; Back to Verify
-          </button>
-          {!activeDrawing && (
-            <div style={{ color: '#6B7280', fontSize: '0.85rem', textAlign: 'center', padding: '2rem 1rem' }}>
-              Loading drawing for export...
-            </div>
-          )}
-          {activeDrawing && (
-            <ExportPanel
-              projectId={projectId}
-              drawingId={activeDrawing.id}
-              drawingName={activeDrawing.name}
-              comparison={comparisonResult}
-              onExport={handleExportDrawing}
-              onOpenInCAD={handleOpenInCAD}
-              onMarkComplete={handleMarkComplete}
-              isExporting={isExporting}
-              isOpeningInCAD={isOpeningInCAD}
-              lastExport={lastExport}
-              showUITooltips={showUITooltips}
-            />
-          )}
-
-          {/* Survey Field Plan — always visible on the Complete step */}
-          <div style={{ marginTop: '2rem' }}>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#111827', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              📋 Field Survey Plan
-              <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#6B7280', background: '#F3F4F6', padding: '2px 8px', borderRadius: 10 }}>AI Generated</span>
-            </h2>
-            <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '1.25rem' }}>
-              <SurveyPlanPanel projectId={projectId} />
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Document list (shown on all steps for reference) */}
-      {project.status !== 'upload' && documents.length > 0 && (
-        <div style={{ marginTop: '2rem' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#374151', marginBottom: '0.75rem' }}>
-            Project Documents ({documents.length})
-          </h3>
-          {documents.map(doc => (
-            <div key={doc.id} className="research-upload__doc" style={{ cursor: 'default' }}>
-              <div className="research-upload__doc-icon">
-                {doc.source_type === 'manual_entry' ? '📝' : '📄'}
-              </div>
-              <div className="research-upload__doc-info">
-                <div className="research-upload__doc-name">
-                  {doc.document_label || doc.original_filename || 'Untitled'}
-                </div>
-                <div className="research-upload__doc-meta">
-                  {doc.document_type && <span>{doc.document_type.replace(/_/g, ' ')}</span>}
-                  {doc.extracted_text_method && <span>{doc.extracted_text_method}</span>}
-                  <span style={{
-                    color: doc.processing_status === 'analyzed' ? '#059669'
-                      : doc.processing_status === 'analyzing' ? '#F59E0B'
-                      : doc.processing_status === 'error' ? '#EF4444'
-                      : '#9CA3AF',
-                    fontWeight: 600,
-                  }}>
-                    {doc.processing_status === 'analyzed' ? 'Analyzed'
-                      : doc.processing_status === 'analyzing' ? 'Analyzing...'
-                      : doc.processing_status === 'extracted' ? 'Extracted'
-                      : doc.processing_status === 'error' ? 'Error'
-                      : doc.processing_status}
-                  </span>
-                </div>
-                {/* View Pages button — shown when PDF images are available */}
-                {(doc.pages_pdf_url || doc.storage_url) && (
-                  <button
-                    className="research-upload__doc-pdf-btn"
-                    onClick={() => {
-                      setViewerDoc(doc);
-                      setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
-                      setViewerHighlight(undefined);
-                    }}
-                    title="View document page images"
-                  >
-                    🖼️ View Pages
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Source document viewer modal */}
+        {/* Source document viewer modal */}
       {viewerDoc && (
         <SourceDocumentViewer
           document={viewerDoc}

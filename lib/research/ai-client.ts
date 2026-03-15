@@ -389,3 +389,85 @@ export async function callVision(
     }
   }
 }
+
+/**
+ * Call Claude with a PDF document using the native document content type.
+ * This is the recommended approach for PDFs — it handles multi-page PDFs
+ * including scanned/image-only PDFs natively without requiring pdf-to-image
+ * conversion. Much more reliable than trying to extract text with pdf-parse
+ * then falling back.
+ *
+ * Includes retry with exponential backoff (same as callVision).
+ */
+export async function callDocumentAI(
+  pdfBase64: string,
+  promptKey: PromptKey = 'OCR_EXTRACTOR',
+  additionalText?: string,
+): Promise<AICallResult> {
+  const prompt = PROMPTS[promptKey];
+  const startTime = Date.now();
+  let retryCount = 0;
+
+  // The Anthropic SDK's TypeScript types may not yet include the 'document'
+  // content block — cast to unknown to satisfy the compiler while still sending
+  // the correct API payload that Claude 3+ accepts.
+  // TODO: Remove cast once @anthropic-ai/sdk TypeScript types officially include
+  //       the 'document' content block type for PDF inputs.
+  const content = [
+    {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
+    },
+    {
+      type: 'text',
+      text: additionalText || 'Extract all text from this document. Return each text region with its content in reading order.',
+    },
+  ] as unknown as Anthropic.MessageCreateParams['messages'][0]['content'];
+
+  while (true) {
+    const { signal, clear } = createTimeoutSignal(REQUEST_TIMEOUT_MS);
+    try {
+      const response = await anthropic.messages.create(
+        {
+          model: AI_MODEL,
+          max_tokens: 8192,
+          temperature: prompt.temperature,
+          system: prompt.system,
+          messages: [{ role: 'user', content }],
+        },
+        { signal },
+      );
+
+      clear();
+      const latencyMs = Date.now() - startTime;
+
+      const textBlock = response.content.find(c => c.type === 'text');
+      const rawText = textBlock && textBlock.type === 'text' ? textBlock.text : '';
+
+      return {
+        response: parseResponse(rawText),
+        raw: rawText,
+        promptVersion: prompt.version,
+        model: AI_MODEL,
+        tokensUsed: {
+          input: response.usage.input_tokens,
+          output: response.usage.output_tokens,
+        },
+        latencyMs,
+        retryCount,
+      };
+    } catch (err) {
+      clear();
+      if (retryCount < MAX_RETRIES && isRetryableError(err)) {
+        const delayMs = BASE_RETRY_DELAY_MS * Math.pow(2, retryCount);
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(`Document AI call retry ${retryCount + 1}/${MAX_RETRIES} after ${delayMs}ms:`, err instanceof Error ? err.message : err);
+        }
+        await sleep(delayMs);
+        retryCount++;
+        continue;
+      }
+      throw classifyAIError(err, retryCount, `callDocumentAI(${promptKey})`);
+    }
+  }
+}
