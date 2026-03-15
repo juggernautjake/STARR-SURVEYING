@@ -395,7 +395,7 @@ async function searchClerkForPlats(
       if (captureImages) {
         try {
           progress(`    Capturing plat pages: ${instrNum}`);
-          const pages = await fetchDocumentImages(instrNum, 15, logger);
+          const pages = await fetchDocumentImages('bell', instrNum, 15, logger);
           pageImages = pages.map(p => p.imageBase64).filter(Boolean);
           progress(`    ✓ ${pageImages.length} page(s) for instrument ${instrNum}`);
         } catch (imgErr) {
@@ -437,11 +437,12 @@ async function searchByCabinetSlide(
   urlsVisited.push(searchUrl);
 
   try {
-    const { searchBellClerk, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
+    const { searchClerkRecords, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(`plat-cab-${Date.now()}`);
 
-    const docRefs = await searchBellClerk(query, logger);
+    const docResults = await searchClerkRecords('bell', query, logger);
+    const docRefs = docResults.map(d => d.ref);
     if (!docRefs || docRefs.length === 0) return null;
 
     // Pick a plat document type
@@ -451,7 +452,7 @@ async function searchByCabinetSlide(
     let pageImages: string[] = [];
     if (captureImages && instrNum) {
       try {
-        const pages = await fetchDocumentImages(instrNum, 15, logger);
+        const pages = await fetchDocumentImages('bell', instrNum, 15, logger);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
       } catch { /* continue */ }
     }
@@ -486,11 +487,12 @@ async function searchByVolumePage(
   urlsVisited.push(`${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`);
 
   try {
-    const { searchBellClerk, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
+    const { searchClerkRecords, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(`plat-volpg-${Date.now()}`);
 
-    const docRefs = await searchBellClerk(query, logger);
+    const docResults = await searchClerkRecords('bell', query, logger);
+    const docRefs = docResults.map(d => d.ref);
     if (!docRefs || docRefs.length === 0) return null;
 
     const platRef = docRefs.find(d => /plat/i.test(d.documentType))
@@ -501,7 +503,7 @@ async function searchByVolumePage(
     let pageImages: string[] = [];
     if (captureImages && instrNum) {
       try {
-        const pages = await fetchDocumentImages(instrNum, 15, logger);
+        const pages = await fetchDocumentImages('bell', instrNum, 15, logger);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
       } catch { /* continue */ }
     }
@@ -553,7 +555,7 @@ async function checkInstrumentForPlat(
     let pageImages: string[] = [];
     if (captureImages) {
       try {
-        const pages = await fetchDocumentImages(instrumentNumber, 15, logger);
+        const pages = await fetchDocumentImages('bell', instrumentNumber, 15, logger);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`    ✓ ${pageImages.length} page(s) for plat ${instrumentNumber}`);
       } catch { /* continue */ }
