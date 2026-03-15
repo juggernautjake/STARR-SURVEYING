@@ -2,6 +2,7 @@
 'use client';
 import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { usePageError } from '../hooks/usePageError';
 
 interface Profile {
@@ -32,37 +33,36 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!email) return;
-    loadProfile();
-  }, [email]);
-
-  async function loadProfile() {
-    try {
-      setLoading(true);
-      const profileData = await safeFetch<{ profile: Profile; certifications: Cert[]; exists: boolean }>(
-        `/api/admin/payroll/employees?email=${encodeURIComponent(email)}`
-      );
-      if (profileData?.profile) {
-        setProfile(profileData.profile);
-        setCerts(profileData.certifications || []);
-      }
-
-      // Load profile changes and learning credits from employee-accessible endpoint
+    async function loadProfile() {
       try {
-        const myData = await safeFetch<{ profile_changes: ProfileChange[]; employee_credits: LearningCredit[]; total_points: number }>(
-          '/api/admin/profile/changes'
+        setLoading(true);
+        const profileData = await safeFetch<{ profile: Profile; certifications: Cert[]; exists: boolean }>(
+          `/api/admin/payroll/employees?email=${encodeURIComponent(email)}`
         );
-        if (myData) {
-          setChanges(myData.profile_changes || []);
-          setCredits(myData.employee_credits || []);
-          setTotalPoints(myData.total_points || 0);
+        if (profileData?.profile) {
+          setProfile(profileData.profile);
+          setCerts(profileData.certifications || []);
         }
-      } catch { /* ignore */ }
-    } catch (err) {
-      reportPageError(err instanceof Error ? err : new Error('Load failed'));
-    } finally {
-      setLoading(false);
+
+        // Load profile changes and learning credits from employee-accessible endpoint
+        try {
+          const myData = await safeFetch<{ profile_changes: ProfileChange[]; employee_credits: LearningCredit[]; total_points: number }>(
+            '/api/admin/profile/changes'
+          );
+          if (myData) {
+            setChanges(myData.profile_changes || []);
+            setCredits(myData.employee_credits || []);
+            setTotalPoints(myData.total_points || 0);
+          }
+        } catch { /* ignore */ }
+      } catch (err) {
+        reportPageError(err instanceof Error ? err : new Error('Load failed'));
+      } finally {
+        setLoading(false);
+      }
     }
-  }
+    loadProfile();
+  }, [email, safeFetch, reportPageError]);
 
   if (!session?.user) return null;
   const { name, image, role } = session.user;
@@ -82,7 +82,7 @@ export default function ProfilePage() {
       <div className="admin-card" style={{ marginBottom: '1rem' }}>
         <div className="profile-page__header" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
           {image ? (
-            <img src={image} alt={name || 'User'} className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', border: '3px solid #E5E7EB' }} />
+            <Image src={image} alt={name || 'User'} width={40} height={40} unoptimized className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', border: '3px solid #E5E7EB' }} />
           ) : (
             <div className="profile-page__avatar" style={{ width: 64, height: 64, borderRadius: '50%', background: '#BD1218', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Sora,sans-serif', fontSize: '1.25rem', fontWeight: 700 }}>
               {(name || 'U').charAt(0)}

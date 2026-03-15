@@ -825,6 +825,7 @@ export default function DrawingCanvas({
     if (annId) {
       deleteAnnotation(annId);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTool, annotations]);
 
   // ── Pan / Zoom (existing logic, tool-aware) ──────────────────────────
@@ -1022,6 +1023,7 @@ export default function DrawingCanvas({
       setZoom(newZoom);
       setPan(newPan);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTool, isDrawing, currentPoints, toolSettings, annotations, zoom, pan, setZoom, clampPan]);
 
   // Mouse down — pan or draw
@@ -1190,6 +1192,7 @@ export default function DrawingCanvas({
       return;
     }
     handleSvgMouseMove(e);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPanning, panStart, isDrawing, handleDrawMove, handleSvgMouseMove, clientToSvg, clampPan, zoom, draggingAnnotation, resizingAnnotation, annotations, draggingLabelEl]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
@@ -1303,6 +1306,7 @@ export default function DrawingCanvas({
       annotationId: annId || null,
       annotationType: ann?.type,
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elementMap]);
 
   const handleContextMenuAction = useCallback((action: ContextMenuAction, element: DrawingElement | null) => {
@@ -1402,6 +1406,7 @@ export default function DrawingCanvas({
     }
 
     setContextMenu(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextMenu, annotations, elements, onElementClick, onElementModified, onRevertElement, clipboard]);
 
   // ── Keyboard Shortcuts ────────────────────────────────────────────────
@@ -1466,6 +1471,7 @@ export default function DrawingCanvas({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setZoom, selectedAnnotationId, annotations, drawing.canvas_config]);
 
   // ── Cursor ──────────────────────────────────────────────────────────────

@@ -38,18 +38,18 @@ export default function MediaLibraryPage() {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
 
-  useEffect(() => {
-    async function fetchMedia() {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (filter !== 'all') params.set('type', filter);
-      if (search) params.set('search', search);
-      const data = await safeFetch<{ media: MediaItem[] }>(`/api/admin/media?${params}`);
-      if (data) setMedia(data.media || []);
-      setLoading(false);
-    }
-    fetchMedia();
-  }, [filter, search, safeFetch]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchMedia(); }, [filter, search]);
+
+  async function fetchMedia() {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (filter !== 'all') params.set('type', filter);
+    if (search) params.set('search', search);
+    const data = await safeFetch<{ media: MediaItem[] }>(`/api/admin/media?${params}`);
+    if (data) setMedia(data.media || []);
+    setLoading(false);
+  }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

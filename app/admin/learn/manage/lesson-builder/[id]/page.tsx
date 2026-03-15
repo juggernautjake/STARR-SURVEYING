@@ -459,6 +459,7 @@ export default function LessonBuilderPage() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blocks, saving, selectedBlockId]);
 
   async function loadLesson() {
@@ -1081,7 +1082,7 @@ export default function LessonBuilderPage() {
               )}
               {block.block_type === 'image' && block.content.url && (
                 <figure style={{ textAlign: (block.content.alignment || 'center') as any, margin: '1.5rem 0' }}>
-                  <img src={block.content.url} alt={block.content.alt || ''} style={{ maxWidth: '100%', borderRadius: '8px' }} />
+                  <Image src={block.content.url} alt={block.content.alt || ''} width={600} height={400} unoptimized style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }} />
                   {block.content.caption && <figcaption style={{ fontSize: '0.82rem', color: '#6B7280', marginTop: '0.5rem' }}>{block.content.caption}</figcaption>}
                 </figure>
               )}

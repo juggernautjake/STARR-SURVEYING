@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -356,9 +357,12 @@ export default function ProjectDocumentsPage() {
             {/* Document preview image */}
             <div className="flex-1 overflow-hidden bg-gray-800 flex items-center justify-center min-h-48">
               {previewUrl ? (
-                <img
+                <Image
                   src={previewUrl}
                   alt="Document preview"
+                  width={400}
+                  height={300}
+                  unoptimized
                   className="max-w-full max-h-full object-contain"
                   onError={() => setPreviewUrl(null)}
                 />
