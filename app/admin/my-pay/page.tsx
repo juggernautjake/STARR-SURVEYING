@@ -2,7 +2,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { usePageError } from '../hooks/usePageError';
 import UnderConstruction from '../components/messaging/UnderConstruction';
 import BalanceCard from '../components/payroll/BalanceCard';
@@ -46,11 +46,7 @@ export default function MyPayPage() {
   const email = session?.user?.email || '';
   const isAdmin = session?.user?.role === 'admin';
 
-  useEffect(() => {
-    if (email) loadProfile();
-  }, [email]);
-
-  async function loadProfile() {
+  const loadProfile = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/payroll/employees?email=${email}`);
       const data = await res.json();
@@ -68,7 +64,11 @@ export default function MyPayPage() {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load pay profile' });
     }
     setLoading(false);
-  }
+  }, [email, reportPageError]);
+
+  useEffect(() => {
+    if (email) loadProfile();
+  }, [email, loadProfile]);
 
   async function saveBankInfo(e: React.FormEvent) {
     e.preventDefault();

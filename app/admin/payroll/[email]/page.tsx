@@ -2,7 +2,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import UnderConstruction from '../../components/messaging/UnderConstruction';
@@ -49,15 +49,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
   const isAdmin = session?.user?.role === 'admin';
   const isSelf = session?.user?.email === email;
 
-  useEffect(() => {
-    if (!isAdmin && !isSelf) {
-      router.push('/admin/my-pay');
-      return;
-    }
-    loadProfile();
-  }, [email]);
-
-  async function loadProfile() {
+  const loadProfile = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/payroll/employees?email=${email}`);
       const data = await res.json();
@@ -75,7 +67,15 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ email
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load profile' });
     }
     setLoading(false);
-  }
+  }, [email, reportPageError]);
+
+  useEffect(() => {
+    if (!isAdmin && !isSelf) {
+      router.push('/admin/my-pay');
+      return;
+    }
+    loadProfile();
+  }, [isAdmin, isSelf, router, loadProfile]);
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();

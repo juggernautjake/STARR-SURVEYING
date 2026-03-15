@@ -42,17 +42,16 @@ export default function PayStubView({ email, limit = 10 }: PayStubViewProps) {
   const [expandedStub, setExpandedStub] = useState<string | null>(null);
 
   useEffect(() => {
+    async function loadStubs() {
+      try {
+        const res = await fetch(`/api/admin/payroll/runs?limit=${limit}`);
+        const data = await res.json();
+        setStubs(data.stubs || []);
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
     loadStubs();
-  }, [email]);
-
-  async function loadStubs() {
-    try {
-      const res = await fetch(`/api/admin/payroll/runs?limit=${limit}`);
-      const data = await res.json();
-      setStubs(data.stubs || []);
-    } catch { /* ignore */ }
-    setLoading(false);
-  }
+  }, [email, limit]);
 
   if (loading) return <div className="payroll-loading">Loading pay stubs...</div>;
 

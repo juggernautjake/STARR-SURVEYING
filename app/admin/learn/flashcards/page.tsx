@@ -57,23 +57,22 @@ export default function FlashcardsPage() {
 
   useEffect(() => {
     mountedRef.current = true;
+    async function fetchCards() {
+      setLoading(true);
+      setReady(false);
+      const data = await safeFetch<{ cards: Flashcard[]; stats?: FlashcardStats }>('/api/admin/learn/flashcards');
+      if (data && mountedRef.current) {
+        setCards(data.cards || []);
+        if (data.stats) setFcStats(data.stats);
+      }
+      if (mountedRef.current) {
+        setLoading(false);
+        setReady(true);
+      }
+    }
     fetchCards();
     return () => { mountedRef.current = false; };
-  }, []);
-
-  async function fetchCards() {
-    setLoading(true);
-    setReady(false);
-    const data = await safeFetch<{ cards: Flashcard[]; stats?: FlashcardStats }>('/api/admin/learn/flashcards');
-    if (data && mountedRef.current) {
-      setCards(data.cards || []);
-      if (data.stats) setFcStats(data.stats);
-    }
-    if (mountedRef.current) {
-      setLoading(false);
-      setReady(true);
-    }
-  }
+  }, [safeFetch]);
 
   async function createCard() {
     if (!newTerm.trim() || !newDef.trim()) return;

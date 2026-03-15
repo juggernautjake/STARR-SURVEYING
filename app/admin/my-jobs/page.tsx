@@ -31,20 +31,21 @@ export default function MyJobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadMyJobs(); }, []);
-
-  async function loadMyJobs() {
-    try {
-      const res = await fetch('/api/admin/jobs?my_jobs=true');
-      if (res.ok) {
-        const data = await res.json();
-        setJobs(data.jobs || []);
+  useEffect(() => {
+    async function loadMyJobs() {
+      try {
+        const res = await fetch('/api/admin/jobs?my_jobs=true');
+        if (res.ok) {
+          const data = await res.json();
+          setJobs(data.jobs || []);
+        }
+      } catch (err) {
+        reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load my jobs' });
       }
-    } catch (err) {
-      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load my jobs' });
+      setLoading(false);
     }
-    setLoading(false);
-  }
+    loadMyJobs();
+  }, [reportPageError]);
 
   if (!session?.user) return null;
 

@@ -39,6 +39,7 @@ export default function RaiseHistory({ email, isAdmin, onRaiseRecorded }: RaiseH
   });
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadRaises is stable, only re-run when email changes
     loadRaises();
   }, [email]);
 

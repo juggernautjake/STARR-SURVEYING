@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import type { UserRole } from '@/lib/auth';
 
@@ -175,7 +176,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === 'Enter') { router.push('/admin/dashboard'); onClose(); } }}
         >
-          <img src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png" alt="Starr Surveying" className="admin-sidebar__logo" />
+          <Image src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png" alt="Starr Surveying" width={40} height={40} className="admin-sidebar__logo" />
           <div className="admin-sidebar__brand">
             <span className="admin-sidebar__brand-name">Starr Surveying</span>
             <span className="admin-sidebar__brand-sub">{BRAND_LABELS[role]}</span>
@@ -215,7 +216,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
         </nav>
         <div className="admin-sidebar__footer">
           <div className="admin-sidebar__user">
-            {userImage ? <img src={userImage} alt={userName} className="admin-sidebar__avatar" /> :
+            {userImage ? <Image src={userImage} alt={userName} width={32} height={32} className="admin-sidebar__avatar" unoptimized /> :
              <div className="admin-sidebar__avatar-placeholder">{getInitials(userName)}</div>}
             <div className="admin-sidebar__user-info">
               <div className="admin-sidebar__user-name">{userName}</div>

@@ -35,21 +35,20 @@ export default function EmployeesPage() {
   const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
-    loadEmployees();
-  }, [showInactive]);
-
-  async function loadEmployees() {
-    try {
-      setLoading(true);
-      const url = `/api/admin/payroll/employees${showInactive ? '?include_inactive=true' : ''}`;
-      const data = await safeFetch<{ employees: Employee[] }>(url);
-      if (data?.employees) setEmployees(data.employees);
-    } catch (err) {
-      reportPageError(err instanceof Error ? err : new Error('Failed to load employees'));
-    } finally {
-      setLoading(false);
+    async function loadEmployees() {
+      try {
+        setLoading(true);
+        const url = `/api/admin/payroll/employees${showInactive ? '?include_inactive=true' : ''}`;
+        const data = await safeFetch<{ employees: Employee[] }>(url);
+        if (data?.employees) setEmployees(data.employees);
+      } catch (err) {
+        reportPageError(err instanceof Error ? err : new Error('Failed to load employees'));
+      } finally {
+        setLoading(false);
+      }
     }
-  }
+    loadEmployees();
+  }, [showInactive, safeFetch, reportPageError]);
 
   if (!session?.user) return null;
 

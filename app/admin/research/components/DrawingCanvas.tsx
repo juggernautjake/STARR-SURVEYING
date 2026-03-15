@@ -243,6 +243,7 @@ export default function DrawingCanvas({
       return () => clearTimeout(t);
     }
     return undefined;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawing.id, svgContent]); // Re-fit when drawing changes
 
   // Zoom-to-fit on external signal (toolbar button)
@@ -608,6 +609,7 @@ export default function DrawingCanvas({
     // Start drawing
     setIsDrawing(true);
     setCurrentPoints([svgPt]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTool, clientToSvg, applySnap, measureStart, isDrawing, currentPoints, toolSettings, annotations, zoom]);
 
   const handleDrawMove = useCallback((e: React.MouseEvent) => {
@@ -716,6 +718,7 @@ export default function DrawingCanvas({
     if (ONE_SHOT_TOOLS.includes(activeTool)) {
       onToolChange?.('select');
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDrawing, currentPoints, activeTool, toolSettings, annotations, onToolChange]);
 
   // Click to add polyline point
@@ -759,6 +762,7 @@ export default function DrawingCanvas({
     setTextInput(null);
     // Text placement is one-shot — revert to select
     onToolChange?.('select');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [textInput, clientToSvg, toolSettings, annotations, onToolChange]);
 
   // ── Tool: Image Placement ─────────────────────────────────────────────
@@ -805,6 +809,7 @@ export default function DrawingCanvas({
     reader.readAsDataURL(file);
     // Reset input so same file can be re-uploaded
     e.target.value = '';
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientToSvg, zoom, toolSettings, annotations, onToolChange]);
 
   // ── Tool: Eraser ──────────────────────────────────────────────────────

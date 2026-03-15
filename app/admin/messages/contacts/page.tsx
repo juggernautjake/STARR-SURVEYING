@@ -23,21 +23,20 @@ export default function ContactsPage() {
   const [filter, setFilter] = useState<'all' | 'admin' | 'teacher' | 'employee'>('all');
 
   useEffect(() => {
-    loadContacts();
-  }, []);
-
-  async function loadContacts() {
-    try {
-      const res = await fetch('/api/admin/messages/contacts');
-      if (res.ok) {
-        const data = await res.json();
-        setContacts(data.contacts || []);
+    async function loadContacts() {
+      try {
+        const res = await fetch('/api/admin/messages/contacts');
+        if (res.ok) {
+          const data = await res.json();
+          setContacts(data.contacts || []);
+        }
+      } catch (err) {
+        reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load contacts' });
       }
-    } catch (err) {
-      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load contacts' });
+      setLoading(false);
     }
-    setLoading(false);
-  }
+    loadContacts();
+  }, [reportPageError]);
 
   const filtered = contacts.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||

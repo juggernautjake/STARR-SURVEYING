@@ -40,6 +40,7 @@ export default function CertificationsPanel({ email, isAdmin, onCertChanged }: C
   });
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadCerts is stable, only re-run when email changes
     loadCerts();
   }, [email]);
 

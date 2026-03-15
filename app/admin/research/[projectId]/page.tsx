@@ -209,7 +209,7 @@ export default function ResearchProjectPage() {
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load project' });
     }
-  }, [projectId]);
+  }, [projectId, reportPageError, router]);
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -221,7 +221,7 @@ export default function ResearchProjectPage() {
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load documents' });
     }
-  }, [projectId]);
+  }, [projectId, reportPageError]);
 
   useEffect(() => {
     async function init() {
@@ -791,21 +791,21 @@ export default function ResearchProjectPage() {
     setAnnotations(newAnnotations);
   }
 
-  function handleUndo() {
+  const handleUndo = useCallback(() => {
     if (annotationHistory.length === 0) return;
     const prev = annotationHistory[annotationHistory.length - 1];
     setAnnotationFuture(f => [...f, annotations]);
     setAnnotations(prev);
     setAnnotationHistory(h => h.slice(0, -1));
-  }
+  }, [annotationHistory, annotations]);
 
-  function handleRedo() {
+  const handleRedo = useCallback(() => {
     if (annotationFuture.length === 0) return;
     const next = annotationFuture[annotationFuture.length - 1];
     setAnnotationHistory(h => [...h, annotations]);
     setAnnotations(next);
     setAnnotationFuture(f => f.slice(0, -1));
-  }
+  }, [annotationFuture, annotations]);
 
   /** Silent update: sets annotations without pushing undo history (used during drag/resize) */
   function handleAnnotationsSilentChange(newAnnotations: UserAnnotation[]) {
@@ -1467,6 +1467,7 @@ export default function ResearchProjectPage() {
         }
       });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.status, loadDrawings, projectId]);
 
   // Sanitized SVG for Final Document preview (uses DOMPurify same as DrawingCanvas)

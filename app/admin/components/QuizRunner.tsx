@@ -74,28 +74,29 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
   const [historicalAvg, setHistoricalAvg] = useState<{ avg: number; attempts: number } | null>(null);
   const startTime = useRef(Date.now());
 
-  useEffect(() => { fetchQuiz(); }, []);
+  useEffect(() => {
+    async function fetchQuiz() {
+      const params = new URLSearchParams({ type, count: String(questionCount) });
+      if (lessonId) params.set('lesson_id', lessonId);
+      if (moduleId) params.set('module_id', moduleId);
+      if (examCategory) params.set('exam_category', examCategory);
 
-  async function fetchQuiz() {
-    const params = new URLSearchParams({ type, count: String(questionCount) });
-    if (lessonId) params.set('lesson_id', lessonId);
-    if (moduleId) params.set('module_id', moduleId);
-    if (examCategory) params.set('exam_category', examCategory);
-
-    try {
-      const res = await fetch(`/api/admin/learn/quizzes?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.questions.length === 0) {
-          setNoQuestions(true);
-        } else {
-          setQuestions(data.questions);
-          startTime.current = Date.now();
+      try {
+        const res = await fetch(`/api/admin/learn/quizzes?${params}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.questions.length === 0) {
+            setNoQuestions(true);
+          } else {
+            setQuestions(data.questions);
+            startTime.current = Date.now();
+          }
         }
-      }
-    } catch { /* ignore */ }
-    setLoading(false);
-  }
+      } catch { /* ignore */ }
+      setLoading(false);
+    }
+    fetchQuiz();
+  }, [type, questionCount, lessonId, moduleId, examCategory]);
 
   function isQuestionAnswered(q: Question): boolean {
     const ans = answers[q.id];

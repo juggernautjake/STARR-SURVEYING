@@ -56,6 +56,7 @@ export default function BalanceCard({ email, isAdmin, isSelf }: BalanceCardProps
   const [withdrawAmount, setWithdrawAmount] = useState('');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadData is stable, only re-run when email changes
     loadData();
   }, [email]);
 
