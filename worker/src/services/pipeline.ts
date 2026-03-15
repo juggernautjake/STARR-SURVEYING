@@ -8,7 +8,7 @@ import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyI
 import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
-import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed } from './bell-clerk.js';
+import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed, searchSuperSearch, searchClerkByAddress, searchClerkForPlats } from './bell-clerk.js';
 import { extractDocuments, extractPlatBoundary } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
@@ -693,7 +693,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         // Use more expected pages for plats — large multi-lot plats can have 10+ pages
         const expectedPages = /plat/i.test(legalDesc) ? 10 : 2;
         try {
-          const pages = await fetchDocumentImages(instrNum, expectedPages, logger);
+          const pages = await fetchDocumentImages(input.county, instrNum, expectedPages, logger);
           if (pages.length > 0) {
             const docResult: DocumentResult = {
               ref: {
@@ -720,10 +720,13 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
               .catch((pdfErr) => {
                 logger.warn('Stage2-PDF', `PDF bundling failed for ${instrNum}: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
               });
-          } else if (result.status === 'rejected') {
-            const errMsg = result.reason instanceof Error ? result.reason.message : String(result.reason);
-            instrErrors.push(errMsg);
+          } else {
+            logger.info('Stage2', `Instrument ${instrNum}: no pages captured`);
           }
+        } catch (instrErr) {
+          const errMsg = instrErr instanceof Error ? instrErr.message : String(instrErr);
+          instrErrors.push(`${instrNum}: ${errMsg}`);
+          logger.warn('Stage2', `Instrument ${instrNum} fetch failed: ${errMsg}`);
         }
       }
 
@@ -827,7 +830,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             // Use 20 as the upper bound for plats — large multi-lot plats can have
             // many pages and the dynamic stopping in fetchDocumentImages will bail
             // out early once no more pages are found.  Deeds rarely exceed 4 pages.
-            const pages = await fetchDocumentImages(instrNum, isPlat ? 20 : 4, logger);
+            const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 20 : 4, logger);
             if (pages.length > 0) {
               const docResult: DocumentResult = {
                 ref: {
@@ -835,7 +838,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                   volume: null, page: null,
                   documentType: docType,
                   recordingDate: null, grantors: [], grantees: [],
-                  source: 'Bell County Clerk PublicSearch',
+                  source: `${input.county} County Clerk PublicSearch`,
                   url: `${kofileBase}/doc/${instrNum}/details`,
                 },
                 textContent: null, pages,
@@ -902,7 +905,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
               try {
                 // Fetch more pages for plats (large plats may have many pages)
                 const expectedPgs = isPlat ? 10 : 2;
-                const pages = await fetchDocumentImages(instrNum, expectedPgs, logger);
+                const pages = await fetchDocumentImages(input.county, instrNum, expectedPgs, logger);
                 if (pages.length > 0) {
                   const docResult: DocumentResult = {
                     ref: {
@@ -912,7 +915,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                       recordingDate: allDocuments.find((d) => d.instrumentNumber === instrNum)?.recordingDate ?? null,
                       grantors: allDocuments.find((d) => d.instrumentNumber === instrNum)?.grantors ?? [],
                       grantees: allDocuments.find((d) => d.instrumentNumber === instrNum)?.grantees ?? [],
-                      source: 'Bell County Clerk PublicSearch',
+                      source: `${input.county} County Clerk PublicSearch`,
                       url: `${kofileBase}/doc/${instrNum}/details`,
                     },
                     textContent: null, pages, ocrText: null, extractedData: null,
@@ -962,7 +965,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           if (!doc.ref.instrumentNumber) continue;
           try {
             const isPlat = /plat/i.test(doc.ref.documentType);
-            const pages = await fetchDocumentImages(doc.ref.instrumentNumber, isPlat ? 10 : 2, logger);
+            const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber, isPlat ? 10 : 2, logger);
             if (pages.length > 0) {
               doc.pages = pages;
               totalPages += pages.length;
@@ -976,9 +979,11 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                 .catch((pdfErr) => {
                   logger.warn('Stage2-PDF', `PDF bundling failed for ${doc.ref.instrumentNumber}: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
                 });
-            } else if (result.status === 'rejected') {
-              imgErrors.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
             }
+          } catch (imgErr) {
+            const errMsg = imgErr instanceof Error ? imgErr.message : String(imgErr);
+            imgErrors.push(errMsg);
+            logger.warn('Stage2', `Image fetch for ${doc.ref.instrumentNumber} failed: ${errMsg}`);
           }
         }
         const imgNote = totalPages > 0 ? `${totalPages}pp` : '0pp';
@@ -1222,7 +1227,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const boundaryNote = boundary
       ? `${boundary.type}, ${boundary.calls.length} calls`
       : 'no boundary';
-    logger.info('Stage3', `Extraction: ${boundaryNote} (${Date.now() - stage3Start}ms)`);
+    logger.info('Stage3', `Extraction: ${boundaryNote}`);
     await updateStatus(input.projectId, 'running', `Stage 3.5: Geometric reconciliation…`);
 
     // ═══════════════════════════════════════════════════════════════════

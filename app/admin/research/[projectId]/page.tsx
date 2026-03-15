@@ -8,6 +8,7 @@ import DOMPurify from 'dompurify';
 import { usePageError } from '../../hooks/usePageError';
 import PipelineStepper from '../components/PipelineStepper';
 import DocumentUploadPanel from '../components/DocumentUploadPanel';
+import PropertySearchPanel from '../components/PropertySearchPanel';
 import ResearchAnalysisPanel from '../components/ResearchAnalysisPanel';
 import DocumentDeepAnalysisPanel from '../components/DocumentDeepAnalysisPanel';
 import DataPointsPanel from '../components/DataPointsPanel';

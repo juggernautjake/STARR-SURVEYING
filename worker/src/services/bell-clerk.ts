@@ -2644,8 +2644,8 @@ export async function fetchDocumentImages(
     // the Tyler SPA to render results, then 8s after clicking a result row for the
     // Kofile document viewer to fire the signed image URL.
     if (imageUrls.length === 0) {
-      console.log('[BELL-IMG] Direct viewer captured no images — falling back to search+click');
-      const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+      console.log('[DOC-IMG] Direct viewer captured no images — falling back to search+click');
+      const searchUrl = `${baseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
       // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
       await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
@@ -2721,7 +2721,7 @@ export async function fetchDocumentImages(
       }
 
       if (!clicked) {
-        console.log(`[BELL-IMG] No next-page button for page ${pageNum} — done`);
+        console.log(`[DOC-IMG] No next-page button for page ${pageNum} — done`);
         break;
       }
 
@@ -2739,12 +2739,12 @@ export async function fetchDocumentImages(
           const ok = await downloadPage(constructedUrl, pageNum);
           if (!ok) {
             // Construction failed — no more pages available
-            console.log(`[BELL-IMG] No new image URL for page ${pageNum} — stopping`);
+            console.log(`[DOC-IMG] No new image URL for page ${pageNum} — stopping`);
             break;
           }
         } else {
           // Cannot construct a different URL — stop
-          console.log(`[BELL-IMG] No new image URL for page ${pageNum} — stopping`);
+          console.log(`[DOC-IMG] No new image URL for page ${pageNum} — stopping`);
           break;
         }
       } else {
@@ -2771,6 +2771,166 @@ export async function fetchDocumentImages(
 }
 
 /**
+ * Search for a single document by instrument number using the Kofile quickSearch API.
+ * Returns a DocumentRef with metadata (type, grantors, grantees, recording date) or null.
+ *
+ * Used by Bell County scrapers (clerk-scraper.ts, plat-scraper.ts) to fetch
+ * document metadata before downloading page images.
+ */
+export async function searchByInstrument(
+  instrumentNumber: string,
+  logger: PipelineLogger,
+): Promise<DocumentRef | null> {
+  const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
+  logger.info('Stage2-Instr', `Searching Bell County Clerk for instrument ${instrumentNumber}`);
+
+  let browser: import('playwright').Browser | null = null;
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      viewport: { width: 1280, height: 900 },
+    });
+    const page = await context.newPage();
+
+    // Intercept API responses to capture document metadata
+    const captured: DocumentRef[] = [];
+    page.on('response', async (res) => {
+      const url = res.url();
+      if (!url.includes('/api/') && !url.includes('/search')) return;
+      if (res.status() !== 200) return;
+      try {
+        const json = await res.json();
+        const items = normaliseKofileApiResponse(json);
+        for (const item of items) {
+          if (!looksLikeKofileDocuments([item])) continue;
+          const instrNum = String(item.instrumentNumber ?? item.instrument_number ?? item.InstrumentNumber ?? '');
+          if (!instrNum) continue;
+          captured.push({
+            instrumentNumber: instrNum,
+            volume: String(item.volume ?? item.bookVolume ?? '') || null,
+            page: String(item.page ?? item.bookPage ?? '') || null,
+            documentType: String(item.documentType ?? item.document_type ?? item.docType ?? 'Unknown'),
+            recordingDate: String(item.recordingDate ?? item.recording_date ?? '') || null,
+            grantors: extractKofilePartyNames(item.grantors ?? item.grantor ?? item.Grantors),
+            grantees: extractKofilePartyNames(item.grantees ?? item.grantee ?? item.Grantees),
+            source: 'Bell County Clerk PublicSearch',
+            url: `${bellBaseUrl}/doc/${instrNum}/details`,
+          });
+        }
+      } catch { /* not JSON */ }
+    });
+
+    const searchUrl = `${bellBaseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
+
+    await browser.close();
+    browser = null;
+
+    // Find exact match by instrument number
+    const match = captured.find(d => d.instrumentNumber === instrumentNumber) ?? captured[0] ?? null;
+    if (match) {
+      logger.info('Stage2-Instr', `Found instrument ${instrumentNumber}: ${match.documentType}`);
+    } else {
+      logger.warn('Stage2-Instr', `Instrument ${instrumentNumber} not found in Bell County Clerk`);
+    }
+    return match;
+  } catch (err: any) {
+    logger.warn('Stage2-Instr', `Instrument search failed: ${err.message}`);
+    if (browser) await browser.close().catch(() => {});
+    return null;
+  }
+}
+
+/**
+ * Extract search results from a Tyler PublicSearch results page.
+ * Parses both structured table rows (td.col-N) and fallback text parsing.
+ * Used by searchBellClerkOwnerForPlatDeed to extract document metadata.
+ */
+async function _extractSearchResults(
+  page: import('playwright').Page,
+): Promise<DocumentRef[]> {
+  const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
+  const documents: DocumentRef[] = [];
+  const rows = await page.$$('.result-card, table tbody tr[aria-selected], .result-row, .search-result');
+
+  for (const row of rows) {
+    try {
+      const text = await row.textContent() || '';
+      if (text.toLowerCase().includes('recording date') && text.toLowerCase().includes('document type')) continue;
+
+      const checkbox = await row.$('input[id^="table-checkbox-"]');
+      const docId = checkbox ? (await checkbox.getAttribute('id'))?.replace('table-checkbox-', '') ?? '' : '';
+      const getColText = async (n: number): Promise<string> => {
+        const cell = await row.$(`td.col-${n}, td:nth-child(${n + 1})`);
+        return cell ? ((await cell.textContent()) ?? '').trim() : '';
+      };
+      const colDocType = await getColText(5);
+      const colInstr = await getColText(7);
+
+      if (colDocType || colInstr) {
+        const colDate = await getColText(6);
+        const colBVP = await getColText(8);
+        const colGrantor = await getColText(3);
+        const colGrantee = await getColText(4);
+        let volume = '';
+        let pg = '';
+        const bvpMatch = colBVP.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+        if (bvpMatch) { volume = bvpMatch[1]; pg = bvpMatch[2]; }
+
+        documents.push({
+          instrumentNumber: colInstr || null,
+          volume: volume || null,
+          page: pg || null,
+          documentType: colDocType || 'Unknown',
+          recordingDate: colDate || null,
+          grantors: colGrantor ? [colGrantor] : [],
+          grantees: colGrantee ? [colGrantee] : [],
+          source: 'County Clerk PublicSearch',
+          url: docId ? `${bellBaseUrl}/doc/${docId}` : null,
+        });
+        continue;
+      }
+
+      // Fallback: parse document type from text content
+      const typeMatch = text.match(
+        /(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Deed of Trust|Plat|Plat Amended|Quit Claim|Transfer)/i,
+      );
+      if (typeMatch) {
+        const dateMatch   = text.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+        const instrMatch  = text.match(/(?:Inst(?:rument)?|Doc)[\s#:]*(\d{6,})/i) || text.match(/(\d{10,})/);
+        const volPageMatch = text.match(/Vol(?:ume)?[\s.]*(\d+)[\s,]*(?:Pg|Page)[\s.]*(\d+)/i);
+
+        const doc: DocumentRef = {
+          instrumentNumber: instrMatch ? instrMatch[1] : null,
+          volume: volPageMatch ? volPageMatch[1] : null,
+          page: volPageMatch ? volPageMatch[2] : null,
+          documentType: typeMatch[1],
+          recordingDate: dateMatch ? dateMatch[1] : null,
+          grantors: [],
+          grantees: [],
+          source: 'County Clerk PublicSearch',
+          url: null,
+        };
+        const link = await row.$('a[href]');
+        if (link) {
+          const href = await link.getAttribute('href');
+          if (href) doc.url = href.startsWith('http') ? href : bellBaseUrl + href;
+        }
+        if (!doc.url && docId) {
+          doc.url = `${bellBaseUrl}/doc/${docId}`;
+        }
+        documents.push(doc);
+      }
+    } catch { /* skip row */ }
+  }
+
+  return documents.filter(d => /deed|warranty|plat|conveyance/i.test(d.documentType));
+}
+
+/**
  * Search Bell County Clerk for plat AND deed records by owner/subdivision name.
  *
  * Uses the proven quickSearch URL pattern with proper 8-second SPA wait timings
@@ -2791,9 +2951,10 @@ export async function searchBellClerkOwnerForPlatDeed(
   deedInstruments: string[];
   allDocuments: DocumentRef[];
 }> {
+  const bellBaseUrl = getKofileBaseUrl('bell') || 'https://bell.tx.publicsearch.us';
   let browser: import('playwright').Browser | null = null;
   const attempt = logger.attempt(
-    '2B-PLAT', BELL_CLERK_BASE, 'PLAYWRIGHT_PLAT_DEED', ownerOrSubdivisionName,
+    '2B-PLAT', bellBaseUrl, 'PLAYWRIGHT_PLAT_DEED', ownerOrSubdivisionName,
   );
 
   try {
@@ -2813,7 +2974,7 @@ export async function searchBellClerkOwnerForPlatDeed(
     // Per proven timing: Tyler PublicSearch SPA needs 8 full seconds to render
     // result rows after domcontentloaded fires.
     const searchUrl =
-      `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch` +
+      `${bellBaseUrl}/results?department=RP&searchType=quickSearch` +
       `&searchValue=${encodeURIComponent(ownerOrSubdivisionName)}`;
 
     console.log(`[BELL-PLAT] Searching: ${searchUrl}`);
