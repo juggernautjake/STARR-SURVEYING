@@ -21,8 +21,8 @@
  *    High (70-100) | Medium (45-69) | Low (25-44) | Unverified (0-24)
  */
 
-import type { ConfidenceRating, ConfidenceFactors, ConfidenceTier } from '../types/confidence';
-import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence';
+import type { ConfidenceRating, ConfidenceFactors, ConfidenceTier } from '../types/confidence.js';
+import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

@@ -8,9 +8,9 @@
  * Data source: TxDOT ArcGIS FeatureServer (public, no auth required)
  */
 
-import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints';
-import type { ScreenshotCapture, TxDotRowInfo } from '../types/research-result';
-import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence';
+import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
+import type { ScreenshotCapture, TxDotRowInfo } from '../types/research-result.js';
+import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

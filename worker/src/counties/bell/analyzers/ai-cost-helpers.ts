@@ -6,7 +6,7 @@
  * duplicate them.
  */
 
-import type { AiUsageSummary } from '../types/research-result';
+import type { AiUsageSummary } from '../types/research-result.js';
 
 /** claude-sonnet-4 pricing as of March 2026 (USD per token). */
 export const COST_PER_INPUT_TOKEN  = 3  / 1_000_000;  // $3  / 1M input tokens

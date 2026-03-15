@@ -26,9 +26,9 @@
  *   Index page: https://www.bellcountytx.com/county_government/county_clerk/{letter}.php
  */
 
-import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints';
-import type { ScreenshotCapture, PlatRecord } from '../types/research-result';
-import { withRetry } from '../utils/retry';
+import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints.js';
+import type { ScreenshotCapture, PlatRecord } from '../types/research-result.js';
+import { withRetry } from '../utils/retry.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -293,7 +293,7 @@ export function extractSubdivisionNameFromLegal(legalDesc: string): string | nul
 
 // ── Internal: Confidence helper ─────────────────────────────────────
 
-import type { ConfidenceRating } from '../types/confidence';
+import type { ConfidenceRating } from '../types/confidence.js';
 
 function makeConfidence(score: number): ConfidenceRating {
   const tier = score >= 0.8 ? 'high' : score >= 0.5 ? 'medium' : 'low';

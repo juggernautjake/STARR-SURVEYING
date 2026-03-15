@@ -6,8 +6,8 @@
  * then runs the complete Bell County research pipeline on each.
  */
 
-import type { AdjacentProperty, BellResearchResult } from '../types/research-result';
-import { findAdjacentParcels, type GisSearchResult } from '../scrapers/gis-scraper';
+import type { AdjacentProperty, BellResearchResult } from '../types/research-result.js';
+import { findAdjacentParcels, type GisSearchResult } from '../scrapers/gis-scraper.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

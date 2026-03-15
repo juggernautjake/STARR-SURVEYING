@@ -10,8 +10,8 @@
  * Uses Playwright for rendering pages and capturing screenshots.
  */
 
-import { TIMEOUTS } from '../config/endpoints';
-import type { ScreenshotCapture } from '../types/research-result';
+import { TIMEOUTS } from '../config/endpoints.js';
+import type { ScreenshotCapture } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 

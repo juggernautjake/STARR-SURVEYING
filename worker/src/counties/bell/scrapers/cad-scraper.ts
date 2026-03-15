@@ -34,10 +34,10 @@
  *   API:     https://esearch.bellcad.org/api/Search/GetPropertySearchByOwner?ownerName=...
  */
 
-import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints';
-import { ESEARCH_FORMATS } from '../config/field-maps';
-import type { ScreenshotCapture } from '../types/research-result';
-import { withRetry } from '../utils/retry';
+import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints.js';
+import { ESEARCH_FORMATS } from '../config/field-maps.js';
+import type { ScreenshotCapture } from '../types/research-result.js';
+import { withRetry } from '../utils/retry.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
