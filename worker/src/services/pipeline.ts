@@ -155,69 +155,6 @@ async function updateStatus(
   }
 }
 
-// ── AI-Assisted Owner Name Formatting ──────────────────────────────────────
-
-/**
- * If the user provides an owner name, use Claude to determine the best
- * search format for that name against the county clerk system.
- */
-async function aiFormatOwnerName(
-  ownerName: string,
-  anthropicApiKey: string,
-  logger: PipelineLogger,
-): Promise<string[]> {
-  const finish = logger.startAttempt({
-    layer: 'OwnerFormat',
-    source: 'Claude',
-    method: 'name-formatting',
-    input: ownerName,
-  });
-
-  try {
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const client = new Anthropic({ apiKey: anthropicApiKey });
-
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 1024,
-      temperature: 0,
-      messages: [{
-        role: 'user',
-        content: `Given this property owner name: "${ownerName}"
-
-Generate ALL plausible search formats that a Texas county clerk or CAD system might use to index this name. Consider:
-- LAST, FIRST format (most common for clerk records)
-- FIRST LAST format
-- Business entity variations (with/without LLC, Inc, etc.)
-- Common abbreviations (Wm for William, Chas for Charles, etc.)
-- Initials instead of full names
-- Maiden name / married name possibilities
-- Trust or estate variations
-
-Return ONLY a JSON array of strings, no explanation. Example: ["SMITH, JOHN", "JOHN SMITH", "SMITH JOHN"]`,
-      }],
-    });
-
-    const text = response.content.find((c) => c.type === 'text');
-    if (!text || text.type !== 'text') {
-      finish({ status: 'fail', error: 'No response' });
-      return [ownerName];
-    }
-
-    const cleaned = text.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const parsed = JSON.parse(cleaned);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      finish({ status: 'success', dataPointsFound: parsed.length, details: `Generated ${parsed.length} name variants` });
-      return parsed.map(String);
-    }
-  } catch (err) {
-    finish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
-  }
-
-  // Fallback: basic formatting
-  return [ownerName, ownerName.toUpperCase()];
-}
-
 // ── User File Processing ───────────────────────────────────────────────────
 
 function processUserFiles(userFiles: UserFile[], logger: PipelineLogger): DocumentResult[] {
@@ -238,7 +175,8 @@ function processUserFiles(userFiles: UserFile[], logger: PipelineLogger): Docume
       // Decode base64 to text
       try {
         textContent = Buffer.from(file.data, 'base64').toString('utf-8');
-      } catch {
+      } catch (decodeErr) {
+        logger.warn('UserFiles', `Failed to decode text from ${file.filename}: ${decodeErr instanceof Error ? decodeErr.message : String(decodeErr)}`);
         textContent = null;
       }
     }
@@ -428,6 +366,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     // STAGE 0: Address Normalization + County Capability Discovery
     // ═══════════════════════════════════════════════════════════════════
 
+    const stage0Start = Date.now();
     const normalized = await normalizeAddress(input.address, logger);
 
     // Warn once if geocoder disagrees with the supplied county
@@ -448,9 +387,21 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       kofile     ? `Clerk:Kofile(${kofileBase.replace('https://', '')})` : 'Clerk:none',
       platRepo   ? 'Plat:repo'                                   : null,
     ].filter(Boolean);
-    logger.info('Stage0', `${normalized.canonical ?? input.address} — ${input.county} County [${capParts.join(' · ')}]`);
+    logger.info('Stage0', `${normalized.canonical ?? input.address} — ${input.county} County [${capParts.join(' · ')}] (${Date.now() - stage0Start}ms)`);
+
+    // Log county-specific capabilities for transparency
+    if (cadConfig) {
+      logger.info('Stage0', `Using ${cadConfig.name} for property lookups — ${input.county} County-specific CAD system detected`);
+    }
+    if (kofile) {
+      logger.info('Stage0', `${input.county} County clerk records available via Kofile — will search for deeds, plats, and instruments`);
+    }
+    if (!cadConfig && !kofile) {
+      logger.warn('Stage0', `No county-specific services configured for ${input.county} County — using generic search methods only`);
+    }
 
     await updateStatus(input.projectId, 'running', `Stage 1: Searching ${input.county} CAD…`);
+    const stage1Start = Date.now();
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 1: Property Identification
@@ -501,6 +452,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     } else {
       logger.info('Stage1', `Found: ${propertyResult.ownerName} · ID ${propertyResult.propertyId} · conf ${propertyResult.matchConfidence.toFixed(2)}${propertyResult.acreage ? ` · ${propertyResult.acreage} ac` : ''}`);
     }
+    logger.info('Stage1', `Stage 1 completed in ${Date.now() - stage1Start}ms`);
 
     // ── Bell County Cascading Enrichment ──────────────────────────────────────
     // For Bell County properties, run a multi-wave cascade that:
@@ -722,6 +674,14 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     // ── Path A: Instrument number search (fast, precise, no SPA) ─────────
     if (allInstrumentNumbers.length > 0 && kofile) {
+      const MAX_INSTRUMENTS = 10;
+      const instrToFetch = allInstrumentNumbers.slice(0, MAX_INSTRUMENTS);
+      if (allInstrumentNumbers.length > MAX_INSTRUMENTS) {
+        logger.warn('Stage2', `Found ${allInstrumentNumbers.length} instrument numbers — capping at ${MAX_INSTRUMENTS} (dropped ${allInstrumentNumbers.length - MAX_INSTRUMENTS})`);
+      }
+
+      // Fetch documents in parallel (batches of 3 to avoid overloading)
+      const BATCH_SIZE = 3;
       const docsAdded: string[] = [];
       const instrErrors: string[] = [];
       const instrBatch = allInstrumentNumbers.slice(0, 5);
@@ -749,13 +709,21 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             documents.push(docResult);
             instrumentSearchSucceeded = true;
             docsAdded.push(`${instrNum}(${pages.length}pp)`);
-            // Bundle pages → PDF non-fatally
+            // Bundle pages → PDF non-fatally but LOG failures
             bundleAndUploadPages(pages, input.projectId, instrNum, docResult.ref.documentType)
-              .then(url => { if (url) docResult.pagesPdfUrl = url; })
-              .catch(() => undefined);
+              .then(url => {
+                if (url) {
+                  docResult.pagesPdfUrl = url;
+                  logger.info('Stage2-PDF', `Bundled ${pages.length} pages for ${instrNum} → ${url.substring(0, 80)}`);
+                }
+              })
+              .catch((pdfErr) => {
+                logger.warn('Stage2-PDF', `PDF bundling failed for ${instrNum}: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
+              });
+          } else if (result.status === 'rejected') {
+            const errMsg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+            instrErrors.push(errMsg);
           }
-        } catch (imgErr) {
-          instrErrors.push(`${instrNum}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
         }
       }
 
@@ -998,11 +966,20 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             if (pages.length > 0) {
               doc.pages = pages;
               totalPages += pages.length;
-              bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber, doc.ref.documentType)
-                .then(url => { if (url) doc.pagesPdfUrl = url; })
-                .catch(() => undefined);
+              bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
+                .then(url => {
+                  if (url) {
+                    doc.pagesPdfUrl = url;
+                    logger.info('Stage2-PDF', `Bundled ${pages.length} pages for ${doc.ref.instrumentNumber} → ${url.substring(0, 80)}`);
+                  }
+                })
+                .catch((pdfErr) => {
+                  logger.warn('Stage2-PDF', `PDF bundling failed for ${doc.ref.instrumentNumber}: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
+                });
+            } else if (result.status === 'rejected') {
+              imgErrors.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
             }
-          } catch (e) { imgErrors.push(`${doc.ref.instrumentNumber}: ${e instanceof Error ? e.message : String(e)}`); }
+          }
         }
         const imgNote = totalPages > 0 ? `${totalPages}pp` : '0pp';
         logger.info('Stage2', `Owner-name: ${ownerDocs.length} doc(s), ${imgNote}${imgErrors.length ? ` [${imgErrors.length} img error(s)]` : ''}`);
@@ -1021,6 +998,141 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           `Provide owner name via input.ownerName to enable clerk record search.`);
       } else {
         logger.warn('Stage2', 'No instruments and no owner name — document retrieval skipped');
+      }
+    }
+
+    // ── Path D: SUPERSEARCH fallback (full-text OCR search) ──────────────
+    // If no documents found yet, try SUPERSEARCH with the legal description.
+    // SUPERSEARCH searches inside scanned document text, not just metadata.
+    if (documents.length === 0 && legalDesc && kofile) {
+      logger.info('Stage2-SS', 'No documents from owner/instrument search — trying SUPERSEARCH with legal description');
+      // Extract the most useful search terms from legal description
+      // (subdivision name + lot/block is usually the best query)
+      const subdivName = extractSubdivisionName(legalDesc);
+      const ssQuery = subdivName || legalDesc.substring(0, 120);
+      try {
+        const ssDocs = await searchSuperSearch(input.county, ssQuery, logger);
+        if (ssDocs.length > 0) {
+          logger.info('Stage2-SS', `SUPERSEARCH found ${ssDocs.length} documents for "${ssQuery}"`);
+          documents = [...documents, ...ssDocs];
+        }
+      } catch (ssErr) {
+        logger.warn('Stage2-SS', `SUPERSEARCH failed: ${ssErr instanceof Error ? ssErr.message : String(ssErr)}`);
+      }
+    }
+
+    // ── Path E: Address-based clerk search ────────────────────────────────
+    // When owner/instrument searches fail, search the clerk by property
+    // address using all the address variants we generated in Stage 0.
+    if (documents.length === 0 && kofile && normalized.variants.length > 0) {
+      logger.info('Stage2-Addr', 'No documents yet — trying address-based clerk search');
+      const addressQueries = normalized.variants
+        .filter((v) => v.streetNumber && v.streetName)
+        .map((v) => ({
+          streetNumber: v.streetNumber,
+          streetName: v.streetName,
+          format: v.format,
+        }));
+
+      // Also add the situs address from the CAD result if available
+      if (propertyResult?.situsAddress) {
+        const situs = propertyResult.situsAddress.trim();
+        if (situs) {
+          addressQueries.unshift({
+            streetNumber: '',
+            streetName: situs,
+            format: 'situs_address',
+          });
+        }
+      }
+
+      if (addressQueries.length > 0) {
+        try {
+          const addrDocs = await searchClerkByAddress(input.county, addressQueries, logger);
+          if (addrDocs.length > 0) {
+            logger.info('Stage2-Addr', `Address search found ${addrDocs.length} documents — fetching images`);
+            // Fetch page images for address-found documents
+            const docsWithInstr = addrDocs.filter(d => d.ref.instrumentNumber).slice(0, 8);
+            const BATCH_SIZE = 3;
+            for (let batch = 0; batch < docsWithInstr.length; batch += BATCH_SIZE) {
+              const batchItems = docsWithInstr.slice(batch, batch + BATCH_SIZE);
+              const batchResults = await Promise.allSettled(
+                batchItems.map(async (doc) => {
+                  const fetchStart = Date.now();
+                  const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
+                  logger.info('Stage2-Addr', `Fetched ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
+                  return { doc, pages };
+                }),
+              );
+              for (const result of batchResults) {
+                if (result.status === 'fulfilled' && result.value.pages.length > 0) {
+                  const { doc, pages } = result.value;
+                  doc.pages = pages;
+                  bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
+                    .then(url => { if (url) doc.pagesPdfUrl = url; })
+                    .catch((e) => { logger.warn('Stage2-PDF', `PDF bundling failed: ${e instanceof Error ? e.message : String(e)}`); });
+                }
+              }
+            }
+            documents = [...documents, ...addrDocs];
+          }
+        } catch (addrErr) {
+          logger.warn('Stage2-Addr', `Address clerk search failed: ${addrErr instanceof Error ? addrErr.message : String(addrErr)}`);
+        }
+      }
+    }
+
+    // ── Path F: Plat-specific clerk search ────────────────────────────────
+    // Targeted search for subdivision plats even if we already have deeds.
+    // Plats are critical for boundary surveys — search if we have a
+    // subdivision name and haven't found any plat documents yet.
+    const hasPlat = documents.some((d) =>
+      /\bplat\b/i.test(d.ref.documentType) || /^PLT$/i.test(d.ref.documentType.trim()),
+    );
+    const subdivForPlat = legalDesc ? extractSubdivisionName(legalDesc) : null;
+
+    if (!hasPlat && subdivForPlat && kofile) {
+      logger.info('Stage2-Plat', `No plats found yet — searching clerk for "${subdivForPlat}" plat`);
+      // Extract lot/block info for more targeted search
+      const lotBlockMatch = legalDesc.match(/\b(?:lot|lt)\s*(\d+)/i);
+      const blockMatch = legalDesc.match(/\b(?:block|blk)\s*(\w+)/i);
+      const additionalTerms = [
+        lotBlockMatch ? `LOT ${lotBlockMatch[1]}` : '',
+        blockMatch ? `BLOCK ${blockMatch[1]}` : '',
+      ].filter(Boolean).join(' ');
+
+      try {
+        const platDocs = await searchClerkForPlats(input.county, subdivForPlat, logger, additionalTerms || undefined);
+        if (platDocs.length > 0) {
+          logger.info('Stage2-Plat', `Plat search found ${platDocs.length} documents — fetching images`);
+          // Fetch page images for plat documents (use higher page count for plats)
+          const platsWithInstr = platDocs.filter(d => d.ref.instrumentNumber).slice(0, 5);
+          const BATCH_SIZE = 3;
+          for (let batch = 0; batch < platsWithInstr.length; batch += BATCH_SIZE) {
+            const batchItems = platsWithInstr.slice(batch, batch + BATCH_SIZE);
+            const batchResults = await Promise.allSettled(
+              batchItems.map(async (doc) => {
+                const fetchStart = Date.now();
+                // Plats often have more pages — request up to 5
+                const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber!, 5, logger);
+                logger.info('Stage2-Plat', `Fetched plat ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
+                return { doc, pages };
+              }),
+            );
+            for (const result of batchResults) {
+              if (result.status === 'fulfilled' && result.value.pages.length > 0) {
+                const { doc, pages } = result.value;
+                doc.pages = pages;
+                bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
+                  .then(url => { if (url) doc.pagesPdfUrl = url; })
+                  .catch((e) => { logger.warn('Stage2-PDF', `PDF bundling failed: ${e instanceof Error ? e.message : String(e)}`); });
+              }
+            }
+          }
+          documents = [...documents, ...platDocs];
+        }
+      } catch (platErr) {
+        logger.warn('Stage2-Plat', `Plat search failed: ${platErr instanceof Error ? platErr.message : String(platErr)}`);
       }
     }
 
@@ -1110,7 +1222,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const boundaryNote = boundary
       ? `${boundary.type}, ${boundary.calls.length} calls`
       : 'no boundary';
-    logger.info('Stage3', `Extraction: ${boundaryNote}`);
+    logger.info('Stage3', `Extraction: ${boundaryNote} (${Date.now() - stage3Start}ms)`);
     await updateStatus(input.projectId, 'running', `Stage 3.5: Geometric reconciliation…`);
 
     // ═══════════════════════════════════════════════════════════════════

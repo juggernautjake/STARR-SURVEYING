@@ -740,6 +740,8 @@ async function searchCadPlaywright(
     // "By Address" tab selectors — defined here so they can be reused when
     // navigating back to the search form between variants.
     const tabSelectors = [
+      // Bell CAD uses data-filter attributes for tab switching
+      'a[data-filter="search-address"]',
       '#home-page-tabs a:has-text("Address")',
       '#home-page-tabs li:has-text("Address") a',
       'a[href*="address" i][data-bs-toggle="tab"]',
@@ -762,7 +764,7 @@ async function searchCadPlaywright(
           const tab = page.locator(sel).first();
           if (await tab.isVisible({ timeout: 2_000 })) {
             await tab.click();
-            await page.waitForTimeout(800);
+            await page.waitForLoadState('domcontentloaded', { timeout: 3_000 }).catch(() => {});
             return;
           }
         } catch { continue; }
@@ -970,8 +972,8 @@ async function searchCadPlaywright(
           }
         }
 
-        // Small settle delay for any late-arriving content
-        await page.waitForTimeout(1000);
+        // Wait for network to settle (replaces fixed 1000ms delay)
+        await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {});
         resolveCapture = null;
 
         if (capturedResults.length > 0) {
@@ -1094,7 +1096,7 @@ async function searchCadPlaywright(
             const tab = page.locator(sel).first();
             if (await tab.isVisible({ timeout: 2_000 })) {
               await tab.click();
-              await page.waitForTimeout(800);
+              await page.waitForLoadState('domcontentloaded', { timeout: 3_000 }).catch(() => {});
               break;
             }
           } catch { continue; }
@@ -1143,7 +1145,7 @@ async function searchCadPlaywright(
             page.waitForURL('**/search/result**', { timeout: 10_000 }).then(() => 'nav'),
             page.waitForTimeout(10_000).then(() => 'timeout'),
           ]).catch(() => { /* ignore */ });
-          await page.waitForTimeout(800);
+          await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {});
 
           const ownerDomResults = await extractResultsFromDOM(page);
           if (ownerDomResults.length > 0) {
@@ -1198,7 +1200,7 @@ async function searchCadPlaywright(
             const tab = page.locator(sel).first();
             if (await tab.isVisible({ timeout: 2_000 })) {
               await tab.click();
-              await page.waitForTimeout(800);
+              await page.waitForLoadState('domcontentloaded', { timeout: 3_000 }).catch(() => {});
               break;
             }
           } catch { continue; }
@@ -1241,7 +1243,7 @@ async function searchCadPlaywright(
             page.waitForURL('**/search/result**', { timeout: 10_000 }).then(() => 'nav'),
             page.waitForTimeout(10_000).then(() => 'timeout'),
           ]).catch(() => { /* ignore */ });
-          await page.waitForTimeout(800);
+          await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => {});
 
           const idDomResults = await extractResultsFromDOM(page);
           if (idDomResults.length > 0) {
@@ -1254,11 +1256,22 @@ async function searchCadPlaywright(
       }
     }
 
-    // Take screenshot for Vision OCR fallback
+    // Take screenshot for Vision OCR fallback + failure diagnostics
     try {
       screenshot = await page.screenshot({ fullPage: true }) as Buffer;
+      logger.info('Stage1B', `Screenshot captured: ${(screenshot.length / 1024).toFixed(0)} KB`);
     } catch {
       logger.warn('Stage1B', 'Failed to take screenshot');
+    }
+
+    // Dump page HTML on failure for post-mortem debugging
+    if (capturedResults.length === 0) {
+      try {
+        const failHtml = await page.content();
+        const htmlSnippet = failHtml.substring(0, 2000);
+        logger.info('Stage1B', `[failure-dump] Page URL: ${page.url()}`);
+        logger.info('Stage1B', `[failure-dump] HTML length: ${failHtml.length} chars, snippet: ${htmlSnippet.replace(/\s+/g, ' ').substring(0, 500)}`);
+      } catch { /* page may already be closed */ }
     }
 
     await browser.close();
@@ -2532,21 +2545,6 @@ export async function searchBisCad(
 // ─────────────────────────────────────────────────────────────────────────────
 // LOOKUP WRAPPER — used by the new pipeline.ts orchestrator
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Simplified CAD lookup for Bell County.
- * Normalizes the address, then searches Bell CAD via searchBisCad().
- * Returns the best matching property or null if not found.
- */
-export async function lookupBisCad(
-  address: string,
-  logger: PipelineLogger,
-): Promise<PropertyIdResult | null> {
-  const normalized = await normalizeAddress(address, logger);
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
-  const { property } = await searchBisCad('bell', normalized, apiKey, logger);
-  return property;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BIS GIS — ArcGIS REST API integration (Phase 17)
