@@ -1232,8 +1232,8 @@ export async function searchClerkRecords(
           // Continue with whatever we have
         }
 
-        // Small extra wait to ensure AJAX response is fully processed
-        await page.waitForTimeout(2_000);
+        // Wait for network to settle (AJAX responses fully processed)
+        await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
         // ── Parse captured AJAX data ──────────────────────────────────
         if (capturedDocs.length > 0) {
@@ -1290,8 +1290,8 @@ export async function searchClerkRecords(
         }
 
         // ── Fallback: Parse from Redux store in window.__data ────────
-        // Wait a bit extra for the store to be populated by async fetch
-        await page.waitForTimeout(3_000);
+        // Wait for network to settle (Redux store populated by async fetch)
+        await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
         const storeExtracted = await page.evaluate((bUrl: string) => {
           const docs: Array<{
@@ -1429,8 +1429,8 @@ export async function searchClerkRecords(
           continue;
         }
 
-        // Extra wait for Tyler PublicSearch React SPA to finish rendering
-        await page.waitForTimeout(3_000);
+        // Wait for Tyler PublicSearch React SPA to finish rendering
+        await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
         // DOM extraction: Tyler PublicSearch uses a standard <table> with
         // column classes col-0 through col-9. Document ID is embedded in the
@@ -1772,6 +1772,19 @@ export async function searchClerkRecords(
       }
     }
 
+    // If no documents found after all name variants, capture failure diagnostics
+    if (documents.length === 0) {
+      try {
+        const failUrl = page.url();
+        const failHtml = await page.content();
+        logger.warn('Stage2A', `[failure-dump] No documents found. Final URL: ${failUrl}`);
+        logger.warn('Stage2A', `[failure-dump] Page HTML length: ${failHtml.length}, snippet: ${failHtml.replace(/\s+/g, ' ').substring(0, 500)}`);
+        // Take a screenshot for manual inspection
+        const failScreenshot = await page.screenshot({ fullPage: true }) as Buffer;
+        logger.warn('Stage2A', `[failure-dump] Screenshot captured: ${(failScreenshot.length / 1024).toFixed(0)} KB`);
+      } catch { /* page may be in bad state */ }
+    }
+
     // Log all found URLs
     for (let i = 0; i < documents.length; i++) {
       logger.info('Stage2', `  [${i + 1}] ${documents[i].documentType} | Inst: ${documents[i].instrumentNumber ?? 'NONE'} | URL: ${documents[i].url ?? 'NONE'}`);
@@ -1850,6 +1863,192 @@ export async function searchClerkRecords(
     const errMsg = err instanceof Error ? err.message : String(err);
     tracker({ status: 'fail', error: errMsg });
     logger.error('Stage2', `Clerk search failed: ${errMsg}`, err);
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUPERSEARCH — Full-text OCR search fallback
+// When owner-name search returns 0 results, try searching the full-text OCR
+// index with legal description keywords (subdivision name, lot, block, etc.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Search Kofile SUPERSEARCH (full-text OCR) for documents matching a query.
+ * This searches inside the scanned document text, not just indexed metadata.
+ * Useful when owner-name search fails but we know the legal description.
+ */
+export async function searchSuperSearch(
+  county: string,
+  query: string,
+  logger: PipelineLogger,
+): Promise<DocumentResult[]> {
+  const config = KOFILE_CONFIGS[county.toLowerCase()];
+  if (!config) {
+    logger.warn('Stage2-SS', `No Kofile config for county: ${county}`);
+    return [];
+  }
+
+  const baseUrl = `https://${config.subdomain}`;
+  const tracker = logger.startAttempt({
+    layer: 'Stage2-SuperSearch',
+    source: config.name,
+    method: 'supersearch-ocr',
+    input: query.substring(0, 80),
+  });
+
+  let browser = null;
+
+  try {
+    const { chromium } = await import('playwright');
+    browser = await chromium.launch({
+      headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      viewport: { width: 1366, height: 768 },
+    });
+
+    const page = await context.newPage();
+
+    // Intercept API responses for document data
+    let capturedDocs: DocumentRef[] = [];
+    const handleResponse = async (response: PlaywrightResponse): Promise<void> => {
+      try {
+        const ct = response.headers()['content-type'] ?? '';
+        if (!ct.includes('json')) return;
+        const data = await response.json() as unknown;
+        const items = normaliseKofileApiResponse(data);
+        if (items.length === 0 || !looksLikeKofileDocuments(items)) return;
+
+        for (const item of items) {
+          const id = String(item.id ?? item.documentId ?? item.instrumentNumber ?? item.docNumber ?? '').trim();
+          const docType = String(item.docTypeDescription ?? item.documentType ?? item.docType ?? 'Unknown').trim();
+          const date = String(item.recordingDate ?? item.documentDate ?? item.filingDate ?? '').trim();
+          capturedDocs.push({
+            instrumentNumber: id || null,
+            documentType: docType,
+            recordingDate: date || null,
+            grantors: extractKofilePartyNames(item.grantors ?? item.grantor),
+            grantees: extractKofilePartyNames(item.grantees ?? item.grantee),
+            source: `${config.name} (SUPERSEARCH)`,
+            url: id ? `${baseUrl}/doc/${id}` : null,
+            volume: String(item.volume ?? item.bookNumber ?? '').trim() || null,
+            page: String(item.page ?? item.pageNumber ?? '').trim() || null,
+          });
+        }
+        logger.info('Stage2-SS', `[api-intercept] Captured ${items.length} docs from SUPERSEARCH`);
+      } catch { /* ignore parse errors */ }
+    };
+    page.on('response', (r) => { void handleResponse(r); });
+
+    // Navigate to SUPERSEARCH page
+    const ssUrl = `${baseUrl}/results?department=RP&limit=50&offset=0&searchOcrText=true&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
+    logger.info('Stage2-SS', `SUPERSEARCH: ${ssUrl}`);
+    await page.goto(ssUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+
+    // Wait for results to load
+    try {
+      await Promise.race([
+        page.waitForSelector('table tbody tr[aria-selected]', { timeout: 20_000 }),
+        page.waitForTimeout(20_000),
+      ]);
+    } catch { /* continue with whatever we have */ }
+    await page.waitForTimeout(2_000);
+
+    // If API intercept didn't capture, try DOM extraction
+    if (capturedDocs.length === 0) {
+      const domDocs = await page.evaluate((bUrl: string) => {
+        const docs: Array<{
+          instrumentNumber: string; documentType: string; recordingDate: string;
+          grantors: string[]; grantees: string[]; url: string | null;
+          volume: string; page: string;
+        }> = [];
+        document.querySelectorAll('table tbody tr[aria-selected]').forEach((row) => {
+          const checkbox = row.querySelector('input[id^="table-checkbox-"]') as HTMLInputElement | null;
+          const docId = checkbox?.id?.replace('table-checkbox-', '') ?? '';
+          const getCol = (n: number): string =>
+            (row.querySelector(`td.col-${n}, td:nth-child(${n + 1})`)?.textContent?.trim() ?? '');
+          const instrNum = getCol(7);
+          const docType = getCol(5);
+          if (!instrNum && !docType && !docId) return;
+          const bvp = getCol(8);
+          const bvpMatch = bvp.match(/(?:OPR\/)?(\d+)\/(\d+)/);
+          docs.push({
+            instrumentNumber: instrNum || docId,
+            documentType: docType || 'Unknown',
+            recordingDate: getCol(6),
+            grantors: getCol(3) ? [getCol(3)] : [],
+            grantees: getCol(4) ? [getCol(4)] : [],
+            url: docId ? `${bUrl}/doc/${docId}` : null,
+            volume: bvpMatch ? bvpMatch[1] : '',
+            page: bvpMatch ? bvpMatch[2] : '',
+          });
+        });
+        return docs;
+      }, baseUrl);
+
+      if (domDocs.length > 0) {
+        for (const doc of domDocs) {
+          capturedDocs.push({
+            ...doc,
+            instrumentNumber: doc.instrumentNumber || null,
+            volume: doc.volume || null,
+            page: doc.page || null,
+            recordingDate: doc.recordingDate || null,
+            source: `${config.name} (SUPERSEARCH)`,
+          });
+        }
+        logger.info('Stage2-SS', `SUPERSEARCH DOM extraction: ${domDocs.length} docs`);
+      }
+    }
+
+    // Check for no results
+    if (capturedDocs.length === 0) {
+      const noResults = await page.evaluate(() => {
+        const text = document.body.textContent?.toLowerCase() ?? '';
+        return text.includes('no results') || text.includes('0 results') || text.includes('no records found');
+      });
+      if (noResults) {
+        logger.info('Stage2-SS', 'SUPERSEARCH returned no results');
+      } else {
+        logger.warn('Stage2-SS', 'SUPERSEARCH: no docs captured but page does not say "no results"');
+        try {
+          const failHtml = await page.content();
+          logger.info('Stage2-SS', `[failure-dump] HTML snippet: ${failHtml.replace(/\s+/g, ' ').substring(0, 500)}`);
+        } catch { /* ignore */ }
+      }
+    }
+
+    await browser.close();
+    browser = null;
+
+    // Filter to deed-relevant and sort by relevance
+    const relevant = capturedDocs.filter((d) => isDeedRelevant(d.documentType));
+    const finalDocs = relevant.length > 0 ? relevant.slice(0, 10) : capturedDocs.slice(0, 5);
+
+    tracker({
+      status: capturedDocs.length > 0 ? 'success' : 'fail',
+      dataPointsFound: capturedDocs.length,
+      details: `${capturedDocs.length} total, ${relevant.length} deed-relevant`,
+    });
+
+    // Return as DocumentResult[]
+    return finalDocs.map((d) => ({
+      ref: d,
+      textContent: null,
+      ocrText: null,
+      extractedData: null,
+    }));
+  } catch (err) {
+    if (browser) {
+      try { await browser.close(); } catch { /* ignore */ }
+    }
+    const errMsg = err instanceof Error ? err.message : String(err);
+    tracker({ status: 'fail', error: errMsg });
+    logger.error('Stage2-SS', `SUPERSEARCH failed: ${errMsg}`, err);
     return [];
   }
 }

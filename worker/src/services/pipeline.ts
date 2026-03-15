@@ -6,7 +6,7 @@ import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyI
 import { PipelineLogger } from '../lib/logger.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
-import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl } from './bell-clerk.js';
+import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchSuperSearch } from './bell-clerk.js';
 import { extractDocuments } from './ai-extraction.js';
 import { validateBoundary } from './validation.js';
 import { runGeoReconcile } from './geo-reconcile.js';
@@ -120,69 +120,6 @@ async function updateStatus(
   }
 }
 
-// ── AI-Assisted Owner Name Formatting ──────────────────────────────────────
-
-/**
- * If the user provides an owner name, use Claude to determine the best
- * search format for that name against the county clerk system.
- */
-async function aiFormatOwnerName(
-  ownerName: string,
-  anthropicApiKey: string,
-  logger: PipelineLogger,
-): Promise<string[]> {
-  const finish = logger.startAttempt({
-    layer: 'OwnerFormat',
-    source: 'Claude',
-    method: 'name-formatting',
-    input: ownerName,
-  });
-
-  try {
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const client = new Anthropic({ apiKey: anthropicApiKey });
-
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 1024,
-      temperature: 0,
-      messages: [{
-        role: 'user',
-        content: `Given this property owner name: "${ownerName}"
-
-Generate ALL plausible search formats that a Texas county clerk or CAD system might use to index this name. Consider:
-- LAST, FIRST format (most common for clerk records)
-- FIRST LAST format
-- Business entity variations (with/without LLC, Inc, etc.)
-- Common abbreviations (Wm for William, Chas for Charles, etc.)
-- Initials instead of full names
-- Maiden name / married name possibilities
-- Trust or estate variations
-
-Return ONLY a JSON array of strings, no explanation. Example: ["SMITH, JOHN", "JOHN SMITH", "SMITH JOHN"]`,
-      }],
-    });
-
-    const text = response.content.find((c) => c.type === 'text');
-    if (!text || text.type !== 'text') {
-      finish({ status: 'fail', error: 'No response' });
-      return [ownerName];
-    }
-
-    const cleaned = text.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const parsed = JSON.parse(cleaned);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      finish({ status: 'success', dataPointsFound: parsed.length, details: `Generated ${parsed.length} name variants` });
-      return parsed.map(String);
-    }
-  } catch (err) {
-    finish({ status: 'fail', error: err instanceof Error ? err.message : String(err) });
-  }
-
-  // Fallback: basic formatting
-  return [ownerName, ownerName.toUpperCase()];
-}
-
 // ── User File Processing ───────────────────────────────────────────────────
 
 function processUserFiles(userFiles: UserFile[], logger: PipelineLogger): DocumentResult[] {
@@ -203,7 +140,8 @@ function processUserFiles(userFiles: UserFile[], logger: PipelineLogger): Docume
       // Decode base64 to text
       try {
         textContent = Buffer.from(file.data, 'base64').toString('utf-8');
-      } catch {
+      } catch (decodeErr) {
+        logger.warn('UserFiles', `Failed to decode text from ${file.filename}: ${decodeErr instanceof Error ? decodeErr.message : String(decodeErr)}`);
         textContent = null;
       }
     }
@@ -393,6 +331,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     // STAGE 0: Address Normalization + County Capability Discovery
     // ═══════════════════════════════════════════════════════════════════
 
+    const stage0Start = Date.now();
     const normalized = await normalizeAddress(input.address, logger);
 
     // Warn once if geocoder disagrees with the supplied county
@@ -413,9 +352,10 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       kofile     ? `Clerk:Kofile(${kofileBase.replace('https://', '')})` : 'Clerk:none',
       platRepo   ? 'Plat:repo'                                   : null,
     ].filter(Boolean);
-    logger.info('Stage0', `${normalized.canonical ?? input.address} — ${input.county} County [${capParts.join(' · ')}]`);
+    logger.info('Stage0', `${normalized.canonical ?? input.address} — ${input.county} County [${capParts.join(' · ')}] (${Date.now() - stage0Start}ms)`);
 
     await updateStatus(input.projectId, 'running', `Stage 1: Searching ${input.county} CAD…`);
+    const stage1Start = Date.now();
 
     // ═══════════════════════════════════════════════════════════════════
     // STAGE 1: Property Identification
@@ -450,7 +390,9 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     } else {
       logger.info('Stage1', `Found: ${propertyResult.ownerName} · ID ${propertyResult.propertyId} · conf ${propertyResult.matchConfidence.toFixed(2)}${propertyResult.acreage ? ` · ${propertyResult.acreage} ac` : ''}`);
     }
+    logger.info('Stage1', `Stage 1 completed in ${Date.now() - stage1Start}ms`);
 
+    const stage2Start = Date.now();
     await updateStatus(input.projectId, 'running', `Stage 2: Retrieving documents${propertyResult ? ` for ${propertyResult.ownerName}` : ''}…`, {
       propertyId: propertyResult?.propertyId,
       ownerName: propertyResult?.ownerName,
@@ -476,14 +418,33 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
 
     // ── Path A: Instrument number search (fast, precise, no SPA) ─────────
     if (allInstrumentNumbers.length > 0 && kofile) {
+      const MAX_INSTRUMENTS = 10;
+      const instrToFetch = allInstrumentNumbers.slice(0, MAX_INSTRUMENTS);
+      if (allInstrumentNumbers.length > MAX_INSTRUMENTS) {
+        logger.warn('Stage2', `Found ${allInstrumentNumbers.length} instrument numbers — capping at ${MAX_INSTRUMENTS} (dropped ${allInstrumentNumbers.length - MAX_INSTRUMENTS})`);
+      }
+
+      // Fetch documents in parallel (batches of 3 to avoid overloading)
+      const BATCH_SIZE = 3;
       const docsAdded: string[] = [];
       const instrErrors: string[] = [];
 
-      for (const instrNum of allInstrumentNumbers.slice(0, 5)) {
-        const expectedPages = /plat/i.test(legalDesc) ? 3 : 2;
-        try {
-          const pages = await fetchDocumentImages(instrNum, expectedPages, logger);
-          if (pages.length > 0) {
+      for (let batch = 0; batch < instrToFetch.length; batch += BATCH_SIZE) {
+        const batchItems = instrToFetch.slice(batch, batch + BATCH_SIZE);
+        const batchResults = await Promise.allSettled(
+          batchItems.map(async (instrNum) => {
+            const expectedPages = /plat/i.test(legalDesc) ? 3 : 2;
+            const fetchStart = Date.now();
+            const pages = await fetchDocumentImages(instrNum, expectedPages, logger);
+            const fetchDuration = Date.now() - fetchStart;
+            logger.info('Stage2', `Fetched ${instrNum}: ${pages.length} pages in ${fetchDuration}ms`);
+            return { instrNum, pages };
+          }),
+        );
+
+        for (const result of batchResults) {
+          if (result.status === 'fulfilled' && result.value.pages.length > 0) {
+            const { instrNum, pages } = result.value;
             const docResult: DocumentResult = {
               ref: {
                 instrumentNumber: instrNum,
@@ -498,13 +459,21 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             documents.push(docResult);
             instrumentSearchSucceeded = true;
             docsAdded.push(`${instrNum}(${pages.length}pp)`);
-            // Bundle pages → PDF non-fatally
+            // Bundle pages → PDF non-fatally but LOG failures
             bundleAndUploadPages(pages, input.projectId, instrNum, docResult.ref.documentType)
-              .then(url => { if (url) docResult.pagesPdfUrl = url; })
-              .catch(() => undefined);
+              .then(url => {
+                if (url) {
+                  docResult.pagesPdfUrl = url;
+                  logger.info('Stage2-PDF', `Bundled ${pages.length} pages for ${instrNum} → ${url.substring(0, 80)}`);
+                }
+              })
+              .catch((pdfErr) => {
+                logger.warn('Stage2-PDF', `PDF bundling failed for ${instrNum}: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
+              });
+          } else if (result.status === 'rejected') {
+            const errMsg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+            instrErrors.push(errMsg);
           }
-        } catch (imgErr) {
-          instrErrors.push(`${instrNum}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
         }
       }
 
@@ -554,18 +523,43 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       if (ownerDocs.length > 0 && kofile) {
         let totalPages = 0;
         const imgErrors: string[] = [];
-        for (const doc of ownerDocs.slice(0, 5)) {
-          if (!doc.ref.instrumentNumber) continue;
-          try {
-            const pages = await fetchDocumentImages(doc.ref.instrumentNumber, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
-            if (pages.length > 0) {
+        const docsToFetch = ownerDocs.slice(0, 10).filter(d => d.ref.instrumentNumber);
+        if (ownerDocs.length > 10) {
+          logger.warn('Stage2', `Owner search returned ${ownerDocs.length} docs — capping image fetch at 10`);
+        }
+
+        // Parallel fetch in batches of 3
+        const BATCH_SIZE = 3;
+        for (let batch = 0; batch < docsToFetch.length; batch += BATCH_SIZE) {
+          const batchItems = docsToFetch.slice(batch, batch + BATCH_SIZE);
+          const batchResults = await Promise.allSettled(
+            batchItems.map(async (doc) => {
+              const fetchStart = Date.now();
+              const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
+              logger.info('Stage2', `Fetched ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
+              return { doc, pages };
+            }),
+          );
+
+          for (const result of batchResults) {
+            if (result.status === 'fulfilled' && result.value.pages.length > 0) {
+              const { doc, pages } = result.value;
               doc.pages = pages;
               totalPages += pages.length;
-              bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber, doc.ref.documentType)
-                .then(url => { if (url) doc.pagesPdfUrl = url; })
-                .catch(() => undefined);
+              bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
+                .then(url => {
+                  if (url) {
+                    doc.pagesPdfUrl = url;
+                    logger.info('Stage2-PDF', `Bundled ${pages.length} pages for ${doc.ref.instrumentNumber} → ${url.substring(0, 80)}`);
+                  }
+                })
+                .catch((pdfErr) => {
+                  logger.warn('Stage2-PDF', `PDF bundling failed for ${doc.ref.instrumentNumber}: ${pdfErr instanceof Error ? pdfErr.message : String(pdfErr)}`);
+                });
+            } else if (result.status === 'rejected') {
+              imgErrors.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
             }
-          } catch (e) { imgErrors.push(`${doc.ref.instrumentNumber}: ${e instanceof Error ? e.message : String(e)}`); }
+          }
         }
         const imgNote = totalPages > 0 ? `${totalPages}pp` : '0pp';
         logger.info('Stage2', `Owner-name: ${ownerDocs.length} doc(s), ${imgNote}${imgErrors.length ? ` [${imgErrors.length} img error(s)]` : ''}`);
@@ -579,12 +573,34 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       logger.warn('Stage2', 'No instruments and no owner name — document retrieval skipped');
     }
 
+    // ── Path D: SUPERSEARCH fallback (full-text OCR search) ──────────────
+    // If no documents found yet, try SUPERSEARCH with the legal description.
+    // SUPERSEARCH searches inside scanned document text, not just metadata.
+    if (documents.length === 0 && legalDesc && kofile) {
+      logger.info('Stage2-SS', 'No documents from owner/instrument search — trying SUPERSEARCH with legal description');
+      // Extract the most useful search terms from legal description
+      // (subdivision name + lot/block is usually the best query)
+      const subdivName = extractSubdivisionName(legalDesc);
+      const ssQuery = subdivName || legalDesc.substring(0, 120);
+      try {
+        const ssDocs = await searchSuperSearch(input.county, ssQuery, logger);
+        if (ssDocs.length > 0) {
+          logger.info('Stage2-SS', `SUPERSEARCH found ${ssDocs.length} documents for "${ssQuery}"`);
+          documents = [...documents, ...ssDocs];
+        }
+      } catch (ssErr) {
+        logger.warn('Stage2-SS', `SUPERSEARCH failed: ${ssErr instanceof Error ? ssErr.message : String(ssErr)}`);
+      }
+    }
+
     // Merge user-uploaded documents
     if (userDocuments.length > 0) documents = [...documents, ...userDocuments];
 
     const totalPages = documents.reduce((n, d) => n + (d.pages?.length ?? 0), 0);
     const docSummary = `${documents.length} doc(s)${totalPages > 0 ? `, ${totalPages} pages` : ''}`;
-    logger.info('Stage2', `Total: ${docSummary}`);
+    logger.info('Stage2', `Total: ${docSummary} (${Date.now() - stage2Start}ms)`);
+
+    const stage3Start = Date.now();
     await updateStatus(input.projectId, 'running', `Stage 3: AI extraction — ${docSummary}…`);
 
     // ═══════════════════════════════════════════════════════════════════
@@ -601,7 +617,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     const boundaryNote = boundary
       ? `${boundary.type}, ${boundary.calls.length} calls`
       : 'no boundary';
-    logger.info('Stage3', `Extraction: ${boundaryNote}`);
+    logger.info('Stage3', `Extraction: ${boundaryNote} (${Date.now() - stage3Start}ms)`);
     await updateStatus(input.projectId, 'running', `Stage 3.5: Geometric reconciliation…`);
 
     // ═══════════════════════════════════════════════════════════════════
