@@ -2412,21 +2412,6 @@ export async function searchBisCad(
 // LOOKUP WRAPPER — used by the new pipeline.ts orchestrator
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Simplified CAD lookup for Bell County.
- * Normalizes the address, then searches Bell CAD via searchBisCad().
- * Returns the best matching property or null if not found.
- */
-export async function lookupBisCad(
-  address: string,
-  logger: PipelineLogger,
-): Promise<PropertyIdResult | null> {
-  const normalized = await normalizeAddress(address, logger);
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
-  const { property } = await searchBisCad('bell', normalized, apiKey, logger);
-  return property;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // BIS GIS — ArcGIS REST API integration (Phase 17)
 // ─────────────────────────────────────────────────────────────────────────────

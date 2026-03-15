@@ -2063,7 +2063,7 @@ export async function searchSuperSearch(
 interface AddressSearchQuery {
   streetNumber: string;
   streetName: string;
-  format: string;
+  format?: string;
 }
 
 /**
@@ -2258,7 +2258,6 @@ export async function searchClerkByAddress(
       status: allCaptured.length > 0 ? 'success' : 'fail',
       dataPointsFound: allCaptured.length,
       details: `${allCaptured.length} total, ${relevant.length} deed-relevant from ${queriesToTry.length} address variants`,
-      screenshot: searchScreenshot ? searchScreenshot.toString('base64').substring(0, 200) + '...' : undefined,
     });
 
     // If we found docs, attach screenshot to the first result for Vision OCR
@@ -2544,12 +2543,6 @@ export async function searchClerkForPlats(
 // traffic instead of taking screenshots. This yields full-resolution originals.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// NOTE: Legacy Bell-specific searchBellClerk() and searchByInstrument() were
-// removed — use the generic searchClerkRecords() and fetchDocumentImages()
-// which work for all Kofile counties.
-
-const BELL_CLERK_BASE = 'https://bell.tx.publicsearch.us';
-
 /**
  * Download all page images for a document by intercepting signed image URLs.
  *
@@ -2560,14 +2553,22 @@ const BELL_CLERK_BASE = 'https://bell.tx.publicsearch.us';
  * This avoids screenshot latency and gets the full-resolution originals.
  * Navigates directly to the document detail page (/doc/{id}/details) rather
  * than the old search-then-click approach (saves ~16 seconds per document).
+ *
+ * Works for any county with a Kofile/Tyler PublicSearch configuration.
  */
 export async function fetchDocumentImages(
+  county: string,
   instrumentNumber: string,
   expectedPages: number,
   logger: PipelineLogger,
 ): Promise<DocumentPage[]> {
+  const baseUrl = getKofileBaseUrl(county);
+  if (!baseUrl) {
+    logger.warn('2D-IMG', `No Kofile config for county "${county}" — cannot fetch document images`);
+    return [];
+  }
   let browser: import('playwright').Browser | null = null;
-  const attempt = logger.attempt('2D-IMG', BELL_CLERK_BASE, 'PLAYWRIGHT_IMAGES', instrumentNumber);
+  const attempt = logger.attempt('2D-IMG', baseUrl, 'PLAYWRIGHT_IMAGES', instrumentNumber);
   const pages: DocumentPage[] = [];
 
   try {
@@ -2590,13 +2591,13 @@ export async function fetchDocumentImages(
         /\.(png|jpe?g|tiff?)(\?|$)/i.test(url)
       ) {
         imageUrls.push(url);
-        console.log(`[BELL-IMG] Captured: ${url.substring(0, 100)}...`);
+        console.log(`[DOC-IMG] Captured: ${url.substring(0, 100)}...`);
       }
     });
 
     // Navigate directly to the document viewer page (avoids search+click overhead)
-    const viewerUrl = `${BELL_CLERK_BASE}/doc/${encodeURIComponent(instrumentNumber)}/details`;
-    console.log(`[BELL-IMG] Navigating directly to viewer: ${viewerUrl}`);
+    const viewerUrl = `${baseUrl}/doc/${encodeURIComponent(instrumentNumber)}/details`;
+    console.log(`[DOC-IMG] Navigating directly to viewer: ${viewerUrl}`);
     try {
       await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 60_000 });
     } catch {
@@ -2611,19 +2612,19 @@ export async function fetchDocumentImages(
       await page.waitForTimeout(500);
     }
 
-    console.log(`[BELL-IMG] After viewer load: ${imageUrls.length} URLs captured`);
+    console.log(`[DOC-IMG] After viewer load: ${imageUrls.length} URLs captured`);
 
     // Fallback: if direct viewer didn't capture images, try search+click (legacy approach)
     if (imageUrls.length === 0) {
-      console.log('[BELL-IMG] Direct viewer captured no images — falling back to search+click');
-      const searchUrl = `${BELL_CLERK_BASE}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+      console.log('[DOC-IMG] Direct viewer captured no images — falling back to search+click');
+      const searchUrl = `${baseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
       await page.waitForTimeout(5_000);
       try {
         await page.locator('tbody tr').first().click();
         await page.waitForTimeout(6_000);
       } catch (e: any) {
-        console.log('[BELL-IMG] Search+click fallback: could not click result:', e.message);
+        console.log('[DOC-IMG] Search+click fallback: could not click result:', e.message);
       }
     }
 
@@ -2648,11 +2649,11 @@ export async function fetchDocumentImages(
             height: 0,
             signedUrl: imgUrl,
           });
-          console.log(`[BELL-IMG] Page ${pageNum}: ${buf.length} bytes (${detectFormat(imgUrl)})`);
+          console.log(`[DOC-IMG] Page ${pageNum}: ${buf.length} bytes (${detectFormat(imgUrl)})`);
           return true;
         }
       } catch (e: any) {
-        console.log(`[BELL-IMG] Page ${pageNum} download failed: ${e.message}`);
+        console.log(`[DOC-IMG] Page ${pageNum} download failed: ${e.message}`);
       }
       return false;
     };
@@ -2682,7 +2683,7 @@ export async function fetchDocumentImages(
       }
 
       if (!clicked) {
-        console.log(`[BELL-IMG] No next-page button for page ${pageNum}`);
+        console.log(`[DOC-IMG] No next-page button for page ${pageNum}`);
         break;
       }
 
@@ -2697,7 +2698,7 @@ export async function fetchDocumentImages(
         const constructedUrl = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_${pageNum}.$1`);
         if (constructedUrl !== seedUrl) {
           const ok = await downloadPage(constructedUrl, pageNum);
-          if (!ok) console.log(`[BELL-IMG] Page ${pageNum} constructed URL failed`);
+          if (!ok) console.log(`[DOC-IMG] Page ${pageNum} constructed URL failed`);
         }
       }
     }
@@ -2712,7 +2713,7 @@ export async function fetchDocumentImages(
     }
     return pages;
   } catch (err: any) {
-    console.error('[BELL-IMG] Image fetch failed:', err.message);
+    console.error('[DOC-IMG] Image fetch failed:', err.message);
     if (browser) await browser.close().catch(() => {});
     attempt.fail(err.message);
     return [];
@@ -2737,108 +2738,3 @@ export function savePageImages(
   return paths;
 }
 
-// ── Helpers (private to this module section) ──────────────────────────────
-
-async function _extractSearchResults(
-  page: import('playwright').Page,
-): Promise<DocumentRef[]> {
-  const documents: DocumentRef[] = [];
-  const rows = await page.$$('.result-card, table tbody tr[aria-selected], .result-row, .search-result');
-
-  for (const row of rows) {
-    try {
-      const text = await row.textContent() || '';
-      if (text.toLowerCase().includes('recording date') && text.toLowerCase().includes('document type')) continue;
-
-      // Tyler PublicSearch: extract from table columns by class
-      const checkbox = await row.$('input[id^="table-checkbox-"]');
-      const docId = checkbox ? (await checkbox.getAttribute('id'))?.replace('table-checkbox-', '') ?? '' : '';
-      const getColText = async (n: number): Promise<string> => {
-        const cell = await row.$(`td.col-${n}, td:nth-child(${n + 1})`);
-        return cell ? ((await cell.textContent()) ?? '').trim() : '';
-      };
-      const colDocType = await getColText(5);
-      const colInstr = await getColText(7);
-
-      if (colDocType || colInstr) {
-        // Structured Tyler table row
-        const colDate = await getColText(6);
-        const colBVP = await getColText(8);
-        const colGrantor = await getColText(3);
-        const colGrantee = await getColText(4);
-        let volume = '';
-        let pg = '';
-        const bvpMatch = colBVP.match(/(?:OPR\/)?(\d+)\/(\d+)/);
-        if (bvpMatch) { volume = bvpMatch[1]; pg = bvpMatch[2]; }
-
-        documents.push({
-          instrumentNumber: colInstr || null,
-          volume: volume || null,
-          page: pg || null,
-          documentType: colDocType || 'Unknown',
-          recordingDate: colDate || null,
-          grantors: colGrantor ? [colGrantor] : [],
-          grantees: colGrantee ? [colGrantee] : [],
-          source: 'Bell County Clerk PublicSearch',
-          url: docId ? `${BELL_CLERK_BASE}/doc/${docId}` : null,
-        });
-        continue;
-      }
-
-      // Fallback: parse from text content
-      const doc = _parseDocumentRow(text);
-      if (doc) {
-        const link = await row.$('a[href]');
-        if (link) {
-          const href = await link.getAttribute('href');
-          if (href) doc.url = href.startsWith('http') ? href : BELL_CLERK_BASE + href;
-        }
-        if (!doc.url && docId) {
-          doc.url = `${BELL_CLERK_BASE}/doc/${docId}`;
-        }
-        documents.push(doc);
-      }
-    } catch { /* skip */ }
-  }
-
-  return documents.filter(d => /deed|warranty|plat|conveyance/i.test(d.documentType));
-}
-
-function _parseDocumentRow(text: string): DocumentRef | null {
-  const typeMatch = text.match(
-    /(Warranty Deed|Special Warranty Deed|General Warranty Deed|Deed Without Warranty|Deed of Trust|Plat|Plat Amended|Quit Claim|Transfer)/i,
-  );
-  if (!typeMatch) return null;
-
-  const dateMatch   = text.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
-  const instrMatch  = text.match(/(?:Inst(?:rument)?|Doc)[\s#:]*(\d{6,})/i) || text.match(/(\d{10,})/);
-  const volPageMatch = text.match(/Vol(?:ume)?[\s.]*(\d+)[\s,]*(?:Pg|Page)[\s.]*(\d+)/i);
-  const grantorMatch = text.match(/(?:Grantor|From)[\s:]*([^,\n]+)/i);
-  const granteeMatch = text.match(/(?:Grantee|To)[\s:]*([^,\n]+)/i);
-
-  return {
-    instrumentNumber: instrMatch ? instrMatch[1] : null,
-    volume:           volPageMatch ? volPageMatch[1] : null,
-    page:             volPageMatch ? volPageMatch[2] : null,
-    documentType:     typeMatch[1],
-    recordingDate:    dateMatch ? dateMatch[1] : null,
-    grantors:         grantorMatch ? [grantorMatch[1].trim()] : [],
-    grantees:         granteeMatch ? [granteeMatch[1].trim()] : [],
-    source:           'Bell County Clerk PublicSearch',
-    url:              null,
-  };
-}
-
-function _parseOwnerName(name: string): { lastName: string; firstName: string; searchQuery: string } {
-  if (name.includes(',')) {
-    const [last, first] = name.split(',').map(s => s.trim());
-    return { lastName: last, firstName: first, searchQuery: `${last}, ${first}` };
-  }
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    const last  = parts[parts.length - 1];
-    const first = parts.slice(0, -1).join(' ');
-    return { lastName: last, firstName: first, searchQuery: `${last}, ${first}` };
-  }
-  return { lastName: name, firstName: '', searchQuery: name };
-}

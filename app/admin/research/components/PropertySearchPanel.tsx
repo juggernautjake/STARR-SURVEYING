@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import type { PropertySearchResult, PropertySearchResponse, SearchSource } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
 import { PipelineProgressPanel, PipelineProgressStyles } from './PipelineProgressPanel';
@@ -692,11 +693,14 @@ export default function PropertySearchPanel({
                   USGS satellite imagery — importing will also save full-resolution satellite &amp; topo images as project documents for AI analysis
                 </span>
               </div>
-              <img
+              <Image
                 className="research-search__map-img"
                 src={searchResponse.location_preview_url}
                 alt="Satellite view of geocoded property location"
+                width={600}
+                height={400}
                 loading="lazy"
+                unoptimized
                 onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             </div>

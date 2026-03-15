@@ -446,7 +446,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           batchItems.map(async (instrNum) => {
             const expectedPages = /plat/i.test(legalDesc) ? 3 : 2;
             const fetchStart = Date.now();
-            const pages = await fetchDocumentImages(instrNum, expectedPages, logger);
+            const pages = await fetchDocumentImages(input.county, instrNum, expectedPages, logger);
             const fetchDuration = Date.now() - fetchStart;
             logger.info('Stage2', `Fetched ${instrNum}: ${pages.length} pages in ${fetchDuration}ms`);
             return { instrNum, pages };
@@ -546,7 +546,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           const batchResults = await Promise.allSettled(
             batchItems.map(async (doc) => {
               const fetchStart = Date.now();
-              const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
+              const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
               logger.info('Stage2', `Fetched ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
               return { doc, pages };
             }),
@@ -642,7 +642,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
               const batchResults = await Promise.allSettled(
                 batchItems.map(async (doc) => {
                   const fetchStart = Date.now();
-                  const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
+                  const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
                   logger.info('Stage2-Addr', `Fetched ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
                   return { doc, pages };
                 }),
@@ -697,7 +697,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
               batchItems.map(async (doc) => {
                 const fetchStart = Date.now();
                 // Plats often have more pages — request up to 5
-                const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, 5, logger);
+                const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber!, 5, logger);
                 logger.info('Stage2-Plat', `Fetched plat ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
                 return { doc, pages };
               }),
