@@ -107,19 +107,31 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'No results selected for import' }, { status: 400 });
   }
 
-  const imported: string[] = [];
+  // Use a Set to track unique document IDs — prevents double-counting when two
+  // selected results share the same source URL (e.g. TNRIS always uses the same
+  // static URL, some Bell CAD results share a base URL).  Previously a plain
+  // array was used, so duplicate IDs inflated `imported.length` and the success
+  // message said e.g. "20 imported" while only 18–19 unique documents existed.
+  const importedIds = new Set<string>();
+  let newCount = 0;
+  let alreadyExistedCount = 0;
 
   for (const result of body.results) {
-    // Skip if a document with the same source URL already exists
-    const { data: existingResult } = await supabaseAdmin
-      .from('research_documents')
-      .select('id')
-      .eq('research_project_id', projectId)
-      .eq('source_url', result.url)
-      .maybeSingle();
-    if (existingResult) {
-      imported.push(existingResult.id);
-      continue;
+    // Skip URL-based dedup check when result.url is empty — an empty-string
+    // .eq() would match rows with source_url='' and a null .eq() in Supabase
+    // resolves to IS NULL which could match unrelated documents.
+    if (result.url) {
+      const { data: existingResult } = await supabaseAdmin
+        .from('research_documents')
+        .select('id')
+        .eq('research_project_id', projectId)
+        .eq('source_url', result.url)
+        .maybeSingle();
+      if (existingResult) {
+        importedIds.add(existingResult.id);
+        alreadyExistedCount++;
+        continue;
+      }
     }
 
     // Create a research_documents row for each imported result
@@ -130,7 +142,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
         source_type: 'property_search',
         document_type: result.document_type || 'other',
         document_label: result.title,
-        source_url: result.url,
+        source_url: result.url || null,
         original_filename: null,
         file_type: null,
         file_size_bytes: null,
@@ -143,7 +155,8 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
       .single();
 
     if (!docError && doc) {
-      imported.push(doc.id);
+      importedIds.add(doc.id);
+      newCount++;
 
       // Mark as extracted immediately since we have the reference info
       await supabaseAdmin.from('research_documents').update({
@@ -182,8 +195,10 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     .eq('research_project_id', projectId);
 
   return NextResponse.json({
-    imported: imported.length,
-    document_ids: imported,
+    imported: importedIds.size,
+    new_count: newCount,
+    already_existed_count: alreadyExistedCount,
+    document_ids: [...importedIds],
     total_documents: count || 0,
     map_images_queued: !!addressToCapture,
   });
