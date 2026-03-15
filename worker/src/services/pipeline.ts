@@ -1382,12 +1382,20 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     for (const n of allInstrumentNumbers) discoveryState.pendingInstruments.delete(n);
     discoveryState.totalDocumentsRetrieved = documents.length;
 
+    const stage3T = logger.attempt('Stage3', 'Claude AI', 'extractDocuments',
+      `${documents.length} doc(s) — initial pass`);
     const { documents: processedDocs, boundary: rawBoundary } = await extractDocuments(
       documents,
       propertyResult?.legalDescription ?? null,
       anthropicApiKey,
       logger,
     );
+    {
+      const bNote = rawBoundary
+        ? `${rawBoundary.type} (${rawBoundary.calls.length} calls, conf ${(rawBoundary.confidence * 100).toFixed(0)}%)`
+        : 'no boundary';
+      stage3T.success(processedDocs.length, `${processedDocs.length} doc(s) processed — ${bNote}`);
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     // ITERATIVE DISCOVERY LOOP
@@ -1431,6 +1439,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       if (pendingInstrs.length > 0 && kofile) {
         logger.info('Discovery', `Fetching ${pendingInstrs.length} instrument(s): [${pendingInstrs.join(', ')}]`);
         for (const instrNum of pendingInstrs) {
+          const t = logger.attempt('Discovery', `${input.county} County Clerk`, 'fetchDocumentImages', instrNum);
           try {
             const expectedPages = 4; // general default
             const pages = await fetchDocumentImages(input.county, instrNum, expectedPages, logger);
@@ -1448,17 +1457,17 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
               };
               iterationDocs.push(docResult);
               discoveryState.totalDocumentsRetrieved++;
-              logger.info('Discovery', `Retrieved ${pages.length} page(s) for instrument ${instrNum}`);
+              t.success(pages.length, `${pages.length} page(s) retrieved`);
 
               // Bundle PDF in background
               bundleAndUploadPages(pages, input.projectId, instrNum, 'Document (discovery)')
                 .then(url => { if (url) docResult.pagesPdfUrl = url; })
                 .catch(() => undefined);
             } else {
-              logger.info('Discovery', `Instrument ${instrNum}: no pages captured`);
+              t.partial(0, 'No pages captured — document may not exist or be inaccessible');
             }
           } catch (err) {
-            logger.warn('Discovery', `Instrument ${instrNum} fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+            t.fail(`Fetch failed: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
       }
@@ -1467,7 +1476,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       const pendingOwners = consumePendingOwners(discoveryState);
       if (pendingOwners.length > 0 && kofile) {
         for (const ownerName of pendingOwners) {
-          logger.info('Discovery', `Searching clerk records for owner: "${ownerName}"`);
+          const t = logger.attempt('Discovery', `${input.county} County Clerk`, 'searchClerkRecords', ownerName);
           try {
             const ownerDocs = await searchClerkRecords(input.county, ownerName, logger);
             if (ownerDocs.length > 0) {
@@ -1479,29 +1488,37 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                 !d.ref.instrumentNumber || !existingInstrs.has(d.ref.instrumentNumber),
               );
               if (newOwnerDocs.length > 0) {
-                logger.info('Discovery', `Owner "${ownerName}": ${newOwnerDocs.length} new doc(s) (${ownerDocs.length} total)`);
+                t.success(newOwnerDocs.length, `${newOwnerDocs.length} new doc(s) (${ownerDocs.length} total from clerk)`);
                 // Fetch images for the new documents
                 for (const doc of newOwnerDocs.slice(0, 5)) {
                   if (!doc.ref.instrumentNumber) continue;
+                  const imgT = logger.attempt('Discovery', `${input.county} County Clerk`, 'fetchDocumentImages', doc.ref.instrumentNumber);
                   try {
                     const isPlat = /plat/i.test(doc.ref.documentType);
                     const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber, isPlat ? 10 : 2, logger);
                     if (pages.length > 0) {
                       doc.pages = pages;
                       discoveryState.totalDocumentsRetrieved++;
+                      imgT.success(pages.length, `${pages.length} page(s)`);
                       bundleAndUploadPages(pages, input.projectId, doc.ref.instrumentNumber!, doc.ref.documentType)
                         .then(url => { if (url) doc.pagesPdfUrl = url; })
                         .catch(() => undefined);
+                    } else {
+                      imgT.partial(0, 'No pages captured');
                     }
                   } catch (imgErr) {
-                    logger.warn('Discovery', `Image fetch for ${doc.ref.instrumentNumber} failed: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
+                    imgT.fail(`Image fetch failed: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
                   }
                 }
                 iterationDocs.push(...newOwnerDocs);
+              } else {
+                t.partial(0, `${ownerDocs.length} doc(s) found but all already retrieved`);
               }
+            } else {
+              t.partial(0, 'No documents found for this owner name');
             }
           } catch (err) {
-            logger.warn('Discovery', `Owner search "${ownerName}" failed: ${err instanceof Error ? err.message : String(err)}`);
+            t.fail(`Owner search failed: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
       }
@@ -1510,7 +1527,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       const pendingSubdivs = consumePendingSubdivisions(discoveryState);
       if (pendingSubdivs.length > 0 && kofile && input.county.toLowerCase() === 'bell') {
         for (const subdivName of pendingSubdivs) {
-          logger.info('Discovery', `Searching Bell County Clerk for subdivision: "${subdivName}"`);
+          const t = logger.attempt('Discovery', 'Bell County Clerk', 'searchBellClerkOwnerForPlatDeed', subdivName);
           try {
             const { platInstruments, deedInstruments } =
               await searchBellClerkOwnerForPlatDeed(subdivName, logger);
@@ -1519,35 +1536,43 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             );
             const newInstrs = [...platInstruments, ...deedInstruments].filter(n => !existingInstrs.has(n));
 
-            for (const instrNum of newInstrs.slice(0, 5)) {
-              const isPlat = platInstruments.includes(instrNum);
-              const docType = isPlat ? 'Final Plat (discovery)' : 'Warranty Deed (discovery)';
-              try {
-                const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 10 : 4, logger);
-                if (pages.length > 0) {
-                  const docResult: DocumentResult = {
-                    ref: {
-                      instrumentNumber: instrNum, volume: null, page: null,
-                      documentType: docType, recordingDate: null,
-                      grantors: [], grantees: [],
-                      source: `${input.county} County Clerk (discovery iter ${discoveryState.iteration})`,
-                      url: `${kofileBase}/doc/${instrNum}/details`,
-                    },
-                    textContent: null, pages, ocrText: null, extractedData: null,
-                  };
-                  iterationDocs.push(docResult);
-                  discoveryState.totalDocumentsRetrieved++;
-                  bundleAndUploadPages(pages, input.projectId, instrNum, docType)
-                    .then(url => { if (url) docResult.pagesPdfUrl = url; })
-                    .catch(() => undefined);
-                  logger.info('Discovery', `Retrieved ${pages.length} page(s) for ${docType} ${instrNum} (${subdivName})`);
+            if (newInstrs.length === 0) {
+              t.partial(0, `Found ${platInstruments.length + deedInstruments.length} instrument(s) but all already retrieved`);
+            } else {
+              t.success(newInstrs.length, `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s) — fetching ${newInstrs.length} new`);
+              for (const instrNum of newInstrs.slice(0, 5)) {
+                const isPlat = platInstruments.includes(instrNum);
+                const docType = isPlat ? 'Final Plat (discovery)' : 'Warranty Deed (discovery)';
+                const imgT = logger.attempt('Discovery', 'Bell County Clerk', 'fetchDocumentImages', instrNum);
+                try {
+                  const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 10 : 4, logger);
+                  if (pages.length > 0) {
+                    const docResult: DocumentResult = {
+                      ref: {
+                        instrumentNumber: instrNum, volume: null, page: null,
+                        documentType: docType, recordingDate: null,
+                        grantors: [], grantees: [],
+                        source: `${input.county} County Clerk (discovery iter ${discoveryState.iteration})`,
+                        url: `${kofileBase}/doc/${instrNum}/details`,
+                      },
+                      textContent: null, pages, ocrText: null, extractedData: null,
+                    };
+                    iterationDocs.push(docResult);
+                    discoveryState.totalDocumentsRetrieved++;
+                    imgT.success(pages.length, `${pages.length} page(s) for ${docType}`);
+                    bundleAndUploadPages(pages, input.projectId, instrNum, docType)
+                      .then(url => { if (url) docResult.pagesPdfUrl = url; })
+                      .catch(() => undefined);
+                  } else {
+                    imgT.partial(0, 'No pages captured');
+                  }
+                } catch (imgErr) {
+                  imgT.fail(`Image fetch failed: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
                 }
-              } catch (imgErr) {
-                logger.warn('Discovery', `Could not get images for ${instrNum}: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
               }
             }
           } catch (err) {
-            logger.warn('Discovery', `Subdivision search "${subdivName}" failed: ${err instanceof Error ? err.message : String(err)}`);
+            t.fail(`Subdivision search failed: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
       }
@@ -1563,12 +1588,30 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       await updateStatus(input.projectId, 'running',
         `Discovery iteration ${discoveryState.iteration}: AI extracting from ${iterationDocs.length} new document(s)…`);
 
-      const { documents: newProcessedDocs, boundary: newBoundary } = await extractDocuments(
-        iterationDocs,
-        propertyResult?.legalDescription ?? null,
-        anthropicApiKey,
-        logger,
-      );
+      let newProcessedDocs: typeof processedDocs = [];
+      let newBoundary: typeof rawBoundary = null;
+      const extractT = logger.attempt('Discovery', 'Claude AI', 'extractDocuments',
+        `${iterationDocs.length} doc(s) — iter ${discoveryState.iteration}`);
+      try {
+        const result = await extractDocuments(
+          iterationDocs,
+          propertyResult?.legalDescription ?? null,
+          anthropicApiKey,
+          logger,
+        );
+        newProcessedDocs = result.documents;
+        newBoundary = result.boundary;
+        const boundaryNote = newBoundary
+          ? `boundary: ${newBoundary.type} (${newBoundary.calls.length} calls, conf ${(newBoundary.confidence * 100).toFixed(0)}%)`
+          : 'no boundary';
+        extractT.success(newProcessedDocs.length, `${newProcessedDocs.length} doc(s) processed — ${boundaryNote}`);
+      } catch (extractErr) {
+        extractT.fail(`AI extraction failed: ${extractErr instanceof Error ? extractErr.message : String(extractErr)}`);
+        // Non-fatal: skip this iteration's extraction but continue the loop
+        allProcessedDocs.push(...iterationDocs); // add without extraction
+        documents.push(...iterationDocs);
+        break;
+      }
 
       // Accumulate processed docs
       allProcessedDocs.push(...newProcessedDocs);
