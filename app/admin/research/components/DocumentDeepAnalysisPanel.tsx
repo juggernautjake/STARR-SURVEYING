@@ -91,8 +91,6 @@ export default function DocumentDeepAnalysisPanel({
     );
   });
 
-  if (analyzableDocs.length === 0) return null;
-
   async function handleAnalyze(docId: string) {
     if (analyzing) return;
     setAnalyzing(docId);
@@ -159,6 +157,8 @@ export default function DocumentDeepAnalysisPanel({
       setTimeout(() => setCopiedState(prev => { const n = { ...prev }; delete n[copyKey]; return n; }), 2000);
     });
   }, [results]);
+
+  if (analyzableDocs.length === 0) return null;
 
   return (
     <div className="research-deep-analysis">
