@@ -1380,3 +1380,144 @@ describe('getKofileBaseUrl', () => {
     expect(getKofileBaseUrl('harris')).toBeNull();
   });
 });
+
+// ── 20. extractNewIdentifiersFromDocuments ────────────────────────────────────
+// Tests for the iterative discovery loop helper introduced to implement the
+// "knowledge snowball" pattern: each document can reveal new identifiers
+// (instrument numbers, owner names) that trigger additional searches.
+
+import { extractNewIdentifiersFromDocuments } from '../../worker/src/services/pipeline.js';
+import type { DocumentResult } from '../../worker/src/types/index.js';
+
+/** Build a minimal DocumentResult for testing */
+function makePipelineDoc(overrides: Partial<DocumentResult> = {}): DocumentResult {
+  return {
+    ref: {
+      instrumentNumber: null,
+      volume: null, page: null,
+      documentType: 'Deed',
+      recordingDate: null,
+      grantors: [], grantees: [],
+      source: 'test',
+      url: null,
+    },
+    textContent: null,
+    ocrText: null,
+    extractedData: null,
+    ...overrides,
+  };
+}
+
+describe('extractNewIdentifiersFromDocuments', () => {
+  it('returns empty arrays when no documents provided', () => {
+    const result = extractNewIdentifiersFromDocuments([], new Set(), new Set(), new Set());
+    expect(result.newInstruments).toHaveLength(0);
+    expect(result.newOwners).toHaveLength(0);
+    expect(result.newSubdivisions).toHaveLength(0);
+  });
+
+  it('extracts instrument numbers from textContent via parseDeedReferences', () => {
+    const doc = makePipelineDoc({ textContent: 'Being the same tract conveyed by Inst 2023056789 in Bell County' });
+    const result = extractNewIdentifiersFromDocuments([doc], new Set(), new Set(), new Set());
+    expect(result.newInstruments).toContain('2023056789');
+  });
+
+  it('extracts instrument numbers from ocrText', () => {
+    const doc = makePipelineDoc({ ocrText: 'Reference: Doc 2019012345 recorded in the Official Public Records' });
+    const result = extractNewIdentifiersFromDocuments([doc], new Set(), new Set(), new Set());
+    expect(result.newInstruments).toContain('2019012345');
+  });
+
+  it('extracts instrument numbers from AI extractedData references', () => {
+    const doc = makePipelineDoc({
+      extractedData: {
+        type: 'metes_and_bounds',
+        datum: 'NAD83',
+        pointOfBeginning: { description: 'IRON ROD', referenceMonument: null },
+        calls: [],
+        references: [
+          { type: 'deed', volume: null, page: null, instrumentNumber: '2021099988', county: 'Bell', cabinetSlide: null },
+          { type: 'plat', volume: null, page: null, instrumentNumber: '2020044411', county: 'Bell', cabinetSlide: null },
+        ],
+        area: null, lotBlock: null, confidence: 0.9, warnings: [],
+      },
+    });
+    const result = extractNewIdentifiersFromDocuments([doc], new Set(), new Set(), new Set());
+    expect(result.newInstruments).toContain('2021099988');
+    expect(result.newInstruments).toContain('2020044411');
+  });
+
+  it('extracts owner names from grantors', () => {
+    const doc = makePipelineDoc({ ref: { ...makePipelineDoc().ref, grantors: ['JOHN SMITH', 'JANE DOE'], grantees: [] } });
+    const result = extractNewIdentifiersFromDocuments([doc], new Set(), new Set(), new Set());
+    expect(result.newOwners).toContain('JOHN SMITH');
+    expect(result.newOwners).toContain('JANE DOE');
+  });
+
+  it('extracts owner names from grantees and normalises to uppercase', () => {
+    const doc = makePipelineDoc({ ref: { ...makePipelineDoc().ref, grantors: [], grantees: ['Oak Creek Properties LLC'] } });
+    const result = extractNewIdentifiersFromDocuments([doc], new Set(), new Set(), new Set());
+    expect(result.newOwners).toContain('OAK CREEK PROPERTIES LLC');
+  });
+
+  it('does not return instruments already in searchedInstruments', () => {
+    const doc = makePipelineDoc({ textContent: 'Inst 2023056789' });
+    const already = new Set(['2023056789']);
+    const result = extractNewIdentifiersFromDocuments([doc], already, new Set(), new Set());
+    expect(result.newInstruments).not.toContain('2023056789');
+  });
+
+  it('does not return the doc\'s own instrument number as a new discovery', () => {
+    const doc = makePipelineDoc({
+      ref: { ...makePipelineDoc().ref, instrumentNumber: '2023056789' },
+      textContent: 'This instrument number 2023056789 is the recorded deed',
+    });
+    const result = extractNewIdentifiersFromDocuments([doc], new Set(), new Set(), new Set());
+    // The doc's own number should NOT appear in newInstruments
+    expect(result.newInstruments).not.toContain('2023056789');
+  });
+
+  it('does not return owner names already in searchedOwners', () => {
+    const doc = makePipelineDoc({ ref: { ...makePipelineDoc().ref, grantors: ['ASH FAMILY TRUST'], grantees: [] } });
+    const searched = new Set(['ASH FAMILY TRUST']);
+    const result = extractNewIdentifiersFromDocuments([doc], new Set(), searched, new Set());
+    expect(result.newOwners).not.toContain('ASH FAMILY TRUST');
+  });
+
+  it('deduplicates instrument numbers across multiple documents', () => {
+    const doc1 = makePipelineDoc({ textContent: 'Inst 2010043440' });
+    const doc2 = makePipelineDoc({ ocrText: 'Reference Inst 2010043440' });
+    const result = extractNewIdentifiersFromDocuments([doc1, doc2], new Set(), new Set(), new Set());
+    const count = result.newInstruments.filter(n => n === '2010043440').length;
+    expect(count).toBe(1);
+  });
+
+  it('filters out noise owner name tokens (ET AL, ET UX, UNKNOWN)', () => {
+    const doc = makePipelineDoc({ ref: { ...makePipelineDoc().ref, grantors: ['ET AL', 'ET UX', 'UNKNOWN'], grantees: ['N/A'] } });
+    const result = extractNewIdentifiersFromDocuments([doc], new Set(), new Set(), new Set());
+    expect(result.newOwners).toHaveLength(0);
+  });
+
+  it('filters out very short owner name tokens', () => {
+    const doc = makePipelineDoc({ ref: { ...makePipelineDoc().ref, grantors: ['AB', 'X'], grantees: [] } });
+    const result = extractNewIdentifiersFromDocuments([doc], new Set(), new Set(), new Set());
+    expect(result.newOwners).toHaveLength(0);
+  });
+
+  it('collects instruments from both text and AI references in the same document', () => {
+    const doc = makePipelineDoc({
+      textContent: 'recorded as Inst 2019012345',
+      extractedData: {
+        type: 'metes_and_bounds',
+        datum: 'NAD83',
+        pointOfBeginning: { description: 'IRON ROD', referenceMonument: null },
+        calls: [],
+        references: [{ type: 'deed', volume: null, page: null, instrumentNumber: '2021099988', county: 'Bell', cabinetSlide: null }],
+        area: null, lotBlock: null, confidence: 0.9, warnings: [],
+      },
+    });
+    const result = extractNewIdentifiersFromDocuments([doc], new Set(), new Set(), new Set());
+    expect(result.newInstruments).toContain('2019012345');
+    expect(result.newInstruments).toContain('2021099988');
+  });
+});

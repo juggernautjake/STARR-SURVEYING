@@ -1,8 +1,14 @@
 // worker/src/services/pipeline.ts — Main research pipeline orchestrator
-// Stage 0: Normalize address → Stage 1: CAD lookup → Stage 2: Clerk search
+// Stage 0: Normalize address → Stage 1: CAD lookup → Stage 2: Clerk search (iterative)
 // Stage 3: AI extraction → Stage 3.5: Geometric reconciliation
 // Stage 4: Boundary validation → Stage 5: Synthesis & cross-validation report
 // Supports: direct property ID lookup, owner name search, user file uploads.
+//
+// Iterative Discovery Loop (Stage 2):
+//   Each pass scans collected documents for new instrument numbers, owner names,
+//   and subdivision names.  Any previously-unsearched identifiers trigger another
+//   round of document retrieval.  This continues up to MAX_ENRICHMENT_ITERATIONS
+//   times so that chains like deed → prior deed → plat are automatically followed.
 
 import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyIdResult, SearchDiagnostics } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
@@ -74,6 +80,87 @@ export function parseDeedReferences(legalDescription: string): {
   for (const m of platMatches) platRefs.push({ cabinet: m[1].toUpperCase(), slide: m[2] });
 
   return { instrumentNumbers, volumePages, platRefs };
+}
+
+// ── Iterative Discovery Loop ──────────────────────────────────────────────
+//
+// Maximum number of enrichment passes after the initial Stage 2.
+// Each pass fetches newly-discovered instruments not yet retrieved.
+// Set conservatively to avoid runaway API/browser costs.
+const MAX_ENRICHMENT_ITERATIONS = 3;
+
+// Maximum new instruments to fetch per enrichment iteration.
+const MAX_NEW_INSTRUMENTS_PER_ITER = 5;
+
+/**
+ * Scan a collection of DocumentResult objects for identifiers that have not
+ * yet been searched.  Returns:
+ *   - newInstruments: instrument numbers referenced in document text / AI extraction
+ *   - newOwners:      owner names from grantor/grantee fields (normalised to UPPERCASE)
+ *   - newSubdivisions: subdivision names extracted from text content
+ *
+ * Sources checked (in priority order):
+ *   1. doc.extractedData.references  — AI-extracted document references (most precise)
+ *   2. doc.textContent / doc.ocrText — parseDeedReferences() for inline number patterns
+ *   3. doc.ref.grantors / grantees   — owner names from clerk search metadata
+ *
+ * @param docs                    Documents collected so far (pre- and post-AI extraction)
+ * @param searchedInstruments     Set of instrument numbers already fetched (mutated by callers)
+ * @param searchedOwners          Set of owner names already searched (normalised UPPERCASE)
+ * @param searchedSubdivisions    Set of subdivision names already searched
+ */
+export function extractNewIdentifiersFromDocuments(
+  docs: DocumentResult[],
+  searchedInstruments: ReadonlySet<string>,
+  searchedOwners: ReadonlySet<string>,
+  searchedSubdivisions: ReadonlySet<string>,
+): {
+  newInstruments: string[];
+  newOwners: string[];
+  newSubdivisions: string[];
+} {
+  const candidateInstruments = new Set<string>();
+  const candidateOwners      = new Set<string>();
+  const candidateSubdivisions = new Set<string>();
+
+  for (const doc of docs) {
+    const docInstr = doc.ref.instrumentNumber ?? '';
+
+    // 1. AI-extracted document references (most reliable)
+    if (doc.extractedData?.references) {
+      for (const ref of doc.extractedData.references) {
+        if (ref.instrumentNumber && ref.instrumentNumber !== docInstr) {
+          candidateInstruments.add(ref.instrumentNumber);
+        }
+      }
+    }
+
+    // 2. Parse instrument numbers from raw text / OCR text
+    const textToScan = [doc.textContent, doc.ocrText].filter(Boolean).join('\n');
+    if (textToScan) {
+      const parsed = parseDeedReferences(textToScan);
+      for (const n of parsed.instrumentNumbers) {
+        if (n !== docInstr) candidateInstruments.add(n);
+      }
+    }
+
+    // 3. Owner names from grantor/grantee clerk metadata
+    for (const name of [...doc.ref.grantors, ...doc.ref.grantees]) {
+      const normalized = name.trim().toUpperCase();
+      // Filter out noise: skip very short strings, numbers-only, or common
+      // non-person tokens that appear in Texas deed records.
+      if (normalized.length > 3 && !/^\d+$/.test(normalized) &&
+          !/^(ET AL|ET UX|ETAL|UNKNOWN|TRUSTEE|N\/A)$/.test(normalized)) {
+        candidateOwners.add(normalized);
+      }
+    }
+  }
+
+  return {
+    newInstruments:  [...candidateInstruments].filter(n => !searchedInstruments.has(n)),
+    newOwners:       [...candidateOwners].filter(n => !searchedOwners.has(n)),
+    newSubdivisions: [...candidateSubdivisions].filter(n => !searchedSubdivisions.has(n)),
+  };
 }
 
 // ── Supabase Client (Lazy Init) ───────────────────────────────────────────
@@ -1141,6 +1228,111 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       }
     }
 
+    // ── Iterative Enrichment Loop (Stage 2 Knowledge Snowball) ─────────────
+    // Now that the initial search passes (A–F) are done, scan everything
+    // collected so far for identifiers we haven't yet searched.  Each
+    // iteration may find previously-unknown instrument numbers or owner names
+    // referenced *inside* the documents themselves — following the chain:
+    //   deed → prior deed → plat → prior plat → …
+    //
+    // Safeguards:
+    //   • MAX_ENRICHMENT_ITERATIONS caps the number of extra passes
+    //   • searchedInstruments / searchedOwners prevent re-fetching
+    //   • MAX_NEW_INSTRUMENTS_PER_ITER limits per-pass fetch volume
+    {
+      // Seed the "already searched" sets from everything fetched in passes A–F
+      const searchedInstruments = new Set<string>(allInstrumentNumbers);
+      const searchedOwners      = new Set<string>();
+      if (ownerForClerk)           searchedOwners.add(ownerForClerk.toUpperCase());
+      if (ownerNameForPlatSearch)  searchedOwners.add(ownerNameForPlatSearch.toUpperCase());
+      const searchedSubdivisions = new Set<string>();
+
+      for (let iter = 0; iter < MAX_ENRICHMENT_ITERATIONS; iter++) {
+        const { newInstruments, newOwners } = extractNewIdentifiersFromDocuments(
+          documents,
+          searchedInstruments,
+          searchedOwners,
+          searchedSubdivisions,
+        );
+
+        if (newInstruments.length === 0 && newOwners.length === 0) {
+          logger.info('Stage2-Enrich',
+            `Iteration ${iter + 1}: no new identifiers discovered — enrichment complete`);
+          break;
+        }
+
+        logger.info('Stage2-Enrich',
+          `Iteration ${iter + 1}: discovered ${newInstruments.length} new instrument(s)` +
+          (newOwners.length > 0 ? `, ${newOwners.length} new owner(s)` : '') +
+          ` — fetching additional documents`);
+        await updateStatus(input.projectId, 'running',
+          `Stage 2 (enrichment ${iter + 1}): following ${newInstruments.length} reference(s) discovered in documents…`);
+
+        // ── Fetch newly-discovered instrument documents ─────────────────
+        const instrToEnrich = newInstruments.slice(0, MAX_NEW_INSTRUMENTS_PER_ITER);
+        for (const instrNum of instrToEnrich) {
+          searchedInstruments.add(instrNum); // mark before fetch so errors don't retry
+          if (!kofile) continue;
+          try {
+            const isPlat = /plat/i.test(legalDesc);
+            const expectedPages = isPlat ? 10 : 2;
+            const pages = await fetchDocumentImages(input.county, instrNum, expectedPages, logger);
+            if (pages.length > 0) {
+              const docResult: DocumentResult = {
+                ref: {
+                  instrumentNumber: instrNum,
+                  volume: null, page: null,
+                  documentType: 'Deed (discovered reference)',
+                  recordingDate: null, grantors: [], grantees: [],
+                  source: `${input.county.charAt(0).toUpperCase() + input.county.slice(1)} County Clerk`,
+                  url: `${kofileBase}/doc/${instrNum}/details`,
+                },
+                textContent: null, pages, ocrText: null, extractedData: null,
+              };
+              documents.push(docResult);
+              instrumentSearchSucceeded = true;
+              bundleAndUploadPages(pages, input.projectId, instrNum, docResult.ref.documentType)
+                .then(url => { if (url) docResult.pagesPdfUrl = url; })
+                .catch(() => undefined);
+              logger.info('Stage2-Enrich',
+                `  → Instrument ${instrNum}: ${pages.length} page(s) retrieved`);
+            } else {
+              logger.info('Stage2-Enrich', `  → Instrument ${instrNum}: no pages captured`);
+            }
+          } catch (enrichErr) {
+            logger.warn('Stage2-Enrich',
+              `  → Instrument ${instrNum} fetch failed: ${enrichErr instanceof Error ? enrichErr.message : String(enrichErr)}`);
+          }
+        }
+
+        // ── Search newly-discovered owner names (clerk) ─────────────────
+        // Only run if instrument searches came up empty for this iteration
+        // and we still need documents — this avoids expensive SPA searches
+        // when instruments are already providing sufficient coverage.
+        if (instrToEnrich.length === 0 && newOwners.length > 0 && kofile && !instrumentSearchSucceeded) {
+          for (const ownerName of newOwners.slice(0, 2)) {
+            searchedOwners.add(ownerName);
+            try {
+              const ownerDocs = await searchClerkRecords(input.county, ownerName, logger);
+              if (ownerDocs.length > 0) {
+                logger.info('Stage2-Enrich',
+                  `  → Owner "${ownerName}": ${ownerDocs.length} document(s) found`);
+                documents = [...documents, ...ownerDocs];
+              }
+            } catch (ownerErr) {
+              logger.warn('Stage2-Enrich',
+                `  → Owner search "${ownerName}" failed: ${ownerErr instanceof Error ? ownerErr.message : String(ownerErr)}`);
+            }
+          }
+        }
+
+        // Log running total after each enrichment pass
+        const enrichTotal = documents.reduce((n, d) => n + (d.pages?.length ?? 0), 0);
+        logger.info('Stage2-Enrich',
+          `Iteration ${iter + 1} complete: ${documents.length} doc(s), ${enrichTotal} total pages`);
+      }
+    }
+
     // Merge user-uploaded documents
     if (userDocuments.length > 0) documents = [...documents, ...userDocuments];
 
@@ -1228,6 +1420,96 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       ? `${boundary.type}, ${boundary.calls.length} calls`
       : 'no boundary';
     logger.info('Stage3', `Extraction: ${boundaryNote}`);
+
+    // ── Stage 3 Reference Chase ─────────────────────────────────────────
+    // Now that AI extraction has run, processedDocs[*].extractedData.references
+    // contains instrument numbers, volumes/pages, and plat refs that the AI
+    // found inside the document text.  If any of these haven't been fetched
+    // yet (i.e., they weren't available before AI extraction), fetch them now
+    // and run a lightweight AI extraction pass so they contribute to the final
+    // boundary and reference coverage.
+    //
+    // This is the Stage 3 half of the iterative discovery loop: the pre-AI
+    // enrichment loop above found instruments in raw text; this catches
+    // references that only become visible after the AI reads the document.
+    if (kofile) {
+      // Collect all instruments already present in processedDocs
+      const stage3SearchedInstrs = new Set<string>(
+        processedDocs.map(d => d.ref.instrumentNumber).filter(Boolean) as string[],
+      );
+
+      const { newInstruments: stage3NewInstrs } = extractNewIdentifiersFromDocuments(
+        processedDocs,
+        stage3SearchedInstrs,
+        new Set<string>(),
+        new Set<string>(),
+      );
+
+      if (stage3NewInstrs.length > 0) {
+        logger.info('Stage3-Chase',
+          `AI extraction revealed ${stage3NewInstrs.length} new instrument reference(s) — fetching: ` +
+          `[${stage3NewInstrs.slice(0, 5).join(', ')}${stage3NewInstrs.length > 5 ? '…' : ''}]`);
+        await updateStatus(input.projectId, 'running',
+          `Stage 3: Following ${stage3NewInstrs.length} document reference(s) discovered by AI…`);
+
+        const chaseDocs: DocumentResult[] = [];
+        for (const instrNum of stage3NewInstrs.slice(0, MAX_NEW_INSTRUMENTS_PER_ITER)) {
+          stage3SearchedInstrs.add(instrNum);
+          try {
+            const isPlat = /plat/i.test(legalDesc);
+            const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 10 : 2, logger);
+            if (pages.length > 0) {
+              const chaseDoc: DocumentResult = {
+                ref: {
+                  instrumentNumber: instrNum,
+                  volume: null, page: null,
+                  documentType: 'Deed (AI reference chase)',
+                  recordingDate: null, grantors: [], grantees: [],
+                  source: `${input.county.charAt(0).toUpperCase() + input.county.slice(1)} County Clerk`,
+                  url: `${kofileBase}/doc/${instrNum}/details`,
+                },
+                textContent: null, pages, ocrText: null, extractedData: null,
+              };
+              chaseDocs.push(chaseDoc);
+              bundleAndUploadPages(pages, input.projectId, instrNum, chaseDoc.ref.documentType)
+                .then(url => { if (url) chaseDoc.pagesPdfUrl = url; })
+                .catch(() => undefined);
+              logger.info('Stage3-Chase',
+                `  → Instrument ${instrNum}: ${pages.length} page(s) retrieved`);
+            } else {
+              logger.info('Stage3-Chase', `  → Instrument ${instrNum}: no pages captured`);
+            }
+          } catch (chaseErr) {
+            logger.warn('Stage3-Chase',
+              `  → Instrument ${instrNum} fetch failed: ${chaseErr instanceof Error ? chaseErr.message : String(chaseErr)}`);
+          }
+        }
+
+        // Run AI extraction on the chased documents and merge into processedDocs
+        if (chaseDocs.length > 0) {
+          logger.info('Stage3-Chase',
+            `Running AI extraction on ${chaseDocs.length} chased document(s)…`);
+          try {
+            const { documents: chasedExtracted } = await extractDocuments(
+              chaseDocs,
+              propertyResult?.legalDescription ?? null,
+              anthropicApiKey,
+              logger,
+            );
+            // Append to processedDocs so all downstream stages (3.5, 4, 5) see them
+            processedDocs.push(...chasedExtracted);
+            logger.info('Stage3-Chase',
+              `Merged ${chasedExtracted.length} chased document(s) into pipeline`);
+          } catch (chaseExtractErr) {
+            logger.warn('Stage3-Chase',
+              `Chase extraction failed (non-fatal): ${chaseExtractErr instanceof Error ? chaseExtractErr.message : String(chaseExtractErr)}`);
+          }
+        }
+      } else {
+        logger.info('Stage3-Chase', 'No new instrument references discovered by AI extraction');
+      }
+    }
+
     await updateStatus(input.projectId, 'running', `Stage 3.5: Geometric reconciliation…`);
 
     // ═══════════════════════════════════════════════════════════════════
