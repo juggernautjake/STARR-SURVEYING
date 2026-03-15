@@ -194,7 +194,7 @@ export default function InteractiveBoundaryViewer({
 
   const svgToWorld = useCallback((pt: BoundaryPoint): BoundaryPoint => {
     return { x: (pt.x - pan.x) / zoom, y: (pt.y - pan.y) / zoom };
-  }, [pan, zoom]);
+  }, [pan.x, pan.y, zoom]);
 
   // ── Pan handlers ──
   const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
