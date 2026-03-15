@@ -1,6 +1,6 @@
 // app/admin/learn/quiz-history/page.tsx
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePageError } from '../../hooks/usePageError';
@@ -39,23 +39,24 @@ export default function QuizHistoryPage() {
   const [filterType, setFilterType] = useState<string>('all');
   const [adminEmail, setAdminEmail] = useState<string>('');
 
-  useEffect(() => { fetchHistory(); }, [adminEmail]);
-
-  async function fetchHistory() {
-    setLoading(true);
-    try {
-      let url = '/api/admin/learn/quizzes?history=true&limit=50';
-      if (adminEmail && role === 'admin') {
-        url += `&user_email=${encodeURIComponent(adminEmail)}`;
-      }
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setAttempts(data.attempts || []);
-      }
-    } catch (err) { console.error('QuizHistoryPage: failed to fetch history', err); }
-    setLoading(false);
-  }
+  useEffect(() => {
+    async function fetchHistory() {
+      setLoading(true);
+      try {
+        let url = '/api/admin/learn/quizzes?history=true&limit=50';
+        if (adminEmail && role === 'admin') {
+          url += `&user_email=${encodeURIComponent(adminEmail)}`;
+        }
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setAttempts(data.attempts || []);
+        }
+      } catch (err) { console.error('QuizHistoryPage: failed to fetch history', err); }
+      setLoading(false);
+    }
+    fetchHistory();
+  }, [adminEmail, role]);
 
   async function loadDetails(attemptId: string) {
     if (details[attemptId]) {

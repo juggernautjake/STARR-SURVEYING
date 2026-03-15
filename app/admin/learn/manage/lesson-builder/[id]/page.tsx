@@ -1263,7 +1263,7 @@ export default function LessonBuilderPage() {
                     if (!img) return null;
                     return (
                       <div style={{ position: 'relative', textAlign: 'center' }}>
-                        <img src={img.url} alt={img.alt || ''} style={{ maxWidth: '100%', maxHeight: '500px', borderRadius: '8px', objectFit: 'contain' }} />
+                        <Image src={img.url} alt={img.alt || ''} width={600} height={400} unoptimized style={{ maxWidth: '100%', maxHeight: '500px', height: 'auto', borderRadius: '8px', objectFit: 'contain' }} />
                         {img.caption && <p style={{ fontSize: '0.82rem', color: '#6B7280', marginTop: '0.5rem' }}>{img.caption}</p>}
                         {images.length > 1 && (
                           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '0.75rem' }}>
@@ -1538,7 +1538,7 @@ export default function LessonBuilderPage() {
                       onClick={() => triggerFileUpload(block.id, 'url', 'image/*')}
                     >
                       {block.content.url ? (
-                        <img src={block.content.url} alt={block.content.alt || ''} style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '6px', objectFit: 'contain' }} />
+                        <Image src={block.content.url} alt={block.content.alt || ''} width={400} height={300} unoptimized style={{ maxWidth: '100%', maxHeight: '300px', height: 'auto', borderRadius: '6px', objectFit: 'contain' }} />
                       ) : (
                         <div className="lesson-builder__drop-zone-text">
                           <span style={{ fontSize: '2rem' }}>🖼</span>
