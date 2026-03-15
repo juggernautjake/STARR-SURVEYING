@@ -268,9 +268,16 @@ async function fetchBellDocumentDetail(
       const pages = detail.pages ?? detail.images ?? detail.pageImages;
       if (Array.isArray(pages)) {
         for (const page of pages) {
-          const url = typeof page === 'string' ? page
+          const rawUrl = typeof page === 'string' ? page
             : (page as Record<string, unknown>).url ?? (page as Record<string, unknown>).imageUrl ?? '';
-          if (url) imageUrls.push(String(url));
+          if (!rawUrl) continue;
+          let url = String(rawUrl);
+          // Normalize relative URLs to absolute
+          if (url.startsWith('/')) url = origin + url;
+          // Only keep http(s) URLs that fetch() can handle
+          if (url.startsWith('http://') || url.startsWith('https://')) {
+            imageUrls.push(url);
+          }
         }
       }
 
@@ -305,9 +312,13 @@ async function fetchBellDocumentDetail(
       const imageUrls: string[] = [];
       const imgMatches = html.matchAll(/xlink:href="([^"]+)"|src="(https:\/\/bell\.tx\.publicsearch\.us\/files\/[^"]+)"/g);
       for (const m of imgMatches) {
-        const url = m[1] || m[2];
+        let url = m[1] || m[2];
         if (url && url.includes('/files/documents/')) {
-          imageUrls.push(url);
+          // Normalize relative URLs to absolute
+          if (url.startsWith('/')) url = origin + url;
+          if (url.startsWith('http://') || url.startsWith('https://')) {
+            imageUrls.push(url);
+          }
         }
       }
 
@@ -839,7 +850,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   } = { records: [], documentDetails: [] };
 
   // Only run Bell County search if this is a Bell County project
-  const isBellCounty = countyKey === 'bell' || !countyKey;
+  const isBellCounty = countyKey === 'bell';
 
   if (isBellCounty) {
     // Collect all search terms

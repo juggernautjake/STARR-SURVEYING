@@ -5,6 +5,15 @@
 //   pm2 logs starr-worker --lines 500  # last 500 lines
 //   pm2 flush starr-worker         # clear old logs
 
+const fs = require('fs');
+const path = require('path');
+
+// Ensure logs directory exists before PM2 tries to open log files
+const logsDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+}
+
 module.exports = {
   apps: [
     {
@@ -12,7 +21,7 @@ module.exports = {
       script: 'dist/index.js',
       cwd: __dirname,
 
-      // Logging
+      // Logging (logs/ directory is created above when this config is loaded)
       out_file: './logs/worker-out.log',
       error_file: './logs/worker-error.log',
       log_file: './logs/worker-combined.log',

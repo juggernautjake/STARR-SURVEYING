@@ -421,10 +421,11 @@ async function extractFromPdfPageTiled(
     ? allConfidences.reduce((a, b) => a + b, 0) / allConfidences.length
     : undefined;
 
+  const processedPageCount = Math.min(pageCount, 20);
   return {
     text: mergedText,
     method: `pdf-page-tiled-${PDF_TILE_ROWS}x${PDF_TILE_COLS}`,
-    pageCount,
+    pageCount: processedPageCount,
     ocrConfidence: avgConfidence,
     ocrRegions: allRegions.length ? allRegions : undefined,
   };

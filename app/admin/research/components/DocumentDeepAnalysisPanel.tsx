@@ -111,7 +111,7 @@ export default function DocumentDeepAnalysisPanel({
         if (data.logs || data.detailedLogs) {
           setResults(prev => ({
             ...prev,
-            [docId]: { ...prev[docId], logs: data.logs, detailedLogs: data.detailedLogs } as EnhancedAnalysisResult,
+            [docId]: { ...(prev[docId] ?? {}), logs: data.logs, detailedLogs: data.detailedLogs } as EnhancedAnalysisResult,
           }));
         }
       }
