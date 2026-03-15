@@ -340,7 +340,10 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     })),
   };
 
-  // Register active pipeline
+  // Register active pipeline — clear any stale completed result so that
+  // the status endpoint returns "running" (not the old failed/complete result)
+  // while this new run is in progress.
+  completedResults.delete(projectId);
   activePipelines.set(projectId, {
     projectId,
     address: researchInput.address ?? '',
@@ -416,6 +419,9 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     })
     .catch((err) => {
       console.error(`[Pipeline] ${projectId} CRASH:`, err);
+      const errMessage = err instanceof Error
+        ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
+        : String(err ?? 'Unknown error');
       const fallback: PipelineResult = {
         projectId,
         status: 'failed',
@@ -427,8 +433,9 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         documents: [],
         boundary: null,
         validation: null,
-        log: [{ layer: 'Pipeline', source: 'crash', method: 'unhandled', input: '', status: 'fail', duration_ms: 0, dataPointsFound: 0, error: err instanceof Error ? err.message : String(err), timestamp: new Date().toISOString() }],
+        log: [{ layer: 'Pipeline', source: 'crash', method: 'unhandled', input: '', status: 'fail', duration_ms: 0, dataPointsFound: 0, error: errMessage, timestamp: new Date().toISOString() }],
         duration_ms: 0,
+        failureReason: `Pipeline crashed: ${errMessage}`,
       };
       completedResults.set(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);

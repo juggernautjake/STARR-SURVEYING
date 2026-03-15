@@ -461,24 +461,65 @@ export async function runCountyResearch(
         message: 'Routing to Bell County dedicated research module',
         timestamp: new Date().toISOString(),
       });
-      const { runBellCountyResearch } = await import('./bell/index.js');
-      const result = await runBellCountyResearch(
-        {
+      let bellResult;
+      try {
+        const { runBellCountyResearch } = await import('./bell/index.js');
+        bellResult = await runBellCountyResearch(
+          {
+            projectId: input.projectId,
+            address: input.address,
+            propertyId: input.propertyId,
+            ownerName: input.ownerName,
+            instrumentNumber: input.instrumentNumber,
+            surveyType: input.surveyType as import('./bell/types/research-input').SurveyType | undefined,
+            jobPurpose: input.jobPurpose,
+            specialInstructions: input.specialInstructions,
+            uploadedFiles: input.uploadedFiles,
+            includeAdjacentProperties: input.includeAdjacentProperties,
+            maxResearchTimeMinutes: input.maxResearchTimeMinutes,
+          },
+          onProgress,
+        );
+      } catch (err) {
+        const errMsg = err instanceof Error
+          ? (err.message || `${err.constructor?.name ?? 'Error'}: (no message)`)
+          : String(err ?? 'Unknown error');
+        onProgress({
+          phase: 'Failed',
+          message: `Bell County pipeline error: ${errMsg}`,
+          timestamp: new Date().toISOString(),
+        });
+        // Return a structured failed result rather than re-throwing, so the
+        // caller always receives a typed UnifiedResearchResult and the error is
+        // surfaced cleanly in the UI (failureReason banner + log entry).
+        const failedResult: PipelineResult = {
           projectId: input.projectId,
-          address: input.address,
-          propertyId: input.propertyId,
-          ownerName: input.ownerName,
-          instrumentNumber: input.instrumentNumber,
-          surveyType: input.surveyType as import('./bell/types/research-input').SurveyType | undefined,
-          jobPurpose: input.jobPurpose,
-          specialInstructions: input.specialInstructions,
-          uploadedFiles: input.uploadedFiles,
-          includeAdjacentProperties: input.includeAdjacentProperties,
-          maxResearchTimeMinutes: input.maxResearchTimeMinutes,
-        },
-        onProgress,
-      );
-      return { resultType: 'county-specific', county: 'Bell', data: result };
+          status: 'failed',
+          propertyId: null,
+          geoId: null,
+          ownerName: null,
+          legalDescription: null,
+          acreage: null,
+          documents: [],
+          boundary: null,
+          validation: null,
+          log: [{
+            layer: 'Pipeline',
+            source: 'crash',
+            method: 'bell-county-crash',
+            input: input.address ?? '',
+            status: 'fail',
+            duration_ms: 0,
+            dataPointsFound: 0,
+            error: errMsg,
+            timestamp: new Date().toISOString(),
+          }],
+          duration_ms: 0,
+          failureReason: `Bell County research failed: ${errMsg}`,
+        };
+        return { resultType: 'generic-pipeline', county: 'Bell', data: failedResult };
+      }
+      return { resultType: 'county-specific', county: 'Bell', data: bellResult };
     }
 
     // ── All Counties — Generic Pipeline ─────────────────────────────
