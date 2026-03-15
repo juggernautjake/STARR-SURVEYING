@@ -38,13 +38,14 @@ interface PipelineLogEntry {
   layer: string;
   source: string;
   method: string;
-  status: 'success' | 'fail' | 'skip' | 'partial';
+  status: 'success' | 'fail' | 'skip' | 'partial' | 'warn';
   input?: string;
   details?: string;
   error?: string;
   dataPointsFound: number;
   duration_ms: number;
   steps?: string[];
+  timestamp?: string;
 }
 
 export interface PipelineProgressProps {
@@ -310,6 +311,8 @@ function LogEntry({ entry }: { entry: PipelineLogEntry }) {
   const inlineText = isInfoMsg ? (entry.details ?? entry.error ?? '') : null;
   const hasExtra = !!(entry.error || entry.input || (entry.steps?.length) ||
     (!isInfoMsg && entry.details));
+  const ts = entry.timestamp ? formatTimestamp(entry.timestamp) : null;
+  const icon = statusIcon(entry.status);
 
   return (
     <div className={`ppanel__log-entry ppanel__log-entry--${entry.status}`}>
@@ -318,9 +321,8 @@ function LogEntry({ entry }: { entry: PipelineLogEntry }) {
         onClick={() => hasExtra && setOpen(o => !o)}
         style={{ cursor: hasExtra ? 'pointer' : 'default' }}
       >
-        <span className={`ppanel__log-status ppanel__log-status--${entry.status}`}>
-          {entry.status === 'success' ? '✓' : entry.status === 'fail' ? '✕' : entry.status === 'skip' ? '−' : '~'}
-        </span>
+        <span className={`ppanel__log-status ppanel__log-status--${entry.status}`}>{icon}</span>
+        {ts && <span className="ppanel__log-ts">{ts}</span>}
         <span className="ppanel__log-layer">{entry.layer}</span>
         {!isInfoMsg && <span className="ppanel__log-source">{entry.source}</span>}
         <span className="ppanel__log-method ppanel__log-method--msg">
@@ -419,15 +421,44 @@ function DetailedLogEntry({ entry, idx }: { entry: PipelineLogEntry; idx: number
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+type LogFilter = 'all' | 'errors' | 'warnings' | 'info';
+
+/** Return the status icon character for a log entry. */
+function statusIcon(status: PipelineLogEntry['status']): string {
+  switch (status) {
+    case 'success': return '✓';
+    case 'fail':    return '✕';
+    case 'warn':    return '⚠';
+    case 'partial': return '~';
+    default:        return '−';
+  }
+}
+
+/** Format a timestamp to a short HH:MM:SS string for display. */
+function formatTimestamp(ts: string | undefined): string {
+  if (!ts) return '';
+  try {
+    return new Date(ts).toLocaleTimeString('en-US', { hour12: false });
+  } catch {
+    return '';
+  }
+}
+
 /** Format all basic log entries as plain text for clipboard copy. */
 function formatLogAsText(log: PipelineLogEntry[]): string {
   return log.map(e => {
-    const statusIcon = e.status === 'success' ? '✓' : e.status === 'fail' ? '✕' : e.status === 'skip' ? '−' : '~';
+    const icon = statusIcon(e.status);
     const pts  = e.dataPointsFound > 0 ? ` [${e.dataPointsFound} pts]` : '';
     const dur  = e.duration_ms > 0 ? ` (${(e.duration_ms / 1000).toFixed(2)}s)` : '';
-    const line = `${statusIcon} ${e.layer} | ${e.source} | ${e.method}${pts}${dur}`;
+    const ts   = e.timestamp ? `[${formatTimestamp(e.timestamp)}] ` : '';
+    // For info/warn/error entries (source===method===level), emit the message directly
+    const isMsg = e.source === 'info' || e.source === 'warn' || e.source === 'error';
+    const line = isMsg
+      ? `${icon} ${ts}${e.layer}: ${e.details ?? e.error ?? e.method}${pts}`
+      : `${icon} ${ts}${e.layer} | ${e.source} | ${e.method}${pts}${dur}`;
     const extras: string[] = [];
-    if (e.error) extras.push(`Error: ${e.error}`);
+    if (!isMsg && e.details) extras.push(`Details: ${e.details}`);
+    if (e.error && !isMsg)   extras.push(`Error: ${e.error}`);
     return extras.length ? `${line}\n    ${extras.join('\n    ')}` : line;
   }).join('\n');
 }
@@ -435,14 +466,17 @@ function formatLogAsText(log: PipelineLogEntry[]): string {
 /** Format all log entries with full details, steps, and inputs (detailed diagnostic log). */
 function formatDetailedLogAsText(log: PipelineLogEntry[]): string {
   return log.map((e, idx) => {
-    const statusIcon = e.status === 'success' ? '✓' : e.status === 'fail' ? '✕' : e.status === 'skip' ? '−' : '~';
+    const icon = statusIcon(e.status);
     const pts  = e.dataPointsFound > 0 ? ` [${e.dataPointsFound} pts]` : '';
     const dur  = e.duration_ms > 0 ? ` (${(e.duration_ms / 1000).toFixed(2)}s)` : '';
+    const ts   = e.timestamp ? ` @ ${e.timestamp}` : '';
+    const isMsg = e.source === 'info' || e.source === 'warn' || e.source === 'error';
     let out = `--- Entry ${idx + 1} ---\n`;
-    out += `${statusIcon} [${e.layer}] ${e.source} → ${e.method}${pts}${dur}\n`;
+    out += `${icon} [${e.layer}] ${e.source} → ${e.method}${pts}${dur}${ts}\n`;
     if (e.input)   out += `  Input:   ${e.input}\n`;
-    if (e.details) out += `  Details: ${e.details}\n`;
-    if (e.error)   out += `  Error:   ${e.error}\n`;
+    if (isMsg)     out += `  Message: ${e.details ?? e.error ?? ''}\n`;
+    else if (e.details) out += `  Details: ${e.details}\n`;
+    if (e.error && !isMsg)   out += `  Error:   ${e.error}\n`;
     if (e.steps?.length) {
       out += `  Steps (${e.steps.length}):\n`;
       out += e.steps.map(s => `    ↳ ${s}`).join('\n') + '\n';
@@ -461,6 +495,7 @@ export function PipelineProgressPanel({
   onLoadLogs,
 }: PipelineProgressProps) {
   const [allCopied,     setAllCopied]     = useState(false);
+  const [logFilter,     setLogFilter]     = useState<LogFilter>('all');
   // Persisted logs loaded automatically when in-memory log is empty after run.
   const [loadedLog,     setLoadedLog]     = useState<PipelineLogEntry[] | null>(null);
   const [logsLoading,   setLogsLoading]   = useState(false);
@@ -472,6 +507,21 @@ export function PipelineProgressPanel({
 
   // Resolved log — prefer in-memory prop, fall back to on-demand loaded.
   const log = (logProp && logProp.length > 0) ? logProp : (loadedLog ?? undefined);
+
+  // Apply filter to get the visible log entries
+  const filteredLog = useMemo(() => {
+    if (!log) return undefined;
+    switch (logFilter) {
+      case 'errors':   return log.filter(e => e.status === 'fail');
+      case 'warnings': return log.filter(e => e.status === 'warn');
+      case 'info':     return log.filter(e => e.status === 'skip' || e.source === 'info');
+      default:         return log;
+    }
+  }, [log, logFilter]);
+
+  // Counts for filter buttons
+  const errorCount   = useMemo(() => log?.filter(e => e.status === 'fail').length ?? 0, [log]);
+  const warningCount = useMemo(() => log?.filter(e => e.status === 'warn').length ?? 0, [log]);
 
   // Auto-scroll the log stream to the latest entry while the run is in progress
   // (stops once the user manually scrolls up).
@@ -553,10 +603,12 @@ export function PipelineProgressPanel({
     if (!log || log.length === 0) return;
     const ts  = new Date().toLocaleString();
     const sep = '═'.repeat(60);
+    const filterNote = logFilter !== 'all' ? ` — filter: ${logFilter} (${filteredLog?.length ?? 0} of ${log.length} entries shown)` : '';
     const combined =
       `${sep}\n` +
       `STARR RECON — Full Run Log\n` +
-      `Exported: ${ts}   Entries: ${log.length}\n` +
+      `Exported: ${ts}   Entries: ${log.length}${filterNote}\n` +
+      `Errors: ${errorCount}   Warnings: ${warningCount}\n` +
       `${sep}\n\n` +
       `── SUMMARY (one line per entry) ──────────────────────────\n` +
       formatLogAsText(log) + '\n\n' +
@@ -566,7 +618,7 @@ export function PipelineProgressPanel({
       setAllCopied(true);
       setTimeout(() => setAllCopied(false), 2000);
     });
-  }, [log, copyToClipboard]);
+  }, [log, filteredLog, logFilter, errorCount, warningCount, copyToClipboard]);
 
   /** Render the appropriate placeholder content when no log entries exist yet. */
   function renderLogEmpty() {
@@ -692,6 +744,29 @@ export function PipelineProgressPanel({
           </button>
         </div>
 
+        {/* Filter bar — only visible when there are log entries */}
+        {log && log.length > 0 && (
+          <div className="ppanel__logstream-filters">
+            {(['all', 'errors', 'warnings', 'info'] as LogFilter[]).map(f => {
+              const count = f === 'errors' ? errorCount
+                : f === 'warnings' ? warningCount
+                : f === 'info' ? (log.filter(e => e.status === 'skip' || e.source === 'info').length)
+                : log.length;
+              return (
+                <button
+                  key={f}
+                  className={`ppanel__logstream-filter${logFilter === f ? ' ppanel__logstream-filter--active' : ''}${f === 'errors' && errorCount > 0 ? ' ppanel__logstream-filter--has-errors' : ''}${f === 'warnings' && warningCount > 0 ? ' ppanel__logstream-filter--has-warnings' : ''}`}
+                  onClick={() => setLogFilter(f)}
+                  type="button"
+                >
+                  {f === 'all' ? 'All' : f === 'errors' ? '✕ Errors' : f === 'warnings' ? '⚠ Warnings' : '− Info'}
+                  <span className="ppanel__logstream-filter-count">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Scrollable log entry list */}
         <div
           className="ppanel__logstream-entries"
@@ -705,8 +780,10 @@ export function PipelineProgressPanel({
         >
           {(!log || log.length === 0) ? (
             renderLogEmpty()
+          ) : filteredLog && filteredLog.length === 0 ? (
+            <div className="ppanel__logstream-empty">No {logFilter} entries in this run.</div>
           ) : (
-            log.map((entry, i) => <LogEntry key={i} entry={entry} />)
+            (filteredLog ?? log).map((entry, i) => <LogEntry key={i} entry={entry} />)
           )}
         </div>
 
@@ -714,8 +791,12 @@ export function PipelineProgressPanel({
         {log && log.length > 0 && (
           <div className="ppanel__logstream-footer">
             <span className="ppanel__logstream-footer-note">
-              {log.length} entr{log.length !== 1 ? 'ies' : 'y'}
+              {logFilter !== 'all'
+                ? `${filteredLog?.length ?? 0} of ${log.length} entr${log.length !== 1 ? 'ies' : 'y'} (${logFilter} filter)`
+                : `${log.length} entr${log.length !== 1 ? 'ies' : 'y'}`}
               {isDone ? ' — run complete' : ' — live'}
+              {errorCount > 0 && <span className="ppanel__logstream-footer-errors"> · {errorCount} error{errorCount !== 1 ? 's' : ''}</span>}
+              {warningCount > 0 && <span className="ppanel__logstream-footer-warnings"> · {warningCount} warning{warningCount !== 1 ? 's' : ''}</span>}
             </span>
             <button
               className="ppanel__logstream-copy-btn ppanel__logstream-copy-btn--footer"
@@ -1052,6 +1133,7 @@ export function PipelineProgressStyles() {
   min-width: 0;
 }
 .ppanel__log-entry--fail  .ppanel__log-row { background: #fff5f5; }
+.ppanel__log-entry--warn  .ppanel__log-row { background: #fffbeb; }
 .ppanel__log-entry--skip  .ppanel__log-row { opacity: 0.55; }
 
 .ppanel__log-status {
@@ -1063,8 +1145,11 @@ export function PipelineProgressStyles() {
 }
 .ppanel__log-status--success { color: #10b981; }
 .ppanel__log-status--fail    { color: #ef4444; }
+.ppanel__log-status--warn    { color: #d97706; }
 .ppanel__log-status--skip    { color: #94a3b8; }
 .ppanel__log-status--partial { color: #f59e0b; }
+
+.ppanel__log-ts { color: #94a3b8; flex-shrink: 0; font-variant-numeric: tabular-nums; font-size: 0.66rem; white-space: nowrap; }
 
 .ppanel__log-layer  { color: #6366f1; font-weight: 600; flex-shrink: 0; min-width: 3.5rem; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ppanel__log-source { color: #0369a1; flex-shrink: 0; min-width: 3rem; max-width: 7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1198,6 +1283,47 @@ export function PipelineProgressStyles() {
   font-size: 0.72rem;
   color: #64748b;
   flex: 1;
+}
+
+.ppanel__logstream-footer-errors   { color: #dc2626; font-weight: 600; }
+.ppanel__logstream-footer-warnings { color: #d97706; font-weight: 600; }
+
+/* ── Log filter bar ──────────────────────────────────────── */
+.ppanel__logstream-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.7rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  flex-wrap: wrap;
+}
+.ppanel__logstream-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  font-size: 0.69rem;
+  font-weight: 500;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.ppanel__logstream-filter:hover { background: #f1f5f9; border-color: #cbd5e1; }
+.ppanel__logstream-filter--active { background: #e0e7ff; border-color: #6366f1; color: #3730a3; font-weight: 700; }
+.ppanel__logstream-filter--has-errors  { border-color: #fca5a5; color: #dc2626; }
+.ppanel__logstream-filter--has-errors.ppanel__logstream-filter--active { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
+.ppanel__logstream-filter--has-warnings  { border-color: #fcd34d; color: #d97706; }
+.ppanel__logstream-filter--has-warnings.ppanel__logstream-filter--active { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
+.ppanel__logstream-filter-count {
+  background: rgba(0,0,0,0.07);
+  border-radius: 9999px;
+  padding: 0 0.3rem;
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .ppanel__logstream-copy-btn--footer {
