@@ -384,6 +384,31 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       if (unifiedResult.resultType === 'generic-pipeline') {
         const r = unifiedResult.data;
         console.log(`[Pipeline] ${projectId} (${county}, generic): ${r.status.toUpperCase()} in ${(r.duration_ms / 1000).toFixed(1)}s`);
+        // Persist log to Supabase so the frontend can retrieve it after page refresh.
+        // Fire-and-forget — a save failure must never affect the completed result.
+        if (r.log.length > 0) {
+          getSupabase()
+            .then((supabase) => {
+              if (!supabase) return;
+              // `as any` because the Supabase client types haven't been regenerated
+              // to include the new `research_logs` column from migration 104.
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              return (supabase as any)
+                .from('research_projects')
+                .update({ research_logs: r.log })
+                .eq('id', projectId);
+            })
+            .then((res: { error?: { message?: string } } | null | undefined) => {
+              if (res?.error) {
+                console.warn(`[Pipeline] ${projectId}: failed to save logs to Supabase:`, res.error.message);
+              } else {
+                console.log(`[Pipeline] ${projectId}: saved ${r.log.length} log entries to Supabase`);
+              }
+            })
+            .catch((err: unknown) => {
+              console.warn(`[Pipeline] ${projectId}: error saving logs to Supabase:`, err instanceof Error ? err.message : String(err));
+            });
+        }
       } else {
         const r = unifiedResult.data;
         console.log(`[Pipeline] ${projectId} (${county}, county-specific): COMPLETE in ${(r.durationMs / 1000).toFixed(1)}s`);
@@ -408,6 +433,49 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       completedResults.set(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
     });
+});
+
+// ── GET /research/logs/:projectId ──────────────────────────────────────────
+// Returns the persisted log for a completed pipeline run.  When the result is
+// still cached in-memory the log is served from there.  Otherwise the worker
+// falls back to reading `research_logs` from Supabase (saved on completion).
+
+app.get('/research/logs/:projectId', requireAuth, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+
+  // Fast path: still in-memory cache
+  if (completedResults.has(projectId)) {
+    const unified = completedResults.get(projectId)!;
+    if (unified.resultType === 'generic-pipeline') {
+      res.json({ projectId, log: unified.data.log });
+    } else {
+      // County-specific results don't carry a structured log array.
+      res.json({ projectId, log: [] });
+    }
+    return;
+  }
+
+  // Slow path: read from Supabase persisted column
+  try {
+    const supabase = await getSupabase();
+    if (!supabase) {
+      res.status(503).json({ error: 'Supabase not configured' });
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from('research_projects')
+      .select('research_logs')
+      .eq('id', projectId)
+      .single();
+    if (error || !data) {
+      res.status(404).json({ error: `No log found for project ${projectId}` });
+      return;
+    }
+    res.json({ projectId, log: data.research_logs ?? [] });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 // ── GET /research/status/:projectId ────────────────────────────────────────

@@ -5,7 +5,7 @@
 // Driven by `pipelineResult` from the polling interval — no fake timers.
 // Stage is inferred from the "Stage N:" prefix in the `message` field.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -55,6 +55,12 @@ export interface PipelineProgressProps {
   log?:        PipelineLogEntry[];
   /** Human-readable explanation of why the pipeline failed, with actionable guidance. */
   failureReason?: string;
+  /**
+   * Optional async callback that loads persisted run logs from the server.
+   * Called when the user clicks "View Run Logs" and in-memory logs are empty.
+   * Should return an array of PipelineLogEntry or null on failure.
+   */
+  onLoadLogs?: () => Promise<PipelineLogEntry[] | null>;
 }
 
 // ── Stage definitions ─────────────────────────────────────────────────────────
@@ -436,13 +442,24 @@ export function PipelineProgressPanel({
   message,
   result,
   documents,
-  log,
+  log: logProp,
   failureReason,
+  onLoadLogs,
 }: PipelineProgressProps) {
   const [showLog,          setShowLog]          = useState(false);
   const [logCopied,        setLogCopied]        = useState(false);
   const [showDetailedLog,  setShowDetailedLog]  = useState(false);
   const [detailCopied,     setDetailCopied]     = useState(false);
+  const [allCopied,        setAllCopied]        = useState(false);
+  // Persisted logs loaded on demand when in-memory log is empty.
+  const [loadedLog,        setLoadedLog]        = useState<PipelineLogEntry[] | null>(null);
+  const [logsLoading,      setLogsLoading]      = useState(false);
+  const [logsLoadError,    setLogsLoadError]    = useState('');
+  // Ref to the log section so we can scroll it into view after completion.
+  const logSectionRef = useRef<HTMLDivElement>(null);
+
+  // Resolved log — prefer in-memory prop, fall back to on-demand loaded.
+  const log = (logProp && logProp.length > 0) ? logProp : (loadedLog ?? undefined);
 
   // Auto-expand the log when analysis is running or when it completes/fails.
   useEffect(() => {
@@ -454,6 +471,20 @@ export function PipelineProgressPanel({
     }
   }, [status, log]);
 
+  // Scroll the log section into view when the run finishes so the user can
+  // immediately see the logs without needing to manually scroll down.
+  const prevStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const wasRunning = prevStatusRef.current === 'running' || prevStatusRef.current === 'starting';
+    const isNowDone  = status === 'success' || status === 'partial' || status === 'failed';
+    if (wasRunning && isNowDone && logSectionRef.current) {
+      setTimeout(() => {
+        logSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 300);
+    }
+    prevStatusRef.current = status;
+  }, [status]);
+
   const activeStage = useMemo(() => inferActiveStage(message, status), [message, status]);
   const stageStates = useMemo(() => computeStageStates(log, activeStage, status), [log, activeStage, status]);
 
@@ -461,6 +492,7 @@ export function PipelineProgressPanel({
   const isSuccess  = status === 'success' || status === 'partial';
   const isFailed   = status === 'failed';
   const isPartial  = status === 'partial';
+  const isDone     = isSuccess || isFailed;
 
   // Strip "Stage N: " prefix for cleaner header display
   const cleanMessage = message?.replace(/^Stage\s*\d+(?:\.\d+)?:\s*/i, '') ?? null;
@@ -497,10 +529,50 @@ export function PipelineProgressPanel({
     });
   }, [log, copyToClipboard]);
 
+  /** Copy the full combined log (basic + detailed) to the clipboard. */
+  const handleCopyAllLogs = useCallback(() => {
+    if (!log || log.length === 0) return;
+    const combined = `=== STARR RECON — FULL RUN LOG ===\n\n` +
+      `=== BASIC LOG (${log.length} entries) ===\n` +
+      formatLogAsText(log) + '\n\n' +
+      `=== DETAILED DIAGNOSTIC LOG ===\n` +
+      formatDetailedLogAsText(log);
+    copyToClipboard(combined, () => {
+      setAllCopied(true);
+      setTimeout(() => setAllCopied(false), 2000);
+    });
+  }, [log, copyToClipboard]);
+
+  /** Load persisted logs from the server if not already available. */
+  const handleViewLogs = useCallback(async () => {
+    // Expand inline log section and scroll to it.
+    setShowLog(true);
+    setTimeout(() => {
+      logSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+    // If we already have in-memory logs, nothing more to do.
+    if (log && log.length > 0) return;
+    if (!onLoadLogs || logsLoading) return;
+    setLogsLoading(true);
+    setLogsLoadError('');
+    try {
+      const loaded = await onLoadLogs();
+      if (loaded && loaded.length > 0) {
+        setLoadedLog(loaded);
+      } else {
+        setLogsLoadError('No logs saved for this run.');
+      }
+    } catch {
+      setLogsLoadError('Failed to load logs.');
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [log, onLoadLogs, logsLoading]);
+
   return (
     <div className={`ppanel ppanel--${status ?? 'idle'}`}>
 
-      {/* ── Header bar ──────────────────────────────────────────────── */}
+      {/* ── Header bar: left = status icon + title; right = duration + action buttons ── */}
       <div className="ppanel__header">
         <div className="ppanel__header-left">
           {isRunning && <span className="ppanel__header-spinner"><Spinner /></span>}
@@ -513,9 +585,34 @@ export function PipelineProgressPanel({
             {!status    && 'Starting research…'}
           </span>
         </div>
-        {result?.duration_ms && (
-          <span className="ppanel__header-dur">{(result.duration_ms / 1000).toFixed(1)}s</span>
-        )}
+        <div className="ppanel__header-right">
+          {result?.duration_ms && (
+            <span className="ppanel__header-dur">{(result.duration_ms / 1000).toFixed(1)}s</span>
+          )}
+          {/* View Run Logs and Copy All Logs — shown once run is complete */}
+          {isDone && (
+            <>
+              <button
+                className="ppanel__header-btn ppanel__header-btn--logs"
+                onClick={handleViewLogs}
+                type="button"
+                title="Scroll to and expand the full run log"
+                disabled={logsLoading}
+              >
+                {logsLoading ? '⏳ Loading…' : '📋 View Run Logs'}
+              </button>
+              <button
+                className="ppanel__header-btn ppanel__header-btn--copy"
+                onClick={handleCopyAllLogs}
+                type="button"
+                title="Copy all run logs to clipboard"
+                disabled={!log || log.length === 0}
+              >
+                {allCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* ── Failure reason banner ────────────────────────────────────── */}
@@ -562,36 +659,45 @@ export function PipelineProgressPanel({
       )}
 
       {/* ── Audit log accordion (basic) ──────────────────────────────── */}
-      {log && log.length > 0 && (
-        <div className="ppanel__section ppanel__section--log">
-          <div className="ppanel__log-header">
-            <button
-              className="ppanel__log-toggle"
-              onClick={() => setShowLog(v => !v)}
-              type="button"
-            >
-              <span className="ppanel__log-toggle-icon">{showLog ? '▲' : '▼'}</span>
-              Analysis log
-              <span className="ppanel__section-count">{log.length}</span>
-            </button>
-            <button
-              className="ppanel__log-copy-btn"
-              onClick={handleCopyLog}
-              type="button"
-              title="Copy analysis log to clipboard"
-            >
-              {logCopied ? '✓ Copied' : '⎘ Copy log'}
-            </button>
-          </div>
-          {showLog && (
-            <div className="ppanel__log">
-              {log.map((entry, i) => (
-                <LogEntry key={i} entry={entry} />
-              ))}
+      <div ref={logSectionRef} className={`ppanel__section ppanel__section--log${(!log || log.length === 0) ? ' ppanel__section--log-empty' : ''}`}>
+        {logsLoadError && (
+          <div className="ppanel__log-load-error">{logsLoadError}</div>
+        )}
+        {log && log.length > 0 ? (
+          <>
+            <div className="ppanel__log-header">
+              <button
+                className="ppanel__log-toggle"
+                onClick={() => setShowLog(v => !v)}
+                type="button"
+              >
+                <span className="ppanel__log-toggle-icon">{showLog ? '▲' : '▼'}</span>
+                Analysis log
+                <span className="ppanel__section-count">{log.length}</span>
+              </button>
+              <button
+                className="ppanel__log-copy-btn"
+                onClick={handleCopyLog}
+                type="button"
+                title="Copy analysis log to clipboard"
+              >
+                {logCopied ? '✓ Copied' : '⎘ Copy log'}
+              </button>
             </div>
-          )}
-        </div>
-      )}
+            {showLog && (
+              <div className="ppanel__log">
+                {log.map((entry, i) => (
+                  <LogEntry key={i} entry={entry} />
+                ))}
+              </div>
+            )}
+          </>
+        ) : isDone && !logsLoading && !logsLoadError ? (
+          <div className="ppanel__log-empty-hint">
+            No in-memory log available.{onLoadLogs ? ' Click "View Run Logs" above to load saved logs.' : ''}
+          </div>
+        ) : null}
+      </div>
 
       {/* ── Detailed log accordion (all steps + timestamps) ──────────── */}
       {log && log.length > 0 && (
@@ -698,6 +804,12 @@ export function PipelineProgressStyles() {
   flex: 1;
   min-width: 0;
 }
+.ppanel__header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
 .ppanel__header-title {
   font-weight: 600;
   font-size: 0.84rem;
@@ -712,6 +824,30 @@ export function PipelineProgressStyles() {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.ppanel__header-btn {
+  border-radius: 5px;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+  border: 1px solid;
+}
+.ppanel__header-btn--logs {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+.ppanel__header-btn--logs:hover { background: #dbeafe; }
+.ppanel__header-btn--copy {
+  background: #f0fdf4;
+  border-color: #a7f3d0;
+  color: #166534;
+}
+.ppanel__header-btn--copy:hover { background: #dcfce7; }
+.ppanel__header-btn:disabled { opacity: 0.55; cursor: default; }
 .ppanel__header-icon--success { color: #10b981; font-size: 1rem; font-weight: 700; }
 .ppanel__header-icon--error   { color: #ef4444; font-size: 1rem; font-weight: 700; }
 .ppanel__header-spinner       { display: flex; align-items: center; }
@@ -954,7 +1090,7 @@ export function PipelineProgressStyles() {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  max-height: 300px;
+  max-height: 400px;
   overflow-y: auto;
   overflow-x: hidden;
   border: 1px solid #e2e8f0;
@@ -971,9 +1107,10 @@ export function PipelineProgressStyles() {
   display: flex;
   align-items: flex-start;
   gap: 0.3rem;
-  padding: 0.22rem 0.45rem;
+  padding: 0.25rem 0.45rem;
   flex-wrap: nowrap;
-  overflow: hidden;
+  /* Allow flex items to shrink below content size — prevents column overflow */
+  min-width: 0;
 }
 .ppanel__log-entry--fail  .ppanel__log-row { background: #fff5f5; }
 .ppanel__log-entry--skip  .ppanel__log-row { opacity: 0.55; }
@@ -990,14 +1127,29 @@ export function PipelineProgressStyles() {
 .ppanel__log-status--skip    { color: #94a3b8; }
 .ppanel__log-status--partial { color: #f59e0b; }
 
-.ppanel__log-layer  { color: #6366f1; font-weight: 600; flex-shrink: 0; min-width: 4rem; max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ppanel__log-source { color: #0369a1; flex-shrink: 0; max-width: 6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Layer / source / method columns — allow slight widening, prevent hard overflow */
+.ppanel__log-layer  { color: #6366f1; font-weight: 600; flex-shrink: 0; min-width: 3.5rem; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ppanel__log-source { color: #0369a1; flex-shrink: 0; min-width: 3rem; max-width: 7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ppanel__log-method { color: #475569; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Info/warn message entries: display the details text inline, allow wrapping */
 .ppanel__log-method--msg { white-space: normal; word-break: break-word; overflow-wrap: break-word; overflow: visible; }
-.ppanel__log-points { color: #059669; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.ppanel__log-dur    { color: #94a3b8; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.ppanel__log-points { color: #059669; flex-shrink: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ppanel__log-dur    { color: #94a3b8; flex-shrink: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ppanel__log-expand { color: #94a3b8; flex-shrink: 0; font-size: 0.6rem; margin-left: auto; }
+
+/* Empty log / load-error state helpers */
+.ppanel__section--log-empty { border-top: 1px solid #f1f5f9; }
+.ppanel__log-empty-hint {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-style: italic;
+  padding: 0.3rem 0;
+}
+.ppanel__log-load-error {
+  font-size: 0.75rem;
+  color: #b91c1c;
+  padding: 0.3rem 0;
+}
 
 .ppanel__log-detail {
   padding: 0.2rem 0.6rem 0.3rem 1.8rem;

@@ -149,7 +149,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Poll worker status
   const workerRes = await fetch(`${WORKER_URL}/research/status/${projectId}`, {
     headers: workerHeaders(),
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!workerRes.ok) {
