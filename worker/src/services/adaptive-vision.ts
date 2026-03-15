@@ -19,6 +19,24 @@ import Anthropic from '@anthropic-ai/sdk';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/** Confidence scoring breakdown for a single segment (exported for testing). */
+export interface SegmentScore {
+  confidence: number;
+  dataPoints: number;
+  uncertaintyScore: number;
+  /** Number of [?] markers found — each carries weight 3 in the uncertainty score */
+  uncertainMarkers: number;
+  /** Number of uncertainty-phrase words (obscured, watermark, etc.) — weight 2 */
+  uncertainWords: number;
+  bearings: number;
+  distances: number;
+  lotRefs: number;
+  curveData: number;
+  lineTable: number;
+  needsZoom: boolean;
+  needsManualReview: boolean;
+}
+
 export interface SegmentResult {
   segmentId: string;
   row: number;
@@ -236,20 +254,14 @@ function computeCropBoxes(
 
 // ── Phase 5: Confidence scoring (spec §5 scoreConfidence) ────────────────────
 
-interface SegmentScore {
-  confidence: number;
-  dataPoints: number;
-  uncertaintyScore: number;
-  bearings: number;
-  distances: number;
-  lotRefs: number;
-  curveData: number;
-  lineTable: number;
-  needsZoom: boolean;
-  needsManualReview: boolean;
-}
-
-function scoreConfidence(text: string): SegmentScore {
+/**
+ * Score the quality of text extracted from a plat segment.
+ *
+ * Returns the full breakdown of uncertainty signals so that callers can
+ * log exactly WHY a segment was flagged for zoom or manual review.
+ * Exported so it can be unit-tested independently of the full pipeline.
+ */
+export function scoreConfidence(text: string): SegmentScore {
   // Uncertainty indicators (negative signals)
   const uncertainMarkers = (text.match(/\[\?]/g) || []).length;
   const uncertainWords   = (text.match(
@@ -282,6 +294,7 @@ function scoreConfidence(text: string): SegmentScore {
 
   return {
     confidence, dataPoints, uncertaintyScore,
+    uncertainMarkers, uncertainWords,
     bearings, distances, lotRefs, curveData, lineTable,
     needsZoom:         confidence < CONFIDENCE_ZOOM_THRESHOLD && dataPoints > 0,
     needsManualReview: confidence < CONFIDENCE_MANUAL_THRESHOLD,
@@ -461,11 +474,47 @@ export async function adaptiveVisionOcr(
   logger.info('AdaptiveVision',
     `${label}: ${imgWidth}×${imgHeight}px, ~${info.estimatedDpi} DPI, sheet ~${info.sheetName}`);
 
+  // Log text-size analysis so the user can see exactly WHY a grid is needed.
+  // Plat text typical heights: bearing/distance labels ~0.08", fine print ~0.06".
+  const bearingTextAtScan = info.estimatedDpi * 0.08;
+  const fineTextAtScan    = info.estimatedDpi * 0.06;
+  const maxDim            = Math.max(imgWidth, imgHeight);
+  const singleImageScale  = maxDim > CLAUDE_MAX_PIXELS ? CLAUDE_MAX_PIXELS / maxDim : 1.0;
+  const bearingTextSingle = bearingTextAtScan * singleImageScale;
+  const fineTextSingle    = fineTextAtScan    * singleImageScale;
+  logger.info('AdaptiveVision',
+    `${label}: Text sizes at scan DPI — bearing/dist: ~${bearingTextAtScan.toFixed(0)}px, ` +
+    `fine print: ~${fineTextAtScan.toFixed(0)}px`);
+  if (singleImageScale < 1.0) {
+    logger.info('AdaptiveVision',
+      `${label}: Single-image resize (${(singleImageScale * 100).toFixed(0)}%) would reduce to — ` +
+      `bearing/dist: ~${bearingTextSingle.toFixed(0)}px, fine print: ~${fineTextSingle.toFixed(0)}px ` +
+      `(need ≥${MIN_FINE_TEXT_PX}px for reliable OCR — segmentation required)`);
+  } else {
+    logger.info('AdaptiveVision',
+      `${label}: Single-image fits API limit (no resize needed), fine print ~${fineTextSingle.toFixed(0)}px ≥ ${MIN_FINE_TEXT_PX}px`);
+  }
+
   // ── Phase 2: Grid selection ───────────────────────────────────────────────
+  // Log every grid option evaluated so the user can see why the chosen grid wins.
+  for (const opt of GRID_OPTIONS) {
+    const pW = Math.ceil(imgWidth  / opt.cols);
+    const pH = Math.ceil(imgHeight / opt.rows);
+    const pMax = Math.max(pW, pH);
+    const fitsApi = pMax <= CLAUDE_MAX_PIXELS;
+    const optFineText = info.estimatedDpi * FINE_TEXT_HEIGHT_IN * (fitsApi ? 1.0 : CLAUDE_MAX_PIXELS / pMax);
+    const readable = optFineText >= MIN_FINE_TEXT_PX;
+    logger.info('AdaptiveVision',
+      `${label}: Grid option ${opt.rows}×${opt.cols} (${opt.rows * opt.cols} calls) — ` +
+      `piece=${pW}×${pH}px${fitsApi ? '' : ` resize→${(CLAUDE_MAX_PIXELS / pMax * 100).toFixed(0)}%`}, ` +
+      `fineText≈${optFineText.toFixed(0)}px — ${readable ? 'READABLE' : 'TOO SMALL'}`);
+  }
+
   const grid = selectOptimalGrid(info);
   logger.info('AdaptiveVision',
-    `${label}: Grid ${grid.rows}×${grid.cols} (${grid.totalPieces} pieces, ` +
+    `${label}: Selected Grid ${grid.rows}×${grid.cols} (${grid.totalPieces} pieces, ` +
     `piece=${grid.pieceWidth}×${grid.pieceHeight}px, fineText≈${grid.fineTextPx.toFixed(1)}px)`);
+
 
   // ── Phase 3 + 4 + 5 + 6: Crop → Extract → Score → Escalate ──────────────
   const cropBoxes = computeCropBoxes(imgWidth, imgHeight, grid.rows, grid.cols, OVERLAP_PCT);
@@ -481,14 +530,20 @@ export async function adaptiveVisionOcr(
     // Phase 4: Extract — pass position context so Claude knows which part of the
     // plat it's reading (vision-quadrants.js technique)
     const positionHint = describePosition(box.row, box.col, grid.rows, grid.cols);
+    const segStart = Date.now();
     const text = await extractSegment(cropBuffer, 'image/png', box.segmentId, anthropicApiKey, logger, positionHint, documentName);
+    const segElapsedSec = ((Date.now() - segStart) / 1000).toFixed(1);
     totalApiCalls++;
 
-    // Phase 5: Score
+    // Phase 5: Score — log full breakdown so the user can see exactly why a
+    // segment is flagged for zoom or manual review (not just a bare number).
     const score = scoreConfidence(text);
     logger.info('AdaptiveVision',
-      `${label} [${box.segmentId}]: confidence=${score.confidence}, ` +
-      `dataPoints=${score.dataPoints}, zoom=${score.needsZoom}`);
+      `${label} [${box.segmentId}] (${segElapsedSec}s): confidence=${score.confidence}, ` +
+      `dataPoints=${score.dataPoints} (bearings=${score.bearings}, dist=${score.distances}, ` +
+      `lots=${score.lotRefs}, curves=${score.curveData}), ` +
+      `uncertainty=${score.uncertaintyScore} ([?]×${score.uncertainMarkers}, words×${score.uncertainWords}), ` +
+      `zoom=${score.needsZoom}, manualReview=${score.needsManualReview}`);
 
     const segResult: SegmentResult = {
       segmentId:           box.segmentId,
@@ -509,7 +564,9 @@ export async function adaptiveVisionOcr(
     // Phase 6: Escalation — low-confidence segments get 2×2 sub-division
     if (score.needsZoom) {
       logger.info('AdaptiveVision',
-        `${label} [${box.segmentId}]: confidence ${score.confidence} < ${CONFIDENCE_ZOOM_THRESHOLD} — escalating (4 sub-pieces, ${ZOOM_OVERLAP_PCT * 100}% overlap)`);
+        `${label} [${box.segmentId}]: escalating — confidence ${score.confidence} < ${CONFIDENCE_ZOOM_THRESHOLD} ` +
+        `(${score.uncertainMarkers} [?] markers, ${score.uncertainWords} uncertainty words) — ` +
+        `splitting into 4 sub-pieces with ${ZOOM_OVERLAP_PCT * 100}% overlap for higher resolution re-read`);
 
       const zoomBoxes   = computeCropBoxes(box.width, box.height, 2, 2, ZOOM_OVERLAP_PCT);
       const zoomResults: SegmentResult[] = [];
@@ -525,12 +582,16 @@ export async function adaptiveVisionOcr(
         const zParentPos = describePosition(box.row, box.col, grid.rows, grid.cols);
         const zSubPos    = describePosition(zbox.row, zbox.col, 2, 2);
         const zPosHint   = `${zParentPos} (zoomed sub-segment: ${zSubPos})`;
+        const zStart = Date.now();
         const zText = await extractSegment(zBuf, 'image/png', zId, anthropicApiKey, logger, zPosHint, documentName);
+        const zElapsedSec = ((Date.now() - zStart) / 1000).toFixed(1);
         totalApiCalls++;
 
         const zScore = scoreConfidence(zText);
         logger.info('AdaptiveVision',
-          `${label} [${zId}]: zoom confidence=${zScore.confidence}, dataPoints=${zScore.dataPoints}`);
+          `${label} [${zId}] (${zElapsedSec}s): zoom confidence=${zScore.confidence}, ` +
+          `dataPoints=${zScore.dataPoints}, uncertainty=${zScore.uncertaintyScore} ` +
+          `([?]×${zScore.uncertainMarkers}, words×${zScore.uncertainWords})`);
 
         zoomResults.push({
           segmentId:           zId,
@@ -571,16 +632,25 @@ export async function adaptiveVisionOcr(
     ? Math.round(segmentResults.reduce((s, r) => s + r.confidence, 0) / segmentResults.length)
     : 0;
 
+  const escalated     = segmentResults.filter(s => s.flaggedForZoom).length;
+  const manualReview  = segmentResults.filter(s => s.flaggedForManualReview).length;
+  const durationMs    = Date.now() - startTime;
+
+  logger.info('AdaptiveVision',
+    `${label}: complete — ${grid.rows}×${grid.cols} grid, ${totalApiCalls} API calls, ` +
+    `${(durationMs / 1000).toFixed(1)}s, overallConfidence=${overallConfidence}, ` +
+    `escalated=${escalated}/${segmentResults.length}, manualReview=${manualReview}`);
+
   return {
     mergedText,
     overallConfidence,
     totalSegments:       segmentResults.length,
-    escalatedSegments:   segmentResults.filter(s => s.flaggedForZoom).length,
-    manualReviewSegments: segmentResults.filter(s => s.flaggedForManualReview).length,
+    escalatedSegments:   escalated,
+    manualReviewSegments: manualReview,
     segments:            segmentResults,
     strategy:            'grid',
     gridUsed:            { rows: grid.rows, cols: grid.cols },
     totalApiCalls,
-    durationMs:          Date.now() - startTime,
+    durationMs,
   };
 }

@@ -1542,7 +1542,18 @@ describe('Bell Clerk Image Capture — grab-docs.js Integration (bell-clerk.ts)'
 //    4-col grids  → FAR-LEFT / CENTER-LEFT / CENTER-RIGHT / FAR-RIGHT
 //    4-row grids  → TOP / UPPER-MIDDLE / LOWER-MIDDLE / BOTTOM
 //  Also tests the documentName integration in the position-hint message.
+//  And scoreConfidence() export for robust logging validation.
+//   I-16. scoreConfidence is exported from adaptive-vision.ts
+//   I-17. scoreConfidence.uncertainMarkers counts [?] markers correctly
+//   I-18. scoreConfidence.uncertainWords counts uncertainty phrases correctly
+//   I-19. scoreConfidence.needsZoom is true when confidence < threshold w/ data
+//   I-20. scoreConfidence.needsManualReview is true when confidence very low
 // ═══════════════════════════════════════════════════════════════════
+
+import {
+  scoreConfidence,
+} from '../../worker/src/services/adaptive-vision.js';
+import type { SegmentScore } from '../../worker/src/services/adaptive-vision.js';
 
 describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () => {
 
@@ -1688,6 +1699,52 @@ describe('Adaptive Vision — position-aware context (adaptive-vision.ts)', () =
     const msg = buildPositionHintText('TOP-RIGHT', 'Dawson Ridge Phase 3');
     expect(msg).toMatch(/subdivision plat for "Dawson Ridge Phase 3"/);
     expect(msg).toContain('in Bell County, Texas');
+  });
+
+  // ── scoreConfidence export tests (I-16 through I-20) ─────────────────────
+  // These validate that the logging-specific fields (uncertainMarkers,
+  // uncertainWords) are correctly computed and that the exported function is
+  // usable from outside the module.
+
+  it('I-16. scoreConfidence is exported and is a function', () => {
+    expect(typeof scoreConfidence).toBe('function');
+  });
+
+  it('I-17. scoreConfidence.uncertainMarkers counts [?] occurrences (each weighs 3)', () => {
+    const result: SegmentScore = scoreConfidence('Bearing [?] and distance [?] both uncertain [?]');
+    expect(result.uncertainMarkers).toBe(3);
+    // uncertaintyScore = 3 markers × 3 = 9
+    expect(result.uncertaintyScore).toBeGreaterThanOrEqual(9);
+  });
+
+  it('I-18. scoreConfidence.uncertainWords counts uncertainty-phrase words (each weighs 2)', () => {
+    const result: SegmentScore = scoreConfidence(
+      'Text is partially obscured by watermark and is illegible in places',
+    );
+    // "partially", "obscured", "watermark", "illegible" = 4 words
+    expect(result.uncertainWords).toBe(4);
+    expect(result.uncertaintyScore).toBeGreaterThanOrEqual(8); // 4 × 2
+  });
+
+  it('I-19. scoreConfidence.needsZoom is true when confidence < 60 and data points exist', () => {
+    // Many [?] markers + some data points → low confidence → escalate
+    const manyUncertain = 'N45°15\'00" E — 317.25\' ' + '[?] '.repeat(10);
+    const result = scoreConfidence(manyUncertain);
+    // Must have at least one bearing/distance so dataPoints > 0
+    expect(result.dataPoints).toBeGreaterThan(0);
+    if (result.confidence < 60) {
+      expect(result.needsZoom).toBe(true);
+    }
+  });
+
+  it('I-20. scoreConfidence.needsManualReview is true when confidence < 50', () => {
+    // Extreme uncertainty with no usable data → confidence = 20 → manual review
+    const noData = 'obscured watermark illegible unclear uncertain';
+    const result = scoreConfidence(noData);
+    // dataPoints = 0 → confidence = 20 (< 50)
+    expect(result.dataPoints).toBe(0);
+    expect(result.confidence).toBe(20);
+    expect(result.needsManualReview).toBe(true);
   });
 });
 
