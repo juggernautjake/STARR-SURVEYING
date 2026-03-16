@@ -28,6 +28,7 @@ import DrawingSaveDialog from '../components/DrawingSaveDialog';
 import VerificationPanel from '../components/VerificationPanel';
 import ExportPanel from '../components/ExportPanel';
 import SurveyPlanPanel from '../components/SurveyPlanPanel';
+import { PipelineProgressPanel, PipelineProgressStyles, type PipelineLogEntry } from '../components/PipelineProgressPanel';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
 
@@ -69,8 +70,8 @@ export default function ResearchProjectPage() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ document_count: 0, data_point_count: 0, discrepancy_count: 0, resolved_count: 0 });
 
-  // Review and log state
-  const [reviewLogsCopied, setReviewLogsCopied] = useState(false);
+  // Review pipeline logs are loaded on-demand by PipelineProgressPanel via onLoadLogs
+  // when the AI Logs tab is first viewed (no external state needed here).
 
   // ── Stage 1 → Stage 2 navigation state ───────────────────────────────────
   // When the user clicks "Initiate Research & Analysis" in Stage 1, we store
@@ -418,40 +419,6 @@ export default function ResearchProjectPage() {
     } catch {
       showToast('Unable to connect. Check your internet connection and try again.', 'error');
     }
-  }
-
-  function copyLogsToClipboard(
-    logs: Array<{ ts: string; level: string; message: string; detail?: string }>,
-    onCopied: () => void,
-  ) {
-    const header = `STARR RECON — Research Logs  (Project: ${project?.name || projectId})\n` +
-      `Exported: ${new Date().toLocaleString()}\n${'─'.repeat(60)}\n`;
-    const body = logs.map(e => {
-      const icon = e.level === 'error' ? '✕' : e.level === 'warn' ? '⚠' : e.level === 'success' ? '✓' : '·';
-      let line = `${new Date(e.ts).toLocaleTimeString()}  ${icon} [${e.level.toUpperCase()}]  ${e.message}`;
-      if (e.detail) line += `\n      ${e.detail}`;
-      return line;
-    }).join('\n');
-    const text = header + body;
-    navigator.clipboard.writeText(text)
-      .then(onCopied)
-      .catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.cssText = 'position:fixed;opacity:0';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        onCopied();
-      });
-  }
-
-  function handleCopyReviewLogs() {
-    const logs = (project?.analysis_metadata as Record<string, unknown> | null)?.logs as
-      Array<{ ts: string; level: string; message: string; detail?: string }> | undefined;
-    if (!logs || logs.length === 0) return;
-    copyLogsToClipboard(logs, () => { setReviewLogsCopied(true); setTimeout(() => setReviewLogsCopied(false), 2000); });
   }
 
   // Drawing functions
@@ -1485,12 +1452,14 @@ export default function ResearchProjectPage() {
 
       {/* ════════════════════════════════════════════════════════════════
           STAGE 2: RESEARCH & ANALYSIS
-          Shows "Start" CTA when configure, and progress panel when analyzing
+          Shows progress panel when configure or analyzing.
+          Form is always hidden here (address/county came from Stage 1).
+          Auto-advances to Stage 3 (Review) when research completes.
           ════════════════════════════════════════════════════════════ */}
       {currentStage === 'research' && (
         <div className="research-stage2">
-          {/* ── Ready to launch (configure sub-state) ── */}
-          {project.status === 'configure' && (
+          {/* ── Active research (configure or analyzing sub-state) ── */}
+          {(project.status === 'configure' || project.status === 'analyzing') && (
             <div className="research-stage2__launch">
               {/* Title and description are hidden once a pipeline run has started
                   (either via autoStart from Stage 1 or manually from this page). */}
@@ -1509,28 +1478,35 @@ export default function ResearchProjectPage() {
               )}
 
               {/* ── Public Records Search + Deep Pipeline ──────────────────────────── */}
-              {/* PropertySearchPanel runs the search API + worker pipeline and shows all
-                  online sources found, individual document results, and the final summary.
+              {/* PropertySearchPanel runs the search API + worker pipeline.
+                  The address/property form is always hidden in Stage 2 (alwaysHideForm).
                   When arriving from Stage 1 via "Initiate Research & Analysis", autoStart
-                  fires the research automatically so the process begins immediately. */}
+                  fires the research automatically so the process begins immediately.
+                  On successful completion the pipeline auto-advances to the Review stage. */}
               <PropertySearchPanel
                 projectId={projectId}
                 defaultAddress={pendingSearchParams?.address ?? project.property_address ?? ''}
                 defaultCounty={pendingSearchParams?.county ?? project.county ?? ''}
                 defaultParcelId={pendingSearchParams?.parcelId ?? project.parcel_id ?? ''}
                 autoStart={shouldAutoStartPipeline}
+                alwaysHideForm
                 onPipelineStart={() => setPipelineHasStarted(true)}
                 onImported={() => {
                   setShouldAutoStartPipeline(false);
                   loadDocuments();
                   loadProject();
                 }}
-                onPipelineComplete={() => {
-                  // Clear the auto-start flag once the pipeline has fired so navigating
-                  // back to Stage 2 (e.g. from Stage 3) does not re-run the pipeline.
+                onPipelineComplete={(pipelineStatus) => {
                   setShouldAutoStartPipeline(false);
                   loadDocuments();
                   loadProject();
+                  // Auto-advance to the Review stage when research succeeds or partially succeeds.
+                  // On failure, stay on Stage 2 so the user can see the error and re-run.
+                  // Note: 'complete' is normalized to 'success' in pollPipelineStatus before
+                  // reaching this callback, but we keep the check for defensive coding.
+                  if (pipelineStatus === 'success' || pipelineStatus === 'partial') {
+                    handleStatusUpdate('review');
+                  }
                 }}
               />
 
@@ -1785,52 +1761,24 @@ export default function ResearchProjectPage() {
               }}
             />
           )}
-          {reviewTab === 'ai_logs' && (() => {
-            const logs = (project.analysis_metadata as Record<string, unknown> | null)?.logs as
-              Array<{ ts: string; level: string; message: string; detail?: string }> | undefined;
-            return (
-              <div>
-                <div className="research-analyzing__log-header" style={{ marginBottom: '0.5rem' }}>
-                  <div className="research-analyzing__log-header-left">
-                    <span className="research-analyzing__log-title">📋 Research Logs</span>
-                    {logs && logs.length > 0 && (
-                      <span className="research-analyzing__log-badge">{logs.length}</span>
-                    )}
-                  </div>
-                  <button
-                    className="research-analyzing__copy-btn"
-                    onClick={handleCopyReviewLogs}
-                    disabled={!logs || logs.length === 0}
-                    title="Copy all log entries to clipboard"
-                  >
-                    {reviewLogsCopied ? '✓ Copied!' : '⎘ Copy All Logs'}
-                  </button>
-                </div>
-                <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', lineHeight: 1.6, background: '#F8FAFC', border: '1px solid #E5E7EB', borderRadius: '0.5rem', padding: '0.75rem', maxHeight: '60vh', overflowY: 'auto' }}>
-                  {!logs || logs.length === 0 ? (
-                    <div style={{ color: '#9CA3AF', textAlign: 'center', padding: '2rem' }}>
-                      No analysis logs available. Run AI Analysis to generate logs.
-                    </div>
-                  ) : (
-                    logs.map((entry, i) => {
-                      const levelColor = entry.level === 'error' ? '#EF4444' : entry.level === 'warn' ? '#F59E0B' : entry.level === 'success' ? '#059669' : '#374151';
-                      const levelBg = entry.level === 'error' ? '#FEF2F2' : entry.level === 'warn' ? '#FFFBEB' : entry.level === 'success' ? '#F0FDF4' : 'transparent';
-                      return (
-                        <div key={i} style={{ padding: '0.2rem 0.4rem', borderRadius: '0.2rem', background: levelBg, marginBottom: '0.15rem' }}>
-                          <span style={{ color: '#9CA3AF' }}>{new Date(entry.ts).toLocaleTimeString()}</span>
-                          {' '}
-                          <span style={{ color: levelColor, fontWeight: 600 }}>[{entry.level.toUpperCase()}]</span>
-                          {' '}
-                          <span style={{ color: '#374151' }}>{entry.message}</span>
-                          {entry.detail && <span style={{ color: '#6B7280' }}> — {entry.detail}</span>}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+          {reviewTab === 'ai_logs' && (
+            <div>
+              <PipelineProgressStyles />
+              <PipelineProgressPanel
+                status="success"
+                onLoadLogs={async () => {
+                  try {
+                    const res = await fetch(`/api/admin/research/${projectId}/logs`);
+                    if (!res.ok) return null;
+                    const data = await res.json() as { log?: PipelineLogEntry[] };
+                    return data.log ?? null;
+                  } catch {
+                    return null;
+                  }
+                }}
+              />
+            </div>
+          )}
           {reviewTab === 'survey_plan' && (
             <div style={{ padding: '0.5rem 0' }}>
               <SurveyPlanPanel projectId={projectId} />

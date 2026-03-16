@@ -89,6 +89,12 @@ interface PropertySearchPanelProps {
    */
   autoStart?: boolean;
   /**
+   * When true, always hides the address/county/parcel form inputs and research
+   * button regardless of whether autoStart is set.  Used by Stage 2 so the
+   * property information form never appears during the research run.
+   */
+  alwaysHideForm?: boolean;
+  /**
    * Fires when the deep research pipeline finishes (status: success | partial | failed).
    * Does NOT fire for lite-pipeline runs.
    */
@@ -159,6 +165,7 @@ export default function PropertySearchPanel({
   onNavigateAway,
   hideResultsAndProgress,
   autoStart,
+  alwaysHideForm,
   onPipelineComplete,
   onPipelineStart,
 }: PropertySearchPanelProps) {
@@ -586,19 +593,23 @@ export default function PropertySearchPanel({
   const hasAddressIssues = searchResponse?.address_issues && searchResponse.address_issues.length > 0;
   const specificCount = searchResponse?.results.filter((r: PropertySearchResult) => r.is_property_specific).length || 0;
 
-  // Stage 2 mode: autoStart=true means we arrived from Stage 1 with values pre-filled.
-  // In this mode: hide the form inputs (already set), suppress the redundant loading
-  // animation (PipelineProgressPanel handles it), and defer showing search results
-  // (Geocoded Location Review, Online Resources) until the pipeline is done.
-  const isStage2Mode = autoStart === true;
+  // Research stage mode: either autoStart=true (arrived from Stage 1) or alwaysHideForm=true
+  // (forced by page.tsx when in Stage 2).  In this mode: hide the form inputs and the
+  // research button (already set from Stage 1), suppress the redundant loading animation
+  // (PipelineProgressPanel handles it), and never show search results here
+  // (they go to Stage 3 Review instead).
+  const isStage2Mode = autoStart === true || alwaysHideForm === true;
   const isPipelineDone = pipelineStatus === 'success' || pipelineStatus === 'partial' || pipelineStatus === 'failed';
 
-  // Show search results only when the pipeline is done, or when no pipeline is running
-  // (Stage 2 mode always waits for pipeline completion; non-Stage2 hides during run).
+  // Show search results only when not in Stage 2 mode, the pipeline is idle,
+  // and results are available.  In Stage 2 mode all source results go to the
+  // Review stage, so we never show them here.
   const shouldShowSearchResults =
     !hideResultsAndProgress &&
+    !isStage2Mode &&
     !!searchResponse &&
-    (isPipelineDone || (!isStage2Mode && !pipelineRunning && !liteRunning));
+    !pipelineRunning &&
+    !liteRunning;
 
   function researchButtonLabel(): string {
     if (pipelineRunning) {
@@ -916,6 +927,7 @@ export default function PropertySearchPanel({
                 log={pipelineResult?.log}
                 failureReason={pipelineResult?.failureReason}
                 masterReportText={pipelineResult?.masterReportText}
+                hideCompletionDetails={isStage2Mode}
                 onLoadLogs={async () => {
                   try {
                     const res = await fetch(`/api/admin/research/${projectId}/logs`);

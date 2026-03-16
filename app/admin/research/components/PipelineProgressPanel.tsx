@@ -34,7 +34,7 @@ interface PipelineDocument {
   extractedData?: { type?: string; confidence?: number } | null;
 }
 
-interface PipelineLogEntry {
+export interface PipelineLogEntry {
   layer: string;
   source: string;
   method: string;
@@ -70,6 +70,12 @@ export interface PipelineProgressProps {
    * Should return an array of PipelineLogEntry or null on failure.
    */
   onLoadLogs?: () => Promise<PipelineLogEntry[] | null>;
+  /**
+   * When true, hides the result summary card, document pills, and master report.
+   * Use in Stage 2 (Research & Analysis) so these completion details only appear
+   * in Stage 3 (Review).
+   */
+  hideCompletionDetails?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -372,6 +378,7 @@ export function PipelineProgressPanel({
   failureReason,
   masterReportText,
   onLoadLogs,
+  hideCompletionDetails,
 }: PipelineProgressProps) {
   const [allCopied,     setAllCopied]     = useState(false);
   const [logFilter,     setLogFilter]     = useState<LogFilter>('all');
@@ -520,7 +527,7 @@ export function PipelineProgressPanel({
       return (
         <div className="ppanel__logstream-waiting">
           <Spinner />
-          <span>Full logs will be loaded when the run completes…</span>
+          <span>Waiting for log entries…</span>
         </div>
       );
     }
@@ -617,15 +624,15 @@ export function PipelineProgressPanel({
         </div>
       )}
 
-      {/* ── Result card (visible when done) ─────────────────────────── */}
-      {isSuccess && result && (
+      {/* ── Result card (visible when done and details are not hidden) ─── */}
+      {isSuccess && result && !hideCompletionDetails && (
         <div className="ppanel__section">
           <ResultCard result={result} />
         </div>
       )}
 
-      {/* ── Document pills (visible when done and docs exist) ─────────── */}
-      {isDone && documents && documents.length > 0 && (
+      {/* ── Document pills (visible when done, docs exist, and details not hidden) ── */}
+      {isDone && documents && documents.length > 0 && !hideCompletionDetails && (
         <div className="ppanel__section ppanel__section--docs">
           <div className="ppanel__section-title">
             Documents captured
@@ -639,8 +646,8 @@ export function PipelineProgressPanel({
         </div>
       )}
 
-      {/* ── Master Report (collapsible — shown when Stage 6 produced a report) ── */}
-      {isDone && masterReportText && (
+      {/* ── Master Report (collapsible — hidden when completion details are suppressed) ── */}
+      {isDone && masterReportText && !hideCompletionDetails && (
         <div className="ppanel__section ppanel__section--report">
           <div
             className="ppanel__report-header"
