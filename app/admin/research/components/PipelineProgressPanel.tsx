@@ -68,6 +68,11 @@ export interface PipelineProgressProps {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Returns true for any status that means the pipeline has finished running. */
+function isDoneStatus(status: string | null): boolean {
+  return status === 'success' || status === 'partial' || status === 'failed' || status === 'complete';
+}
+
 function Spinner() {
   return (
     <span className="ppanel__spinner" aria-label="loading">
@@ -414,7 +419,7 @@ export function PipelineProgressPanel({
   const prevStatusRef = useRef<string | null>(null);
   useEffect(() => {
     const wasRunning = prevStatusRef.current === 'running' || prevStatusRef.current === 'starting';
-    const isNowDone  = status === 'success' || status === 'partial' || status === 'failed' || status === 'complete';
+    const isNowDone  = isDoneStatus(status);
     if (wasRunning && isNowDone) {
       setUserScrolled(false);
       if (logStreamRef.current) {
@@ -430,7 +435,7 @@ export function PipelineProgressPanel({
   // log is available.  This means logs are always visible immediately after a run.
   useEffect(() => {
     // Guard: trigger on any completion status including county-specific 'complete'
-    const isDoneNow = status === 'success' || status === 'partial' || status === 'failed' || status === 'complete';
+    const isDoneNow = isDoneStatus(status);
     if (!isDoneNow) return;
     // Guard: in-memory log already present — nothing to load
     if (logProp && logProp.length > 0) return;
@@ -454,7 +459,7 @@ export function PipelineProgressPanel({
   const isSuccess  = status === 'success' || status === 'partial' || status === 'complete';
   const isFailed   = status === 'failed';
   const isPartial  = status === 'partial';
-  const isDone     = isSuccess || isFailed;
+  const isDone     = isDoneStatus(status);
 
   // Strip "Stage N: " prefix for cleaner display; fall back to currentStageProp
   const cleanMessage = message?.replace(/^Stage\s*\d+(?:\.\d+)?:\s*/i, '') ?? null;
@@ -505,7 +510,7 @@ export function PipelineProgressPanel({
       return (
         <div className="ppanel__logstream-waiting">
           <Spinner />
-          <span>Logs will appear here when the run completes…</span>
+          <span>Full logs will be loaded when the run completes…</span>
         </div>
       );
     }

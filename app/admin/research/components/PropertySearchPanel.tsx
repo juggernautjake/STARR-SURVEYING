@@ -425,15 +425,17 @@ export default function PropertySearchPanel({
       if (data.status === 'running') {
         setPipelineStatus('running');
       } else {
-        // Pipeline finished (success, partial, failed, or county-specific 'complete').
-        // Normalise 'complete' → 'success' so downstream status checks work uniformly.
-        const finalStatus = data.status === 'complete' ? 'success' : data.status;
-        setPipelineStatus(finalStatus);
+        // Pipeline finished.  County-specific pipelines return 'complete' while
+        // the generic pipeline returns 'success', 'partial', or 'failed'.
+        // Normalise 'complete' → 'success' so downstream status checks are uniform.
+        const normalised = data.status === 'complete' ? 'success'
+          : (data.status || 'failed');
+        setPipelineStatus(normalised);
         setPipelineRunning(false);
         setPipelineStallMinutes(0);
         stopPolling();
         onImported?.();
-        onPipelineComplete?.(finalStatus);
+        onPipelineComplete?.(normalised);
       }
     } catch {
       // Network error — keep polling
@@ -489,8 +491,14 @@ export default function PropertySearchPanel({
           mapNote,
         });
         onImported?.();
+      } else {
+        // Non-fatal: log the failure but don't block the pipeline run
+        console.warn('[PropertySearchPanel] Auto-import returned non-OK status', res.status);
       }
-    } catch { /* silently ignore — pipeline will still run */ }
+    } catch (err) {
+      // Non-fatal: the pipeline can still run without the import records
+      console.warn('[PropertySearchPanel] Auto-import network error', err);
+    }
   }
 
   async function handleImport() {
