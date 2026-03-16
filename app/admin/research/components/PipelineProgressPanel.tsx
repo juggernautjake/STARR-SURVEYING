@@ -59,6 +59,12 @@ export interface PipelineProgressProps {
   /** Human-readable explanation of why the pipeline failed, with actionable guidance. */
   failureReason?: string;
   /**
+   * Full master report text from Stage 6 (MASTER_VALIDATION_REPORT.txt).
+   * Formatted surveyor report with traverse quality, top actions, discrepancy log, etc.
+   * Only present on successful/partial completion when Stage 6 ran.
+   */
+  masterReportText?: string;
+  /**
    * Optional async callback that loads persisted run logs from the server.
    * Called when the run ends and in-memory logs are empty.
    * Should return an array of PipelineLogEntry or null on failure.
@@ -364,6 +370,7 @@ export function PipelineProgressPanel({
   documents,
   log: logProp,
   failureReason,
+  masterReportText,
   onLoadLogs,
 }: PipelineProgressProps) {
   const [allCopied,     setAllCopied]     = useState(false);
@@ -376,6 +383,9 @@ export function PipelineProgressPanel({
   const [userScrolled, setUserScrolled]   = useState(false);
   // Ref to the scrollable log container for auto-scroll behaviour.
   const logStreamRef = useRef<HTMLDivElement>(null);
+  // Master report section — collapsed by default, expanded on click.
+  const [reportExpanded, setReportExpanded] = useState(false);
+  const [reportCopied,   setReportCopied]   = useState(false);
 
   // Resolved log — prefer in-memory prop, fall back to on-demand loaded.
   const log = (logProp && logProp.length > 0) ? logProp : (loadedLog ?? undefined);
@@ -626,6 +636,40 @@ export function PipelineProgressPanel({
               <DocumentPill key={i} doc={doc} idx={i} />
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Master Report (collapsible — shown when Stage 6 produced a report) ── */}
+      {isDone && masterReportText && (
+        <div className="ppanel__section ppanel__section--report">
+          <div
+            className="ppanel__report-header"
+            onClick={() => setReportExpanded(e => !e)}
+            style={{ cursor: 'pointer' }}
+          >
+            <span className="ppanel__section-title" style={{ marginBottom: 0 }}>
+              📄 Master Validation Report
+            </span>
+            <div className="ppanel__report-header-actions" onClick={e => e.stopPropagation()}>
+              <button
+                className="ppanel__report-copy-btn"
+                type="button"
+                title="Copy full report to clipboard"
+                onClick={() => {
+                  copyToClipboard(masterReportText, () => {
+                    setReportCopied(true);
+                    setTimeout(() => setReportCopied(false), 2000);
+                  });
+                }}
+              >
+                {reportCopied ? '✓ Copied!' : '⎘ Copy'}
+              </button>
+              <span className="ppanel__log-expand">{reportExpanded ? '▲' : '▼'}</span>
+            </div>
+          </div>
+          {reportExpanded && (
+            <pre className="ppanel__report-body">{masterReportText}</pre>
+          )}
         </div>
       )}
 
@@ -968,6 +1012,51 @@ export function PipelineProgressStyles() {
   padding: 0 0.4rem;
   font-size: 0.7rem;
   font-weight: 700;
+}
+
+/* ── Master Report section ───────────────────────────────── */
+.ppanel__section--report {
+  padding: 0;
+  border-top: 1px solid #f1f5f9;
+}
+.ppanel__report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.9rem;
+  gap: 0.5rem;
+}
+.ppanel__report-header:hover { background: #f8fafc; }
+.ppanel__report-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.ppanel__report-copy-btn {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ppanel__report-copy-btn:hover { background: #f1f5f9; }
+.ppanel__report-body {
+  margin: 0;
+  padding: 0.6rem 0.9rem 0.75rem;
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+  font-family: 'Courier New', monospace;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 480px;
+  overflow-y: auto;
+  color: #1e293b;
 }
 
 /* ── Result card ─────────────────────────────────────────── */

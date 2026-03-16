@@ -9,6 +9,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile } from './types/index.js';
 import { runPipeline, getSupabase, getRunningMessage } from './services/pipeline.js';
+import { getLiveLogForProject, clearLiveLogForProject } from './lib/logger.js';
 import { runCountyResearch, validateAddressCounty, type CountyResearchInput, type UnifiedResearchResult, type CountyResearchProgress } from './counties/router.js';
 import { PropertyDiscoveryEngine } from './services/property-discovery.js';
 import { DocumentHarvester, type HarvestInput } from './services/document-harvester.js';
@@ -383,6 +384,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     .then((unifiedResult) => {
       completedResults.set(projectId, unifiedResult);
       activePipelines.delete(projectId);
+      clearLiveLogForProject(projectId);
 
       if (unifiedResult.resultType === 'generic-pipeline') {
         const r = unifiedResult.data;
@@ -439,6 +441,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       };
       completedResults.set(projectId, { resultType: 'generic-pipeline', county, data: fallback });
       activePipelines.delete(projectId);
+      clearLiveLogForProject(projectId);
     });
 });
 
@@ -542,6 +545,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
         })),
         log: result.log,
         failureReason: result.failureReason,
+        masterReportText: result.masterReportText,
       });
     } else {
       // County-specific result — richer data structure
@@ -625,6 +629,7 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
       message,
       address: pipeline.address,
       county: pipeline.county,
+      log: getLiveLogForProject(projectId) ?? [],
     });
     return;
   }

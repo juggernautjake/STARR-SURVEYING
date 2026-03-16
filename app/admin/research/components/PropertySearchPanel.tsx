@@ -61,6 +61,8 @@ interface PipelineStatusResponse {
   log?: PipelineLogEntry[];
   /** Human-readable failure reason for display in the UI. */
   failureReason?: string;
+  /** Full master report text from Stage 6 (only present on successful completion). */
+  masterReportText?: string;
 }
 
 interface PropertySearchPanelProps {
@@ -91,6 +93,11 @@ interface PropertySearchPanelProps {
    * Does NOT fire for lite-pipeline runs.
    */
   onPipelineComplete?: (status: string) => void;
+  /**
+   * Fires the moment any pipeline (deep or lite) starts running.
+   * Used by Stage 2 to hide the introductory title and description text.
+   */
+  onPipelineStart?: () => void;
 }
 
 const SOURCE_LABELS: Record<SearchSource, { label: string; icon: string }> = {
@@ -153,6 +160,7 @@ export default function PropertySearchPanel({
   hideResultsAndProgress,
   autoStart,
   onPipelineComplete,
+  onPipelineStart,
 }: PropertySearchPanelProps) {
   const [address, setAddress] = useState(defaultAddress || '');
   const [county, setCounty] = useState(defaultCounty || '');
@@ -254,6 +262,7 @@ export default function PropertySearchPanel({
   async function startLitePipeline() {
     setLiteRunning(true);
     setLiteStage('Starting…');
+    onPipelineStart?.();
     try {
       const res = await fetch(`/api/admin/research/${projectId}/lite-pipeline`, {
         method: 'POST',
@@ -363,6 +372,7 @@ export default function PropertySearchPanel({
         setPipelineStallMinutes(0);
         consecutive404CountRef.current = 0;
         pollStartTimeRef.current = Date.now();
+        onPipelineStart?.();
         stopPolling();
         pollRef.current = setInterval(pollPipelineStatus, 5_000);
       } else {
@@ -582,6 +592,13 @@ export default function PropertySearchPanel({
   // (Geocoded Location Review, Online Resources) until the pipeline is done.
   const isStage2Mode = autoStart === true;
   const isPipelineDone = pipelineStatus === 'success' || pipelineStatus === 'partial' || pipelineStatus === 'failed';
+
+  // Show search results only when the pipeline is done, or when no pipeline is running
+  // (Stage 2 mode always waits for pipeline completion; non-Stage2 hides during run).
+  const shouldShowSearchResults =
+    !hideResultsAndProgress &&
+    !!searchResponse &&
+    (isPipelineDone || (!isStage2Mode && !pipelineRunning && !liteRunning));
 
   function researchButtonLabel(): string {
     if (pipelineRunning) {
@@ -825,6 +842,7 @@ export default function PropertySearchPanel({
                     documents={pipelineResult?.documents}
                     log={pipelineResult?.log}
                     failureReason={pipelineResult?.failureReason}
+                    masterReportText={pipelineResult?.masterReportText}
                     onLoadLogs={async () => {
                       try {
                         const res = await fetch(`/api/admin/research/${projectId}/logs`);
@@ -897,6 +915,7 @@ export default function PropertySearchPanel({
                 documents={pipelineResult?.documents}
                 log={pipelineResult?.log}
                 failureReason={pipelineResult?.failureReason}
+                masterReportText={pipelineResult?.masterReportText}
                 onLoadLogs={async () => {
                   try {
                     const res = await fetch(`/api/admin/research/${projectId}/logs`);
@@ -938,8 +957,10 @@ export default function PropertySearchPanel({
 
       {/* Search results — source chips, location map, online resources.
           In Stage 2 mode: only shown after the pipeline is done so they don't
-          appear mid-run and clutter the progress view.                        */}
-      {!hideResultsAndProgress && searchResponse && (!isStage2Mode || isPipelineDone) && (
+          appear mid-run and clutter the progress view.
+          In non-Stage 2 mode: also hidden while a pipeline is running, so the
+          Online Resources panel doesn't clutter the progress animation.        */}
+      {shouldShowSearchResults && (
         <div className="research-search__results">
 
           {/* Address normalization alert */}
