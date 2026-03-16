@@ -195,6 +195,7 @@ export async function orchestrateBellResearch(
         propertyId: input.propertyId,
         ownerName: input.ownerName,
         instrumentNumber: input.instrumentNumber,
+        projectId: input.projectId,
       },
       (p) => progress('Phase 1', `CAD: ${p.message}`),
     ),
@@ -317,6 +318,7 @@ export async function orchestrateBellResearch(
         ownerName: uniqueOwnerNames[0] ?? property.ownerName ?? undefined,
         subdivisionName: uniqueSubdivisions[0] ?? undefined,
         volumePages: uniqueVolPages,
+        projectId: input.projectId,
       },
       (p) => progress('Phase 2', `Clerk: ${p.message}`, 30),
     );
@@ -353,6 +355,7 @@ export async function orchestrateBellResearch(
         instrumentNumbers: allInstruments,
         ownerName: uniqueOwnerNames[0] ?? property.ownerName ?? undefined,
         legalDescription: property.legalDescription ?? undefined,
+        projectId: input.projectId,
       },
       (p) => progress('Phase 2', `Plats: ${p.message}`, 40),
     );

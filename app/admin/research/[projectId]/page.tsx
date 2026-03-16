@@ -29,6 +29,7 @@ import VerificationPanel from '../components/VerificationPanel';
 import ExportPanel from '../components/ExportPanel';
 import SurveyPlanPanel from '../components/SurveyPlanPanel';
 import { PipelineProgressPanel, PipelineProgressStyles, type PipelineLogEntry } from '../components/PipelineProgressPanel';
+import ResearchRunPanel from '../components/ResearchRunPanel';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
 
@@ -55,6 +56,84 @@ const JOB_NOTES_PLACEHOLDER =
   '• Special instructions: check for creek encroachment on east boundary\n' +
   '• Adjacent owner contact: ___\n' +
   '• Estimated field time: 4–6 hours';
+
+// ── ReviewDocCard — collapsible document card for Stage 3 ────────────────────
+
+interface ReviewDocCardProps {
+  typeIcon: string;
+  title: string;
+  typeName: string;
+  doc: {
+    id: string;
+    processing_status?: string | null;
+    extracted_text?: string | null;
+    recorded_date?: string | null;
+    recording_info?: string | null;
+    page_count?: number | null;
+    ocr_confidence?: number | null;
+    file_size_bytes?: number | null;
+    created_at?: string | null;
+    source_url?: string | null;
+  };
+  excerpt: string | null;
+  hasViewable: boolean;
+  onView: () => void;
+}
+
+function ReviewDocCard({ typeIcon, title, typeName, doc, excerpt, hasViewable, onView }: ReviewDocCardProps) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`review-doc-card${open ? ' review-doc-card--open' : ''}`}>
+      <div className="review-doc-card__header" onClick={() => setOpen(o => !o)}>
+        <span className="review-doc-card__icon">{typeIcon}</span>
+        <span className="review-doc-card__title">{title}</span>
+        <span className="review-doc-card__type">{typeName}</span>
+        {doc.processing_status === 'analyzed' && (
+          <span className="review-doc-card__badge review-doc-card__badge--ok">✓ Analyzed</span>
+        )}
+        {doc.processing_status === 'error' && (
+          <span className="review-doc-card__badge review-doc-card__badge--err">⚠ Error</span>
+        )}
+        <span className="review-doc-card__chevron">{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div className="review-doc-card__body">
+          {excerpt && (
+            <div className="review-doc-card__excerpt">{excerpt}</div>
+          )}
+          <div className="review-doc-card__meta">
+            {doc.recorded_date && <span>📅 {doc.recorded_date}</span>}
+            {doc.recording_info && <span>📋 {doc.recording_info}</span>}
+            {doc.page_count != null && <span>📄 {doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span>}
+            {doc.ocr_confidence != null && <span>🔬 OCR {Math.round(doc.ocr_confidence * 100)}%</span>}
+            {doc.file_size_bytes != null && <span>{(doc.file_size_bytes / 1024).toFixed(0)} KB</span>}
+            {doc.created_at && <span title={doc.created_at}>Added {new Date(doc.created_at).toLocaleDateString()}</span>}
+          </div>
+          <div className="review-doc-card__actions">
+            {doc.source_url && (
+              <a
+                href={doc.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="review-doc-card__action review-doc-card__action--link"
+              >
+                🔗 Open Source ↗
+              </a>
+            )}
+            {hasViewable && (
+              <button
+                onClick={onView}
+                className="review-doc-card__action review-doc-card__action--view"
+              >
+                🖼️ View Pages / PDF
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -86,7 +165,7 @@ export default function ResearchProjectPage() {
   const [pipelineHasStarted, setPipelineHasStarted] = useState(false);
 
   // Review state
-  const [reviewTab, setReviewTab] = useState<'sources' | 'data' | 'discrepancies' | 'ai_logs' | 'survey_plan'>('sources');
+  const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'discrepancies'>('summary');
   const [showBriefing, setShowBriefing] = useState(true);
   const [viewerDoc, setViewerDoc] = useState<ResearchDocument | null>(null);
   const [viewerHighlight, setViewerHighlight] = useState<string | undefined>(undefined);
@@ -1452,180 +1531,280 @@ export default function ResearchProjectPage() {
 
       {/* ════════════════════════════════════════════════════════════════
           STAGE 2: RESEARCH & ANALYSIS
-          Shows progress panel when configure or analyzing.
-          Form is always hidden here (address/county came from Stage 1).
-          Auto-advances to Stage 3 (Review) when research completes.
+          Shows only: (1) progress indicator and (2) raw log viewer.
+          No address form, no document pills, no result card.
+          "Continue to Review" button appears on completion.
           ════════════════════════════════════════════════════════════ */}
       {currentStage === 'research' && (
         <div className="research-stage2">
-          {/* ── Active research (configure or analyzing sub-state) ── */}
-          {(project.status === 'configure' || project.status === 'analyzing') && (
-            <div className="research-stage2__launch">
-              {/* Title and description are hidden once a pipeline run has started
-                  (either via autoStart from Stage 1 or manually from this page). */}
-              {!pipelineHasStarted && !shouldAutoStartPipeline && (
-                <>
-                  <h2 className="research-stage2__launch-title">🔬 Research &amp; Analysis</h2>
-                  <p className="research-stage2__launch-desc">
-                    STARR RECON is searching all public records from {RESEARCH_SOURCES.length}+ sources
-                    {uploadedDocumentCount > 0
-                      ? ` plus your ${uploadedDocumentCount} uploaded document${uploadedDocumentCount !== 1 ? 's' : ''}`
-                      : ''},
-                    capturing screenshots of county CAD and deed websites, and running deep AI analysis on every image, file, and document.
-                    All sources and their individual analysis results will be shown here.
-                  </p>
-                </>
-              )}
-
-              {/* ── Public Records Search + Deep Pipeline ──────────────────────────── */}
-              {/* PropertySearchPanel runs the search API + worker pipeline.
-                  The address/property form is always hidden in Stage 2 (alwaysHideForm).
-                  When arriving from Stage 1 via "Initiate Research & Analysis", autoStart
-                  fires the research automatically so the process begins immediately.
-                  On successful completion the pipeline auto-advances to the Review stage. */}
-              <PropertySearchPanel
-                projectId={projectId}
-                defaultAddress={pendingSearchParams?.address ?? project.property_address ?? ''}
-                defaultCounty={pendingSearchParams?.county ?? project.county ?? ''}
-                defaultParcelId={pendingSearchParams?.parcelId ?? project.parcel_id ?? ''}
-                autoStart={shouldAutoStartPipeline}
-                alwaysHideForm
-                onPipelineStart={() => setPipelineHasStarted(true)}
-                onImported={() => {
-                  setShouldAutoStartPipeline(false);
-                  loadDocuments();
-                  loadProject();
-                }}
-                onPipelineComplete={(pipelineStatus) => {
-                  setShouldAutoStartPipeline(false);
-                  loadDocuments();
-                  loadProject();
-                  // Auto-advance to the Review stage when research succeeds or partially succeeds.
-                  // On failure, stay on Stage 2 so the user can see the error and re-run.
-                  // Note: 'complete' is normalized to 'success' in pollPipelineStatus before
-                  // reaching this callback, but we keep the check for defensive coding.
-                  if (pipelineStatus === 'success' || pipelineStatus === 'partial') {
-                    handleStatusUpdate('review');
-                  }
-                }}
-              />
-
-              <button className="research-back-btn" onClick={() => { setPipelineHasStarted(false); handleRevertToStep('upload'); }} style={{ marginTop: '1rem' }}>
-                &larr; Back to Property Information
-              </button>
+          <div className="research-stage2__launch">
+            <div className="research-step-header" style={{ marginBottom: '1rem' }}>
+              <span className="research-step-header__icon">🔬</span>
+              <div className="research-step-header__body">
+                <h2 className="research-step-header__title">Research &amp; Analysis</h2>
+              </div>
             </div>
-          )}
+            <ResearchRunPanel
+              projectId={projectId}
+              address={pendingSearchParams?.address ?? project.property_address ?? ''}
+              county={pendingSearchParams?.county ?? project.county ?? ''}
+              parcelId={pendingSearchParams?.parcelId ?? project.parcel_id ?? ''}
+              ownerName={pendingSearchParams?.ownerName ?? (project as unknown as { owner_name?: string }).owner_name ?? ''}
+              autoStart={shouldAutoStartPipeline}
+              onPipelineStart={() => {
+                setPipelineHasStarted(true);
+              }}
+              onPipelineComplete={(status) => {
+                setShouldAutoStartPipeline(false);
+                loadDocuments();
+                loadProject();
+              }}
+              onBack={() => {
+                setPipelineHasStarted(false);
+                handleRevertToStep('upload');
+              }}
+              onContinueToReview={() => {
+                loadDocuments();
+                loadProject();
+                handleStatusUpdate('review');
+              }}
+            />
+          </div>
         </div>
       )}
 
       {/* ════════════════════════════════════════════════════════════════
           STAGE 3: REVIEW
+          Layout (top to bottom):
+            1. Summary panel with 5 tabs (Summary, Property Info, Survey Data, Easements, Discrepancies)
+            2. Raw Log Viewer (standalone, always visible)
+            3. Document/Source List (flat expandable cards)
           ════════════════════════════════════════════════════════════ */}
       {currentStage === 'review' && (
         <div className="research-review">
+          {/* ── Header ── */}
           <div className="research-step-header">
             <span className="research-step-header__icon">📋</span>
             <div className="research-step-header__body">
               <h2 className="research-step-header__title">Review Results</h2>
               <p className="research-step-header__desc">
-                Review all research sources, extracted data points, AI analysis summaries, discrepancies, and source links.
-                Resolve any issues before proceeding to Job Prep.
+                Review the complete research summary, extracted data, discrepancies, source documents, and logs.
               </p>
             </div>
           </div>
-          {/* Back to Research */}
-          <button className="research-back-btn" onClick={() => handleRevertToStep('configure')}>
-            &larr; Back to Research &amp; Analysis
-          </button>
 
-          {/* Advance to Job Prep */}
-          <div style={{ margin: '0.75rem 0 1.25rem' }}>
+          {/* ── Navigation ── */}
+          <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+            <button className="research-back-btn" style={{ margin: 0 }} onClick={() => handleRevertToStep('configure')}>
+              ← Back to Research &amp; Analysis
+            </button>
             <button
               className="research-page__new-btn"
               onClick={() => handleStatusUpdate('drawing')}
             >
-              Continue to Job Prep &rarr;
+              Continue to Job Prep →
             </button>
           </div>
 
-          {/* Survey Briefing panel (collapsible) */}
-          {showBriefing ? (
-            <BriefingPanel
-              projectId={projectId}
-              onClose={() => setShowBriefing(false)}
+          {/* ══════════════════════════════════════════════════════════
+              SECTION 1 — Summary Panel with Tabs
+              ══════════════════════════════════════════════════════ */}
+          <div className="review-summary-panel">
+            {/* Tab bar */}
+            <div className="review-summary-panel__tabs">
+              {(['summary', 'property', 'survey', 'easements', 'discrepancies'] as const).map(tab => (
+                <button
+                  key={tab}
+                  className={`review-summary-panel__tab${reviewTab === tab ? ' review-summary-panel__tab--active' : ''}`}
+                  onClick={() => setReviewTab(tab as typeof reviewTab)}
+                >
+                  {tab === 'summary'       && '📊 Summary'}
+                  {tab === 'property'      && '🏠 Property Info'}
+                  {tab === 'survey'        && '📐 Survey Data'}
+                  {tab === 'easements'     && '🛤️ Easements'}
+                  {tab === 'discrepancies' && (
+                    <>Discrepancies{stats.discrepancy_count > 0 && <span className="review-summary-panel__tab-badge">{stats.discrepancy_count}</span>}</>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab content */}
+            <div className="review-summary-panel__body">
+
+              {/* ── Tab: Summary ── */}
+              {reviewTab === 'summary' && (() => {
+                const meta = project.analysis_metadata as Record<string, unknown> | null;
+                const result = meta?.result as Record<string, unknown> | null;
+                const finalSummary = (result?.finalSummary ?? meta?.finalSummary ?? '') as string;
+                const ownerName = (result?.ownerName ?? (meta as Record<string, unknown> | null)?.ownerName ?? '') as string;
+                const propertyId = (result?.propertyId ?? project.parcel_id ?? '') as string;
+                const acreage = (result?.acreage ?? '') as string | number;
+                const legalDesc = (result?.legalDescription ?? project.legal_description_summary ?? '') as string;
+                const docCount = stats.document_count;
+                const dpCount = stats.data_point_count;
+                const discCount = stats.discrepancy_count;
+                const durationMs = (result?.duration_ms ?? 0) as number;
+                const boundary = result?.boundary as { type?: string; callCount?: number; confidence?: number; verified?: boolean } | null;
+                const confidence = boundary?.confidence ? Math.round(boundary.confidence * 100) : null;
+                return (
+                  <div className="review-tab-content">
+                    {/* Stats row */}
+                    <div className="review-stats-row">
+                      {ownerName && <div className="review-stat"><span className="review-stat__label">Owner</span><span className="review-stat__value">{ownerName}</span></div>}
+                      {propertyId && <div className="review-stat"><span className="review-stat__label">Property ID</span><span className="review-stat__value">{propertyId}</span></div>}
+                      {acreage && <div className="review-stat"><span className="review-stat__label">Acreage</span><span className="review-stat__value">{acreage} ac</span></div>}
+                      {boundary?.type && <div className="review-stat"><span className="review-stat__label">Boundary Type</span><span className="review-stat__value">{boundary.type.replace(/_/g, ' ')}</span></div>}
+                      {boundary?.callCount != null && <div className="review-stat"><span className="review-stat__label">Boundary Calls</span><span className="review-stat__value">{boundary.callCount}</span></div>}
+                      {confidence != null && <div className="review-stat"><span className="review-stat__label">Confidence</span><span className="review-stat__value">{confidence}%</span></div>}
+                      {docCount > 0 && <div className="review-stat"><span className="review-stat__label">Documents</span><span className="review-stat__value">{docCount}</span></div>}
+                      {dpCount > 0 && <div className="review-stat"><span className="review-stat__label">Data Points</span><span className="review-stat__value">{dpCount}</span></div>}
+                      {discCount > 0 && <div className="review-stat review-stat--warn"><span className="review-stat__label">Discrepancies</span><span className="review-stat__value">{discCount}</span></div>}
+                      {durationMs > 0 && <div className="review-stat"><span className="review-stat__label">Duration</span><span className="review-stat__value">{(durationMs / 1000).toFixed(1)}s</span></div>}
+                    </div>
+                    {/* Legal description */}
+                    {legalDesc && (
+                      <div className="review-legal-desc">
+                        <div className="review-legal-desc__label">Legal Description</div>
+                        <div className="review-legal-desc__text">{legalDesc}</div>
+                      </div>
+                    )}
+                    {/* Narrative summary */}
+                    {finalSummary ? (
+                      <div className="review-narrative">
+                        <div className="review-narrative__label">Research Summary</div>
+                        <div className="review-narrative__text">{finalSummary}</div>
+                      </div>
+                    ) : (
+                      <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '1rem 0' }}>
+                        No summary available. Run the full research pipeline to generate a summary.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── Tab: Property Info ── */}
+              {reviewTab === 'property' && (() => {
+                const proj = project as unknown as {
+                  property_address?: string | null;
+                  county?: string | null;
+                  state?: string | null;
+                  owner_name?: string | null;
+                  parcel_id?: string | null;
+                  legal_description?: string | null;
+                  acreage?: number | null;
+                };
+                const meta = project.analysis_metadata as Record<string, unknown> | null;
+                const result = meta?.result as Record<string, unknown> | null;
+                const ownerFromResult = (result?.ownerName ?? '') as string;
+                const legalFromResult = (result?.legalDescription ?? '') as string;
+                const fields = [
+                  { label: 'Property Address', value: proj.property_address },
+                  { label: 'County', value: proj.county },
+                  { label: 'State', value: proj.state },
+                  { label: 'Owner Name', value: proj.owner_name || ownerFromResult },
+                  { label: 'Parcel / Property ID', value: proj.parcel_id },
+                  { label: 'Legal Description', value: proj.legal_description || legalFromResult || project.legal_description_summary, wide: true },
+                  { label: 'Acreage', value: proj.acreage ? `${proj.acreage} ac` : null },
+                ].filter(r => r.value);
+                return (
+                  <div className="review-tab-content">
+                    {fields.length === 0 ? (
+                      <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                        No property information on file. Go back to Property Information to add details.
+                      </div>
+                    ) : (
+                      <div className="review-property-grid">
+                        {fields.map(r => (
+                          <div key={r.label} className={`review-property-field${r.wide ? ' review-property-field--wide' : ''}`}>
+                            <div className="review-property-field__label">{r.label}</div>
+                            <div className="review-property-field__value">{r.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── Tab: Survey Data ── */}
+              {reviewTab === 'survey' && (
+                <DataPointsPanel
+                  projectId={projectId}
+                  onViewSource={(docId, excerpt) => {
+                    const doc = documents.find(d => d.id === docId);
+                    if (doc) {
+                      setViewerDoc(doc);
+                      setViewerHighlight(excerpt);
+                    }
+                  }}
+                />
+              )}
+
+              {/* ── Tab: Easements ── */}
+              {reviewTab === 'easements' && (
+                <DataPointsPanel
+                  projectId={projectId}
+                  onViewSource={(docId, excerpt) => {
+                    const doc = documents.find(d => d.id === docId);
+                    if (doc) {
+                      setViewerDoc(doc);
+                      setViewerHighlight(excerpt);
+                    }
+                  }}
+                />
+              )}
+
+              {/* ── Tab: Discrepancies ── */}
+              {reviewTab === 'discrepancies' && (
+                <DiscrepancyPanel
+                  projectId={projectId}
+                  onCountChange={(total, resolved) => {
+                    setStats(prev => ({ ...prev, discrepancy_count: total, resolved_count: resolved }));
+                  }}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════
+              SECTION 2 — Raw Log Viewer (always visible)
+              ══════════════════════════════════════════════════════ */}
+          <div className="review-log-section">
+            <div className="review-log-section__header">
+              <span className="review-log-section__title">🔍 Research Logs</span>
+              <PipelineProgressStyles />
+            </div>
+            <PipelineProgressPanel
+              status="success"
+              onLoadLogs={async () => {
+                try {
+                  const res = await fetch(`/api/admin/research/${projectId}/logs`);
+                  if (!res.ok) return null;
+                  const data = await res.json() as { log?: PipelineLogEntry[] };
+                  return data.log ?? null;
+                } catch { return null; }
+              }}
             />
-          ) : (
-            <button
-              onClick={() => setShowBriefing(true)}
-              style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '0.375rem', padding: '0.4rem 0.85rem', cursor: 'pointer', fontSize: '0.85rem', color: '#1D4ED8', marginBottom: '1rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-            >
-              📋 Show Survey Briefing
-            </button>
-          )}
-
-          {/* Analysis Summary Card */}
-          <AnalysisSummary projectId={projectId} stats={stats} />
-
-          {/* Deep Document Analysis — AI review of legal descriptions and plats */}
-          <DocumentDeepAnalysisPanel
-            projectId={projectId}
-            documents={documents}
-          />
-
-          {/* Review tabs — Research Sources · Extracted Data · Discrepancies · AI Logs */}
-          <div className="research-review__tabs">
-            <button
-              className={`research-review__tab ${reviewTab === 'sources' ? 'research-review__tab--active' : ''}`}
-              onClick={() => setReviewTab('sources')}
-            >
-              📎 Research Sources
-              {documents.length > 0 && (
-                <span className="research-review__tab-badge">{documents.length}</span>
-              )}
-            </button>
-            <button
-              className={`research-review__tab ${reviewTab === 'data' ? 'research-review__tab--active' : ''}`}
-              onClick={() => setReviewTab('data')}
-            >
-              Extracted Data
-            </button>
-            <button
-              className={`research-review__tab ${reviewTab === 'discrepancies' ? 'research-review__tab--active' : ''}`}
-              onClick={() => setReviewTab('discrepancies')}
-            >
-              Discrepancies
-              {stats.discrepancy_count > 0 && (
-                <span className="research-review__tab-badge">{stats.discrepancy_count}</span>
-              )}
-            </button>
-            <button
-              className={`research-review__tab ${reviewTab === 'ai_logs' ? 'research-review__tab--active' : ''}`}
-              onClick={() => setReviewTab('ai_logs')}
-            >
-              🔍 AI Logs
-            </button>
-            <button
-              className={`research-review__tab ${reviewTab === 'survey_plan' ? 'research-review__tab--active' : ''}`}
-              onClick={() => setReviewTab('survey_plan')}
-            >
-              📋 Survey Plan
-            </button>
           </div>
 
-          {/* Tab content */}
-          {reviewTab === 'sources' && (() => {
-            const sourceTypeLabels: Record<string, { label: string; icon: string }> = {
-              property_search:  { label: 'Research — Web Sources', icon: '🔍' },
-              user_upload:      { label: 'User Uploaded', icon: '📤' },
-              linked_reference: { label: 'Linked References', icon: '🔗' },
-              manual_entry:     { label: 'Manual Entry', icon: '📝' },
-            };
+          {/* ══════════════════════════════════════════════════════════
+              SECTION 3 — Document/Source List (flat expandable cards)
+              ══════════════════════════════════════════════════════ */}
+          {(() => {
             const docTypeIcons: Record<string, string> = {
               deed: '📜', plat: '🗺️', survey: '📐', legal_description: '⚖️',
               title_commitment: '📋', easement: '🛤️', restrictive_covenant: '📄',
               field_notes: '📓', subdivision_plat: '🏘️', metes_and_bounds: '📏',
               county_record: '🏛️', appraisal_record: '💰', aerial_photo: '🛰️',
               topo_map: '🗻', utility_map: '🔌', other: '📎',
+            };
+            const sourceTypeLabels: Record<string, { label: string; icon: string }> = {
+              property_search:  { label: 'Research — Web Sources', icon: '🔍' },
+              user_upload:      { label: 'User Uploaded', icon: '📤' },
+              linked_reference: { label: 'Linked References', icon: '🔗' },
+              manual_entry:     { label: 'Manual Entry', icon: '📝' },
             };
             const grouped = documents.reduce<Record<string, typeof documents>>((acc, doc) => {
               const key = doc.source_type || 'other';
@@ -1640,150 +1819,62 @@ export default function ResearchProjectPage() {
             ];
             if (documents.length === 0) {
               return (
-                <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#9CA3AF' }}>
-                  <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>📭</div>
-                  <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>No research sources yet</div>
-                  <div style={{ fontSize: '0.85rem' }}>
-                    Go back to the Research &amp; Analysis step and run the research to collect sources, links, and documents.
-                  </div>
+                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#9CA3AF', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, marginTop: '1rem' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📭</div>
+                  <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>No documents captured</div>
+                  <div style={{ fontSize: '0.85rem' }}>Go back to Research &amp; Analysis to run the pipeline.</div>
                 </div>
               );
             }
             return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingTop: '0.5rem' }}>
+              <div className="review-doc-list">
+                <div className="review-doc-list__header">
+                  <span className="review-doc-list__title">📂 Documents &amp; Sources</span>
+                  <span className="review-doc-list__count">{documents.length}</span>
+                </div>
                 {sortedKeys.map(sourceKey => {
                   const docs = grouped[sourceKey];
                   const { label, icon } = sourceTypeLabels[sourceKey] || { label: sourceKey, icon: '📎' };
                   return (
-                    <div key={sourceKey}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', paddingBottom: '0.4rem', borderBottom: '2px solid #E5E7EB' }}>
-                        <span style={{ fontSize: '1.1rem' }}>{icon}</span>
-                        <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1F2937' }}>{label}</h3>
-                        <span style={{ fontSize: '0.78rem', color: '#6B7280', background: '#F3F4F6', borderRadius: 10, padding: '1px 8px' }}>{docs.length}</span>
+                    <div key={sourceKey} className="review-doc-group">
+                      <div className="review-doc-group__header">
+                        <span>{icon}</span>
+                        <span className="review-doc-group__label">{label}</span>
+                        <span className="review-doc-group__count">{docs.length}</span>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                        {docs.map(doc => {
-                          const typeIcon = doc.document_type ? (docTypeIcons[doc.document_type] || '📎') : '📎';
-                          const typeName = doc.document_type
-                            ? doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-                            : 'Document';
-                          const title = doc.document_label || doc.original_filename || typeName;
-                          const hasViewable = !!(doc.pages_pdf_url || doc.storage_url);
-                          const excerpt = doc.extracted_text
-                            ? doc.extracted_text.slice(0, 220) + (doc.extracted_text.length > 220 ? '…' : '')
-                            : null;
-                          return (
-                            <div
-                              key={doc.id}
-                              style={{ background: '#FAFAFA', border: '1px solid #E5E7EB', borderRadius: '0.5rem', padding: '0.85rem 1rem', display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}
-                            >
-                              <div style={{ fontSize: '1.5rem', lineHeight: 1, flexShrink: 0, marginTop: '0.1rem' }}>{typeIcon}</div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
-                                  <span style={{ fontWeight: 700, fontSize: '0.92rem', color: '#111827' }}>{title}</span>
-                                  <span style={{ fontSize: '0.72rem', color: '#6B7280', background: '#F3F4F6', borderRadius: 8, padding: '1px 7px', flexShrink: 0 }}>{typeName}</span>
-                                  {doc.processing_status === 'analyzed' && (
-                                    <span style={{ fontSize: '0.72rem', color: '#059669', background: '#D1FAE5', borderRadius: 8, padding: '1px 7px', flexShrink: 0 }}>✓ Analyzed</span>
-                                  )}
-                                  {doc.processing_status === 'error' && (
-                                    <span style={{ fontSize: '0.72rem', color: '#DC2626', background: '#FEE2E2', borderRadius: 8, padding: '1px 7px', flexShrink: 0 }}>⚠ Error</span>
-                                  )}
-                                </div>
-                                {excerpt && (
-                                  <div style={{ fontSize: '0.82rem', color: '#4B5563', lineHeight: 1.55, marginBottom: '0.45rem', background: '#F8FAFC', borderLeft: '3px solid #BFDBFE', paddingLeft: '0.5rem', borderRadius: '0 4px 4px 0' }}>
-                                    {excerpt}
-                                  </div>
-                                )}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.78rem', color: '#6B7280' }}>
-                                  {doc.recorded_date && <span>📅 {doc.recorded_date}</span>}
-                                  {doc.recording_info && <span>📋 {doc.recording_info}</span>}
-                                  {doc.page_count && <span>📄 {doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span>}
-                                  {doc.ocr_confidence && <span>🔬 OCR {Math.round(doc.ocr_confidence * 100)}%</span>}
-                                  {doc.file_size_bytes && <span>{(doc.file_size_bytes / 1024).toFixed(0)} KB</span>}
-                                  {doc.created_at && <span title={doc.created_at}>Added {new Date(doc.created_at).toLocaleDateString()}</span>}
-                                </div>
-                                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.55rem', flexWrap: 'wrap' }}>
-                                  {doc.source_url && (
-                                    <a
-                                      href={doc.source_url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#1D4ED8', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '0.3rem', padding: '0.25rem 0.65rem', textDecoration: 'none', fontWeight: 500 }}
-                                    >
-                                      🔗 Open Source ↗
-                                    </a>
-                                  )}
-                                  {hasViewable && (
-                                    <button
-                                      onClick={() => {
-                                        setViewerDoc(doc);
-                                        setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
-                                        setViewerHighlight(undefined);
-                                      }}
-                                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#7C3AED', background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: '0.3rem', padding: '0.25rem 0.65rem', cursor: 'pointer', fontWeight: 500 }}
-                                    >
-                                      🖼️ View Pages / PDF
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {docs.map(doc => {
+                        const typeIcon = doc.document_type ? (docTypeIcons[doc.document_type] || '📎') : '📎';
+                        const typeName = doc.document_type
+                          ? doc.document_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+                          : 'Document';
+                        const title = doc.document_label || doc.original_filename || typeName;
+                        const hasViewable = !!(doc.pages_pdf_url || doc.storage_url);
+                        const excerpt = doc.extracted_text
+                          ? doc.extracted_text.slice(0, 280) + (doc.extracted_text.length > 280 ? '…' : '')
+                          : null;
+                        return (
+                          <ReviewDocCard
+                            key={doc.id}
+                            typeIcon={typeIcon}
+                            title={title}
+                            typeName={typeName}
+                            doc={doc}
+                            excerpt={excerpt}
+                            hasViewable={hasViewable}
+                            onView={() => {
+                              setViewerDoc(doc);
+                              setViewerPdfUrl(doc.pages_pdf_url ?? doc.storage_url ?? null);
+                              setViewerHighlight(undefined);
+                            }}
+                          />
+                        );
+                      })}
                     </div>
                   );
                 })}
               </div>
             );
           })()}
-          {reviewTab === 'data' && (
-            <DataPointsPanel
-              projectId={projectId}
-              onViewSource={(docId, excerpt) => {
-                const doc = documents.find(d => d.id === docId);
-                if (doc) {
-                  setViewerDoc(doc);
-                  setViewerHighlight(excerpt);
-                }
-              }}
-            />
-          )}
-          {reviewTab === 'discrepancies' && (
-            <DiscrepancyPanel
-              projectId={projectId}
-              onCountChange={(total, resolved) => {
-                setStats(prev => ({
-                  ...prev,
-                  discrepancy_count: total,
-                  resolved_count: resolved,
-                }));
-              }}
-            />
-          )}
-          {reviewTab === 'ai_logs' && (
-            <div>
-              <PipelineProgressStyles />
-              <PipelineProgressPanel
-                status="success"
-                onLoadLogs={async () => {
-                  try {
-                    const res = await fetch(`/api/admin/research/${projectId}/logs`);
-                    if (!res.ok) return null;
-                    const data = await res.json() as { log?: PipelineLogEntry[] };
-                    return data.log ?? null;
-                  } catch {
-                    return null;
-                  }
-                }}
-              />
-            </div>
-          )}
-          {reviewTab === 'survey_plan' && (
-            <div style={{ padding: '0.5rem 0' }}>
-              <SurveyPlanPanel projectId={projectId} />
-            </div>
-          )}
         </div>
       )}
 

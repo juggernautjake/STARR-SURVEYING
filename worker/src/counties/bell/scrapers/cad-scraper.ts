@@ -80,6 +80,8 @@ export interface CadSearchInput {
   propertyId?: string;
   ownerName?: string;
   instrumentNumber?: string;
+  /** Real project ID — used to bind the scraper logger to the project's live log registry */
+  projectId?: string;
 }
 
 export interface CadScraperProgress {
@@ -309,8 +311,9 @@ async function searchWithBisCad(
       return null;
     }
 
-    // Create an isolated logger that feeds into our progress callback
-    const logger = new PipelineLogger(`bell-cad-${Date.now()}`);
+    // Create a logger bound to the real project ID so live log entries appear in the
+    // correct registry bucket when the frontend polls /research/status/:projectId.
+    const logger = new PipelineLogger(input.projectId ?? `bell-cad-${Date.now()}`);
     progress('CAD-L3', 'Normalizing address for Playwright search...');
 
     const address = input.address ?? input.ownerName ?? '';

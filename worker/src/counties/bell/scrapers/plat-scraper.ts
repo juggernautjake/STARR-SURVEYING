@@ -45,6 +45,8 @@ export interface PlatSearchInput {
   legalDescription?: string;
   /** Whether to capture full page images (default: true) */
   captureImages?: boolean;
+  /** Real project ID — used to bind scraper loggers to the project's live log registry */
+  projectId?: string;
 }
 
 export interface PlatSearchResult {
@@ -134,7 +136,7 @@ export async function scrapeBellPlats(
 
     for (const name of searchNamesList) {
       progress(`  Searching repository for: "${name}"`);
-      const repPlats = await searchPlatRepository(name, captureImages, screenshots, urlsVisited, progress);
+      const repPlats = await searchPlatRepository(name, captureImages, screenshots, urlsVisited, progress, input.projectId);
       for (const p of repPlats) {
         if (addPlat(p)) {
           repositoryFound++;
@@ -153,7 +155,7 @@ export async function scrapeBellPlats(
   for (const name of searchNamesList) {
     if (clerkFound >= 10) break; // Cap to prevent runaway searching
     progress(`  Layer 2A: Clerk search for subdivision "${name}"`);
-    const clerkPlats = await searchClerkForPlats(name, captureImages, screenshots, urlsVisited, progress);
+    const clerkPlats = await searchClerkForPlats(name, captureImages, screenshots, urlsVisited, progress, input.projectId);
     for (const p of clerkPlats) {
       if (addPlat(p)) clerkFound++;
     }
@@ -162,7 +164,7 @@ export async function scrapeBellPlats(
   // Search by owner name in clerk (for properties without subdivision)
   if (input.ownerName && plats.length === 0) {
     progress(`  Layer 2B: Clerk search by owner "${input.ownerName}" for plats`);
-    const ownerPlats = await searchClerkForPlats(input.ownerName, captureImages, screenshots, urlsVisited, progress);
+    const ownerPlats = await searchClerkForPlats(input.ownerName, captureImages, screenshots, urlsVisited, progress, input.projectId);
     for (const p of ownerPlats) {
       if (addPlat(p)) clerkFound++;
     }
@@ -172,12 +174,12 @@ export async function scrapeBellPlats(
   for (const ref of platRefs) {
     if (ref.cabinetSlide) {
       progress(`  Layer 2C: Cabinet/Slide lookup: ${ref.cabinetSlide}`);
-      const p = await searchByCabinetSlide(ref.cabinetSlide, captureImages, screenshots, urlsVisited, progress);
+      const p = await searchByCabinetSlide(ref.cabinetSlide, captureImages, screenshots, urlsVisited, progress, input.projectId);
       if (p && addPlat(p)) clerkFound++;
     }
     if (ref.volume && ref.page) {
       progress(`  Layer 2D: Volume/Page lookup: Vol ${ref.volume} Pg ${ref.page}`);
-      const p = await searchByVolumePage(ref.volume, ref.page, captureImages, screenshots, urlsVisited, progress);
+      const p = await searchByVolumePage(ref.volume, ref.page, captureImages, screenshots, urlsVisited, progress, input.projectId);
       if (p && addPlat(p)) clerkFound++;
     }
   }
@@ -189,7 +191,7 @@ export async function scrapeBellPlats(
   if (input.instrumentNumbers && input.instrumentNumbers.length > 0) {
     progress(`Layer 3: Checking ${input.instrumentNumbers.length} instrument(s) for plat records...`);
     for (const instrNum of input.instrumentNumbers) {
-      const p = await checkInstrumentForPlat(instrNum, captureImages, screenshots, urlsVisited, progress);
+      const p = await checkInstrumentForPlat(instrNum, captureImages, screenshots, urlsVisited, progress, input.projectId);
       instrumentsChecked++;
       if (p && addPlat(p)) {
         progress(`  ✓ Instrument ${instrNum} is a plat: ${p.name}`);
@@ -323,6 +325,7 @@ async function searchPlatRepository(
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
+  projectId?: string,
 ): Promise<PlatRecord[]> {
   const plats: PlatRecord[] = [];
 
@@ -330,7 +333,7 @@ async function searchPlatRepository(
     // Use the proven county-plats.ts service layer
     const { fetchBestMatchingPlat, extractSubdivisionName } = await import('../../../services/county-plats.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
-    const logger = new PipelineLogger(`plat-repo-${Date.now()}`);
+    const logger = new PipelineLogger(projectId ?? `plat-repo-${Date.now()}`);
 
     // The county-plats.ts service expects the subdivision name, not the full legal description.
     // Use it directly since we already extracted the name.
@@ -378,13 +381,14 @@ async function searchClerkForPlats(
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
+  projectId?: string,
 ): Promise<PlatRecord[]> {
   const plats: PlatRecord[] = [];
 
   try {
     const { searchBellClerkOwnerForPlatDeed, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
-    const logger = new PipelineLogger(`plat-clerk-${Date.now()}`);
+    const logger = new PipelineLogger(projectId ?? `plat-clerk-${Date.now()}`);
 
     urlsVisited.push(`${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(name)}`);
 
@@ -431,6 +435,7 @@ async function searchByCabinetSlide(
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
+  projectId?: string,
 ): Promise<PlatRecord | null> {
   const query = `Cabinet ${cabinetSlide.replace('-', ' Slide ')}`;
   const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
@@ -439,7 +444,7 @@ async function searchByCabinetSlide(
   try {
     const { searchClerkRecords, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
-    const logger = new PipelineLogger(`plat-cab-${Date.now()}`);
+    const logger = new PipelineLogger(projectId ?? `plat-cab-${Date.now()}`);
 
     const docResults = await searchClerkRecords('bell', query, logger);
     const docRefs = docResults.map(d => d.ref);
@@ -482,6 +487,7 @@ async function searchByVolumePage(
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
+  projectId?: string,
 ): Promise<PlatRecord | null> {
   const query = `${volume}/${page}`;
   urlsVisited.push(`${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`);
@@ -489,7 +495,7 @@ async function searchByVolumePage(
   try {
     const { searchClerkRecords, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
-    const logger = new PipelineLogger(`plat-volpg-${Date.now()}`);
+    const logger = new PipelineLogger(projectId ?? `plat-volpg-${Date.now()}`);
 
     const docResults = await searchClerkRecords('bell', query, logger);
     const docRefs = docResults.map(d => d.ref);
@@ -536,11 +542,12 @@ async function checkInstrumentForPlat(
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
+  projectId?: string,
 ): Promise<PlatRecord | null> {
   try {
     const { searchByInstrument, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
-    const logger = new PipelineLogger(`plat-instr-${Date.now()}`);
+    const logger = new PipelineLogger(projectId ?? `plat-instr-${Date.now()}`);
 
     urlsVisited.push(BELL_ENDPOINTS.clerk.document(instrumentNumber));
     const docRef = await searchByInstrument(instrumentNumber, logger);

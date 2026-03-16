@@ -90,6 +90,8 @@ export interface ClerkSearchInput {
   maxDocuments?: number;
   /** Whether to capture page images for all found documents (default: true) */
   captureImages?: boolean;
+  /** Real project ID — used to bind scraper loggers to the project's live log registry */
+  projectId?: string;
 }
 
 export interface ClerkScraperProgress {
@@ -156,7 +158,7 @@ export async function scrapeBellClerk(
       if (documents.length >= maxDocs) break;
 
       progress(`  Fetching instrument: ${instrNum}`);
-      const doc = await fetchInstrumentDocument(instrNum, captureImages, screenshots, urlsVisited, progress);
+      const doc = await fetchInstrumentDocument(instrNum, captureImages, screenshots, urlsVisited, progress, input.projectId);
       if (doc) {
         const isNew = addDocument(doc);
         if (isNew) {
@@ -186,6 +188,7 @@ export async function scrapeBellClerk(
       screenshots,
       urlsVisited,
       progress,
+      input.projectId,
     );
 
     let newCount = 0;
@@ -208,6 +211,7 @@ export async function scrapeBellClerk(
       screenshots,
       urlsVisited,
       progress,
+      input.projectId,
     );
 
     let newCount = 0;
@@ -225,7 +229,7 @@ export async function scrapeBellClerk(
     for (const vp of input.volumePages) {
       if (documents.length >= maxDocs) break;
       progress(`  Vol ${vp.volume} Pg ${vp.page}`);
-      const doc = await fetchByVolumePage(vp.volume, vp.page, captureImages, screenshots, urlsVisited, progress);
+      const doc = await fetchByVolumePage(vp.volume, vp.page, captureImages, screenshots, urlsVisited, progress, input.projectId);
       if (doc) {
         const isNew = addDocument(doc);
         if (isNew) {
@@ -268,6 +272,7 @@ async function fetchInstrumentDocument(
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
+  projectId?: string,
 ): Promise<ClerkDocument | null> {
   const docUrl = BELL_ENDPOINTS.clerk.document(instrumentNumber);
   urlsVisited.push(docUrl);
@@ -276,7 +281,7 @@ async function fetchInstrumentDocument(
     // Use the proven bell-clerk.ts service layer for Playwright interaction
     const { searchByInstrument, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
-    const logger = new PipelineLogger(`clerk-instr-${instrumentNumber}-${Date.now()}`);
+    const logger = new PipelineLogger(projectId ?? `clerk-instr-${instrumentNumber}-${Date.now()}`);
 
     // Fetch document metadata first
     const docRef = await searchByInstrument(instrumentNumber, logger);
@@ -340,6 +345,7 @@ async function searchClerkByOwner(
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
+  projectId?: string,
 ): Promise<ClerkDocument[]> {
   const documents: ClerkDocument[] = [];
   const nameVariants = formatOwnerNameVariants(ownerName);
@@ -347,7 +353,7 @@ async function searchClerkByOwner(
   try {
     const { searchClerkRecords, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
-    const logger = new PipelineLogger(`clerk-owner-${Date.now()}`);
+    const logger = new PipelineLogger(projectId ?? `clerk-owner-${Date.now()}`);
 
     for (const name of nameVariants) {
       if (documents.length >= maxDocs) break;
@@ -419,13 +425,14 @@ async function searchClerkBySubdivision(
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
+  projectId?: string,
 ): Promise<ClerkDocument[]> {
   const documents: ClerkDocument[] = [];
 
   try {
     const { searchBellClerkOwnerForPlatDeed, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
-    const logger = new PipelineLogger(`clerk-subdiv-${Date.now()}`);
+    const logger = new PipelineLogger(projectId ?? `clerk-subdiv-${Date.now()}`);
 
     const searchUrl = `${BELL_ENDPOINTS.clerk.results}?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(subdivisionName)}`;
     urlsVisited.push(searchUrl);
@@ -498,6 +505,7 @@ async function fetchByVolumePage(
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
+  projectId?: string,
 ): Promise<ClerkDocument | null> {
   // Try constructing a quick-search query with vol+page
   const query = `${volume}/${page}`;
@@ -507,7 +515,7 @@ async function fetchByVolumePage(
   try {
     const { searchClerkRecords, fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
-    const logger = new PipelineLogger(`clerk-volpg-${Date.now()}`);
+    const logger = new PipelineLogger(projectId ?? `clerk-volpg-${Date.now()}`);
 
     const docResults = await searchClerkRecords('bell', query, logger);
     const docRefs = docResults.map(d => d.ref);
@@ -556,6 +564,7 @@ export async function captureDocumentPages(
   screenshots: ScreenshotCapture[],
   urlsVisited: string[],
   progress: (msg: string) => void,
+  projectId?: string,
 ): Promise<string[]> {
   const docUrl = BELL_ENDPOINTS.clerk.document(instrumentId);
   urlsVisited.push(docUrl);
@@ -564,7 +573,7 @@ export async function captureDocumentPages(
   try {
     const { fetchDocumentImages } = await import('../../../services/bell-clerk.js');
     const { PipelineLogger } = await import('../../../lib/logger.js');
-    const logger = new PipelineLogger(`clerk-pages-${instrumentId}-${Date.now()}`);
+    const logger = new PipelineLogger(projectId ?? `clerk-pages-${instrumentId}-${Date.now()}`);
 
     const pages = await fetchDocumentImages(instrumentId, maxPages, logger);
     const images = pages.map(p => p.imageBase64).filter(Boolean);

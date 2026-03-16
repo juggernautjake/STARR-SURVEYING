@@ -417,6 +417,33 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       } else {
         const r = unifiedResult.data;
         console.log(`[Pipeline] ${projectId} (${county}, county-specific): COMPLETE in ${(r.durationMs / 1000).toFixed(1)}s`);
+        // Persist error log entries to Supabase for county-specific pipelines
+        // so the Review stage can show them after a page refresh.
+        const countyLogEntries = r.errors?.map((e: { phase?: string; source?: string; message?: string; timestamp?: string }) => ({
+          layer: e.phase ?? 'County',
+          source: e.source ?? 'unknown',
+          method: 'error',
+          input: '',
+          status: 'fail' as const,
+          duration_ms: 0,
+          dataPointsFound: 0,
+          error: e.message ?? String(e),
+          timestamp: e.timestamp ?? new Date().toISOString(),
+        })) ?? [];
+        if (countyLogEntries.length > 0) {
+          getSupabase()
+            .then((supabase) => {
+              if (!supabase) return;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              return (supabase as any)
+                .from('research_projects')
+                .update({ research_logs: countyLogEntries })
+                .eq('id', projectId);
+            })
+            .catch((err: unknown) => {
+              console.warn(`[Pipeline] ${projectId}: error saving county logs to Supabase:`, err instanceof Error ? err.message : String(err));
+            });
+        }
       }
     })
     .catch((err) => {
