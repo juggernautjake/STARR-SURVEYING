@@ -841,7 +841,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         // Use more expected pages for plats — large multi-lot plats can have 10+ pages
         const expectedPages = /plat/i.test(legalDesc) ? 10 : 2;
         try {
-          const pages = await fetchDocumentImages(input.county, instrNum, expectedPages, logger);
+          const pages = await fetchDocumentImages(instrNum, expectedPages, logger, input.county);
           if (pages.length > 0) {
             const docResult: DocumentResult = {
               ref: {
@@ -978,7 +978,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
             // Use 20 as the upper bound for plats — large multi-lot plats can have
             // many pages and the dynamic stopping in fetchDocumentImages will bail
             // out early once no more pages are found.  Deeds rarely exceed 4 pages.
-            const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 20 : 4, logger);
+            const pages = await fetchDocumentImages(instrNum, isPlat ? 20 : 4, logger, input.county);
             if (pages.length > 0) {
               const docResult: DocumentResult = {
                 ref: {
@@ -1053,7 +1053,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
               try {
                 // Fetch more pages for plats (large plats may have many pages)
                 const expectedPgs = isPlat ? 10 : 2;
-                const pages = await fetchDocumentImages(input.county, instrNum, expectedPgs, logger);
+                const pages = await fetchDocumentImages(instrNum, expectedPgs, logger, input.county);
                 if (pages.length > 0) {
                   const docResult: DocumentResult = {
                     ref: {
@@ -1113,7 +1113,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           if (!doc.ref.instrumentNumber) continue;
           try {
             const isPlat = /plat/i.test(doc.ref.documentType);
-            const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber, isPlat ? 10 : 2, logger);
+            const pages = await fetchDocumentImages(doc.ref.instrumentNumber, isPlat ? 10 : 2, logger, input.county);
             if (pages.length > 0) {
               doc.pages = pages;
               totalPages += pages.length;
@@ -1212,7 +1212,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
               const batchResults = await Promise.allSettled(
                 batchItems.map(async (doc) => {
                   const fetchStart = Date.now();
-                  const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger);
+                  const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger, input.county);
                   logger.info('Stage2-Addr', `Fetched ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
                   return { doc, pages };
                 }),
@@ -1267,7 +1267,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
               batchItems.map(async (doc) => {
                 const fetchStart = Date.now();
                 // Plats often have more pages — request up to 5
-                const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber!, 5, logger);
+                const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, 5, logger, input.county);
                 logger.info('Stage2-Plat', `Fetched plat ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
                 return { doc, pages };
               }),
@@ -1337,7 +1337,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           try {
             const isPlat = /plat/i.test(legalDesc);
             const expectedPages = isPlat ? 10 : 2;
-            const pages = await fetchDocumentImages(input.county, instrNum, expectedPages, logger);
+            const pages = await fetchDocumentImages(instrNum, expectedPages, logger, input.county);
             if (pages.length > 0) {
               const docResult: DocumentResult = {
                 ref: {
@@ -1513,7 +1513,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           const t = logger.attempt('Discovery', `${input.county} County Clerk`, 'fetchDocumentImages', instrNum);
           try {
             const expectedPages = 4; // general default
-            const pages = await fetchDocumentImages(input.county, instrNum, expectedPages, logger);
+            const pages = await fetchDocumentImages(instrNum, expectedPages, logger, input.county);
             if (pages.length > 0) {
               const docResult: DocumentResult = {
                 ref: {
@@ -1566,7 +1566,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                   const imgT = logger.attempt('Discovery', `${input.county} County Clerk`, 'fetchDocumentImages', doc.ref.instrumentNumber);
                   try {
                     const isPlat = /plat/i.test(doc.ref.documentType);
-                    const pages = await fetchDocumentImages(input.county, doc.ref.instrumentNumber, isPlat ? 10 : 2, logger);
+                    const pages = await fetchDocumentImages(doc.ref.instrumentNumber, isPlat ? 10 : 2, logger, input.county);
                     if (pages.length > 0) {
                       doc.pages = pages;
                       discoveryState.totalDocumentsRetrieved++;
@@ -1620,7 +1620,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
                   const docType = isPlat ? 'Final Plat (discovery)' : 'Warranty Deed (discovery)';
                   const imgT = logger.attempt('Discovery', 'Bell County Clerk', 'fetchDocumentImages', instrNum);
                   try {
-                    const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 10 : 4, logger);
+                    const pages = await fetchDocumentImages(instrNum, isPlat ? 10 : 4, logger, input.county);
                     if (pages.length > 0) {
                       const docResult: DocumentResult = {
                         ref: {
@@ -1890,7 +1890,7 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
           stage3SearchedInstrs.add(instrNum);
           try {
             const isPlat = /plat/i.test(legalDesc);
-            const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 10 : 2, logger);
+            const pages = await fetchDocumentImages(instrNum, isPlat ? 10 : 2, logger, input.county);
             if (pages.length > 0) {
               const chaseDoc: DocumentResult = {
                 ref: {

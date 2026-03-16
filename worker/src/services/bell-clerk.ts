@@ -2587,10 +2587,10 @@ export async function searchClerkForPlats(
  * @param logger  Pipeline logger
  */
 export async function fetchDocumentImages(
-  county: string,
   instrumentNumber: string,
   expectedPages: number,
   logger: PipelineLogger,
+  county: string = 'bell',
 ): Promise<DocumentPage[]> {
   const baseUrl = getKofileBaseUrl(county);
   if (!baseUrl) {
