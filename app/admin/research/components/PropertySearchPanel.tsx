@@ -309,7 +309,8 @@ export default function PropertySearchPanel({
     setPipelineResult(null);
     setPipelineStatus(null);
 
-    // Phase 1: Public records search (discovers and displays website links)
+    // Phase 1: Public records search (discovers and displays website links).
+    // When autoStart is true (Stage 2), all found results are automatically imported.
     setSearching(true);
     fetch(`/api/admin/research/${projectId}/search`, {
       method: 'POST',
@@ -324,6 +325,11 @@ export default function PropertySearchPanel({
       if (res.ok) {
         const data = await res.json() as PropertySearchResponse;
         setSearchResponse(data);
+        // In Stage 2 mode (autoStart=true), silently import all found resources
+        // into the project so they are immediately available for the pipeline.
+        if (autoStart && data.results.length > 0) {
+          importAllResults(data.results);
+        }
       } else {
         const err = await res.json() as { error?: string };
         setSearchError(err.error || 'Records search failed');
@@ -419,8 +425,9 @@ export default function PropertySearchPanel({
       if (data.status === 'running') {
         setPipelineStatus('running');
       } else {
-        // Pipeline finished (success, partial, or failed)
-        const finalStatus = data.status;
+        // Pipeline finished (success, partial, failed, or county-specific 'complete').
+        // Normalise 'complete' → 'success' so downstream status checks work uniformly.
+        const finalStatus = data.status === 'complete' ? 'success' : data.status;
         setPipelineStatus(finalStatus);
         setPipelineRunning(false);
         setPipelineStallMinutes(0);
@@ -449,6 +456,41 @@ export default function PropertySearchPanel({
 
   function deselectAll() {
     setSelected(new Set());
+  }
+
+  /** Silently import all results without user selection — used in Stage 2 (autoStart) mode. */
+  async function importAllResults(results: PropertySearchResult[]) {
+    if (!results.length) return;
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/search`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          results: results.map((r: PropertySearchResult) => ({
+            source: r.source,
+            source_name: r.source_name,
+            title: r.title,
+            url: r.url,
+            document_type: r.document_type,
+            description: r.description,
+          })),
+          address: address.trim() || undefined,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const mapNote = data.map_images_queued
+          ? ' Satellite and topo map images are being captured in the background and will appear in Documents.'
+          : '';
+        setImportResult({
+          count: data.imported,
+          newCount: data.new_count,
+          alreadyExistedCount: data.already_existed_count,
+          mapNote,
+        });
+        onImported?.();
+      }
+    } catch { /* silently ignore — pipeline will still run */ }
   }
 
   async function handleImport() {
@@ -526,6 +568,13 @@ export default function PropertySearchPanel({
   const hasAddressIssues = searchResponse?.address_issues && searchResponse.address_issues.length > 0;
   const specificCount = searchResponse?.results.filter((r: PropertySearchResult) => r.is_property_specific).length || 0;
 
+  // Stage 2 mode: autoStart=true means we arrived from Stage 1 with values pre-filled.
+  // In this mode: hide the form inputs (already set), suppress the redundant loading
+  // animation (PipelineProgressPanel handles it), and defer showing search results
+  // (Geocoded Location Review, Online Resources) until the pipeline is done.
+  const isStage2Mode = autoStart === true;
+  const isPipelineDone = pipelineStatus === 'success' || pipelineStatus === 'partial' || pipelineStatus === 'failed';
+
   function researchButtonLabel(): string {
     if (pipelineRunning) {
       const stage = pipelineResult?.currentStage;
@@ -533,253 +582,356 @@ export default function PropertySearchPanel({
     }
     if (liteRunning) return `⏳ ${liteStage || 'Researching…'}`;
     if (searching) return '⏳ Searching public records…';
+    if (isStage2Mode && isPipelineDone) return '🔄 Re-run Research & Analysis';
     return '🔍 Initiate Research & Analysis';
   }
 
   return (
     <div className="research-search">
-      <div className="research-search__header">
-        <h3 className="research-search__title">
-          {hideResultsAndProgress ? 'Property Information' : 'Research & Analysis'}
-        </h3>
-        <p className="research-search__desc">
-          {hideResultsAndProgress
-            ? <>Enter the property details below, then click <strong>Initiate Research &amp; Analysis</strong> to begin. You can also upload deeds, plats, and field notes using the panel above.</>
-            : <>The AI is searching all public records, navigating county CAD and deed/records office websites, capturing screenshots of relevant documents, and extracting all available property information — including bearings, coordinates, acreage, and legal descriptions.</>
-          }
-        </p>
-      </div>
-
-      {/* Search form */}
-      <div className="research-search__form">
-        <div className="research-search__field">
-          <label className="research-search__label" htmlFor="ps-address">
-            Property Address
-          </label>
-          <input
-            id="ps-address"
-            className="research-search__input"
-            type="text"
-            placeholder="e.g. 1234 Main St, Belton, TX 76513"
-            value={address}
-            onChange={e => {
-              const val = e.target.value;
-              setAddress(val);
-              // Auto-detect Bell County from address when county is blank or was auto-filled
-              if (!county.trim() || countyAutoDetected) {
-                if (detectBellCountyFromAddress(val)) {
-                  setCounty('Bell');
-                  setCountyAutoDetected(true);
-                } else if (countyAutoDetected) {
-                  // Clear the auto-detected county if address no longer matches
-                  setCounty('');
-                  setCountyAutoDetected(false);
-                }
-              }
-            }}
-            onKeyDown={e => e.key === 'Enter' && handleInitiateResearch()}
-          />
+      {/* Header — hidden in Stage 2 mode since page.tsx already provides a title */}
+      {!isStage2Mode && (
+        <div className="research-search__header">
+          <h3 className="research-search__title">
+            {hideResultsAndProgress ? 'Property Information' : 'Research & Analysis'}
+          </h3>
+          <p className="research-search__desc">
+            {hideResultsAndProgress
+              ? <>Enter the property details below, then click <strong>Initiate Research &amp; Analysis</strong> to begin. You can also upload deeds, plats, and field notes using the panel above.</>
+              : <>The AI is searching all public records, navigating county CAD and deed/records office websites, capturing screenshots of relevant documents, and extracting all available property information — including bearings, coordinates, acreage, and legal descriptions.</>
+            }
+          </p>
         </div>
+      )}
 
-        <div className="research-search__row">
-          <div className="research-search__field research-search__field--half">
-            <label className="research-search__label" htmlFor="ps-county">
-              County
+      {/* Search form — hidden in Stage 2 (values were set in Stage 1) */}
+      {!isStage2Mode && (
+        <div className="research-search__form">
+          <div className="research-search__field">
+            <label className="research-search__label" htmlFor="ps-address">
+              Property Address
             </label>
             <input
-              id="ps-county"
+              id="ps-address"
               className="research-search__input"
               type="text"
-              placeholder="e.g. Bell"
-              value={county}
+              placeholder="e.g. 1234 Main St, Belton, TX 76513"
+              value={address}
               onChange={e => {
-                setCounty(e.target.value);
-                // If user manually edits county, stop auto-detecting
-                setCountyAutoDetected(false);
+                const val = e.target.value;
+                setAddress(val);
+                // Auto-detect Bell County from address when county is blank or was auto-filled
+                if (!county.trim() || countyAutoDetected) {
+                  if (detectBellCountyFromAddress(val)) {
+                    setCounty('Bell');
+                    setCountyAutoDetected(true);
+                  } else if (countyAutoDetected) {
+                    // Clear the auto-detected county if address no longer matches
+                    setCounty('');
+                    setCountyAutoDetected(false);
+                  }
+                }
               }}
+              onKeyDown={e => e.key === 'Enter' && handleInitiateResearch()}
             />
           </div>
-          <div className="research-search__field research-search__field--half">
-            <label className="research-search__label" htmlFor="ps-parcel">
-              Parcel / Property ID
+
+          <div className="research-search__row">
+            <div className="research-search__field research-search__field--half">
+              <label className="research-search__label" htmlFor="ps-county">
+                County
+              </label>
+              <input
+                id="ps-county"
+                className="research-search__input"
+                type="text"
+                placeholder="e.g. Bell"
+                value={county}
+                onChange={e => {
+                  setCounty(e.target.value);
+                  // If user manually edits county, stop auto-detecting
+                  setCountyAutoDetected(false);
+                }}
+              />
+            </div>
+            <div className="research-search__field research-search__field--half">
+              <label className="research-search__label" htmlFor="ps-parcel">
+                Parcel / Property ID
+              </label>
+              <input
+                id="ps-parcel"
+                className="research-search__input"
+                type="text"
+                placeholder="e.g. R12345"
+                value={parcelId}
+                onChange={e => setParcelId(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="research-search__field">
+            <label className="research-search__label" htmlFor="ps-owner">
+              Owner Name
             </label>
             <input
-              id="ps-parcel"
+              id="ps-owner"
               className="research-search__input"
               type="text"
-              placeholder="e.g. R12345"
-              value={parcelId}
-              onChange={e => setParcelId(e.target.value)}
+              placeholder="e.g. John Smith"
+              value={ownerName}
+              onChange={e => setOwnerName(e.target.value)}
             />
           </div>
-        </div>
 
-        <div className="research-search__field">
-          <label className="research-search__label" htmlFor="ps-owner">
-            Owner Name
-          </label>
-          <input
-            id="ps-owner"
-            className="research-search__input"
-            type="text"
-            placeholder="e.g. John Smith"
-            value={ownerName}
-            onChange={e => setOwnerName(e.target.value)}
-          />
-        </div>
-
-        {(searchError || liteError || pipelineError) && (
-          <div className="research-search__error">
-            {searchError || liteError || pipelineError}
-          </div>
-        )}
-
-        {/* ── Single Research Button ── */}
-        <div className="research-search__actions">
-          <button
-            className="research-page__new-btn"
-            onClick={handleInitiateResearch}
-            disabled={liteRunning || searching || pipelineRunning}
-            style={{ width: '100%', padding: '0.65rem 1.5rem', fontSize: '1rem' }}
-          >
-            {researchButtonLabel()}
-          </button>
-        </div>
-
-        {/* ── Research loading animation (visible while any pipeline is running) ── */}
-        {!hideResultsAndProgress && (searching || liteRunning || pipelineRunning) && (
-          <div className="research-search__loading">
-            <div className="research-search__loading-spinner" />
-            <div className="research-search__loading-title">Research In Progress</div>
-            <div className="research-search__loading-subtitle">
-              {pipelineRunning && pipelineResult?.message
-                ? pipelineResult.message.replace(/^Stage\s*\d+(?:\.\d+)?:\s*/i, '')
-                : pipelineRunning && pipelineResult?.currentStage
-                ? pipelineResult.currentStage
-                : liteRunning && liteStage
-                ? liteStage
-                : 'Gathering property data…'}
+          {(searchError || liteError || pipelineError) && (
+            <div className="research-search__error">
+              {searchError || liteError || pipelineError}
             </div>
-            <div className="research-search__loading-steps">
-              <div className={`research-search__loading-step${searching ? ' research-search__loading-step--active' : ' research-search__loading-step--done'}`}>
-                <span className="research-search__loading-step__dot" />
-                {searching
-                  ? 'Searching county CAD, deed records, FEMA, TNRIS…'
-                  : 'Public records search complete'}
+          )}
+
+          {/* ── Single Research Button ── */}
+          <div className="research-search__actions">
+            <button
+              className="research-page__new-btn"
+              onClick={handleInitiateResearch}
+              disabled={liteRunning || searching || pipelineRunning}
+              style={{ width: '100%', padding: '0.65rem 1.5rem', fontSize: '1rem' }}
+            >
+              {researchButtonLabel()}
+            </button>
+          </div>
+
+          {/* ── Research loading animation (not shown in Stage 2 — PipelineProgressPanel handles it) ── */}
+          {!hideResultsAndProgress && (searching || liteRunning || pipelineRunning) && (
+            <div className="research-search__loading">
+              <div className="research-search__loading-spinner" />
+              <div className="research-search__loading-title">Research In Progress</div>
+              <div className="research-search__loading-subtitle">
+                {pipelineRunning && pipelineResult?.message
+                  ? pipelineResult.message.replace(/^Stage\s*\d+(?:\.\d+)?:\s*/i, '')
+                  : pipelineRunning && pipelineResult?.currentStage
+                  ? pipelineResult.currentStage
+                  : liteRunning && liteStage
+                  ? liteStage
+                  : 'Gathering property data…'}
               </div>
-              <div className={`research-search__loading-step${liteRunning || pipelineRunning ? ' research-search__loading-step--active' : ''}`}>
-                <span className="research-search__loading-step__dot" />
-                {pipelineRunning
-                  ? (pipelineResult?.message
-                      ? pipelineResult.message
-                      : 'Navigating county records sites, extracting data…')
-                  : liteRunning
-                  ? (liteStage || 'Analyzing property data…')
-                  : 'Awaiting pipeline start…'}
+              <div className="research-search__loading-steps">
+                <div className={`research-search__loading-step${searching ? ' research-search__loading-step--active' : ' research-search__loading-step--done'}`}>
+                  <span className="research-search__loading-step__dot" />
+                  {searching
+                    ? 'Searching county CAD, deed records, FEMA, TNRIS…'
+                    : 'Public records search complete'}
+                </div>
+                <div className={`research-search__loading-step${liteRunning || pipelineRunning ? ' research-search__loading-step--active' : ''}`}>
+                  <span className="research-search__loading-step__dot" />
+                  {pipelineRunning
+                    ? (pipelineResult?.message
+                        ? pipelineResult.message
+                        : 'Navigating county records sites, extracting data…')
+                    : liteRunning
+                    ? (liteStage || 'Analyzing property data…')
+                    : 'Awaiting pipeline start…'}
+                </div>
               </div>
+              {/* Stall warning — shown after 45+ minutes to reassure user the run is continuing */}
+              {pipelineRunning && pipelineStallMinutes >= 45 && (
+                <div style={{ marginTop: '0.5rem', padding: '0.4rem 0.6rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: '0.78rem', color: '#92400e' }}>
+                  ⏳ Still running ({pipelineStallMinutes} min elapsed) — complex properties with many documents take longer. The run will complete on its own.
+                </div>
+              )}
             </div>
-            {/* Stall warning — shown after 45+ minutes to reassure user the run is continuing */}
-            {pipelineRunning && pipelineStallMinutes >= 45 && (
-              <div style={{ marginTop: '0.5rem', padding: '0.4rem 0.6rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: '0.78rem', color: '#92400e' }}>
-                ⏳ Still running ({pipelineStallMinutes} min elapsed) — complex properties with many documents take longer. The run will complete on its own.
-              </div>
-            )}
-          </div>
-        )}
+          )}
 
-        {/* ── Research pipeline results (deep or lite) ── */}
-        {!hideResultsAndProgress && (liteSummary || pipelineStatus) && (
-          <div style={{ marginTop: '0.75rem' }}>
+          {/* ── Research pipeline results (deep or lite) ── */}
+          {!hideResultsAndProgress && (liteSummary || pipelineStatus) && (
+            <div style={{ marginTop: '0.75rem' }}>
 
-            {/* Lite pipeline summary */}
-            {liteSummary && !liteRunning && (
-              <>
-                <div style={{ marginBottom: '0.4rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.5rem' }}>
-                  {liteSummary.links_found !== undefined && (
-                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
-                      <strong>{liteSummary.links_found}</strong> record links found
-                    </div>
-                  )}
-                  {liteSummary.documents_imported !== undefined && (
-                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
-                      <strong>{liteSummary.documents_imported}</strong> documents imported
-                    </div>
-                  )}
-                  {liteSummary.data_points_extracted !== undefined && (
-                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
-                      <strong>{liteSummary.data_points_extracted}</strong> data points extracted
-                    </div>
-                  )}
-                  {liteSummary.discrepancies_found !== undefined && liteSummary.discrepancies_found > 0 && (
-                    <div style={{ background: '#FEF3C7', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #FDE68A', fontSize: '0.8rem' }}>
-                      ⚠ <strong>{liteSummary.discrepancies_found}</strong> discrepancies found
-                    </div>
-                  )}
-                  {liteSummary.confidence_score !== undefined && (
-                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
-                      <strong>{liteSummary.confidence_score}%</strong> confidence
-                    </div>
-                  )}
-                  {liteSummary.acreage && (
-                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
-                      Area: <strong>{liteSummary.acreage}</strong>
-                    </div>
-                  )}
-                  {liteSummary.flood_zone && (
-                    <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
-                      Flood Zone: <strong>{liteSummary.flood_zone}</strong>
-                    </div>
-                  )}
-                </div>
-                {liteSummary.owner_name && (
-                  <div style={{ padding: '0.4rem 0.6rem', background: '#F0FDF4', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem', marginBottom: '0.35rem' }}>
-                    <strong>Owner:</strong> {liteSummary.owner_name}
+              {/* Lite pipeline summary */}
+              {liteSummary && !liteRunning && (
+                <>
+                  <div style={{ marginBottom: '0.4rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.5rem' }}>
+                    {liteSummary.links_found !== undefined && (
+                      <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                        <strong>{liteSummary.links_found}</strong> record links found
+                      </div>
+                    )}
+                    {liteSummary.documents_imported !== undefined && (
+                      <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                        <strong>{liteSummary.documents_imported}</strong> documents imported
+                      </div>
+                    )}
+                    {liteSummary.data_points_extracted !== undefined && (
+                      <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                        <strong>{liteSummary.data_points_extracted}</strong> data points extracted
+                      </div>
+                    )}
+                    {liteSummary.discrepancies_found !== undefined && liteSummary.discrepancies_found > 0 && (
+                      <div style={{ background: '#FEF3C7', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #FDE68A', fontSize: '0.8rem' }}>
+                        ⚠ <strong>{liteSummary.discrepancies_found}</strong> discrepancies found
+                      </div>
+                    )}
+                    {liteSummary.confidence_score !== undefined && (
+                      <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                        <strong>{liteSummary.confidence_score}%</strong> confidence
+                      </div>
+                    )}
+                    {liteSummary.acreage && (
+                      <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                        Area: <strong>{liteSummary.acreage}</strong>
+                      </div>
+                    )}
+                    {liteSummary.flood_zone && (
+                      <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                        Flood Zone: <strong>{liteSummary.flood_zone}</strong>
+                      </div>
+                    )}
                   </div>
-                )}
-                {liteSummary.legal_description && (
-                  <div style={{ padding: '0.5rem 0.75rem', background: '#F0FDF4', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem', marginBottom: '0.35rem' }}>
-                    <strong>Legal Description: </strong>
-                    {liteSummary.legal_description.length > 300
-                      ? liteSummary.legal_description.slice(0, 300) + '...'
-                      : liteSummary.legal_description}
+                  {liteSummary.owner_name && (
+                    <div style={{ padding: '0.4rem 0.6rem', background: '#F0FDF4', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem', marginBottom: '0.35rem' }}>
+                      <strong>Owner:</strong> {liteSummary.owner_name}
+                    </div>
+                  )}
+                  {liteSummary.legal_description && (
+                    <div style={{ padding: '0.5rem 0.75rem', background: '#F0FDF4', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem', marginBottom: '0.35rem' }}>
+                      <strong>Legal Description: </strong>
+                      {liteSummary.legal_description.length > 300
+                        ? liteSummary.legal_description.slice(0, 300) + '...'
+                        : liteSummary.legal_description}
+                    </div>
+                  )}
+                  <div style={{ fontSize: '0.78rem', color: '#065F46', fontWeight: 600 }}>
+                    ✓ Research complete — review the Extracted Data and Survey Plan tabs above.
                   </div>
-                )}
-                <div style={{ fontSize: '0.78rem', color: '#065F46', fontWeight: 600 }}>
-                  ✓ Research complete — review the Extracted Data and Survey Plan tabs above.
+                </>
+              )}
+
+
+              {/* Deep pipeline results — animated stage tracker */}
+              {pipelineStatus && (
+                <>
+                  <PipelineProgressStyles />
+                  <PipelineProgressPanel
+                    status={pipelineStatus}
+                    message={pipelineResult?.message}
+                    currentStage={pipelineResult?.currentStage}
+                    result={pipelineResult?.result}
+                    documents={pipelineResult?.documents}
+                    log={pipelineResult?.log}
+                    failureReason={pipelineResult?.failureReason}
+                    onLoadLogs={async () => {
+                      try {
+                        const res = await fetch(`/api/admin/research/${projectId}/logs`);
+                        if (!res.ok) return null;
+                        const data = await res.json() as { log?: PipelineLogEntry[] };
+                        return data.log ?? null;
+                      } catch {
+                        return null;
+                      }
+                    }}
+                  />
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Stage 2 mode: full-width pipeline progress + post-run controls ──────
+           When autoStart=true (arrived from Stage 1), we skip the form entirely and
+           show the PipelineProgressPanel as the primary content.  Search results
+           (location map, online resources) are deferred until the run completes. */}
+      {isStage2Mode && (
+        <div className="research-search__stage2">
+
+          {/* Errors (e.g. county missing) */}
+          {(searchError || liteError || pipelineError) && (
+            <div className="research-search__error" style={{ marginBottom: '0.75rem' }}>
+              {searchError || liteError || pipelineError}
+            </div>
+          )}
+
+          {/* Stall warning */}
+          {pipelineRunning && pipelineStallMinutes >= 45 && (
+            <div style={{ marginBottom: '0.75rem', padding: '0.4rem 0.6rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: '0.78rem', color: '#92400e' }}>
+              ⏳ Still running ({pipelineStallMinutes} min elapsed) — complex properties with many documents take longer.
+            </div>
+          )}
+
+          {/* Lite pipeline summary (when lite fallback ran) */}
+          {liteSummary && !liteRunning && (
+            <div style={{ marginBottom: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.5rem' }}>
+              {liteSummary.links_found !== undefined && (
+                <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                  <strong>{liteSummary.links_found}</strong> links found
                 </div>
-              </>
-            )}
+              )}
+              {liteSummary.documents_imported !== undefined && (
+                <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                  <strong>{liteSummary.documents_imported}</strong> documents
+                </div>
+              )}
+              {liteSummary.confidence_score !== undefined && (
+                <div style={{ background: '#F0FDF4', padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid #D1FAE5', fontSize: '0.8rem' }}>
+                  <strong>{liteSummary.confidence_score}%</strong> confidence
+                </div>
+              )}
+            </div>
+          )}
 
+          {/* PipelineProgressPanel — the primary animated progress + log display */}
+          {pipelineStatus && (
+            <>
+              <PipelineProgressStyles />
+              <PipelineProgressPanel
+                status={pipelineStatus}
+                message={pipelineResult?.message}
+                currentStage={pipelineResult?.currentStage}
+                result={pipelineResult?.result}
+                documents={pipelineResult?.documents}
+                log={pipelineResult?.log}
+                failureReason={pipelineResult?.failureReason}
+                onLoadLogs={async () => {
+                  try {
+                    const res = await fetch(`/api/admin/research/${projectId}/logs`);
+                    if (!res.ok) return null;
+                    const data = await res.json() as { log?: PipelineLogEntry[] };
+                    return data.log ?? null;
+                  } catch {
+                    return null;
+                  }
+                }}
+              />
+            </>
+          )}
 
-            {/* Deep pipeline results — animated stage tracker */}
-            {pipelineStatus && (
-              <>
-                <PipelineProgressStyles />
-                <PipelineProgressPanel
-                  status={pipelineStatus}
-                  message={pipelineResult?.message}
-                  result={pipelineResult?.result}
-                  documents={pipelineResult?.documents}
-                  log={pipelineResult?.log}
-                  failureReason={pipelineResult?.failureReason}
-                  onLoadLogs={async () => {
-                    try {
-                      const res = await fetch(`/api/admin/research/${projectId}/logs`);
-                      if (!res.ok) return null;
-                      const data = await res.json() as { log?: PipelineLogEntry[] };
-                      return data.log ?? null;
-                    } catch {
-                      return null;
-                    }
-                  }}
-                />
-              </>
-            )}
-          </div>
-        )}
-      </div>
-      {/* Search results — only shown when hideResultsAndProgress is not set */}
-      {!hideResultsAndProgress && searchResponse && (
+          {/* Lite pipeline liveRunning fallback spinner */}
+          {liteRunning && !pipelineStatus && (
+            <div className="research-search__loading">
+              <div className="research-search__loading-spinner" />
+              <div className="research-search__loading-title">Research In Progress</div>
+              <div className="research-search__loading-subtitle">{liteStage || 'Analyzing property data…'}</div>
+            </div>
+          )}
+
+          {/* Re-run button — shown after completion so user can redo research */}
+          {isPipelineDone && (
+            <div style={{ marginTop: '0.75rem' }}>
+              <button
+                className="research-page__new-btn"
+                onClick={handleInitiateResearch}
+                disabled={pipelineRunning || searching || liteRunning}
+                style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem', background: 'none', border: '1px solid #D1D5DB', color: '#374151', borderRadius: '0.375rem', cursor: 'pointer' }}
+              >
+                🔄 Re-run Research
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Search results — source chips, location map, online resources.
+          In Stage 2 mode: only shown after the pipeline is done so they don't
+          appear mid-run and clutter the progress view.                        */}
+      {!hideResultsAndProgress && searchResponse && (!isStage2Mode || isPipelineDone) && (
         <div className="research-search__results">
 
           {/* Address normalization alert */}

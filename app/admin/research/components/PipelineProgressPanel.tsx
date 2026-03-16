@@ -49,123 +49,24 @@ interface PipelineLogEntry {
 }
 
 export interface PipelineProgressProps {
-  status:      string | null;         // 'starting'|'running'|'success'|'partial'|'failed'|null
-  message?:    string;                // Latest "Stage N: …" message from updateStatus
-  result?:     PipelineResultSummary | null;
-  documents?:  PipelineDocument[];
-  log?:        PipelineLogEntry[];
+  status:       string | null;         // 'starting'|'running'|'success'|'partial'|'failed'|'complete'|null
+  message?:     string;                // Latest "Stage N: …" message from updateStatus
+  /** Short stage label from the worker (e.g. "Phase 3", "Routing") — used when message is absent. */
+  currentStage?: string;
+  result?:      PipelineResultSummary | null;
+  documents?:   PipelineDocument[];
+  log?:         PipelineLogEntry[];
   /** Human-readable explanation of why the pipeline failed, with actionable guidance. */
   failureReason?: string;
   /**
    * Optional async callback that loads persisted run logs from the server.
-   * Called when the user clicks "View Run Logs" and in-memory logs are empty.
+   * Called when the run ends and in-memory logs are empty.
    * Should return an array of PipelineLogEntry or null on failure.
    */
   onLoadLogs?: () => Promise<PipelineLogEntry[] | null>;
 }
 
-// ── Stage definitions ─────────────────────────────────────────────────────────
-
-const STAGES = [
-  { num: 0, id: 'address',   label: 'Address',    detail: 'Normalizing address & detecting county' },
-  { num: 1, id: 'property',  label: 'Property',   detail: 'Searching county appraisal district' },
-  { num: 2, id: 'documents', label: 'Documents',  detail: 'Retrieving deed & plat records' },
-  { num: 3, id: 'ai',        label: 'AI Extract', detail: 'Extracting boundary data with Claude Vision' },
-  { num: 4, id: 'validate',  label: 'Validate',   detail: 'Geometric validation & quality scoring' },
-] as const;
-
-type StageNum = 0 | 1 | 2 | 3 | 4;
-type StageState = 'pending' | 'active' | 'done' | 'error';
-
-/** Highest stage number in the STAGES array (Validate = 4). */
-const MAX_STAGE_NUM: StageNum = 4;
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Infer the active stage number from the latest status message. */
-function inferActiveStage(message: string | undefined, status: string | null): StageNum | null {
-  if (!status || status === 'not_found') return null;
-  if (status === 'starting') return 0;
-  if (status === 'success' || status === 'partial') return null; // all done
-  if (status === 'failed') return null;
-
-  if (!message) return 0;
-
-  // "Stage 3.5" → 3 (parseInt stops at "."), "Stage 5+" → clamped to MAX_STAGE_NUM (Validate).
-  // Previously Stage 5 fell through to return 0, visually resetting the stepper to Address.
-  const m = message.match(/Stage\s+(\d+)/i);
-  if (m) {
-    const n = parseInt(m[1], 10);
-    if (n >= 0) return Math.min(n, MAX_STAGE_NUM) as StageNum;
-  }
-  return 0;
-}
-
-/** Determine per-stage state from log entries + active stage. */
-function computeStageStates(
-  log: PipelineLogEntry[] | undefined,
-  activeStage: StageNum | null,
-  status: string | null,
-): Record<StageNum, StageState> {
-  const layerToStage: Record<string, StageNum> = {
-    Stage0: 0, stage0: 0,
-    Stage1: 1, stage1: 1,
-    Stage2: 2, stage2: 2, Stage2A: 2, stage2a: 2, 'Stage2.5': 2,
-    Stage3: 3, stage3: 3, 'Stage3.5': 3,
-    Stage4: 4, stage4: 4,
-  };
-
-  const hasData = new Set<StageNum>();
-  if (log) {
-    for (const entry of log) {
-      const n = layerToStage[entry.layer];
-      if (n !== undefined && entry.status !== 'fail') hasData.add(n);
-    }
-  }
-
-  const states = {} as Record<StageNum, StageState>;
-  for (let i = 0; i <= 4; i++) {
-    const n = i as StageNum;
-    if (status === 'failed' && activeStage === n) {
-      states[n] = 'error';
-    } else if (hasData.has(n) || (status === 'success' || status === 'partial')) {
-      states[n] = 'done';
-    } else if (activeStage !== null && n < activeStage) {
-      // Stages before the currently active stage must be complete.
-      // Without this, they show as "pending" during a run because the
-      // in-memory log is empty while the pipeline is still running.
-      states[n] = 'done';
-    } else if (activeStage === n) {
-      states[n] = 'active';
-    } else {
-      states[n] = 'pending';
-    }
-  }
-  return states;
-}
-
-/** Pull the best detail message for a stage from the log. */
-function getStageDetail(stageNum: StageNum, log: PipelineLogEntry[] | undefined): string | null {
-  if (!log) return null;
-  const prefix = ['Stage0', 'Stage1', 'Stage2', 'Stage3', 'Stage4'][stageNum];
-  // Find last successful info entry for this stage
-  for (let i = log.length - 1; i >= 0; i--) {
-    const e = log[i];
-    if (e.layer.startsWith(prefix) && e.status === 'success' && e.details) {
-      return e.details;
-    }
-  }
-  return null;
-}
-
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
-function StageIcon({ state }: { state: StageState }) {
-  if (state === 'done')    return <span className="ppanel__stage-icon ppanel__stage-icon--done">✓</span>;
-  if (state === 'active')  return <span className="ppanel__stage-icon ppanel__stage-icon--active"><Spinner /></span>;
-  if (state === 'error')   return <span className="ppanel__stage-icon ppanel__stage-icon--error">✕</span>;
-  return <span className="ppanel__stage-icon ppanel__stage-icon--pending">○</span>;
-}
 
 function Spinner() {
   return (
@@ -176,41 +77,6 @@ function Spinner() {
 }
 
 // ── Subcomponents ─────────────────────────────────────────────────────────────
-
-function StageRow({
-  stage,
-  state,
-  detail,
-  isLast,
-  liveMessage,
-}: {
-  stage: typeof STAGES[number];
-  state: StageState;
-  detail: string | null;
-  isLast: boolean;
-  /** Stripped live message (no "Stage N:" prefix) — shown when this stage is active. */
-  liveMessage?: string | null;
-}) {
-  // When active, prefer the live server message over the generic static detail.
-  const activeDetail = liveMessage ?? stage.detail;
-  return (
-    <div className={`ppanel__stage ppanel__stage--${state}`}>
-      <div className="ppanel__stage-track">
-        <StageIcon state={state} />
-        {!isLast && <div className={`ppanel__stage-line ppanel__stage-line--${state === 'done' ? 'done' : 'pending'}`} />}
-      </div>
-      <div className="ppanel__stage-body">
-        <div className="ppanel__stage-label">{stage.label}</div>
-        <div className="ppanel__stage-detail">
-          {state === 'active'  ? activeDetail : null}
-          {state === 'done'    ? (detail ?? stage.detail) : null}
-          {state === 'error'   ? 'Failed — see log' : null}
-          {state === 'pending' ? '' : null}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ResultCard({ result }: { result: PipelineResultSummary }) {
   const confidence = result.boundary?.confidence;
@@ -488,6 +354,7 @@ function formatDetailedLogAsText(log: PipelineLogEntry[]): string {
 export function PipelineProgressPanel({
   status,
   message,
+  currentStage: currentStageProp,
   result,
   documents,
   log: logProp,
@@ -523,6 +390,18 @@ export function PipelineProgressPanel({
   const errorCount   = useMemo(() => log?.filter(e => e.status === 'fail').length ?? 0, [log]);
   const warningCount = useMemo(() => log?.filter(e => e.status === 'warn').length ?? 0, [log]);
 
+  // Live update feed: last 6 meaningful log entries (shown during run as "what's happening now")
+  const liveUpdates = useMemo(() => {
+    if (!log || log.length === 0) return [];
+    return [...log]
+      .filter(e => {
+        const hasText = !!(e.details || e.error || (e.source === 'info' && e.method));
+        return hasText && e.status !== 'skip';
+      })
+      .slice(-6)
+      .reverse();
+  }, [log]);
+
   // Auto-scroll the log stream to the latest entry while the run is in progress
   // (stops once the user manually scrolls up).
   useEffect(() => {
@@ -535,7 +414,7 @@ export function PipelineProgressPanel({
   const prevStatusRef = useRef<string | null>(null);
   useEffect(() => {
     const wasRunning = prevStatusRef.current === 'running' || prevStatusRef.current === 'starting';
-    const isNowDone  = status === 'success' || status === 'partial' || status === 'failed';
+    const isNowDone  = status === 'success' || status === 'partial' || status === 'failed' || status === 'complete';
     if (wasRunning && isNowDone) {
       setUserScrolled(false);
       if (logStreamRef.current) {
@@ -550,8 +429,8 @@ export function PipelineProgressPanel({
   // Auto-load persisted logs from the server when the run ends and no in-memory
   // log is available.  This means logs are always visible immediately after a run.
   useEffect(() => {
-    // Guard: only trigger on successful/partial/failed completion
-    const isDoneNow = status === 'success' || status === 'partial' || status === 'failed';
+    // Guard: trigger on any completion status including county-specific 'complete'
+    const isDoneNow = status === 'success' || status === 'partial' || status === 'failed' || status === 'complete';
     if (!isDoneNow) return;
     // Guard: in-memory log already present — nothing to load
     if (logProp && logProp.length > 0) return;
@@ -570,17 +449,17 @@ export function PipelineProgressPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  const activeStage = useMemo(() => inferActiveStage(message, status), [message, status]);
-  const stageStates = useMemo(() => computeStageStates(log, activeStage, status), [log, activeStage, status]);
-
+  // Treat county-specific 'complete' the same as 'success' for display purposes.
   const isRunning  = status === 'running' || status === 'starting';
-  const isSuccess  = status === 'success' || status === 'partial';
+  const isSuccess  = status === 'success' || status === 'partial' || status === 'complete';
   const isFailed   = status === 'failed';
   const isPartial  = status === 'partial';
   const isDone     = isSuccess || isFailed;
 
-  // Strip "Stage N: " prefix for cleaner header display
+  // Strip "Stage N: " prefix for cleaner display; fall back to currentStageProp
   const cleanMessage = message?.replace(/^Stage\s*\d+(?:\.\d+)?:\s*/i, '') ?? null;
+  // Best available stage description for the running state
+  const stageDescription = cleanMessage || currentStageProp || null;
 
   const copyToClipboard = useCallback((text: string, onDone: () => void) => {
     navigator.clipboard.writeText(text)
@@ -626,7 +505,7 @@ export function PipelineProgressPanel({
       return (
         <div className="ppanel__logstream-waiting">
           <Spinner />
-          <span>Connecting to research pipeline…</span>
+          <span>Logs will appear here when the run completes…</span>
         </div>
       );
     }
@@ -640,6 +519,15 @@ export function PipelineProgressPanel({
     return null;
   }
 
+  /** Format a single live-update entry as a short readable string. */
+  function liveUpdateText(entry: PipelineLogEntry): string {
+    const isInfoMsg = entry.source === 'info' || entry.source === 'warn' || entry.source === 'error';
+    if (isInfoMsg) return entry.details ?? entry.error ?? entry.method ?? '';
+    const prefix = entry.status === 'fail' ? '✕' : entry.status === 'warn' ? '⚠' : '✓';
+    const text = entry.details ?? entry.method ?? '';
+    return `${prefix} ${text}`;
+  }
+
   return (
     <div className={`ppanel ppanel--${status ?? 'idle'}`}>
 
@@ -650,7 +538,7 @@ export function PipelineProgressPanel({
           {isSuccess  && <span className="ppanel__header-icon ppanel__header-icon--success">✓</span>}
           {isFailed   && <span className="ppanel__header-icon ppanel__header-icon--error">✕</span>}
           <span className="ppanel__header-title">
-            {isRunning  && (cleanMessage ?? 'Research running…')}
+            {isRunning  && (stageDescription ?? 'Research running…')}
             {isSuccess  && (isPartial ? 'Research complete — partial results' : 'Research complete')}
             {isFailed   && 'Research failed'}
             {!status    && 'Starting research…'}
@@ -681,19 +569,38 @@ export function PipelineProgressPanel({
         </div>
       )}
 
-      {/* ── Stage track ─────────────────────────────────────────────── */}
-      <div className="ppanel__stages">
-        {STAGES.map((stage, i) => (
-          <StageRow
-            key={stage.id}
-            stage={stage}
-            state={stageStates[stage.num]}
-            detail={getStageDetail(stage.num, log)}
-            isLast={i === STAGES.length - 1}
-            liveMessage={stageStates[stage.num] === 'active' ? cleanMessage : null}
-          />
-        ))}
-      </div>
+      {/* ── Live run section (replaces the old 5-stage stepper) ─────────
+           Shows during an active run: large animated indicator, current
+           stage text, and a live feed of recent log activity.         */}
+      {isRunning && (
+        <div className="ppanel__live">
+          <div className="ppanel__live-core">
+            <div className="ppanel__live-ring">
+              <span className="ppanel__live-spinner" aria-label="running">
+                <span />
+              </span>
+            </div>
+            <div className="ppanel__live-info">
+              <div className="ppanel__live-head">Researching property…</div>
+              {stageDescription && (
+                <div className="ppanel__live-stage">{stageDescription}</div>
+              )}
+            </div>
+          </div>
+          {liveUpdates.length > 0 && (
+            <div className="ppanel__live-feed">
+              {liveUpdates.map((u: PipelineLogEntry, i: number) => (
+                <div
+                  key={i}
+                  className={`ppanel__live-update${i === 0 ? ' ppanel__live-update--latest' : ''}`}
+                >
+                  {liveUpdateText(u)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Result card (visible when done) ─────────────────────────── */}
       {isSuccess && result && (
@@ -702,8 +609,8 @@ export function PipelineProgressPanel({
         </div>
       )}
 
-      {/* ── Document pills ───────────────────────────────────────────── */}
-      {documents && documents.length > 0 && (
+      {/* ── Document pills (visible when done and docs exist) ─────────── */}
+      {isDone && documents && documents.length > 0 && (
         <div className="ppanel__section ppanel__section--docs">
           <div className="ppanel__section-title">
             Documents captured
@@ -941,80 +848,99 @@ export function PipelineProgressStyles() {
   animation: ppanel-spin 0.7s linear infinite;
 }
 @keyframes ppanel-spin { to { transform: rotate(360deg); } }
+@keyframes ppanel-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
 
-/* ── Stage track ─────────────────────────────────────────── */
-.ppanel__stages {
-  padding: 0.65rem 0.9rem 0.4rem;
+/* ── Stage track styles removed — replaced by live-run section ── */
+
+/* ── Live run section (replaces the old 5-stage stepper) ────── */
+.ppanel__live {
+  padding: 1.2rem 1rem 0.9rem;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
 }
-.ppanel__stage {
+
+.ppanel__live-core {
   display: flex;
-  align-items: flex-start;
-  gap: 0.55rem;
-  min-height: 2rem;
-}
-.ppanel__stage-track {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  flex-shrink: 0;
-  width: 18px;
+  gap: 1rem;
 }
-.ppanel__stage-line {
-  width: 2px;
-  flex: 1;
-  min-height: 10px;
-  border-radius: 1px;
-  margin: 2px 0;
-}
-.ppanel__stage-line--done    { background: #10b981; }
-.ppanel__stage-line--pending { background: #e2e8f0; }
 
-.ppanel__stage-icon {
+.ppanel__live-ring {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  font-size: 0.65rem;
-  font-weight: 700;
-  flex-shrink: 0;
 }
-.ppanel__stage-icon--done    { background: #10b981; color: #fff; }
-.ppanel__stage-icon--active  { background: #3b82f6; color: #fff; }
-.ppanel__stage-icon--error   { background: #ef4444; color: #fff; }
-.ppanel__stage-icon--pending { background: #e2e8f0; color: #94a3b8; border: 1.5px solid #cbd5e1; font-size: 0.55rem; }
-.ppanel__stage-icon--active .ppanel__spinner span { border-color: rgba(255,255,255,0.3); border-top-color: #fff; }
 
-.ppanel__stage-body {
-  padding-bottom: 0.4rem;
+.ppanel__live-spinner {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  position: relative;
+}
+
+.ppanel__live-spinner span {
+  position: absolute;
+  inset: 0;
+  border: 4px solid #dbeafe;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: ppanel-spin 0.9s linear infinite;
+}
+
+.ppanel__live-info {
   flex: 1;
   min-width: 0;
 }
-.ppanel__stage-label {
-  font-weight: 600;
-  color: #334155;
-  font-size: 0.8rem;
-  line-height: 1.2;
-}
-.ppanel__stage--active .ppanel__stage-label { color: #1d4ed8; }
-.ppanel__stage--done   .ppanel__stage-label { color: #065f46; }
-.ppanel__stage--error  .ppanel__stage-label { color: #b91c1c; }
-.ppanel__stage--pending .ppanel__stage-label { color: #94a3b8; }
 
-.ppanel__stage-detail {
-  font-size: 0.73rem;
-  color: #64748b;
-  margin-top: 1px;
+.ppanel__live-head {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  margin-bottom: 0.2rem;
+}
+
+.ppanel__live-stage {
+  font-size: 0.82rem;
+  color: #3b82f6;
+  animation: ppanel-pulse 1.8s ease-in-out infinite;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ppanel__stage--active .ppanel__stage-detail { color: #3b82f6; animation: ppanel-pulse 1.8s ease-in-out infinite; }
-@keyframes ppanel-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+.ppanel__live-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem 0.65rem;
+  background: rgba(255,255,255,0.6);
+  border-radius: 6px;
+  border: 1px solid #dbeafe;
+  max-height: 10rem;
+  overflow: hidden;
+}
+
+.ppanel__live-update {
+  font-size: 0.73rem;
+  color: #475569;
+  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.6;
+}
+
+.ppanel__live-update--latest {
+  color: #1e293b;
+  font-weight: 500;
+  opacity: 1;
+}
 
 /* ── Section ─────────────────────────────────────────────── */
 .ppanel__section {
