@@ -154,6 +154,20 @@ function scoreDocumentRelevance(docType: string): number {
   return 30;
 }
 
+/**
+ * Safely close a Playwright browser, suppressing errors.
+ * Use in finally blocks to ensure the browser is always closed
+ * even when an exception is thrown partway through a function.
+ */
+async function safeCloseBrowser(browser: import('playwright').Browser | null, logger: PipelineLogger, context: string): Promise<void> {
+  if (!browser) return;
+  try {
+    await browser.close();
+  } catch (closeErr) {
+    logger.warn(context, `Browser close error (non-fatal): ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`);
+  }
+}
+
 // ── Tyler PublicSearch URL Builder ─────────────────────────────────────────
 
 /**
@@ -1856,14 +1870,13 @@ export async function searchClerkRecords(
     logger.info('Stage2', `Fetched ${results.length} documents. With content: ${results.filter((r) => r.textContent || r.imageBase64).length}`);
     return results;
   } catch (err) {
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
-
     const errMsg = err instanceof Error ? err.message : String(err);
     tracker({ status: 'fail', error: errMsg });
     logger.error('Stage2', `Clerk search failed: ${errMsg}`, err);
     return [];
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2');
+    browser = null;
   }
 }
 
@@ -2034,9 +2047,6 @@ export async function searchSuperSearch(
       }
     }
 
-    await browser.close();
-    browser = null;
-
     // Filter to deed-relevant and sort by relevance
     const relevant = capturedDocs.filter((d) => isDeedRelevant(d.documentType));
     const finalDocs = relevant.length > 0 ? relevant.slice(0, 10) : capturedDocs.slice(0, 5);
@@ -2055,13 +2065,13 @@ export async function searchSuperSearch(
       extractedData: null,
     }));
   } catch (err) {
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
     const errMsg = err instanceof Error ? err.message : String(err);
     tracker({ status: 'fail', error: errMsg });
     logger.error('Stage2-SS', `SUPERSEARCH failed: ${errMsg}`, err);
     return [];
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2-SS');
+    browser = null;
   }
 }
 
@@ -2293,13 +2303,13 @@ export async function searchClerkByAddress(
 
     return results;
   } catch (err) {
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
     const errMsg = err instanceof Error ? err.message : String(err);
     tracker({ status: 'fail', error: errMsg });
     logger.error('Stage2-Addr', `Address clerk search failed: ${errMsg}`, err);
     return [];
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2-Addr');
+    browser = null;
   }
 }
 
@@ -2539,13 +2549,13 @@ export async function searchClerkForPlats(
 
     return results;
   } catch (err) {
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
     const errMsg = err instanceof Error ? err.message : String(err);
     tracker({ status: 'fail', error: errMsg });
     logger.error('Stage2-Plat', `Plat search failed: ${errMsg}`, err);
     return [];
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2-Plat');
+    browser = null;
   }
 }
 
@@ -2764,9 +2774,11 @@ export async function fetchDocumentImages(
     return pages;
   } catch (err: any) {
     console.error('[DOC-IMG] Image fetch failed:', err.message);
-    if (browser) await browser.close().catch(() => {});
     attempt.fail(err.message);
     return [];
+  } finally {
+    await safeCloseBrowser(browser, logger, '2D-IMG');
+    browser = null;
   }
 }
 
@@ -2839,8 +2851,10 @@ export async function searchByInstrument(
     return match;
   } catch (err: any) {
     logger.warn('Stage2-Instr', `Instrument search failed: ${err.message}`);
-    if (browser) await browser.close().catch(() => {});
     return null;
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2-Instr');
+    browser = null;
   }
 }
 
@@ -3048,9 +3062,11 @@ export async function searchBellClerkOwnerForPlatDeed(
     return { platInstruments, deedInstruments, allDocuments };
   } catch (err: any) {
     logger.error('Stage2B', 'searchBellPlatDeeds failed', err);
-    if (browser) await browser.close().catch(() => {});
     attempt.fail(err.message);
     return { platInstruments: [], deedInstruments: [], allDocuments: [] };
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2B');
+    browser = null;
   }
 }
 

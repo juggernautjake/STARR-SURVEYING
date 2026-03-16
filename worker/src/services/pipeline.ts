@@ -28,7 +28,6 @@ import {
   pivotPersonalPropertyToLand,
   findRelatedBellProperties,
   summarizeSearchState,
-  mergeCascadeIntoPipeline,
 } from './bell-county-research.js';
 import { classifyBellProperty } from './bell-county-classifier.js';
 import {
@@ -37,13 +36,14 @@ import {
   consumePendingInstruments,
   consumePendingOwners,
   consumePendingSubdivisions,
+  consumePendingVolumePages,
+  consumePendingPlatRefs,
   shouldContinueDiscovery,
   stateSummary,
   pendingSummary,
   formatDiscoveryChain,
   classifyDocumentRecency,
   DISCOVERY_DEFAULTS,
-  type DiscoveryState,
 } from './discovery-loop.js';
 
 // ── Deed Reference Parser ─────────────────────────────────────────────────
@@ -416,6 +416,31 @@ async function lookupByPropertyId(
   }
 }
 
+// ── Boundary Comparison ──────────────────────────────────────────────────────
+
+type BoundaryLike = { type: string; calls: unknown[]; confidence: number };
+
+/**
+ * Compare two boundary extractions. Returns > 0 if `a` is better than `b`.
+ * Scoring rules:
+ *   1. metes_and_bounds > lot_and_block > reference_only (type hierarchy)
+ *   2. Within same type: more calls > fewer calls
+ *   3. Tie-break on confidence
+ */
+function compareBoundaries(a: BoundaryLike, b: BoundaryLike): number {
+  const typeScore = (t: string): number => {
+    if (t === 'metes_and_bounds') return 3;
+    if (t === 'lot_and_block') return 2;
+    if (t === 'reference_only') return 1;
+    return 0;
+  };
+  const ats = typeScore(a.type);
+  const bts = typeScore(b.type);
+  if (ats !== bts) return ats - bts;
+  if (a.calls.length !== b.calls.length) return a.calls.length - b.calls.length;
+  return a.confidence - b.confidence;
+}
+
 // ── Main Pipeline ──────────────────────────────────────────────────────────
 
 export async function runPipeline(input: PipelineInput): Promise<PipelineResult> {
@@ -776,11 +801,19 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     // ── Initialize Discovery State ──────────────────────────────────────
     // Seed with everything we know from Stage 0 + Stage 1 so the discovery
     // loop can track what's been searched vs what's newly discovered.
+    // Include Bell cascade data (volumePages, platRefs) so those don't get
+    // re-queued if they happen to appear in document text.
     const discoveryState = createDiscoveryState({
       instrumentNumbers: allInstrumentNumbers,
       ownerNames: [propertyResult?.ownerName, input.ownerName].filter((n): n is string => !!n),
-      volumePages: deedRefs.volumePages,
-      platRefs: deedRefs.platRefs,
+      volumePages: [
+        ...deedRefs.volumePages,
+        ...(bellKnownIds?.volumePages ?? []),
+      ],
+      platRefs: [
+        ...deedRefs.platRefs,
+        ...(bellKnownIds?.platRefs ?? []),
+      ],
       subdivisionNames: bellKnownIds?.subdivisionNames ?? [],
     });
     const discoveryLoopStart = Date.now();
@@ -794,16 +827,13 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         logger.warn('Stage2', `Found ${allInstrumentNumbers.length} instrument numbers — capping at ${MAX_INSTRUMENTS} (dropped ${allInstrumentNumbers.length - MAX_INSTRUMENTS})`);
       }
 
-      // Fetch documents in parallel (batches of 3 to avoid overloading)
-      const BATCH_SIZE = 3;
       const docsAdded: string[] = [];
       const instrErrors: string[] = [];
-      const instrBatch = allInstrumentNumbers.slice(0, 5);
 
-      for (let instrIdx = 0; instrIdx < instrBatch.length; instrIdx++) {
-        const instrNum = instrBatch[instrIdx];
+      for (let instrIdx = 0; instrIdx < instrToFetch.length; instrIdx++) {
+        const instrNum = instrToFetch[instrIdx];
         await updateStatus(input.projectId, 'running',
-          `Stage 2: Fetching deed record ${instrIdx + 1}/${instrBatch.length} — instrument ${instrNum}…`);
+          `Stage 2: Fetching deed record ${instrIdx + 1}/${instrToFetch.length} — instrument ${instrNum}…`);
         // Use more expected pages for plats — large multi-lot plats can have 10+ pages
         const expectedPages = /plat/i.test(legalDesc) ? 10 : 2;
         try {
@@ -1373,14 +1403,43 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
     // STAGE 3: AI Extraction
     // ═══════════════════════════════════════════════════════════════════
 
-    // Mark all initial instruments/owners as searched in discovery state
-    // (they were used in the Stage 2 paths above)
-    for (const n of allInstrumentNumbers) discoveryState.searchedInstruments.add(n);
-    if (propertyResult?.ownerName) discoveryState.searchedOwnerNames.add(propertyResult.ownerName.toUpperCase());
-    if (input.ownerName) discoveryState.searchedOwnerNames.add(input.ownerName.toUpperCase());
-    // Mark initial instruments as no longer pending
-    for (const n of allInstrumentNumbers) discoveryState.pendingInstruments.delete(n);
+    // Mark ALL Stage 2 searched identifiers in the discovery state so the
+    // discovery loop doesn't re-fetch anything that was already attempted.
+    // This covers: Path A instruments, Path B2/B3 instruments+subdivisions,
+    // Path C owner, Path D/E/F instruments — all collected in 'documents'.
+    for (const doc of documents) {
+      if (doc.ref.instrumentNumber) {
+        discoveryState.searchedInstruments.add(doc.ref.instrumentNumber);
+        discoveryState.pendingInstruments.delete(doc.ref.instrumentNumber);
+      }
+      for (const g of [...doc.ref.grantors, ...doc.ref.grantees]) {
+        const n = g.toUpperCase().trim();
+        if (n) discoveryState.searchedOwnerNames.add(n);
+      }
+    }
+    // Mark instrument numbers explicitly searched in Path A
+    for (const n of allInstrumentNumbers) {
+      discoveryState.searchedInstruments.add(n);
+      discoveryState.pendingInstruments.delete(n);
+    }
+    // Mark owner names explicitly searched in Paths B2, C
+    if (propertyResult?.ownerName) {
+      discoveryState.searchedOwnerNames.add(propertyResult.ownerName.toUpperCase());
+      discoveryState.pendingOwnerNames.delete(propertyResult.ownerName.toUpperCase());
+    }
+    if (input.ownerName) {
+      discoveryState.searchedOwnerNames.add(input.ownerName.toUpperCase());
+      discoveryState.pendingOwnerNames.delete(input.ownerName.toUpperCase());
+    }
+    // Mark subdivision names searched in Path B3
+    if (bellKnownIds?.subdivisionNames) {
+      for (const s of bellKnownIds.subdivisionNames) {
+        discoveryState.searchedSubdivisions.add(s.toUpperCase());
+        discoveryState.pendingSubdivisions.delete(s.toUpperCase());
+      }
+    }
     discoveryState.totalDocumentsRetrieved = documents.length;
+    logger.info('Discovery', `Post-Stage2 state: ${stateSummary(discoveryState)}`);
 
     const stage3T = logger.attempt('Stage3', 'Claude AI', 'extractDocuments',
       `${documents.length} doc(s) — initial pass`);
@@ -1435,10 +1494,18 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       const iterationDocs: DocumentResult[] = [];
 
       // ── Fetch documents for pending instrument numbers ──────────────
+      // Add a 1.5s inter-request delay to avoid triggering Tyler PublicSearch
+      // rate limiting or CAPTCHAs from rapid sequential Playwright sessions.
+      const INTER_REQUEST_DELAY_MS = 1_500;
       const pendingInstrs = consumePendingInstruments(discoveryState);
       if (pendingInstrs.length > 0 && kofile) {
         logger.info('Discovery', `Fetching ${pendingInstrs.length} instrument(s): [${pendingInstrs.join(', ')}]`);
-        for (const instrNum of pendingInstrs) {
+        for (let instrIdx = 0; instrIdx < pendingInstrs.length; instrIdx++) {
+          const instrNum = pendingInstrs[instrIdx];
+          if (instrIdx > 0) {
+            // Brief delay between Playwright sessions to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, INTER_REQUEST_DELAY_MS));
+          }
           const t = logger.attempt('Discovery', `${input.county} County Clerk`, 'fetchDocumentImages', instrNum);
           try {
             const expectedPages = 4; // general default
@@ -1523,58 +1590,110 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         }
       }
 
-      // ── Search by pending subdivisions (Bell County clerk) ─────────
+      // ── Search by pending subdivisions ─────────────────────────────
+      // For each discovered subdivision: search Bell County clerk AND
+      // the plat repository. Both are primary sources for plat documents.
       const pendingSubdivs = consumePendingSubdivisions(discoveryState);
-      if (pendingSubdivs.length > 0 && kofile && input.county.toLowerCase() === 'bell') {
+      if (pendingSubdivs.length > 0) {
         for (const subdivName of pendingSubdivs) {
-          const t = logger.attempt('Discovery', 'Bell County Clerk', 'searchBellClerkOwnerForPlatDeed', subdivName);
-          try {
-            const { platInstruments, deedInstruments } =
-              await searchBellClerkOwnerForPlatDeed(subdivName, logger);
-            const existingInstrs = new Set(
-              [...documents, ...iterationDocs].map(d => d.ref.instrumentNumber).filter(Boolean),
-            );
-            const newInstrs = [...platInstruments, ...deedInstruments].filter(n => !existingInstrs.has(n));
+          // 1. Bell County Clerk search (instruments + deeds)
+          if (kofile && input.county.toLowerCase() === 'bell') {
+            const t = logger.attempt('Discovery', 'Bell County Clerk', 'searchBellClerkOwnerForPlatDeed', subdivName);
+            try {
+              const { platInstruments, deedInstruments } =
+                await searchBellClerkOwnerForPlatDeed(subdivName, logger);
+              const existingInstrs = new Set(
+                [...documents, ...iterationDocs].map(d => d.ref.instrumentNumber).filter(Boolean),
+              );
+              const newInstrs = [...platInstruments, ...deedInstruments].filter(n => !existingInstrs.has(n));
 
-            if (newInstrs.length === 0) {
-              t.partial(0, `Found ${platInstruments.length + deedInstruments.length} instrument(s) but all already retrieved`);
-            } else {
-              t.success(newInstrs.length, `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s) — fetching ${newInstrs.length} new`);
-              for (const instrNum of newInstrs.slice(0, 5)) {
-                const isPlat = platInstruments.includes(instrNum);
-                const docType = isPlat ? 'Final Plat (discovery)' : 'Warranty Deed (discovery)';
-                const imgT = logger.attempt('Discovery', 'Bell County Clerk', 'fetchDocumentImages', instrNum);
-                try {
-                  const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 10 : 4, logger);
-                  if (pages.length > 0) {
-                    const docResult: DocumentResult = {
-                      ref: {
-                        instrumentNumber: instrNum, volume: null, page: null,
-                        documentType: docType, recordingDate: null,
-                        grantors: [], grantees: [],
-                        source: `${input.county} County Clerk (discovery iter ${discoveryState.iteration})`,
-                        url: `${kofileBase}/doc/${instrNum}/details`,
-                      },
-                      textContent: null, pages, ocrText: null, extractedData: null,
-                    };
-                    iterationDocs.push(docResult);
-                    discoveryState.totalDocumentsRetrieved++;
-                    imgT.success(pages.length, `${pages.length} page(s) for ${docType}`);
-                    bundleAndUploadPages(pages, input.projectId, instrNum, docType)
-                      .then(url => { if (url) docResult.pagesPdfUrl = url; })
-                      .catch(() => undefined);
-                  } else {
-                    imgT.partial(0, 'No pages captured');
+              if (newInstrs.length === 0) {
+                t.partial(0, `Found ${platInstruments.length + deedInstruments.length} instrument(s) but all already retrieved`);
+              } else {
+                t.success(newInstrs.length, `${platInstruments.length} plat(s), ${deedInstruments.length} deed(s) — fetching ${newInstrs.length} new`);
+                for (const instrNum of newInstrs.slice(0, 5)) {
+                  const isPlat = platInstruments.includes(instrNum);
+                  const docType = isPlat ? 'Final Plat (discovery)' : 'Warranty Deed (discovery)';
+                  const imgT = logger.attempt('Discovery', 'Bell County Clerk', 'fetchDocumentImages', instrNum);
+                  try {
+                    const pages = await fetchDocumentImages(input.county, instrNum, isPlat ? 10 : 4, logger);
+                    if (pages.length > 0) {
+                      const docResult: DocumentResult = {
+                        ref: {
+                          instrumentNumber: instrNum, volume: null, page: null,
+                          documentType: docType, recordingDate: null,
+                          grantors: [], grantees: [],
+                          source: `${input.county} County Clerk (discovery iter ${discoveryState.iteration})`,
+                          url: `${kofileBase}/doc/${instrNum}/details`,
+                        },
+                        textContent: null, pages, ocrText: null, extractedData: null,
+                      };
+                      iterationDocs.push(docResult);
+                      discoveryState.totalDocumentsRetrieved++;
+                      imgT.success(pages.length, `${pages.length} page(s) for ${docType}`);
+                      bundleAndUploadPages(pages, input.projectId, instrNum, docType)
+                        .then(url => { if (url) docResult.pagesPdfUrl = url; })
+                        .catch(() => undefined);
+                    } else {
+                      imgT.partial(0, 'No pages captured');
+                    }
+                  } catch (imgErr) {
+                    imgT.fail(`Image fetch failed: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
                   }
-                } catch (imgErr) {
-                  imgT.fail(`Image fetch failed: ${imgErr instanceof Error ? imgErr.message : String(imgErr)}`);
                 }
               }
+            } catch (err) {
+              t.fail(`Subdivision search failed: ${err instanceof Error ? err.message : String(err)}`);
             }
-          } catch (err) {
-            t.fail(`Subdivision search failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+
+          // 2. Plat repository search (free direct-download PDFs)
+          if (platRepo) {
+            // Skip if we already found a plat for this subdivision
+            const alreadyHasRepoPlatForSubdiv = iterationDocs.some(d =>
+              d.ref.documentType === 'Plat (county repository)');
+            if (!alreadyHasRepoPlatForSubdiv) {
+              const tPlat = logger.attempt('Discovery', 'County Plat Repo', 'fetchBestMatchingPlat', subdivName);
+              try {
+                const platResult = await fetchBestMatchingPlat(input.county, subdivName, logger, anthropicApiKey);
+                if (platResult) {
+                  const docResult: DocumentResult = {
+                    ref: {
+                      instrumentNumber: null, volume: null, page: null,
+                      documentType: 'Plat (county repository)',
+                      recordingDate: null, grantors: [], grantees: [],
+                      source: platResult.source, url: platResult.url,
+                    },
+                    textContent: null, pages: [],
+                    imageFormat: platResult.mimeType === 'image/png' ? 'png' : 'pdf',
+                    imageBase64: platResult.base64,
+                    pagesPdfUrl: platResult.url,
+                    ocrText: null, extractedData: null,
+                  };
+                  iterationDocs.push(docResult);
+                  discoveryState.totalDocumentsRetrieved++;
+                  tPlat.success(1, `Plat found: "${platResult.name}"`);
+                } else {
+                  tPlat.partial(0, `No plat found for "${subdivName}"`);
+                }
+              } catch (err) {
+                tPlat.fail(`Plat repo search failed: ${err instanceof Error ? err.message : String(err)}`);
+              }
+            }
           }
         }
+      }
+
+      // ── Log pending volume/pages and plat refs (not yet auto-searched) ──
+      // These are tracked but volume/page searches require Kofile API not yet
+      // automated. Log them so operators can follow up manually if needed.
+      const pendingVPs = consumePendingVolumePages(discoveryState);
+      if (pendingVPs.length > 0) {
+        logger.info('Discovery', `Volume/page refs discovered (not auto-searched): ${pendingVPs.map(vp => `Vol ${vp.volume} Pg ${vp.page}`).join(', ')}`);
+      }
+      const pendingPRs = consumePendingPlatRefs(discoveryState);
+      if (pendingPRs.length > 0) {
+        logger.info('Discovery', `Plat refs discovered (not auto-searched): ${pendingPRs.map(pr => `Cabinet ${pr.cabinet} Slide ${pr.slide}`).join(', ')}`);
       }
 
       // If no documents were retrieved this iteration, stop
@@ -1617,16 +1736,15 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
       allProcessedDocs.push(...newProcessedDocs);
       documents.push(...iterationDocs);
 
-      // Keep the best boundary (highest confidence, most calls)
+      // Keep the best boundary:
+      //   1. metes_and_bounds always beats lot_and_block (type hierarchy)
+      //   2. Within same type: more calls wins; tie-break on confidence
       if (newBoundary) {
         if (!bestBoundary) {
           bestBoundary = newBoundary;
           logger.info('Discovery', `New boundary found in iteration ${discoveryState.iteration}: ${newBoundary.type}, ${newBoundary.calls.length} calls, confidence ${newBoundary.confidence}`);
-        } else if (
-          newBoundary.calls.length > bestBoundary.calls.length ||
-          (newBoundary.calls.length === bestBoundary.calls.length && newBoundary.confidence > bestBoundary.confidence)
-        ) {
-          logger.info('Discovery', `Better boundary found in iteration ${discoveryState.iteration}: ${newBoundary.type}, ${newBoundary.calls.length} calls (was ${bestBoundary.calls.length}), confidence ${newBoundary.confidence} (was ${bestBoundary.confidence})`);
+        } else if (compareBoundaries(newBoundary, bestBoundary) > 0) {
+          logger.info('Discovery', `Better boundary found in iteration ${discoveryState.iteration}: ${newBoundary.type} / ${newBoundary.calls.length} calls / conf ${newBoundary.confidence} > ${bestBoundary.type} / ${bestBoundary.calls.length} calls / conf ${bestBoundary.confidence}`);
           bestBoundary = newBoundary;
         }
       }
@@ -1692,12 +1810,14 @@ export async function runPipeline(input: PipelineInput): Promise<PipelineResult>
         logger.info('Stage3', `Routing to plat-based extraction for Lot ${lot}, Block ${block} from plat document`);
 
         // Find plat document: prefer 'Final Plat', 'Plat', or any doc whose type includes 'plat'
+        // Check all three image storage paths: imageBase64, pages[] (Kofile signed-URL), pageScreenshots[]
+        const hasAnyImage = (d: typeof finalProcessedDocs[number]): boolean =>
+          !!(d.imageBase64 ||
+             (d.pages && d.pages.length > 0) ||
+             (d.pageScreenshots && d.pageScreenshots.length > 0));
         const platDocForExtraction = finalProcessedDocs.find(d =>
-          (d.imageBase64 || (d.pageScreenshots && d.pageScreenshots.length > 0)) &&
-          /plat/i.test(d.ref.documentType)
-        ) ?? finalProcessedDocs.find(d =>
-          d.imageBase64 || (d.pageScreenshots && d.pageScreenshots.length > 0)
-        );
+          hasAnyImage(d) && /plat/i.test(d.ref.documentType)
+        ) ?? finalProcessedDocs.find(d => hasAnyImage(d));
 
         if (platDocForExtraction) {
           logger.info('Stage3-Plat', `Sending plat image to Claude Vision with lot-specific prompt…`);

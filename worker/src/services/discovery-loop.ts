@@ -179,36 +179,14 @@ export function extractNewIdentifiers(
       }
     }
 
-    // 3. Parse instrument numbers from OCR text (e.g., "recorded under instrument 2019-00789")
+    // 3. Parse instrument numbers, vol/page, and plat refs from OCR text
     if (doc.ocrText) {
-      const ocrInstruments = parseInstrumentNumbersFromText(doc.ocrText);
-      for (const instrNum of ocrInstruments) {
-        if (!state.searchedInstruments.has(instrNum) && !state.pendingInstruments.has(instrNum)) {
-          state.pendingInstruments.add(instrNum);
-          state.discoveryChain.push({
-            iteration, sourceDocument: sourceLabel,
-            identifierType: 'instrument', identifierValue: instrNum,
-          });
-          newCount++;
-          logger.info('Discovery', `New instrument from OCR in ${sourceLabel}: ${instrNum}`);
-        }
-      }
+      newCount += ingestFreeText(state, doc.ocrText, sourceLabel, iteration, 'OCR', logger);
     }
 
-    // 4. Parse volume/page and instrument references from raw text content
+    // 4. Parse instrument numbers, vol/page, and plat refs from raw text content
     if (doc.textContent) {
-      const textInstruments = parseInstrumentNumbersFromText(doc.textContent);
-      for (const instrNum of textInstruments) {
-        if (!state.searchedInstruments.has(instrNum) && !state.pendingInstruments.has(instrNum)) {
-          state.pendingInstruments.add(instrNum);
-          state.discoveryChain.push({
-            iteration, sourceDocument: sourceLabel,
-            identifierType: 'instrument', identifierValue: instrNum,
-          });
-          newCount++;
-          logger.info('Discovery', `New instrument from text in ${sourceLabel}: ${instrNum}`);
-        }
-      }
+      newCount += ingestFreeText(state, doc.textContent, sourceLabel, iteration, 'text', logger);
     }
 
     // 5. Extract subdivision name from lot/block data
@@ -288,6 +266,113 @@ function ingestReference(
   }
 
   return newCount;
+}
+
+/**
+ * Parse all three identifier types from a free-text string (OCR output, deed text, etc.)
+ * and ingest them into the discovery state.
+ *
+ * @param state     The discovery state to mutate (pendingInstruments / pendingVolumePages / pendingPlatRefs)
+ * @param text      Raw text to parse (ocrText, textContent, or any deed/plat narrative)
+ * @param sourceLabel  Human-readable label for the document that provided this text —
+ *                     stored in the discoveryChain for traceability
+ * @param iteration Current discovery iteration number (stored in discoveryChain events)
+ * @param textType  'OCR' for ocrText or 'text' for textContent — used only in log messages
+ * @param logger    Pipeline logger
+ * @returns         Count of genuinely new identifiers added to the pending sets
+ *                  (zero if all parsed identifiers were already in the searched/pending sets)
+ */
+function ingestFreeText(
+  state: DiscoveryState,
+  text: string,
+  sourceLabel: string,
+  iteration: number,
+  textType: 'OCR' | 'text',
+  logger: PipelineLogger,
+): number {
+  let newCount = 0;
+
+  // Instrument numbers
+  const instruments = parseInstrumentNumbersFromText(text);
+  for (const instrNum of instruments) {
+    if (!state.searchedInstruments.has(instrNum) && !state.pendingInstruments.has(instrNum)) {
+      state.pendingInstruments.add(instrNum);
+      state.discoveryChain.push({
+        iteration, sourceDocument: sourceLabel,
+        identifierType: 'instrument', identifierValue: instrNum,
+      });
+      newCount++;
+      logger.info('Discovery', `New instrument from ${textType} in ${sourceLabel}: ${instrNum}`);
+    }
+  }
+
+  // Volume/page pairs (e.g. "Vol 7687 Pg 112", "OPR/7687/112")
+  const volumePages = parseVolumePageFromText(text);
+  for (const vp of volumePages) {
+    const vpKey = `${vp.volume}:${vp.page}`;
+    if (!state.searchedVolumePages.has(vpKey) && !state.pendingVolumePages.has(vpKey)) {
+      state.pendingVolumePages.add(vpKey);
+      state.discoveryChain.push({
+        iteration, sourceDocument: sourceLabel,
+        identifierType: 'volumePage', identifierValue: `Vol ${vp.volume} Pg ${vp.page}`,
+      });
+      newCount++;
+      logger.info('Discovery', `New vol/page from ${textType} in ${sourceLabel}: Vol ${vp.volume} Pg ${vp.page}`);
+    }
+  }
+
+  // Plat cabinet/slide refs (e.g. "Cabinet A Slide 5")
+  const platRefs = parsePlatRefsFromText(text);
+  for (const pr of platRefs) {
+    const prKey = `${pr.cabinet}:${pr.slide}`;
+    if (!state.searchedPlatRefs.has(prKey) && !state.pendingPlatRefs.has(prKey)) {
+      state.pendingPlatRefs.add(prKey);
+      state.discoveryChain.push({
+        iteration, sourceDocument: sourceLabel,
+        identifierType: 'platRef', identifierValue: `Cabinet ${pr.cabinet} Slide ${pr.slide}`,
+      });
+      newCount++;
+      logger.info('Discovery', `New plat ref from ${textType} in ${sourceLabel}: Cabinet ${pr.cabinet} Slide ${pr.slide}`);
+    }
+  }
+
+  return newCount;
+}
+
+/**
+ * Consume pending volume/page pairs from the discovery state, up to maxCount.
+ * Returns them as { volume, page } objects and marks them as searched.
+ */
+export function consumePendingVolumePages(
+  state: DiscoveryState,
+  maxCount: number = 5,
+): Array<{ volume: string; page: string }> {
+  const batch: Array<{ volume: string; page: string }> = [];
+  for (const key of Array.from(state.pendingVolumePages).slice(0, maxCount)) {
+    const [volume, page] = key.split(':');
+    batch.push({ volume, page });
+    state.pendingVolumePages.delete(key);
+    state.searchedVolumePages.add(key);
+  }
+  return batch;
+}
+
+/**
+ * Consume pending plat cabinet/slide refs from the discovery state, up to maxCount.
+ * Returns them as { cabinet, slide } objects and marks them as searched.
+ */
+export function consumePendingPlatRefs(
+  state: DiscoveryState,
+  maxCount: number = 5,
+): Array<{ cabinet: string; slide: string }> {
+  const batch: Array<{ cabinet: string; slide: string }> = [];
+  for (const key of Array.from(state.pendingPlatRefs).slice(0, maxCount)) {
+    const [cabinet, slide] = key.split(':');
+    batch.push({ cabinet, slide });
+    state.pendingPlatRefs.delete(key);
+    state.searchedPlatRefs.add(key);
+  }
+  return batch;
 }
 
 // ── Pending Check ───────────────────────────────────────────────────────────
