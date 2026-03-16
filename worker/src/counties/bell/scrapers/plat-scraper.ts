@@ -395,7 +395,7 @@ async function searchClerkForPlats(
       if (captureImages) {
         try {
           progress(`    Capturing plat pages: ${instrNum}`);
-          const pages = await fetchDocumentImages('bell', instrNum, 15, logger);
+          const pages = await fetchDocumentImages(instrNum, 15, logger);
           pageImages = pages.map(p => p.imageBase64).filter(Boolean);
           progress(`    ✓ ${pageImages.length} page(s) for instrument ${instrNum}`);
         } catch (imgErr) {
@@ -452,7 +452,7 @@ async function searchByCabinetSlide(
     let pageImages: string[] = [];
     if (captureImages && instrNum) {
       try {
-        const pages = await fetchDocumentImages('bell', instrNum, 15, logger);
+        const pages = await fetchDocumentImages(instrNum, 15, logger);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
       } catch { /* continue */ }
     }
@@ -503,7 +503,7 @@ async function searchByVolumePage(
     let pageImages: string[] = [];
     if (captureImages && instrNum) {
       try {
-        const pages = await fetchDocumentImages('bell', instrNum, 15, logger);
+        const pages = await fetchDocumentImages(instrNum, 15, logger);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
       } catch { /* continue */ }
     }
@@ -555,7 +555,7 @@ async function checkInstrumentForPlat(
     let pageImages: string[] = [];
     if (captureImages) {
       try {
-        const pages = await fetchDocumentImages('bell', instrumentNumber, 15, logger);
+        const pages = await fetchDocumentImages(instrumentNumber, 15, logger);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`    ✓ ${pageImages.length} page(s) for plat ${instrumentNumber}`);
       } catch { /* continue */ }

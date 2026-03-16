@@ -301,7 +301,15 @@ Pay special attention to road curves, reserve boundaries, and road frontage.`;
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
-/** Call Claude Vision with a base64 image and text prompt, return raw text. */
+/**
+ * Call Claude Vision with a base64 image and text prompt, return raw text.
+ *
+ * Retries up to 3 times with exponential back-off on transient errors (5xx,
+ * overloaded).  Uses the `logger.attempt()` tracker pattern so every call
+ * appears as a structured entry in the pipeline log stream.
+ *
+ * Token usage (input_tokens + output_tokens) is logged when available.
+ */
 async function callClaudeVision(
   client: Anthropic,
   imageBase64: string,
@@ -311,26 +319,70 @@ async function callClaudeVision(
   stepLabel: string,
   maxTokens = 8000,
 ): Promise<string> {
-  logger.info('GeoReconcile', `  → ${stepLabel}: calling Claude Vision (${Math.round(imageBase64.length / 1024)}KB base64)…`);
-  const startMs = Date.now();
+  const tracker = logger.attempt(
+    'GeoReconcile',
+    'claude-vision',
+    stepLabel,
+    `${Math.round(imageBase64.length / 1024)}KB ${mediaType}`,
+  );
 
-  const response = await client.messages.create({
-    model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929',
-    max_tokens: maxTokens,
-    temperature: 0,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
-        { type: 'text', text: prompt },
-      ],
-    }],
-  });
+  const MAX_ATTEMPTS = 4;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      const delayMs = 2000 * Math.pow(2, attempt - 1);
+      tracker.step(`Retry ${attempt}/${MAX_ATTEMPTS - 1} — waiting ${delayMs}ms`);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
 
-  const text = response.content.map(c => c.type === 'text' ? c.text : '').join('\n');
-  const elapsed = ((Date.now() - startMs) / 1000).toFixed(1);
-  logger.info('GeoReconcile', `  ✓ ${stepLabel}: done in ${elapsed}s (${text.split('\n').length} lines)`);
-  return text;
+    const attemptStart = Date.now();
+    try {
+      const response = await client.messages.create({
+        model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929',
+        max_tokens: maxTokens,
+        temperature: 0,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+            { type: 'text', text: prompt },
+          ],
+        }],
+      });
+
+      const text = response.content.map(c => c.type === 'text' ? c.text : '').join('\n');
+      const elapsed = ((Date.now() - attemptStart) / 1000).toFixed(1);
+      const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
+      const tokenInfo = usage
+        ? ` | in=${usage.input_tokens ?? '?'} out=${usage.output_tokens ?? '?'} tokens`
+        : '';
+      const lines = text.split('\n').length;
+      tracker.success(lines, `${elapsed}s, ${lines} lines, ${text.length} chars${tokenInfo}`);
+      return text;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      tracker.step(`Attempt ${attempt + 1} failed (${((Date.now() - attemptStart) / 1000).toFixed(1)}s): ${msg}`);
+
+      // Non-retriable errors: bad request, auth, forbidden
+      if (typeof (err as { status?: number }).status === 'number') {
+        const s = (err as { status: number }).status;
+        if (s === 400 || s === 401 || s === 403) {
+          tracker.fail(`Non-retriable error (HTTP ${s}): ${msg}`);
+          throw err;
+        }
+      }
+
+      // On the final attempt throw unconditionally — no fallback after the loop
+      if (attempt >= MAX_ATTEMPTS - 1) {
+        tracker.fail(`All ${MAX_ATTEMPTS} attempts exhausted: ${msg}`);
+        throw err;
+      }
+      // Otherwise continue to next iteration
+    }
+  }
+
+  // TypeScript requires a return/throw after the loop even though the final-attempt
+  // branch always throws above.  This line is never reached at runtime.
+  throw new Error(`${stepLabel}: retry loop exited without result`);
 }
 
 /**
@@ -706,13 +758,14 @@ export async function buildBoundaryMap(
   ].filter(Boolean).join('\n\n---\n\n');
 
   const client = new Anthropic({ apiKey: anthropicApiKey });
-  const startMs = Date.now();
+
+  const inputKb  = Math.round(geoSections.length / 1024);
+  const textKb   = Math.round(textData.length / 1024);
+  const deedKb   = deedData ? Math.round(deedData.length / 1024) : 0;
+  const sourceCount = deedData ? 'THREE' : 'TWO';
 
   logger.info('GeoReconcile',
-    `  3A: Sending ${Math.round(geoSections.length / 1024)}KB geo data + ` +
-    `${Math.round(textData.length / 1024)}KB text` +
-    (deedData ? ` + ${Math.round(deedData.length / 1024)}KB deed` : '') +
-    ` to Claude…`);
+    `  3A: ${inputKb}KB geo + ${textKb}KB text${deedData ? ` + ${deedKb}KB deed` : ''} → Claude (max 16K tokens)`);
 
   // Build the deed section for the prompt when deed data is available.
   // The deed provides the legal perimeter baseline (typically an older survey),
@@ -724,15 +777,7 @@ export async function buildBoundaryMap(
       deedData
     : '';
 
-  const sourceCount = deedData ? 'THREE' : 'TWO';
-
-  const response = await client.messages.create({
-    model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929',
-    max_tokens: 16000,
-    temperature: 0,
-    messages: [{
-      role: 'user',
-      content: `You are a professional land surveyor performing a GEOMETRIC RECONCILIATION.
+  const promptContent = `You are a professional land surveyor performing a GEOMETRIC RECONCILIATION.
 
 You have ${sourceCount} independent data sources:
 
@@ -780,16 +825,61 @@ Tags:
 - [VERIFY] = conflicting readings between sources that cannot be resolved
 - [MISSING] = data not available from any source
 
-Format as a structured report for surveyor review.`,
-    }],
-  });
+Format as a structured report for surveyor review.`;
 
-  const mapText = response.content.map(c => c.type === 'text' ? c.text : '').join('\n');
-  const elapsed = ((Date.now() - startMs) / 1000).toFixed(1);
-  logger.info('GeoReconcile',
-    `  3A complete in ${elapsed}s — ${mapText.split('\n').length} lines`);
+  // Retry up to 3 times with exponential back-off
+  const tracker = logger.attempt('GeoReconcile', 'claude-text', '3A-boundary-map', `${subdivName} (${sourceCount} sources)`);
+  const MAX_ATTEMPTS = 4;
 
-  return mapText;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      const delayMs = 2000 * Math.pow(2, attempt - 1);
+      tracker.step(`Retry ${attempt}/${MAX_ATTEMPTS - 1} — waiting ${delayMs}ms`);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+
+    const attemptStart = Date.now();
+    try {
+      const response = await client.messages.create({
+        model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929',
+        max_tokens: 16000,
+        temperature: 0,
+        messages: [{ role: 'user', content: promptContent }],
+      });
+
+      const mapText = response.content.map(c => c.type === 'text' ? c.text : '').join('\n');
+      const elapsed = ((Date.now() - attemptStart) / 1000).toFixed(1);
+      const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
+      const tokenInfo = usage
+        ? ` | in=${usage.input_tokens ?? '?'} out=${usage.output_tokens ?? '?'} tokens`
+        : '';
+      const lines = mapText.split('\n').length;
+      tracker.success(lines, `${elapsed}s, ${lines} lines, ${mapText.length} chars${tokenInfo}`);
+      return mapText;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      tracker.step(`Attempt ${attempt + 1} failed (${((Date.now() - attemptStart) / 1000).toFixed(1)}s): ${msg}`);
+
+      if (typeof (err as { status?: number }).status === 'number') {
+        const s = (err as { status: number }).status;
+        if (s === 400 || s === 401 || s === 403) {
+          tracker.fail(`Non-retriable error (HTTP ${s}): ${msg}`);
+          throw err;
+        }
+      }
+
+      // On the final attempt throw unconditionally — no fallback after the loop
+      if (attempt >= MAX_ATTEMPTS - 1) {
+        tracker.fail(`All ${MAX_ATTEMPTS} attempts exhausted: ${msg}`);
+        throw err;
+      }
+      // Otherwise continue to next iteration
+    }
+  }
+
+  // TypeScript requires a return/throw after the loop even though the final-attempt
+  // branch always throws above.  This line is never reached at runtime.
+  throw new Error('3A-boundary-map: retry loop exited without result');
 }
 
 // ── Confidence summary ────────────────────────────────────────────────────────

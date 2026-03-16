@@ -154,6 +154,20 @@ function scoreDocumentRelevance(docType: string): number {
   return 30;
 }
 
+/**
+ * Safely close a Playwright browser, suppressing errors.
+ * Use in finally blocks to ensure the browser is always closed
+ * even when an exception is thrown partway through a function.
+ */
+async function safeCloseBrowser(browser: import('playwright').Browser | null, logger: PipelineLogger, context: string): Promise<void> {
+  if (!browser) return;
+  try {
+    await browser.close();
+  } catch (closeErr) {
+    logger.warn(context, `Browser close error (non-fatal): ${closeErr instanceof Error ? closeErr.message : String(closeErr)}`);
+  }
+}
+
 // ── Tyler PublicSearch URL Builder ─────────────────────────────────────────
 
 /**
@@ -1856,14 +1870,13 @@ export async function searchClerkRecords(
     logger.info('Stage2', `Fetched ${results.length} documents. With content: ${results.filter((r) => r.textContent || r.imageBase64).length}`);
     return results;
   } catch (err) {
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
-
     const errMsg = err instanceof Error ? err.message : String(err);
     tracker({ status: 'fail', error: errMsg });
     logger.error('Stage2', `Clerk search failed: ${errMsg}`, err);
     return [];
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2');
+    browser = null;
   }
 }
 
@@ -2034,9 +2047,6 @@ export async function searchSuperSearch(
       }
     }
 
-    await browser.close();
-    browser = null;
-
     // Filter to deed-relevant and sort by relevance
     const relevant = capturedDocs.filter((d) => isDeedRelevant(d.documentType));
     const finalDocs = relevant.length > 0 ? relevant.slice(0, 10) : capturedDocs.slice(0, 5);
@@ -2055,13 +2065,13 @@ export async function searchSuperSearch(
       extractedData: null,
     }));
   } catch (err) {
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
     const errMsg = err instanceof Error ? err.message : String(err);
     tracker({ status: 'fail', error: errMsg });
     logger.error('Stage2-SS', `SUPERSEARCH failed: ${errMsg}`, err);
     return [];
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2-SS');
+    browser = null;
   }
 }
 
@@ -2293,13 +2303,13 @@ export async function searchClerkByAddress(
 
     return results;
   } catch (err) {
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
     const errMsg = err instanceof Error ? err.message : String(err);
     tracker({ status: 'fail', error: errMsg });
     logger.error('Stage2-Addr', `Address clerk search failed: ${errMsg}`, err);
     return [];
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2-Addr');
+    browser = null;
   }
 }
 
@@ -2539,13 +2549,13 @@ export async function searchClerkForPlats(
 
     return results;
   } catch (err) {
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
     const errMsg = err instanceof Error ? err.message : String(err);
     tracker({ status: 'fail', error: errMsg });
     logger.error('Stage2-Plat', `Plat search failed: ${errMsg}`, err);
     return [];
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2-Plat');
+    browser = null;
   }
 }
 
@@ -2577,10 +2587,10 @@ export async function searchClerkForPlats(
  * @param logger  Pipeline logger
  */
 export async function fetchDocumentImages(
-  county: string,
   instrumentNumber: string,
   expectedPages: number,
   logger: PipelineLogger,
+  county: string = 'bell',
 ): Promise<DocumentPage[]> {
   const baseUrl = getKofileBaseUrl(county);
   if (!baseUrl) {
@@ -2616,17 +2626,18 @@ export async function fetchDocumentImages(
         !imageUrls.includes(url)
       ) {
         imageUrls.push(url);
-        console.log(`[DOC-IMG] Captured: ${url.substring(0, 100)}...`);
+        logger.info('2D-IMG', `Intercepted URL #${imageUrls.length}: ${url.substring(0, 120)}`);
       }
     });
 
     // Navigate directly to the document viewer page (avoids search+click overhead)
     const viewerUrl = `${baseUrl}/doc/${encodeURIComponent(instrumentNumber)}/details`;
-    console.log(`[DOC-IMG] Navigating directly to viewer: ${viewerUrl}`);
+    logger.info('2D-IMG', `Navigating to viewer: ${viewerUrl}`);
     try {
       await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 60_000 });
     } catch {
       // networkidle timeout is acceptable — images may still be loading
+      logger.info('2D-IMG', `networkidle timed out — falling back to domcontentloaded + 5s wait`);
       await page.goto(viewerUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
       await page.waitForTimeout(5_000);
     }
@@ -2637,24 +2648,38 @@ export async function fetchDocumentImages(
       await page.waitForTimeout(500);
     }
 
-    console.log(`[DOC-IMG] After viewer load: ${imageUrls.length} URLs captured`);
+    logger.info('2D-IMG', `After viewer load: ${imageUrls.length} URL(s) intercepted`);
 
     // Fallback: if direct viewer didn't capture images, try the proven search+click
     // approach. Per transcripts (Ash Trust, March 4, 2026): 8s after navigation for
     // the Tyler SPA to render results, then 8s after clicking a result row for the
     // Kofile document viewer to fire the signed image URL.
     if (imageUrls.length === 0) {
-      console.log('[DOC-IMG] Direct viewer captured no images — falling back to search+click');
+      logger.info('2D-IMG', `Direct viewer captured no images — falling back to search+click`);
       const searchUrl = `${baseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
+      logger.info('2D-IMG', `Search+click: ${searchUrl}`);
       await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
       // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
       await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
-      try {
-        await page.locator('tbody tr').first().click();
-        // Kofile viewer needs TYLER_VIEWER_LOAD_TIMEOUT_MS to fire the signed image URL.
-        await page.waitForTimeout(TYLER_VIEWER_LOAD_TIMEOUT_MS);
-      } catch (e: any) {
-        console.log('[DOC-IMG] Search+click fallback: could not click result:', e.message);
+
+      // Check if any results appeared at all
+      const rowCount = await page.$$eval('tbody tr', (rows: Element[]) => rows.length).catch(() => 0);
+      if (rowCount === 0) {
+        logger.warn('2D-IMG', `Search+click: no result rows found for instrument ${instrumentNumber} — document may not exist`);
+        try {
+          const pageContent = await page.content();
+          logger.info('2D-IMG', `[no-results-dump] URL: ${page.url()}, HTML: ${pageContent.replace(/\s+/g, ' ').substring(0, 400)}`);
+        } catch { /* ignore */ }
+      } else {
+        logger.info('2D-IMG', `Search+click: ${rowCount} result row(s) found — clicking first`);
+        try {
+          await page.locator('tbody tr').first().click();
+          // Kofile viewer needs TYLER_VIEWER_LOAD_TIMEOUT_MS to fire the signed image URL.
+          await page.waitForTimeout(TYLER_VIEWER_LOAD_TIMEOUT_MS);
+          logger.info('2D-IMG', `After click+wait: ${imageUrls.length} URL(s) intercepted`);
+        } catch (e: any) {
+          logger.warn('2D-IMG', `Search+click: could not click result row: ${e.message}`);
+        }
       }
     }
 
@@ -2679,11 +2704,12 @@ export async function fetchDocumentImages(
             height: 0,
             signedUrl: imgUrl,
           });
-          console.log(`[DOC-IMG] Page ${pageNum}: ${buf.length} bytes (${detectFormat(imgUrl)})`);
+          logger.info('2D-IMG', `Page ${pageNum}: downloaded ${buf.length} bytes (${detectFormat(imgUrl)})`);
           return true;
         }
+        logger.warn('2D-IMG', `Page ${pageNum}: HTTP ${resp.status()} from ${imgUrl.substring(0, 80)}`);
       } catch (e: any) {
-        console.log(`[DOC-IMG] Page ${pageNum} download failed: ${e.message}`);
+        logger.warn('2D-IMG', `Page ${pageNum} download failed: ${e.message}`);
       }
       return false;
     };
@@ -2694,6 +2720,8 @@ export async function fetchDocumentImages(
     // loads multiple images at once. This matches the proven grab-docs.js approach.
     if (imageUrls.length > 0) {
       await downloadPage(imageUrls[0], 1);  // first intercepted URL = page 1 (viewer fires page 1 first)
+    } else {
+      logger.warn('2D-IMG', `No signed image URLs captured for instrument ${instrumentNumber} — no pages to download`);
     }
 
     // Navigate to subsequent pages using the next-page button.
@@ -2721,7 +2749,7 @@ export async function fetchDocumentImages(
       }
 
       if (!clicked) {
-        console.log(`[DOC-IMG] No next-page button for page ${pageNum} — done`);
+        logger.info('2D-IMG', `Page ${pageNum}: no next-page button found — ${pageNum - 1} page(s) total`);
         break;
       }
 
@@ -2736,19 +2764,21 @@ export async function fetchDocumentImages(
         const seedUrl = imageUrls[0];
         const constructedUrl = seedUrl.replace(/_1\.(png|jpe?g|tiff?)/i, `_${pageNum}.$1`);
         if (constructedUrl !== seedUrl) {
+          logger.info('2D-IMG', `Page ${pageNum}: no new URL intercepted — trying constructed URL`);
           const ok = await downloadPage(constructedUrl, pageNum);
           if (!ok) {
             // Construction failed — no more pages available
-            console.log(`[DOC-IMG] No new image URL for page ${pageNum} — stopping`);
+            logger.info('2D-IMG', `Page ${pageNum}: constructed URL failed — ${pageNum - 1} page(s) total`);
             break;
           }
         } else {
           // Cannot construct a different URL — stop
-          console.log(`[DOC-IMG] No new image URL for page ${pageNum} — stopping`);
+          logger.info('2D-IMG', `Page ${pageNum}: URL construction not applicable — ${pageNum - 1} page(s) total`);
           break;
         }
       } else {
         // No URLs captured at all — stop
+        logger.warn('2D-IMG', `Page ${pageNum}: no URLs ever captured — stopping`);
         break;
       }
     }
@@ -2760,13 +2790,16 @@ export async function fetchDocumentImages(
       attempt.success(pages.length, `Downloaded ${pages.length} page images`);
     } else {
       attempt.fail('No page images captured');
+      logger.warn('2D-IMG', `Failed to capture any images for instrument ${instrumentNumber} — check if instrument exists and viewer URL is correct`);
     }
     return pages;
   } catch (err: any) {
-    console.error('[DOC-IMG] Image fetch failed:', err.message);
-    if (browser) await browser.close().catch(() => {});
+    logger.error('2D-IMG', `Image fetch failed for ${instrumentNumber}: ${err.message}`, err);
     attempt.fail(err.message);
     return [];
+  } finally {
+    await safeCloseBrowser(browser, logger, '2D-IMG');
+    browser = null;
   }
 }
 
@@ -2839,8 +2872,10 @@ export async function searchByInstrument(
     return match;
   } catch (err: any) {
     logger.warn('Stage2-Instr', `Instrument search failed: ${err.message}`);
-    if (browser) await browser.close().catch(() => {});
     return null;
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2-Instr');
+    browser = null;
   }
 }
 
@@ -3010,6 +3045,28 @@ export async function searchBellClerkOwnerForPlatDeed(
     const allDocuments = await _extractSearchResults(page);
     attempt.step(`Found ${allDocuments.length} documents for "${ownerOrSubdivisionName}"`);
 
+    // If no results, dump page content for diagnostics
+    if (allDocuments.length === 0) {
+      logger.warn('Stage2B', `No documents found for "${ownerOrSubdivisionName}" — checking page content`);
+      try {
+        const pageText = await page.evaluate(() => document.body.innerText).catch(() => '');
+        const pageUrl = page.url();
+        const noResultsMsg = pageText.match(/(no results|0 results|no records found|nothing found)/i)?.[0] ?? null;
+        if (noResultsMsg) {
+          logger.info('Stage2B', `[no-results] Page shows: "${noResultsMsg}" — search ran but found nothing`);
+        } else if (pageText.length < 200) {
+          logger.warn('Stage2B', `[no-results] Page has very little text — possible render failure. URL: ${pageUrl}`);
+          const html = await page.content().catch(() => '');
+          logger.info('Stage2B', `[no-results-dump] HTML snippet: ${html.replace(/\s+/g, ' ').substring(0, 400)}`);
+        } else {
+          logger.info('Stage2B', `[no-results] Page has content but _extractSearchResults found nothing. URL: ${pageUrl}`);
+          logger.info('Stage2B', `[no-results-dump] Page text snippet: ${pageText.replace(/\s+/g, ' ').substring(0, 300)}`);
+        }
+      } catch (diagErr) {
+        logger.warn('Stage2B', `[no-results] Diagnostic failed: ${diagErr instanceof Error ? diagErr.message : String(diagErr)}`);
+      }
+    }
+
     // Categorise instruments: plat documents vs deed documents
     const platInstruments: string[] = [];
     const deedInstruments: string[] = [];
@@ -3048,9 +3105,11 @@ export async function searchBellClerkOwnerForPlatDeed(
     return { platInstruments, deedInstruments, allDocuments };
   } catch (err: any) {
     logger.error('Stage2B', 'searchBellPlatDeeds failed', err);
-    if (browser) await browser.close().catch(() => {});
     attempt.fail(err.message);
     return { platInstruments: [], deedInstruments: [], allDocuments: [] };
+  } finally {
+    await safeCloseBrowser(browser, logger, 'Stage2B');
+    browser = null;
   }
 }
 

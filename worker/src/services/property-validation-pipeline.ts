@@ -189,6 +189,7 @@ async function callClaude(
       await new Promise(r => setTimeout(r, 2000 * Math.pow(2, attempt - 1)));
       tracker.step(`Retry ${attempt}/3`);
     }
+    const attemptStart = Date.now();
     try {
       const response = await client.messages.create({
         model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-5-20250929',
@@ -199,11 +200,16 @@ async function callClaude(
       });
       const tb = response.content.find(c => c.type === 'text');
       const text = (tb?.type === 'text' ? tb.text : '') ?? '';
-      tracker({ status: 'success', dataPointsFound: 1, details: `${text.length} chars` });
+      const elapsed = ((Date.now() - attemptStart) / 1000).toFixed(1);
+      const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
+      const tokenInfo = usage
+        ? ` | in=${usage.input_tokens ?? '?'} out=${usage.output_tokens ?? '?'} tokens`
+        : '';
+      tracker({ status: 'success', dataPointsFound: 1, details: `${elapsed}s, ${text.length} chars${tokenInfo}` });
       return text;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      tracker.step(`Attempt ${attempt + 1} failed: ${msg}`);
+      tracker.step(`Attempt ${attempt + 1} failed (${((Date.now() - attemptStart) / 1000).toFixed(1)}s): ${msg}`);
       if (typeof (err as { status?: number }).status === 'number') {
         const s = (err as { status: number }).status;
         if (s === 400 || s === 401 || s === 403) break;
@@ -469,7 +475,9 @@ export async function runPropertyValidationPipeline(
   } : null;
 
   // ── CALL 5: Text synthesis ──────────────────────────────────────────────────
-  logger.info('ValidationPipeline', 'Call 5: Text synthesis...');
+  const call5Start = Date.now();
+  logger.info('ValidationPipeline',
+    `Call 5: Text synthesis (${callSummary.length} calls, ${rawOcrTexts?.length ?? 0} OCR pass(es))...`);
   const synthInput = JSON.stringify({
     extractedCalls:     callSummary,
     datum:              boundary?.datum,
@@ -491,6 +499,7 @@ export async function runPropertyValidationPipeline(
   const synthRaw = await callClaude(client, SYNTHESIS_SYSTEM, synthInput, 'call5-synthesis', logger);
   totalApiCalls++;
   const synthData = synthRaw ? safeParseJson(synthRaw) : null;
+  logger.info('ValidationPipeline', `  Call 5 done in ${((Date.now() - call5Start) / 1000).toFixed(1)}s${synthData ? '' : ' [no data]'}`);
 
   const adjacentProperties: AdjacentProperty[] = Array.isArray(synthData?.adjacentProperties)
     ? (synthData.adjacentProperties as unknown[]).map((ap: unknown) => {
@@ -550,7 +559,10 @@ export async function runPropertyValidationPipeline(
   }
 
   // ── CALL 6: Cross-validation ────────────────────────────────────────────────
-  logger.info('ValidationPipeline', 'Call 6: Cross-validation & confidence symbol assignment...');
+  const call6Start = Date.now();
+  logger.info('ValidationPipeline',
+    `Call 6: Cross-validation & confidence symbol assignment (${callSummary.length} calls, ` +
+    `${reconcSummary?.conflicts ?? 0} geo conflicts)...`);
   const crossValInput = JSON.stringify({
     extractedCalls:     callSummary,
     validationResult:   validationSummary,
@@ -561,6 +573,7 @@ export async function runPropertyValidationPipeline(
   const crossValRaw = await callClaude(client, CROSS_VALIDATION_SYSTEM, crossValInput, 'call6-crossvalidation', logger);
   totalApiCalls++;
   const crossValData = crossValRaw ? safeParseJson(crossValRaw) : null;
+  logger.info('ValidationPipeline', `  Call 6 done in ${((Date.now() - call6Start) / 1000).toFixed(1)}s${crossValData ? '' : ' [no data]'}`);
 
   const perCallConfidence: PerCallConfidence[] = Array.isArray(crossValData?.perCallConfidence)
     ? (crossValData.perCallConfidence as unknown[]).map((pcc: unknown) => {
@@ -629,12 +642,16 @@ export async function runPropertyValidationPipeline(
     : [];
 
   // ── CALL 7: Final report summary ────────────────────────────────────────────
-  logger.info('ValidationPipeline', 'Call 7: Final report summary...');
+  const call7Start = Date.now();
+  const criticalCount = discrepancies.filter(d => d.severity === 'critical').length;
+  const highCount = discrepancies.filter(d => d.severity === 'high').length;
+  logger.info('ValidationPipeline',
+    `Call 7: Final report summary (${discrepancies.length} discrepancies: ${criticalCount} critical, ${highCount} high)...`);
   const reportInput = JSON.stringify({
     propertyMeta,
     discrepancyCount:      discrepancies.length,
-    criticalCount:         discrepancies.filter(d => d.severity === 'critical').length,
-    highCount:             discrepancies.filter(d => d.severity === 'high').length,
+    criticalCount,
+    highCount,
     perCallSummary:        perCallConfidence.map(p => ({
       seq: p.sequence, symbol: p.rating.symbol, evidenceStrength: p.evidenceStrength,
     })),
@@ -651,6 +668,7 @@ export async function runPropertyValidationPipeline(
   const reportRaw = await callClaude(client, REPORT_SYSTEM, reportInput, 'call7-report', logger);
   totalApiCalls++;
   const reportData = reportRaw ? safeParseJson(reportRaw) : null;
+  logger.info('ValidationPipeline', `  Call 7 done in ${((Date.now() - call7Start) / 1000).toFixed(1)}s${reportData ? '' : ' [no data]'}`);
 
   // Parse Call 7 structured fields (topActions, adjacentResearchOrder, discrepancyLog)
   const topActions: TopAction[] = Array.isArray(reportData?.topActions)

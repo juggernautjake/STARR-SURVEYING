@@ -290,7 +290,7 @@ async function fetchInstrumentDocument(
     if (captureImages) {
       try {
         progress(`    Capturing pages for ${instrumentNumber}...`);
-        const pages = await fetchDocumentImages('bell', instrumentNumber, 20, logger);
+        const pages = await fetchDocumentImages(instrumentNumber, 20, logger);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
         if (pageImages.length > 0) {
           progress(`    ✓ Captured ${pageImages.length} page(s) for ${instrumentNumber}`);
@@ -371,7 +371,7 @@ async function searchClerkByOwner(
 
         if (captureImages && instrNum) {
           try {
-            const pages = await fetchDocumentImages('bell', instrNum, 10, logger);
+            const pages = await fetchDocumentImages(instrNum, 10, logger);
             pageImages = pages.map(p => p.imageBase64).filter(Boolean);
           } catch {
             // Image capture failed — continue with metadata only
@@ -442,7 +442,7 @@ async function searchClerkBySubdivision(
       let pageImages: string[] = [];
       if (captureImages) {
         try {
-          const pages = await fetchDocumentImages('bell', instrNum, 15, logger);
+          const pages = await fetchDocumentImages(instrNum, 15, logger);
           pageImages = pages.map(p => p.imageBase64).filter(Boolean);
           progress(`  ✓ Plat ${instrNum}: ${pageImages.length} pages captured`);
         } catch {
@@ -466,7 +466,7 @@ async function searchClerkBySubdivision(
       let pageImages: string[] = [];
       if (captureImages) {
         try {
-          const pages = await fetchDocumentImages('bell', instrNum, 10, logger);
+          const pages = await fetchDocumentImages(instrNum, 10, logger);
           pageImages = pages.map(p => p.imageBase64).filter(Boolean);
         } catch { /* continue without images */ }
       }
@@ -520,7 +520,7 @@ async function fetchByVolumePage(
     let pageImages: string[] = [];
     if (captureImages && match.instrumentNumber) {
       try {
-        const pages = await fetchDocumentImages('bell', match.instrumentNumber, 10, logger);
+        const pages = await fetchDocumentImages(match.instrumentNumber, 10, logger);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
       } catch { /* continue */ }
     }
@@ -566,7 +566,7 @@ export async function captureDocumentPages(
     const { PipelineLogger } = await import('../../../lib/logger.js');
     const logger = new PipelineLogger(`clerk-pages-${instrumentId}-${Date.now()}`);
 
-    const pages = await fetchDocumentImages('bell', instrumentId, maxPages, logger);
+    const pages = await fetchDocumentImages(instrumentId, maxPages, logger);
     const images = pages.map(p => p.imageBase64).filter(Boolean);
     progress(`✓ Captured ${images.length}/${pages.length} page(s) for ${instrumentId}`);
     return images;

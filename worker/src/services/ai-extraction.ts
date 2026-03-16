@@ -574,8 +574,12 @@ async function extractPdfViaPageRendering(
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     renderTracker.fail(`Playwright PDF rendering failed: ${msg}`);
-    if (browser) await browser.close().catch(() => {});
     return null;
+  } finally {
+    if (browser) {
+      try { await browser.close(); } catch { /* ignore close errors */ }
+      browser = null;
+    }
   }
 }
 
@@ -1100,10 +1104,33 @@ export async function extractDocuments(
   let bestBoundary: ExtractedBoundaryData | null = null;
   let bestConfidence = 0;
 
-  function updateBest(extracted: ExtractedBoundaryData): void {
-    if (extracted.confidence > bestConfidence) {
+  // Score a boundary: type hierarchy first, then call count, then confidence.
+  // metes_and_bounds (3) always beats lot_and_block (2) regardless of confidence —
+  // a partial metes-and-bounds with real geometry is more useful than a perfect
+  // lot-and-block reference with 0 calls.
+  // Weight 100 for type ensures type difference always dominates call-count differences.
+  // Weight 0.1 for calls keeps call count as a tie-breaker without overriding confidence.
+  // Keep in sync with compareBoundaries() in pipeline.ts.
+  function boundaryScore(b: ExtractedBoundaryData): number {
+    const typeScore = b.type === 'metes_and_bounds' ? 3
+      : b.type === 'hybrid' ? 2.5
+      : b.type === 'lot_and_block' ? 2
+      : 1; // reference_only
+    return typeScore * 100 + b.calls.length * 0.1 + b.confidence;
+  }
+
+  function updateBest(extracted: ExtractedBoundaryData, sourceLabel?: string): void {
+    const newScore = boundaryScore(extracted);
+    const curScore = bestBoundary ? boundaryScore(bestBoundary) : -1;
+    if (newScore > curScore) {
+      const prevDesc = bestBoundary
+        ? `${bestBoundary.type}/${bestBoundary.calls.length}calls/conf${bestBoundary.confidence.toFixed(2)}`
+        : 'none';
       bestBoundary = extracted;
       bestConfidence = extracted.confidence;
+      logger.info('Stage3', `Best boundary updated${sourceLabel ? ` (${sourceLabel})` : ''}: ` +
+        `${extracted.type}/${extracted.calls.length}calls/conf${extracted.confidence.toFixed(2)} ` +
+        `(was: ${prevDesc})`);
     }
   }
 
@@ -1142,13 +1169,13 @@ export async function extractDocuments(
         const extracted = await extractFromTextInternal(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal');
         if (extracted) {
           const verified = await runVerification(legalDescriptionFromCad, extracted, 'CAD-legal');
-          updateBest(verified);
+          updateBest(verified, 'CAD-legal');
         }
       } else if (screening === 'enrich') {
         // Still worth sending to Claude for lot/block info even if no metes & bounds
         const extracted = await extractFromTextInternal(legalDescriptionFromCad, anthropicApiKey, logger, 'CAD-legal-enrich');
         if (extracted) {
-          updateBest(extracted);
+          updateBest(extracted, 'CAD-legal-enrich');
         }
       }
     } catch (err) {
@@ -1169,11 +1196,20 @@ export async function extractDocuments(
     // User uploads always get analyzed (user paid for and chose these files)
     const forceAnalyze = isUserUpload;
 
+    // Log which content paths are available for this document
+    const availablePaths: string[] = [];
+    if (doc.textContent && doc.textContent.length > 50) availablePaths.push(`text(${doc.textContent.length}ch)`);
+    if (doc.pageScreenshots && doc.pageScreenshots.length > 0) availablePaths.push(`screenshots(${doc.pageScreenshots.length}pp)`);
+    if (doc.pages && doc.pages.length > 0) availablePaths.push(`pages(${doc.pages.length}pp)`);
+    if (doc.imageBase64) availablePaths.push(`imageBase64(${doc.imageFormat ?? 'png'})`);
+    if (availablePaths.length === 0) availablePaths.push('NONE');
+    logger.info('Stage3', `${label}: available routes: [${availablePaths.join(', ')}]${isUserUpload ? ' [USER UPLOAD]' : ''}`);
+
     try {
-      // Try text content first
+      // Route A: Text content (fastest, most reliable when present)
       if (doc.textContent && doc.textContent.length > 50) {
         const screening = forceAnalyze ? 'analyze' : screenDocument(doc.textContent);
-        logger.info('Stage3', `${label} text screening: ${screening} (${doc.textContent.length} chars)${isUserUpload ? ' [USER UPLOAD]' : ''}`);
+        logger.info('Stage3', `${label} Route A (text): screening=${screening} (${doc.textContent.length} chars)`);
 
         if (screening === 'skip' && !forceAnalyze) {
           logger.info('Stage3', `${label}: Skipping — not relevant`);
@@ -1185,20 +1221,21 @@ export async function extractDocuments(
           if (extracted) {
             const verified = await runVerification(doc.textContent, extracted, label);
             doc.extractedData = verified;
-            updateBest(verified);
+            updateBest(verified, `${label} Route-A`);
+            logger.info('Stage3', `${label} Route A: ${verified.type}, ${verified.calls.length} calls, conf=${verified.confidence.toFixed(2)}`);
           }
         } else if (screening === 'enrich') {
           const extracted = await extractFromTextInternal(doc.textContent, anthropicApiKey, logger, `${label}-enrich`);
           if (extracted) {
             doc.extractedData = extracted;
-            updateBest(extracted);
+            updateBest(extracted, `${label} Route-A-enrich`);
           }
         }
       }
 
-      // Try multi-page screenshots first (highest quality — captured at full resolution)
+      // Route B: Multi-page screenshots (highest quality — captured at full resolution)
       if (!doc.extractedData && doc.pageScreenshots && doc.pageScreenshots.length > 0) {
-        logger.info('Stage3', `${label}: Processing ${doc.pageScreenshots.length} page screenshot(s)`);
+        logger.info('Stage3', `${label} Route B (pageScreenshots): ${doc.pageScreenshots.length} screenshot(s)`);
         const { ocrText, extracted } = await extractFromPageScreenshots(
           doc.pageScreenshots, anthropicApiKey, logger, label,
         );
@@ -1208,34 +1245,46 @@ export async function extractDocuments(
         if (extracted && ocrText) {
           const verified = await runVerification(ocrText, extracted, `${label}-pages`);
           doc.extractedData = verified;
-          updateBest(verified);
+          updateBest(verified, `${label} Route-B`);
+          logger.info('Stage3', `${label} Route B: ${verified.type}, ${verified.calls.length} calls, conf=${verified.confidence.toFixed(2)}`);
         } else if (extracted) {
           doc.extractedData = extracted;
-          updateBest(extracted);
+          updateBest(extracted, `${label} Route-B`);
         }
       }
 
-      // Route C: Downloaded page images via Kofile signed URL interception
+      // Route C: Downloaded page images via Kofile signed URL interception (pages[])
       const docPages = doc.pages ?? [];
       if (!doc.extractedData && docPages.length > 0) {
-        logger.info('Stage3', `  ${label}: Processing ${docPages.length} downloaded page images`);
+        logger.info('Stage3', `${label} Route C (pages[]): ${docPages.length} downloaded page image(s)`);
         const prompt = `You are analyzing county clerk records from Texas. These are ${docPages.length} page image${docPages.length !== 1 ? 's' : ''} from a ${doc.ref.documentType}${doc.ref.instrumentNumber ? ` (instrument ${doc.ref.instrumentNumber})` : ''}. Extract ALL data: 1) METES AND BOUNDS with every bearing and distance. 2) LOT BOUNDARIES. 3) POINT OF BEGINNING. 4) ACREAGE totals. 5) SURVEYOR info. 6) Full LEGAL DESCRIPTION. 7) CURVE DATA. 8) EASEMENTS. 9) Recording references. Be extremely precise with all numbers.`;
         try {
           const { text, data } = await analyzeMultiPageDocument(docPages, '', prompt, logger);
           if (text) doc.ocrText = text;
-          if (data) doc.extractedData = data;
+          if (data) {
+            // Run verification pass (same as Routes A and B — page images need it too)
+            const verified = text
+              ? await runVerification(text, data, `${label}-pages-c`)
+              : data;
+            doc.extractedData = verified;
+            updateBest(verified, `${label} Route-C`);
+            logger.info('Stage3', `${label} Route C: ${verified.type}, ${verified.calls.length} calls, conf=${verified.confidence.toFixed(2)}`);
+          } else {
+            logger.warn('Stage3', `${label} Route C: analyzeMultiPageDocument returned no extracted data`);
+          }
         } catch (pagesErr: any) {
           if (pagesErr instanceof AnthropicCreditDepletedError) throw pagesErr;
-          logger.warn('Stage3', `  ${label}: Page images extraction failed: ${pagesErr.message}`);
+          logger.warn('Stage3', `${label} Route C failed: ${pagesErr.message}`);
         }
       }
 
-      // Fall back to single image if no page screenshots or text extraction succeeded
+      // Route D: Single imageBase64 (plat repo PDFs, legacy uploaded images)
       if (!doc.extractedData && doc.imageBase64) {
         const mediaType = doc.imageFormat === 'jpg' ? 'image/jpeg' as const
           : doc.imageFormat === 'pdf' ? 'application/pdf' as const
           : doc.imageFormat === 'tiff' ? 'image/tiff' as const
           : 'image/png' as const;
+        logger.info('Stage3', `${label} Route D (imageBase64): ${mediaType}, ${doc.imageBase64.length} chars`);
 
         const { ocrText, extracted } = await extractFromImageInternal(
           doc.imageBase64, mediaType, anthropicApiKey, logger, label,
@@ -1247,10 +1296,11 @@ export async function extractDocuments(
           // OCR-sourced data gets extra verification (inherently less reliable)
           const verified = await runVerification(ocrText, extracted, `${label}-ocr`);
           doc.extractedData = verified;
-          updateBest(verified);
+          updateBest(verified, `${label} Route-D`);
+          logger.info('Stage3', `${label} Route D: ${verified.type}, ${verified.calls.length} calls, conf=${verified.confidence.toFixed(2)}`);
         } else if (extracted) {
           doc.extractedData = extracted;
-          updateBest(extracted);
+          updateBest(extracted, `${label} Route-D`);
         }
       }
 
@@ -1259,6 +1309,13 @@ export async function extractDocuments(
         logger.warn('Stage3', `${label}: WARNING — No text, images, or page screenshots to analyze`);
         if (!doc.processingErrors) doc.processingErrors = [];
         doc.processingErrors.push('No text or image content available for AI analysis');
+      }
+
+      // Log final result for this document
+      if (doc.extractedData) {
+        logger.info('Stage3', `${label}: extraction done — ${doc.extractedData.type}, ${doc.extractedData.calls.length} calls, conf=${doc.extractedData.confidence.toFixed(2)}, warnings=${doc.extractedData.warnings.length}`);
+      } else {
+        logger.warn('Stage3', `${label}: extraction produced no data (tried: ${availablePaths.join(', ')})`);
       }
     } catch (err) {
       if (err instanceof AnthropicCreditDepletedError) {
@@ -1346,7 +1403,10 @@ export async function extractPlatBoundary(
 
   tracker.step(`Extracting boundary for Lot ${lot}, Block ${block} from plat drawing`);
 
-  // Resolve the image to send — prefer page screenshots, then imageBase64
+  // Resolve the image to send — check all three storage paths in priority order:
+  // 1. imageBase64 + imageFormat (plat repo PDFs, legacy uploads)
+  // 2. pages[] (Kofile signed-URL capture via fetchDocumentImages)
+  // 3. pageScreenshots[] (legacy browser screenshots)
   let imageBase64ForVision: string | null = null;
   let mediaType: 'image/png' | 'image/jpeg' | 'application/pdf' = 'image/png';
 
@@ -1355,14 +1415,21 @@ export async function extractPlatBoundary(
     mediaType = platDoc.imageFormat === 'jpg' ? 'image/jpeg'
       : platDoc.imageFormat === 'pdf' ? 'application/pdf'
       : 'image/png';
+    tracker.step(`Image source: imageBase64 (${platDoc.imageFormat}, ${Math.round(platDoc.imageBase64.length / 1024)}KB)`);
+  } else if (platDoc.pages && platDoc.pages.length > 0) {
+    // Use first page from Kofile signed-URL capture (most common for Bell County docs)
+    imageBase64ForVision = platDoc.pages[0].imageBase64;
+    mediaType = platDoc.pages[0].imageFormat === 'jpg' ? 'image/jpeg' : 'image/png';
+    tracker.step(`Image source: pages[0] (${platDoc.pages[0].imageFormat ?? 'png'}, page ${platDoc.pages[0].pageNumber}, ${platDoc.pages.length} total pages)`);
   } else if (platDoc.pageScreenshots && platDoc.pageScreenshots.length > 0) {
     // Use first page screenshot
     imageBase64ForVision = platDoc.pageScreenshots[0].imageBase64;
     mediaType = 'image/png';
+    tracker.step(`Image source: pageScreenshots[0] (${platDoc.pageScreenshots.length} total screenshots)`);
   }
 
   if (!imageBase64ForVision) {
-    tracker({ status: 'fail', error: 'No image available in plat document' });
+    tracker({ status: 'fail', error: 'No image available in plat document (checked imageBase64, pages[], pageScreenshots[])' });
     return null;
   }
 
