@@ -80,6 +80,9 @@ export default function ResearchProjectPage() {
   const [pendingSearchParams, setPendingSearchParams] = useState<{
     address: string; county: string; parcelId: string; ownerName: string;
   } | null>(null);
+  // Set to true the moment any pipeline run begins (deep or lite).
+  // Used to hide the intro title/description once research is underway.
+  const [pipelineHasStarted, setPipelineHasStarted] = useState(false);
 
   // Review state
   const [reviewTab, setReviewTab] = useState<'sources' | 'data' | 'discrepancies' | 'ai_logs' | 'survey_plan'>('sources');
@@ -1342,6 +1345,8 @@ export default function ResearchProjectPage() {
 
   // Derive the current pipeline stage from the underlying DB status
   const currentStage = workflowStepToStage(project.status);
+  // Count only manually uploaded documents (excludes internet-sourced pipeline imports)
+  const uploadedDocumentCount = documents.filter(d => d.source_type === 'user_upload').length;
 
   return (
     <div className="research-page">
@@ -1487,13 +1492,21 @@ export default function ResearchProjectPage() {
           {/* ── Ready to launch (configure sub-state) ── */}
           {project.status === 'configure' && (
             <div className="research-stage2__launch">
-              <h2 className="research-stage2__launch-title">🔬 Research &amp; Analysis</h2>
-              <p className="research-stage2__launch-desc">
-                STARR RECON is searching all public records from {RESEARCH_SOURCES.length}+ sources
-                {documents.length > 0 ? ` plus your ${documents.length} uploaded document${documents.length !== 1 ? 's' : ''}` : ''},
-                capturing screenshots of county CAD and deed websites, and running deep AI analysis on every image, file, and document.
-                All sources and their individual analysis results will be shown here.
-              </p>
+              {/* Title and description are hidden once a pipeline run has started
+                  (either via autoStart from Stage 1 or manually from this page). */}
+              {!pipelineHasStarted && !shouldAutoStartPipeline && (
+                <>
+                  <h2 className="research-stage2__launch-title">🔬 Research &amp; Analysis</h2>
+                  <p className="research-stage2__launch-desc">
+                    STARR RECON is searching all public records from {RESEARCH_SOURCES.length}+ sources
+                    {uploadedDocumentCount > 0
+                      ? ` plus your ${uploadedDocumentCount} uploaded document${uploadedDocumentCount !== 1 ? 's' : ''}`
+                      : ''},
+                    capturing screenshots of county CAD and deed websites, and running deep AI analysis on every image, file, and document.
+                    All sources and their individual analysis results will be shown here.
+                  </p>
+                </>
+              )}
 
               {/* ── Public Records Search + Deep Pipeline ──────────────────────────── */}
               {/* PropertySearchPanel runs the search API + worker pipeline and shows all
@@ -1506,6 +1519,7 @@ export default function ResearchProjectPage() {
                 defaultCounty={pendingSearchParams?.county ?? project.county ?? ''}
                 defaultParcelId={pendingSearchParams?.parcelId ?? project.parcel_id ?? ''}
                 autoStart={shouldAutoStartPipeline}
+                onPipelineStart={() => setPipelineHasStarted(true)}
                 onImported={() => {
                   setShouldAutoStartPipeline(false);
                   loadDocuments();
@@ -1520,7 +1534,7 @@ export default function ResearchProjectPage() {
                 }}
               />
 
-              <button className="research-back-btn" onClick={() => handleRevertToStep('upload')} style={{ marginTop: '1rem' }}>
+              <button className="research-back-btn" onClick={() => { setPipelineHasStarted(false); handleRevertToStep('upload'); }} style={{ marginTop: '1rem' }}>
                 &larr; Back to Property Information
               </button>
             </div>

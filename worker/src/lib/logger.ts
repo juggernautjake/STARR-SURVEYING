@@ -7,6 +7,23 @@
 
 import type { LayerAttempt } from '../types/index.js';
 
+// ── Global live-log registry ──────────────────────────────────────────────────
+// Maintains a running copy of each project's log entries so the status endpoint
+// can include partial logs in its response during an active pipeline run.
+// Entries are pushed in addEntry() and cleared when the pipeline completes.
+
+const _liveLogRegistry = new Map<string, LayerAttempt[]>();
+
+/** Return the current partial log for a running pipeline, if available. */
+export function getLiveLogForProject(projectId: string): LayerAttempt[] | undefined {
+  return _liveLogRegistry.get(projectId);
+}
+
+/** Remove the live log entry when a pipeline finishes (success or failure). */
+export function clearLiveLogForProject(projectId: string): void {
+  _liveLogRegistry.delete(projectId);
+}
+
 // ── New-style builder returned by attempt() ────────────────────────────────
 
 /**
@@ -151,6 +168,14 @@ export class PipelineLogger {
     return this.projectId;
   }
 
+  /** Push an entry to the global live-log registry for this project. */
+  private _registerLive(entry: LayerAttempt): void {
+    if (!_liveLogRegistry.has(this.projectId)) {
+      _liveLogRegistry.set(this.projectId, []);
+    }
+    _liveLogRegistry.get(this.projectId)!.push(entry);
+  }
+
   // ── New-style API ─────────────────────────────────────────────────────────
 
   /**
@@ -169,6 +194,7 @@ export class PipelineLogger {
   /** Add a pre-built LayerAttempt entry directly (used by LayerAttemptBuilder). */
   addEntry(entry: LayerAttempt): void {
     this.log_.push(entry);
+    this._registerLive(entry);
     const icon = entry.status === 'success' ? '✓'
       : entry.status === 'partial' ? '◐'
       : entry.status === 'fail'    ? '✗'
@@ -239,11 +265,13 @@ export class PipelineLogger {
    * @deprecated Prefer console.log for informational messages in new code.
    */
   info(layer: string, message: string): void {
-    this.log_.push({
+    const entry: LayerAttempt = {
       layer, source: 'info', method: 'info', input: '',
       status: 'skip', duration_ms: 0, dataPointsFound: 0,
       timestamp: new Date().toISOString(), details: message,
-    });
+    };
+    this.log_.push(entry);
+    this._registerLive(entry);
     console.log(`[${this.projectId}] [${layer}] ${message}`);
   }
 
@@ -251,11 +279,13 @@ export class PipelineLogger {
    * Log a warning.
    */
   warn(layer: string, message: string): void {
-    this.log_.push({
+    const entry: LayerAttempt = {
       layer, source: 'warn', method: 'warn', input: '',
       status: 'warn', duration_ms: 0, dataPointsFound: 0,
       timestamp: new Date().toISOString(), details: message,
-    });
+    };
+    this.log_.push(entry);
+    this._registerLive(entry);
     console.warn(`[${this.projectId}] ⚠ [${layer}] ${message}`);
   }
 
@@ -266,12 +296,14 @@ export class PipelineLogger {
   error(layer: string, message: string, err?: unknown): void {
     const errMsg = err instanceof Error ? err.message : String(err ?? '');
     const fullMsg = `${message}${errMsg ? ` — ${errMsg}` : ''}`;
-    this.log_.push({
+    const entry: LayerAttempt = {
       layer, source: 'error', method: 'error', input: '',
       status: 'fail', duration_ms: 0, dataPointsFound: 0,
       timestamp: new Date().toISOString(), error: fullMsg,
       details: err instanceof Error ? err.stack : undefined,
-    });
+    };
+    this.log_.push(entry);
+    this._registerLive(entry);
     console.error(`[${this.projectId}] [${layer}] ERROR: ${fullMsg}`);
   }
 
