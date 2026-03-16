@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import NextImage from 'next/image';
 import type { PropertySearchResult, PropertySearchResponse, SearchSource } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
+import Image from 'next/image';
 import { PipelineProgressPanel, PipelineProgressStyles } from './PipelineProgressPanel';
 
 // Pipeline response types (from worker)

@@ -171,6 +171,9 @@ export default function CommandBar() {
     };
   }, []);
 
+  // Stable ref so handleSubmit can call executeCommand without a stale closure
+  const executeCommandRef = useRef<(name: string) => void>(() => {});
+
   const toolState = toolStore.state;
   const hint = getPromptHint(
     toolState.activeTool,
@@ -256,7 +259,7 @@ export default function CommandBar() {
           }
         }
 
-        executeCommand(name);
+        executeCommandRef.current(name);
       }
 
       // Return focus to canvas
@@ -393,6 +396,7 @@ export default function CommandBar() {
         break;
     }
   }
+  executeCommandRef.current = executeCommand;
 
   function eraseSelected() {
     const ids = Array.from(selectionStore.selectedIds);

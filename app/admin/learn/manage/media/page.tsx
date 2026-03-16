@@ -2,6 +2,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { usePageError } from '../../../hooks/usePageError';
 
 interface MediaItem {
@@ -37,6 +38,7 @@ export default function MediaLibraryPage() {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchMedia(); }, [filter, search]);
 
   async function fetchMedia() {
@@ -188,7 +190,7 @@ export default function MediaLibraryPage() {
 
             {previewUrl && uploadType === 'image' && (
               <div style={{ marginBottom: '1rem', textAlign: 'center' }}>
-                <img src={previewUrl} alt="Preview" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: '1px solid #E5E7EB' }} />
+                <Image src={previewUrl} alt="Preview" width={400} height={200} unoptimized style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: '1px solid #E5E7EB' }} />
               </div>
             )}
 
@@ -298,7 +300,7 @@ export default function MediaLibraryPage() {
             <div key={item.id} style={{ background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', cursor: 'pointer' }}>
               <div style={{ height: 120, background: '#F8F9FA', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                 {item.media_type === 'image' && item.url ? (
-                  <img src={item.url} alt={item.alt_text || item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <Image src={item.url} alt={item.alt_text || item.title} width={180} height={120} unoptimized style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <span style={{ fontSize: '2.5rem' }}>{getTypeIcon(item.media_type)}</span>
                 )}

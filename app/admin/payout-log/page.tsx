@@ -91,7 +91,7 @@ export default function PayoutLogPage() {
           }
         });
     }
-  }, [isAdmin]);
+  }, [isAdmin, safeFetch]);
 
   const buildUrl = useCallback((offset: number) => {
     const p = new URLSearchParams();

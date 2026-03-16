@@ -55,9 +55,8 @@ export default function BalanceCard({ email, isAdmin, isSelf }: BalanceCardProps
   const [showWithdrawForm, setShowWithdrawForm] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, [email]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadData is also called from handlers
+  useEffect(() => { loadData(); }, [email]);
 
   async function loadData() {
     try {

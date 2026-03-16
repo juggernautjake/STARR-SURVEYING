@@ -1,7 +1,7 @@
 // app/admin/discussions/[id]/page.tsx — Thread detail with messages and replies
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -52,9 +52,7 @@ export default function ThreadDetailPage() {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { fetchThread(); }, [threadId]);
-
-  async function fetchThread() {
+  const fetchThread = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/discussions?id=${threadId}`);
@@ -65,7 +63,9 @@ export default function ThreadDetailPage() {
       }
     } catch { /* silent */ }
     setLoading(false);
-  }
+  }, [threadId]);
+
+  useEffect(() => { fetchThread(); }, [fetchThread]);
 
   async function sendReply() {
     if (!replyText.trim()) return;

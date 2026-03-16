@@ -61,7 +61,7 @@ export default function PracticeSessionPage() {
       if (data) setCategories(data.categories || {});
       setLoading(false);
     })();
-  }, []);
+  }, [safeFetch]);
 
   useEffect(() => {
     if (phase === 'active') {

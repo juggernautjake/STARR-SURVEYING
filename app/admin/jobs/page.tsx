@@ -49,7 +49,28 @@ export default function AllJobsPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [total, setTotal] = useState(0);
 
-  useEffect(() => { loadJobs(); }, [stageFilter]);
+  const [searchTrigger, setSearchTrigger] = useState(0);
+
+  useEffect(() => {
+    async function loadJobs() {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (stageFilter !== 'all') params.set('stage', stageFilter);
+        if (search) params.set('search', search);
+        const res = await fetch(`/api/admin/jobs?${params}`);
+        if (res.ok) {
+          const data = await res.json();
+          setJobs(data.jobs || []);
+          setTotal(data.total || 0);
+        }
+      } catch (err) {
+        reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load jobs' });
+      }
+      setLoading(false);
+    }
+    loadJobs();
+  }, [stageFilter, searchTrigger, search, reportPageError]);
 
   // Admin-only page guard (middleware handles redirect, this prevents flash)
   const userRole = session?.user?.role || 'employee';
@@ -58,27 +79,9 @@ export default function AllJobsPage() {
     return null;
   }
 
-  async function loadJobs() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (stageFilter !== 'all') params.set('stage', stageFilter);
-      if (search) params.set('search', search);
-      const res = await fetch(`/api/admin/jobs?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setJobs(data.jobs || []);
-        setTotal(data.total || 0);
-      }
-    } catch (err) {
-      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load jobs' });
-    }
-    setLoading(false);
-  }
-
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    loadJobs();
+    setSearchTrigger(prev => prev + 1);
   }
 
   if (!session?.user) return null;

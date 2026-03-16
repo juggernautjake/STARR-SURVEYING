@@ -38,9 +38,8 @@ export default function RaiseHistory({ email, isAdmin, onRaiseRecorded }: RaiseH
     notes: '',
   });
 
-  useEffect(() => {
-    loadRaises();
-  }, [email]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadRaises is also called from handlers
+  useEffect(() => { loadRaises(); }, [email]);
 
   async function loadRaises() {
     try {

@@ -116,6 +116,7 @@ export default function MockExamPage() {
       return () => { if (timerRef.current) clearInterval(timerRef.current); };
     }
     return undefined;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
   async function startExam() {

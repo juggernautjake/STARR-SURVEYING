@@ -1,9 +1,10 @@
 // app/admin/research/components/DocumentDeepAnalysisPanel.tsx
 // Deep AI analysis panel for legal descriptions and plats.
-// Shows a "Deep Analyze" button per document; displays comprehensive structured results.
+// Shows a "Deep Analyze" button per document; displays comprehensive structured results
+// with basic and detailed log views and copy buttons.
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import type {
   ResearchDocument,
   DeepDocumentAnalysis,
@@ -11,6 +12,43 @@ import type {
   PlatAnalysis,
   DeepAnalysisCall,
 } from '@/types/research';
+
+// ── Log types (matches server-side DeepAnalysisLogger) ──────────────────────
+
+interface LogEntry {
+  ts: string;
+  level: 'info' | 'warn' | 'error' | 'success';
+  phase: string;
+  message: string;
+  detail?: string;
+  durationMs?: number;
+}
+
+interface BellClerkRecord {
+  instrumentNumber: string;
+  documentType: string;
+  recordedDate: string;
+  grantor: string;
+  grantee: string;
+  bookVolumePage: string;
+  propertyDescription: string;
+  sourceUrl: string;
+}
+
+interface EnhancedAnalysisResult extends DeepDocumentAnalysis {
+  logs?: LogEntry[];
+  detailedLogs?: LogEntry[];
+  bellCountyResults?: {
+    records: BellClerkRecord[];
+    documentDetails: Array<{ instrumentNumber: string; metadata: string; imageAnalysis?: string }>;
+  };
+  extractedIdentifiers?: {
+    platNames: string[];
+    instrumentNumbers: string[];
+    subdivisionNames: string[];
+    ownerNames: string[];
+  };
+}
 
 interface DocumentDeepAnalysisPanelProps {
   projectId: string;
@@ -21,27 +59,37 @@ export default function DocumentDeepAnalysisPanel({
   projectId,
   documents,
 }: DocumentDeepAnalysisPanelProps) {
-  const [analyzing, setAnalyzing] = useState<string | null>(null); // docId being analyzed
-  const [results, setResults]     = useState<Record<string, DeepDocumentAnalysis>>({});
+  const [analyzing, setAnalyzing] = useState<string | null>(null);
+  const [results, setResults]     = useState<Record<string, EnhancedAnalysisResult>>({});
   const [errors,  setErrors]      = useState<Record<string, string>>({});
   const [expanded, setExpanded]   = useState<string | null>(null);
+  const [showDetailedLogs, setShowDetailedLogs] = useState<Record<string, boolean>>({});
+  const [copiedState, setCopiedState] = useState<Record<string, string>>({});
 
-  // Only show documents that have extracted text and are relevant types
+  // Show all documents that could potentially be analyzed (including uploaded PDFs/images
+  // that may not have text yet — deep analysis will re-scan them)
   const analyzableTypes = new Set([
     'deed', 'legal_description', 'metes_and_bounds', 'county_record',
     'appraisal_record', 'plat', 'subdivision_plat', 'survey',
     'title_commitment', 'easement', 'field_notes', 'other',
   ]);
 
-  const analyzableDocs = documents.filter(d =>
-    d.extracted_text &&
-    d.extracted_text.trim().length > 20 &&
-    d.processing_status !== 'pending' &&
-    d.processing_status !== 'extracting' &&
-    analyzableTypes.has(d.document_type ?? 'other')
-  );
+  const imageFileTypes = new Set(['pdf', 'png', 'jpg', 'jpeg', 'webp', 'tiff', 'tif']);
 
-  if (analyzableDocs.length === 0) return null;
+  const analyzableDocs = documents.filter(d => {
+    // Always show uploaded image/PDF files (deep analysis can re-scan them)
+    if (d.source_type === 'user_upload' && imageFileTypes.has((d.file_type ?? '').toLowerCase())) {
+      return d.processing_status !== 'pending' && d.processing_status !== 'extracting';
+    }
+    // For text docs, require some extracted text
+    return (
+      d.extracted_text &&
+      d.extracted_text.trim().length > 20 &&
+      d.processing_status !== 'pending' &&
+      d.processing_status !== 'extracting' &&
+      analyzableTypes.has(d.document_type ?? 'other')
+    );
+  });
 
   async function handleAnalyze(docId: string) {
     if (analyzing) return;
@@ -53,13 +101,19 @@ export default function DocumentDeepAnalysisPanel({
         `/api/admin/research/${projectId}/documents/${docId}/deep-analyze`,
         { method: 'POST' },
       );
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json() as DeepDocumentAnalysis;
-        setResults(prev => ({ ...prev, [docId]: data }));
+        setResults(prev => ({ ...prev, [docId]: data as EnhancedAnalysisResult }));
         setExpanded(docId);
       } else {
-        const err = await res.json();
-        setErrors(prev => ({ ...prev, [docId]: err.error || 'Analysis failed.' }));
+        setErrors(prev => ({ ...prev, [docId]: data.error || 'Analysis failed.' }));
+        // Still capture logs even on error
+        if (data.logs || data.detailedLogs) {
+          setResults(prev => ({
+            ...prev,
+            [docId]: { ...(prev[docId] ?? {}), logs: data.logs, detailedLogs: data.detailedLogs } as EnhancedAnalysisResult,
+          }));
+        }
       }
     } catch {
       setErrors(prev => ({ ...prev, [docId]: 'Network error — please try again.' }));
@@ -67,13 +121,53 @@ export default function DocumentDeepAnalysisPanel({
     setAnalyzing(null);
   }
 
+  const handleCopyLogs = useCallback((docId: string, detailed: boolean) => {
+    const result = results[docId];
+    if (!result) return;
+
+    const logs = detailed ? result.detailedLogs : result.logs;
+    if (!logs || logs.length === 0) return;
+
+    const header = `STARR Surveying — Deep Analysis ${detailed ? 'Detailed ' : ''}Logs\n` +
+      `Exported: ${new Date().toISOString()}\n` +
+      `${'─'.repeat(60)}\n\n`;
+
+    const logText = logs.map(entry => {
+      const icon = entry.level === 'error' ? '✕' : entry.level === 'warn' ? '⚠' : entry.level === 'success' ? '✓' : '·';
+      const time = new Date(entry.ts).toLocaleTimeString();
+      const detail = entry.detail ? ` — ${entry.detail}` : '';
+      const duration = entry.durationMs != null ? ` [+${entry.durationMs}ms]` : '';
+      return `${icon} [${entry.level.toUpperCase()}] ${time}${duration} [${entry.phase}] ${entry.message}${detail}`;
+    }).join('\n');
+
+    const copyKey = detailed ? `${docId}-detailed` : docId;
+
+    navigator.clipboard.writeText(header + logText).then(() => {
+      setCopiedState(prev => ({ ...prev, [copyKey]: 'copied' }));
+      setTimeout(() => setCopiedState(prev => { const n = { ...prev }; delete n[copyKey]; return n; }), 2000);
+    }).catch(() => {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = header + logText;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopiedState(prev => ({ ...prev, [copyKey]: 'copied' }));
+      setTimeout(() => setCopiedState(prev => { const n = { ...prev }; delete n[copyKey]; return n; }), 2000);
+    });
+  }, [results]);
+
+  if (analyzableDocs.length === 0) return null;
+
   return (
     <div className="research-deep-analysis">
       <div className="research-deep-analysis__header">
         <h3 className="research-deep-analysis__title">Deep Document Analysis</h3>
         <p className="research-deep-analysis__desc">
-          Run a comprehensive AI analysis on legal descriptions and plats to extract every
-          detail: boundary calls, monuments, easements, setbacks, adjoiner info, lot layout, and more.
+          Run a comprehensive AI analysis on legal descriptions and plats. Uploaded PDFs and images
+          are split into a grid of tiles, each analyzed individually for maximum detail extraction.
+          The system automatically searches bell.tx.publicsearch.us for related deed and plat records.
         </p>
       </div>
 
@@ -83,6 +177,7 @@ export default function DocumentDeepAnalysisPanel({
           const err     = errors[doc.id];
           const isOpen  = expanded === doc.id;
           const isThisAnalyzing = analyzing === doc.id;
+          const isShowingDetailed = showDetailedLogs[doc.id] ?? false;
 
           return (
             <div key={doc.id} className="research-deep-analysis__item">
@@ -112,14 +207,16 @@ export default function DocumentDeepAnalysisPanel({
                     disabled={!!analyzing}
                     onClick={() => handleAnalyze(doc.id)}
                   >
-                    {isThisAnalyzing ? '⏳ Analyzing…' : result ? '↻ Re-Analyze' : '🔬 Deep Analyze'}
+                    {isThisAnalyzing ? 'Analyzing...' : result ? 'Re-Analyze' : 'Deep Analyze'}
                   </button>
                 </div>
               </div>
 
               {isThisAnalyzing && (
                 <p style={{ color: '#6B7280', fontSize: '0.8rem', margin: '0.25rem 0 0 0' }}>
-                  AI is reading the full document — this may take 30–90 seconds…
+                  AI is scanning the document with enhanced tile-based analysis. This includes
+                  splitting the document into tiles, analyzing each tile, and searching county
+                  records. This may take 2-5 minutes for large documents...
                 </p>
               )}
 
@@ -129,6 +226,7 @@ export default function DocumentDeepAnalysisPanel({
 
               {result && isOpen && (
                 <div className="research-deep-analysis__result">
+                  {/* Analysis results */}
                   {result.analysis_type === 'legal_description' && result.legal_description && (
                     <LegalDescriptionView data={result.legal_description} />
                   )}
@@ -137,6 +235,150 @@ export default function DocumentDeepAnalysisPanel({
                   )}
                   {result.error && (
                     <p style={{ color: '#DC2626', fontSize: '0.85rem' }}>Error: {result.error}</p>
+                  )}
+
+                  {/* Extracted identifiers */}
+                  {result.extractedIdentifiers && (
+                    <Section title="Extracted Identifiers">
+                      <div style={{ fontSize: '0.85rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.25rem 0.75rem' }}>
+                        {result.extractedIdentifiers.platNames.length > 0 && (
+                          <>
+                            <span style={{ color: '#6B7280' }}>Plat Names:</span>
+                            <span>{result.extractedIdentifiers.platNames.join(', ')}</span>
+                          </>
+                        )}
+                        {result.extractedIdentifiers.subdivisionNames.length > 0 && (
+                          <>
+                            <span style={{ color: '#6B7280' }}>Subdivisions:</span>
+                            <span>{result.extractedIdentifiers.subdivisionNames.join(', ')}</span>
+                          </>
+                        )}
+                        {result.extractedIdentifiers.instrumentNumbers.length > 0 && (
+                          <>
+                            <span style={{ color: '#6B7280' }}>Instrument #s:</span>
+                            <span>{result.extractedIdentifiers.instrumentNumbers.join(', ')}</span>
+                          </>
+                        )}
+                        {result.extractedIdentifiers.ownerNames.length > 0 && (
+                          <>
+                            <span style={{ color: '#6B7280' }}>Owners:</span>
+                            <span>{result.extractedIdentifiers.ownerNames.join(', ')}</span>
+                          </>
+                        )}
+                      </div>
+                    </Section>
+                  )}
+
+                  {/* Bell County search results */}
+                  {result.bellCountyResults && result.bellCountyResults.records.length > 0 && (
+                    <Section title={`Bell County Records (${result.bellCountyResults.records.length})`}>
+                      <div className="research-boundary__table-wrap">
+                        <table className="research-boundary__table">
+                          <thead>
+                            <tr>
+                              <th>Type</th>
+                              <th>Inst #</th>
+                              <th>Date</th>
+                              <th>Grantor</th>
+                              <th>Grantee</th>
+                              <th>Description</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {result.bellCountyResults.records.map((rec, i) => (
+                              <tr key={i}>
+                                <td style={{ fontWeight: /plat/i.test(rec.documentType) ? 600 : 400 }}>
+                                  {rec.documentType}
+                                </td>
+                                <td>
+                                  <a href={rec.sourceUrl} target="_blank" rel="noopener noreferrer"
+                                     style={{ color: '#2563EB', textDecoration: 'none' }}>
+                                    {rec.instrumentNumber}
+                                  </a>
+                                </td>
+                                <td style={{ whiteSpace: 'nowrap' }}>{rec.recordedDate || '—'}</td>
+                                <td>{rec.grantor || '—'}</td>
+                                <td>{rec.grantee || '—'}</td>
+                                <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                    title={rec.propertyDescription}>
+                                  {rec.propertyDescription || '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Section>
+                  )}
+
+                  {/* Analysis logs */}
+                  {(result.logs && result.logs.length > 0) && (
+                    <Section title="Analysis Logs">
+                      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyLogs(doc.id, false)}
+                          style={{
+                            padding: '0.25rem 0.75rem', fontSize: '0.78rem', border: '1px solid #D1D5DB',
+                            borderRadius: '4px', background: '#F9FAFB', cursor: 'pointer',
+                          }}
+                        >
+                          {copiedState[doc.id] === 'copied' ? 'Copied!' : 'Copy Basic Logs'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowDetailedLogs(prev => ({ ...prev, [doc.id]: !prev[doc.id] }))}
+                          style={{
+                            padding: '0.25rem 0.75rem', fontSize: '0.78rem', border: '1px solid #D1D5DB',
+                            borderRadius: '4px', background: isShowingDetailed ? '#EFF6FF' : '#F9FAFB',
+                            cursor: 'pointer', color: isShowingDetailed ? '#2563EB' : '#374151',
+                          }}
+                        >
+                          {isShowingDetailed ? 'Show Basic Logs' : 'View Detailed Logs'}
+                        </button>
+                        {isShowingDetailed && result.detailedLogs && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopyLogs(doc.id, true)}
+                            style={{
+                              padding: '0.25rem 0.75rem', fontSize: '0.78rem', border: '1px solid #D1D5DB',
+                              borderRadius: '4px', background: '#F9FAFB', cursor: 'pointer',
+                            }}
+                          >
+                            {copiedState[`${doc.id}-detailed`] === 'copied' ? 'Copied!' : 'Copy Detailed Logs'}
+                          </button>
+                        )}
+                      </div>
+
+                      <div style={{
+                        fontFamily: 'monospace', fontSize: '0.78rem', lineHeight: 1.6,
+                        background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '6px',
+                        padding: '0.75rem', maxHeight: '400px', overflowY: 'auto',
+                      }}>
+                        {(isShowingDetailed ? (result.detailedLogs ?? []) : result.logs).map((entry, i) => (
+                          <div key={i} style={{
+                            display: 'flex', gap: '0.5rem', padding: '0.125rem 0',
+                            color: entry.level === 'error' ? '#DC2626'
+                              : entry.level === 'warn' ? '#D97706'
+                              : entry.level === 'success' ? '#059669' : '#374151',
+                          }}>
+                            <span style={{ flexShrink: 0, width: '1rem', textAlign: 'center' }}>
+                              {entry.level === 'error' ? '\u2715' : entry.level === 'warn' ? '\u26A0' : entry.level === 'success' ? '\u2713' : '\u00B7'}
+                            </span>
+                            <span style={{ color: '#9CA3AF', flexShrink: 0, fontSize: '0.72rem' }}>
+                              {entry.durationMs != null ? `+${(entry.durationMs / 1000).toFixed(1)}s` : ''}
+                            </span>
+                            <span style={{ color: '#6B7280', flexShrink: 0, fontSize: '0.72rem' }}>
+                              [{entry.phase}]
+                            </span>
+                            <span>{entry.message}</span>
+                            {entry.detail && (
+                              <span style={{ color: '#9CA3AF' }}> — {entry.detail}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </Section>
                   )}
                 </div>
               )}

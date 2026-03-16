@@ -4,6 +4,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { decodeUnicodeEscapes } from '@/lib/decodeUnicode';
 
 /** Shorthand for dangerouslySetInnerHTML with unicode escape decoding */
@@ -460,7 +461,7 @@ export default function LessonViewerPage() {
                   {block.block_type === 'html' && <div dangerouslySetInnerHTML={dhtml(block.content.code)} />}
                   {block.block_type === 'image' && block.content.url && (
                     <figure style={{ textAlign: (block.content.alignment || 'center') as any, margin: '1.5rem 0' }}>
-                      <img src={block.content.url} alt={block.content.alt || ''} style={{ maxWidth: '100%', borderRadius: '8px' }} />
+                      <Image src={block.content.url} alt={block.content.alt || ''} width={400} height={300} unoptimized style={{ maxWidth: '100%', borderRadius: '8px' }} />
                       {block.content.caption && <figcaption style={{ fontSize: '.82rem', color: '#6B7280', marginTop: '.5rem' }}>{block.content.caption}</figcaption>}
                     </figure>
                   )}
@@ -639,7 +640,7 @@ export default function LessonViewerPage() {
                     if (!img) return null;
                     return (
                       <div style={{ margin: '1.5rem 0', textAlign: 'center' }}>
-                        <img src={img.url} alt={img.alt || ''} style={{ maxWidth: '100%', maxHeight: '500px', borderRadius: '8px', objectFit: 'contain' }} />
+                        <Image src={img.url} alt={img.alt || ''} width={400} height={300} unoptimized style={{ maxWidth: '100%', maxHeight: '500px', borderRadius: '8px', objectFit: 'contain' }} />
                         {img.caption && <p style={{ fontSize: '.82rem', color: '#6B7280', marginTop: '.5rem' }}>{img.caption}</p>}
                         {images.length > 1 && (
                           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '.75rem' }}>

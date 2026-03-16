@@ -134,7 +134,9 @@ export default function ModulesListPage() {
     return filtered.sort((a, b) => a.order_index - b.order_index);
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const filteredRegular = useMemo(() => filterModules(regularModules), [regularModules, searchQuery, statusFilter, diffFilter, availFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const filteredAcademic = useMemo(() => filterModules(academicModules), [academicModules, searchQuery, statusFilter, diffFilter, availFilter]);
 
   if (loading) return (

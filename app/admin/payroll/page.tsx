@@ -2,7 +2,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePageError } from '../hooks/usePageError';
 import UnderConstruction from '../components/messaging/UnderConstruction';
@@ -47,15 +47,7 @@ export default function PayrollPage() {
 
   const isAdmin = session?.user?.role === 'admin';
 
-  useEffect(() => {
-    if (!isAdmin) {
-      router.push('/admin/my-pay');
-      return;
-    }
-    loadEmployees();
-  }, [isAdmin]);
-
-  async function loadEmployees() {
+  const loadEmployees = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/payroll/employees?include_inactive=true');
       const data = await res.json();
@@ -64,7 +56,15 @@ export default function PayrollPage() {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load employees' });
     }
     setLoading(false);
-  }
+  }, [reportPageError]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      router.push('/admin/my-pay');
+      return;
+    }
+    loadEmployees();
+  }, [isAdmin, router, loadEmployees]);
 
   async function addEmployee(e: React.FormEvent) {
     e.preventDefault();

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, DragEvent, ChangeEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import SmartSearch from '../../../components/SmartSearch';
+import Image from 'next/image';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { usePageError } from '../../../../hooks/usePageError';
@@ -303,20 +304,75 @@ export default function LessonBuilderPage() {
   const [fileUploadTarget, setFileUploadTarget] = useState<{ blockId: string; field: string } | null>(null);
 
   useEffect(() => {
+    async function loadLesson() {
+      setLoading(true);
+      try {
+        const [lessonRes, blocksRes] = await Promise.all([
+          fetch(`/api/admin/learn/lessons?id=${lessonId}`),
+          fetch(`/api/admin/learn/lesson-blocks?lesson_id=${lessonId}`),
+        ]);
+        let lessonData: any = null;
+        if (lessonRes.ok) {
+          const data = await lessonRes.json();
+          lessonData = data.lesson || null;
+          setLesson(data.lesson || null);
+          setIsDraft(data.lesson?.status === 'draft');
+        }
+        if (blocksRes.ok) {
+          const data = await blocksRes.json();
+          const loadedBlocks = (data.blocks || []).sort((a: LessonBlock, b: LessonBlock) => a.order_index - b.order_index);
+
+          // Auto-convert: If lesson has HTML content but no blocks, parse into discrete blocks
+          if (loadedBlocks.length === 0 && lessonData?.content && lessonData.content.trim().length > 0) {
+            const parsed = parseHtmlToBlocks(lessonData.content);
+            const converted: LessonBlock[] = parsed.length > 0 ? parsed : [{ id: `temp-converted-${Date.now()}`, block_type: 'text' as BlockType, content: { html: lessonData.content }, order_index: 0 }];
+            setBlocks(converted);
+            lastSavedBlocks.current = JSON.stringify(converted);
+            setConvertedFromHtml(true);
+          } else {
+            setBlocks(loadedBlocks);
+            lastSavedBlocks.current = JSON.stringify(loadedBlocks);
+          }
+        }
+      } catch (err) { console.error('LessonBuilderPage: failed to load lesson', err); }
+      setLoading(false);
+    }
     loadLesson();
   }, [lessonId]);
 
   // Auto-save every 30 seconds
   useEffect(() => {
+    async function saveBlocksAuto() {
+      setSaving(true);
+      try {
+        const res = await fetch('/api/admin/learn/lesson-blocks', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lesson_id: lessonId,
+            blocks: blocks.map((b, i) => ({ block_type: b.block_type, content: b.content, order_index: i, style: b.style || undefined })),
+          }),
+        });
+        if (res.ok) {
+          setLastSaved(new Date().toLocaleTimeString());
+          lastSavedBlocks.current = JSON.stringify(blocks);
+          setHasUnsavedChanges(false);
+          setAutoSaveFlash(true); setTimeout(() => setAutoSaveFlash(false), 2000);
+        }
+      } catch (err) {
+        console.error('LessonBuilderPage: auto-save failed', err);
+      }
+      setSaving(false);
+    }
     autoSaveTimer.current = setInterval(() => {
       if (blocks.length > 0 && !saving) {
-        saveBlocks(true);
+        saveBlocksAuto();
       }
     }, 30000);
     return () => {
       if (autoSaveTimer.current) clearInterval(autoSaveTimer.current);
     };
-  }, [blocks, saving]);
+  }, [blocks, saving, lessonId]);
 
   // Track unsaved changes
   useEffect(() => {
@@ -403,41 +459,8 @@ export default function LessonBuilderPage() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blocks, saving, selectedBlockId]);
-
-  async function loadLesson() {
-    setLoading(true);
-    try {
-      const [lessonRes, blocksRes] = await Promise.all([
-        fetch(`/api/admin/learn/lessons?id=${lessonId}`),
-        fetch(`/api/admin/learn/lesson-blocks?lesson_id=${lessonId}`),
-      ]);
-      let lessonData: any = null;
-      if (lessonRes.ok) {
-        const data = await lessonRes.json();
-        lessonData = data.lesson || null;
-        setLesson(data.lesson || null);
-        setIsDraft(data.lesson?.status === 'draft');
-      }
-      if (blocksRes.ok) {
-        const data = await blocksRes.json();
-        const loadedBlocks = (data.blocks || []).sort((a: LessonBlock, b: LessonBlock) => a.order_index - b.order_index);
-
-        // Auto-convert: If lesson has HTML content but no blocks, parse into discrete blocks
-        if (loadedBlocks.length === 0 && lessonData?.content && lessonData.content.trim().length > 0) {
-          const parsed = parseHtmlToBlocks(lessonData.content);
-          const converted: LessonBlock[] = parsed.length > 0 ? parsed : [{ id: `temp-converted-${Date.now()}`, block_type: 'text' as BlockType, content: { html: lessonData.content }, order_index: 0 }];
-          setBlocks(converted);
-          lastSavedBlocks.current = JSON.stringify(converted);
-          setConvertedFromHtml(true);
-        } else {
-          setBlocks(loadedBlocks);
-          lastSavedBlocks.current = JSON.stringify(loadedBlocks);
-        }
-      }
-    } catch (err) { console.error('LessonBuilderPage: failed to load lesson', err); }
-    setLoading(false);
-  }
 
   async function saveBlocks(isAutoSave = false) {
     setSaving(true);
@@ -1025,7 +1048,7 @@ export default function LessonBuilderPage() {
               )}
               {block.block_type === 'image' && block.content.url && (
                 <figure style={{ textAlign: (block.content.alignment || 'center') as any, margin: '1.5rem 0' }}>
-                  <img src={block.content.url} alt={block.content.alt || ''} style={{ maxWidth: '100%', borderRadius: '8px' }} />
+                  <Image src={block.content.url} alt={block.content.alt || ''} width={600} height={400} unoptimized style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px' }} />
                   {block.content.caption && <figcaption style={{ fontSize: '0.82rem', color: '#6B7280', marginTop: '0.5rem' }}>{block.content.caption}</figcaption>}
                 </figure>
               )}
@@ -1206,7 +1229,7 @@ export default function LessonBuilderPage() {
                     if (!img) return null;
                     return (
                       <div style={{ position: 'relative', textAlign: 'center' }}>
-                        <img src={img.url} alt={img.alt || ''} style={{ maxWidth: '100%', maxHeight: '500px', borderRadius: '8px', objectFit: 'contain' }} />
+                        <Image src={img.url} alt={img.alt || ''} width={600} height={400} unoptimized style={{ maxWidth: '100%', maxHeight: '500px', height: 'auto', borderRadius: '8px', objectFit: 'contain' }} />
                         {img.caption && <p style={{ fontSize: '0.82rem', color: '#6B7280', marginTop: '0.5rem' }}>{img.caption}</p>}
                         {images.length > 1 && (
                           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '0.75rem' }}>
@@ -1481,7 +1504,7 @@ export default function LessonBuilderPage() {
                       onClick={() => triggerFileUpload(block.id, 'url', 'image/*')}
                     >
                       {block.content.url ? (
-                        <img src={block.content.url} alt={block.content.alt || ''} style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '6px', objectFit: 'contain' }} />
+                        <Image src={block.content.url} alt={block.content.alt || ''} width={400} height={300} unoptimized style={{ maxWidth: '100%', maxHeight: '300px', height: 'auto', borderRadius: '6px', objectFit: 'contain' }} />
                       ) : (
                         <div className="lesson-builder__drop-zone-text">
                           <span style={{ fontSize: '2rem' }}>🖼</span>
@@ -1716,7 +1739,7 @@ export default function LessonBuilderPage() {
                         <div key={ii} className="lesson-builder__slideshow-item">
                           <div className="lesson-builder__slideshow-thumb">
                             {img.url ? (
-                              <img src={img.url} alt={img.alt || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px' }} />
+                              <Image src={img.url} alt={img.alt || ''} width={150} height={150} unoptimized style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px' }} />
                             ) : (
                               <div
                                 className={`lesson-builder__drop-zone ${dragOverBlockId === `${block.id}-${ii}` ? 'lesson-builder__drop-zone--active' : ''}`}

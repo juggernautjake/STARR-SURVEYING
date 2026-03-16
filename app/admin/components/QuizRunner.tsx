@@ -1,7 +1,7 @@
 // app/admin/components/QuizRunner.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import FillBlankQuestion from './FillBlankQuestion';
 
 type QuestionType = 'multiple_choice' | 'true_false' | 'short_answer' | 'fill_blank' | 'multi_select' | 'numeric_input' | 'math_template' | 'essay';
@@ -74,9 +74,7 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
   const [historicalAvg, setHistoricalAvg] = useState<{ avg: number; attempts: number } | null>(null);
   const startTime = useRef(Date.now());
 
-  useEffect(() => { fetchQuiz(); }, []);
-
-  async function fetchQuiz() {
+  const fetchQuiz = useCallback(async () => {
     const params = new URLSearchParams({ type, count: String(questionCount) });
     if (lessonId) params.set('lesson_id', lessonId);
     if (moduleId) params.set('module_id', moduleId);
@@ -95,7 +93,11 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
       }
     } catch { /* ignore */ }
     setLoading(false);
-  }
+  }, [type, questionCount, lessonId, moduleId, examCategory]);
+
+  useEffect(() => {
+    fetchQuiz();
+  }, [fetchQuiz]);
 
   function isQuestionAnswered(q: Question): boolean {
     const ans = answers[q.id];

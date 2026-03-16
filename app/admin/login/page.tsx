@@ -5,6 +5,7 @@ import { signIn } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import '../styles/AdminLogin.css';
 
 function LoginContent() {
@@ -82,9 +83,11 @@ function LoginContent() {
   return (
     <div className="admin-login">
       <div className="admin-login__card">
-        <img
+        <Image
           src="/logos/Starr_Surveying_Red_White_Blue_Star_With_Surveyor.png"
           alt="Starr Surveying"
+          width={120}
+          height={40}
           className="admin-login__logo"
         />
         <h1 className="admin-login__title">Starr Surveying</h1>

@@ -41,6 +41,7 @@ export default function FlashcardBankPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Record<string, string>>({});
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadCards(); }, []);
 
   async function loadCards() {

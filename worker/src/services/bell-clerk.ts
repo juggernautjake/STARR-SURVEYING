@@ -2994,7 +2994,7 @@ export async function searchBellClerkOwnerForPlatDeed(
       `${bellBaseUrl}/results?department=RP&searchType=quickSearch` +
       `&searchValue=${encodeURIComponent(ownerOrSubdivisionName)}`;
 
-    console.log(`[BELL-PLAT] Searching: ${searchUrl}`);
+    attempt.step(`Searching: ${searchUrl}`);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
     await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
@@ -3008,7 +3008,7 @@ export async function searchBellClerkOwnerForPlatDeed(
     } catch { /* no dialog */ }
 
     const allDocuments = await _extractSearchResults(page);
-    console.log(`[BELL-PLAT] Found ${allDocuments.length} documents for "${ownerOrSubdivisionName}"`);
+    attempt.step(`Found ${allDocuments.length} documents for "${ownerOrSubdivisionName}"`);
 
     // Categorise instruments: plat documents vs deed documents
     const platInstruments: string[] = [];
@@ -3047,7 +3047,7 @@ export async function searchBellClerkOwnerForPlatDeed(
 
     return { platInstruments, deedInstruments, allDocuments };
   } catch (err: any) {
-    console.error('[BELL-PLAT] Search failed:', err.message);
+    logger.error('Stage2B', 'searchBellPlatDeeds failed', err);
     if (browser) await browser.close().catch(() => {});
     attempt.fail(err.message);
     return { platInstruments: [], deedInstruments: [], allDocuments: [] };

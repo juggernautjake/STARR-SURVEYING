@@ -151,6 +151,14 @@ async function extractText(doc: ResearchDocument): Promise<ExtractionResult> {
 
 /** Minimum non-whitespace characters for pdf-parse output to be considered useful */
 const PDF_TEXT_MIN_CHARS = 100;
+/** Tile grid for PDF page images — 3x3 provides excellent detail for plats */
+const PDF_TILE_ROWS = 3;
+const PDF_TILE_COLS = 3;
+/** Overlap fraction between adjacent PDF tiles (8% — larger than image tiles
+ *  because plat drawings have critical detail at tile boundaries) */
+const PDF_TILE_OVERLAP = 0.08;
+/** Scale factor to render PDF pages at for OCR (2x = ~150 DPI → ~300 DPI) */
+const PDF_RENDER_SCALE = 2;
 
 /**
  * Minimum characters in Claude PDF OCR result to skip the per-page tiling pass.
@@ -167,11 +175,16 @@ const PDF_OCR_MIN_CHARS_FOR_COMPLETE = 500;
  *
  * Strategy:
  * 1. Try pdf-parse for text-layer PDFs (fast, no AI cost).
- * 2. If the result is sparse (scanned/image-only PDF), send to Claude's native
- *    PDF document OCR which handles all pages including scanned ones.
- * 3. If the Claude PDF OCR result is also sparse (large complex plat with many
- *    lots), render each page to a high-res PNG using Playwright and apply the
- *    2×2 tiling pipeline to each page for maximum detail extraction.
+ * 2. If the result is sparse (scanned/image-only PDF), render each page to a
+ *    high-resolution image using sharp (via PDF → PNG conversion), split each
+ *    page image into a 3×3 tile grid with overlap, OCR each tile individually,
+ *    and merge the results. This ensures we capture every detail from large
+ *    plats and survey documents.
+ * 3. If sharp-based rendering fails, fall back to Claude's native PDF document
+ *    OCR which handles multi-page PDFs directly.
+ * 4. If Claude PDF OCR result is also sparse (large complex plat with many
+ *    lots), render each page via Playwright and apply the 2×2 tiling pipeline
+ *    to each page for maximum detail extraction.
  */
 async function extractFromPdf(buffer: Buffer): Promise<ExtractionResult> {
   let pdfParseText = '';
@@ -185,7 +198,7 @@ async function extractFromPdf(buffer: Buffer): Promise<ExtractionResult> {
     pdfPageCount = result.numpages;
   } catch {
     // pdf-parse failed (corrupted, encrypted, etc.) — fall through to AI OCR
-    console.warn('[Document] pdf-parse failed; falling back to Claude PDF OCR');
+    console.warn('[Document] pdf-parse failed; falling back to visual OCR');
   }
 
   // If we got enough meaningful text from pdf-parse, use it directly
@@ -198,9 +211,14 @@ async function extractFromPdf(buffer: Buffer): Promise<ExtractionResult> {
   }
 
   // Sparse or empty — PDF is likely scanned/image-based.
-  // Send the full PDF to Claude using the native 'document' content type which
-  // handles multi-page and scanned PDFs without requiring page-by-page conversion.
-  console.info('[Document] PDF has sparse text; using Claude PDF document OCR');
+  // Try rendering each page to a high-res image and tiling it for detailed OCR.
+  console.info('[Document] PDF has sparse text; attempting page-to-image tiled OCR');
+
+  const tiledResult = await extractFromPdfPageTiled(buffer, pdfPageCount);
+  if (tiledResult) return tiledResult;
+
+  // Fallback: send the full PDF to Claude using the native 'document' content type
+  console.info('[Document] Tiled OCR failed; using Claude PDF document OCR');
   const base64 = buffer.toString('base64');
   const result = await callDocumentAI(
     base64,
@@ -257,6 +275,159 @@ async function extractFromPdf(buffer: Buffer): Promise<ExtractionResult> {
     pageCount: pdfPageCount,
     ocrConfidence: data?.overall_confidence,
     ocrRegions: data?.regions,
+  };
+}
+
+/**
+ * Render each PDF page to a high-resolution PNG image using sharp, then
+ * split each page into a PDF_TILE_ROWS × PDF_TILE_COLS grid with overlap.
+ * Each tile is OCR'd individually and the results are merged in reading order.
+ *
+ * This approach is critical for large plat documents where a single-pass
+ * analysis misses fine details (lot dimensions, bearings, monument callouts).
+ */
+async function extractFromPdfPageTiled(
+  buffer: Buffer,
+  knownPageCount?: number,
+): Promise<ExtractionResult | null> {
+  let sharp: typeof import('sharp');
+  try {
+    sharp = (await import('sharp')).default;
+  } catch {
+    console.warn('[Document] sharp not available for PDF-to-image tiling');
+    return null;
+  }
+
+  // Determine page count
+  const pageCount = knownPageCount ?? 1;
+  const allPageTexts: string[] = [];
+  const allConfidences: number[] = [];
+  const allRegions: unknown[] = [];
+  let successfulPages = 0;
+
+  // For each page, try to render the PDF to an image.
+  // sharp can read PDF files if it was compiled with libvips PDF support (poppler or pdfium).
+  // If that fails, we try sending each page region via the callDocumentAI approach.
+  for (let pageIdx = 0; pageIdx < Math.min(pageCount, 20); pageIdx++) {
+    console.info(`[Document] Processing PDF page ${pageIdx + 1}/${pageCount}`);
+    let pageBuffer: Buffer;
+
+    try {
+      // sharp's PDF input: render a specific page at a given density
+      // density controls DPI (default 72); we use 150-300 for OCR quality
+      pageBuffer = await sharp(buffer, {
+        page: pageIdx,
+        density: 72 * PDF_RENDER_SCALE,
+      })
+        .png()
+        .toBuffer();
+    } catch (renderErr) {
+      console.warn(
+        `[Document] Could not render PDF page ${pageIdx + 1} to image:`,
+        renderErr instanceof Error ? renderErr.message : renderErr,
+      );
+      // Can't render this page — try the native document approach for this page
+      // by sending the full PDF to Claude (it handles pages internally)
+      if (pageIdx === 0 && pageCount <= 5) {
+        // For small PDFs where page rendering fails, fall back entirely
+        return null;
+      }
+      continue;
+    }
+
+    // Now tile this page image
+    try {
+      const meta = await sharp(pageBuffer).metadata();
+      const imgW = meta.width ?? 0;
+      const imgH = meta.height ?? 0;
+
+      if (!imgW || !imgH) {
+        // Single-image fallback for this page
+        const pageBase64 = pageBuffer.toString('base64');
+        const result = await callVision(pageBase64, 'image/png', 'OCR_EXTRACTOR');
+        const parsed = parseVisionResult(result, false);
+        if (parsed.text.trim()) {
+          allPageTexts.push(`[Page ${pageIdx + 1}]\n${parsed.text.trim()}`);
+          successfulPages++;
+        }
+        continue;
+      }
+
+      // Split into tiles
+      const overlapX = Math.floor(imgW * PDF_TILE_OVERLAP);
+      const overlapY = Math.floor(imgH * PDF_TILE_OVERLAP);
+      const baseTileW = Math.floor(imgW / PDF_TILE_COLS);
+      const baseTileH = Math.floor(imgH / PDF_TILE_ROWS);
+      const tileTexts: string[] = [];
+
+      for (let row = 0; row < PDF_TILE_ROWS; row++) {
+        for (let col = 0; col < PDF_TILE_COLS; col++) {
+          const left = Math.max(0, col * baseTileW - overlapX);
+          const top = Math.max(0, row * baseTileH - overlapY);
+          const width = Math.min(baseTileW + 2 * overlapX, imgW - left);
+          const height = Math.min(baseTileH + 2 * overlapY, imgH - top);
+
+          if (width <= 0 || height <= 0) continue;
+
+          try {
+            const tileBuffer = await sharp(pageBuffer)
+              .extract({ left, top, width, height })
+              .jpeg({ quality: JPEG_QUALITY })
+              .toBuffer();
+
+            const tileBase64 = tileBuffer.toString('base64');
+            const tileResult = await callVision(tileBase64, 'image/jpeg', 'OCR_EXTRACTOR');
+            const parsed = parseVisionResult(tileResult, false);
+
+            if (parsed.text.trim()) {
+              tileTexts.push(`[Page ${pageIdx + 1} Tile ${row + 1}-${col + 1}]\n${parsed.text.trim()}`);
+            }
+            if (parsed.ocrConfidence != null) allConfidences.push(parsed.ocrConfidence);
+            if (parsed.ocrRegions) allRegions.push(...parsed.ocrRegions);
+          } catch (tileErr) {
+            console.warn(
+              `[Document] PDF page ${pageIdx + 1} tile ${row}-${col} OCR failed:`,
+              tileErr instanceof Error ? tileErr.message : tileErr,
+            );
+          }
+        }
+      }
+
+      if (tileTexts.length > 0) {
+        allPageTexts.push(tileTexts.join('\n\n'));
+        successfulPages++;
+      } else {
+        // All tiles failed — try single-image OCR for this page
+        const pageBase64 = pageBuffer.toString('base64');
+        const result = await callVision(pageBase64, 'image/png', 'OCR_EXTRACTOR');
+        const parsed = parseVisionResult(result, false);
+        if (parsed.text.trim()) {
+          allPageTexts.push(`[Page ${pageIdx + 1}]\n${parsed.text.trim()}`);
+          successfulPages++;
+        }
+      }
+    } catch (tilePipeErr) {
+      console.warn(
+        `[Document] PDF page ${pageIdx + 1} tiling pipeline failed:`,
+        tilePipeErr instanceof Error ? tilePipeErr.message : tilePipeErr,
+      );
+    }
+  }
+
+  if (successfulPages === 0) return null;
+
+  const mergedText = allPageTexts.join('\n\n');
+  const avgConfidence = allConfidences.length
+    ? allConfidences.reduce((a, b) => a + b, 0) / allConfidences.length
+    : undefined;
+
+  const processedPageCount = Math.min(pageCount, 20);
+  return {
+    text: mergedText,
+    method: `pdf-page-tiled-${PDF_TILE_ROWS}x${PDF_TILE_COLS}`,
+    pageCount: processedPageCount,
+    ocrConfidence: avgConfidence,
+    ocrRegions: allRegions.length ? allRegions : undefined,
   };
 }
 

@@ -41,22 +41,23 @@ export default function DiscussionsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('open');
 
-  useEffect(() => { fetchThreads(); }, [statusFilter]);
-
-  async function fetchThreads() {
-    setLoading(true);
-    try {
-      const url = statusFilter === 'all'
-        ? '/api/admin/discussions?limit=100'
-        : `/api/admin/discussions?status=${statusFilter}&limit=100`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setThreads(data.threads || []);
-      }
-    } catch { /* silent */ }
-    setLoading(false);
-  }
+  useEffect(() => {
+    async function fetchThreads() {
+      setLoading(true);
+      try {
+        const url = statusFilter === 'all'
+          ? '/api/admin/discussions?limit=100'
+          : `/api/admin/discussions?status=${statusFilter}&limit=100`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setThreads(data.threads || []);
+        }
+      } catch { /* silent */ }
+      setLoading(false);
+    }
+    fetchThreads();
+  }, [statusFilter]);
 
   const statuses = ['all', 'open', 'in_progress', 'resolved', 'closed'];
 

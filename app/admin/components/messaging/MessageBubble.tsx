@@ -1,6 +1,7 @@
 // app/admin/components/messaging/MessageBubble.tsx
 'use client';
 import { useState } from 'react';
+import Image from 'next/image';
 
 interface Attachment {
   url: string;
@@ -96,7 +97,7 @@ export default function MessageBubble({
         {messageType === 'image' && attachments.length > 0 && (
           <div className="msg-bubble__image-grid">
             {attachments.filter(a => a.type.startsWith('image/')).map((att, i) => (
-              <img key={i} src={att.url} alt={att.name} className="msg-bubble__image" />
+              <Image key={i} src={att.url} alt={att.name} width={400} height={300} className="msg-bubble__image" unoptimized />
             ))}
           </div>
         )}

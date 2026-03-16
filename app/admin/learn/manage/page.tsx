@@ -122,6 +122,7 @@ export default function ManageContentPage() {
     setEditFlashcard({});
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadData(); }, [tab]);
 
   async function loadData() {

@@ -41,23 +41,22 @@ export default function MessagingSettingsPage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    loadPreferences();
-  }, []);
-
-  async function loadPreferences() {
-    try {
-      const res = await fetch('/api/admin/messages/preferences');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.preferences) {
-          setPrefs(prev => ({ ...prev, ...data.preferences }));
+    async function loadPreferences() {
+      try {
+        const res = await fetch('/api/admin/messages/preferences');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.preferences) {
+            setPrefs(prev => ({ ...prev, ...data.preferences }));
+          }
         }
+      } catch (err) {
+        reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load preferences' });
       }
-    } catch (err) {
-      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load preferences' });
+      setLoading(false);
     }
-    setLoading(false);
-  }
+    loadPreferences();
+  }, [reportPageError]);
 
   async function savePreferences() {
     setSaving(true);
