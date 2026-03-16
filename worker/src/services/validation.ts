@@ -80,13 +80,15 @@ function computeCurveEndpoint(
  *
  * @param data        Extracted boundary data from AI pipeline
  * @param cadAcreage  CAD-reported acreage for comparison (null if unknown)
- * @param _logger     Optional logger (accepted but unused — backward compat)
+ * @param logger      Optional logger — used to emit structured Stage 4 log entries
  */
 export function validateBoundary(
   data: ExtractedBoundaryData | null,
   cadAcreage: number | null,
-  _logger?: PipelineLogger,
+  logger?: PipelineLogger,
 ): ValidationResult {
+  logger?.info('Stage4', `validateBoundary: ${data ? `${data.type}, ${data.calls.length} calls` : 'null boundary'}${cadAcreage != null ? `, CAD=${cadAcreage} ac` : ''}`);
+
   const result: ValidationResult = {
     closureError_ft: null,
     precisionRatio: null,
@@ -103,6 +105,7 @@ export function validateBoundary(
 
   if (!data) {
     result.flags.push('No boundary data to validate');
+    logger?.warn('Stage4', 'validateBoundary: no boundary data — quality=failed');
     return result;
   }
 
@@ -114,6 +117,7 @@ export function validateBoundary(
         : 'No lot/block info';
       result.flags.push(`Lot-and-block description (${li}) — closure check N/A`);
       result.overallQuality = 'good';
+      logger?.info('Stage4', `validateBoundary: lot_and_block — ${li} — quality=good`);
     }
     return result;
   }
@@ -146,6 +150,9 @@ export function validateBoundary(
     result.precisionRatio = 'perfect';
   }
 
+  logger?.info('Stage4',
+    `  Closure: error=${result.closureError_ft}ft, perimeter=${result.totalPerimeter_ft}ft, precision=${result.precisionRatio ?? 'N/A'}`);
+
   // ── 4B: Area (Shoelace formula) ────────────────────────────────────
   if (points.length >= 3) {
     let area = 0;
@@ -166,6 +173,10 @@ export function validateBoundary(
         );
       }
     }
+
+    logger?.info('Stage4',
+      `  Area: ${result.computedArea_acres?.toFixed(4)} ac (${result.computedArea_sqft?.toFixed(0)} sqft)` +
+      (result.areaDiscrepancy_pct != null ? `, vs CAD: ${result.areaDiscrepancy_pct}% discrepancy` : ''));
   }
 
   // ── 4C: Bearing Sanity ─────────────────────────────────────────────
@@ -225,6 +236,18 @@ export function validateBoundary(
     result.overallQuality = 'fair';
   } else {
     result.overallQuality = 'poor';
+  }
+
+  // Log final quality + all flags
+  logger?.info('Stage4',
+    `  Quality: ${result.overallQuality} | bearingSanity=${result.bearingSanity} distanceSanity=${result.distanceSanity} refComplete=${result.referenceComplete}`);
+  if (result.flags.length > 0) {
+    logger?.info('Stage4', `  Flags (${result.flags.length}):`);
+    for (const flag of result.flags) {
+      logger?.warn('Stage4', `    ⚑ ${flag}`);
+    }
+  } else {
+    logger?.info('Stage4', '  No validation flags — boundary passes all checks');
   }
 
   return result;
